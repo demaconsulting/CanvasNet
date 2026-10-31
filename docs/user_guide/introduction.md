@@ -3915,7 +3915,7 @@ and exposed read-only, so one instance can be shared between threads and calls.
 | `Config` | `null` | A Vega-Lite configuration as JSON object text, merged over the built-in defaults and the `config` of the specification (the caller wins). This is how a host applies a theme without editing the specification |
 | `ContainerWidth`, `ContainerHeight` | 400, 300 | The size in pixels of a chart whose `width` or `height` is `"container"` |
 | `Fonts` | `null` | A `VegaLiteFontOptions`: `UseSystemFonts` (default `false`) and `AdditionalDirectories` (default empty; copied and validated when set). See *Time Zone, Fonts, and Determinism* |
-| `TimeZone` | `null` (UTC) | Accepted and reserved for the time support that is planned for a later release; there is no time scale yet |
+| `TimeZone` | `null` (UTC) | The only time zone the chart ever uses: a date-time without an offset in the data, a custom `date:` parse format, the local time units, the local date functions of expressions, and the ticks and labels of time scales are read in it. `null` is UTC, never the zone of the machine; the `utc` time units, scales, and functions always use UTC. See *Vega-Lite Time and Time Zones* |
 | `Parameters` | `null` | Caller-supplied values that **replace the definition** of the named parameters of the specification, validated and copied when set (see *Vega-Lite Parameters*). A name that the document does not declare (`ParameterNames`) is an `ArgumentException` when the chart is measured or rendered. Values are `null`, `bool`, `string`, finite numbers, `DateTime`, or `DateTimeOffset` |
 | `Datasets` | `null` | Named tables of rows for a `data.name`, copied when set; a caller dataset **replaces** a dataset of the same name in the specification's top-level `datasets`. Each row is a dictionary of field name to a value that is `null`, `bool`, `string`, a finite number, a `DateTime` (UTC; an unspecified kind is taken as UTC), or a `DateTimeOffset` (see *Vega-Lite Data*) |
 | `Limits` | `VegaLiteLimits.Default` | The resource limits of the call (see below) |
@@ -3977,48 +3977,53 @@ delimited text is always the header.
 **Types: `format.parse`.** Delimited text is read as text and, **as in Vega, nothing is converted unless you ask**: with
 no `parse` property (or `"parse": null`) every cell of a CSV, TSV, or DSV file stays a **string**, so identifiers such as
 `01234` and text such as `2024-03-05` or `true` are kept exactly as written, and there is no data-based inference of
-column types. JSON files, inline rows, and datasets keep their JSON types. You ask for conversion in one of three ways:
+column types. JSON files, inline rows, and datasets keep their JSON types. You ask for conversion in one of four ways:
 
 - `"parse": "auto"` is the explicit opt-in to inference. It looks at the whole column and picks, in this order,
   **boolean** when every non-empty value is `true` or `false` (any case), **number** when every non-empty value is a
-  number (`12`, `-2.5`, `+4`, `.5`, `1e3`, `007`), **date** when every non-empty value is an ISO 8601 date or date-time,
-  and otherwise leaves the column as text. One value that does not fit keeps the **whole** column text. An empty value
-  is `null` in a typed column. (On JSON data `"auto"` applies the same rule to columns that hold text.)
+  number (`12`, `-2.5`, `+4`, `.5`, `1e3`, `007`), **date** when every non-empty value is a date text (an ISO 8601
+  date or
+  date-time, or one of the forms of JavaScript's `Date.parse` that *Vega-Lite Time and Time Zones* lists, such as
+  `Jan 2, 2006`), and otherwise leaves the column as text. One value that does not fit keeps the **whole** column text.
+  An empty value is `null` in a typed column. (On JSON data `"auto"` applies the same rule to columns that hold text.)
 - `"parse": null` (or no `parse`) keeps every value as read (text stays text).
 - `"parse": {"price": "number", "ok": "boolean", "day": "date", "id": "string"}` converts only the **named** fields
   (the keys are field paths) and leaves every other field as read: `number` reads a finite number (a boolean is 1 or 0,
   a date is its milliseconds since the
   epoch); `boolean` reads `true` or `false` (any case) or `1` or `0`, and a number is true unless it is zero; `date` reads
-  an ISO 8601 text, or a number as milliseconds since the epoch; `string` is the text of the value (a number as
+  a date text by the rules of JavaScript's `Date.parse` (see *Vega-Lite Time and Time Zones*), or a number as
+  milliseconds since the epoch, and `date:'%d/%m/%Y'` and `utc:'%d/%m/%Y'` read the text with a d3 time format, in the
+  zone of the chart or in UTC; `string` is the text of the value (a number as
   JavaScript would write it, a date as `2024-03-05T00:00:00.000Z`). An empty value is `null` (except for `string`).
 - A value that an explicit conversion **cannot read becomes `null`**, never a made-up number or date, and the chart is
   drawn: one warning `vl-data-parse-failed` per field and type tells the author how many values were affected and the
   first one (`3 value(s) of the field 'n' could not be read as number and are null (the first is in row 2: 'abc')`).
-- ISO 8601 dates are `yyyy-MM-dd` (midnight UTC), and `yyyy-MM-ddTHH:mm`, `...:ss`, and `...:ss.fff` (up to seven digits
-  of fraction), each with an optional `Z` or `+HH:mm` offset. A date-time **without** a zone is taken as UTC, so a
-  chart never depends on the time zone of the machine. A date is an instant: its numeric value is the milliseconds since
-  1970-01-01T00:00:00Z, and its text is `yyyy-MM-ddTHH:mm:ss.fffZ`. Dates are supported from the year 1 to the **last
-  millisecond of the year 9999**; ISO text beyond that (for example `9999-12-31T23:59:59.9995`, a fraction of a
-  millisecond past it) is **not a date**: under `"auto"` its column stays text, and under an explicit `date`
-  conversion it becomes `null` with the usual `vl-data-parse-failed` warning.
+- A **temporal field is read as a date without being named**, as in Vega-Lite (the implicit `parse`): the field of a
+  channel of the type `temporal`, with a `timeUnit`, or with a `formatType` of `time`, the field of a `timeUnit`
+  transform, and the field of a filter or condition predicate that has a `timeUnit` or compares with a date-time object.
+  A `parse` entry for the field wins over this, and `"parse": null` switches it off. See *Vega-Lite Time and Time
+  Zones*.
+- A date is an instant: its numeric value is the milliseconds since 1970-01-01T00:00:00Z, and its text is
+  `yyyy-MM-ddTHH:mm:ss.fffZ`. Dates are supported from the year 1 to the **last millisecond of the year 9999**; text
+  beyond that (for example `9999-12-31T23:59:59.9995`, a fraction of a millisecond past it) is **not a date**: under
+  `"auto"` its column stays text, and under an explicit `date` conversion it becomes `null` with the usual
+  `vl-data-parse-failed` warning. A date-time **without** an offset is read in the time zone of the chart
+  (`VegaLiteRenderOptions.TimeZone`, UTC by default, never the zone of the machine), and a date without a time is UTC;
+  a `Z` or `+HH:mm` offset is honored (see *Vega-Lite Time and Time Zones* for every form).
 
 *Numbers in unparsed text.* Because the cells stay text, a chart still works with an unparsed CSV: as in Vega, a
 **quantitative** encoding coerces numeric text to a number when it draws it, so quantitative `x`, `y`, `size`, and
 `opacity` fields (and a linear scale's domain) read `"12.5"` as 12.5 without any `parse`. This coercion is not a parse
-mode, so the values stay text in every other use (a nominal field or a label). Quantitative `color` is not drawn
-by the current subset. Parsing text as **dates** for temporal encodings, and the time scales that need it, arrive with the
-time support (Phase 8): until then convert a date column with `parse` (ISO 8601), or write it in ISO 8601.
+mode, so the values stay text in every other use (a nominal field or a label). A **temporal** field needs no `parse`:
+it is read as a date, as described above.
 
 *Where this differs from Vega.* The conversion rules follow Vega's, with these deliberate
 differences: a number is a finite decimal or exponent number (hexadecimal, thousands separators, `NaN`, and infinities
-are not numbers, where JavaScript's conversion would accept some of them); a date is ISO 8601 only and always UTC
-(Vega accepts any text that JavaScript's `Date.parse` reads, in more formats, and reads a date-time without a zone as
-local time); and a custom time format (`"parse": {"d": "date:'%d/%m/%Y'"}`, also `utc:'...'`) is **recognized and not
-applied**: the field is left as read and `vl-data-parse-date-format` is reported (an error in strict mode), because
-time formatting arrives with the time support. Convert such a column to ISO 8601 in the file, or supply it as a date in
-`Datasets`. There are no time scales yet, so where a quantitative value is needed a date reads as its number of
-milliseconds, and as a
-category it reads as its ISO text.
+are not numbers, where JavaScript's conversion would accept some of them); a date text is read by the documented subset
+of the forms of `Date.parse` (ISO 8601 and the legacy forms listed in *Vega-Lite Time and Time Zones*), where Vega
+accepts every text that the JavaScript engine of the browser reads; a date outside the years 1 to 9999 is not a date;
+and a date that cannot be read is `null`, never JavaScript's `Invalid Date`. Where a quantitative value is needed a date
+reads as its number of milliseconds, and as a category it reads as its ISO text.
 
 **Named datasets from code.** `VegaLiteRenderOptions.Datasets` maps a name to a list of rows, each row a dictionary
 from field name to a value (`null`, `bool`, `string`, a finite number, a `DateTime`, or a `DateTimeOffset`; a
@@ -4090,20 +4095,21 @@ without it. A key that Vega-Lite does not define for a view, mark, encoding, or 
 | Data | Inline `data.values` (an array of objects, one row per object with nested values flattened to path fields such as `a.b`, or of primitives, one row `{"data": value}`); a relative local `data.url` read as JSON, CSV, TSV, or DSV; `format.type`, `delimiter`, `property`, and `parse` (see *Vega-Lite Data*); named data (`data.name`, from the caller's `Datasets` or the top-level `datasets`); and `data.sequence`. Remote URLs, geographic data, and `values` given as text are not read |
 | Marks | `bar`, `rect`, `point`, `circle`, `square`, `rule`, and `tick`, given as a string or as a definition object with `type` |
 | Channels | `x`, `y`, `color`, `fill`, `stroke`, `size`, `opacity`, `fillOpacity`, `strokeOpacity`, `strokeWidth`, `strokeDash`, `shape`, and `angle`, each as a `field`, a literal `value`, or a literal `datum` where the channel permits it (`shape` is drawn by a `point` mark, `angle` by a `point`, `circle`, or `square`, and `strokeDash` by every mark but a `rect`; see *Vega-Lite Legends, Color Schemes, and Scales*). `x2` and `y2` give the end of a range on a `bar`, `rect`, or `rule`, and `order` orders the layers of a stack (an `order` that does not order a stack is reported). `tooltip`, `href`, `description`, and `key` are accepted and ignored without a report, because they have no meaning in a still picture |
-| Field types | `quantitative`, `nominal`, and `ordinal` |
-| Encoding properties | `field`, `type`, `value`, `datum`, `title`, `scale`, `axis`, `legend` (an object of legend properties, or `null`), `aggregate` (all 24 operations, including `count` without a field), `bin` (on `x` and `y`: `true`, the bin parameters, or `"binned"`; on `color`, `fill`, `stroke`, `size`, the opacities, `strokeWidth`, `strokeDash`, `shape`, and `angle`: `true` or the bin parameters, with 6 bins by default, 4 for `strokeDash`, and 10 for `angle`), `stack` (`zero`, `center`, `normalize`, `true`, `false`, or `null`), and `sort` (ascending, descending, `null`, an array of values, a channel such as `"-y"`, or an object that sorts by an aggregate of a field), and `condition` on the `color`, `fill`, `stroke`, `opacity`, `fillOpacity`, `strokeOpacity`, `strokeWidth`, `strokeDash`, `size`, `shape`, and `angle` channels (a `test` that is an expression or a predicate; the first condition that holds gives the mark its `value` or the scale of its field; see *Vega-Lite Conditional Encodings*); see *Vega-Lite Aggregation, Binning, and Stacking* |
-| Scales | The types linear, log, pow, sqrt, symlog, sequential, band, point, ordinal, quantile, quantize, threshold, and bin-ordinal, as Vega-Lite accepts them for a channel and a field type (a scale type that the channel or the field cannot use is replaced by the default one with the warning `vl-scale-type-ignored`); a diverging color scale is a sequential one with a `domainMid`. A binned quantitative color gets the bin-ordinal scale (one color per bin, and a legend of the ranges of the bins). A log scale takes `base`, a pow scale `exponent`, and a symlog scale `constant`; a log scale has no zero, is rounded out to powers of its base, and refuses a domain that includes zero or crosses it with a located error, where a symlog scale takes such data. The properties are `type`, `domain`, `domainMid`, `domainMin`, `domainMax`, `range` (a list, or the name of an entry of `config.range`), `rangeMin`, `rangeMax`, `scheme`, `interpolate`, `zero`, `nice`, `padding`, `reverse`, `paddingInner`, `paddingOuter`, `align`, `round`, `clamp`, `base`, `exponent`, and `constant`; see *Vega-Lite Legends, Color Schemes, and Scales*. A quantitative `domain` and `range` of more than two entries map piecewise exactly as in d3-scale (`min(domain length, range length)` entries are used, and `zero`, `nice` and padding change only the first and last entry), while a band or point scale uses the first two entries of its `range` |
-| Axes | Grid, ticks, labels, domain, title, `orient`, `offset`, `minExtent`, `maxExtent`, `tickCount`, `tickMinStep`, `values`, a d3 `format`, the label properties (`labelAngle`, `labelAlign`, `labelBaseline`, `labelPadding`, `labelOffset`, `labelLimit`, `labelFlush`, `labelFlushOffset`, `labelOverlap`, `labelSeparation`), the font, color, opacity, dash, width, and cap properties of the parts, `titleAnchor`, `titleAngle`, `titlePadding`, and `zindex`, with the configuration precedence of Vega-Lite |
-| Legends | Symbol, gradient, and discrete gradient legends for the color, fill, stroke, shape, size, opacity, stroke width, and stroke dash channels, merged when channels share a field, placed by `orient` (right by default), titled like the axes, with the `legend` properties and `config.legend`; `legend: null` switches one off, and the legend of a chart makes the picture larger (see *Vega-Lite Legends, Color Schemes, and Scales*). `legend.encode`, `labelExpr`, a custom `formatType`, a `titleOrient` other than `top`, and `clipHeight` are reported and not drawn |
+| Field types | `quantitative`, `temporal`, `nominal`, and `ordinal` (`geojson` is reported) |
+| Encoding properties | `field`, `type`, `value`, `datum`, `title`, `scale`, `axis`, `legend` (an object of legend properties, or `null`), `aggregate` (all 24 operations, including `count` without a field), `bin` (on `x` and `y`: `true`, the bin parameters, or `"binned"`; on `color`, `fill`, `stroke`, `size`, the opacities, `strokeWidth`, `strokeDash`, `shape`, and `angle`: `true` or the bin parameters, with 6 bins by default, 4 for `strokeDash`, and 10 for `angle`), `timeUnit` (the 40 Vega-Lite time units, their `utc` forms, and the object form; see *Vega-Lite Time and Time Zones*), `stack` (`zero`, `center`, `normalize`, `true`, `false`, or `null`), and `sort` (ascending, descending, `null`, an array of values, a channel such as `"-y"`, or an object that sorts by an aggregate of a field), and `condition` on the `color`, `fill`, `stroke`, `opacity`, `fillOpacity`, `strokeOpacity`, `strokeWidth`, `strokeDash`, `size`, `shape`, and `angle` channels (a `test` that is an expression or a predicate; the first condition that holds gives the mark its `value` or the scale of its field; see *Vega-Lite Conditional Encodings*); see *Vega-Lite Aggregation, Binning, and Stacking* |
+| Scales | The types linear, log, pow, sqrt, symlog, sequential, time, utc, band, point, ordinal, quantile, quantize, threshold, and bin-ordinal, as Vega-Lite accepts them for a channel and a field type (a scale type that the channel or the field cannot use is replaced by the default one with the warning `vl-scale-type-ignored`); a diverging color scale is a sequential one with a `domainMid`. A temporal field gets a `time` scale (a `utc` scale for a `utc` time unit), see *Vega-Lite Time and Time Zones*. A binned quantitative color gets the bin-ordinal scale (one color per bin, and a legend of the ranges of the bins). A log scale takes `base`, a pow scale `exponent`, and a symlog scale `constant`; a log scale has no zero, is rounded out to powers of its base, and refuses a domain that includes zero or crosses it with a located error, where a symlog scale takes such data. The properties are `type`, `domain`, `domainMid`, `domainMin`, `domainMax`, `range` (a list, or the name of an entry of `config.range`), `rangeMin`, `rangeMax`, `scheme`, `interpolate`, `zero`, `nice` (also a time interval for a time scale), `padding`, `reverse`, `paddingInner`, `paddingOuter`, `align`, `round`, `clamp`, `base`, `exponent`, and `constant`; see *Vega-Lite Legends, Color Schemes, and Scales*. A quantitative `domain` and `range` of more than two entries map piecewise exactly as in d3-scale (`min(domain length, range length)` entries are used, and `zero`, `nice` and padding change only the first and last entry), while a band or point scale uses the first two entries of its `range` |
+| Axes | Grid, ticks, labels, domain, title, `orient`, `offset`, `minExtent`, `maxExtent`, `tickCount` (a number, and for a time scale a time interval), `tickMinStep`, `values`, a d3 number or time `format` (a text, or for dates an object of multi-format levels), `formatType` of `number`, `time`, or `utc`, the label properties (`labelAngle`, `labelAlign`, `labelBaseline`, `labelPadding`, `labelOffset`, `labelLimit`, `labelFlush`, `labelFlushOffset`, `labelOverlap`, `labelSeparation`), the font, color, opacity, dash, width, and cap properties of the parts, `titleAnchor`, `titleAngle`, `titlePadding`, and `zindex`, with the configuration precedence of Vega-Lite (including `config.axisTemporal`) |
+| Legends | Symbol, gradient, and discrete gradient legends for the color, fill, stroke, shape, size, opacity, stroke width, and stroke dash channels, merged when channels share a field, placed by `orient` (right by default), titled like the axes, with the `legend` properties and `config.legend`; `legend: null` switches one off, and the legend of a chart makes the picture larger (see *Vega-Lite Legends, Color Schemes, and Scales*). A temporal field gets date labels (see *Vega-Lite Time and Time Zones*). `legend.encode`, `labelExpr`, a `formatType` other than `number`, `time`, or `utc`, a `titleOrient` other than `top`, and `clipHeight` are reported and not drawn |
 | Color schemes | The 68 color schemes of Vega by name (`scale.scheme` and `config.range`, lower or upper case), a list of colors, or `{"name", "count", "extent"}`, with `interpolate` (`rgb`, `hsl`, `hsl-long`, `lab`, `hcl`, `hcl-long`, and an sRGB `gamma`) for a list of colors; an unknown scheme name is an error. `cubehelix` interpolation is reported |
 | Shapes | The symbol names `circle`, `square`, `cross`, `diamond`, `triangle-up`, `triangle-down`, `triangle-right`, `triangle-left`, `stroke`, `arrow`, `wedge`, and `triangle` for the `shape` channel, a `shape` property, and `legend.symbolType`; a custom SVG path is reported and a circle is drawn |
 | Titles | `text` (a string or an array of lines), `subtitle`, `anchor`, `orient`, `offset`, `frame`, the font, color, and alignment properties, `limit`, `angle`, `dx`, and `dy` |
 | Layout | `width` and `height` as numbers, `{"step": n}`, or `"container"`; `padding` as a number or an object; `autosize` of `pad` or `none`; `background`; the `view` configuration (size, fill, and stroke) |
 | Configuration | The Vega-Lite 6 and Vega defaults, the `config` of the specification, and `VegaLiteRenderOptions.Config`, merged in that order; the `style` mechanism |
-| Expressions | A subset of the Vega expression language with 57 functions (math, string, array, type, and regular expression), in the `calculate` and `filter` transforms, the `expr` of a parameter, and the `{"expr": ...}` color, fill, stroke, opacity, stroke width, and size values of a mark that are evaluated for every row; see *Vega-Lite Expressions* |
+| Expressions | A subset of the Vega expression language with 99 functions (math, string, array, type, regular expression, and date and time), in the `calculate` and `filter` transforms, the `expr` of a parameter, and the `{"expr": ...}` color, fill, stroke, opacity, stroke width, and size values of a mark that are evaluated for every row; see *Vega-Lite Expressions* |
 | Parameters | Static **variable** parameters of the single view (`value` or `expr`, with a caller override through `VegaLiteRenderOptions.Parameters`), read by expressions and by the `param` filter predicate; see *Vega-Lite Parameters*. Selections and bindings have no meaning in a still picture |
-| Transforms | `calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot`, `lookup`, `aggregate`, `joinaggregate`, `window`, `bin`, `stack`, and `impute`, run in the order of the specification on the rows before the scales are built; see *Vega-Lite Transforms* and *Vega-Lite Aggregation, Binning, and Stacking* |
-| Time, other transforms | **None** (see the identifiers below) |
+| Transforms | `calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot`, `lookup`, `timeUnit`, `aggregate`, `joinaggregate`, `window`, `bin`, `stack`, and `impute`, run in the order of the specification on the rows before the scales are built; see *Vega-Lite Transforms*, *Vega-Lite Time and Time Zones*, and *Vega-Lite Aggregation, Binning, and Stacking* |
+| Time | Temporal fields with implicit date parsing, the `parse` directives `date`, `date:'...'`, and `utc:'...'`, the time units, date-time objects, time and UTC scales with calendar ticks and `nice` intervals, date labels on axes and legends, the date and time expression functions, and the render option `TimeZone`; see *Vega-Lite Time and Time Zones* |
+| Other transforms | **None** (`regression`, `loess`, `density`, `quantile`, and `extent` are reported; see the identifiers below) |
 <!-- markdownlint-enable MD013 -->
 
 The default colors, sizes, orientations, and layout constants follow Vega-Lite 6 and Vega; positions are derived from
@@ -4158,9 +4164,9 @@ numbers otherwise, `==` and the relational operators convert their operands as J
 kind and the value, division by zero is an infinity or `NaN`, and `%` is the remainder of JavaScript. Arrays and
 objects are values that compare **by identity** (`[1] == [1]` is false, as in JavaScript). Two differences are
 deliberate: the data model has one `null` for both JavaScript's `null` and `undefined`, so `null + 1` is 1 (JavaScript
-gives `NaN` for `undefined + 1`), and `isNaN` and `isFinite` do not convert their argument (see below). A date in the
-data is a value that reads as its milliseconds since the epoch in arithmetic and as its ISO text as a string, and
-expressions have no way to create one.
+gives `NaN` for `undefined + 1`), and `isNaN` and `isFinite` do not convert their argument (see below). A date is a value
+that reads as its milliseconds since the epoch in arithmetic and as its ISO text as a string; the date functions create
+and read dates (see *Vega-Lite Time and Time Zones*).
 
 **What is a syntax error.** Assignments (`=`, `+=`, ...), `++` and `--`, `new`, `function` and `=>`, `typeof`, `void`,
 and `delete`, the comma operator and `;`, `**`, `??`, `?.`, spread (`...`), template strings, method calls, and every
@@ -4176,7 +4182,7 @@ declares (`width`, `height`, `padding`, `autosize`, `background`, `cursor`: `vl-
 `VegaLiteUnsupportedFeatureException` (see *Vega-Lite Unsupported Features and Strict Mode*); the report is located at
 the string value of the expression and its message names the offset of the construct.
 
-**The functions.** There are exactly **57** functions; names are case-sensitive and an argument that is not given is
+**The functions.** There are exactly **99** functions; names are case-sensitive and an argument that is not given is
 `undefined` (`NaN` as a number, the text `undefined` as a string). Number arguments are converted as in JavaScript.
 
 <!-- markdownlint-disable MD013 -->
@@ -4209,24 +4215,38 @@ the string value of the expression and its message names the offset of the const
 | `includes(x, value)` | Whether the text contains the text `value`, or the array has an element that is the same value (`NaN` equals `NaN`) |
 | `join(array[, separator])` | The elements as text joined by `separator` (`,` by default; `null` elements are empty); `null` when `x` is not an array |
 
-| Type and conversion (13) | Meaning |
+| Type and conversion (14) | Meaning |
 | ------------------------ | ------- |
 | `isArray(x)`, `isBoolean(x)`, `isDate(x)`, `isNumber(x)`, `isString(x)`, `isRegExp(x)` | Whether the value is of that kind; `isNumber` is true for `NaN` and the infinities |
 | `isObject(x)` | True for objects, arrays, dates, and regular expressions (not for `null`) |
 | `isFinite(x)`, `isNaN(x)` | True for a number that is finite, or is `NaN`; false for any other kind, **without conversion** (like `Number.isFinite` and `Number.isNaN`) |
 | `isValid(x)` | True unless the value is `null` or `NaN` |
 | `toBoolean(x)`, `toNumber(x)`, `toString(x)` | The value converted as JavaScript does (the texts `false` and `0` are false for `toBoolean`); `null` and the empty text give `null`, so a missing value stays missing |
+| `toDate(x)` | A date from a date, a number of milliseconds, or a date text (read in the zone of the chart as a `Date.parse` text is); `null` for `null`, the empty text, and anything that is not a valid date |
 
 | Regular expression (2) | Meaning |
 | ---------------------- | ------- |
 | `regexp(pattern[, flags])` | A regular expression value; an invalid pattern or an unknown, unsupported (`u`, `v`, `y`, `d`) or repeated flag fails the render |
 | `test(regexp, s)` | Whether the text matches; a text instead of a regular expression is used as the pattern |
+
+| Date and time (41) | Meaning |
+| ------------------ | ------- |
+| `datetime()`, `datetime(x)`, `datetime(year, month[, day, hours, minutes, seconds, milliseconds])` | A date. With no argument it is `null` (an expression has no clock); with one argument it is the instant `x` (a date, a number of milliseconds, or a date text); with two or more it is the wall-clock time in the zone of the chart, with the month counted from 0 and the day 1 by default. Parts that are too large or too small roll over as in JavaScript (month 12 is January of the next year, day 0 is the last day of the previous month), and a year from 0 to 99 means 1900 to 1999. A result outside the years 1 to 9999 is `null` |
+| `utc(year[, month, day, hours, minutes, seconds, milliseconds])` | The same wall-clock rules in UTC, as the **number** of milliseconds (the month is 0 by default) |
+| `time(d)`, `timezoneoffset(d)` | The milliseconds of a date (a number, `NaN` for a value that is not a date); the offset of the zone from UTC at that instant **in minutes with the sign of JavaScript** (`300` for UTC-05:00, `-330` for UTC+05:30) |
+| `year`, `quarter`, `month`, `week`, `date`, `day`, `dayofyear`, `hours`, `minutes`, `seconds`, `milliseconds`, `isoweek` `(d)`, and the same names with a `utc` prefix (`utcyear`, `utcmonth`, ...) | The part of a date: the year, the quarter 1 to 4, the month 0 to 11, the week of the year counted in Sundays (0 until the first Sunday), the day of the month 1 to 31, the weekday 0 (Sunday) to 6, the day of the year 1 to 366, the time of day, and the ISO 8601 week number. The names without the prefix read the zone of the chart; a value that is not a date gives `NaN` |
+| `timeOffset(unit, d[, step])`, `utcOffset(unit, d[, step])` | The date moved by `step` units (1 by default; negative goes back) with the calendar rules of d3-time (a month moves to the same day of the month, rolling over when it has none). `unit` is `year`, `quarter`, `month`, `week`, `date`, `day`, `dayofyear`, `hours`, `minutes`, `seconds`, or `milliseconds` in lower case (the singular d3 names such as `hour` and `day` also work); any other value gives `null` |
+| `timeSequence(unit, start, stop[, step])`, `utcSequence(...)` | The array of dates from `start` up to, **not including**, `stop` in steps of that unit, aligned to the calendar as the ticks of d3 are; at most `MaxScaleDomainSize` dates, and one evaluation step is charged for each |
+| `timeUnitSpecifier(units[, specifiers])` | The d3 time format that labels the given Vega time unit names (a text or an array of them) with Vega's defaults, for example `%Y-%m` for `["year", "month"]`; `specifiers` replaces the format of a unit. `null` for an invalid list |
+| `timeFormat(value, specifier)`, `utcFormat(value, specifier)` | The date as text with a d3 time format (see *Vega-Lite Time and Time Zones*), or with an object of multi-format levels; `value` is read as a number of milliseconds like d3 does, so a text that is not a number gives `Invalid Date`, and `null` gives the text `null` |
+| `timeParse(text, specifier)`, `utcParse(text, specifier)` | The date that a d3 time format reads from the text, or `null` when the text does not match it |
+| `monthFormat(m)`, `monthAbbrevFormat(m)`, `dayFormat(d)`, `dayAbbrevFormat(d)` | The English name of month `m` (0 is January) or weekday `d` (0 is Sunday), full or abbreviated; the empty text for anything that is not a whole number; other numbers roll over |
 <!-- markdownlint-enable MD013 -->
 
-The functions of the date and time, formatting (`format`, `timeFormat`, ...), color (`rgb`, `hsl`, ...), scale, data
-(`data`, `scale`), and geographic families, and the other functions of Vega, are reported as unsupported
-(`vl-expr-function-<name>`, for example `vl-expr-function-datetime`) and give `null`. `now` and `random` are not
-available by design: an expression has no clock and no random source.
+The functions of the formatting (`format`, ...), color (`rgb`, `hsl`, ...), scale, data (`data`, `scale`), and
+geographic families, and the other functions of Vega, are reported as unsupported (`vl-expr-function-<name>`, for
+example `vl-expr-function-geoarea`) and give `null`. `now` and `random` are not available by design: an expression has
+no clock and no random source, so `now()` is reported as `vl-expr-function-now`, and `datetime()` gives `null`.
 
 **Regular expressions** are JavaScript regular expressions run by the .NET engine, so a few details follow .NET: `\d`,
 `\D`, `\w`, and `\W` are ASCII classes (also inside a character class), `\s` and `\S` are the JavaScript white space,
@@ -4313,11 +4333,11 @@ parameter has the value that its definition gives, because a still picture has n
 The `transform` array of the view is run **in the order of the text**, once per measure or render call, on the rows
 that the data source gave and **before** the scales are built, so every scale, axis, and mark sees the transformed rows.
 Each transform is applied to the whole table that the previous one produced. An entry that names a transform that is
-not supported (`timeUnit`, `regression`, `loess`, `density`, `quantile`, `extent`) is reported (`vl-transform-<name>`)
+not supported (`regression`, `loess`, `density`, `quantile`, `extent`) is reported (`vl-transform-<name>`)
 and **skipped**; the later transforms still run on the rows without it, so the chart is only approximate. A transform of
 a view that is not drawn (a view inside a composition) is reported and never applied. The aggregating transforms
 (`aggregate`, `joinaggregate`, `window`, `bin`, `stack`, and `impute`) are described in *Vega-Lite Aggregation,
-Binning, and Stacking*.
+Binning, and Stacking*, and the `timeUnit` transform in *Vega-Lite Time and Time Zones*.
 
 The shape of an entry is checked when the document is opened: an entry that is not an object, or has none of the
 transform properties, or a transform of the wrong shape (a `fold` that is not an array, a `calculate` without `as`, a
@@ -4335,6 +4355,7 @@ name is a Vega-Lite field path (`a`, `a.b`, `a\.b`).
 | `sample` | `sample` (a number of rows, not negative) | Keeps at most that many rows, in the order of the data. See *Determinism* below |
 | `pivot` | `pivot` (the field whose values become columns), `value` (required), `groupby` (fields), `limit` (0 or absent for no limit), `op` (`sum` or `count`) | One row per distinct `groupby` combination (in the order of first appearance; all rows form one group without `groupby`), with the `groupby` fields and one column per distinct pivot value, named by the text of the value and in ordinal order. A cell is the sum of the numbers of `value` of the group (the default; numeric text and booleans count as numbers) or the number of rows (`count`); a combination without rows is 0. Any other field is dropped. A pivot `op` other than `sum` or `count` is reported (`vl-transform-pivot-op`) and `sum` is used |
 | `lookup` | `lookup` (the field of the data), `from.data` (a data source), `from.key`, `from.fields`, `as`, `default` | Copies the fields `from.fields` of the **first** row of the other data whose `from.key` has the same value into the fields `as` (the field names when `as` is absent). Without `from.fields` the whole row goes into one field, `data` by default, as an object. A row with no match gets `default` (a text, number, boolean, or `null`; `null` by default). Vega-Lite takes the last row for a repeated key; this package takes the first |
+| `timeUnit` | `timeUnit` (a time unit name or object), `field` (required), `as` (required, a non-empty text) | Adds two date fields to every row: `as`, the start of the time unit that contains the date in `field`, and `as_end`, the exclusive end of that unit (for example `month` and `month_end`). The field is read as a date (it is date-parsed implicitly, and a number is milliseconds); a row whose value is not a date, or is outside the years 1 to 9999, gets `null` in both fields. See *Vega-Lite Time and Time Zones* |
 <!-- markdownlint-enable MD013 -->
 
 **Filter predicates.** A field predicate is an object with a `field` and one comparison; `and`, `or`, and `not`
@@ -4353,9 +4374,11 @@ combine predicates, and `param` names a parameter. Comparisons follow JavaScript
 <!-- markdownlint-enable MD013 -->
 
 When an object has several comparisons, the first of `equal`, `lt`, `lte`, `gt`, `gte`, `range`, `oneOf`, `valid` is
-used. A `timeUnit` in a predicate is ignored (`vl-transform-filter-timeunit`), a comparison with a date object
-(`{"year": 2020}`) is ignored and holds for every row (`vl-transform-filter-datetime`), and a `selection` predicate or
-the `param` of a selection keeps every row (`vl-transform-filter-param`).
+used. A predicate may carry a `timeUnit`, and its value may be a date-time object (`{"year": 2020}`): the comparison is
+then made on the date, or on the parts that the unit keeps (see *Vega-Lite Time and Time Zones*). The `timeUnit` of a
+predicate whose unit has a `week` or `dayofyear` part does not apply those parts, as in Vega-Lite, and is reported as
+the warning `vl-predicate-timeunit-part`. A `selection` predicate or the `param` of a selection keeps every row
+(`vl-transform-filter-param`).
 
 **Sorting by a field.** The `sort` of a discrete channel takes these forms:
 
@@ -4378,8 +4401,9 @@ value has a `null` result, which sorts first in either direction). Categories wi
 first appearance. A sort by a channel that is not in the encoding or has no field, or by an unsupported `op`, is
 reported (`vl-encoding-sort`, with a message that names the channel) and the categories are sorted ascending. A `sort`
 array may hold only strings, numbers, booleans, and `null`; an object or an array in it is a specification error at that
-item (the one exception is a date-time object such as `{"year": 2024}` on a field of type `temporal`, which is accepted
-for a later release). An array that mixes kinds of values (`[1, "b"]`) still works, because values are matched by kind,
+item (the one exception is a date-time object such as `{"year": 2024}` on a field of type `temporal`, which is read as a
+date; see *Vega-Lite Time and Time Zones*). An array that mixes kinds of values (`[1, "b"]`) still works, because values
+are matched by kind,
 and is reported as the warning `vl-encoding-sort-mixed-types`. A `sort` array, channel, or object on a quantitative
 field has no categories to order on its continuous scale and is ignored with the warning `vl-encoding-sort-ignored`. A
 key of a `sort` object that Vega-Lite does not define is the warning `vl-unknown-property`. A `sort` array may list at
@@ -4605,8 +4629,9 @@ the message names the limit. The result never depends on the machine, the cultur
   `cume_dist` and `ntile` count all the peers of the first rows (Vega under-counts them).
 - **Bin** growth is bounded, `bin` needs no `as` (the names are `bin0` and `bin1`), and an anchor shifts the bins
   exactly as Vega does.
-- A `bin: "binned"` on a channel other than `x` and `y`, an encoding `impute`, and a `timeUnit` are reported (see the
-  identifiers below).
+- A `bin: "binned"` on a channel other than `x` and `y` and an encoding `impute` are reported (see the identifiers
+  below). A field with a `timeUnit` is grouped by the start of its unit (and its end, when the mark spans the unit; see
+  *Vega-Lite Time and Time Zones*), and a `bin` on a field wins over its `timeUnit`.
 
 ### Vega-Lite Legends, Color Schemes, and Scales
 
@@ -4620,7 +4645,7 @@ the scale:
 | Scale | Legend |
 | ----- | ------ |
 | A discrete scale (ordinal, band, point), and a continuous `size`, `opacity`, `strokeWidth`, or `angle` scale | A **symbol legend**: one symbol and one label per value (the values of the domain, or the ticks of a continuous scale, about five); `legend.values` lists them explicitly. More than `symbolLimit` (30) entries keep the first ones and end with an entry such as `…3 entries` |
-| A sequential or diverging color scale (a quantitative color) | A **gradient legend**: a bar of the colors of the scale, 16 pixels thick and by default 200 long (the chart height, limited to 64 to 200 pixels, for a vertical bar), with labels at the ticks. `legend.type: "symbol"` gives a symbol legend of ticks instead |
+| A sequential or diverging color scale (a quantitative or temporal color) | A **gradient legend**: a bar of the colors of the scale, 16 pixels thick and by default 200 long (the chart height, limited to 64 to 200 pixels, for a vertical bar), with labels at the ticks (for a temporal field the ticks and labels are dates, see *Vega-Lite Time and Time Zones*). `legend.type: "symbol"` gives a symbol legend of ticks instead |
 | A quantize, quantile, or threshold color scale | A **discrete gradient legend**: one band per class, with the class limits as labels |
 | A bin-ordinal color scale (a binned quantitative color) | A symbol legend with one entry per bin, labeled with the range of the bin (`0 – 10`, with a `legend.format` or the number text) |
 <!-- markdownlint-enable MD013 -->
@@ -4640,7 +4665,7 @@ Vega-Lite.
 <!-- markdownlint-disable MD013 -->
 | Legend properties | Meaning |
 | ----------------- | ------- |
-| `type`, `orient`, `direction`, `title`, `values`, `format`, `tickCount`, `tickMinStep`, `zindex`, `offset`, `padding`, `legendX`, `legendY` | What and where; `format` is a d3 number format of the labels |
+| `type`, `orient`, `direction`, `title`, `values`, `format`, `formatType`, `tickCount`, `tickMinStep`, `zindex`, `offset`, `padding`, `legendX`, `legendY` | What and where; `format` is a d3 number format of the labels (a d3 time format for dates, see *Vega-Lite Time and Time Zones*) |
 | `columns`, `columnPadding`, `rowPadding`, `gridAlign`, `symbolLimit` | The grid of symbol entries (`columns` splits a long vertical legend) and the entry limit |
 | `symbolType`, `symbolSize`, `symbolOffset`, `symbolStrokeWidth`, `symbolOpacity`, `symbolFillColor`, `symbolStrokeColor`, `symbolDash`, `symbolDashOffset` | The symbols (a symbol name; see the shapes below) |
 | `gradientLength`, `gradientThickness`, `gradientOpacity`, `gradientStrokeColor`, `gradientStrokeWidth` | The gradient bar |
@@ -4651,7 +4676,8 @@ Vega-Lite.
 
 Every property can also be set for all legends in `config.legend` (with the `config.legend.layout` object for the
 placement of the groups of legends, and the defaults of Vega-Lite and Vega). `legend.encode`, `legend.labelExpr`, a
-custom `legend.formatType`, a `titleOrient` other than `top`, and `clipHeight` are accepted, **reported**
+`legend.formatType` other than `number`, `time`, and `utc`, a `titleOrient` other than `top`, and `clipHeight` are
+accepted, **reported**
 (`vl-guide-encode`, `vl-expr-label`, `vl-format-type-custom`, `vl-guide-legend-titleorient`,
 `vl-guide-legend-clipheight`), and not drawn.
 
@@ -4661,10 +4687,10 @@ other is replaced by the default type with the warning `vl-scale-type-ignored`:
 <!-- markdownlint-disable MD013 -->
 | Channels | Default scale | Other types that are accepted |
 | -------- | ------------- | ----------------------------- |
-| `x`, `y` | `linear` for a quantitative field; `band` (bar, rect, tick) or `point` for a discrete one | `log`, `pow`, `sqrt`, `symlog`; `band` and `point` for a discrete field |
-| `color`, `fill`, `stroke` | `sequential` for a quantitative field (a gradient); `bin-ordinal` when the field is binned; `ordinal` for a nominal or ordinal one | `linear`, `log`, `pow`, `sqrt`, `symlog` (a sequential scale with that transform), `quantize`, `quantile`, `threshold` |
-| `size`, `opacity`, `fillOpacity`, `strokeOpacity`, `strokeWidth`, `angle` | `linear` for a quantitative field; `point` for a discrete one | `log`, `pow`, `sqrt`, `symlog`, `quantize`, `quantile`, `threshold`, `bin-ordinal`, `ordinal`, `band`, `point` |
-| `shape`, `strokeDash` | `ordinal` (a quantitative field is accepted with the warning `vl-scale-type-ignored`, because the channel shows categories) | `quantize`, `quantile`, `threshold` for a quantitative field |
+| `x`, `y` | `linear` for a quantitative field; `time` for a temporal one (`utc` when its time unit is a `utc` unit); `band` (bar, rect, tick) or `point` for a discrete one | `log`, `pow`, `sqrt`, `symlog`; `band` and `point` for a discrete field; a temporal field accepts only `time` and `utc` |
+| `color`, `fill`, `stroke` | `sequential` for a quantitative or temporal field (a gradient); `bin-ordinal` when the field is binned; `ordinal` for a nominal or ordinal one | `linear`, `log`, `pow`, `sqrt`, `symlog` (a sequential scale with that transform), `quantize`, `quantile`, `threshold` for a quantitative field; a temporal field accepts only `time` and `utc`, which are drawn as a sequential scale over the dates |
+| `size`, `opacity`, `fillOpacity`, `strokeOpacity`, `strokeWidth`, `angle` | `linear` for a quantitative field; `time` (or `utc`) for a temporal one; `point` for a discrete one | `log`, `pow`, `sqrt`, `symlog`, `quantize`, `quantile`, `threshold`, `bin-ordinal`, `ordinal`, `band`, `point` for a quantitative field; `time` and `utc` for a temporal one |
+| `shape`, `strokeDash` | `ordinal` (a quantitative or temporal field is accepted with the warning `vl-scale-type-ignored`, because the channel shows categories) | `quantize`, `quantile`, `threshold` for a quantitative field |
 <!-- markdownlint-enable MD013 -->
 
 A **diverging** color scale is a sequential scale with a `domainMid` (the value at the middle of the scheme). The
@@ -4674,9 +4700,9 @@ d3-array), and `threshold` at the cut points of an explicit `domain` (one more c
 classes is the length of an explicit `range`, else the `count` of a scheme object, else 4 (`config.scale.quantizeCount`
 and `quantileCount`). A `log` scale takes `base` (10), `pow` an `exponent` (1), `sqrt` is `pow` of 0.5, and `symlog` a
 `constant` (1); `domainMin`, `domainMax`, `rangeMin`, and `rangeMax` replace an end of the domain or the range, `zero`
-and `nice` apply to the continuous types, and a `reverse` reverses the range. The scale property `bins` and the types
-`identity`, `time`, and `utc` are reported (`vl-scale-property-bins`, `vl-scale-identity`, `vl-scale-time`,
-`vl-scale-utc`).
+and `nice` apply to the continuous types, and a `reverse` reverses the range. The `time` and `utc` scales of a temporal
+field are described in *Vega-Lite Time and Time Zones*. The scale property `bins` and the type `identity` are reported
+(`vl-scale-property-bins`, `vl-scale-identity`).
 
 **Where the colors come from.** In the order of Vega-Lite: the `range` of the scale (a list of colors, or the name of
 an entry of `config.range`), then its `scheme`, then the default `config.range` entry of the channel: `category`
@@ -4737,6 +4763,367 @@ the canonical scale of a legend that merges several continuous channels is the f
 `fillOpacity` and `strokeOpacity` have no legend; the legend features listed above are reported and not drawn; and the
 `bins` scale property is not supported.
 
+### Vega-Lite Time and Time Zones
+
+A field of the type `temporal` holds **dates**. A date is an instant: the number of milliseconds since
+1970-01-01T00:00:00Z. The package reads, groups, scales, and labels dates in one **calendar** per `Measure` or `Render`
+call: UTC by default, or the zone of `VegaLiteRenderOptions.TimeZone`. It never uses the zone, the clock, or the
+culture of the machine, so the same document and options give the same picture everywhere (see *The time zone*
+below). Write the `type` of a time channel: the package does not infer `temporal` from a `timeUnit` or from the
+values, and a channel without a `type` is read as quantitative. Example 36 draws a time series in a time zone.
+
+```json
+{
+  "data": { "url": "visits.csv", "format": { "parse": { "day": "date:'%d/%m/%Y'" } } },
+  "mark": "bar",
+  "encoding": {
+    "x": {
+      "field": "day", "type": "temporal", "timeUnit": "yearmonth",
+      "axis": { "format": "%b %Y", "tickCount": "month" }
+    },
+    "y": { "aggregate": "sum", "field": "tickets", "type": "quantitative" }
+  }
+}
+```
+
+**Temporal fields and parsing.** Text is turned into dates in the places that *Vega-Lite Data* lists: an explicit
+`format.parse` entry, `"parse": "auto"`, and the **implicit parse** of every field that a time construct reads (a
+channel of the type `temporal`, with a `timeUnit`, or with a `formatType` of `time`; the field of a `timeUnit`
+transform; the field of a predicate that has a `timeUnit` or a date-time object). The implicit parse applies to the main
+data of the view (inline rows, files, and datasets, not the source of a `lookup`); a `parse` entry for the field wins
+over it, and `"parse": null` switches it off. A value that cannot be read becomes `null` and is counted in the warning
+`vl-data-parse-failed`, never an invalid date. A number is read as **milliseconds since the epoch**, and a `DateTime` or
+`DateTimeOffset` in a caller dataset is already an instant (the zone of the chart does not move it).
+
+<!-- markdownlint-disable MD013 -->
+| `format.parse` entry | What is read |
+| -------------------- | ------------ |
+| `"date"` | A date text by the rules of `Date.parse` (below), a number as milliseconds, a date unchanged; a boolean is `null` |
+| `"date:'%d/%m/%Y'"` | The text with a d3 time format (see *Axis and legend labels* for the directives), in the **zone of the chart**; the format must match the whole text, and a number is read through its text |
+| `"utc:'%d/%m/%Y'"` | The same format, always read as **UTC** |
+<!-- markdownlint-enable MD013 -->
+
+The format of `date:` and `utc:` must be quoted with matching single or double quotes; an unquoted or empty format is a
+`VegaLiteSpecException` at the entry when the document is opened. A text longer than 256 characters is never a date
+under a custom format.
+
+*ISO 8601 text* follows JavaScript's mixed rule, which is the one thing that depends on the zone:
+
+<!-- markdownlint-disable MD013 -->
+| Text | Is read as |
+| ---- | ---------- |
+| `2024`, `2024-03`, `2024-03-05`, and expanded years such as `+002024-03-05` | Midnight **UTC**, whatever the zone of the chart |
+| `2024-03-05T13:04`, `2024-03-05T13:04:09`, `2024-03-05T13:04:09.007`, or a space instead of the `T` | That wall-clock time in the **zone of the chart** (UTC by default); a fraction may have any number of digits and is cut to milliseconds |
+| Any of these time forms with `Z`, `+02:00`, or `+0200` | The instant with that offset, whatever the zone of the chart |
+| `24:00` | The end of the day. Other hours above 23, and a day that does not exist (`2023-02-29`), are not dates |
+<!-- markdownlint-enable MD013 -->
+
+*Legacy forms.* A subset of the other texts that the `Date.parse` of a browser reads is read too, in the zone of the
+chart unless the text names one (month and weekday names in any case, in full or with at least three letters; a
+parenthesized comment is ignored):
+
+<!-- markdownlint-disable MD013 -->
+| Form | Examples |
+| ---- | -------- |
+| Month name, day, year, optional time | `Jan 2, 2006`, `January 2, 2006 10:00` |
+| Day, month name, year | `2 Jan 2006` |
+| With a weekday | `Mon Jan 02 2006 15:04:05 GMT+0200 (CEST)`, `Tue, 02 Jan 2006 15:04:05 GMT` |
+| Numeric | `2006/01/02` (year, month, day), `1/2/2006` (**month**, day, year) |
+| Time of day | `h:mm`, `h:mm:ss`, `h:mm:ss.fff`, optionally followed by `AM` or `PM` |
+| Zone | `UTC`, `GMT`, `UT`, `Z`, optionally followed by an offset, or just an offset such as `+0200` or `-05:30` |
+<!-- markdownlint-enable MD013 -->
+
+Years in the legacy forms have four digits. **Where this differs from V8** (the engine of Chrome and Node): anything
+that is not an ISO 8601 text or one of the forms above is not a date here, even when V8 reads it (a two-digit year, a
+day that does not exist and that V8 rolls over, and other variants), a text of more than 128 characters is not a date
+(it is rejected before it is scanned, so a huge cell costs no more than a short one), and a result outside the years 1
+to 9999 is not a date. Under `"parse": "auto"` a column in these forms (for example `Jan 2, 2006`) becomes a date
+column, as it does in Vega.
+
+**Time units.** A `timeUnit` floors a date to the start of a calendar unit, so that the dates of one month, day, or hour
+share one value. It is a property of a channel definition (also in a condition, a predicate, and a `timeUnit`
+transform) and is a name or an object. There are **11 single units** and **29 multi units** (the 40 local units of
+Vega-Lite), and every one of them has a **UTC form** with the prefix `utc` (`utcmonth`, `utcyearmonthdate`) or with
+`"utc": true` in the object form. A local unit uses the calendar of the chart, and a `utc` unit always uses UTC.
+
+<!-- markdownlint-disable MD013 -->
+| Single unit | Keeps | Label specifier |
+| ----------- | ----- | --------------- |
+| `year` | The year | `%Y` |
+| `quarter` | The quarter, 1 to 4 | `Q%q` |
+| `month` | The month | `%b` |
+| `week` | The week of the year, counted in Sundays: week 0 is before the first Sunday, and a week starts on a Sunday | `W%U` |
+| `day` | The day of the week | `%a` |
+| `dayofyear` | The day of the year, 1 to 366 | `%j` |
+| `date` | The day of the month | `%d` |
+| `hours` | The hour | `%H:00` |
+| `minutes` | The minute | `00:%M` |
+| `seconds` | The second | `:%S` |
+| `milliseconds` | The millisecond | `.%L` |
+<!-- markdownlint-enable MD013 -->
+
+<!-- markdownlint-disable MD013 -->
+| Multi units | Label specifier |
+| ----------- | --------------- |
+| `yearquarter`, `yearquartermonth` | `%Y Q%q`, `%Y Q%q %b` |
+| `yearmonth`, `yearmonthdate`, `yearmonthdatehours`, `yearmonthdatehoursminutes`, `yearmonthdatehoursminutesseconds` | `%b %Y`, `%b %d, %Y`, `%b %d, %Y %H:00`, `%b %d, %Y %H:%M`, `%b %d, %Y %H:%M:%S` |
+| `yearweek`, `yearweekday`, `yearweekdayhours`, `yearweekdayhoursminutes`, `yearweekdayhoursminutesseconds` | `%Y W%U`, `%Y W%U %a`, `%Y W%U %a %H:00`, `%Y W%U %a %H:%M`, `%Y W%U %a %H:%M:%S` |
+| `yeardayofyear`, `quartermonth` | `%Y %j`, `Q%q %b` |
+| `monthdate`, `monthdatehours`, `monthdatehoursminutes`, `monthdatehoursminutesseconds` | `%b %d`, `%b %d %H:00`, `%b %d %H:%M`, `%b %d %H:%M:%S` |
+| `weekday`, `weekdayhours`, `weekdayhoursminutes`, `weekdayhoursminutesseconds` | `W%U %a`, `W%U %a %H:00`, `W%U %a %H:%M`, `W%U %a %H:%M:%S` |
+| `dayhours`, `dayhoursminutes`, `dayhoursminutesseconds` | `%a %H:00`, `%a %H:%M`, `%a %H:%M:%S` |
+| `hoursminutes`, `hoursminutesseconds`, `minutesseconds`, `secondsmilliseconds` | `%H:%M`, `%H:%M:%S`, `00:%M:%S`, `:%S.%L` |
+<!-- markdownlint-enable MD013 -->
+
+The units that name no year, month, or day take the **reference values** of Vega-Lite: the year 2012 (a leap year that
+starts on a Sunday), January, and the first of the month, so `month` floors the 17th of March 2024 to 2012-03-01 and
+`day` floors a Tuesday to the Tuesday of the first week of January 2012. A unit that keeps the `week` is floored to the
+Sunday that starts the week (which can lie in the previous December). The **object form** is
+`{"unit": "yearmonth", "step": 3, "utc": false, "maxbins": 10}` with the members `unit`, `step` (a number above 0, applied
+to the smallest part of the unit: `{"unit": "month", "step": 3}` floors March to January and April to April), `utc`,
+and `maxbins` (a number above 0). An unknown unit name, a member that is not one of these, or a value of the wrong
+kind is a `VegaLiteSpecException` at the value when the document is opened.
+
+The object `{"maxbins": 10}` without a `unit` lets the data choose the unit: it takes, for the extent of the field, the
+step of this list whose length is nearest to the extent divided by `maxbins`: 1, 5, 15, or 30 seconds; 1, 5, 15, or 30
+minutes; 1, 3, 6, or 12 hours; 1 day; 1 week; 1 or 3 months; 1 year; milliseconds with a round step for a shorter
+extent and years with a round step for a longer one. A `maxbins` above `MaxScaleDomainSize` fails the render with a
+located error. The `binned*` units (`binnedyearmonth`, ...) and `"binned": true` are **not supported**: they are
+reported (`vl-timeunit-binned`), the unit is ignored, and the field is used as it is.
+
+*What a time unit adds to the rows.* A channel with a `timeUnit` reads a **derived field** that holds the start of the
+unit as a date, and a channel that spans its unit also reads the end. The names are those of Vega-Lite: `yearmonth_date`
+and `yearmonth_date_end` for the unit `yearmonth` on the field `date`, `month_step_2_date` for `{"unit": "month",
+"step": 2}`, `utcmonth_date` for a UTC unit, and `timeunit_maxbins_10_date` for the form that names no unit. The **title**
+of the channel follows `config.fieldTitle`: `date (year-month)` (verbal, the default; the parts of the unit, and just
+`date` for the `maxbins` form), `YEARMONTH(date)` (functional; `UTCYEARMONTH(date)` for a UTC unit and
+`TIMEUNIT(date)` for `maxbins`), or `date` (plain); an explicit `title` wins. The unit is computed before an `aggregate`
+of the encoding, which then groups by the start of the unit (and by its end when the mark spans it). A `bin` on the
+same field wins over its `timeUnit`. The `timeUnit` **transform** `{"timeUnit": "yearmonth", "field": "date", "as":
+"month"}` adds the fields `month` and `month_end` to every row in the order of the `transform` array.
+
+*Bands and positions.* A mark that **spans** its unit draws it from the start to the end: the channel is `x` or `y`, of
+the type `temporal`, with no `x2` or `y2`, and a band position is defined. That is the case for a `bar`, a `rect`, and a
+`tick` (the configuration `timeUnitBandPosition` is 0.5 for them), and for any mark whose channel definition
+(`bandPosition`), mark definition, or configuration (`timeUnitBandPosition`) gives one. The scale then covers the start
+of the first unit to the end of the last. A `bar` or `rect` fills the part of the unit that is `timeUnitBandSize` wide
+(1 by default, or the `band` of a relative mark `width` such as `{"band": 0.5}`), less the `binSpacing` of a bar
+(1 pixel, as for bins; 0 for a rect), and a bar that would be thinner than `minBandSize` is widened to it. A `tick` or a
+point with a band position sits at that fraction of the unit (0.5 is the middle). A mark that does not span, such as a
+point with no band position, sits at the **start** of its unit. A `bandPosition` or `timeUnitBandPosition` other than
+0.5 on a `bar` or `rect` is not drawn: 0.5 is used and
+`vl-encoding-bandposition-rect` is reported. A channel of the type `ordinal` or `nominal` with a `timeUnit` has a band
+or point scale over the dates of its units (sorted by date), labeled by the unit specifier.
+
+**Date-time objects.** A Vega-Lite `DateTime` object gives one point in time by calendar parts, for example
+`{"year": 2024, "month": "Mar", "date": 5}`. A missing part takes its default; a part that is too large or too small
+rolls over as in the JavaScript `Date` constructor (month 13 is January of the next year, date 0 is the last day of
+the previous month). The object is read in the zone of the chart, or in UTC with `"utc": true`.
+
+<!-- markdownlint-disable MD013 -->
+| Key | Value | Default |
+| --- | ----- | ------- |
+| `year` | A number (0 to 99 mean 1900 to 1999, as in JavaScript) | 2012 |
+| `quarter` | 1 to 4, or numeric text; it stands for the first month of the quarter, and `month` wins when both are given | January |
+| `month` | 1 (January) to 12, numeric text, or a month name in full or with its first three letters, in any case (`"March"`, `"mar"`) | January |
+| `date` | The day of the month | 1 |
+| `day` | 1 (Monday) to 7, or 0 (Sunday), or a weekday name; it stands for that day of the first week of January 2012, and like Vega-Lite the object **drops its `day`** when it has any other key, `utc` included | none |
+| `hours`, `minutes`, `seconds`, `milliseconds` | Numbers | 0 |
+| `utc` | `true` or `false` | `false` |
+<!-- markdownlint-enable MD013 -->
+
+An unknown key, a value of the wrong kind, an unknown month or weekday name, an empty object, and a value that is not a
+number (such as `"quarter": "Q"`) are a `VegaLiteSpecException` at the offending member when the document is opened.
+Date-time objects are accepted in `scale.domain` entries, `scale.domainMin` and `domainMax`, the `values` of an axis
+or a legend, the values of a predicate (`equal`, `lt`, `lte`, `gt`, `gte`, `range`, and `oneOf`), and the `sort` array
+of a temporal field. As the `datum` of a channel they are reported and the channel is ignored
+(`vl-encoding-datum-datetime`).
+
+**Time in predicates.** A filter or condition predicate compares dates when its field has a `timeUnit` or its value is
+a date-time object. With a unit, the comparison is made on the **parts that the unit keeps**:
+`{"field": "when", "timeUnit": "month", "oneOf": ["Feb", "Mar"]}` keeps the rows of February and March of any year,
+and `{"field": "when", "range": [{"year": 2024, "month": 1, "date": 1}, {"year": 2024, "month": 12, "date": 31}]}`
+keeps the dates of 2024. A range is inclusive, accepts its ends in either order, and a `null` end is open. A number that
+is compared with a field that has a **single** local unit and is below 10,000 stands for that part (`3` against `month`
+is March, `5` against `hours` is 05:00), any other number is milliseconds, and a text is read as a date or, for a
+single unit, as a month or weekday name (`"Mar"`). A `utc` unit compares in UTC (Vega-Lite ignores its `utc` flag in a
+predicate). The `week` and `dayofyear` parts are **not applied** by a predicate, as in Vega-Lite, and the warning
+`vl-predicate-timeunit-part` says so; the `timeUnit` transform and the encoding do apply them. A `binned` unit (or the
+`maxbins` form without a unit) in a predicate is reported and ignored. A time-aware `oneOf` list is compiled into an
+expression and so is bounded by `MaxExpressionLength` (4,096 characters) and `MaxScaleDomainSize` entries.
+
+**Time and UTC scales.** A temporal field on `x`, `y`, `size`, `opacity`, `strokeWidth`, or `angle` gets a `time` scale
+(a `utc` scale when its time unit is a `utc` unit): a linear scale over milliseconds whose ticks are calendar
+boundaries. A temporal `color`, `fill`, or `stroke` gets a sequential color scale over the same milliseconds. A
+temporal field accepts only the scale types `time` and `utc`; any other type is replaced by the default with the warning
+`vl-scale-type-ignored`, and so is `time` or `utc` on a quantitative, nominal, or ordinal field. A `time` scale uses the
+zone of the chart for its ticks and its `nice` boundaries and a `utc` scale uses UTC. The properties `domain` (timestamps,
+date texts, or date-time objects), `domainMin`, `domainMax`, `domainMid` (a timestamp, for a color), `range`,
+`rangeMin`, `rangeMax`, `reverse`, `clamp`, `round`, `padding`, and `nice` apply as for a linear scale; there is no
+zero rule, and `scale.zero` is ignored with the warning `vl-scale-zero-ignored`. A temporal field without a valid date
+gets the default domain 0 to 1, as a quantitative field does.
+
+- **Ticks.** The default tick count is one tick for every 40 pixels (`ceil(length / 40)`); a field whose unit is exactly
+  `month`, `hours`, `day`, or `quarter` uses 10 (Vega's default). The count is lowered so that no tick is closer than
+  `axis.tickMinStep`, which is by default the length of one step of the smallest part of the time unit (31 days for a
+  `month`, 365 days for a `year`; it is measured in UTC, so it does not depend on the zone, and there is none for a
+  `day` unit that means the weekday). The ticks themselves are those of d3: the calendar step of this list whose length
+  is nearest to the span divided by the count: 1, 5, 15, or 30 seconds; 1, 5, 15, or 30 minutes; 1, 3, 6, or 12 hours;
+  1 or 2 days; 1 week; 1 or 3 months; 1 year; milliseconds or years with a round step beyond the ends of the list. The
+  first tick is the first boundary at or after the start of the domain, and the stop is included. The count is a hint,
+  as for numbers.
+- **`tickCount` as an interval.** An axis or legend `tickCount` of `"day"` (one of `millisecond`, `second`, `minute`,
+  `hour`, `day`, `week`, `month`, or `year`) or `{"interval": "day", "step": 2}` places a tick at every boundary of that
+  calendar interval, or at every second boundary with a `step` of 2. A `step` that is not a positive number is a
+  `VegaLiteSpecException`; on a scale that is not a time scale the interval is ignored with the warning
+  `vl-guide-axis-tickcount-interval`. The `values` of an axis or legend may be timestamps, date texts, or date-time
+  objects.
+- **`nice`.** `"nice": true` (or a count) extends the domain to the boundaries of the tick interval of that count (10 by
+  default), and `"nice": "month"` or `"nice": {"interval": "month", "step": 3}` extends it to the boundaries of that
+  interval, so a domain from 10 January to 20 March becomes 1 January to 1 April. The boundaries are those of the
+  calendar of the scale. A time scale is **not** nice by default. An interval as `nice` of a scale that is not a time
+  scale is ignored with the warning `vl-scale-nice-interval`.
+
+**Axis and legend labels.** An axis labels a time scale with these rules, in order:
+
+1. `axis.format` as a **text** is a d3 time format (read in the zone of the scale; a `utc` scale uses UTC).
+2. `axis.format` as an **object** is Vega's multi-format with your texts as the formats of its levels: the members
+   `milliseconds`, `seconds`, `minutes`, `hours`, `date` (or `day`), `week`, `month`, `quarter`, and `year`; a level
+   that is missing or empty keeps its default below.
+3. With no `format` and a `timeUnit`, the **label specifier of the unit** (the tables above): `Jan 2024` for `yearmonth`.
+4. Otherwise the default **multi-format**, which labels each tick by the largest calendar boundary it sits on:
+
+<!-- markdownlint-disable MD013 -->
+| The tick is | Default specifier | Example |
+| ----------- | ----------------- | ------- |
+| Not on a whole second | `.%L` | `.250` |
+| A second that is not a whole minute | `:%S` | `:30` |
+| A minute that is not a whole hour | `%I:%M` | `01:45` |
+| An hour that is not midnight | `%I %p` | `01 PM` |
+| A day that is not the start of a week | `%a %d` | `Tue 05` |
+| The start of a week (a Sunday) that is not the start of a month | `%b %d` | `Mar 03` |
+| The start of a month or a quarter that is not the start of a year | `%B` | `March` |
+| The start of a year | `%Y` | `2024` |
+<!-- markdownlint-enable MD013 -->
+
+The d3 time format directives, shown for 2024-03-05T13:04:09.007 (a Tuesday), are the following. A padding flag may
+follow the `%` (`-` for none, `_` for a space, `0` for zeros), and any other letter after a `%` is copied without the `%`:
+
+<!-- markdownlint-disable MD013 -->
+| Directive | Meaning | Example |
+| --------- | ------- | ------- |
+| `%a`, `%A` | The weekday, abbreviated and in full | `Tue`, `Tuesday` |
+| `%b`, `%B` | The month, abbreviated and in full | `Mar`, `March` |
+| `%d`, `%e` | The day of the month, padded with a zero and padded with a space | `05`, a space and `5` |
+| `%H`, `%I`, `%p` | The hour from 00 to 23, the hour from 01 to 12, and `AM` or `PM` | `13`, `01`, `PM` |
+| `%M`, `%S`, `%L`, `%f` | The minute, the second, the millisecond, and the microsecond (six digits) | `04`, `09`, `007`, `007000` |
+| `%j` | The day of the year | `065` |
+| `%m`, `%q` | The month number and the quarter | `03`, `1` |
+| `%u`, `%w` | The weekday from 1 (Monday) to 7, and from 0 (Sunday) to 6 | `2`, `2` |
+| `%U`, `%W`, `%V` | The week of the year counted in Sundays, in Mondays, and the ISO 8601 week | `09`, `10`, `10` |
+| `%g`, `%G` | The ISO 8601 week-based year without and with the century | `24`, `2024` |
+| `%y`, `%Y` | The year without and with the century | `24`, `2024` |
+| `%Z` | The offset from UTC of the instant | `+0000` (`-0500` in a zone five hours behind) |
+| `%Q`, `%s` | The milliseconds and the seconds since the epoch | `1709643849007`, `1709643849` |
+| `%c`, `%x`, `%X` | The date and time, the date, and the time of the English locale | `3/5/2024, 1:04:09 PM`, `3/5/2024`, `1:04:09 PM` |
+| `%%` | A percent sign | `%` |
+<!-- markdownlint-enable MD013 -->
+
+`axis.formatType` selects how a label is made: `number` (the default for a quantitative field) formats the milliseconds
+as a number with the d3 number format of `axis.format`, `time` makes the labels of **any** axis dates, and `utc` makes
+them UTC dates; any other name is a custom format type, which is not evaluated and is reported
+(`vl-format-type-custom`). Axis properties can be set for the time axes in `config.axisTemporal` (and `axisXTemporal`
+and `axisYTemporal`) as in Vega-Lite. A temporal axis has a grid by default, and the first and last labels of a
+temporal `x` axis are flushed to the ends of the axis; the labels of a time unit field are not turned by default, and
+labels that overlap are removed by parity (every other one).
+
+A **legend** of a temporal field labels the ticks of its gradient (a temporal color) or its symbols (a size, an
+opacity, or a time unit field) with `legend.format` (a d3 time format), else the specifier of the time unit, else
+`config.timeFormat` (`%b %d, %Y` by default, for example `Jan 01, 2024`); the ticks follow the rules above, with
+`legend.tickCount` and `legend.tickMinStep`, and the gradient is sampled at those ticks. Unlike an axis, a legend does
+not use the multi-format.
+
+**Expression functions.** The date and time functions of the expression language (see the table in *Vega-Lite
+Expressions*) read the calendar of the chart, except the `utc` forms. They follow JavaScript: the month counts from 0
+and a part that is too large rolls over (`datetime(2024, 1, 31)` is 2 March 2024, because February 2024 has 29 days),
+and the years 0 to 99 mean 1900 to 1999. They differ in these ways: `now()` is not available (the clock
+is not an input; it is reported as `vl-expr-function-now` and gives `null`), `datetime()` with no argument is `null`,
+a result outside the years 1 to 9999 is `null` for a date and `NaN` for a number where JavaScript has `Invalid Date`, a
+`null` or boolean argument is not an instant (JavaScript reads `null` as the epoch), and `isoweek` and `utcisoweek` are
+included, though Vega has no such unit.
+
+**The time zone.** `VegaLiteRenderOptions.TimeZone` is a `TimeZoneInfo`; `null` (the default) is **UTC**, and a chart
+never uses the zone of the machine (`TimeZoneInfo.Local`, the clock, and the culture are not consulted), so a chart that
+you render in Tokyo and in Oslo is the same picture. The zone is the one calendar of the call (`Measure` and `Render`
+alike), and it decides:
+
+- how a date-time **without an offset** is read (in the data, in a date-time object, in a legacy date text, and with a
+  `date:` parse format);
+- where a **local time unit** begins and ends (the day of a UTC date can differ from its day in the zone), and what the
+  local date functions of expressions return;
+- where the ticks and the `nice` boundaries of a `time` scale are, and what its labels say.
+
+A `utc` time unit, a `utc` scale, `utc:` parse format, a date-time object with `"utc": true`, and the `utc` functions
+(`utcFormat`, `utcyear`, ...) always use UTC. An instant itself never moves: a date with a `Z` or an offset is the same
+instant in every zone, and a `DateTime` or `DateTimeOffset` of a caller dataset is the same instant too.
+
+- **Zone ids.** `TimeZoneInfo.FindSystemTimeZoneById` finds a zone by the id of the platform: IANA ids
+  (`"America/New_York"`) on Linux and macOS, and Windows ids (`"Eastern Standard Time"`) on Windows. .NET 6 and later can
+  also convert between the two kinds when ICU is available (an IANA id on Windows, a Windows id on Linux and macOS), and
+  without ICU only the native kind works; the call throws a `TimeZoneNotFoundException` for an id it does not know.
+- **Reproducibility.** The rules of a system zone come from the **operating system database** (the Windows registry or
+  the IANA time zone database files), and the historical rules of the two databases differ (the years before the
+  current rules, and the zones whose rules were changed after your OS was released), so the same id can give a
+  different hour for an old date on two machines. For a picture that must be identical everywhere, build the zone with
+  `TimeZoneInfo.CreateCustomTimeZone` (a fixed offset, or an offset with your own adjustment rules, as in Example 36) or
+  pass a fixed-offset zone.
+- **Daylight saving time.** A wall-clock time that does not occur (the clock jumps forward) is read with the offset from
+  before the change, so `02:30` on the day of a spring change is the instant that the clock shows as `03:30`. A
+  wall-clock time that occurs twice (the clock goes back) is the **earlier** of the two instants. This is the rule of
+  ECMAScript, and it assumes at most one change of offset in 48 hours, which holds for every real zone. A local `day`
+  unit that contains the change is 23 or 25 hours long, and its `bar` is narrower or wider than the others.
+- **Range and invalid dates.** Dates are supported from the year 1 to the last millisecond of the year 9999 (in UTC; a
+  wall-clock time near the ends that falls outside the range because of the zone offset is out of range too). Anything
+  outside the range, every text that is not a date, and every non-finite number is **invalid**: a **`null`** in the
+  data and in a date function, and **`NaN`** in a number function (never JavaScript's `Invalid Date`, which a label
+  would show as the text `Invalid Date`). Nothing throws for a date value.
+- **Culture.** The names are those of the English d3 locale (`January`, `Tue`, `AM`), the digits are ASCII, the first
+  day of a week is a Sunday (`%U`, the `week` unit, and the `week` interval), and nothing depends on
+  `CultureInfo.CurrentCulture` or on the language of the machine; a locale other than English is not supported.
+
+**Limits and determinism.** The time constructs are bounded by the limits of the call, and a limit that is exceeded is a
+located `VegaLiteRenderException` that names it:
+
+<!-- markdownlint-disable MD013 -->
+| Limit | What it bounds in the time constructs |
+| ----- | ------------------------------------- |
+| `MaxTicks` (1,000) | The ticks of a time axis or legend, counted before any label is made (a `tickCount` of `"millisecond"` over a year fails at once) |
+| `MaxStringLength` (1,048,576) | A label, a `timeFormat` result, and the name of a derived field; the formatter stops as soon as it would write more |
+| `MaxScaleDomainSize` (100,000) | A `timeSequence` result, the `maxbins` of a time unit, the dates of a discrete date scale, and the lists of a scale, a sort, and a time `oneOf` |
+| `MaxDataRows`, `MaxFieldCount`, and the cell limit | The rows and fields of the table, which the two fields of a `timeUnit` count against |
+| `MaxEvaluationSteps` (50,000,000) | The date functions (one step for each date of a sequence, and a charge by the length of a format and of the text it reads) and the `timeUnit` transform (a charge for every row, higher in a zone than in UTC, because the offset of a zone is looked up) |
+| 128 characters | A date text; a longer one is not a date and costs no more than a short one (256 characters for a custom `date:` format) |
+<!-- markdownlint-enable MD013 -->
+
+The cancellation token is checked while ticks, rows, and sequences are made. Everything is deterministic: the same
+document, the same zone, and the same options give the same picture on every machine and in every culture, and a zone
+built with `CreateCustomTimeZone` gives the same picture on every operating system.
+
+**Supported and not supported.** The following summarizes the time support:
+
+<!-- markdownlint-disable MD013 -->
+| Supported | Not supported (reported unless noted) |
+| --------- | ------------------------------------- |
+| Temporal fields with implicit parsing; `parse` of `date`, `date:'...'`, and `utc:'...'`; ISO 8601 text and the documented legacy forms | The rest of the forms of `Date.parse`; a locale other than English (not reported) |
+| The 40 local time units, their `utc` forms, the object form with `step`, `utc`, and `maxbins`, and the `timeUnit` transform | `binned*` units and `"binned": true` (`vl-timeunit-binned`); a `maxbins` unit in a predicate (`vl-timeunit-maxbins`) |
+| Date-time objects in domains, `values`, predicates, and sort arrays | A date-time object as a `datum` (`vl-encoding-datum-datetime`) |
+| Time and UTC scales, calendar ticks, `nice` and `tickCount` intervals, bands of bars, rects, and ticks | A `bandPosition` other than 0.5 on a bar or rect (`vl-encoding-bandposition-rect`); `tickBand` and the axis `bandPosition` (`vl-guide-axis-<name>`) |
+| Date labels: `format` text and object, unit specifiers, the multi-format, `formatType` of `number`, `time`, and `utc`, `config.axisTemporal`, and `config.timeFormat` in legends | Custom format types and `labelExpr` (`vl-format-type-custom`, `vl-expr-label`); `config.customFormatTypes` and `timeFormatType` (not reported) |
+| The date and time expression functions, `toDate`, and the render option `TimeZone` | `now()` (`vl-expr-function-now`); the `week` and `dayofyear` parts of a predicate (`vl-predicate-timeunit-part`, as in Vega-Lite) |
+<!-- markdownlint-enable MD013 -->
+
+Example 36 draws the same time series in UTC and in a time zone.
+
 ### Vega-Lite Conditional Encodings
 
 A channel can take a **`condition`** (one object or an array of objects) on `color`, `fill`, `stroke`, `opacity`,
@@ -4748,9 +5135,10 @@ predicate object (`{"field": "day", "range": [3, 5]}`, with `equal`, `lt`, `lte`
 value of the scale of its field); a row for which none holds gets what the channel gives without the conditions - its
 own field and scale, else its `value`, else the default of the mark. Conditions that hold only values create no scale
 and no legend; a condition that holds a field draws the legend of that field, and the symbols of another legend show
-the first condition value (the opacity is the largest of the values). A condition on a `param`, a selection, a time
-unit, or a date object never holds and is reported (`vl-encoding-condition-param`, `vl-encoding-condition-test`), and a
-condition on a channel that takes none is reported as `vl-encoding-condition`.
+the first condition value (the opacity is the largest of the values). A predicate `test` may use a `timeUnit` or a
+date-time object, as a filter does (see *Vega-Lite Time and Time Zones*). A condition on a `param` or a selection never
+holds and is reported (`vl-encoding-condition-param`), and a condition on a channel that takes none is reported as
+`vl-encoding-condition`.
 
 ### Time Zone, Fonts, and Determinism
 
@@ -4767,10 +5155,12 @@ culture-invariant), the time zone defaults to UTC, and only the **bundled fonts*
   `true`, and/or give `AdditionalDirectories`, to let a **named** family (`"font": "Verdana"`) be found in your
   directories first and then among the installed fonts. A family that cannot be found falls back to the bundled sans
   font.
-- **Time.** There are no time scales yet: `temporal` fields, `timeUnit`, and `datetime` are reported
-  (`vl-type-temporal`, `vl-encoding-timeunit`), and so are the date and time functions of expressions. The `TimeZone`
-  option is accepted and reserved; it is UTC when `null`, so the output will not depend on the local zone of the machine
-  when time support arrives.
+- **Time.** Dates, time units, time scales, and the date functions of expressions are computed in one calendar: the
+  zone of `VegaLiteRenderOptions.TimeZone`, which is **UTC when `null`**, never the zone, the clock, or the culture of the
+  machine (the names are the English ones of d3, and the digits are ASCII). So the same document and options give the
+  same picture everywhere. The only input that can differ between machines is the **time zone database** that
+  `TimeZoneInfo.FindSystemTimeZoneById` reads; to get exact reproducibility build the zone yourself. See *Vega-Lite Time
+  and Time Zones*.
 - **Expressions and transforms.** An expression is a pure function of its row and its parameters, with no clock, random
   source, or locale, and the `sample` transform is seeded from the JSON pointer of the transform, so rows and results
   are the same on every call. The one limit of exactness: the math functions come from the host's math library, so a
@@ -4788,7 +5178,7 @@ A construct that Vega-Lite defines but the package cannot draw is reported as a 
 stable, lower-case `Feature` identifier of the form `vl-<area>-<detail>`, a message, and the `VegaLiteLocation` of the
 construct, and the rest of the chart is still drawn. A name taken from the specification is lower-cased without
 separators (`timeUnit` gives `timeunit`), and so is the name of an unsupported expression function
-(`timeFormat` gives `vl-expr-function-timeformat`); the message keeps the function name as written, so that it can be
+(`geoArea` gives `vl-expr-function-geoarea`); the message keeps the function name as written, so that it can be
 found in the text. The identifiers are part of the documented
 behavior of the package and are
 never renamed once released. A **warning** (`VegaLiteDiagnostic`) is a questionable construct that still renders: its
@@ -4801,44 +5191,46 @@ thread, after the work finished and before the method returns or throws.
 | `vl-schema-version` | Warning | `$schema`, when the major version is not 5 or 6 or the URL names no Vega-Lite version (the chart is rendered with the version 6 defaults) |
 | `vl-data-empty` | Warning | The `data` object, when it has an empty `values` array or no source key |
 | `vl-data-remote-url` | Unsupported | The `data` object, when `url` has a scheme (including `file:`), a drive letter, or is an absolute path (`/etc/hosts`, a leading backslash), or a network or UNC path (never fetched; empty dataset). A relative local path is supported and is not reported |
-| `vl-data-parse-date-format` | Unsupported | The `format.parse` entry that names a date with a custom format (`date:'%d/%m/%Y'`, `utc:'...'`); the field is left as read |
-| `vl-data-parse-failed` | Warning | The `data` object, at render time: values that an explicit `format.parse` conversion could not read (one warning per field and type; those values are `null`) |
+| `vl-data-parse-failed` | Warning | The `data` object, at render time: values that an explicit `format.parse` conversion (or the implicit date parse of a temporal field) could not read (one warning per field and type; those values are `null`) |
 | `vl-data-values-text` | Unsupported | `data/values` given as a string, or a top-level dataset that `data.name` refers to given as a string |
 | `vl-data-geo` | Unsupported | `sphere`, `graticule`, a topojson format, or `values` (or a referenced dataset) given as an object |
 | `vl-mark-<type>` | Unsupported | `mark`, for every type except bar, rect, point, circle, square, rule, and tick; the chart is drawn without marks and without axes |
 | `vl-channel-<name>` | Unsupported | A channel other than x, y, color, fill, stroke, size, opacity, shape, strokeWidth, strokeDash, fillOpacity, strokeOpacity, and angle (tooltip, href, description, and key are ignored); `shape` is drawn by a point mark, `angle` by a point, circle, or square, and `strokeDash` by every mark but a rect, and the channel is reported and ignored on any other mark. `x2` and `y2` are supported on a bar, rect, or rule that has the `x` or `y` they extend, and are reported (`vl-channel-x2`, `vl-channel-y2`) on any other mark or without it; `order` is supported when it orders a stack and is reported (`vl-channel-order`) otherwise, because the drawing order of marks is not implemented |
 | `vl-channel-geo` | Unsupported | `longitude`, `latitude`, `longitude2`, `latitude2` |
-| `vl-type-temporal`, `vl-type-geojson` | Unsupported | The `type` of a channel |
+| `vl-type-geojson` | Unsupported | The `type` of a channel |
 | `vl-shape-path` | Unsupported | A shape that is not a symbol name (a custom SVG path): the `shape` of a mark, the `value` of a `shape` channel, or an entry of its `scale.range`; a circle is drawn |
 | `vl-scale-interpolate-cubehelix` | Unsupported | A `scale.interpolate` of `cubehelix` or `cubehelix-long`; RGB interpolation is used |
-| `vl-scale-type-ignored` | Warning | A `scale.type` that the channel or the field type cannot use (the default type is used, as Vega-Lite does), and a quantitative field on a `shape` or `strokeDash` channel without a discretizing scale type (the scale is ordinal) |
-| `vl-encoding-timeunit`, `-impute`, `-bandposition` | Unsupported | That property of a supported channel (`-impute` is the `impute` of a channel; the `impute` transform is supported) |
+| `vl-scale-type-ignored` | Warning | A `scale.type` that the channel or the field type cannot use (the default type is used, as Vega-Lite does): for a temporal field every type but `time` and `utc`, and `time` or `utc` on a quantitative, nominal, or ordinal field; and a quantitative or temporal field on a `shape` or `strokeDash` channel without a discretizing scale type (the scale is ordinal) |
+| `vl-scale-zero-ignored` | Warning | A `scale.zero` on a temporal field with a time or UTC scale, where zero has no meaning (it is ignored, as in Vega-Lite) |
+| `vl-scale-nice-interval` | Warning | A time interval (`"month"` or `{"interval": "month", "step": 3}`) as the `scale.nice` of a scale that is not a time scale; it is ignored |
+| `vl-encoding-impute`, `-bandposition`, `-bandposition-rect`, `-datum-datetime` | Unsupported | That property of a supported channel: `-impute` is the `impute` of a channel (the `impute` transform is supported); `-bandposition` is a `bandPosition` on a field that has neither a `timeUnit` nor a `bin`, or has a `bin`; `-bandposition-rect` is a `bandPosition` or `timeUnitBandPosition` other than 0.5 on a `bar` or `rect` whose field has a `timeUnit` (0.5 is used); `-datum-datetime` is a date-time object as the `datum` of a channel (the channel is ignored) |
+| `vl-timeunit-binned` | Unsupported | A `binned` time unit (a name that starts with `binned`, or `"binned": true`) in an encoding, a condition, a predicate, or the `timeUnit` transform; the unit is ignored and the field is used as it is |
+| `vl-timeunit-maxbins` | Unsupported | The `{"maxbins": n}` time unit form without a `unit` in a filter or condition predicate; the unit is ignored and the field is compared as it is (an encoding and the transform apply it) |
+| `vl-predicate-timeunit-part` | Warning | The `timeUnit` of a filter or condition predicate whose unit has a `week` or `dayofyear` part: like Vega-Lite, the predicate does not apply those parts |
 | `vl-encoding-condition` | Unsupported | A `condition` on a channel that takes none (`x`, `y`, the secondary channels, `order`); the condition is ignored |
 | `vl-encoding-condition-param` | Unsupported | A condition on a `param`, or a `test` that names a selection or a parameter that is not a variable; the condition never holds |
-| `vl-encoding-condition-test` | Unsupported | A `timeUnit` or a date object in the predicate of a `test`; the condition never holds |
 | `vl-encoding-bin` | Unsupported | The `bin` of a channel that cannot bin (`order` and the secondary channels `x2` and `y2`), and `bin: "binned"` (data that is binned already) on a channel other than `x` and `y`, unless it is false or null; the channel is not binned |
 | `vl-encoding-bin-extent-param` | Unsupported | A `bin.extent` of an encoding that is a `{"param": ...}` object; the extent of the data is used |
 | `vl-encoding-sort` | Unsupported | A `sort` that is not applied: a channel (`"-y"`, `{"encoding": ...}`) that the encoding does not have or that has neither a `field` nor an `aggregate` (the message names the channel), or an `op` that cannot order categories (`argmin`, `argmax`, `values`, `exponential`, `exponentialb`); the categories are sorted ascending |
 | `vl-encoding-sort-ignored` | Warning | A `sort` array, channel (`"-y"`, `{"encoding": ...}`), or object with a `field` or `op` on a quantitative field whose scale is continuous: there are no categories to order, so the sort is ignored (`"ascending"`, `"descending"`, and `null` are not reported) |
 | `vl-encoding-sort-mixed-types` | Warning | A `sort` array that mixes strings, numbers, booleans, or `null`, reported at the array; the values are matched by kind (`1` does not position the text `"1"`) |
 | `vl-encoding-stack-nonlinear` | Unsupported | An explicit `stack` (not false or null) of an `x` or `y` whose `scale.type` is not linear; the marks of a log, pow, sqrt, or symlog scale are not stacked (Vega-Lite does not stack on them), and any other type is stacked on the linear scale |
-| `vl-scale-<type>` | Unsupported | `scale/type`, for every type except linear, log, pow, sqrt, symlog, sequential, band, point, ordinal, quantile, quantize, threshold, and bin-ordinal (that is `identity`, `time`, and `utc`) |
+| `vl-scale-<type>` | Unsupported | `scale/type`, for every type except linear, log, pow, sqrt, symlog, sequential, time, utc, band, point, ordinal, quantile, quantize, threshold, and bin-ordinal (that is `identity`) |
 | `vl-scale-property-<name>` | Unsupported | A scale property outside the supported list (see the Scales row of *Supported Vega-Lite Subset*; `bins` and `domainRaw` are examples that are not supported). An unknown color scheme name is not reported but is an error |
 | `vl-guide-encode` | Unsupported | `axis.encode`, `legend.encode` |
 | `vl-guide-legend-titleorient`, `vl-guide-legend-clipheight` | Unsupported | A `legend.titleOrient` other than `top` (the title stays above the entries), a `legend.clipHeight` (the entries are not clipped) |
 | `vl-guide-axis-<name>` | Unsupported | `labelBound`, `tickBand`, `tickExtra`, `position`, `translate`, `bandPosition`, `titleX`, `titleY` of an axis |
-| `vl-format-type-custom` | Unsupported | `axis.formatType`, `legend.formatType` |
+| `vl-guide-axis-tickcount-interval` | Warning | A time interval (`"week"` or `{"interval": "week", "step": 2}`) as the `tickCount` of an axis or legend whose scale is not a time scale; the default tick count is used |
+| `vl-format-type-custom` | Unsupported | An `axis.formatType` or `legend.formatType` other than `number`, `time`, and `utc` (a custom format type is not evaluated; the default format is used) |
 | `vl-expr-ref` | Unsupported | An `{"expr": ...}` value where the renderer does not evaluate one: a title, size, padding, background, `view`, a mark property other than color, fill, stroke, opacity, stroke width, and the size of a point, circle, or square, an encoding `value` other than that of color, fill, stroke, opacity, or the size of a symbol, and every such value in a view that is not drawn. The value is not used |
 | `vl-expr-label` | Unsupported | `axis.labelExpr`, `legend.labelExpr` |
-| `vl-expr-function-<name>` | Unsupported | The string value of an expression that calls a function outside the 57 supported ones, once per call, with `<name>` lower-cased (`vl-expr-function-timeformat` for `timeFormat`; the message names the function **as written**). The call evaluates to null |
+| `vl-expr-function-<name>` | Unsupported | The string value of an expression that calls a function outside the 99 supported ones, once per call, with `<name>` lower-cased (`vl-expr-function-now` for `now`, `vl-expr-function-geoarea` for `geoArea`; the message names the function **as written**). The call evaluates to null |
 | `vl-expr-view-state` | Unsupported | The string value of an expression that uses `signal`, `event`, or `item`, or the name `width`, `height`, `padding`, `autosize`, `background`, or `cursor` without declaring a parameter of that name. It evaluates to null |
 | `vl-expr-construct-<name>` | Unsupported | The string value of an expression that uses an operator that is parsed but not run: `bitwise-or`, `bitwise-xor`, `bitwise-and`, `bitwise-not` (the unary `~`), `shift-left`, `shift-right`, `shift-right-unsigned`, or `in`. It evaluates to null |
 | `vl-expr-runtime` | Warning | The string value of a `calculate` expression whose result is a regular expression for some rows; null is stored (one warning per transform, with the number of rows and the first row index) |
-| `vl-transform-<name>` | Unsupported | An entry of `transform` for `timeunit`, `regression`, `loess`, `density`, `quantile`, or `extent` (the entry is skipped), and **every** entry of a view that is not drawn (the views of a composition, whatever the transform) |
+| `vl-transform-<name>` | Unsupported | An entry of `transform` for `regression`, `loess`, `density`, `quantile`, or `extent` (the entry is skipped), and **every** entry of a view that is not drawn (the views of a composition, whatever the transform, `timeunit` included) |
 | `vl-transform-bin-extent-param` | Unsupported | A `bin` transform whose `extent` is a `{"param": ...}` object; the extent of the data is used |
 | `vl-transform-filter-param` | Unsupported | A `param` of a filter that names a selection parameter, or a `selection` predicate; every row passes |
-| `vl-transform-filter-timeunit` | Unsupported | A `timeUnit` in a filter predicate; it is ignored |
-| `vl-transform-filter-datetime` | Unsupported | A date object (`{"year": 2020}`) in a filter predicate; the predicate holds for every row |
 | `vl-transform-pivot-op` | Unsupported | A pivot `op` other than `sum` or `count`; `sum` is used |
 | `vl-transform-lookup-param` | Unsupported | A lookup whose `from` is a `param` (the data of a selection); the transform is skipped |
 | `vl-transform-runtime` | Warning | A pivot that skipped rows whose pivot value is null, cut its columns at `limit`, or let a pivot value replace a group field of the same name |
@@ -4877,12 +5269,20 @@ legend was reported), `vl-scale-color-ramp` (a quantitative color), `vl-channel-
 `-strokeopacity`, and `vl-scale-property-scheme` for a scheme other than `tableau10` were reported by earlier releases
 and are no longer produced, because legends, the color schemes, the continuous and discretizing color scales, and those
 channels are now supported (see *Vega-Lite Legends, Color Schemes, and Scales*); `vl-channel-shape`, `-strokedash`, and
-`-angle` are now produced only for a mark that does not draw the channel, and `vl-scale-<type>` only for the types
-`identity`, `time`, and `utc`. A build that matched one of them should stop doing so.
-Planned later releases add, among other things, `timeUnit` and
-the other transforms (`regression`, `loess`, `density`, `quantile`, `extent`), the date, time, formatting, and color
-functions of the expression language, expressions in more places, time scales, line-like marks, layers, composition,
-and selections; until then the constructs are reported with the
+`-angle` are now produced only for a mark that does not draw the channel, and `vl-scale-<type>` only for the type
+`identity`. A build that matched one of them should stop doing so.
+The identifiers `vl-type-temporal`, `vl-encoding-timeunit`, `vl-transform-filter-timeunit`,
+`vl-transform-filter-datetime`, `vl-encoding-condition-test`, `vl-data-parse-date-format`, `vl-scale-time`,
+`vl-scale-utc`, and the `vl-expr-function-<name>` of the date and time functions (for example
+`vl-expr-function-datetime` and `vl-expr-function-timeformat`) were reported by earlier releases and are no longer
+produced, because temporal fields, time units, date predicates, custom date parse formats, time and UTC scales, and the
+date and time functions are now supported (see *Vega-Lite Time and Time Zones*); `vl-transform-timeunit` is now
+produced only for a view that is not drawn, `vl-encoding-bandposition` only for a field without a `timeUnit`, and
+`vl-format-type-custom` only for a format type other than `number`, `time`, and `utc`. A build that matched one of them
+should stop doing so.
+Planned later releases add, among other things, the other transforms (`regression`, `loess`, `density`, `quantile`,
+`extent`), the formatting and color functions of the expression language, expressions in more places, line-like marks,
+layers, composition, and selections; until then the constructs are reported with the
 identifiers above. Geographic constructs (`projection`, `geoshape`, `longitude` and `latitude`, topojson) are not
 planned and remain reported.
 
@@ -4896,12 +5296,16 @@ file, test, example, data set, or documentation text of the upstream projects wa
 - **Vega-Lite** and **Vega** (BSD-3-Clause, Copyright (c) University of Washington Interactive Data Lab): default
   configuration values, scale inference rules, the title, axis, legend, and view layout constants, and the axis and
   legend geometry; the bin algorithm and the behavior rules of the aggregating, window, stack, and impute transforms and
-  of the encoding rules that compile to them (field names, titles, stacking, bin geometry); and the palette table of the
-  68 color schemes, the color interpolation rules, and the rules that give a scheme its number of colors.
-- **d3-array**, **d3-format**, **d3-scale**, **d3-scale-chromatic**, **d3-interpolate**, and **d3-color** (ISC,
-  Copyright Mike Bostock): the tick algorithms, the quantile interpolation of the aggregate operations, the number
-  format grammar, the arithmetic of the linear, band, point, logarithmic, power, symlog, and discretizing scales, the
-  color conversions, and the colors of the `tableau10`, `category10`, `observable10`, `rainbow`, and `sinebow` schemes.
+  of the encoding rules that compile to them (field names, titles, stacking, bin geometry); the time unit rules (the
+  floor, the end, the bin choice for `maxbins`, the label specifiers, the multi-format of the axis labels, and the field
+  names and titles), the date-time objects, the time predicates, and the geometry of time unit bands; and the palette
+  table of the 68 color schemes, the color interpolation rules, and the rules that give a scheme its number of colors.
+- **d3-array**, **d3-format**, **d3-scale**, **d3-scale-chromatic**, **d3-interpolate**, **d3-color**, **d3-time**, and
+  **d3-time-format** (ISC, Copyright Mike Bostock): the tick algorithms (the calendar ticks and `nice` of time scales
+  among them), the quantile interpolation of the aggregate operations, the number format grammar, the calendar
+  intervals (floor, ceil, offset, count, and ranges) and the time format and parse directives with the English locale,
+  the arithmetic of the linear, band, point, logarithmic, power, symlog, time, and discretizing scales, the color
+  conversions, and the colors of the `tableau10`, `category10`, `observable10`, `rainbow`, and `sinebow` schemes.
 - **ColorBrewer** (Apache-2.0, Copyright 2002 Cynthia Brewer, Mark Harrower, and The Pennsylvania State University): the
   colors of the qualitative sets `accent`, `dark2`, `paired`, `pastel1`, `pastel2`, `set1`, `set2`, and `set3`, and the
   ramps that Vega names after it. The **Turbo** color map (Apache-2.0, Copyright 2019 Google LLC), the **cividis** color
@@ -4910,7 +5314,9 @@ file, test, example, data set, or documentation text of the upstream projects wa
 
 The expression language and the row transforms (`calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot`, and
 `lookup`) are original code written from the public documentation of the Vega expression language, ECMAScript, and the
-Vega-Lite transforms: no value, source file, test, or example of the upstream projects was ported or copied for them.
+Vega-Lite transforms: no value, source file, test, or example of the upstream projects was ported or copied for them
+(the `timeUnit` transform and the date and time functions use the time unit and the d3-time and d3-time-format rules
+described above).
 The functions follow the behavior that the Vega documentation describes; the
 `sample` transform does not reproduce Vega's random generator but uses published algorithms (FNV-1a, SplitMix64, and
 reservoir sampling) implemented from their public descriptions, and so does the bootstrap of `ci0` and `ci1`.
@@ -6152,12 +6558,12 @@ using var calm = chart.Render(new VegaLiteRenderOptions
 });
 PngCodec.Save(lower, "stalls-lower.png");
 
-// 3. A function that is not in the supported list is reported, evaluates to null, and the chart is still drawn;
-//    strict mode refuses the approximate chart at the first report
+// 3. A function that is not in the supported list (here the clock, which an expression does not have) is reported,
+//    evaluates to null, and the chart is still drawn; strict mode refuses the approximate chart at the first report
 var dated = VegaLiteDocument.Parse("""
     {
       "data": { "values": [ { "d": 1 } ] },
-      "transform": [ { "calculate": "timeFormat(datum.d, '%Y')", "as": "year" } ],
+      "transform": [ { "calculate": "now()", "as": "stamp" } ],
       "mark": "point",
       "encoding": { "x": { "field": "d", "type": "quantitative" } }
     }
@@ -6169,7 +6575,7 @@ try
 }
 catch (VegaLiteUnsupportedFeatureException ex)
 {
-    Console.WriteLine($"{ex.Feature} {ex.Location.Pointer}"); // Output: vl-expr-function-timeformat /transform/0/calculate
+    Console.WriteLine($"{ex.Feature} {ex.Location.Pointer}"); // Output: vl-expr-function-now /transform/0/calculate
 }
 
 // 4. A mistake in an expression is found when the document is opened, with the location of the text and the offset
@@ -6441,6 +6847,122 @@ try
 catch (VegaLiteSpecException ex)
 {
     Console.WriteLine(ex.Location.Pointer); // Output: /encoding/color/scale/scheme
+}
+```
+
+## Example 36: Time Series with a Time Zone
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.VegaLite;
+
+// 1. Door alarms with their times in UTC (the Z), counted per day: the encoding floors every time to its day (timeUnit
+//    yearmonthdate) and counts the alarms of each day (aggregate count). The type of the field must be written
+var alarms = VegaLiteDocument.Parse("""
+    {
+      "title": "Door alarms per day",
+      "width": 200,
+      "height": 120,
+      "data": { "values": [
+        { "raised": "2024-03-09T20:15:00Z" },
+        { "raised": "2024-03-10T03:30:00Z" },
+        { "raised": "2024-03-10T04:45:00Z" },
+        { "raised": "2024-03-10T09:10:00Z" },
+        { "raised": "2024-03-10T22:00:00Z" }
+      ] },
+      "mark": "bar",
+      "encoding": {
+        "x": { "field": "raised", "type": "temporal", "timeUnit": "yearmonthdate", "title": "Day" },
+        "y": { "aggregate": "count", "type": "quantitative", "title": "Alarms" }
+      }
+    }
+    """);
+
+// By default the chart is in UTC, never in the zone of this machine: March 9 has 1 alarm and March 10 has 4
+using var inUtc = alarms.Render();
+PngCodec.Save(inUtc, "alarms-utc.png");
+
+// 2. The same data in the time zone of the building. A zone that you build yourself is the same on every operating
+//    system: standard time is UTC-05:00, and daylight saving time (+1 hour) runs from the second Sunday of March at
+//    02:00 to the first Sunday of November at 02:00
+var start = TimeZoneInfo.TransitionTime.CreateFloatingDateRule(new DateTime(1, 1, 1, 2, 0, 0), 3, 2, DayOfWeek.Sunday);
+var end = TimeZoneInfo.TransitionTime.CreateFloatingDateRule(new DateTime(1, 1, 1, 2, 0, 0), 11, 1, DayOfWeek.Sunday);
+var rule = TimeZoneInfo.AdjustmentRule.CreateAdjustmentRule(
+    DateTime.MinValue.Date, DateTime.MaxValue.Date, TimeSpan.FromHours(1), start, end);
+var building = TimeZoneInfo.CreateCustomTimeZone(
+    "Example/Building", TimeSpan.FromHours(-5), "Building time", "Building standard", "Building daylight", [rule]);
+
+// The change of 2024 happens at 07:00 UTC on March 10
+Console.WriteLine(building.GetUtcOffset(new DateTime(2024, 3, 10, 6, 59, 0, DateTimeKind.Utc))); // Output: -05:00:00
+Console.WriteLine(building.GetUtcOffset(new DateTime(2024, 3, 10, 7, 0, 0, DateTimeKind.Utc)));  // Output: -04:00:00
+
+// In that zone three alarms fall on March 9 (15:15, 22:30, and 23:45 local time) and two on March 10: the day of every
+// local time unit starts at local midnight, and the day of the change has 23 hours
+using var inZone = alarms.Render(new VegaLiteRenderOptions { TimeZone = building });
+PngCodec.Save(inZone, "alarms-building.png");
+
+// 3. A zone of the system is found by its id, which is not the same on every platform: IANA ids such as
+//    "America/New_York" on Linux and macOS, Windows ids such as "Eastern Standard Time" on Windows (.NET 6 and later can
+//    convert between them when ICU is available). The rules come from the operating system, so an old date can differ
+//    between machines; use CreateCustomTimeZone, as above, when the picture must be exactly reproducible
+try
+{
+    var system = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+    using var inSystemZone = alarms.Render(new VegaLiteRenderOptions { TimeZone = system });
+}
+catch (TimeZoneNotFoundException)
+{
+    Console.WriteLine("This platform does not know the id");
+}
+
+// 4. A date column that is not ISO 8601 is read with a d3 time format: the quoted format of date:'...' is read in the
+//    zone of the chart, and utc:'...' in UTC. The type temporal needs no parse entry of its own, and a date that does
+//    not match its format becomes null with the warning vl-data-parse-failed. The ticks are at the start of every month
+var visits = VegaLiteDocument.Parse("""
+    {
+      "width": 220,
+      "height": 100,
+      "data": {
+        "values": [
+          { "day": "05/03/2024", "tickets": 4 },
+          { "day": "15/03/2024", "tickets": 7 },
+          { "day": "25/04/2024", "tickets": 2 }
+        ],
+        "format": { "parse": { "day": "date:'%d/%m/%Y'" } }
+      },
+      "mark": "point",
+      "encoding": {
+        "x": { "field": "day", "type": "temporal", "axis": { "format": "%b %d", "tickCount": "month" } },
+        "y": { "field": "tickets", "type": "quantitative" }
+      }
+    }
+    """);
+var warnings = new List<VegaLiteDiagnostic>();
+using var visitsPicture = visits.Render(new VegaLiteRenderOptions { WarningHandler = warnings.Add });
+Console.WriteLine(warnings.Count); // Output: 0
+PngCodec.Save(visitsPicture, "visits.png");
+
+// 5. A construct that is not supported is reported, as everywhere in the package: a binned time unit (the data is
+//    already floored) is ignored, and strict mode refuses it
+var binned = VegaLiteDocument.Parse("""
+    {
+      "data": { "values": [ { "month": "2024-03-01", "n": 3 } ] },
+      "mark": "bar",
+      "encoding": {
+        "x": { "field": "month", "type": "temporal", "timeUnit": "binnedyearmonth" },
+        "y": { "field": "n", "type": "quantitative" }
+      }
+    }
+    """);
+
+try
+{
+    using var never = binned.Render(new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true });
+}
+catch (VegaLiteUnsupportedFeatureException ex)
+{
+    Console.WriteLine($"{ex.Feature} {ex.Location.Pointer}"); // Output: vl-timeunit-binned /encoding/x/timeUnit
 }
 ```
 

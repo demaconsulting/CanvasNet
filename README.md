@@ -155,7 +155,8 @@ for example `canvasnet render chart.vl.json -o chart.png --json`. It is a `chart
 title, and schema version without drawing it. The library implements a defined subset of the language (one view with
 inline, local-file, named, or generated data; the row, aggregating, binning, and stacking transforms with a subset of the
 expression language and static parameters; bar, rect, point, circle, square, rule, and tick marks; position, color,
-size, shape, and opacity encodings with legends and color schemes), draws only the bundled fonts, and never reads the
+size, shape, and opacity encodings with legends, color schemes, and time scales and axes), draws only the bundled
+fonts, and never reads the
 network; a chart's CSV, TSV, DSV, or JSON data file is read from the folder of its specification and below it only
 (there is no data-folder option, and a missing file is a `vega-lite-error`); everything else (other marks, layers,
 remote data, and so on) is left out and reported in `diagnostics` with a stable `vl-*` code (`--strict` turns the first
@@ -478,7 +479,8 @@ text and sourcing/provenance details.
 The `DemaConsulting.CanvasNet.VegaLite` package (and the `canvasnet` tool, which bundles it) implements the public
 Vega-Lite specification language and contains a small number of values and algorithms that were ported, with
 attribution, from the Vega and Vega-Lite projects (BSD-3-Clause, Copyright (c) University of Washington Interactive
-Data Lab) and from the d3 libraries d3-array, d3-format, d3-scale, d3-scale-chromatic, d3-interpolate, and d3-color (ISC,
+Data Lab) and from the d3 libraries d3-array, d3-format, d3-scale, d3-time, d3-time-format, d3-scale-chromatic,
+d3-interpolate, and d3-color (ISC,
 Copyright Mike Bostock), and its color schemes include the ColorBrewer colors (Apache-2.0, Copyright Cynthia Brewer,
 Mark Harrower, and The Pennsylvania State University), the Turbo color map (Apache-2.0, Copyright Google LLC), the
 cividis color map (Battelle Memorial Institute license), and the matplotlib colormaps viridis, magma, inferno, and
