@@ -106,7 +106,7 @@ Provenance: generalized from the scad.lua filter of DEMA Consulting's DocPilot b
 with the same organization (header, helpers, hash, render, rewrite), to draw every input the tool reads.
 ]]
 
-local FILTER_VERSION = "4"
+local FILTER_VERSION = "5"
 local SCAD_DEFAULT_SIZE = "1600x1200"
 local DEFAULT_BACKGROUND = "white"
 -- The same limit DocPilot's preview uses, so a model that previews also builds.
@@ -483,10 +483,12 @@ end
 
 -- Collects every string "url" of a "data" object anywhere in a decoded specification: the top level,
 -- layers, concatenations, facets and lookups all use that shape. A field that happens to be called
--- "data" can only add a file to the hash.
+-- "data" can only add a file to the hash. A specification nested deeper than MAX_DEPTH stops the build
+-- rather than leaving a deeper data url out of the hash, so a changed data file is always drawn again.
 local function collect_data_urls(node, urls, depth)
   if depth > MAX_DEPTH then
-    return
+    fail("the chart specification is nested more than " .. MAX_DEPTH .. " levels deep; every data url"
+      .. " must be hashed so that a changed data file is drawn again")
   end
   for key, value in pairs(node) do
     if type(value) == "table" then

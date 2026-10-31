@@ -104,7 +104,7 @@ function Get-Stamp {
 }
 
 try {
-    New-Item -ItemType Directory -Force -Path $guide, (Join-Path $tree 'docs/filters'), (Join-Path $tree '.config') | Out-Null
+    New-Item -ItemType Directory -Force -Path $guide, (Join-Path $guide 'generated'), (Join-Path $tree 'docs/filters'), (Join-Path $tree '.config') | Out-Null
     Copy-Item (Join-Path $PSScriptRoot 'canvasnet.lua') (Join-Path $tree 'docs/filters/canvasnet.lua')
     Copy-Item (Join-Path $repo '.config/dotnet-tools.json') (Join-Path $tree '.config/dotnet-tools.json')
 
