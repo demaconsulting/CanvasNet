@@ -131,7 +131,9 @@ internal sealed class LegendMarkFacts
 
         ConfigNode? Prop(string name) => Def(name) ?? Vl(name);
 
-        var filled = Prop("filled")?.AsBool() ?? ConfigResolver.IsFilledByDefault(type.Length == 0 ? "point" : type);
+
+        // A trail is filled but its legend symbols are not (Vega-Lite's legend encoding uses "filled && mark !== 'trail'"): the color is their stroke
+        var filled = (Prop("filled")?.AsBool() ?? ConfigResolver.IsFilledByDefault(type.Length == 0 ? "point" : type)) && !string.Equals(type, "trail", StringComparison.Ordinal);
         var color = Def("color")?.AsString();
         string? fill;
         if (Def("fill") is { } explicitFill)

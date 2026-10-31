@@ -85,13 +85,13 @@ public class VegaLiteReportSinkTests
         var delivered = new List<string>();
 
         // Act
-        var ex = Assert.Throws<VegaLiteUnsupportedFeatureException>(() => sink.Unsupported("vl-mark-arc", "no arcs", Where));
+        var ex = Assert.Throws<VegaLiteUnsupportedFeatureException>(() => sink.Unsupported("vl-mark-geoshape", "no maps", Where));
         sink.Deliver(w => delivered.Add(w.Message), u => delivered.Add(u.Feature));
 
         // Assert: the warning that filled the buffer, then the feature that the exception is about, each once
-        Assert.Equal("vl-mark-arc", ex.Feature);
+        Assert.Equal("vl-mark-geoshape", ex.Feature);
         Assert.Equal(Where, ex.Location);
-        Assert.Equal(["fills the buffer", "vl-mark-arc"], delivered);
+        Assert.Equal(["fills the buffer", "vl-mark-geoshape"], delivered);
     }
 
     /// <summary>

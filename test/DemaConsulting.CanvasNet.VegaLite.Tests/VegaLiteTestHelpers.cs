@@ -106,6 +106,71 @@ internal static class VegaLiteTestHelpers
     }
 
     /// <summary>
+    ///     Determines whether a painted color is within a tolerance of an expected color in every channel.
+    /// </summary>
+    /// <param name="expected">The expected color.</param>
+    /// <param name="actual">The painted color.</param>
+    /// <param name="tolerance">The largest accepted difference of a channel.</param>
+    /// <returns><see langword="true"/> when the colors are close.</returns>
+    public static bool Near(Rgba32 expected, Rgba32 actual, int tolerance = 2) =>
+        Math.Abs(actual.R - expected.R) <= tolerance && Math.Abs(actual.G - expected.G) <= tolerance && Math.Abs(actual.B - expected.B) <= tolerance;
+
+    /// <summary>
+    ///     Determines whether a pixel near a point has a color: a line that is two pixels wide and not aligned to the pixel grid still covers one
+    ///     pixel of the neighborhood completely.
+    /// </summary>
+    /// <param name="surface">The surface.</param>
+    /// <param name="x">The x position of the point on the surface.</param>
+    /// <param name="y">The y position of the point on the surface.</param>
+    /// <param name="color">The expected color.</param>
+    /// <param name="radius">The number of pixels around the pixel that holds the point that are examined.</param>
+    /// <returns><see langword="true"/> when a pixel of the neighborhood has the color.</returns>
+    public static bool HasInk(Surface surface, double x, double y, Rgba32 color, int radius = 1)
+    {
+        var cx = (int)Math.Floor(x);
+        var cy = (int)Math.Floor(y);
+        for (var py = cy - radius; py <= cy + radius; py++)
+        {
+            for (var px = cx - radius; px <= cx + radius; px++)
+            {
+                if (px >= 0 && py >= 0 && px < surface.Width && py < surface.Height && Near(color, surface[px, py]))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    ///     Counts the pixels of a rectangular region of a surface that are close to a color.
+    /// </summary>
+    /// <param name="surface">The surface.</param>
+    /// <param name="color">The color.</param>
+    /// <param name="left">The first column of the region.</param>
+    /// <param name="top">The first row of the region.</param>
+    /// <param name="right">The column after the region.</param>
+    /// <param name="bottom">The row after the region.</param>
+    /// <returns>The number of pixels.</returns>
+    public static int CountNear(Surface surface, Rgba32 color, int left, int top, int right, int bottom)
+    {
+        var count = 0;
+        for (var y = Math.Max(top, 0); y < Math.Min(bottom, surface.Height); y++)
+        {
+            for (var x = Math.Max(left, 0); x < Math.Min(right, surface.Width); x++)
+            {
+                if (Near(color, surface[x, y]))
+                {
+                    count++;
+                }
+            }
+        }
+
+        return count;
+    }
+
+    /// <summary>
     ///     Reduces a data reference to the parts that do not depend on the source name, so documents opened from
     ///     different sources can be compared.
     /// </summary>

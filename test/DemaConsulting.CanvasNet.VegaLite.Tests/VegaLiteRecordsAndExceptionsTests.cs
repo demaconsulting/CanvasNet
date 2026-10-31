@@ -41,11 +41,11 @@ public class VegaLiteRecordsAndExceptionsTests
     public void VegaLiteUnsupportedFeature_ToString_IncludesFeatureAndLocation()
     {
         // Arrange
-        var report = new VegaLiteUnsupportedFeature("vl-mark-arc", "not yet", Where);
+        var report = new VegaLiteUnsupportedFeature("vl-mark-geoshape", "not yet", Where);
 
         // Act / Assert
-        Assert.Equal("s.json:2:5 /mark: vl-mark-arc: not yet", report.ToString());
-        Assert.Equal("vl-mark-arc: not yet", new VegaLiteUnsupportedFeature("vl-mark-arc", "not yet", default).ToString());
+        Assert.Equal("s.json:2:5 /mark: vl-mark-geoshape: not yet", report.ToString());
+        Assert.Equal("vl-mark-geoshape: not yet", new VegaLiteUnsupportedFeature("vl-mark-geoshape", "not yet", default).ToString());
     }
 
     /// <summary>
@@ -136,14 +136,14 @@ public class VegaLiteRecordsAndExceptionsTests
         var inner = new InvalidOperationException("inner");
 
         // Act
-        var located = new VegaLiteUnsupportedFeatureException("vl-mark-arc", "no arcs", Where);
+        var located = new VegaLiteUnsupportedFeatureException("vl-mark-geoshape", "no maps", Where);
         var withInner = new VegaLiteUnsupportedFeatureException("m", inner);
 
         // Assert
         Assert.IsAssignableFrom<IOException>(located);
-        Assert.Equal("vl-mark-arc", located.Feature);
+        Assert.Equal("vl-mark-geoshape", located.Feature);
         Assert.Equal(Where, located.Location);
-        Assert.Equal("s.json:2:5 /mark: no arcs", located.Message);
+        Assert.Equal("s.json:2:5 /mark: no maps", located.Message);
         Assert.Same(inner, withInner.InnerException);
         Assert.Equal(string.Empty, new VegaLiteUnsupportedFeatureException().Feature);
         Assert.Equal(string.Empty, new VegaLiteUnsupportedFeatureException("m").Feature);

@@ -91,6 +91,16 @@ ticks, labels and positions are derived by hand from the calendar of 2024 (a lea
 interval table and Vega's multi-format; the time zones are built in the tests
 (`TimeZoneInfo.CreateCustomTimeZone`) and no test reads the host's zone, clock or culture.
 
+Phase 9 (line, area, trail, text and arc marks) adds no fixture file: its system tests
+(`VegaLiteLineAreaIntegrationTests`, `VegaLiteArcTextIntegrationTests`, `Guides/LegendBuilderPathMarkTests`) build small
+inline specifications with made-up numbers (a three-point line, a pie of the weights 1, 1 and 2, series `a` and `b`).
+They are **original works**: no Vega-Lite or Vega example, gallery chart (the pie and donut, radial, stacked area and
+multi-series line charts in particular), `vega-datasets` data set or reference image was copied, adapted or used as a
+source of expected values. The expected segments, angles, label positions and areas are derived by hand from the scale
+formulas, the path rules and the geometry of a circle, and the pixel assertions look only at the color of regions that
+the derivation puts inside or outside of a shape. `unsupported.vl.json` is unchanged: it still has a geoshape mark, a
+regression transform and a band position to report.
+
 Line endings: the repository normalizes text files to LF (`.gitattributes` and `.editorconfig`), but a working tree may
 hold CRLF files, depending on how it was checked out. Tests that use a fixture must therefore assert the parsed or
 rendered meaning (rows, values, pixels) and never the raw bytes or the line endings of the file; do not rewrite a
