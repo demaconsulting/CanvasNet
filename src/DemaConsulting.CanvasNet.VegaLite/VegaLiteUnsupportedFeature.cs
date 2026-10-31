@@ -12,7 +12,7 @@ namespace DemaConsulting.CanvasNet.VegaLite;
 ///         <see cref="VegaLiteUnsupportedFeatureException"/> at the first such construct instead.
 ///     </para>
 ///     <para>
-///         <see cref="Feature"/> is a stable identifier (for example <c>vl-mark-arc</c> or
+///         <see cref="Feature"/> is a stable identifier (for example <c>vl-mark-geoshape</c> or
 ///         <c>vl-data-remote-url</c>) that tools may match on; the message is human-readable and may change. The
 ///         record is immutable and safe for concurrent use.
 ///     </para>

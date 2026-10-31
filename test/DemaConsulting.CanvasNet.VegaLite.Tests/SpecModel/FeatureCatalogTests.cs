@@ -40,12 +40,12 @@ public class FeatureCatalogTests
                 { "filter": "datum.b > 1" },
                 { "regression": "n", "on": "a" }
               ],
-              "mark": "arc",
+              "mark": "geoshape",
               "encoding": {
                 "x": { "field": "d", "type": "temporal", "timeUnit": "year" },
                 "y": { "field": "n", "type": "quantitative", "aggregate": "sum", "bin": true, "stack": "zero", "sort": "-x", "condition": { "param": "s", "value": 1 } },
                 "color": { "field": "c", "type": "nominal", "bin": true, "scale": { "type": "log", "scheme": "x" }, "legend": { "encode": {} } },
-                "theta": { "field": "n", "type": "quantitative" },
+                "longitude": { "field": "lon", "type": "quantitative" },
                 "latitude": { "field": "lat", "type": "quantitative" },
                 "tooltip": { "field": "c" }
               },
@@ -67,12 +67,12 @@ public class FeatureCatalogTests
                 ("vl-transform-calculate", "/transform/0"),
                 ("vl-transform-filter", "/transform/1"),
                 ("vl-transform-regression", "/transform/2"),
-                ("vl-mark-arc", "/mark"),
+                ("vl-mark-geoshape", "/mark"),
                 ("vl-encoding-sort-ignored", "/encoding/y/sort"),
                 ("vl-encoding-condition", "/encoding/y/condition"),
                 ("vl-scale-type-ignored", "/encoding/color/scale/type"),
                 ("vl-guide-encode", "/encoding/color/legend/encode"),
-                ("vl-channel-theta", "/encoding/theta"),
+                ("vl-channel-geo", "/encoding/longitude"),
                 ("vl-channel-geo", "/encoding/latitude"),
                 ("vl-composition-layer", "/layer"),
                 ("vl-mark-geoshape", "/layer/0/mark"),
@@ -260,7 +260,7 @@ public class FeatureCatalogTests
     [InlineData("square", true)]
     [InlineData("rule", true)]
     [InlineData("tick", true)]
-    [InlineData("arc", false)]
+    [InlineData("arc", true)]
     [InlineData("area", true)]
     [InlineData("image", false)]
     [InlineData("line", true)]
@@ -296,13 +296,13 @@ public class FeatureCatalogTests
     public void FeatureCatalog_Visit_MarkReportCarriesLineAndColumn()
     {
         // Arrange
-        const string json = "{\n  \"mark\": \"arc\"\n}";
+        const string json = "{\n  \"mark\": \"geoshape\"\n}";
 
         // Act
         var report = Assert.Single(FeatureCatalog.Visit(SpecParser.Parse(json, "m.json")));
 
         // Assert
-        Assert.Equal("vl-mark-arc", report.Id);
+        Assert.Equal("vl-mark-geoshape", report.Id);
         Assert.Equal(new VegaLiteLocation("m.json", "/mark", 2, 11), report.Location);
     }
 
@@ -932,7 +932,7 @@ public class FeatureCatalogTests
         // Arrange
         const string json = """
             {
-              "hconcat": [ { "mark": "arc" }, { "vconcat": [ { "mark": "image" } ] } ],
+              "hconcat": [ { "mark": "geoshape" }, { "vconcat": [ { "mark": "image" } ] } ],
               "concat": [], "facet": { "row": { "field": "a" } }, "spec": { "mark": "geoshape" }, "repeat": [ "a" ],
               "resolve": { "scale": { "x": "independent" } }, "projection": { "type": "albers" }
             }
@@ -945,7 +945,7 @@ public class FeatureCatalogTests
         Assert.Equal(
             [
                 ("vl-composition-hconcat", "/hconcat"),
-                ("vl-mark-arc", "/hconcat/0/mark"),
+                ("vl-mark-geoshape", "/hconcat/0/mark"),
                 ("vl-composition-vconcat", "/hconcat/1/vconcat"),
                 ("vl-mark-image", "/hconcat/1/vconcat/0/mark"),
                 ("vl-composition-concat", "/concat"),
@@ -985,14 +985,14 @@ public class FeatureCatalogTests
     public void FeatureCatalog_Visit_ReportsAreInDocumentOrder()
     {
         // Arrange: the encoding is written before the mark, and a nested view before the parent's later properties
-        const string json = "{\"encoding\":{\"shape\":{\"field\":\"a\"}},\"layer\":[{\"mark\":\"arc\"}],\"mark\":\"image\"}";
+        const string json = "{\"encoding\":{\"shape\":{\"field\":\"a\"}},\"layer\":[{\"mark\":\"geoshape\"}],\"mark\":\"image\"}";
 
         // Act
         var ids = Visit(json);
 
         // Assert
         Assert.Equal(
-            [("vl-channel-shape", "/encoding/shape"), ("vl-composition-layer", "/layer"), ("vl-mark-arc", "/layer/0/mark"), ("vl-mark-image", "/mark")],
+            [("vl-channel-shape", "/encoding/shape"), ("vl-composition-layer", "/layer"), ("vl-mark-geoshape", "/layer/0/mark"), ("vl-mark-image", "/mark")],
             ids);
     }
 
@@ -1759,5 +1759,62 @@ public class FeatureCatalogTests
         Assert.Equal(
             [("vl-encoding-bin", "/encoding/text/bin")],
             Visit("""{ "mark": "text", "encoding": { "text": { "field": "c", "type": "quantitative", "bin": "binned" } } }"""));
+    }
+
+    /// <summary>
+    ///     Validates that the arc mark is supported with its own properties, that <c>theta</c> and <c>radius</c> are drawn by an arc and a text mark and <c>theta2</c> and <c>radius2</c> by an arc only
+    ///     (every other mark reports <c>vl-channel-&lt;name&gt;</c> at the channel and ignores it), that <c>size</c> and <c>strokeDash</c> are reported on an arc, that the <c>bandPosition</c> of a
+    ///     stacked polar channel of a text mark is accepted, and that the geographic channels and the marks that stay unsupported still report.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Report_ArcIsSupportedAndPolarChannelsAreGated()
+    {
+        // Assert: the mark is not reported, as a string and as a definition, with its own properties and every polar channel
+        Assert.Empty(Visit("""{ "mark": "arc" }"""));
+        Assert.Empty(Visit("""{ "mark": { "type": "arc", "innerRadius": 20, "outerRadius": 80, "radius": 90, "radius2": 10, "theta": 0, "theta2": 1, "padAngle": 0.02, "cornerRadius": 3 } }"""));
+        Assert.Empty(Visit(
+            """
+            { "mark": "arc", "encoding": { "theta": { "field": "a", "type": "quantitative", "stack": true }, "radius": { "field": "b", "type": "quantitative", "scale": { "type": "sqrt", "zero": true, "rangeMin": 20 } },
+              "theta2": { "value": 3 }, "radius2": { "field": "c", "type": "quantitative" }, "color": { "field": "d", "type": "nominal" } } }
+            """));
+
+        // Assert: a text mark draws theta and radius but not their second ends
+        Assert.Empty(Visit("""{ "mark": "text", "encoding": { "theta": { "field": "a", "type": "quantitative" }, "radius": { "value": 60 } } }"""));
+        Assert.Equal(
+            [("vl-channel-theta2", "/encoding/theta2"), ("vl-channel-radius2", "/encoding/radius2")],
+            Visit("""{ "mark": "text", "encoding": { "theta2": { "field": "a", "type": "quantitative" }, "radius2": { "value": 1 } } }"""));
+
+        // Assert: every other mark reports all four channels at the channel
+        foreach (var mark in new[] { "point", "circle", "square", "bar", "rect", "tick", "rule", "line", "area", "trail" })
+        {
+            Assert.Equal(
+                [("vl-channel-theta", "/encoding/theta"), ("vl-channel-radius", "/encoding/radius"), ("vl-channel-theta2", "/encoding/theta2"), ("vl-channel-radius2", "/encoding/radius2")],
+                Visit("{ \"mark\": \"" + mark + "\", \"encoding\": { \"theta\": { \"field\": \"a\" }, \"radius\": { \"field\": \"b\" }, \"theta2\": { \"field\": \"a\" }, \"radius2\": { \"field\": \"b\" } } }"));
+        }
+
+        // Assert: an arc has no size and no dash (Vega-Lite ignores them), and still reports a channel that no mark draws
+        Assert.Equal(
+            [("vl-channel-size", "/encoding/size"), ("vl-channel-strokedash", "/encoding/strokeDash"), ("vl-channel-geo", "/encoding/longitude")],
+            Visit(
+                """
+                { "mark": "arc", "encoding": { "size": { "field": "a", "type": "quantitative" }, "strokeDash": { "field": "b", "type": "nominal" }, "longitude": { "field": "c", "type": "quantitative" } } }
+                """));
+
+        // Assert: the band position of a stacked theta or radius of a text mark places the label in its slice and is accepted; anywhere else it is reported as before
+        Assert.Empty(Visit(
+            """
+            { "mark": "text", "encoding": { "theta": { "field": "a", "type": "quantitative", "stack": true, "bandPosition": 0.25 }, "color": { "field": "c", "type": "nominal" } } }
+            """));
+        Assert.Equal(
+            [("vl-encoding-bandposition", "/encoding/theta/bandPosition")],
+            Visit("""{ "mark": "text", "encoding": { "theta": { "field": "a", "type": "quantitative", "stack": false, "bandPosition": 0.25 } } }"""));
+        Assert.Equal(
+            [("vl-encoding-bandposition", "/encoding/theta/bandPosition")],
+            Visit("""{ "mark": "arc", "encoding": { "theta": { "field": "a", "type": "quantitative", "bandPosition": 0.25 } } }"""));
+
+        // Assert: a stack on a sqrt radius is not made, and says so like a stack on a sqrt y
+        Assert.Equal(
+            [("vl-encoding-stack-nonlinear", "/encoding/radius/stack")],
+            Visit("""{ "mark": "arc", "encoding": { "radius": { "field": "a", "type": "quantitative", "stack": true, "scale": { "type": "sqrt" } } } }"""));
     }
 }

@@ -119,4 +119,23 @@ public class EncodingPlanPolarTests
         Assert.Equal([new SortField("g", true)], plan.Stack.Sort);
         Assert.False(plan.Channel("theta")!.IsStacked);
     }
+
+    /// <summary>
+    ///     Validates that a dimension that reads the stacked field itself does not split the stack (Vega-Lite avoids grouping by the stacked field): a radial chart reads its
+    ///     <c>theta</c> and <c>radius</c> from one field, and its slices stack in one group; a dimension of another field still groups.
+    /// </summary>
+    [Fact]
+    public void EncodingPlan_Create_StackDoesNotGroupByTheStackedField()
+    {
+        // Act
+        var radial = Create(
+            "arc",
+            """{"theta":{"field":"v","type":"quantitative","stack":true},"radius":{"field":"v","type":"quantitative","scale":{"type":"sqrt"}}}""");
+        var other = Create("arc", """{"theta":{"field":"v","type":"quantitative","stack":true},"radius":{"field":"r","type":"quantitative"}}""");
+
+        // Assert
+        Assert.Equal("theta", radial.Stack!.Channel);
+        Assert.Empty(radial.Stack.GroupBy);
+        Assert.Equal(["r"], other.Stack!.GroupBy);
+    }
 }

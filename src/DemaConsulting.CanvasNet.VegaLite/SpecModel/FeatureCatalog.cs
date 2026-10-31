@@ -24,7 +24,7 @@ internal enum FeatureReportKind
 ///     One finding about a specification: a stable identifier, a human-readable description and the location of the
 ///     construct it is about.
 /// </summary>
-/// <param name="Id">The stable <c>vl-*</c> identifier (lower case, for example <c>vl-mark-arc</c>).</param>
+/// <param name="Id">The stable <c>vl-*</c> identifier (lower case, for example <c>vl-mark-geoshape</c>).</param>
 /// <param name="Message">The description, without the identifier and the location.</param>
 /// <param name="Location">The location of the construct (the value, or the key for an unknown property or a duplicate key).</param>
 /// <param name="Kind">Whether the finding is a warning or an unsupported feature.</param>
@@ -57,14 +57,14 @@ internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation
 ///         <item><term><c>vl-data-remote-url</c></term><description>the <c>data</c> object, when <c>url</c> has a scheme (<c>http</c>, <c>https</c>, <c>ftp</c>, <c>file</c>, <c>data</c>, <c>javascript</c>, a drive letter) or is an absolute path (Unix <c>/etc/hosts</c>, Windows rooted), a network path or a UNC path; never fetched, never given to a file resolver, and the dataset is empty. A relative local path is supported and not reported (a local file that cannot be read is an error of the render, not a report).</description></item>
 ///         <item><term><c>vl-data-values-text</c></term><description>inline <c>values</c> (or a top-level dataset that a <c>data.name</c> refers to) given as a text instead of an array of rows.</description></item>
 ///         <item><term><c>vl-data-geo</c></term><description><c>sphere</c>, <c>graticule</c>, a topojson format, or inline <c>values</c> (or a referenced top-level dataset) given as an object.</description></item>
-///         <item><term><c>vl-mark-&lt;type&gt;</c></term><description>the <c>mark</c>, for every mark type except bar, rect, point, circle, square, rule, tick, line, area, trail and text.</description></item>
+///         <item><term><c>vl-mark-&lt;type&gt;</c></term><description>the <c>mark</c>, for every mark type except bar, rect, point, circle, square, rule, tick, line, area, trail, text and arc.</description></item>
 ///         <item><term><c>vl-mark-invalid-show</c>, <c>vl-mark-invalid-domains</c> (warning), <c>vl-mark-interpolate-bundle-area</c></term><description>the <c>invalid</c> of a mark definition: <c>show</c> and null report <c>vl-mark-invalid-show</c> (the default mode applies), and <c>filter</c> and <c>break-paths-filter-domains</c> warn that the scale domains of this renderer still include the invalid rows; and the <c>interpolate: "bundle"</c> of an <c>area</c>, which d3-shape cannot draw (the area uses the linear interpolation).</description></item>
-///         <item><term><c>vl-channel-&lt;name&gt;</c></term><description>an encoding channel other than x, y, color, fill, stroke, size, opacity, shape, strokeWidth, strokeDash, fillOpacity, strokeOpacity, angle, text, order and detail; <c>shape</c> is drawn by a point, <c>text</c> by a text mark, <c>angle</c> by a point, circle, square or text, <c>strokeDash</c> by every mark but a rect, area and trail and <c>size</c> by every mark but an area, and the channel is reported (and ignored) for any other mark; <c>tooltip</c>, <c>href</c>, <c>description</c> and <c>key</c> are accepted and ignored without a report; <c>longitude</c>, <c>latitude</c>, <c>longitude2</c> and <c>latitude2</c> report <c>vl-channel-geo</c>. <c>x2</c> and <c>y2</c> are accepted (the range of a bar, rect, rule or area) when the mark is one of those and the channel they extend (<c>x</c> or <c>y</c>) is present, and report <c>vl-channel-x2</c> / <c>vl-channel-y2</c> otherwise. <c>order</c> (the order of a stack, of the points of a path, or the drawing order of the marks) and <c>detail</c> (it groups the points of a path) are accepted by every mark.</description></item>
+///         <item><term><c>vl-channel-&lt;name&gt;</c></term><description>an encoding channel other than x, y, color, fill, stroke, size, opacity, shape, strokeWidth, strokeDash, fillOpacity, strokeOpacity, angle, text, theta, radius, theta2, radius2, order and detail; <c>shape</c> is drawn by a point, <c>text</c> by a text mark, <c>angle</c> by a point, circle, square or text, <c>theta</c> and <c>radius</c> by an arc or text mark, <c>theta2</c> and <c>radius2</c> by an arc mark, <c>strokeDash</c> by every mark but a rect, area, trail, text and arc and <c>size</c> by every mark but a rect, an area and an arc, and the channel is reported (and ignored) for any other mark; <c>tooltip</c>, <c>href</c>, <c>description</c> and <c>key</c> are accepted and ignored without a report; <c>longitude</c>, <c>latitude</c>, <c>longitude2</c> and <c>latitude2</c> report <c>vl-channel-geo</c>. <c>x2</c> and <c>y2</c> are accepted (the range of a bar, rect, rule or area) when the mark is one of those and the channel they extend (<c>x</c> or <c>y</c>) is present, and report <c>vl-channel-x2</c> / <c>vl-channel-y2</c> otherwise. <c>order</c> (the order of a stack, of the points of a path, or the drawing order of the marks) and <c>detail</c> (it groups the points of a path) are accepted by every mark.</description></item>
 ///         <item><term><c>vl-type-geojson</c></term><description>the <c>type</c> of a supported channel.</description></item>
 ///         <item><term><c>vl-shape-path</c></term><description>a shape that is not a symbol name: the <c>shape</c> of a mark, the <c>value</c> of a <c>shape</c> channel, an entry of its <c>scale.range</c> or the <c>symbolType</c> of a legend (custom SVG path shapes are not drawn; a circle is).</description></item>
 ///         <item><term><c>vl-scale-interpolate-cubehelix</c></term><description>a <c>scale.interpolate</c> of the type <c>cubehelix</c> or <c>cubehelix-long</c> (RGB interpolation is used).</description></item>
 ///         <item><term><c>vl-scale-type-ignored</c> (warning)</term><description>a <c>scale.type</c> that the channel or the field type cannot use (the default type is used, as Vega-Lite does), and a quantitative field on a <c>shape</c> or <c>strokeDash</c> channel without a discretizing scale type (the scale is ordinal). A type that the renderer does not draw reports <c>vl-scale-&lt;type&gt;</c> only.</description></item>
-///         <item><term><c>vl-encoding-impute</c>, <c>-bandposition</c>, <c>-bandposition-rect</c>, <c>-datum-datetime</c></term><description>that property of a supported channel (<c>vl-encoding-impute</c> is the <c>impute</c> of a channel other than <c>x</c> and <c>y</c>: the impute of a position channel is run by the pipeline, the impute of any other channel is ignored). <c>-bandposition</c> is a <c>bandPosition</c> on a field without a time unit (or with a bin); <c>-bandposition-rect</c> is a <c>bandPosition</c> or <c>timeUnitBandPosition</c> other than 0.5 on a bar or rect whose field has a time unit (0.5 is used); <c>-datum-datetime</c> is a date-time object as the <c>datum</c> of a channel (the channel is ignored).</description></item>
+///         <item><term><c>vl-encoding-impute</c>, <c>-bandposition</c>, <c>-bandposition-rect</c>, <c>-datum-datetime</c></term><description>that property of a supported channel (<c>vl-encoding-impute</c> is the <c>impute</c> of a channel other than <c>x</c> and <c>y</c>: the impute of a position channel is run by the pipeline, the impute of any other channel is ignored). <c>-bandposition</c> is a <c>bandPosition</c> on a field without a time unit (or with a bin; not the one of a stacked <c>theta</c> or <c>radius</c> of a text mark, which places the label in its slice); <c>-bandposition-rect</c> is a <c>bandPosition</c> or <c>timeUnitBandPosition</c> other than 0.5 on a bar or rect whose field has a time unit (0.5 is used); <c>-datum-datetime</c> is a date-time object as the <c>datum</c> of a channel (the channel is ignored).</description></item>
 ///         <item><term><c>vl-encoding-stack-impute-bin</c> (warning)</term><description>the dimension channel of a stacked <c>line</c>, <c>area</c> or <c>trail</c> that is binned and has stack-by fields (and whose stacked channel does not say <c>impute: null</c>): Vega-Lite fills the layers with zeros for the bins they lack, this renderer does not impute a binned dimension.</description></item>
 ///         <item><term><c>vl-timeunit-binned</c>, <c>vl-timeunit-maxbins</c></term><description>a <c>timeUnit</c> that is not applied: a <c>binned</c> unit (a name that starts with <c>binned</c>, or <c>binned: true</c>) in an encoding, a condition, a predicate or the <c>timeUnit</c> transform (the unit is ignored and the field is used as it is), and the <c>{"maxbins": n}</c> form without a unit in a predicate (ignored). The encoding and the transform apply <c>maxbins</c>.</description></item>
 ///         <item><term><c>vl-predicate-timeunit-part</c> (warning)</term><description>the <c>timeUnit</c> of a predicate (a filter or a condition test) whose unit has a <c>week</c> or <c>dayofyear</c> part; like Vega-Lite a predicate does not apply those parts.</description></item>
@@ -103,12 +103,12 @@ internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation
 internal static class FeatureCatalog
 {
     /// <summary>The mark types that the renderer draws; any other mark type is reported.</summary>
-    private static readonly HashSet<string> SupportedMarks = ["bar", "rect", "point", "circle", "square", "rule", "tick", "line", "area", "trail", "text"];
+    private static readonly HashSet<string> SupportedMarks = ["bar", "rect", "point", "circle", "square", "rule", "tick", "line", "area", "trail", "text", "arc"];
 
     /// <summary>The channels that the renderer draws; any other channel is reported unless it is ignored.</summary>
     private static readonly HashSet<string> SupportedChannels =
     [
-        "x", "y", "color", "fill", "stroke", "size", "opacity", "shape", "strokeWidth", "strokeDash", "fillOpacity", "strokeOpacity", "angle", "text",
+        "x", "y", "color", "fill", "stroke", "size", "opacity", "shape", "strokeWidth", "strokeDash", "fillOpacity", "strokeOpacity", "angle", "text", "theta", "radius", "theta2", "radius2",
     ];
 
     /// <summary>The channels that are accepted and ignored without a report (interaction, accessibility and linking).</summary>
@@ -241,6 +241,9 @@ internal static class FeatureCatalog
         /// <summary>The mark type of the view whose encoding is visited.</summary>
         private string _markType = string.Empty;
 
+        /// <summary>The stack decision of the view whose encoding is visited (decided when it is first needed), or null outside an encoding.</summary>
+        private Lazy<StackDecision?>? _stack;
+
         /// <summary>
         ///     Initializes a walker.
         /// </summary>
@@ -255,7 +258,7 @@ internal static class FeatureCatalog
         /// </summary>
         /// <param name="area">The area, such as <c>mark</c>.</param>
         /// <param name="name">The name; it is lower-cased with the invariant culture.</param>
-        /// <returns>The identifier, such as <c>vl-mark-arc</c>.</returns>
+        /// <returns>The identifier, such as <c>vl-mark-geoshape</c>.</returns>
         private static string Id(string area, string name) => $"vl-{area}-{name.ToLowerInvariant()}";
 
         /// <summary>
@@ -532,6 +535,7 @@ internal static class FeatureCatalog
             _markType = markType;
             // The order channel orders a stack that the plan will make, which is decided with the orientation that the scales infer
             var stackDecision = new Lazy<StackDecision?>(() => StackRules.Decide(markType, ScaleResolver.InferOrient(markType, mark?["orient"]?.AsString(), encoding), encoding));
+            _stack = stackDecision;
             foreach (var channel in encoding.Properties)
             {
                 var name = channel.Name!;
@@ -569,9 +573,10 @@ internal static class FeatureCatalog
                         Unsupported(Id("channel", name), $"The '{name}' channel is not supported yet.", channel);
                     }
                 }
-                else if ((name is "shape" or "angle" or "strokeDash" or "text" || (name == "size" && markType is "area" or "arc")) && !ScaleResolver.ChannelIsDrawn(name, markType))
+                else if ((name is "shape" or "angle" or "strokeDash" or "text" or "theta" or "radius" or "theta2" or "radius2" || (name == "size" && markType is "area" or "arc")) && !ScaleResolver.ChannelIsDrawn(name, markType))
                 {
-                    // The channel is supported, but the mark does not draw it (a shape needs a point, an angle a symbol or text, a dash a mark with a stroke line, a size a mark that has one, a text a text mark)
+                    // The channel is supported, but the mark does not draw it (a shape needs a point, an angle a symbol or text, a dash a mark with a stroke line, a size a mark that has one, a text a text mark,
+                    // an angle (theta) or radius a text or arc mark and their second ends an arc mark)
                     Unsupported(Id("channel", name), $"The '{name}' channel is not drawn by the '{markType}' mark; it is ignored.", channel);
                 }
                 else if (channel.IsObject)
@@ -647,7 +652,7 @@ internal static class FeatureCatalog
                 // The impute of a position channel is run by the pipeline (EncodingPlan.Impute); on any other channel it is not
                 ReportProperty(definition, "impute", n => !n.IsNull, $"Imputation is only supported on the 'x' and 'y' channels, not on '{name}'; the impute is ignored.");
             }
-            VisitBandPosition(definition);
+            VisitBandPosition(name, definition);
             if (definition["datum"] is { IsObject: true } datum && SpecParser.IsDateTimeShaped(datum))
             {
                 Unsupported("vl-encoding-datum-datetime", "A date-time object as the datum of a channel is not supported yet; the channel is ignored.", datum);
@@ -713,22 +718,26 @@ internal static class FeatureCatalog
             TimeUnitSpec.TryRead(node, out unit);
 
         /// <summary>
-        ///     Reports the <c>bandPosition</c> that is not applied: one on a field without a time unit, and one other than 0.5 (or a mark
-        ///     <c>timeUnitBandPosition</c> other than 0.5) on a bar or rect whose field has a time unit.
+        ///     Reports the <c>bandPosition</c> that is not applied: one on a field without a time unit (except the one that places the label of a text mark inside the slice of its stacked <c>theta</c> or
+        ///     <c>radius</c>), and one other than 0.5 (or a mark <c>timeUnitBandPosition</c> other than 0.5) on a bar or rect whose field has a time unit.
         /// </summary>
         /// <remarks>
         ///     Vega-Lite positions the rect of a time unit with shifted start and end fields when the band position is not the middle (0.5 with the band size 1,
         ///     which spans the unit). The renderer spans the unit; a position on a field without a time unit, or with a bin, is not applied either.
         /// </remarks>
+        /// <param name="name">The channel name.</param>
         /// <param name="definition">The channel definition object.</param>
-        private void VisitBandPosition(SpecNode definition)
+        private void VisitBandPosition(string name, SpecNode definition)
         {
             var hasUnit = definition["timeUnit"] is { IsNull: false } timeUnit && TryReadTimeUnit(timeUnit, out var unit) && !unit.IsBinned && unit.Parts.Count > 0;
             if (definition["bandPosition"] is { } position)
             {
                 if (!hasUnit)
                 {
-                    Unsupported("vl-encoding-bandposition", "The band position of a field is not supported yet.", position);
+                    if (!(_markType == "text" && name is "theta" or "radius" && _stack?.Value?.Channel == name))
+                    {
+                        Unsupported("vl-encoding-bandposition", "The band position of a field is not supported yet.", position);
+                    }
                 }
                 else if (_markType is "bar" or "rect" && !(position.IsNumber && position.NumberValue.CompareTo(0.5) == 0))
                 {
@@ -902,7 +911,7 @@ internal static class FeatureCatalog
         /// <param name="definition">The channel definition object.</param>
         private void VisitStack(string name, SpecNode definition)
         {
-            if (name is not ("x" or "y") || definition["stack"] is not { } stack || !StackRules.IsEnabled(stack))
+            if (name is not ("x" or "y" or "theta" or "radius") || definition["stack"] is not { } stack || !StackRules.IsEnabled(stack))
             {
                 return;
             }

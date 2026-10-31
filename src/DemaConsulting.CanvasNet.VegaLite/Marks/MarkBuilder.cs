@@ -10,7 +10,7 @@ namespace DemaConsulting.CanvasNet.VegaLite.Marks;
 
 /// <summary>
 ///     Builds the scene items of the mark of a single view: <c>bar</c>, <c>rect</c>, <c>point</c>, <c>circle</c>,
-///     <c>square</c>, <c>rule</c>, <c>tick</c>, <c>line</c>, <c>area</c>, <c>trail</c> and <c>text</c>, and the point and line overlays of the path marks.
+///     <c>square</c>, <c>rule</c>, <c>tick</c>, <c>line</c>, <c>area</c>, <c>trail</c>, <c>text</c> and <c>arc</c>, and the point and line overlays of the path marks.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -78,6 +78,13 @@ namespace DemaConsulting.CanvasNet.VegaLite.Marks;
 ///         or kept, and the lines of a label are charged to the scene budget as items.
 ///     </para>
 ///     <para>
+///         <b>Arcs.</b> An <c>arc</c> mark is a rectangle in polar coordinates (Vega-Lite's <c>arc.ts</c>): one <see cref="SceneArc"/> per row (role <c>mark-arc</c>) centered at its <c>x</c> and <c>y</c> (the middle of the data
+///         rectangle for an absent channel), spanning the angles of <c>theta</c> and <c>theta2</c> (a stack: its start and end; a value: from zero or the first domain value; a band: its extent; an absent
+///         <c>theta</c>: the whole circle) and the radii of <c>radius</c> and <c>radius2</c> (an absent <c>radius</c> runs to half of the smaller side of the data rectangle, an absent <c>radius2</c> starts at the center).
+///         The mark properties <c>theta</c>, <c>theta2</c>, <c>radius</c>, <c>radius2</c> (and the aliases <c>outerRadius</c> and <c>innerRadius</c>) are the constants of absent channels; <c>padAngle</c> and
+///         <c>cornerRadius</c> are constants of the mark. A <c>text</c> mark whose <c>theta</c> or <c>radius</c> is stacked sits at the middle of its slice (the <c>bandPosition</c> of the channel moves it).
+///     </para>
+///     <para>
 ///         <b>Clipping.</b> Marks are clipped to the data rectangle only when the mark definition says <c>"clip": true</c>. Vega-Lite's
 ///         <c>scaleClip</c> applies to the extent of an interval selection, which is not supported, so an explicit scale domain never clips. Row-bound expressions
 ///         (<c>{"expr": ...}</c>, compiled by the specification parser) are evaluated against the transformed row of each mark for the
@@ -112,7 +119,7 @@ internal sealed partial class MarkBuilder
     private const double DefaultBarBinSpacing = 1;
 
     /// <summary>The marks that this builder draws.</summary>
-    private static readonly HashSet<string> SupportedMarks = ["bar", "rect", "point", "circle", "square", "rule", "tick", "line", "area", "trail", "text"];
+    private static readonly HashSet<string> SupportedMarks = ["bar", "rect", "point", "circle", "square", "rule", "tick", "line", "area", "trail", "text", "arc"];
 
     /// <summary>The marks whose missing fill is transparent instead of none (Vega-Lite's <c>transparentIfNeeded</c>).</summary>
     private static readonly HashSet<string> TransparentMarks = ["bar", "point", "circle", "square"];
@@ -158,7 +165,7 @@ internal sealed partial class MarkBuilder
     ///     Tells whether this builder draws a mark type.
     /// </summary>
     /// <param name="markType">The mark type, such as <c>bar</c>.</param>
-    /// <returns><see langword="true"/> for <c>bar</c>, <c>rect</c>, <c>point</c>, <c>circle</c>, <c>square</c>, <c>rule</c>, <c>tick</c>, <c>line</c>, <c>area</c>, <c>trail</c> and <c>text</c>.</returns>
+    /// <returns><see langword="true"/> for <c>bar</c>, <c>rect</c>, <c>point</c>, <c>circle</c>, <c>square</c>, <c>rule</c>, <c>tick</c>, <c>line</c>, <c>area</c>, <c>trail</c>, <c>text</c> and <c>arc</c>.</returns>
     public static bool IsSupported(string? markType) => markType is not null && SupportedMarks.Contains(markType);
 
     /// <summary>
@@ -531,7 +538,7 @@ internal sealed partial class MarkBuilder
                         scale?.CreateModel(name is "x" or "y" or "radius" ? extent : 0),
                         table,
                         owner._expressions?.Compiled.GetReference(node["value"]),
-                        name is "x" or "y" && overlay is null && encoding[name + "2"] is { IsObject: true } secondary ? secondary : null,
+                        name is "x" or "y" or "theta" or "radius" && overlay is null && encoding[name + "2"] is { IsObject: true } secondary ? secondary : null,
                         ConditionsOf(name, node));
                 }
             }
@@ -587,6 +594,7 @@ internal sealed partial class MarkBuilder
                 "rule" => Rules(),
                 "line" or "area" or "trail" => Paths(),
                 "text" => Texts(),
+                "arc" => Arcs(),
                 _ => Symbols(),
             };
             if (_overlay is null)

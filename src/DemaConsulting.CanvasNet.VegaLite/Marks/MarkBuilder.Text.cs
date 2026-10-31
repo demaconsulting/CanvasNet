@@ -365,12 +365,12 @@ internal sealed partial class MarkBuilder
         /// </summary>
         /// <param name="channel">The <c>theta</c> or <c>radius</c> channel.</param>
         /// <param name="row">The row.</param>
-        /// <returns>The value; a constant <c>value</c> as it is (0 when there is none); null when the row has no valid value.</returns>
+        /// <returns>The value; a constant <c>value</c> as it is (0 when there is none); the middle of its slice (or where the band position puts it) for a stacked channel; null when the row has no valid value.</returns>
         private double? PolarValue(Channel channel, int row)
         {
             if (channel.Model is { } model)
             {
-                return Center(channel, model, row);
+                return channel.IsStacked ? StackedPolarValue(channel, model, row) : Center(channel, model, row);
             }
 
             return channel.Value?.AsNumber() ?? 0;

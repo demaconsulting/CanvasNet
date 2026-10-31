@@ -537,9 +537,9 @@ public class VegaLiteSystemIntegrationTests
     public void CanvasNetVegaLite_SystemIntegration_Unsupported_MarkIsReportedWithPointer()
     {
         // Arrange: schema version 4 gives a warning first; a layer of two views follows, the second with an unsupported mark
-        // (bar is drawn, so only the arc mark and the composition itself are reported)
+        // (bar is drawn, so only the geoshape mark and the composition itself are reported)
         var document = VegaLiteDocument.Parse(
-            "{\"$schema\":\"https://vega.github.io/schema/vega-lite/v4.json\",\"layer\":[{\"mark\":\"bar\"},{\"mark\":{\"type\":\"arc\"}}]}");
+            "{\"$schema\":\"https://vega.github.io/schema/vega-lite/v4.json\",\"layer\":[{\"mark\":\"bar\"},{\"mark\":{\"type\":\"geoshape\"}}]}");
         var log = new List<string>();
         var threads = new HashSet<int>();
         var options = new VegaLiteRenderOptions
@@ -560,7 +560,7 @@ public class VegaLiteSystemIntegrationTests
         using var surface = document.Render(options, Ct);
 
         // Assert
-        Assert.Equal(["W vl-schema-version", "U vl-composition-layer /layer", "U vl-mark-arc /layer/1/mark"], log);
+        Assert.Equal(["W vl-schema-version", "U vl-composition-layer /layer", "U vl-mark-geoshape /layer/1/mark"], log);
         Assert.Equal([Environment.CurrentManagedThreadId], threads);
     }
 
@@ -571,7 +571,7 @@ public class VegaLiteSystemIntegrationTests
     public void CanvasNetVegaLite_SystemIntegration_Strict_ThrowsAtFirstUnsupportedFeature()
     {
         // Arrange: an unsupported mark first and an unsupported channel second, in a view that is not a composition
-        var document = VegaLiteDocument.Parse("{\"mark\":\"arc\",\"encoding\":{\"shape\":{\"field\":\"a\",\"type\":\"nominal\"}}}");
+        var document = VegaLiteDocument.Parse("{\"mark\":\"geoshape\",\"encoding\":{\"shape\":{\"field\":\"a\",\"type\":\"nominal\"}}}");
         var reported = new List<string>();
         var options = new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true, UnsupportedFeatureHandler = u => reported.Add(u.Feature) };
 
@@ -579,9 +579,9 @@ public class VegaLiteSystemIntegrationTests
         var ex = Assert.Throws<VegaLiteUnsupportedFeatureException>(() => document.Render(options, Ct));
 
         // Assert: the first feature only, with its location, and the handler saw exactly that report
-        Assert.Equal("vl-mark-arc", ex.Feature);
+        Assert.Equal("vl-mark-geoshape", ex.Feature);
         Assert.Equal("/mark", ex.Location.Pointer);
-        Assert.Equal(["vl-mark-arc"], reported);
+        Assert.Equal(["vl-mark-geoshape"], reported);
 
         // Assert: a handler that fails while the failure is being reported does not hide it
         var hostile = new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true, UnsupportedFeatureHandler = _ => throw new InvalidOperationException("handler") };
@@ -608,7 +608,7 @@ public class VegaLiteSystemIntegrationTests
     {
         // Arrange: a version warning, then an unsupported mark and a second unsupported channel; the cap of one is already full
         var document = VegaLiteDocument.Parse(
-            "{\"$schema\":\"https://vega.github.io/schema/vega-lite/v4.json\",\"mark\":\"arc\",\"encoding\":{\"shape\":{\"field\":\"a\",\"type\":\"nominal\"}}}");
+            "{\"$schema\":\"https://vega.github.io/schema/vega-lite/v4.json\",\"mark\":\"geoshape\",\"encoding\":{\"shape\":{\"field\":\"a\",\"type\":\"nominal\"}}}");
         var log = new List<string>();
         var options = new VegaLiteRenderOptions
         {
@@ -619,8 +619,8 @@ public class VegaLiteSystemIntegrationTests
         };
 
         // Act / Assert: every entry point throws for the first feature after delivering exactly [warning, feature]
-        string[] expected = ["W vl-schema-version", "U vl-mark-arc /mark"];
-        Assert.Equal("vl-mark-arc", Assert.Throws<VegaLiteUnsupportedFeatureException>(() => document.Render(options, Ct)).Feature);
+        string[] expected = ["W vl-schema-version", "U vl-mark-geoshape /mark"];
+        Assert.Equal("vl-mark-geoshape", Assert.Throws<VegaLiteUnsupportedFeatureException>(() => document.Render(options, Ct)).Feature);
         Assert.Equal(expected, log);
         log.Clear();
         Assert.Throws<VegaLiteUnsupportedFeatureException>(() => document.Render(64, 64, options, Ct));
