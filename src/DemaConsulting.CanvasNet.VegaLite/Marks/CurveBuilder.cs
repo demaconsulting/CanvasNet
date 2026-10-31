@@ -97,8 +97,10 @@ internal readonly record struct AreaPoint(double Along, double Top, double Base,
 ///     <para>
 ///         <b>Names and tension.</b> Vega's <c>curves()</c> maps the <c>tension</c> property to the <c>beta</c> of a bundle
 ///         (default 0.85), to the tension of a cardinal curve (default 0) and to the <c>alpha</c> of a Catmull-Rom curve
-///         (default 0.5; 0 gives a cardinal curve); the other curves ignore it. A <c>tension</c> that is not finite counts as
-///         absent. <see cref="TryParse"/> accepts exactly the 15 names of Vega-Lite's <c>Interpolate</c>; the Vega-only
+///         (default 0.5; 0 gives a cardinal curve); the other curves ignore it. d3 accepts any number as a tension and so does Vega-Lite
+///         (its schema has no range), so the tension is not range-checked, neither in a mark definition nor in the configuration; a
+///         <c>tension</c> that is not finite counts as absent, and a finite one cannot produce an unbounded drawing because the path
+///         context bounds every coordinate it writes (see <b>Totality and limits</b>). <see cref="TryParse"/> accepts exactly the 15 names of Vega-Lite's <c>Interpolate</c>; the Vega-only
 ///         <c>catmull-rom-open</c> and <c>catmull-rom-closed</c> are not Vega-Lite values and are not implemented.
 ///     </para>
 ///     <para>
@@ -107,9 +109,11 @@ internal readonly record struct AreaPoint(double Along, double Top, double Base,
 ///         substitutes a supported curve.
 ///     </para>
 ///     <para>
-///         <b>Totality and limits.</b> A point with a coordinate that is not finite is treated as undefined. Non-finite
-///         values that arise inside a curve (an overflow of huge coordinates) are never written: a move or line to a
-///         non-finite point is skipped and a cubic with a non-finite control point becomes a line to its end point. The
+///         <b>Totality and limits.</b> A point with a coordinate that is not finite, or whose magnitude is above
+///         <see cref="ScenePainter.MaxMagnitude"/> (the one bound that the painter applies to everything it draws), is treated as undefined and
+///         ends the current subpath. Values that arise inside a curve (an overflow of huge coordinates, the long tangents of a huge tension) are
+///         never written: a move or line to a point that is not drawable is skipped and a cubic with a control point that is not drawable becomes a
+///         line to its end point. The
 ///         generators poll the cancellation token every 1,024 points. <see cref="MaxSegments"/> is an upper bound of the
 ///         number of segments that the generators write, so that the caller can charge the budget before generating.
 ///     </para>
@@ -118,9 +122,6 @@ internal static partial class CurveBuilder
 {
     /// <summary>The number of points between two polls of the cancellation token (a power of two).</summary>
     private const int PollInterval = 1024;
-
-    /// <summary>The per-run allowance of <see cref="MaxSegments"/> for moves, closes and curve end pieces.</summary>
-    private const long RunAllowance = 6;
 
     /// <summary>The tolerance of the Catmull-Rom length test (<c>epsilon</c> of d3-shape's <c>math.js</c>).</summary>
     private const double Epsilon = 1e-12;
@@ -179,10 +180,23 @@ internal static partial class CurveBuilder
     ///     Computes an upper bound of the number of segments that <see cref="Line"/> or <see cref="Area"/> writes.
     /// </summary>
     /// <remarks>
-    ///     The bound is <c>factor * points * (area ? 2 : 1) + 6 * runs</c> with a factor of 2 for the step curves (two lines per
-    ///     interval) and 1 otherwise; the additive part covers the moves, closes and the end pieces of the curves, and its
-    ///     worst case is the baseline pass of an area of basis curves (<c>2 * points + 5</c> per run). A run that has points
-    ///     counts as at least one run. The result saturates at <see cref="long.MaxValue"/>.
+    ///     The bound is <c>factor * points * (area ? 2 : 1) + extra</c> with a factor of 2 for the step curves (two lines per
+    ///     interval) and 1 otherwise. <c>extra</c> covers the moves, closes and end pieces that a run writes besides its points, and
+    ///     depends on the curve and on whether an area is drawn (<see cref="RunExtras"/>). The proof has three parts.
+    ///     (1) The runs are independent: every run starts with <c>lineStart</c> and ends with <c>lineEnd</c>, and the segment count of a
+    ///     d3-shape curve does not depend on the coordinates (they only choose the control points; the sink can drop a segment, never add one).
+    ///     (2) The curves are state machines with at most four states (no point, one, two, three or more), so the count of a run of
+    ///     <c>n</c> points is <c>factor * n * (area ? 2 : 1) + e(n)</c> with <c>e</c> constant for <c>n</c> of 3 or more; the test
+    ///     <c>CurveBuilder_MaxSegments_IsAnUpperBoundForEveryKind</c> sweeps every run pattern up to 12 points for every curve, for lines and areas,
+    ///     and the table was taken from that sweep. A <c>bundle</c> with a <c>tension</c> of 1 is a basis curve, so <c>bundle</c> has the
+    ///     numbers of <c>basis</c>. (3) With <c>D</c> points in <c>R</c> runs, a run of three or more points has two points more than the
+    ///     one that every run has, so at most <c>(D - R) / 2</c> runs are that long; the others (one or two points) write at most
+    ///     <see cref="RunExtras"/> <c>small</c> extra segments, the long ones at most <c>big</c>. The sum is largest when as many runs as possible are long.
+    ///     The runs of isolated points (<c>D = R</c>) are therefore charged only <c>small</c> each (one for a line of ordinary curves). The
+    ///     caller must count the points that are defined for the generators, that is the points whose coordinates
+    ///     <see cref="ScenePainter.IsBounded(double)"/> accepts: a point that the generators treat as undefined would split a run
+    ///     and could write more than the bound. A run that has points
+    ///     counts as at least one run, and there are never more runs than points. The result saturates at <see cref="long.MaxValue"/>.
     /// </remarks>
     /// <param name="kind">The curve.</param>
     /// <param name="definedPoints">The number of defined points (each point is used once by a line, twice by an area).</param>
@@ -206,8 +220,38 @@ internal static partial class CurveBuilder
 
         // The step curves write up to two lines per interval, an area writes every point twice
         var perPoint = (kind is CurveKind.Step or CurveKind.StepBefore or CurveKind.StepAfter ? 2L : 1L) * (area ? 2L : 1L);
-        return (perPoint * definedPoints) + (RunAllowance * Math.Max(runs, 1L));
+        var runCount = Math.Clamp(runs, 1L, definedPoints);
+        var (small, big) = RunExtras(kind, area);
+
+        // A run of three or more points has at least two points beyond the first, so at most (D - R) / 2 runs are that long
+        var longRuns = Math.Min(runCount, (definedPoints - runCount) / 2);
+        return (perPoint * definedPoints) + (big * longRuns) + (small * (runCount - longRuns));
     }
+
+    /// <summary>
+    ///     Gets the most segments, beyond <c>factor * n * (area ? 2 : 1)</c>, that one run of <c>n</c> points writes.
+    /// </summary>
+    /// <remarks>
+    ///     The values are the maxima, over the runs of up to 12 points, of the count that the generators write less the points part, and never
+    ///     less than 0. For a line: a move for the first point of the ordinary curves (1 for linear, cardinal, Catmull-Rom, monotone and natural),
+    ///     the close of the closed curves, the end pieces of basis (a curve and a line, 2). The open curves write fewer segments than their points and have 0.
+    ///     For an area the baseline pass continues the path of the top line and the outline is closed, which adds one (two for the closed curves; five
+    ///     for a basis curve with three points or more, whose two passes have the two end pieces each).
+    /// </remarks>
+    /// <param name="kind">The curve.</param>
+    /// <param name="area">Whether the outline of an area is generated.</param>
+    /// <returns>The extra segments of a run of one or two points (<c>small</c>) and of any run (<c>big</c>, at least <c>small</c>).</returns>
+    private static (long Small, long Big) RunExtras(CurveKind kind, bool area) => (kind, area) switch
+    {
+        (CurveKind.Step, false) or (CurveKind.StepBefore, _) or (CurveKind.StepAfter, _) => (0, 0),
+        (CurveKind.Step, true) => (1, 1),
+        (CurveKind.BasisOpen, _) or (CurveKind.CardinalOpen, _) => (0, 0),
+        (CurveKind.LinearClosed or CurveKind.BasisClosed or CurveKind.CardinalClosed, false) => (1, 1),
+        (CurveKind.LinearClosed or CurveKind.BasisClosed or CurveKind.CardinalClosed, true) => (2, 2),
+        (CurveKind.Basis or CurveKind.Bundle, false) => (1, 2),
+        (CurveKind.Basis or CurveKind.Bundle, true) => (1, 5),
+        _ => (1, 1),
+    };
 
     /// <summary>
     ///     Creates the curve object of a kind.
@@ -292,7 +336,7 @@ internal static partial class CurveBuilder
         /// <param name="y">The y coordinate.</param>
         public void MoveTo(double x, double y)
         {
-            if (double.IsFinite(x) && double.IsFinite(y))
+            if (ScenePainter.IsBounded(x, y))
             {
                 _output.Add(ScenePathSegment.Move(x, y));
                 _hasCurrentPoint = true;
@@ -306,7 +350,7 @@ internal static partial class CurveBuilder
         /// <param name="y">The y coordinate.</param>
         public void LineTo(double x, double y)
         {
-            if (double.IsFinite(x) && double.IsFinite(y))
+            if (ScenePainter.IsBounded(x, y))
             {
                 _output.Add(ScenePathSegment.Line(x, y));
             }
@@ -323,10 +367,11 @@ internal static partial class CurveBuilder
         /// <param name="y">The y coordinate of the end point.</param>
         public void CubicTo(double x1, double y1, double x2, double y2, double x, double y)
         {
-            // A non-finite control point falls back to a straight line to the end point
-            if (double.IsFinite(x1) && double.IsFinite(y1) && double.IsFinite(x2) && double.IsFinite(y2))
+            // A control point that is not finite or is beyond the painter's magnitude bound (a huge tension makes the
+            // tangents of a cardinal or Catmull-Rom curve as long as it likes) falls back to a straight line to the end point
+            if (ScenePainter.IsBounded(x1, y1, x2, y2))
             {
-                if (double.IsFinite(x) && double.IsFinite(y))
+                if (ScenePainter.IsBounded(x, y))
                 {
                     _output.Add(ScenePathSegment.Cubic(x1, y1, x2, y2, x, y));
                 }

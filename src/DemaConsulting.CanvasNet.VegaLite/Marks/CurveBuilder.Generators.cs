@@ -150,14 +150,14 @@ internal static partial class CurveBuilder
     ///     Tells whether a point takes part in the path.
     /// </summary>
     /// <param name="point">The point.</param>
-    /// <returns><see langword="true"/> when the point is defined and its coordinates are finite.</returns>
-    private static bool IsDefined(in CurvePoint point) => point.Defined && double.IsFinite(point.X) && double.IsFinite(point.Y);
+    /// <returns><see langword="true"/> when the point is defined and its coordinates are drawable (finite and within <see cref="ScenePainter.MaxMagnitude"/>).</returns>
+    private static bool IsDefined(in CurvePoint point) => point.Defined && ScenePainter.IsBounded(point.X, point.Y);
 
     /// <summary>
     ///     Tells whether an area point takes part in the outline.
     /// </summary>
     /// <param name="point">The point.</param>
-    /// <returns><see langword="true"/> when the point is defined and its coordinates are finite.</returns>
+    /// <returns><see langword="true"/> when the point is defined and its coordinates are drawable (finite and within <see cref="ScenePainter.MaxMagnitude"/>).</returns>
     private static bool IsDefined(in AreaPoint point) =>
-        point.Defined && double.IsFinite(point.Along) && double.IsFinite(point.Top) && double.IsFinite(point.Base);
+        point.Defined && ScenePainter.IsBounded(point.Along, point.Top, point.Base);
 }

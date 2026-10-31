@@ -406,4 +406,36 @@ public class TextMeasurerTests
         Assert.Equal(-8, alphabetic.Y1, 6);
         Assert.Equal(2, alphabetic.Y2, 6);
     }
+
+    /// <summary>
+    ///     Validates that a font size that is finite as a double but not usable as a single (it overflows to infinity or underflows to zero) is unmeasurable instead of throwing
+    ///     the raw exception of the core text renderer, for the width, the metrics, the truncation and the bounds of a text.
+    /// </summary>
+    [Fact]
+    public void TextMeasurer_UnrepresentableFontSizeIsUnmeasurableAndNeverThrows()
+    {
+        // Arrange: 1e300 is finite as a double and infinity as a single; 1e-300 is a positive double and zero as a single; the others are not usable at all
+        var measurer = new TextMeasurer();
+        var sizes = new[] { 1e300, 1e39, double.MaxValue, 1e-300, 1e-46, 0, -5, double.NaN, double.PositiveInfinity };
+
+        foreach (var size in sizes)
+        {
+            var font = new TextFont("sans-serif", size);
+
+            // Act / Assert: no width and no metrics, and a limit cannot make the truncation throw (a text of zero width is below any positive limit and is returned whole)
+            Assert.Equal(0, measurer.MeasureWidth("Hello", font));
+            Assert.Equal(new FontMetrics(0, 0), measurer.GetMetrics(font));
+            Assert.Equal("Hello", measurer.Truncate("Hello", font, 10));
+            Assert.Equal("Hello", measurer.TextValue("  Hello ", font, 10));
+            Assert.Equal(0, measurer.Measure(["Hello"], font, 10).Width);
+        }
+
+        // Assert: the largest size that is a finite single is measured (a width that is not a number would not be acceptable either)
+        var largest = measurer.MeasureWidth("Hi", new TextFont("sans-serif", 3e38));
+        Assert.False(double.IsNaN(largest));
+
+        // Assert: the bounds of a text with such a font size are computed (the extent has no width); no exception escapes
+        var bounds = measurer.GetBounds(new SceneText("t", 0, 0, ["Hello"]) { FontSize = 1e300, Limit = 50 });
+        Assert.Equal(0, bounds.Width);
+    }
 }

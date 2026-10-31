@@ -77,7 +77,8 @@ internal sealed partial class MarkBuilder
         /// </summary>
         /// <remarks>
         ///     A name that Vega-Lite does not know (it can come from the configuration, which the parser does not check) is the linear curve, and so is <c>bundle</c> for an
-        ///     area, which d3-shape cannot draw (the feature catalog reports <c>vl-mark-interpolate-bundle-area</c>). A trail has no curve.
+        ///     area, which d3-shape cannot draw. The feature catalog reports both, also when the value comes from the configuration (<c>vl-mark-interpolate-unknown</c> and
+        ///     <c>vl-mark-interpolate-bundle-area</c>). A trail has no curve.
         /// </remarks>
         /// <param name="areaHorizontal">Whether the mark is a horizontal area (<c>monotone</c> follows y then).</param>
         /// <returns>The curve.</returns>
@@ -275,17 +276,17 @@ internal sealed partial class MarkBuilder
                     var pair = RangePair(isX: horizontal, measure!, row);
                     t = pair?.Main ?? double.NaN;
                     b = pair?.Other ?? double.NaN;
-                    defined = double.IsFinite(a) && double.IsFinite(t) && double.IsFinite(b);
+                    defined = ScenePainter.IsBounded(a) && ScenePainter.IsBounded(t) && ScenePainter.IsBounded(b);
                 }
                 else
                 {
                     a = PointPosition(x, _width, row) ?? double.NaN;
                     t = PointPosition(y, _height, row) ?? double.NaN;
-                    defined = double.IsFinite(a) && double.IsFinite(t);
+                    defined = ScenePainter.IsBounded(a) && ScenePainter.IsBounded(t);
                     if (defined && isTrail)
                     {
                         s = TrailSize(row, trailSize) ?? double.NaN;
-                        defined = double.IsFinite(s);
+                        defined = ScenePainter.IsBounded(s);
                     }
                 }
 

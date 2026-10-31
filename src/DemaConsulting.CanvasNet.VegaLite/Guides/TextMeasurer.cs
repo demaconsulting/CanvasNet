@@ -297,31 +297,47 @@ internal sealed class TextMeasurer
     /// </summary>
     /// <param name="text">The text.</param>
     /// <param name="font">The font.</param>
-    /// <returns>The width in pixels; 0 for an empty text or a font size that is not positive.</returns>
+    /// <returns>The width in pixels; 0 for an empty text or a font size that is not positive, or that is not a finite number as a single (the renderer cannot size such a font).</returns>
     public double MeasureWidth(string? text, TextFont font)
     {
-        if (string.IsNullOrEmpty(text) || !(font.Size > 0) || !double.IsFinite(font.Size))
+        if (string.IsNullOrEmpty(text) || !TryGetRenderSize(font, out var size))
         {
             return 0;
         }
 
-        return TextRenderer.MeasureText(text, Resolve(font).Font, (float)font.Size).Width;
+        return TextRenderer.MeasureText(text, Resolve(font).Font, size).Width;
     }
 
     /// <summary>
     ///     Gets the ascent and descent of the font's own line box at the font's size.
     /// </summary>
     /// <param name="font">The font.</param>
-    /// <returns>The metrics; zero for a font size that is not positive.</returns>
+    /// <returns>The metrics; zero for a font size that is not positive or not a finite number as a single.</returns>
     public FontMetrics GetMetrics(TextFont font)
     {
-        if (!(font.Size > 0) || !double.IsFinite(font.Size))
+        if (!TryGetRenderSize(font, out var size))
         {
             return new FontMetrics(0, 0);
         }
 
-        var metrics = TextRenderer.MeasureText(" ", Resolve(font).Font, (float)font.Size);
+        var metrics = TextRenderer.MeasureText(" ", Resolve(font).Font, size);
         return new FontMetrics(metrics.Ascent, metrics.Descent);
+    }
+
+    /// <summary>
+    ///     Converts the size of a font to the single that the text renderer takes.
+    /// </summary>
+    /// <remarks>
+    ///     A size that is finite as a double can still overflow to infinity (1e300) or underflow to zero as a single, and the core text renderer throws
+    ///     <see cref="ArgumentOutOfRangeException"/> for such a size; a text with such a size is unmeasurable instead (zero width), so that no raw exception escapes.
+    /// </remarks>
+    /// <param name="font">The font.</param>
+    /// <param name="size">Receives the size.</param>
+    /// <returns><see langword="true"/> when the size is a finite single greater than zero.</returns>
+    private static bool TryGetRenderSize(TextFont font, out float size)
+    {
+        size = double.IsFinite(font.Size) ? (float)font.Size : 0f;
+        return float.IsFinite(size) && size > 0f;
     }
 
     /// <summary>

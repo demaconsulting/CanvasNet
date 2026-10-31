@@ -54,8 +54,8 @@ public class MarkBuilderOverlayTests
         Assert.Equal([(0.0, 200.0), (150.0, 0.0), (300.0, 100.0)], points.Select(p => (p.X, p.Y)));
         Assert.All(points, p => Assert.Equal((Blue, (string?)null, 1.0, 30.0, "circle"), (p.Fill, p.Stroke, p.Opacity, p.Size, p.Shape)));
 
-        // Assert: the marks group, the path (1 + 3 + 6) and one item for every symbol were charged
-        Assert.Equal(1 + 10 + 3, budget.Count);
+        // Assert: the marks group, the path (1 + 3 + 1) and one item for every symbol were charged
+        Assert.Equal(1 + 5 + 3, budget.Count);
 
         // Act: an overlay object replaces the properties of the point
         var custom = ChartTestHelpers.Of<SceneSymbol>(

@@ -317,17 +317,21 @@ public class CurveBuilderTests
                         area[i] = new AreaPoint(x, y, -1, isDefined);
                     }
 
-                    var output = new List<ScenePathSegment>();
-                    CurveBuilder.Line(kind, null, line, output, CancellationToken.None);
-                    Assert.True(output.Count <= CurveBuilder.MaxSegments(kind, defined, runs, false), $"{kind} line n={count} mask={mask}: {output.Count}");
-
-                    if (CurveBuilder.SupportsArea(kind))
+                    // The tensions that change the class of a curve: none, 1 (a bundle with a beta of 1 is a basis curve) and 0 (a Catmull-Rom curve with an alpha of 0 is a cardinal curve)
+                    foreach (double? tension in new double?[] { null, 1, 0 })
                     {
-                        foreach (var horizontal in new[] { false, true })
+                        var output = new List<ScenePathSegment>();
+                        CurveBuilder.Line(kind, tension, line, output, CancellationToken.None);
+                        Assert.True(output.Count <= CurveBuilder.MaxSegments(kind, defined, runs, false), $"{kind} {tension} line n={count} mask={mask}: {output.Count}");
+
+                        if (CurveBuilder.SupportsArea(kind))
                         {
-                            output.Clear();
-                            CurveBuilder.Area(kind, null, horizontal, area, output, CancellationToken.None);
-                            Assert.True(output.Count <= CurveBuilder.MaxSegments(kind, defined, runs, true), $"{kind} area n={count} mask={mask}: {output.Count}");
+                            foreach (var horizontal in new[] { false, true })
+                            {
+                                output.Clear();
+                                CurveBuilder.Area(kind, tension, horizontal, area, output, CancellationToken.None);
+                                Assert.True(output.Count <= CurveBuilder.MaxSegments(kind, defined, runs, true), $"{kind} {tension} area n={count} mask={mask}: {output.Count}");
+                            }
                         }
                     }
 
@@ -341,8 +345,134 @@ public class CurveBuilderTests
         Assert.Equal(0, CurveBuilder.MaxSegments(CurveKind.Linear, 0, 0, false));
         Assert.Equal(0, CurveBuilder.MaxSegments(CurveKind.Basis, -5, 3, true));
         Assert.Equal(long.MaxValue, CurveBuilder.MaxSegments(CurveKind.Step, long.MaxValue, 1, true));
-        Assert.Equal((2 * 5 * 2) + 6, CurveBuilder.MaxSegments(CurveKind.Step, 5, 1, true));
-        Assert.Equal(5 + 6, CurveBuilder.MaxSegments(CurveKind.Natural, 5, 1, false));
+
+        // A step area of five points in one run: 4 * 5 = 20 for the points and the one extra segment of the run (a run of three or more points can be long: (5 - 1) / 2 = 2 >= 1)
+        Assert.Equal(20 + 1, CurveBuilder.MaxSegments(CurveKind.Step, 5, 1, true));
+
+        // A natural line of five points: 5 for the points and 1 for the move of the run
+        Assert.Equal(5 + 1, CurveBuilder.MaxSegments(CurveKind.Natural, 5, 1, false));
+
+        // More runs than points count as one run for each point (a run is at least one point)
+        Assert.Equal(5 + 5, CurveBuilder.MaxSegments(CurveKind.Basis, 5, 9, false));
+
+        // Two points of a basis area (one run): 2 * 2 for the points and the one extra segment of a short run, which is exactly what is written (M L L L Z)
+        Assert.Equal((2 * 2) + 1, CurveBuilder.MaxSegments(CurveKind.Basis, 2, 1, true));
+    }
+
+    /// <summary>
+    ///     Validates that runs of isolated points are charged by their own cost and not by the worst case of a long run: the bound of a line of 500,000 isolated points is
+    ///     one point and one extra segment for each, for every curve, so that it stays far below the default limit of 2,000,000 scene items.
+    /// </summary>
+    [Fact]
+    public void CurveBuilder_MaxSegments_IsolatedPointsAreChargedTheirOwnCost()
+    {
+        // Arrange: 500,000 points that are all isolated (a run of one point each)
+        const long points = 500_000;
+
+        // Act / Assert: for a line of any curve the bound is the points part plus at most one extra segment for each run (none for the open and step curves)
+        foreach (var kind in Enum.GetValues<CurveKind>())
+        {
+            var perPoint = kind is CurveKind.Step or CurveKind.StepBefore or CurveKind.StepAfter ? 2 : 1;
+            var bound = CurveBuilder.MaxSegments(kind, points, points, false);
+            Assert.True(bound <= (perPoint + 1) * points, $"{kind}: {bound}");
+            Assert.True(bound < 2_000_000 - 1, $"{kind}: the item of the path and the segments must fit the default limit of scene items");
+        }
+
+        Assert.Equal(2 * points, CurveBuilder.MaxSegments(CurveKind.Linear, points, points, false));
+        Assert.Equal(2 * points, CurveBuilder.MaxSegments(CurveKind.Basis, points, points, false));
+
+        // Assert: the bound is still not below what the generators write for runs of isolated points (every point alone, then pairs, then triples, for every curve)
+        foreach (var kind in Enum.GetValues<CurveKind>())
+        {
+            foreach (var runLength in new[] { 1, 2, 3 })
+            {
+                var runs = 40;
+                var line = new List<CurvePoint>();
+                for (var r = 0; r < runs; r++)
+                {
+                    for (var k = 0; k < runLength; k++)
+                    {
+                        line.Add(P((r * 10) + (k * 3), (k * 4) % 7));
+                    }
+
+                    line.Add(Gap);
+                }
+
+                var output = new List<ScenePathSegment>();
+                CurveBuilder.Line(kind, null, [.. line], output, CancellationToken.None);
+                Assert.True(output.Count <= CurveBuilder.MaxSegments(kind, (long)runs * runLength, runs, false), $"{kind} runs of {runLength}: {output.Count}");
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Validates that a point beyond the magnitude bound is undefined (it ends the subpath, as a point that is not finite does) and that the bound itself is still drawable.
+    /// </summary>
+    [Fact]
+    public void CurveBuilder_Line_PointsBeyondTheMagnitudeBoundAreUndefined()
+    {
+        // Arrange: the bound is 32,768; 2,000,000 and -32,769 are beyond it, 32,768 and -32,768 are not
+        Assert.Equal(32768, ScenePainter.MaxMagnitude);
+
+        // Act / Assert: a point beyond the bound in x ends the subpath, as does one in y; the next point starts a new one
+        Assert.Equal("M0,0 L10,10 M20,0 L30,10", Run(CurveKind.Linear, null, P(0, 0), P(10, 10), P(2e6, 5), P(20, 0), P(30, 10)));
+        Assert.Equal("M0,0 L10,10 M20,0 L30,10", Run(CurveKind.Linear, null, P(0, 0), P(10, 10), P(5, -32_769), P(20, 0), P(30, 10)));
+
+        // Assert: the bound itself is inside; a line from the origin to it is drawn
+        Assert.Equal("M0,0 L32768,-32768", Run(CurveKind.Linear, null, P(0, 0), P(32768, -32768)));
+
+        // Assert: a run that a far point leaves with a single point is a move and a close (as any run of one point is in d3: lineEnd closes a lone point)
+        Assert.Equal("M0,0 Z", Run(CurveKind.Linear, null, P(0, 0), P(double.MaxValue, 1)));
+
+        // Act / Assert: the area drops a point whose top or baseline is beyond the bound, and splits the outline there: two runs of two points, each closed
+        var output = new List<ScenePathSegment>();
+        CurveBuilder.Area(
+            CurveKind.Linear,
+            null,
+            false,
+            [new AreaPoint(0, 5, 10, true), new AreaPoint(10, 6, 10, true), new AreaPoint(20, 7, 5e6, true), new AreaPoint(30, 8, 10, true), new AreaPoint(40, 9, 10, true)],
+            output,
+            CancellationToken.None);
+        Assert.Equal("M0,5 L10,6 L10,10 L0,10 Z M30,8 L40,9 L40,10 L30,10 Z", Text(output));
+    }
+
+    /// <summary>
+    ///     Validates that a huge tension cannot make an unbounded drawing: the control points that it produces beyond the magnitude bound become lines to the end points of the cubics,
+    ///     and every coordinate that any curve writes is within the bound, for any finite tension.
+    /// </summary>
+    [Fact]
+    public void CurveBuilder_Line_HugeTensionDegradesCubicsToLines()
+    {
+        // Arrange: four points with distinct x, so that every tangent of a cardinal spline is k * (a difference of at least 10) with k = (1 - tension) / 6, which is about -1.7e6 for a tension of 1e7, far beyond the bound of 32,768
+        CurvePoint[] points = [P(0, 0), P(10, 10), P(20, 0), P(30, 10)];
+        var ends = Segments(CurveKind.Cardinal, 0, points).Select(s => (s.Kind == ScenePathSegmentKind.MoveTo, s.X, s.Y)).ToList();
+
+        // Act: the same curve with huge tensions (the 1e300 one overflows the tangent computation to a finite 1e301, beyond the bound again)
+        foreach (var tension in new[] { 1e7, -1e7, 1e300, -1e300 })
+        {
+            var segments = Segments(CurveKind.Cardinal, tension, points);
+
+            // Assert: no cubic is left, and the segments are those of the curve without tension with every cubic replaced by a line to its end point (a move stays a move)
+            Assert.DoesNotContain(segments, s => s.Kind == ScenePathSegmentKind.CubicTo);
+            Assert.Equal(ends.Select(e => (e.Item1, e.X, e.Y)), segments.Select(s => (s.Kind == ScenePathSegmentKind.MoveTo, s.X, s.Y)));
+        }
+
+        // Assert: a moderate tension keeps its cubics (control points within the bound: k = 1/3 for -1, tangents of about 7)
+        Assert.Contains(Segments(CurveKind.Cardinal, -1, points), s => s.Kind == ScenePathSegmentKind.CubicTo);
+
+        // Assert: whatever the curve and the huge tension, no coordinate of any segment is beyond the bound (a bundle moves its points by the beta, so its end points can be skipped)
+        foreach (var kind in Enum.GetValues<CurveKind>())
+        {
+            foreach (var tension in new[] { 1e7, -1e7, 1e300, -1e300, double.MaxValue, -double.MaxValue, 1e-300 })
+            {
+                foreach (var segment in Segments(kind, tension, points))
+                {
+                    Assert.True(
+                        new[] { segment.X, segment.Y, segment.X1, segment.Y1, segment.X2, segment.Y2 }.All(ScenePainter.IsBounded),
+                        $"{kind} {tension}: {segment}");
+                }
+            }
+        }
     }
 
     /// <summary>

@@ -145,7 +145,7 @@ public class ArcGeometryTests
         Assert.Equal((50.0, true), (ringCommands[1].R, ringCommands[1].Sweep));
         Assert.Equal((20.0, false), (ringCommands[4].R, ringCommands[4].Sweep));
 
-        // Assert: the nonzero fill leaves the hole empty and fills the ring (a 100 x 100 surface, center at 60, 60)
+        // Assert: the nonzero fill leaves the hole empty and fills the ring (a 120 x 120 surface, center at 60, 60)
         using var surface = new Surface(120, 120);
         PathFiller.Fill(surface, ring.Transform(Matrix3x2.CreateTranslation(60, 60)), new Rgba32(0, 0, 0, 255), FillRule.NonZero, 0.02f);
         Assert.Equal(0, surface[60, 60].A);

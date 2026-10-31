@@ -523,4 +523,75 @@ public class VegaLiteArcTextIntegrationTests
             CultureInfo.CurrentUICulture = previousUi;
         }
     }
+
+    /// <summary>
+    ///     Validates that an <c>invalid</c> mode and an <c>interpolate</c> name that come from the configuration are reported like the ones in a mark definition, at the value in the
+    ///     configuration (the <c>show</c> mode, the bundle interpolation of an area and a name that Vega-Lite does not know), that the chart is still drawn, and that strict mode stops at the report.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Unsupported_ConfigValuesOfInvalidAndInterpolateAreReportedAtTheConfig()
+    {
+        // Arrange: a mark with no property of its own and a configuration that gives it the value, with the report that the value must cause
+        const string Rows = "[ { \"x\": 1, \"y\": 2 }, { \"x\": 2, \"y\": 3 } ]";
+        const string Xy = "{ \"x\": { \"field\": \"x\", \"type\": \"quantitative\" }, \"y\": { \"field\": \"y\", \"type\": \"quantitative\" } }";
+        var cases = new (string Mark, string Config, string Expected)[]
+        {
+            ("\"line\"", "{ \"line\": { \"invalid\": \"show\" } }", "vl-mark-invalid-show /config/line/invalid"),
+            ("\"area\"", "{ \"mark\": { \"interpolate\": \"bundle\" } }", "vl-mark-interpolate-bundle-area /config/mark/interpolate"),
+            ("\"line\"", "{ \"line\": { \"interpolate\": \"zigzag\" } }", "vl-mark-interpolate-unknown /config/line/interpolate"),
+            ("{ \"type\": \"line\", \"style\": \"loud\" }", "{ \"style\": { \"loud\": { \"invalid\": null } } }", "vl-mark-invalid-show /config/style/loud/invalid"),
+        };
+
+        foreach (var (mark, config, expected) in cases)
+        {
+            var chart = Chart(mark, Rows, Xy);
+            var document = VegaLiteDocument.Parse(chart[..chart.LastIndexOf('}')] + ", \"config\": " + config + " }");
+            var reported = new List<string>();
+
+            // Act: the chart is still drawn
+            using var surface = document.Render(new VegaLiteRenderOptions { UnsupportedFeatureHandler = u => reported.Add(u.Feature + " " + u.Location.Pointer) }, Ct);
+
+            // Assert: the report, once, at the configuration; strict mode throws it
+            Assert.Equal([expected], reported);
+            Assert.True(surface.Width >= 210);
+            var failure = Assert.Throws<VegaLiteUnsupportedFeatureException>(() => document.Render(new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true }, Ct));
+            Assert.Equal(expected, failure.Feature + " " + failure.Location.Pointer);
+        }
+    }
+
+    /// <summary>
+    ///     Validates that a text with a font size that no font can have (1e300, which is finite as a double and infinity as a single; a limit does not help) renders without an exception
+    ///     and draws no label, while the same chart with an ordinary font size has its label.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_ExtremeValues_AHugeFontSizeDrawsNoLabelAndNeverThrows()
+    {
+        // Arrange: one label; the marks differ in the font size and in the limit only
+        const string Rows = "[ { \"x\": 1, \"t\": \"Hello\" } ]";
+        const string Encoding = "{ \"x\": { \"field\": \"x\", \"type\": \"quantitative\", \"axis\": null }, \"text\": { \"field\": \"t\", \"type\": \"nominal\" } }";
+
+        foreach (var mark in new[]
+        {
+            "{ \"type\": \"text\", \"fontSize\": 1e300 }",
+            "{ \"type\": \"text\", \"fontSize\": 1e300, \"limit\": 100 }",
+            "{ \"type\": \"text\", \"fontSize\": 3e38, \"limit\": 100 }",
+            "{ \"type\": \"text\", \"fontSize\": 1e-300 }",
+        })
+        {
+            var document = VegaLiteDocument.Parse(Chart(mark, Rows, Encoding));
+
+            // Act: no exception from the layout, the scene or the painter
+            var scene = document.BuildScene(new VegaLiteRenderOptions(), Ct);
+            using var surface = document.Render(new VegaLiteRenderOptions(), Ct);
+
+            // Assert: no label in the scene (or none that the painter can draw), and a surface
+            Assert.True(surface.Width > 0);
+            Assert.All(Items<SceneText>(scene, "mark-text"), t => Assert.True(t.FontSize < 1e-100));
+        }
+
+        // Act / Assert: the same chart with an ordinary size has its label
+        var ordinary = VegaLiteDocument.Parse(Chart("{ \"type\": \"text\", \"fontSize\": 14, \"limit\": 100 }", Rows, Encoding));
+        var label = Assert.Single(Items<SceneText>(ordinary.BuildScene(new VegaLiteRenderOptions(), Ct), "mark-text"));
+        Assert.Equal(("Hello", 14.0), (label.Text, label.FontSize));
+    }
 }

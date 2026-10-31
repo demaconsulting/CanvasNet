@@ -564,6 +564,45 @@ public class VegaLiteLineAreaIntegrationTests
     }
 
     /// <summary>
+    ///     Validates that values that are far beyond any chart are bounded rather than handed to the painter: a y of 1e300 (a pixel position of about -2e301) makes a point undefined, so the
+    ///     line is two subpaths as at a null; and a huge <c>tension</c> of a cardinal curve cannot make control points of any size, so its curves become lines through the same points.
+    ///     Both charts render in strict mode, without any diagnostic, and without a delay.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_ExtremeValues_FarPointsAndHugeTensionsAreBounded()
+    {
+        // Arrange: x runs 0 to 4 over 300 pixels (75 each); y has the fixed domain 0 to 10 (y(v) = 200 - 20 v); the third row is 1e300 (beyond any bound)
+        const string data = "[ { \"x\": 0, \"y\": 1 }, { \"x\": 1, \"y\": 2 }, { \"x\": 2, \"y\": 1e300 }, { \"x\": 3, \"y\": 2 }, { \"x\": 4, \"y\": 1 } ]";
+        const string fixedY = "{ \"x\": " + X + ", \"y\": { \"field\": \"y\", \"type\": \"quantitative\", \"axis\": null, \"scale\": { \"domain\": [0, 10], \"nice\": false } } }";
+
+        // Act
+        using var far = Draw(Chart("\"line\"", data, fixedY), out var farScene, out var farWarnings);
+
+        // Assert: the line breaks at the far point, as at a null: (0, 180) (75, 160) and (225, 160) (300, 180)
+        Assert.Empty(farWarnings);
+        Assert.Equal("M0,180 L75,160 M225,160 L300,180", Describe(Assert.Single(Items<ScenePath>(farScene, "mark-line"))));
+        Assert.True(far.Width > 0);
+
+        // Arrange: the three points of the basic chart with a tension that is finite and far too large (1e300), and with none
+        (string Ends, bool HasCubic) Outline(string tension)
+        {
+            using var surface = Draw(Chart("{ \"type\": \"line\", \"interpolate\": \"cardinal\"" + tension + " }", Three, Encoding()), out var scene, out _);
+            var path = Assert.Single(Items<ScenePath>(scene, "mark-line"));
+            return (
+                string.Join(' ', path.Segments.Select(s => (s.Kind == ScenePathSegmentKind.MoveTo ? "M" : "L") + s.X.ToString(CultureInfo.InvariantCulture) + "," + s.Y.ToString(CultureInfo.InvariantCulture))),
+                path.Segments.Any(s => s.Kind == ScenePathSegmentKind.CubicTo));
+        }
+
+        var huge = Outline(", \"tension\": 1e300");
+        var plain = Outline(string.Empty);
+
+        // Assert: the curve without a tension has cubics, the one with the huge tension has none (every cubic is a line to its end point) and the same end points
+        Assert.True(plain.HasCubic);
+        Assert.False(huge.HasCubic);
+        Assert.Equal(plain.Ends, huge.Ends);
+    }
+
+    /// <summary>
     ///     Validates that the limits fail closed with located render exceptions for the new marks: a line of many points above the scene item limit (the segments are charged before the path
     ///     exists), the point overlay symbols, the arcs and the text lines above the limit, a label above <c>MaxStringLength</c> and the labels above sixteen times that, while the same charts
     ///     render with the default limits.
@@ -586,7 +625,7 @@ public class VegaLiteLineAreaIntegrationTests
             Assert.True(drawn.Width > 0);
         }
 
-        // Act / Assert: the point overlay costs one item for every point (the line of 300 points costs 307 items and fits 500 items, its 300 symbols do not)
+        // Act / Assert: the point overlay costs one item for every point (the line of 300 points costs 302 items and fits 500 items, its 300 symbols do not)
         var few = "[" + string.Join(", ", Enumerable.Range(0, 300).Select(i => "{ \"x\": " + i + ", \"y\": " + (i % 5) + " }")) + "]";
         var overlay = VegaLiteDocument.Parse(Chart("{ \"type\": \"line\", \"point\": true }", few, Encoding()));
         var overlayFailure = Assert.Throws<VegaLiteRenderException>(() => overlay.Render(tight, Ct));

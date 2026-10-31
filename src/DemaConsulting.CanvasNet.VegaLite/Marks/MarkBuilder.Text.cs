@@ -198,6 +198,11 @@ internal sealed partial class MarkBuilder
         ///         the <c>fontSize</c> of the mark, else its <c>size</c>, else 11. <c>align</c> is <c>center</c> and <c>baseline</c> is <c>middle</c> unless the mark or the configuration say otherwise.
         ///     </para>
         ///     <para>
+        ///         A row whose font size, position or angle is not finite or is beyond <see cref="ScenePainter.MaxMagnitude"/> (32,768 scene units, four times the largest surface: far beyond any chart the renderer can
+        ///         make) is skipped like a row with an invalid value, and a mark whose <c>dx</c>, <c>dy</c> or <c>lineHeight</c> is beyond it draws no label. This is the most
+        ///         conservative bound: it is the one the painter applies, so the scene never holds a label that the painter would skip, and a font size such as 1e300 never reaches the text measurer.
+        ///     </para>
+        ///     <para>
         ///         A row is charged in this order: its position and paint are read, then its text is made under the characters that are left of the mark's total, then the characters are charged to the
         ///         evaluation steps, then the item and its extra lines are charged to the scene budget, and only then is the item created.
         ///     </para>
@@ -228,6 +233,13 @@ internal sealed partial class MarkBuilder
             var strokeWidth = Prop("strokeWidth", vega: true)?.AsNumber();
             var delimiter = Prop("lineBreak")?.AsString();
             var font = ReadTextFont();
+
+            // A label offset or line height that the painter cannot draw (not finite or beyond its magnitude bound) leaves the whole mark without labels
+            if (!ScenePainter.IsBounded(font.Dx, font.Dy) || (font.LineHeight is { } lineHeight && !ScenePainter.IsBounded(lineHeight)))
+            {
+                return [];
+            }
+
             var hasPolar = theta is not null || radius is not null || thetaConstant is not null || radiusConstant is not null;
             var items = new List<SceneItem>(Math.Min(_table.RowCount, 4096));
             var rows = MarkRows();
@@ -270,6 +282,12 @@ internal sealed partial class MarkBuilder
                     }
 
                     rowAngle = encodedAngle;
+                }
+
+                // A font size, position or angle beyond the painter's magnitude bound cannot be drawn (and would flood the layout bounds): the row is skipped like an invalid one
+                if (!ScenePainter.IsBounded(rowSize, px, py, rowAngle))
+                {
+                    continue;
                 }
 
                 if (LinesOf(source, row, delimiter) is not { IsEmpty: false } lines)

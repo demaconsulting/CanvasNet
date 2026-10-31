@@ -232,6 +232,242 @@ public class ScenePainterPathTests
     }
 
     /// <summary>
+    ///     Validates that a path whose end point is beyond the magnitude bound (or overflows a single) draws nothing, and that a cubic whose control point is beyond it is drawn as a line to its
+    ///     end point instead of being flattened at a huge size.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_SegmentsBeyondTheMagnitudeBoundDrawNothingOrBecomeLines()
+    {
+        // Arrange: paths that would cross the whole surface if they were drawn; the end point of the last command is 2,000,000 (far above the bound of 32,768), 1e300
+        // (finite as a double, infinity as a single) or -1e7 on the y axis
+        Assert.Equal(32768, ScenePainter.MaxMagnitude);
+        var far = MakeScene(
+            30,
+            30,
+            new ScenePath("far-line", [ScenePathSegment.Move(0, 0), ScenePathSegment.Line(15, 15), ScenePathSegment.Line(2e6, 5)]) { Fill = "red", Stroke = "red" },
+            new ScenePath("overflow", [ScenePathSegment.Move(0, 0), ScenePathSegment.Line(1e300, 5)]) { Stroke = "red", StrokeWidth = 4 },
+            new ScenePath("far-cubic", [ScenePathSegment.Move(0, 0), ScenePathSegment.Cubic(5, 5, 10, 10, 20, -1e7)]) { Stroke = "red", StrokeWidth = 4 },
+            new ScenePath("far-move", [ScenePathSegment.Move(-2e6, 5), ScenePathSegment.Line(20, 20)]) { Stroke = "red", StrokeWidth = 4 });
+
+        // Act
+        using var surface = PaintAtOne(far, 30, 30);
+
+        // Assert: nothing at all
+        AssertBlank(surface);
+
+        // Arrange: a cubic from (2, 10) to (28, 10) whose control points are 2,000,000 above and below (beyond the bound, but finite), and one that overflows a single, 2 wide
+        var degraded = MakeScene(
+            30,
+            30,
+            new ScenePath("cubic", [ScenePathSegment.Move(2, 10), ScenePathSegment.Cubic(5, 2e6, 25, -2e6, 28, 10)]) { Stroke = "#000000", StrokeWidth = 2 },
+            new ScenePath("overflow-control", [ScenePathSegment.Move(2, 20), ScenePathSegment.Cubic(5, 1e300, 25, -1e300, 28, 20)]) { Stroke = "#000000", StrokeWidth = 2 });
+
+        // Act
+        using var lines = PaintAtOne(degraded, 30, 30);
+
+        // Assert: both are the straight line between their end points, 2 wide: the rows 9 and 10 (the line is at y = 10) and 19 and 20 are covered between the caps at x = 2 and 28
+        foreach (var y in new[] { 9, 10, 19, 20 })
+        {
+            Assert.Equal(Black, lines[15, y]);
+            Assert.Equal(Black, lines[3, y]);
+            Assert.Equal(Black, lines[27, y]);
+        }
+
+        // Assert: and nothing of the huge curve is drawn above or below them
+        Assert.Equal(White, lines[15, 6]);
+        Assert.Equal(White, lines[15, 13]);
+        Assert.Equal(White, lines[15, 16]);
+        Assert.Equal(White, lines[15, 23]);
+        Assert.Equal(White, lines[1, 10]);
+    }
+
+    /// <summary>
+    ///     Validates that an arc whose center, radius or corner radius is beyond the magnitude bound draws nothing, and that an arc inside the bound is drawn.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_ArcsBeyondTheMagnitudeBoundDrawNothing()
+    {
+        // Arrange: full circles that would cover the surface; the radii are above the bound (the geometry alone accepts up to 1e9), the center is 1e7 away and the corner radius is above the bound
+        var far = MakeScene(
+            30,
+            30,
+            new SceneArc("center", 1e7, 15) { OuterRadius = 10, EndAngle = 2 * Math.PI, Fill = "red" },
+            new SceneArc("outer", 15, 15) { OuterRadius = 5e8, EndAngle = 2 * Math.PI, Fill = "red" },
+            new SceneArc("inner", 15, 15) { InnerRadius = 2e6, OuterRadius = 10, EndAngle = 2 * Math.PI, Fill = "red" },
+            new SceneArc("corner", 15, 15) { OuterRadius = 10, EndAngle = 2 * Math.PI, CornerRadius = 1.5e6, Fill = "red" },
+            new SceneArc("overflow", 15, 15) { OuterRadius = 1e300, EndAngle = 2 * Math.PI, Fill = "red" });
+
+        // Act
+        using var blank = PaintAtOne(far, 30, 30);
+
+        // Assert
+        AssertBlank(blank);
+
+        // Act: a circle of radius 10 inside the bound is drawn
+        using var drawn = PaintAtOne(MakeScene(30, 30, new SceneArc("ok", 15, 15) { OuterRadius = 10, EndAngle = 2 * Math.PI, Fill = "#ff0000" }), 30, 30);
+
+        // Assert
+        Assert.Equal(Red, drawn[15, 15]);
+        Assert.Equal(White, drawn[1, 1]);
+    }
+
+    /// <summary>
+    ///     Validates that a trail point beyond the magnitude bound (in a coordinate or in the size) ends its run, as a point that is not finite does.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_TrailPointsBeyondTheMagnitudeBoundEndTheRun()
+    {
+        // Arrange: size 6 (radius 3) at y = 10; x = 2, 15, then a point 2,000,000 away, then 25 and 28; and a second run at y = 25 whose size 2,000,000 ends it
+        var scene = MakeScene(
+            40,
+            40,
+            new SceneTrail(
+                "mark-trail",
+                [
+                    [
+                        new SceneTrailPoint(2, 10, 6),
+                        new SceneTrailPoint(15, 10, 6),
+                        new SceneTrailPoint(2e6, 10, 6),
+                        new SceneTrailPoint(25, 10, 6),
+                        new SceneTrailPoint(36, 10, 6),
+                    ],
+                    [
+                        new SceneTrailPoint(2, 25, 6),
+                        new SceneTrailPoint(15, 25, 2e6),
+                        new SceneTrailPoint(25, 25, 6),
+                        new SceneTrailPoint(36, 25, 6),
+                    ],
+                ])
+            { Fill = "#000000" });
+
+        // Act
+        using var surface = PaintAtOne(scene, 40, 40);
+
+        // Assert: the first run draws two capsules, 2 to 15 and 25 to 36 (the far point is skipped and the points on both sides do not join), with the gap from 18 to 22 between
+        Assert.Equal(Black, surface[8, 10]);
+        Assert.Equal(White, surface[20, 10]);
+        Assert.Equal(Black, surface[30, 10]);
+
+        // Assert: the huge size ends its run: 2 and 15 are not joined (only the first capsule, if any, would cross x = 8) and 25 to 36 is drawn
+        Assert.Equal(White, surface[8, 25]);
+        Assert.Equal(White, surface[20, 25]);
+        Assert.Equal(Black, surface[30, 25]);
+    }
+
+    /// <summary>
+    ///     Validates the cost estimate of a trail capsule and that a trail is painted in chunks of a bounded cost: the number of capsules per chunk follows from the weights, and a chunk
+    ///     boundary polls the cancellation token before it paints anything.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_TrailIsPaintedInChunksWithACancellationPollBetweenThem()
+    {
+        // Assert: the weight is 1 + sqrt(radius * scale / 0.02): 1 for no radius, 11 for a radius of 2, 906.1 for the largest radius that the bound allows (half of the size 32,768)
+        Assert.Equal(1, ScenePainter.TrailCapsuleWeight(0, 1), 9);
+        Assert.Equal(11, ScenePainter.TrailCapsuleWeight(2, 1), 3);
+        Assert.Equal(906.1, ScenePainter.TrailCapsuleWeight(16384, 1), 1);
+        Assert.Equal(21, ScenePainter.TrailCapsuleWeight(2, 4), 3);
+
+        // Arrange: 450 points of size 32,768 (radius 16,384, the largest the bound allows) in a row; a capsule weighs 906.1, so a chunk of 100,000 is complete after the 111th capsule
+        // (110 * 906.1 = 99,671 is below it, 111 * 906.1 = 100,577 is not), that is with the 112th point
+        var points = Enumerable.Range(0, 450).Select(i => new SceneTrailPoint(i, 10, 32768)).ToArray();
+        var scene = MakeScene(40, 40, new SceneTrail("mark-trail", [points]) { Fill = "#000000" });
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(Ct);
+        var chunks = new List<int>();
+        var painter = new ScenePainter(new TextMeasurer())
+        {
+            TrailChunkFlushed = capsules =>
+            {
+                chunks.Add(capsules);
+                cancellation.Cancel();
+            },
+        };
+
+        // Act / Assert: the first chunk is reported with 111 capsules and the poll that follows stops the painting before any capsule is filled (no second chunk is reached)
+        Assert.Throws<OperationCanceledException>(() => painter.Paint(scene, 40, 40, ScenePlacement.Uniform(1), cancellation.Token).Dispose());
+        Assert.Equal([111], chunks);
+
+        // Arrange: an ordinary trail (100 points of size 4: a weight of 11 each, 99 capsules) is one chunk, which the observer never sees
+        var ordinary = MakeScene(120, 20, new SceneTrail("mark-trail", [Enumerable.Range(0, 100).Select(i => new SceneTrailPoint(10 + i, 10, 4)).ToArray()]) { Fill = "#000000" });
+        var seen = new List<int>();
+        using var surface = new ScenePainter(new TextMeasurer()) { TrailChunkFlushed = seen.Add }.Paint(ordinary, 120, 20, ScenePlacement.Uniform(1), Ct);
+
+        // Assert: drawn whole, without a flush
+        Assert.Empty(seen);
+        Assert.Equal(Black, surface[60, 10]);
+    }
+
+    /// <summary>
+    ///     Validates that the bound is applied to the size in surface pixels, that is to the value times the scale of the placement: a path that is drawn at a scale of one draws nothing at a scale
+    ///     of two, and a stroke width beyond the bound is not stroked.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_TheBoundAppliesToTheSizeInSurfacePixels()
+    {
+        // Arrange: a 2 wide line from (0, 15) to (20000, 15): 20,000 pixels at a scale of one (within the bound of 32,768), 40,000 at a scale of two (beyond it)
+        var scene = MakeScene(30, 30, new ScenePath("far", [ScenePathSegment.Move(0, 15), ScenePathSegment.Line(20000, 15)]) { Stroke = "#000000", StrokeWidth = 2 });
+
+        // Act
+        using var one = PaintAtOne(scene, 30, 30);
+        using var two = Paint(scene, 60, 60, ScenePlacement.Uniform(2));
+
+        // Assert: at one the line covers the rows 14 and 15 (it is 2 wide around y = 15); at two it is not drawn
+        Assert.Equal(Black, one[10, 14]);
+        Assert.Equal(Black, one[10, 15]);
+        Assert.Equal(White, one[10, 12]);
+        AssertBlank(two);
+
+        // Arrange: a stroke width of 40,000 (beyond the bound at a scale of one) and 1e300 on a short line, which would cover the whole surface
+        var wide = MakeScene(
+            30,
+            30,
+            new ScenePath("wide", [ScenePathSegment.Move(2, 15), ScenePathSegment.Line(28, 15)]) { Stroke = "#000000", StrokeWidth = 40000 },
+            new ScenePath("huge", [ScenePathSegment.Move(2, 15), ScenePathSegment.Line(28, 15)]) { Stroke = "#000000", StrokeWidth = 1e300 });
+
+        // Act
+        using var strokes = PaintAtOne(wide, 30, 30);
+
+        // Assert
+        AssertBlank(strokes);
+
+        // Arrange: an arc of radius 20,000 is within the bound at a scale of one and beyond it at a scale of two
+        var arc = MakeScene(30, 30, new SceneArc("ring", 15, 15) { InnerRadius = 19990, OuterRadius = 20000, EndAngle = 2 * Math.PI, Fill = "#000000" });
+
+        // Act: at a scale of two nothing is drawn (the ring would also miss the surface at one, so only the cost is what the bound is about)
+        using var ring = Paint(arc, 60, 60, ScenePlacement.Uniform(2));
+
+        // Assert
+        AssertBlank(ring);
+    }
+
+    /// <summary>
+    ///     Validates that a group placed beyond the magnitude bound draws nothing.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_GroupBeyondTheMagnitudeBoundDrawsNothing()
+    {
+        // Arrange: a group at x = 1e300 (infinity as a single) and one at y = 2e6 with a path that would be visible without the offset
+        var path = new ScenePath("p", [ScenePathSegment.Move(0, 0), ScenePathSegment.Line(20, 20)]) { Stroke = "red", StrokeWidth = 4 };
+        var scene = new Scene(
+            30,
+            30,
+            "white",
+            new SceneGroup("root", 0, 0)
+            {
+                Children =
+                [
+                    new SceneGroup("far-x", 1e300, 0) { Children = [path] },
+                    new SceneGroup("far-y", 0, 2e6) { Children = [path] },
+                ],
+            });
+
+        // Act
+        using var surface = PaintAtOne(scene, 30, 30);
+
+        // Assert
+        AssertBlank(surface);
+    }
+
+    /// <summary>
     ///     Validates that an arc fills only its wedge and leaves the hole of an annular sector empty.
     /// </summary>
     [Fact]
@@ -454,7 +690,7 @@ public class ScenePainterPathTests
     {
         // Arrange: legs from (10, 30) up to the apex (20, 10) and down to (30, 30), 4 wide: the half angle between the legs is
         // atan(10 / 20) = 26.57 degrees, so the miter ratio is 1 / sin(26.57 degrees) = 2.236 and its tip is 4.47 above the apex
-        // (y = 5.53); a bevel stops at y = 9.1 (the offset points of the two legs at the apex)
+        // (y = 5.53); a bevel stops at y = 9.106, that is 10 - 2 * 0.447 (the offset points of the two legs at the apex lie 2 from it, perpendicular to the legs)
         ScenePath Make(double? limit) =>
             new("mark-line", [new ScenePoint(10, 30), new ScenePoint(20, 10), new ScenePoint(30, 30)])
             {

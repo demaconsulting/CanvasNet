@@ -440,4 +440,43 @@ public class MarkBuilderTextTests
         Assert.Throws<VegaLiteRenderException>(() => new MarkBuilder(parts.Config, null, first, "test.vl.json").Build(parts.Tree.Root, parts.Table, parts.Scales, 300, 200, TestContext.Current.CancellationToken));
         Assert.Equal(4, first.Count);
     }
+
+    /// <summary>
+    ///     Validates that a label whose font size, position, angle, offset or line height is beyond the magnitude bound of the painter is not built (32,768 scene units; a font size of 1e300
+    ///     once made the renderer throw), while the values at the bound itself are kept.
+    /// </summary>
+    [Fact]
+    public void MarkBuilder_Build_TextBeyondTheMagnitudeBoundIsSkipped()
+    {
+        // Arrange: two rows; each mark property below is beyond the bound (or, for the control, at it)
+        const string rows = """[ { "t": "a" }, { "t": "b" } ]""";
+
+        // Act / Assert: a mark property beyond the bound leaves no label
+        foreach (var property in new[] { "\"fontSize\": 1e300", "\"fontSize\": 32769", "\"fontSize\": 3e38", "\"dx\": 1e300", "\"dy\": -40000", "\"angle\": 1e7", "\"lineHeight\": 1e300" })
+        {
+            Assert.Empty(Texts(TextField, rows, "{ \"type\": \"text\", " + property + " }"));
+        }
+
+        // Assert: at the bound itself the labels are built
+        foreach (var property in new[] { "\"fontSize\": 32768", "\"dx\": 32768", "\"dy\": -32768", "\"angle\": 32768", "\"lineHeight\": 32768" })
+        {
+            Assert.Equal(["a", "b"], Labels(TextField, rows, "{ \"type\": \"text\", " + property + " }"));
+        }
+
+        // Arrange: three rows on a fixed x scale (x(v) = 300 v): the third is a billion pixels to the right
+        const string encoding = """{ "x": { "field": "x", "type": "quantitative", "scale": { "domain": [0, 1], "nice": false } }, "text": { "field": "t", "type": "nominal" } }""";
+        const string positions = """[ { "x": 0, "t": "a" }, { "x": 0.5, "t": "b" }, { "x": 1e9, "t": "c" } ]""";
+        var parts = ChartTestHelpers.Parts(Chart("\"text\"", encoding, positions));
+        var budget = new SceneBudget(100);
+
+        // Act
+        var group = new MarkBuilder(parts.Config, null, budget, "test.vl.json").Build(parts.Tree.Root, parts.Table, parts.Scales, 300, 200, TestContext.Current.CancellationToken);
+
+        // Assert: the third row is skipped like an invalid one, the others are at 0 and 150, and only the labels that exist were charged (the marks group and two items)
+        var texts = ChartTestHelpers.Of<SceneText>(group, "mark-text");
+        Assert.Equal(["a", "b"], texts.Select(t => t.Text));
+        AssertAt(texts[0], 0, 100);
+        AssertAt(texts[1], 150, 100);
+        Assert.Equal(3, budget.Count);
+    }
 }

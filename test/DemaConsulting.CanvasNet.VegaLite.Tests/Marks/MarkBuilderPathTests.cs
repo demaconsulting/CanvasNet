@@ -503,29 +503,29 @@ public class MarkBuilderPathTests
     [Fact]
     public void MarkBuilder_Build_PathSegmentsAreChargedBeforeCreation()
     {
-        // Arrange: three points in one run: the bound of a linear line is 3 + 6 = 9 segments, charged with the item: 1 + 9, plus the marks group
+        // Arrange: three points in one run: the bound of a linear line is 3 + 1 = 4 segments (the move of the run), charged with the item: 1 + 4, plus the marks group
         var parts = ChartTestHelpers.Parts(Chart("\"line\"", XY, Basic));
-        var budget = new SceneBudget(11);
+        var budget = new SceneBudget(6);
 
         // Act
         var group = new MarkBuilder(parts.Config, null, budget, "test.vl.json").Build(parts.Tree.Root, parts.Table, parts.Scales, 300, 200, TestContext.Current.CancellationToken);
 
         // Assert: exactly the budget was needed, and the real count (three segments) is within the charge
-        Assert.Equal(11, budget.Count);
-        Assert.True(OnlyPath(group, "mark-line").Segments.Count <= 9);
+        Assert.Equal(6, budget.Count);
+        Assert.True(OnlyPath(group, "mark-line").Segments.Count <= 4);
 
         // Act / Assert: one item less in the budget and the path is refused, with the location of the mark, after the charge and before any segment exists
-        var tight = new SceneBudget(10);
+        var tight = new SceneBudget(5);
         var failure = Assert.Throws<VegaLiteRenderException>(() => new MarkBuilder(parts.Config, null, tight, "test.vl.json").Build(parts.Tree.Root, parts.Table, parts.Scales, 300, 200, TestContext.Current.CancellationToken));
         Assert.Equal("/mark", failure.Location.Pointer);
         Assert.Contains("MaxSceneItems", failure.Message, StringComparison.Ordinal);
-        Assert.Equal(11, tight.Count);
+        Assert.Equal(6, tight.Count);
 
-        // Arrange: an area writes every point twice: the bound is 2 * 3 + 6 = 12, so the area costs 1 + 12 + 1
+        // Arrange: an area writes every point twice: the bound is 2 * 3 + 1 = 7, so the area costs 1 + 7 + 1
         var area = ChartTestHelpers.Parts(Chart("\"area\"", XY, Basic));
-        var areaBudget = new SceneBudget(14);
+        var areaBudget = new SceneBudget(9);
         new MarkBuilder(area.Config, null, areaBudget, "test.vl.json").Build(area.Tree.Root, area.Table, area.Scales, 300, 200, TestContext.Current.CancellationToken);
-        Assert.Equal(14, areaBudget.Count);
+        Assert.Equal(9, areaBudget.Count);
 
         // Act / Assert: a long line is refused by a small limit whatever its length (the limit is the same for the data and the segments)
         var rows = "[" + string.Join(", ", Enumerable.Range(0, 2000).Select(i => "{ \"x\": " + i + ", \"y\": " + (i % 7) + " }")) + "]";
@@ -581,9 +581,9 @@ public class MarkBuilderPathTests
         // Act
         var group = new MarkBuilder(parts.Config, null, budget, "test.vl.json").Build(parts.Tree.Root, parts.Table, parts.Scales, 300, 200, TestContext.Current.CancellationToken);
 
-        // Assert: only a is drawn; the marks group and the path of a (1 + 3 + 6) are all that was charged
+        // Assert: only a is drawn; the marks group and the path of a (1 + 3 + 1) are all that was charged
         Assert.Single(group.Children);
-        Assert.Equal(11, budget.Count);
+        Assert.Equal(6, budget.Count);
 
         // Assert: the same for a trail (1 + the three points of a)
         var trail = ChartTestHelpers.Parts(Chart("\"trail\"", encoding, rows));
@@ -591,5 +591,40 @@ public class MarkBuilderPathTests
         var trails = new MarkBuilder(trail.Config, null, trailBudget, "test.vl.json").Build(trail.Tree.Root, trail.Table, trail.Scales, 300, 200, TestContext.Current.CancellationToken);
         Assert.Single(trails.Children);
         Assert.Equal(5, trailBudget.Count);
+    }
+
+    /// <summary>
+    ///     Validates that a row whose position is beyond the magnitude bound of the painter (one million scene units) is undefined like a row without a value: it breaks the path of a line, an
+    ///     area and a trail, instead of reaching the painter, and the segment bound that is charged still holds because the same rule counts the defined points.
+    /// </summary>
+    [Fact]
+    public void MarkBuilder_Build_PointsBeyondTheMagnitudeBoundBreakThePath()
+    {
+        // Arrange: a 100 by 100 chart with identity scales (x(v) = v, y(v) = 100 - v); the third row (sorted by x) has a y of 1e9, a billion pixels above the chart
+        const string rows = """[ { "x": 0, "y": 0 }, { "x": 10, "y": 10 }, { "x": 15, "y": 1e9 }, { "x": 20, "y": 20 }, { "x": 30, "y": 10 } ]""";
+
+        // Act / Assert: the line is two subpaths, as at a null (a run of two points does not close)
+        Assert.Equal("M0,100 L10,90 M20,80 L30,90", PathText.Of(OnlyPath(ChartTestHelpers.Marks(Square("\"line\"", rows), 100, 100), "mark-line")));
+
+        // Act / Assert: so is a basis curve (the bound still covers it: 4 defined points in 2 runs, at most (4 - 2) / 2 = 1 of them long: 4 + 2 + 1 = 7 segments, and the real count is 2 + 2)
+        var parts = ChartTestHelpers.Parts(Square("{ \"type\": \"line\", \"interpolate\": \"basis\" }", rows));
+        var budget = new SceneBudget(100);
+        var group = new MarkBuilder(parts.Config, null, budget, "test.vl.json").Build(parts.Tree.Root, parts.Table, parts.Scales, 100, 100, TestContext.Current.CancellationToken);
+        Assert.Equal(4, OnlyPath(group, "mark-line").Segments.Count);
+        Assert.Equal(1 + 1 + 7, budget.Count);
+
+        // Act / Assert: the trail has two runs of two points, in the order of x
+        var trail = Assert.Single(ChartTestHelpers.Of<SceneTrail>(ChartTestHelpers.Marks(Square("\"trail\"", rows), 100, 100), "mark-trail"));
+        Assert.Equal("0,100 10,90 | 20,80 30,90", string.Join(" | ", trail.Runs.Select(r => string.Join(' ', r.Select(p => $"{p.X},{p.Y}")))));
+
+        // Act / Assert: an area whose baseline is beyond the bound breaks too (the y2 of the third row is a billion pixels away)
+        const string rangeRows = """[ { "x": 0, "y": 0, "y2": 5 }, { "x": 10, "y": 10, "y2": 5 }, { "x": 15, "y": 10, "y2": 1e9 }, { "x": 20, "y": 20, "y2": 5 }, { "x": 30, "y": 10, "y2": 5 } ]""";
+        const string rangeEncoding = """
+            { "x": { "field": "x", "type": "quantitative", "scale": { "domain": [0, 100], "nice": false } },
+              "y": { "field": "y", "type": "quantitative", "scale": { "domain": [0, 100], "nice": false } },
+              "y2": { "field": "y2" } }
+            """;
+        var area = ChartTestHelpers.Marks("{ \"width\": 100, \"height\": 100, \"data\": { \"values\": " + rangeRows + " }, \"mark\": \"area\", \"encoding\": " + rangeEncoding + " }", 100, 100);
+        Assert.Equal("M0,100 L10,90 L10,95 L0,95 Z M20,80 L30,90 L30,95 L20,95 Z", PathText.Of(OnlyPath(area, "mark-area")));
     }
 }
