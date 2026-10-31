@@ -1,6 +1,6 @@
 {
   "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
-  "description": "Uses a line mark, a regression transform and a band position, which are recognized but not drawn yet.",
+  "description": "Uses a geoshape mark, a regression transform and a band position, which are recognized but not drawn.",
   "data": {
     "values": [
       { "week": 1, "visits": 120 },
@@ -11,7 +11,7 @@
   "transform": [
     { "regression": "visits", "on": "week" }
   ],
-  "mark": "line",
+  "mark": "geoshape",
   "encoding": {
     "x": { "field": "week", "type": "ordinal" },
     "y": { "field": "visits", "type": "quantitative", "bandPosition": 0.5 }

@@ -57,8 +57,9 @@ internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation
 ///         <item><term><c>vl-data-remote-url</c></term><description>the <c>data</c> object, when <c>url</c> has a scheme (<c>http</c>, <c>https</c>, <c>ftp</c>, <c>file</c>, <c>data</c>, <c>javascript</c>, a drive letter) or is an absolute path (Unix <c>/etc/hosts</c>, Windows rooted), a network path or a UNC path; never fetched, never given to a file resolver, and the dataset is empty. A relative local path is supported and not reported (a local file that cannot be read is an error of the render, not a report).</description></item>
 ///         <item><term><c>vl-data-values-text</c></term><description>inline <c>values</c> (or a top-level dataset that a <c>data.name</c> refers to) given as a text instead of an array of rows.</description></item>
 ///         <item><term><c>vl-data-geo</c></term><description><c>sphere</c>, <c>graticule</c>, a topojson format, or inline <c>values</c> (or a referenced top-level dataset) given as an object.</description></item>
-///         <item><term><c>vl-mark-&lt;type&gt;</c></term><description>the <c>mark</c>, for every mark type except bar, rect, point, circle, square, rule and tick.</description></item>
-///         <item><term><c>vl-channel-&lt;name&gt;</c></term><description>an encoding channel other than x, y, color, fill, stroke, size, opacity, shape, strokeWidth, strokeDash, fillOpacity, strokeOpacity and angle; <c>shape</c> is drawn by a point, <c>angle</c> by a point, circle or square and <c>strokeDash</c> by every mark but a rect, and the channel is reported (and ignored) for any other mark; <c>tooltip</c>, <c>href</c>, <c>description</c> and <c>key</c> are accepted and ignored without a report; <c>longitude</c>, <c>latitude</c>, <c>longitude2</c> and <c>latitude2</c> report <c>vl-channel-geo</c>. <c>x2</c> and <c>y2</c> are accepted (the range of a bar, rect or rule) when the mark is one of those and the channel they extend (<c>x</c> or <c>y</c>) is present, and report <c>vl-channel-x2</c> / <c>vl-channel-y2</c> otherwise. <c>order</c> is accepted when it orders a stack (see <see cref="StackRules"/>) and reports <c>vl-channel-order</c> otherwise, because the drawing order of marks is not rendered yet.</description></item>
+///         <item><term><c>vl-mark-&lt;type&gt;</c></term><description>the <c>mark</c>, for every mark type except bar, rect, point, circle, square, rule, tick, line, area and trail.</description></item>
+///         <item><term><c>vl-mark-invalid-show</c>, <c>vl-mark-invalid-domains</c> (warning), <c>vl-mark-interpolate-bundle-area</c></term><description>the <c>invalid</c> of a mark definition: <c>show</c> and null report <c>vl-mark-invalid-show</c> (the default mode applies), and <c>filter</c> and <c>break-paths-filter-domains</c> warn that the scale domains of this renderer still include the invalid rows; and the <c>interpolate: "bundle"</c> of an <c>area</c>, which d3-shape cannot draw (the area uses the linear interpolation).</description></item>
+///         <item><term><c>vl-channel-&lt;name&gt;</c></term><description>an encoding channel other than x, y, color, fill, stroke, size, opacity, shape, strokeWidth, strokeDash, fillOpacity, strokeOpacity, angle, order and detail; <c>shape</c> is drawn by a point, <c>angle</c> by a point, circle or square, <c>strokeDash</c> by every mark but a rect, area and trail and <c>size</c> by every mark but an area, and the channel is reported (and ignored) for any other mark; <c>tooltip</c>, <c>href</c>, <c>description</c> and <c>key</c> are accepted and ignored without a report; <c>longitude</c>, <c>latitude</c>, <c>longitude2</c> and <c>latitude2</c> report <c>vl-channel-geo</c>. <c>x2</c> and <c>y2</c> are accepted (the range of a bar, rect, rule or area) when the mark is one of those and the channel they extend (<c>x</c> or <c>y</c>) is present, and report <c>vl-channel-x2</c> / <c>vl-channel-y2</c> otherwise. <c>order</c> (the order of a stack, of the points of a path, or the drawing order of the marks) and <c>detail</c> (it groups the points of a path) are accepted by every mark.</description></item>
 ///         <item><term><c>vl-type-geojson</c></term><description>the <c>type</c> of a supported channel.</description></item>
 ///         <item><term><c>vl-shape-path</c></term><description>a shape that is not a symbol name: the <c>shape</c> of a mark, the <c>value</c> of a <c>shape</c> channel, an entry of its <c>scale.range</c> or the <c>symbolType</c> of a legend (custom SVG path shapes are not drawn; a circle is).</description></item>
 ///         <item><term><c>vl-scale-interpolate-cubehelix</c></term><description>a <c>scale.interpolate</c> of the type <c>cubehelix</c> or <c>cubehelix-long</c> (RGB interpolation is used).</description></item>
@@ -102,7 +103,7 @@ internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation
 internal static class FeatureCatalog
 {
     /// <summary>The mark types that the renderer draws; any other mark type is reported.</summary>
-    private static readonly HashSet<string> SupportedMarks = ["bar", "rect", "point", "circle", "square", "rule", "tick"];
+    private static readonly HashSet<string> SupportedMarks = ["bar", "rect", "point", "circle", "square", "rule", "tick", "line", "area", "trail"];
 
     /// <summary>The channels that the renderer draws; any other channel is reported unless it is ignored.</summary>
     private static readonly HashSet<string> SupportedChannels =
@@ -120,7 +121,7 @@ internal static class FeatureCatalog
     private static readonly HashSet<string> LegendChannels = ["color", "fill", "stroke", "size", "opacity", "shape", "strokeWidth", "strokeDash"];
 
     /// <summary>The marks that draw a range between a position and its secondary channel (<c>x2</c> and <c>y2</c>).</summary>
-    private static readonly HashSet<string> RangedMarks = ["bar", "rect", "rule"];
+    private static readonly HashSet<string> RangedMarks = ["bar", "rect", "rule", "area"];
 
     /// <summary>The channels on which <c>bin</c> is applied: the position channels and every channel that has a scale (a <c>bin: "binned"</c> is read on the position channels only).</summary>
     private static readonly HashSet<string> BinnedChannels =
@@ -477,9 +478,39 @@ internal static class FeatureCatalog
             {
                 Unsupported(Id("mark", type), $"The mark type '{type}' is not rendered yet.", mark);
             }
-            else if (mark["shape"] is { IsString: true } shape)
+            else
             {
-                VisitShapeName(shape);
+                if (mark["shape"] is { IsString: true } shape)
+                {
+                    VisitShapeName(shape);
+                }
+
+                VisitMarkInvalid(mark);
+                if (type == "area" && mark["interpolate"] is { IsString: true, StringValue: "bundle" } bundle)
+                {
+                    Unsupported("vl-mark-interpolate-bundle-area", "The 'bundle' interpolation cannot draw an area (d3-shape gives it no area outline); the area is drawn with the 'linear' interpolation.", bundle);
+                }
+            }
+        }
+
+        /// <summary>
+        ///     Visits the <c>invalid</c> property of a mark definition: <c>show</c> (and null) are not drawn, and the modes that filter the scale domains keep the rows in the domains.
+        /// </summary>
+        /// <param name="mark">The mark value.</param>
+        private void VisitMarkInvalid(SpecNode mark)
+        {
+            if (mark["invalid"] is not { } invalid)
+            {
+                return;
+            }
+
+            if (invalid.IsNull || invalid is { IsString: true, StringValue: "show" })
+            {
+                Unsupported("vl-mark-invalid-show", "The 'show' invalid mode (and null) is not supported: invalid values are not drawn at a fallback position; the default mode applies.", invalid);
+            }
+            else if (invalid is { IsString: true, StringValue: "filter" or "break-paths-filter-domains" })
+            {
+                Warn("vl-mark-invalid-domains", $"The invalid mode '{invalid.StringValue}' should leave the invalid rows out of the scale domains; the domains of this renderer always include them.", invalid);
             }
         }
 
@@ -501,7 +532,6 @@ internal static class FeatureCatalog
             _markType = markType;
             // The order channel orders a stack that the plan will make, which is decided with the orientation that the scales infer
             var stackDecision = new Lazy<StackDecision?>(() => StackRules.Decide(markType, ScaleResolver.InferOrient(markType, mark?["orient"]?.AsString(), encoding), encoding));
-            var stacks = new Lazy<bool>(() => stackDecision.Value is not null);
             foreach (var channel in encoding.Properties)
             {
                 var name = channel.Name!;
@@ -516,27 +546,20 @@ internal static class FeatureCatalog
                 }
                 else if (name is "x2" or "y2")
                 {
-                    // A range is drawn by a bar, a rect or a rule that has the position channel it extends
+                    // A range is drawn by a bar, a rect, a rule or an area that has the position channel it extends
                     if (RangedMarks.Contains(markType) && encoding[name[..1]] is { IsObject: true })
                     {
                         VisitSecondaryDefinition(name, channel);
                     }
                     else
                     {
-                        Unsupported(Id("channel", name), $"The '{name}' channel is only supported for a bar, rect or rule mark that has the '{name[..1]}' channel.", channel);
+                        Unsupported(Id("channel", name), $"The '{name}' channel is only supported for a bar, rect, rule or area mark that has the '{name[..1]}' channel.", channel);
                     }
                 }
-                else if (name == "order")
+                else if (name is "order" or "detail")
                 {
-                    // The order channel is the order of a stack; the order of the marks themselves is not drawn yet
-                    if (stacks.Value)
-                    {
-                        VisitSecondaryDefinition(name, channel);
-                    }
-                    else
-                    {
-                        Unsupported("vl-channel-order", "The 'order' channel is only supported when it orders a stack; the drawing order of marks is not supported yet.", channel);
-                    }
+                    // The order channel orders a stack, the points of a path or the drawing of the marks; the detail channel groups the points of a path (and is accepted by every mark)
+                    VisitSecondaryDefinition(name, channel);
                 }
                 else if (!SupportedChannels.Contains(name))
                 {

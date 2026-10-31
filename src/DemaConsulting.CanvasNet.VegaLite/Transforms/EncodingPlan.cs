@@ -833,7 +833,7 @@ internal sealed class EncodingPlan
     /// <param name="markType">The mark type.</param>
     /// <param name="channels">The channel plans.</param>
     /// <returns>The canonical field paths in channel order, without duplicates.</returns>
-    private static List<string> PlanPathGroupFields(string markType, List<ChannelPlan> channels)
+    internal static List<string> PlanPathGroupFields(string markType, IEnumerable<ChannelPlan> channels)
     {
         var fields = new List<string>();
         var seen = new HashSet<string>(StringComparer.Ordinal);

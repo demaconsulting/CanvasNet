@@ -10,7 +10,7 @@ namespace DemaConsulting.CanvasNet.VegaLite.Marks;
 
 /// <summary>
 ///     Builds the scene items of the mark of a single view: <c>bar</c>, <c>rect</c>, <c>point</c>, <c>circle</c>,
-///     <c>square</c>, <c>rule</c> and <c>tick</c>.
+///     <c>square</c>, <c>rule</c>, <c>tick</c>, <c>line</c>, <c>area</c> and <c>trail</c>, and the point and line overlays of the path marks.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -59,6 +59,17 @@ namespace DemaConsulting.CanvasNet.VegaLite.Marks;
 ///         discrete domain is not.
 ///     </para>
 ///     <para>
+///         <b>Path marks.</b> A <c>line</c>, <c>area</c> or <c>trail</c> draws one path per group of rows (the fields of <see cref="EncodingPlan.PathGroupFields"/>, in order of first
+///         appearance); the rows of a group are sorted by their pixel position along the dimension (<c>x</c>, or <c>y</c> for a horizontal orientation) unless the <c>order</c>
+///         channel (not stacked) sorts them or <c>order</c> is null or false, and the path takes its paint from its first row. A row whose continuous channel has no number is
+///         undefined and breaks the path (the default <c>invalid</c> modes <c>break-paths-*</c>) or is dropped (<c>invalid: "filter"</c>, the path connects its neighbors).
+///         <c>interpolate</c> and <c>tension</c> choose the curve (<see cref="CurveBuilder"/>); a line's <c>size</c> is its stroke width, an area is a range along its measure axis
+///         (from the value to the stacked start, <c>y2</c> or zero), a trail's <c>size</c> is the diameter at each point. A <c>point</c> overlay (line, area, trail, rule) and a
+///         <c>line</c> overlay (area) are built after the base items by a second run of the builder with the overlay's mark definition (Vega-Lite's path overlay normalizer). The
+///         segments of a path are charged to the scene budget as an upper bound before they are generated. The <c>order</c> channel also sorts the drawing order of the
+///         rows of every other mark when the marks are not stacked.
+///     </para>
+///     <para>
 ///         <b>Clipping.</b> Marks are clipped to the data rectangle only when the mark definition says <c>"clip": true</c>. Vega-Lite's
 ///         <c>scaleClip</c> applies to the extent of an interval selection, which is not supported, so an explicit scale domain never clips. Row-bound expressions
 ///         (<c>{"expr": ...}</c>, compiled by the specification parser) are evaluated against the transformed row of each mark for the
@@ -78,7 +89,7 @@ namespace DemaConsulting.CanvasNet.VegaLite.Marks;
 ///         concurrent use.
 ///     </para>
 /// </remarks>
-internal sealed class MarkBuilder
+internal sealed partial class MarkBuilder
 {
     /// <summary>The number of rows between two cancellation checks and budget updates.</summary>
     private const int BatchSize = 1024;
@@ -93,7 +104,7 @@ internal sealed class MarkBuilder
     private const double DefaultBarBinSpacing = 1;
 
     /// <summary>The marks that this builder draws.</summary>
-    private static readonly HashSet<string> SupportedMarks = ["bar", "rect", "point", "circle", "square", "rule", "tick"];
+    private static readonly HashSet<string> SupportedMarks = ["bar", "rect", "point", "circle", "square", "rule", "tick", "line", "area", "trail"];
 
     /// <summary>The marks whose missing fill is transparent instead of none (Vega-Lite's <c>transparentIfNeeded</c>).</summary>
     private static readonly HashSet<string> TransparentMarks = ["bar", "point", "circle", "square"];
@@ -135,7 +146,7 @@ internal sealed class MarkBuilder
     ///     Tells whether this builder draws a mark type.
     /// </summary>
     /// <param name="markType">The mark type, such as <c>bar</c>.</param>
-    /// <returns><see langword="true"/> for <c>bar</c>, <c>rect</c>, <c>point</c>, <c>circle</c>, <c>square</c>, <c>rule</c> and <c>tick</c>.</returns>
+    /// <returns><see langword="true"/> for <c>bar</c>, <c>rect</c>, <c>point</c>, <c>circle</c>, <c>square</c>, <c>rule</c>, <c>tick</c>, <c>line</c>, <c>area</c> and <c>trail</c>.</returns>
     public static bool IsSupported(string? markType) => markType is not null && SupportedMarks.Contains(markType);
 
     /// <summary>
@@ -339,7 +350,7 @@ internal sealed class MarkBuilder
     /// <summary>
     ///     The state of building one mark: everything that is the same for every row.
     /// </summary>
-    private sealed class Run
+    private sealed partial class Run
     {
         /// <summary>The owner.</summary>
         private readonly MarkBuilder _owner;
@@ -416,6 +427,24 @@ internal sealed class MarkBuilder
         /// <summary>The expression that gives the symbol size of each row, or null.</summary>
         private CompiledExpression? _sizeExpression;
 
+        /// <summary>The view whose mark this run builds (the overlays are built from the same view).</summary>
+        private readonly SpecNode _view;
+
+        /// <summary>The scales of the view.</summary>
+        private readonly ResolvedScales _scales;
+
+        /// <summary>The plan of the encoding (path grouping fields, order fields, stack), or null.</summary>
+        private readonly EncodingPlan? _plan;
+
+        /// <summary>The settings of an overlay run, or null for the run of the mark itself.</summary>
+        private readonly OverlaySettings? _overlay;
+
+        /// <summary>The overrides of the point overlay of the mark (Vega-Lite's <c>getPointOverlay</c>), or null when the mark has none.</summary>
+        private readonly ConfigNode? _pointOverlay;
+
+        /// <summary>The overrides of the line overlay of an area (Vega-Lite's <c>getLineOverlay</c>), or null when the mark has none.</summary>
+        private readonly ConfigNode? _lineOverlay;
+
         /// <summary>
         ///     Initializes a run.
         /// </summary>
@@ -428,11 +457,16 @@ internal sealed class MarkBuilder
         /// <param name="width">The width of the data rectangle.</param>
         /// <param name="height">The height of the data rectangle.</param>
         /// <param name="cancellationToken">The cancellation token.</param>
-        public Run(MarkBuilder owner, string type, SpecNode? def, SpecNode view, DataTable table, ResolvedScales scales, double width, double height, CancellationToken cancellationToken)
+        /// <param name="overlay">The settings of an overlay run (the mark definition replaces <paramref name="def"/>), or null.</param>
+        public Run(MarkBuilder owner, string type, SpecNode? def, SpecNode view, DataTable table, ResolvedScales scales, double width, double height, CancellationToken cancellationToken, OverlaySettings? overlay = null)
         {
             _owner = owner;
             _type = type;
             _def = def;
+            _view = view;
+            _scales = scales;
+            _plan = scales.Plan;
+            _overlay = overlay;
             _table = table;
             _width = width;
             _height = height;
@@ -443,11 +477,31 @@ internal sealed class MarkBuilder
             {
                 _styleNames.AddRange(StyleNames(style));
             }
+            else if (overlay?.Definition["style"] is { } overlayStyle)
+            {
+                _styleNames.AddRange(StyleNames(overlayStyle));
+            }
 
-            _orient = scales.Orient ?? (type == "tick" ? "vertical" : null);
+            if (overlay is not null)
+            {
+                _orient = overlay.Orient;
+            }
+            else
+            {
+                _orient = scales.Orient ?? (type == "tick" ? "vertical" : null);
+                _pointOverlay = PointOverlayDefinition();
+                _lineOverlay = LineOverlayDefinition();
+            }
+
             var encoding = view["encoding"] is { IsObject: true } e ? e : null;
             foreach (var name in new[] { "x", "y", "color", "fill", "stroke", "size", "opacity", "shape", "strokeWidth", "strokeDash", "fillOpacity", "strokeOpacity", "angle" })
             {
+                // An overlay shares the scales of the mark it overlays: a channel that the mark does not draw has no scale and is not read
+                if (overlay is not null && encoding?[name] is { IsObject: true } unscaled && scales[name] is null && unscaled["value"] is null)
+                {
+                    continue;
+                }
+
                 if (encoding?[name] is { IsObject: true } node && (name is not ("shape" or "angle" or "strokeDash") || ScaleResolver.ChannelIsDrawn(name, type)))
                 {
                     var scale = scales[name];
@@ -458,7 +512,7 @@ internal sealed class MarkBuilder
                         scale?.CreateModel(name is "x" or "y" ? extent : 0),
                         table,
                         owner._expressions?.Compiled.GetReference(node["value"]),
-                        name is "x" or "y" && encoding[name + "2"] is { IsObject: true } secondary ? secondary : null,
+                        name is "x" or "y" && overlay is null && encoding[name + "2"] is { IsObject: true } secondary ? secondary : null,
                         ConditionsOf(name, node));
                 }
             }
@@ -502,16 +556,26 @@ internal sealed class MarkBuilder
         }
 
         /// <summary>
-        ///     Builds the items of the mark.
+        ///     Builds the items of the mark, then those of its overlays.
         /// </summary>
-        /// <returns>The items in data order.</returns>
-        public List<SceneItem> Build() => _type switch
+        /// <returns>The items in drawing order: the mark, the line overlay of an area, the point overlay.</returns>
+        public List<SceneItem> Build()
         {
-            "bar" or "rect" => Rects(),
-            "tick" => Ticks(),
-            "rule" => Rules(),
-            _ => Symbols(),
-        };
+            var items = _type switch
+            {
+                "bar" or "rect" => Rects(),
+                "tick" => Ticks(),
+                "rule" => Rules(),
+                "line" or "area" or "trail" => Paths(),
+                _ => Symbols(),
+            };
+            if (_overlay is null)
+            {
+                AddOverlays(items);
+            }
+
+            return items;
+        }
 
         /// <summary>
         ///     Reads the style names of a mark definition: one name or a list of names.
@@ -529,6 +593,21 @@ internal sealed class MarkBuilder
         }
 
         /// <summary>
+        ///     Reads the style names of the <c>style</c> of an overlay definition: one name or a list of names.
+        /// </summary>
+        /// <param name="style">The <c>style</c> property.</param>
+        /// <returns>The names.</returns>
+        private static IEnumerable<string> StyleNames(ConfigNode style)
+        {
+            if (style.Kind == ConfigNodeKind.String)
+            {
+                return [style.StringValue!];
+            }
+
+            return style.Kind == ConfigNodeKind.Array ? style.Items.Where(i => i.Kind == ConfigNodeKind.String).Select(i => i.StringValue!) : [];
+        }
+
+        /// <summary>
         ///     Gets a channel by name.
         /// </summary>
         /// <param name="name">The channel name.</param>
@@ -536,11 +615,19 @@ internal sealed class MarkBuilder
         private Channel? Get(string name) => _channels.GetValueOrDefault(name);
 
         /// <summary>
-        ///     Reads a property of the mark definition.
+        ///     Reads a property of the mark definition (of the overlay definition for an overlay run).
         /// </summary>
         /// <param name="name">The property.</param>
         /// <returns>The value, or null when the definition does not have it.</returns>
-        private ConfigNode? Def(string name) => _def?[name] is { } node ? ConfigNode.FromSpec(node) : null;
+        private ConfigNode? Def(string name)
+        {
+            if (_overlay is not null)
+            {
+                return _overlay.Definition[name];
+            }
+
+            return _def?[name] is { } node ? ConfigNode.FromSpec(node) : null;
+        }
 
         /// <summary>
         ///     Reads a property from the Vega-Lite configuration: the styles of the mark, then <c>config.&lt;mark&gt;</c>, then <c>config.mark</c>.
@@ -616,7 +703,7 @@ internal sealed class MarkBuilder
             {
                 _opacity = opacity;
             }
-            else if (Vl("opacity") is null && Vl("fillOpacity") is null && Def("fillOpacity") is null && ReducedOpacityMarks.Contains(_type))
+            else if (Vl("opacity") is null && Vl("fillOpacity") is null && Def("fillOpacity") is null && (ReducedOpacityMarks.Contains(_type) || (_type == "area" && (_pointOverlay is not null || _lineOverlay is not null))))
             {
                 _opacity = ConfigResolver.DefaultReducedOpacity;
             }
@@ -1422,9 +1509,11 @@ internal sealed class MarkBuilder
             var radius = Prop("cornerRadius")?.AsNumber() ?? 0;
             var strokeWidth = Prop("strokeWidth", vega: true)?.AsNumber();
             var items = new List<SceneItem>(Math.Min(_table.RowCount, 4096));
-            for (var row = 0; row < _table.RowCount; row++)
+            var rows = MarkRows();
+            for (var index = 0; index < _table.RowCount; index++)
             {
-                Batch(row);
+                Batch(index);
+                var row = rows?[index] ?? index;
                 if (Span(isX: true, x, barX, sizingX, row) is not { } xs || Span(isX: false, y, barY, sizingY, row) is not { } ys || !TryPaint(row, strokeWidth, out var paint))
                 {
                     continue;
@@ -1450,9 +1539,11 @@ internal sealed class MarkBuilder
             var sizing = SizingFor(isX: horizontal, useSizeChannel: true);
             var strokeWidth = Prop("strokeWidth", vega: true)?.AsNumber();
             var items = new List<SceneItem>(Math.Min(_table.RowCount, 4096));
-            for (var row = 0; row < _table.RowCount; row++)
+            var rows = MarkRows();
+            for (var index = 0; index < _table.RowCount; index++)
             {
-                Batch(row);
+                Batch(index);
+                var row = rows?[index] ?? index;
                 if (!TryPaint(row, strokeWidth, out var paint))
                 {
                     continue;
@@ -1501,9 +1592,11 @@ internal sealed class MarkBuilder
             var vertical = xRange == yRange ? _orient != "horizontal" : yRange;
             var widthDefault = Def("strokeWidth")?.AsNumber() ?? Def("size")?.AsNumber() ?? Prop("strokeWidth", vega: true)?.AsNumber();
             var items = new List<SceneItem>(Math.Min(_table.RowCount, 4096));
-            for (var row = 0; row < _table.RowCount; row++)
+            var rows = MarkRows();
+            for (var index = 0; index < _table.RowCount; index++)
             {
-                Batch(row);
+                Batch(index);
+                var row = rows?[index] ?? index;
                 var width = widthDefault;
                 if (Get("size") is { } sizeChannel)
                 {
@@ -1571,9 +1664,11 @@ internal sealed class MarkBuilder
             var strokeWidth = Prop("strokeWidth", vega: true)?.AsNumber();
             var sizeChannel = Get("size");
             var items = new List<SceneItem>(Math.Min(_table.RowCount, 4096));
-            for (var row = 0; row < _table.RowCount; row++)
+            var rows = MarkRows();
+            for (var index = 0; index < _table.RowCount; index++)
             {
-                Batch(row);
+                Batch(index);
+                var row = rows?[index] ?? index;
                 var size = sizeChannel is null ? ExpressionNumber(_sizeExpression, row) ?? defaultSize : Encoded(sizeChannel, row, defaultSize);
                 if (size is not { } area || PointPosition(x, _width, row) is not { } px || PointPosition(y, _height, row) is not { } py || !TryPaint(row, strokeWidth, out var paint))
                 {
@@ -1617,6 +1712,7 @@ internal sealed class MarkBuilder
             StrokeDashOffset = Prop("strokeDashOffset")?.AsNumber() ?? 0,
             StrokeCap = Prop("strokeCap")?.AsString(),
             StrokeJoin = Prop("strokeJoin")?.AsString(),
+            StrokeMiterLimit = Prop("strokeMiterLimit")?.AsNumber(),
         };
 
         /// <summary>
@@ -1637,6 +1733,7 @@ internal sealed class MarkBuilder
             StrokeDashOffset = Prop("strokeDashOffset")?.AsNumber() ?? 0,
             StrokeCap = Prop("strokeCap")?.AsString(),
             StrokeJoin = Prop("strokeJoin")?.AsString(),
+            StrokeMiterLimit = Prop("strokeMiterLimit")?.AsNumber(),
         };
 
         /// <summary>
@@ -1654,6 +1751,50 @@ internal sealed class MarkBuilder
             StrokeDash = paint.StrokeDash,
             StrokeDashOffset = Prop("strokeDashOffset")?.AsNumber() ?? 0,
             StrokeCap = Prop("strokeCap")?.AsString(),
+            StrokeJoin = Prop("strokeJoin")?.AsString(),
+            StrokeMiterLimit = Prop("strokeMiterLimit")?.AsNumber(),
+        };
+
+        /// <summary>
+        ///     Applies the paint and the stroke properties of the mark to a path.
+        /// </summary>
+        /// <param name="item">The path.</param>
+        /// <param name="paint">The paint of the first row of the path.</param>
+        /// <returns>The styled path.</returns>
+        private ScenePath Style(ScenePath item, Paint paint) => item with
+        {
+            Fill = paint.Fill,
+            Stroke = paint.Stroke,
+            StrokeWidth = paint.StrokeWidth,
+            Opacity = paint.Opacity,
+            FillOpacity = paint.FillOpacity,
+            StrokeOpacity = paint.StrokeOpacity,
+            StrokeDash = paint.StrokeDash,
+            StrokeDashOffset = Prop("strokeDashOffset")?.AsNumber() ?? 0,
+            StrokeCap = Prop("strokeCap")?.AsString(),
+            StrokeJoin = Prop("strokeJoin")?.AsString(),
+            StrokeMiterLimit = Prop("strokeMiterLimit")?.AsNumber(),
+        };
+
+        /// <summary>
+        ///     Applies the paint and the stroke properties of the mark to a trail.
+        /// </summary>
+        /// <param name="item">The trail.</param>
+        /// <param name="paint">The paint of the first row of the trail.</param>
+        /// <returns>The styled trail.</returns>
+        private SceneTrail Style(SceneTrail item, Paint paint) => item with
+        {
+            Fill = paint.Fill,
+            Stroke = paint.Stroke,
+            StrokeWidth = paint.StrokeWidth,
+            Opacity = paint.Opacity,
+            FillOpacity = paint.FillOpacity,
+            StrokeOpacity = paint.StrokeOpacity,
+            StrokeDash = paint.StrokeDash,
+            StrokeDashOffset = Prop("strokeDashOffset")?.AsNumber() ?? 0,
+            StrokeCap = Prop("strokeCap")?.AsString(),
+            StrokeJoin = Prop("strokeJoin")?.AsString(),
+            StrokeMiterLimit = Prop("strokeMiterLimit")?.AsNumber(),
         };
     }
 }

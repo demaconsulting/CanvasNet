@@ -101,13 +101,23 @@ internal sealed partial class SpecParser
     private static readonly Dictionary<string, Rule> AutosizeRules = Rules(
         "type: S=pad|none|fit|fit-x|fit-y", "resize: B", "contains: S=content|padding");
 
+    /// <summary>The 15 interpolation names of Vega-Lite 6 (<c>Interpolate</c>); the Vega-only <c>catmull-rom-open</c> and <c>catmull-rom-closed</c> are not among them.</summary>
+    private static readonly string[] InterpolateNames =
+    [
+        "basis", "basis-open", "basis-closed", "bundle", "cardinal", "cardinal-open", "cardinal-closed", "catmull-rom",
+        "linear", "linear-closed", "monotone", "natural", "step", "step-before", "step-after",
+    ];
+
     /// <summary>The rules for the properties of a mark definition.</summary>
     private static readonly Dictionary<string, Rule> MarkRules = Rules(
         "color: SZO", "fill: SZO", "stroke: SZO", "opacity: NE", "fillOpacity: NE", "strokeOpacity: NE", "size: NE",
         "strokeWidth: NE", "thickness: NE", "binSpacing: NE", "continuousBandSize: NE", "minBandSize: NE",
         "discreteBandSize: NO", "cornerRadius: NE", "angle: NE", "dx: NE", "dy: NE", "filled: BE",
         "orient: SE=horizontal|vertical", "style: ST", "clip: BE", "shape: SE", "strokeDash: AE", "strokeCap: SE",
-        "strokeJoin: SE", "interpolate: SE", "align: SE", "baseline: SE", "font: SE", "fontSize: NE",
+        "strokeJoin: SE", "interpolate: SE=" + string.Join('|', InterpolateNames), "tension: NE", "point: BOSZ=transparent", "line: BZO",
+        "invalid: SZ=filter|break-paths-filter-domains|break-paths-show-domains|break-paths-show-path-domains|show", "order: BZ",
+        "strokeDashOffset: NE", "strokeMiterLimit: NE", "padAngle: NE", "innerRadius: NE", "outerRadius: NE", "radius: NE", "radius2: NE",
+        "theta: NE", "theta2: NE", "align: SE", "baseline: SE", "font: SE", "fontSize: NE",
         "x: NSO", "y: NSO", "x2: NSO", "y2: NSO", "width: NO", "height: NO", "timeUnitBandPosition: NE", "timeUnitBandSize: NE");
 
     /// <summary>The rules for the properties of a channel definition.</summary>
@@ -589,6 +599,16 @@ internal sealed partial class SpecParser
                 foreach (var property in node.Properties.Where(p => !MarkKeys.Contains(p.Name!)))
                 {
                     WarnUnknown(property, "a mark definition");
+                }
+
+                // The point and line overlays are mark definitions without a type
+                foreach (var overlay in new[] { node["point"], node["line"] }.Where(o => o is { IsObject: true }))
+                {
+                    CheckObject(overlay!, MarkRules);
+                    foreach (var property in overlay!.Properties.Where(p => !MarkKeys.Contains(p.Name!)))
+                    {
+                        WarnUnknown(property, "a mark overlay");
+                    }
                 }
 
                 CompileMarkExpressions(node, type.StringValue!);

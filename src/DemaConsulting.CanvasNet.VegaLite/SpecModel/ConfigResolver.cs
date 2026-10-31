@@ -170,6 +170,20 @@ internal sealed class ConfigNode
     public static ConfigNode FromString(string text) => new(ConfigNodeKind.String, text, 0, false, NoItems, NoProperties);
 
     /// <summary>
+    ///     Creates a number node.
+    /// </summary>
+    /// <param name="value">The number.</param>
+    /// <returns>The node.</returns>
+    public static ConfigNode FromNumber(double value) => new(ConfigNodeKind.Number, null, value, false, NoItems, NoProperties);
+
+    /// <summary>
+    ///     Creates a boolean node.
+    /// </summary>
+    /// <param name="value">The boolean.</param>
+    /// <returns>The node.</returns>
+    public static ConfigNode FromBoolean(bool value) => new(ConfigNodeKind.Boolean, null, 0, value, NoItems, NoProperties);
+
+    /// <summary>
     ///     Creates a node from the <c>config</c> object of a parsed specification.
     /// </summary>
     /// <remarks>

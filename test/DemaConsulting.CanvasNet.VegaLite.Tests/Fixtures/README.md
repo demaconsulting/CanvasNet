@@ -12,7 +12,7 @@ describe nothing real. They exist to give the tests small, readable charts whose
   `rule` (and change the tick thickness) to draw stems and thicker ticks.
 - `titles-config.vl.json`: a title with a subtitle, a background, and the configuration of axes, bars and the title
   (`config`), plus an explicit scale domain and tick count.
-- `unsupported.vl.json`: a line mark, a regression transform and a band position, which are recognized but not drawn yet
+- `unsupported.vl.json`: a geoshape mark, a regression transform and a band position, which are recognized but not drawn
   and must be reported with their locations.
 - `data-files.vl.json` and `data-files.csv`: the same bar chart as `bar-inline.vl.json`, but its rows come from the
   relative file `data-files.csv` (the specification is opened from its path, so the file is found beside it). The CSV
