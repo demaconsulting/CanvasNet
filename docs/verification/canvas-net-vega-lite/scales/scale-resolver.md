@@ -1,14 +1,15 @@
 ### ScaleResolver Unit Verification Design
 
 This document describes the unit-level verification strategy for the `ScaleResolver` unit in the
-`DemaConsulting.CanvasNet.VegaLite.Scales` namespace: the internal static partial `ScaleResolver` class (`Resolve` and
-`InferOrient` in `ScaleResolver.cs`, the channels, domains, and titles that follow the encoding plan in
-`ScaleResolver.Plan.cs`, the discrete sort in `ScaleResolver.Sort.cs`, the colors and the quantile domain in
+`DemaConsulting.CanvasNet.VegaLite.Scales` namespace: the internal static partial `ScaleResolver` class (`Resolve`,
+`InferOrient`, and `ChannelIsDrawn` in `ScaleResolver.cs`, the channels, domains, and titles that follow the encoding
+plan in `ScaleResolver.Plan.cs`, the discrete sort in `ScaleResolver.Sort.cs`, the colors and the quantile domain in
 `ScaleResolver.Color.cs`, and the output ranges in `ScaleResolver.Range.cs`) and the `ResolvedScales`, `ResolvedScale`,
 and `RangeEnd` types of its file. The resolver reads the view of a parsed specification, the `EncodingPlan` and the
 tables that the implicit stage produced (the Raw and the Main table), and the resolved configuration, and infers for
-each of the channels `x`, `y`, `color`, `fill`, `stroke`, `size`, `opacity`, `shape`, `strokeWidth`, `strokeDash`,
-`fillOpacity`, `strokeOpacity`, and `angle` the scale kind, the domain, the range, and the paddings according to the
+each of the channels `x`, `y`, `theta`, `radius`, `color`, `fill`, `stroke`, `size`, `opacity`, `shape`, `strokeWidth`,
+`strokeDash`, `fillOpacity`, `strokeOpacity`, and `angle` (the channels that the mark draws: `ChannelIsDrawn` is the
+table of the marks that draw each channel) the scale kind, the domain, the range, and the paddings according to the
 Vega-Lite rules for this release (linear, time, UTC, sequential, diverging, quantize, quantile, threshold, band, point,
 and ordinal scales; the types `quantitative`, `temporal`, `nominal`, and `ordinal`), including the fields that
 aggregates, bins, and stacks
@@ -57,10 +58,26 @@ The expected values are derived by hand from the Vega-Lite rules and arithmetic,
   the minimum 2, 10, 1 it is `c, a, b`; by the third quartile (R-7: 2.75, 10, 1) and by the number of valid values (2,
   1, 1) the orders are `c, a, b` and `b, c, a` (ties in first appearance order); the sample variance of `a` is 0.5 and
   the categories with one value have a null variance, which sorts first in either direction.
+- A pie chart (slices 1, 1, and 2 of the colors a, b, and c): the layers are stacked ascending by the color, so the
+  slices are (0, 1), (1, 2), and (2, 4), the `theta` domain is 0 to 4 (the unstacked extent would be 1 to 2), zero is
+  included and there is no `nice`, and the range is the whole turn, 0 to 2 pi, whatever extent the caller passes, so
+  the values 0, 1, 2, and 4 map to 0, pi / 2, pi, and 2 pi (a quarter, a half, and the full turn of the total 4). A
+  normalized stack has the unit domain 0 to 1, and an unaggregated field with nothing to split it is one stack of one
+  slice per row (3 + 7 + 12 + 5 = 27, so 0 to 27).
+- A radius over the values 3, 7, 12, and 5 on a data rectangle whose smaller half is 100: the domain includes zero (0 to
+  12), the range is 0 to 100 (half of the smaller side), so 6 maps to 50 and 12 to 100, and on a half side of 60 the
+  value 6 maps to 30. With the type `sqrt`, `zero: true`, and `rangeMin: 20` (the radial chart) the range is 20 to 100
+  over the domain 0 to 12, and `v` maps to `20 + 80 x sqrt(v / 12)`: 0 to 20, 3 (a quarter of the maximum, whose square
+  root is one half) to 20 + 80 x 0.5 = 60, and 12 to 100.
+- Discrete polar scales spread their categories over the same ranges without padding: the three categories a, b, and c
+  of an arc are bands of 2 pi / 3 starting at 0, 2 pi / 3, and 4 pi / 3, the same categories on a text mark are points at
+  0, pi, and 2 pi, and the radius bands over 90 pixels are 30 wide so that c starts at 60.
 
 Unit tests reside in `ScaleResolverTests.cs` (the scale kinds, domains, ranges, paddings, colors, and sizes),
-`ScaleResolverPlanTests.cs` (the plan-driven fields, domains, titles, and sorts), and `ScaleResolverTimeTests.cs` (the
-scales of temporal fields and of fields with a time unit) within the
+`ScaleResolverPlanTests.cs` (the plan-driven fields, domains, titles, and sorts), `ScaleResolverTimeTests.cs` (the
+scales of temporal fields and of fields with a time unit), `ScaleResolverPolarTests.cs` (the polar scales and the
+orientation of the line, area, trail, and arc marks), and `MarkChannelGatingTests.cs` (the table of the marks that draw
+each channel) within the
 `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `Scales` folder; the sorts over rows made by a calculate
 transform are in `RowTransformsTests.cs`, in the `Transforms` folder.
 
@@ -122,13 +139,70 @@ aggregate without a field) is a field definition and so has a linear scale that 
 "Count of Records"; that a field without a type is read as quantitative and a datum takes the type of its value; and
 that a view without a mark or encoding has no scales and no orientation.
 
-##### Orientation Of Bars, Ticks, And Rules
+##### Orientation Of Bars, Ticks, Rules, Lines, Areas, Trails, And Arcs
 
-**Tests**: `ScaleResolverTests.ScaleResolver_InferOrient_FollowsVegaLite`
+**Tests**: `ScaleResolverTests.ScaleResolver_InferOrient_FollowsVegaLite`,
+`ScaleResolverPolarTests.ScaleResolver_InferOrient_AreaRangeAndTemporalRulesFollowVegaLite`,
+`ScaleResolverPolarTests.ScaleResolver_InferOrient_LineFollowsTheMeasure`
 
 Asserts, over a table of `(mark, specified orient, x type, y type, expected orient)` rows, that a bar extends along the
 measure, a tick is the opposite, a rule with one position channel runs across the view, and marks without a direction
-have none.
+have none. For the marks of Phase 9 it asserts, over 27 rows, that an area with a `y2` (a field or a value) is vertical
+and with an `x2` horizontal, that `y2` wins when both exist, and that both win over the orientation that the
+specification gives; that a binned secondary position reverses the rule (an area on a `y` with `bin: "binned"` and a
+`y2` is horizontal, on an `x` with a binned `x2` it is vertical, and the binned `y` with its `y2` is horizontal even
+when the specification says vertical); that a time axis against an axis that is not temporal is the dimension of a
+line, an area, and a tick (a temporal `x` with a nominal `y` is vertical, a temporal `y` with a nominal `x` is
+horizontal, and a lone temporal axis decides alone), while two time axes, two categories, and no channel give no
+orientation, a quantitative axis decides before the time axis does, and an explicit orientation wins over time; and
+that a trail and an arc are always vertical, whatever the channels and the specified orientation. A second table of nine
+rows asserts that a line extends along the dimension, so an unbinned quantitative `x` next to a `y` that is not
+quantitative is horizontal and the mirror is vertical, two measures are vertical, a lone `x` measure is horizontal and a
+lone `y` measure vertical, two discrete axes give none, a binned `x` with a counted `y` is vertical (a bin is not a
+measure, a count is), and an explicit orientation wins; and the orientation reaches the scales (`Orient` of the resolved
+scales is horizontal for a quantitative `x` over a nominal `y`, vertical for the mirror, and vertical for a time `x` of
+a tick over categories, horizontal for the time `y`).
+
+##### Polar Scales Cover The Turn And The Radius
+
+**Tests**: `ScaleResolverPolarTests.ScaleResolver_Resolve_ThetaHasTheFullCircleRange`,
+`ScaleResolverPolarTests.ScaleResolver_Resolve_RadiusRangeIsHalfTheSmallerSideWithRangeMin`,
+`ScaleResolverPolarTests.ScaleResolver_Resolve_PolarDefaultsAreLinearZeroNoNice`,
+`ScaleResolverPolarTests.ScaleResolver_Resolve_StackedThetaDomainSpansTheStack`,
+`ScaleResolverPolarTests.ScaleResolver_Resolve_PolarChannelsAreOnlyResolvedForArcAndText`
+
+Asserts, for the pie data above, that `theta` is a linear scale that is polar and not a position, located at
+`/encoding/theta`, whose model for any extent (12,345 passed here) is the domain 0 to 4 over the range 0 to 2 pi, with
+the values 0, 1, 2, and 4 at 0, pi / 2, pi, and 2 pi; that `reverse` gives the range 2 pi to 0, `rangeMin` 1 and
+`rangeMax` 3
+give 1 to 3, an explicit range `[0, 3]` replaces the default, and the keyword `"width"` stands for the extent that the
+caller passes (0 to 40). For the radius it asserts the range 0 to the extent (0 to 100, so 6 maps to 50), the square-root
+radial scale above (a linear scale with a power transform, 20 at zero, 60 at 3, and 100 at 12), the extent that follows
+the data rectangle (30 for the value 6 over a half side of 60), and that a text mark has a radius scale too. It asserts
+the defaults of a polar scale (linear, the domain 0 to 12 because zero is included, no `nice`, no padding, no step, no
+natural extent, no stack for `stack: false`), that `zero: false` keeps 3 to 12, that an explicit domain `[2, 9.5]` keeps
+its ends, that `config.scale.zero: false` turns the zero rule off for a radius, and the discrete forms (the bands and
+points above). It asserts that the domain of a stacked channel spans the start and the end of the stack (0 to 4, with
+different start and end fields), that a normalized stack is 0 to 1, that a stacked radius with `theta` as its dimension
+stacks the layers a and b of the categories x and y to 3 and 1 (domain 0 to 3, where the unstacked extent would be 0 to
+2) while the `theta` of that chart is a band without a stack, that an unaggregated field with no layers is the one stack
+0 to 27, and that a text mark with `stack: true` stacks its `theta` the same way (0 to 4). Last, it asserts that `theta`
+and `radius` are resolved only for the arc and text marks: ten other marks (point, bar, line, area, rect, tick, rule,
+trail, circle, and square) give no scale for either, and an arc with a radius value, a quantitative `theta`, a color, and
+an `x` datum has the scales `x`, `theta`, and `color` in that order.
+
+##### Channels Are Resolved Only For The Marks That Draw Them
+
+**Tests**: `MarkChannelGatingTests.ScaleResolver_ChannelIsDrawn_FollowsTheSupportTable`,
+`MarkChannelGatingTests.ScaleResolver_Resolve_ChannelsThatTheMarkDoesNotDrawHaveNoScale`
+
+Asserts, for each of the 13 marks (point, circle, square, rect, bar, tick, rule, line, area, trail, text, arc, and
+image), the exact set of marks that draw a channel: `theta` and `radius` by text and arc, `theta2` and `radius2` by arc,
+`text` by text, `size` by every mark but rect, area, arc, and image, `strokeDash` by every mark but rect, area, trail,
+text, and arc, `angle` by point, circle, square, and text, `shape` by point, and the position and paint channels by
+all; and, resolving a one-channel encoding of a small table, that a size on an area or an arc, a stroke dash on an area,
+a trail, a text, or an arc, an angle on a line, and a shape on an arc have no scale while a size on a line, a trail, or
+a text, a stroke dash on a line, and an angle on a text do.
 
 ##### Zero, Nice, Domain, Range, And Padding
 

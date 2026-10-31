@@ -39,7 +39,8 @@ The unit's behavior is specified by the `CanvasNetVegaLite-Scales-ScaleResolver-
 
 **`ResolvedScales`** holds the `MarkType`, the inferred `Orient` (horizontal, vertical, or null), the `Plan` (the
 `EncodingPlan` the scales were resolved with), the scales by channel
-(an indexer by channel name and an enumeration in the fixed channel order x, y, color, fill, stroke, size, opacity, shape,
+(an indexer by channel name and an enumeration in the fixed channel order x, y, theta, radius, color, fill, stroke, size,
+opacity, shape,
 strokeWidth, strokeDash, fillOpacity, strokeOpacity, angle), and
 the `DiscreteWidth` and `DiscreteHeight` that a step-driven discrete position scale needs.
 
@@ -59,7 +60,8 @@ thresholds of a threshold scale), `NiceCount`, `NiceInterval`, `PaddingPixels`, 
 linear, band, or point scale of a numeric channel, the `NumberRange` of an ordinal or discretizing numeric scale, the
 `ColorRange` of an ordinal or discretizing color scale, the `ShapeRange` and the `DashRange`, the `Interpolator` of a
 sequential or diverging scale,
-`IsPosition`, and `NaturalExtent` (the step times the band space of a step-driven
+`IsPosition` (`x` or `y`), `IsPolar` (`theta` or `radius`), and `NaturalExtent` (the step times the band space of a
+step-driven
 discrete scale). The time facts of the channel are `Calendar` (the `TimeCalendar` of its instants: UTC for a `utc` scale
 or a `utc` time unit or a color that asked for the scale type `utc`, otherwise the zone of the chart;
 null when the field is neither temporal nor has a time unit),
@@ -70,15 +72,21 @@ values of the field are instants: it is temporal or has a time unit), and `HasBa
 unit: `Field2Path` is the end of the unit, Vega-Lite's `hasBandEnd`, so a bar, rect, or tick covers the unit and a point
 can sit anywhere between its start and its end; false for the range that an `x2` or `y2` gives). `NiceInterval` is the
 `TimeTickRequest` (an interval name with an optional step) that `nice` extends a time scale to, null when `nice` uses
-`NiceCount` or is off. `CreateModel(extent)` builds the `ScaleModel` for a data-rectangle width (x) or height (y); the extent
-is ignored for every channel but x and y.
+`NiceCount` or is off. `CreateModel(extent)` builds the `ScaleModel` for a data-rectangle width (x) or height (y), or,
+for `radius`, for the
+largest radius that the data rectangle allows (the caller passes half of its smaller side); the extent is ignored for
+every other channel (also for `theta`, which always sweeps the full circle).
 
 **Inference rules** (Vega-Lite 6 behavior, ported with attribution):
 
 - **Type.** `ChooseKind` is Vega-Lite's `defaultType` with its `channelSupportScaleType` and `scaleTypeSupportDataType`
   checks.
   Quantitative position channels are linear; discrete position channels are band scales for `rect`, `bar`,
-  `image`, `rule`, and `tick` marks and point scales for the others; a quantitative `color`, `fill`, or `stroke` is a **sequential**
+  `image`, `rule`, and `tick` marks and point scales for the others; **the polar channels `theta` and `radius`** (the
+  channel group `ChannelGroup.Polar`) take the same scale types as a position channel (linear, pow, sqrt, symlog, log,
+  band, point, time, and UTC) and default to linear for a quantitative field, to a **band** scale for a nominal or
+  ordinal field of an `arc` (a slice or ring is a rectangle in polar coordinates) and to a **point** scale for one of a
+  `text` mark; a quantitative `color`, `fill`, or `stroke` is a **sequential**
   scale (a **diverging** one with three domain entries); a nominal or ordinal one is ordinal, as are `shape` and
   `strokeDash` (also for a quantitative field, which Vega-Lite warns about); `size`, `opacity`, `strokeWidth`,
   `fillOpacity`, `strokeOpacity`, and `angle` are
@@ -108,9 +116,25 @@ transform) for a
   quantitative field, not on `shape` or `strokeDash`, and a nominal field falls back to the discrete default; a measure
   that carries one of them is never stacked (`StackRules` refuses the stack, as Vega-Lite does). `ChannelIsDrawn`
   gives a channel a scale
-  only for the marks Vega-Lite's `supportMark` allows (`shape` on `point`; `angle` on `point`, `circle`, and `square`;
-  `strokeDash` and `size` not on `rect`), `AcceptsScaleType` answers the type question for the feature catalog, and
+  only for the marks Vega-Lite's `supportMark` allows (the table below), `AcceptsScaleType` answers the type question
+  for the feature catalog, and
   `IsKnownShape` tells it whether a shape is a symbol name that the painter draws (anything else is a custom path).
+
+  <!-- markdownlint-disable MD013 -->
+  | Channel | Drawn for |
+  | ------- | --------- |
+  | `theta`, `radius` | `arc`, `text` |
+  | `theta2`, `radius2` | `arc` (they have no scale of their own; the feature catalog uses the table) |
+  | `text` | `text` (it has no scale; the feature catalog uses the table) |
+  | `shape` | `point` |
+  | `angle` | `point`, `circle`, `square`, `text` |
+  | `strokeDash` | every mark but `rect`, `area`, `trail`, `text`, `arc` |
+  | `size` | every mark but `rect`, `area`, `arc`, `image` |
+  | every other channel | every mark |
+  <!-- markdownlint-enable MD013 -->
+
+  A channel that a mark does not draw has no scale: `ResolveChannel` returns none for it, and the feature catalog
+  reports it (see _FeatureCatalog_).
 - **Domain.** The fields a channel reads come from the `EncodingPlan`. A linear domain is the extent of the valid values
   (numbers, booleans as 1 and 0, numeric strings; null and
   NaN are ignored; an empty extent is 0 to 1) of the **Main** table, over the channel's field and its second field: for
@@ -152,6 +176,15 @@ transform) for a
   change only the first and the last entry as Vega's `configureDomain` does (so `nice` changes the last entry of the
   complete domain, as d3's `nice` does), and a domain of three entries over the default two-entry range uses its first
   two entries only.
+- **Polar channels.** `theta` and `radius` (drawn by the `arc` and `text` marks) are resolved like a position channel,
+  with these differences. They have **no pixel padding, no `nice`, no step, and no axis**, and a band or point scale on
+  them has no padding unless the scale gives one (inner and outer padding are 0). The domain of a stacked polar channel
+  is the extent of its stack, the lower and the upper ends (`[0, 1]` for `normalize`), exactly as for a stacked x or
+  y, so the `theta` of a pie spans zero to the sum; this comes from the generic extent (`LinearExtent`) and is pinned
+  by a test. The **zero rule** for them is the configuration only: `config.scale.zero` (true by default) applies unless
+  the domain is explicit (an explicit domain keeps zero only when it already spans it) or the channel is binned; the
+  bar and area rules of x and y do not apply, because the marks that draw a polar channel are neither bars nor areas
+  and have no dimension axis. A `theta2` or `radius2` has no scale. The **range** is the subject of the _Range_ item.
 - **Temporal fields** (the partial file `ScaleResolver.Time.cs`). The values of a temporal field, and of
   the derived start of a time unit, are instants (`DataValue.Date`, milliseconds since the epoch), and the calendar of the
   scale is the zone of the chart (UTC for a `utc` scale or a `utc` unit), read from the evaluation facts of the render.
@@ -195,8 +228,13 @@ transform) for a
   domain** (so a log domain keeps its geometric middle). On a **time or UTC** scale `nice` extends the domain to the
   boundaries of a calendar interval with `Ticks.TimeNice` (after the pixel padding, like the numeric `nice`), in the
   calendar of the scale, and a non-finite or out-of-range result keeps the padded domain.
-- **Range.** x is 0 to the width and y is the height to 0 (continuous) or 0 to the height (discrete). Size ranges follow
-  the mark (point-like marks 4 to the square of 0.95 steps, bar and tick 2 to step minus 1, rule 1 to 4); `strokeWidth`
+- **Range.** x is 0 to the width and y is the height to 0 (continuous) or 0 to the height (discrete). **`theta` is 0 to
+  2 * PI** (radians; the extent is ignored) and **`radius` is 0 to
+  the extent that the caller passes** (half of the smaller side of the data rectangle, in pixels); an explicit
+  `range` (with the `width` and `height` keywords), `rangeMin`, `rangeMax`, and `reverse` apply to them as to x and y.
+  Size ranges follow
+  the mark (point-like marks 4 to the square of 0.95 steps, bar and tick 2 to step minus 1, rule, line, and trail 1 to 4
+  as stroke widths, text 8 to 40 as font sizes); `strokeWidth`
   is `minStrokeWidth` to `maxStrokeWidth` (1 to 4); the opacities are 0.3 to 0.8; `angle` is 0 to 360; a discretizing
   **size** scale (quantile, quantize, threshold) spreads the numbers evenly over the range (Vega-Lite's
   `interpolateRange`) with one value per
@@ -271,9 +309,18 @@ transform) for a
   charged to the evaluation-step budget and the cancellation token polled. A discrete channel that shows the bins of a
   field is ordered by the start of its bins (descending with `"descending"`). `IsSupportedFieldSort` recognizes the
   `{op, field, order}` form; the `FeatureCatalog` decides what to report with `SpecParser.IsSupportedSort`.
-- **Orientation.** `InferOrient` follows Vega-Lite: no orientation for point, circle, square, and rect marks; a bar is
+- **Orientation.** `InferOrient` follows Vega-Lite: no orientation for point, circle, square, and rect marks; a **trail
+  and an arc are always vertical** (Vega-Lite returns `vertical` for the marks that it has no rule for, which lets the
+  path builder sort a trail by its pixel x); a bar is
   horizontal when only x is a measure and vertical when only y is, a tick the other way round, and a rule is vertical
-  with only x and horizontal with only y; an explicit `orient` of the mark wins where Vega-Lite lets it. A count definition
+  with only x and horizontal with only y. **An area with a `y2` is vertical** (horizontal when `y` is `bin: "binned"`)
+  **and an area with only an `x2` is horizontal** (vertical when `x` is `bin: "binned"`); both rules come before the
+  explicit `orient`, which wins in the other cases where Vega-Lite lets it. A line, area, or tick follows the measure
+  like a bar does (x measure and y not: horizontal, a tick vertical; y measure and x not: vertical, a tick horizontal;
+  two measures: vertical), and, **when neither axis is a measure, the time axis is the dimension: a temporal x next to
+  a y that is not temporal is vertical and a temporal y next to an x that is not is horizontal**. This temporal
+  fall-through is limited to the line, area, and tick (Vega-Lite applies it to a bar, a rule, and a text as well; those
+  keep their present behavior). A count definition
   (an `aggregate` of `count` without a field) is a measure. The encoding plan and the feature catalog reuse it.
 
 **Deviations** (also listed in _CanvasNetVegaLite System Design_): values of different kinds in one discrete domain
@@ -380,7 +427,8 @@ parameter) resolve no scale.
   unknown name, and a bad number are no `nice`.
 - `ResolvedScale.CreateModel(extent)` - applies what depends on the extent: the range of a position scale (including an
   explicit range with `width` and `height` keywords, all of whose entries are kept for a linear scale, and `rangeMin`
-  and `rangeMax`), the pixel
+  and `rangeMax`) and of a polar scale (`theta`: 0 to 2 * PI whatever the extent; `radius`: 0 to the extent; the same
+  explicit range, `rangeMin`, `rangeMax`, and `reverse`), the pixel
   padding of a continuous scale (the domain is widened so that the extreme values keep that distance from the edge),
   then `nice` (after the padding, as Vega does; `Ticks.TimeNice` with the calendar for a time scale), and builds a
   linear, time (`ScaleModel.CreateTime`, with the calendar and the UTC flag), UTC, sequential, diverging, quantize,
@@ -453,11 +501,13 @@ reported by the `FeatureCatalog`, and the resolver falls back or ignores them as
 #### Callers
 
 `VegaLiteDocument` calls the pipeline `Resolve` once per render, with the plan and the tables that `EncodingTransforms`
-produced. `FeatureCatalog` calls `InferOrient` (to decide whether the `order` channel orders a stack). `AxisBuilder` and
+produced. `FeatureCatalog` calls `InferOrient` (to decide the stack of the view) and `ChannelIsDrawn` (to report a channel
+that the mark does not draw). `AxisBuilder` and
 `MarkBuilder` read the `ResolvedScale` (field path, second field, title, bin and stack facts, kind, domain, padding) and
 the models built from it (the calendar, unit, temporal flag, band-end flag, and nice interval of a temporal channel
-included). The tests in
-`test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverTests.cs`, `ScaleResolverColorTests.cs`, and
-`ScaleResolverTimeTests.cs` call the
+included); `MarkBuilder` builds the polar models with the radius extent `min(width, height) / 2`. The tests in
+`test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverTests.cs`, `ScaleResolverColorTests.cs`,
+`ScaleResolverTimeTests.cs`, `ScaleResolverPolarTests.cs` (the polar scales and the orientation rules), and
+`MarkChannelGatingTests.cs` (the support table of `ChannelIsDrawn`) call the
 resolver directly through
 `InternalsVisibleTo`.

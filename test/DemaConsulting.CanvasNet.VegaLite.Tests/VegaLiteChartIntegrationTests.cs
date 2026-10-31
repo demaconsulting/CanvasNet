@@ -206,13 +206,13 @@ public class VegaLiteChartIntegrationTests
         Assert.Equal(
             [
                 ("vl-transform-regression", "/transform/0", 12, 5),
-                ("vl-mark-line", "/mark", 14, 11),
+                ("vl-mark-geoshape", "/mark", 14, 11),
                 ("vl-encoding-bandposition", "/encoding/y/bandPosition", 17, 71),
             ],
             reports.Select(r => (r.Feature, r.Location.Pointer, r.Location.Line, r.Location.Column)));
         Assert.All(reports, r => Assert.EndsWith("unsupported.vl.json", r.Location.File, StringComparison.Ordinal));
 
-        // Assert: a line mark is not drawn, so no data, scale or axis work is done for it: the view is empty and has the default size
+        // Assert: a geoshape mark is not drawn, so no data, scale or axis work is done for it: the view is empty and has the default size
         Assert.Equal((310, 310), (surface.Width, surface.Height));
         Assert.Equal(VegaLiteTestHelpers.White, surface[150, 150]);
     }

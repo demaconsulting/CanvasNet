@@ -166,7 +166,7 @@ public class RenderCommandVegaLiteTests
         var input = FixtureFactory.WriteText(
             directory.Path,
             "noisy.vl.json",
-            "{\"bogus\": 4, \"data\": {\"values\": [{\"v\": 1}]}, \"mark\": \"arc\", \"encoding\": {\"theta\": {\"field\": \"v\", \"type\": \"quantitative\"}}}");
+            "{\"bogus\": 4, \"data\": {\"values\": [{\"v\": 1}]}, \"mark\": \"geoshape\", \"encoding\": {\"longitude\": {\"field\": \"v\", \"type\": \"quantitative\"}}}");
         var output = directory.Combine("o.png");
 
         // Act
@@ -179,7 +179,7 @@ public class RenderCommandVegaLiteTests
         Assert.Equal(3, notes.Count);
         Assert.Equal(("warning", "vega-lite", "vega-lite-warning"), (
             notes[0].GetProperty("severity").GetString(), notes[0].GetProperty("source").GetString(), notes[0].GetProperty("code").GetString()));
-        Assert.Equal(("unsupported", "vega-lite", "vl-mark-arc"), (
+        Assert.Equal(("unsupported", "vega-lite", "vl-mark-geoshape"), (
             notes[1].GetProperty("severity").GetString(), notes[1].GetProperty("source").GetString(), notes[1].GetProperty("code").GetString()));
         Assert.False(notes[1].TryGetProperty("page", out _));
         Assert.Equal(ErrorCodes.UnsupportedFeature, strict.Code);

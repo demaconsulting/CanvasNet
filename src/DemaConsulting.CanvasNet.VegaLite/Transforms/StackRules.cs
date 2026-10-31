@@ -7,7 +7,7 @@ namespace DemaConsulting.CanvasNet.VegaLite.Transforms;
 /// <summary>
 ///     The decision that a view stacks its marks: which position channel is stacked, how, and by which fields.
 /// </summary>
-/// <param name="Channel">The stacked (measure) channel, <c>x</c> or <c>y</c>.</param>
+/// <param name="Channel">The stacked (measure) channel: <c>x</c>, <c>y</c>, <c>theta</c> or <c>radius</c>.</param>
 /// <param name="Offset">The stack offset: <c>zero</c>, <c>center</c> or <c>normalize</c>.</param>
 /// <param name="StackBy">The definitions of the non-position channels whose fields split a group of rows into the layers of the stack, in channel order.</param>
 internal sealed record StackDecision(string Channel, string Offset, IReadOnlyList<SpecNode> StackBy);
@@ -18,14 +18,16 @@ internal sealed record StackDecision(string Channel, string Offset, IReadOnlyLis
 /// <remarks>
 ///     <para>
 ///         The rule is the one of Vega-Lite's <c>stack</c> function (public algorithm, re-implemented here). A mark is stackable when
-///         it is one of arc, area, bar, rule, point, circle, square, line, text and tick; bar, area and arc stack by default and
+///         it is one of arc, area, bar, rule, point, circle, square, line, trail, text and tick (a trail is this renderer's addition: Vega-Lite does not stack it); bar, area and arc stack by default and
 ///         the others only with an explicit <c>stack</c>. The stacked channel is the unbinned quantitative one of <c>x</c> and
 ///         <c>y</c>; when both are (and neither says <c>stack</c>) the one that aggregates and the other does not wins, and then the
 ///         explicit <c>orient</c> of a bar or area decides. The other position channel names the group
 ///         of the stack. A stack needs at least one stack-by field when the encoding aggregates, never exists for a range
 ///         (a secondary channel <c>x2</c> or <c>y2</c> with a field or datum) or for a stacked channel whose <c>scale.type</c> is log, pow, sqrt or
 ///         symlog (Vega-Lite does not stack on a scale that is not linear), and an explicit <c>stack</c> of false or null switches
-///         it off. Polar stacking (theta, radius) is not part of this renderer.
+///         it off. The Cartesian channels <c>x</c> and <c>y</c> are decided first; when they give no stack the same rule is applied to the polar
+///         channels <c>theta</c> and <c>radius</c> (with <c>radius</c> as the dimension of <c>theta</c> and the other way round; the <c>orient</c> of a bar
+///         or area applies to the Cartesian channels only), and a secondary <c>theta2</c> or <c>radius2</c> with a field makes a ranged mark.
 ///     </para>
 ///     <para>
 ///         The analysis reads the specification only (no data), so the feature catalog can use it to decide whether the
@@ -34,8 +36,8 @@ internal sealed record StackDecision(string Channel, string Offset, IReadOnlyLis
 /// </remarks>
 internal static class StackRules
 {
-    /// <summary>The marks that can be stacked.</summary>
-    private static readonly HashSet<string> StackableMarks = ["arc", "area", "bar", "rule", "point", "circle", "square", "line", "text", "tick"];
+    /// <summary>The marks that can be stacked (Vega-Lite's set, plus <c>trail</c>, which this renderer stacks with an explicit <c>stack</c> so that the implicit impute of a path mark applies to it).</summary>
+    private static readonly HashSet<string> StackableMarks = ["arc", "area", "bar", "rule", "point", "circle", "square", "line", "trail", "text", "tick"];
 
     /// <summary>The marks that stack without an explicit <c>stack</c>.</summary>
     private static readonly HashSet<string> StackByDefaultMarks = ["arc", "area", "bar"];
@@ -65,14 +67,15 @@ internal static class StackRules
             return null;
         }
 
-        var channel = StackedChannel(encoding, markType, orient);
+        // Vega-Lite decides the Cartesian channels first and the polar ones when those give no stack, so a text mark can be stacked in either
+        var channel = PotentialStackedChannel(encoding, "x", markType, orient) ?? PotentialStackedChannel(encoding, "theta", markType, orient);
         if (channel is null)
         {
             return null;
         }
 
         var stacked = encoding[channel]!;
-        var other = channel == "x" ? "y" : "x";
+        var other = DimensionChannel(channel);
 
         // Vega-Lite warns and does not stack on a scale that is not linear (log, pow, sqrt, symlog): every mark is drawn from the baseline
         if (stacked["scale"]?["type"]?.AsString() is "log" or "pow" or "sqrt" or "symlog")
@@ -122,7 +125,7 @@ internal static class StackRules
             return null;
         }
 
-        // A ranged mark (a secondary channel that is a field or a datum) draws its own extent
+        // A ranged mark (a secondary channel that is a field or a datum, such as x2 or theta2) draws its own extent
         var secondary = encoding[channel + "2"];
         if (secondary is { IsObject: true } && (secondary["field"] is not null || secondary["datum"] is not null || secondary["aggregate"] is { IsNull: false }))
         {
@@ -155,29 +158,51 @@ internal static class StackRules
     public static bool IsEnabled(SpecNode? node) => node is { IsNull: false } && !(node.IsBoolean && !node.BoolValue);
 
     /// <summary>
-    ///     Finds the channel that carries the stacked measure.
+    ///     Gets the channel that is the dimension of a stacked channel: the one whose field names the stack.
+    /// </summary>
+    /// <param name="channel">The stacked channel: <c>x</c>, <c>y</c>, <c>theta</c> or <c>radius</c>.</param>
+    /// <returns><c>y</c> for <c>x</c>, <c>x</c> for <c>y</c>, <c>radius</c> for <c>theta</c> and <c>theta</c> for <c>radius</c>.</returns>
+    public static string DimensionChannel(string channel)
+    {
+        ArgumentNullException.ThrowIfNull(channel);
+        return channel switch
+        {
+            "x" => "y",
+            "y" => "x",
+            "theta" => "radius",
+            "radius" => "theta",
+            _ => throw new ArgumentOutOfRangeException(nameof(channel), channel, "The channel cannot be stacked."),
+        };
+    }
+
+    /// <summary>
+    ///     Finds the channel of a pair that carries the stacked measure (Vega-Lite's <c>potentialStackedChannel</c>).
     /// </summary>
     /// <param name="encoding">The encoding object.</param>
+    /// <param name="first">The first channel of the pair: <c>x</c> (the pair is <c>x</c> and <c>y</c>) or <c>theta</c> (the pair is <c>theta</c> and <c>radius</c>).</param>
     /// <param name="markType">The mark type.</param>
     /// <param name="orient">The orient written in the mark definition, or null.</param>
-    /// <returns><c>x</c>, <c>y</c>, or null when no channel can be stacked.</returns>
-    private static string? StackedChannel(SpecNode encoding, string markType, string? orient)
+    /// <returns>One of the two channels of the pair, or null when none of them can be stacked.</returns>
+    private static string? PotentialStackedChannel(SpecNode encoding, string first, string markType, string? orient)
     {
-        var x = encoding["x"];
-        var y = encoding["y"];
-        var cartesianBarOrArea = markType is "bar" or "area";
+        var second = first == "x" ? "y" : "radius";
+        var x = encoding[first];
+        var y = encoding[second];
+
+        // The orientation of a bar or an area only applies to Cartesian positions
+        var cartesianBarOrArea = first == "x" && markType is "bar" or "area";
         if (IsFieldDef(x) && IsFieldDef(y))
         {
             if (IsUnbinnedQuantitative(x) && IsUnbinnedQuantitative(y))
             {
                 if (IsStackSet(x["stack"]))
                 {
-                    return "x";
+                    return first;
                 }
 
                 if (IsStackSet(y["stack"]))
                 {
-                    return "y";
+                    return second;
                 }
 
                 // With no explicit stack only the one that aggregates is stacked; with the same on both the orientation decides
@@ -185,28 +210,28 @@ internal static class StackRules
                 var yAggregates = y["aggregate"] is { IsNull: false };
                 if (xAggregates != yAggregates)
                 {
-                    return xAggregates ? "x" : "y";
+                    return xAggregates ? first : second;
                 }
 
-                return cartesianBarOrArea ? orient switch { "vertical" => "y", "horizontal" => "x", _ => null } : null;
+                return cartesianBarOrArea ? orient switch { "vertical" => second, "horizontal" => first, _ => null } : null;
             }
 
             if (IsUnbinnedQuantitative(x))
             {
-                return "x";
+                return first;
             }
 
-            return IsUnbinnedQuantitative(y) ? "y" : null;
+            return IsUnbinnedQuantitative(y) ? second : null;
         }
 
         if (IsUnbinnedQuantitative(x))
         {
-            return cartesianBarOrArea && orient == "vertical" ? null : "x";
+            return cartesianBarOrArea && orient == "vertical" ? null : first;
         }
 
         if (IsUnbinnedQuantitative(y))
         {
-            return cartesianBarOrArea && orient == "horizontal" ? null : "y";
+            return cartesianBarOrArea && orient == "horizontal" ? null : second;
         }
 
         return null;

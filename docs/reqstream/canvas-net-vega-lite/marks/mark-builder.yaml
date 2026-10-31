@@ -3,8 +3,12 @@
 #
 # These requirements describe the design-level behavior of the MarkBuilder unit of the Marks subsystem
 # (internal namespace DemaConsulting.CanvasNet.VegaLite.Marks): the per-mark geometry of bar, rect, point,
-# circle, square, rule, and tick, the stacked, binned, and ranged geometry that the implicit encoding pipeline
-# and the secondary channels x2 and y2 produce, the resolution of the paint and size channels, and the limits. The
+# circle, square, rule, tick, line, area, trail, text, and arc (MarkBuilder.cs and its partial files
+# MarkBuilder.Order.cs, MarkBuilder.Paths.cs, MarkBuilder.Overlays.cs, MarkBuilder.Text.cs, and
+# MarkBuilder.Arcs.cs), the stacked, binned, and ranged geometry that the implicit encoding pipeline
+# and the secondary channels x2 and y2 produce, the grouping, sorting, and invalid-data rules of the paths, the
+# overlays of the path marks, the polar geometry of the arcs and of text, the resolution of the paint and size
+# channels, and the limits. The
 # geometry rules follow Vega-Lite behavior, attributed in
 # src/DemaConsulting.CanvasNet.VegaLite/third-party/README.md. See
 # docs/verification/canvas-net-vega-lite/marks/mark-builder.md for the test-evidence mapping.
@@ -297,3 +301,237 @@ sections:
                   - MarkBuilder_Time_RectBandPositionNotHalf_IsReported
                   - VegaLiteTemporalScale_Points_SitAtTheirDates
                   - VegaLiteTemporalScale_ColorOverDates_FollowsTheDates
+
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-Lines
+                title: >-
+                  The MarkBuilder unit shall draw a line mark as one path item per group of rows that have the
+                  same value of every grouping field (the color, detail, key, and other non-position channels
+                  with a field, and the size) - the groups in the order of their first row, each with its points
+                  sorted stably by the pixel position of the dimension (x, or y for a horizontal orient) or by the
+                  order channel - as the curve of the interpolation through the points, stroked with the paint, the
+                  stroke width (the size of the first row, or the strokeWidth property), the dash, and the opacity
+                  of the first row of the group and not filled, and shall draw nothing for a group that has fewer
+                  than two defined points.
+                justification: |
+                  A line chart with a color is one line for each category; Vega-Lite groups, sorts, and paints the
+                  lines so, and the same chart must look the same.
+                tests:
+                  - MarkBuilder_Build_LineHasHandDerivedSegmentsAndPaint
+                  - MarkBuilder_Build_LineGroupsByColorAndDetailInFirstSeenOrder
+                  - MarkBuilder_Build_LineSortsByPixelXAndByTheOrderChannel
+                  - MarkBuilder_Build_LineSizeIsTheStrokeWidthOfTheFirstRow
+
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-Areas
+                title: >-
+                  The MarkBuilder unit shall draw an area mark as one closed path item per group, the outline
+                  between the value and the baseline - the top edge forward and the baseline backward along the
+                  same curve - where the baseline is zero (or the first value of the domain), the start of the
+                  stack for a stacked channel (so that the layers meet, a layer having a vertex at every key of the
+                  dimension because the missing keys are imputed with zero), or the second channel (y2 or x2) of a
+                  range, vertical by default and horizontal when the orient or the encoding says so, filled with
+                  the paint of the first row of the group.
+                justification: |
+                  A stacked area chart and a range band are the area marks of Vega-Lite; their layers must meet
+                  and their baselines must follow the data.
+                tests:
+                  - MarkBuilder_Build_AreaPolygonRunsBetweenTheValueAndTheBaseline
+                  - MarkBuilder_Build_StackedAreaLayersMeetAndImputeMissingKeys
+                  - MarkBuilder_Build_HorizontalAreaAndRangeAreaFollowOrient
+
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-Trails
+                title: >-
+                  The MarkBuilder unit shall draw a trail mark as one trail item per group whose points carry the
+                  position and the size of their row (the size channel through the size scale, or the size
+                  property, or the Vega default), splitting the trail into runs of defined points at each row that
+                  is not valid and dropping a run of one point.
+                justification: |
+                  A trail is a line whose width carries a measure; a gap in the data must break it as it breaks a
+                  line.
+                tests:
+                  - MarkBuilder_Build_TrailPointsCarryTheSizeChannel
+                  - MarkBuilder_Build_TrailBreaksAtInvalidRows
+
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-Interpolation
+                title: >-
+                  The MarkBuilder unit shall draw the paths of a line, area, or trail with the curve that the
+                  interpolate property of the mark (or of the configuration) names and with the tension that the
+                  tension property gives to the curves that use it (bundle, cardinal, and catmull-rom), through
+                  the CurveBuilder unit, and shall draw an area whose interpolation is bundle with the linear
+                  interpolation, the FeatureCatalog reporting it.
+                justification: |
+                  The interpolation is how a line chart is smoothed; the curves and the fallback for the one that
+                  has no area must be what the specification and the report say.
+                tests:
+                  - MarkBuilder_Build_InterpolateAndTensionSelectTheCurve
+                  - MarkBuilder_Build_AreaBundleFallsBackToLinear
+
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-InvalidData
+                title: >-
+                  The MarkBuilder unit shall treat a row of a path mark as invalid when a channel that has a
+                  continuous scale has no finite number, break the path at an invalid row in every mode that
+                  starts with break-paths (the default, break-paths-show-path-domains) and connect the neighbors of
+                  the row in the filter mode, apply the default mode for show and null (which the FeatureCatalog
+                  reports), take the mode from the mark, the mark configuration, and the global mark
+                  configuration in that order, and keep the invalid rows in the domains of the scales in every
+                  mode.
+                justification: |
+                  A gap in the data must not be drawn as a line to zero; Vega-Lite breaks the path by default and
+                  the modes must change nothing else.
+                tests:
+                  - MarkBuilder_Build_DefaultInvalidModeBreaksThePath
+                  - MarkBuilder_Build_InvalidFilterConnectsTheNeighbors
+                  - MarkBuilder_Build_InvalidShowIsTheDefaultModeAndReported
+
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-StrokeProperties
+                title: >-
+                  The MarkBuilder unit shall give the stroke dash, the stroke dash offset, the stroke cap, the
+                  stroke join, and the stroke miter limit of the mark definition (or the configuration) to every
+                  item that it creates - bars, rects, symbols, rules, ticks, paths, trails, texts, and arcs.
+                justification: |
+                  These properties decide the look of every stroked mark and must not depend on the mark type.
+                tests:
+                  - MarkBuilder_Build_StrokeDashCapJoinMiterAndOffsetReachEveryItemType
+
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-Overlays
+                title: >-
+                  The MarkBuilder unit shall draw the overlays of the path marks after the base items - a point
+                  mark at every row of a line, area, trail, or rule whose point property is true, an object (which
+                  replaces the properties of the filled point mark), or transparent (with an opacity of zero), and
+                  a line along the top edge of an area whose line property is true or an object - with the base
+                  encoding without the secondary channels, the stacked end of a stacked channel, the default
+                  opacity of 0.7 for an area that has an overlay and no opacity of its own, and the overlays that
+                  config.<mark>.point and config.<mark>.line enable.
+                justification: |
+                  A line with points and an area with a line are the common forms of the path marks; Vega-Lite
+                  draws them as layers of the base mark and the overlay must match.
+                tests:
+                  - MarkBuilder_Build_PointOverlayDrawsSymbolsWithTheOverlayDefinition
+                  - MarkBuilder_Build_AreaLineOverlayAndDefaultOpacity
+                  - MarkBuilder_Build_OverlayFromConfigAndTransparentPoints
+
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-DrawOrder
+                title: >-
+                  The MarkBuilder unit shall draw the items of every mark other than a path in the order of the
+                  order channel (a stable sort ascending or descending by its fields) when the encoding is not
+                  stacked, in the order of the data otherwise and for an order of null (or false, as channel or
+                  mark property), so that the item drawn last is on top.
+                justification: |
+                  Which mark is on top of which in a crowded chart is decided by the order channel.
+                tests:
+                  - MarkBuilder_Build_OrderChannelSortsTheDrawOrderOfAnyMark
+                  - MarkBuilder_Build_OrderNullKeepsTheDataOrder
+
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-PathLimits
+                title: >-
+                  The MarkBuilder unit shall charge the scene items of a path (one, and the upper bound of its
+                  segments by the CurveBuilder unit) before it generates the segments, charge the grouping, the
+                  sorting, and the comparisons of the paths to the evaluation-step budget, poll the cancellation
+                  token for each group (and while the curve is built), fail with a located
+                  VegaLiteRenderException when a limit is exceeded, charge nothing for a group that has fewer
+                  than two points, and treat a row whose position (or baseline, or trail size) is not finite or is
+                  beyond the magnitude bound of the painter as an undefined row, counting the defined points
+                  by the same rule as the curve generators.
+                justification: |
+                  The cost of a path is a multiple of its points; it must be bounded before the memory is spent
+                  and a caller must be able to abandon it. A position that the painter would skip must not split
+                  a run after its segments were charged.
+                tests:
+                  - MarkBuilder_Build_PathSegmentsAreChargedBeforeCreation
+                  - MarkBuilder_Build_PathBuildPollsCancellationAndChargesSteps
+                  - MarkBuilder_Build_GroupsWithoutTwoPointsCostNothing
+                  - MarkBuilder_Build_PointsBeyondTheMagnitudeBoundBreakThePath
+
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-TextItems
+                title: >-
+                  The MarkBuilder unit shall draw a text mark as one text item per row at the position of the x and
+                  y channels (the middle of the data rectangle when absent) with the Vega-Lite defaults - the
+                  alignment center and the baseline middle - the dx and dy offsets, the angle (property or
+                  channel), the font, the font size (the size channel through the size scale, the fontSize
+                  property, or the configuration), the font style and weight, the limit, the ellipsis, and the
+                  line height, and the paint of a filled mark (black by default), and shall offset the position
+                  by the polar radius and theta of the mark when it has them.
+                justification: |
+                  Text marks label the data; their position, font, and paint must be what Vega-Lite resolves.
+                tests:
+                  - MarkBuilder_Build_TextHasPositionDefaultsAndPaint
+                  - MarkBuilder_Build_TextOffsetsAnglesAndFontPropertiesReachTheItem
+                  - MarkBuilder_Build_TextSizeChannelMapsToTheFontSize
+
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-TextContent
+                title: >-
+                  The MarkBuilder unit shall make the label of a row from the text channel (a field, a value, or a
+                  datum) or the text property (a string or an array) - a number with the d3 number format of the
+                  channel or the configuration, a date or a time unit with the d3 time format (the format, the
+                  specifier of the unit, or the time format of the configuration), a binned field as its start and
+                  end, any other value as the JavaScript text of the value (null as null) - split the label into
+                  the lines of an array or of the lineBreak text, draw nothing for an empty label, and use the
+                  default format for a custom format type, the FeatureCatalog reporting it.
+                justification: |
+                  The text of a label must read as Vega-Lite would print it, in every culture.
+                tests:
+                  - MarkBuilder_Build_TextFormatsNumbersTimesAndNulls
+                  - MarkBuilder_Build_TextArraysAndLineBreakMakeLines
+                  - MarkBuilder_Build_TextMarkPropertyAndValueChannelAreUsed
+                  - MarkBuilder_Build_TextCustomFormatTypeFallsBackToTheDefault
+
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-TextLimits
+                title: >-
+                  The MarkBuilder unit shall fail with a located VegaLiteRenderException before it formats a label
+                  that would exceed the string-length limit (or, summed over the marks, sixteen times the limit),
+                  charge the characters and lines of the labels to the evaluation-step budget, charge each line
+                  of a label as a scene item before the item is created, and skip a row whose font size,
+                  position, or angle is not finite or is beyond the magnitude bound of the painter (and draw no
+                  label for a mark whose dx, dy, or line height is beyond it), so that a font size such as 1e300
+                  never reaches the text measurer.
+                justification: |
+                  A label comes from the data and can be arbitrarily long or have arbitrarily many lines; the cost
+                  must be bounded before the memory is spent. A font size or offset from an untrusted
+                  specification must not be able to make the renderer throw or spend seconds on one label.
+                tests:
+                  - MarkBuilder_Build_TextCharactersAreChargedBeforeFormatting
+                  - MarkBuilder_Build_TextLinesAreChargedAsItems
+                  - MarkBuilder_Build_TextBeyondTheMagnitudeBoundIsSkipped
+
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-Arcs
+                title: >-
+                  The MarkBuilder unit shall draw an arc mark as one arc item per row - the center at the position
+                  of the x and y channels (the middle of the data rectangle when absent), the angles from the
+                  theta and theta2 channels (or the mark properties) through the scale that runs from 0 to a whole
+                  turn and the radii from the radius and radius2 channels (or the mark properties, with
+                  innerRadius and outerRadius as aliases) through the scale that runs from 0 to half of the smaller
+                  side of the view - for a stacked channel from the start to the end of the stack (so that the
+                  slices of a pie are in the order of the data), for a band scale across its band, with the
+                  padAngle and cornerRadius of the mark and the paint of a filled mark, ordering the two ends of an
+                  angle and of a radius so that the larger radius is the outer one.
+                justification: |
+                  The pie, donut, and radial charts are the arc marks of Vega-Lite; the angle and the area of each
+                  slice are the proportions that the reader compares.
+                tests:
+                  - MarkBuilder_Build_PieSlicesHaveHandDerivedAnglesAndRadii
+                  - MarkBuilder_Build_DonutRadialAndConstantRadiiUseTheMarkProperties
+                  - MarkBuilder_Build_ArcPadAngleCornerRadiusAndPaintReachTheItem
+                  - MarkBuilder_Build_ArcCenterFollowsXAndY
+
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-PolarText
+                title: >-
+                  The MarkBuilder unit shall place a label of a text mark that has a theta or a radius at the
+                  polar offset from its anchor (x grows by the radius times the sine of the angle and y falls by the
+                  radius times its cosine), the angle of a stacked theta or radius being the point of the slice
+                  that the band position names (the middle by default) so that the labels of a pie sit in their
+                  slices, and shall not draw a label whose theta or radius is not valid.
+                justification: |
+                  Labels on a pie or a donut are placed by the polar channels of the text mark.
+                tests:
+                  - MarkBuilder_Build_PieLabelsSitAtTheMiddleOfTheirSlice
+                  - MarkBuilder_Build_PolarTextOffsetsFollowThetaAndRadius
+                  - MarkBuilder_Build_TextConstantAndFieldRadiusAndThetaOffsetTheAnchor
+
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-ArcLimits
+                title: >-
+                  The MarkBuilder unit shall charge each arc as a scene item before the item is created (a row that
+                  draws nothing costs nothing), charge the rows to the evaluation-step budget, and poll the
+                  cancellation token every 1,024 rows.
+                justification: |
+                  The number of arcs is the number of rows; it must be bounded before the memory is spent.
+                tests:
+                  - MarkBuilder_Build_ArcsAreChargedPerSliceAndPollCancellation

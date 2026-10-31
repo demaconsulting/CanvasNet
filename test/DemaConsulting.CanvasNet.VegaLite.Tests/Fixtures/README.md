@@ -12,7 +12,7 @@ describe nothing real. They exist to give the tests small, readable charts whose
   `rule` (and change the tick thickness) to draw stems and thicker ticks.
 - `titles-config.vl.json`: a title with a subtitle, a background, and the configuration of axes, bars and the title
   (`config`), plus an explicit scale domain and tick count.
-- `unsupported.vl.json`: a line mark, a regression transform and a band position, which are recognized but not drawn yet
+- `unsupported.vl.json`: a geoshape mark, a regression transform and a band position, which are recognized but not drawn
   and must be reported with their locations.
 - `data-files.vl.json` and `data-files.csv`: the same bar chart as `bar-inline.vl.json`, but its rows come from the
   relative file `data-files.csv` (the specification is opened from its path, so the file is found beside it). The CSV
@@ -90,6 +90,16 @@ flight series in particular) or reference image was copied, adapted or used as a
 ticks, labels and positions are derived by hand from the calendar of 2024 (a leap year that starts on a Monday), the d3
 interval table and Vega's multi-format; the time zones are built in the tests
 (`TimeZoneInfo.CreateCustomTimeZone`) and no test reads the host's zone, clock or culture.
+
+Phase 9 (line, area, trail, text and arc marks) adds no fixture file: its system tests
+(`VegaLiteLineAreaIntegrationTests`, `VegaLiteArcTextIntegrationTests`, `Guides/LegendBuilderPathMarkTests`) build small
+inline specifications with made-up numbers (a three-point line, a pie of the weights 1, 1 and 2, series `a` and `b`).
+They are **original works**: no Vega-Lite or Vega example, gallery chart (the pie and donut, radial, stacked area and
+multi-series line charts in particular), `vega-datasets` data set or reference image was copied, adapted or used as a
+source of expected values. The expected segments, angles, label positions and areas are derived by hand from the scale
+formulas, the path rules and the geometry of a circle, and the pixel assertions look only at the color of regions that
+the derivation puts inside or outside of a shape. `unsupported.vl.json` is unchanged: it still has a geoshape mark, a
+regression transform and a band position to report.
 
 Line endings: the repository normalizes text files to LF (`.gitattributes` and `.editorconfig`), but a working tree may
 hold CRLF files, depending on how it was checked out. Tests that use a fixture must therefore assert the parsed or

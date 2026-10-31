@@ -29,7 +29,7 @@ internal readonly record struct RangeEnd(double Value, bool IsExtent);
 /// </remarks>
 internal sealed class ResolvedScale
 {
-    /// <summary>Gets the channel: <c>x</c>, <c>y</c>, <c>color</c>, <c>fill</c>, <c>stroke</c>, <c>size</c>, <c>opacity</c>, <c>shape</c>, <c>strokeWidth</c>, <c>strokeDash</c>, <c>fillOpacity</c>, <c>strokeOpacity</c> or <c>angle</c>.</summary>
+    /// <summary>Gets the channel: <c>x</c>, <c>y</c>, <c>theta</c>, <c>radius</c>, <c>color</c>, <c>fill</c>, <c>stroke</c>, <c>size</c>, <c>opacity</c>, <c>shape</c>, <c>strokeWidth</c>, <c>strokeDash</c>, <c>fillOpacity</c>, <c>strokeOpacity</c> or <c>angle</c>.</summary>
     public string Channel { get; init; } = string.Empty;
 
     /// <summary>Gets the kind of scale.</summary>
@@ -167,6 +167,12 @@ internal sealed class ResolvedScale
     public bool IsPosition => Channel is "x" or "y";
 
     /// <summary>
+    ///     Gets a value indicating whether the channel is a polar position channel (<c>theta</c> or <c>radius</c>). A polar scale maps to an angle in radians
+    ///     (<c>[0, 2 * PI]</c>) or to a distance from the center in pixels (<c>[0, extent]</c>); it has no pixel padding, no <c>nice</c>, no axis and no step.
+    /// </summary>
+    public bool IsPolar => Channel is "theta" or "radius";
+
+    /// <summary>
     ///     Gets the extent of the data rectangle that a discrete position scale with a <c>step</c> needs: the step times
     ///     the number of steps (Vega's <c>bandspace</c>).
     /// </summary>
@@ -194,7 +200,9 @@ internal sealed class ResolvedScale
     ///         origin of a view is at the top) and that of a discrete y scale <c>[0, extent]</c>; an explicit range
     ///         replaces them (the keywords <c>width</c> and <c>height</c> stand for <paramref name="extent"/>) and <c>rangeMin</c> and
     ///         <c>rangeMax</c> replace the first and the second entry of a default range; a
-    ///         reversed scale swaps the two ends. Size and opacity scales use their own ranges and ignore the extent. The scales
+    ///         reversed scale swaps the two ends. A <c>theta</c> scale runs from 0 to 2 * PI whatever the extent, a <c>radius</c> scale from 0 to
+    ///         <paramref name="extent"/> (the caller passes half of the smaller side of the data rectangle), and <c>rangeMin</c>, <c>rangeMax</c>, an explicit range and
+    ///         <c>reverse</c> apply to them as to x and y. Size and opacity scales use their own ranges and ignore the extent. The scales
     ///         that give colors, shapes, dash patterns or the numbers of discrete intervals (sequential, diverging, quantize, quantile,
     ///         threshold, bin-ordinal and ordinal) do not depend on the extent.
     ///     </para>
@@ -350,6 +358,11 @@ internal sealed class ResolvedScale
             {
                 // The origin of a view is its top left corner, so a continuous y scale runs upward
                 range = Channel == "y" && Kind is ScaleKind.Linear or ScaleKind.Time or ScaleKind.Utc ? [extent, 0.0] : [0.0, extent];
+            }
+            else if (IsPolar)
+            {
+                // An angle sweeps the full circle; a radius runs from the center to the given extent
+                range = Channel == "theta" ? [0.0, 2 * Math.PI] : [0.0, extent];
             }
             else if (ValueRange is { } values)
             {
@@ -515,7 +528,7 @@ internal static partial class ScaleResolver
 {
     /// <summary>The channels that are resolved, in the order of the result.</summary>
     private static readonly string[] Channels =
-        ["x", "y", "color", "fill", "stroke", "size", "opacity", "shape", "strokeWidth", "strokeDash", "fillOpacity", "strokeOpacity", "angle"];
+        ["x", "y", "theta", "radius", "color", "fill", "stroke", "size", "opacity", "shape", "strokeWidth", "strokeDash", "fillOpacity", "strokeOpacity", "angle"];
 
     /// <summary>The marks whose discrete positions are bands, so that the mark fits into the band.</summary>
     private static readonly HashSet<string> BandMarks = ["rect", "bar", "image", "rule", "tick"];
@@ -640,9 +653,13 @@ internal static partial class ScaleResolver
     ///     Infers the orientation of a mark the way Vega-Lite does.
     /// </summary>
     /// <remarks>
-    ///     Point, circle, square and rect marks have none. A bar is horizontal when only x is a measure (an unbinned
+    ///     Point, circle, square and rect marks have none; a trail and an arc are always vertical (Vega-Lite's <c>orient</c> returns
+    ///     <c>vertical</c> for the marks it has no rule for). A bar is horizontal when only x is a measure (an unbinned
     ///     quantitative field) and vertical when only y is, a tick the other way round; with two measures all three
-    ///     are vertical; a rule is vertical when it has only x and horizontal when it has only y. An explicit orient
+    ///     are vertical; a rule is vertical when it has only x and horizontal when it has only y. An area with a <c>y2</c> is vertical (horizontal
+    ///     when <c>y</c> is already binned, <c>bin: "binned"</c>) and an area with only an <c>x2</c> horizontal (vertical when <c>x</c> is already binned), whatever its
+    ///     orient says. For a line, an area and a tick without a measure to decide, a temporal x next to a y that is not temporal is vertical and a temporal y next
+    ///     to an x that is not is horizontal, for a tick as for the others (x: T, y: N gives a vertical tick). An explicit orient
     ///     of the mark wins where Vega-Lite lets it.
     /// </remarks>
     /// <param name="markType">The mark type.</param>
@@ -654,6 +671,11 @@ internal static partial class ScaleResolver
         if (markType is "point" or "circle" or "square" or "rect" or "image" or "")
         {
             return null;
+        }
+
+        if (markType is "trail" or "arc")
+        {
+            return "vertical";
         }
 
         var x = encoding?["x"] is { IsObject: true } xd ? xd : null;
@@ -685,6 +707,20 @@ internal static partial class ScaleResolver
             }
         }
 
+        if (markType == "area")
+        {
+            // A range on y wins over one on x; the range runs along the axis that has the second channel, unless that axis is already binned
+            if (encoding?["y2"] is { IsObject: true })
+            {
+                return IsAlreadyBinned(y) ? "horizontal" : "vertical";
+            }
+
+            if (encoding?["x2"] is { IsObject: true })
+            {
+                return IsAlreadyBinned(x) ? "vertical" : "horizontal";
+            }
+        }
+
         var xIsMeasure = IsUnbinnedQuantitative(x);
         var yIsMeasure = IsUnbinnedQuantitative(y);
         if (specified is "horizontal" or "vertical")
@@ -702,8 +738,44 @@ internal static partial class ScaleResolver
             return markType != "tick" ? "vertical" : "horizontal";
         }
 
-        return xIsMeasure && yIsMeasure ? "vertical" : null;
+        if (xIsMeasure && yIsMeasure)
+        {
+            return "vertical";
+        }
+
+        // Without a measure the time axis is the dimension: x: T, y: N is vertical and x: N, y: T is horizontal
+        if (markType is "line" or "area" or "tick")
+        {
+            var xIsTemporal = IsTemporalDefinition(x);
+            var yIsTemporal = IsTemporalDefinition(y);
+            if (xIsTemporal && !yIsTemporal)
+            {
+                return "vertical";
+            }
+
+            if (!xIsTemporal && yIsTemporal)
+            {
+                return "horizontal";
+            }
+        }
+
+        return null;
     }
+
+    /// <summary>
+    ///     Tells whether a channel definition has bins that are already computed (<c>bin: "binned"</c>).
+    /// </summary>
+    /// <param name="definition">The channel definition, or null.</param>
+    /// <returns><see langword="true"/> for a field whose bins are in the data.</returns>
+    private static bool IsAlreadyBinned(SpecNode? definition) => definition?["bin"]?.AsString() == "binned";
+
+    /// <summary>
+    ///     Tells whether a channel definition is typed as a temporal field or datum.
+    /// </summary>
+    /// <param name="definition">The channel definition, or null.</param>
+    /// <returns><see langword="true"/> when its <c>type</c> is <c>temporal</c>.</returns>
+    private static bool IsTemporalDefinition(SpecNode? definition) =>
+        definition is not null && (definition["field"] is not null || definition["datum"] is not null) && definition["type"]?.AsString() == "temporal";
 
     /// <summary>
     ///     Tells whether a channel definition is an unbinned quantitative field or datum.
@@ -851,18 +923,23 @@ internal static partial class ScaleResolver
     }
 
     /// <summary>
-    ///     Tells whether Vega-Lite draws a channel for a mark (its <c>supportMark</c>): <c>shape</c> only on <c>point</c>, <c>angle</c> on
-    ///     <c>point</c>, <c>circle</c> and <c>square</c> (a circle looks the same turned), <c>strokeDash</c> and <c>size</c> on every mark but <c>rect</c>; the
-    ///     other channels on every mark this package draws (a <c>size</c> on a mark without sizes, such as a rect, has no range, which the scale builders check too).
+    ///     Tells whether Vega-Lite draws a channel for a mark (its <c>supportMark</c>): <c>text</c> only on <c>text</c>, <c>theta</c> and <c>radius</c> on <c>arc</c> and <c>text</c> (<c>theta2</c> and
+    ///     <c>radius2</c> on <c>arc</c>), <c>shape</c> only on <c>point</c>, <c>angle</c> on <c>point</c>, <c>circle</c>, <c>square</c> and <c>text</c> (a circle looks the same turned),
+    ///     <c>strokeDash</c> on every mark but <c>rect</c>, <c>area</c>, <c>trail</c>, <c>text</c> and <c>arc</c>, and <c>size</c> on every mark but <c>rect</c>, <c>area</c>, <c>arc</c> and <c>image</c>; the
+    ///     other channels on every mark (a <c>size</c> on a mark without sizes has no range, which the scale builders check too).
     /// </summary>
     /// <param name="channel">The channel.</param>
     /// <param name="markType">The mark type.</param>
     /// <returns><see langword="true"/> when the mark uses the channel.</returns>
     internal static bool ChannelIsDrawn(string channel, string markType) => channel switch
     {
+        "theta" or "radius" => markType is "arc" or "text",
+        "theta2" or "radius2" => markType == "arc",
+        "text" => markType == "text",
         "shape" => markType == "point",
-        "angle" => markType is "point" or "circle" or "square",
-        "strokeDash" or "size" => markType != "rect",
+        "angle" => markType is "point" or "circle" or "square" or "text",
+        "strokeDash" => markType is not ("rect" or "area" or "trail" or "text" or "arc"),
+        "size" => markType is not ("rect" or "area" or "arc" or "image"),
         _ => true,
     };
 
@@ -871,6 +948,9 @@ internal static partial class ScaleResolver
     {
         /// <summary><c>x</c> and <c>y</c>.</summary>
         Position,
+
+        /// <summary><c>theta</c> and <c>radius</c>: the scale types of a position, without padding, <c>nice</c> and step.</summary>
+        Polar,
 
         /// <summary><c>color</c>, <c>fill</c> and <c>stroke</c>: a continuous or a discrete range.</summary>
         Color,
@@ -890,6 +970,7 @@ internal static partial class ScaleResolver
     private static ChannelGroup GroupOf(string channel) => channel switch
     {
         "x" or "y" => ChannelGroup.Position,
+        "theta" or "radius" => ChannelGroup.Polar,
         "color" or "fill" or "stroke" => ChannelGroup.Color,
         "shape" or "strokeDash" => ChannelGroup.Discrete,
         _ => ChannelGroup.Numeric,
@@ -943,8 +1024,9 @@ internal static partial class ScaleResolver
         {
             defaultKind = ScaleKind.Ordinal;
         }
-        else if (group == ChannelGroup.Position && BandMarks.Contains(markType))
+        else if ((group == ChannelGroup.Position && BandMarks.Contains(markType)) || (group == ChannelGroup.Polar && markType == "arc"))
         {
+            // Rectangles that must fit a band are drawn on bands; so are the slices and rings of an arc (an arc is a rectangle in polar coordinates)
             defaultKind = ScaleKind.Band;
         }
         else
@@ -1052,7 +1134,7 @@ internal static partial class ScaleResolver
         var discretizing = kind is ScaleKind.Quantile or ScaleKind.Quantize or ScaleKind.Threshold;
         var channelAccepts = group switch
         {
-            ChannelGroup.Position => kind is ScaleKind.Linear or ScaleKind.Band or ScaleKind.Point or ScaleKind.Time or ScaleKind.Utc,
+            ChannelGroup.Position or ChannelGroup.Polar => kind is ScaleKind.Linear or ScaleKind.Band or ScaleKind.Point or ScaleKind.Time or ScaleKind.Utc,
             ChannelGroup.Color => kind is ScaleKind.Sequential or ScaleKind.Ordinal or ScaleKind.BinOrdinal || discretizing,
             ChannelGroup.Discrete => kind == ScaleKind.Ordinal || discretizing,
             _ => kind is ScaleKind.Linear or ScaleKind.Band or ScaleKind.Point or ScaleKind.Ordinal or ScaleKind.Time or ScaleKind.Utc || discretizing,
@@ -1528,10 +1610,16 @@ internal static partial class ScaleResolver
             return kind != ScaleKind.Quantize;
         }
 
-        // Only unbinned x and y scales are subject to the position rules; every other channel does not include zero
-        if (input.Channel is not ("x" or "y") || IsEnabled(input.Definition["bin"]))
+        // Only unbinned position and polar scales are subject to the position rules; every other channel does not include zero
+        if (input.Channel is not ("x" or "y" or "theta" or "radius") || IsEnabled(input.Definition["bin"]))
         {
             return false;
+        }
+
+        // A polar channel follows the configuration only: the arc and text marks that draw it are neither bars nor areas, and have no dimension axis
+        if (input.Channel is "theta" or "radius")
+        {
+            return context.Config.GetBool("scale.zero") ?? true;
         }
 
         // The dimension axis of a bar, area, line or trail does not start at zero by rule

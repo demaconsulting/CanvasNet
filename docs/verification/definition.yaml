@@ -123,10 +123,12 @@ input-files:
   - docs/verification/canvas-net-vega-lite/layout/legend-layout.md
   - docs/verification/canvas-net-vega-lite/marks.md
   - docs/verification/canvas-net-vega-lite/marks/mark-builder.md
+  - docs/verification/canvas-net-vega-lite/marks/curve-builder.md
   - docs/verification/canvas-net-vega-lite/scenegraph.md
   - docs/verification/canvas-net-vega-lite/scenegraph/scene-model.md
   - docs/verification/canvas-net-vega-lite/scenegraph/scene-painter.md
   - docs/verification/canvas-net-vega-lite/scenegraph/css-color.md
+  - docs/verification/canvas-net-vega-lite/scenegraph/arc-geometry.md
   - docs/verification/canvas-net-tool.md
   - docs/verification/canvas-net-tool/program.md
   - docs/verification/canvas-net-tool/context.md

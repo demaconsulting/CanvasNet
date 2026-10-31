@@ -6,8 +6,9 @@
 # that runs the transforms calculate, filter, fold, flatten, sample, pivot, and lookup eagerly after the data
 # loader and before the scales, and the static parameter environment that its expressions read; the
 # AggregateTransforms unit that runs aggregate, joinaggregate, window, bin, stack, and impute (with the bin
-# algorithm, the aggregate and window operations, and the stack rules); and the EncodingPlan unit that derives the
-# implicit bin, time unit, aggregate, and stack of the encoding and runs them after the transforms; and the
+# algorithm, the aggregate and window operations, and the stack rules, polar stacks included); and the EncodingPlan
+# unit that derives the implicit bin, time unit, aggregate, stack, impute, path grouping, and order of the encoding
+# and runs them after the transforms; and the
 # TimeUnitTransform unit that adds the start and end fields of a time unit (the timeUnit transform and the time
 # unit of an encoding) and collects the fields that are implicitly parsed as dates. Statistical transforms are
 # deferred to later phases and are reported by the FeatureCatalog; selection
@@ -183,20 +184,23 @@ sections:
           - id: CanvasNetVegaLite-Transforms-Stacking
             title: >-
               The Transforms subsystem shall stack the values of a measure with the stack transform and with
-              the stack of a bar-like encoding, deciding by the Vega-Lite rules whether an encoding stacks,
-              computing the start and end of every layer within its group with the offsets zero, center, and
-              normalize (negative values stacking down) in the order of the order channel or the layer fields.
+              the stack of a bar-like, area, or polar encoding (the theta of an arc), deciding by the Vega-Lite
+              rules whether an encoding stacks, computing the start and end of every layer within its group
+              with the offsets zero, center, and normalize (negative values stacking down) in the order of the
+              order channel or the layer fields.
             justification: |
-              A bar chart with a color is a stacked bar chart in Vega-Lite; the layers must be where
-              Vega-Lite puts them for the chart to read the same.
+              A bar chart with a color is a stacked bar chart and a pie chart is a stacked angle in
+              Vega-Lite; the layers must be where Vega-Lite puts them for the chart to read the same.
             children:
               - CanvasNetVegaLite-Transforms-AggregateTransforms-Stack
               - CanvasNetVegaLite-Transforms-AggregateTransforms-StackRules
               - CanvasNetVegaLite-Transforms-EncodingPlan-StackRules
+              - CanvasNetVegaLite-Transforms-EncodingPlan-PolarStack
             tests:
               - AggregateTransforms_Stack_ZeroOffsetStacksFromZero
               - StackRules_Decide_FindsTheStackedChannelOffsetAndStackByFields
               - EncodingTransforms_Apply_StacksTheAggregatedLayersDescendingOnY
+              - EncodingPlan_Create_PlansAPolarStackWithAscendingLayers
               - CanvasNetVegaLite_SystemIntegration_Stacking_LayersAreStackedAndTheAxisReachesTheTotal
 
           - id: CanvasNetVegaLite-Transforms-EncodingPipeline
@@ -213,10 +217,16 @@ sections:
               - CanvasNetVegaLite-Transforms-EncodingPlan-FieldNames
               - CanvasNetVegaLite-Transforms-EncodingPlan-Titles
               - CanvasNetVegaLite-Transforms-EncodingPlan-RawAndMain
+              - CanvasNetVegaLite-Transforms-EncodingPlan-PathGroups
+              - CanvasNetVegaLite-Transforms-EncodingPlan-EncodingImpute
+              - CanvasNetVegaLite-Transforms-EncodingPlan-StackImpute
             tests:
               - EncodingPlan_Create_NamesAndTitlesAggregatesAndPlainFields
               - EncodingTransforms_Apply_KeepsTheRawRowsWhenAScaleNeedsThem
               - EncodingTransforms_Apply_IdentityReturnsTheInputAndChecksArguments
+              - EncodingPlan_PathGroupFields_FollowVegaLiteGroupingRules
+              - EncodingTransforms_Apply_ImputesBeforeTheStack
+              - EncodingTransforms_Apply_StackedPathMarkImputesMissingKeysWithZero
               - CanvasNetVegaLite_SystemIntegration_Aggregation_OnlyTheUnsupportedPartIsReported
 
           - id: CanvasNetVegaLite-Transforms-Limits
@@ -236,6 +246,7 @@ sections:
               - CanvasNetVegaLite-Transforms-AggregateTransforms-Cancellation
               - CanvasNetVegaLite-Transforms-EncodingPlan-Limits
               - CanvasNetVegaLite-Transforms-EncodingPlan-Cancellation
+              - CanvasNetVegaLite-Transforms-EncodingPlan-ImputeLimits
               - CanvasNetVegaLite-Transforms-TimeUnitTransform-Limits
             tests:
               - RowTransforms_Apply_FoldOutputIsBoundedByTheRowLimit
@@ -244,6 +255,7 @@ sections:
               - AggregateTransforms_Aggregate_GroupLimitIsALocatedFailure
               - AggregateTransforms_Aggregate_CancellationIsPolled
               - EncodingTransforms_Apply_CountsTheGroupsInTheRowBudget
+              - EncodingTransforms_Apply_ImputeRespectsTheRowAndCellLimits
               - TimeUnitTransform_Cancellation_StopsTheRowLoop
               - CanvasNetVegaLite_SystemIntegration_Transforms_LimitsSandboxAndCancellationFailClosed
               - CanvasNetVegaLite_SystemIntegration_Aggregation_LimitsAndCancellationApply

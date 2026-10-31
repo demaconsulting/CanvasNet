@@ -8,7 +8,9 @@
 # Phase 5 adds the compilation of expressions and the validation of parameters and transforms (SpecParser); Phase 6
 # adds the validation of the aggregating transforms and of the aggregate, bin, stack, and sort of an encoding;
 # Phase 8 adds the validation of the time units, datetime objects, and tick intervals and the translation of
-# the time predicates, and retires the reports of the constructs that the time phase draws.
+# the time predicates, and retires the reports of the constructs that the time phase draws; Phase 9 adds the
+# validation of the properties of the line, area, trail, text, and arc marks and of the impute of an encoding,
+# and retires the reports of those marks and their channels.
 # SpecModel knows everything about the specification text and nothing about data or pixels. Each requirement
 # here links down to the unit requirements that implement it. See
 # docs/verification/canvas-net-vega-lite/spec-model.md for the test-evidence mapping.
@@ -114,6 +116,9 @@ sections:
               - CanvasNetVegaLite-SpecModel-FeatureCatalog-RemoteUrl
               - CanvasNetVegaLite-SpecModel-FeatureCatalog-DataSources
               - CanvasNetVegaLite-SpecModel-FeatureCatalog-MarksAndChannels
+              - CanvasNetVegaLite-SpecModel-FeatureCatalog-PathMarks
+              - CanvasNetVegaLite-SpecModel-FeatureCatalog-TextMark
+              - CanvasNetVegaLite-SpecModel-FeatureCatalog-ArcMark
               - CanvasNetVegaLite-SpecModel-FeatureCatalog-ScalesAndGuides
               - CanvasNetVegaLite-SpecModel-FeatureCatalog-TransformsAndCompositions
               - CanvasNetVegaLite-SpecModel-FeatureCatalog-ExpressionConstructs
@@ -130,7 +135,27 @@ sections:
               - FeatureCatalog_Visit_SortOnAContinuousScaleIsIgnoredWithAWarning
               - FeatureCatalog_Visit_BinnedTimeUnitIsReportedAtTheValue
               - FeatureCatalog_Visit_CustomDateFormatIsSupportedAndReportsNothing
+              - FeatureCatalog_Report_LineAreaTrailAreSupportedAndGeoshapeImageAreNot
+              - FeatureCatalog_Report_ArcIsSupportedAndPolarChannelsAreGated
               - CanvasNetVegaLite_SystemIntegration_Unsupported_MarkAndTransformCarryPointerLineColumn
+
+          - id: CanvasNetVegaLite-SpecModel-MarkValidation
+            title: >-
+              The SpecModel subsystem shall validate the properties of the line, area, trail, text, and arc
+              marks (the interpolation, tension, overlays, invalid mode, text, font, and polar properties) and
+              the impute of an encoding, failing with a located specification exception at the first wrong
+              value and warning about an unknown key of an overlay object.
+            justification: |
+              The properties of the path, text, and arc marks decide the geometry and the memory of the marks;
+              they must be checked, with the location of the mistake, before the builders rely on them.
+            children:
+              - CanvasNetVegaLite-SpecModel-SpecParser-PathMarkRules
+              - CanvasNetVegaLite-SpecModel-SpecParser-TextRules
+              - CanvasNetVegaLite-SpecModel-SpecParser-ImputeRules
+            tests:
+              - SpecParser_Parse_RejectsABadInterpolateOrInvalidOrPointValue
+              - SpecParser_Parse_ValidatesTextMarkProperties
+              - SpecParser_Parse_RejectsABadImputeObjectWithItsLocation
 
           - id: CanvasNetVegaLite-SpecModel-TimeValidation
             title: >-

@@ -18,7 +18,8 @@ six units:
   and
   `RangeEnd`: the Vega-Lite inference of scale types, domains (including the binned, stacked, ranged, unaggregated, and
   temporal ones), the order of discrete domains (also over the dates of a time unit), ranges, paddings, the colors and
-  schemes of color scales, and the ranges of the non-position channels; see _ScaleResolver Unit Design_
+  schemes of color scales, the ranges of the non-position channels, and the polar `theta` and `radius` channels of the arc
+  and text marks (the full-circle angle range, the radius range, and the zero rule); see _ScaleResolver Unit Design_
   (`scales/scale-resolver.md`)
 - **Ticks** - the internal static partial `Ticks` (two files): the d3-array tick algorithms, the linear `nice`, the Vega
   tick-count rules, and the d3-time calendar ticks and `nice` of time and UTC scales; see _Ticks Unit Design_
@@ -66,7 +67,8 @@ and
 `System.Numerics`, `System.Text.RegularExpressions`, and `System.Globalization`.
 
 **Consumers**: `VegaLiteDocument` (`ScaleResolver.Resolve`), the `Transforms` subsystem (`EncodingPlan` uses
-`ScaleResolver.InferOrient`), the `SpecModel` subsystem (`FeatureCatalog` uses `InferOrient`), the `Guides` subsystem
+`ScaleResolver.InferOrient`), the `SpecModel` subsystem (`FeatureCatalog` uses `InferOrient` and `ChannelIsDrawn`), the
+`Guides` subsystem
 (`AxisBuilder` uses `ScaleModel`, `Ticks`, and `NumberFormat`, and reads the `ResolvedScale`), and the `Marks` subsystem
 (`MarkBuilder` uses the scales to position and paint marks).
 
@@ -75,13 +77,15 @@ and
 **Inference is separate from arithmetic.** `ScaleResolver` decides what a scale is (type, domain, range, padding, and
 whether it is reversed or rounded) from the encoding, the data, the mark, and the configuration, and returns a
 `ResolvedScale` description that is independent of pixel extents; `ResolvedScale.CreateModel(extent)` then builds the
-`ScaleModel` for a concrete extent (the data-rectangle width or height). This separation is what lets the layout, which
+`ScaleModel` for a concrete extent (the data-rectangle width or height, or the largest radius for a `radius` scale; a
+`theta` scale always sweeps the full circle). This separation is what lets the layout, which
 needs the discrete step to size the view, run before the extent exists, and lets the axes iterate against a changing
 data rectangle. `ScaleModel` itself is pure arithmetic with no knowledge of the specification.
 
 **Vega-Lite's rules, not an approximation.** The scale type is chosen per field type, channel, and mark (position
 channels of discrete fields are band scales for `rect`, `bar`, `image`, `rule`, and `tick` marks and point scales for the
-others); zero, nice, padding, and the default ranges follow the Vega-Lite 6 rules and configuration; Vega's order of
+others; the polar channels of an `arc` are band scales and those of a `text` mark point scales); zero, nice, padding,
+and the default ranges follow the Vega-Lite 6 rules and configuration; Vega's order of
 applying zero, pixel padding, and nice is preserved. Anything outside the supported subset is already reported by the
 `FeatureCatalog`; the resolver ignores or falls back deliberately (a property that the scale type or channel does not
 support is ignored; a color domain of four or more entries is a specification error) and the deviations are listed in

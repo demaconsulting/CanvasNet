@@ -110,6 +110,56 @@ internal static class TimeLabels
     }
 
     /// <summary>
+    ///     Creates the function that turns an instant (milliseconds since the epoch) into its label under a limit that the caller sets for every label.
+    /// </summary>
+    /// <remarks>
+    ///     This is <see cref="Create"/> without the running total: the caller owns the budget (the text mark charges all its labels to one total) and passes what is left as the
+    ///     limit of each label. A time format stops as soon as it would write more than the limit, so a huge specifier cannot allocate more.
+    /// </remarks>
+    /// <param name="options">What decides the format (<see cref="Options.MaxLength"/> is not used: the caller gives the limit of each label).</param>
+    /// <returns>The function; it returns <see langword="null"/> when the label would be longer than the limit it is given (the second argument).</returns>
+    /// <exception cref="VegaLiteSpecException">
+    ///     Thrown, with the location of the <c>format</c>, when a number format (<c>formatType</c> <c>number</c>) is not a d3 format specifier, or a time format is longer than
+    ///     <see cref="TimeFormat.MaxSpecifierLength"/> characters or expands to more than <see cref="TimeFormat.MaxTokenCount"/> pieces.
+    /// </exception>
+    public static Func<double, int, string?> CreateBounded(Options options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        if (options.FormatType == "number")
+        {
+            var number = CreateNumberFormat(options);
+            return (ms, limit) =>
+            {
+                var text = number is null ? JsNumber.ToString(ms) : number.Format(ms);
+                return text.Length > limit ? null : text;
+            };
+        }
+
+        var calendar = options.FormatType == "utc" ? TimeCalendar.Utc : options.Calendar;
+        TimeFormatter formatter;
+        try
+        {
+            formatter = ChooseFormatter(options, calendar);
+        }
+        catch (TimeFormatSpecifierException ex)
+        {
+            throw new VegaLiteSpecException($"The {options.Owner} time format is not valid: {ex.Message}", options.FormatLocation, ex);
+        }
+
+        return (ms, limit) =>
+        {
+            try
+            {
+                return formatter.Format(ms, calendar, Math.Max(0, limit));
+            }
+            catch (TimeFormatTooLongException)
+            {
+                return null;
+            }
+        };
+    }
+
+    /// <summary>
     ///     Reads an interval request from the <c>tickCount</c> of a time scale: an interval name or <c>{interval, step}</c>.
     /// </summary>
     /// <param name="tickCount">The <c>tickCount</c> property, or null.</param>
@@ -205,19 +255,7 @@ internal static class TimeLabels
     /// <exception cref="VegaLiteSpecException">Thrown when the format is not a d3 number format specifier.</exception>
     private static Func<double, string> NumberLabels(Options options)
     {
-        NumberFormat? formatter = null;
-        if (options.Format?.AsString() is { } specifier)
-        {
-            try
-            {
-                formatter = NumberFormat.Create(specifier);
-            }
-            catch (FormatException ex)
-            {
-                throw new VegaLiteSpecException($"The {options.Owner} format is not a valid d3 format specifier: {ex.Message}", options.FormatLocation, ex);
-            }
-        }
-
+        var formatter = CreateNumberFormat(options);
         var total = 0L;
         return ms =>
         {
@@ -235,6 +273,29 @@ internal static class TimeLabels
 
             return text;
         };
+    }
+
+    /// <summary>
+    ///     Compiles the d3 number format of the labels of <c>formatType: "number"</c>.
+    /// </summary>
+    /// <param name="options">What decides the format.</param>
+    /// <returns>The formatter; null when there is no format (the JavaScript text of the number is used).</returns>
+    /// <exception cref="VegaLiteSpecException">Thrown when the format is not a d3 format specifier.</exception>
+    private static NumberFormat? CreateNumberFormat(Options options)
+    {
+        if (options.Format?.AsString() is not { } specifier)
+        {
+            return null;
+        }
+
+        try
+        {
+            return NumberFormat.Create(specifier);
+        }
+        catch (FormatException ex)
+        {
+            throw new VegaLiteSpecException($"The {options.Owner} format is not a valid d3 format specifier: {ex.Message}", options.FormatLocation, ex);
+        }
     }
 
     /// <summary>

@@ -1910,6 +1910,8 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteConditionalMarksIntegrationTests.cs"  # conditional tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteTimeIntegrationTests.cs"  # time integration tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteTemporalScaleTests.cs"  # temporal scale render tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteLineAreaIntegrationTests.cs"  # line, area, trail tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteArcTextIntegrationTests.cs"  # arc and text tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteTestHelpers.cs"  # shared test helpers
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataTestSupport.cs"  # shared data test helpers
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/TimeTestSupport.cs"  # shared time test helpers (zones)
@@ -2024,6 +2026,8 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecParserAggregatesTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecParserConditionTests.cs"  # unit tests (conditions)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecParserTimeTests.cs"  # unit tests (time units)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecParserMarkTests.cs"  # unit tests (mark rules)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecParserImputeTests.cs"  # unit tests (impute object)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/PredicateSourceTests.cs"  # unit tests (predicates)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/PredicateSourceTimeTests.cs"  # unit tests (time)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/ChannelDefinitionsTests.cs"  # unit tests (definitions)
@@ -2044,6 +2048,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.VegaLite/SpecModel/FeatureCatalog.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/FeatureCatalogTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/FeatureCatalogTimeTests.cs"  # unit tests (time ids)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/MarkChannelGatingTests.cs"  # unit tests (gating)
 
   # CanvasNetVegaLite-SpecModel-ConfigResolver Review (one per unit)
   - id: CanvasNetVegaLite-SpecModel-ConfigResolver
@@ -2336,6 +2341,9 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/EncodingTransformsTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/EncodingPlanTimeTests.cs"  # unit tests (time)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/EncodingTransformsTimeTests.cs"  # unit tests (time)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/EncodingPlanPolarTests.cs"  # unit tests (polar stack)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/EncodingPlanPathTests.cs"  # unit tests (paths, order)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/EncodingTransformsImputeTests.cs"  # unit tests
 
   # CanvasNetVegaLite-Transforms-TimeUnitTransform Review (one per unit)
   - id: CanvasNetVegaLite-Transforms-TimeUnitTransform
@@ -2405,6 +2413,8 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverColorTests.cs"  # unit tests (colors)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverBinTests.cs"  # unit tests (binned channels)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverTimeTests.cs"  # unit tests (temporal fields)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverPolarTests.cs"  # unit tests (polar scales)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/MarkChannelGatingTests.cs"  # unit tests (channel gating)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/RowTransformsTests.cs"  # unit tests (sort by field)
 
   # CanvasNetVegaLite-Scales-Ticks Review (one per unit)
@@ -2580,6 +2590,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendBuilderTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendBuilderTimeTests.cs"  # unit tests (temporal legends)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendPlanConditionTests.cs"  # unit tests (conditions)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendBuilderPathMarkTests.cs"  # unit tests (path marks)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/ChartTestHelpers.cs"  # shared test support
 
   # CanvasNetVegaLite-Guides-TimeLabels Review (one per unit)
@@ -2669,12 +2680,39 @@ reviews:
       - "docs/design/canvas-net-vega-lite/marks/mark-builder.md"      # unit design
       - "docs/verification/canvas-net-vega-lite/marks/mark-builder.md"  # unit verification
       - "docs/sysml2/model/canvas-net-vega-lite/marks/mark-builder.sysml"  # unit SysML2 model
-      - "src/DemaConsulting.CanvasNet.VegaLite/Marks/MarkBuilder.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.VegaLite/Marks/MarkBuilder*.cs"  # unit source (partial files)
+      - "src/DemaConsulting.CanvasNet.VegaLite/third-party/README.md"  # provenance of the ported rules
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderChannelTests.cs"  # unit tests (Phase 7)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderConditionTests.cs"  # unit tests (conditions)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderTimeTests.cs"  # unit tests (time units)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderPathTests.cs"  # unit tests (line, area, trail)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderOrderTests.cs"  # unit tests (draw order)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderOverlayTests.cs"  # unit tests (overlays)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderTextTests.cs"  # unit tests (text)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderArcTests.cs"  # unit tests (arcs)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/MarkBuilderPolarTextTests.cs"  # unit tests (polar text)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/PathText.cs"  # unit test support (path text)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/ChartTestHelpers.cs"  # shared test support
+
+  # CanvasNetVegaLite-Marks-CurveBuilder Review (one per unit)
+  - id: CanvasNetVegaLite-Marks-CurveBuilder
+    title: Review that CanvasNetVegaLite Marks CurveBuilder Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/marks.md"
+      - "docs/reqstream/canvas-net-vega-lite/marks.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/marks/curve-builder.yaml"  # unit requirements
+      - "docs/design/canvas-net-vega-lite/marks/curve-builder.md"     # unit design
+      - "docs/verification/canvas-net-vega-lite/marks/curve-builder.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/marks/curve-builder.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Marks/CurveBuilder*.cs"  # unit source (curves, splines, generators)
+      - "src/DemaConsulting.CanvasNet.VegaLite/third-party/README.md"  # provenance of the ported d3-shape curves
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/CurveBuilderTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/CurveBuilderSplineTests.cs"  # unit tests (splines)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/CurveBuilderAreaTests.cs"  # unit tests (areas)
 
   # CanvasNetVegaLite-Scenegraph Review (one per subsystem)
   - id: CanvasNetVegaLite-Scenegraph
@@ -2721,9 +2759,27 @@ reviews:
       - "docs/design/canvas-net-vega-lite/scenegraph/scene-painter.md"  # unit design
       - "docs/verification/canvas-net-vega-lite/scenegraph/scene-painter.md"  # unit verification
       - "docs/sysml2/model/canvas-net-vega-lite/scenegraph/scene-painter.sysml"  # unit SysML2 model
-      - "src/DemaConsulting.CanvasNet.VegaLite/Scenegraph/ScenePainter.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.VegaLite/Scenegraph/ScenePainter*.cs"  # unit source (partial files)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/ScenePainterTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/ScenePainterPathTests.cs"  # unit tests (paths)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteTestHelpers.cs"  # shared test support
+
+  # CanvasNetVegaLite-Scenegraph-ArcGeometry Review (one per unit)
+  - id: CanvasNetVegaLite-Scenegraph-ArcGeometry
+    title: Review that CanvasNetVegaLite Scenegraph ArcGeometry Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/scenegraph.md"
+      - "docs/reqstream/canvas-net-vega-lite/scenegraph.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/scenegraph/arc-geometry.yaml"  # unit requirements
+      - "docs/design/canvas-net-vega-lite/scenegraph/arc-geometry.md"  # unit design
+      - "docs/verification/canvas-net-vega-lite/scenegraph/arc-geometry.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/scenegraph/arc-geometry.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Scenegraph/ArcGeometry.cs"  # unit source (arc and d3-path emulation)
+      - "src/DemaConsulting.CanvasNet.VegaLite/third-party/README.md"  # provenance of the ported d3-shape arc
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/ArcGeometryTests.cs"  # unit tests
 
   # CanvasNetVegaLite-Scenegraph-CssColor Review (one per unit)
   - id: CanvasNetVegaLite-Scenegraph-CssColor

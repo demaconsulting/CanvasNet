@@ -1053,7 +1053,7 @@ starts with the same envelope.
   document.
 - `diagnostics`: the features that were skipped, each `{"source","severity","code","message"}` and `page` for a
   document (`source` is `scad`, `pptx`, `vsdx`, or `vega-lite`; `code` is the library's stable feature token, such as
-  `scad-module-surface` or `vl-mark-arc`, or `vega-lite-warning` for a warning of the chart library).
+  `scad-module-surface` or `vl-mark-geoshape`, or `vega-lite-warning` for a warning of the chart library).
 - `echo`: the text a SCAD model printed with `echo`.
 
 | `op` | Fields besides `op` |

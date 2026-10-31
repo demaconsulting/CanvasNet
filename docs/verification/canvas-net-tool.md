@@ -305,8 +305,9 @@ the second bar computed from the layout (5 pixels of padding at the right, 50 pi
 rectangle, 15 pixels from the top).
 
 **CanvasNetTool_VegaLite_DetectionDiagnosticsAndErrors_FollowTheContract**: in-process, a chart saved as `.json` is
-described as `vega-lite` (found by its `$schema`); a chart with an unsupported mark renders with exit code 0 and the
-`vl-mark-arc` diagnostic in the JSON result, and with `--strict` returns exit code 1 with an `unsupported-feature` message
+described as `vega-lite` (found by its `$schema`); a chart with an unsupported mark (a `geoshape` with a `longitude`
+channel) renders with exit code 0 and the `vl-mark-geoshape` diagnostic in the JSON result, and with `--strict`
+returns exit code 1 with an `unsupported-feature` message
 and writes no output; a malformed chart returns exit code 1 with a `vega-lite-error` message and document and writes no
 output; and a plain Vega specification saved as `.json` returns exit code 1 with an `unsupported-format` message.
 

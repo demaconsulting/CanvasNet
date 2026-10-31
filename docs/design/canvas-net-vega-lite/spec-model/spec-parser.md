@@ -104,8 +104,10 @@ be what its author meant, and well-formed constructs that the renderer does not 
   transform entry (also inside a predicate composition, and in every view, nested ones included), and the
   `{"expr": ...}` values of the paint properties `color`, `fill`, `stroke`, `opacity`, and
   `strokeWidth` (and `size` for the
-  `point`, `circle`, and `square` marks) of the mark definition and the constant `value` of the `color`, `fill`, `stroke`,
-  `opacity`, and symbol `size` channels, **of the drawn view only**, are compiled with
+  `point`, `circle`, `square`, `line`, `trail`, and `text` marks, whose size is the symbol area, the stroke width of a
+  line, the width of a trail, and the font size of a text) of the mark definition and the constant `value` of the
+  `color`, `fill`, `stroke`,
+  `opacity`, and `size` channels (the `size` of the same marks), **of the drawn view only**, are compiled with
   `ExpressionParser.Parse` (limits from
   `VegaLiteLimits`, location of the string value) and kept in `SpecTree.Expressions`. Any other expression is not compiled.
 - **References.** An identifier of a compiled expression that is not a function or a constant
@@ -169,6 +171,48 @@ value:
   mixes kinds of values is accepted (values are matched by kind, as Vega-Lite's strict comparison does) and is one
   `vl-encoding-sort-mixed-types` warning at the array, in `SpecTree.Warnings`; a key of a sort object other than `field`,
   `op`, `order`, and `encoding` is a `vl-unknown-property` warning at the key.
+- **The `impute` object of a channel definition** (`ValidateEncodingImpute`, called from `ValidateChannelDefinition`):
+  the `impute` property is an object or null (null is the explicit "no impute" and is not validated; any other kind is an
+  error at the property). Its members are `method` (`value`, `mean`, `median`, `max`, or `min`), `value` (a text, a
+  number, a boolean, or null), `frame` (two entries, each an integer or null), and `keyvals` (an array of scalars or a
+  sequence `{start, stop, step}` with a numeric `stop`, a numeric `start`, and a `step` other than 0), with the rules of
+  the `impute` transform. A member that Vega-Lite does not define for an impute (for example the `groupby` and `key` of
+  the transform) is a `vl-unknown-property` warning at the key, worded "an impute definition". **The number of key
+  values is bounded here**, by `MaxScaleDomainSize`: the length of the `keyvals` array, or the length of the sequence
+  (`max(0, ceil((stop - start) / step))`, so a huge sequence is refused before anything is built), is a located
+  error at the `keyvals` when it is above the limit. The bound applies to the encoding object only; the `impute`
+  transform keeps its render-time bound of `MaxDataRows` (see _AggregateTransforms_).
+
+**Path, text, and arc mark rules (phase 9, `SpecParser.Validation.cs`).** The same fail-fast rule applies to the
+properties of the line, area, trail, text, and arc marks. The rule table of a mark definition gains these properties, each
+checked for its kind (the letters of the table: S text, N number, B boolean, O object, A array, T array of texts, Z null,
+E expression reference), and a wrong kind is a `VegaLiteSpecException` at the value:
+
+- **Path properties.** `interpolate` is one of the **15 names** of Vega-Lite (`basis`, `basis-open`, `basis-closed`,
+  `bundle`, `cardinal`, `cardinal-open`, `cardinal-closed`, `catmull-rom`, `linear`, `linear-closed`, `monotone`,
+  `natural`, `step`, `step-before`, `step-after`) or an expression reference; the d3 names `catmull-rom-open` and
+  `catmull-rom-closed` are not Vega-Lite names and are errors, as is null. `tension` is a number or an expression
+  reference. `point` is a boolean, an object, null, or the text `transparent` (any other text is an error), and `line` is
+  a boolean, null, or an object. `invalid` is null or one of `filter`, `break-paths-filter-domains`,
+  `break-paths-show-domains`, `break-paths-show-path-domains`, and `show`. `order` is a boolean or null.
+  `strokeDashOffset` and `strokeMiterLimit` are numbers or expression references.
+- **Overlay objects.** The `point` and `line` objects are mark definitions without a type: they are validated with the
+  rules of the mark definition (a wrong value is an error at its pointer, for example `/mark/point/color`), a property
+  that no mark has is a `vl-unknown-property` warning at its key (worded "a mark overlay"), and an expression reference
+  inside an overlay object is left to the catalog, which reports it as `vl-expr-ref` where it is. The check is made for
+  every mark type.
+- **Arc and polar properties.** `padAngle`, `innerRadius`, `outerRadius`, `radius`, `radius2`, `theta`, and `theta2` are
+  numbers or expression references. `startAngle`, `endAngle`, and `padRadius` are not Vega-Lite properties and stay
+  unknown properties (a warning).
+- **Text properties.** `text` is a text, an array, an array of texts, or an expression reference; `fontStyle`, `ellipsis`,
+  and `lineBreak` are texts or expression references; `fontWeight` is a text, a number, or an expression reference;
+  `limit` and
+  `lineHeight` are numbers or expression references.
+
+The `{"expr": ...}` value of a mark `size` or of the constant `size` of a channel is compiled for the symbol marks and
+also for the line, trail, and text marks. The conditions of a `size` channel are evaluated (`IsConditionSite`) for the
+symbol marks, the bar, rect, tick, and rule, and the line, trail, and text marks; an area and an arc have no size, so
+their conditions are not evaluated (the catalog reports the channel itself, see _FeatureCatalog_).
 
 **Time rules (phase 8, `SpecParser.Time.cs`).** The same fail-fast rule applies to the time constructs: a value whose shape
 cannot be what its author meant is a `VegaLiteSpecException` at that exact value, and a member that Vega-Lite does not
@@ -247,8 +291,10 @@ an error; a duplicate key keeps the last value at the position of the first occu
   `ValidatePivot`, `ValidateLookup`, `CompileMarkExpressions`, and `CompileChannelExpression`
   apply the rules above from the
   validation pass; `ValidateAggregateTransform`, `ValidateWindowTransform`, `ValidateBinTransform`,
-  `ValidateStackTransform`, `ValidateImputeTransform`, and `ValidateAggregationProperties` (`SpecParser.Aggregates.cs`)
-  apply the phase 6 rules; `ValidateTimeUnit`, `ValidateTimeUnitObject`, `ValidateDateTimeValue`,
+  `ValidateStackTransform`, `ValidateImputeTransform`, `ValidateEncodingImpute`, `ValidateKeyValues`, and
+  `ValidateAggregationProperties` (`SpecParser.Aggregates.cs`)
+  apply the phase 6 rules (and, for the `impute` object of a channel, the phase 9 rules above); `ValidateTimeUnit`,
+  `ValidateTimeUnitObject`, `ValidateDateTimeValue`,
   `ValidateDateTimeItems`, `ValidateTimeInterval`, `ValidateScaleTime`, `ValidateGuideTime`, `ValidateGuideTimeFormat`,
   `CheckTimeFormat`, `ValidateDatum`,
   `ValidatePredicateTime`, `CompileTimePredicate`, and `ValidateTimeUnitTransform` (`SpecParser.Time.cs`) apply the
@@ -331,7 +377,11 @@ unknown key or a month, quarter, or day that is not one, a `tickCount` or `nice`
 `date:` or
 `utc:` without a quoted format or with a format of more than 1,024 characters, and a time-aware `oneOf`
 of more
-than `MaxScaleDomainSize` values are located at the offending value or member. A null argument is a programming error and
+than `MaxScaleDomainSize` values are located at the offending value or member. A mark property of the wrong kind or
+value (an `interpolate` that is not one of the 15 names, an `invalid` or `point` text that is not allowed, a text-mark
+property of the wrong kind), a member of an overlay object, and an `impute` object of a channel with a bad member or
+with more `keyvals` than
+`MaxScaleDomainSize` are located at the offending value or member as well. A null argument is a programming error and
 throws `ArgumentNullException`, which is not converted. Unknown and duplicate keys are warnings, returned with the tree.
 
 #### Dependencies
@@ -363,5 +413,8 @@ operation registry of the `Transforms` subsystem is a read of a static table of 
 `VegaLiteDocument` is the production caller of `Parse` and `SpecMetadata.Read`. The `Data`, `Scales`, `Guides`,
 `Layout`, `Marks`, and `Transforms` subsystems and the other two `SpecModel` units consume the resulting `SpecTree` and
 `SpecNode` types (the `Transforms` and `Marks` subsystems also read the compiled expressions and the parameter helpers).
-The tests in `test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecParserTests.cs` call the entry points
-directly through `InternalsVisibleTo`.
+The tests in `test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecParserTests.cs`, `SpecParserImputeTests.cs`
+(the `impute` object of a channel), and `SpecParserMarkTests.cs` (the path, text, arc, and overlay rules) call the
+entry points
+directly through `InternalsVisibleTo`; the size-condition sites are tested in
+`test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/MarkChannelGatingTests.cs`.

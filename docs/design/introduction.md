@@ -252,14 +252,15 @@ software items, specifically:
   `lookup`, and `timeUnit` transforms between the loader and the scales), `AggregateTransforms` (the `aggregate`,
   `joinaggregate`,
   `window`, `bin`, `stack`, and `impute` transforms with the aggregate operations, the bin algorithm, and the stack rules),
-  `EncodingPlan` (the implicit bin, time unit, aggregate, and stack of a view's encoding, with the field names and titles
-  that every
+  `EncodingPlan` (the implicit bin, time unit, aggregate, impute, and stack of a view's encoding, with the path grouping
+  and order fields and the field names and titles that every
   channel reads), and `TimeUnitTransform` (the start and the end of a time unit for every row, and the fields that are
   read as dates). The `Scales` subsystem has
   six units: `ScaleModel` (the linear, time, UTC, logarithmic, power, symlog, band, point, ordinal, sequential,
   diverging, and
   discretizing mappings), `ScaleResolver` (the Vega-Lite inference of
-  scale types, domains, ranges, and paddings), `Ticks` (the d3-array and d3-time tick algorithms), `NumberFormat` (the
+  scale types, domains, ranges, and paddings, including the polar `theta` and `radius` scales, and the channels that
+  each mark draws), `Ticks` (the d3-array and d3-time tick algorithms), `NumberFormat` (the
   d3-format
   number formatter), `ColorSchemes` (the 68 Vega color schemes and the configuration of a color range), and
   `ColorInterpolator` (the sRGB, HSL, CIELAB, and HCL color interpolation). The `Guides` subsystem has six units:
@@ -268,19 +269,23 @@ software items, specifically:
   overlapping labels), `LegendBuilder` (symbol, gradient, and discrete gradient legends), and `TimeLabels` (the label
   format, interval tick count, and default tick count of time axes and legends). The `Layout` subsystem has
   two units, `ViewLayout` (data rectangle, padding, autosize, title placement, and view border) and `LegendLayout`
-  (the placement of the legends around the data rectangle and the axes, and their extents). The `Marks` subsystem has one
-  unit, `MarkBuilder` (bar, rect, point, circle, square, rule, and tick geometry and paint, with the color, size, shape,
-  opacity, stroke, and angle channels, time-unit bands, and conditional encodings). The `Scenegraph`
-  subsystem has three units: `SceneModel` (the immutable scene), `ScenePainter` (drawing a scene onto a `Surface`),
-  and `CssColor` (CSS color parsing). Compositions, selection parameters,
+  (the placement of the legends around the data rectangle and the axes, and their extents). The `Marks` subsystem has two
+  units: `MarkBuilder` (bar, rect, point, circle, square, rule, tick, line, area, trail, text, and arc geometry and
+  paint, with the color, size, shape, opacity, stroke, and angle channels, the point and line overlays, the invalid
+  data modes, the draw order, the polar and text rules, time-unit bands, and conditional encodings) and `CurveBuilder`
+  (the d3-shape curves and the line and area generators that turn the defined points of a path into segments). The
+  `Scenegraph` subsystem has four units: `SceneModel` (the immutable scene), `ScenePainter` (drawing a scene onto a
+  `Surface`), `ArcGeometry` (the d3-shape arc and the d3-path emulation behind the arc and trail items), and `CssColor`
+  (CSS color parsing). Compositions, selection parameters,
   and conditions on a parameter
   are deferred and reported with stable identifiers (local CSV, TSV, DSV, and JSON data files, named datasets, and
   sequences, a bounded subset of the Vega expression language, static variable parameters, the row transforms
   `calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot`, `lookup`, and `timeUnit`, the aggregating transforms
   `aggregate`,
   `joinaggregate`, `window`, `bin`, `stack`, and `impute`, the aggregate, bin, stack, and sort properties of a channel,
-  and time (temporal fields, time units, time scales and axes, date formats, and the `TimeZone` option, with the
-  calendar in UTC by default) are
+  time (temporal fields, time units, time scales and axes, date formats, and the `TimeZone` option, with the
+  calendar in UTC by default), and the line, area, trail, text, and arc marks with curve interpolation, overlays,
+  `impute`, and polar channels are
   supported; remote data is never fetched)
   — see _CanvasNetVegaLite System Design_
   (`canvas-net-vega-lite.md`) for the full supported/deferred boundary and its Implementation Phase Plan.
@@ -475,7 +480,8 @@ holds the
 `TimeLabels`
 units, its internal `Layout` subsystem holds the `ViewLayout` and `LegendLayout` units, its internal `Marks` subsystem
 holds the
-`MarkBuilder` unit, and its internal `Scenegraph` subsystem holds the `SceneModel`, `ScenePainter`, and `CssColor`
+`MarkBuilder` and `CurveBuilder` units, and its internal `Scenegraph` subsystem holds the `SceneModel`, `ScenePainter`,
+`ArcGeometry`, and `CssColor`
 units (each subsystem lives in the sub-namespace and the sub-folder of its own name). In the SysML2 model the
 subsystem `part def` names carry the prefix `VegaLite` (`VegaLiteSpecModel`, `VegaLiteExpressions`, `VegaLiteTransforms`,
 `VegaLiteScenegraph`, and so on) and the
@@ -1193,8 +1199,8 @@ src/DemaConsulting.CanvasNet.VegaLite/
 │   ├── StackRules.cs              — AggregateTransforms: Vega-Lite's decision that a view stacks
 │   ├── WorkMeter.cs               — AggregateTransforms: step-budget charging of proportional work
 │   ├── StableSorter.cs            — AggregateTransforms: stable, cancelable merge sort
-│   ├── EncodingPlan.cs            — EncodingPlan: the plan of the implicit bin, time unit, aggregate, and stack
-│   ├── EncodingTransforms.cs      — EncodingPlan: running the plan, and the Raw and Main tables
+│   ├── EncodingPlan.cs            — EncodingPlan: the plan of the implicit bin, time unit, aggregate, impute, and stack
+│   ├── EncodingTransforms.cs      — EncodingPlan: running the plan (with the impute stages), and the Raw and Main tables
 │   ├── TimeUnitTransform.cs       — TimeUnitTransform: the start and end of a time unit for every row
 │   └── TemporalFields.cs          — TimeUnitTransform: the fields that are read as dates
 ├── Scales/                        — Scales subsystem (internal)
@@ -1231,20 +1237,30 @@ src/DemaConsulting.CanvasNet.VegaLite/
 │   └── ViewLayout.cs              — ViewLayout: data rectangle, padding, autosize, and scene assembly
 ├── Marks/                         — Marks subsystem (internal)
 │   ├── NamespaceDoc.cs            — Marks: namespace-level XML documentation
-│   └── MarkBuilder.cs             — MarkBuilder: mark items, with the color, size, shape, stroke, and angle channels
+│   ├── MarkBuilder.cs             — MarkBuilder: mark items, with the color, size, shape, stroke, and angle channels
+│   ├── MarkBuilder.Order.cs       — MarkBuilder: the draw order of the rows (the order channel)
+│   ├── MarkBuilder.Paths.cs       — MarkBuilder: the line, area, and trail marks (grouping, sorting, invalid data)
+│   ├── MarkBuilder.Overlays.cs    — MarkBuilder: the point and line overlays of the path marks
+│   ├── MarkBuilder.Text.cs        — MarkBuilder: the text mark (labels, formats, polar offset)
+│   ├── MarkBuilder.Arcs.cs        — MarkBuilder: the arc mark (pie, donut, and radial slices)
+│   ├── CurveBuilder.cs            — CurveBuilder: the curve kinds, the segment bound, and the line and area entry points
+│   ├── CurveBuilder.Generators.cs — CurveBuilder: the line and area generators with defined gaps
+│   └── CurveBuilder.Splines.cs    — CurveBuilder: the cardinal, catmull-rom, monotone, and natural curves
 └── Scenegraph/                    — Scenegraph subsystem (internal)
     ├── NamespaceDoc.cs            — Scenegraph: namespace-level XML documentation
-    ├── SceneModel.cs              — SceneModel: Scene, scene items, and value types
+    ├── SceneModel.cs              — SceneModel: Scene, scene items (paths, arcs, trails), and value types
     ├── SceneBounds.cs             — SceneModel: bounding boxes
     ├── SceneBudget.cs             — SceneModel: scene-item budget
     ├── ScenePainter.cs            — ScenePainter: drawing a scene onto a Surface and placement
+    ├── ScenePainter.Paths.cs      — ScenePainter: segment paths, arcs, trails, and the miter limit
+    ├── ArcGeometry.cs             — ArcGeometry: the d3-shape arc and the d3-path emulation
     └── CssColor.cs                — CssColor: CSS color parsing
 ```
 
 `CanvasNetVegaLite` uses only the `CanvasNet` system (`Surface` and `Rgba32` of `Canvas`, `Path` of `Geometry`,
 `PathFiller` and `PathStroker` of `Drawing`, `TrueTypeFont` and `SystemFontCatalog` of `Fonts`, and `TextRenderer` of
-`Rendering`) through its public API, and declares it as its only package dependency; the `ScenePainter` and
-`TextMeasurer` units use it — see _CanvasNetVegaLite System Design_ (`canvas-net-vega-lite.md`).
+`Rendering`) through its public API, and declares it as its only package dependency; the `ScenePainter`, `ArcGeometry`,
+and `TextMeasurer` units use it — see _CanvasNetVegaLite System Design_ (`canvas-net-vega-lite.md`).
 
 The `CanvasNetTool` system lives in the `src/DemaConsulting.CanvasNet.Tool/` project folder (the separate
 `DemaConsulting.CanvasNet.Tool` dotnet tool package). The six direct units occupy the project root, and the
@@ -1381,7 +1397,20 @@ multi-format, and `Date.parse` test files); for `TimeUnitTransform` in the `Tran
 `transforms/time-unit-transform`, `TimeUnitTransform.cs` and `TemporalFields.cs`, and `TimeUnitTransformTests.cs` and
 `TemporalFieldsTests.cs`; and for `TimeLabels` in the `Guides` subsystem, the same paths with `guides/time-labels`,
 `TimeLabels.cs` (the temporal legends are in `LegendBuilder.Time.cs`, a partial file of the `LegendBuilder` unit), and
-`TimeLabelsTests.cs`. The attribution
+`TimeLabelsTests.cs`. The two units added for the line, area, trail, text, and arc marks follow the same pattern: for
+`CurveBuilder` in the `Marks` subsystem, requirements `docs/reqstream/canvas-net-vega-lite/marks/curve-builder.yaml`,
+design `docs/design/canvas-net-vega-lite/marks/curve-builder.md`, verification
+`docs/verification/canvas-net-vega-lite/marks/curve-builder.md`, SysML2 model
+`docs/sysml2/model/canvas-net-vega-lite/marks/curve-builder.sysml`, source
+`src/DemaConsulting.CanvasNet.VegaLite/Marks/CurveBuilder.cs` (with `CurveBuilder.Generators.cs` and
+`CurveBuilder.Splines.cs`), and tests `test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/CurveBuilderTests.cs` (with
+`CurveBuilderSplineTests.cs` and `CurveBuilderAreaTests.cs`); for `ArcGeometry` in the `Scenegraph` subsystem, the same
+paths with `scenegraph/arc-geometry`, `Scenegraph/ArcGeometry.cs` (which also holds the internal `ArcPathWriter`), and
+`ArcGeometryTests.cs`. The path, text, and arc marks themselves are in the partial files of the existing `MarkBuilder`
+unit (`MarkBuilder.Paths.cs`, `.Order.cs`, `.Overlays.cs`, `.Text.cs`, and `.Arcs.cs`, with the tests
+`MarkBuilderPathTests.cs`, `MarkBuilderOrderTests.cs`, `MarkBuilderOverlayTests.cs`, `MarkBuilderTextTests.cs`,
+`MarkBuilderArcTests.cs`, and `MarkBuilderPolarTextTests.cs`), and the painting of the segment paths, arcs, and trails
+is in `ScenePainter.Paths.cs`, a partial file of the `ScenePainter` unit (with `ScenePainterPathTests.cs`). The attribution
 record and license texts of the ported algorithms are in `src/DemaConsulting.CanvasNet.VegaLite/third-party/`.
 
 ## References

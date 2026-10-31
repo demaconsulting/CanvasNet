@@ -81,6 +81,22 @@ the five unit verification documents passes without error or unexpected exceptio
   pre-binned field has the union of its start and end as its domain with no zero and no nice, an `unaggregated` domain
   reads the rows before the aggregate (1 to 12 rather than the means 2 to 8), and a binned axis asks for one tick per ten
   pixels (the ticks 0, 2, ..., 34 for the bins 0 to 35).
+- **Polar Channels Resolve To Angles And Radii For The Marks That Draw Them**:
+  `ScaleResolverPolarTests.ScaleResolver_Resolve_ThetaHasTheFullCircleRange`,
+  `ScaleResolverPolarTests.ScaleResolver_Resolve_StackedThetaDomainSpansTheStack`,
+  `MarkChannelGatingTests.ScaleResolver_ChannelIsDrawn_FollowsTheSupportTable` — the resolver reads the stack that the
+  plan derived for a pie chart (the slices 1, 1, and 2 stack to (0, 1), (1, 2), and (2, 4)) and gives the `theta`
+  channel the domain 0 to 4 over the range 0 to 2 pi (a quarter turn for 1, a half turn for 2, and the whole turn for
+  4), the `radius` channel the range from 0 to half of the smaller side of the data rectangle that the builder passes
+  (100 for a chart of 200 by 200 pixels), and a channel that the mark does not draw (a size on an area or an arc, a stroke
+  dash on a trail, a text, or an area, a theta on a line) no scale at all, so that the feature catalog and the builders
+  agree on what is ignored.
+- **Orientation Follows The Mark**:
+  `ScaleResolverTests.ScaleResolver_InferOrient_FollowsVegaLite`,
+  `ScaleResolverPolarTests.ScaleResolver_InferOrient_AreaRangeAndTemporalRulesFollowVegaLite` — the resolver infers
+  the orientation of a bar, a tick, and a rule, of a line, an area, and a tick against a time axis, of an area with a
+  secondary channel, and of a trail and an arc (always vertical), so that the builders extend a path along the axis that
+  Vega-Lite extends it along.
 - **Colors Come From The Configured Ranges**:
   `ScaleResolverTests.ScaleResolver_Resolve_OrdinalColorsUseTheConfiguredRanges`,
   `ColorSchemesTests.ColorSchemes_Tableau10_ReturnsDocumentedCategoryColors` — the ordinal color scale of a nominal

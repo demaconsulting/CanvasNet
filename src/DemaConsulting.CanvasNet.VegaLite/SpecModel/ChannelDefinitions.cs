@@ -16,7 +16,7 @@ namespace DemaConsulting.CanvasNet.VegaLite.SpecModel;
 /// </remarks>
 internal static class ChannelDefinitions
 {
-    /// <summary>The channels that a condition may be put on: the ones that are drawn from a scale and have no position.</summary>
+    /// <summary>The channels that a condition may be put on: the ones that are drawn from a scale and have no position. The polar position channels <c>theta</c> and <c>radius</c> take none, as in Vega-Lite.</summary>
     private static readonly HashSet<string> ConditionChannels =
         new(["color", "fill", "stroke", "opacity", "fillOpacity", "strokeOpacity", "strokeWidth", "strokeDash", "size", "shape", "angle"], StringComparer.Ordinal);
 

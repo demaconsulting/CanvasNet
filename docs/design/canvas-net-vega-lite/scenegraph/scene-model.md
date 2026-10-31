@@ -6,8 +6,9 @@ The `SceneModel` unit is the first software unit in the `Scenegraph` subsystem. 
 `DemaConsulting.CanvasNet.VegaLite.Scenegraph` namespace, all `internal`:
 
 - `SceneModel.cs` - `Scene`, `SceneItem` and its subtypes `SceneGroup`, `SceneRect`, `SceneRule`, `ScenePath`,
-  `SceneSymbol`, and `SceneText`, the gradient types `SceneGradient` and `SceneGradientStop`, the value types
-  `ScenePoint`, `SceneClip`, and `SceneEntry`, and the `SceneLists` copy helper
+  `SceneSymbol`, `SceneText`, `SceneArc`, and `SceneTrail`, the gradient types `SceneGradient` and `SceneGradientStop`,
+  the path types `ScenePathSegmentKind` and `ScenePathSegment`, the value types `ScenePoint`, `SceneTrailPoint`,
+  `SceneClip`, and `SceneEntry`, and the `SceneLists` copy helper
 - `SceneBounds.cs` - `SceneBounds` (readonly record struct): axis-aligned bounding boxes
 - `SceneBudget.cs` - `SceneBudget` (sealed class): the item counter behind `MaxSceneItems`
 
@@ -30,7 +31,9 @@ The unit's behavior is specified by the `CanvasNetVegaLite-Scenegraph-SceneModel
 `title-text`, `axis-label`, or `mark-bar`), the paints `Fill` and `Stroke` as CSS color text (null or `none` means no
 paint), `StrokeWidth` (null means 1), `Opacity`, `FillOpacity`, and `StrokeOpacity` (1 by default and multiplying: the
 fill is drawn with fill opacity times opacity, the stroke with stroke opacity times opacity), the `StrokeDash` pattern
-(copied, read-only), `StrokeDashOffset`, and the `StrokeCap` and `StrokeJoin`. Items are immutable; a changed copy is made
+(copied, read-only), `StrokeDashOffset`, the `StrokeCap` and `StrokeJoin`, and the `StrokeMiterLimit` (null means the
+default of 4 and the painter clamps a value that is not finite or is below 1 to 1 and one above 1,000 to 1,000; see
+_ScenePainter_). Items are immutable; a changed copy is made
 with a `with` expression, and list-valued members are copied when set. An item can also carry a `FillGradient`, which
 replaces the solid `Fill` when it is set and can be drawn.
 
@@ -48,11 +51,34 @@ replaces the solid `Fill` when it is set and can be drawn.
   background and border, an optional `SceneClip`, a `StrokeOffset` (null means Vega's rule: half a pixel for a one-pixel
   stroke), and the `Children` in drawing order (the last is on top).
 - **`SceneRect`** `(X, Y, Width, Height)` with a `CornerRadius`; **`SceneRule`** `(X, Y, X2, Y2)`, visible only with a
-  stroke; **`ScenePath`** with `Points` and `Closed`; **`SceneSymbol`** `(X, Y)` with `Shape` (circle by default), `Size`
+  stroke; **`ScenePath`** with `Points` and `Closed`, or with `Segments` (below); **`SceneSymbol`** `(X, Y)` with `Shape`
+  (circle by default), `Size`
   (the area of the bounding box in square pixels, 64 by default) and `Angle`; **`SceneText`** `(X, Y, Lines)` with `Text`
   (lines joined by a line feed), `Dx`, `Dy`, `FontFamily`, `FontSize` (11), `FontWeight`, `FontStyle`, `Align` (left,
   center, right), `Baseline` (alphabetic, top, middle, bottom, line-top, line-bottom), `Angle`, `Limit`, `LineHeight`, and
   `Ellipsis` (the horizontal ellipsis); text has no gradient fill.
+- **`ScenePathSegmentKind`** (`MoveTo`, `LineTo`, `CubicTo`, `Close`) and **`ScenePathSegment`** - one drawing command with
+  absolute coordinates: `Kind`, the point `(X, Y)` (the end point of a cubic), and the control points `(X1, Y1)` and
+  `(X2, Y2)` of a cubic (zero when unused). The factories `Move(x, y)`, `Line(x, y)`, `Cubic(x1, y1, x2, y2, x, y)` (the
+  first control point, the second control point, then the end point), and `Close()` create the commands, and
+  `IsFinite()` says whether every coordinate that the kind of the command uses is finite (a close uses none).
+- **`ScenePath.Segments`** - the drawing commands of a path, copied into a read-only list; the path has two
+  constructors, one
+  of points and one of segments. A path made of segments has an empty `Points` list, **the segments replace the points
+  when they are set**, and `Closed` then has no effect, because a `Close` command closes a subpath (a path can hold
+  several subpaths, which is how a broken line and a closed area are one item). The line, area, and trail marks use the
+  segments for the interpolated paths; an axis domain and a straight polygon keep the points.
+- **`SceneArc`** `(X, Y)` - a circular or annular sector centered at `(X, Y)`, with `InnerRadius` (0, a pie slice),
+  `OuterRadius` (0, a point), `StartAngle` and `EndAngle` (radians, clockwise from 12 o'clock, 0 by default), `PadAngle`,
+  and `CornerRadius` (0 by default). The geometry is that of the `ArcGeometry` unit.
+- **`SceneTrailPoint`** `(X, Y, Size)` and **`SceneTrail`** - a trail is a line whose width follows the `Size` at every
+  point. `Runs` is a list of runs of points, each drawn on its own with a gap between two runs; the constructor takes the
+  runs, requires a non-null sequence and non-null runs (`ArgumentNullException`), and **deep-copies** the lists (the outer
+  list and every run), so a later change of the caller's lists cannot reach the scene. A point whose coordinates or size
+  are not finite, or whose size is not positive, ends its run when the scene is painted.
+- **Roles of the path-like marks.** The items of the line, area, trail, arc, and text marks have the roles `mark-line` and
+  `mark-area` (the `ScenePath` items), `mark-trail` (the `SceneTrail`), `mark-arc` (the `SceneArc` items), and `mark-text`
+  (the `SceneText` items), next to the existing `mark-bar`, `mark-rule`, `mark-tick`, and the symbol roles.
 - **`Scene`** `(Width, Height, Background, Root)` - the canvas at a scale of one, y down; the constructor requires finite,
   non-negative sizes and a non-null root. `Enumerate()`, `Find(role)`, `FindAll(role)`, `OfType<T>()`, and `CountItems()`
   visit the items in drawing order, parents before children, reporting for each `SceneEntry` the item, the accumulated
@@ -67,8 +93,11 @@ the drawing order; the empty bounds contain nothing.
 #### Key Methods
 
 - Item and scene constructors - validate the role (`ArgumentException`), the scene size (`ArgumentOutOfRangeException`),
-  the root (`ArgumentNullException`), and the stops of a gradient (`ArgumentNullException`, and `ArgumentException` for
-  more than `MaxStops`), and copy list-valued members into read-only lists.
+  the root (`ArgumentNullException`), the stops of a gradient (`ArgumentNullException`, and `ArgumentException` for
+  more than `MaxStops`), and the runs of a trail (`ArgumentNullException`), and copy list-valued members (the points,
+  the segments, the runs and their points) into read-only lists.
+- `ScenePathSegment.Move`, `Line`, `Cubic`, and `Close` - the factories of the drawing commands, and `IsFinite()`, which
+  the painter uses to skip a path that has a coordinate that is not finite.
 - `Scene.Enumerate()` - an iterative walk with an explicit stack, so a deep scene cannot overflow the stack; the same scene
   always yields the same sequence.
 - `SceneBounds.Union`, `Translate`, and `Rotate` - the arithmetic that layout uses to grow the bounds of a view; the empty
@@ -77,7 +106,7 @@ the drawing order; the empty bounds contain nothing.
   overflowing) and throws a `VegaLiteRenderException` carrying the location when the total passes the maximum
   (`MaxSceneItems`). Every `SceneItem` of the finished scene counts once, groups included (the root and view groups, the
   title group and its texts, each axis group with its grid group, grid lines, ticks, labels, domain and title, the marks
-  group and each mark; a clip is a property of its group, not an item), and a builder calls `Add` *before* it creates
+  group and each mark; a clip is a property of its group, not an item), and a builder calls `Add` _before_ it creates
   the item, so a limit of N allows a chart of exactly N items and fails on the (N+1)th without allocating it. The axes
   are rebuilt until the data rectangle is stable, so each pass is charged to a `Fork()` of the budget and only the pass
   that is kept is taken over with `Adopt`. A tick label that is removed because it overlaps another is not in the scene
@@ -103,7 +132,9 @@ The unit has no dependency on another unit of the system.
 
 #### Callers
 
-`TitleBuilder`, `AxisBuilder`, `ViewLayout`, and `MarkBuilder` create items and bounds; `TextMeasurer` reads `SceneText`
+`TitleBuilder`, `AxisBuilder`, `ViewLayout`, and `MarkBuilder` create items and bounds (`MarkBuilder` with the
+`ScenePathSegment` commands of the `CurveBuilder` for the line and area marks, and the `SceneTrail` and `SceneArc` items);
+`TextMeasurer` reads `SceneText`
 and `SceneBounds`; `ScenePainter` draws a `Scene`; `VegaLiteDocument` creates the budget. The tests in
 `test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/SceneModelTests.cs` call the types directly through
 `InternalsVisibleTo`.

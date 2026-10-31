@@ -66,7 +66,7 @@ internal sealed class EncodingData
 
 /// <summary>
 ///     Runs the implicit transforms of an <see cref="EncodingPlan"/> on the rows of a view: the bins of the encoding, then its time units,
-///     then the aggregate, then the stack (Vega-Lite's order: explicit transforms, bin, timeUnit, Raw, aggregate, stack, Main).
+///     then the aggregate, then the impute (of the <c>impute</c> property of <c>x</c> or <c>y</c>, and of a stacked path mark), then the stack (Vega-Lite's order: explicit transforms, bin, timeUnit, Raw, aggregate, impute, stack, Main).
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -76,7 +76,9 @@ internal sealed class EncodingData
 ///         for a row without a valid value). <b>Time unit.</b> Every distinct unit (field and unit) is computed once by <see cref="TimeUnitTransform"/>
 ///         in the calendar of the chart and written to its start and end fields (they are in the Raw table, so every scale reads them). <b>Aggregate.</b> One pass of the engine of <see cref="AggregateTransforms"/> with the
 ///         plan's dimensions and measures; the input rows stay in use as the Raw table when a scale needs them. The row an
-///         <c>argmax</c> or <c>argmin</c> measure returns is read into a scalar field for the channel. <b>Stack.</b> The engine of
+///         <c>argmax</c> or <c>argmin</c> measure returns is read into a scalar field for the channel. <b>Impute.</b> The impute engine of
+///         <see cref="AggregateTransforms"/> appends the missing (series, key) rows, first for the <c>impute</c> of <c>x</c> or <c>y</c> and then, for a stacked
+///         line or area, with the value 0 for every layer of the stack that lacks a key. <b>Stack.</b> The engine of
 ///         <see cref="AggregateTransforms"/> with the plan's stacks and layer order. The invalid-row filter of Vega-Lite's last stage is
 ///         done by the marks, which skip a row whose position is not a number.
 ///     </para>
@@ -197,19 +199,40 @@ internal sealed class EncodingTransforms
             }
         }
 
+        if (plan.Impute is { } imputePlan)
+        {
+            // Vega-Lite imputes after the aggregate (and the Raw table) and before the stack
+            main = Impute(main, raw, plan.NeedsRaw, imputePlan.Field, imputePlan.Key, [.. imputePlan.GroupBy], imputePlan.Definition["impute"]!, imputePlan.Definition);
+            if (!plan.NeedsRaw)
+            {
+                raw = main;
+            }
+        }
+
+        if (plan.StackImpute is { } stackImpute)
+        {
+            // The stack of a path mark first adds a zero for every layer that lacks a key (its own impute object is the constant 0 of the method value)
+            main = Impute(main, raw, plan.NeedsRaw, stackImpute.Field, stackImpute.Key, [.. stackImpute.GroupBy], null, stackImpute.Definition);
+            if (!plan.NeedsRaw)
+            {
+                raw = main;
+            }
+        }
+
         if (plan.Stack is { } stack)
         {
             var location = _context.Locate(stack.Definition);
             if (plan.NeedsRaw)
             {
-                // The stacked copy lives next to the rows a scale still reads, whether or not an aggregate came first
+                // The stacked copy lives next to the rows a scale still reads, whether or not an aggregate or an impute came first
                 _context.Loader.ReserveDerivedRows(main.RowCount, "The stacked rows", location);
             }
 
+            var replacesMain = plan.NeedsRaw && !ReferenceEquals(main, raw);
             var stacked = _engine.Stack(main, stack.Field, stack.GroupBy, stack.Sort, stack.Offset, stack.StartName, stack.EndName, location);
-            if (plan.NeedsRaw && plan.Aggregate is not null)
+            if (replacesMain)
             {
-                // The aggregated rows are replaced by the stacked copy (the unaggregated rows stay), so their count is given back
+                // The aggregated or imputed rows are replaced by the stacked copy (the rows of the Raw table stay), so their count is given back
                 _context.Loader.ReleaseRows(main.RowCount);
             }
 
@@ -221,6 +244,34 @@ internal sealed class EncodingTransforms
         }
 
         return new EncodingData(raw, main, bins, _context.Evaluator.Context, units);
+    }
+
+    /// <summary>
+    ///     Appends the missing combinations of series and key to a table: the impute of an encoding or of a stack.
+    /// </summary>
+    /// <param name="main">The table to impute (the aggregated rows, or the rows of the Raw table).</param>
+    /// <param name="raw">The Raw table, which a scale may still read.</param>
+    /// <param name="needsRaw">Whether a scale reads the Raw table.</param>
+    /// <param name="field">The imputed field.</param>
+    /// <param name="key">The key field.</param>
+    /// <param name="groupBy">The fields that split the rows into series.</param>
+    /// <param name="parameters">The <c>impute</c> object of a channel (method, value, frame, keyvals), or null for the impute of a stack (the constant 0).</param>
+    /// <param name="definition">The channel definition that asked for the impute (the seed and, without <paramref name="parameters"/>, the location of failures).</param>
+    /// <returns>The imputed table; <paramref name="main"/> itself when it has no rows.</returns>
+    private DataTable Impute(DataTable main, DataTable raw, bool needsRaw, string field, string key, string[] groupBy, SpecNode? parameters, SpecNode definition)
+    {
+        var location = _context.Locate(parameters ?? definition);
+        var method = "value";
+        var value = DataValue.FromNumber(0);
+        (int? Start, int? End) frame = (null, null);
+        if (parameters is not null)
+        {
+            (method, value, frame) = AggregateTransforms.ReadImputeParameters(parameters);
+        }
+
+        // The rows of the Raw table stay in use when the table that is imputed is that very table, and are given back otherwise
+        var keepsInput = needsRaw && ReferenceEquals(main, raw);
+        return _engine.ImputeField(main, field, key, groupBy, method, value, frame, parameters?["keyvals"], RowSampler.Seed(definition.Pointer), location, releaseInput: !keepsInput);
     }
 
     /// <summary>

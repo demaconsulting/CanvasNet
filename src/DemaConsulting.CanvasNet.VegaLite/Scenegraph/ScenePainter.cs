@@ -86,7 +86,7 @@ internal readonly record struct ScenePlacement(double Scale, double OffsetX, dou
 ///         always give the same bytes. The painter holds no state and is safe for concurrent use.
 ///     </para>
 /// </remarks>
-internal sealed class ScenePainter
+internal sealed partial class ScenePainter
 {
     /// <summary>Half of the square root of three, the height factor of Vega's triangle symbols.</summary>
     private static readonly double HalfSqrt3 = Math.Sqrt(3) / 2;
@@ -102,6 +102,26 @@ internal sealed class ScenePainter
 
     /// <summary>The largest estimated number of dashes on one stroked path; a pattern that would make more is drawn solid.</summary>
     private const double MaxDashSegments = 50_000;
+
+    /// <summary>
+    ///     The largest magnitude, in surface pixels, of a coordinate, offset, size, radius or font size that the painter draws: 32,768, four times
+    ///     <see cref="Surface.MaxDimension"/>. An item that needs a larger value is not drawn, and a Bezier control point beyond it is replaced by a straight line.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         The bound is what keeps the cost of painting an item bounded, and it is one number for everything the painter draws (segments, trail points and sizes, arcs, text and
+    ///         groups), with the scene builders using it too (<see cref="IsBounded(double[])"/> at a scale of one, so that the scene never holds what the painter would skip). A coordinate
+    ///         that overflows a single, or an infinity that comes from one, makes the flattening of a curve recurse to its full depth. Beyond a few tens of thousands of pixels the flatness
+    ///         test of the core filler also cannot be met any more (a single has a spacing of 0.004 to 0.03 there, which is not below the tolerance of 0.02), so a circle or a capsule
+    ///         flattens to its maximum depth: measured at the bound's neighbors, an annular arc takes about 1.8 seconds and a trail capsule about 60 milliseconds, against less than a
+    ///         millisecond for a radius of a few hundred pixels. The largest surface is <see cref="Surface.MaxDimension"/> pixels wide, so everything that lies more than four widths away
+    ///         is invisible on every chart a renderer can produce (the bound is applied to the value times the scale of the placement, which is what the filler sees).
+    ///     </para>
+    ///     <para>
+    ///         The cost of one item is therefore bounded, and an item that needs a larger value draws nothing, like an item with a value that is not finite.
+    ///     </para>
+    /// </remarks>
+    internal const double MaxMagnitude = 32_768;
 
     /// <summary>The text measurer.</summary>
     private readonly TextMeasurer _measurer;
@@ -267,7 +287,7 @@ internal sealed class ScenePainter
     private void PaintGroup(SceneGroup group, Context parent, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (!IsFinite(group.X, group.Y))
+        if (!IsBoundedAt(parent.Scale, group.X, group.Y))
         {
             return;
         }
@@ -310,6 +330,14 @@ internal sealed class ScenePainter
                 case ScenePath path:
                     cancellationToken.ThrowIfCancellationRequested();
                     PaintPath(path, local);
+                    break;
+                case SceneArc arc:
+                    cancellationToken.ThrowIfCancellationRequested();
+                    PaintArc(arc, local);
+                    break;
+                case SceneTrail trail:
+                    cancellationToken.ThrowIfCancellationRequested();
+                    PaintTrail(trail, local, cancellationToken);
                     break;
                 case SceneSymbol symbol:
                     cancellationToken.ThrowIfCancellationRequested();
@@ -449,6 +477,12 @@ internal sealed class ScenePainter
     /// <param name="local">The context of the enclosing group.</param>
     private static void PaintPath(ScenePath item, Context local)
     {
+        if (item.Segments.Count > 0)
+        {
+            PaintSegments(item, local);
+            return;
+        }
+
         if (item.Points.Count < 2 || item.Opacity <= 0 || item.Points.Any(p => !IsFinite(p.X, p.Y)))
         {
             return;
@@ -502,7 +536,13 @@ internal sealed class ScenePainter
     /// <param name="local">The context of the enclosing group.</param>
     private void PaintText(SceneText text, Context local)
     {
-        if (!IsFinite(text.X, text.Y, text.Dx, text.Dy, text.FontSize, text.Angle, text.Limit)
+        // The position, offsets, font size and line height must be drawable (finite and within MaxMagnitude surface pixels, so that the
+        // conversion to a single and the scaling cannot overflow, and the glyphs are not flattened at a size beyond precision), and so must the angle; the limit only has to be a number
+        // (it is clamped below: a limit larger than any line is the same as no limit)
+        if (!IsBoundedAt(local.Scale, text.X, text.Y, text.Dx, text.Dy, text.FontSize)
+            || !IsBounded(text.Angle)
+            || !double.IsFinite(text.Limit)
+            || (text.LineHeight is { } lineHeight && !IsBoundedAt(local.Scale, lineHeight))
             || text.FontSize <= 0
             || !CssColor.TryResolvePaint(text.Fill, text.FillOpacity * text.Opacity, out var color))
         {
@@ -510,11 +550,12 @@ internal sealed class ScenePainter
         }
 
         var size = (float)(text.FontSize * local.Scale);
-        if (!(size > 0))
+        if (!float.IsFinite(size) || !(size > 0))
         {
             return;
         }
 
+        var limit = Math.Min(text.Limit, MaxMagnitude);
         var font = new TextFont(text.FontFamily, text.FontSize, text.FontWeight, text.FontStyle);
         var face = _measurer.Resolve(font).Font;
         var align = text.Align switch
@@ -537,7 +578,7 @@ internal sealed class ScenePainter
 
         for (var i = 0; i < text.Lines.Count; i++)
         {
-            var line = _measurer.TextValue(text.Lines[i], font, text.Limit, text.Ellipsis);
+            var line = _measurer.TextValue(text.Lines[i], font, limit, text.Ellipsis);
             if (line.Length == 0)
             {
                 continue;
@@ -660,13 +701,13 @@ internal sealed class ScenePainter
     private static void StrokeOnly(Path path, SceneItem item, Context context, Matrix3x2 transform)
     {
         var requestedWidth = item.StrokeWidth ?? 1;
-        if (path.Subpaths.Count == 0 || !(requestedWidth > 0) || !double.IsFinite(requestedWidth))
+        if (path.Subpaths.Count == 0 || !(requestedWidth > 0) || !IsBoundedAt(context.Scale, requestedWidth))
         {
             return;
         }
 
-        // A width that is finite as a double can still overflow to infinity or underflow to zero as a float; such a
-        // stroke cannot be drawn, so it is skipped rather than handed to the stroker
+        // A width beyond MaxMagnitude surface pixels (which also covers a width that is not finite) is not stroked: the outline would be that large. A width that is below that can still
+        // underflow to zero as a float; such a stroke cannot be drawn either, so it is skipped rather than handed to the stroker
         var width = (float)requestedWidth;
         if (!float.IsFinite(width) || !(width > 0)
             || !CssColor.TryResolvePaint(item.Stroke, item.StrokeOpacity * item.Opacity, out var color))
@@ -691,7 +732,7 @@ internal sealed class ScenePainter
             width,
             cap,
             join,
-            4f,
+            ResolveMiterLimit(item.StrokeMiterLimit),
             DashArray(item.StrokeDash, path, context.Scale),
             float.IsFinite(dashOffset) ? dashOffset : 0f);
 
@@ -791,6 +832,30 @@ internal sealed class ScenePainter
     /// <param name="values">The numbers.</param>
     /// <returns><see langword="true"/> when none is NaN or infinite.</returns>
     private static bool IsFinite(params double[] values) => Array.TrueForAll(values, double.IsFinite);
+
+    /// <summary>
+    ///     Determines whether a number can be drawn: it is finite and its magnitude is at most <see cref="MaxMagnitude"/> (at a scale of one; the scene builders use this).
+    /// </summary>
+    /// <param name="value">The number.</param>
+    /// <returns><see langword="true"/> when the number is finite and not above <see cref="MaxMagnitude"/> in magnitude.</returns>
+    internal static bool IsBounded(double value) => IsBoundedAt(1f, value);
+
+    /// <summary>
+    ///     Determines whether numbers can all be drawn at a scale of one (see <see cref="IsBounded(double)"/>).
+    /// </summary>
+    /// <param name="values">The numbers.</param>
+    /// <returns><see langword="true"/> when every number is finite and not above <see cref="MaxMagnitude"/> in magnitude.</returns>
+    internal static bool IsBounded(params double[] values) => IsBoundedAt(1f, values);
+
+    /// <summary>
+    ///     Determines whether lengths in scene units can all be drawn at a scale: each is finite and its size in surface pixels (the value times the scale) is at most <see cref="MaxMagnitude"/>.
+    /// </summary>
+    /// <remarks>This is the one definition of the bound; <see cref="IsBounded(double)"/> is the case of a scale of one.</remarks>
+    /// <param name="scale">The uniform scale from scene units to surface pixels.</param>
+    /// <param name="values">The lengths or coordinates.</param>
+    /// <returns><see langword="true"/> when every value is finite and fits.</returns>
+    internal static bool IsBoundedAt(float scale, params double[] values) =>
+        Array.TrueForAll(values, v => double.IsFinite(v) && Math.Abs(v) * scale <= MaxMagnitude);
 
     /// <summary>
     ///     The drawing state: the target, the matrix from the current group's units to target pixels and the uniform scale.

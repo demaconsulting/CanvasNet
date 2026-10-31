@@ -41,8 +41,8 @@ internal sealed partial class SpecParser
     /// <summary>The channels whose constant <c>value</c> may be an expression evaluated for every row.</summary>
     private static readonly HashSet<string> ExpressionChannels = Set("color fill stroke opacity size");
 
-    /// <summary>The marks that draw symbols, the only ones whose <c>size</c> is the area of the symbol and may be an expression.</summary>
-    private static readonly HashSet<string> SymbolMarks = Set("point circle square");
+    /// <summary>The marks whose <c>size</c> is evaluated for every row and may be an expression: the symbols (the area of the symbol), the line (its stroke width), the trail (its width) and the text (its font size).</summary>
+    private static readonly HashSet<string> SymbolMarks = Set("point circle square line trail text");
 
     /// <summary>The predicate operators of a field predicate, in the order they are looked for.</summary>
     private static readonly string[] PredicateOperators = ["equal", "lt", "lte", "gt", "gte", "range", "oneOf", "valid"];
@@ -247,7 +247,8 @@ internal sealed partial class SpecParser
 
     /// <summary>
     ///     Tells whether the conditions of a channel definition are evaluated: the channel is one that accepts a condition and belongs to the drawn view
-    ///     (and a size only on a mark that draws symbols).
+    ///     (and a size only on a mark that uses it: the symbol marks, bar, rect, tick, rule, and the line, trail and text marks, whose size is the stroke width,
+    ///     the width of the trail and the font size).
     /// </summary>
     /// <param name="definition">The channel definition object.</param>
     /// <returns><see langword="true"/> when the marks evaluate the conditions.</returns>
@@ -264,7 +265,7 @@ internal sealed partial class SpecParser
 
         var markNode = view["mark"];
         var markType = markNode is { IsObject: true } ? markNode["type"]?.AsString() : markNode?.AsString();
-        return channel != "size" || (markType is not null && (SymbolMarks.Contains(markType) || markType is "bar" or "rect" or "tick" or "rule"));
+        return channel != "size" || (markType is not null && (SymbolMarks.Contains(markType) || markType is "bar" or "rect" or "tick" or "rule" or "line" or "trail" or "text"));
     }
 
     /// <summary>

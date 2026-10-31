@@ -40,12 +40,12 @@ public class FeatureCatalogTests
                 { "filter": "datum.b > 1" },
                 { "regression": "n", "on": "a" }
               ],
-              "mark": "arc",
+              "mark": "geoshape",
               "encoding": {
                 "x": { "field": "d", "type": "temporal", "timeUnit": "year" },
                 "y": { "field": "n", "type": "quantitative", "aggregate": "sum", "bin": true, "stack": "zero", "sort": "-x", "condition": { "param": "s", "value": 1 } },
                 "color": { "field": "c", "type": "nominal", "bin": true, "scale": { "type": "log", "scheme": "x" }, "legend": { "encode": {} } },
-                "theta": { "field": "n", "type": "quantitative" },
+                "longitude": { "field": "lon", "type": "quantitative" },
                 "latitude": { "field": "lat", "type": "quantitative" },
                 "tooltip": { "field": "c" }
               },
@@ -67,12 +67,12 @@ public class FeatureCatalogTests
                 ("vl-transform-calculate", "/transform/0"),
                 ("vl-transform-filter", "/transform/1"),
                 ("vl-transform-regression", "/transform/2"),
-                ("vl-mark-arc", "/mark"),
+                ("vl-mark-geoshape", "/mark"),
                 ("vl-encoding-sort-ignored", "/encoding/y/sort"),
                 ("vl-encoding-condition", "/encoding/y/condition"),
                 ("vl-scale-type-ignored", "/encoding/color/scale/type"),
                 ("vl-guide-encode", "/encoding/color/legend/encode"),
-                ("vl-channel-theta", "/encoding/theta"),
+                ("vl-channel-geo", "/encoding/longitude"),
                 ("vl-channel-geo", "/encoding/latitude"),
                 ("vl-composition-layer", "/layer"),
                 ("vl-mark-geoshape", "/layer/0/mark"),
@@ -260,12 +260,12 @@ public class FeatureCatalogTests
     [InlineData("square", true)]
     [InlineData("rule", true)]
     [InlineData("tick", true)]
-    [InlineData("arc", false)]
-    [InlineData("area", false)]
+    [InlineData("arc", true)]
+    [InlineData("area", true)]
     [InlineData("image", false)]
-    [InlineData("line", false)]
-    [InlineData("text", false)]
-    [InlineData("trail", false)]
+    [InlineData("line", true)]
+    [InlineData("text", true)]
+    [InlineData("trail", true)]
     [InlineData("geoshape", false)]
     [InlineData("boxplot", false)]
     [InlineData("errorbar", false)]
@@ -296,13 +296,13 @@ public class FeatureCatalogTests
     public void FeatureCatalog_Visit_MarkReportCarriesLineAndColumn()
     {
         // Arrange
-        const string json = "{\n  \"mark\": \"arc\"\n}";
+        const string json = "{\n  \"mark\": \"geoshape\"\n}";
 
         // Act
         var report = Assert.Single(FeatureCatalog.Visit(SpecParser.Parse(json, "m.json")));
 
         // Assert
-        Assert.Equal("vl-mark-arc", report.Id);
+        Assert.Equal("vl-mark-geoshape", report.Id);
         Assert.Equal(new VegaLiteLocation("m.json", "/mark", 2, 11), report.Location);
     }
 
@@ -334,8 +334,6 @@ public class FeatureCatalogTests
             [
                 ("vl-channel-x2", "/encoding/x2"),
                 ("vl-channel-text", "/encoding/text"),
-                ("vl-channel-detail", "/encoding/detail"),
-                ("vl-channel-order", "/encoding/order"),
                 ("vl-channel-row", "/encoding/row"),
                 ("vl-channel-xoffset", "/encoding/xOffset"),
                 ("vl-channel-geo", "/encoding/longitude"),
@@ -826,30 +824,31 @@ public class FeatureCatalogTests
     }
 
     /// <summary>
-    ///     Validates that the <c>order</c> channel is accepted when it orders a stack (also for a bar with two measures, whose orientation Vega-Lite infers as vertical,
-    ///     and for one whose mark gives the orientation) and reported otherwise.
+    ///     Validates that the <c>order</c> channel is accepted by every mark: it orders a stack (also for a bar with two measures, whose orientation Vega-Lite infers as vertical,
+    ///     and for one whose mark gives the orientation), the points of a path or the drawing of the marks.
     /// </summary>
     /// <param name="json">The specification text.</param>
-    /// <param name="reported">Whether <c>vl-channel-order</c> is expected.</param>
     [Theory]
-    [InlineData("{\"mark\":\"bar\",\"encoding\":{\"x\":{\"field\":\"k\",\"type\":\"nominal\"},\"y\":{\"field\":\"v\",\"type\":\"quantitative\"},\"color\":{\"field\":\"g\",\"type\":\"nominal\",\"legend\":null},\"order\":{\"field\":\"o\"}}}", false)]
-    [InlineData("{\"mark\":\"bar\",\"encoding\":{\"x\":{\"field\":\"k\",\"type\":\"nominal\"},\"y\":{\"field\":\"v\",\"type\":\"quantitative\"},\"color\":{\"field\":\"g\",\"type\":\"nominal\",\"legend\":null},\"order\":[{\"field\":\"o\"},{\"field\":\"p\",\"sort\":\"descending\"}]}}", false)]
-    [InlineData("{\"mark\":\"bar\",\"encoding\":{\"x\":{\"field\":\"k\",\"type\":\"nominal\"},\"y\":{\"field\":\"v\",\"type\":\"quantitative\",\"stack\":null},\"order\":{\"field\":\"o\"}}}", true)]
-    [InlineData("{\"mark\":\"point\",\"encoding\":{\"x\":{\"field\":\"k\",\"type\":\"nominal\"},\"y\":{\"field\":\"v\",\"type\":\"quantitative\"},\"order\":{\"field\":\"o\"}}}", true)]
-    [InlineData("{\"mark\":\"point\",\"encoding\":{\"x\":{\"field\":\"k\",\"type\":\"nominal\"},\"y\":{\"field\":\"v\",\"type\":\"quantitative\",\"stack\":true},\"color\":{\"field\":\"g\",\"type\":\"nominal\",\"legend\":null},\"order\":{\"field\":\"o\"}}}", false)]
-    [InlineData("{\"mark\":\"bar\",\"encoding\":{\"x\":{\"field\":\"a\",\"type\":\"quantitative\"},\"y\":{\"field\":\"v\",\"type\":\"quantitative\"},\"color\":{\"field\":\"g\",\"type\":\"nominal\",\"legend\":null},\"order\":{\"field\":\"o\"}}}", false)]
-    [InlineData("{\"mark\":{\"type\":\"bar\",\"orient\":\"horizontal\"},\"encoding\":{\"x\":{\"field\":\"a\",\"type\":\"quantitative\"},\"y\":{\"field\":\"v\",\"type\":\"quantitative\"},\"color\":{\"field\":\"g\",\"type\":\"nominal\",\"legend\":null},\"order\":{\"field\":\"o\"}}}", false)]
-    public void FeatureCatalog_Visit_StackOrderChannelIsAcceptedOnlyForAStack(string json, bool reported)
+    [InlineData("{\"mark\":\"bar\",\"encoding\":{\"x\":{\"field\":\"k\",\"type\":\"nominal\"},\"y\":{\"field\":\"v\",\"type\":\"quantitative\"},\"color\":{\"field\":\"g\",\"type\":\"nominal\",\"legend\":null},\"order\":{\"field\":\"o\"}}}")]
+    [InlineData("{\"mark\":\"bar\",\"encoding\":{\"x\":{\"field\":\"k\",\"type\":\"nominal\"},\"y\":{\"field\":\"v\",\"type\":\"quantitative\"},\"color\":{\"field\":\"g\",\"type\":\"nominal\",\"legend\":null},\"order\":[{\"field\":\"o\"},{\"field\":\"p\",\"sort\":\"descending\"}]}}")]
+    [InlineData("{\"mark\":\"bar\",\"encoding\":{\"x\":{\"field\":\"k\",\"type\":\"nominal\"},\"y\":{\"field\":\"v\",\"type\":\"quantitative\",\"stack\":null},\"order\":{\"field\":\"o\"}}}")]
+    [InlineData("{\"mark\":\"point\",\"encoding\":{\"x\":{\"field\":\"k\",\"type\":\"nominal\"},\"y\":{\"field\":\"v\",\"type\":\"quantitative\"},\"order\":{\"field\":\"o\"}}}")]
+    [InlineData("{\"mark\":\"point\",\"encoding\":{\"x\":{\"field\":\"k\",\"type\":\"nominal\"},\"y\":{\"field\":\"v\",\"type\":\"quantitative\",\"stack\":true},\"color\":{\"field\":\"g\",\"type\":\"nominal\",\"legend\":null},\"order\":{\"field\":\"o\"}}}")]
+    [InlineData("{\"mark\":\"bar\",\"encoding\":{\"x\":{\"field\":\"a\",\"type\":\"quantitative\"},\"y\":{\"field\":\"v\",\"type\":\"quantitative\"},\"color\":{\"field\":\"g\",\"type\":\"nominal\",\"legend\":null},\"order\":{\"field\":\"o\"}}}")]
+    [InlineData("{\"mark\":{\"type\":\"bar\",\"orient\":\"horizontal\"},\"encoding\":{\"x\":{\"field\":\"a\",\"type\":\"quantitative\"},\"y\":{\"field\":\"v\",\"type\":\"quantitative\"},\"color\":{\"field\":\"g\",\"type\":\"nominal\",\"legend\":null},\"order\":{\"field\":\"o\"}}}")]
+    [InlineData("{\"mark\":\"line\",\"encoding\":{\"x\":{\"field\":\"k\",\"type\":\"quantitative\"},\"y\":{\"field\":\"v\",\"type\":\"quantitative\"},\"order\":{\"field\":\"o\"},\"detail\":[{\"field\":\"d\"}]}}")]
+    [InlineData("{\"mark\":\"tick\",\"encoding\":{\"x\":{\"field\":\"k\",\"type\":\"quantitative\"},\"order\":{\"value\":null},\"detail\":{\"field\":\"d\"}}}")]
+    public void FeatureCatalog_Visit_OrderChannelIsAcceptedForEveryMark(string json)
     {
         // Arrange / Act
         var ids = Visit(json).Select(r => r.Id).ToList();
 
-        // Assert
-        Assert.Equal(reported ? new[] { "vl-channel-order" } : [], ids);
+        // Assert: neither the order nor the detail channel is reported
+        Assert.Empty(ids);
     }
 
     /// <summary>
-    ///     Validates that a secondary position channel is accepted for a bar, rect or rule that has the channel it extends, and reported otherwise.
+    ///     Validates that a secondary position channel is accepted for a bar, rect, rule or area that has the channel it extends, and reported otherwise.
     /// </summary>
     /// <param name="json">The specification text.</param>
     /// <param name="expectedId">The identifier that is expected, or null when there must be no report.</param>
@@ -857,6 +856,9 @@ public class FeatureCatalogTests
     [InlineData("{\"mark\":\"bar\",\"encoding\":{\"x\":{\"field\":\"a\",\"type\":\"quantitative\"},\"x2\":{\"field\":\"b\"}}}", null)]
     [InlineData("{\"mark\":\"rect\",\"encoding\":{\"y\":{\"field\":\"a\",\"type\":\"quantitative\"},\"y2\":{\"field\":\"b\"}}}", null)]
     [InlineData("{\"mark\":\"rule\",\"encoding\":{\"x\":{\"field\":\"a\",\"type\":\"quantitative\"},\"x2\":{\"value\":3}}}", null)]
+    [InlineData("{\"mark\":\"area\",\"encoding\":{\"x\":{\"field\":\"a\",\"type\":\"quantitative\"},\"y\":{\"field\":\"a\",\"type\":\"quantitative\"},\"y2\":{\"field\":\"b\"}}}", null)]
+    [InlineData("{\"mark\":\"area\",\"encoding\":{\"x\":{\"field\":\"a\",\"type\":\"quantitative\"},\"y2\":{\"field\":\"b\"}}}", "vl-channel-y2")]
+    [InlineData("{\"mark\":\"line\",\"encoding\":{\"x\":{\"field\":\"a\",\"type\":\"quantitative\"},\"x2\":{\"field\":\"b\"}}}", "vl-channel-x2")]
     [InlineData("{\"mark\":\"point\",\"encoding\":{\"x\":{\"field\":\"a\",\"type\":\"quantitative\"},\"x2\":{\"field\":\"b\"}}}", "vl-channel-x2")]
     [InlineData("{\"mark\":\"tick\",\"encoding\":{\"y\":{\"field\":\"a\",\"type\":\"quantitative\"},\"y2\":{\"field\":\"b\"}}}", "vl-channel-y2")]
     [InlineData("{\"mark\":\"bar\",\"encoding\":{\"y\":{\"field\":\"a\",\"type\":\"quantitative\"},\"x2\":{\"field\":\"b\"}}}", "vl-channel-x2")]
@@ -930,8 +932,8 @@ public class FeatureCatalogTests
         // Arrange
         const string json = """
             {
-              "hconcat": [ { "mark": "arc" }, { "vconcat": [ { "mark": "text" } ] } ],
-              "concat": [], "facet": { "row": { "field": "a" } }, "spec": { "mark": "line" }, "repeat": [ "a" ],
+              "hconcat": [ { "mark": "geoshape" }, { "vconcat": [ { "mark": "image" } ] } ],
+              "concat": [], "facet": { "row": { "field": "a" } }, "spec": { "mark": "geoshape" }, "repeat": [ "a" ],
               "resolve": { "scale": { "x": "independent" } }, "projection": { "type": "albers" }
             }
             """;
@@ -943,12 +945,12 @@ public class FeatureCatalogTests
         Assert.Equal(
             [
                 ("vl-composition-hconcat", "/hconcat"),
-                ("vl-mark-arc", "/hconcat/0/mark"),
+                ("vl-mark-geoshape", "/hconcat/0/mark"),
                 ("vl-composition-vconcat", "/hconcat/1/vconcat"),
-                ("vl-mark-text", "/hconcat/1/vconcat/0/mark"),
+                ("vl-mark-image", "/hconcat/1/vconcat/0/mark"),
                 ("vl-composition-concat", "/concat"),
                 ("vl-composition-facet", "/facet"),
-                ("vl-mark-line", "/spec/mark"),
+                ("vl-mark-geoshape", "/spec/mark"),
                 ("vl-composition-repeat", "/repeat"),
                 ("vl-projection", "/projection"),
             ],
@@ -983,14 +985,14 @@ public class FeatureCatalogTests
     public void FeatureCatalog_Visit_ReportsAreInDocumentOrder()
     {
         // Arrange: the encoding is written before the mark, and a nested view before the parent's later properties
-        const string json = "{\"encoding\":{\"shape\":{\"field\":\"a\"}},\"layer\":[{\"mark\":\"arc\"}],\"mark\":\"text\"}";
+        const string json = "{\"encoding\":{\"shape\":{\"field\":\"a\"}},\"layer\":[{\"mark\":\"geoshape\"}],\"mark\":\"image\"}";
 
         // Act
         var ids = Visit(json);
 
         // Assert
         Assert.Equal(
-            [("vl-channel-shape", "/encoding/shape"), ("vl-composition-layer", "/layer"), ("vl-mark-arc", "/layer/0/mark"), ("vl-mark-text", "/mark")],
+            [("vl-channel-shape", "/encoding/shape"), ("vl-composition-layer", "/layer"), ("vl-mark-geoshape", "/layer/0/mark"), ("vl-mark-image", "/mark")],
             ids);
     }
 
@@ -1545,5 +1547,327 @@ public class FeatureCatalogTests
         Assert.Equal([("vl-expr-function-now", "/encoding/color/condition/value/expr")], value);
         Assert.Empty(field);
         Assert.Equal([("vl-type-geojson", "/encoding/color/condition/type")], geo);
+    }
+
+    /// <summary>
+    ///     Validates that <c>vl-encoding-impute</c> is reported only for a channel other than <c>x</c> and <c>y</c> (the impute of a position channel is run by the
+    ///     pipeline), that an explicit null is never reported, and that the report is at the <c>impute</c> value.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Report_ImputeIsReportedOnlyOutsideXAndY()
+    {
+        // Arrange: a bar chart, so that no mark report is mixed in
+        const string json = """
+            {
+              "data": { "values": [ { "t": 1, "v": 2, "g": "a" } ] },
+              "mark": "bar",
+              "encoding": {
+                "x": { "field": "t", "type": "quantitative", "impute": { "value": 0 } },
+                "y": { "field": "v", "type": "quantitative", "impute": { "method": "mean", "keyvals": [1, 2] } },
+                "color": { "field": "g", "type": "nominal", "impute": { "value": 1 } },
+                "size": { "field": "v", "type": "quantitative", "impute": null }
+              }
+            }
+            """;
+
+        // Act
+        var reports = FeatureCatalog.Visit(SpecParser.Parse(json));
+
+        // Assert
+        Assert.Equal([("vl-encoding-impute", "/encoding/color/impute")], reports.Select(r => (r.Id, r.Location.Pointer)));
+        Assert.Contains("'color'", reports[0].Message, StringComparison.Ordinal);
+        Assert.Equal(FeatureReportKind.UnsupportedFeature, reports[0].Kind);
+    }
+
+    /// <summary>
+    ///     Validates the warning <c>vl-encoding-stack-impute-bin</c>: a stacked line or area with stack-by fields whose dimension channel is binned is not imputed, and
+    ///     the warning is located at the dimension definition; no warning without the bin, without a layer, with <c>impute: null</c> on the stacked channel, for a mark that
+    ///     is not a path mark or when the marks are not stacked.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Report_StackImputeBinWarnsAboutABinnedDimension()
+    {
+        // Arrange
+        static string Area(string mark, string x, string y, string color) =>
+            "{\"mark\":\"" + mark + "\",\"encoding\":{\"x\":" + x + ",\"y\":" + y + color + "}}";
+        const string Binned = """{"field":"t","type":"quantitative","bin":true}""";
+        const string Plain = """{"field":"t","type":"ordinal"}""";
+        const string Measure = """{"field":"v","type":"quantitative"}""";
+        const string Layer = ",\"color\":{\"field\":\"g\",\"type\":\"nominal\"}";
+        static List<(string Id, string Pointer)> Stack(string json) => [.. FeatureCatalog.Visit(SpecParser.Parse(json)).Where(r => r.Id == "vl-encoding-stack-impute-bin").Select(r => (r.Id, r.Location.Pointer))];
+
+        // Act
+        var area = FeatureCatalog.Visit(SpecParser.Parse(Area("area", Binned, Measure, Layer))).Where(r => r.Id == "vl-encoding-stack-impute-bin").ToList();
+        var line = Stack(Area("line", Binned, """{"field":"v","type":"quantitative","stack":"zero"}""", Layer));
+        var horizontal = Stack("{\"mark\":\"area\",\"encoding\":{\"y\":" + Binned + ",\"x\":" + Measure + Layer + "}}");
+
+        // Assert: located at the dimension definition, as a warning
+        Assert.Single(area);
+        Assert.Equal("/encoding/x", area[0].Location.Pointer);
+        Assert.Equal(FeatureReportKind.Warning, area[0].Kind);
+        Assert.Contains("binned 'x' channel", area[0].Message, StringComparison.Ordinal);
+        Assert.Equal([("vl-encoding-stack-impute-bin", "/encoding/x")], line);
+        Assert.Equal([("vl-encoding-stack-impute-bin", "/encoding/y")], horizontal);
+
+        // Assert: nothing to warn about without the bin, a layer or the stack impute, or for another mark
+        Assert.Empty(Stack(Area("area", Plain, Measure, Layer)));
+        Assert.Empty(Stack(Area("area", Binned, Measure, string.Empty)));
+        Assert.Empty(Stack(Area("area", Binned, """{"field":"v","type":"quantitative","impute":null}""", Layer)));
+        Assert.Empty(Stack(Area("area", Binned, """{"field":"v","type":"quantitative","stack":null}""", Layer)));
+        Assert.Empty(Stack(Area("bar", Binned, Measure, Layer)));
+        Assert.Empty(Stack(Area("line", Binned, Measure, Layer)));
+        Assert.Single(Stack(Area("area", Binned, """{"field":"v","type":"quantitative","impute":{"value":1}}""", Layer)));
+    }
+
+    /// <summary>
+    ///     Validates that <c>line</c>, <c>area</c> and <c>trail</c> are drawn (no report, not even with the properties that they read), and that <c>geoshape</c>, <c>image</c> and the
+    ///     composite marks are still reported at the mark.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Report_LineAreaTrailAreSupportedAndGeoshapeImageAreNot()
+    {
+        // Arrange: a path mark with every property that the mark builder reads
+        const string properties = """
+            "interpolate": "monotone", "tension": 0.5, "invalid": "break-paths-show-path-domains", "order": false, "strokeDash": [4, 2], "strokeDashOffset": 1,
+            "strokeCap": "round", "strokeJoin": "round", "strokeMiterLimit": 3, "point": { "color": "red" }, "line": true
+            """;
+        foreach (var type in new[] { "line", "area", "trail" })
+        {
+            // Act
+            var reports = Visit("{ \"mark\": { \"type\": \"" + type + "\", " + properties + " }, \"encoding\": { \"x\": { \"field\": \"a\", \"type\": \"quantitative\" } } }");
+
+            // Assert
+            Assert.Empty(reports);
+            Assert.Empty(Visit("{ \"mark\": \"" + type + "\" }"));
+        }
+
+        // Assert: the marks that stay unsupported are reported at the mark (also with the properties of a path mark)
+        foreach (var type in new[] { "geoshape", "image", "boxplot", "errorbar", "errorband" })
+        {
+            Assert.Equal([("vl-mark-" + type, "/mark")], Visit("{ \"mark\": { \"type\": \"" + type + "\", \"invalid\": \"show\", \"interpolate\": \"bundle\" } }"));
+        }
+    }
+
+    /// <summary>
+    ///     Validates which channels the path marks accept and which they report: <c>x2</c> and <c>y2</c> for an area with the channel they extend, <c>size</c> not for an area,
+    ///     <c>strokeDash</c> not for an area and a trail, <c>shape</c> and <c>angle</c> never, and <c>order</c> and <c>detail</c> always.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Report_ChannelGatingFollowsTheSupportTable()
+    {
+        // Arrange: (mark, extra channels, expected identifiers)
+        (string Mark, string Channels, string[] Expected)[] table =
+        [
+            ("area", ", \"y2\": { \"field\": \"c\" }", []),
+            ("area", ", \"x2\": { \"field\": \"c\" }", []),
+            ("line", ", \"y2\": { \"field\": \"c\" }", ["vl-channel-y2"]),
+            ("trail", ", \"x2\": { \"field\": \"c\" }", ["vl-channel-x2"]),
+            ("area", ", \"size\": { \"field\": \"c\", \"type\": \"quantitative\" }", ["vl-channel-size"]),
+            ("line", ", \"size\": { \"field\": \"c\", \"type\": \"quantitative\" }", []),
+            ("trail", ", \"size\": { \"field\": \"c\", \"type\": \"quantitative\" }", []),
+            ("line", ", \"strokeDash\": { \"field\": \"c\", \"type\": \"nominal\" }", []),
+            ("area", ", \"strokeDash\": { \"field\": \"c\", \"type\": \"nominal\" }", ["vl-channel-strokedash"]),
+            ("trail", ", \"strokeDash\": { \"field\": \"c\", \"type\": \"nominal\" }", ["vl-channel-strokedash"]),
+            ("line", ", \"shape\": { \"field\": \"c\", \"type\": \"nominal\" }", ["vl-channel-shape"]),
+            ("area", ", \"angle\": { \"field\": \"c\", \"type\": \"quantitative\" }", ["vl-channel-angle"]),
+            ("line", ", \"detail\": [ { \"field\": \"c\" } ], \"order\": { \"field\": \"d\" }", []),
+            ("area", ", \"detail\": { \"field\": \"c\" }, \"order\": [ { \"field\": \"d\" } ]", []),
+            ("trail", ", \"order\": { \"value\": null }", []),
+            ("bar", ", \"detail\": { \"field\": \"c\" }", []),
+            ("line", ", \"text\": { \"field\": \"c\" }", ["vl-channel-text"]),
+            ("line", ", \"theta\": { \"field\": \"c\" }", ["vl-channel-theta"]),
+        ];
+
+        foreach (var (mark, channels, expected) in table)
+        {
+            // Act
+            var json = "{ \"mark\": \"" + mark + "\", \"encoding\": { \"x\": { \"field\": \"a\", \"type\": \"quantitative\" }, \"y\": { \"field\": \"b\", \"type\": \"quantitative\", \"stack\": null }" + channels + " } }";
+            var ids = Visit(json).Select(r => r.Id).ToList();
+
+            // Assert
+            Assert.Equal(expected, ids);
+        }
+    }
+
+    /// <summary>
+    ///     Validates the identifiers of the invalid data modes and of the bundle interpolation of an area: <c>show</c> and null are unsupported, the modes that filter the domains
+    ///     are warned about, and the bundle interpolation of an area (not of a line) is unsupported.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Report_InvalidShowDomainsAndBundleAreaIds()
+    {
+        // Arrange
+        static List<(string Id, string Pointer, FeatureReportKind Kind)> Report(string mark) =>
+            [.. FeatureCatalog.Visit(SpecParser.Parse("{ \"mark\": " + mark + " }")).Select(r => (r.Id, r.Location.Pointer, r.Kind))];
+
+        // Assert: show and null cannot be drawn, so they are unsupported, at the value
+        Assert.Equal([("vl-mark-invalid-show", "/mark/invalid", FeatureReportKind.UnsupportedFeature)], Report("""{ "type": "line", "invalid": "show" }"""));
+        Assert.Equal([("vl-mark-invalid-show", "/mark/invalid", FeatureReportKind.UnsupportedFeature)], Report("""{ "type": "area", "invalid": null }"""));
+
+        // Assert: the modes that leave the invalid rows out of the scale domains are warned about
+        Assert.Equal([("vl-mark-invalid-domains", "/mark/invalid", FeatureReportKind.Warning)], Report("""{ "type": "line", "invalid": "filter" }"""));
+        Assert.Equal([("vl-mark-invalid-domains", "/mark/invalid", FeatureReportKind.Warning)], Report("""{ "type": "trail", "invalid": "break-paths-filter-domains" }"""));
+
+        // Assert: the modes that keep the rows in the domains are not reported
+        Assert.Empty(Report("""{ "type": "line", "invalid": "break-paths-show-domains" }"""));
+        Assert.Empty(Report("""{ "type": "line", "invalid": "break-paths-show-path-domains" }"""));
+
+        // Assert: the bundle interpolation of an area is unsupported, at the value; a line draws it and another interpolation is fine for an area
+        Assert.Equal([("vl-mark-interpolate-bundle-area", "/mark/interpolate", FeatureReportKind.UnsupportedFeature)], Report("""{ "type": "area", "interpolate": "bundle" }"""));
+        Assert.Empty(Report("""{ "type": "line", "interpolate": "bundle" }"""));
+        Assert.Empty(Report("""{ "type": "area", "interpolate": "step" }"""));
+    }
+
+    /// <summary>
+    ///     Validates that the <c>invalid</c> mode and the <c>interpolate</c> name that a mark gets from the configuration (<c>config.&lt;mark&gt;</c>, <c>config.mark</c> and <c>config.style</c>) are reported
+    ///     exactly as when the mark definition gives them, at the value in the configuration, with the same precedence as the mark builder uses, and once however many marks use the value.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Report_ConfigValuesOfInvalidAndInterpolateAreReportedAtTheConfig()
+    {
+        // Arrange
+        static List<(string Id, string Pointer, FeatureReportKind Kind)> Report(string json) =>
+            [.. FeatureCatalog.Visit(SpecParser.Parse(json)).Where(r => r.Id.StartsWith("vl-mark-", StringComparison.Ordinal)).Select(r => (r.Id, r.Location.Pointer, r.Kind))];
+
+        // Assert: show and null from config.<mark> and config.mark, at the value in the configuration; the filter modes warn
+        Assert.Equal([("vl-mark-invalid-show", "/config/line/invalid", FeatureReportKind.UnsupportedFeature)], Report("""{ "mark": "line", "config": { "line": { "invalid": "show" } } }"""));
+        Assert.Equal([("vl-mark-invalid-show", "/config/mark/invalid", FeatureReportKind.UnsupportedFeature)], Report("""{ "mark": { "type": "area" }, "config": { "mark": { "invalid": null } } }"""));
+        Assert.Equal([("vl-mark-invalid-domains", "/config/mark/invalid", FeatureReportKind.Warning)], Report("""{ "mark": "trail", "config": { "mark": { "invalid": "filter" } } }"""));
+        Assert.Empty(Report("""{ "mark": "line", "config": { "mark": { "invalid": "break-paths-show-domains" } } }"""));
+
+        // Assert: the configuration of another mark type does not apply
+        Assert.Empty(Report("""{ "mark": "line", "config": { "area": { "invalid": "show" } } }"""));
+
+        // Assert: the bundle interpolation of an area from the configuration is reported, that of a line is not; an unknown name is reported for a line and an area (it is drawn as a linear
+        // line), but not for a mark that has no curve
+        Assert.Equal([("vl-mark-interpolate-bundle-area", "/config/area/interpolate", FeatureReportKind.UnsupportedFeature)], Report("""{ "mark": "area", "config": { "area": { "interpolate": "bundle" } } }"""));
+        Assert.Equal([("vl-mark-interpolate-bundle-area", "/config/mark/interpolate", FeatureReportKind.UnsupportedFeature)], Report("""{ "mark": "area", "config": { "mark": { "interpolate": "bundle" } } }"""));
+        Assert.Empty(Report("""{ "mark": "line", "config": { "line": { "interpolate": "bundle" } } }"""));
+        Assert.Equal([("vl-mark-interpolate-unknown", "/config/line/interpolate", FeatureReportKind.UnsupportedFeature)], Report("""{ "mark": "line", "config": { "line": { "interpolate": "zigzag" } } }"""));
+        Assert.Equal([("vl-mark-interpolate-unknown", "/config/mark/interpolate", FeatureReportKind.UnsupportedFeature)], Report("""{ "mark": "area", "config": { "mark": { "interpolate": "catmull-rom-open" } } }"""));
+        Assert.Empty(Report("""{ "mark": "trail", "config": { "mark": { "interpolate": "zigzag" } } }"""));
+        Assert.Empty(Report("""{ "mark": "bar", "config": { "mark": { "interpolate": "zigzag" } } }"""));
+        Assert.Empty(Report("""{ "mark": "line", "config": { "mark": { "interpolate": 3 } } }"""));
+
+        // Assert: the mark definition wins over the configuration, config.<mark> over config.mark, and a style of the mark over both of those (the later style wins)
+        Assert.Empty(Report("""{ "mark": { "type": "line", "invalid": "break-paths-show-domains" }, "config": { "line": { "invalid": "show" } } }"""));
+        Assert.Empty(Report("""{ "mark": "line", "config": { "line": { "invalid": "break-paths-show-domains" }, "mark": { "invalid": "show" } } }"""));
+        Assert.Equal(
+            [("vl-mark-invalid-show", "/config/style/loud/invalid", FeatureReportKind.UnsupportedFeature)],
+            Report("""{ "mark": { "type": "line", "style": "loud" }, "config": { "line": { "invalid": "filter" }, "style": { "loud": { "invalid": "show" } } } }"""));
+        Assert.Empty(Report("""{ "mark": { "type": "line", "style": ["loud", "quiet"] }, "config": { "style": { "loud": { "invalid": "show" }, "quiet": { "invalid": "break-paths-show-domains" } } } }"""));
+
+        // Assert: the style of the mark type itself (config.style.line) is read, as the mark builder reads it
+        Assert.Equal(
+            [("vl-mark-invalid-show", "/config/style/line/invalid", FeatureReportKind.UnsupportedFeature)],
+            Report("""{ "mark": "line", "config": { "style": { "line": { "invalid": "show" } } } }"""));
+
+        // Assert: a value in the configuration that two marks use is reported once
+        Assert.Equal(
+            [("vl-mark-invalid-show", "/config/mark/invalid", FeatureReportKind.UnsupportedFeature)],
+            Report("""{ "layer": [ { "mark": "line" }, { "mark": "point" } ], "config": { "mark": { "invalid": "show" } } }"""));
+
+        // Assert: an unsupported mark is reported at the mark only, as before
+        Assert.Equal([("vl-mark-geoshape", "/mark", FeatureReportKind.UnsupportedFeature)], Report("""{ "mark": "geoshape", "config": { "mark": { "invalid": "show" } } }"""));
+    }
+
+    /// <summary>
+    ///     Validates that the text mark is supported, that the <c>text</c> channel is drawn by it only (any other mark reports <c>vl-channel-text</c> and ignores the channel), that a binned
+    ///     text field is supported, that a custom <c>formatType</c> of the channel is reported and the evaluated ones are not, and that the <c>size</c> and <c>angle</c> channels are drawn by text.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Report_TextIsSupportedAndItsChannelsAreGated()
+    {
+        // Assert: the mark is not reported, as a string and as a definition, with its own properties
+        Assert.Empty(Visit("""{ "mark": "text" }"""));
+        Assert.Empty(Visit("""{ "mark": { "type": "text", "text": ["a", "b"], "lineBreak": "|", "limit": 40, "fontWeight": 700 } }"""));
+
+        // Assert: the text channel is drawn by the text mark, with a size, an angle, a format and a bin
+        Assert.Empty(Visit(
+            """
+            { "mark": "text", "encoding": { "x": { "field": "a", "type": "quantitative" }, "size": { "field": "b", "type": "quantitative" }, "angle": { "value": 30 },
+              "text": { "field": "c", "type": "quantitative", "format": ".2f", "formatType": "number", "bin": true } } }
+            """));
+        Assert.Empty(Visit("""{ "mark": "text", "encoding": { "text": { "field": "c", "type": "temporal", "format": "%Y", "formatType": "utc" } } }"""));
+        Assert.Empty(Visit("""{ "mark": "text", "encoding": { "text": { "value": ["a", "b"] } } }"""));
+
+        // Assert: every other mark ignores the channel and says so at the channel
+        foreach (var mark in new[] { "point", "circle", "square", "bar", "rect", "tick", "rule", "line", "area", "trail" })
+        {
+            Assert.Equal(
+                [("vl-channel-text", "/encoding/text")],
+                Visit("{ \"mark\": \"" + mark + "\", \"encoding\": { \"text\": { \"field\": \"c\", \"type\": \"nominal\" } } }"));
+        }
+
+        // Assert: a custom format type is reported at the formatType; number, time and utc are evaluated
+        Assert.Equal(
+            [("vl-format-type-custom", "/encoding/text/formatType")],
+            Visit("""{ "mark": "text", "encoding": { "text": { "field": "c", "type": "quantitative", "format": "x", "formatType": "mine" } } }"""));
+        foreach (var formatType in new[] { "number", "time", "utc" })
+        {
+            Assert.Empty(Visit("{ \"mark\": \"text\", \"encoding\": { \"text\": { \"field\": \"c\", \"type\": \"quantitative\", \"formatType\": \"" + formatType + "\" } } }"));
+        }
+
+        // Assert: a bin that is binned already has no meaning for a label (the position channels read it), a plain bin does
+        Assert.Equal(
+            [("vl-encoding-bin", "/encoding/text/bin")],
+            Visit("""{ "mark": "text", "encoding": { "text": { "field": "c", "type": "quantitative", "bin": "binned" } } }"""));
+    }
+
+    /// <summary>
+    ///     Validates that the arc mark is supported with its own properties, that <c>theta</c> and <c>radius</c> are drawn by an arc and a text mark and <c>theta2</c> and <c>radius2</c> by an arc only
+    ///     (every other mark reports <c>vl-channel-&lt;name&gt;</c> at the channel and ignores it), that <c>size</c> and <c>strokeDash</c> are reported on an arc, that the <c>bandPosition</c> of a
+    ///     stacked polar channel of a text mark is accepted, and that the geographic channels and the marks that stay unsupported still report.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Report_ArcIsSupportedAndPolarChannelsAreGated()
+    {
+        // Assert: the mark is not reported, as a string and as a definition, with its own properties and every polar channel
+        Assert.Empty(Visit("""{ "mark": "arc" }"""));
+        Assert.Empty(Visit("""{ "mark": { "type": "arc", "innerRadius": 20, "outerRadius": 80, "radius": 90, "radius2": 10, "theta": 0, "theta2": 1, "padAngle": 0.02, "cornerRadius": 3 } }"""));
+        Assert.Empty(Visit(
+            """
+            { "mark": "arc", "encoding": { "theta": { "field": "a", "type": "quantitative", "stack": true }, "radius": { "field": "b", "type": "quantitative", "scale": { "type": "sqrt", "zero": true, "rangeMin": 20 } },
+              "theta2": { "value": 3 }, "radius2": { "field": "c", "type": "quantitative" }, "color": { "field": "d", "type": "nominal" } } }
+            """));
+
+        // Assert: a text mark draws theta and radius but not their second ends
+        Assert.Empty(Visit("""{ "mark": "text", "encoding": { "theta": { "field": "a", "type": "quantitative" }, "radius": { "value": 60 } } }"""));
+        Assert.Equal(
+            [("vl-channel-theta2", "/encoding/theta2"), ("vl-channel-radius2", "/encoding/radius2")],
+            Visit("""{ "mark": "text", "encoding": { "theta2": { "field": "a", "type": "quantitative" }, "radius2": { "value": 1 } } }"""));
+
+        // Assert: every other mark reports all four channels at the channel
+        foreach (var mark in new[] { "point", "circle", "square", "bar", "rect", "tick", "rule", "line", "area", "trail" })
+        {
+            Assert.Equal(
+                [("vl-channel-theta", "/encoding/theta"), ("vl-channel-radius", "/encoding/radius"), ("vl-channel-theta2", "/encoding/theta2"), ("vl-channel-radius2", "/encoding/radius2")],
+                Visit("{ \"mark\": \"" + mark + "\", \"encoding\": { \"theta\": { \"field\": \"a\" }, \"radius\": { \"field\": \"b\" }, \"theta2\": { \"field\": \"a\" }, \"radius2\": { \"field\": \"b\" } } }"));
+        }
+
+        // Assert: an arc has no size and no dash (Vega-Lite ignores them), and still reports a channel that no mark draws
+        Assert.Equal(
+            [("vl-channel-size", "/encoding/size"), ("vl-channel-strokedash", "/encoding/strokeDash"), ("vl-channel-geo", "/encoding/longitude")],
+            Visit(
+                """
+                { "mark": "arc", "encoding": { "size": { "field": "a", "type": "quantitative" }, "strokeDash": { "field": "b", "type": "nominal" }, "longitude": { "field": "c", "type": "quantitative" } } }
+                """));
+
+        // Assert: the band position of a stacked theta or radius of a text mark places the label in its slice and is accepted; anywhere else it is reported as before
+        Assert.Empty(Visit(
+            """
+            { "mark": "text", "encoding": { "theta": { "field": "a", "type": "quantitative", "stack": true, "bandPosition": 0.25 }, "color": { "field": "c", "type": "nominal" } } }
+            """));
+        Assert.Equal(
+            [("vl-encoding-bandposition", "/encoding/theta/bandPosition")],
+            Visit("""{ "mark": "text", "encoding": { "theta": { "field": "a", "type": "quantitative", "stack": false, "bandPosition": 0.25 } } }"""));
+        Assert.Equal(
+            [("vl-encoding-bandposition", "/encoding/theta/bandPosition")],
+            Visit("""{ "mark": "arc", "encoding": { "theta": { "field": "a", "type": "quantitative", "bandPosition": 0.25 } } }"""));
+
+        // Assert: a stack on a sqrt radius is not made, and says so like a stack on a sqrt y
+        Assert.Equal(
+            [("vl-encoding-stack-nonlinear", "/encoding/radius/stack")],
+            Visit("""{ "mark": "arc", "encoding": { "radius": { "field": "a", "type": "quantitative", "stack": true, "scale": { "type": "sqrt" } } } }"""));
     }
 }

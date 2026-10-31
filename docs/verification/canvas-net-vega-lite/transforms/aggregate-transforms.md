@@ -6,7 +6,8 @@ aggregate, bin, window, stack, and impute files) that executes the grouped trans
 `joinaggregate`, `window`, `bin`, `stack`, and `impute` — eagerly over an immutable `DataTable` and returns a new
 table; and the internal types of its files: `AggregateMeasures` and `MeasureCell` (the 24 aggregate and 13 window-only
 operations and their accumulators), `BinAlgorithm` with `BinSettings` and `BinSpec` (the choice of the bin step and the
-assignment of a value to a bin), `StackRules` (the Vega-Lite decision whether and how an encoding stacks), `WorkMeter`
+assignment of a value to a bin), `StackRules` (the Vega-Lite decision whether and how an encoding stacks, along `x` and
+`y` or along `theta` and `radius`), `WorkMeter`
 (the step charge of the per-row work), and `StableSorter` (the stable merge sort of the window and stack engines). The
 same engines serve the implicit pipeline of the encoding; the unit that plans it, `EncodingPlan`, has its own
 verification design.
@@ -49,7 +50,10 @@ descriptions of the algorithms, with the derivation in the test comments:
   `center` of two groups with the sums 10 and 4 starts the narrower group at (10 - 4) / 2 = 3, giving (3, 4), (4, 7).
 - Impute of the series `a` (x = 1 and 3) and `b` (x = 2) appends a/2, b/1, and b/3 after the input rows with the
   default 0; the statistical methods over the group give 20, 5, 5 for `mean` and `median`, 30, 5, 5 for `max`, and
-  10, 5, 5 for `min`; a frame of `[-1, 0]` gives 30, 5, and null.
+  10, 5, 5 for `min`; a frame of `[-1, 0]` gives 30, 5, and null. The typed entry `ImputeField`, which the transform
+  delegates to and the impute of an encoding calls, gives the rows of the transform for the same parameters (the method
+  `max` over the frame `[null, 0]` and the keys 1 to 4 for the same series), and its accounting of the three input rows
+  and six result rows leaves 6 rows counted when the input is given back and 9 when the caller keeps it.
 
 The limits are verified at their exact boundaries: an aggregate of four groups over four rows needs `MaxDataRows` 8
 (the input counts until the output is complete) and fails located at the transform with 7; an impute with six output
@@ -308,7 +312,9 @@ without counting groups in the row budget.
 `AggregateTransformsImputeTests.AggregateTransforms_Impute_FrameIsOverTheGroupInDataOrder`,
 `AggregateTransformsImputeTests.AggregateTransforms_Impute_StatisticalMethodsReplaceExistingNulls`,
 `AggregateTransformsImputeTests.AggregateTransforms_Impute_KeysAreStructuralAndDuplicatesCountOnce`,
-`AggregateTransformsImputeTests.AggregateTransforms_Impute_EmptyInputGivesNoRows`
+`AggregateTransformsImputeTests.AggregateTransforms_Impute_EmptyInputGivesNoRows`,
+`AggregateTransformsImputeTests.AggregateTransforms_ImputeField_MatchesTheTransformAndReadsTheParameters`,
+`AggregateTransformsImputeTests.AggregateTransforms_ImputeField_GivesBackTheInputRowsUnlessTheCallerKeepsThem`
 
 Asserts that the rows `a|1|10|1`, `a|3|30|1`, `b|2|5|1` are followed by `a|2|0|null`, `b|1|0|null`, `b|3|0|null` (the
 keys 1, 3, 2 in first-seen order, group order then key order, the other fields of an imputed row null); that `keyvals`
@@ -317,7 +323,14 @@ step, a negative step, and a step that points away (empty), with the observed ke
 there is one series; that a field no row has is added; the constant forms (a text, a number, and an explicit null that is
 not replaced by 0); the statistical vectors above; that with a statistical method an existing null is replaced as well
 while with a constant it is left alone; that `1` and `"1"` are different keys, a key twice in a group counts once, and
-nothing is added when every group has every key; and that an empty table is returned as it is.
+nothing is added when every group has every key; and that an empty table is returned as it is. For the typed entry that
+the impute of an encoding calls (`ImputeField`, which the transform itself delegates to) it asserts that the field, key,
+group-by, method `max`, frame `[null, 0]`, and keys `[1, 2, 3, 4]` give the same rows in the same order as the transform
+with those parameters, that the shared reader of the parameters gives the defaults (the method `value`, the constant 0,
+and no frame) for `{"impute": "y", "key": "x"}` and reads the method `min`, the constant `n/a`, and the frame `[-1, 1]`
+when they are given, and that a null table or a null object is refused with an `ArgumentNullException`; and that its row
+accounting gives the input rows back by default (the result has six rows, the three input rows and the three imputed
+ones, so 6 stay counted) and keeps them counted when the caller still uses the input table (3 + 6 = 9).
 
 ##### Limits Bound Every Allocation
 
@@ -390,7 +403,10 @@ comparison, and that a canceled token and an exception of the comparison propaga
 `StackRulesTests.StackRules_Decide_ListsTheStackByDefinitionsInChannelOrder`,
 `StackRulesTests.StackRules_Decide_HandlesMissingArguments`,
 `StackRulesTests.StackRules_Decide_NonLinearScaleTypesDoNotStack`,
-`StackRulesTests.StackRules_Helpers_ClassifyDefinitionsAndSwitches`
+`StackRulesTests.StackRules_Helpers_ClassifyDefinitionsAndSwitches`,
+`StackRulesTests.StackRules_Decide_StacksThetaWithRadiusAsTheDimension`,
+`StackRulesTests.StackRules_Decide_RangedPolarMarkIsNotStacked`,
+`StackRulesTests.StackRules_DimensionChannel_PairsTheChannels`
 
 Asserts the Vega-Lite decision: which channel stacks and with which offset (the default for `bar`, `area`, and `arc`),
 that an `area` stacks by default along `y` or along `x` like a bar and an explicit `stack: false` switches it off,
@@ -399,7 +415,17 @@ stacks for an explicit `null` or `false`, a mark that does not stack, an aggrega
 (`x2` or `y2`), or a channel that cannot stack; that a measure whose `scale.type` is `log`, `pow`, `sqrt`, or `symlog` is
 not stacked (by default or with an explicit `stack`, vertical or horizontal) while `linear` and the same type on the dimension
 channel keep the stack; that a missing mark is refused and a missing or non-object encoding
-does not stack; and the small predicates for a field definition, its defaulted type, and what counts as switched on.
+does not stack; and the small predicates for a field definition, its defaulted type, and what counts as switched on. For
+the polar channels it asserts, over twelve encodings, that when `x` and `y` give no stack the same rule runs on `theta`
+and `radius` with each as the dimension of the other (the pie chart of a `theta` and a color stacks `theta` with one
+stack-by field, a color on the field of the `radius` dimension is no layer, a `radius` alone or over a nominal `theta`
+stacks the other way, an explicit `stack: true` on `radius` beside a quantitative `theta` stacks `radius`, `normalize`
+is kept, an aggregate and a `text` mark with `stack: true` stack, and `x` is still decided first), and, over sixteen
+encodings, that two quantitative polar channels with no explicit stack, a `theta2` of a `theta` or a `radius2` of a
+`radius` that is a field or a datum, a binned or nominal measure, `stack: false`, a `sqrt` measure, a single aggregate
+without layers, a `rect`, and a `line` are not stacked while a `theta2` that is a value is not a range; and that the
+dimension channel of `x` is `y` and the reverse, of `theta` is `radius` and the reverse, and any other channel or a null
+is refused.
 
 ##### Cancellation, Determinism, And Culture
 

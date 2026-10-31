@@ -101,13 +101,24 @@ internal sealed partial class SpecParser
     private static readonly Dictionary<string, Rule> AutosizeRules = Rules(
         "type: S=pad|none|fit|fit-x|fit-y", "resize: B", "contains: S=content|padding");
 
+    /// <summary>The 15 interpolation names of Vega-Lite 6 (<c>Interpolate</c>); the Vega-only <c>catmull-rom-open</c> and <c>catmull-rom-closed</c> are not among them.</summary>
+    private static readonly string[] InterpolateNames =
+    [
+        "basis", "basis-open", "basis-closed", "bundle", "cardinal", "cardinal-open", "cardinal-closed", "catmull-rom",
+        "linear", "linear-closed", "monotone", "natural", "step", "step-before", "step-after",
+    ];
+
     /// <summary>The rules for the properties of a mark definition.</summary>
     private static readonly Dictionary<string, Rule> MarkRules = Rules(
         "color: SZO", "fill: SZO", "stroke: SZO", "opacity: NE", "fillOpacity: NE", "strokeOpacity: NE", "size: NE",
         "strokeWidth: NE", "thickness: NE", "binSpacing: NE", "continuousBandSize: NE", "minBandSize: NE",
         "discreteBandSize: NO", "cornerRadius: NE", "angle: NE", "dx: NE", "dy: NE", "filled: BE",
         "orient: SE=horizontal|vertical", "style: ST", "clip: BE", "shape: SE", "strokeDash: AE", "strokeCap: SE",
-        "strokeJoin: SE", "interpolate: SE", "align: SE", "baseline: SE", "font: SE", "fontSize: NE",
+        "strokeJoin: SE", "interpolate: SE=" + string.Join('|', InterpolateNames), "tension: NE", "point: BOSZ=transparent", "line: BZO",
+        "invalid: SZ=filter|break-paths-filter-domains|break-paths-show-domains|break-paths-show-path-domains|show", "order: BZ",
+        "strokeDashOffset: NE", "strokeMiterLimit: NE", "padAngle: NE", "innerRadius: NE", "outerRadius: NE", "radius: NE", "radius2: NE",
+        "theta: NE", "theta2: NE", "align: SE", "baseline: SE", "font: SE", "fontSize: NE", "text: STAE", "fontStyle: SE", "fontWeight: SNE",
+        "limit: NE", "ellipsis: SE", "lineBreak: SE", "lineHeight: NE",
         "x: NSO", "y: NSO", "x2: NSO", "y2: NSO", "width: NO", "height: NO", "timeUnitBandPosition: NE", "timeUnitBandSize: NE");
 
     /// <summary>The rules for the properties of a channel definition.</summary>
@@ -197,6 +208,13 @@ internal sealed partial class SpecParser
     /// <param name="name">The channel name.</param>
     /// <returns><see langword="true"/> when Vega-Lite defines the channel (the feature catalog uses this so that a name the parser already warned about is not reported a second time).</returns>
     public static bool IsChannelName(string name) => ChannelNames.Contains(name);
+
+    /// <summary>
+    ///     Determines whether a name is one of the 15 interpolations of Vega-Lite 6 (<c>Interpolate</c>).
+    /// </summary>
+    /// <param name="name">The name; the comparison is case-sensitive.</param>
+    /// <returns><see langword="true"/> when Vega-Lite defines the interpolation (the feature catalog reports any other name that comes from the configuration, which the parser does not validate).</returns>
+    public static bool IsInterpolateName(string name) => Array.IndexOf(InterpolateNames, name) >= 0;
 
     /// <summary>
     ///     Finds the property that names a transform: the first property of the entry that is a transform name.
@@ -591,6 +609,16 @@ internal sealed partial class SpecParser
                     WarnUnknown(property, "a mark definition");
                 }
 
+                // The point and line overlays are mark definitions without a type
+                foreach (var overlay in new[] { node["point"], node["line"] }.Where(o => o is { IsObject: true }))
+                {
+                    CheckObject(overlay!, MarkRules);
+                    foreach (var property in overlay!.Properties.Where(p => !MarkKeys.Contains(p.Name!)))
+                    {
+                        WarnUnknown(property, "a mark overlay");
+                    }
+                }
+
                 CompileMarkExpressions(node, type.StringValue!);
                 return;
             default:
@@ -667,6 +695,10 @@ internal sealed partial class SpecParser
     {
         CheckObject(definition, ChannelDefRules);
         ValidateAggregationProperties(definition);
+        if (definition["impute"] is { IsObject: true } impute)
+        {
+            ValidateEncodingImpute(impute);
+        }
         foreach (var property in definition.Properties.Where(p => !ChannelDefKeys.Contains(p.Name!)))
         {
             WarnUnknown(property, "a channel definition");

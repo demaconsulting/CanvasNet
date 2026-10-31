@@ -1,5 +1,5 @@
-Third-party license notices: d3-array, d3-format, d3-scale, d3-time, d3-time-format, d3-interpolate, d3-color and d3-scale-chromatic
-===================================================================================================================================
+Third-party license notices: d3-array, d3-format, d3-scale, d3-time, d3-time-format, d3-interpolate, d3-color, d3-scale-chromatic, d3-shape and d3-path
+====================================================================================================================================================
 
 DemaConsulting.CanvasNet.VegaLite contains ports of numeric algorithms of the
 d3-array, d3-format and d3-scale packages (tick generation, tick step
@@ -13,13 +13,17 @@ color interpolation and conversion algorithms of d3-interpolate and d3-color
 (sRGB, HSL, CIELAB and HCL), the quantize, quantile, threshold, sequential and
 diverging scales of d3-scale, and the category color values of
 d3-scale-chromatic (category10, observable10, rainbow, sinebow and the
-ColorBrewer qualitative sets), which are released under the ISC License. The
-license text of each package is reproduced below exactly as published in the
+ColorBrewer qualitative sets), and ports of the curve interpolators and the
+line, area and arc generators of d3-shape (linear, step, basis, cardinal,
+Catmull-Rom, monotone and natural curves) and of the path writer of d3-path
+(move, line, arc and close commands), which are released under the ISC License.
+The license text of each package is reproduced below exactly as published in the
 package repositories (https://github.com/d3/d3-array,
 https://github.com/d3/d3-format, https://github.com/d3/d3-scale,
 https://github.com/d3/d3-time, https://github.com/d3/d3-time-format,
-https://github.com/d3/d3-scale-chromatic, https://github.com/d3/d3-interpolate
-and https://github.com/d3/d3-color).
+https://github.com/d3/d3-scale-chromatic, https://github.com/d3/d3-interpolate,
+https://github.com/d3/d3-color, https://github.com/d3/d3-shape and
+https://github.com/d3/d3-path).
 
 This project is not affiliated with, and is not endorsed or promoted by, the
 D3 project or its authors.
@@ -170,6 +174,44 @@ LICENSE-colorbrewer.txt (with the text of the Apache License, Version 2.0 in
 LICENSE-apache-2.0.txt), shipped next to this file.
 
 Copyright 2010-2024 Mike Bostock
+
+Permission to use, copy, modify, and/or distribute this software for any purpose
+with or without fee is hereby granted, provided that the above copyright notice
+and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
+FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
+THIS SOFTWARE.
+
+
+--------------------------------------------------------------------------
+d3-shape (https://github.com/d3/d3-shape)
+--------------------------------------------------------------------------
+
+Copyright 2010-2022 Mike Bostock
+
+Permission to use, copy, modify, and/or distribute this software for any purpose
+with or without fee is hereby granted, provided that the above copyright notice
+and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
+FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
+THIS SOFTWARE.
+
+
+--------------------------------------------------------------------------
+d3-path (https://github.com/d3/d3-path)
+--------------------------------------------------------------------------
+
+Copyright 2015-2022 Mike Bostock
 
 Permission to use, copy, modify, and/or distribute this software for any purpose
 with or without fee is hereby granted, provided that the above copyright notice

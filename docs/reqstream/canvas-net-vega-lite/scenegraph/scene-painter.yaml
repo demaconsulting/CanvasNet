@@ -2,10 +2,11 @@
 # Software Unit Requirements for ScenePainter
 #
 # These requirements describe the design-level behavior of the ScenePainter unit of the Scenegraph subsystem
-# (internal namespace DemaConsulting.CanvasNet.VegaLite.Scenegraph): the painter that draws a Scene onto a
-# CanvasNet Surface using only the public CanvasNet drawing APIs, at a uniform scale and offset, with the
-# caller owning the surface. See docs/verification/canvas-net-vega-lite/scenegraph/scene-painter.md for the
-# test-evidence mapping.
+# (internal namespace DemaConsulting.CanvasNet.VegaLite.Scenegraph): the painter (ScenePainter.cs and
+# ScenePainter.Paths.cs) that draws a Scene onto a CanvasNet Surface using only the public CanvasNet drawing APIs,
+# at a uniform scale and offset, with the caller owning the surface - including the paths with curved segments, the
+# arc items (through the ArcGeometry unit), the trail items, and the stroke miter limit. See
+# docs/verification/canvas-net-vega-lite/scenegraph/scene-painter.md for the test-evidence mapping.
 
 sections:
   - title: CanvasNetVegaLite Requirements
@@ -100,3 +101,84 @@ sections:
                   leak surfaces.
                 tests:
                   - ScenePainter_Paint_InvalidArgumentsAndCancellation
+
+              - id: CanvasNetVegaLite-Scenegraph-ScenePainter-CurvedPaths
+                title: >-
+                  The ScenePainter unit shall draw a path item that has segments as the outline of its moves, lines,
+                  and cubic Beziers - filled with the nonzero rule and stroked through the curve, each move starting
+                  a separate subpath and a command after a close continuing at the start of the closed subpath - and
+                  shall draw nothing for a path with a segment that has a coordinate that is not finite (and for an
+                  arc or a trail with a parameter that is not finite).
+                justification: |
+                  The line and area marks are drawn from their segments; the painter must follow the curve and
+                  must not be stopped by a value that is not a number.
+                tests:
+                  - ScenePainter_Paint_SegmentPathStrokesThroughItsCubicCurve
+                  - ScenePainter_Paint_ClosedSegmentPathFillsItsInterior
+                  - ScenePainter_Paint_MoveToSegmentsStartSeparateSubpaths
+                  - ScenePainter_Paint_NonFiniteSegmentsArcsAndTrailsDrawNothing
+
+              - id: CanvasNetVegaLite-Scenegraph-ScenePainter-Arcs
+                title: >-
+                  The ScenePainter unit shall draw an arc item by filling the outline that the ArcGeometry unit
+                  builds for its radii, angles, pad angle, and corner radius, translated to its center, so that the
+                  wedge is covered and the hole of a donut is empty, with the stroke, the opacities, and the
+                  placement scale of any other item.
+                justification: |
+                  The pie and donut charts are drawn by the arc item; its pixels must be the wedge and nothing
+                  else, at any scale.
+                tests:
+                  - ScenePainter_Paint_ArcFillsOnlyItsWedgeAndLeavesTheHoleEmpty
+                  - ScenePainter_Paint_ArcStrokeAndOpacityFollowTheItem
+                  - ScenePainter_Paint_PathsAndArcsScaleWithThePlacement
+
+              - id: CanvasNetVegaLite-Scenegraph-ScenePainter-Trails
+                title: >-
+                  The ScenePainter unit shall draw a trail item as the union of the capsules between its
+                  consecutive points - each as wide as the size of its end points, as Vega's trail does - so that
+                  its width follows the size of each point, shall break the trail at the boundary of a run and at a
+                  point with no usable size, and shall draw a circle for coincident points.
+                justification: |
+                  A trail is a line whose width varies with the data; the capsules are what make the width change
+                  smoothly and the runs are how a gap breaks the trail.
+                tests:
+                  - ScenePainter_Paint_TrailWidthFollowsTheSizeOfEachPoint
+                  - ScenePainter_Paint_TrailBreaksAtRunBoundariesAndDrawsCapsForCoincidentPoints
+
+              - id: CanvasNetVegaLite-Scenegraph-ScenePainter-MiterLimit
+                title: >-
+                  The ScenePainter unit shall stroke with the stroke miter limit of the item (the Vega default of 4
+                  when it has none, a value below 1 or that is not finite treated as 1, and a value above 1000 as
+                  1000), so that a sharp join is beveled beyond the limit, and shall give a path the dash, cap,
+                  join, and dash offset of its item.
+                justification: |
+                  The strokeMiterLimit, strokeCap, strokeJoin, and strokeDashOffset properties decide the corners
+                  of lines and outlines, and an extreme limit must not make the stroker misbehave.
+                tests:
+                  - ScenePainter_Paint_StrokeMiterLimitBevelsASharpJoin
+                  - ScenePainter_Paint_PathStrokeHonorsDashCapJoinAndOffset
+
+              - id: CanvasNetVegaLite-Scenegraph-ScenePainter-Bounds
+                title: >-
+                  The ScenePainter unit shall bound the cost of painting every item with one magnitude bound of
+                  32,768 surface pixels (the value times the scale of the placement): it shall draw nothing for
+                  a path with an end point, an arc with a center, radius, or corner radius, a trail point with a
+                  coordinate or size, a text with a position, offset, font size, or line height, a group with an
+                  offset, or a stroke with a width that is not finite or is beyond the bound; it shall draw a
+                  cubic with a control point beyond the bound as a line to its end point; it shall paint a trail
+                  in chunks of a bounded estimated cost and poll the cancellation token before each chunk; and it
+                  shall never throw for such values (in particular not for a font size that is finite as a double
+                  and infinity as a single).
+                justification: |
+                  A coordinate or size that overflows a single, or that is beyond the precision of the core
+                  filler, makes the flattening of one curve cost seconds and cannot be interrupted, and a
+                  font size of 1e300 made the core text renderer throw; the cost of one item must be bounded
+                  and the painting must honor cancellation.
+                tests:
+                  - ScenePainter_Paint_SegmentsBeyondTheMagnitudeBoundDrawNothingOrBecomeLines
+                  - ScenePainter_Paint_ArcsBeyondTheMagnitudeBoundDrawNothing
+                  - ScenePainter_Paint_TrailPointsBeyondTheMagnitudeBoundEndTheRun
+                  - ScenePainter_Paint_TrailIsPaintedInChunksWithACancellationPollBetweenThem
+                  - ScenePainter_Paint_GroupBeyondTheMagnitudeBoundDrawsNothing
+                  - ScenePainter_Paint_TheBoundAppliesToTheSizeInSurfacePixels
+                  - ScenePainter_Paint_TextBeyondTheMagnitudeBoundDrawsNothingAndNeverThrows

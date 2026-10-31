@@ -154,7 +154,8 @@ for example `canvasnet render chart.vl.json -o chart.png --json`. It is a `chart
 `canvasnet formats`, and `canvasnet info chart.vl.json` reports its laid-out size, marks, data sources, parameters,
 title, and schema version without drawing it. The library implements a defined subset of the language (one view with
 inline, local-file, named, or generated data; the row, aggregating, binning, and stacking transforms with a subset of the
-expression language and static parameters; bar, rect, point, circle, square, rule, and tick marks; position, color,
+expression language and static parameters; bar, rect, point, circle, square, rule, tick, line, area, trail, text, and arc
+marks; position, color,
 size, shape, and opacity encodings with legends, color schemes, and time scales and axes), draws only the bundled
 fonts, and never reads the
 network; a chart's CSV, TSV, DSV, or JSON data file is read from the folder of its specification and below it only
@@ -480,7 +481,7 @@ The `DemaConsulting.CanvasNet.VegaLite` package (and the `canvasnet` tool, which
 Vega-Lite specification language and contains a small number of values and algorithms that were ported, with
 attribution, from the Vega and Vega-Lite projects (BSD-3-Clause, Copyright (c) University of Washington Interactive
 Data Lab) and from the d3 libraries d3-array, d3-format, d3-scale, d3-time, d3-time-format, d3-scale-chromatic,
-d3-interpolate, and d3-color (ISC,
+d3-interpolate, d3-color, d3-shape, and d3-path (ISC,
 Copyright Mike Bostock), and its color schemes include the ColorBrewer colors (Apache-2.0, Copyright Cynthia Brewer,
 Mark Harrower, and The Pennsylvania State University), the Turbo color map (Apache-2.0, Copyright Google LLC), the
 cividis color map (Battelle Memorial Institute license), and the matplotlib colormaps viridis, magma, inferno, and

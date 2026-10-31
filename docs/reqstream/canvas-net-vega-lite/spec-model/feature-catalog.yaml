@@ -10,7 +10,10 @@
 # channels of bars, rects, and rules, and added the reports of the parts of them that stay unsupported; Phase 8
 # removed the reports of the temporal type, the time unit, the timeUnit transform, the time scale types, the
 # time unit and date object tests, and the custom date format, and added the reports of the parts of the time
-# phase that stay unsupported). See
+# phase that stay unsupported; Phase 9 removed the reports of the marks line, area, trail, text, and arc, of
+# the channels text, theta, radius, theta2, radius2, order, and detail, and of the impute of x and y, and added the
+# reports of the invalid modes and the bundle area, and narrowed the channel reports to the marks that do not draw
+# the channel). See
 # docs/verification/canvas-net-vega-lite/spec-model/feature-catalog.md for the test-evidence mapping.
 
 sections:
@@ -86,20 +89,21 @@ sections:
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-MarksAndChannels
                 title: >-
                   The FeatureCatalog unit shall report every mark other than bar, rect, point, circle,
-                  square, rule, and tick as vl-mark-type, every channel other than x, y, color, fill,
-                  stroke, size, opacity, shape, strokeWidth, strokeDash, fillOpacity, strokeOpacity, and
-                  angle as vl-channel-name, the shape, angle, and strokeDash channels of a mark that does not
+                  square, rule, tick, line, area, trail, text, and arc as vl-mark-type, every channel other than
+                  x, y, theta, radius, theta2, radius2, text, color, fill, stroke, size, opacity, shape,
+                  strokeWidth, strokeDash, fillOpacity, strokeOpacity, and angle (and the accepted and ignored
+                  tooltip, href, description, and key) as vl-channel-name, the channels of a mark that does not
                   draw them (as vl-channel-name, the channel being ignored), the geographic types, and the
-                  encoding properties impute and bandPosition when they change the
-                  chart (a bandPosition of a field without a time unit), but not the temporal type, the time
-                  unit, the properties aggregate, stack, and sort (in its supported forms) and the
-                  bin of x, y, and the channels that have a scale (which the renderer draws), and no implicit
-                  bar stack; shall
+                  encoding properties impute (on a channel other than x and y) and bandPosition when they change
+                  the chart (a bandPosition of a field without a time unit), but not the temporal type, the time
+                  unit, the properties aggregate, stack, and sort (in its supported forms), the impute of x and
+                  y, and the bin of x, y, and the channels that have a scale (which the renderer draws), and no
+                  implicit bar stack; shall
                   accept the
-                  secondary channels x2 and y2 of a bar, rect, or rule that has the channel they extend and
+                  secondary channels x2 and y2 of a bar, rect, rule, or area that has the channel they extend and
                   report them (vl-channel-x2 and vl-channel-y2) for any other mark or without it; shall
-                  accept the order channel when it orders a stack and report it (vl-channel-order) otherwise;
-                  and shall report the bin of a channel that cannot bin (vl-encoding-bin: a secondary channel and
+                  accept the order and detail channels on every mark without a report; and shall report the
+                  bin of a channel that cannot bin (vl-encoding-bin: a secondary channel and
                   order) and a bin: "binned" on a channel other than x and y (vl-encoding-bin), a bin extent that is a
                   parameter (vl-encoding-bin-extent-param), and an explicit stack of a scale that is not
                   linear (vl-encoding-stack-nonlinear; Vega-Lite does not stack on a log, pow, sqrt, or symlog
@@ -114,11 +118,65 @@ sections:
                   - FeatureCatalog_Visit_ShapeAngleAndDashChannelsAreReportedForMarksThatDoNotDrawThem
                   - FeatureCatalog_Visit_EncodingPropertiesReportOnlyWhenTheyChangeTheChart
                   - FeatureCatalog_Visit_ImplicitBarStackIsNotReported
-                  - FeatureCatalog_Visit_StackOrderChannelIsAcceptedOnlyForAStack
+                  - FeatureCatalog_Visit_OrderChannelIsAcceptedForEveryMark
                   - FeatureCatalog_Visit_SecondaryPositionChannelsAreAcceptedForRanges
                   - FeatureCatalog_Visit_StackOnANonLinearScaleIsReported
                   - FeatureCatalog_Visit_Phase6FeaturesAreNotReportedAndRemainingPartsAre
                   - FeatureCatalog_Visit_BinOnScaleChannelsAndTheBinOrdinalScaleAreSupported
+                  - FeatureCatalog_Visit_ReportsChannelsThatTheMarkDoesNotDraw
+
+              - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-PathMarks
+                title: >-
+                  The FeatureCatalog unit shall not report the line, area, and trail marks, shall report the
+                  invalid modes that the renderer cannot draw (vl-mark-invalid-show for show and for null, at the
+                  value), warn that the filter modes should leave the invalid rows out of the scale domains
+                  (vl-mark-invalid-domains, for filter and break-paths-filter-domains), report an area with the
+                  bundle interpolation (vl-mark-interpolate-bundle-area, drawn with the linear interpolation) and a
+                  line or area whose interpolation is not one of the fifteen names of Vega-Lite
+                  (vl-mark-interpolate-unknown, drawn with the linear interpolation), read the invalid mode and
+                  the interpolation as the mark builder does (the mark definition, then the styles, config.<mark>,
+                  and config.mark of the specification) and report one that comes from the configuration at the
+                  configuration, once, keep
+                  reporting geoshape and image, report the impute of a channel other than x and y
+                  (vl-encoding-impute), and warn that a stacked path mark does not impute a binned dimension
+                  (vl-encoding-stack-impute-bin).
+                justification: |
+                  A path mark that is drawn must not make every chart noisy, and the parts of it that are not drawn
+                  as Vega-Lite draws them must be named where they are written, whether the mark or the
+                  configuration writes them; a value from the configuration that is not reported would be
+                  silently ignored, and the strict mode could not stop it.
+                tests:
+                  - FeatureCatalog_Report_LineAreaTrailAreSupportedAndGeoshapeImageAreNot
+                  - FeatureCatalog_Report_ChannelGatingFollowsTheSupportTable
+                  - FeatureCatalog_Report_InvalidShowDomainsAndBundleAreaIds
+                  - FeatureCatalog_Report_ConfigValuesOfInvalidAndInterpolateAreReportedAtTheConfig
+                  - FeatureCatalog_Report_ImputeIsReportedOnlyOutsideXAndY
+                  - FeatureCatalog_Report_StackImputeBinWarnsAboutABinnedDimension
+
+              - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-TextMark
+                title: >-
+                  The FeatureCatalog unit shall not report the text mark or its text channel, shall report the
+                  text channel of any other mark as not drawn (vl-channel-text), accept a bin on the text channel,
+                  and report a custom format type of a text channel (vl-format-type-custom, at the format type,
+                  the default format being used).
+                justification: |
+                  A label that is drawn must not be reported; a text channel that nothing draws, and a format that
+                  the renderer replaces, must be named.
+                tests:
+                  - FeatureCatalog_Report_TextIsSupportedAndItsChannelsAreGated
+
+              - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-ArcMark
+                title: >-
+                  The FeatureCatalog unit shall not report the arc mark or the theta, radius, theta2, and radius2
+                  channels of a mark that draws them (theta and radius for arc and text, theta2 and radius2 for
+                  arc), shall report them as not drawn (vl-channel-name) on any other mark, shall accept the band
+                  position of a stacked theta or radius of a text mark, and shall check the stack of a polar
+                  channel on a scale that is not linear (vl-encoding-stack-nonlinear).
+                justification: |
+                  A pie or donut chart is drawn without a report, and a polar channel that a mark ignores must be
+                  named where it is written.
+                tests:
+                  - FeatureCatalog_Report_ArcIsSupportedAndPolarChannelsAreGated
 
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-ScalesAndGuides
                 title: >-

@@ -1,0 +1,143 @@
+---
+# Software Unit Requirements for CurveBuilder
+#
+# These requirements describe the design-level behavior of the CurveBuilder unit of the Marks subsystem
+# (internal namespace DemaConsulting.CanvasNet.VegaLite.Marks): the interpolation of the line and area marks
+# (CurveBuilder.cs, CurveBuilder.Splines.cs, and CurveBuilder.Generators.cs) - the literal ports of the d3-shape curve
+# classes (linear, linear-closed, the step family, basis, basis-open, basis-closed, bundle, cardinal, cardinal-open,
+# cardinal-closed, catmull-rom, monotoneX, monotoneY, and natural), of the d3-shape line and area generators with their
+# defined predicate, the names of the fifteen Vega-Lite interpolation values, and the upper bound of the number of
+# path segments that the builder charges before it generates them. The rules follow d3-shape (ISC) and Vega-Lite
+# behavior, attributed in src/DemaConsulting.CanvasNet.VegaLite/third-party/README.md. See
+# docs/verification/canvas-net-vega-lite/marks/curve-builder.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Marks Requirements
+        sections:
+          - title: CurveBuilder Requirements
+            requirements:
+              - id: CanvasNetVegaLite-Marks-CurveBuilder-LinearAndStep
+                title: >-
+                  The CurveBuilder unit shall generate the polyline of the linear curve (a move to the first point
+                  and a line to each of the others), the closed polyline of the linear-closed curve, and the
+                  staircases of the step, step-before, and step-after curves (a step at the middle of two points, at
+                  the first, and at the second), exactly as d3-shape draws them, as absolute move and line
+                  segments.
+                justification: |
+                  The straight and stepped paths are the default interpolations of a line chart and must match the
+                  coordinates that d3-shape (and therefore Vega-Lite) produces.
+                tests:
+                  - CurveBuilder_Line_LinearAndLinearClosedMatchTheAnchors
+                  - CurveBuilder_Line_StepVariantsMatchTheHandDerivedAnchors
+
+              - id: CanvasNetVegaLite-Marks-CurveBuilder-Basis
+                title: >-
+                  The CurveBuilder unit shall generate the cubic Bezier segments of the basis, basis-open, and
+                  basis-closed B-spline curves, and of the bundle curve (the basis curve straightened by the
+                  tension, which is its beta, with a beta of one giving the basis curve), with the control points
+                  that d3-shape computes.
+                justification: |
+                  The B-spline interpolations smooth a path without passing through its points; their control
+                  points decide the shape of the curve.
+                tests:
+                  - CurveBuilder_Line_BasisFamilyMatchesTheHandDerivedBeziers
+                  - CurveBuilder_Line_BundleWithBetaOneEqualsBasis
+
+              - id: CanvasNetVegaLite-Marks-CurveBuilder-Cardinal
+                title: >-
+                  The CurveBuilder unit shall generate the cubic Bezier segments of the cardinal, cardinal-open,
+                  and cardinal-closed curves with the control points of the tension formula (k = (1 - tension) / 6)
+                  and of the catmull-rom curve with its alpha (the tension), the centripetal and chordal
+                  forms of d3-shape, a catmull-rom with an alpha of zero being the cardinal curve of
+                  tension zero.
+                justification: |
+                  The cardinal and catmull-rom interpolations pass through the points; the tension and alpha
+                  decide how tightly, and must act as they do in Vega-Lite.
+                tests:
+                  - CurveBuilder_Line_CardinalFamilyUsesTheTensionFormula
+                  - CurveBuilder_Line_CatmullRomWithAlphaZeroEqualsCardinal
+
+              - id: CanvasNetVegaLite-Marks-CurveBuilder-Splines
+                title: >-
+                  The CurveBuilder unit shall generate the monotone-x curve (a cubic Hermite spline whose
+                  tangents keep monotone data monotone, with the slopes of d3-shape), the monotone-y curve (the
+                  monotone-x curve of the points with their coordinates swapped, swapped back), and the natural
+                  cubic spline (the control points that d3-shape solves for).
+                justification: |
+                  The monotone and natural splines are the interpolations that never overshoot (monotone) and
+                  that have continuous curvature (natural), and their tangents must follow d3-shape.
+                tests:
+                  - CurveBuilder_Line_MonotoneXKeepsMonotoneDataMonotone
+                  - CurveBuilder_Line_MonotoneYIsMonotoneXOfTheSwappedPoints
+                  - CurveBuilder_Line_NaturalMatchesTheHandDerivedControlPoints
+
+              - id: CanvasNetVegaLite-Marks-CurveBuilder-DefinedGaps
+                title: >-
+                  The CurveBuilder unit shall start a new subpath at each point that follows an undefined point
+                  (or a point with a coordinate that is not finite), so that a gap breaks the path into runs, shall
+                  draw a run of one point as d3-shape does (a point for the curves that toggle, nothing for the
+                  open curves and the bundle) and shall give an empty path for no points, never emitting a segment
+                  that has a coordinate that is not finite.
+                justification: |
+                  A missing value breaks a line in Vega-Lite; the degenerate counts decide whether a lone point is
+                  drawn, and a non-finite coordinate must never reach the painter.
+                tests:
+                  - CurveBuilder_Line_UndefinedPointsStartNewSubpaths
+                  - CurveBuilder_Line_DegenerateCountsFollowD3
+
+              - id: CanvasNetVegaLite-Marks-CurveBuilder-Area
+                title: >-
+                  The CurveBuilder unit shall generate the closed polygon of an area - the top edge with the curve
+                  from the first to the last point of each defined run, then the baseline back along the same curve
+                  (the area start and end passes of d3-shape) - for the vertical area (the top and the baseline are
+                  y1 and y0 at x) and the horizontal area (x1 and x0 at y), with a separate polygon for each
+                  defined run, and shall report the bundle curve as one that has no area (SupportsArea is false and
+                  Area refuses it) so that the caller falls back to a linear area.
+                justification: |
+                  An area is the region between a curved top and a curved baseline; the baseline must follow the
+                  top so that stacked areas meet, and d3-shape defines no area for the bundle curve.
+                tests:
+                  - CurveBuilder_Area_VerticalAndHorizontalPolygonsMatchTheAnchors
+                  - CurveBuilder_Area_CurvedTopAndBaselineClosePerDefinedRun
+                  - CurveBuilder_Area_BundleIsReportedAsUnsupported
+
+              - id: CanvasNetVegaLite-Marks-CurveBuilder-Names
+                title: >-
+                  The CurveBuilder unit shall accept exactly the fifteen interpolation names of Vega-Lite (basis,
+                  basis-open, basis-closed, bundle, cardinal, cardinal-open, cardinal-closed, catmull-rom, linear,
+                  linear-closed, monotone, natural, step, step-before, and step-after) and reject every other
+                  text, a null name, and the Vega-only names catmull-rom-open and catmull-rom-closed, and shall
+                  resolve monotone to the monotone-x curve for a line and a vertical area and to the monotone-y
+                  curve for a horizontal area.
+                justification: |
+                  The interpolate property is validated against the Vega-Lite names; the monotone curve follows the
+                  orientation of the mark.
+                tests:
+                  - CurveBuilder_TryParse_AcceptsTheFifteenVegaLiteNamesAndRejectsOthers
+                  - CurveBuilder_TryParse_MonotoneFollowsTheAreaOrientation
+
+              - id: CanvasNetVegaLite-Marks-CurveBuilder-Limits
+                title: >-
+                  The CurveBuilder unit shall give an upper bound of the number of segments of a path from the
+                  curve, the defined points, the runs, and whether the path is an area (a bound that is never
+                  below the real count, that charges a run of isolated points only its own cost and not the
+                  worst case of a long run, and that saturates at the largest long instead of overflowing) so
+                  that the caller can charge the scene items before the segments are generated, shall poll the
+                  cancellation token at the first point and then every 1,024 points, shall treat a point whose
+                  coordinate is not finite or is beyond the magnitude bound of the painter as undefined, and
+                  shall emit only coordinates within that bound, replacing a cubic whose control point is beyond
+                  it (for example through a huge tension) by a line to its end point.
+                justification: |
+                  The number of segments of a curved path is a multiple of the number of points; the bound lets the
+                  builder fail closed before the memory is spent and the polling lets a caller abandon a long
+                  path. A coordinate or a tangent beyond the bound would make the painter spend seconds on one
+                  curve, and d3 and Vega-Lite accept any tension, so the bound is applied to what is written.
+                tests:
+                  - CurveBuilder_MaxSegments_IsAnUpperBoundForEveryKind
+                  - CurveBuilder_MaxSegments_IsolatedPointsAreChargedTheirOwnCost
+                  - CurveBuilder_Line_PollsCancellationEvery1024Points
+                  - CurveBuilder_Line_NeverEmitsNonFiniteCoordinates
+                  - CurveBuilder_Line_PointsBeyondTheMagnitudeBoundAreUndefined
+                  - CurveBuilder_Line_HugeTensionDegradesCubicsToLines

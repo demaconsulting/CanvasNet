@@ -25,7 +25,7 @@ public class VegaLiteDocumentSpecModelTests
               "name": "a",
               "name": "b",
               "bogus": 1,
-              "mark": "arc",
+              "mark": "geoshape",
               "transform": [ { "regression": "x", "on": "y" } ]
             }
             """;
@@ -40,7 +40,7 @@ public class VegaLiteDocumentSpecModelTests
             [
                 "W vl-duplicate-key /name 3:3",
                 "W vl-unknown-property /bogus 4:3",
-                "U vl-mark-arc /mark 5:11",
+                "U vl-mark-geoshape /mark 5:11",
                 "U vl-transform-regression /transform/0 6:18",
             ],
             renderEvents);
@@ -55,11 +55,11 @@ public class VegaLiteDocumentSpecModelTests
     public void VegaLiteDocument_Render_StrictModeIgnoresWarningsAndThrowsAtTheFirstUnsupportedFeature()
     {
         // Arrange: only warnings first, then an unsupported mark
-        var document = VegaLiteDocument.Parse("{\"bogus\":1,\"mark\":\"arc\"}");
+        var document = VegaLiteDocument.Parse("{\"bogus\":1,\"mark\":\"geoshape\"}");
 
         // Act / Assert
         var ex = Assert.Throws<VegaLiteUnsupportedFeatureException>(() => document.Render(new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true }, Ct));
-        Assert.Equal("vl-mark-arc", ex.Feature);
+        Assert.Equal("vl-mark-geoshape", ex.Feature);
 
         // Assert: a specification with only warnings renders in strict mode
         using var surface = VegaLiteDocument.Parse("{\"bogus\":1}").Render(new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true }, Ct);

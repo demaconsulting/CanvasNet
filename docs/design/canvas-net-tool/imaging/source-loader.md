@@ -171,7 +171,7 @@ on the machine: `TimeZone` is UTC, `Fonts` use only the bundled fonts (`UseSyste
 background option (`null` when none was given, so the chart keeps its own background, white by default; zero alpha is a
 transparent picture), `ThrowOnUnsupportedFeature` is `Strict`, and the handlers collect the notes. A warning becomes a
 note (`vega-lite`, `warning`, `vega-lite-warning`, the library's `file:line:column /pointer: vl-id: message`); an unsupported
-feature becomes a note (`vega-lite`, `unsupported`, the feature identifier such as `vl-mark-arc` as the code, and
+feature becomes a note (`vega-lite`, `unsupported`, the feature identifier such as `vl-mark-geoshape` as the code, and
 `file:line:column /pointer: message`). There are no options of the chart in this release: no parameters, datasets,
 configuration, or data folders are passed, and there is **no data-folder option** (the shared option grammar of the
 render, inspect, compare, and montage commands has no place for one, and the library's `DataPaths` stay unused). A

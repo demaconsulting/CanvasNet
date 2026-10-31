@@ -5,7 +5,8 @@
 # (internal namespace DemaConsulting.CanvasNet.VegaLite.Scales): the Vega-Lite inference of the scale of each
 # channel of a single view from its encoding, the field types, the mark, the scale properties, the data, and
 # the configuration - including the derived fields, domains, and sort orders of the implicit bin, aggregate, and
-# stack that the EncodingPlan unit plans, and the colors, schemes, and ranges of the color and non-position channels
+# stack that the EncodingPlan unit plans, and the colors, schemes, and ranges of the color and non-position channels,
+# and the polar scales of theta and radius with the channel support table of the marks
 # (ScaleResolver.cs, ScaleResolver.Plan.cs, ScaleResolver.Sort.cs, ScaleResolver.Color.cs, and
 # ScaleResolver.Range.cs, and ScaleResolver.Time.cs for the temporal fields). See
 # docs/verification/canvas-net-vega-lite/scales/scale-resolver.md for the test-evidence mapping.
@@ -39,13 +40,52 @@ sections:
 
               - id: CanvasNetVegaLite-Scales-ScaleResolver-Orient
                 title: >-
-                  The ScaleResolver unit shall infer the orientation of a bar, tick, or rule mark from its
-                  encoding by the Vega-Lite rules, honor an orientation given in the specification, and
-                  give none for point-like marks.
+                  The ScaleResolver unit shall infer the orientation of a bar, tick, rule, line, area, trail, or
+                  arc mark from its encoding by the Vega-Lite rules (an area with y2 is vertical and with x2
+                  horizontal, a binned secondary position reversing it; a temporal axis against a non-temporal
+                  one makes the line, area, and tick follow the temporal axis; a line follows the measure; a trail
+                  and an arc are vertical), honor an orientation given in the specification, and give none for
+                  point-like marks.
                 justification: |
-                  The orientation decides which axis is the measure and which is the thickness of a mark.
+                  The orientation decides which axis is the measure and which is the thickness of a mark, and
+                  which way an area is filled.
                 tests:
                   - ScaleResolver_InferOrient_FollowsVegaLite
+                  - ScaleResolver_InferOrient_AreaRangeAndTemporalRulesFollowVegaLite
+                  - ScaleResolver_InferOrient_LineFollowsTheMeasure
+
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-PolarScales
+                title: >-
+                  The ScaleResolver unit shall resolve the theta and radius channels of an arc or a text mark (and
+                  theta2 and radius2 of an arc, which have no scale of their own) as scales with the default linear
+                  type for a quantitative field, the band type for the arc and the point type for the text of a
+                  discrete field, the explicit sqrt, pow, log, and symlog types, the zero rule of the
+                  configuration, no nice and no padding, the range 0 to 2 pi for theta and 0 to half of the smaller
+                  side of the view for radius (the explicit range, rangeMin, rangeMax, and reverse acting as for
+                  x and y), and for a stacked channel the domain that spans the start and end of the stack.
+                justification: |
+                  The angle and the radius of a pie, a donut, and a radial chart are drawn through these scales,
+                  and the proportions that they show are the data.
+                tests:
+                  - ScaleResolver_Resolve_ThetaHasTheFullCircleRange
+                  - ScaleResolver_Resolve_RadiusRangeIsHalfTheSmallerSideWithRangeMin
+                  - ScaleResolver_Resolve_PolarDefaultsAreLinearZeroNoNice
+                  - ScaleResolver_Resolve_StackedThetaDomainSpansTheStack
+                  - ScaleResolver_Resolve_PolarChannelsAreOnlyResolvedForArcAndText
+
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-ChannelGating
+                title: >-
+                  The ScaleResolver unit shall give a channel a scale only for the marks that draw it (theta and
+                  radius for arc and text, theta2 and radius2 for arc, size for every mark but rect, area, arc,
+                  and image, stroke dash for every mark but rect, area, trail, text, and arc, angle for point,
+                  circle, square, and text, shape for point, and text for text), so that the feature catalog and
+                  the builders agree on which channels a mark ignores.
+                justification: |
+                  A channel that a mark does not draw must be ignored and reported, not resolved into a scale and a
+                  legend that explain nothing.
+                tests:
+                  - ScaleResolver_ChannelIsDrawn_FollowsTheSupportTable
+                  - ScaleResolver_Resolve_ChannelsThatTheMarkDoesNotDrawHaveNoScale
 
               - id: CanvasNetVegaLite-Scales-ScaleResolver-Domains
                 title: >-

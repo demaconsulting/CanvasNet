@@ -297,31 +297,47 @@ internal sealed class TextMeasurer
     /// </summary>
     /// <param name="text">The text.</param>
     /// <param name="font">The font.</param>
-    /// <returns>The width in pixels; 0 for an empty text or a font size that is not positive.</returns>
+    /// <returns>The width in pixels; 0 for an empty text or a font size that is not positive, or that is not a finite number as a single (the renderer cannot size such a font).</returns>
     public double MeasureWidth(string? text, TextFont font)
     {
-        if (string.IsNullOrEmpty(text) || !(font.Size > 0) || !double.IsFinite(font.Size))
+        if (string.IsNullOrEmpty(text) || !TryGetRenderSize(font, out var size))
         {
             return 0;
         }
 
-        return TextRenderer.MeasureText(text, Resolve(font).Font, (float)font.Size).Width;
+        return TextRenderer.MeasureText(text, Resolve(font).Font, size).Width;
     }
 
     /// <summary>
     ///     Gets the ascent and descent of the font's own line box at the font's size.
     /// </summary>
     /// <param name="font">The font.</param>
-    /// <returns>The metrics; zero for a font size that is not positive.</returns>
+    /// <returns>The metrics; zero for a font size that is not positive or not a finite number as a single.</returns>
     public FontMetrics GetMetrics(TextFont font)
     {
-        if (!(font.Size > 0) || !double.IsFinite(font.Size))
+        if (!TryGetRenderSize(font, out var size))
         {
             return new FontMetrics(0, 0);
         }
 
-        var metrics = TextRenderer.MeasureText(" ", Resolve(font).Font, (float)font.Size);
+        var metrics = TextRenderer.MeasureText(" ", Resolve(font).Font, size);
         return new FontMetrics(metrics.Ascent, metrics.Descent);
+    }
+
+    /// <summary>
+    ///     Converts the size of a font to the single that the text renderer takes.
+    /// </summary>
+    /// <remarks>
+    ///     A size that is finite as a double can still overflow to infinity (1e300) or underflow to zero as a single, and the core text renderer throws
+    ///     <see cref="ArgumentOutOfRangeException"/> for such a size; a text with such a size is unmeasurable instead (zero width), so that no raw exception escapes.
+    /// </remarks>
+    /// <param name="font">The font.</param>
+    /// <param name="size">Receives the size.</param>
+    /// <returns><see langword="true"/> when the size is a finite single greater than zero.</returns>
+    private static bool TryGetRenderSize(TextFont font, out float size)
+    {
+        size = double.IsFinite(font.Size) ? (float)font.Size : 0f;
+        return float.IsFinite(size) && size > 0f;
     }
 
     /// <summary>
@@ -401,11 +417,18 @@ internal sealed class TextMeasurer
     /// <param name="limit">The width limit of each line; 0 or less means none.</param>
     /// <param name="lineHeight">The explicit line height, or null for the font size plus 2.</param>
     /// <param name="ellipsis">The ellipsis text, or null for the default.</param>
-    /// <returns>The extent: the width of the widest line, and the height of the first line (the font size) plus the line height of each further line.</returns>
+    /// <returns>The extent: the width of the widest line, and the height of the first line (the font size) plus the line height of each further line; all zero (but for the lines) for a font size that is not positive or not a finite number as a single.</returns>
     public TextExtent Measure(IEnumerable<string> lines, TextFont font, double limit = 0, double? lineHeight = null, string? ellipsis = null)
     {
         ArgumentNullException.ThrowIfNull(lines);
         var shown = lines.Select(l => TextValue(l, font, limit, ellipsis)).ToList();
+
+        // A size the renderer cannot use makes the text unmeasurable in every output, so that layout never sees a huge or non-finite height
+        if (!TryGetRenderSize(font, out _))
+        {
+            return new TextExtent(0, 0, 0, shown.AsReadOnly());
+        }
+
         var width = shown.Count == 0 ? 0 : shown.Max(l => MeasureWidth(l, font));
         var step = LineHeight(font.Size, lineHeight);
         var height = font.Size + (step * (Math.Max(shown.Count, 1) - 1));
@@ -422,11 +445,17 @@ internal sealed class TextMeasurer
     ///     rotated about the position by the angle.
     /// </remarks>
     /// <param name="text">The text item.</param>
-    /// <returns>The bounds; text without lines still has the width 0 and the height of one line.</returns>
+    /// <returns>The bounds; text without lines still has the width 0 and the height of one line; text whose font size is unmeasurable (see <see cref="MeasureWidth"/>) has an empty box at its position.</returns>
     public SceneBounds GetBounds(SceneText text)
     {
         ArgumentNullException.ThrowIfNull(text);
         var font = new TextFont(text.FontFamily, text.FontSize, text.FontWeight, text.FontStyle);
+        if (!TryGetRenderSize(font, out _))
+        {
+            // Unmeasurable text (it is never painted) has an empty box at its position, which the layout and the label-overlap pass skip
+            return new SceneBounds(0, 0, 0, 0).Translate(text.X, text.Y);
+        }
+
         var extent = Measure(text.Lines, font, text.Limit, text.LineHeight, text.Ellipsis);
         var dx = text.Dx;
         if (string.Equals(text.Align, "center", StringComparison.Ordinal))

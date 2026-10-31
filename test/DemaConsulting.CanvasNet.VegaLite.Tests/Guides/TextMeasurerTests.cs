@@ -406,4 +406,68 @@ public class TextMeasurerTests
         Assert.Equal(-8, alphabetic.Y1, 6);
         Assert.Equal(2, alphabetic.Y2, 6);
     }
+
+    /// <summary>
+    ///     Validates that a font size that is finite as a double but not usable as a single (it overflows to infinity or underflows to zero) is unmeasurable instead of throwing
+    ///     the raw exception of the core text renderer, for the width, the metrics, the truncation and the bounds of a text.
+    /// </summary>
+    [Fact]
+    public void TextMeasurer_UnrepresentableFontSizeIsUnmeasurableAndNeverThrows()
+    {
+        // Arrange: 1e300 is finite as a double and infinity as a single; 1e-300 is a positive double and zero as a single; the others are not usable at all
+        var measurer = new TextMeasurer();
+        var sizes = new[] { 1e300, 1e39, double.MaxValue, 1e-300, 1e-46, 0, -5, double.NaN, double.PositiveInfinity };
+
+        foreach (var size in sizes)
+        {
+            var font = new TextFont("sans-serif", size);
+
+            // Act / Assert: no width and no metrics, and a limit cannot make the truncation throw (a text of zero width is below any positive limit and is returned whole)
+            Assert.Equal(0, measurer.MeasureWidth("Hello", font));
+            Assert.Equal(new FontMetrics(0, 0), measurer.GetMetrics(font));
+            Assert.Equal("Hello", measurer.Truncate("Hello", font, 10));
+            Assert.Equal("Hello", measurer.TextValue("  Hello ", font, 10));
+            Assert.Equal(0, measurer.Measure(["Hello"], font, 10).Width);
+
+            // Assert: the height, the line height and the bounds are zero too, never huge or non-finite, with one line or several
+            var extent = measurer.Measure(["Hello", "World"], font, lineHeight: 5);
+            Assert.Equal((0.0, 0.0, 0.0), (extent.Width, extent.Height, extent.LineHeight));
+            Assert.Equal(2, extent.Lines.Count);
+            var unmeasured = measurer.GetBounds(new SceneText("t", 7, 9, ["Hello", "World"]) { FontSize = size, Limit = 50, Baseline = "top", Align = "center", Angle = 30 });
+            Assert.Equal((7.0, 9.0, 7.0, 9.0), (unmeasured.X1, unmeasured.Y1, unmeasured.X2, unmeasured.Y2));
+        }
+
+        // Assert: float.MaxValue * 2 is a finite double that is infinity as a single
+        var twiceMax = new TextFont("sans-serif", (double)float.MaxValue * 2);
+        Assert.Equal(0, measurer.Measure(["Hello"], twiceMax).Height);
+        Assert.Equal(0, measurer.GetBounds(new SceneText("t", 0, 0, ["Hello"]) { FontSize = twiceMax.Size }).Height);
+
+        // Assert: a huge but representable size is still measured, and every output stays finite
+        var huge = measurer.Measure(["Hi", "There"], new TextFont("sans-serif", 1e38));
+        Assert.All([huge.Width, huge.Height, huge.LineHeight], value => Assert.True(double.IsFinite(value) && value > 0));
+        var hugeBounds = measurer.GetBounds(new SceneText("t", 0, 0, ["Hi"]) { FontSize = 1e38, Baseline = "top" });
+        Assert.All([hugeBounds.X1, hugeBounds.Y1, hugeBounds.X2, hugeBounds.Y2], value => Assert.True(double.IsFinite(value)));
+        Assert.True(hugeBounds.Height > 0);
+    }
+
+    /// <summary>
+    ///     Validates that the largest size that is a finite single is measured, and that a text of an unmeasurable size does not poison a union of bounds.
+    /// </summary>
+    [Fact]
+    public void TextMeasurer_LargestSingleSizeIsMeasuredAndUnmeasurableBoundsAreEmpty()
+    {
+        // Arrange
+        var measurer = new TextMeasurer();
+
+        // Assert: the largest size that is a finite single is measured (a width that is not a number would not be acceptable either)
+        var largest = measurer.MeasureWidth("Hi", new TextFont("sans-serif", 3e38));
+        Assert.False(double.IsNaN(largest));
+
+        // Assert: a union with the empty box of an unmeasurable text stays finite
+        var visible = measurer.GetBounds(new SceneText("t", 0, 0, ["Hi"]) { FontSize = 10, Baseline = "top" });
+        var union = visible.Union(measurer.GetBounds(new SceneText("t", 0, 0, ["Hi"]) { FontSize = 1e300 }));
+        Assert.All([union.X1, union.Y1, union.X2, union.Y2], value => Assert.True(double.IsFinite(value)));
+        Assert.Equal(visible.X2, union.X2, 6);
+        Assert.Equal(visible.Y2, union.Y2, 6);
+    }
 }

@@ -57,6 +57,11 @@ the file system. A directory that does not exist, a file that cannot be read, an
 - `Truncate(text, font, limit, ellipsis, rightToLeft)` - Vega's truncation: text narrower than the limit is returned
   unchanged; otherwise the line is cut by binary search at the longest prefix whose width plus the ellipsis (the horizontal
   ellipsis by default) stays below the limit, or, right to left, at the longest suffix.
+- `MeasureWidth(text, font)` and `GetMetrics(font)` - the width of one line and the ascent and descent of the line box;
+  both convert the font size to the `float` that the core text renderer takes and measure as zero when it is not a
+  finite positive single (a `double` of 1e300 is infinity as a single and the renderer throws for it), so no raw
+  exception escapes from a font size that is finite but not representable; `Truncate`, `TextValue`, `Measure`, and
+  `GetBounds` inherit the rule.
 - `TextValue(line, font, limit, ellipsis)` - the line trimmed and, when a limit is set, truncated (Vega's `textValue`).
 - `Measure(lines, font, limit, lineHeight, ellipsis)` - the extent of a block: the width of the widest line and the height
   of the font size plus one line height per further line.
@@ -77,7 +82,8 @@ options and fonts, and every measurement of one instance uses the same resolved 
 Resolution never fails: an unresolvable family falls back to the bundled sans font. File problems while scanning the
 additional directories or the installed fonts (missing, locked, or malformed files, access errors) are treated as "no such
 font" and skipped, never thrown. A null text, line list, or text item is `ArgumentNullException`, which is not converted.
-A size that is not positive or not finite measures as zero. The unit performs no network access and writes nothing.
+A size that is not positive or not finite measures as zero, and so does a size that is finite as a `double` but
+overflows to infinity or underflows to zero as a single. The unit performs no network access and writes nothing.
 
 #### Dependencies
 

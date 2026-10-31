@@ -496,6 +496,63 @@ public class ScenePainterTests
     }
 
     /// <summary>
+    ///     Validates that text whose font size, position, offset, line height or angle is not finite as a single or beyond the magnitude bound draws nothing and never throws (a font size of
+    ///     1e300 made the core text renderer throw), and that a limit beyond the bound is the same as no limit.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_TextBeyondTheMagnitudeBoundDrawsNothingAndNeverThrows()
+    {
+        // Arrange: every text would be drawn in black on the surface if it were usable; the font sizes are 1e300 (finite as a double, infinity as a single), 3e38 (a finite single that
+        // overflows when scaled), 2,000,000 (beyond the bound) and 1e-300 (zero as a single); the other values are beyond the bound as well
+        var items = new List<SceneItem>
+        {
+            new SceneText("size-300", 5, 20, ["Hello"]) { Fill = "#000000", FontSize = 1e300 },
+            new SceneText("size-300-limit", 5, 20, ["Hello"]) { Fill = "#000000", FontSize = 1e300, Limit = 50 },
+            new SceneText("size-38", 5, 20, ["Hello"]) { Fill = "#000000", FontSize = 3e38, Limit = 50 },
+            new SceneText("size-6", 5, 20, ["Hello"]) { Fill = "#000000", FontSize = 2e6 },
+            new SceneText("size-tiny", 5, 20, ["Hello"]) { Fill = "#000000", FontSize = 1e-300 },
+            new SceneText("x", 1e300, 20, ["Hello"]) { Fill = "#000000", FontSize = 12 },
+            new SceneText("y", 5, -2e6, ["Hello"]) { Fill = "#000000", FontSize = 12 },
+            new SceneText("dx", 5, 20, ["Hello"]) { Fill = "#000000", FontSize = 12, Dx = 1e300 },
+            new SceneText("dy", 5, 20, ["Hello"]) { Fill = "#000000", FontSize = 12, Dy = -5e6 },
+            new SceneText("angle", 5, 20, ["Hello"]) { Fill = "#000000", FontSize = 12, Angle = 1e7 },
+            new SceneText("line-height", 5, 20, ["Hello", "World"]) { Fill = "#000000", FontSize = 12, LineHeight = 1e300 },
+            new SceneText("limit-nan", 5, 20, ["Hello"]) { Fill = "#000000", FontSize = 12, Limit = double.NaN },
+        };
+
+        // Act: painted one at a time, so that every one is checked on its own, then all together
+        foreach (var item in items)
+        {
+            using var single = PaintAtOne(MakeScene(100, 40, item), 100, 40);
+
+            // Assert
+            Assert.Null(VegaLiteTestHelpers.InkBounds(single, White));
+        }
+
+        using var all = PaintAtOne(MakeScene(100, 40, [.. items]), 100, 40);
+        Assert.Null(VegaLiteTestHelpers.InkBounds(all, White));
+
+        // Act: a limit above the bound is clamped to it, which is wider than any line of this size, so the text is drawn whole, as without a limit
+        using var unlimited = PaintAtOne(MakeScene(100, 40, new SceneText("t", 5, 20, ["Hello"]) { Fill = "#000000", FontSize = 12 }), 100, 40);
+        using var unbounded = PaintAtOne(MakeScene(100, 40, new SceneText("t", 5, 20, ["Hello"]) { Fill = "#000000", FontSize = 12, Limit = 1e300 }), 100, 40);
+
+        // Assert: the text is visible and the two are identical
+        Assert.NotNull(VegaLiteTestHelpers.InkBounds(unlimited, White));
+        Assert.True(Same(unlimited, unbounded));
+
+        // Act: the bound is applied to the size in surface pixels: a font size of 20,000 is 40,000 pixels at a scale of two, beyond the bound of 32,768
+        using var scaled = new ScenePainter(new TextMeasurer()).Paint(
+            MakeScene(100, 40, new SceneText("t", 5, 20, ["Hello"]) { Fill = "#000000", FontSize = 20000 }),
+            200,
+            80,
+            ScenePlacement.Uniform(2),
+            Ct);
+
+        // Assert
+        Assert.Null(VegaLiteTestHelpers.InkBounds(scaled, White));
+    }
+
+    /// <summary>
     ///     Validates that dash patterns whose work would be unbounded are drawn solid, without any timing assumption.
     /// </summary>
     [Fact]

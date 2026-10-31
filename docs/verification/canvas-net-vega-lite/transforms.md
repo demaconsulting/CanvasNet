@@ -6,7 +6,8 @@ the row transforms of the drawn view (`calculate`, `filter`, `fold`, `flatten`, 
 immutable `DataTable`, evaluates the static parameters of the root view, and samples deterministically;
 `AggregateTransforms`, which executes the grouped transforms (`aggregate`, `joinaggregate`, `window`, `bin`, `stack`,
 and `impute`) with their measure, bin, stack, and sort internals; `EncodingPlan`, which plans and runs the implicit
-bin, time unit, aggregate, and stack that the encoding of the drawn view asks for; and `TimeUnitTransform` (with the
+bin, time unit, aggregate, impute, and stack (cartesian or polar) that the encoding of the drawn view asks for, and the
+fields that group and order the rows of a path mark; and `TimeUnitTransform` (with the
 `TemporalFields` collector), which adds the start and the end of the time unit of a date to every row, for the
 `timeUnit` transform and for the time unit of a channel. The transforms of later phases (`regression`, `loess`,
 `density`, `quantile`, and `extent`) are added to this subsystem by later releases.
@@ -19,7 +20,8 @@ verify the units working together and with the units that feed them and consume 
 the six grouped transforms to `AggregateTransforms` in the order of the specification, so the scenarios compose them (a
 window whose rank drives a following filter; the grouped transforms run as one pipeline under other cultures), and
 `EncodingPlan` runs the bin, time unit, aggregate, and stack engines over the table that the explicit transforms
-produced, in Vega-Lite's order: bin, then time unit, then aggregate, then stack. The `timeUnit` transform and the time
+produced, in Vega-Lite's order: bin, then time unit, then aggregate, then the impute of the encoding, then the impute
+of a stacked path mark, then stack. The `timeUnit` transform and the time
 unit of a channel are one engine: `RowTransforms` and `EncodingTransforms` both call `TimeUnitTransform.Apply` with the
 calendar of the chart (the zone of the render options), so the scenarios verify that a time zone moves the unit
 boundaries in the explicit transform, in the implicit stage, and in the filter predicates alike, and that the aggregate
@@ -31,7 +33,8 @@ table, the sources of the lookups, the file cache, the sandbox, and the one row 
 implicit stage reserve and release rows through it); the real `ExpressionEvaluator` runs the expressions under the one
 step budget of the call, which the grouped engines charge as well; the real `ScaleResolver`, `MarkBuilder`, `AxisBuilder`,
 `ViewLayout`, and `ScenePainter` use the transformed and the Raw table, so the scenarios assert on the pixels of a chart
-whose rows were filtered, calculated, reshaped, looked up, sampled, sorted, aggregated, binned, or stacked; and the real
+whose rows were filtered, calculated, reshaped, looked up, sampled, sorted, aggregated, binned, imputed, or stacked;
+and the real
 `FeatureCatalog` reports the parts that are not supported. The system-level scenarios of the explicit transforms use
 charts of 100 by 100 pixels without padding, axes, and title, in which the position of every mark is derived by hand from
 a scale domain of 0 to 10, so a dot is found by one pixel; the scenarios of the implicit pipeline use the fixtures
@@ -160,13 +163,38 @@ to the baseline constitutes a failure.
   `AggregateTransformsImputeTests.AggregateTransforms_GroupedTransforms_AreDeterministicAndCultureInvariant` — a window
   running total of 4, 3, 5, and 2 gives the bars 4, 7, 12, and 14 on the domain 0 to 14, the rank of a window drives a
   following filter, and a pipeline of grouped transforms gives the same table on a second run and under other cultures.
+- **A Pie Chart Is A Stacked Angle**:
+  `StackRulesTests.StackRules_Decide_StacksThetaWithRadiusAsTheDimension`,
+  `EncodingPlanPolarTests.EncodingPlan_Create_PlansAPolarStackWithAscendingLayers`,
+  `ScaleResolverPolarTests.ScaleResolver_Resolve_StackedThetaDomainSpansTheStack` — the sum of the values 1, 1, and 2 of
+  the colors a, b, and c on the `theta` of an arc is stacked into a start and an end field with the layers ascending by
+  the color (the stacked channel is not `y`), so the slices are (0, 1), (1, 2), and (2, 4) and the scale reads the
+  domain 0 to 4 over the range 0 to 2 pi, that is the quarter, the half, and the whole turn of the total.
+- **Imputes Fill The Keys A Path Lacks**:
+  `EncodingTransformsImputeTests.EncodingTransforms_Apply_ImputesBeforeTheStack`,
+  `EncodingTransformsImputeTests.EncodingTransforms_Apply_StackedPathMarkImputesMissingKeysWithZero`,
+  `EncodingPlanPathTests.EncodingPlan_PathGroupFields_FollowVegaLiteGroupingRules`,
+  `VegaLiteLineAreaIntegrationTests.CanvasNetVegaLite_SystemIntegration_Impute_EncodingAndStackImputeFillMissingKeys` —
+  the series `a` has the keys 1, 2, and 3 and the series `b` the keys 1 and 3, so `b` lacks the key 2: the impute of
+  the encoding with the value 5 appends `b` at 2 with 5 and the stack (descending by the color, `b` at the bottom) puts
+  `b` at (0, 4), (0, 5), and (0, 5) and `a` at (4, 5), (5, 7), and (5, 8); without it the stack impute appends `b` at 2
+  with 0, so the layers meet there (`b` (0, 0), `a` (0, 2)) and the largest top is 8. In a chart of 300 by 200 pixels
+  with the keys 1 to 3 over the width and the stack domain 0 to 2 (100 pixels a unit) the area of `b` has its top at
+  pixels 100, 200, and 100 at x = 0, 150, and 300 and its baseline at 200, the area of `a` its top at 0, 100, and 0 and
+  its baseline at 100, 200, and 100, while with `impute: null` the area of `b` has only its two vertices; a line over the
+  keys 0 to 2 with the values 6 for `a` and 4 for `b` at 0 and 2 on the domain 0 to 6 (33.3333 pixels a unit) has `b`
+  at the pixels 66.6667 at both ends, and with the impute value 0 it passes through (150, 200) at the key 1. The series
+  of the paths are the fields that group the rows (the color, the detail, and the key).
 - **Aggregation Limits And Cancellation Fail Closed**:
   `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Aggregation_LimitsAndCancellationApply`,
   `EncodingTransformsTests.EncodingTransforms_Apply_CountsTheGroupsInTheRowBudget`,
   `AggregateTransformsTests.AggregateTransforms_Aggregate_GroupLimitIsALocatedFailure`,
-  `AggregateTransformsImputeTests.AggregateTransforms_Impute_OutputRowsAreBoundedByTheRowBudget` — the five rows and the
+  `AggregateTransformsImputeTests.AggregateTransforms_Impute_OutputRowsAreBoundedByTheRowBudget`,
+  `EncodingTransformsImputeTests.EncodingTransforms_Apply_ImputeRespectsTheRowAndCellLimits` — the five rows and the
   three groups of the aggregate bars need `MaxDataRows` 8 (7 fails at `/encoding/y` naming the limit), the groups of an
-  aggregate transform count the same way, an impute of six rows over three needs 9, and a canceled token stops the render.
+  aggregate transform count the same way, an impute of six rows over three needs 9, the impute of the encoding for two
+  series of three keys needs the five input rows and the six combinations (11 passes and 10 fails at `/encoding/y`, and
+  17 when a scale keeps the Raw table beside the stacked copy), and a canceled token stops the render.
 - **Parameters: Defaults, Overrides, And Filter By Parameter**:
   `VegaLiteChartIntegrationTests.CanvasNetVegaLite_SystemIntegration_Parameters_DefaultsOverridesAndFilterParam`,
   `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Parameters_OverridesReachTheTransforms`,

@@ -155,7 +155,7 @@ location known; and that two locations with the same values are equal.
 `VegaLiteRecordsAndExceptionsTests.VegaLiteUnsupportedFeatureException_Constructors_CarryFeatureAndLocation`
 
 Asserts that a diagnostic and an unsupported-feature report display as the location, a colon and a space, and the
-message (for example `s.json:2:5 /mark: vl-mark-arc: not yet`), and as the message alone without a location; that sizes
+message (for example `s.json:2:5 /mark: vl-mark-geoshape: not yet`), and as the message alone without a location; that sizes
 and data references have value equality; that `VegaLiteSpecException` is a `FormatException` whose message is prefixed
 with its location, that `VegaLiteRenderException` is an `InvalidOperationException` and
 `VegaLiteUnsupportedFeatureException` is an `IOException`, that each carries its location (and the feature

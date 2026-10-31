@@ -51,6 +51,8 @@ public class StackRulesTests
     [InlineData("\"point\"", """{"x":{"field":"k","type":"nominal"},"y":{"field":"v","type":"quantitative","stack":true},"color":{"field":"g"}}""", "y", "zero", 1)]
     [InlineData("\"line\"", """{"x":{"field":"k","type":"nominal"},"y":{"field":"v","type":"quantitative","stack":"normalize"},"color":{"field":"g"}}""", "y", "normalize", 1)]
     [InlineData("\"tick\"", """{"x":{"field":"v","type":"quantitative","stack":"center"},"y":{"field":"k","type":"nominal"},"detail":{"field":"g"}}""", "x", "center", 1)]
+    [InlineData("\"trail\"", """{"x":{"field":"k","type":"ordinal"},"y":{"field":"v","type":"quantitative","stack":true},"color":{"field":"g"}}""", "y", "zero", 1)]
+    [InlineData("""{"type":"trail"}""", """{"x":{"field":"k","type":"ordinal"},"y":{"field":"v","type":"quantitative","stack":"normalize"},"detail":{"field":"g"}}""", "y", "normalize", 1)]
     [InlineData("\"rule\"", """{"x":{"field":"k","type":"nominal"},"y":{"field":"v","type":"quantitative","stack":"zero"}}""", "y", "zero", 0)]
     [InlineData("\"text\"", """{"x":{"field":"k","type":"nominal"},"y":{"field":"v","type":"quantitative","stack":true},"text":{"field":"v"}}""", "y", "zero", 1)]
     [InlineData("""{"type":"bar","orient":"vertical"}""", """{"x":{"field":"a","type":"quantitative"},"y":{"field":"b","type":"quantitative"}}""", "y", "zero", 0)]
@@ -87,6 +89,8 @@ public class StackRulesTests
     [InlineData("\"point\"", """{"x":{"field":"k","type":"nominal"},"y":{"field":"v","type":"quantitative"},"color":{"field":"g"}}""")]
     [InlineData("\"line\"", """{"x":{"field":"k","type":"nominal"},"y":{"field":"v","type":"quantitative"},"color":{"field":"g"}}""")]
     [InlineData("\"tick\"", """{"x":{"field":"k","type":"nominal"},"y":{"field":"v","type":"quantitative"},"color":{"field":"g"}}""")]
+    [InlineData("\"trail\"", """{"x":{"field":"k","type":"ordinal"},"y":{"field":"v","type":"quantitative"},"color":{"field":"g"}}""")]
+    [InlineData("\"trail\"", """{"x":{"field":"k","type":"ordinal"},"y":{"field":"v","type":"quantitative","stack":false},"color":{"field":"g"}}""")]
     [InlineData("\"rect\"", """{"x":{"field":"k","type":"nominal"},"y":{"field":"v","type":"quantitative","stack":true},"color":{"field":"g"}}""")]
     [InlineData("\"geoshape\"", """{"x":{"field":"k","type":"nominal"},"y":{"field":"v","type":"quantitative","stack":true}}""")]
     [InlineData("\"bar\"", """{"x":{"field":"k","type":"nominal"},"y":{"aggregate":"sum","field":"v","type":"quantitative"}}""")]
@@ -243,5 +247,88 @@ public class StackRulesTests
         Assert.NotNull(Decide("\"bar\"", onDimension));
         var horizontal = """{"y":{"field":"k","type":"nominal"},"x":{"field":"v","type":"quantitative","scale":{"type":"TYPE"}},"color":{"field":"g"}}""".Replace("TYPE", scaleType, StringComparison.Ordinal);
         Assert.Equal(stacked, Decide("\"bar\"", horizontal) is not null);
+    }
+
+    /// <summary>
+    ///     Validates the polar stack: when <c>x</c> and <c>y</c> give none the same rule runs on <c>theta</c> and <c>radius</c>, with each as the dimension of the
+    ///     other (the cartesian <c>orient</c> of a bar does not apply), and the Cartesian channels win when they stack.
+    /// </summary>
+    /// <param name="mark">The mark.</param>
+    /// <param name="encoding">The encoding.</param>
+    /// <param name="channel">The expected stacked channel.</param>
+    /// <param name="stackBy">The expected number of stack-by definitions.</param>
+    [Theory]
+    [InlineData("\"arc\"", """{"theta":{"field":"v","type":"quantitative"},"color":{"field":"g","type":"nominal"}}""", "theta", 1)]
+    [InlineData("\"arc\"", """{"theta":{"field":"v","type":"quantitative"},"radius":{"field":"r","type":"nominal"},"color":{"field":"g","type":"nominal"}}""", "theta", 1)]
+    [InlineData("\"arc\"", """{"theta":{"field":"v","type":"quantitative"},"radius":{"field":"r","type":"nominal"},"color":{"field":"r","type":"nominal"}}""", "theta", 0)]
+    [InlineData("\"arc\"", """{"radius":{"field":"v","type":"quantitative"},"color":{"field":"g","type":"nominal"}}""", "radius", 1)]
+    [InlineData("\"arc\"", """{"radius":{"field":"v","type":"quantitative"},"theta":{"field":"t","type":"nominal"},"detail":{"field":"g"}}""", "radius", 1)]
+    [InlineData("\"arc\"", """{"theta":{"field":"a","type":"quantitative"},"radius":{"field":"b","type":"quantitative","stack":true},"color":{"field":"g"}}""", "radius", 1)]
+    [InlineData("\"arc\"", """{"theta":{"field":"a","type":"quantitative","stack":"normalize"},"radius":{"field":"b","type":"quantitative"}}""", "theta", 0)]
+    [InlineData("\"arc\"", """{"theta":{"field":"a","type":"quantitative","aggregate":"sum"},"radius":{"field":"b","type":"quantitative"},"color":{"field":"g"}}""", "theta", 1)]
+    [InlineData("\"text\"", """{"theta":{"field":"v","type":"quantitative","stack":true},"text":{"field":"g"},"color":{"field":"g"}}""", "theta", 2)]
+    [InlineData("\"point\"", """{"radius":{"field":"v","type":"quantitative","stack":"zero"},"color":{"field":"g"}}""", "radius", 1)]
+    [InlineData("\"arc\"", """{"x":{"field":"a","type":"quantitative"},"theta":{"field":"v","type":"quantitative"},"color":{"field":"g"}}""", "x", 1)]
+    [InlineData("""{"type":"bar","orient":"vertical"}""", """{"theta":{"field":"v","type":"quantitative"},"color":{"field":"g"}}""", "theta", 1)]
+    public void StackRules_Decide_StacksThetaWithRadiusAsTheDimension(string mark, string encoding, string channel, int stackBy)
+    {
+        // Arrange / Act
+        var decision = Decide(mark, encoding);
+
+        // Assert: the offset is zero (the marks stack by default or the channel says true) unless the encoding says otherwise
+        Assert.NotNull(decision);
+        Assert.Equal(channel, decision.Channel);
+        Assert.Equal(stackBy, decision.StackBy.Count);
+        Assert.Equal(encoding.Contains("normalize", StringComparison.Ordinal) ? "normalize" : "zero", decision.Offset);
+    }
+
+    /// <summary>
+    ///     Validates the polar cases that are not stacked: both polar channels quantitative without an explicit stack or a single aggregate (the cartesian
+    ///     <c>orient</c> of a bar is not a tie-breaker for them), a binned or discrete measure, a secondary <c>theta2</c> or <c>radius2</c> that is a field (a ranged mark),
+    ///     a stack that is switched off, and a mark that cannot stack; and that a secondary that is only a value does not make a ranged mark.
+    /// </summary>
+    /// <param name="mark">The mark.</param>
+    /// <param name="encoding">The encoding.</param>
+    /// <param name="stacked">Whether the marks are stacked.</param>
+    [Theory]
+    [InlineData("\"arc\"", """{"theta":{"field":"a","type":"quantitative"},"radius":{"field":"b","type":"quantitative"},"color":{"field":"g"}}""", false)]
+    [InlineData("""{"type":"bar","orient":"vertical"}""", """{"theta":{"field":"a","type":"quantitative"},"radius":{"field":"b","type":"quantitative"},"color":{"field":"g"}}""", false)]
+    [InlineData("\"arc\"", """{"theta":{"field":"v","type":"quantitative"},"theta2":{"field":"w"},"color":{"field":"g"}}""", false)]
+    [InlineData("\"arc\"", """{"theta":{"field":"v","type":"quantitative"},"theta2":{"datum":0},"color":{"field":"g"}}""", false)]
+    [InlineData("\"arc\"", """{"radius":{"field":"v","type":"quantitative"},"radius2":{"field":"w"},"color":{"field":"g"}}""", false)]
+    [InlineData("\"arc\"", """{"theta":{"field":"v","type":"quantitative","aggregate":"sum"},"theta2":{"aggregate":"max","field":"w"},"color":{"field":"g"}}""", false)]
+    [InlineData("\"arc\"", """{"theta":{"field":"v","type":"quantitative"},"theta2":{"value":3},"color":{"field":"g"}}""", true)]
+    [InlineData("\"arc\"", """{"theta":{"field":"v","type":"quantitative"},"radius2":{"field":"w"},"color":{"field":"g"}}""", true)]
+    [InlineData("\"arc\"", """{"theta":{"field":"v","type":"quantitative","bin":true},"color":{"field":"g"}}""", false)]
+    [InlineData("\"arc\"", """{"theta":{"field":"v","type":"nominal"},"color":{"field":"g"}}""", false)]
+    [InlineData("\"arc\"", """{"theta":{"field":"v","type":"quantitative","stack":false},"color":{"field":"g"}}""", false)]
+    [InlineData("\"arc\"", """{"theta":{"field":"v","type":"quantitative","scale":{"type":"sqrt"}},"color":{"field":"g"}}""", false)]
+    [InlineData("\"arc\"", """{"theta":{"field":"v","type":"quantitative","aggregate":"sum"},"color":{"value":"red"}}""", false)]
+    [InlineData("\"bar\"", """{"theta":{"field":"v","type":"quantitative"},"color":{"field":"g"}}""", true)]
+    [InlineData("\"rect\"", """{"theta":{"field":"v","type":"quantitative","stack":true},"color":{"field":"g"}}""", false)]
+    [InlineData("\"line\"", """{"theta":{"field":"v","type":"quantitative"},"color":{"field":"g"}}""", false)]
+    public void StackRules_Decide_RangedPolarMarkIsNotStacked(string mark, string encoding, bool stacked)
+    {
+        // Arrange / Act
+        var decision = Decide(mark, encoding);
+
+        // Assert
+        Assert.Equal(stacked, decision is not null);
+    }
+
+    /// <summary>
+    ///     Validates the dimension of every stackable channel: <c>x</c> and <c>y</c> are each other's, <c>theta</c> and <c>radius</c> too, and any other channel
+    ///     is rejected.
+    /// </summary>
+    [Fact]
+    public void StackRules_DimensionChannel_PairsTheChannels()
+    {
+        // Act / Assert
+        Assert.Equal("y", StackRules.DimensionChannel("x"));
+        Assert.Equal("x", StackRules.DimensionChannel("y"));
+        Assert.Equal("radius", StackRules.DimensionChannel("theta"));
+        Assert.Equal("theta", StackRules.DimensionChannel("radius"));
+        Assert.Throws<ArgumentOutOfRangeException>(() => StackRules.DimensionChannel("color"));
+        Assert.Throws<ArgumentNullException>(() => StackRules.DimensionChannel(null!));
     }
 }

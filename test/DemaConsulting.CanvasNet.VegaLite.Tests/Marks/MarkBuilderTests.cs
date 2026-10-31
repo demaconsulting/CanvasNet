@@ -319,10 +319,13 @@ public class MarkBuilderTests
         Assert.Throws<OperationCanceledException>(() => new MarkBuilder(parts.Config).Build(parts.Tree.Root, parts.Table, parts.Scales, 240, 200, canceled.Token));
 
         // Assert: marks that are not drawn give an empty group, and unsupported mark types are named by IsSupported
-        var line = ChartTestHelpers.Marks(BarSpec.Replace("\"mark\": \"bar\"", "\"mark\": \"line\"", StringComparison.Ordinal), 240, 200);
+        var line = ChartTestHelpers.Marks(BarSpec.Replace("\"mark\": \"bar\"", "\"mark\": \"geoshape\"", StringComparison.Ordinal), 240, 200);
         Assert.Empty(line.Children);
         Assert.True(MarkBuilder.IsSupported("tick"));
-        Assert.False(MarkBuilder.IsSupported("line"));
+        Assert.True(MarkBuilder.IsSupported("line"));
+        Assert.True(MarkBuilder.IsSupported("area"));
+        Assert.True(MarkBuilder.IsSupported("trail"));
+        Assert.False(MarkBuilder.IsSupported("geoshape"));
         Assert.False(MarkBuilder.IsSupported(null));
 
         // Assert: a rule without x and y draws nothing, and null arguments are rejected

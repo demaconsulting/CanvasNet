@@ -122,3 +122,15 @@ commas alone give none).
 **Tests**: `TextMeasurerTests.TextMeasurer_GetBounds_FollowsVegaTextBounds`
 
 Asserts the derived bounds above: anchored, centered, rotated by -90 degrees, three lines, and the alphabetic baseline.
+
+##### A Font Size That Does Not Fit A Single Is Unmeasurable
+
+**Tests**: `TextMeasurerTests.TextMeasurer_UnrepresentableFontSizeIsUnmeasurableAndNeverThrows`
+
+For each of the sizes 1e300 and `double.MaxValue` (finite as a double, infinity as a single), 1e39, 1e-300 and 1e-46
+(positive as a double, zero as a single), 0, -5, NaN, and infinity, asserts that the width of "Hello" is 0, the
+metrics are (0, 0), the truncation and the drawn text of "Hello" at a limit of 10 are the text itself (a text of no
+width is below any positive limit), and the extent has width 0, without an exception (the core text renderer throws
+`ArgumentOutOfRangeException` for a size that is not a finite single); that the largest finite single, 3e38, is
+measured without a result that is not a number; and that the bounds of a text item of font size 1e300 and limit 50
+have width 0.

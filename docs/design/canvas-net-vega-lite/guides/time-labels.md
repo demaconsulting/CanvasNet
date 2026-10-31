@@ -10,10 +10,12 @@ and Vega-Lite behavior it follows. The unit is shared by `AxisBuilder` and by th
 
 #### Purpose
 
-`TimeLabels` holds what the axes and the legends of temporal fields share: which **format** a label of a date gets (plan
+`TimeLabels` holds what the axes and the legends (and, since phase 9, the text mark) of temporal fields share: which
+**format** a label of a date gets (plan
 decision P8-D7), how the **`tickCount`** of a time scale is read when it names a calendar interval, the Vega-Lite rule
 for the **default tick count** of a time axis, and how an explicit list of dates (`axis.values`, `legend.values`) is
-read as instants. It exists so that an axis and a legend format the same date the same way, and so that the rules that
+read as instants. It exists so that an axis, a legend, and a text label format the same date the same way, and so that
+the rules that
 Vega-Lite gives to time guides are written once, apart from the geometry of either guide.
 
 The unit's behavior is specified by the `CanvasNetVegaLite-Guides-TimeLabels-*` requirements in
@@ -71,6 +73,17 @@ of the scale), and an object is a Vega-Lite date-time object read by `DateTimeOb
 `utc`). The result is a valid instant or NaN. A discrete scale over the dates of a time unit reads a number or a text
 by the unit rule (`DateTimeObject.FromScalar`: the text `Mar` against `month` is March 2012) before this reader is used.
 
+**Bounded labels** (`CreateBounded`, phase 9). The text mark labels its rows with the same format rules but owns the
+budget of the whole mark (it limits every label and all the labels together by sixteen times `MaxStringLength`; see
+_MarkBuilder_), so `CreateBounded(Options)` returns a function of an instant **and a limit** that does **not keep a
+running total**: the caller passes what is left of its own budget as the limit of each label, and the function returns the
+label, or **null when the label would be longer than that limit** (a time format stops as soon as it would write more, so
+a huge specifier cannot allocate more; a number label is checked after it is made; a negative limit counts as 0). It never
+throws for the length, and a refused label changes nothing for the next call. `Options.MaxLength` is not used. The format
+rules above are the same, and the format errors are the located specification errors of `Create`, thrown when the function
+is created. `Create` is unchanged; the compile of the d3 number format of `formatType: "number"` is shared by the two
+through a private helper.
+
 **Use by the legend** (`LegendBuilder.Time.cs`). A legend of a temporal field is drawn from the resolved scale
 (`ResolvedScale.IsTemporalField`, `Calendar`, `TimeUnit`): a gradient legend of a temporal color, whose sequential scale
 runs over milliseconds, takes the **time ticks** of its domain (`Ticks.TimeTicks`, the calendar interval nearest to the
@@ -100,6 +113,8 @@ ticks of a time or UTC scale and for the labels of the dates of a time unit, wit
   bound); the caller bounds the `values` list by `MaxScaleDomainSize`.
 - _Label text of a legend_: its length is also charged through `ExpressionFunctionContext.ChargeSize` (one step per 64
   characters).
+- _`CreateBounded`_: one label is at most the limit that the caller passes (the formatter stops at it and the function
+  gives null), and the unit keeps no total: the caller's budget bounds all the labels.
 
 **Determinism.** Nothing here reads the clock, the host time zone, or the host culture: the zone is the calendar of the
 chart and the names are the English d3 locale. The same specification and data give the same labels on every call and
@@ -110,6 +125,9 @@ machine, and under any culture.
 - `TimeLabels.Create(Options)` - builds the function that turns an instant into its label by the resolution above; the
   function throws a located `VegaLiteRenderException` when a label is longer than the limit or the labels of the guide
   are together longer than it.
+- `TimeLabels.CreateBounded(Options)` - builds the function that turns an instant and a limit into its label by the same
+  resolution, without a running total: it returns null when the label is longer than the limit it is given (see
+  _Bounded labels_); it throws the same located `VegaLiteSpecException` as `Create` for a format that is not valid.
 - `TimeLabels.IntervalRequest(SpecNode?)` - the interval request of a `tickCount`, or null.
 - `TimeLabels.UsesVegaDefaultCount(TimeUnitSpec?)` - whether the default tick count is Vega's ten.
 - `TimeLabels.ReadInstant(SpecNode, TimeCalendar)` - the instant of an entry of `values`, or NaN.
@@ -159,7 +177,9 @@ A null argument is an `ArgumentNullException`. The unit performs no I/O.
 `AxisBuilder` calls `Create` for the labels of a time or UTC scale, of the dates of a time unit, and of an axis with a
 `formatType` of `time` or `utc`, `IntervalRequest` and `UsesVegaDefaultCount` for the ticks, and `ReadInstant` for
 `values`. `LegendBuilder` (`LegendBuilder.Time.cs`) calls `Create` through its `TimeLabelFunction`, `IntervalRequest`
-through `TimeTickSet`, and `ReadInstant` through `TemporalValue`. The tests in
-`test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/` (`TimeLabelsTests.cs`, with `AxisBuilderTimeTests.cs` and
+through `TimeTickSet`, and `ReadInstant` through `TemporalValue`. The text mark of `MarkBuilder` (`MarkBuilder.Text.cs`)
+calls `CreateBounded` for the label of a temporal value (the time formatter of its labels). The tests in
+`test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/` (`TimeLabelsTests.cs`, including
+`TimeLabels_CreateBounded_ReturnsNullWhenTheLabelIsLongerThanTheLimit`, with `AxisBuilderTimeTests.cs` and
 `LegendBuilderTimeTests.cs` for the guides that use it) call the types directly through `InternalsVisibleTo`, including
 under non-English cultures.

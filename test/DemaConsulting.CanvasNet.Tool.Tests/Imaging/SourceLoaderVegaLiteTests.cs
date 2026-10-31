@@ -11,7 +11,7 @@ namespace DemaConsulting.CanvasNet.Tool.Tests.Imaging;
 public class SourceLoaderVegaLiteTests
 {
     /// <summary>
-    ///     A chart of one arc mark, which the library does not draw (yet), with a property Vega-Lite does not define.
+    ///     A chart of one geoshape mark, which the library does not draw (yet), with a property Vega-Lite does not define.
     /// </summary>
     private const string NoisyChart =
         """
@@ -21,8 +21,8 @@ public class SourceLoaderVegaLiteTests
           "width": 100,
           "height": 60,
           "data": { "values": [ { "k": "a", "v": 3 } ] },
-          "mark": "arc",
-          "encoding": { "theta": { "field": "v", "type": "quantitative" } }
+          "mark": "geoshape",
+          "encoding": { "longitude": { "field": "v", "type": "quantitative" } }
         }
         """;
 
@@ -278,9 +278,9 @@ public class SourceLoaderVegaLiteTests
         Assert.Contains("/bogus", warning.Message);
         Assert.Contains($"{path}:", warning.Message);
         var unsupportedNotes = loaded.Diagnostics.Where(d => d.Severity == "unsupported").ToList();
-        Assert.Equal(["vl-mark-arc", "vl-channel-theta"], unsupportedNotes.Select(d => d.Code));
+        Assert.Equal(["vl-mark-geoshape", "vl-channel-geo"], unsupportedNotes.Select(d => d.Code));
         var unsupported = unsupportedNotes[0];
-        Assert.Equal(("vega-lite", "vl-mark-arc"), (unsupported.Source, unsupported.Code));
+        Assert.Equal(("vega-lite", "vl-mark-geoshape"), (unsupported.Source, unsupported.Code));
         Assert.Contains("/mark", unsupported.Message);
         Assert.Contains($"{path}:", unsupported.Message);
         Assert.All(loaded.Diagnostics, d => Assert.DoesNotContain('\n', d.Message));
@@ -288,7 +288,7 @@ public class SourceLoaderVegaLiteTests
 
         // Strict: an unsupported-feature error that names the feature and the hint
         Assert.Equal(ErrorCodes.UnsupportedFeature, strict.Code);
-        Assert.Contains("vl-mark-arc", strict.Message);
+        Assert.Contains("vl-mark-geoshape", strict.Message);
         Assert.Contains("--strict", strict.Hint);
         Assert.IsType<VegaLiteUnsupportedFeatureException>(strict.InnerException);
 

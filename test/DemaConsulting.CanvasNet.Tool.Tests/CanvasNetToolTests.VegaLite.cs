@@ -52,17 +52,17 @@ public partial class CanvasNetToolTests
         // Arrange: a chart named .json (found by its schema), one with an unsupported mark, a broken chart, and Vega
         using var directory = new TempDirectory();
         var bySchema = FixtureFactory.WriteText(directory.Path, "bars.json", FixtureFactory.TwoBarChart);
-        var arcs = FixtureFactory.WriteText(
+        var shapes = FixtureFactory.WriteText(
             directory.Path,
-            "arcs.vl.json",
-            "{\"data\": {\"values\": [{\"v\": 1}]}, \"mark\": \"arc\", \"encoding\": {\"theta\": {\"field\": \"v\", \"type\": \"quantitative\"}}}");
+            "shapes.vl.json",
+            "{\"data\": {\"values\": [{\"v\": 1}]}, \"mark\": \"geoshape\", \"encoding\": {\"longitude\": {\"field\": \"v\", \"type\": \"quantitative\"}}}");
         var broken = FixtureFactory.WriteText(directory.Path, "broken.vl.json", "{\"mark\": ");
         var vega = FixtureFactory.WriteText(directory.Path, "vega.json", "{\"$schema\": \"https://vega.github.io/schema/vega/v5.json\"}");
 
         // Act
         var (schemaExit, schemaOut, _) = ToolHost.Invoke("info", bySchema, "--json");
-        var (arcExit, arcOut, _) = ToolHost.Invoke("render", arcs, "-o", directory.Combine("arcs.png"), "--json");
-        var (strictExit, _, strictErr) = ToolHost.Invoke("render", arcs, "--strict", "-o", directory.Combine("strict.png"));
+        var (shapeExit, shapeOut, _) = ToolHost.Invoke("render", shapes, "-o", directory.Combine("shapes.png"), "--json");
+        var (strictExit, _, strictErr) = ToolHost.Invoke("render", shapes, "--strict", "-o", directory.Combine("strict.png"));
         var (brokenExit, brokenOut, brokenErr) = ToolHost.Invoke("render", broken, "-o", directory.Combine("broken.png"), "--json");
         var (vegaExit, _, vegaErr) = ToolHost.Invoke("info", vega);
 
@@ -73,10 +73,10 @@ public partial class CanvasNetToolTests
             Assert.Equal("vega-lite", schemaDocument.RootElement.GetProperty("input").GetProperty("format").GetString());
         }
 
-        Assert.Equal(0, arcExit);
-        using (var arcDocument = JsonDocument.Parse(arcOut))
+        Assert.Equal(0, shapeExit);
+        using (var shapeDocument = JsonDocument.Parse(shapeOut))
         {
-            Assert.Contains("vl-mark-arc", arcDocument.RootElement.GetProperty("diagnostics").EnumerateArray().Select(d => d.GetProperty("code").GetString()));
+            Assert.Contains("vl-mark-geoshape", shapeDocument.RootElement.GetProperty("diagnostics").EnumerateArray().Select(d => d.GetProperty("code").GetString()));
         }
 
         Assert.Equal(1, strictExit);
