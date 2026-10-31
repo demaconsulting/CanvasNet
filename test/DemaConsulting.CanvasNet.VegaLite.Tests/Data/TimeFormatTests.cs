@@ -323,6 +323,67 @@ public class TimeFormatTests
     }
 
     /// <summary>
+    ///     Validates that a specifier of exactly <see cref="TimeFormat.MaxSpecifierLength"/> characters compiles and one more character does not, with a message that names the limit.
+    /// </summary>
+    [Fact]
+    public void TimeFormat_Compile_SpecifierLength_IsLimited()
+    {
+        // Arrange: 1,024 characters of literal text and the same with one more
+        var longest = new string('x', TimeFormat.MaxSpecifierLength);
+        var tooLong = longest + "x";
+
+        // Act
+        var formatter = TimeFormat.Compile(longest);
+        var error = Assert.Throws<TimeFormatSpecifierException>(() => TimeFormat.Compile(tooLong));
+
+        // Assert: the text is the specifier, and the error names the limit
+        Assert.Equal(longest, formatter.Format(Instant, TimeCalendar.Utc, Limit * 2));
+        Assert.Contains("the limit of 1024 characters", error.Message, StringComparison.Ordinal);
+        Assert.Throws<ArgumentNullException>(() => TimeFormat.Compile(null!));
+    }
+
+    /// <summary>
+    ///     Validates that the locale directives (<c>%c</c> expands to 13 pieces) cannot grow a short specifier into more than <see cref="TimeFormat.MaxTokenCount"/> pieces.
+    /// </summary>
+    [Fact]
+    public void TimeFormat_Compile_LocaleDirectiveExpansion_IsLimited()
+    {
+        // Arrange: %x, %X is 13 pieces: %-m / %-d / %Y (5), ", " (1) and %-I : %M : %S space %p (7); 315 of them are 4,095 pieces, 316 are 4,108
+        var fits = string.Concat(Enumerable.Repeat("%c", 315));
+        var tooMany = string.Concat(Enumerable.Repeat("%c", 316));
+        var huge = string.Concat(Enumerable.Repeat("%c", TimeFormat.MaxSpecifierLength / 2));
+
+        // Act
+        var formatter = TimeFormat.Compile(fits);
+        var error = Assert.Throws<TimeFormatSpecifierException>(() => TimeFormat.Compile(tooMany));
+        var hugeError = Assert.Throws<TimeFormatSpecifierException>(() => TimeFormat.Compile(huge));
+
+        // Assert: 315 copies of "3/5/2024, 1:04:09 PM" fill 6,300 characters
+        Assert.Equal(315 * 20, formatter.Format(Instant, TimeCalendar.Utc, 10_000).Length);
+        Assert.Contains("the limit of 4096 pieces", error.Message, StringComparison.Ordinal);
+        Assert.Contains("the limit of 4096 pieces", hugeError.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that a multi-format override is limited like any specifier, and that the limit leaves the defaults and the shorter overrides alone.
+    /// </summary>
+    [Fact]
+    public void TimeFormat_Multi_LongOverride_IsLimited()
+    {
+        // Arrange
+        var tooLong = new Dictionary<string, string> { ["year"] = new string('y', TimeFormat.MaxSpecifierLength + 1) };
+        var fine = new Dictionary<string, string> { ["year"] = "Y%Y" };
+
+        // Act
+        var error = Assert.Throws<TimeFormatSpecifierException>(() => TimeFormat.Multi(TimeCalendar.Utc, tooLong));
+        var text = TimeFormat.Multi(TimeCalendar.Utc, fine).Format(TimeTestSupport.Ms(2024, 1, 1), TimeCalendar.Utc, Limit);
+
+        // Assert
+        Assert.Contains("the limit of 1024 characters", error.Message, StringComparison.Ordinal);
+        Assert.Equal("Y2024", text);
+    }
+
+    /// <summary>
     ///     Validates the output limit: text of exactly the limit is returned, one more character throws, and a huge literal
     ///     stops early.
     /// </summary>
@@ -331,7 +392,7 @@ public class TimeFormatTests
     {
         // Arrange: %c is 20 characters here, so four of them are 80
         var four = TimeFormat.Compile("%c%c%c%c");
-        var huge = TimeFormat.Compile(new string('x', 5000));
+        var huge = TimeFormat.Compile(new string('x', TimeFormat.MaxSpecifierLength));
 
         // Act: format at the limit and beyond it
         var exact = four.Format(Instant, TimeCalendar.Utc, 80);

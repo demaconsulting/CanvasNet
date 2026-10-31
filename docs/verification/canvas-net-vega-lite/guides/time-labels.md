@@ -46,6 +46,23 @@ ms), and the derivations are repeated here:
 - **Label length.** `Mar 05, 2024` has 12 characters and the number `1709596800000` has 13, so a limit of 12 returns
   the time label and a limit of 11 is a located render exception that contains `the limit of 11`, and a limit of 12
   fails the number with `the limit of 12`.
+- **Labels together.** The labels of one guide are limited together to the same length: under a limit of 30 two `Mar 05,
+  2024` labels (24 characters) are made and the third (36) is a located render exception that contains `are together
+  longer than the limit of 30 characters` (as is every later one, since a refused label is not counted); under a limit of
+  36 three are made (exactly 36) and the fourth is refused; a second label function keeps its own total; the 13-character
+  number labels are 26 under a limit of 30 and the third (39) is refused. On an axis, the eleven `%c` labels of the ten-day
+  axis are 9 x 21 + 2 x 22 = 233 characters (the 10th and 11th are `1/10/2024, 12:00:00 AM` and `1/11/2024, 12:00:00 AM`),
+  so a limit of 240 allows them and a limit of 100 refuses the fifth (5 x 21 = 105); on a legend the six `Jan 01, 2024`
+  labels are 72 characters, so a limit of 72 allows them and a limit of 40 refuses the fourth (48). With the default limit
+  of 1,048,576, a format of 512 `%B` (1,024 characters, the longest allowed) on the 481 month starts of January 1980 to
+  January 2020 makes labels of about 6.2 x 512 = 3,200 characters, which pass the limit at about the 330th tick, so the
+  axis fails with `the limit of 1048576 characters`.
+- **Specifier limits.** A time format of 1,025 characters, or 400 `%c` (5,200 tokens, over 4,096), is a located
+  specification exception at the format: from `TimeLabels.Create` ("The axis time format is not valid: ...") and from
+  the specification parser for a format of an axis or a legend that is read as a time (a temporal field, a time unit, or
+  `formatType` of `time` or `utc`: the text, or a member of a format object; see the _SpecParser Unit Verification
+  Design_); the `config.timeFormat` of a legend is found by `TimeLabels.Create`. A specifier of exactly 1,024 characters
+  works.
 - **Interval requests.** `tickCount: "month"` is the month interval (step 0, since none is given),
   `{interval: "week", step: 2}` is the week interval with step 2, `"quarter"` is the month interval with step 3,
   `"utcday"` is a UTC request; null, a number, an unknown name such as `decade`, and an object with no interval are not
@@ -87,8 +104,9 @@ ms), and the derivations are repeated here:
   the scale (at +05:30 local midnight of March 5 is March 5 less 5.5 hours) unless it has `utc: true`, and a date-only
   text is UTC in every calendar.
 - **Quantitative axis with a time format.** The numbers 0 to 10,000 with `formatType: "time"` and `%H:%M:%S` are
-  milliseconds after the epoch: a tick every 1,000 (count 10 over 400 pixels) gives `00:00:00` to `00:00:10`, in UTC
-  whatever the zone of the chart is.
+  milliseconds after the epoch: a tick every 1,000 (count 10 over 400 pixels) gives `00:00:00` to `00:00:10` in UTC, and
+  `05:30:00` to `05:30:10` in a chart at +05:30 (the chart's calendar; the epoch is 05:30 there); `formatType: "utc"`
+  gives the UTC labels in every zone.
 - **Legend ticks.** The ten days of a temporal color in a gradient legend 200 pixels long: the tick count is
   max(2, 2 x floor(200 / 100)) = 4, the target is 10 / 4 = 2.5 days, nearest to the 2 days of the table (2.5 / 2 =
   1.25 is below 7 / 2.5 = 2.8), so the labels are the dates 1, 3, 5, 7, 9, and 11 as `Jan 01, 2024` and so on; the
@@ -98,15 +116,15 @@ ms), and the derivations are repeated here:
   `yearmonth` months of January 15, February 10, and March 20 (starts January 1, February 1, and March 1) over a count
   of 4 target 15 days and give the month ticks `Jan 2024`, `Feb 2024`, and `Mar 2024`; at +05:30 the first odd day is
   the 3rd (local midnight of January 1 is before the domain starts), so the labels are the dates 3, 5, 7, 9, and 11.
-  Labels that are 12 characters long fit a limit of 12 and not 10, and a count of an hourly interval over ten days (241
-  ticks) is above a tick limit of 5.
+  Labels that are 12 characters long fit a limit of 12 for one label (one explicit value) and not 10, and a count of an
+  hourly interval over ten days (241 ticks) is above a tick limit of 5.
 - **Discrete dates.** The months of three dates as an ordinal field with the unit `month` are labeled `Jan`, `Feb`, and
   `Mar` (the specifier `%b`), `January`, `February`, and `March` with the format `%B`, and `Jan` and `Mar` for the values
   `["Mar", 1]` (a name or a number that names a part of the unit); the labels are not turned.
 - **Limits.** More ticks than the limit are refused before any label is made: with a tick limit of 5 the 11 days, the
   864,000,000 milliseconds of an interval request of `millisecond` over ten days, and a list of 6 values are located
   render exceptions; a label longer than the string limit is refused: `%c` is `1/1/2024, 12:00:00 AM` (21 characters)
-  and `%c %c` is 43, so a limit of 30 allows the first and refuses the second.
+  and `%c %c` is 43, so for a single tick (an explicit value) a limit of 30 allows the first and refuses the second.
 - **Culture.** The labels are the English ones under `tr-TR` and `de-DE` as under the invariant culture: `Monday January
   12 AM` for the format `%A %B %I %p` on January 1, 2024 at 00:00, and `1,704,067,200,000` for the number format.
 
@@ -170,10 +188,16 @@ NaN.
 
 ##### Labels Are Bounded By The Limit
 
-**Tests**: `TimeLabelsTests.TimeLabels_Create_LabelsAreBoundedByTheLimit`
+**Tests**: `TimeLabelsTests.TimeLabels_Create_LabelsAreBoundedByTheLimit`,
+`TimeLabelsTests.TimeLabels_Create_LabelsOfAGuideAreBoundedTogether`,
+`TimeLabelsTests.TimeLabels_Create_LongSpecifier_IsASpecificationError`
 
 Asserts that `Mar 05, 2024` is made under a limit of 12 and is a located render exception that contains `the limit of
-11` under a limit of 11, and that the 13-digit number label under a limit of 12 is one that contains `the limit of 12`.
+11` under a limit of 11, and that the 13-digit number label under a limit of 12 is one that contains `the limit of 12`;
+that the labels of one function are limited together (two of three 12-character labels under 30, three under 36, the
+refused label uncounted, an independent function with its own total, and 13-character number labels refused at the
+third); and that a specifier of 1,025 characters, one of 400 `%c`, and a long member of a format object are located
+specification exceptions ("The axis time format is not valid") while a specifier of 1,024 characters is formatted.
 
 ##### Time Axes Choose Ticks And Labels By The Calendar
 
@@ -190,7 +214,7 @@ Asserts the 11 daily ticks, labels, and positions of the ten-day axis (with the 
 the title, and the labels thinned by parity unless the overlap method is off); the month ticks, labels, positions
 (0, 102, 198, and 300), and title of the `yearmonth` axis derived above; the text format and the multi-format object
 (the labels `2024-01-01` to `2024-01-11` and `Y2024`, `02`, ..., `Jan 07`, ..., `11`); the number format of the
-milliseconds and the time and UTC formats of a quantitative axis; the count, interval, and step forms of `tickCount`; the
+milliseconds and the time (in the zone of the chart: `05:30:00` to `05:30:10` at +05:30) and UTC formats of a quantitative axis; the count, interval, and step forms of `tickCount`; the
 default of 10 for the unit `hours` (eight ticks) against 20 for `hoursminutes` (24 ticks); the 13 Sundays under
 `tickMinStep: 1`; and the values given as a timestamp, a text, and an object, in the order of the scale at 80, 160, and
 360 pixels, with the dropped date and text.
@@ -212,11 +236,18 @@ and the 11 UTC midnights of the same data; that a UTC scale in a zone has the pl
 ##### Time Axes Fail Closed And Are Deterministic
 
 **Tests**: `AxisBuilderTimeTests.AxisBuilder_Time_TooManyTicks_IsLocated`,
-`AxisBuilderTimeTests.AxisBuilder_Time_LabelTooLong_IsLocated`, `AxisBuilderTimeTests.AxisBuilder_Time_Cancellation`,
+`AxisBuilderTimeTests.AxisBuilder_Time_LabelTooLong_IsLocated`,
+`AxisBuilderTimeTests.AxisBuilder_Time_LabelsTogetherTooLong_IsLocated`,
+`AxisBuilderTimeTests.AxisBuilder_Time_HostileFormatOnManyTicks_IsStoppedByTheAggregateCap`,
+`AxisBuilderTimeTests.AxisBuilder_Time_FormatSpecifierLimits_AreSpecificationErrors`,
+`AxisBuilderTimeTests.AxisBuilder_Time_Cancellation`,
 `AxisBuilderTimeTests.AxisBuilder_Time_Culture_Invariant`, `AxisBuilderTimeTests.AxisBuilder_Time_Deterministic`
 
 Asserts the located render exceptions of the tick limit (generated ticks, an interval of milliseconds, and six values)
-and of the label limit (43 characters against 30, and the 21-character `%c` that fits); that a canceled token stops the
+and of the label limit (43 characters against 30, and the 21-character `%c` that fits), of the labels together (233
+characters against 100, and the hostile 512-month-name format on 481 ticks against the default limit), and the located
+specification exceptions of a format of 1,025 characters, of 400 `%c`, of a format object member, and of a quantitative
+field forced to time by its format type; that a canceled token stops the
 build and an uncanceled one builds the axis; that the labels are the English ones under `tr-TR`, `de-DE`, and the
 invariant culture; and that two builds in a zone give the same ticks, labels, positions, and item count.
 
@@ -241,6 +272,21 @@ object, a text, and a timestamp in the order written (`Jan 03, 2024`, `Jan 09, 2
 `LegendBuilderTimeTests.LegendBuilder_Time_Culture_InvariantAndDeterministic`
 
 Asserts the five local labels at +05:30 against the six UTC ones; that a label limit of 10 and a tick limit of 5 are
-located render exceptions that name their limits while a limit of 12 gives the six labels, and that a canceled token
-stops the build; and that the labels are the same under `tr-TR`, `de-DE`, and the invariant culture and on repeated
-calls.
+located render exceptions that name their limits while a limit of 12 gives the one label of a single explicit value, and
+that a canceled token stops the build; and that the labels are the same under `tr-TR`, `de-DE`, and the invariant
+culture and on repeated calls.
+
+##### Temporal Legends Keep The UTC Type, Ignore Zero, And Limit Their Labels Together
+
+**Tests**: `LegendBuilderTimeTests.LegendBuilder_Time_TemporalColorUtcType_UsesTheUtcCalendar`,
+`LegendBuilderTimeTests.LegendBuilder_Time_TemporalColor_ZeroIsIgnored`,
+`LegendBuilderTimeTests.LegendBuilder_Time_LabelsTogetherTooLong_IsLocated`,
+`LegendBuilderTimeTests.LegendBuilder_Time_FormatSpecifierLimits_AreSpecificationErrors`
+
+Asserts that a temporal color with `scale.type: "utc"` in a chart five hours behind UTC labels the whole-day ticks counted
+from the epoch (2024-01-01 is day 19,723, so the even days 19,724 to 19,732: `Jan 02, 2024`, `Jan 04, 2024`, ...,
+`Jan 10, 2024`), the same as without a zone, and that the `time` type in the zone gives other labels (the local odd
+days); that `scale.zero: true` leaves the six labels `Jan 01, 2024` to `Jan 11, 2024` (the domain is not pulled to 1970);
+that the six 12-character labels are 72 characters, refused at the fourth under a limit of 40 (`are together longer than
+the limit of 40 characters`) and allowed under 72; and that a `config.timeFormat` and a legend `format` member of 1,025
+characters are located specification exceptions that contain `the limit of 1024 characters`.

@@ -81,7 +81,7 @@ internal static class ChartTestHelpers
         var scale = parts.Scales[channel] ?? throw new InvalidOperationException("The test specification has no scale for " + channel);
         var model = scale.CreateModel(channel == "x" ? width : height);
         var request = new AxisRequest(channel, parts.Tree.Root["encoding"]?[channel], scale, model, width, height, parts.Scales.MarkType);
-        return new AxisBuilder(new TextMeasurer(), parts.Config, limits, parts.Tree.SourceName).Build(request);
+        return new AxisBuilder(new TextMeasurer(), parts.Config, limits, parts.Tree.SourceName, parts.Data.Evaluation.Calendar).Build(request);
     }
 
     /// <summary>

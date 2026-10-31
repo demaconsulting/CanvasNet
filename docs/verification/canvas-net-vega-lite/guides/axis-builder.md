@@ -257,8 +257,9 @@ unit so that 8 ticks over 91 days target 11.4 days (nearest the 7 day week) and 
 Assert that a text `format` is a d3 time format (`%Y-%m-%d` labels every tick with its date) and an object replaces
 the day and year levels of the multi-format while a missing level keeps the Vega default (`Y2024`, `02`, ..., `Jan 07`,
 ...); that `formatType: number` formats the milliseconds (`1,704,067,200,000` and `1,704,931,200,000`, ten days
-later, which is 10 x 86,400,000 = 864,000,000 more) and that `formatType: time` or `utc` on a quantitative axis of 0 to
-10,000 reads the numbers as UTC times whatever the zone (`00:00:00`, `00:00:01`, ..., `00:00:10`); that `tickCount` as
+later, which is 10 x 86,400,000 = 864,000,000 more) and that `formatType: time` on a quantitative axis of 0 to
+10,000 reads the numbers as times in the zone of the chart (`00:00:00`, `00:00:01`, ..., `00:00:10` in UTC, and
+`05:30:00`, ..., `05:30:10` at +05:30, whose wall time at the epoch is 05:30) while `utc` reads them in UTC in every zone; that `tickCount` as
 a number, an interval, and `{interval, step}` gives the ticks derived above; and that `values` take a timestamp, a date
 text, and a date-time object (the 10th, 5th, and 3rd of January), drop a date outside the scale and a text that is not
 a date, and keep the scale order (the 3rd, 5th, and 10th at 80, 160, and 360 pixels, labeled `Wed 03`, `Fri 05`,
@@ -282,14 +283,24 @@ being a date.
 
 **Tests**: `AxisBuilderTimeTests.AxisBuilder_Time_TooManyTicks_IsLocated`,
 `AxisBuilderTimeTests.AxisBuilder_Time_LabelTooLong_IsLocated`,
+`AxisBuilderTimeTests.AxisBuilder_Time_LabelsTogetherTooLong_IsLocated`,
+`AxisBuilderTimeTests.AxisBuilder_Time_HostileFormatOnManyTicks_IsStoppedByTheAggregateCap`,
+`AxisBuilderTimeTests.AxisBuilder_Time_FormatSpecifierLimits_AreSpecificationErrors`,
 `AxisBuilderTimeTests.AxisBuilder_Time_Cancellation`,
 `AxisBuilderTimeTests.AxisBuilder_Time_Culture_Invariant`,
 `AxisBuilderTimeTests.AxisBuilder_Time_Deterministic`
 
 Assert that with `MaxTicks` of 5 a daily interval request, a millisecond interval request, and six listed values throw
 a located `VegaLiteRenderException` that names the limit (`the limit of 5`, `MaxTicks`, and `MaxTicks (5)`); that with
-`MaxStringLength` of 30 the format `%c %c` (41 characters) fails with a located exception naming the limit of 30 while
-`%c` (`1/1/2024, 12:00:00 AM`) fits; that a canceled token throws `OperationCanceledException` and the same request
+`MaxStringLength` of 30 the format `%c %c` (`1/1/2024, 12:00:00 AM` twice with a space, 43 characters) fails for one
+listed tick with a located exception naming the limit of 30 while `%c` (21 characters) fits; that the eleven `%c`
+labels of the ten-day axis (9 x 21 + 2 x 22 = 233 characters, the 10th and 11th being one digit longer) fit a limit of
+240 and are refused at the fifth label under 100 (5 x 21 = 105) with `together longer than the limit of 100 characters`;
+that the hostile format of 512 `%B` (1,024 characters) on the 481 month starts between January 1980 and January 2020
+(about 3,200 characters a label, 1.5 million in all) is refused with `the limit of 1048576 characters` under the default
+limit; that a format of 1,025 characters, one of 400 `%c`, a member of a format object, and the format of a quantitative
+field with `formatType: utc` are located `VegaLiteSpecException`s naming `the limit of 1024 characters` or `the limit
+of 4096 pieces`; that a canceled token throws `OperationCanceledException` and the same request
 builds with a live token; that the multi-format labels, `%A %B %I %p` (`Monday January 12 AM`), and the number labels
 are identical under the Turkish and German cultures and the invariant culture; and that building the same axis twice
 in a US-like zone gives the same instants, positions, labels, and item count.

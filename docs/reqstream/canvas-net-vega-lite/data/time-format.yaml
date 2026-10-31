@@ -213,3 +213,20 @@ sections:
                 tests:
                   - TimeFormat_Format_TooLong_Throws
                   - TimeFormatMulti_InvalidDateAndLimit
+
+              - id: CanvasNetVegaLite-Data-TimeFormat-SpecifierLimit
+                title: >-
+                  The TimeFormat unit shall refuse to compile a specifier longer than 1,024 characters, or one
+                  that expands (through the composite directives c, x, and X, which paste in 13 pieces for one
+                  c) to more than 4,096 pieces, with a TimeFormatSpecifierException that names the limit, for a
+                  plain specifier and for every override of a multi-format, so that the cost and the memory
+                  of a compiled formatter are bounded by the limit and not by the length of an untrusted
+                  specifier.
+                justification: |
+                  A specifier of a specification or of an expression is untrusted text; a megabyte of c
+                  directives would otherwise compile to millions of pieces, and every label would then copy
+                  them. The longest real specifier is about 30 characters.
+                tests:
+                  - TimeFormat_Compile_SpecifierLength_IsLimited
+                  - TimeFormat_Compile_LocaleDirectiveExpansion_IsLimited
+                  - TimeFormat_Multi_LongOverride_IsLimited

@@ -400,6 +400,20 @@ an interval that is not one (`fortnight`, `Month`, and the object with `interval
 checked for every field type, because the parser does not know the type of the scale; whether the interval is used on a
 channel without a time scale is the catalog's concern (see _FeatureCatalog Unit Verification Design_).
 
+##### Time Format Limits
+
+**Tests**: `SpecParserTimeTests.SpecParser_TimeFormat_SpecifierLimitsAreSpecificationErrors`
+
+Asserts that a `format` of 1,025 characters on the axis of a temporal field is a located error at
+`/encoding/x/axis/format`, as is one of 400 `%c` (5,200 tokens, with a message that names `the limit of 4096 pieces`),
+a `format` text of the legend of a temporal color (`/encoding/color/legend/format`), the `format` of an ordinal field with
+the unit `month`, and the `format` of a quantitative field whose `formatType` is `utc`; that a member of a `format`
+object (`year`) of 1,025 characters is an error at the member (`/encoding/x/axis/format/year`); and that the `date:'...'`
+format of a `parse` entry of 1,025 characters is an error at `/data/format/parse/d`, all naming `the limit of 1024
+characters`. It also asserts that the same texts are accepted where they are not read as time formats - a number format
+(`formatType: "number"`), a custom format type, and the `format` of a quantitative field without a time format type - and
+that a specifier and a parse format of exactly 1,024 characters are accepted without a warning.
+
 ##### Mark Time Unit Band Settings
 
 **Tests**: `SpecParserTimeTests.SpecParser_MarkTimeUnitBand_NonNumberIsAnErrorInTheSpecAndIgnoredInTheCallerConfig`

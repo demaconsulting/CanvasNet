@@ -39,7 +39,7 @@ public class TimeUnitSpecTests
     }
 
     /// <summary>
-    ///     Validates the parts of all 11 single and 33 multi time units of Vega-Lite, in the order year, quarter, month, week, day, day of year, date, hours, minutes, seconds, milliseconds.
+    ///     Validates the parts of all 11 single and 29 multi time units of Vega-Lite, in the order year, quarter, month, week, day, day of year, date, hours, minutes, seconds, milliseconds.
     /// </summary>
     [Theory]
     [InlineData("year", "year")]

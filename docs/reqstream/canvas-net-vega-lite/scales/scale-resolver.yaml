@@ -454,12 +454,18 @@ sections:
                 title: >-
                   The ScaleResolver unit shall resolve a temporal field on a color channel as a continuous
                   scale over milliseconds with the range, scheme, interpolation, and domain rules of a
-                  sequential scale, replacing the discretizing types quantile, quantize, and threshold,
-                  which a temporal field does not accept, by the sequential scale, and shall let the legend and
-                  the marks read the calendar and the time unit of the scale.
+                  sequential scale, ignoring the zero property (as for a time scale, zero being meaningless
+                  for dates), replacing the discretizing types quantile, quantize, and threshold,
+                  which a temporal field does not accept, by the sequential scale, keeping the meaning of an
+                  explicit utc type (the scale uses the UTC calendar and is flagged as a UTC scale, whatever
+                  the time zone of the chart is), and shall let the legend and the marks read the calendar and
+                  the time unit of the scale.
                 justification: |
                   A chart that colors by date needs the scale to be a continuous color scale and the legend to
-                  label dates; Vega-Lite does not discretize a temporal field.
+                  label dates; Vega-Lite does not discretize a temporal field, and a scale that was asked to be
+                  UTC must not follow the zone of the chart.
                 tests:
                   - ScaleResolver_TemporalColor_IsSequentialOverMilliseconds
+                  - ScaleResolver_TemporalColor_ExplicitUtcType_UsesTheUtcCalendar
+                  - ScaleResolver_TemporalColor_ZeroIsIgnored
                   - ScaleResolver_TemporalColorQuantile_Threshold_Quantize_FallBackToSequential

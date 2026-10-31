@@ -1047,4 +1047,60 @@ public class ExpressionFunctionsTimeTests
         Assert.Equal(12, utcHours.Number);
         Assert.Equal(14, zonedHours.Number);
     }
+
+    /// <summary>
+    ///     Validates that a time format specifier longer than <see cref="TimeFormat.MaxSpecifierLength"/> characters, or one that expands (through <c>%c</c>) to more than
+    ///     <see cref="TimeFormat.MaxTokenCount"/> pieces, is a runtime error in every function that reads one, and that a specifier at the limit still works.
+    /// </summary>
+    [Fact]
+    public void ExpressionFunctions_TimeFormat_SpecifierLimits_AreRuntimeErrors()
+    {
+        // Arrange: the string limit is the default (a million), so only the specifier limits are in play
+        var context = new ExpressionFunctionContext(null, CancellationToken.None);
+        var longText = new string('x', TimeFormat.MaxSpecifierLength + 1);
+        var manyPieces = string.Concat(Enumerable.Repeat("%c", 400));
+        DataValue[] Args(string specifier) => [DataValue.FromDate(Ms(2024, 3, 5)), DataValue.FromString(specifier)];
+        DataValue[] ParseArgs(string specifier) => [DataValue.FromString("2024"), DataValue.FromString(specifier)];
+        var members = DataObject.Create([new KeyValuePair<string, DataValue>("year", DataValue.FromString(longText))]);
+        DataValue[] Multi() => [DataValue.FromDate(Ms(2024, 1, 1)), DataValue.FromObject(members)];
+
+        // Act
+        var formatLong = Assert.Throws<ExpressionRuntimeException>(() => ExpressionFunctions.Invoke("timeFormat", Args(longText), context));
+        var utcLong = Assert.Throws<ExpressionRuntimeException>(() => ExpressionFunctions.Invoke("utcFormat", Args(longText), context));
+        var formatPieces = Assert.Throws<ExpressionRuntimeException>(() => ExpressionFunctions.Invoke("utcFormat", Args(manyPieces), context));
+        var multiLong = Assert.Throws<ExpressionRuntimeException>(() => ExpressionFunctions.Invoke("timeFormat", Multi(), context));
+        var parseLong = Assert.Throws<ExpressionRuntimeException>(() => ExpressionFunctions.Invoke("timeParse", ParseArgs(longText), context));
+        var utcParseLong = Assert.Throws<ExpressionRuntimeException>(() => ExpressionFunctions.Invoke("utcParse", ParseArgs(longText), context));
+        var atLimit = ExpressionFunctions.Invoke("utcFormat", Args(new string('x', TimeFormat.MaxSpecifierLength)), context);
+
+        // Assert: each error names its limit, and the longest specifier is formatted
+        Assert.All([formatLong, utcLong, multiLong, parseLong, utcParseLong], e => Assert.Contains("the limit of 1024 characters", e.Message, StringComparison.Ordinal));
+        Assert.Contains("the limit of 4096 pieces", formatPieces.Message, StringComparison.Ordinal);
+        Assert.Equal(TimeFormat.MaxSpecifierLength, atLimit.Text!.Length);
+    }
+
+    /// <summary>
+    ///     Validates that the cache of compiled time formatters is bounded by size: a long specifier is compiled again for every call and never kept, a short one is
+    ///     kept, and a failed compilation caches nothing.
+    /// </summary>
+    [Fact]
+    public void ExpressionFunctionContext_TimeFormatterCache_DoesNotKeepLongSpecifiers()
+    {
+        // Arrange: a specifier of 200 characters is within the limit of the formatter but over the size the cache keeps
+        var context = new ExpressionFunctionContext(null, CancellationToken.None);
+        var longer = new string('x', 200) + "%Y";
+
+        // Act
+        var firstLong = context.GetTimeFormatter(longer);
+        var secondLong = context.GetTimeFormatter(longer);
+        var firstShort = context.GetTimeFormatter("%Y");
+        var secondShort = context.GetTimeFormatter("%Y");
+        var failed = Assert.Throws<ExpressionRuntimeException>(() => context.GetTimeFormatter(new string('x', TimeFormat.MaxSpecifierLength + 1)));
+
+        // Assert: both long formatters work but are different objects; the short one is the cached one
+        Assert.NotSame(firstLong, secondLong);
+        Assert.Equal(longer.Length - 2 + 4, firstLong.Format(AnchorMilliseconds, TimeCalendar.Utc, 1_000).Length);
+        Assert.Same(firstShort, secondShort);
+        Assert.Contains("the limit of 1024 characters", failed.Message, StringComparison.Ordinal);
+    }
 }

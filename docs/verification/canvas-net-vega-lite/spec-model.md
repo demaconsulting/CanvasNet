@@ -124,6 +124,7 @@ scenario in the three unit verification documents passes without error or unexpe
   `SpecParserTimeTests.SpecParser_TimeUnit_UnknownUnitIsLocated`,
   `SpecParserTimeTests.SpecParser_DateTimeObject_InDomainPredicateAndValues_Validated`,
   `SpecParserTimeTests.SpecParser_TickCountInterval_Validated`,
+  `SpecParserTimeTests.SpecParser_TimeFormat_SpecifierLimitsAreSpecificationErrors`,
   `SpecParserTimeTests.SpecParser_TimePredicates_AreCompiledOnceUnderThePredicate`,
   `PredicateSourceTimeTests.PredicateSource_TimeUnit_Equal_Month`,
   `PredicateSourceTimeTests.PredicateSource_WeekPart_IsOmittedAndWarned`,
@@ -134,7 +135,8 @@ scenario in the three unit verification documents passes without error or unexpe
   `FeatureCatalogTests.FeatureCatalog_Visit_CustomDateFormatIsSupportedAndReportsNothing`,
   `FeatureCatalogTests.FeatureCatalog_Visit_TimeUnitAndDateTestsAreSupported` — the parser checks the time constructs
   with the rules of the `Data` subsystem (an unknown time unit, a date-time object with an unknown key, a month, quarter,
-  or day that is not one, a `tickCount` or `nice` interval that is not one of the eight, and a `date:` or `utc:` parse
+  or day that is not one, a `tickCount` or `nice` interval that is not one of the eight, a time format of more than 1,024
+  characters or 4,096 pieces, and a `date:` or `utc:` parse
   entry without a quoted format are `VegaLiteSpecException` errors at the offending member), compiles each time
   predicate once into an expression written with the date and time functions (so it is evaluated in the calendar of the
   chart), and the catalog, which reads the same units with `TimeUnitSpec`, reports nothing for a supported

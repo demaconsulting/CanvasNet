@@ -566,6 +566,8 @@ sort array `["Dec", 1]` puts the unlisted February first and then December and J
 ##### Colors And Numeric Channels Of Temporal Fields
 
 **Tests**: `ScaleResolverTimeTests.ScaleResolver_TemporalColor_IsSequentialOverMilliseconds`,
+`ScaleResolverTimeTests.ScaleResolver_TemporalColor_ExplicitUtcType_UsesTheUtcCalendar`,
+`ScaleResolverTimeTests.ScaleResolver_TemporalColor_ZeroIsIgnored`,
 `ScaleResolverTimeTests.ScaleResolver_TemporalColorQuantile_Threshold_Quantize_FallBackToSequential`,
 `ScaleResolverTimeTests.ScaleResolver_TemporalSize_And_Opacity_UseTheTimeScale`
 
@@ -573,7 +575,11 @@ Assert that the color of a temporal field is a sequential scale over the millise
 interpolator, no `nice`, and the temporal flag, whose colors at the two ends and in the middle are the samples of the
 interpolator at 0, 1, and 0.5, with no color for a null; that a `domainMid` timestamp (January 6) makes a diverging
 scale of three
-entries; that `quantile`, `quantize`, `threshold`, `bin-ordinal`, and `ordinal` on a temporal color stay sequential;
+entries; that in a chart five hours behind UTC the color and fill channels with `scale.type: "utc"` stay sequential but
+have the UTC calendar and `IsUtcTime`, while `type: "time"` and no type have the zone's calendar and no flag; that
+`scale.zero: true` on a temporal color (also with the type `utc`) leaves the domain at January 1 to January 11 while the
+same property on a quantitative color pulls the domain of 1 to 3 to 0 to 3;
+that `quantile`, `quantize`, `threshold`, `bin-ordinal`, and `ordinal` on a temporal color stay sequential;
 and that size, opacity, and angle get a time scale over their own ranges (opacity 0.3 to 0.8, angle 0 to 360), the
 first date of a size being its minimum and not zero, the middle date 0.55 and 180 as derived above, and `shape` an
 ordinal scale of three dates.

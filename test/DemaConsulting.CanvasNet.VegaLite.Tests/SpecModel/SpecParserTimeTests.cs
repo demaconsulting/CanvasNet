@@ -372,4 +372,39 @@ public class SpecParserTimeTests
         Assert.Empty(accepted.Warnings);
         Assert.Equal("/transform/0/filter", tooLong.Location.Pointer);
     }
+
+    /// <summary>
+    ///     Validates the limit of the time format specifiers of a specification: the <c>format</c> of an axis or legend of a temporal field (a text, or a member of a multi-format
+    ///     object), of a field with a time unit and of a field forced to time by <c>formatType</c>, and the date format of a <c>format.parse</c> entry, are refused at the format when
+    ///     they are longer than 1,024 characters or expand to more than 4,096 pieces; a number format, a custom format type and a specifier at the limit are not.
+    /// </summary>
+    [Fact]
+    public void SpecParser_TimeFormat_SpecifierLimitsAreSpecificationErrors()
+    {
+        // Arrange
+        var tooLong = new string('x', 1_025);
+        var longest = new string('x', 1_024);
+        var manyPieces = string.Concat(Enumerable.Repeat("%c", 400));
+        static string X(string members, string field = "\"type\":\"temporal\"") => "{\"mark\":\"point\",\"encoding\":{\"x\":{\"field\":\"d\"," + field + "," + members + "}}}";
+
+        // Act
+        var axisText = Fail(X("\"axis\":{\"format\":\"" + tooLong + "\"}"), "/encoding/x/axis/format");
+        var axisPieces = Fail(X("\"axis\":{\"format\":\"" + manyPieces + "\"}"), "/encoding/x/axis/format");
+        var axisMulti = Fail(X("\"axis\":{\"format\":{\"year\":\"" + tooLong + "\"}}"), "/encoding/x/axis/format/year");
+        var legend = Fail("{\"mark\":\"point\",\"encoding\":{\"color\":{\"field\":\"d\",\"type\":\"temporal\",\"legend\":{\"format\":\"" + tooLong + "\"}}}}", "/encoding/color/legend/format");
+        var unit = Fail(X("\"axis\":{\"format\":\"" + tooLong + "\"}", "\"type\":\"ordinal\",\"timeUnit\":\"month\""), "/encoding/x/axis/format");
+        var forced = Fail(X("\"axis\":{\"formatType\":\"utc\",\"format\":\"" + tooLong + "\"}", "\"type\":\"quantitative\""), "/encoding/x/axis/format");
+        var parse = Fail("{\"data\":{\"values\":[{\"d\":\"x\"}],\"format\":{\"parse\":{\"d\":\"date:'" + tooLong + "'\"}}},\"mark\":\"point\"}", "/data/format/parse/d");
+
+        // Assert: the messages name the limits
+        Assert.All([axisText, axisMulti, legend, unit, forced, parse], e => Assert.Contains("the limit of 1024 characters", e.Message, StringComparison.Ordinal));
+        Assert.Contains("the limit of 4096 pieces", axisPieces.Message, StringComparison.Ordinal);
+
+        // Assert: the specifier at the limit, a number format, a custom format type and a field that is not read as a time are accepted
+        Assert.Empty(SpecParser.Parse(X("\"axis\":{\"format\":\"" + longest + "\"}"), "t.json").Warnings);
+        SpecParser.Parse(X("\"axis\":{\"formatType\":\"number\",\"format\":\"" + tooLong + "\"}"), "t.json");
+        SpecParser.Parse(X("\"axis\":{\"formatType\":\"custom\",\"format\":\"" + tooLong + "\"}"), "t.json");
+        SpecParser.Parse(X("\"axis\":{\"format\":\"" + tooLong + "\"}", "\"type\":\"quantitative\""), "t.json");
+        SpecParser.Parse("{\"data\":{\"values\":[{\"d\":\"x\"}],\"format\":{\"parse\":{\"d\":\"date:'" + longest + "'\"}}},\"mark\":\"point\"}", "t.json");
+    }
 }

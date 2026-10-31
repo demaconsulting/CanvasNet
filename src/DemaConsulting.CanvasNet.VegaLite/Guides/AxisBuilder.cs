@@ -119,6 +119,9 @@ internal sealed class AxisBuilder
     /// <summary>The source name used in the locations of errors.</summary>
     private readonly string? _sourceName;
 
+    /// <summary>The calendar of the chart (the zone of the render options), for the labels of a field that is not temporal but is formatted as a time.</summary>
+    private readonly TimeCalendar _chartCalendar;
+
     /// <summary>
     ///     Initializes an axis builder.
     /// </summary>
@@ -126,8 +129,9 @@ internal sealed class AxisBuilder
     /// <param name="config">The effective configuration.</param>
     /// <param name="limits">The limits to enforce (<see cref="VegaLiteLimits.MaxTicks"/>); the defaults when null.</param>
     /// <param name="sourceName">The source name for the locations of errors, or null.</param>
+    /// <param name="chartCalendar">The calendar of the chart, used by a <c>formatType</c> of <c>time</c> on a field that is not temporal; UTC when null.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="measurer"/> or <paramref name="config"/> is null.</exception>
-    public AxisBuilder(TextMeasurer measurer, ResolvedConfig config, VegaLiteLimits? limits = null, string? sourceName = null)
+    public AxisBuilder(TextMeasurer measurer, ResolvedConfig config, VegaLiteLimits? limits = null, string? sourceName = null, TimeCalendar? chartCalendar = null)
     {
         ArgumentNullException.ThrowIfNull(measurer);
         ArgumentNullException.ThrowIfNull(config);
@@ -137,6 +141,7 @@ internal sealed class AxisBuilder
         _maxSceneItems = (limits ?? VegaLiteLimits.Default).MaxSceneItems;
         _maxStringLength = (limits ?? VegaLiteLimits.Default).MaxStringLength;
         _sourceName = sourceName;
+        _chartCalendar = chartCalendar ?? TimeCalendar.Utc;
     }
 
     /// <summary>
@@ -396,7 +401,8 @@ internal sealed class AxisBuilder
     /// <remarks>
     ///     The labels are times on a time or UTC scale, on a discrete scale over the dates of a time unit, and on any axis whose <c>formatType</c> is <c>time</c> or <c>utc</c>.
     ///     Axes do not use <c>config.timeFormat</c>: without a format and a time unit they have Vega's multi-format. A <c>formatType</c> that is not <c>number</c>, <c>time</c> or
-    ///     <c>utc</c> is a custom format type, which is not evaluated (the feature catalog reports it).
+    ///     <c>utc</c> is a custom format type, which is not evaluated (the feature catalog reports it). The dates are in the calendar of the scale; a field that is not temporal but is forced to
+    ///     a time format by <c>formatType: "time"</c> uses the calendar of the chart (the time zone of the render options), and <c>"utc"</c> uses UTC.
     /// </remarks>
     /// <param name="request">The request.</param>
     /// <param name="settings">The axis settings.</param>
@@ -414,7 +420,7 @@ internal sealed class AxisBuilder
             return null;
         }
 
-        var calendar = request.Model.Calendar ?? request.Scale.Calendar ?? TimeCalendar.Utc;
+        var calendar = request.Model.Calendar ?? request.Scale.Calendar ?? _chartCalendar;
         return TimeLabels.Create(new TimeLabels.Options(
             settings.ExplicitOrVl("format"),
             TimeLabels.IsKnownFormatType(formatType) ? formatType : null,

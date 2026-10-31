@@ -27,6 +27,12 @@ namespace DemaConsulting.CanvasNet.VegaLite.Data;
 /// </remarks>
 internal static partial class TimeFormat
 {
+    /// <summary>The longest specifier <see cref="Compile"/> accepts; a longer one is a <see cref="TimeFormatSpecifierException"/> (the longest real specifier is about 30 characters).</summary>
+    internal const int MaxSpecifierLength = 1_024;
+
+    /// <summary>The most pieces a compiled specifier may have once the locale directives <c>%c</c>, <c>%x</c> and <c>%X</c> are expanded (one <c>%c</c> is 13 pieces).</summary>
+    internal const int MaxTokenCount = 4_096;
+
     /// <summary>The longest text <see cref="TryParse"/> examines; longer text fails at once.</summary>
     internal const int MaxParseTextLength = 256;
 

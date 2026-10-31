@@ -201,4 +201,63 @@ public class TimeLabelsTests
         var number = Assert.Throws<VegaLiteRenderException>(() => numberTooLong(March5));
         Assert.Contains("the limit of 12", number.Message, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    ///     Validates the aggregate limit: the labels that one guide makes (time labels and number labels alike) are limited together to the same length, each function
+    ///     counts its own labels, and the exception names the limit and says that the labels are together too long.
+    /// </summary>
+    [Fact]
+    public void TimeLabels_Create_LabelsOfAGuideAreBoundedTogether()
+    {
+        // Arrange: "Mar 05, 2024" has 12 characters, so two labels are 24 of 30 and the third would be 36; the number of March5 has 13, so two are 26 and the third 39
+        var time = TimeLabels.Create(Options("\"%b %d, %Y\"", maxLength: 30));
+        var another = TimeLabels.Create(Options("\"%b %d, %Y\"", maxLength: 30));
+        var exact = TimeLabels.Create(Options("\"%b %d, %Y\"", maxLength: 36));
+        var number = TimeLabels.Create(Options(formatType: "number", maxLength: 30));
+
+        // Act
+        var first = time(March5);
+        var second = time(March5);
+        var timeError = Assert.Throws<VegaLiteRenderException>(() => time(March5));
+        var afterwards = Assert.Throws<VegaLiteRenderException>(() => time(March5));
+        var exactLabels = new[] { exact(March5), exact(March5), exact(March5) };
+        var exactError = Assert.Throws<VegaLiteRenderException>(() => exact(March5));
+        var independent = another(March5);
+        _ = number(March5);
+        _ = number(March5);
+        var numberError = Assert.Throws<VegaLiteRenderException>(() => number(March5));
+
+        // Assert: the third label is refused (and the refused label costs nothing, so the next one is refused too); three labels fill 36 exactly and the fourth is refused
+        Assert.Equal(["Mar 05, 2024", "Mar 05, 2024"], new[] { first, second });
+        Assert.Contains("are together longer than the limit of 30 characters", timeError.Message, StringComparison.Ordinal);
+        Assert.Contains("are together longer than the limit of 30 characters", afterwards.Message, StringComparison.Ordinal);
+        Assert.Equal(["Mar 05, 2024", "Mar 05, 2024", "Mar 05, 2024"], exactLabels);
+        Assert.Contains("the limit of 36", exactError.Message, StringComparison.Ordinal);
+        Assert.Equal("Mar 05, 2024", independent);
+        Assert.Contains("are together longer than the limit of 30 characters", numberError.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that a time format that is too long, or that expands to too many pieces, is a located specification exception when the label function is created, for a
+    ///     format text and for a member of a multi-format object, and that a specifier of the longest length still works.
+    /// </summary>
+    [Fact]
+    public void TimeLabels_Create_LongSpecifier_IsASpecificationError()
+    {
+        // Arrange
+        var tooLong = new string('x', TimeFormat.MaxSpecifierLength + 1);
+        var manyPieces = string.Concat(Enumerable.Repeat("%c", 400));
+
+        // Act
+        var text = Assert.Throws<VegaLiteSpecException>(() => TimeLabels.Create(Options("\"" + tooLong + "\"")));
+        var pieces = Assert.Throws<VegaLiteSpecException>(() => TimeLabels.Create(Options("\"" + manyPieces + "\"")));
+        var member = Assert.Throws<VegaLiteSpecException>(() => TimeLabels.Create(Options("{ \"year\": \"" + tooLong + "\" }")));
+        var longest = TimeLabels.Create(Options("\"" + new string('x', TimeFormat.MaxSpecifierLength) + "\"", maxLength: 2_000));
+
+        // Assert: the messages name the owner of the format and the limits; the longest specifier works
+        Assert.All([text, member], e => Assert.Contains("axis time format is not valid", e.Message, StringComparison.Ordinal));
+        Assert.All([text, member], e => Assert.Contains("the limit of 1024 characters", e.Message, StringComparison.Ordinal));
+        Assert.Contains("the limit of 4096 pieces", pieces.Message, StringComparison.Ordinal);
+        Assert.Equal(TimeFormat.MaxSpecifierLength, longest(March5).Length);
+    }
 }

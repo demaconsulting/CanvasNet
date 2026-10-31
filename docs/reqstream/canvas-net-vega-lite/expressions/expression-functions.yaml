@@ -245,8 +245,11 @@ sections:
                   scale domain size limit (exactly the limit is accepted, one more is a located error, and a
                   request of a million milliseconds is refused before it is built), one evaluation step
                   charged per date of a sequence, a format result at the string-length limit, the text and
-                  specifier of a parse and a format charged by their length, the compiled formatters cached
-                  at most 64 per evaluation, and the cancellation token observed while a sequence is built.
+                  specifier of a parse and a format charged by their length, a specifier (and each override of a
+                  multi-format) of at most 1,024 characters and 4,096 pieces after the composite directives are
+                  expanded, a runtime error for a longer one, the compiled formatters cached at most 64
+                  per evaluation and only for specifiers of at most 64 characters, and the cancellation token
+                  observed while a sequence is built.
                 justification: |
                   Date functions can multiply a small request into a large result; an untrusted specification
                   must not be able to exhaust memory or time with them.
@@ -256,8 +259,10 @@ sections:
                   - ExpressionFunctions_Sequence_ChargesOneStepPerDate
                   - ExpressionFunctions_Sequence_ObservesCancellation
                   - ExpressionFunctions_TimeFormat_IsBoundedAndCharged
+                  - ExpressionFunctions_TimeFormat_SpecifierLimits_AreRuntimeErrors
                   - ExpressionFunctionContext_TimeSupport_ChargesCachesAndExposesTheToken
                   - ExpressionFunctionContext_TimeFormatterCache_ClearsWhenFull
+                  - ExpressionFunctionContext_TimeFormatterCache_DoesNotKeepLongSpecifiers
 
               - id: CanvasNetVegaLite-Expressions-ExpressionFunctions-TimeDeterminism
                 title: >-

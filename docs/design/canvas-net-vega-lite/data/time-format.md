@@ -8,8 +8,8 @@ d3-time-format, d3-time, and Vega behavior it ports:
 
 - `TimeFormat.cs` - `TimeFormat` (static partial class: the English locale tables, the shared character helpers, and
   the constants of the limits)
-- `TimeFormat.Format.cs` - `TimeFormatter` (the compiled format), `TimeFormatTooLongException`, `FormatToken`, and
-  `TimeFormat.Compile` (the specifier compiler)
+- `TimeFormat.Format.cs` - `TimeFormatter` (the compiled format), `TimeFormatTooLongException`,
+  `TimeFormatSpecifierException`, `FormatToken`, and `TimeFormat.Compile` (the specifier compiler)
 - `TimeFormat.Parse.cs` - `ParsedTimeFields` and `TimeFormat.TryParse` (the hand scanner that is d3's `timeParse` and
   `utcParse`)
 - `TimeFormat.Multi.cs` - `TimeFormat.Multi` (Vega's `timeMultiFormat`, the default labels of a time axis)
@@ -124,11 +124,16 @@ default. An invalid instant gets `Invalid Date`.
 
 **Limits** (every loop or allocation of the unit; the caller charges steps):
 
-- _`Compile`_: linear in the specifier length, producing a list of tokens; the caller charges the specifier length and
-  keeps the `TimeFormatter`.
+- _`Compile`_: a specifier of at most 1,024 characters (`MaxSpecifierLength`; the longest real one is about 30), and at
+  most 4,096 tokens after the locale directives are expanded (`MaxTokenCount`; one `%c` is 13 tokens, so 316 of them
+  exceed it), otherwise `TimeFormatSpecifierException`, checked before the scan and at every token; linear in the
+  specifier length, producing a list of tokens; the caller charges the specifier length and keeps the
+  `TimeFormatter`.
 - _`Format`_: output of at most `maxLength` characters, then `TimeFormatTooLongException`; the caller charges the
-  output length (the expression functions through `ChargeSize`, and the axis and legend labels).
-- _`Multi`_: linear in the total length of the specifiers (nine compiles); the caller charges it.
+  output length (the expression functions through `ChargeSize`, and the axis and legend labels, which also keep a
+  running total per guide, see _TimeLabels_).
+- _`Multi`_: linear in the total length of the specifiers (nine compiles, each within the limits of `Compile`); the
+  caller charges it.
 - _`TryParse`_: text of at most 256 characters (`MaxParseTextLength`), longer text fails at once; linear in the text
   and the specifier, so one call is O(256).
 - _`JsDateParser.TryParse`_: text of at most 128 characters (`MaxLength`), rejected before any scan, and the tokenizer
@@ -140,7 +145,8 @@ regular expression (a grep gate over the unit's sources is empty); the tests run
 
 #### Key Methods
 
-- `TimeFormat.Compile(specifier)` - the d3 `timeFormat(specifier)` as a `TimeFormatter`; never fails for text.
+- `TimeFormat.Compile(specifier)` - the d3 `timeFormat(specifier)` as a `TimeFormatter`; never fails for text of at most
+  1,024 characters and 4,096 expanded tokens (`TimeFormatSpecifierException` beyond that).
 - `TimeFormatter.Format(ms, calendar, maxLength)` - the text of an instant in a calendar (`timeFormat` for a zone,
   `utcFormat` for the UTC calendar); `TimeFormatTooLongException` when the text would exceed `maxLength`.
 - `TimeFormat.Multi(calendar, overrides)` - Vega's `timeMultiFormat` (`utcMultiFormat` for the UTC calendar).
@@ -155,12 +161,16 @@ depends on the current culture, and holds no state.
 
 #### Error Handling
 
-`Format` is the only method that throws: `TimeFormatTooLongException` when the output would be longer than the limit.
-Callers map it to a located `VegaLiteRenderException` that contains `the limit of` (axis and legend labels), or to an
-`ExpressionRuntimeException` (the expression functions), so it never reaches a public caller. `TryParse` and
+`Format` throws `TimeFormatTooLongException` when the output would be longer than the limit, and `Compile` (and so
+`Multi`) throws `TimeFormatSpecifierException` (an `ArgumentException`) for a specifier that is longer than 1,024
+characters or expands to more than 4,096 tokens. Callers map the first to a located `VegaLiteRenderException` that
+contains `the limit of` (axis and legend labels), or to an `ExpressionRuntimeException` (the expression functions), and
+the second to a located `VegaLiteSpecException` (the guides) or an `ExpressionRuntimeException` (the expression
+functions; the cache of the evaluation compiles through `ExpressionFunctionContext`), so neither reaches a public
+caller. `TryParse` and
 `JsDateParser.TryParse` never throw: any text and any specifier give false and NaN when they do not match or when the
 result is outside the valid range. An unknown directive is not an error (it is copied), and `Compile` accepts any
-text. A null argument is an `ArgumentNullException`. The unit performs no I/O.
+text within the limits. A null argument is an `ArgumentNullException`. The unit performs no I/O.
 
 **Documented deviations from d3-time-format, Vega, and JavaScript** (each pinned by a test):
 

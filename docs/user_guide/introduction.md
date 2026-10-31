@@ -4957,10 +4957,11 @@ expression and so is bounded by `MaxExpressionLength` (4,096 characters) and `Ma
 boundaries. A temporal `color`, `fill`, or `stroke` gets a sequential color scale over the same milliseconds. A
 temporal field accepts only the scale types `time` and `utc`; any other type is replaced by the default with the warning
 `vl-scale-type-ignored`, and so is `time` or `utc` on a quantitative, nominal, or ordinal field. A `time` scale uses the
-zone of the chart for its ticks and its `nice` boundaries and a `utc` scale uses UTC. The properties `domain` (timestamps,
+zone of the chart for its ticks and its `nice` boundaries and a `utc` scale uses UTC (also on a color channel, where the
+type `utc` keeps the legend of the dates in UTC whatever the zone of the chart is). The properties `domain` (timestamps,
 date texts, or date-time objects), `domainMin`, `domainMax`, `domainMid` (a timestamp, for a color), `range`,
 `rangeMin`, `rangeMax`, `reverse`, `clamp`, `round`, `padding`, and `nice` apply as for a linear scale; there is no
-zero rule, and `scale.zero` is ignored with the warning `vl-scale-zero-ignored`. A temporal field without a valid date
+zero rule, and `scale.zero` is ignored (also on a temporal color) with the warning `vl-scale-zero-ignored`. A temporal field without a valid date
 gets the default domain 0 to 1, as a quantitative field does.
 
 - **Ticks.** The default tick count is one tick for every 40 pixels (`ceil(length / 40)`); a field whose unit is exactly
@@ -5030,7 +5031,8 @@ follow the `%` (`-` for none, `_` for a space, `0` for zeros), and any other let
 <!-- markdownlint-enable MD013 -->
 
 `axis.formatType` selects how a label is made: `number` (the default for a quantitative field) formats the milliseconds
-as a number with the d3 number format of `axis.format`, `time` makes the labels of **any** axis dates, and `utc` makes
+as a number with the d3 number format of `axis.format`, `time` makes the labels of **any** axis dates (in the time zone
+of the chart: a number is read as milliseconds since the epoch), and `utc` makes
 them UTC dates; any other name is a custom format type, which is not evaluated and is reported
 (`vl-format-type-custom`). Axis properties can be set for the time axes in `config.axisTemporal` (and `axisXTemporal`
 and `axisYTemporal`) as in Vega-Lite. A temporal axis has a grid by default, and the first and last labels of a
@@ -5098,7 +5100,8 @@ located `VegaLiteRenderException` that names it:
 | Limit | What it bounds in the time constructs |
 | ----- | ------------------------------------- |
 | `MaxTicks` (1,000) | The ticks of a time axis or legend, counted before any label is made (a `tickCount` of `"millisecond"` over a year fails at once) |
-| `MaxStringLength` (1,048,576) | A label, a `timeFormat` result, and the name of a derived field; the formatter stops as soon as it would write more |
+| `MaxStringLength` (1,048,576) | A label, the labels of one axis or one legend together, a `timeFormat` result, and the name of a derived field; the formatter stops as soon as it would write more |
+| 1,024 characters and 4,096 pieces | A d3 time format (in an axis or legend `format`, in a member of a format object, in `config.timeFormat`, in a `date:` parse entry, and in `timeFormat`, `utcFormat`, `timeParse`, and `utcParse`); `%c` counts as 13 pieces. A longer or larger one is a located error when the document is opened or the guide is built, or an expression error |
 | `MaxScaleDomainSize` (100,000) | A `timeSequence` result, the `maxbins` of a time unit, the dates of a discrete date scale, and the lists of a scale, a sort, and a time `oneOf` |
 | `MaxDataRows`, `MaxFieldCount`, and the cell limit | The rows and fields of the table, which the two fields of a `timeUnit` count against |
 | `MaxEvaluationSteps` (50,000,000) | The date functions (one step for each date of a sequence, and a charge by the length of a format and of the text it reads) and the `timeUnit` transform (a charge for every row, higher in a zone than in UTC, because the offset of a zone is looked up) |
@@ -5201,7 +5204,7 @@ thread, after the work finished and before the method returns or throws.
 | `vl-shape-path` | Unsupported | A shape that is not a symbol name (a custom SVG path): the `shape` of a mark, the `value` of a `shape` channel, or an entry of its `scale.range`; a circle is drawn |
 | `vl-scale-interpolate-cubehelix` | Unsupported | A `scale.interpolate` of `cubehelix` or `cubehelix-long`; RGB interpolation is used |
 | `vl-scale-type-ignored` | Warning | A `scale.type` that the channel or the field type cannot use (the default type is used, as Vega-Lite does): for a temporal field every type but `time` and `utc`, and `time` or `utc` on a quantitative, nominal, or ordinal field; and a quantitative or temporal field on a `shape` or `strokeDash` channel without a discretizing scale type (the scale is ordinal) |
-| `vl-scale-zero-ignored` | Warning | A `scale.zero` on a temporal field with a time or UTC scale, where zero has no meaning (it is ignored, as in Vega-Lite) |
+| `vl-scale-zero-ignored` | Warning | A `scale.zero` on a temporal field with a time or UTC scale or a color scale, where zero has no meaning (it is ignored, as in Vega-Lite) |
 | `vl-scale-nice-interval` | Warning | A time interval (`"month"` or `{"interval": "month", "step": 3}`) as the `scale.nice` of a scale that is not a time scale; it is ignored |
 | `vl-encoding-impute`, `-bandposition`, `-bandposition-rect`, `-datum-datetime` | Unsupported | That property of a supported channel: `-impute` is the `impute` of a channel (the `impute` transform is supported); `-bandposition` is a `bandPosition` on a field that has neither a `timeUnit` nor a `bin`, or has a `bin`; `-bandposition-rect` is a `bandPosition` or `timeUnitBandPosition` other than 0.5 on a `bar` or `rect` whose field has a `timeUnit` (0.5 is used); `-datum-datetime` is a date-time object as the `datum` of a channel (the channel is ignored) |
 | `vl-timeunit-binned` | Unsupported | A `binned` time unit (a name that starts with `binned`, or `"binned": true`) in an encoding, a condition, a predicate, or the `timeUnit` transform; the unit is ignored and the field is used as it is |

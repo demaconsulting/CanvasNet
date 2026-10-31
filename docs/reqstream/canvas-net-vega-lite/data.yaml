@@ -304,8 +304,9 @@ sections:
               locale (the text Invalid Date for an invalid instant), with the Vega multi-format that
               labels a time axis without a format and the default format of a time unit, in the fields of the
               zone of the calendar, using only English names and invariant ASCII digits so that the host
-              culture changes nothing, and stop with an exception that the caller maps to a located error
-              when the text would exceed the length limit.
+              culture changes nothing, stop with an exception that the caller maps to a located error
+              when the text would exceed the length limit, and refuse a specifier that is too long or expands
+              to too many pieces.
             justification: |
               The labels of every time axis, legend, and expression come from this formatter; it must read
               like Vega-Lite, be identical on every machine, and be bounded.
@@ -316,12 +317,14 @@ sections:
               - CanvasNetVegaLite-Data-TimeFormat-UnitSpecifier
               - CanvasNetVegaLite-Data-TimeFormat-EnglishLocaleAndCulture
               - CanvasNetVegaLite-Data-TimeFormat-LengthLimit
+              - CanvasNetVegaLite-Data-TimeFormat-SpecifierLimit
             tests:
               - TimeFormat_Format_EveryDirective_Utc
               - TimeFormatMulti_Default_PicksTheCoarsestExactUnit
               - TimeUnitSpec_Specifier_FollowsVegaTimeUnitSpecifier
               - TimeFormat_Format_IgnoresTheCurrentCulture
               - TimeFormat_Format_TooLong_Throws
+              - TimeFormat_Compile_SpecifierLength_IsLimited
 
           - id: CanvasNetVegaLite-Data-DateParsing
             title: >-

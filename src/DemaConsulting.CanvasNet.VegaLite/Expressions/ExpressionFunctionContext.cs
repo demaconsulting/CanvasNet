@@ -37,6 +37,9 @@ internal sealed class ExpressionFunctionContext
     /// <summary>The number of regular expressions the cache holds before it is cleared.</summary>
     private const int RegexCacheSize = 64;
 
+    /// <summary>The longest time format specifier the cache keeps; with <see cref="RegexCacheSize"/> entries it holds a few thousand characters at most.</summary>
+    private const int MaxCachedSpecifierLength = 64;
+
     /// <summary>The characters that one step pays for in size-proportional work.</summary>
     private const int CharactersPerStep = 64;
 
@@ -171,8 +174,13 @@ internal sealed class ExpressionFunctionContext
     /// <summary>
     ///     Gets the compiled formatter of a time format specifier, from the cache when it was used before.
     /// </summary>
+    /// <remarks>
+    ///     The cache is bounded by size, not only by count: it holds at most <see cref="RegexCacheSize"/> specifiers of at most
+    ///     <see cref="MaxCachedSpecifierLength"/> characters each; a longer specifier is compiled for the call and not kept.
+    /// </remarks>
     /// <param name="specifier">The d3 time format specifier.</param>
     /// <returns>The formatter.</returns>
+    /// <exception cref="ExpressionRuntimeException">Thrown when the specifier is longer than <see cref="TimeFormat.MaxSpecifierLength"/> or expands to more than <see cref="TimeFormat.MaxTokenCount"/> pieces.</exception>
     public TimeFormatter GetTimeFormatter(string specifier)
     {
         if (_timeFormatCache.TryGetValue(specifier, out var cached))
@@ -180,7 +188,12 @@ internal sealed class ExpressionFunctionContext
             return cached;
         }
 
-        var created = TimeFormat.Compile(specifier);
+        var created = CompileTimeFormat(specifier);
+        if (specifier.Length > MaxCachedSpecifierLength)
+        {
+            return created;
+        }
+
         if (_timeFormatCache.Count >= RegexCacheSize)
         {
             _timeFormatCache.Clear();
@@ -188,6 +201,43 @@ internal sealed class ExpressionFunctionContext
 
         _timeFormatCache[specifier] = created;
         return created;
+    }
+
+    /// <summary>
+    ///     Compiles a time format specifier within the limits of the formatter.
+    /// </summary>
+    /// <param name="specifier">The d3 time format specifier.</param>
+    /// <returns>The formatter.</returns>
+    /// <exception cref="ExpressionRuntimeException">Thrown when the specifier is too long or expands to too many pieces.</exception>
+    public static TimeFormatter CompileTimeFormat(string specifier)
+    {
+        try
+        {
+            return TimeFormat.Compile(specifier);
+        }
+        catch (TimeFormatSpecifierException ex)
+        {
+            throw new ExpressionRuntimeException(ex.Message);
+        }
+    }
+
+    /// <summary>
+    ///     Builds a multi-format within the limits of the formatter.
+    /// </summary>
+    /// <param name="calendar">The calendar of the multi-format.</param>
+    /// <param name="overrides">The specifiers that replace the defaults, or null.</param>
+    /// <returns>The formatter.</returns>
+    /// <exception cref="ExpressionRuntimeException">Thrown when an override is too long or expands to too many pieces.</exception>
+    public static TimeFormatter CompileMultiFormat(TimeCalendar calendar, IReadOnlyDictionary<string, string>? overrides)
+    {
+        try
+        {
+            return TimeFormat.Multi(calendar, overrides);
+        }
+        catch (TimeFormatSpecifierException ex)
+        {
+            throw new ExpressionRuntimeException(ex.Message);
+        }
     }
 
     /// <summary>

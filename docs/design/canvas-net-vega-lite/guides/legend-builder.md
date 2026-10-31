@@ -94,10 +94,14 @@ Scene roles: `legend` (group) containing `legend-entry` (group) and `legend-titl
 - **Temporal labels** (`TimeLabelFunction`, built on `TimeLabels.Create`; plan decision P8-D7): the label of a date is,
   in order, the legend `format` (a string is a d3 time format; an object is Vega's multi-format with its members as the
   overrides), the specifier of the time unit of the field (`%b %Y` for `yearmonth`), and `config.timeFormat` (`%b %d, %Y`
-  by default, so `Jan 01, 2024`), in the calendar of the scale (UTC for a UTC scale or unit, otherwise the zone of the
-  chart). A `formatType` of `number` formats the milliseconds as a number; `time` and `utc` force time labels; any other
+  by default, so `Jan 01, 2024`), in the calendar of the scale (UTC for a UTC scale or unit, or for a color whose
+  explicit scale type is `utc`, whose kind is the sequential one but which carries `ResolvedScale.IsUtcTime`; otherwise
+  the zone of the chart). The time ticks of the gradient and of the symbols count the whole days of two-day ticks from the
+  epoch when `IsUtcTime` is set (d3's `utcTicks`). A `formatType` of `number` formats the milliseconds as a number; `time` and `utc` force time labels; any other
   name is a custom format type and is reported by the feature catalog. The length of every label is bounded by
-  `MaxStringLength` and charged to the build's evaluation (`MaxEvaluationSteps`) as it is made. The build's
+  `MaxStringLength`, the labels of the legend are bounded together by the same limit (the running total of
+  `TimeLabels.Create`), and the length of each is charged to the build's evaluation (`MaxEvaluationSteps`, one step per
+  64 characters) as it is made. The build's
   `ExpressionFunctionContext` is created with the **calendar** of the canonical scale (`ResolvedScale.Calendar`, UTC when
   the legend has none), so that expressions evaluated for the legend read dates in the zone of the chart; `labelExpr` is
   not implemented for any legend.
@@ -137,7 +141,7 @@ entry count is bounded before any label or item is created (domain and values by
 labels of a gradient after the overlap removal (hidden labels cost nothing); the loops poll the cancellation token
 every 1,024 entries. **Determinism**: text is measured with the bundled fonts only; the gradient has at most about 30
 stops; no dictionary enumeration order reaches the output. A time label is also bounded before it is made (the formatter
-stops at `MaxStringLength`), the time ticks by `MaxTicks` (located at the legend), and nothing reads the host clock,
+stops at `MaxStringLength`, and all the labels of a legend together are limited to it), the time ticks by `MaxTicks` (located at the legend), and nothing reads the host clock,
 zone, or culture.
 
 #### Dependencies

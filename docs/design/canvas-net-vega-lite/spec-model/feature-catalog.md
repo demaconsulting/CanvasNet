@@ -103,8 +103,9 @@ adds are:
 - `vl-scale-nice-interval` and `vl-guide-axis-tickcount-interval` (warnings) - a time interval (a text or an
   `{interval, step}` object) as `scale.nice` or as the `tickCount` of an axis or legend on a channel that has no time scale;
   it is ignored and the default is used.
-- `vl-scale-zero-ignored` (warning) - a `scale.zero` on a temporal field with a time or UTC scale, where zero is not
-  meaningful (ignored, as Vega-Lite does).
+- `vl-scale-zero-ignored` (warning) - a `scale.zero` on a temporal field with a time or UTC scale (or the sequential scale
+  of a temporal color), where zero is not meaningful (ignored, as Vega-Lite does; the scale resolver ignores it on every
+  temporal field).
 - `vl-scale-type-ignored` is **extended**: a temporal field accepts only the `time` and `utc` scale types, so any other
   `scale.type` on it falls back to the default with this warning, as does `time` or `utc` on a quantitative, nominal, or
   ordinal field, and a temporal field on a `shape` or `strokeDash` channel without a scale type.

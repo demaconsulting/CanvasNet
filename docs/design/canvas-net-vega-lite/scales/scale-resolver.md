@@ -61,7 +61,9 @@ linear, band, or point scale of a numeric channel, the `NumberRange` of an ordin
 sequential or diverging scale,
 `IsPosition`, and `NaturalExtent` (the step times the band space of a step-driven
 discrete scale). The time facts of the channel are `Calendar` (the `TimeCalendar` of its instants: UTC for a `utc` scale
-or a `utc` time unit, otherwise the zone of the chart; null when the field is neither temporal nor has a time unit),
+or a `utc` time unit or a color that asked for the scale type `utc`, otherwise the zone of the chart; null when the field is neither temporal nor has a time unit),
+`IsUtcTime` (the scale follows the UTC rules: kind `Utc`, a `utc` unit, or the `utc` type of a color channel, which the
+`Sequential` kind does not show),
 `TimeUnit` (the `TimeUnitSpec` of the field, the resolved one for the `maxbins` form, or null), `IsTemporalField` (the
 values of the field are instants: it is temporal or has a time unit), and `HasBandEnd` (the channel spans its time
 unit: `Field2Path` is the end of the unit, Vega-Lite's `hasBandEnd`, so a bar, rect, or tick covers the unit and a point
@@ -123,8 +125,8 @@ transform) for a
   bar (unless it is a range) and for quantitative sizes that are not quantized, the configured default otherwise, never
   for a binned field,
   and only
-  when a custom domain already spans zero; never for quantile and threshold scales, never for a time or UTC scale
-  (zero is not meaningful for dates), and never for a log scale, whose domain
+  when a custom domain already spans zero; never for quantile and threshold scales, never for a time or UTC scale or any
+  temporal field (also the sequential scale of a temporal color: zero is not meaningful for dates), and never for a log scale, whose domain
   cannot reach zero, even when `zero: true` is given), then `domainMin` and `domainMax`
   replace the first and the last entry (sequential and linear scales), and `domainMid` (colors) inserts the middle value
   before the first entry, after the last, or between the ends, as Vega's `configureDomain` does. **A log scale refuses a
@@ -302,8 +304,11 @@ positive gives none; (7) `utc`-prefixed interval names use the UTC calendar on a
 error); (8) a degenerate domain gives its single instant as one tick, and an empty or unparsable temporal field gets
 the default domain 0 to 1; (9) `datum` with a date-time object is not implemented (`vl-encoding-datum-datetime`),
 while a `datum` of a number or a date text is; (10) a new warning `vl-scale-zero-ignored` reports `scale.zero` on a
-temporal field with a time or UTC scale, which Vega-Lite drops; (11) a temporal sequential color with an explicit
-`zero: true` applies the numeric zero rule to the milliseconds, as Vega-Lite does for `sequential`.
+temporal field with a time or UTC scale, which Vega-Lite drops, and (like Vega-Lite's drop) the resolver ignores the
+`zero` of a temporal sequential color too, so the warning, which also covers the color channels, is true; (11) an
+explicit `utc` type on a temporal color keeps its meaning although the scale is the sequential one (Vega-Lite's `utc`
+color scale): the scale uses the UTC calendar and `ResolvedScale.IsUtcTime` is set, so the legend takes the whole-day
+ticks counted from the epoch and UTC labels whatever the zone of the chart is.
 
 **The `ScaleKind.Linear` audit.** `ScaleKind.Time` and `ScaleKind.Utc` are new enum members, so each of the 31 source
 sites that tested for `ScaleKind.Linear` was reviewed and decided deliberately:
@@ -359,7 +364,9 @@ parameter) resolve no scale.
   or a count.
 - `ReadTimeUnit` and `MakeTimeFacts` (`ScaleResolver.Time.cs`) - find the time unit of a channel (from the plan; the
   resolved unit of `EncodingData.TimeUnits` for the `maxbins` form) and, once the kind is known, build the private
-  `TimeFacts(Calendar, Unit, IsTemporal)` record: UTC for a `Utc` scale or a `utc` unit, otherwise the calendar of the
+  `TimeFacts(Calendar, Unit, IsTemporal, IsUtc)` record: UTC (and `IsUtc`) for a `Utc` scale, a `utc` unit, or an
+  accepted explicit `utc` type of a color (`ChooseKind` reports it through its `utcRequested` output, since the kind of a
+  color is `Sequential`), otherwise the calendar of the
   evaluation facts; null for a field that is neither temporal nor has a unit.
 - `ReadTemporalDomain`, `ToMilliseconds`, `ReadDomainBound`, and `ReadTemporalDatum` - read an explicit temporal domain
   (at least two entries, each a date; otherwise a located `VegaLiteSpecException`), convert one number, text, or

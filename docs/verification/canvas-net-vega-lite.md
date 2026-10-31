@@ -966,7 +966,8 @@ one half) throws one for `vl-encoding-bandposition-rect`, each with a known line
 Renders `time-points.vl.json`, whose x axis has 6 ticks, with `MaxTicks` of 5 (a `VegaLiteRenderException` at
 `/encoding/x` that names `MaxTicks`) and of 6 (renders); and the same chart with the label format `%c` (21 characters,
 22 for `1/11/2024, 12:00:00 AM`) with `MaxStringLength` of 21 (a `VegaLiteRenderException` at `/encoding/x` that names
-`the limit of 21`) and of 22 (renders); and asserts that a canceled token stops the render with an
+`the limit of 21`: the second label brings the labels of the axis, which are limited together, over the limit) and of 200
+(renders); and asserts that a canceled token stops the render with an
 `OperationCanceledException`.
 
 ### Time: Renders Are Deterministic, Culture-Independent, And Host-Zone-Independent

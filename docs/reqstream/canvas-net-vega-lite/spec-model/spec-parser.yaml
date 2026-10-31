@@ -294,6 +294,19 @@ sections:
                   - SpecParser_TickCountInterval_Validated
                   - SpecParser_IsTimeInterval_NamesTheEightIntervals
 
+              - id: CanvasNetVegaLite-SpecModel-SpecParser-TimeFormatLimits
+                title: >-
+                  The SpecParser unit shall refuse, with a located VegaLiteSpecException at the format, a d3 time
+                  format that is longer than 1,024 characters or expands to more than 4,096 pieces - the format
+                  text or a member of the format object of an axis or a legend that is read as a time format (the
+                  field is temporal or has a time unit, or the format type is time or utc), and the date format of a
+                  parse entry of a data format - and shall leave number formats and custom format types alone.
+                justification: |
+                  A time format is untrusted text that the guides compile and repeat for every label; the
+                  specification is the cheapest place to find a format that no chart needs.
+                tests:
+                  - SpecParser_TimeFormat_SpecifierLimitsAreSpecificationErrors
+
               - id: CanvasNetVegaLite-SpecModel-SpecParser-TimePredicates
                 title: >-
                   The SpecParser unit shall write a filter or condition predicate that has a time unit or a

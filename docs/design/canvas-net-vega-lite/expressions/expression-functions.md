@@ -105,7 +105,12 @@ a date result and NaN for a number result, and it never throws for a bad value.
 - **Format and parse.** `timeFormat(value, specifier)` with a text specifier uses a compiled `TimeFormatter` from the
   context cache; with an object it builds the nine-level `TimeFormat.Multi` formatter whose members are the overrides.
   The specifier length and the length of the result are charged, and the result is bounded by `MaxStringLength`
-  (`TimeFormatTooLongException` becomes the string-limit failure). `timeParse(text, specifier)` returns a date or null
+  (`TimeFormatTooLongException` becomes the string-limit failure). A specifier (and each member of an object of
+  overrides) of more than 1,024 characters, or one that expands to more than 4,096 tokens (`TimeFormat.Compile`
+  throws `TimeFormatSpecifierException`), is an `ExpressionRuntimeException` ("The time format is longer than the limit
+  of 1024 characters" or "... expands to more than the limit of 4096 pieces"), raised by
+  `ExpressionFunctionContext.CompileTimeFormat` and `CompileMultiFormat`; `timeParse` and `utcParse` refuse a specifier of
+  more than 1,024 characters the same way. `timeParse(text, specifier)` returns a date or null
   when the text does not match the whole specifier; its fields are not range-checked (as d3), and it charges the lengths
   of the text and of the specifier. The name formatters take a whole number (month from 0, weekday from Sunday = 0;
   other whole numbers roll over) and give the empty text for anything else.
@@ -126,7 +131,9 @@ and fails), `ThrowIfCanceled()`, `CheckStringLength` (`MaxStringLength`), `Strin
 for a string longer than the limit, shared by `CheckStringLength` and the time format functions),
 `GetRegex(source, flags)` with a
 cache of at most 64 compiled expressions that is cleared when full, and `GetTimeFormatter(specifier)` with the same
-kind of cache (at most 64 compiled `TimeFormatter` objects by specifier, cleared when full), so a specifier that a
+kind of cache (at most 64 compiled `TimeFormatter` objects by specifier, cleared when full), bounded by size as well as
+by count: only a specifier of at most 64 characters (`MaxCachedSpecifierLength`) is kept, so the cache holds a few
+thousand characters at most and a long specifier is compiled for its call and dropped, so a specifier that a
 chart formats thousands of times is compiled once. The cancellation token is polled whenever the step
 counter crosses a multiple of 1,024, including inside a bulk charge.
 

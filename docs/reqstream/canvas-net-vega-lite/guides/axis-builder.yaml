@@ -132,7 +132,8 @@ sections:
                   date texts, or datetime objects, the ticks in the zone of the scale (a UTC scale in
                   UTC), the labels of a field with a discrete (ordinal or nominal) time unit axis as
                   dates, and a located VegaLiteRenderException when the ticks or the label text exceed the
-                  limits, observing the cancellation token.
+                  limits (a label, and the labels of the axis together, each at the string-length limit),
+                  observing the cancellation token.
                 justification: |
                   The time axis is the axis of most time charts; its ticks must be the Vega-Lite ticks,
                   in the zone the caller chose, and bounded.
@@ -146,6 +147,8 @@ sections:
                   - AxisBuilder_Time_DiscreteDateLabels_UseUnitSpecifier
                   - AxisBuilder_Time_TooManyTicks_IsLocated
                   - AxisBuilder_Time_LabelTooLong_IsLocated
+                  - AxisBuilder_Time_LabelsTogetherTooLong_IsLocated
+                  - AxisBuilder_Time_HostileFormatOnManyTicks_IsStoppedByTheAggregateCap
                   - AxisBuilder_Time_Cancellation
 
               - id: CanvasNetVegaLite-Guides-AxisBuilder-TimeLabels
@@ -155,7 +158,8 @@ sections:
                   overrides, a time unit gives its default specifier (a month as Mar, a year with a month as
                   Mar 2024), and otherwise the axis uses the default multi-format and ignores the time
                   format of the configuration, the format type number formatting the millisecond value and
-                  the format types time and utc forcing time labels, and shall keep reporting a format type
+                  the format types time and utc forcing time labels (time in the time zone of the chart and
+                  utc in UTC, for a field that is not temporal too), and shall keep reporting a format type
                   of another name, in every culture identically.
                 justification: |
                   The labels are what a reader reads on the axis; they must read like Vega-Lite's and must
@@ -165,6 +169,7 @@ sections:
                   - AxisBuilder_Time_YearMonthLabelsUseTheUnitSpecifier
                   - AxisBuilder_Time_FormatStringAndObject
                   - AxisBuilder_Time_FormatTypeNumberAndTime
+                  - AxisBuilder_Time_FormatSpecifierLimits_AreSpecificationErrors
                   - AxisBuilder_Time_Culture_Invariant
                   - AxisBuilder_Time_Deterministic
 

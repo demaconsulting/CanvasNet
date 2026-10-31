@@ -1186,7 +1186,8 @@ sections:
       - id: CanvasNetVegaLite-TimeLimits
         title: >-
           The library shall bound the work of the time phase - the characters scanned per date text, the
-          ticks of a time axis, the items of a date sequence, the length of every label and formatted text, the
+          ticks of a time axis, the items of a date sequence, the length of every label and formatted text
+          (and of all the labels of one guide together), the length and expansion of a time format, the
           fields and cells of a time unit transform, the evaluation steps of date functions, and the rows
           converted between two checks of the cancellation token - failing closed with a located exception
           when a limit is exceeded and stopping at a cancellation, accepting exactly the limit.
@@ -1197,15 +1198,18 @@ sections:
         children:
           - CanvasNetVegaLite-Data-TimeCalendar-IntervalRange
           - CanvasNetVegaLite-Data-TimeFormat-LengthLimit
+          - CanvasNetVegaLite-Data-TimeFormat-SpecifierLimit
           - CanvasNetVegaLite-Data-TimeFormat-ParseTotality
           - CanvasNetVegaLite-Data-TimeFormat-JsDateParseLimits
           - CanvasNetVegaLite-Data-DelimitedTextParser-Polling
           - CanvasNetVegaLite-Transforms-TimeUnitTransform-Limits
           - CanvasNetVegaLite-Expressions-ExpressionFunctions-TimeLimits
           - CanvasNetVegaLite-Guides-TimeLabels-Limits
+          - CanvasNetVegaLite-SpecModel-SpecParser-TimeFormatLimits
           - CanvasNetVegaLite-Scales-Ticks-TimeTicks
         tests:
           - CanvasNetVegaLite_SystemIntegration_Time_Limits_TickCountAndStringLimitsAreEnforced
+          - TimeFormat_Compile_SpecifierLength_IsLimited
           - TimeFormatParse_LongInputFailsFast
           - JsDateParser_Rejects_OverLongText
           - ParseDirectives_Apply_PollsCancellationEveryBatch

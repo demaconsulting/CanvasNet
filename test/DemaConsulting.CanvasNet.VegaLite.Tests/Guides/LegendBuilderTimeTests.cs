@@ -1,3 +1,4 @@
+using DemaConsulting.CanvasNet.VegaLite.Data;
 using DemaConsulting.CanvasNet.VegaLite.Guides;
 using DemaConsulting.CanvasNet.VegaLite.Scenegraph;
 using DemaConsulting.CanvasNet.VegaLite.Tests.Data;
@@ -194,16 +195,86 @@ public class LegendBuilderTimeTests
         // Act
         var tooLong = Assert.Throws<VegaLiteRenderException>(() => ChartTestHelpers.Legend(Dates(), guideLimits: new VegaLiteLimits { MaxStringLength = 10 }));
         var tooMany = Assert.Throws<VegaLiteRenderException>(() => ChartTestHelpers.Legend(Dates(", \"legend\": { \"tickCount\": \"hour\" }"), guideLimits: new VegaLiteLimits { MaxTicks = 5 }));
-        var fits = ChartTestHelpers.Legend(Dates(), guideLimits: new VegaLiteLimits { MaxStringLength = 12 });
+        var fits = ChartTestHelpers.Legend(Dates(", \"legend\": { \"values\": [ \"2024-01-03\" ] }"), guideLimits: new VegaLiteLimits { MaxStringLength = 12 });
 
-        // Assert
+        // Assert: one label of 12 characters fits a limit of 12 (the labels of a legend are limited together, so six of them would not)
         Assert.True(tooLong.Location.IsKnown);
         Assert.Contains("the limit of 10", tooLong.Message, StringComparison.Ordinal);
         Assert.True(tooMany.Location.IsKnown);
         Assert.Contains("MaxTicks", tooMany.Message, StringComparison.Ordinal);
-        Assert.Equal(6, Labels(fits).Count);
+        Assert.Single(Labels(fits));
         Assert.Throws<OperationCanceledException>(() => ChartTestHelpers.Legend(Dates(), cancellationToken: canceled.Token));
         Assert.Equal(6, Labels(ChartTestHelpers.Legend(Dates(), cancellationToken: TestContext.Current.CancellationToken)).Count);
+    }
+
+    /// <summary>
+    ///     Validates that the labels of one temporal legend are limited together: six labels of 12 characters are 72, which is over a limit of 40 although no single label is,
+    ///     and the exception is located and names the limit; a limit of 72 allows them.
+    /// </summary>
+    [Fact]
+    public void LegendBuilder_Time_LabelsTogetherTooLong_IsLocated()
+    {
+        // Act
+        var error = Assert.Throws<VegaLiteRenderException>(() => ChartTestHelpers.Legend(Dates(), guideLimits: new VegaLiteLimits { MaxStringLength = 40 }));
+        var fits = ChartTestHelpers.Legend(Dates(), guideLimits: new VegaLiteLimits { MaxStringLength = 72 });
+
+        // Assert: the fourth label brings the total to 48
+        Assert.True(error.Location.IsKnown);
+        Assert.Contains("together longer than the limit of 40 characters", error.Message, StringComparison.Ordinal);
+        Assert.Equal(6, Labels(fits).Count);
+    }
+
+    /// <summary>
+    ///     Validates that a time format that is too long (here the <c>timeFormat</c> of the configuration, which the legend labels use) is a located specification exception
+    ///     and that a legend <c>format</c> object with a long member is one too, from the specification parser.
+    /// </summary>
+    [Fact]
+    public void LegendBuilder_Time_FormatSpecifierLimits_AreSpecificationErrors()
+    {
+        // Arrange
+        var tooLong = new string('x', TimeFormat.MaxSpecifierLength + 1);
+
+        // Act
+        var configured = Assert.Throws<VegaLiteSpecException>(() => ChartTestHelpers.Legend(Dates(), callerConfig: "{ \"timeFormat\": \"" + tooLong + "\" }"));
+        var multi = Assert.Throws<VegaLiteSpecException>(() => ChartTestHelpers.Legend(Dates(", \"legend\": { \"format\": { \"year\": \"" + tooLong + "\" } }")));
+
+        // Assert
+        Assert.All([configured, multi], e => Assert.True(e.Location.IsKnown));
+        Assert.All([configured, multi], e => Assert.Contains("the limit of 1024 characters", e.Message, StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    ///     Validates that an explicit <c>utc</c> scale type on a temporal color gives UTC ticks and labels whatever the zone of the chart is: the two-day ticks count whole days
+    ///     since the epoch (the even ones, since 2024-01-01 is day 19,723) and the labels are the UTC dates, while the default and <c>time</c> follow the zone.
+    /// </summary>
+    [Fact]
+    public void LegendBuilder_Time_TemporalColorUtcType_UsesTheUtcCalendar()
+    {
+        // Arrange: dates at 00:00Z in a zone five hours behind UTC; the epoch-day two-day ticks of the ten days are the even days 19,724 to 19,732: January 2, 4, 6, 8 and 10 at 00:00Z
+        var zone = TimeTestSupport.Fixed(-5);
+
+        // Act
+        var utc = ChartTestHelpers.Legend(Dates(", \"scale\": { \"type\": \"utc\" }"), zone: zone);
+        var utcPlain = ChartTestHelpers.Legend(Dates(", \"scale\": { \"type\": \"utc\" }"));
+        var local = ChartTestHelpers.Legend(Dates(", \"scale\": { \"type\": \"time\" }"), zone: zone);
+
+        // Assert: the same labels in the zone and without it; the local scale starts at local midnight, 05:00Z on the 1st, so its odd local days differ
+        Assert.Equal(January(2, 4, 6, 8, 10), Labels(utc));
+        Assert.Equal(Labels(utcPlain), Labels(utc));
+        Assert.NotEqual(Labels(utc), Labels(local));
+    }
+
+    /// <summary>
+    ///     Validates that <c>scale.zero</c> on a temporal color is ignored (the legend shows the dates of the data, not the years back to 1970).
+    /// </summary>
+    [Fact]
+    public void LegendBuilder_Time_TemporalColor_ZeroIsIgnored()
+    {
+        // Act
+        var legend = ChartTestHelpers.Legend(Dates(", \"scale\": { \"zero\": true }"));
+
+        // Assert
+        Assert.Equal(January(1, 3, 5, 7, 9, 11), Labels(legend));
     }
 
     /// <summary>

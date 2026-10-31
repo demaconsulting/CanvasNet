@@ -397,6 +397,7 @@ is still `%b %Y` while the Vega one is `%Y-%m`.
 **Tests**: `ExpressionFunctionsTimeTests.ExpressionFunctions_TimeFormat_FormatsWithTheSpecifier`,
 `ExpressionFunctionsTimeTests.ExpressionFunctions_TimeFormat_ObjectSpecifier_IsAMultiFormat`,
 `ExpressionFunctionsTimeTests.ExpressionFunctions_TimeFormat_IsBoundedAndCharged`,
+`ExpressionFunctionsTimeTests.ExpressionFunctions_TimeFormat_SpecifierLimits_AreRuntimeErrors`,
 `ExpressionFunctionsTimeTests.ExpressionFunctions_TimeParse_ReadsTheSpecifier`,
 `ExpressionFunctionsTimeTests.ExpressionFunctions_TimeParse_ChargesTheTextLength`,
 `ExpressionFunctionsTimeTests.ExpressionFunctions_NameFormatters_GiveTheEnglishNames`
@@ -427,7 +428,10 @@ of 100 steps it fails with the step-limit error. The name formatters give Englis
 (`monthFormat(0)` is `January`, 8 is `September`, 11 is `December`, 12 rolls over to `January` and -1 to `December`;
 `dayFormat(0)` is `Sunday`, 6 `Saturday`, 7 `Sunday`, -1 `Saturday`; the abbreviated forms are `Jan`, `Feb`, `Sep`,
 `Mon`, and `Wed`) and the empty text for anything that is not a whole number (1.5, the text `'1'`, null, no argument,
-NaN, Infinity), whatever the zone.
+NaN, Infinity), whatever the zone. A specifier of 1,025 characters is refused by `timeFormat`, `utcFormat`,
+`timeParse`, and `utcParse`, and so is a `year` override of 1,025 characters in the object form, with "the limit of 1024
+characters", and 400 `%c` (13 tokens each, 5,200 in all) with "the limit of 4096 pieces", while a specifier of exactly
+1,024 characters formats.
 
 ##### toDate, Date Text, And Datum Access
 
@@ -451,6 +455,7 @@ not in the table: the parser lists `vl-expr-function-now`, the call is null, and
 `ExpressionFunctionsTimeTests.ExpressionFunctions_Time_AreDeterministic`,
 `ExpressionFunctionsTimeTests.ExpressionFunctionContext_TimeSupport_ChargesCachesAndExposesTheToken`,
 `ExpressionFunctionsTimeTests.ExpressionFunctionContext_TimeFormatterCache_ClearsWhenFull`,
+`ExpressionFunctionsTimeTests.ExpressionFunctionContext_TimeFormatterCache_DoesNotKeepLongSpecifiers`,
 `ExpressionFunctionsTimeTests.ExpressionFunctions_Time_DefaultCalendarIsUtc`
 
 Asserts that a combined text of month and day names, a formatted time, an offset, the ISO week, a parse, a
@@ -465,5 +470,6 @@ daylight time (04:00Z); and, on the context, that a charge of zero or fewer step
 remaining 10 steps is accepted and one more fails with the `MaxEvaluationSteps` error, the token is exposed, the same
 specifier gives the same cached formatter, the string-limit error names `MaxStringLength`, 70 distinct specifiers
 overflow the 64-entry formatter cache so that an old entry is compiled again (a different object that still formats
-the anchor as `2024`), and a context with no calendar reads in UTC while one with +02:00 reads 14 for the hour of
+the anchor as `2024`), a specifier of 202 characters (over the 64 the cache keeps) is a different formatter object at
+every call while `%Y` is the same object, a failed compilation caches nothing, and a context with no calendar reads in UTC while one with +02:00 reads 14 for the hour of
 12:34 UTC.

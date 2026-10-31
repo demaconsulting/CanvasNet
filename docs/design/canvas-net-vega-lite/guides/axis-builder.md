@@ -126,15 +126,18 @@ the top, left, and right axes; bounds follow Vega (a stroked rule grows by half 
   cancellation token. The domain value of a tick is a date.
 - **Time labels** (Vega-Lite's `format` rules, plan decision P8-D7, made by `TimeLabels.Create`): the labels are times on
   a time or UTC scale, on a discrete scale over the dates of a time unit, and on any axis whose `formatType` is `time`
-  or `utc` (also a quantitative one: its numbers are read as milliseconds, in UTC because a quantitative scale has no
-  calendar). In order: (1) an `axis.format` **string** is a d3 time format, in the calendar of the scale (UTC for a
+  or `utc` (also a quantitative one: its numbers are read as milliseconds, in the calendar of the chart, the time zone of
+  the render options, for `time` and in UTC for `utc`, because a quantitative scale has no calendar of its own;
+  `AxisBuilder` receives the calendar of the chart as its `chartCalendar` argument, from the evaluation of the call). In
+  order: (1) an `axis.format` **string** is a d3 time format, in the calendar of the scale (UTC for a
   `formatType` of `utc`); (2) an `axis.format` **object** is Vega's multi-format with its members as the overrides of
   the levels (`milliseconds`, `seconds`, `minutes`, `hours`, `date` or `day`, `week`, `month`, `quarter`, `year`); (3)
   without a format and with a time unit, the specifier of the unit (`%b %Y` for `yearmonth`, so `Jan 2024`); (4)
   otherwise Vega's default multi-format, which labels an instant by the coarsest boundary it lies on (`2024`, `March`,
   `Mar 03`, `Tue 05`, `01 PM`, `01:45`, `:30`, `.250`). **Axes do not use `config.timeFormat`** (that is the default of
   legends). A `formatType` of `number` formats the millisecond value as a number with the d3 number format (an invalid
-  specifier is a located `VegaLiteSpecException`; a time format never fails, as d3 copies the directives it does not
+  specifier is a located `VegaLiteSpecException`; a time format fails only when it is longer than 1,024 characters or
+  expands to more than 4,096 pieces, a located `VegaLiteSpecException` too, as d3 copies the directives it does not
   know). All names are the English d3 locale and all digits are ASCII, so a label never depends on the culture of the
   host, and an instant that is not a valid date is labeled `Invalid Date`.
 - Label overlap: Vega's parity method (every second label dropped until none overlap, taking `labelSeparation` into
@@ -151,11 +154,15 @@ immutable scene data.
 An `axis.orient` that is not valid for the channel and an `axis.format` that is not a valid d3 specifier (a number format,
 including `formatType: "number"` on a time axis) are
 `VegaLiteSpecException`s located at the offending value (the `FormatException` of `NumberFormat` is converted); a time
-format string never fails to compile. An axis
+format string fails only when it is longer than 1,024 characters or expands to more than 4,096 pieces (also a
+`VegaLiteSpecException`, found by `SpecParser` when the document is opened and, for a configured format, by
+`TimeLabels.Create`). An axis
 with more than `MaxTicks` ticks, categories and dates included, is a `VegaLiteRenderException` located at the channel
 (the exception
 of `Ticks` is rethrown with the location; the count is checked before any label is made). A time label longer than
-`MaxStringLength` (the formatter stops as soon as it would write more, so a huge specifier cannot allocate more) is a
+`MaxStringLength` (the formatter stops as soon as it would write more, so a huge specifier cannot allocate more), or
+time labels that are together longer than `MaxStringLength` (the label function of the axis keeps a running total and
+gives the formatter what is left, so the labels of one axis are charged before they are made), is a
 `VegaLiteRenderException` located at the channel whose message names `VegaLiteLimits.MaxStringLength`. A canceled token
 is an
 `OperationCanceledException`. A null request, measurer,

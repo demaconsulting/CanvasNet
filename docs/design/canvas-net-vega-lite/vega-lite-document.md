@@ -165,7 +165,9 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   an aggregate and an
   `unaggregated` domain read Raw, everything else Main; the resolver reads the calendar from the evaluation facts of the
   `EncodingData`, so its signature did not change), and the marks draw Main, so the field names, the titles, and the
-  tables agree by construction; the axes and legends read the calendar and the time unit from each `ResolvedScale`, and
+  tables agree by construction; the axes and legends read the calendar and the time unit from each `ResolvedScale`
+  (`BuildChart` also gives the `AxisBuilder` the calendar of the chart, `EncodingData.Evaluation.Calendar`, for the
+  labels of a field that is not temporal but has `formatType: "time"`), and
   the legend builder passes the calendar of its canonical scale to its own `ExpressionFunctionContext`; the
   `RowExpressions` (the compiled
   expressions and the evaluator) go to

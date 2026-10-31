@@ -215,9 +215,11 @@ sections:
                   symbols of an ordinal time unit field over its date values, labeling a date with the legend
                   format, else the default format of the time unit, else the time format of the
                   configuration (%b %d, %Y by default), reading explicit legend values given as timestamps, date
-                  texts, or datetime objects, using the time zone of the scale, bounding the labels, the ticks,
-                  and the items by the limits with located errors, and giving the same legend in every culture
-                  and on every call.
+                  texts, or datetime objects, using the time zone of the scale (UTC for a UTC scale, a UTC unit,
+                  or a color that asks for the scale type utc, with the whole-day ticks counted from the epoch),
+                  ignoring the zero rule of the scale, bounding the labels (each, and those of the legend
+                  together), the ticks, and the items by the limits with located errors, and giving the same legend
+                  in every culture and on every call.
                 justification: |
                   A legend of dates must say which dates each color or size stands for, in the form Vega-Lite
                   shows, in the zone the caller chose, and bounded.
@@ -228,5 +230,9 @@ sections:
                   - LegendBuilder_Time_SizeOnTimeScale_TicksAndLabels
                   - LegendBuilder_Time_ExplicitValuesAcceptDatetimeObjects
                   - LegendBuilder_Time_Zone_LabelsUseLocalTime
+                  - LegendBuilder_Time_TemporalColorUtcType_UsesTheUtcCalendar
+                  - LegendBuilder_Time_TemporalColor_ZeroIsIgnored
                   - LegendBuilder_Time_LimitsAndCancellation
+                  - LegendBuilder_Time_LabelsTogetherTooLong_IsLocated
+                  - LegendBuilder_Time_FormatSpecifierLimits_AreSpecificationErrors
                   - LegendBuilder_Time_Culture_InvariantAndDeterministic

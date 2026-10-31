@@ -142,6 +142,12 @@ internal sealed class ResolvedScale
     /// </summary>
     public TimeCalendar? Calendar { get; init; }
 
+    /// <summary>
+    ///     Gets a value indicating whether the field's dates follow the rules of a UTC scale: its kind is <see cref="ScaleKind.Utc"/>, its time unit is a UTC unit, or a color channel asked for
+    ///     the scale type <c>utc</c> (whose kind is <see cref="ScaleKind.Sequential"/>). The ticks of such a scale count two-day steps from the epoch, and <see cref="Calendar"/> is UTC.
+    /// </summary>
+    public bool IsUtcTime { get; init; }
+
     /// <summary>Gets the time unit of the field (the resolved unit for the <c>maxbins</c> form), or null.</summary>
     public TimeUnitSpec? TimeUnit { get; init; }
 
@@ -835,9 +841,9 @@ internal static partial class ScaleResolver
 
         var binning = plan is { Bin: BinKind.Binning } && type == "quantitative";
         var (unit, isTemporal) = ReadTimeUnit(plan, type, context);
-        var kind = ChooseKind(channel, type, scaleDef?["type"]?.AsString(), context.MarkType, binning, unit is { Utc: true }, out var transformKind);
+        var kind = ChooseKind(channel, type, scaleDef?["type"]?.AsString(), context.MarkType, binning, unit is { Utc: true }, out var transformKind, out var utcRequested);
         var location = definition.GetLocation(context.SourceName);
-        var time = MakeTimeFacts(unit, isTemporal, kind, context);
+        var time = MakeTimeFacts(unit, isTemporal, kind, utcRequested, context);
         var common = new CommonInputs(channel, type, fieldPath, datum, definition, scaleDef, location, plan, transformKind, time);
         return kind is ScaleKind.Band or ScaleKind.Point or ScaleKind.Ordinal or ScaleKind.BinOrdinal
             ? BuildDiscrete(common, kind, context)
@@ -904,11 +910,13 @@ internal static partial class ScaleResolver
     /// <param name="binning">Whether the encoding bins the quantitative field (a binned color gets the bin-ordinal scale by default).</param>
     /// <param name="utcUnit">Whether the field has a UTC time unit (its temporal default scale is a UTC scale).</param>
     /// <param name="transformKind">Receives the transform of the scale: log, pow (also for sqrt) or symlog for the matching explicit type, else linear.</param>
+    /// <param name="utcRequested">Receives whether the explicit type <c>utc</c> was accepted but the kind does not show it (a color channel's sequential scale, which still uses the UTC calendar).</param>
     /// <returns>The kind.</returns>
-    private static ScaleKind ChooseKind(string channel, string type, string? specified, string markType, bool binning, bool utcUnit, out ScaleTransformKind transformKind)
+    private static ScaleKind ChooseKind(string channel, string type, string? specified, string markType, bool binning, bool utcUnit, out ScaleTransformKind transformKind, out bool utcRequested)
     {
         var group = GroupOf(channel);
         transformKind = ScaleTransformKind.Linear;
+        utcRequested = false;
 
         // The default kind of Vega-Lite's defaultType
         ScaleKind defaultKind;
@@ -950,6 +958,7 @@ internal static partial class ScaleResolver
         }
 
         transformKind = requestedTransform;
+        utcRequested = specified == "utc" && timeName;
         return requested;
     }
 
@@ -1154,9 +1163,10 @@ internal static partial class ScaleResolver
         }
 
         // The zero rule pulls the end values to zero; the quantile and threshold scales have none (Vega-Lite's scaleTypeSupportProperty),
-        // and neither has a log scale, whose domain cannot reach zero, or a time scale, for which zero is not meaningful
+        // and neither has a log scale, whose domain cannot reach zero, or a temporal field (a time scale, or the sequential scale of a temporal color), for which zero is not meaningful
         var zero = kind is not (ScaleKind.Quantile or ScaleKind.Threshold)
             && !isTimeKind
+            && time is null
             && input.TransformKind != ScaleTransformKind.Log
             && (scaleDef?["zero"]?.AsBool() ?? ZeroRule(input, domainNode, kind, context));
         if (zero)
@@ -1293,6 +1303,7 @@ internal static partial class ScaleResolver
             DashRange = outputs.Dashes,
             Interpolator = outputs.Interpolator,
             Calendar = time?.Calendar,
+            IsUtcTime = time?.IsUtc ?? false,
             TimeUnit = time?.Unit,
             IsTemporalField = time is not null,
             HasBandEnd = input.Plan?.HasBandEnd ?? false,
@@ -1419,6 +1430,7 @@ internal static partial class ScaleResolver
             ShapeRange = outputs.Shapes,
             DashRange = outputs.Dashes,
             Calendar = input.Time?.Calendar,
+            IsUtcTime = input.Time?.IsUtc ?? false,
             TimeUnit = input.Time?.Unit,
             IsTemporalField = input.Time is not null,
         };

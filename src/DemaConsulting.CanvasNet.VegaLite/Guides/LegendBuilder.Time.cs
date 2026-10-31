@@ -143,7 +143,7 @@ internal sealed partial class LegendBuilder
     private double[] TimeTicksOf(Context c, ScaleModel model, TimeTickRequest request)
     {
         var scale = c.Spec.Canonical.Scale;
-        var utc = scale.Kind == ScaleKind.Utc || scale.TimeUnit is { Utc: true };
+        var utc = scale.IsUtcTime;
         try
         {
             return Ticks.TimeTicks(model.DomainStart, model.DomainEnd, request, CalendarOf(c), utc, _limits.MaxTicks, c.Token);

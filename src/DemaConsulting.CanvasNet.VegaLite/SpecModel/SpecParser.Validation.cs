@@ -503,9 +503,14 @@ internal sealed partial class SpecParser
                 throw Error(entry, $"The date format of '{entry.Name}' must be in quotes, such as \"date:'%Y-%m-%d'\" or \"utc:'%Y-%m-%d'\".");
             }
 
-            if (!entry.IsString || !ParseDirectives.TryClassify(entry.StringValue!, out _))
+            if (!entry.IsString || !ParseDirectives.TryClassify(entry.StringValue!, out var spec))
             {
                 throw Error(entry, $"The parse type of '{entry.Name}' must be \"number\", \"boolean\", \"date\", \"string\" or a date format such as \"date:'%Y-%m-%d'\".");
+            }
+
+            if (spec.Format is { Length: > TimeFormat.MaxSpecifierLength })
+            {
+                throw Error(entry, $"The date format of '{entry.Name}' is longer than the limit of {TimeFormat.MaxSpecifierLength} characters.");
             }
         }
     }

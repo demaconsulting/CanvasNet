@@ -28,7 +28,9 @@ namespace DemaConsulting.CanvasNet.VegaLite.Expressions;
 ///     </para>
 ///     <para>
 ///         Work is bounded: a date text is cut off at 128 characters, a format or parse is charged by the length of the
-///         specifier and the text, a formatted text is limited by <see cref="ExpressionFunctionContext.MaxStringLength"/>,
+///         specifier and the text, a specifier is at most <see cref="TimeFormat.MaxSpecifierLength"/> characters and
+///         <see cref="TimeFormat.MaxTokenCount"/> pieces (a longer one is a runtime error, as is a longer override of a
+///         multi-format), a formatted text is limited by <see cref="ExpressionFunctionContext.MaxStringLength"/>,
 ///         and a sequence holds at most <see cref="ExpressionFunctionContext.MaxArrayLength"/> dates and costs one step for
 ///         each of them. All results are culture invariant (the English names of the d3 locale, ASCII digits).
 ///     </para>
@@ -430,7 +432,7 @@ internal static partial class ExpressionFunctions
         TimeFormatter formatter;
         if (Arg(arguments, 1).IsObject)
         {
-            formatter = TimeFormat.Multi(calendar, ReadSpecifiers(Arg(arguments, 1), context));
+            formatter = ExpressionFunctionContext.CompileMultiFormat(calendar, ReadSpecifiers(Arg(arguments, 1), context));
         }
         else
         {
@@ -477,6 +479,11 @@ internal static partial class ExpressionFunctions
         var text = Text(arguments, 0, context);
         var specifier = Text(arguments, 1, context);
         context.ChargeSize(text.Length + (long)specifier.Length);
+        if (specifier.Length > TimeFormat.MaxSpecifierLength)
+        {
+            throw new ExpressionRuntimeException($"The time format is longer than the limit of {TimeFormat.MaxSpecifierLength} characters.");
+        }
+
         var calendar = utc ? TimeCalendar.Utc : context.Calendar;
         return TimeFormat.TryParse(specifier, text, calendar, out var instant) ? DateOrNull(instant) : default;
     }

@@ -28,6 +28,26 @@ internal sealed class TimeFormatTooLongException : InvalidOperationException
 }
 
 /// <summary>
+///     The exception that <see cref="TimeFormat.Compile"/> throws when a specifier is longer than
+///     <see cref="TimeFormat.MaxSpecifierLength"/> or expands to more than <see cref="TimeFormat.MaxTokenCount"/> pieces.
+/// </summary>
+/// <remarks>
+///     Callers map it to a located specification or render exception (guides) or to an expression runtime error (the
+///     expression functions); it never reaches a public caller.
+/// </remarks>
+internal sealed class TimeFormatSpecifierException : ArgumentException
+{
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="TimeFormatSpecifierException"/> class.
+    /// </summary>
+    /// <param name="message">The message.</param>
+    public TimeFormatSpecifierException(string message)
+        : base(message)
+    {
+    }
+}
+
+/// <summary>
 ///     One piece of a compiled specifier: either literal text or one directive with its fill character.
 /// </summary>
 /// <param name="Directive">The directive letter, or <c>\0</c> for a literal.</param>
@@ -232,16 +252,49 @@ internal static partial class TimeFormat
     /// </param>
     /// <returns>The formatter.</returns>
     /// <remarks>
-    ///     The cost is linear in the length of the specifier (the caller charges it). Like d3, an unknown directive is not
+    ///     The cost is linear in the length of the specifier, which is limited (<see cref="MaxSpecifierLength"/> characters and
+    ///     <see cref="MaxTokenCount"/> pieces after the locale directives are expanded, so a specifier of <c>%c</c> directives
+    ///     cannot grow into a huge token list). Like d3, an unknown directive is not
     ///     an error: the percent sign is dropped and the letter is copied (<c>%k</c> gives <c>k</c>), and a percent sign
     ///     at the end of the specifier gives nothing. The locale directives <c>%c</c>, <c>%x</c> and <c>%X</c> expand to
     ///     <c>%x, %X</c>, <c>%-m/%-d/%Y</c> and <c>%-I:%M:%S %p</c>, and ignore a padding flag.
     /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="specifier"/> is null.</exception>
+    /// <exception cref="TimeFormatSpecifierException">Thrown when the specifier is longer than <see cref="MaxSpecifierLength"/> or has more than <see cref="MaxTokenCount"/> pieces.</exception>
     public static TimeFormatter Compile(string specifier)
     {
+        ArgumentNullException.ThrowIfNull(specifier);
+        CheckSpecifierLength(specifier);
         var tokens = new List<FormatToken>();
         Tokenize(specifier, tokens, 0);
+        CheckTokenCount(tokens);
         return new TimeFormatter([.. tokens]);
+    }
+
+    /// <summary>
+    ///     Checks that a token list is not longer than <see cref="MaxTokenCount"/>.
+    /// </summary>
+    /// <param name="tokens">The tokens.</param>
+    /// <exception cref="TimeFormatSpecifierException">Thrown when the list is too long.</exception>
+    private static void CheckTokenCount(List<FormatToken> tokens)
+    {
+        if (tokens.Count > MaxTokenCount)
+        {
+            throw new TimeFormatSpecifierException($"The time format expands to more than the limit of {MaxTokenCount} pieces.");
+        }
+    }
+
+    /// <summary>
+    ///     Checks that a specifier is not longer than <see cref="MaxSpecifierLength"/>.
+    /// </summary>
+    /// <param name="specifier">The specifier.</param>
+    /// <exception cref="TimeFormatSpecifierException">Thrown when the specifier is too long.</exception>
+    internal static void CheckSpecifierLength(string specifier)
+    {
+        if (specifier.Length > MaxSpecifierLength)
+        {
+            throw new TimeFormatSpecifierException($"The time format is longer than the limit of {MaxSpecifierLength} characters.");
+        }
     }
 
     /// <summary>
@@ -250,12 +303,16 @@ internal static partial class TimeFormat
     /// <param name="specifier">The specifier.</param>
     /// <param name="tokens">The list that receives the tokens.</param>
     /// <param name="depth">The nesting depth of locale expansions (the locale specifiers never nest more than twice).</param>
+    /// <exception cref="TimeFormatSpecifierException">Thrown when the tokens are more than <see cref="MaxTokenCount"/>.</exception>
     private static void Tokenize(string specifier, List<FormatToken> tokens, int depth)
     {
         var literal = new StringBuilder();
         var i = 0;
         while (i < specifier.Length)
         {
+            // A locale directive adds a dozen tokens at most, so the list never outgrows the limit by more than that
+            CheckTokenCount(tokens);
+
             if (specifier[i] != '%')
             {
                 literal.Append(specifier[i++]);

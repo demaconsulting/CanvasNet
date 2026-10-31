@@ -234,6 +234,69 @@ internal sealed partial class SpecParser
         {
             ValidateDateTimeItems(values);
         }
+
+        ValidateGuideTimeFormat(guide);
+    }
+
+    /// <summary>
+    ///     Validates the time format of an axis or a legend: a <c>format</c> text, or the members of a <c>format</c> object, that the guide reads as a d3 time format must be
+    ///     at most <see cref="TimeFormat.MaxSpecifierLength"/> characters and <see cref="TimeFormat.MaxTokenCount"/> pieces.
+    /// </summary>
+    /// <remarks>
+    ///     The format is a time format when the <c>formatType</c> is <c>time</c> or <c>utc</c>, or when there is no <c>formatType</c> and the field is temporal or has a time unit;
+    ///     a number format (<c>formatType: "number"</c>, or a field of another type) and a custom format type are not read as time formats here.
+    /// </remarks>
+    /// <param name="guide">The axis or legend object.</param>
+    /// <exception cref="VegaLiteSpecException">Thrown, at the offending format, for a specifier that is too long or expands to too many pieces.</exception>
+    private void ValidateGuideTimeFormat(SpecNode guide)
+    {
+        if (guide["format"] is not { } format)
+        {
+            return;
+        }
+
+        var formatType = guide["formatType"]?.AsString();
+        if (formatType is not null)
+        {
+            if (formatType is not ("time" or "utc"))
+            {
+                return;
+            }
+        }
+        else if (guide.Parent is not { } definition
+            || !(definition["type"]?.AsString() == "temporal" || definition["timeUnit"] is { IsNull: false }))
+        {
+            return;
+        }
+
+        if (format.IsString)
+        {
+            CheckTimeFormat(format);
+        }
+        else if (format.IsObject)
+        {
+            foreach (var member in format.Properties.Where(p => p.IsString))
+            {
+                CheckTimeFormat(member);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Checks that a d3 time format specifier can be compiled within the limits of the formatter.
+    /// </summary>
+    /// <param name="node">The specifier text.</param>
+    /// <exception cref="VegaLiteSpecException">Thrown, at the node, when the specifier is too long or expands to too many pieces.</exception>
+    private void CheckTimeFormat(SpecNode node)
+    {
+        try
+        {
+            TimeFormat.Compile(node.StringValue!);
+        }
+        catch (TimeFormatSpecifierException ex)
+        {
+            throw Error(node, $"The time format is not valid: {ex.Message}");
+        }
     }
 
     /// <summary>

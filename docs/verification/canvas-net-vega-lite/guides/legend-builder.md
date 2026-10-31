@@ -217,13 +217,24 @@ January 1) are labeled in the order given (`Jan 03, 2024`, `Jan 09, 2024`, `Jan 
 ##### Temporal Legend Zone, Limits, Cancellation, And Determinism
 
 **Tests**: `LegendBuilderTimeTests.LegendBuilder_Time_Zone_LabelsUseLocalTime`,
+`LegendBuilderTimeTests.LegendBuilder_Time_TemporalColorUtcType_UsesTheUtcCalendar`,
+`LegendBuilderTimeTests.LegendBuilder_Time_TemporalColor_ZeroIsIgnored`,
 `LegendBuilderTimeTests.LegendBuilder_Time_LimitsAndCancellation`,
+`LegendBuilderTimeTests.LegendBuilder_Time_LabelsTogetherTooLong_IsLocated`,
+`LegendBuilderTimeTests.LegendBuilder_Time_FormatSpecifierLimits_AreSpecificationErrors`,
 `LegendBuilderTimeTests.LegendBuilder_Time_Culture_InvariantAndDeterministic`
 
 Assert that for dates at 00:00Z on January 1 and 11 in a +05:30 zone the two-day ticks are the local midnights of the odd
 days, whose first (January 1, December 31 18:30Z) lies before the domain, so the labels are January 3 to 11 (five),
-against the six labels from January 1 in UTC; that `MaxStringLength` of 10 fails a 12 character label (`Jan 01, 2024`)
-with a located exception naming the limit of 10 while 12 passes with six labels, that an hourly `tickCount` over ten
-days (241 ticks) against a `MaxTicks` of 5 fails with a located exception naming `MaxTicks`, and that a canceled token
-throws `OperationCanceledException` while a live token builds the six labels; and that the labels are the same
-under the Turkish, German, and invariant cultures and for two calls in a row.
+against the six labels from January 1 in UTC; that a color with `scale.type: "utc"` in a zone five hours behind UTC takes
+the UTC calendar and the two-day ticks of the epoch days (2024-01-01 is day 19,723, odd, so the even days 19,724 to
+19,732 give the labels January 2, 4, 6, 8, and 10), the same labels as without a zone, while `type: "time"` in the zone
+gives other labels; that `scale.zero: true` on the temporal color is ignored (the labels stay the six dates of the data,
+not the years back to 1970); that `MaxStringLength` of 10 fails a 12 character label (`Jan 01, 2024`)
+with a located exception naming the limit of 10 while 12 passes with the single label of one explicit value, that the
+six 12-character labels (72 in all) fail under a limit of 40 at the fourth with `together longer than the limit of 40
+characters` and pass under 72, that an hourly `tickCount` over ten days
+(241 ticks) against a `MaxTicks` of 5 fails with a located exception naming `MaxTicks`, and that a canceled token
+throws `OperationCanceledException` while a live token builds the six labels; that a `config.timeFormat` or a legend
+`format` member of 1,025 characters is a located `VegaLiteSpecException` naming `the limit of 1024 characters`; and that
+the labels are the same under the Turkish, German, and invariant cultures and for two calls in a row.

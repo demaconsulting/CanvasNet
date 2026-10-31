@@ -148,7 +148,7 @@ public class AxisBuilderTimeTests
     public void AxisBuilder_Time_FormatTypeNumberAndTime()
     {
         // Arrange: a quantitative axis of 0 to 10,000 "milliseconds" has a tick every 1,000 (count 10 over 400 pixels), labeled by the seconds field of the instant. A
-        // quantitative axis has no calendar of its own, so its times are UTC whatever the zone of the chart is.
+        // quantitative axis has no calendar of its own: "time" uses the zone of the chart (the epoch is 05:30 at +05:30) and "utc" uses UTC.
         const string Quantitative = """
             { "data": { "values": [ { "v": 0 }, { "v": 10000 } ] }, "mark": "point",
               "encoding": { "x": { "field": "v", "type": "quantitative", "axis": { "formatType": "time", "format": "%H:%M:%S" } } } }
@@ -157,13 +157,15 @@ public class AxisBuilderTimeTests
         // Act
         var numbers = ChartTestHelpers.Axis(Days("\"format\": \",d\", \"formatType\": \"number\", \"tickCount\": { \"interval\": \"day\" }"), "x", 400, 200)!;
         var times = ChartTestHelpers.Axis(Quantitative, "x", 400, 200, zone: TimeTestSupport.Fixed(5, 30))!;
-        var utc = ChartTestHelpers.Axis(Quantitative.Replace("\"time\"", "\"utc\"", StringComparison.Ordinal), "x", 400, 200)!;
+        var utc = ChartTestHelpers.Axis(Quantitative.Replace("\"time\"", "\"utc\"", StringComparison.Ordinal), "x", 400, 200, zone: TimeTestSupport.Fixed(5, 30))!;
+        var plain = ChartTestHelpers.Axis(Quantitative, "x", 400, 200)!;
 
         // Assert: January 1, 2024 is day 19,723 = 1,704,067,200,000 ms; the number format groups the digits
         Assert.Equal("1,704,067,200,000", numbers.Ticks[0].Label);
         Assert.Equal("1,704,931,200,000", numbers.Ticks[^1].Label);
-        Assert.Equal(Enumerable.Range(0, 11).Select(s => $"00:00:{s:00}"), times.Ticks.Select(t => t.Label));
-        Assert.Equal(times.Ticks.Select(t => t.Label), utc.Ticks.Select(t => t.Label));
+        Assert.Equal(Enumerable.Range(0, 11).Select(s => $"05:30:{s:00}"), times.Ticks.Select(t => t.Label));
+        Assert.Equal(Enumerable.Range(0, 11).Select(s => $"00:00:{s:00}"), utc.Ticks.Select(t => t.Label));
+        Assert.Equal(utc.Ticks.Select(t => t.Label), plain.Ticks.Select(t => t.Label));
     }
 
     /// <summary>
@@ -404,17 +406,90 @@ public class AxisBuilderTimeTests
     [Fact]
     public void AxisBuilder_Time_LabelTooLong_IsLocated()
     {
-        // Arrange: "%c %c" is "1/1/2024, 12:00:00 AM 1/1/2024, 12:00:00 AM": 41 characters
+        // Arrange: "%c %c" is "1/1/2024, 12:00:00 AM 1/1/2024, 12:00:00 AM": 43 characters; one "%c" is 21, so a single tick (the labels of a guide are limited together) fits 30
         var limits = new VegaLiteLimits { MaxStringLength = 30 };
 
         // Act
-        var error = Assert.Throws<VegaLiteRenderException>(() => ChartTestHelpers.Axis(Days("\"format\": \"%c %c\""), "x", 400, 200, limits: limits));
-        var fits = ChartTestHelpers.Axis(Days("\"format\": \"%c\""), "x", 400, 200, limits: limits)!;
+        var error = Assert.Throws<VegaLiteRenderException>(() => ChartTestHelpers.Axis(Days("\"format\": \"%c %c\", \"values\": [ 1704067200000 ]"), "x", 400, 200, limits: limits));
+        var fits = ChartTestHelpers.Axis(Days("\"format\": \"%c\", \"values\": [ 1704067200000 ]"), "x", 400, 200, limits: limits)!;
 
         // Assert
         Assert.True(error.Location.IsKnown);
         Assert.Contains("the limit of 30", error.Message, StringComparison.Ordinal);
+        Assert.Contains("A label", error.Message, StringComparison.Ordinal);
         Assert.Equal("1/1/2024, 12:00:00 AM", fits.Ticks[0].Label);
+    }
+
+    /// <summary>
+    ///     Validates that the labels of one time axis are limited together: eleven labels of 21 or 22 characters are 233, which is over a limit of 100 although no single label is,
+    ///     and the exception is located and names the limit.
+    /// </summary>
+    [Fact]
+    public void AxisBuilder_Time_LabelsTogetherTooLong_IsLocated()
+    {
+        // Arrange: eleven day ticks with the labels of "%c" (21 characters for the 1st to the 9th, 22 for the 10th and 11th: 233 in all); the fifth label brings the total to 105
+        var limits = new VegaLiteLimits { MaxStringLength = 100 };
+        var spec = Days("\"format\": \"%c\"");
+
+        // Act
+        var error = Assert.Throws<VegaLiteRenderException>(() => ChartTestHelpers.Axis(spec, "x", 400, 200, limits: limits));
+        var fits = ChartTestHelpers.Axis(spec, "x", 400, 200, limits: new VegaLiteLimits { MaxStringLength = 240 })!;
+
+        // Assert: the labels that fit are 233 characters in all (the 10th and 11th are "1/10/2024, 12:00:00 AM" and "1/11/2024, 12:00:00 AM", 22 each)
+        Assert.True(error.Location.IsKnown);
+        Assert.Contains("together longer than the limit of 100 characters", error.Message, StringComparison.Ordinal);
+        Assert.Equal(11, fits.Ticks.Count);
+        Assert.Equal(233, fits.Ticks.Sum(t => t.Label.Length));
+    }
+
+    /// <summary>
+    ///     Validates the aggregate cap with the default limit and a hand-built hostile specification: a format of 512 month names (1,024 characters, the longest the format
+    ///     allows) on 481 monthly ticks is about 1.5 million characters, which is over the default <see cref="VegaLiteLimits.MaxStringLength"/> of a guide, so the axis fails
+    ///     with a located exception instead of building the labels.
+    /// </summary>
+    [Fact]
+    public void AxisBuilder_Time_HostileFormatOnManyTicks_IsStoppedByTheAggregateCap()
+    {
+        // Arrange: January 1980 to January 2020 has 481 month starts; "%B" is 3 to 9 characters (6.2 on average), so 512 of them are about 3,200 characters a label
+        var format = string.Concat(Enumerable.Repeat("%B", 512));
+        var spec = $$"""
+            { "data": { "values": [ { "d": "1980-01-01", "v": 1 }, { "d": "2020-01-01", "v": 2 } ] },
+              "mark": "point",
+              "encoding": {
+                "x": { "field": "d", "type": "temporal", "axis": { "format": "{{format}}", "tickCount": { "interval": "month" } } },
+                "y": { "field": "v", "type": "quantitative" } } }
+            """;
+
+        // Act
+        var error = Assert.Throws<VegaLiteRenderException>(() => ChartTestHelpers.Axis(spec, "x", 400, 200));
+
+        // Assert
+        Assert.True(error.Location.IsKnown);
+        Assert.Contains("the limit of 1048576 characters", error.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that a time format that is too long, or expands to too many pieces, is a located specification exception at the format, from the specification
+    ///     parser (for a temporal field, and for a field forced to time by its <c>formatType</c>).
+    /// </summary>
+    [Fact]
+    public void AxisBuilder_Time_FormatSpecifierLimits_AreSpecificationErrors()
+    {
+        // Arrange
+        var tooLong = new string('x', TimeFormat.MaxSpecifierLength + 1);
+        var manyPieces = string.Concat(Enumerable.Repeat("%c", 400));
+        var forced = Days().Replace("\"type\": \"quantitative\"", "\"type\": \"quantitative\", \"axis\": { \"formatType\": \"time\", \"format\": \"" + tooLong + "\" }", StringComparison.Ordinal);
+
+        // Act
+        var length = Assert.Throws<VegaLiteSpecException>(() => ChartTestHelpers.Axis(Days("\"format\": \"" + tooLong + "\""), "x", 400, 200));
+        var pieces = Assert.Throws<VegaLiteSpecException>(() => ChartTestHelpers.Axis(Days("\"format\": \"" + manyPieces + "\""), "x", 400, 200));
+        var multi = Assert.Throws<VegaLiteSpecException>(() => ChartTestHelpers.Axis(Days("\"format\": { \"year\": \"" + tooLong + "\" }"), "x", 400, 200));
+        var forcedError = Assert.Throws<VegaLiteSpecException>(() => ChartTestHelpers.Axis(forced, "y", 400, 200));
+
+        // Assert: located, naming the limit
+        Assert.All([length, multi, forcedError], e => Assert.Contains("the limit of 1024 characters", e.Message, StringComparison.Ordinal));
+        Assert.Contains("the limit of 4096 pieces", pieces.Message, StringComparison.Ordinal);
+        Assert.All([length, pieces, multi, forcedError], e => Assert.True(e.Location.IsKnown));
     }
 
     /// <summary>

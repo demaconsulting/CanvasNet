@@ -62,11 +62,17 @@ sections:
 
               - id: CanvasNetVegaLite-Guides-TimeLabels-Limits
                 title: >-
-                  The TimeLabels unit shall limit every label to the string-length limit of the call, failing
-                  closed with a located VegaLiteRenderException that names the limit before an over-long label
-                  is built.
+                  The TimeLabels unit shall limit every label to the string-length limit of the call, and the
+                  labels that one guide makes (an axis or a legend, time labels and number labels alike) to
+                  that length together, failing closed with a located VegaLiteRenderException that names the
+                  limit before an over-long label is built or kept, and shall refuse a time format longer than
+                  1,024 characters or expanding to more than 4,096 pieces with a located VegaLiteSpecException
+                  at the format.
                 justification: |
-                  A format string is untrusted text that can repeat a long directive; the label must be
-                  bounded by the limits of the call.
+                  A format string is untrusted text that can repeat a long directive, and a guide can have a
+                  thousand ticks; the labels must be bounded by the limits of the call individually and in
+                  all, so that no specification can make a guide build a gigabyte of label text.
                 tests:
                   - TimeLabels_Create_LabelsAreBoundedByTheLimit
+                  - TimeLabels_Create_LabelsOfAGuideAreBoundedTogether
+                  - TimeLabels_Create_LongSpecifier_IsASpecificationError

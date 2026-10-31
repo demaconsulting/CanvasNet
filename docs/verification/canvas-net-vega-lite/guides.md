@@ -139,7 +139,8 @@ documented above as machine-dependent is not a failure.
   `TimeLabelsTests.TimeLabels_ReadInstant_NumbersTextsObjectsAndNonDates` — at +05:30 the domain of two dates at 00:00Z
   runs from local 05:30, so the ticks are the ten local midnights, the first at 18.5 / 240 x 400 = 30.83 (31) pixels, a
   `utc` scale has the UTC midnights whatever the zone is, a `format` text and object and the format types `number`,
-  `time`, and `utc` choose the labels in the order of Vega-Lite (`2024-01-01`, `1,704,067,200,000`, `00:00:00`), the
+  `time`, and `utc` choose the labels in the order of Vega-Lite (`2024-01-01`, `1,704,067,200,000`, `05:30:00` at +05:30
+  and `00:00:00` in UTC), the
   `values` take a timestamp, a date text, and a datetime object and drop what is not a date or is off the scale, the
   dates of an ordinal time unit are labeled `Jan`, `Feb`, and `Mar` (or by the format) and not turned, and the labels of
   a dense axis are thinned by parity unless the overlap method is off.
@@ -150,24 +151,36 @@ documented above as machine-dependent is not a failure.
   `LegendBuilderTimeTests.LegendBuilder_Time_SizeOnTimeScale_TicksAndLabels`,
   `LegendBuilderTimeTests.LegendBuilder_Time_ExplicitValuesAcceptDatetimeObjects`,
   `LegendBuilderTimeTests.LegendBuilder_Time_Zone_LabelsUseLocalTime`,
+  `LegendBuilderTimeTests.LegendBuilder_Time_TemporalColorUtcType_UsesTheUtcCalendar`,
+  `LegendBuilderTimeTests.LegendBuilder_Time_TemporalColor_ZeroIsIgnored`,
   `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_TemporalColorLegendShowsDates` — a gradient
   legend of a temporal color 200 pixels long has the tick count 4, so the target is 2.5 days and the labels are the
   two-day ticks `Jan 01, 2024`, `Jan 03, 2024`, and so on in the format of `config.timeFormat`, its ramp is sampled at
   the time ticks of a count of 15 (every 12 hours, 21 stops from the first date to the last), the legend format, the
   configuration, and the unit specifier choose other labels, a size over dates has six symbols, an ordinal time unit has
-  one symbol and label per month, and at +05:30 the first tick is the 3rd because local midnight of the 1st is before
-  the domain.
+  one symbol and label per month, at +05:30 the first tick is the 3rd because local midnight of the 1st is before
+  the domain, an explicit `utc` scale type of the color keeps the UTC calendar and the epoch-day ticks (January 2, 4, ...,
+  10) in a zone five hours behind UTC, and `scale.zero` is ignored.
 - **Time Guides Fail Closed, Are Deterministic, And Ignore The Culture**:
   `AxisBuilderTimeTests.AxisBuilder_Time_TooManyTicks_IsLocated`,
   `AxisBuilderTimeTests.AxisBuilder_Time_LabelTooLong_IsLocated`,
+  `AxisBuilderTimeTests.AxisBuilder_Time_LabelsTogetherTooLong_IsLocated`,
+  `AxisBuilderTimeTests.AxisBuilder_Time_HostileFormatOnManyTicks_IsStoppedByTheAggregateCap`,
+  `AxisBuilderTimeTests.AxisBuilder_Time_FormatSpecifierLimits_AreSpecificationErrors`,
   `AxisBuilderTimeTests.AxisBuilder_Time_Cancellation`,
   `AxisBuilderTimeTests.AxisBuilder_Time_Culture_Invariant`,
   `AxisBuilderTimeTests.AxisBuilder_Time_Deterministic`,
   `LegendBuilderTimeTests.LegendBuilder_Time_LimitsAndCancellation`,
+  `LegendBuilderTimeTests.LegendBuilder_Time_LabelsTogetherTooLong_IsLocated`,
+  `LegendBuilderTimeTests.LegendBuilder_Time_FormatSpecifierLimits_AreSpecificationErrors`,
   `LegendBuilderTimeTests.LegendBuilder_Time_Culture_InvariantAndDeterministic`,
   `TimeLabelsTests.TimeLabels_Create_LabelsAreBoundedByTheLimit`,
+  `TimeLabelsTests.TimeLabels_Create_LabelsOfAGuideAreBoundedTogether`,
+  `TimeLabelsTests.TimeLabels_Create_LongSpecifier_IsASpecificationError`,
   `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_Limits_TickCountAndStringLimitsAreEnforced` —
-  more ticks than `MaxTicks` and a label longer than `MaxStringLength` are located render errors that name the limit
+  more ticks than `MaxTicks` and a label longer than `MaxStringLength`, or labels that are together longer than it, are
+  located render errors that name the limit
   (11 days, a millisecond interval over ten days, and six listed values against a limit of 5; a 43-character label
-  against 30), a canceled token stops the build, and the labels are the English ones with ASCII digits under `tr-TR` and
-  `de-DE` and the same on every call.
+  against 30; eleven labels of 233 characters in all against 100), a time format of more than 1,024 characters or 4,096
+  pieces is a located specification error, a canceled token stops the build, and the labels are the English ones with
+  ASCII digits under `tr-TR` and `de-DE` and the same on every call.

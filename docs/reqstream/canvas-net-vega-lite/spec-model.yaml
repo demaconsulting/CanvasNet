@@ -136,7 +136,8 @@ sections:
             title: >-
               The SpecModel subsystem shall validate, when a specification is parsed, the time units (a name
               or an object, wherever it is written), the datetime objects (in a domain, a value list, a
-              predicate, a sort array, and a datum), the interval of a tick count or of nice, the timeUnit
+              predicate, a sort array, and a datum), the interval of a tick count or of nice, the length of a
+              time format of a guide or of a data parse entry, the timeUnit
               transform, and the numeric time unit band properties of a mark, failing with a located
               specification exception at the offending value, shall translate a time predicate to a compiled
               expression, and shall classify the timeUnit transform as supported.
@@ -147,12 +148,14 @@ sections:
               - CanvasNetVegaLite-SpecModel-SpecParser-TimeUnits
               - CanvasNetVegaLite-SpecModel-SpecParser-DateTimeObjects
               - CanvasNetVegaLite-SpecModel-SpecParser-TickIntervals
+              - CanvasNetVegaLite-SpecModel-SpecParser-TimeFormatLimits
               - CanvasNetVegaLite-SpecModel-SpecParser-TimePredicates
             tests:
               - SpecParser_TimeUnit_AcceptsEveryName
               - SpecParser_TimeUnit_UnknownUnitIsLocated
               - SpecParser_DateTimeObject_InDomainPredicateAndValues_Validated
               - SpecParser_TickCountInterval_Validated
+              - SpecParser_TimeFormat_SpecifierLimitsAreSpecificationErrors
               - SpecParser_TimePredicates_AreCompiledOnceUnderThePredicate
               - PredicateSource_TimeUnit_Equal_Month
 

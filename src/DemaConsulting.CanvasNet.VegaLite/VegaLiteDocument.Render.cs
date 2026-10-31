@@ -378,7 +378,7 @@ public sealed partial class VegaLiteDocument
     {
         var sourceName = _tree.SourceName;
         var budget = inputs.Budget;
-        var axisBuilder = new AxisBuilder(inputs.Measurer, inputs.Config, inputs.Limits, sourceName);
+        var axisBuilder = new AxisBuilder(inputs.Measurer, inputs.Config, inputs.Limits, sourceName, inputs.Data.Evaluation.Calendar);
         var legendSpecs = LegendPlan.Create(_tree.Root, inputs.Scales, inputs.Config, sourceName);
         var legendBuilder = new LegendBuilder(inputs.Measurer, inputs.Limits, sourceName);
         var measure = ViewLayout.Measure(inputs.Request, default, inputs.Title);

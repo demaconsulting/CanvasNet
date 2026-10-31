@@ -34,8 +34,9 @@ guide), and `FormatLocation` (the location of the `format` property).
 1. `formatType: "number"` formats the **milliseconds as a number** with the d3 number format given by `format` (the
    JavaScript text of the number when there is none).
 2. A `format` that is a text is a **d3 time format** in the calendar of the scale (`formatType: "utc"` forces UTC, and
-   `"time"` forces a time format on any axis, also a quantitative one; a `time` format on a non-temporal axis has no
-   calendar and uses UTC, a documented limitation).
+   `"time"` forces a time format on any axis, also a quantitative one; a field that is not temporal has no calendar of
+   its own, so `AxisBuilder` gives `Options.Calendar` the calendar of the chart, the time zone of the render options,
+   for `"time"`).
 3. A `format` that is an object is **Vega's multi-format** with its members as the overrides of the levels
    (`milliseconds`, `seconds`, `minutes`, `hours`, `date` or `day`, `week`, `month`, `quarter`, `year`; a member that is
    not a text is ignored).
@@ -85,11 +86,20 @@ ticks of a time or UTC scale and for the labels of the dates of a time unit, wit
 
 - _One label_: at most `MaxStringLength` characters (the formatter stops as soon as it would write more; a number label
   is checked after it is made); a longer one is a located `VegaLiteRenderException` that contains `the limit of`.
+- _All the labels of a guide_: the function that `Create` returns keeps a running total of the characters of the labels
+  it has returned and gives the formatter what is left of `MaxStringLength` as its limit, so the labels of one axis or
+  one legend are together at most `MaxStringLength` characters, charged before the text is built, measured, or kept
+  (a thousand ticks of a hostile format cannot add up to a gigabyte). The overflow is a located
+  `VegaLiteRenderException` whose message is "The labels of the axis are together longer than the limit of N characters
+  (VegaLiteLimits.MaxStringLength)"; a refused label is not counted.
+- _A specifier_: at most 1,024 characters and 4,096 tokens (see _TimeFormat_); a longer one fails when `Create` compiles
+  it, with a located `VegaLiteSpecException` at the `format`.
 - _Ticks of a guide_: at most `MaxTicks`, checked by the caller before any label is made; `TimeInterval.Range` polls the
   token every 1,024 items.
 - _`IntervalRequest` and `ReadInstant`_: O(1) per entry, with date text of at most 128 characters (the `JsDateParser`
   bound); the caller bounds the `values` list by `MaxScaleDomainSize`.
-- _Label text of a legend_: its length is charged through `ExpressionFunctionContext.ChargeSize`.
+- _Label text of a legend_: its length is also charged through `ExpressionFunctionContext.ChargeSize` (one step per 64
+  characters).
 
 **Determinism.** Nothing here reads the clock, the host time zone, or the host culture: the zone is the calendar of the
 chart and the names are the English d3 locale. The same specification and data give the same labels on every call and
@@ -98,7 +108,8 @@ machine, and under any culture.
 #### Key Methods
 
 - `TimeLabels.Create(Options)` - builds the function that turns an instant into its label by the resolution above; the
-  function throws a located `VegaLiteRenderException` when a label is longer than the limit.
+  function throws a located `VegaLiteRenderException` when a label is longer than the limit or the labels of the guide
+  are together longer than it.
 - `TimeLabels.IntervalRequest(SpecNode?)` - the interval request of a `tickCount`, or null.
 - `TimeLabels.UsesVegaDefaultCount(TimeUnitSpec?)` - whether the default tick count is Vega's ten.
 - `TimeLabels.ReadInstant(SpecNode, TimeCalendar)` - the instant of an entry of `values`, or NaN.
@@ -106,14 +117,18 @@ machine, and under any culture.
 
 **Preconditions and postconditions**: `Options`, the node (for `ReadInstant`), and the calendar are non-null; `Create`
 captures its formatter once (a compiled `TimeFormatter`, or the d3 number format), so the returned function is cheap per
-label and deterministic.
+label and deterministic; the function is not thread safe (it holds the running total of one guide, which is built on one
+thread).
 
 #### Error Handling
 
 A label that is too long is a `VegaLiteRenderException` located at the guide (message: "A label of the axis is longer
-than the limit of N characters (VegaLiteLimits.MaxStringLength)"). A `format` of `formatType: "number"` that is not a d3
+than the limit of N characters (VegaLiteLimits.MaxStringLength)"), and so are labels that are too long together (message
+above). A `format` of `formatType: "number"` that is not a d3
 number format specifier is a `VegaLiteSpecException` located at the `format` value, as for any number format; a time
-format never fails, because d3 copies an unknown directive (`TimeFormat.Compile`). A `tickCount` that is not an
+format fails only for a specifier that is longer than 1,024 characters or expands to more than 4,096 tokens
+(`TimeFormatSpecifierException` of `TimeFormat.Compile`, mapped to a `VegaLiteSpecException` at the `format` with the
+message "The axis time format is not valid: ..."), because d3 copies an unknown directive. A `tickCount` that is not an
 interval, and a `values` entry that is not a date, are not errors of this unit (the interval request is null and the
 instant is NaN; `SpecParser` rejected malformed intervals and date-time objects when the document was opened).
 A null argument is an `ArgumentNullException`. The unit performs no I/O.
@@ -121,7 +136,8 @@ A null argument is an `ArgumentNullException`. The unit performs no I/O.
 **Documented deviations from Vega-Lite** (each pinned by a test):
 
 1. **`formatType: "utc"`** is accepted as well as `number` and `time`.
-2. **A `time` format type on a non-temporal axis** uses UTC.
+2. **A `time` format type on a non-temporal axis** uses the calendar of the chart (the time zone of the render options),
+   and `utc` uses UTC; the numbers are read as milliseconds since the epoch.
 3. **`labelExpr` and `labelBound`** are not evaluated for any axis or legend (the feature catalog reports
    `vl-expr-label`), and a custom format type is reported, not evaluated.
 

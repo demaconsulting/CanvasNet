@@ -166,6 +166,14 @@ calendar dates, computed with `DateTimeOffset`), and not by running d3 and pasti
   match, and 2024-04-05 (a Friday, day 19,818 = 19,787 + 31) is 1,712,275,200,000, so `apr  5 2024 pm` is noon of
   that day, 1,712,318,400,000.
 
+- **Specifier limits.** A specifier of 1,024 characters compiles (and formats itself back as literal text) and one of
+  1,025 throws `TimeFormatSpecifierException`, with a message that contains `the limit of 1024 characters`. One `%c`
+  expands to 13 tokens (`%x, %X` is `%-m/%-d/%Y` with 5 tokens, the literal `,`, and `%-I:%M:%S %p` with 7), so 315
+  copies are 4,095 tokens and compile (to 315 x 20 = 6,300 characters of `3/5/2024, 1:04:09 PM`), 316 copies are 4,108
+  tokens and 512 copies (1,024 characters) throw with a message that contains `the limit of 4096 pieces`. A
+  multi-format with an override of 1,025 characters throws the same exception, and one of `Y%Y` gives `Y2024` for
+  January 1, 2024.
+
 Unit tests reside in `TimeFormatTests.cs` (the formatter), `TimeFormatParseTests.cs` (the parser),
 `TimeFormatMultiTests.cs` (Vega's multi-format), and `JsDateParserTests.cs` (the `Date.parse` rules), with the shared
 helper `TimeTestSupport.cs`, all within the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `Data` folder.
@@ -234,6 +242,18 @@ limit, a huge literal throws early, and `Invalid Date` throws under a limit of 5
 formatter works with several calendars; and that the text of the specifier
 `%A %B %a %b %p %I %d %Y %j %c` is `Tuesday March Tue Mar PM 01 05 2024 065 3/5/2024, 1:04:09 PM` under the invariant,
 `tr-TR`, and `de-DE` cultures.
+
+##### Specifier Length And Expansion Are Limited
+
+**Tests**: `TimeFormatTests.TimeFormat_Compile_SpecifierLength_IsLimited`,
+`TimeFormatTests.TimeFormat_Compile_LocaleDirectiveExpansion_IsLimited`,
+`TimeFormatTests.TimeFormat_Multi_LongOverride_IsLimited`
+
+Asserts that 1,024 characters of literal text compile and format to themselves, 1,025 throw
+`TimeFormatSpecifierException` naming `the limit of 1024 characters`, and a null specifier is an
+`ArgumentNullException`; that 315 `%c` directives (4,095 tokens) compile and format to 6,300 characters, while 316 and
+512 throw naming `the limit of 4096 pieces`; and that a multi-format override of 1,025 characters throws while the
+override `Y%Y` gives `Y2024`.
 
 ##### Vega Multi-Format Chooses The Coarsest Boundary
 

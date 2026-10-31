@@ -370,7 +370,8 @@ public class VegaLiteTimeIntegrationTests
     [Fact]
     public async Task CanvasNetVegaLite_SystemIntegration_Time_Limits_TickCountAndStringLimitsAreEnforced()
     {
-        // Arrange: the fixture has 6 ticks; "%c" labels have 21 characters, and 22 on the 10th and 11th ("1/11/2024, 12:00:00 AM")
+        // Arrange: the fixture has 6 ticks; "%c" labels have 21 characters, and 22 on the 10th and 11th ("1/11/2024, 12:00:00 AM"); the labels of an axis are limited together, so a
+        // limit of 200 holds all six labels, and a limit of 21 stops at the second label
         var document = Open("time-points.vl.json");
         var longLabels = (await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "Fixtures", "time-points.vl.json"), Ct)).Replace("\"tickCount\": 5", "\"tickCount\": 5, \"format\": \"%c\"", StringComparison.Ordinal);
         using var canceled = new CancellationTokenSource();
@@ -380,7 +381,7 @@ public class VegaLiteTimeIntegrationTests
         var tooMany = Assert.Throws<VegaLiteRenderException>(() => document.Render(new VegaLiteRenderOptions { Limits = new VegaLiteLimits { MaxTicks = 5 } }, Ct));
         using var exact = document.Render(new VegaLiteRenderOptions { Limits = new VegaLiteLimits { MaxTicks = 6 } }, Ct);
         var tooLong = Assert.Throws<VegaLiteRenderException>(() => VegaLiteDocument.Parse(longLabels).Render(new VegaLiteRenderOptions { Limits = new VegaLiteLimits { MaxStringLength = 21 } }, Ct));
-        using var fits = VegaLiteDocument.Parse(longLabels).Render(new VegaLiteRenderOptions { Limits = new VegaLiteLimits { MaxStringLength = 22 } }, Ct);
+        using var fits = VegaLiteDocument.Parse(longLabels).Render(new VegaLiteRenderOptions { Limits = new VegaLiteLimits { MaxStringLength = 200 } }, Ct);
 
         // Assert: located at the x channel of the chart, naming the limits
         Assert.Equal("/encoding/x", tooMany.Location.Pointer);

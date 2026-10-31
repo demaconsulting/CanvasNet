@@ -554,6 +554,53 @@ public class ScaleResolverTimeTests
     }
 
     /// <summary>
+    ///     Validates that an explicit <c>utc</c> type on a temporal color keeps its meaning although the scale is the sequential one: the calendar is UTC and the scale is
+    ///     flagged as a UTC one whatever the zone of the chart is, while <c>time</c> and the default follow the zone.
+    /// </summary>
+    [Fact]
+    public void ScaleResolver_TemporalColor_ExplicitUtcType_UsesTheUtcCalendar()
+    {
+        // Arrange: a chart in a zone that is not UTC
+        var zone = TimeTestSupport.Fixed(-5);
+        string Color(string type) => Spec("point", "{\"color\":{\"field\":\"d\",\"type\":\"temporal\"" + type + "}}");
+
+        // Act
+        var utc = Resolve(Color(",\"scale\":{\"type\":\"utc\"}"), zone)["color"]!;
+        var time = Resolve(Color(",\"scale\":{\"type\":\"time\"}"), zone)["color"]!;
+        var byDefault = Resolve(Color(string.Empty), zone)["color"]!;
+        var fill = Resolve(Spec("point", """{"fill":{"field":"d","type":"temporal","scale":{"type":"utc"}}}"""), zone)["fill"]!;
+
+        // Assert: the sequential kind stays for all of them
+        Assert.All([utc, time, byDefault, fill], s => Assert.Equal(ScaleKind.Sequential, s.Kind));
+        Assert.True(utc.IsUtcTime);
+        Assert.True(utc.Calendar!.IsUtc);
+        Assert.True(fill.IsUtcTime);
+        Assert.True(fill.Calendar!.IsUtc);
+        Assert.False(time.IsUtcTime);
+        Assert.False(time.Calendar!.IsUtc);
+        Assert.False(byDefault.IsUtcTime);
+        Assert.False(byDefault.Calendar!.IsUtc);
+    }
+
+    /// <summary>
+    ///     Validates that <c>scale.zero</c> is ignored on a temporal color as on a time scale (the feature catalog says so): the domain is the extent of the dates, not
+    ///     pulled to 1970.
+    /// </summary>
+    [Fact]
+    public void ScaleResolver_TemporalColor_ZeroIsIgnored()
+    {
+        // Act
+        var forced = Resolve(Spec("point", """{"color":{"field":"d","type":"temporal","scale":{"zero":true}}}"""))["color"]!;
+        var utc = Resolve(Spec("point", """{"color":{"field":"d","type":"temporal","scale":{"type":"utc","zero":true}}}"""))["color"]!;
+        var number = Resolve(Spec("point", """{"color":{"field":"v","type":"quantitative","scale":{"zero":true}}}"""))["color"]!;
+
+        // Assert: the dates keep their own extent; a number is still pulled to zero
+        Assert.Equal((D(1, 1), D(1, 11)), (forced.DomainStart, forced.DomainEnd));
+        Assert.Equal((D(1, 1), D(1, 11)), (utc.DomainStart, utc.DomainEnd));
+        Assert.Equal((0.0, 3.0), (number.DomainStart, number.DomainEnd));
+    }
+
+    /// <summary>
     ///     Validates that the discretizing scale types of a temporal color are refused (Vega-Lite accepts time and utc only): the sequential scale stays, with its warning
     ///     reported by the feature catalog.
     /// </summary>

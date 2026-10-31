@@ -196,6 +196,15 @@ catalog (for example a binned unit).
   `step` (another key is `vl-unknown-property`); an expression reference is left alone. The rule is checked for every
   field type because the type of the scale is not known to the parser; the catalog reports an interval on a scale that
   has none.
+- **Time format limits** (`ValidateGuideTimeFormat`, called from `ValidateGuideTime`, and `ValidateFormat` for a data
+  `parse` entry): the `format` text, or each text member of a `format` object, of an axis or a legend that the guide reads
+  as a d3 time format - the `formatType` is `time` or `utc`, or there is no `formatType` and the channel definition (the
+  parent of the guide) is `temporal` or has a `timeUnit`; a number format (`formatType: "number"`, or a field of another
+  type) and a custom format type are not read as time formats here - is compiled with `TimeFormat.Compile`, and a
+  `TimeFormatSpecifierException` (more than 1,024 characters, or more than 4,096 tokens after the locale directives
+  expand) is an error at that format. The format of a `date:'%fmt'` or `utc:'%fmt'` parse entry is limited to 1,024
+  characters (it is only scanned by the parser, never compiled). The `timeFormat` of the configuration is not read by
+  the parser; `TimeLabels.Create` finds it when a legend is built.
 - **The `timeUnit` transform** is supported (`IsSupportedTransform("timeUnit")`): `ValidateTimeUnitTransform` requires
   a unit, a `field` that is a valid field path, and a non-empty text `as`.
 - **Predicate time values** (`ValidatePredicateTime`, called from `ValidatePredicate` for a field predicate): the
@@ -240,7 +249,8 @@ an error; a duplicate key keeps the last value at the position of the first occu
   validation pass; `ValidateAggregateTransform`, `ValidateWindowTransform`, `ValidateBinTransform`,
   `ValidateStackTransform`, `ValidateImputeTransform`, and `ValidateAggregationProperties` (`SpecParser.Aggregates.cs`)
   apply the phase 6 rules; `ValidateTimeUnit`, `ValidateTimeUnitObject`, `ValidateDateTimeValue`,
-  `ValidateDateTimeItems`, `ValidateTimeInterval`, `ValidateScaleTime`, `ValidateGuideTime`, `ValidateDatum`,
+  `ValidateDateTimeItems`, `ValidateTimeInterval`, `ValidateScaleTime`, `ValidateGuideTime`, `ValidateGuideTimeFormat`,
+  `CheckTimeFormat`, `ValidateDatum`,
   `ValidatePredicateTime`, `CompileTimePredicate`, and `ValidateTimeUnitTransform` (`SpecParser.Time.cs`) apply the
   time rules. The static helpers `IsSupportedTransform(name)` (true for the six aggregating transforms and for
   `timeUnit` too), `IsTimeInterval(name)`, `IsDateTimeShaped(node)` (also used by the catalog), `IsDrawnView(root, view)`,
@@ -317,7 +327,8 @@ beyond `MaxExpressionDepth`, an invalid regular expression literal, or a referen
 cycle, a repeated or reserved parameter name, a `param` of a predicate that names no parameter, and a transform or predicate
 of the wrong shape are located at the offending value. A time unit that does not exist, a date-time object with an
 unknown key or a month, quarter, or day that is not one, a `tickCount` or `nice` interval that is not one of the eight
-(or a `step` that is not positive), a `parse` entry `date:` or `utc:` without a quoted format, and a time-aware `oneOf`
+(or a `step` that is not positive), a time format of more than 1,024 characters or 4,096 pieces, a `parse` entry `date:` or
+`utc:` without a quoted format or with a format of more than 1,024 characters, and a time-aware `oneOf`
 of more
 than `MaxScaleDomainSize` values are located at the offending value or member. A null argument is a programming error and
 throws `ArgumentNullException`, which is not converted. Unknown and duplicate keys are warnings, returned with the tree.
