@@ -6249,6 +6249,30 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Characterization test that a <c>font-size</c> of zero renders no text at all (and does not fail the document).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ZeroFontSize_RendersNoText()
+    {
+        // Arrange: the same glyph as the start-anchored test, but with a zero font size
+        const string svg = "<svg viewBox='0 0 100 100'><text x='10' y='60' font-family='TestFont' font-size='0' fill='black'>A</text></svg>";
+        var fonts = new Dictionary<string, TrueTypeFont> { ["TestFont"] = BuildTestFont() };
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100, fonts);
+
+        // Assert: every pixel of the surface is still transparent
+        for (var y = 0; y < 100; y++)
+        {
+            for (var x = 0; x < 100; x++)
+            {
+                Assert.Equal(0, surface[x, y].A);
+            }
+        }
+    }
+
+    /// <summary>
     ///     Proves that kerning between a known glyph pair shifts the second glyph's position,
     ///     by comparing against the position a naive (kerning-ignoring) layout would produce.
     /// </summary>

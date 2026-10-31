@@ -1,4 +1,5 @@
 // cspell:ignore ellipsis
+using System.Text;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Rendering;
@@ -399,6 +400,57 @@ public class ContactSheetTests
         Assert.Equal("...", tiny);
         Assert.Throws<ArgumentNullException>(() => ContactSheet.FitLabel(null!, 10, font, 14));
         Assert.Throws<ArgumentNullException>(() => ContactSheet.FitLabel("x", 10, null!, 14));
+    }
+
+    /// <summary>
+    ///     Characterization test that a label of characters outside the Basic Multilingual Plane (surrogate pairs) is never
+    ///     cut inside a pair, whatever width it is cut to.
+    /// </summary>
+    [Fact]
+    public void ContactSheet_FitLabel_SurrogatePairText_NeverSplitsPair()
+    {
+        // Arrange: the label font, a text of astral characters (two UTF-16 units each), and a strict encoder that rejects
+        // a lone surrogate
+        var font = SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold: false, italic: false);
+        var text = string.Concat(Enumerable.Repeat("a\U0001F600", 12));
+        var strict = new UTF8Encoding(false, true);
+
+        // Act / Assert: for every width the result is well-formed, fits, and is a whole-character beginning plus "..."
+        for (var maxWidth = 1; maxWidth <= 300; maxWidth += 7)
+        {
+            var fitted = ContactSheet.FitLabel(text, maxWidth, font, ContactSheet.LabelFontSize);
+
+            Assert.Equal(fitted, strict.GetString(strict.GetBytes(fitted)));
+            if (fitted == text)
+            {
+                continue;
+            }
+
+            Assert.EndsWith("...", fitted);
+            Assert.StartsWith(fitted[..^3], text, StringComparison.Ordinal);
+            if (fitted != "...")
+            {
+                Assert.True(TextRenderer.MeasureText(fitted, font, ContactSheet.LabelFontSize).Width <= maxWidth);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Characterization test that an empty label stays empty for any usable width.
+    /// </summary>
+    [Fact]
+    public void ContactSheet_FitLabel_EmptyText_ReturnsEmpty()
+    {
+        // Arrange: the label font
+        var font = SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold: false, italic: false);
+
+        // Act
+        var narrow = ContactSheet.FitLabel(string.Empty, ContactSheet.MinCell, font, ContactSheet.LabelFontSize);
+        var wide = ContactSheet.FitLabel(string.Empty, 500, font, ContactSheet.LabelFontSize);
+
+        // Assert: nothing to cut, so the empty text is returned
+        Assert.Equal(string.Empty, narrow);
+        Assert.Equal(string.Empty, wide);
     }
 
     /// <summary>
