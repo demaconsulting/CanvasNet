@@ -5,13 +5,14 @@
 The `ScaleModel` unit is the first software unit in the `Scales` subsystem. It is one source file, `ScaleModel.cs`, in the
 `DemaConsulting.CanvasNet.VegaLite.Scales` namespace, and defines five `internal` types: `ScaleKind` (enumeration),
 `ScaleTransformKind` (enumeration), `ScaleTransform` (sealed class), `ScaleRange` (readonly struct), and `ScaleModel`
-(sealed class). The file carries the provenance header comment for the
-d3-scale arithmetic and the Vega scale it ports.
+(sealed class). The file carries the provenance header comments for the
+d3-scale arithmetic and the Vega scale it ports, and for the d3-time calendar behavior of the time scales.
 
 #### Purpose
 
-`ScaleModel` maps data values to positions, and positions back to values, for the scale kinds of the first delivery:
-linear (also with a log, pow, sqrt, or symlog transform), band, point, and ordinal; it also maps numbers to colors
+`ScaleModel` maps data values to positions, and positions back to values, for the scale kinds of the renderer:
+linear (also with a log, pow, sqrt, or symlog transform), time and UTC (linear over instants), band, point, and ordinal;
+it also maps numbers to colors
 (sequential and diverging) and classifies them
 (quantize, quantile, threshold, and bin-ordinal). It exists so that the arithmetic of scales (normalizing,
 interpolating, stepping, padding, rounding, reversing, classifying) is defined in one pure, immutable, easily tested
@@ -24,9 +25,13 @@ The unit's behavior is specified by the `CanvasNetVegaLite-Scales-ScaleModel-*` 
 #### Data Model
 
 **`ScaleKind`** is `Linear`, `Band`, `Point`, `Ordinal`, `Sequential`, `Diverging`, `Quantize`, `Quantile`, `Threshold`,
-or `BinOrdinal`. A log, pow, sqrt, or symlog scale is not a kind of its own: it is a `Linear` (or, for colors,
-`Sequential` or `Diverging`) model that carries a transform, so that everything that works on a continuous scale (stacks,
-bin ends, ranges, ticks, gradient legends) keeps working.
+`BinOrdinal`, `Time`, or `Utc`. A log, pow, sqrt, or symlog scale is not a kind of its own: it is a `Linear` (or, for
+colors, `Sequential` or `Diverging`) model that carries a transform, so that everything that works on a continuous scale
+(stacks, bin ends, ranges, ticks, gradient legends) keeps working. `Time` and `Utc` are kinds of their own (d3's
+`scaleTime` and `scaleUtc`), not a flag on `Linear`, because they differ in what surrounds the arithmetic (ticks, `nice`,
+labels, and the sites that mean "a linear scale" had to be revisited one by one); `IsLinearLike` is true for the three
+kinds that map numbers linearly (`Linear`, `Time`, and `Utc`), and the linear operations (`Map`, `Invert`, and the
+quantitative reading of `Map(DataValue)`) accept all three.
 
 **`ScaleTransform`** (sealed class, immutable) is the transform of such a scale: `Kind` (`ScaleTransformKind`: `Linear`,
 `Log`, `Pow`, or `Symlog`), `Parameter` (the base, the exponent, or the constant), `IsLinear` (the identity, also the pow
@@ -49,9 +54,12 @@ entry of the complete range for a linear scale), `Clamp`, `Round`, `PaddingInner
 (the texts of an ordinal range), `Range` (its `ScaleRange`), `Interpolator` (the color function of a sequential or
 diverging scale), and
 `Thresholds` (the interval boundaries of a quantize, quantile, or threshold scale, or the bin edges of a bin-ordinal
-scale), and `Transform` (the `ScaleTransform` of a continuous scale). The factories are `CreateLinear(domainStart,
+scale), `Transform` (the `ScaleTransform` of a continuous scale), `Calendar` (the `TimeCalendar` of a `Time` or `Utc`
+scale, which its ticks and `nice` follow; null for every other kind), and `IsLinearLike`. The factories are
+`CreateLinear(domainStart,
 domainEnd, rangeStart, rangeEnd, clamp, round, transform)`, `CreateLinear(double[] domain, double[] range, clamp, round,
-transform)` (the piecewise form),
+transform)` (the piecewise form), `CreateTime(double[] domain, double[] range, clamp, round, calendar, utc)` (the same
+piecewise arithmetic over milliseconds since the epoch, with no transform; `utc` selects `ScaleKind.Utc`),
 `CreateBand(domain, rangeStart, rangeEnd, paddingInner, paddingOuter, align, round)`, `CreatePoint(domain, rangeStart,
 rangeEnd, padding, align, round)`, `CreateOrdinal(domain, range)` (texts or a `ScaleRange`),
 `CreateSequential(domain, interpolator, clamp, transform)`
@@ -60,8 +68,9 @@ rangeEnd, padding, align, round)`, `CreateOrdinal(domain, range)` (texts or a `S
 paddingOuter)` is Vega's `bandspace`: the number of steps a discrete scale needs.
 
 **Invariants**: a model never changes after it is built; a discrete model's domain is deduplicated, keeps its order, and
-has an index per value; a linear model with a domain of zero width maps every value to the middle of its range, and NaN
-maps to NaN; the thresholds of a discretizing scale are fixed at creation.
+has an index per value; a linear, time, or UTC model with a domain of zero width maps every value to the middle of its
+range, and NaN maps to NaN; the thresholds of a discretizing scale are fixed at creation; a time or UTC model always has
+a calendar, and no other model has one.
 
 #### Key Methods
 
@@ -77,10 +86,16 @@ maps to NaN; the thresholds of a discretizing scale are fixed at creation.
   over the transformed domain; `Invert` undoes the transform of the result. A number the transform cannot take (the
   logarithm of a number that is not above zero) maps to NaN as a number and to null as a data value, so that a mark
   that would sit at a position that is not a number is not drawn.
+- Time and UTC scales: `Map(double)` is the same map, with the same clamp, round, reversed, piecewise, and zero-width
+  rules, over milliseconds since the epoch (d3's `scaleTime` is a continuous scale whose domain is coerced to numbers),
+  so a time and a UTC scale with the same numbers map identically; they differ only by `Calendar`. There is no zero rule
+  and no transform. `Invert` returns the **number** of milliseconds, not a date. `Map(DataValue)` reads a date, or any
+  value that reads as a number, as milliseconds; a date that is not valid has no position (null).
 - `Fraction(double)` - the position of a value between the ends of the domain along the transformed domain, 0.5 for a
   domain without span (Vega's `scaleFraction`: for a log scale `ln(v / start) / ln(end / start)`); gradient legends place
   their labels and stops with it.
-- `Map(DataValue)` - for a linear scale the quantitative reading of the value (null when it has none); for a band or
+- `Map(DataValue)` - for a linear, time, or UTC scale the quantitative reading of the value (null when it has none);
+  for a band or
   point scale the **start** of the value's band (or the point), null for a value outside the domain.
 - `MapCenter(DataValue)` - the center of a band (start plus half the bandwidth); for a point or linear scale the same
   as `Map`.
@@ -110,7 +125,8 @@ maps to NaN; the thresholds of a discretizing scale are fixed at creation.
   (a value on a threshold goes up); a bin-ordinal scale (Vega's `scaleBinOrdinal`) gives
   `range[(bisectRight(edges, x) - 1) % range.Count]`,
   nothing below the first edge.
-- `Invert(double)` and `IndexOf(DataValue)` - the inverse mapping for a linear scale and the domain index of a value.
+- `Invert(double)` and `IndexOf(DataValue)` - the inverse mapping for a linear, time, or UTC scale and the domain index
+  of a value.
 - Band and point arithmetic (in the factories): the step is the range extent divided by `max(1, n - paddingInner + 2 *
   paddingOuter)` for `n` categories, the bandwidth is the step times one minus the inner padding, the first band starts
   after the alignment share of the space left over, a range that runs backwards lays the bands out backwards, and
@@ -125,7 +141,9 @@ a mapping method requires a model of the matching kind; the results are determin
 
 Programmer errors fail fast: a null domain or range is `ArgumentNullException`, and calling a mapping that belongs to
 another kind of scale (for example `Invert` on a band scale) is an `InvalidOperationException` that names the expected and
-actual kinds. Data-dependent conditions are not errors: a value outside the domain maps to null, a domain of zero width
+actual kinds (the linear operations name `Linear`, `Time`, or `Utc`), and `CreateTime` with a null calendar is an
+`ArgumentNullException`. Data-dependent conditions are not errors: a value outside the domain maps to null, a domain of
+zero width
 maps to the middle of the range, and NaN maps to NaN. The unit performs no I/O.
 
 #### Dependencies
@@ -134,6 +152,8 @@ maps to the middle of the range, and NaN maps to NaN. The unit performs no I/O.
 - **`RgbColor`** (the `ColorInterpolator` unit) - the color an interpolator returns
 - **`AggregateMeasures`** (the `Transforms` subsystem) - the R-7 `Quantile` that the quantile scale shares
   with the aggregate transform
+- **`TimeCalendar`** (the `TimeCalendar` unit of the `Data` subsystem) - the calendar a time or UTC model carries;
+  the model itself only stores it (see _Time Calendar Design_)
 - **.NET base class library** - `System` (`Math`), `System.Collections.Generic`
 
 #### Callers

@@ -25,8 +25,10 @@ ResolvedScales, double width, double height, CancellationToken)`, which returns 
 coordinates of the data rectangle; the table is the **Main** table of the implicit pipeline (the fields that the scales
 name).
 
-**Consumed**: `SpecNode` and `ResolvedConfig` from the `SpecModel` subsystem; `DataTable` and `DataValue` from the `Data`
-subsystem; `ResolvedScales`, `ResolvedScale`, and `ScaleModel` from the `Scales` subsystem; `RowExpressions` and `BinKind`
+**Consumed**: `SpecNode` and `ResolvedConfig` from the `SpecModel` subsystem; `DataTable`, `DataValue`, `TimeCalendar`,
+and `JsDateParser` from the `Data`
+subsystem (the last two for the date of a temporal `datum`); `ResolvedScales`, `ResolvedScale`, and `ScaleModel` from the
+`Scales` subsystem; `RowExpressions` and `BinKind`
 from the `Transforms` subsystem; `SceneGroup`, `SceneRect`,
 `SceneRule`, `SceneSymbol`, `SceneClip`, and `SceneBudget` from the `Scenegraph` subsystem; and the public `VegaLiteLimits`,
 `VegaLiteLocation`, and `VegaLiteRenderException` of the `VegaLiteDocument` unit.
@@ -47,7 +49,9 @@ centered on the value with default thickness; the measure axis runs from the val
 secondary channel `x2` or `y2`, from the first to the second end); symbols sit at the center of
 their band or value (the upper end of a stack, the middle of a bin); a rule is a full-width or full-height line, a stem
 from
-the value to zero, or a range; a bar or rect on a binned channel spans its bin. Orientation comes
+the value to zero, or a range; a bar or rect on a binned channel spans its bin, and on a time-unit channel of a time
+scale it spans its unit (a month, say; a point, circle, square, or rule sits at the start of its unit unless a band
+position says otherwise, and a tick at the middle). Orientation comes
 from `ScaleResolver.InferOrient`. A row with an invalid value on a continuous channel is not drawn (Vega-Lite 6 `filter`
 behavior), and a value outside an explicit discrete domain is not drawn.
 

@@ -145,7 +145,13 @@ public sealed class VegaLiteRenderOptions
     ///     Gets the time zone in which dates are interpreted and time units are computed, or <see langword="null"/>
     ///     for UTC.
     /// </summary>
-    /// <remarks>UTC is the default so that output does not depend on the host's local time zone.</remarks>
+    /// <remarks>
+    ///     UTC is the default so that output does not depend on the host's local time zone: the zone of the machine is
+    ///     never used. The zone decides how a date-time text without an offset is read, which instant a local time unit
+    ///     starts at, where the ticks of a time scale fall, and how date labels and the expression date functions
+    ///     read the parts of a date. <c>utc</c> time units, <c>utc</c> scales, and date-only ISO texts always use UTC.
+    ///     Offsets come from <see cref="TimeZoneInfo.GetUtcOffset(DateTime)"/> of the zone given here.
+    /// </remarks>
     public TimeZoneInfo? TimeZone { get; init; }
 
     /// <summary>

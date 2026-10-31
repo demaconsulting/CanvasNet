@@ -117,7 +117,7 @@ sections:
                   The DataLoader unit shall, as Vega does, apply no data-based type inference to CSV, TSV,
                   or DSV data unless format.parse is "auto": an absent or null parse shall keep every
                   cell as a string (a leading zero, an ISO-looking date, and true or false stay text), an
-                  explicit "auto" shall infer booleans, numbers, and ISO dates per column, and a parse
+                  explicit "auto" shall infer booleans, numbers, and dates per column, and a parse
                   object shall convert only the named fields.
                 justification: |
                   Whole-column inference by default silently changes identifiers such as postal codes and
@@ -139,6 +139,25 @@ sections:
                   chart.
                 tests:
                   - DataLoader_Load_ParseFailuresAreCollectedAsWarnings
+
+              - id: CanvasNetVegaLite-Data-DataLoader-Calendar
+                title: >-
+                  The DataLoader unit shall take the time calendar of the chart (UTC when none is given),
+                  pass it to every conversion of a date in an inline, delimited, JSON, caller-supplied,
+                  and specification dataset, leave the dates of the caller's rows as they are (a local
+                  DateTime of the caller is converted to UTC as before), and apply the set of the fields
+                  that the specification uses as dates only to the main data of the view and never to the
+                  secondary source of a lookup.
+                justification: |
+                  The time zone of a chart must reach the parsing of every date, and a lookup source is not
+                  a field of the view; converting it would change values the author did not ask to change.
+                tests:
+                  - DataLoader_Load_PassesTheCalendarToInlineCsvJsonAndCallerRows
+                  - DataLoader_Load_DefaultCalendarIsUtcAndCallerDatesAreNotMoved
+                  - DataLoader_Load_ImplicitDateFieldsApplyOnlyWhenGiven
+                  - DataLoader_Load_SecondaryLookupDataIsNotImplicitlyParsed
+                  - DataLoader_Render_TimeZoneOptionReachesTheDataStage
+                  - DataLoader_Render_CustomDateFormatRendersInStrictMode
 
               - id: CanvasNetVegaLite-Data-DataLoader-HardFailures
                 title: >-

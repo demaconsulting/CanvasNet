@@ -1,0 +1,17 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "width": 200,
+  "height": 200,
+  "data": {
+    "values": [
+      { "sampled": "2024-01-01", "depth": 1 },
+      { "sampled": "2024-01-06", "depth": 2 },
+      { "sampled": "2024-01-11", "depth": 3 }
+    ]
+  },
+  "mark": "circle",
+  "encoding": {
+    "x": { "field": "depth", "type": "quantitative" },
+    "color": { "field": "sampled", "type": "temporal" }
+  }
+}

@@ -1,0 +1,277 @@
+---
+# Software Unit Requirements for TimeCalendar
+#
+# These requirements describe the design-level behavior of the TimeCalendar unit of the Data subsystem
+# (internal namespace DemaConsulting.CanvasNet.VegaLite.Data): the calendar of the time phase. It converts an
+# instant (milliseconds since the Unix epoch, as a double, exactly the range of the date values of the DataTable
+# unit: the years 1 to 9999) to and from civil date parts in one time zone (UTC when the caller sets none), and it
+# owns the d3-time intervals (millisecond to year, local and UTC), the Vega-Lite time units (names, field names,
+# floors, ends, durations, and the maxbins form), and the Vega-Lite datetime objects. The only time zone ever used
+# is the one the caller passes in the render options; the unit never reads the clock, the host time zone, or the
+# host culture. The d3-time and Vega algorithms are ported with attribution (see
+# src/DemaConsulting.CanvasNet.VegaLite/third-party/README.md). Each "tests" entry cites an existing test method in
+# the DemaConsulting.CanvasNet.VegaLite.Tests project; see
+# docs/verification/canvas-net-vega-lite/data/time-calendar.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Data Requirements
+        sections:
+          - title: TimeCalendar Requirements
+            requirements:
+              - id: CanvasNetVegaLite-Data-TimeCalendar-Instants
+                title: >-
+                  The TimeCalendar unit shall convert an instant (milliseconds since the Unix epoch) to the
+                  year, month, day of the month, day of the week (Sunday is 0), day of the year, hour,
+                  minute, second, and millisecond of its time zone, and convert such parts back to an
+                  instant with the arithmetic of the ECMAScript Date constructor (a month or day outside its
+                  range, a day of 0, and a negative month roll into the neighboring unit), truncating
+                  fractions of a millisecond toward the earlier instant, using integer arithmetic on days so
+                  that no date of the supported range is built from a DateTime.
+                justification: |
+                  Every time unit, tick, label, and expression function reads the same civil fields; they
+                  must be exact, identical to the JavaScript behavior that Vega and Vega-Lite specify, and
+                  platform independent.
+                tests:
+                  - TimeCalendar_ToParts_Utc_Anchor_20240229T123456789
+                  - TimeCalendar_ToParts_Utc_Epoch_Is1970_01_01Thursday
+                  - TimeCalendar_ToParts_Utc_OneMillisecondBeforeTheEpoch
+                  - TimeCalendar_ToParts_Utc_TruncatesFractions
+                  - TimeCalendar_FromParts_Utc_RollsMonthsAndDaysLikeJavaScript
+                  - TimeCalendar_ToParts_Utc_MatchesTheBaseClassLibraryAcrossTheRange
+
+              - id: CanvasNetVegaLite-Data-TimeCalendar-Range
+                title: >-
+                  The TimeCalendar unit shall accept exactly the instants of the date values of the DataTable
+                  unit, the years 1 to 9999 (from -62135596800000 to 253402300799999 milliseconds), and shall
+                  give NaN, never an exception and never an invalid date, for an instant outside that range,
+                  a non-finite number, and parts that make such an instant, accepting both ends of the
+                  range exactly.
+                justification: |
+                  A date that the table cannot hold must become null at the value level; one fixed range for
+                  the whole phase (instead of the larger range of JavaScript) keeps every later stage total.
+                tests:
+                  - TimeCalendar_FromParts_Utc_RejectsNonFiniteAndOutOfRange
+                  - TimeCalendar_IsValid_RangeBoundaries
+
+              - id: CanvasNetVegaLite-Data-TimeCalendar-Totality
+                title: >-
+                  The TimeCalendar unit shall be a total function of every double: the conversions, the
+                  intervals, the time units, and the zone offset lookups shall return NaN (or a default
+                  parts value that is marked invalid) and never throw for NaN, an infinity, the largest
+                  and smallest doubles, and the instants just outside the supported range, clamping the
+                  instant that a zone offset is looked up at to the range of the DateTime type.
+                justification: |
+                  Dates come from untrusted data; no value may crash the render.
+                tests:
+                  - TimeCalendar_Extremes_NeverThrow
+                  - TimeCalendarZone_ProbeAtYear1AndYear9999NeverThrows
+                  - TimeUnitSpec_Floor_And_End_AreTotal
+
+              - id: CanvasNetVegaLite-Data-TimeCalendar-Zones
+                title: >-
+                  The TimeCalendar unit shall use only the time zone it was created with (UTC when none is
+                  given, and for a zone whose offset is always zero), taking the offset of a zone at an
+                  instant from the zone's own rules, taking a fixed-offset zone without daylight saving
+                  time on a fast path, giving the same results for the same zone on every host and in
+                  every culture, never reading the host time zone, the clock, or the host culture, and
+                  returning one shared UTC calendar for the UTC zone.
+                justification: |
+                  A chart must not differ between the machines that render it; the caller's zone is the
+                  only zone input, and fixed-offset and custom zones give exact reproducibility.
+                tests:
+                  - TimeCalendarZone_UsLike_OffsetsAroundTheTransitions
+                  - TimeCalendarZone_UsLike_ToPartsAroundTheSpringChange
+                  - TimeCalendarZone_FixedOffset_UsesTheFastPathAndRoundTrips
+                  - TimeCalendarZone_SouthernRuleSpanningNewYear
+                  - TimeCalendarZone_Results_DoNotDependOnTheHostZone
+                  - TimeCalendar_Create_NullAndZeroOffsetZones_GiveUtc
+                  - TimeCalendar_ToParts_And_FromParts_AreCultureIndependent
+
+              - id: CanvasNetVegaLite-Data-TimeCalendar-GapOverlap
+                title: >-
+                  The TimeCalendar unit shall convert a wall time of a zone to an instant as ECMAScript does,
+                  by the offset before the transition: a wall time that occurs twice (the clock repeats at
+                  the end of daylight saving time) is the earlier instant, and a wall time that never
+                  occurs (the clock skips at its start) is the wall time minus the offset before the gap,
+                  so that 02:30 in a spring-forward gap becomes the instant that shows as 03:30, for a
+                  rule inside a year and for a rule that spans the end of the year.
+                justification: |
+                  A rule for the ambiguous and the missing wall times is needed for every local time unit;
+                  the JavaScript rule is the one Vega and Vega-Lite specify.
+                tests:
+                  - TimeCalendarZone_UsLike_Gap_0230BecomesThe0330Instant
+                  - TimeCalendarZone_UsLike_Overlap_0130IsTheEarlierInstant
+                  - TimeCalendarZone_UsLike_WallTimesAwayFromTheAmbiguity
+                  - TimeCalendarZone_Southern_GapAndOverlap
+
+              - id: CanvasNetVegaLite-Data-TimeCalendar-Intervals
+                title: >-
+                  The TimeCalendar unit shall provide the d3-time intervals millisecond, second, minute,
+                  hour, day, week (Sunday based), month, and year for its zone (the UTC intervals for UTC),
+                  each with floor, ceil, round, offset, and count and with every(k) as d3-time defines it
+                  (a closed form for the year and the millisecond, a filtered interval for the others,
+                  null for a step that is not positive or not a number, and a bounded scan), so that a
+                  local day is 23, 24, or 25 hours long across a daylight saving change, the hour floor
+                  follows the local hour of a zone with a half-hour offset, and the two-day interval of a
+                  UTC scale counts days from the epoch.
+                justification: |
+                  Time ticks, nice domains, time units, and the expression offset functions are all built
+                  on these intervals; they must be d3-time exactly, including its odd cases.
+                tests:
+                  - TimeCalendarInterval_Day_AcrossSpringForwardIs23Hours
+                  - TimeCalendarInterval_Day_FallBackIs25Hours
+                  - TimeCalendarInterval_Day_CountAcrossSpringForwardCountsCalendarDays
+                  - TimeCalendarInterval_Hour_FloorIsLocalHourInAHalfHourZone
+                  - TimeCalendarInterval_TimeOfDay_FloorInUtc
+                  - TimeCalendarInterval_Week_IsSundayBasedAndCountsSundays
+                  - TimeCalendarInterval_Month_OffsetClampsNothingAndRollsYear
+                  - TimeCalendarInterval_Year_EveryKFloorsToMultiples
+                  - TimeCalendarInterval_Millisecond_EveryKFloorsToMultiples
+                  - TimeCalendarInterval_Every_NonPositiveOrNaNIsNull
+                  - TimeCalendarInterval_Every_HoursByThree
+                  - TimeCalendarInterval_Every_MinutesAndSecondsByFifteen
+                  - TimeCalendarInterval_Every_DaysByTwoAndMonthsByThree
+                  - TimeCalendarInterval_Every_WeeksByTwoKeepsEveryOtherEpochWeek
+                  - TimeCalendarInterval_Every_IsBounded
+                  - TimeCalendarInterval_Offset_FloorsFractionalSteps
+                  - TimeCalendarInterval_Round_PicksTheNearerBoundary
+                  - TimeCalendarInterval_Utc_And_Zone_Intervals_Agree_ForAZoneAtOffsetZero
+                  - TimeCalendarInterval_Interval_IsCachedPerKind
+                  - TimeCalendar_EveryEpochDay_KeepsEvenDaysSinceTheEpoch
+                  - TimeCalendar_EveryEpochDay_FloorCeilOffset
+                  - TimeCalendar_EveryEpochDay_RejectsWhatItCannotDo
+
+              - id: CanvasNetVegaLite-Data-TimeCalendar-IntervalNames
+                title: >-
+                  The TimeCalendar unit shall read an interval name (millisecond, second, minute, hour,
+                  day, week, month, year, the Vega time unit spellings milliseconds, seconds, minutes,
+                  hours, date, and dayofyear, quarter as three months, and the utc-prefixed forms) as an
+                  interval kind, a step multiplier, and a UTC flag, rejecting every other name, with the
+                  invariant case mapping and independently of the host culture.
+                justification: |
+                  Tick counts, nice intervals, and the expression offset and sequence functions name an
+                  interval by text; one reading keeps them consistent.
+                tests:
+                  - TimeCalendarInterval_TryParseName_AcceptsTheDocumentedAndTheCodedSpellings
+                  - TimeCalendarInterval_TryParseName_RejectsUnknownNames
+                  - TimeCalendarInterval_TryParseName_IsCultureIndependent
+
+              - id: CanvasNetVegaLite-Data-TimeCalendar-IntervalRange
+                title: >-
+                  The TimeCalendar unit shall list the boundaries of an interval from the ceiling of a start
+                  up to, but not including, a stop, as d3-time does, following the local midnights of a zone
+                  for the day interval, giving an empty list for an empty or invalid span, failing with a
+                  range-limit exception when more boundaries than the caller allows would be created (the
+                  caller maps it to a located error), and observing the cancellation token at bounded
+                  intervals.
+                justification: |
+                  Ticks and sequences multiply a span into items; the number of items must be bounded before
+                  memory is spent on them, and a caller must be able to abandon a long list.
+                tests:
+                  - TimeCalendarInterval_Range_IsCeilStartToExclusiveStop
+                  - TimeCalendarInterval_Range_EmptyCases
+                  - TimeCalendarInterval_Range_DaysInAZoneFollowLocalMidnight
+                  - TimeCalendarInterval_Range_ThrowsAtMaxCount
+                  - TimeCalendarInterval_Range_PollsCancellation
+
+              - id: CanvasNetVegaLite-Data-TimeCalendar-TimeUnits
+                title: >-
+                  The TimeCalendar unit shall read a Vega-Lite time unit, as a name of the 11 single units
+                  (year, quarter, month, week, day, dayofyear, date, hours, minutes, seconds, and
+                  milliseconds) and of the multi-part units of Vega-Lite, with the optional utc prefix, or
+                  as an object with unit, maxbins, step, and utc, into its parts in the Vega-Lite order,
+                  accepting a binned unit without applying it, rejecting an unknown name, a unit that mixes
+                  incompatible parts, and an object that is not valid, naming a derived field as
+                  Vega-Lite does (yearmonth_date, utcmonth_date, month_step_2_date, and
+                  timeunit_maxbins_10_date), and giving the duration of one step of the smallest part, from
+                  a fixed UTC reference, that sets the minimum tick step of an axis.
+                justification: |
+                  A time unit is written in a specification and must be read exactly as Vega-Lite reads it;
+                  the derived field names are visible to the author in titles and in calculated fields.
+                tests:
+                  - TimeUnitSpec_Parse_AcceptsEveryVegaLiteName
+                  - TimeUnitSpec_Parse_BinnedUnits
+                  - TimeUnitSpec_Parse_RejectsUnknownAndIncompatible
+                  - TimeUnitSpec_Parse_ObjectForm
+                  - TimeUnitSpec_Parse_RejectsInvalidObjects
+                  - TimeUnitSpec_FieldName_MatchesVegaLiteNaming
+                  - TimeUnitSpec_TryRead_AcceptsNamesAndObjectsAndSkipsUnknownMembers
+                  - TimeUnitSpec_IsSingleLocalUnit_OnlyForOneLocalPart
+                  - TimeUnitSpec_Duration_IsTheSmallestPartOfTwoThousandOne
+                  - TimeUnitSpec_Duration_DayOfWeekHasNone
+                  - TimeUnitSpec_Parse_Specifier_And_Floor_AreCultureIndependent
+
+              - id: CanvasNetVegaLite-Data-TimeCalendar-TimeUnitFloors
+                title: >-
+                  The TimeCalendar unit shall floor an instant to a time unit as the Vega timeFloor and
+                  utcFloor do - the year of a unit without a year being 2012, the week number counting the
+                  Sundays since the first of January, the day of a unit with a week being the weekday of
+                  January 2012, the quarter and the day of the year computed from the month and the day,
+                  and the step applying to the last part only - and shall give the end of the unit as one
+                  step of its smallest part after its start (a calendar day in a zone, so that a day
+                  across a daylight saving change is 23 or 25 hours), using the UTC calendar for a utc unit
+                  whatever the zone is.
+                justification: |
+                  Grouping and drawing by a time unit is only as good as the floor; Vega-Lite defines it
+                  exactly, including the year of 2012 for the units that have none.
+                tests:
+                  - TimeUnitSpec_Floor_UsesReferenceYear2012_ForUnitsWithoutYear
+                  - TimeUnitSpec_Floor_SecondsAndMilliseconds
+                  - TimeUnitSpec_Floor_Day_IsWeekdayInJanuary2012
+                  - TimeUnitSpec_Floor_Week_And_WeekDay
+                  - TimeUnitSpec_Floor_YearWeek_Handles2013Week0
+                  - TimeUnitSpec_Floor_Quarter_And_DayOfYear
+                  - TimeUnitSpec_Floor_StepAppliesToLastUnitOnly
+                  - TimeUnitSpec_End_IsOneStepOfTheSmallestUnit
+                  - TimeUnitSpec_End_DayFollowsTheCivilDayInAZone
+                  - TimeUnitSpec_Utc_Units_IgnoreTheZone
+
+              - id: CanvasNetVegaLite-Data-TimeCalendar-MaxBins
+                title: >-
+                  The TimeCalendar unit shall resolve the maxbins form of a time unit, from the extent of
+                  the data, to the interval of the Vega timeBin (a table of second, minute, hour, day, week,
+                  month, and year steps, the step whose duration is nearest the target, a year step by the
+                  d3 tick step, and a one-year step for an extent that is not finite), keeping the name of
+                  the field of the written unit.
+                justification: |
+                  A maxbins time unit is a histogram of time; it must pick the bins that Vega-Lite picks.
+                tests:
+                  - TimeUnitSpec_MaxBins_PicksVegaTimeBinIntervals
+                  - TimeUnitSpec_MaxBins_ResolvedUnitFloorsAndKeepsItsName
+                  - TimeUnitSpec_MaxBins_NonFiniteExtentGivesYears
+
+              - id: CanvasNetVegaLite-Data-TimeCalendar-DateTimeObjects
+                title: >-
+                  The TimeCalendar unit shall read a Vega-Lite datetime object (the members year, quarter,
+                  month, date, day, hours, minutes, seconds, milliseconds, and utc) and give its instant:
+                  the month as a number or as a full or three-letter English name in any case, the quarter as
+                  three months per quarter, the day of the week as a name or a number (Sunday is 0 or 7)
+                  placed in the January of 2012 and dropped when another member is present, the defaults of
+                  2012, January, the first, and midnight, an overflowing member rolling over as in
+                  JavaScript, the years 0 to 99 meaning 1900 to 1999, utc selecting the UTC calendar and
+                  the zone otherwise, and a located reason for a member of the wrong type, an unknown name,
+                  and a value that is not an object; and shall read a number or a text of a field with a
+                  single time unit as the part of that unit (a number below 10000 or a month name).
+                justification: |
+                  Datetime objects appear in domains, filters, and axis values; reading them as Vega-Lite does
+                  keeps a specification meaning the same in both, and a mistake must be found with its
+                  member.
+                tests:
+                  - DateTimeObject_ToMilliseconds_MonthNamesAndNumbers
+                  - DateTimeObject_ToMilliseconds_Quarter
+                  - DateTimeObject_ToMilliseconds_DayOfWeek
+                  - DateTimeObject_TryRead_DayCombinedWithOtherKeysIsDropped
+                  - DateTimeObject_ToMilliseconds_UtcFlagSelectsUtc
+                  - DateTimeObject_ToMilliseconds_Defaults
+                  - DateTimeObject_ToMilliseconds_AllKeysAndOverflow
+                  - DateTimeObject_ToMilliseconds_TwoDigitYearsAndOutOfRange
+                  - DateTimeObject_TryRead_RejectsInvalidMembers
+                  - DateTimeObject_TryRead_RejectsNonObjects
+                  - DateTimeObject_FromScalar_NumbersFollowTheUnit
+                  - DateTimeObject_FromScalar_StringsFollowTheUnit
+                  - DateTimeObject_NamesAreCultureIndependent
+                  - DateTimeObject_ToExpression_WritesTheNormalizedParts
+                  - DateTimeObject_ToExpression_IsTheSameInstantAsToMilliseconds
+                  - DateTimeObject_TryUnitPartExpression_WritesThePartWithDefaults

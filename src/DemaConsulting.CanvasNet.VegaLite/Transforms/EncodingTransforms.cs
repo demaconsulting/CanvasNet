@@ -29,12 +29,14 @@ internal sealed class EncodingData
     /// <param name="main">The table the marks draw.</param>
     /// <param name="bins">The bins of the encoding by the literal name of their start field.</param>
     /// <param name="evaluation">The evaluation (step budget and cancellation) of the call, which the scales charge their work to.</param>
-    public EncodingData(DataTable raw, DataTable main, IReadOnlyDictionary<string, BinSpec> bins, ExpressionFunctionContext evaluation)
+    /// <param name="timeUnits">The time units of the encoding by the literal name of their start field, with the <c>maxbins</c> form resolved; null for none.</param>
+    public EncodingData(DataTable raw, DataTable main, IReadOnlyDictionary<string, BinSpec> bins, ExpressionFunctionContext evaluation, IReadOnlyDictionary<string, TimeUnitSpec>? timeUnits = null)
     {
         Raw = raw;
         Main = main;
         Bins = bins;
         Evaluation = evaluation;
+        TimeUnits = timeUnits ?? new Dictionary<string, TimeUnitSpec>(StringComparer.Ordinal);
     }
 
     /// <summary>Gets the table before the implicit aggregate.</summary>
@@ -45,6 +47,9 @@ internal sealed class EncodingData
 
     /// <summary>Gets the bins of the encoding by the literal name of their start field (a field without a valid value has none).</summary>
     public IReadOnlyDictionary<string, BinSpec> Bins { get; }
+
+    /// <summary>Gets the time units of the encoding by the literal name of their start field; a <c>maxbins</c> unit is the one the extent of the data chose (the written one when the data has no valid date).</summary>
+    public IReadOnlyDictionary<string, TimeUnitSpec> TimeUnits { get; }
 
     /// <summary>Gets the evaluation of the call.</summary>
     public ExpressionFunctionContext Evaluation { get; }
@@ -60,15 +65,16 @@ internal sealed class EncodingData
 }
 
 /// <summary>
-///     Runs the implicit transforms of an <see cref="EncodingPlan"/> on the rows of a view: the bins of the encoding, then the
-///     aggregate, then the stack (Vega-Lite's order: explicit transforms, bin, Raw, aggregate, stack, Main).
+///     Runs the implicit transforms of an <see cref="EncodingPlan"/> on the rows of a view: the bins of the encoding, then its time units,
+///     then the aggregate, then the stack (Vega-Lite's order: explicit transforms, bin, timeUnit, Raw, aggregate, stack, Main).
 /// </summary>
 /// <remarks>
 ///     <para>
 ///         <b>Bin.</b> Every distinct bin (field and parameters) is computed once, from the extent of the finite values of the
 ///         field (or the <c>extent</c> parameter) by <see cref="BinAlgorithm"/>, and written to the start and end fields of the plan
 ///         (and, for a discrete channel, to the text of the bin: the two boundaries formatted and joined with an en dash, <c>null</c>
-///         for a row without a valid value). <b>Aggregate.</b> One pass of the engine of <see cref="AggregateTransforms"/> with the
+///         for a row without a valid value). <b>Time unit.</b> Every distinct unit (field and unit) is computed once by <see cref="TimeUnitTransform"/>
+///         in the calendar of the chart and written to its start and end fields (they are in the Raw table, so every scale reads them). <b>Aggregate.</b> One pass of the engine of <see cref="AggregateTransforms"/> with the
 ///         plan's dimensions and measures; the input rows stay in use as the Raw table when a scale needs them. The row an
 ///         <c>argmax</c> or <c>argmin</c> measure returns is read into a scalar field for the channel. <b>Stack.</b> The engine of
 ///         <see cref="AggregateTransforms"/> with the plan's stacks and layer order. The invalid-row filter of Vega-Lite's last stage is
@@ -151,8 +157,8 @@ internal sealed class EncodingTransforms
         ArgumentNullException.ThrowIfNull(view);
         var effective = limits ?? VegaLiteLimits.Default;
         var parameters = new Dictionary<string, DataValue>(StringComparer.Ordinal);
-        var evaluator = new ExpressionEvaluator(effective, cancellationToken, parameters);
-        var loader = new DataLoader(sourceName, effective, cancellationToken: cancellationToken);
+        var evaluator = new ExpressionEvaluator(effective, cancellationToken, parameters, TimeCalendar.Utc);
+        var loader = new DataLoader(sourceName, effective, cancellationToken: cancellationToken, calendar: TimeCalendar.Utc);
         var context = new TransformContext(new SpecTree(view, sourceName, []), loader, evaluator, parameters, effective, cancellationToken, []);
         return Apply(plan, table, context);
     }
@@ -166,7 +172,13 @@ internal sealed class EncodingTransforms
     private EncodingData Execute(EncodingPlan plan, DataTable table)
     {
         var bins = new Dictionary<string, BinSpec>(StringComparer.Ordinal);
+        var units = new Dictionary<string, TimeUnitSpec>(StringComparer.Ordinal);
         var raw = plan.Bins.Count > 0 ? BinFields(plan, table, bins) : table;
+        if (plan.TimeUnits.Count > 0)
+        {
+            raw = TimeUnitFields(plan, raw, units);
+        }
+
         var main = raw;
         if (plan.Aggregate is { } aggregate)
         {
@@ -208,7 +220,27 @@ internal sealed class EncodingTransforms
             }
         }
 
-        return new EncodingData(raw, main, bins, _context.Evaluator.Context);
+        return new EncodingData(raw, main, bins, _context.Evaluator.Context, units);
+    }
+
+    /// <summary>
+    ///     Computes the start and the end of the time units of the encoding and writes them to the table.
+    /// </summary>
+    /// <param name="plan">The plan.</param>
+    /// <param name="input">The input table.</param>
+    /// <param name="units">Receives the units by the literal name of their start field, with the <c>maxbins</c> form resolved.</param>
+    /// <returns>The table with the unit fields added; the rows keep their order.</returns>
+    private DataTable TimeUnitFields(EncodingPlan plan, DataTable input, Dictionary<string, TimeUnitSpec> units)
+    {
+        var requests = plan.TimeUnits.Select(u => new TimeUnitRequest(u.SourceField, u.StartName, u.EndName, u.Spec, u.Node)).ToArray();
+        var resolved = new TimeUnitSpec[requests.Length];
+        var table = TimeUnitTransform.Apply(input, requests, _context, _context.Locate(requests[0].Node), resolved);
+        for (var i = 0; i < requests.Length; i++)
+        {
+            units[requests[i].StartName] = resolved[i];
+        }
+
+        return table;
     }
 
     /// <summary>

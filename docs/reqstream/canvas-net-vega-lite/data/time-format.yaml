@@ -1,0 +1,232 @@
+---
+# Software Unit Requirements for TimeFormat
+#
+# These requirements describe the design-level behavior of the TimeFormat unit of the Data subsystem (internal
+# namespace DemaConsulting.CanvasNet.VegaLite.Data): the text of dates. It is a port of the d3-time-format
+# formatter and parser (the English locale only), of the Vega multi-format that labels a time axis when no format is
+# given, and of the date parsing that JavaScript Date.parse performs (JsDateParser: the ECMAScript date-time string
+# format plus a documented subset of the legacy formats), all over the TimeCalendar unit and independent of the
+# host culture. The Vega time unit specifier (the default label of a time unit) is built by the TimeUnitSpec type of
+# the TimeCalendar unit and is required here because it is label text. The ports are attributed in
+# src/DemaConsulting.CanvasNet.VegaLite/third-party/README.md. Each "tests" entry cites an existing test method in
+# the DemaConsulting.CanvasNet.VegaLite.Tests project; see
+# docs/verification/canvas-net-vega-lite/data/time-format.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Data Requirements
+        sections:
+          - title: TimeFormat Requirements
+            requirements:
+              - id: CanvasNetVegaLite-Data-TimeFormat-Format
+                title: >-
+                  The TimeFormat unit shall format an instant with a d3-time-format specifier - all
+                  directives of d3-time-format 4.1.0 (the weekday and month names, the date, time, and
+                  week-number directives of the Sunday, Monday, and ISO 8601 weeks with the week-based
+                  year, the 12-hour clock with midnight and noon, the day of the year, the quarter, the
+                  fraction of a second, the epoch seconds and milliseconds, the offset of the zone as
+                  plus or minus hhmm, the composite date and time directives, and the literal percent
+                  sign) with the padding flags for none, space, and zero (negative numbers included), the
+                  years below 100, and a copy of the letter of an unknown directive as d3 does - in the
+                  fields of the zone of its calendar, so that the offset shows the offset of that instant.
+                justification: |
+                  Axis and legend labels, the time unit specifiers, and the expression date functions all
+                  format dates with one formatter; it must follow d3 exactly for a chart to read the same as
+                  in Vega-Lite.
+                tests:
+                  - TimeFormat_Format_EveryDirective_Utc
+                  - TimeFormat_Format_PaddingFlags
+                  - TimeFormat_Pad_NegativeWideAndNoFillValues
+                  - TimeFormat_Format_TwelveHourClock_MidnightAndNoon
+                  - TimeFormat_Format_WeekNumbers_SundayAndMonday
+                  - TimeFormat_Format_IsoWeek_BoundaryYears
+                  - TimeFormat_Format_ShortYearsAndTheYearZero
+                  - TimeFormat_Format_Zone_Z_ShowsTheOffsetOfTheInstant
+                  - TimeFormat_Format_Zone_LocalFieldsFollowTheOffset
+                  - TimeFormat_Format_Timestamps_AreZoneIndependentAndFloorNegatives
+                  - TimeFormat_Format_UnknownDirective_FollowsD3
+                  - TimeFormat_Format_FractionIsTruncatedAndFormatterIsReusable
+
+              - id: CanvasNetVegaLite-Data-TimeFormat-InvalidDate
+                title: >-
+                  The TimeFormat unit shall format an instant that is NaN or outside the supported range
+                  as the text Invalid Date, as JavaScript does for an invalid date, and never throw for
+                  it.
+                justification: |
+                  A date that did not parse is null in the data, but a computed instant can still be
+                  invalid; its label must be defined and the render must go on.
+                tests:
+                  - TimeFormat_Format_InvalidDateIsInvalidDateText
+                  - TimeFormatMulti_InvalidDateAndLimit
+
+              - id: CanvasNetVegaLite-Data-TimeFormat-Parse
+                title: >-
+                  The TimeFormat unit shall parse a text with a d3-time-format specifier as timeParse
+                  (in the zone of its calendar) and utcParse (in UTC) do - numbers read in the window of
+                  digits d3 reads with leading white space allowed, English names in any case with the
+                  longest name first, the two-digit year with the pivot of 68 and 69, the 12-hour clock with
+                  the period, the quarter, the day of the year, the week directives converted to days, the
+                  epoch seconds and milliseconds, and the zone directive that switches to UTC
+                  arithmetic with the offset applied, with the defaults of 1900, January, the first, and
+                  midnight, with no range check of the month, day, or hour (an overflowing field rolls over
+                  as in d3), and the whole text consumed - failing, never throwing, for a text that does not
+                  match, has trailing text, or gives an instant outside the supported range.
+                justification: |
+                  The parse entries date:'%fmt' and utc:'%fmt' of a data format and the expression timeParse
+                  functions must read a date the way Vega reads it, including its leniency.
+                tests:
+                  - TimeFormatParse_RoundTripsEveryDirectiveItFormats
+                  - TimeFormatParse_Quarter_GivesTheFirstMonthUnlessAMonthIsRead
+                  - TimeFormatParse_WeekDirectives_ConvertToDays
+                  - TimeFormatParse_IsoWeekOutOfRange_Fails
+                  - TimeFormatParse_DayMonthYear
+                  - TimeFormatParse_MonthNamesAndPeriods_CaseInsensitive
+                  - TimeFormatParse_TwelveHourWithoutDate_UsesTheDefaultYear1900
+                  - TimeFormatParse_TwoDigitYearPivot
+                  - TimeFormatParse_ZoneDirective
+                  - TimeFormatParse_ZoneDirective_ReproducesTheUnanchoredMatch
+                  - TimeFormatParse_EpochDirectives
+                  - TimeFormatParse_TrailingOrMissingTextFails
+                  - TimeFormatParse_EmptySpecifier_MatchesEmptyTextOnly
+                  - TimeFormatParse_NoRangeValidation_FollowsD3
+                  - TimeFormatParse_NumberWindows_FollowD3
+                  - TimeFormatParse_PaddingFlagsAreIgnored
+                  - TimeFormatParse_YearsBelow100_FollowD3
+                  - TimeFormatParse_LocalParseUsesTheCalendarZone
+
+              - id: CanvasNetVegaLite-Data-TimeFormat-ParseTotality
+                title: >-
+                  The TimeFormat unit shall refuse a text longer than 256 characters before it scans it, so
+                  that the cost of a parse does not grow with the length of a cell, and shall never throw
+                  for any specifier and any text.
+                justification: |
+                  Dates are parsed from untrusted data; a one-megabyte cell must cost no more than a short one.
+                tests:
+                  - TimeFormatParse_LongInputFailsFast
+                  - TimeFormatParse_NeverThrows_ForArbitrarySpecifiersAndText
+
+              - id: CanvasNetVegaLite-Data-TimeFormat-MultiFormat
+                title: >-
+                  The TimeFormat unit shall provide the Vega multi-format that labels a time axis when no
+                  format is given - the coarsest exact unit of the instant in the calendar zone: the
+                  milliseconds, seconds, minutes, hours, the day of the week with the day, the month with
+                  the day, the month, and the year - with an override of each level by a format string
+                  (an empty override keeping the default), bound to the calendar that created it, with the
+                  boundaries of the local zone (a local midnight is a day boundary) and the UTC boundaries
+                  for a UTC calendar.
+                justification: |
+                  A time axis without a format must read like the axes of Vega-Lite, whose labels change
+                  their form with the scale of the date.
+                tests:
+                  - TimeFormatMulti_Default_PicksTheCoarsestExactUnit
+                  - TimeFormatMulti_Default_BeforeTheEpoch
+                  - TimeFormatMulti_Overrides_ReplaceEachLevel
+                  - TimeFormatMulti_Overrides_DayKeyAndEmptyValues
+                  - TimeFormatMulti_Zone_UsesLocalBoundaries
+                  - TimeFormatMulti_IsBoundToItsCalendar
+
+              - id: CanvasNetVegaLite-Data-TimeFormat-UnitSpecifier
+                title: >-
+                  The TimeFormat unit shall give the default label format of a time unit as the Vega
+                  timeUnitSpecifier does - the longest matching unit combination joined at each position,
+                  with the Vega-Lite specifiers for year with month and for year with month and day, an
+                  override table that the caller can pass, and a rejection of a unit combination that Vega
+                  does not allow, of a repeated unit, and of more than twelve units.
+                justification: |
+                  A time unit field is labeled with its own format (a month as Mar, a year with a month as
+                  Mar 2024) so that an axis of time units reads naturally.
+                tests:
+                  - TimeUnitSpec_Specifier_FollowsVegaTimeUnitSpecifier
+                  - TimeUnitSpec_Specifier_KeepsTheVegaLiteOverrides
+                  - TimeUnitSpec_TryGetUnitSpecifier_ValidUnits_JoinTheDefaults
+                  - TimeUnitSpec_TryGetUnitSpecifier_Overrides_ReplaceTheDefaults
+                  - TimeUnitSpec_TryGetUnitSpecifier_InvalidUnits_AreRejected
+
+              - id: CanvasNetVegaLite-Data-TimeFormat-JsDateParse
+                title: >-
+                  The TimeFormat unit shall parse a date text as JavaScript Date.parse does for the formats
+                  it documents - the ECMAScript date-time string format (a date alone is UTC, a date-time
+                  without an offset is a time of the calendar zone, Z and plus or minus hh:mm offsets,
+                  expanded years, a fraction of 1 to 9 digits truncated to milliseconds, the 24:00 rule, and
+                  the days of each month) and a documented subset of the legacy forms (a month name with a
+                  day and a year, with a weekday, in the RFC 1123 form, with GMT or UTC and an offset, slashed
+                  year-month-day and month/day/year dates, and a time with an optional AM or PM, a
+                  legacy date without a zone being a time of the calendar zone) - giving false for any other
+                  text and for an instant outside the supported range, and never invoking DateTime.Parse or
+                  a regular expression.
+                justification: |
+                  Vega reads an untyped date text with Date.parse; a chart that parses the same texts as
+                  Vega draws the same dates, and the supported forms must be a documented, deterministic
+                  set instead of whatever a runtime accepts.
+                tests:
+                  - JsDateParser_Iso_DateOnly_IsUtc
+                  - JsDateParser_Iso_DateTimeWithoutOffset_UsesTheZone
+                  - JsDateParser_Iso_Offsets_AreHonored
+                  - JsDateParser_Iso_FractionDigits_AreTruncatedToMilliseconds
+                  - JsDateParser_Iso_ExpandedYears
+                  - JsDateParser_Iso_RangeBoundaries
+                  - JsDateParser_Iso_DaysOfTheMonth
+                  - JsDateParser_Iso_TimeOfDayRules
+                  - JsDateParser_Iso_Malformed_IsRejected
+                  - JsDateParser_Legacy_MonthNameForms_AreLocal
+                  - JsDateParser_Legacy_WeekdayAndZoneForms
+                  - JsDateParser_Legacy_NumericFormsAndTimes
+                  - JsDateParser_Legacy_NamesAreCaseInsensitive
+                  - JsDateParser_Rejects_NonDates
+
+              - id: CanvasNetVegaLite-Data-TimeFormat-JsDateParseLimits
+                title: >-
+                  The TimeFormat unit shall reject a date text longer than 128 characters before it scans
+                  it, so that parsing a cell costs a bounded number of steps whatever its length, and shall
+                  never throw for any text (surrogate pairs and NUL characters included).
+                justification: |
+                  A date column of a data file is untrusted input; the cost per cell must not depend on
+                  its length.
+                tests:
+                  - JsDateParser_Rejects_OverLongText
+                  - JsDateParser_NeverThrows_ForArbitraryText
+
+              - id: CanvasNetVegaLite-Data-TimeFormat-EnglishLocaleAndCulture
+                title: >-
+                  The TimeFormat unit shall use only the English (en-US) names and patterns of d3, and
+                  invariant ASCII digits, in every output and in every match, so that the current culture
+                  of the host (including a culture that maps the letter i to a dotted capital) changes
+                  neither a formatted text, a parsed instant, nor a multi-format label.
+                justification: |
+                  A chart must be identical on every machine; a host culture must not change a month name
+                  or a digit.
+                tests:
+                  - TimeFormat_Format_IgnoresTheCurrentCulture
+                  - TimeFormatParse_IgnoresTheCurrentCulture
+                  - JsDateParser_IgnoresTheCurrentCulture
+
+              - id: CanvasNetVegaLite-Data-TimeFormat-LengthLimit
+                title: >-
+                  The TimeFormat unit shall stop formatting with a TimeFormatTooLongException as soon as the
+                  output would exceed the maximum length the caller passes, before the text is built, so that
+                  the string-length limit of a call applies to the label of a date and to a long repeated
+                  specifier, and shall compile a specifier in time linear in its length.
+                justification: |
+                  A specifier is untrusted text that can repeat a long directive; the formatted text is
+                  bounded by the limits of the call, never by the specifier.
+                tests:
+                  - TimeFormat_Format_TooLong_Throws
+                  - TimeFormatMulti_InvalidDateAndLimit
+
+              - id: CanvasNetVegaLite-Data-TimeFormat-SpecifierLimit
+                title: >-
+                  The TimeFormat unit shall refuse to compile a specifier longer than 1,024 characters, or one
+                  that expands (through the composite directives c, x, and X, which paste in 13 pieces for one
+                  c) to more than 4,096 pieces, with a TimeFormatSpecifierException that names the limit, for a
+                  plain specifier and for every override of a multi-format, so that the cost and the memory
+                  of a compiled formatter are bounded by the limit and not by the length of an untrusted
+                  specifier.
+                justification: |
+                  A specifier of a specification or of an expression is untrusted text; a megabyte of c
+                  directives would otherwise compile to millions of pieces, and every label would then copy
+                  them. The longest real specifier is about 30 characters.
+                tests:
+                  - TimeFormat_Compile_SpecifierLength_IsLimited
+                  - TimeFormat_Compile_LocaleDirectiveExpansion_IsLimited
+                  - TimeFormat_Multi_LongOverride_IsLimited

@@ -183,10 +183,12 @@ public class RowTransformsTests
     [InlineData("{\"or\":[{\"field\":\"x\",\"equal\":1},\"datum.x === 3\"]}", "1,3")]
     [InlineData("{\"not\":{\"field\":\"x\",\"valid\":true}}", "null")]
     [InlineData("{\"not\":{\"or\":[{\"field\":\"x\",\"equal\":1},{\"field\":\"x\",\"equal\":2}]}}", "3,null")]
-    [InlineData("{\"field\":\"x\",\"equal\":2,\"timeUnit\":\"year\"}", "1,2,3,null")]
-    [InlineData("{\"not\":{\"field\":\"x\",\"equal\":2,\"timeUnit\":\"year\"}}", "")]
-    [InlineData("{\"and\":[{\"field\":\"x\",\"equal\":2,\"timeUnit\":\"year\"},{\"field\":\"x\",\"gt\":1}]}", "2,3")]
-    [InlineData("{\"field\":\"x\",\"equal\":{\"year\":2020}}", "1,2,3,null")]
+    [InlineData("{\"field\":\"x\",\"equal\":2,\"timeUnit\":\"year\"}", "")]
+    [InlineData("{\"not\":{\"field\":\"x\",\"equal\":2,\"timeUnit\":\"year\"}}", "1,2,3,null")]
+    [InlineData("{\"and\":[{\"field\":\"x\",\"equal\":2,\"timeUnit\":\"year\"},{\"field\":\"x\",\"gt\":1}]}", "")]
+    [InlineData("{\"field\":\"x\",\"equal\":{\"year\":2020}}", "")]
+    [InlineData("{\"field\":\"x\",\"equal\":1970,\"timeUnit\":\"year\"}", "1,2,3")]
+    [InlineData("{\"field\":\"x\",\"valid\":true,\"timeUnit\":\"year\"}", "1,2,3")]
     public void RowTransforms_Apply_FilterPredicatesAndCompositions(string predicate, string expected)
     {
         // Arrange

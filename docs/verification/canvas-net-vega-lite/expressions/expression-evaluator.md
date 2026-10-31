@@ -37,7 +37,12 @@ steps, which the skipped operand of 17 instructions would exceed.
 
 Unit tests reside in `ExpressionEvaluatorTests.cs` within the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the
 `Expressions` folder, with the shared helpers in `ExpressionTestSupport.cs` (the fixed location, `Compile`, `Eval`,
-`EvalWith`, `EvalText`, `EvalNumber`, `Obj`, `Steps`, and `UnderCulture`).
+`EvalWith`, `EvalText`, `EvalNumber`, `Obj`, `Steps`, and `UnderCulture`). The calendar that the evaluator forwards to
+its function context (the fourth constructor argument, a `TimeCalendar`, UTC when omitted) is verified by the
+calendar-forwarding tests of `DataLoaderCalendarTests.cs` (in the `Data` folder) and by the date and time scenarios of
+`ExpressionFunctionsTimeTests.cs`, which evaluate through an `ExpressionEvaluator` built with a test calendar (see
+_ExpressionFunctions Unit Verification Design_); the zones are built in the tests by `TimeTestSupport` (a fixed offset
+and a zone with a daylight-saving rule), so no scenario reads the host's zone.
 
 #### Test Environment
 
@@ -240,3 +245,21 @@ each with its own evaluator, give eight hundred identical results (`f0 b072`) fr
 Asserts that an array literal of 400 elements (a program that needs a deep stack) is built with its 400 elements in
 order, and that a one-instruction program on the same evaluator afterwards still gives 1, so the value stack is reused
 without leaking its earlier contents.
+
+##### The Calendar Is Forwarded To The Function Context
+
+**Tests**: `DataLoaderCalendarTests.ExpressionEvaluator_Constructor_ForwardsTheCalendar`,
+`DataLoaderCalendarTests.ExpressionFunctionContext_Calendar_DefaultsToUtc`,
+`ExpressionFunctionsTimeTests.ExpressionFunctions_Time_DefaultCalendarIsUtc`,
+`ExpressionFunctionsTimeTests.ExpressionFunctions_Getters_LocalFormsFollowTheZone_UtcFormsDoNot`,
+`ExpressionFunctionsTimeTests.ExpressionFunctions_Time_AgainstADatum`
+
+Asserts that an evaluator built without a calendar carries `TimeCalendar.Utc` in its `Context` (the same instance), and
+that one built with a calendar carries exactly that instance (a fixed offset of +02:00 in the test); that a function
+context built from the limits and the token alone has the UTC calendar and one built with a zone has that zone (and
+its `MaxArrayLength` is the `MaxScaleDomainSize` limit, 7 when the limit is set to 7); that through the evaluator
+`hours` of the instant 12:34 UTC is 12 with no calendar and 14 at +02:00 (12 + 2); that at 2024-02-29T20:00Z the local
+getters see the wall time at +05:30 (01:30 on Friday 2024-03-01, so `date` is 1, `day` is 5, `hours` is 1, `minutes`
+is 30, and `dayofyear` is 61, the 31 + 29 + 1 of the first of March in a leap year) while the UTC getters give the
+29th, Thursday (4), 20, 0, and 60; and that the same date and time functions read a date, a missing field (`NaN` for a
+number, the text `null` for `timeFormat`), and a text field from a datum row.

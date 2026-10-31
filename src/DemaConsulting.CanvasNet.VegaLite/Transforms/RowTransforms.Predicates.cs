@@ -147,19 +147,19 @@ internal sealed partial class RowTransforms
     /// </summary>
     /// <param name="node">The predicate object.</param>
     /// <param name="table">The table the predicate tests.</param>
-    /// <returns>The predicate; one that always holds for a comparison with a date object, which is not supported.</returns>
+    /// <returns>The predicate: the compiled expression of a time unit or date-time predicate, else the native comparison.</returns>
     private IRowPredicate BuildFieldPredicate(SpecNode node, DataTable table)
     {
-        if (node["timeUnit"] is { IsNull: false })
+        if (_context.Tree.Expressions.Get(node) is { } timeAware)
         {
-            // A time unit is not supported yet (the catalog reports it); the documented fallback ignores the predicate, so every row passes
-            return new ConstantPredicate(true);
+            // A time unit or a date-time comparison is the expression the specification parser compiled for it: its meaning depends on the calendar
+            return new ExpressionPredicate(timeAware, _context.Evaluator);
         }
 
         var comparison = PredicateOperators.Select(name => node[name]).FirstOrDefault(n => n is not null);
         if (comparison is null || comparison.IsObject || comparison.Items.Any(i => i.IsObject))
         {
-            // A date object cannot be compared yet; the catalog reports it and the predicate holds
+            // An object value that the parser did not compile into an expression (it could not be written); there is nothing to compare with, so the predicate holds
             return new ConstantPredicate(true);
         }
 

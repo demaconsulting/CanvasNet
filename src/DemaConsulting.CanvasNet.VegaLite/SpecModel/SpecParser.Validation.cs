@@ -108,7 +108,7 @@ internal sealed partial class SpecParser
         "discreteBandSize: NO", "cornerRadius: NE", "angle: NE", "dx: NE", "dy: NE", "filled: BE",
         "orient: SE=horizontal|vertical", "style: ST", "clip: BE", "shape: SE", "strokeDash: AE", "strokeCap: SE",
         "strokeJoin: SE", "interpolate: SE", "align: SE", "baseline: SE", "font: SE", "fontSize: NE",
-        "x: NSO", "y: NSO", "x2: NSO", "y2: NSO", "width: NO", "height: NO");
+        "x: NSO", "y: NSO", "x2: NSO", "y2: NSO", "width: NO", "height: NO", "timeUnitBandPosition: NE", "timeUnitBandSize: NE");
 
     /// <summary>The rules for the properties of a channel definition.</summary>
     private static readonly Dictionary<string, Rule> ChannelDefRules = Rules(
@@ -126,7 +126,7 @@ internal sealed partial class SpecParser
     private static readonly Dictionary<string, Rule> ScaleRules = Rules(
         "type: S=" + string.Join('|', ScaleTypes), "zero: BE", "nice: BNSO", "padding: NE", "paddingInner: NE",
         "paddingOuter: NE", "reverse: BE", "round: BE", "clamp: BE", "domain: ASO", "range: ASO", "scheme: SO",
-        "exponent: NE", "base: NE", "constant: NE", "domainMid: NE", "domainMin: NE", "domainMax: NE",
+        "exponent: NE", "base: NE", "constant: NE", "domainMid: NE", "domainMin: NO", "domainMax: NO",
         "rangeMin: NE", "rangeMax: NE", "interpolate: SO", "bins: AO");
 
     /// <summary>The color spaces that <c>scale.interpolate</c> names (Vega-Lite's <c>ScaleInterpolateEnum</c>).</summary>
@@ -472,11 +472,11 @@ internal sealed partial class SpecParser
     /// <remarks>
     ///     A delimiter is exactly one character that can separate fields (not a quote, a line break or half of a surrogate
     ///     pair). <c>parse</c> is <c>"auto"</c>, <c>null</c>, or an object that maps field names to <c>number</c>,
-    ///     <c>boolean</c>, <c>date</c>, <c>string</c> or a custom date format (<c>date:'%fmt'</c>, <c>utc:'%fmt'</c>); a
-    ///     custom date format is valid here and reported by the feature catalog, because it is not applied.
+    ///     <c>boolean</c>, <c>date</c>, <c>string</c> or a custom date format (<c>date:'%fmt'</c>, <c>utc:'%fmt'</c>, with the
+    ///     d3 time format in single or double quotes); a custom date format is applied by the data stage.
     /// </remarks>
     /// <param name="format">The <c>format</c> object.</param>
-    /// <exception cref="VegaLiteSpecException">Thrown for a delimiter that is not one valid character or a parse directive that is not known.</exception>
+    /// <exception cref="VegaLiteSpecException">Thrown for a delimiter that is not one valid character or a parse directive that is not known (a <c>date:</c> or <c>utc:</c> entry without a quoted format is one).</exception>
     private void ValidateFormat(SpecNode format)
     {
         if (format["delimiter"] is { IsString: true } delimiter
@@ -498,12 +498,38 @@ internal sealed partial class SpecParser
 
         foreach (var entry in parse.Properties)
         {
-            if (!entry.IsString || !ParseDirectives.TryClassify(entry.StringValue!, out _))
+            if (entry.IsString && IsUnquotedDateFormat(entry.StringValue!))
+            {
+                throw Error(entry, $"The date format of '{entry.Name}' must be in quotes, such as \"date:'%Y-%m-%d'\" or \"utc:'%Y-%m-%d'\".");
+            }
+
+            if (!entry.IsString || !ParseDirectives.TryClassify(entry.StringValue!, out var spec))
             {
                 throw Error(entry, $"The parse type of '{entry.Name}' must be \"number\", \"boolean\", \"date\", \"string\" or a date format such as \"date:'%Y-%m-%d'\".");
             }
+
+            if (spec.Format is not null)
+            {
+                try
+                {
+                    TimeFormat.ValidateSpecifier(spec.Format);
+                }
+                catch (TimeFormatSpecifierException ex)
+                {
+                    throw Error(entry, $"The date format of '{entry.Name}' is not valid: {ex.Message}");
+                }
+            }
         }
     }
+
+    /// <summary>
+    ///     Determines whether a parse entry starts like a custom date format but has no quoted format.
+    /// </summary>
+    /// <param name="text">The entry value.</param>
+    /// <returns><see langword="true"/> for <c>date:</c> or <c>utc:</c> text that <see cref="ParseDirectives.TryClassify"/> refuses.</returns>
+    private static bool IsUnquotedDateFormat(string text) =>
+        (text.StartsWith("date:", StringComparison.Ordinal) || text.StartsWith("utc:", StringComparison.Ordinal))
+        && !ParseDirectives.TryClassify(text, out _);
 
     /// <summary>
     ///     Validates the top-level <c>datasets</c>: an object whose values are arrays of rows, text or objects.
@@ -646,6 +672,12 @@ internal sealed partial class SpecParser
             WarnUnknown(property, "a channel definition");
         }
 
+        if (definition["timeUnit"] is { } timeUnit)
+        {
+            ValidateTimeUnit(timeUnit);
+        }
+
+        ValidateDatum(definition);
         if (definition["scale"] is { IsObject: true } scale)
         {
             CheckObject(scale, ScaleRules);
@@ -655,12 +687,14 @@ internal sealed partial class SpecParser
         if (definition["axis"] is { IsObject: true } axis)
         {
             CheckObject(axis, AxisRules);
+            ValidateGuideTime(axis);
         }
 
         if (definition["legend"] is { IsObject: true } legend)
         {
             CheckObject(legend, LegendRules);
             ValidateLegendOptions(legend);
+            ValidateGuideTime(legend);
         }
 
         CompileChannelExpression(definition);
@@ -725,6 +759,7 @@ internal sealed partial class SpecParser
         }
 
         ValidateTransformOptions(scale);
+        ValidateScaleTime(scale);
 
         if (scale["interpolate"] is { } interpolate && interpolate["expr"] is not { IsString: true })
         {

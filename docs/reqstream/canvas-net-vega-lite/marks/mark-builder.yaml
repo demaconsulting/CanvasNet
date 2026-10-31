@@ -257,3 +257,43 @@ sections:
                   - MarkBuilder_Build_TestEvaluationIsChargedToTheStepBudget
                   - MarkBuilder_Build_CanceledTokenStopsTheEvaluation
                   - MarkBuilder_Build_ConditionalMarksAreDeterministic
+
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-TimeUnitBands
+                title: >-
+                  The MarkBuilder unit shall draw a bar or rect of a field with a time unit on a time scale
+                  over its whole unit - from the start field to the end field, reduced to the relative
+                  size of the width band or of timeUnitBandSize (1 by default), with the bar spacing, the
+                  minimum band size compared with the whole unit, and the half-pixel offset of the axis as for
+                  a bin - draw a bar or rect over the band of an ordinal time unit as on any band scale, and
+                  draw a bar of a time scale without a time unit at the continuous band size.
+                justification: |
+                  A bar over a month must span the month, whatever the length of the month or the zone, and
+                  must look like the bar of a histogram; Vega-Lite specifies the geometry.
+                tests:
+                  - MarkBuilder_Time_YearMonthBars_SpanTheirMonths
+                  - MarkBuilder_Time_RectSpansItsUnitWithoutSpacing
+                  - MarkBuilder_Time_TimeUnitBandSize_Half
+                  - MarkBuilder_Time_WidthBand_IsTheRelativeSize
+                  - MarkBuilder_Time_MinBandSize_WidensAThinUnit
+                  - MarkBuilder_Time_TimeScalePoints_AtTheirDates_AndBarsUseTheContinuousBandSize
+                  - MarkBuilder_Time_OrdinalTimeUnit_BandsOfABandScale
+                  - MarkBuilder_Time_Zone_BarsSpanLocalMonths
+                  - VegaLiteTemporalScale_RangeBars_SpanFromStartToEnd
+
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-TimeUnitPositions
+                title: >-
+                  The MarkBuilder unit shall place a point, circle, square, rule, or tick of a field with a time
+                  unit at the start of the unit, a tick and the marks with a band position at the point of the
+                  unit that the band position names (0.5 is the middle, 0.25 a quarter of the way, and 0 the
+                  start), place the marks of a time scale at their dates, and draw a rect-based mark whose
+                  band position is not one half at one half, the feature catalog reporting it.
+                justification: |
+                  The marks that do not span a unit must still sit where Vega-Lite puts them for the axis to
+                  read correctly.
+                tests:
+                  - MarkBuilder_Time_PointsAtTheStartOfTheUnit
+                  - MarkBuilder_Time_TicksAtTheMiddle
+                  - MarkBuilder_Time_BandPositionOnAPoint
+                  - MarkBuilder_Time_RectBandPositionNotHalf_IsReported
+                  - VegaLiteTemporalScale_Points_SitAtTheirDates
+                  - VegaLiteTemporalScale_ColorOverDates_FollowsTheDates

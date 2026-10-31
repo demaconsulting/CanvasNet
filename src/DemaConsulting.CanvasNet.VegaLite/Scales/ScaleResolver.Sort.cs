@@ -96,14 +96,15 @@ internal static partial class ScaleResolver
                     context.CancellationToken.ThrowIfCancellationRequested();
                 }
 
-                // An object or an array is not a category (the parser rejects them); never let one stand for the null category
-                if (item.IsObject || item.IsArray)
+                // An object or an array is not a category (the parser rejects them), except a date-time object of a temporal field; never let one stand for the null category
+                var category = ToDataValue(item, input.Time);
+                if ((item.IsObject || item.IsArray) && category.IsNull)
                 {
                     position++;
                     continue;
                 }
 
-                firstIndex.TryAdd(ToDataValue(item), position++);
+                firstIndex.TryAdd(category, position++);
             }
 
             return [.. domain.OrderBy(value => firstIndex.TryGetValue(value, out var index) ? index : -1)];

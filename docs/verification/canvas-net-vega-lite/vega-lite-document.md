@@ -42,7 +42,8 @@ data scenarios that this unit's requirements cite.
 Unit tests reside in `VegaLiteOpenOptionsTests.cs` (the open options and, in the same file, the font options),
 `VegaLiteRenderOptionsTests.cs`, `VegaLiteLimitsTests.cs`, `VegaLiteLocationTests.cs`,
 `VegaLiteRecordsAndExceptionsTests.cs`, `VegaLiteReportSinkTests.cs`, `VegaLiteDocumentLayoutTests.cs`, and
-`SpecModel/VegaLiteDocumentSpecModelTests.cs` within the `DemaConsulting.CanvasNet.VegaLite.Tests` project.
+`SpecModel/VegaLiteDocumentSpecModelTests.cs`, and, for the time zone option, `VegaLiteTemporalScaleTests.cs` and
+`Data/DataLoaderCalendarTests.cs` within the `DemaConsulting.CanvasNet.VegaLite.Tests` project.
 
 ### Test Environment
 
@@ -274,10 +275,28 @@ them, in the order loader warnings, lookup-source loader warnings, and transform
 first report and delivers nothing after it; that a canceled token delivers nothing; and that `Measure` runs the same
 stages as `Render` and equals the rendered size, with byte-identical renders from concurrent tasks.
 
-#### Time Zone: Default And Stored Value
+#### Time Zone: Default, Stored Value, And Effect
 
 **Tests**: `VegaLiteRenderOptionsTests.VegaLiteRenderOptions_Defaults_AreDocumented`,
-`VegaLiteRenderOptionsTests.VegaLiteRenderOptions_ValidValues_AreStored`
+`VegaLiteRenderOptionsTests.VegaLiteRenderOptions_ValidValues_AreStored`,
+`DataLoaderCalendarTests.DataLoader_Render_TimeZoneOptionReachesTheDataStage`,
+`DataLoaderCalendarTests.DataLoader_Render_CustomDateFormatRendersInStrictMode`,
+`VegaLiteTemporalScaleTests.VegaLiteTemporalScale_Points_SitAtTheirDates`,
+`VegaLiteTemporalScaleTests.VegaLiteTemporalScale_RangeBars_SpanFromStartToEnd`,
+`VegaLiteTemporalScaleTests.VegaLiteTemporalScale_ColorOverDates_FollowsTheDates`
 
-Asserts that the time zone is unset (UTC) by default and that a supplied `TimeZoneInfo` is stored as given. No
-temporal data is drawn in this release, so there is no behavioral scenario beyond the option contract.
+Asserts that the time zone is unset (UTC) by default and that a supplied `TimeZoneInfo` is stored as given, and that the
+option takes effect through the whole pipeline, with every zone built in the tests. A chart of two rows with the same
+wall-clock time (10:00 on March 5, 2024), one written with an explicit `Z` offset and one without, parsed with
+`date`, and plotted as the number of milliseconds of the instant, puts both rows at the same x in UTC (a time without an
+offset is read as UTC), while with `TimeZone` set to a zone five hours ahead the row without an offset is the instant
+five hours earlier (05:00Z) and its point is to the left of the other; a `parse` of `date:'%d/%m/%Y'` renders in strict
+mode (a custom date format is not an unsupported feature) and the 5th of March, written `05/03/2024`, is to the left of
+the 15th. The temporal scale scenarios derive the positions of dates on a 200 pixel data rectangle: January 1, 6, and 11,
+2024 are five days apart, so the three points are 100 pixels apart (to six decimals); a range of two temporal fields
+(January 1 to 11 and January 6 to 11, `x` and `x2`) is a bar from its start to its end on the time scale whose domain
+holds both, so the bars are 200 and 100 pixels wide, end at the same right edge, and the second starts 100 pixels after
+the first; and a color over a `utcyearmonthdate` time unit renders without a report with three different fills. The
+behavior of the scenarios is carried further by the time scenarios of the _CanvasNetVegaLite System Verification
+Design_ (the zone shifting a point by exactly one day, the day of the daylight saving change, and the host's zone not
+mattering), and the calendar and data details by the _TimeCalendar_ and _DataLoader_ designs.

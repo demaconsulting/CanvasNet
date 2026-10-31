@@ -79,9 +79,20 @@ internal sealed record AxisResult(SceneGroup Group, SceneGroup? Grid, SceneBound
 ///         (<c>labelOverlap: true</c> or <c>"parity"</c>, the default for continuous scales) or its greedy method.
 ///     </para>
 ///     <para>
+///         <b>Time axes.</b> A time or UTC scale has the d3 time ticks (<c>Ticks.TimeTicks</c>: the calendar interval whose length is nearest to the span over the
+///         tick count, at local midnights and month starts of the zone of the chart), or the ticks of an interval named by <c>tickCount</c>
+///         (<c>"month"</c>, <c>{"interval": "week", "step": 2}</c>), or the dates of <c>values</c> (timestamps, date texts or date-time objects). The default tick count is one for
+///         every 40 pixels (Vega's ten for a field whose unit is a month, an hour, a day or a quarter), lowered to the length of the smallest part of the time unit
+///         (<c>tickMinStep</c>). Labels are d3 time formats: the <c>format</c> (a text, or the multi-format levels of an object), else the specifier of the time unit (<c>Jan 2024</c>
+///         for <c>yearmonth</c>), else Vega's multi-format (the coarsest boundary an instant is on: <c>2024</c>, <c>March</c>, <c>Mar 03</c>, <c>Tue 05</c>, <c>01 PM</c>, <c>01:45</c>); a
+///         <c>formatType</c> of <c>number</c> formats the milliseconds as a number, and <c>time</c> or <c>utc</c> makes any axis show times. The labels of an ordinal or nominal field
+///         with a time unit are the same dates. A time axis has a grid, flush end labels and the parity overlap method by default; the labels of a time unit field are not turned by
+///         default. Ticks are bounded by <see cref="VegaLiteLimits.MaxTicks"/> before any label is made and labels by <see cref="VegaLiteLimits.MaxStringLength"/>.
+///     </para>
+///     <para>
 ///         <b>Not drawn.</b> <c>labelBound</c>, <c>tickBand</c>, <c>tickExtra</c>, <c>position</c>, <c>translate</c>,
 ///         <c>bandPosition</c>, <c>titleX</c>, <c>titleY</c>, label and axis <c>encode</c>, custom format types and label expressions
-///         (the feature catalog reports them); a <c>values</c> array that is not made of numbers, strings or booleans is ignored. The
+///         (the feature catalog reports them); a <c>values</c> array that is not made of numbers, strings or booleans is ignored (dates only for a time axis). The
 ///         class is stateless between calls and safe for concurrent use.
 ///     </para>
 /// </remarks>
@@ -102,8 +113,14 @@ internal sealed class AxisBuilder
     /// <summary>The limit on scene items, for an axis built without a shared budget.</summary>
     private readonly long _maxSceneItems;
 
+    /// <summary>The limit on the length of a label.</summary>
+    private readonly int _maxStringLength;
+
     /// <summary>The source name used in the locations of errors.</summary>
     private readonly string? _sourceName;
+
+    /// <summary>The calendar of the chart (the zone of the render options), for the labels of a field that is not temporal but is formatted as a time.</summary>
+    private readonly TimeCalendar _chartCalendar;
 
     /// <summary>
     ///     Initializes an axis builder.
@@ -112,8 +129,9 @@ internal sealed class AxisBuilder
     /// <param name="config">The effective configuration.</param>
     /// <param name="limits">The limits to enforce (<see cref="VegaLiteLimits.MaxTicks"/>); the defaults when null.</param>
     /// <param name="sourceName">The source name for the locations of errors, or null.</param>
+    /// <param name="chartCalendar">The calendar of the chart, used by a <c>formatType</c> of <c>time</c> on a field that is not temporal; UTC when null.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="measurer"/> or <paramref name="config"/> is null.</exception>
-    public AxisBuilder(TextMeasurer measurer, ResolvedConfig config, VegaLiteLimits? limits = null, string? sourceName = null)
+    public AxisBuilder(TextMeasurer measurer, ResolvedConfig config, VegaLiteLimits? limits = null, string? sourceName = null, TimeCalendar? chartCalendar = null)
     {
         ArgumentNullException.ThrowIfNull(measurer);
         ArgumentNullException.ThrowIfNull(config);
@@ -121,7 +139,9 @@ internal sealed class AxisBuilder
         _config = config;
         _maxTicks = (limits ?? VegaLiteLimits.Default).MaxTicks;
         _maxSceneItems = (limits ?? VegaLiteLimits.Default).MaxSceneItems;
+        _maxStringLength = (limits ?? VegaLiteLimits.Default).MaxStringLength;
         _sourceName = sourceName;
+        _chartCalendar = chartCalendar ?? TimeCalendar.Utc;
     }
 
     /// <summary>
@@ -352,14 +372,19 @@ internal sealed class AxisBuilder
         var tickOffset = settings.Number("tickOffset") ?? 0;
         var round = settings.Bool("tickRound") ?? true;
         var bandShift = (model.Bandwidth * (settings.Number("bandPosition") ?? 0.5)) + tickOffset;
+        var timeLabels = TimeLabelsOf(request, settings, formatLocation, location);
         List<AxisTick> ticks;
-        if (model.Kind == ScaleKind.Linear)
+        if (model.Kind is ScaleKind.Time or ScaleKind.Utc)
         {
-            ticks = LinearTicks(model, settings, extent, values, format, formatLocation, location, bandShift, round, request.Scale.Bin == BinKind.Binning, cancellationToken);
+            ticks = TimeTicks(request, axis, settings, extent, values, timeLabels!, location, bandShift, round, cancellationToken);
+        }
+        else if (model.Kind == ScaleKind.Linear)
+        {
+            ticks = LinearTicks(model, settings, extent, values, format, formatLocation, location, bandShift, round, request.Scale.Bin == BinKind.Binning, timeLabels, cancellationToken);
         }
         else
         {
-            ticks = DiscreteTicks(model, values, format, formatLocation, location, bandShift, round);
+            ticks = DiscreteTicks(request, model, values, format, formatLocation, location, bandShift, round, timeLabels, cancellationToken);
         }
 
         if (ticks.Count > _maxTicks)
@@ -369,6 +394,125 @@ internal sealed class AxisBuilder
 
         return ticks;
     }
+
+    /// <summary>
+    ///     Creates the label function of the dates of an axis (Vega-Lite's <c>format</c> rules for a time axis), when the labels of the axis are times.
+    /// </summary>
+    /// <remarks>
+    ///     The labels are times on a time or UTC scale, on a discrete scale over the dates of a time unit, and on any axis whose <c>formatType</c> is <c>time</c> or <c>utc</c>.
+    ///     Axes do not use <c>config.timeFormat</c>: without a format and a time unit they have Vega's multi-format. A <c>formatType</c> that is not <c>number</c>, <c>time</c> or
+    ///     <c>utc</c> is a custom format type, which is not evaluated (the feature catalog reports it). The dates are in the calendar of the scale; a field that is not temporal but is forced to
+    ///     a time format by <c>formatType: "time"</c> uses the calendar of the chart (the time zone of the render options), and <c>"utc"</c> uses UTC.
+    /// </remarks>
+    /// <param name="request">The request.</param>
+    /// <param name="settings">The axis settings.</param>
+    /// <param name="formatLocation">The location of the format for errors.</param>
+    /// <param name="location">The location of the channel.</param>
+    /// <returns>The function; null when the labels of the axis are not times.</returns>
+    private Func<double, string>? TimeLabelsOf(AxisRequest request, Settings settings, VegaLiteLocation formatLocation, VegaLiteLocation location)
+    {
+        var formatType = settings.ExplicitOrVl("formatType")?.AsString();
+        var isTimeScale = request.Model.Kind is ScaleKind.Time or ScaleKind.Utc;
+        var isDates = request.Scale.IsTemporalField && request.Model.Kind is ScaleKind.Band or ScaleKind.Point or ScaleKind.Ordinal;
+        var forced = formatType is "time" or "utc";
+        if (!isTimeScale && !isDates && !forced)
+        {
+            return null;
+        }
+
+        var calendar = request.Model.Calendar ?? request.Scale.Calendar ?? _chartCalendar;
+        return TimeLabels.Create(new TimeLabels.Options(
+            settings.ExplicitOrVl("format"),
+            TimeLabels.IsKnownFormatType(formatType) ? formatType : null,
+            request.Scale.TimeUnit,
+            null,
+            calendar,
+            _maxStringLength,
+            "axis",
+            location,
+            formatLocation));
+    }
+
+    /// <summary>
+    ///     Builds the ticks of a time or UTC scale: the d3 time ticks (or the ticks of the requested interval, or the explicit <c>values</c>) with their date labels.
+    /// </summary>
+    /// <remarks>
+    ///     The tick count is Vega-Lite's: <c>tickCount</c> when it is a number, else <c>ceil(size / 40)</c> (Vega's own default of ten for a field whose unit is a month, an
+    ///     hour, a day or a quarter, and the number of <c>values</c> when there are some), lowered so that there is at most one tick for every <c>tickMinStep</c>
+    ///     (by default the length of one smallest part of the time unit). An interval name or <c>{interval, step}</c> as <c>tickCount</c> places a tick at each boundary of the
+    ///     interval. The ticks are bounded by <see cref="VegaLiteLimits.MaxTicks"/> before any label is made.
+    /// </remarks>
+    /// <param name="request">The request.</param>
+    /// <param name="axis">The axis object, or null.</param>
+    /// <param name="settings">The settings.</param>
+    /// <param name="extent">The length of the data rectangle along the axis.</param>
+    /// <param name="values">The <c>values</c> of the axis, or null.</param>
+    /// <param name="label">The function that makes the label of an instant.</param>
+    /// <param name="location">The location of the channel.</param>
+    /// <param name="shift">The offset added to the scale position.</param>
+    /// <param name="round">Whether tick positions are rounded.</param>
+    /// <param name="cancellationToken">The token that stops the work.</param>
+    /// <returns>The ticks.</returns>
+    /// <exception cref="VegaLiteRenderException">Thrown when the ticks would be more than <see cref="VegaLiteLimits.MaxTicks"/> or a label is too long.</exception>
+    private List<AxisTick> TimeTicks(AxisRequest request, SpecNode? axis, Settings settings, double extent, IReadOnlyList<SpecNode>? values, Func<double, string> label, VegaLiteLocation location, double shift, bool round, CancellationToken cancellationToken)
+    {
+        var model = request.Model;
+        var calendar = model.Calendar ?? TimeCalendar.Utc;
+        var unit = request.Scale.TimeUnit;
+        var minStep = settings.Number("tickMinStep") ?? unit?.DurationMilliseconds();
+        var defaultCount = TimeLabels.UsesVegaDefaultCount(unit) ? Ticks.DefaultTimeTickCount : Ticks.DefaultAxisTickCount(extent);
+        var requested = settings.Number("tickCount") ?? (values is null ? defaultCount : values.Count);
+        var count = Ticks.ResolveTickCount(model.DomainStart, model.DomainEnd, requested, minStep, temporal: true);
+        var interval = TimeLabels.IntervalRequest(axis?["tickCount"]);
+        double[] instants;
+        try
+        {
+            if (values is null)
+            {
+                instants = Ticks.TimeTicks(model, interval ?? new TimeTickRequest(count), _maxTicks, cancellationToken);
+            }
+            else
+            {
+                var dates = new List<double>(values.Count);
+                foreach (var value in values)
+                {
+                    var ms = TimeLabels.ReadInstant(value, calendar);
+                    if (!double.IsNaN(ms))
+                    {
+                        dates.Add(ms);
+                    }
+                }
+
+                instants = ValidTicks(model, dates, interval is null ? count : double.NaN);
+            }
+        }
+        catch (VegaLiteRenderException ex) when (!ex.Location.IsKnown)
+        {
+            throw new VegaLiteRenderException(ex.Message, location);
+        }
+
+        // The ticks are counted before any label is made, so a request for more than the limit costs nothing
+        if (instants.Length > _maxTicks)
+        {
+            throw new VegaLiteRenderException($"The axis has {instants.Length} ticks, more than VegaLiteLimits.MaxTicks ({_maxTicks}).", location);
+        }
+
+        var ticks = new List<AxisTick>(instants.Length);
+        foreach (var instant in instants)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ticks.Add(new AxisTick(InstantValue(instant), Place(model.Map(instant) + shift, round), label(instant)));
+        }
+
+        return ticks;
+    }
+
+    /// <summary>
+    ///     Makes the domain value of a time tick: a date, or a plain number for an instant outside the years that a date can hold.
+    /// </summary>
+    /// <param name="instant">The instant in milliseconds.</param>
+    /// <returns>The value.</returns>
+    private static DataValue InstantValue(double instant) => TimeCalendar.IsValid(instant) ? DataValue.FromDate(instant) : DataValue.FromNumber(instant);
 
     /// <summary>
     ///     Builds the ticks of a continuous scale.
@@ -383,9 +527,10 @@ internal sealed class AxisBuilder
     /// <param name="shift">The offset added to the scale position.</param>
     /// <param name="round">Whether tick positions are rounded.</param>
     /// <param name="binning">Whether the field is binned by the encoding: its default tick count is one per ten pixels (Vega-Lite's <c>ceil(size / 10)</c>).</param>
+    /// <param name="timeLabels">The function that labels an instant when <c>formatType</c> says the numbers of the axis are times, or null.</param>
     /// <param name="cancellationToken">The token that stops the work.</param>
     /// <returns>The ticks.</returns>
-    private List<AxisTick> LinearTicks(ScaleModel model, Settings settings, double extent, IReadOnlyList<SpecNode>? values, string? format, VegaLiteLocation formatLocation, VegaLiteLocation location, double shift, bool round, bool binning, CancellationToken cancellationToken)
+    private List<AxisTick> LinearTicks(ScaleModel model, Settings settings, double extent, IReadOnlyList<SpecNode>? values, string? format, VegaLiteLocation formatLocation, VegaLiteLocation location, double shift, bool round, bool binning, Func<double, string>? timeLabels, CancellationToken cancellationToken)
     {
         // A log axis has no default tick count of its own in Vega-Lite (Vega's 10 applies), and its labels are filtered by d3's log rule
         var log = model.Transform.Kind == ScaleTransformKind.Log;
@@ -412,9 +557,9 @@ internal sealed class AxisBuilder
         Func<double, string> label;
         try
         {
-            label = log
+            label = timeLabels ?? (log
                 ? LogLabel(model, format, values is null, count, positions.Length)
-                : NumberFormat.TickFormat(model.DomainStart, model.DomainEnd, count, format).Format;
+                : NumberFormat.TickFormat(model.DomainStart, model.DomainEnd, count, format).Format);
         }
         catch (FormatException ex)
         {
@@ -500,6 +645,11 @@ internal sealed class AxisBuilder
     /// <summary>
     ///     Builds the ticks of a band or point scale: one per category, or the categories named by <c>values</c>.
     /// </summary>
+    /// <remarks>
+    ///     The categories of a field with a time unit are dates: their labels are made by the time labels of the axis (the format, else the specifier of the unit), and the
+    ///     <c>values</c> may be timestamps, date texts or date-time objects, which name the date of the same unit part as the domain entries do.
+    /// </remarks>
+    /// <param name="request">The request.</param>
     /// <param name="model">The scale.</param>
     /// <param name="values">The <c>values</c> of the axis, or null.</param>
     /// <param name="format">The format specifier for numeric categories, or null.</param>
@@ -507,12 +657,14 @@ internal sealed class AxisBuilder
     /// <param name="location">The location of the channel.</param>
     /// <param name="shift">The offset added to the scale position.</param>
     /// <param name="round">Whether tick positions are rounded.</param>
+    /// <param name="timeLabels">The function that labels a date, or null when the axis does not label dates.</param>
+    /// <param name="cancellationToken">The token that stops the work.</param>
     /// <returns>The ticks.</returns>
-    private static List<AxisTick> DiscreteTicks(ScaleModel model, IReadOnlyList<SpecNode>? values, string? format, VegaLiteLocation formatLocation, VegaLiteLocation location, double shift, bool round)
+    /// <exception cref="VegaLiteRenderException">Thrown when the categories are dates and there are more than <see cref="VegaLiteLimits.MaxTicks"/>, or a label is too long.</exception>
+    private List<AxisTick> DiscreteTicks(AxisRequest request, ScaleModel model, IReadOnlyList<SpecNode>? values, string? format, VegaLiteLocation formatLocation, VegaLiteLocation location, double shift, bool round, Func<double, string>? timeLabels, CancellationToken cancellationToken)
     {
-        _ = location;
         NumberFormat? formatter = null;
-        if (format is not null)
+        if (format is not null && timeLabels is null)
         {
             try
             {
@@ -527,25 +679,60 @@ internal sealed class AxisBuilder
         IEnumerable<DataValue> domain = model.Domain;
         if (values is not null)
         {
-            var wanted = values.Select(ToDataValue).Where(v => v is not null).Select(v => v!.Value).ToList();
+            var calendar = request.Scale.Calendar ?? TimeCalendar.Utc;
+            var wanted = values.Select(v => timeLabels is not null && request.Scale.IsTemporalField ? ToDateValue(v, request.Scale.TimeUnit, calendar) : ToDataValue(v)).Where(v => v is not null).Select(v => v!.Value).ToList();
             var inRange = wanted.Where(v => model.Map(v) is not null).Select(v => (Value: v, Position: model.Map(v)!.Value)).ToList();
             var descending = model.RangeStart > model.RangeEnd;
             domain = inRange.OrderBy(p => descending ? -p.Position : p.Position).Select(p => p.Value);
         }
 
+        // The ticks are counted before any date is formatted
+        if (timeLabels is not null && model.Domain.Count > _maxTicks)
+        {
+            throw new VegaLiteRenderException($"The axis has {model.Domain.Count} ticks, more than VegaLiteLimits.MaxTicks ({_maxTicks}).", location);
+        }
+
         var ticks = new List<AxisTick>();
         foreach (var value in domain)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (model.Map(value) is not { } start)
             {
                 continue;
             }
 
-            var label = formatter is not null && value.IsNumber ? formatter.Format(value.Number) : value.ToText();
+            string label;
+            if (timeLabels is not null && value.IsDate)
+            {
+                label = timeLabels(value.Milliseconds);
+            }
+            else
+            {
+                label = formatter is not null && value.IsNumber ? formatter.Format(value.Number) : value.ToText();
+            }
+
             ticks.Add(new AxisTick(value, Place(start + shift, round), label));
         }
 
         return ticks;
+    }
+
+    /// <summary>
+    ///     Converts a <c>values</c> entry of an axis over the dates of a time unit to a date value.
+    /// </summary>
+    /// <param name="node">The entry.</param>
+    /// <param name="unit">The time unit of the field, or null.</param>
+    /// <param name="calendar">The calendar of the scale.</param>
+    /// <returns>The date; null for an entry that is not a date.</returns>
+    private static DataValue? ToDateValue(SpecNode node, TimeUnitSpec? unit, TimeCalendar calendar)
+    {
+        var ms = node.Kind switch
+        {
+            SpecNodeKind.Number => DateTimeObject.FromScalar(node.NumberValue, unit, calendar),
+            SpecNodeKind.String => DateTimeObject.FromScalar(node.StringValue!, unit, calendar, text => JsDateParser.TryParse(text, calendar, out var parsed) ? parsed : double.NaN),
+            _ => TimeLabels.ReadInstant(node, calendar),
+        };
+        return TimeCalendar.IsValid(ms) ? DataValue.FromDate(ms) : null;
     }
 
     /// <summary>
@@ -921,7 +1108,7 @@ internal sealed class AxisBuilder
             TickList = ticks;
             Model = request.Model;
             Sign = orient is "left" or "top" ? -1 : 1;
-            var rule = request.Scale.Kind == ScaleKind.Linear;
+            var rule = request.Scale.Kind is ScaleKind.Linear or ScaleKind.Time or ScaleKind.Utc;
             var binned = request.ChannelDef?["bin"] is { } bin && !bin.IsNull && !(bin.IsBoolean && !bin.BoolValue);
             ShowGrid = settings.ExplicitOrVl("grid")?.AsBool() ?? (rule && (request.ChannelDef?["field"] is not null || request.ChannelDef?["aggregate"] is { IsNull: false }) && !binned);
             ShowTicks = settings.Bool("ticks") ?? true;
@@ -930,14 +1117,16 @@ internal sealed class AxisBuilder
             TickSize = settings.Number("tickSize") ?? 5;
             _ = extent;
             var isDiscreteType = request.Scale.DataType is "nominal" or "ordinal";
-            var ruleAngle = request.Channel == "x" && isDiscreteType ? 270.0 : (double?)null;
+
+            // Vega-Lite does not turn the labels of a field with a time unit (the names of months, say) by default
+            var ruleAngle = request.Channel == "x" && isDiscreteType && request.Scale.TimeUnit is null ? 270.0 : (double?)null;
             var configured = settings.VlNumber("labelAngle") ?? ruleAngle;
             var angle = configured is { } a ? Normalize(a) : (double?)null;
             LabelAngle = angle ?? Normalize(settings.Number("labelAngle") ?? 0);
             LabelAlign = settings.ExplicitOrVl("labelAlign")?.AsString() ?? (angle is { } va ? DefaultLabelAlign(va, orient, isX) : null);
             LabelBaseline = settings.ExplicitOrVl("labelBaseline")?.AsString() ?? (angle is { } vb ? DefaultLabelBaseline(vb, orient, isX) : null);
             FlushThreshold = ResolveFlush(settings, request.Channel, request.Scale.DataType);
-            Overlap = ResolveOverlap(settings, isDiscreteType, request.Model.Transform.Kind == ScaleTransformKind.Log);
+            Overlap = ResolveOverlap(settings, isDiscreteType, request.Model.Transform.Kind == ScaleTransformKind.Log, request.Scale.TimeUnit is not null && request.ChannelDef?["sort"] is not { IsObject: true });
 
             // Vega-Lite draws the axes of a rect mark with a discrete channel in front of it, all others behind the marks
             var defaultZindex = request.MarkType == "rect" && isDiscreteType ? 1 : 0;
@@ -1063,7 +1252,7 @@ internal sealed class AxisBuilder
             var node = settings.ExplicitOrVl("labelFlush");
             if (node is null)
             {
-                return channel == "x" && dataType == "quantitative" ? 1.0 : null;
+                return channel == "x" && dataType is "quantitative" or "temporal" ? 1.0 : null;
             }
 
             return node.Kind switch
@@ -1075,18 +1264,24 @@ internal sealed class AxisBuilder
         }
 
         /// <summary>
-        ///     Resolves <c>labelOverlap</c>: parity by default for continuous scales, the greedy method for log scales (Vega-Lite's default),
-        ///     none for discrete ones.
+        ///     Resolves <c>labelOverlap</c>: parity by default for continuous scales and for a field with a time unit (unless its sort is an object), the greedy method for
+        ///     log scales (Vega-Lite's default), none for discrete ones.
         /// </summary>
         /// <param name="settings">The settings.</param>
         /// <param name="isDiscreteType">Whether the field is nominal or ordinal.</param>
         /// <param name="isLog">Whether the scale is a log scale.</param>
+        /// <param name="hasTimeUnit">Whether the field has a time unit and no sort object: its labels overlap-free by parity (a month axis hides every other label rather than all but some).</param>
         /// <returns>The method, or null for none.</returns>
-        private static string? ResolveOverlap(Settings settings, bool isDiscreteType, bool isLog)
+        private static string? ResolveOverlap(Settings settings, bool isDiscreteType, bool isLog, bool hasTimeUnit)
         {
             var node = settings.ExplicitOrVl("labelOverlap");
             if (node is null)
             {
+                if (hasTimeUnit)
+                {
+                    return "parity";
+                }
+
                 if (isDiscreteType)
                 {
                     return null;
@@ -1132,6 +1327,7 @@ internal sealed class AxisBuilder
             {
                 ScaleKind.Band => [$"axis{_channelName}Band", $"axis{_channelName}Discrete", "axisBand", "axisDiscrete"],
                 ScaleKind.Point => [$"axis{_channelName}Point", $"axis{_channelName}Discrete", "axisPoint", "axisDiscrete"],
+                ScaleKind.Time or ScaleKind.Utc => [$"axis{_channelName}Temporal", "axisTemporal"],
                 _ => [$"axis{_channelName}Quantitative", "axisQuantitative"],
             };
         }

@@ -3,8 +3,9 @@
 #
 # These requirements decompose the CanvasNetVegaLite system's scaling responsibility into the Scales subsystem
 # (internal namespace DemaConsulting.CanvasNet.VegaLite.Scales): the immutable scale mappings (ScaleModel), the
-# Vega-Lite inference of scales from the encoding and the data (ScaleResolver), the ports of the d3-array tick
-# algorithms (Ticks) and of the d3-format number formatter (NumberFormat), the catalog of Vega color schemes
+# Vega-Lite inference of scales from the encoding and the data (ScaleResolver, including the time and UTC scales of
+# Phase 8), the ports of the d3-array and d3-time tick algorithms (Ticks) and of the d3-format number formatter
+# (NumberFormat), the catalog of Vega color schemes
 # (ColorSchemes), and the color interpolation (ColorInterpolator). Ticks, NumberFormat, and ColorInterpolator
 # are own C# ports of ISC-licensed d3 algorithms, and the colors of the schemes are published palette data;
 # all are attributed in
@@ -21,8 +22,9 @@ sections:
             title: >-
               The Scales subsystem shall infer the scale of each channel from its field type, mark, and
               scale properties - linear for quantitative positions, band or point for nominal and
-              ordinal positions by mark, a sequential scale for a quantitative color, an ordinal scale for
-              a discrete color, shape, or stroke dash, and the documented continuous ranges for size and
+              ordinal positions by mark, a time scale for a temporal field (a UTC scale for a utc time
+              unit), a sequential scale for a quantitative color, an ordinal scale for a discrete color,
+              shape, or stroke dash, and the documented continuous ranges for size and
               opacity - and shall infer the orientation of bar, tick, and rule marks.
             justification: |
               The scale type decides how every value is positioned; inferring it as Vega-Lite does is what
@@ -30,9 +32,11 @@ sections:
             children:
               - CanvasNetVegaLite-Scales-ScaleResolver-TypeInference
               - CanvasNetVegaLite-Scales-ScaleResolver-Orient
+              - CanvasNetVegaLite-Scales-ScaleResolver-TemporalTypes
             tests:
               - ScaleResolver_Resolve_InfersQuantitativeNominalOrdinal
               - ScaleResolver_InferOrient_FollowsVegaLite
+              - ScaleResolver_Temporal_XDefaultsToATimeScaleWithTheDataExtent
 
           - id: CanvasNetVegaLite-Scales-Domains
             title: >-
@@ -56,6 +60,46 @@ sections:
               - ScaleResolver_Resolve_UnaggregatedDomainReadsTheRawRows
               - ScaleResolver_Resolve_InvalidInputsFailWithLocation
 
+          - id: CanvasNetVegaLite-Scales-TimeScales
+            title: >-
+              The Scales subsystem shall map dates with the time and UTC scales (the d3 scaleTime
+              arithmetic over millisecond instants, with the domain of the extent of the dates, the end of
+              the bars of a time unit included, no zero, no padding for the bars of a time unit, and nice
+              only when asked, as a count, an interval, or an interval and a step), shall resolve the
+              explicit domain, domainMin, domainMax, and datum of a temporal field from timestamps, date
+              texts, datetime objects, and the part of a single unit, bounded by the scale domain limit, and
+              shall give a nominal or ordinal field with a time unit a band, point, or ordinal scale over
+              the unit starts in date order.
+            justification: |
+              Time charts are among the most common charts; the placement of a date must be exact, and the
+              rules for the domain must be those of Vega-Lite.
+            children:
+              - CanvasNetVegaLite-Scales-ScaleModel-TimeScales
+              - CanvasNetVegaLite-Scales-ScaleResolver-TemporalDomains
+              - CanvasNetVegaLite-Scales-ScaleResolver-TimeNice
+              - CanvasNetVegaLite-Scales-ScaleResolver-DiscreteTimeUnits
+            tests:
+              - ScaleModel_Time_MapsDatesLinearly
+              - ScaleResolver_TimeUnitBarDomainIncludesTheEnd
+              - ScaleResolver_DomainStringsAndDatetimeObjects
+              - ScaleResolver_NiceTrueAndInterval
+              - ScaleResolver_OrdinalTimeUnit_UsesABandScaleSortedByDate
+              - CanvasNetVegaLite_SystemIntegration_Time_PointsSitAtTheirDatesOnAMultiFormatAxis
+
+          - id: CanvasNetVegaLite-Scales-TemporalColors
+            title: >-
+              The Scales subsystem shall color a temporal field with a continuous scale over milliseconds
+              with the range, scheme, and interpolation of a sequential scale, replacing a discretizing scale
+              type that a temporal field does not accept.
+            justification: |
+              A chart that colors by date needs a continuous color scale; Vega-Lite does not discretize a
+              temporal field.
+            children:
+              - CanvasNetVegaLite-Scales-ScaleResolver-TemporalColor
+            tests:
+              - ScaleResolver_TemporalColor_IsSequentialOverMilliseconds
+              - ScaleResolver_TemporalColorQuantile_Threshold_Quantize_FallBackToSequential
+              - CanvasNetVegaLite_SystemIntegration_Time_TemporalColorLegendShowsDates
           - id: CanvasNetVegaLite-Scales-SortByAggregate
             title: >-
               The Scales subsystem shall order a discrete channel by an aggregate of a field of the rows
@@ -272,6 +316,27 @@ sections:
               - Ticks_TickStep_UsesHandDerivedExpectedStep
               - Ticks_Nice_ExpandsDomainToExpectedBoundaries
 
+          - id: CanvasNetVegaLite-Scales-TimeTicks
+            title: >-
+              The Scales subsystem shall generate the ticks of a time or UTC scale with a port of the d3-time
+              and d3-scale time tick algorithms (the interval whose duration is nearest the target, the
+              boundaries of the time zone of the chart, an explicit interval or interval and step as the
+              tick count), shall make a time domain nice to the boundary of an interval, shall reduce the count
+              for the minimum step of a time unit, and shall fail closed when the ticks would exceed the
+              tick limit.
+            justification: |
+              The ticks of a time axis are the boundaries of calendar units in the chart's zone; an
+              unbounded count would exhaust memory.
+            children:
+              - CanvasNetVegaLite-Scales-Ticks-TimeTicks
+              - CanvasNetVegaLite-Scales-Ticks-TimeNice
+              - CanvasNetVegaLite-Scales-Ticks-TimeCounts
+            tests:
+              - Ticks_TimeTickInterval_FollowsD3Table
+              - Ticks_TimeTicks_Month_Boundaries_InAZone
+              - Ticks_TimeNice_WeekExample
+              - Ticks_TimeTicks_MaxTicksExceeded_Throws
+              - Ticks_ResolveTickCount_MinStep_CapsCount
           - id: CanvasNetVegaLite-Scales-Formatting
             title: >-
               The Scales subsystem shall format quantitative labels with a port of the d3-format

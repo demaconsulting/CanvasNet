@@ -2,13 +2,14 @@
 # Software Unit Requirements for ExpressionFunctions
 #
 # These requirements describe the design-level behavior of the ExpressionFunctions unit of the Expressions
-# subsystem (internal namespace DemaConsulting.CanvasNet.VegaLite.Expressions): the closed table of the 57 pure
-# functions that an expression may call (math, text and array, type and conversion, and regular expression
-# functions), the per-evaluation context that charges their work, and the translation of a JavaScript regular
+# subsystem (internal namespace DemaConsulting.CanvasNet.VegaLite.Expressions): the closed table of the pure
+# functions that an expression may call (math, text and array, type and conversion, regular expression, and, from
+# Phase 8, date and time functions), the per-evaluation context that charges their work and carries the time
+# calendar, and the translation of a JavaScript regular
 # expression into a bounded .NET one. The unit comprises ExpressionFunctions.cs, ExpressionFunctions.Text.cs,
-# ExpressionFunctions.Types.cs, ExpressionFunctions.Regex.cs, ExpressionFunctionContext.cs, and
-# ExpressionRegex.cs. See docs/verification/canvas-net-vega-lite/expressions/expression-functions.md for the
-# test-evidence mapping.
+# ExpressionFunctions.Types.cs, ExpressionFunctions.Regex.cs, ExpressionFunctions.Time.cs,
+# ExpressionFunctionContext.cs, and ExpressionRegex.cs. See
+# docs/verification/canvas-net-vega-lite/expressions/expression-functions.md for the test-evidence mapping.
 
 sections:
   - title: CanvasNetVegaLite Requirements
@@ -24,8 +25,10 @@ sections:
                   min, pow, round, sign, sin, sinh, sqrt, tan, tanh, trunc, lower, upper, trim, substring,
                   slice, indexof, lastindexof, startswith, endswith, includes, replace, split, join, pad,
                   length, isArray, isBoolean, isDate, isFinite, isNaN, isNumber, isObject, isRegExp, isString,
-                  isValid, toBoolean, toNumber, toString, regexp, and test - with no random, clock, reflection,
-                  file, or network function, and shall refuse to invoke a name outside the table.
+                  isValid, toBoolean, toDate, toNumber, toString, regexp, and test, and the date and time
+                  functions named in the requirements of the date and time group below - with no random,
+                  clock (so no now), reflection, file, or network function, and shall refuse to invoke a
+                  name outside the table.
                 justification: |
                   A closed, enumerable table is what makes an expression engine safe to run on untrusted
                   specifications, and the absence of a random source is what keeps the output reproducible.
@@ -107,6 +110,171 @@ sections:
                   - ExpressionFunctions_Regex_PatternLengthIsBounded
                   - ExpressionFunctionContext_StepsAndCharges_AreExactAndCancelable
                   - ExpressionFunctionContext_StringLimitAndRegexCache_Work
+
+              - id: CanvasNetVegaLite-Expressions-ExpressionFunctions-DateConstructors
+                title: >-
+                  The ExpressionFunctions unit shall provide the date constructors datetime, utc, time, and
+                  toDate with the Vega results in the time calendar of the evaluation (UTC when none is
+                  given): datetime with no argument is null (there is no clock), with one argument the
+                  instant of a number, a date, or a date text (read by the JavaScript date rules), and
+                  with two or more the year, month, and optional day, hours, minutes, seconds, and
+                  milliseconds with the ECMAScript roll-over of an overflowing part and the years 0 to 99
+                  meaning 1900 to 1999, utc the same in UTC as a millisecond number, a date result being
+                  a date value or null for an instant outside the years 1 to 9999.
+                justification: |
+                  Filters and calculated fields build dates; the constructors must behave as in Vega, in the
+                  zone the caller chose, and without a clock.
+                tests:
+                  - ExpressionFunctions_Datetime_Components_AreALocalDate
+                  - ExpressionFunctions_Datetime_ComponentsOverflow_RollIntoTheNextUnit
+                  - ExpressionFunctions_Datetime_YearsBelowOneHundred_AreNineteenHundreds
+                  - ExpressionFunctions_Datetime_OneArgument_IsAnInstant
+                  - ExpressionFunctions_Datetime_UsesTheCalendarZone
+                  - ExpressionFunctions_Utc_ReturnsAMillisecondNumber
+                  - ExpressionFunctions_ToDate_ConvertsInstants
+                  - ExpressionFunctions_DateText_IsCutOffAndCheap
+
+              - id: CanvasNetVegaLite-Expressions-ExpressionFunctions-DateParts
+                title: >-
+                  The ExpressionFunctions unit shall provide the date part functions date, day, year, month,
+                  hours, minutes, seconds, milliseconds, and time, and timezoneoffset (in minutes, positive
+                  west of UTC), reading an instant in the time zone of the calendar of the evaluation, and
+                  NaN for an argument that is not a valid instant.
+                justification: |
+                  Calculated fields and filters pick dates apart; the parts must be those of the chart's
+                  time zone, as in Vega.
+                tests:
+                  - ExpressionFunctions_Getters_AtTheAnchorInstant
+                  - ExpressionFunctions_Getters_BeforeTheEpochAndWithFractions
+                  - ExpressionFunctions_Getters_InvalidInstants_AreNaN
+                  - ExpressionFunctions_Timezoneoffset_IsMinutesWestOfUtc
+
+              - id: CanvasNetVegaLite-Expressions-ExpressionFunctions-UtcParts
+                title: >-
+                  The ExpressionFunctions unit shall provide the UTC part functions utcdate, utcday,
+                  utcyear, utcmonth, utchours, utcminutes, utcseconds, and utcmilliseconds, which read an
+                  instant in UTC whatever the time zone of the calendar is.
+                justification: |
+                  A utc time unit and a predicate on it must not move with the zone.
+                tests:
+                  - ExpressionFunctions_Getters_LocalFormsFollowTheZone_UtcFormsDoNot
+
+              - id: CanvasNetVegaLite-Expressions-ExpressionFunctions-WeekAndDayOfYear
+                title: >-
+                  The ExpressionFunctions unit shall provide quarter, week (the Sundays since the first of
+                  January), isoweek, and dayofyear and their utc forms with the Vega results (the quarter as
+                  1 to 4, the week 0 for the days before the first Sunday, the ISO 8601 week of the
+                  week-based year), local in the zone of the calendar and utc in UTC.
+                justification: |
+                  Week numbers are the classic source of off-by-one errors; the rules must be the Vega ones.
+                tests:
+                  - ExpressionFunctions_WeekQuarterAndDayOfYear_FollowVega
+                  - ExpressionFunctions_Isoweek_AroundTheYearBoundaries
+                  - ExpressionFunctions_WeekFunctions_LocalAndUtcFormsDiffer
+
+              - id: CanvasNetVegaLite-Expressions-ExpressionFunctions-Offset
+                title: >-
+                  The ExpressionFunctions unit shall provide timeOffset and utcOffset, which move a date by a
+                  number of steps of a named interval with the d3-time offset (a month overflow rolling as
+                  setMonth does, a day across a daylight saving change being a calendar day), giving null
+                  for an unknown unit, an invalid date, or a result outside the supported range.
+                justification: |
+                  Calculated fields shift dates by calendar units; the arithmetic must be the calendar's, not
+                  a count of milliseconds.
+                tests:
+                  - ExpressionFunctions_Offset_MovesByCalendarUnits
+                  - ExpressionFunctions_Offset_UnknownUnitsAndDates_AreNull
+
+              - id: CanvasNetVegaLite-Expressions-ExpressionFunctions-Sequence
+                title: >-
+                  The ExpressionFunctions unit shall provide timeSequence and utcSequence, which list the
+                  dates of a named interval from a start up to, but not including, a stop with a step, as an
+                  array of date values (the local midnights of the zone for days), empty for an empty span
+                  or an invalid argument.
+                justification: |
+                  Sequences of dates are how calculated data generates a time axis of its own.
+                tests:
+                  - ExpressionFunctions_Sequence_ListsTheBoundaries
+                  - ExpressionFunctions_Sequence_LocalDaysFollowTheZone
+
+              - id: CanvasNetVegaLite-Expressions-ExpressionFunctions-Format
+                title: >-
+                  The ExpressionFunctions unit shall provide timeFormat and utcFormat (a d3 time format
+                  text, or an object that is a multi-format with the string members as overrides, the
+                  text null for a null value and Invalid Date for an invalid one), timeUnitSpecifier (the
+                  default label format of a list of time units, null for units that are not valid), and
+                  monthFormat, monthAbbrevFormat, dayFormat, and dayAbbrevFormat with the English names.
+                justification: |
+                  Calculated labels are built with these functions; they must read as in Vega and be
+                  independent of the host culture.
+                tests:
+                  - ExpressionFunctions_TimeFormat_FormatsWithTheSpecifier
+                  - ExpressionFunctions_TimeFormat_ObjectSpecifier_IsAMultiFormat
+                  - ExpressionFunctions_TimeUnitSpecifier_UsesTheVegaDefaults
+                  - ExpressionFunctions_TimeUnitSpecifier_InvalidUnits_AreNull
+                  - ExpressionFunctions_NameFormatters_GiveTheEnglishNames
+
+              - id: CanvasNetVegaLite-Expressions-ExpressionFunctions-Parse
+                title: >-
+                  The ExpressionFunctions unit shall provide timeParse and utcParse, which read a text with a
+                  d3 time format in the zone of the calendar or in UTC and give the date, or null for a text
+                  that does not match or an instant outside the supported range, charging the length of the
+                  text and the specifier.
+                justification: |
+                  Calculated fields convert date text; the conversion must be Vega's and its cost must follow
+                  the size of its input.
+                tests:
+                  - ExpressionFunctions_TimeParse_ReadsTheSpecifier
+                  - ExpressionFunctions_TimeParse_ChargesTheTextLength
+
+              - id: CanvasNetVegaLite-Expressions-ExpressionFunctions-Names
+                title: >-
+                  The ExpressionFunctions unit shall leave now out of the function table (so that it stays
+                  reported as unsupported and gives null) and shall read a date function applied to a field of
+                  a datum like any other argument.
+                justification: |
+                  A clock would make a chart differ from run to run; the absence of now is the one deliberate
+                  hole in the Vega date function group.
+                tests:
+                  - ExpressionFunctions_Now_StaysUnsupported
+                  - ExpressionFunctions_Time_AgainstADatum
+
+              - id: CanvasNetVegaLite-Expressions-ExpressionFunctions-TimeLimits
+                title: >-
+                  The ExpressionFunctions unit shall bound the date and time functions: a sequence at the
+                  scale domain size limit (exactly the limit is accepted, one more is a located error, and a
+                  request of a million milliseconds is refused before it is built), one evaluation step
+                  charged per date of a sequence, a format result at the string-length limit, the text and
+                  specifier of a parse and a format charged by their length, a specifier (and each override of a
+                  multi-format) of at most 1,024 characters and 4,096 pieces after the composite directives are
+                  expanded, a runtime error for a longer one, the compiled formatters cached at most 64
+                  per evaluation and only for specifiers of at most 64 characters, and the cancellation token
+                  observed while a sequence is built.
+                justification: |
+                  Date functions can multiply a small request into a large result; an untrusted specification
+                  must not be able to exhaust memory or time with them.
+                tests:
+                  - ExpressionFunctions_Sequence_IsBoundedByTheScaleDomainLimit
+                  - ExpressionFunctions_Sequence_OfAMillionMilliseconds_IsRejected
+                  - ExpressionFunctions_Sequence_ChargesOneStepPerDate
+                  - ExpressionFunctions_Sequence_ObservesCancellation
+                  - ExpressionFunctions_TimeFormat_IsBoundedAndCharged
+                  - ExpressionFunctions_TimeFormat_SpecifierLimits_AreRuntimeErrors
+                  - ExpressionFunctionContext_TimeSupport_ChargesCachesAndExposesTheToken
+                  - ExpressionFunctionContext_TimeFormatterCache_ClearsWhenFull
+                  - ExpressionFunctionContext_TimeFormatterCache_DoesNotKeepLongSpecifiers
+
+              - id: CanvasNetVegaLite-Expressions-ExpressionFunctions-TimeDeterminism
+                title: >-
+                  The ExpressionFunctions unit shall give the date and time functions the same result for
+                  the same arguments, time zone, and calendar on repeated calls, in every culture, and on
+                  every platform, using UTC when no calendar is given.
+                justification: |
+                  Reproducibility is a system contract; a date function that read the host would break it.
+                tests:
+                  - ExpressionFunctions_Time_AreCultureInvariant
+                  - ExpressionFunctions_Time_AreDeterministic
+                  - ExpressionFunctions_Time_DefaultCalendarIsUtc
 
               - id: CanvasNetVegaLite-Expressions-ExpressionFunctions-Determinism
                 title: >-

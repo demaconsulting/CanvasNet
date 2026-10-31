@@ -16,7 +16,7 @@ public class ExpressionFunctionsTests
 
     /// <summary>
     ///     Validates that the function table is exactly the documented whitelist: nothing more (no randomness, clock,
-    ///     date, format or color function) and nothing less.
+    ///     number format or color function) and nothing less.
     /// </summary>
     [Fact]
     public void ExpressionFunctions_Names_AreExactlyTheWhitelist()
@@ -38,15 +38,23 @@ public class ExpressionFunctionsTests
             "toBoolean", "toNumber", "toString",
         ];
         string[] regex = ["regexp", "test"];
-        var expected = math.Concat(text).Concat(types).Concat(regex).Order(StringComparer.Ordinal).ToArray();
+        string[] time =
+        [
+            "datetime", "utc", "date", "day", "year", "month", "hours", "minutes", "seconds", "milliseconds", "time", "timezoneoffset",
+            "utcdate", "utcday", "utcyear", "utcmonth", "utchours", "utcminutes", "utcseconds", "utcmilliseconds",
+            "quarter", "utcquarter", "week", "utcweek", "isoweek", "utcisoweek", "dayofyear", "utcdayofyear",
+            "timeOffset", "utcOffset", "timeSequence", "utcSequence", "timeUnitSpecifier",
+            "timeFormat", "utcFormat", "timeParse", "utcParse", "monthFormat", "monthAbbrevFormat", "dayFormat", "dayAbbrevFormat",
+        ];
+        var expected = math.Concat(text).Concat(types).Concat(regex).Concat(time).Concat(["toDate"]).Order(StringComparer.Ordinal).ToArray();
 
         // Act
         var names = ExpressionFunctions.Names();
 
         // Assert
         Assert.Equal(expected, names);
-        Assert.Equal(57, names.Count);
-        foreach (var excluded in new[] { "random", "now", "datetime", "date", "year", "format", "timeFormat", "rgb", "scale", "if", "eval", "Function" })
+        Assert.Equal(99, names.Count);
+        foreach (var excluded in new[] { "random", "now", "format", "rgb", "scale", "if", "eval", "Function" })
         {
             Assert.DoesNotContain(excluded, names);
             Assert.False(ExpressionFunctions.TryGet(excluded, out _));

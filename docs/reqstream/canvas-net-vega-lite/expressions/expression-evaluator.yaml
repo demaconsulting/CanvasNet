@@ -130,6 +130,19 @@ sections:
                   - ExpressionEvaluator_Evaluate_CanceledDuringEvaluation_ThrowsOperationCanceled
                   - ExpressionEvaluator_Evaluate_CancellationBetweenCheckPoints_StopsNextEvaluation
 
+              - id: CanvasNetVegaLite-Expressions-ExpressionEvaluator-Calendar
+                title: >-
+                  The ExpressionEvaluator unit shall take the time calendar of the chart when it is
+                  created (UTC when none is given) and give it to the function context of its evaluations,
+                  so that the date functions of an expression read and write dates in the time zone that
+                  the caller chose.
+                justification: |
+                  An expression that calls a date function must see the same time zone as the data and the
+                  scales of its chart.
+                tests:
+                  - ExpressionEvaluator_Constructor_ForwardsTheCalendar
+                  - ExpressionFunctionContext_Calendar_DefaultsToUtc
+
               - id: CanvasNetVegaLite-Expressions-ExpressionEvaluator-Determinism
                 title: >-
                   The ExpressionEvaluator unit shall give the same result for the same program, datum, and

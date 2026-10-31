@@ -37,7 +37,10 @@ additionally builds them with the real `TextMeasurer`, `Ticks`, and `NumberForma
 specifications for the sizes, opacities, and widths that the scale maps (the scale arithmetic itself is verified with
 the `ScaleModel` and `ScaleResolver` units). No mocking is used. The internal types are reached through the test
 assembly's `InternalsVisibleTo` access. Unit tests reside in `LegendPlanTests.cs` and `LegendBuilderTests.cs` within
-the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `Guides` folder.
+the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `Guides` folder; the legends of temporal fields (the time
+ticks and date labels of a gradient, date symbols, a size over dates, and the zone) are in `LegendBuilderTimeTests.cs`,
+in the same folder, with the expectations of the ten day data derived in the scenarios below from the d3 interval
+table.
 
 #### Test Environment
 
@@ -182,3 +185,56 @@ palette, titled `g`), as does a field with a value condition; that the symbols o
 value of the first condition of a color (`red`, not the later `blue` or the base `gray`) and with the base value when
 there is no condition; that the symbols show the largest opacity of the base and condition values (0.9 for 0.2 and 0.9,
 and 0.4 for 0.4 and 0.1); and that building the same legend twice gives equal symbols.
+
+##### Temporal Gradient Legends
+
+**Tests**: `LegendBuilderTimeTests.LegendBuilder_Time_TemporalGradient_LabelsUseConfigTimeFormat`,
+`LegendBuilderTimeTests.LegendBuilder_Time_LegendFormatOverridesAndUnitSpecifier`
+
+The color of three points on January 1, 6, and 11, 2024 is a gradient legend 200 pixels long, so it asks for max(2, 2 x
+floor(200 / 100)) = 4 ticks; ten days / 4 = 2.5 days is nearest the two days of the d3 table (2.5 / 2 = 1.25 is below
+7 / 2.5 = 2.8), so the labels are the days of the month 1, 3, 5, 7, 9, 11 in the format of `config.timeFormat` (`%b %d,
+%Y`: `Jan 01, 2024`, ...). The gradient is sampled at the time ticks for a count of 15, a target of 16 hours, nearest
+12 hours (16 / 12 = 1.33 is below 24 / 16 = 1.5): 00:00 and 12:00 of each day, 21 stops at offsets 0, 0.05, ..., 1 (the
+tests compare to nine decimals) rather than at numeric ticks of the milliseconds; the title is `d`. A legend `format` of
+`%d/%m` gives `01/01`, `03/01`, ..., a multi-format object (`date` `%d`, `year` `Y%Y`) gives `Y2024`, `03`, `05`, `Jan
+07`, `09`, `11`, a configured `timeFormat` of `%Y.%m.%d` gives `2024.01.01`, ..., and a month unit over three months
+(count 4 over 60 days targets 15 days, nearest the month, since 15 / 7 is not below 30 / 15) gives the unit specifier
+labels `Jan 2024`, `Feb 2024`, `Mar 2024`.
+
+##### Date Symbols, Sizes, And Explicit Values
+
+**Tests**: `LegendBuilderTimeTests.LegendBuilder_Time_OrdinalTimeUnitSymbols_LabelWithTheUnitSpecifier`,
+`LegendBuilderTimeTests.LegendBuilder_Time_SizeOnTimeScale_TicksAndLabels`,
+`LegendBuilderTimeTests.LegendBuilder_Time_ExplicitValuesAcceptDatetimeObjects`
+
+Assert that an ordinal color with a month unit has one symbol and one label per month in date order (`Jan`, `Feb`,
+`Mar`), `January`, `February`, `March` under a `%B` format, and only `Feb` for `values: ["Feb"]`; that a size over the
+dates has a symbol legend of the five default ticks, target two days, so six symbols labeled January 1, 3, ..., 11;
+and that `values` of a date-time object (January 3), a date text (January 9), and a timestamp (1704067200000, which is
+January 1) are labeled in the order given (`Jan 03, 2024`, `Jan 09, 2024`, `Jan 01, 2024`).
+
+##### Temporal Legend Zone, Limits, Cancellation, And Determinism
+
+**Tests**: `LegendBuilderTimeTests.LegendBuilder_Time_Zone_LabelsUseLocalTime`,
+`LegendBuilderTimeTests.LegendBuilder_Time_TemporalColorUtcType_UsesTheUtcCalendar`,
+`LegendBuilderTimeTests.LegendBuilder_Time_TemporalColor_ZeroIsIgnored`,
+`LegendBuilderTimeTests.LegendBuilder_Time_LimitsAndCancellation`,
+`LegendBuilderTimeTests.LegendBuilder_Time_LabelsTogetherTooLong_IsLocated`,
+`LegendBuilderTimeTests.LegendBuilder_Time_FormatSpecifierLimits_AreSpecificationErrors`,
+`LegendBuilderTimeTests.LegendBuilder_Time_Culture_InvariantAndDeterministic`
+
+Assert that for dates at 00:00Z on January 1 and 11 in a +05:30 zone the two-day ticks are the local midnights of the odd
+days, whose first (January 1, December 31 18:30Z) lies before the domain, so the labels are January 3 to 11 (five),
+against the six labels from January 1 in UTC; that a color with `scale.type: "utc"` in a zone five hours behind UTC takes
+the UTC calendar and the two-day ticks of the epoch days (2024-01-01 is day 19,723, odd, so the even days 19,724 to
+19,732 give the labels January 2, 4, 6, 8, and 10), the same labels as without a zone, while `type: "time"` in the zone
+gives other labels; that `scale.zero: true` on the temporal color is ignored (the labels stay the six dates of the data,
+not the years back to 1970); that `MaxStringLength` of 10 fails a 12 character label (`Jan 01, 2024`)
+with a located exception naming the limit of 10 while 12 passes with the single label of one explicit value, that the
+six 12-character labels (72 in all) fail under a limit of 40 at the fourth with `together longer than the limit of 40
+characters` and pass under 72, that an hourly `tickCount` over ten days
+(241 ticks) against a `MaxTicks` of 5 fails with a located exception naming `MaxTicks`, and that a canceled token
+throws `OperationCanceledException` while a live token builds the six labels; that a `config.timeFormat` or a legend
+`format` member of 1,025 characters is a located `VegaLiteSpecException` naming `the limit of 1024 characters`; and that
+the labels are the same under the Turkish, German, and invariant cultures and for two calls in a row.

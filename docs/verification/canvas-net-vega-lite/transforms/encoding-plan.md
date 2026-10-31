@@ -4,10 +4,12 @@ This document describes the unit-level verification strategy for the `EncodingPl
 `DemaConsulting.CanvasNet.VegaLite.Transforms` namespace: the internal `EncodingPlan` class (`Create`, a pure analysis
 of the view's encoding and mark that decides which fields the channels read, the implicit bin, aggregate, and stack, the
 orientation, the titles, and whether a scale needs the rows from before the aggregate) with its `ChannelPlan`, `BinPlan`,
-`BinKind`, and stack and aggregate descriptions, and the internal static `EncodingTransforms` class (`Apply` and
+`BinKind`, and stack and aggregate descriptions, the `TimeUnitPlan` of a field with a time unit, and the internal static
+`EncodingTransforms` class (`Apply` and
 `ApplyStandalone`, which run the plan over the table that the explicit transforms produced and return the Raw table, the
-Main table, the bins, and the evaluation). The unit reuses the engines of `AggregateTransforms` (the bin algorithm, the
-aggregate, and the stack) and the rules of `StackRules`; the scales, marks, and axes consume what it produces.
+Main table, the bins, the time units, and the evaluation). The unit reuses the engines of `AggregateTransforms` (the bin
+algorithm, the aggregate, and the stack), the rules of `StackRules`, and the time unit stage of `TimeUnitTransform` (see
+_Time Unit Transform Verification Design_); the scales, marks, and axes consume what it produces.
 
 #### Verification Approach
 
@@ -51,8 +53,33 @@ derivation in the test comments:
 - The row budget counts the groups: the three input rows of an aggregate stay counted while its two groups are added
   (five), so `MaxDataRows` 5 passes and 4 fails located at the aggregated channel; a stack next to a kept Raw table
   counts its three rows too (3 + 3 = 6 passes, 5 fails), while a stack that replaces its input counts nothing.
+- A time unit field is named by the unit and the field, with the end adding `_end`: the unit `yearmonth` of the field
+  `date` is `yearmonth_date` and `yearmonth_date_end`, the object form with a step is `month_step_2_date`, a UTC unit
+  keeps its prefix (`utcmonth_date`), and the `maxbins` form that names no unit is `timeunit_maxbins_10_date`. The
+  default titles follow Vega-Lite: verbal `date (year-month)` (the parts of the unit joined with a hyphen, so
+  `yearweekday` is `date (year-week-day)` and the step form `{"unit": "month", "step": 2}` is `date (month)`), functional
+  `YEARMONTH(date)` (`UTCYEARMONTH(date)` for a UTC unit, `TIMEUNIT(date)` for the `maxbins` form), plain `date`, and the
+  `maxbins` form is the bare field in the verbal mode because it has no parts.
+- A channel spans its unit (reads the end as its second field) when it is a position channel of a temporal field with no
+  secondary channel and a band position is defined: the bar, rect, and tick have 0.5 by default, a point has none unless
+  the definition's `bandPosition`, the mark's `timeUnitBandPosition`, or the configuration of the mark sets one, and an
+  ordinal or nominal field, a color channel, and a channel with an `x2` do not span.
+- Six dates in 2024 (January 5, January 20 at 12:00, February 10, February 11, February 29 at 23:59:59.999, and March 1)
+  count by month as 2, 3, and 1, in first-seen order: the last millisecond of the leap day is still February. The start
+  of each group is the first of its month (2024-01-01, 2024-02-01, 2024-03-01, whose milliseconds the test computes
+  independently with `TimeTestSupport.Ms`) and its end is the first of the next month. With the bin step 10 the values
+  5, 15, and 15 fall in the bins starting at 0, 10, and 10; with the unit `month` the three dates give the reference
+  months January, January, and February of 2012; so the three groups have one row each and the two groups of the second
+  bin are stacked descending on `y`: February is the bottom layer (0, 1) and January the upper (1, 2). In the stack by
+  month, the layers of the category `a` (two January rows and one February row) are February (0, 1) at the bottom and
+  January (1, 3) above it, and `b` has February (0, 1).
+- A zone changes the day: in a US-like zone (daylight time from 07:00Z on 2024-03-10) the instant 2024-03-10T12:00Z is on
+  the local day that starts at 00:00 local = 05:00Z (at -5 h) and ends at 00:00 on March 11 = 04:00Z (at -4 h), a day of
+  23 hours; in UTC the day is the one that starts at 2024-03-10T00:00Z.
 
-Unit tests reside in `EncodingPlanTests.cs` (the plan) and `EncodingTransformsTests.cs` (the execution) within the
+Unit tests reside in `EncodingPlanTests.cs` (the plan), `EncodingTransformsTests.cs` (the execution), and, for the time
+units, `EncodingPlanTimeTests.cs` (the plan) and `EncodingTransformsTimeTests.cs` (the execution; its helpers are in
+`TimeTestPipeline.cs`) within the
 `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `Transforms` folder.
 
 #### Test Environment
@@ -70,7 +97,8 @@ Unit tests reside in `EncodingPlanTests.cs` (the plan) and `EncodingTransformsTe
 A unit-level test run passes when every scenario below passes without error or exception beyond those explicitly
 asserted. Any wrong field name, title, bin name, group-by, stack decision, offset, layer order, row, row order, domain,
 or label; a table that is kept when a scale needs it or dropped when it does not; a row budget that is off by one; a
-bin or step limit that is not located at the channel; a cancellation that is not polled; or a result that depends on the
+bin or step limit that is not located at the channel; a wrong time unit field name, title, group, band end, or day
+boundary; a cancellation that is not polled; or a result that depends on the
 culture constitutes a failure.
 
 #### Unit-Level Test Scenarios
@@ -233,3 +261,86 @@ Asserts, for a point mark, that a color whose own definition is a value with a c
 `c` reads `c` (the source field, the field path, and the title) and names the condition as its field definition while
 its `Definition` stays the channel; that a size with a value condition and an opacity with a condition on a parameter
 read no field; and that a shape with a field of its own keeps it and is its own field definition.
+
+##### Time Unit Field Names, Titles, And Band End
+
+**Tests**: `EncodingPlanTimeTests.EncodingPlan_Create_NamesATimeUnitFieldAndItsEnd`,
+`EncodingPlanTimeTests.EncodingPlan_Create_ObjectFormNames`,
+`EncodingPlanTimeTests.EncodingPlan_Create_MarksWithABandPositionSpanTheirUnit`,
+`EncodingPlanTimeTests.EncodingPlan_Create_BarWithTimeUnit_HasBandEnd_PointWithTimeUnit_HasNoBandEnd`,
+`EncodingPlanTimeTests.EncodingPlan_Create_OrdinalTimeUnit_HasNoBandEnd`,
+`EncodingPlanTimeTests.EncodingPlan_Create_SecondaryChannel_SuppressesBandEnd`,
+`EncodingPlanTimeTests.EncodingPlan_Create_TitlesVerbalFunctionalPlain`
+
+Asserts that the unit `yearmonth` on the temporal field `date` of a bar chart makes the channel read `yearmonth_date`
+(the value field, the field path, and the Raw field), with `yearmonth_date_end` as its second field, `date` as its source
+field, a band end, and exactly one unit in the plan (`StartName`, `EndName`, and `SourceField` as above, the same
+object that the channel carries), and that the plan is no longer an identity; that, as a theory of six spellings, the
+object forms and the `maxbins` form are named as above (`month_step_2_date`, `utcmonth_date` for `{"unit": "month",
+"utc": true}`, `timeunit_maxbins_10_date`, and `yearmonthdate_step_7_date`), each with the end name adding `_end`; that,
+as a theory over six marks, a `bar`, `rect`, and `tick` span their unit (the second field is the end) and a `point`,
+`circle`, and `rule` do not; that a point gets the band end when the definition has a `bandPosition` of 0.5, the mark has
+a `timeUnitBandPosition` of 0.25, or the configuration of `point` has 0.5; that an ordinal or nominal field with a unit
+has the start only (the unit is the category); that a field with a unit and no type is temporal and spans, that a color
+channel reads the start only, and that a position channel with a secondary channel (`x2` with its own unit
+`month_until`) keeps that channel as its second end and does not span, with both units in the plan; and that the three
+title modes give `date (year-month)`, `YEARMONTH(date)`, and `date` for `yearmonth`, `date (year-week-day)` for
+`yearweekday`, `date (month)` and `MONTH(date)` for the step form, `date` and `TIMEUNIT(date)` for `maxbins`, and
+`date (year-month)` and `UTCYEARMONTH(date)` for a UTC unit.
+
+##### Time Unit Dimensions, Sharing, And Precedence
+
+**Tests**: `EncodingPlanTimeTests.EncodingPlan_Create_AggregateGroupsByTimeUnitStart`,
+`EncodingPlanTimeTests.EncodingPlan_Create_BinWinsOverTimeUnit`,
+`EncodingPlanTimeTests.EncodingPlan_Create_SharedAndDistinctUnits`,
+`EncodingPlanTimeTests.EncodingPlan_Create_StackUsesTheTimeUnitFields`,
+`EncodingPlanTimeTests.EncodingPlan_Create_WithoutAnEncodingThereAreNoUnits`
+
+Asserts that an implicit count grouped by the unit of a bar groups by the start and the end (`yearmonth_date` and
+`yearmonth_date_end`: the end follows from the start, so it adds no groups, but it keeps the end field alive after the
+aggregate), that the same encoding on a point groups by the start only, that an ordinal `month` unit groups by
+`month_date` only, and that the measure of the bar is `__count`; that a bin wins over a unit on the same definition (no
+unit in the plan, the
+field `bin_maxbins_10_a`), that an aggregate of the field replaces the unit (`max_a`), and that a binned unit is ignored
+(no unit, the field `date` as it is, the plan an identity); that two channels with the same field and unit share one
+unit (which spans because the position channel does, while the color channel does not) and that another unit of the same
+field is another one (`month_date` and `year_date`); that a stack whose layers are a time unit orders them by the unit
+start descending on `y` (`month_date`) and that a time unit on the position channel is a group of the stack with its end
+(`month_date` and `month_date_end`); and that a view without an encoding has no units and is an identity.
+
+##### Time Unit Stage Order And Aggregation
+
+**Tests**: `EncodingTransformsTimeTests.EncodingTransforms_TimeUnitThenAggregate_CountsByMonth`,
+`EncodingTransformsTimeTests.EncodingTransforms_TimeUnitThenAggregate_PointHasNoEndField`,
+`EncodingTransformsTimeTests.EncodingTransforms_BinThenTimeUnitThenAggregate_ThenStack`,
+`EncodingTransformsTimeTests.EncodingTransforms_StackByTimeUnitField`,
+`EncodingTransformsTimeTests.EncodingTransforms_SortByAggregate_KeepsTheUnitFieldsInTheRawTable`,
+`EncodingTransformsTimeTests.EncodingTransforms_WithoutTimeUnits_HasNoUnits`
+
+Asserts, over the six dates above, that the units are computed before the aggregate: the Main table has the fields
+`__count`, `yearmonth_d`, and `yearmonth_d_end`, the counts are 2, 3, and 1 in first-seen order, the starts are the first
+of January, February, and March 2024 and the ends the first of February, March, and April (an end is the start of the
+next month), and the unit is handed on in `EncodingData.TimeUnits` with the parts `year` and `month`; that a point
+aggregates by the start only (the Main fields are `__count` and `yearmonth_d`, the counts again 2, 3, and 1); that the
+bin, the unit, the aggregate, and the stack apply in this order (the values 5, 15, 15 with the dates of January 10,
+January 20, and February 10: the Main fields are the count, its stack start and end, the bin start and end, and
+`month_d`, the rows are bin 0 with January (0, 1), bin 10 with January (1, 2), and bin 10 with February (0, 1)), with the
+bin and the unit both handed on; that the stack by a unit orders the layers of the category `a` February (0, 1) then
+January (1, 3) and puts `b` in February (0, 1); that, when a scale sorts by an aggregate, the Raw table keeps the six
+rows with `month_d` and `month_d_end` while Main has the three groups and is another instance; and that an encoding
+without a time unit hands on none.
+
+##### Time Unit Resolution, Calendar, And Limits
+
+**Tests**: `EncodingTransformsTimeTests.EncodingTransforms_MaxBins_HandsOnTheResolvedUnit`,
+`EncodingTransformsTimeTests.EncodingTransforms_TimeUnit_FollowsTheCalendarOfTheChart`,
+`EncodingTransformsTimeTests.EncodingTransforms_TimeUnit_FailureIsLocatedAtTheChannelUnit`
+
+Asserts that the `maxbins` form is resolved against the data and the resolved unit is handed on under the literal name of
+the form: the dates March 1, March 3 at 12:00, and March 6 with `{"maxbins": 5}` make the one-day unit (the parts `year`,
+`month`, and `date`, the field `timeunit_maxbins_5_d`), so the three days are three groups starting at March 1, 3, and
+6; that the units follow the calendar of the chart (the local day of 2024-03-10T12:00Z starts at 2024-03-10T00:00Z in
+UTC, at 05:00Z in the US-like zone, and ends at 04:00Z on March 11 there, as derived above); and that a unit stage over
+10,000 rows under a budget of 100 evaluation steps fails with a located `VegaLiteRenderException` at
+`/encoding/x/timeUnit` that names `MaxEvaluationSteps`. The unit stage itself is verified in _Time Unit Transform
+Verification Design_.

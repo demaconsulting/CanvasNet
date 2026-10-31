@@ -12,14 +12,17 @@
 # dependency on any Vega or d3 package. It supports a deliberately small, documented subset - a single view
 # whose data is inline, a local CSV, TSV, DSV, or JSON file read from a sandbox, a named dataset, or a generated
 # sequence, the transforms calculate, filter, fold, flatten, sample, pivot, lookup, aggregate, joinaggregate,
-# window, bin, stack, and impute with a closed subset of the Vega expression language and static variable
-# parameters, the aggregate, bin, and stack of an encoding, the marks bar, rect, point, circle, square,
-# rule, and tick (with stacked, binned, and ranged geometry), the color, size, shape, opacity, stroke, and angle
-# channels with color schemes, linear, logarithmic, power, symlog, band, point, ordinal, and discretizing scales,
-# axes, legends, and titles - and reports every recognized construct outside that subset with a stable vl-*
+# window, bin, timeUnit, stack, and impute with a closed subset of the Vega expression language (including
+# the date and time functions) and static variable
+# parameters, the aggregate, bin, time unit, and stack of an encoding, the marks bar, rect, point, circle, square,
+# rule, and tick (with stacked, binned, time-unit, and ranged geometry), the color, size, shape, opacity, stroke,
+# and angle channels with color schemes, linear, logarithmic, power, symlog, time, UTC, band, point, ordinal, and
+# discretizing scales, axes, legends, and titles, all dates in one caller-chosen time zone (UTC by default) - and
+# reports every recognized construct outside that subset with a stable vl-*
 # identifier instead of
 # skipping it silently (see docs/design/canvas-net-vega-lite.md, Supported And Deferred Features). Remote data is
-# never fetched. The tick generation and number formatting are ports of the d3-array and d3-format
+# never fetched. The tick generation, number formatting, and date handling are ports of the d3-array, d3-format,
+# d3-time, and d3-time-format
 # algorithms; the default configuration, view layout, and text layout follow Vega-Lite and Vega behavior.
 # Both are attributed in the package's third-party notices (src/DemaConsulting.CanvasNet.VegaLite/third-party).
 #
@@ -178,8 +181,9 @@ sections:
           The library shall support exactly the documented subset of Vega-Lite - the marks bar, rect,
           point, circle, square, rule, and tick, the x, y, color, fill, stroke, size, opacity, fillOpacity,
           strokeOpacity, strokeWidth, strokeDash, shape, and angle channels (and the x2 and y2 ranges of
-          bar, rect, and rule) with field, value, and datum forms, quantitative, nominal, and ordinal
-          types, and the documented scale types (linear, log, pow, sqrt, symlog, sequential, band, point,
+          bar, rect, and rule) with field, value, and datum forms, quantitative, nominal, ordinal, and
+          temporal types, and the documented scale types (linear, log, pow, sqrt, symlog, time, utc,
+          sequential, band, point,
           ordinal, quantile, quantize, threshold, and bin-ordinal) with their documented properties - and
           shall draw each supported construct without reporting it.
         tags: [system]
@@ -240,10 +244,11 @@ sections:
           type inference to delimited text unless format.parse is "auto" (so an absent or null parse keeps
           every cell a string, while quantitative encodings still coerce numeric text when they are
           drawn), converting only the fields that format.parse names to number, boolean, date, or string,
-          and reading ISO 8601 dates in UTC independently of the host - shall make a value that an
+          reading a date by the JavaScript Date.parse rules (ISO 8601 and the documented legacy forms)
+          independently of the host, applying a custom d3 date format of a parse entry, and parsing the
+          fields that the specification uses as dates implicitly - shall make a value that an
           explicit conversion cannot read null with a located vl-data-parse-failed warning per field, and
-          shall report a custom date format as the unsupported vl-data-parse-date-format while leaving the
-          field as read.
+          shall no longer report a custom date format (the identifier vl-data-parse-date-format is retired).
         tags: [system]
         justification: |
           Scales, sorting, and labels depend on the type of a value, identifiers such as postal codes must
@@ -257,7 +262,7 @@ sections:
           - CanvasNetVegaLite_SystemIntegration_Data_ParseFailuresAreDeliveredAsWarnings
           - CanvasNetVegaLite_SystemIntegration_Data_DefaultDelimitedTextPreservesTextAndQuantitativeRenderCoerces
           - CanvasNetVegaLite_SystemIntegration_Render_FileBackedChartsMatchTheInlineChart
-          - FeatureCatalog_Visit_CustomDateFormatReportsStableIdentifier
+          - FeatureCatalog_Visit_CustomDateFormatIsSupportedAndReportsNothing
 
       - id: CanvasNetVegaLite-NamedDataAndSequences
         title: >-
@@ -437,7 +442,8 @@ sections:
       - id: CanvasNetVegaLite-UtcDefault
         title: >-
           The library shall use UTC as the default time zone, independent of the host's local time zone,
-          and shall let the caller choose another time zone through the render options.
+          and shall let the caller choose another time zone through the render options, which then
+          decides every local date computation of the chart (see the TimeZone requirement).
         tags: [system]
         justification: |
           Date handling that depended on the local time zone would make a chart differ between the
@@ -471,7 +477,9 @@ sections:
         title: >-
           The library shall generate axis ticks and format quantitative labels with its own C# ports of
           the d3-array tick, tick-step, and nice algorithms and the d3-format number-formatting
-          algorithm, producing the same values as the documented algorithms, culture-independently, and
+          algorithm, generate the ticks of time axes and format dates with its own ports of the d3-time,
+          d3-scale time, and d3-time-format algorithms, producing the same values as the documented
+          algorithms, culture-independently, and
           shall distribute the BSD-3-Clause (Vega-Lite and Vega) and ISC (d3) notices of the ported
           behavior with the package.
         tags: [system]
@@ -482,10 +490,14 @@ sections:
         children:
           - CanvasNetVegaLite-Scales-Ticks
           - CanvasNetVegaLite-Scales-Formatting
+          - CanvasNetVegaLite-Scales-TimeTicks
+          - CanvasNetVegaLite-Data-TimeFormatting
         tests:
           - Ticks_Ticks_LinearRangeMatchesHandDerivedExpectedVector
           - NumberFormat_Format_QuantitativeLabelsMatchHandDerivedExpectedVector
           - AxisBuilder_Build_LinearAxisUsesExpectedTickValuesAndLabels
+          - Ticks_TimeTickInterval_FollowsD3Table
+          - TimeFormat_Format_EveryDirective_Utc
 
       - id: CanvasNetVegaLite-ColorSchemes
         title: >-
@@ -962,3 +974,264 @@ sections:
           - CanvasNetVegaLite_SystemIntegration_Parameters_InvalidDefinitionsFailWhenTheDocumentIsOpened
           - CanvasNetVegaLite_SystemIntegration_Diagnostics_ExpressionReportsAndStrictMode
           - CanvasNetVegaLite_SystemIntegration_Deferred_FeaturesAreStillReported
+
+      - id: CanvasNetVegaLite-TimeZone
+        title: >-
+          The library shall compute every local date of a chart - the local time units, the parsing of a
+          date-time without an offset, the time ticks and nice domains, the labels, and the date functions
+          of expressions - in the one time zone chosen through the TimeZone render option (UTC when none
+          is chosen), never in the time zone, culture, or clock of the host, taking the offset of the zone
+          at each instant from its own rules (a fixed-offset zone exactly), reading a wall time that
+          occurs twice as the earlier instant and one that never occurs as the wall time shifted by the
+          offset before the gap, treating a day as 23, 24, or 25 hours as the zone says, and leaving a
+          utc time unit, a utc scale, and a utc function independent of the zone.
+        tags: [system]
+        justification: |
+          A chart must not differ between the machines that render it, and a chart of local days must follow
+          the zone its author chose, including across a daylight saving change.
+        children:
+          - CanvasNetVegaLite-Data-TimeCalendar
+          - CanvasNetVegaLite-VegaLiteDocument-TimeZone
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Time_TimeZoneOptionShiftsTimeUnitBoundaries
+          - CanvasNetVegaLite_SystemIntegration_Time_DstDayIsNot24Hours
+          - CanvasNetVegaLite_SystemIntegration_Time_UtcScaleIgnoresTheZoneOption
+          - CanvasNetVegaLite_SystemIntegration_Time_HostZoneDoesNotMatter
+          - TimeCalendarZone_UsLike_Gap_0230BecomesThe0330Instant
+
+      - id: CanvasNetVegaLite-DateParsing
+        title: >-
+          The library shall read the dates of a data source as Vega does - with the JavaScript Date.parse
+          rules (a text with only a date as UTC, a date-time without an offset in the chart's time
+          zone, the ISO 8601 forms and a documented subset of the legacy forms, a text longer than 128
+          characters being no date), with the d3 time formats of the date and utc parse entries, with the
+          implicit date parse of the fields that the specification uses as temporal, with a time unit, or in
+          a time predicate, and with a date that cannot be read becoming null and a located
+          vl-data-parse-failed warning - the cost of one cell being bounded whatever its length.
+        tags: [system]
+        justification: |
+          Time charts start with dates in files; reading them as Vega does is what makes the same data and
+          specification draw the same chart.
+        children:
+          - CanvasNetVegaLite-Data-DateParsing
+          - CanvasNetVegaLite-Data-Parsing
+          - CanvasNetVegaLite-Transforms-TimeUnits
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Time_CustomDateParseDirectiveReadsDayMonthYear
+          - CanvasNetVegaLite_SystemIntegration_Time_ImplicitParseOfTemporalStrings
+          - JsDateParser_Iso_DateOnly_IsUtc
+          - TimeFormatParse_DayMonthYear
+          - ParseDirectives_Implicit_AppliesToTemporalFieldsOnly
+
+      - id: CanvasNetVegaLite-TimeUnits
+        title: >-
+          The library shall group and draw by a time unit - the single and multi-part time units of
+          Vega-Lite with the utc prefix and the object form with step and maxbins, in an encoding, in the
+          timeUnit transform, in a predicate, in a sort array, and in a domain - flooring each date to the
+          start of its unit in the time zone of the chart (the year 2012 for a unit without a year), giving
+          each row the start and the end of its unit, naming the derived fields and titles as Vega-Lite
+          does, reading the datetime objects of Vega-Lite, and filtering by a time unit or a datetime
+          object, without reporting any of them as unsupported (except the binned units, which are
+          reported).
+        tags: [system]
+        justification: |
+          A count per month, per weekday, or per hour is the most common time chart, and the filter by a
+          month or a date range its most common selection.
+        children:
+          - CanvasNetVegaLite-Data-TimeUnits
+          - CanvasNetVegaLite-Transforms-TimeUnits
+          - CanvasNetVegaLite-Transforms-TimePredicates
+          - CanvasNetVegaLite-SpecModel-TimeValidation
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Time_YearMonthBarsSpanTheirMonthsAndLabelTheMonths
+          - CanvasNetVegaLite_SystemIntegration_Time_FilterByTimeUnitAndDatetimeObject
+          - CanvasNetVegaLite_SystemIntegration_Time_OrdinalTimeUnitUsesABandScale
+          - TimeUnitSpec_Floor_UsesReferenceYear2012_ForUnitsWithoutYear
+          - TimeUnitTransform_YearMonth_StartAndEnd
+
+      - id: CanvasNetVegaLite-TemporalScales
+        title: >-
+          The library shall draw a temporal field with a time scale (a UTC scale for a utc time unit) or,
+          for a nominal or ordinal field with a time unit, a band, point, or ordinal scale over the unit
+          starts, with the domain of the dates (the end of a bar of a time unit included), explicit
+          domains of timestamps, date texts, and datetime objects, a nice domain only when asked, and a
+          continuous color scale for a temporal color, and shall draw the ticks of a time scale at the
+          boundaries of calendar units of the chart's time zone.
+        tags: [system]
+        justification: |
+          A time axis that placed dates linearly in the wrong zone, or ticked between months, would
+          misrepresent the data.
+        children:
+          - CanvasNetVegaLite-Scales-TimeScales
+          - CanvasNetVegaLite-Scales-TemporalColors
+          - CanvasNetVegaLite-Scales-TimeTicks
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Time_PointsSitAtTheirDatesOnAMultiFormatAxis
+          - CanvasNetVegaLite_SystemIntegration_Time_TemporalColorLegendShowsDates
+          - VegaLiteTemporalScale_Points_SitAtTheirDates
+          - ScaleModel_Time_MapsDatesLinearly
+          - Ticks_TimeTicks_Month_Boundaries_InAZone
+
+      - id: CanvasNetVegaLite-TimeAxes
+        title: >-
+          The library shall draw time axes as Vega-Lite does - the d3 time ticks, the default tick count and
+          minimum step of a time unit, an interval or an interval and a step as the tick count, explicit
+          values as dates, the default multi-format labels (or the d3 time format, the multi-format
+          overrides, or the default format of the time unit), the grid, the label flush, the label overlap,
+          and the title of a time unit field - and shall report no format type other than number, time,
+          and utc.
+        tags: [system]
+        justification: |
+          The axis is how a reader reads the dates of a time chart; its ticks and labels must be those of
+          Vega-Lite.
+        children:
+          - CanvasNetVegaLite-Guides-TimeAxes
+          - CanvasNetVegaLite-Data-TimeFormatting
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Time_PointsSitAtTheirDatesOnAMultiFormatAxis
+          - CanvasNetVegaLite_SystemIntegration_Time_YearMonthBarsSpanTheirMonthsAndLabelTheMonths
+          - AxisBuilder_Time_DefaultLabelsAreMultiFormat
+          - AxisBuilder_Time_YearMonthLabelsUseTheUnitSpecifier
+
+      - id: CanvasNetVegaLite-TemporalLegends
+        title: >-
+          The library shall draw the legend of a temporal field - the gradient of a temporal color with its
+          labels at time ticks, the symbols of a size or opacity on a time scale, and the symbols of an
+          ordinal time unit field - labeling the dates with the legend format, the default format of the
+          time unit, or the time format of the configuration, in the chart's time zone.
+        tags: [system]
+        justification: |
+          A legend of dates must say which dates each color or size stands for.
+        children:
+          - CanvasNetVegaLite-Guides-TemporalLegends
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Time_TemporalColorLegendShowsDates
+          - LegendBuilder_Time_TemporalGradient_LabelsUseConfigTimeFormat
+
+      - id: CanvasNetVegaLite-TimeUnitBands
+        title: >-
+          The library shall draw a bar or rect of a time unit over its whole unit in the chart's time zone
+          (so that a bar of a day that has 23 hours is a day wide), reduced by the band size and the bar
+          spacing, and a point, a tick, or a mark with a band position at the point of its unit that the
+          band position names.
+        tags: [system]
+        justification: |
+          A bar over a month must cover the month, and a point must sit where the axis says it is.
+        children:
+          - CanvasNetVegaLite-Marks-TimeUnitBands
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Time_YearMonthBarsSpanTheirMonthsAndLabelTheMonths
+          - CanvasNetVegaLite_SystemIntegration_Time_DstDayIsNot24Hours
+          - CanvasNetVegaLite_SystemIntegration_Time_OrdinalTimeUnitUsesABandScale
+          - MarkBuilder_Time_YearMonthBars_SpanTheirMonths
+
+      - id: CanvasNetVegaLite-TimeExpressions
+        title: >-
+          The library shall provide the date and time functions of the Vega expression language - the date
+          constructors and parts (local and utc), the week, quarter, and day-of-year numbers, the calendar
+          offset and sequence, the d3 time format and parse functions, the time unit specifier, and the
+          English month and day names, in the chart's time zone - but not the clock (now stays reported as
+          unsupported), so that an expression gives the same dates as the data and the scales.
+        tags: [system]
+        justification: |
+          Calculated fields, filters, and predicates build and compare dates; they must agree with the rest
+          of the chart, and a clock would make a chart differ between runs.
+        children:
+          - CanvasNetVegaLite-Expressions-Functions
+          - CanvasNetVegaLite-Expressions-ExpressionEvaluator-Calendar
+        tests:
+          - ExpressionFunctions_Datetime_Components_AreALocalDate
+          - ExpressionFunctions_Getters_AtTheAnchorInstant
+          - ExpressionFunctions_TimeFormat_FormatsWithTheSpecifier
+          - ExpressionFunctions_Now_StaysUnsupported
+          - CanvasNetVegaLite_SystemIntegration_Time_FilterByTimeUnitAndDatetimeObject
+
+      - id: CanvasNetVegaLite-TimeFormatting
+        title: >-
+          The library shall format a date with the d3-time-format directives of the English locale and the
+          Vega multi-format, with invariant digits and names whatever the host culture is, the text Invalid
+          Date for an invalid date, and a located error when a label would exceed the string-length limit.
+        tags: [system]
+        justification: |
+          Labels must read like Vega-Lite's, be identical on every machine, and be bounded.
+        children:
+          - CanvasNetVegaLite-Data-TimeFormatting
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Time_CurrentCultureDoesNotChangeTheOutput
+          - TimeFormat_Format_EveryDirective_Utc
+          - TimeFormat_Format_IgnoresTheCurrentCulture
+          - TimeFormat_Format_TooLong_Throws
+
+      - id: CanvasNetVegaLite-TimeUnsupportedFeatures
+        title: >-
+          The library shall report, with stable identifiers, the parts of the time phase it does not draw
+          (a binned time unit, the maxbins form in a predicate, a band position other than one half on a
+          bar or rect of a time unit, a datetime object as a datum, and a custom format type), shall warn
+          about the week and day-of-year parts of a predicate unit, a time interval on a scale that is not a
+          time scale, a zero property of a time scale, and a scale type that a temporal field cannot use, and
+          shall no longer report the temporal type, the time unit, the timeUnit transform, the time scale
+          types, the time unit and datetime object tests, and a custom date format.
+        tags: [system]
+        justification: |
+          A time construct that is not drawn must be named where it is written, and one that is drawn must not
+          make every chart noisy.
+        children:
+          - CanvasNetVegaLite-SpecModel-FeatureReporting
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Time_StrictModeReportsBinnedTimeUnitAndRectBandPosition
+          - FeatureCatalog_Visit_TimeIdsAreDeliveredAndStrictModeThrows
+          - FeatureCatalog_Visit_BinnedTimeUnitIsReportedAtTheValue
+          - FeatureCatalog_Visit_TemporalFieldsAndTimeUnitsAreSupported
+
+      - id: CanvasNetVegaLite-TimeLimits
+        title: >-
+          The library shall bound the work of the time phase - the characters scanned per date text, the
+          ticks of a time axis, the items of a date sequence, the length of every label and formatted text
+          (and of all the labels of one guide together), the length and expansion of a time format, the
+          fields and cells of a time unit transform, the evaluation steps of date functions, and the rows
+          converted between two checks of the cancellation token - failing closed with a located exception
+          when a limit is exceeded and stopping at a cancellation, accepting exactly the limit.
+        tags: [system, security]
+        justification: |
+          Dates come from untrusted data and specifications; a long text, a tiny interval over a long span,
+          or a long format must not be able to exhaust memory or time.
+        children:
+          - CanvasNetVegaLite-Data-TimeCalendar-IntervalRange
+          - CanvasNetVegaLite-Data-TimeFormat-LengthLimit
+          - CanvasNetVegaLite-Data-TimeFormat-SpecifierLimit
+          - CanvasNetVegaLite-Data-TimeFormat-ParseTotality
+          - CanvasNetVegaLite-Data-TimeFormat-JsDateParseLimits
+          - CanvasNetVegaLite-Data-DelimitedTextParser-Polling
+          - CanvasNetVegaLite-Transforms-TimeUnitTransform-Limits
+          - CanvasNetVegaLite-Expressions-ExpressionFunctions-TimeLimits
+          - CanvasNetVegaLite-Guides-TimeLabels-Limits
+          - CanvasNetVegaLite-SpecModel-SpecParser-TimeFormatLimits
+          - CanvasNetVegaLite-Scales-Ticks-TimeTicks
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Time_Limits_TickCountAndStringLimitsAreEnforced
+          - TimeFormat_Compile_SpecifierLength_IsLimited
+          - TimeFormatParse_LongInputFailsFast
+          - JsDateParser_Rejects_OverLongText
+          - ParseDirectives_Apply_PollsCancellationEveryBatch
+          - TimeUnitTransform_FieldLimit_IsCheckedBeforeAllocation
+          - ExpressionFunctions_Sequence_IsBoundedByTheScaleDomainLimit
+          - Ticks_TimeTicks_MaxTicksExceeded_Throws
+
+      - id: CanvasNetVegaLite-TimeDeterminism
+        title: >-
+          The library shall give the same image and the same reports for a time chart on every platform, in
+          every culture and host time zone, and for repeated and concurrent renders, reading no clock and no
+          host zone, and with only the English locale and invariant ASCII digits in its text.
+        tags: [system]
+        justification: |
+          Reproducibility is required for golden tests and caching, and a date is the data most easily made
+          dependent on the machine.
+        children:
+          - CanvasNetVegaLite-Data-TimeCalendar-Zones
+          - CanvasNetVegaLite-Data-TimeFormat-EnglishLocaleAndCulture
+          - CanvasNetVegaLite-Transforms-TimeUnitTransform-Determinism
+          - CanvasNetVegaLite-Expressions-ExpressionFunctions-TimeDeterminism
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Time_Determinism_RepeatedAndConcurrentRendersAreByteIdentical
+          - CanvasNetVegaLite_SystemIntegration_Time_CurrentCultureDoesNotChangeTheOutput
+          - CanvasNetVegaLite_SystemIntegration_Time_HostZoneDoesNotMatter

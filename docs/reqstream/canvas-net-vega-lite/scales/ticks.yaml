@@ -3,9 +3,10 @@
 #
 # These requirements describe the design-level behavior of the Ticks unit of the Scales subsystem (internal
 # namespace DemaConsulting.CanvasNet.VegaLite.Scales): the C# port of the d3-array ticks, tickStep, and
-# tickIncrement algorithms and the d3-scale linear nice algorithm, with the Vega-Lite default tick count and
-# the Vega tick-count reduction. The port is an own implementation of the algorithms of d3-array 3.2.4 and
-# d3-scale 4.0.2 (ISC license); the attribution is in src/DemaConsulting.CanvasNet.VegaLite/third-party/ and
+# tickIncrement algorithms and the d3-scale linear nice algorithm, and (in Ticks.Time.cs) the d3-time and d3-scale
+# time ticks and time nice algorithms over the TimeCalendar unit, with the Vega-Lite default tick count and
+# the Vega tick-count reduction. The port is an own implementation of the algorithms of d3-array 3.2.4, d3-time
+# 3.1.0, and d3-scale 4.0.2 (ISC license); the attribution is in src/DemaConsulting.CanvasNet.VegaLite/third-party/ and
 # the expected values in the tests are derived by hand, not copied from the d3 tests. See
 # docs/verification/canvas-net-vega-lite/scales/ticks.md for the test-evidence mapping.
 
@@ -49,6 +50,59 @@ sections:
                 tests:
                   - Ticks_DefaultAxisTickCountAndMinStep_FollowVegaLite
                   - Ticks_ResolveTickCount_ReducesCountToRespectTheMinimumStep
+
+              - id: CanvasNetVegaLite-Scales-Ticks-TimeTicks
+                title: >-
+                  The Ticks unit shall generate the ticks of a time or UTC scale with the d3-scale time tick
+                  algorithm - the interval table of seconds, minutes, hours, days, weeks, months, and years
+                  (1, 5, 15, and 30 seconds and minutes; 1, 3, 6, and 12 hours; 1 and 2 days; 1 week; 1 and 3
+                  months; 1 year), the interval whose duration is nearest the target by the d3 rule, the year
+                  step by the tick step and the millisecond step below the table, the stop inclusive, a
+                  reversed domain reversed, the boundaries of the zone (local midnights, local months), the
+                  two-day ticks of a UTC scale counted from the epoch, and an explicit interval name or
+                  interval and step as the tick count - returning the single instant of a degenerate domain
+                  and failing with a VegaLiteRenderException instead of allocating when the ticks would
+                  exceed the tick limit, observing the cancellation token while it lists them.
+                justification: |
+                  The ticks are what a time axis shows and what the grid and the labels hang on; they must be
+                  the d3 ticks, in the calendar of the chart, and bounded.
+                tests:
+                  - Ticks_TimeTickInterval_FollowsD3Table
+                  - Ticks_TimeTicks_TwoDays_UtcScaleCountsFromTheEpoch
+                  - Ticks_TimeTicks_InclusiveStop_Utc
+                  - Ticks_TimeTicks_Reversed
+                  - Ticks_TimeTicks_Month_Boundaries_InAZone
+                  - Ticks_TimeTicks_ExplicitInterval_Week_Step2
+                  - Ticks_TimeTickRequest_TryFromInterval_ReadsNames
+                  - Ticks_TimeTicks_DegenerateRequestsAndDomains
+                  - Ticks_TimeTicks_MaxTicksExceeded_Throws
+                  - Ticks_TimeTicks_PollCancellation
+                  - Ticks_TimeTicks_InstantsOverload_MatchesTheModelOverload
+                  - Ticks_Time_Culture_Invariant
+
+              - id: CanvasNetVegaLite-Scales-Ticks-TimeNice
+                title: >-
+                  The Ticks unit shall expand a time or UTC domain to nice boundaries with the d3-scale time
+                  nice algorithm (the floor and the ceiling of the interval of the tick count or of an
+                  explicit interval, in the zone of the calendar, for a reversed domain too), leaving a
+                  domain unchanged when it has no interval or an end would leave the supported years.
+                justification: |
+                  A nice time domain ends on a boundary a reader recognizes, such as a week or a month.
+                tests:
+                  - Ticks_TimeNice_WeekExample
+                  - Ticks_TimeNice_ExplicitMonth
+                  - Ticks_TimeNice_InAZone
+
+              - id: CanvasNetVegaLite-Scales-Ticks-TimeCounts
+                title: >-
+                  The Ticks unit shall reduce a numeric tick count for a minimum step as Vega does and, for a
+                  temporal scale, shall skip the tick step shrink loop that applies to numbers.
+                justification: |
+                  The minimum step of a time unit keeps a month axis from ticking between months; the shrink
+                  loop of numbers does not apply to dates.
+                tests:
+                  - Ticks_ResolveTickCount_Temporal_SkipsTickStepLoop
+                  - Ticks_ResolveTickCount_MinStep_CapsCount
 
               - id: CanvasNetVegaLite-Scales-Ticks-Limits
                 title: >-

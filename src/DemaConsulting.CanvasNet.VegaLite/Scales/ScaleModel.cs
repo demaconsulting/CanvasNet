@@ -1,4 +1,5 @@
 // Portions derived from d3-scale (ISC, Mike Bostock) and Vega (BSD-3-Clause); see third-party/README.md
+// Portions derived from d3-time (ISC), d3-time-format (ISC), d3-scale (ISC) and Vega (BSD-3-Clause); see third-party/README.md
 using DemaConsulting.CanvasNet.VegaLite.Data;
 using DemaConsulting.CanvasNet.VegaLite.Transforms;
 
@@ -38,6 +39,12 @@ internal enum ScaleKind
 
     /// <summary>A bin-ordinal scale: the number is placed in the bin between two edges and the bin has one value of a discrete range (Vega's <c>scaleBinOrdinal</c>).</summary>
     BinOrdinal,
+
+    /// <summary>A time scale: a linear scale over instants (milliseconds since the epoch) whose ticks and <c>nice</c> follow the calendar of a time zone (d3's <c>scaleTime</c>).</summary>
+    Time,
+
+    /// <summary>A UTC time scale: like <see cref="Time"/> with the UTC calendar (d3's <c>scaleUtc</c>).</summary>
+    Utc,
 }
 
 /// <summary>
@@ -324,6 +331,10 @@ internal sealed class ScaleTransform
 ///         index of the value (<see cref="MapIndex"/>) for outputs that are neither, such as dash patterns.
 ///     </para>
 ///     <para>
+///         A time scale (<see cref="ScaleKind.Time"/>) and a UTC scale (<see cref="ScaleKind.Utc"/>) are d3's <c>scaleTime</c> and <c>scaleUtc</c>: the same
+///         linear map over milliseconds since the epoch (see <see cref="CreateTime"/>), with the <see cref="Calendar"/> that their ticks and <c>nice</c> follow.
+///     </para>
+///     <para>
 ///         A linear, sequential or diverging scale can carry a <see cref="ScaleTransform"/>: with the logarithm (<c>scaleLog</c>,
 ///         <c>scaleSequentialLog</c>), the signed power (<c>scalePow</c>, <c>scaleSqrt</c>) or the symmetric log (<c>scaleSymlog</c>) the map
 ///         from the domain to the range is linear over the transformed domain, as in d3's <c>transformer</c>; <see cref="Fraction"/> gives
@@ -420,6 +431,14 @@ internal sealed class ScaleModel
 
     /// <summary>Gets the lower clamp limit of a linear scale.</summary>
     private double ClampLow { get; init; }
+
+    /// <summary>Gets the calendar of a time or UTC scale (its ticks and <c>nice</c> follow it), or null for the other kinds.</summary>
+    public TimeCalendar? Calendar { get; private init; }
+
+    /// <summary>
+    ///     Gets a value indicating whether the scale maps numbers linearly: a linear scale, or a time or UTC scale (which maps milliseconds the same way).
+    /// </summary>
+    public bool IsLinearLike => Kind is ScaleKind.Linear or ScaleKind.Time or ScaleKind.Utc;
 
     /// <summary>Gets the upper clamp limit of a linear scale.</summary>
     private double ClampHigh { get; init; }
@@ -536,7 +555,51 @@ internal sealed class ScaleModel
     /// <returns>The scale.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="domain"/> or <paramref name="range"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when the domain or the range has fewer than two entries.</exception>
-    public static ScaleModel CreateLinear(double[] domain, double[] range, bool clamp = false, bool round = false, ScaleTransform? transform = null)
+    public static ScaleModel CreateLinear(double[] domain, double[] range, bool clamp = false, bool round = false, ScaleTransform? transform = null) =>
+        CreateContinuous(ScaleKind.Linear, domain, range, clamp, round, transform, null);
+
+    /// <summary>
+    ///     Creates a time scale (d3's <c>scaleTime</c>) or a UTC time scale (<c>scaleUtc</c>) from a domain and a range of instants.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         The map is the piecewise linear map of <see cref="CreateLinear(double[], double[], bool, bool, ScaleTransform)"/> over milliseconds since the
+    ///         epoch (d3's <c>scaleTime</c> is a continuous scale whose domain is coerced to numbers), so a domain and a range of any length
+    ///         (at least two entries each), a descending domain, <paramref name="clamp"/> and <paramref name="round"/> behave exactly as for a linear scale. There
+    ///         is no zero rule and no transform. The model keeps the calendar that <see cref="Ticks"/> needs for its ticks and its <c>nice</c> boundaries.
+    ///     </para>
+    ///     <para>
+    ///         <see cref="Invert(double)"/> gives milliseconds since the epoch (the number, not a date), and <see cref="Map(DataValue)"/> reads a date or
+    ///         any value that reads as a number as milliseconds.
+    ///     </para>
+    /// </remarks>
+    /// <param name="domain">The domain in milliseconds since the epoch: at least two numbers.</param>
+    /// <param name="range">The range: at least two numbers.</param>
+    /// <param name="clamp">Whether values outside the domain are clamped to its ends.</param>
+    /// <param name="round">Whether results are rounded to whole numbers.</param>
+    /// <param name="calendar">The calendar of the ticks and of <c>nice</c> (the zone of the chart for a time scale, UTC for a UTC scale).</param>
+    /// <param name="utc">Whether the scale is a UTC scale (<see cref="ScaleKind.Utc"/>) rather than a time scale (<see cref="ScaleKind.Time"/>).</param>
+    /// <returns>The scale.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="domain"/>, <paramref name="range"/> or <paramref name="calendar"/> is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when the domain or the range has fewer than two entries.</exception>
+    public static ScaleModel CreateTime(double[] domain, double[] range, bool clamp, bool round, TimeCalendar calendar, bool utc)
+    {
+        ArgumentNullException.ThrowIfNull(calendar);
+        return CreateContinuous(utc ? ScaleKind.Utc : ScaleKind.Time, domain, range, clamp, round, null, calendar);
+    }
+
+    /// <summary>
+    ///     Builds a linear, time or UTC scale.
+    /// </summary>
+    /// <param name="kind">The kind: linear, time or UTC.</param>
+    /// <param name="domain">The domain: at least two numbers.</param>
+    /// <param name="range">The range: at least two numbers.</param>
+    /// <param name="clamp">Whether values outside the domain are clamped to its ends.</param>
+    /// <param name="round">Whether results are rounded to whole numbers.</param>
+    /// <param name="transform">The transform of a log, pow, sqrt or symlog scale; null for none.</param>
+    /// <param name="calendar">The calendar of a time or UTC scale, or null.</param>
+    /// <returns>The scale.</returns>
+    private static ScaleModel CreateContinuous(ScaleKind kind, double[] domain, double[] range, bool clamp, bool round, ScaleTransform? transform, TimeCalendar? calendar)
     {
         ArgumentNullException.ThrowIfNull(domain);
         ArgumentNullException.ThrowIfNull(range);
@@ -556,8 +619,9 @@ internal sealed class ScaleModel
         // The piecewise maps work on the transformed domain; a log scale that starts below zero is reflected (d3's rescale)
         var reflect = transform.Kind == ScaleTransformKind.Log && domain[0] < 0;
         var transformed = transform.IsLinear ? domain : [.. domain.Select(d => transform.Forward(d, reflect))];
-        return new ScaleModel(ScaleKind.Linear, [], default)
+        return new ScaleModel(kind, [], default)
         {
+            Calendar = calendar,
             DomainStart = domain[0],
             DomainEnd = domain[^1],
             RangeStart = range[0],
@@ -825,10 +889,10 @@ internal sealed class ScaleModel
     /// </remarks>
     /// <param name="value">The number.</param>
     /// <returns>The mapped number.</returns>
-    /// <exception cref="InvalidOperationException">Thrown when the scale is not linear.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when the scale is not linear, time or UTC.</exception>
     public double Map(double value)
     {
-        RequireKind(ScaleKind.Linear);
+        RequireLinearLike();
         if (double.IsNaN(value))
         {
             return double.NaN;
@@ -857,7 +921,7 @@ internal sealed class ScaleModel
     {
         switch (Kind)
         {
-            case ScaleKind.Linear:
+            case ScaleKind.Linear or ScaleKind.Time or ScaleKind.Utc:
                 if (!value.TryGetQuantitative(out var number))
                 {
                     return null;
@@ -1035,10 +1099,10 @@ internal sealed class ScaleModel
     /// </remarks>
     /// <param name="position">The number in the range.</param>
     /// <returns>The domain value.</returns>
-    /// <exception cref="InvalidOperationException">Thrown when the scale is not linear.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when the scale is not linear, time or UTC.</exception>
     public double Invert(double position)
     {
-        RequireKind(ScaleKind.Linear);
+        RequireLinearLike();
         if (double.IsNaN(position))
         {
             return double.NaN;
@@ -1250,6 +1314,18 @@ internal sealed class ScaleModel
             }
 
             return (_from[segment] * (1 - t)) + (_to[segment] * t);
+        }
+    }
+
+    /// <summary>
+    ///     Checks that the scale maps numbers linearly (linear, time or UTC).
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Thrown when the scale is of another kind.</exception>
+    private void RequireLinearLike()
+    {
+        if (!IsLinearLike)
+        {
+            throw new InvalidOperationException($"The operation needs a {ScaleKind.Linear}, {ScaleKind.Time} or {ScaleKind.Utc} scale, but this is a {Kind} scale.");
         }
     }
 

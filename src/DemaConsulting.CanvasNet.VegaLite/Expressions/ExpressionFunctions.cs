@@ -15,8 +15,10 @@ namespace DemaConsulting.CanvasNet.VegaLite.Expressions;
 ///         (<c>lower</c>, <c>upper</c>, <c>trim</c>, <c>substring</c>, <c>slice</c>, <c>indexof</c>, <c>lastindexof</c>,
 ///         <c>startswith</c>, <c>endswith</c>, <c>includes</c>, <c>replace</c>, <c>split</c>, <c>join</c>, <c>pad</c>,
 ///         <c>length</c>), the type and conversion functions (<c>isArray</c> to <c>toString</c>) and the regular expression
-///         functions (<c>regexp</c>, <c>test</c> and the regular expression form of <c>replace</c>). Date and time,
-///         formatting, color, geographic, scale, statistical and data-flow functions are deferred; an unlisted function is
+///         functions (<c>regexp</c>, <c>test</c> and the regular expression form of <c>replace</c>) and the date and time
+///         functions (<c>datetime</c>, <c>year</c>, <c>timeFormat</c>, <c>timeSequence</c> and their relatives, but not the
+///         clock function <c>now</c>). Number formatting, color, geographic, scale, statistical and data-flow functions are
+///         deferred; an unlisted function is
 ///         not an error of this unit: the parser reports it and the evaluator gives null.
 ///     </para>
 ///     <para>
@@ -83,6 +85,7 @@ internal static partial class ExpressionFunctions
         AddText(table);
         AddTypes(table);
         AddRegex(table);
+        AddTime(table);
         return table.ToFrozenDictionary(StringComparer.Ordinal);
     }
 

@@ -84,8 +84,22 @@ with the arithmetic stated in the tests (positions are rounded to nine decimals 
   from y(lo) to y(hi), one with `x` and `x2` from x(lo) to x(hi), and a rule with both ranges is the segment from (1, 2)
   to (5, 8), drawn from (20, 75) to (100, 0).
 
-Unit tests reside in `MarkBuilderTests.cs` within the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `Marks`
-folder; the shared helpers are in `ChartTestHelpers.cs`.
+Unit tests reside in `MarkBuilderTests.cs` and `MarkBuilderTimeTests.cs` within the
+`DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `Marks` folder; the shared helpers are in
+`ChartTestHelpers.cs`.
+
+The marks over time units (`MarkBuilderTimeTests`) are derived by hand from the days of the first quarter of 2024: three
+bars over January, February, and March (the unit `yearmonth`, one row each) have the domain January 1 to April 1, which
+is 31 + 29 + 31 = 91 days over 300 pixels, so a day is 300 / 91 = 3.2967 pixels and the scale maps January 1, February 1,
+March 1, and April 1 (days 0, 31, 60, and 91) to 0, 102.198, 197.802, and 300. A bar spans its unit with Vega-Lite's
+`rectBinPosition` rules: the bin spacing of 1 pixel takes half a pixel off each edge, and the half pixel of the axis
+translate shifts the whole bar, so the left edge is the start plus 0.5 plus 0.5 and the width is the days x 300 / 91
+minus 1: January starts at 1 and is 31 x 300 / 91 - 1 = 101.198 wide, February starts at 102.198 + 1 = 103.198 and is
+29 x 300 / 91 - 1 = 94.604 wide, and March starts at 197.802 + 1 = 198.802 and is 101.198 wide (its right edge is
+198.802 + 101.198 = 300, the end of the data rectangle). A rect has no spacing, so only the half pixel remains: the
+edges are 0.5, 102.698, and 198.302 with the widths 102.198, 95.604, and 102.198 (the days x 300 / 91). The test
+constants are the expressions `31 * PerDay` and so on, with `PerDay` = 300 / 91, which agree with this arithmetic (the
+figure 102.2527 in the plan is wrong; 31 / 91 x 300 = 102.198, and the tests are right).
 
 #### Test Environment
 
@@ -324,3 +338,51 @@ that a condition on a parameter changes nothing; that the color and opacity cond
 the size condition gives the thickness of a bar (4 or 9 pixels); that a limit of 4 steps fails naming
 `MaxEvaluationSteps` while a limit of 10,000 draws the three circles; that a canceled token stops the build; and that
 two builds give equal items.
+
+##### Bars And Rects Span Their Time Units
+
+**Tests**: `MarkBuilderTimeTests.MarkBuilder_Time_YearMonthBars_SpanTheirMonths`,
+`MarkBuilderTimeTests.MarkBuilder_Time_RectSpansItsUnitWithoutSpacing`,
+`MarkBuilderTimeTests.MarkBuilder_Time_TimeUnitBandSize_Half`,
+`MarkBuilderTimeTests.MarkBuilder_Time_WidthBand_IsTheRelativeSize`,
+`MarkBuilderTimeTests.MarkBuilder_Time_MinBandSize_WidensAThinUnit`,
+`MarkBuilderTimeTests.MarkBuilder_Time_RectBandPositionNotHalf_IsReported`
+
+Assert the derived bar geometry above (three bars at 1, 103.198, and 198.802 with the widths 101.198, 94.604, and
+101.198) and the rect geometry (0.5, 102.698, and 198.302 with the widths 102.198, 95.604, and 102.198). A
+`timeUnitBandSize` of 0.5 (on the mark, in `config.bar`, or in `config.mark` of the specification) covers the middle
+half of the unit, between the quarter and three quarters of the way, with the spacing taken off each edge, so January
+starts at 0.25 x 102.198 + 1 and is 0.5 x 102.198 - 1 wide, and a `width` of `{"band": 0.5}` is the same. A unit
+thinner than `minBandSize` is widened around its middle: the months of January 2000 and 2100 span 100 years and a month,
+which is 36,525 days (100 x 365 plus 25 leap days, 2000 to 2096) plus the 31 days of January 2100 = 36,556 days, so
+January is 31 / 36,556 x 300 = 0.254 pixels wide, below the `minBandSize` of 0.3, and the bar is exactly 0.3 pixels
+wide, centered on the middle of its month (15.5 days in) plus the half pixel of the translate. A
+`timeUnitBandPosition` other than 0.5 on a bar is reported with the feature id `vl-encoding-bandposition-rect` and
+changes no geometry.
+
+##### Points, Ticks, And Band Positions Of Time Units
+
+**Tests**: `MarkBuilderTimeTests.MarkBuilder_Time_PointsAtTheStartOfTheUnit`,
+`MarkBuilderTimeTests.MarkBuilder_Time_TicksAtTheMiddle`,
+`MarkBuilderTimeTests.MarkBuilder_Time_BandPositionOnAPoint`,
+`MarkBuilderTimeTests.MarkBuilder_Time_TimeScalePoints_AtTheirDates_AndBarsUseTheContinuousBandSize`
+
+Assert that points sit at the start of their unit with the domain of the starts only (January 1, February 1, and March
+1 are 0, 31, and 60 days apart, so the points are at 0, 31 / 60 x 300 = 155, and 300); that ticks sit in the middle of
+their unit over the domain that includes the ends (the middle of January is 15.5 days, of February 31 + 14.5 = 45.5
+days, and of March 60 + 15.5 = 75.5 days, times 300 / 91, each tick 1 pixel wide); that a `bandPosition` of 0.5, 0.25,
+and 0 on a point puts it 15.5, 45.5, and 75.5 days along, 7.75, 38.25, and 67.75 days along, or at the start (0, 31,
+and 60 days); and that on a time scale without a unit the three points of January 1, 6, and 11 are at 0, 150, and 300
+of 300 pixels (30 pixels a day) while a bar is 5 pixels wide (the continuous band size) on a scale padded by 5 pixels,
+so the bars are centered at 5, 150, and 295.
+
+##### Ordinal Time Units And Zones
+
+**Tests**: `MarkBuilderTimeTests.MarkBuilder_Time_OrdinalTimeUnit_BandsOfABandScale`,
+`MarkBuilderTimeTests.MarkBuilder_Time_Zone_BarsSpanLocalMonths`
+
+Assert that an ordinal field with a month unit has the bands of a band scale (step 300 / (3 - 0.1 + 0.1) = 100, bandwidth
+90, first band at (300 - 100 x 2.9) / 2 = 5, so 5, 105, and 205 with the width 90); and that in a +05:30 zone the
+instants 2024-02-29T20:00Z and 2024-03-31T20:00Z (01:30 on March 1 and April 1 locally) are in March and April, which
+span the 31 + 30 = 61 days of the domain (the widths 31 x 300 / 61 - 1 and 30 x 300 / 61 - 1), while in UTC they are
+February and March, 29 + 31 = 60 days (the widths 29 x 300 / 60 - 1 and 31 x 300 / 60 - 1).

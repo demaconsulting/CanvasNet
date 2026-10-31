@@ -57,12 +57,15 @@ sections:
                   each column of delimited text as a whole: a boolean column when every non-empty text is
                   true or false in any case, else a number column when every non-empty text is a finite
                   invariant integer, decimal, or exponent number, else a date column when every non-empty
-                  text is an ISO 8601 date or date-time, else text, with an empty cell null in a typed
-                  column, and shall read an ISO 8601 date or date-time as an instant in UTC, taking a
-                  value without a zone as UTC, independently of the host culture and time zone, and shall
-                  treat text beyond the supported date range (the years 1 to 9999 in whole milliseconds)
-                  as not a date: it keeps its column text under inference and, under an explicit date
-                  conversion, becomes null with the ordinary parse-failure warning, never an exception.
+                  text is a date by the JavaScript Date.parse rules of the TimeFormat unit (an ISO 8601
+                  date or date-time, or a documented legacy form such as Jan 2, 2006), else text, with an
+                  empty cell null in a typed column, and shall read a date as an instant by those rules
+                  (a date without a time, or with a zone, as in the text, and a date-time without a zone
+                  as a time of the time zone of the chart, UTC by default), independently of the host
+                  culture and time zone, and shall treat text beyond the supported date range (the years 1
+                  to 9999 in whole milliseconds) as not a date: it keeps its column text under inference
+                  and, under an explicit date conversion, becomes null with the ordinary parse-failure
+                  warning, never an exception.
                 justification: |
                   Charts built from CSV files that opt in need typed values to scale correctly, and the
                   result must not depend on the machine that renders them; Vega infers by column, so a mixed
@@ -70,9 +73,12 @@ sections:
                   cannot hold must not crash the render.
                 tests:
                   - DelimitedTextParser_Parse_AutoInfersBooleanNumberIsoDateAndString
-                  - DelimitedTextParser_Parse_IsoDatesAreRecognizedExactly
-                  - DelimitedTextParser_Parse_AutoOutOfRangeIsoDateStaysText
-                  - DelimitedTextParser_Parse_ExplicitOutOfRangeIsoDateBecomesNullAndWarning
+                  - DelimitedTextParser_Parse_DatesAreRecognizedByTheDateParseRules
+                  - DelimitedTextParser_Parse_AutoOutOfRangeDateStaysText
+                  - DelimitedTextParser_Parse_ExplicitOutOfRangeDateBecomesNullAndWarning
+                  - ParseDirectives_Auto_InfersLegacyDatesAndIso
+                  - ParseDirectives_Auto_PrefersNumbersOverDates
+                  - ParseDirectives_Auto_UsesTheCalendarZone
 
               - id: CanvasNetVegaLite-Data-DelimitedTextParser-ExplicitParse
                 title: >-
@@ -93,16 +99,73 @@ sections:
                   - DelimitedTextParser_Parse_NullKeepsTextAndExplicitMapCoercesFields
                   - DelimitedTextParser_Parse_ExplicitConversionsOfOtherKindsFollowTheDocumentedRules
 
-              - id: CanvasNetVegaLite-Data-DelimitedTextParser-CustomDateFormat
+              - id: CanvasNetVegaLite-Data-DelimitedTextParser-CustomDates
                 title: >-
-                  The DelimitedTextParser unit shall recognize a custom date format in a parse entry
-                  (date or utc with a format) without applying it, leaving the field as read and recording
-                  no conversion failure, so that the feature catalog can report it.
+                  The DelimitedTextParser unit shall apply a custom date format in a parse entry - date with
+                  a quoted d3 time format reads the text in the time zone of the chart and utc with a quoted
+                  format reads it in UTC, as the d3 timeParse and utcParse do - giving an instant, reading a
+                  number through its text (date:'%Y' with 2020), passing a date through, making a boolean,
+                  an empty cell, and a text that does not match null, recording one failure per field for the
+                  texts that do not match, and shall reject an entry whose format is not quoted as a
+                  specification error.
                 justification: |
-                  Time formats belong to the time phase; pretending to apply one would invent values, so the
-                  field is left as read and the gap is reported.
+                  Dates in files are rarely ISO 8601; the parse directives of Vega are the way to read
+                  them, and a failed conversion must be visible and never an invented date.
                 tests:
-                  - DelimitedTextParser_Parse_CustomDateFormatIsReportedAndNotApplied
+                  - DelimitedTextParser_Parse_CustomDateFormatIsApplied
+                  - ParseDirectives_CustomDate_ParsesDayMonthYear
+                  - ParseDirectives_CustomDate_Utc_IgnoresTheZone
+                  - ParseDirectives_CustomDate_FailureIsNullWithOneWarningPerField
+                  - ParseDirectives_CustomDate_NumberIsParsedThroughItsText
+                  - ParseDirectives_Date_NumberIsMillisecondsAndBooleanFails
+                  - SpecParser_Parse_WrongTypeReportsPointer
+
+              - id: CanvasNetVegaLite-Data-DelimitedTextParser-DateParse
+                title: >-
+                  The DelimitedTextParser unit shall convert a field named date in a parse entry with the
+                  JavaScript Date.parse rules of the TimeFormat unit, a date text without a zone being a
+                  time of the time zone of the chart (UTC by default) and a date text with only a date being
+                  UTC, a number being milliseconds, and an empty cell, a boolean, an over-long text (more than
+                  128 characters, which costs no more than a short one), and a text that is not a date
+                  being null with the parse-failure warning.
+                justification: |
+                  Vega converts a date field with Date.parse; a chart that does the same draws the same
+                  dates, and the zone is the one the caller chose.
+                tests:
+                  - ParseDirectives_Date_UsesTheCalendarZoneForDateTimesWithoutOffset
+                  - ParseDirectives_Date_DefaultCalendarIsUtc
+                  - ParseDirectives_Date_HugeCellIsNotADateAndCostsNothing
+                  - ParseDirectives_Date_IgnoresTheCurrentCulture
+
+              - id: CanvasNetVegaLite-Data-DelimitedTextParser-ImplicitDates
+                title: >-
+                  The DelimitedTextParser unit shall, when it is given the set of the fields that the
+                  specification uses as dates, convert those fields as dates unless the parse property names
+                  them (an explicit entry wins) or is null (which turns the implicit conversion off), and,
+                  for a parse of auto, additionally convert the implicit fields that inference left as
+                  text, making a text that is not a date null with the parse-failure warning.
+                justification: |
+                  Vega-Lite adds a date parse for a temporal field; an author does not repeat it, and an
+                  explicit parse must still be able to override it.
+                tests:
+                  - ParseDirectives_Implicit_AppliesToTemporalFieldsOnly
+                  - ParseDirectives_Implicit_ExplicitParseWins
+                  - ParseDirectives_Implicit_ParseNullSuppresses
+                  - ParseDirectives_Implicit_UnparsableTextIsNullWithTheParseWarning
+                  - ParseDirectives_Implicit_AutoParsesTheTextThatInferenceLeaves
+
+              - id: CanvasNetVegaLite-Data-DelimitedTextParser-Polling
+                title: >-
+                  The DelimitedTextParser unit shall observe the cancellation token before each converted
+                  field and at least every 4,096 rows inside the conversion of a column (the explicit
+                  conversions, the automatic conversion, and the inference), stopping with an
+                  OperationCanceledException.
+                justification: |
+                  A date conversion of a large column takes noticeable time, and a caller must be able to
+                  abandon it between the fields and inside a column.
+                tests:
+                  - ParseDirectives_Apply_PollsCancellationEveryBatch
+                  - ParseDirectives_Apply_StopsInsideAColumnWhenCanceledMidway
 
               - id: CanvasNetVegaLite-Data-DelimitedTextParser-Limits
                 title: >-

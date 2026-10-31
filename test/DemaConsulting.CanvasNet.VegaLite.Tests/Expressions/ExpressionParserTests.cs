@@ -202,7 +202,7 @@ public class ExpressionParserTests
     public void ExpressionParser_Parse_UnsupportedConstructs_AreCollectedInOrder()
     {
         // Arrange / Act
-        const string Text = "foo(1) + signal + event.x + item() + (a & b) + (c << 1) + ('k' in d) + datetime(2020, 1)";
+        const string Text = "foo(1) + signal + event.x + item() + (a & b) + (c << 1) + ('k' in d) + geoArea(2020, 1)";
         var compiled = Compile(Text);
 
         // Assert: kind, name and offset of every construct in order of appearance
@@ -215,7 +215,7 @@ public class ExpressionParserTests
                 new ExpressionConstruct(ExpressionConstructKind.Deferred, "bitwise-and", Text.IndexOf('&', StringComparison.Ordinal)),
                 new ExpressionConstruct(ExpressionConstructKind.Deferred, "shift-left", Text.IndexOf("<<", StringComparison.Ordinal)),
                 new ExpressionConstruct(ExpressionConstructKind.Deferred, "in", Text.IndexOf(" in ", StringComparison.Ordinal) + 1),
-                new ExpressionConstruct(ExpressionConstructKind.Function, "datetime", Text.IndexOf("datetime", StringComparison.Ordinal)),
+                new ExpressionConstruct(ExpressionConstructKind.Function, "geoArea", Text.IndexOf("geoArea", StringComparison.Ordinal)),
             ],
             compiled.UnsupportedConstructs);
         Assert.Equal(
@@ -227,7 +227,7 @@ public class ExpressionParserTests
                 "vl-expr-construct-bitwise-and",
                 "vl-expr-construct-shift-left",
                 "vl-expr-construct-in",
-                "vl-expr-function-datetime",
+                "vl-expr-function-geoarea",
             ],
             compiled.UnsupportedConstructs.Select(c => c.Identifier).ToArray());
 
@@ -242,11 +242,11 @@ public class ExpressionParserTests
     public void ExpressionParser_Parse_MixedCaseFunction_HasLowerCaseIdentifierAndOriginalName()
     {
         // Arrange / Act
-        var compiled = Compile("timeFormat(1, 'x') + TIMEFORMAT(2, 'y')");
+        var compiled = Compile("geoArea(1, 'x') + GEOAREA(2, 'y')");
 
         // Assert
-        Assert.Equal(["timeFormat", "TIMEFORMAT"], compiled.UnsupportedConstructs.Select(c => c.Name).ToArray());
-        Assert.All(compiled.UnsupportedConstructs, c => Assert.Equal("vl-expr-function-timeformat", c.Identifier));
+        Assert.Equal(["geoArea", "GEOAREA"], compiled.UnsupportedConstructs.Select(c => c.Name).ToArray());
+        Assert.All(compiled.UnsupportedConstructs, c => Assert.Equal("vl-expr-function-geoarea", c.Identifier));
     }
 
     /// <summary>

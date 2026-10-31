@@ -6,8 +6,10 @@ This document describes the subsystem-level verification strategy for the `Expre
 and datum files), and `ExpressionFunctions` (together with the function context and the regular-expression
 translation). The subsystem implements the supported subset of the Vega expression language: the parser compiles the
 text of an expression into an immutable postfix program, the evaluator runs the program for one row, one parameter
-environment, or no datum at all, and the function table holds the 57 whitelisted functions. It performs no input or
-output, reads no clock, and uses no random source.
+environment, or no datum at all, and the function table holds the 99 whitelisted functions (the math, text, type,
+regular-expression, and date and time functions). It performs no input or
+output, reads no clock (there is no `now`), and uses no random source; the date and time functions use the calendar of
+the evaluation, never the host's time zone.
 
 ### Verification Approach
 
@@ -73,7 +75,7 @@ runs constitutes a failure.
   `ExpressionFunctionsTests.ExpressionFunctions_Names_AreExactlyTheWhitelist`,
   `ExpressionFunctionsTests.ExpressionFunctions_Math_ExactValuesAndSpecialCases`,
   `ExpressionFunctionsTests.ExpressionFunctions_Text_FollowJavaScriptAndVega`,
-  `ExpressionEvaluatorTests.ExpressionEvaluator_Evaluate_SizeProportionalWork_IsCharged` — the calls of the 57 names
+  `ExpressionEvaluatorTests.ExpressionEvaluator_Evaluate_SizeProportionalWork_IsCharged` — the calls of the 99 names
   compile like any other call, run through the evaluator, and give the hand-derived values, while a call of any other
   name is an unsupported function, and the work of a function over a long text is charged to the same budget as the
   instructions (the instructions plus one step per 64 characters).
@@ -123,6 +125,24 @@ runs constitutes a failure.
   (set on dedicated worker threads, never on the test thread; including Turkish and Arabic) are those of the invariant
   culture, and a function that would need a clock or a random
   source is not in the table.
+- **Date And Time Functions Use The Calendar Of The Evaluation**:
+  `ExpressionFunctionsTimeTests.ExpressionFunctions_Datetime_Components_AreALocalDate`,
+  `ExpressionFunctionsTimeTests.ExpressionFunctions_Getters_LocalFormsFollowTheZone_UtcFormsDoNot`,
+  `ExpressionFunctionsTimeTests.ExpressionFunctions_Offset_MovesByCalendarUnits`,
+  `ExpressionFunctionsTimeTests.ExpressionFunctions_Sequence_IsBoundedByTheScaleDomainLimit`,
+  `ExpressionFunctionsTimeTests.ExpressionFunctions_TimeFormat_FormatsWithTheSpecifier`,
+  `ExpressionFunctionsTimeTests.ExpressionFunctions_Time_AreCultureInvariant`,
+  `ExpressionFunctionsTimeTests.ExpressionFunctions_Now_StaysUnsupported`,
+  `DataLoaderCalendarTests.ExpressionEvaluator_Constructor_ForwardsTheCalendar`,
+  `DataLoaderCalendarTests.DataLoader_Render_TimeZoneOptionReachesTheDataStage` — the calendar that the evaluator is
+  given reaches the context and from it every local date function: `datetime(2024, 1, 29, 12, 34, 56, 789)` is
+  1,709,210,096,789 ms (the hand derivation is in the _ExpressionFunctions Unit Verification Design_: 19,782 days x
+  86,400 s + 45,296 s, then x 1,000 + 789), at +05:30 the instant 2024-02-29T20:00Z has the wall time 01:30 on March 1
+  (day of year 61) while the UTC getters keep the 29th, a month offset of January 31 is March 2 in the leap year 2024,
+  a local day across the daylight-saving change of 2024-03-10 is 23 hours, the formats and the names do not depend on
+  the culture, and a sequence is bounded by `MaxScaleDomainSize` and the step budget; the zone of the render options
+  reaches the evaluator of a whole document (a date-time without an offset moves five hours at +05:00). `now` is not
+  in the table, so no function reads a clock.
 - **Cancellation**:
   `ExpressionEvaluatorTests.ExpressionEvaluator_Evaluate_CanceledBeforeStart_ThrowsOperationCanceled`,
   `ExpressionEvaluatorTests.ExpressionEvaluator_Evaluate_CancellationBetweenCheckPoints_StopsNextEvaluation`,

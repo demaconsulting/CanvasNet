@@ -12,10 +12,12 @@ is **internal**: the tree, the reports, and the configuration types are visible 
 the other subsystems, and, through `InternalsVisibleTo`, the test assembly. It contains three units:
 
 - **SpecParser** - the internal partial `SpecParser` (`SpecParser.cs`, `SpecParser.Validation.cs`,
-  `SpecParser.Transforms.cs`, and `SpecParser.Aggregates.cs`, with `ParameterGraph`), the tree types `SpecNode`,
+  `SpecParser.Transforms.cs`, `SpecParser.Aggregates.cs`, and `SpecParser.Time.cs`, with `ParameterGraph`), the tree
+  types `SpecNode`,
   `SpecNodeKind`, `NodePosition`, and
   `SpecTree` (`SpecNode.cs`), `SpecExpressions` (`SpecExpressions.cs`), and `SpecMetadata` and `SpecMarkEntry`
-  (`SpecMetadata.cs`); see _SpecParser Unit Design_ (`spec-model/spec-parser.md`)
+  (`SpecMetadata.cs`); `PredicateSource` (`PredicateSource.cs`) writes the field predicates, including the time
+  predicates, as expression source; see _SpecParser Unit Design_ (`spec-model/spec-parser.md`)
 - **FeatureCatalog** - the internal static `FeatureCatalog`, `FeatureReport`, and `FeatureReportKind`; see
   _FeatureCatalog Unit Design_ (`spec-model/feature-catalog.md`)
 - **ConfigResolver** - the internal static `ConfigResolver`, `ResolvedConfig`, `ConfigNode`, and `ConfigNodeKind`; see
@@ -39,7 +41,9 @@ The subsystem's namespace documentation is in `SpecModel/NamespaceDoc.cs`. Its b
 **Consumed**: the public `VegaLiteLimits`, `VegaLiteLocation`, and `VegaLiteSpecException` types of the
 `VegaLiteDocument` unit (limits to enforce, the location of every node and report, and the error type of a malformed
 specification), `ExpressionParser` and `CompiledExpression` of the `Expressions` subsystem (the compilation of the
-expressions and the constructs they collect), `FieldPath` of the `Data` subsystem, `AggregateMeasures` and `StackRules`
+expressions and the constructs they collect), `FieldPath`, `ParseDirectives`, `TimeUnitSpec`, `DateTimeObject`, and
+`JsDateParser` of the `Data` subsystem (field names, the `parse` entry rule, and the time unit, date-time object, and
+date text rules of the time validation), `AggregateMeasures` and `StackRules`
 of
 the `Transforms` subsystem (the operation names and the stack decision), and `ScaleResolver.InferOrient` of the `Scales`
 subsystem (so that the catalog reports `order` exactly when the plan will stack). The .NET base class

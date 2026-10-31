@@ -2,7 +2,7 @@
 # Software Unit Requirements for AxisBuilder
 #
 # These requirements describe the design-level behavior of the AxisBuilder unit of the Guides subsystem
-# (internal namespace DemaConsulting.CanvasNet.VegaLite.Guides): the axis guide of a linear, band, or point
+# (internal namespace DemaConsulting.CanvasNet.VegaLite.Guides): the axis guide of a linear, time, band, or point
 # position scale - grid, ticks, labels, domain line, and title - as scene items, with the extent that the
 # layout must reserve. The default and configuration rules follow Vega-Lite and Vega. See
 # docs/verification/canvas-net-vega-lite/guides/axis-builder.md for the test-evidence mapping.
@@ -121,3 +121,66 @@ sections:
                   - AxisBuilder_Build_LogAxisThinsOverlappingLabelsGreedilyByDefault
                   - AxisBuilder_Build_PowSqrtAndSymlogAxesUseOrdinaryTicksAtTransformedPositions
                   - AxisBuilder_Build_LogAxisEnforcesTheTickLimitAndCancellation
+
+              - id: CanvasNetVegaLite-Guides-AxisBuilder-TimeTicks
+                title: >-
+                  The AxisBuilder unit shall build the axis of a time or UTC scale with the d3 time ticks of
+                  the scale (the tick count as a number, an interval name, or an interval and a step, with
+                  the default count of the axis length divided by 40, rounded up, except Vega's ten for a field
+                  whose time unit is exactly a month, hours, a day, or a quarter, and with the duration of
+                  one step of the time unit as the minimum tick step), explicit values given as timestamps,
+                  date texts, or datetime objects, the ticks in the zone of the scale (a UTC scale in
+                  UTC), the labels of a field with a discrete (ordinal or nominal) time unit axis as
+                  dates, and a located VegaLiteRenderException when the ticks or the label text exceed the
+                  limits (a label, and the labels of the axis together, each at the string-length limit),
+                  observing the cancellation token.
+                justification: |
+                  The time axis is the axis of most time charts; its ticks must be the Vega-Lite ticks,
+                  in the zone the caller chose, and bounded.
+                tests:
+                  - AxisBuilder_Time_TickCountNumberObjectAndInterval
+                  - AxisBuilder_Time_TickCountDefaultMonthUnitUsesVegaDefault10
+                  - AxisBuilder_Time_TickMinStepFromTheUnit
+                  - AxisBuilder_Time_ValuesAcceptDatetimeObjects
+                  - AxisBuilder_Time_Zone_LabelsAndTicksUseLocalMidnights
+                  - AxisBuilder_Time_UtcScale_IgnoresZone
+                  - AxisBuilder_Time_DiscreteDateLabels_UseUnitSpecifier
+                  - AxisBuilder_Time_TooManyTicks_IsLocated
+                  - AxisBuilder_Time_LabelTooLong_IsLocated
+                  - AxisBuilder_Time_LabelsTogetherTooLong_IsLocated
+                  - AxisBuilder_Time_HostileFormatOnManyTicks_IsStoppedByTheAggregateCap
+                  - AxisBuilder_Time_Cancellation
+
+              - id: CanvasNetVegaLite-Guides-AxisBuilder-TimeLabels
+                title: >-
+                  The AxisBuilder unit shall label a time axis in the order of Vega-Lite through the
+                  TimeLabels unit: a format text is a d3 time format, a format object is a multi-format with
+                  overrides, a time unit gives its default specifier (a month as Mar, a year with a month as
+                  Mar 2024), and otherwise the axis uses the default multi-format and ignores the time
+                  format of the configuration, the format type number formatting the millisecond value and
+                  the format types time and utc forcing time labels (time in the time zone of the chart and
+                  utc in UTC, for a field that is not temporal too), and shall keep reporting a format type
+                  of another name, in every culture identically.
+                justification: |
+                  The labels are what a reader reads on the axis; they must read like Vega-Lite's and must
+                  not depend on the host culture.
+                tests:
+                  - AxisBuilder_Time_DefaultLabelsAreMultiFormat
+                  - AxisBuilder_Time_YearMonthLabelsUseTheUnitSpecifier
+                  - AxisBuilder_Time_FormatStringAndObject
+                  - AxisBuilder_Time_FormatTypeNumberAndTime
+                  - AxisBuilder_Time_FormatSpecifierLimits_AreSpecificationErrors
+                  - AxisBuilder_Time_Culture_Invariant
+                  - AxisBuilder_Time_Deterministic
+
+              - id: CanvasNetVegaLite-Guides-AxisBuilder-TimeDefaults
+                title: >-
+                  The AxisBuilder unit shall apply the Vega-Lite defaults of a time axis: a grid, label flush
+                  for a temporal x axis, the parity label overlap method for a temporal field and for a
+                  field with a time unit and no sort object, no rotation of the labels of a field with a time
+                  unit, and the axis configuration of the temporal axes (axisTemporal and axisXTemporal).
+                justification: |
+                  A time axis would be cluttered or clipped without the label rules of Vega-Lite.
+                tests:
+                  - AxisBuilder_Time_LabelFlushAndOverlapDefaults
+                  - AxisBuilder_Time_NoRotationDefaultForTimeUnitOrdinal

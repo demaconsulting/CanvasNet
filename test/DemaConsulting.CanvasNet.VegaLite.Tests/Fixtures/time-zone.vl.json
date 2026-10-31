@@ -1,0 +1,17 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "width": 400,
+  "height": 100,
+  "data": {
+    "values": [
+      { "stamp": "2024-03-01T12:00:00Z", "level": 1 },
+      { "stamp": "2024-03-05T20:00:00Z", "level": 2 },
+      { "stamp": "2024-03-11T12:00:00Z", "level": 3 }
+    ]
+  },
+  "mark": "point",
+  "encoding": {
+    "x": { "field": "stamp", "type": "temporal", "timeUnit": "yearmonthdate", "axis": { "tickCount": { "interval": "day", "step": 2 } } },
+    "y": { "field": "level", "type": "quantitative" }
+  }
+}

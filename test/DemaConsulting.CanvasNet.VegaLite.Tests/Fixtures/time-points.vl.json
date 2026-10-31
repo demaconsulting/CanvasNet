@@ -1,0 +1,17 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "width": 300,
+  "height": 120,
+  "data": {
+    "values": [
+      { "day": "2024-01-01", "reading": 2 },
+      { "day": "2024-01-06", "reading": 5 },
+      { "day": "2024-01-11", "reading": 3 }
+    ]
+  },
+  "mark": "point",
+  "encoding": {
+    "x": { "field": "day", "type": "temporal", "axis": { "tickCount": 5 } },
+    "y": { "field": "reading", "type": "quantitative" }
+  }
+}

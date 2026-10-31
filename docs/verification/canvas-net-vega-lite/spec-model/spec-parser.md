@@ -5,7 +5,10 @@ This document describes the unit-level verification strategy for the `SpecParser
 points over text and UTF-8 bytes, the structural validation in the partial `SpecParser.Validation.cs`, the compilation of
 expressions and the validation of transforms and parameters in `SpecParser.Transforms.cs`, the validation of the
 aggregating transforms and of the aggregate, bin, stack, and sort properties of an encoding in `SpecParser.Aggregates.cs`,
-and `ParseSchemaMajorVersion`), and the types of the sibling files that carry its result — `SpecNode`, `SpecNodeKind`,
+the validation of the time constructs and the compilation of the time predicates in `SpecParser.Time.cs`,
+and `ParseSchemaMajorVersion`), the `PredicateSource` class that writes a predicate as expression source (the plain
+comparisons and, since Phase 8, the time predicates), and the types of the sibling files that carry its result —
+`SpecNode`, `SpecNodeKind`,
 `NodePosition`, `SpecTree` (with `EnumerateViews`), `SpecMetadata` (the description of the document read from the
 tree), `SpecExpressions` (the compiled expressions of the tree, found by their string node), and `ParameterGraph` (the
 dependency order of the parameters).
@@ -35,8 +38,21 @@ Unit tests reside in `SpecParserTests.cs` (which also holds the tests of `SpecTr
 as they are the parser's result types) and `SpecParserAggregatesTests.cs` (the aggregating transforms and encoding
 properties) within the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the
 `SpecModel` folder, together with `SpecParserConditionTests.cs` (the conditions of a channel), `PredicateSourceTests.cs`
-(the predicates written as expressions), and `ChannelDefinitionsTests.cs`; the large-inline-data test is in
-`VegaLiteDocumentSpecModelTests.cs` in the same folder.
+(the predicates written as expressions), `SpecParserTimeTests.cs` (the validation of the time constructs),
+`PredicateSourceTimeTests.cs` (the time predicates written as expressions), and `ChannelDefinitionsTests.cs`; the
+large-inline-data test is in `VegaLiteDocumentSpecModelTests.cs` in the same folder. The time scenarios use the
+rules of the `Data` subsystem that the parser calls (`TimeUnitSpec`, `DateTimeObject`; see _Time Calendar Verification_
+and _Time Format Verification_), so a unit name, a date-time key, or an interval is checked here only as far as the
+parser locates the error.
+
+Expected values of the time scenarios are counted by hand. The local time unit names of Vega-Lite are 11 single units
+(`year`, `quarter`, `month`, `week`, `day`, `dayofyear`, `date`, `hours`, `minutes`, `seconds`, `milliseconds`) and 29
+multi units, 40 in all, and each also exists with the `utc` prefix; the test lists them by name and asserts the count of
+40 before it checks that all 80 spellings are accepted. The predicate texts follow Vega-Lite's rule that the instant of
+the unit's parts of the field is compared with the instant of the value: the reference date of the missing parts is the
+year 2012, January, the first, and zero for the times, because 2012-01-01 is a Sunday, so a weekday name is the
+weekday number plus one in January 2012 (Monday is the 2nd, Friday the 6th), and a date-time object month counts
+from 0 (month 2 is index 1, `Mar` is index 2, and the second quarter is month index 3 = 3 x (2 - 1)).
 
 #### Test Environment
 
@@ -103,7 +119,9 @@ Asserts that a known property with the wrong type or value (a theory of about on
 `layer`, `vconcat`, `spec`, `data`, `encoding`, `params`, and `transform`, including nested properties such as
 `/encoding/y/axis/orient`, `/data/sequence/start`, `/data/sequence/step`, `/data/sequence/as`, `/data/format/delimiter`
 (empty, longer than one character, a quote, a line break, or not text), `/data/format/parse` (an unknown word or a
-number), `/data/format/parse/a` (an unknown type, a number, or null), and `/data/format/property`) throws a
+number), `/data/format/parse/a` (an unknown type, a number, null, and, since Phase 8, a `date:` or `utc:` entry without
+a format in matching quotes: `date:%Y`, `utc:%Y`, `date:'%Y`, `date:'%Y"`, `date:'`, and `date:`), and
+`/data/format/property`) throws a
 `VegaLiteSpecException` whose pointer names the offending value and whose location has a text position and the file;
 that the same holds for the shape of every transform of the supported subset and of its predicates: a `calculate` that
 is not text or has no `as` or an empty one, a filter with no field or no test, a `range` of one value, a `oneOf` that
@@ -120,7 +138,8 @@ the one reported; and that an original specification that touches every checked 
 (including expression references) is accepted with no warnings, and that the data forms of the data stage - DSV
 delimiters (a pipe and a tab), `parse` as `"auto"`, `null`, or a map of `number`, `boolean`, `date`, `string`, and custom
 date formats (`date:'...'`, `utc:'...'`), a `property` path, sequences with a negative or a zero step and a field name,
-a named dataset, and top-level datasets given as an array, as text, and as an object - are accepted without a warning.
+a named dataset, and top-level datasets given as an array, as text, and as an object - are accepted without a warning
+(a custom date format is valid and is applied by the data stage, not reported).
 
 ##### Duplicate Keys: Last Wins, First Position, One Warning
 
@@ -176,7 +195,10 @@ Asserts that a specification with a bound value parameter, an expression paramet
 a parameter without a value, and sixteen transforms (calculate with the viewing signal `width`, string, field, `range`,
 `oneOf` with a time unit, date-object, `param`, `empty`, legacy `selection`, and composed filters, a fold, a flatten with
 `as`, a sample, a pivot with a limit and `op`, two lookups (a data source and a parameter), and an aggregate) has no
-warning, lists the four parameter names in order, and compiles four expressions; and that the
+warning, lists the four parameter names in order, and compiles six expressions (the calculate, the string filter, the
+string inside the composition, the variable-parameter filter, and, since Phase 8, the two time predicates, the `oneOf`
+with a time unit and the date-time `equal`, which are written as expressions with the time functions and compiled
+under their predicate object); and that the
 parameter order puts dependencies first and then declaration order (`[1, 2, 0, 3]` for the dependencies
 `0 -> 2`, `2 -> 1`, and `3 -> 0` listed twice, with none unresolved), leaves a cycle and a self reference unresolved
 with the index of the first unresolved parameter, and is empty for no parameters, with a null list refused.
@@ -202,8 +224,9 @@ paths; a window `ntile` without a `param` or with 0, 1.5, or `"4"`; and, in the 
 transforms and of the encoding properties. Asserts that every valid form, including every operation name, a `sort` of
 a channel shorthand, and the secondary channels, is accepted without a warning; that the sort shorthand helper accepts a
 channel with an optional minus sign and nothing else; that `IsSupportedSort` accepts only the values the renderer applies
-and refuses null arguments; and that `IsSupportedTransform` accepts the six aggregating transform names and refuses the
-names of later phases.
+and refuses null arguments; and that `IsSupportedTransform` accepts the six aggregating transform names and `timeUnit`
+(a computed transform since Phase 8) and refuses the names of later phases (`regression`, `loess`, `density`,
+`quantile`, `extent`), the lower-case `timeunit`, and the empty name.
 
 ##### Sort Array Items Are Validated And Mixed Or Unknown Parts Are Warned About
 
@@ -213,8 +236,10 @@ names of later phases.
 
 Asserts, in the rows of the shapes theory, that an object or an array item of a `sort` array is a located error at the
 item (`/encoding/x/sort/0`, `/encoding/x/sort/1`, `/encoding/x/sort/2`), that a date-time object is an error on a field
-that is not of type `temporal` and on a temporal field when it is empty, has a key that is not a date-time key (`yr`),
-or has a value that is not a string, a number, or a boolean; that a sort array that mixes kinds of values (`[1, "b"]`,
+that is not of type `temporal` and on a temporal field when it is empty (at the item), has a key that is not a date-time
+key (`yr`, located at the member, `/encoding/x/sort/0/yr`), or has a value that is not a string, a number, or a boolean
+(located at the member, `/encoding/x/sort/0/year`), since every date-time object is now checked by the one reader that
+the other sites use; that a sort array that mixes kinds of values (`[1, "b"]`,
 `[null, "a"]`, `["a", true, "b"]`) is exactly one warning `vl-encoding-sort-mixed-types` at `/encoding/x/sort`, with the
 file, line, and column, and is still accepted with every item kept, while arrays of strings, numbers, booleans, only
 nulls, an empty array, and date-time objects on a temporal field are silent; that a key of a sort object that
@@ -229,7 +254,9 @@ the channel a sort refers to is read from the shorthand (`"y"`, `"-y"`) and from
 `SpecParserTests.SpecParser_Parse_TransformScaleParametersAreCheckedOnlyForTheirType`
 
 Asserts, in the rows of the pointer theory, that a `domainMid`, `domainMin`, `domainMax`, `rangeMin`, or `rangeMax` that
-is not a number or an expression reference, an `interpolate` that is a number, an unknown name, an object without a
+is not a number or an expression reference (for `domainMin` and `domainMax` a date-time object is also accepted since
+Phase 8, so the rows use `true` and the text `"x"`; see the date-time object scenario below), an `interpolate` that is a
+number, an unknown name, an object without a
 string `type` or with an unknown one or a non-numeric `gamma`, a `scheme` that is not a string or an object, an object
 without a string `name` (pointer at the scheme or at the name), a `count` that is 0, -1, 2.5, or a string, an `extent`
 that has one entry, a non-number, or is not an array, and `bins` that is a number are each a located error at the
@@ -308,9 +335,162 @@ condition is validated like that of a channel (`padding: "wide"` is an error at 
 writes out, for twenty-three predicates, the exact expression text of each comparison, range (with open ends), set, validity
 check, negation, composition (an empty `and` is true and an empty `or` false), expression text, and parameter; a
 second test checks the bracket path of a dotted field and an escaped dot, and the escapes of the quote, the newline, and
-the backslash in a text; the third lists a selection, a time unit, a date object, and a composition that holds one, as
-refused with an empty source; and a null predicate is refused. The helper tests list the eleven channels that take a
+the backslash in a text; the third lists the predicates that no expression can say (a parameter predicate, and a
+composition that holds one inside an `and` or a `not`) as refused with an empty source, while the former refusals of a
+time unit and of a date object are gone because those predicates are now written (see _Time Predicates As
+Expressions_); and a null predicate is refused. The helper tests list the eleven channels that take a
 condition (and the position, secondary, order, and tooltip channels that do not), find the field definition of a channel
 (its own, the first field condition on a test, none for a parameter condition), list the conditions in order with the
 parameter conditions left out of the tests, and list the constant values a legend shows (the conditions first, then the
 value; none for a channel that a field drives).
+
+##### Time Units Are Validated
+
+**Tests**: `SpecParserTimeTests.SpecParser_TimeUnit_AcceptsEveryName`,
+`SpecParserTimeTests.SpecParser_TimeUnit_UnknownUnitIsLocated`,
+`SpecParserTimeTests.SpecParser_TimeUnit_ObjectForm_ValidatesMembers`,
+`SpecParserTimeTests.SpecParser_TimeUnit_UnknownMemberIsAWarning`,
+`SpecParserTimeTests.SpecParser_TimeUnit_Binned_ParsesAndIsReported`
+
+Asserts that each of the 40 local time unit names of Vega-Lite and its `utc` form (80 spellings) is accepted in the
+encoding of a temporal field without a warning; that an unknown unit is a located `VegaLiteSpecException` whose message
+says `Unrecognized time unit 'foo'` (and `'year-week'`, and the wrongly cased `'Month'`), at the `timeUnit` of an
+encoding (`/encoding/x/timeUnit`), of a condition, of a predicate (`/transform/0/filter/timeUnit`), and of the
+`timeUnit` transform (`/transform/0/timeUnit`); that, as a theory of eighteen values, the object form accepts a unit
+with a step, a `utc` unit, `utc: true`, a bare `maxbins`, and `binned: true`, while a step of 0, -1, or a text, a
+`maxbins` of 0 or a text, a `utc` or `binned` that is not a boolean, and a `unit` that is a number or unknown are each
+an error at their own member (`/step`, `/maxbins`, `/utc`, `/binned`, `/unit`), and an object with neither a `unit` nor
+a `maxbins` (`{"step":2}`, `{}`), a number, and a boolean are an error at the `timeUnit` itself; that a member that
+the object does not define (`bogus`) is one `vl-unknown-property` warning at its key (`/encoding/x/timeUnit/bogus`)
+and the unit still applies; and that a binned unit, by the name `binnedyearmonth` or by `binned: true`, parses without
+error, is reported once by the feature catalog as `vl-timeunit-binned` at `/encoding/x/timeUnit`, and gives the
+encoding plan no time unit (it is ignored).
+
+##### Date-Time Objects Are Validated Wherever They Stand
+
+**Tests**: `SpecParserTimeTests.SpecParser_DateTimeObject_InDomainPredicateAndValues_Validated`,
+`SpecParserTimeTests.SpecParser_DateTimeObject_ExpressionReferencesAndRepeatDatumsAreLeftAlone`
+
+Asserts, as a theory of twenty specifications, that a date-time object is checked by one reader at every site that
+accepts it, with the error at the offending member, so that every site reports the same error in the same way: valid
+objects are accepted in the items of `scale.domain`, in `domainMin` and `domainMax`, in the `values` of an axis and of a
+legend, in the `oneOf` of a predicate, and as the `datum` of a channel (a month by number or name, a quarter, `utc`);
+and a month that is not one (`Foo`), a quarter that is a text, an unknown key (`yr`), a text year or hour, a day name
+that is not one (`Someday`), a `utc` that is not a boolean, and an empty object are errors at the member (for example
+`/encoding/x/scale/domain/0/month`, `/encoding/x/scale/domainMin/year`, `/encoding/x/axis/values/0/hours`,
+`/encoding/color/legend/values/0/utc`, `/transform/0/filter/range/1/year`, `/transform/0/filter/oneOf/1/quarter`,
+`/transform/0/filter/gt/quarter`, `/encoding/x/datum/month`, and `/encoding/color/condition/datum/month`) or, for the
+empty object, at the object (`/encoding/x/scale/domain/0`). It also asserts that an object that holds an `expr` is an
+expression reference and is not read as a date-time object, that the repeat reference `{"repeat":"column"}` as a
+`datum` is not checked and is not date-time shaped, and that `{"hours":3}` is.
+
+##### Tick And Nice Intervals
+
+**Tests**: `SpecParserTimeTests.SpecParser_TickCountInterval_Validated`,
+`SpecParserTimeTests.SpecParser_IsTimeInterval_NamesTheEightIntervals`
+
+Asserts, as a theory of thirteen specifications, that a `tickCount` of an axis or a legend and a `scale.nice` that are
+one of the eight interval names (`month`, `week`, `year`), an object with a valid `interval` and a positive `step`
+(`{"interval":"day","step":2}`), a number, `true`, or an expression reference are accepted without a warning, and that
+an interval that is not one (`fortnight`, `Month`, and the object with `interval: "foo"`), an object without an
+`interval`, and a step that is 0, -2, or a text are located errors at the value or at the `step` or `interval` member
+(for example `/encoding/x/axis/tickCount/step` and `/encoding/x/scale/nice`); and that `IsTimeInterval` accepts exactly
+`millisecond`, `second`, `minute`, `hour`, `day`, `week`, `month`, and `year` (the plural `milliseconds`, `date`,
+`quarter`, the `utc`-prefixed `utcmonth`, the wrongly cased `Month`, and the empty text are refused). The rule is
+checked for every field type, because the parser does not know the type of the scale; whether the interval is used on a
+channel without a time scale is the catalog's concern (see _FeatureCatalog Unit Verification Design_).
+
+##### Time Format Limits
+
+**Tests**: `SpecParserTimeTests.SpecParser_TimeFormat_SpecifierLimitsAreSpecificationErrors`
+
+Asserts that a `format` of 1,025 characters on the axis of a temporal field is a located error at
+`/encoding/x/axis/format`, as is one of 400 `%c` (5,200 tokens, with a message that names `the limit of 4096 pieces`),
+a `format` text of the legend of a temporal color (`/encoding/color/legend/format`), the `format` of an ordinal field with
+the unit `month`, and the `format` of a quantitative field whose `formatType` is `utc`; that a member of a `format`
+object (`year`) of 1,025 characters is an error at the member (`/encoding/x/axis/format/year`); and that the `date:'...'`
+format of a `parse` entry of 1,025 characters is an error at `/data/format/parse/d`, all naming `the limit of 1024
+characters`. It also asserts that the same texts are accepted where they are not read as time formats - a number format
+(`formatType: "number"`), a custom format type, and the `format` of a quantitative field without a time format type - and
+that a specifier and a parse format of exactly 1,024 characters are accepted without a warning.
+
+##### Mark Time Unit Band Settings
+
+**Tests**: `SpecParserTimeTests.SpecParser_MarkTimeUnitBand_NonNumberIsAnErrorInTheSpecAndIgnoredInTheCallerConfig`
+
+Asserts that a `timeUnitBandPosition` that is the text `middle` and a `timeUnitBandSize` that is `true` in a mark
+definition are located errors at the value (`/mark/timeUnitBandPosition`, naming the property) while the numbers 0.25
+and 0.5 are accepted without a warning, and that the caller's configuration reads the same setting leniently: on a
+temporal field with the unit `yearmonth`, a bar has a band end (`HasBandEnd` of the channel of the encoding plan) by
+default, it has none when the configuration sets `timeUnitBandPosition` to a text or to `true` (the value is ignored),
+and has one for the number 0.25; a point has none by default, one for `config.mark.timeUnitBandPosition` of 0.25, none
+for the text `"x"`, and one when its own mark definition says 0.5.
+
+##### The Time Unit Transform
+
+**Tests**: `SpecParserTimeTests.SpecParser_TimeUnitTransform_ValidatesFieldAndAs`
+
+Asserts, as a theory of twelve entries, that a `timeUnit` transform with a unit name, with an object unit
+(`{"unit":"month","step":3}`, `{"maxbins":10}`), and with a nested field path (`a.b`) is accepted without a warning,
+and that a missing `field` or `as` is an error at the transform (`/transform/0`), an unparsable (`a[`) or numeric
+`field` is an error at `/transform/0/field`, an empty or numeric `as` is an error at `/transform/0/as`, and a unit that
+is null, a number, or unknown is an error at `/transform/0/timeUnit`.
+
+##### Time Predicates Are Compiled
+
+**Tests**: `SpecParserTimeTests.SpecParser_TimePredicates_AreCompiledOnceUnderThePredicate`,
+`SpecParserTimeTests.SpecParser_TimePredicates_OneOfIsBoundedByTheDomainSizeAndTheExpressionLength`
+
+Asserts that the predicates that are written with the time functions are compiled when the specification is parsed,
+once, under the key of the predicate object, also inside a composition: of four filters, the month predicate
+(`timeUnit: "month"`, `equal: 3`), the date-time leaf of an `and`, and the predicate whose value is an expression
+reference (`{"expr": "1 + 1"}`) have a compiled expression, while the plain comparison `q > 1`, whether alone or next to
+the date-time leaf in the `and`, has none (it is evaluated natively); and that an expression value that reads an
+undeclared name (`nope + 1`) fails at the specification. It also asserts the bounds: with a `MaxScaleDomainSize` of 2, a
+`oneOf` of three dates is a located error at the list (`/transform/0/filter/oneOf`, naming `MaxScaleDomainSize`) while
+two are accepted without a warning, and with a `MaxExpressionLength` of 40 the expression of the two-date list is too
+long and fails at the predicate (`/transform/0/filter`), so that a long list of dates cannot build an unbounded
+expression.
+
+##### Time Predicates As Expressions
+
+**Tests**: `PredicateSourceTimeTests.PredicateSource_TimeUnit_Equal_Month`,
+`PredicateSourceTimeTests.PredicateSource_TimeUnit_Range_YearMonth`,
+`PredicateSourceTimeTests.PredicateSource_TimeUnit_Range_OpenEnds`,
+`PredicateSourceTimeTests.PredicateSource_TimeUnit_OneOf_Day`,
+`PredicateSourceTimeTests.PredicateSource_TimeUnit_Utc_Uses_utc_functions`,
+`PredicateSourceTimeTests.PredicateSource_TimeUnit_Quarter_UsesMonthTimesThree`,
+`PredicateSourceTimeTests.PredicateSource_DatetimeWithoutUnit_WrapsLeftInTime`,
+`PredicateSourceTimeTests.PredicateSource_WeekPart_IsOmittedAndWarned`,
+`PredicateSourceTimeTests.PredicateSource_StringValueWithUnit_UsesDatetimeLiteral`,
+`PredicateSourceTimeTests.PredicateSource_NumberBelow10000WithSingleUnit_UsesThePart`,
+`PredicateSourceTimeTests.PredicateSource_UnitsThatApplyNothingAndExpressionValuesStayPlain`,
+`PredicateSourceTimeTests.PredicateSource_IsTimeAware_AndReadUnit`,
+`PredicateSourceTimeTests.PredicateSource_TimePredicates_AreCultureIndependent`,
+`PredicateSourceTimeTests.PredicateSource_TimeMembers_RejectNull`
+
+Asserts the exact expression text of each time predicate, written by hand from Vega-Lite's rule (the instant of the
+unit's parts of the field on the left, the instant of the value on the right, both as numbers). An equality on the
+`month` unit with the value `{"month": "Mar"}` compares the instant `time(datetime(2012, month(datum["d"]), 1, 0, 0, 0,
+0))` with `time(datetime(2012, 2, 1, 0, 0, 0, 0))`: the left side keeps the field's month and takes the reference
+values for the other parts, and the name `Mar` is month index 2. A range on `yearmonth` from `{year: 2024, month: 2}`
+to `{year: 2024, month: 4}` compares
+the year and month of the field with `min` and `max` of the two ends (indexes 1 and 3), so that reversed ends also
+work; an open end compares with the other end only (`time(datum["d"]) >= time(datetime(2024, 0, 1, 0, 0, 0, 0))`) and
+a range with two open ends is `(true)`. A `oneOf` on `day` of `Mon` and `Fri` is `indexof([...], ...) !== -1` with the
+dates January 2 and January 6 of 2012 (2012-01-01 is a Sunday), and the left side is the weekday plus one. A UTC unit
+uses `utcmonth(...)` and `utc(...)`. A quarter is `(quarter(datum["d"])-1)*3` against 3 for the second quarter, and a
+year with a quarter keeps the year. With no unit, a date-time value compares `time(datum["d"])` (and a dotted field
+path is the bracket path `datum["a"]["b"]`, with a value that has hours, minutes, seconds, and milliseconds written in
+order). The `week` and `dayofyear` parts are left out, as in Vega-Lite, so the year is kept and the rest takes the
+reference values (the catalog reports the omission as `vl-predicate-timeunit-part`). A text value with a unit is a
+`datetime` call when it is a date (`"2024-03-05"`) and `time(null)` when it is not (`soon`, which never matches); a
+number below 10,000 with a single local unit is that unit's part (3 is month index 2, 5 is the hour 5) and any other
+number is milliseconds written as it is (`1709596800000`, which is 2024-03-05T00:00Z: 19,787 days x 86,400,000 ms),
+while a number with a multi-part unit is written as it is. A `valid` test with a unit tests the field itself, a
+`maxbins` unit and a binned unit are ignored (`datum["d"] === 3`), and an expression value is written in parentheses.
+`IsTimeAware` is true for a unit with parts, a date-time value, and a list that holds one, and false for a plain
+number, a `valid` test, a `maxbins` unit, and an expression text; `ReadUnit` gives the parts `year` and `month` for
+`yearmonth` and null for no unit and for a binned unit. The text is the same under the invariant, `tr-TR`, and `de-DE`
+cultures (an upper-case `FRIDAY` and `SEPTEMBER` are matched without the culture, Friday is the 6th, and 1.5 and 0.5
+keep their point), and a null node is an `ArgumentNullException` for `IsTimeAware` and `ReadUnit`.

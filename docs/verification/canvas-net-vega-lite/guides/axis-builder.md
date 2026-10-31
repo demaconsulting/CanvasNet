@@ -3,7 +3,8 @@
 This document describes the unit-level verification strategy for the `AxisBuilder` unit in the
 `DemaConsulting.CanvasNet.VegaLite.Guides` namespace: the internal `AxisBuilder` class (`Build` and the static
 `GetExtents`) and the `AxisRequest`, `AxisTick`, and `AxisResult` types of its file. The unit builds the axis guide of a
-linear, band, or point position scale: the grid (a group of its own that is drawn behind everything), the tick marks,
+linear, time, UTC, band, or point position scale: the grid (a group of its own that is drawn behind everything), the
+tick marks,
 the labels, the domain line, and the title, as scene items inside an axis group positioned at the data rectangle edge
 with Vega's half pixel shift, and it reports the extent that the guide needs beyond the data rectangle so that the
 layout can grow the canvas.
@@ -52,9 +53,36 @@ rules, and not recorded from the code:
   has the ticks 0, 0.5, and 1, labeled `0%`, `50%`, and `100%` by the default `.0%`, `0.0%`, `50.0%`, and `100.0%` by a
   configured `.1%`, and `0.00`, `0.50`, and `1.00` by an explicit `.2f`.
 
-Unit tests reside in `AxisBuilderTests.cs` within the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the
-`Guides` folder; the shared helpers `ChartTestHelpers` (`Parts`, `Axis`, `Marks`, and `Of`) are in
-`ChartTestHelpers.cs`.
+Unit tests reside in `AxisBuilderTests.cs` and `AxisBuilderTimeTests.cs` within the
+`DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `Guides` folder; the shared helpers `ChartTestHelpers`
+(`Parts`, `Axis`, `Marks`, and `Of`) are in `ChartTestHelpers.cs`.
+
+The time axes are verified with two original specifications whose numbers are small enough to derive by hand: two
+points ten days apart (January 1 and 11, 2024) on an x axis of 400 pixels, and three monthly bars (the unit `yearmonth`)
+whose domain is January 1 to April 1, 91 days. The instants are computed with the base class library and the
+expectations are derived from the d3 interval table, the multi-format rule, and the scale arithmetic:
+
+- Ten days over 400 pixels ask for ceil(400 / 40) = 10 ticks, so the target is 10 days / 10 = 1 day, which is in the d3
+  table, and the ticks are the eleven midnights January 1 to 11 (the stop is included), 40 pixels apart (day 5 at 200).
+  The default label is the coarsest boundary a tick sits on (Vega's multi-format): January 1 starts a year, so it reads
+  `2024`; January 7 is a Sunday (a week start that is not a month start), so `Jan 07`; the other days are weekdays,
+  `Tue 02`, `Wed 03`, ..., `Thu 11`.
+- The month bars over 300 pixels ask for 8 ticks, which the minimum step of the unit (one month, 31 days) lowers to
+  floor(91 / 31) + 1 = 3 (a time scale does not run the numeric tick step loop); three ticks over 91 days target
+  30.33 days, nearest the month entry (30 days), so the ticks are the month starts January 1 to April 1 (the end
+  included) with the labels of the unit specifier (`Jan 2024`, ..., `Apr 2024`) at 0, 31 / 91 x 300 = 102.198
+  (rounded 102), 60 / 91 x 300 = 197.802 (198), and 300. The title is `date (year-month)`.
+- A tick count of 5 over ten days targets 2 days, so the ticks are the odd days of the month 1, 3, ..., 11 (80 pixels
+  apart); the interval `week` has the Sunday January 7 only (at 6 x 40 = 240); `{interval: day, step: 5}` has the days
+  1, 6, and 11; the interval `month` has only January 1. One hour per 40 pixels over 800 pixels of 23 hours would be
+  20 ticks, but Vega-Lite leaves a field whose unit is exactly `hours` the Vega default of ten: 2.3 hours is nearer 3
+  than 1 (2.3 / 1 is not below 3 / 2.3), so every 3 hours and 8 ticks, where `hoursminutes` keeps 20 and the hour (24
+  ticks).
+- In a +05:30 zone the domain of January 1 and 11 at 00:00Z runs from 05:30 local on January 1 to 05:30 local on January
+  11, so the ticks are the local midnights of January 2 to 11 (18:30Z of the day before), and the first is 18.5 hours
+  after the start, 18.5 / 240 x 400 = 30.83 pixels (rounded 31); a UTC scale ignores the zone.
+- January 1, 2024 is day 19,723 (54 x 365 + 13 leap days), 19,723 x 86,400,000 = 1,704,067,200,000 ms, which the number
+  format prints with grouped digits (the culture scenario pins the same text under de-DE).
 
 #### Test Environment
 
@@ -192,3 +220,88 @@ ordinary ticks 0, 20, ..., 100 at the positions 200, 192, 168, 128, 72, and 0, a
 root, and a
 symlog axis of -100 to 100 has the ticks -100, -50, 0, 50, 100 with zero in the middle; and that a limit of 5 gives a
 `VegaLiteRenderException` at `/encoding/y` containing `the limit of 5` and a canceled token an `OperationCanceledException`.
+
+##### Time Axis Defaults: Multi-Format Labels, Grid, Flush, And Overlap
+
+**Tests**: `AxisBuilderTimeTests.AxisBuilder_Time_DefaultLabelsAreMultiFormat`,
+`AxisBuilderTimeTests.AxisBuilder_Time_LabelFlushAndOverlapDefaults`
+
+Assert the eleven derived ticks of the ten day axis (instants, positions 0, 40, ..., 400, and the labels `2024`, `Tue
+02`, ..., `Jan 07`, ..., `Thu 11`, every tick a date value), a grid with 11 rules, the title `d`, the first label left
+aligned and the last right aligned, that parity thins the labels that do not fit (only the order and the text of the
+labels are pinned, since which labels fit depends on the measured widths) while `labelOverlap: false` draws all eleven;
+that eleven ticks 10 pixels apart on 100 pixels are thinned to between 2 and 10 labels and all 11 with the overlap off;
+that a vertical time axis has centered, middle-based labels (no flush); and that `config.axisTemporal` with
+`grid: false` removes the grid.
+
+##### Time Unit Labels And Tick Count
+
+**Tests**: `AxisBuilderTimeTests.AxisBuilder_Time_YearMonthLabelsUseTheUnitSpecifier`,
+`AxisBuilderTimeTests.AxisBuilder_Time_TickCountDefaultMonthUnitUsesVegaDefault10`,
+`AxisBuilderTimeTests.AxisBuilder_Time_TickMinStepFromTheUnit`
+
+Assert the month bar axis derived above (the labels `Jan 2024` to `Apr 2024`, the instants January 1 to April 1, the
+positions 0, 102, 198, 300, and the title `date (year-month)`); that a field whose unit is exactly `hours` takes
+Vega's default of ten ticks (the labels `00:00`, `03:00`, ..., `21:00`, the unit specifier `%H:00`) while
+`hoursminutes` has one tick per 40 pixels and gives 24 ticks; and that `tickMinStep: 1` replaces the minimum step of the
+unit so that 8 ticks over 91 days target 11.4 days (nearest the 7 day week) and give the 13 Sundays January 7 to March
+31, still labeled with the unit specifier.
+
+##### Time Axis Format, Format Type, Ticks, And Values
+
+**Tests**: `AxisBuilderTimeTests.AxisBuilder_Time_FormatStringAndObject`,
+`AxisBuilderTimeTests.AxisBuilder_Time_FormatTypeNumberAndTime`,
+`AxisBuilderTimeTests.AxisBuilder_Time_TickCountNumberObjectAndInterval`,
+`AxisBuilderTimeTests.AxisBuilder_Time_ValuesAcceptDatetimeObjects`
+
+Assert that a text `format` is a d3 time format (`%Y-%m-%d` labels every tick with its date) and an object replaces
+the day and year levels of the multi-format while a missing level keeps the Vega default (`Y2024`, `02`, ..., `Jan 07`,
+...); that `formatType: number` formats the milliseconds (`1,704,067,200,000` and `1,704,931,200,000`, ten days
+later, which is 10 x 86,400,000 = 864,000,000 more) and that `formatType: time` on a quantitative axis of 0 to
+10,000 reads the numbers as times in the zone of the chart (`00:00:00`, `00:00:01`, ..., `00:00:10` in UTC, and
+`05:30:00`, ..., `05:30:10` at +05:30, whose wall time at the epoch is 05:30) while `utc` reads them in UTC in
+every zone; that `tickCount` as a number, an interval, and `{interval, step}` gives the ticks derived above; and that
+`values` take a timestamp, a date
+text, and a date-time object (the 10th, 5th, and 3rd of January), drop a date outside the scale and a text that is not
+a date, and keep the scale order (the 3rd, 5th, and 10th at 80, 160, and 360 pixels, labeled `Wed 03`, `Fri 05`,
+`Wed 10`).
+
+##### Time Axis Zones And Discrete Dates
+
+**Tests**: `AxisBuilderTimeTests.AxisBuilder_Time_Zone_LabelsAndTicksUseLocalMidnights`,
+`AxisBuilderTimeTests.AxisBuilder_Time_UtcScale_IgnoresZone`,
+`AxisBuilderTimeTests.AxisBuilder_Time_NoRotationDefaultForTimeUnitOrdinal`,
+`AxisBuilderTimeTests.AxisBuilder_Time_DiscreteDateLabels_UseUnitSpecifier`
+
+Assert the ten local midnights of the +05:30 zone with their labels and the first at 31 while the same data on the UTC
+calendar has eleven ticks from January 1; that a UTC scale has the same ticks and labels in a US-like zone as with
+none; that an ordinal field with a month unit has three horizontal labels (angle 0, no 270 degree default) `Jan`,
+`Feb`, `Mar`; and that the discrete dates are labeled by the unit specifier, by an explicit `%B` as `January`,
+`February`, `March`, and that `values` that name a part of the unit (`"Mar"` and 1) keep `Jan` and `Mar`, every tick
+being a date.
+
+##### Time Axis Limits, Cancellation, Cultures, And Determinism
+
+**Tests**: `AxisBuilderTimeTests.AxisBuilder_Time_TooManyTicks_IsLocated`,
+`AxisBuilderTimeTests.AxisBuilder_Time_LabelTooLong_IsLocated`,
+`AxisBuilderTimeTests.AxisBuilder_Time_LabelsTogetherTooLong_IsLocated`,
+`AxisBuilderTimeTests.AxisBuilder_Time_HostileFormatOnManyTicks_IsStoppedByTheAggregateCap`,
+`AxisBuilderTimeTests.AxisBuilder_Time_FormatSpecifierLimits_AreSpecificationErrors`,
+`AxisBuilderTimeTests.AxisBuilder_Time_Cancellation`,
+`AxisBuilderTimeTests.AxisBuilder_Time_Culture_Invariant`,
+`AxisBuilderTimeTests.AxisBuilder_Time_Deterministic`
+
+Assert that with `MaxTicks` of 5 a daily interval request, a millisecond interval request, and six listed values throw
+a located `VegaLiteRenderException` that names the limit (`the limit of 5`, `MaxTicks`, and `MaxTicks (5)`); that with
+`MaxStringLength` of 30 the format `%c %c` (`1/1/2024, 12:00:00 AM` twice with a space, 43 characters) fails for one
+listed tick with a located exception naming the limit of 30 while `%c` (21 characters) fits; that the eleven `%c`
+labels of the ten-day axis (9 x 21 + 2 x 22 = 233 characters, the 10th and 11th being one digit longer) fit a limit of
+240 and are refused at the fifth label under 100 (5 x 21 = 105) with `together longer than the limit of 100 characters`;
+that the hostile format of 512 `%B` (1,024 characters) on the 481 month starts between January 1980 and January 2020
+(about 3,200 characters a label, 1.5 million in all) is refused with `the limit of 1048576 characters` under the default
+limit; that a format of 1,025 characters, one of 400 `%c`, a member of a format object, and the format of a quantitative
+field with `formatType: utc` are located `VegaLiteSpecException`s naming `the limit of 1024 characters` or `the limit
+of 4096 pieces`; that a canceled token throws `OperationCanceledException` and the same request
+builds with a live token; that the multi-format labels, `%A %B %I %p` (`Monday January 12 AM`), and the number labels
+are identical under the Turkish and German cultures and the invariant culture; and that building the same axis twice
+in a US-like zone gives the same instants, positions, labels, and item count.

@@ -32,7 +32,8 @@ draw a range between a position channel and its secondary channel (bar, rect, ru
 applied (x, y, and every channel that has a scale), the ignored
 channels (tooltip, href, description, key), the geographic channels, the legend channels (color, fill, stroke, size,
 opacity, shape, strokeWidth, strokeDash), the supported scale types
-(linear, log, pow, sqrt, symlog, sequential, band, point, ordinal, quantile, quantize, threshold, bin-ordinal), the
+(linear, log, pow, sqrt, symlog, sequential, time, utc, band, point, ordinal, quantile, quantize, threshold,
+bin-ordinal), the
 supported scale properties (type, domain, range, zero, nice, padding, reverse,
 paddingInner, paddingOuter, align, round, clamp, scheme, domainMid, domainMin, domainMax, rangeMin, rangeMax,
 interpolate, base, exponent, constant; any other, such as `bins`, is reported), the
@@ -65,9 +66,10 @@ a continuous scale ignores). The phase 7 identifier `vl-encoding-condition` is n
 takes none (the position, secondary, and order channels); a condition with a `test` on the color, fill, stroke, opacity,
 fillOpacity, strokeOpacity, strokeWidth, strokeDash, size, shape, and angle channels is evaluated by the marks, so it is
 not reported. A condition with a `param`, and a `test` that names a selection or a parameter that is not a variable,
-report `vl-encoding-condition-param` (the condition never holds); a `timeUnit` or a date object in a predicate
-reports `vl-encoding-condition-test` (an identifier of this phase, with the same meaning for a test as
-`vl-transform-filter-timeunit` and `vl-transform-filter-datetime` have for a filter). `VisitCondition` walks the conditions
+report `vl-encoding-condition-param` (the condition never holds). The identifier `vl-encoding-condition-test` (a
+`timeUnit` or a date object in the test of a condition) is retired in phase 8: those predicates are written as expressions
+and evaluated, so only the parts of a time unit that a predicate does not apply are reported (see below).
+`VisitCondition` walks the conditions
 of a channel (a predicate composition is walked with an explicit stack, so its nesting cannot overflow the call stack),
 reports the constructs of a test that is an expression text, and visits the field properties of a field condition like
 those of a channel definition. The warnings `vl-duplicate-key`, `vl-unknown-property`, and
@@ -75,6 +77,41 @@ those of a channel definition. The warnings `vl-duplicate-key`, `vl-unknown-prop
 produced by `SpecParser`, and the render-time
 warnings `vl-expr-runtime` and `vl-transform-runtime` by `RowTransforms` (they need the data; the
 catalog never produces them).
+
+**Phase 8 (time) identifiers.** Time is supported, so the identifiers that said it was not are retired and absent from the
+result: `vl-type-temporal` (a temporal field is read and gets a time scale), `vl-encoding-timeunit` (a time unit in an
+encoding is computed), `vl-transform-timeunit` (for a drawn view; the transform is computed, and a `timeUnit` transform
+of a view that is not drawn is still reported by the generic `vl-transform-<name>` rule),
+`vl-transform-filter-timeunit` and `vl-transform-filter-datetime` (time and date-time predicates are evaluated),
+`vl-encoding-condition-test`, `vl-data-parse-date-format` (a custom date format of `format.parse` is applied), and
+`vl-scale-time` and `vl-scale-utc` (`time` and `utc` join the supported scale types). The identifiers that the phase
+adds are:
+
+- `vl-timeunit-binned` - a `binned` time unit (a name that starts with `binned`, or `binned: true`) in an encoding, a
+  condition, a predicate, or the `timeUnit` transform; the unit is ignored and the field is used as it is. It is also
+  an `UnsupportedFeature`, so strict mode throws at the first one.
+- `vl-timeunit-maxbins` - the `{"maxbins": n}` form of a unit that names no unit, in a **predicate** (a predicate has no
+  data extent to bin; the unit is ignored). The encoding and the transform apply `maxbins`.
+- `vl-predicate-timeunit-part` (warning) - the `timeUnit` of a predicate (a filter or a condition test) whose unit has a
+  `week` or `dayofyear` part, which a predicate does not apply (as in Vega-Lite); the other parts are compared.
+- `vl-encoding-bandposition-rect` - a `bandPosition` or `timeUnitBandPosition` other than 0.5 on a bar or rect whose field
+  has a time unit (0.5 is used). The `timeUnitBandPosition` is read from the mark definition, else from `config.<mark>`,
+  else from `config.mark` of the specification (the catalog has no caller `Config`). `timeUnitBandSize` is not reported.
+  `vl-encoding-bandposition` is **narrowed**: it remains for a `bandPosition` on a field without a time unit and for one
+  on a binned field (the geometry of a bin does not apply it), and no longer covers a field with a time unit.
+- `vl-encoding-datum-datetime` - a date-time object as the `datum` of a channel (the channel is ignored).
+- `vl-scale-nice-interval` and `vl-guide-axis-tickcount-interval` (warnings) - a time interval (a text or an
+  `{interval, step}` object) as `scale.nice` or as the `tickCount` of an axis or legend on a channel that has no time scale;
+  it is ignored and the default is used.
+- `vl-scale-zero-ignored` (warning) - a `scale.zero` on a temporal field with a time or UTC scale (or the sequential scale
+  of a temporal color), where zero is not meaningful (ignored, as Vega-Lite does; the scale resolver ignores it on every
+  temporal field).
+- `vl-scale-type-ignored` is **extended**: a temporal field accepts only the `time` and `utc` scale types, so any other
+  `scale.type` on it falls back to the default with this warning, as does `time` or `utc` on a quantitative, nominal, or
+  ordinal field, and a temporal field on a `shape` or `strokeDash` channel without a scale type.
+- `vl-format-type-custom` is **narrowed**: `formatType` of an axis or legend is reported only when it is not `number`,
+  `time`, or `utc` (`FeatureCatalog.IsEvaluatedFormatType`); a custom format type that a host would have to provide
+  still uses the default format.
 
 #### Key Methods
 
@@ -92,19 +129,22 @@ catalog never produces them).
   `vl-data-empty`; a `url` is classified with `IsSchemeBearingUrl` and only remote data is reported
   (`vl-data-remote-url`; a relative local path is supported and not reported); a `name` whose top-level dataset is
   text or an object is reported as `vl-data-values-text` or `vl-data-geo` (`VisitNamedData`); inline `values` given as
-  text or as an object are reported the same way; and `VisitFormat` reports only a `format.parse` entry that names a
-  custom date format (`vl-data-parse-date-format`, recognized with `ParseDirectives.TryClassify`) and a `topojson`
-  format type (`vl-data-geo`). Sequences, named datasets, the csv, tsv, dsv, and json formats, parse maps, and
+  text or as an object are reported the same way; and `VisitFormat` reports only a `topojson`
+  format type (`vl-data-geo`). Sequences, named datasets, the csv, tsv, dsv, and json formats, parse maps (custom date
+  formats included, which the data stage applies), and
   `format.property` are supported and are not reported. The retired identifiers `vl-data-file`, `vl-data-named`,
-  `vl-data-sequence`, `vl-data-parse`, `vl-data-format-<type>`, and `vl-data-property` are no longer produced.
+  `vl-data-sequence`, `vl-data-parse`, `vl-data-parse-date-format`, `vl-data-format-<type>`, and `vl-data-property` are
+  no longer produced.
 - `VisitMark` reports `vl-mark-<type>` for every mark type outside the supported set. `VisitEncoding` reports the
-  channels outside the supported set (`vl-channel-<name>`, `vl-channel-geo`), the field type (`vl-type-temporal`,
-  `vl-type-geojson`), the encoding properties (`vl-encoding-<name>`), the scale type and properties
+  channels outside the supported set (`vl-channel-<name>`, `vl-channel-geo`), the field type (`vl-type-geojson`; a
+  `temporal` field is supported), the encoding properties (`vl-encoding-<name>`), the scale type and properties
   (`vl-scale-<type>`, `vl-scale-property-<name>`, `vl-scale-interpolate-cubehelix`, `vl-scale-type-ignored`), the parts
-  of a legend that are not drawn (`VisitLegend`: `vl-guide-encode`, `vl-expr-label`, `vl-format-type-custom`,
+  of a legend that are not drawn (`VisitLegend`: `vl-guide-encode`, `vl-expr-label`, `vl-format-type-custom` (for a
+  `formatType` other than `number`, `time`, and `utc`),
   `vl-guide-legend-titleorient`, `vl-guide-legend-clipheight`, and `vl-shape-path` for a custom `symbolType`), the custom
   path shapes (`vl-shape-path`), and the axis
-  properties (`vl-guide-axis-<name>`, `vl-guide-encode`, `vl-format-type-custom`, `vl-expr-label`). The phase 6 rules:
+  properties (`vl-guide-axis-<name>`, `vl-guide-encode`, `vl-format-type-custom`, `vl-expr-label`). `VisitEncoding` also
+  remembers the mark definition and the mark type of the view (for the band position rule). The phase 6 rules:
   `x2` and `y2` are accepted (and their definitions visited like any channel definition) for a bar, rect, or rule that
   has the channel they extend, and report `vl-channel-x2` or `vl-channel-y2` otherwise; `order` is accepted when it
   orders a stack, decided lazily by `StackRules.Decide` with the orientation of `ScaleResolver.InferOrient` (so the
@@ -124,7 +164,9 @@ catalog never produces them).
   quantize threshold`; a `shape` or `strokeDash` channel never counts as continuous): a continuous scale has no
   categories to order. `ascending`, `descending`, `null`, and an object with only
   an `order` are never reported;
-  `timeUnit`, an encoding `impute`, and `bandPosition` stay reported; `condition` is reported only on a channel that takes
+  `timeUnit` is applied (see the phase 8 rules below), an encoding `impute` stays reported, and `bandPosition` is reported
+  only as described for `vl-encoding-bandposition` and `vl-encoding-bandposition-rect`; `condition` is reported only on
+  a channel that takes
   none, or for a parameter (see the phase 7 identifiers above).
 - The phase 7 rules: `SupportedChannels` also holds `shape`, `strokeWidth`, `strokeDash`, `fillOpacity`,
   `strokeOpacity`, and `angle`, but a `shape`, `angle`, or `strokeDash` channel is reported (`vl-channel-<name>`) and
@@ -142,20 +184,39 @@ catalog never produces them).
   that names no scale type; a type that is not drawn is reported only as `vl-scale-<type>`. Legends are drawn, so the
   identifier `vl-guide-legend` is retired: `VisitLegend` visits the `legend` object of a field-driven channel and reports
   only what the legend builder does not draw.
+- The phase 8 rules: `SupportedScaleTypes` also holds `time` and `utc` (so `vl-scale-time` and `vl-scale-utc` are
+  retired). `VisitChannelDefinition` no longer reports a temporal type or a time unit; it calls `VisitTimeUnit`, which
+  reads the unit with `TimeUnitSpec.TryRead` and reports `vl-timeunit-binned` for a binned unit (and
+  `vl-timeunit-maxbins` for a `{maxbins}` form without a unit where that cannot be applied, which is in a predicate);
+  `VisitBandPosition` reports `vl-encoding-bandposition` and `vl-encoding-bandposition-rect` by the rules above (a
+  `bandPosition` on a field with a real, unbinned time unit is reported only for a bar or rect and a value other than 0.5);
+  the `datum` that is a date-time object (`SpecParser.IsDateTimeShaped`) is `vl-encoding-datum-datetime`;
+  `VisitIntervals` warns `vl-scale-nice-interval` and `vl-guide-axis-tickcount-interval` for an interval on a channel
+  that is not a time scale (a temporal field has a time scale on every channel but `shape` and `strokeDash`, and a
+  non-temporal field has one only when its `scale.type` is `time` or `utc`); `VisitScaleType` now also looks at temporal
+  fields: it warns `vl-scale-zero-ignored` for a `scale.zero` on a temporal field whose scale type is absent, `time`, or
+  `utc`, and `vl-scale-type-ignored` for a type that `ScaleResolver.AcceptsScaleType` does not accept (only `time` and `utc`
+  are accepted for a temporal field) and for a temporal field on a `shape` or `strokeDash` channel without a scale type;
+  `VisitFormat` no longer reports a `format.parse` entry. The static `IsEvaluatedFormatType(formatType)` tells the
+  format types that are evaluated (`number`, `time`, `utc`); the axis and legend `formatType` rules use it.
 - `VisitTransforms(transforms, drawn)` reports the entries as `vl-transform-<name>` only for what is **not computed**:
-  the transforms of later phases (`density`, `extent`, `loess`, `quantile`, `regression`, `timeunit`) and every
+  the transforms of later phases (`density`, `extent`, `loess`, `quantile`, `regression`) and every
   transform of a
-  view that is not drawn (a nested view of a composition, aggregating transforms included). For the computed transforms
+  view that is not drawn (a nested view of a composition, aggregating transforms and `timeunit` included). For the
+  computed transforms
   of
   the drawn view (`calculate`, `filter`, `fold`, `flatten`, `sample`,
-  `pivot`, `lookup`, `aggregate`, `joinaggregate`, `window`, `bin`, `stack`, `impute`) it reports only their unsupported
+  `pivot`, `lookup`, `aggregate`, `joinaggregate`, `window`, `bin`, `stack`, `impute`, `timeUnit`) it reports only their
+  unsupported
   parts: `ReportConstructs` turns the constructs that the compiled
   expression collected into `vl-expr-function-<name>`, `vl-expr-view-state`, and `vl-expr-construct-<name>` reports (and
   an undeclared view signal into `vl-expr-view-state`), sorted by their offset and located at the expression string,
   with `(at expression offset N)` in the message; `VisitPredicate` walks a filter with an explicit stack (so composition
   depth cannot overflow the call stack) and reports `vl-transform-filter-param` (a `selection`, or a `param` that names
-  a selection parameter), `vl-transform-filter-timeunit` (a `timeUnit` in a field predicate), and
-  `vl-transform-filter-datetime` (a date object in a comparison); a pivot `op` other than `sum` and `count` is
+  a selection parameter), and, through `VisitFieldPredicate`, the time unit of a field predicate (`VisitPredicateTimeUnit`:
+  `vl-timeunit-binned`, `vl-timeunit-maxbins`, and the warning `vl-predicate-timeunit-part`; the retired
+  `vl-transform-filter-timeunit` and `vl-transform-filter-datetime` are no longer produced); a `timeUnit` transform
+  reports `vl-timeunit-binned` for a binned unit; a pivot `op` other than `sum` and `count` is
   `vl-transform-pivot-op`, and a lookup `from.param` is `vl-transform-lookup-param` while its `from.data` is visited
   like any `data` object (`vl-data-*`); a `bin` transform whose `extent` is a parameter is
 `vl-transform-bin-extent-param` (the extent of the data is used). - `VisitParams(parameters, isRoot)` reports every
@@ -196,8 +257,10 @@ applied here: the document records the reports in a sink, which throws at the fi
 - **`StackRules`** (the `Transforms` subsystem) and **`ScaleResolver.InferOrient`** (the `Scales` subsystem) - the
   decision that a view stacks, which decides whether the `order` channel is accepted, shared with the encoding plan so
   that the report and the pipeline decide alike
-- **`ParseDirectives`** - the classification of a `format.parse` entry, in the `DelimitedTextParser` unit of the `Data`
-  subsystem, so that the report and the loading agree on what a custom date format is
+- **`TimeUnitSpec`** - the time unit reader of the `Data` subsystem (see _Time Calendar Design_), so that the report and
+  the unit that is applied agree on what a binned or `maxbins` unit is
+- **`ScaleResolver.AcceptsScaleType`** - the scale type rule per channel and field type (including temporal fields), in
+  the `Scales` subsystem
 - **`VegaLiteLocation`** - the public location type of the `VegaLiteDocument` unit
 - **.NET base class library** - `System.Globalization` (invariant-culture formatting of messages)
 

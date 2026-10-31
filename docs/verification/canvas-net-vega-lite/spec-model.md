@@ -19,7 +19,9 @@ merged into one document-ordered, once-per-call delivery, and that rendering res
 
 No mocking or stubbing is used: the subsystem depends only on the core types `VegaLiteLocation`, `VegaLiteLimits`, and
 `VegaLiteSpecException` of the root namespace, on the real `ExpressionParser` unit of the `Expressions` subsystem
-(which compiles the expressions of the tree), and on the BCL `System.Text.Json` reader. The subsystem is internal, so
+(which compiles the expressions of the tree), on the time rules of the `Data` subsystem (`TimeUnitSpec`,
+`DateTimeObject`, and `JsDateParser`, which validate the time units, the date-time objects, and the date texts), and
+on the BCL `System.Text.Json` reader. The subsystem is internal, so
 its tests reach it through the test assembly's `InternalsVisibleTo` access. Specifications in these tests are
 original, small, and written for the test; no Vega-Lite example specification is used.
 
@@ -93,8 +95,9 @@ scenario in the three unit verification documents passes without error or unexpe
   value when the document is opened, with the position of the string and the offset inside it, while the catalog reads
   the same compiled expressions and reports what they list but the engine does not run (`vl-expr-function-<name>`,
   `vl-expr-view-state`, `vl-expr-construct-<name>`) at the expression text, the parts of the supported transforms that
-  are not computed (`vl-transform-filter-param`, `-filter-timeunit`, `-filter-datetime`, `-pivot-op`, and
-  `-lookup-param`), the transforms of nested views and later phases, and a supported specification of Phase 5
+  are not computed (`vl-transform-filter-param`, `-pivot-op`, and
+  `-lookup-param`; the former `-filter-timeunit` and `-filter-datetime` are retired because time predicates are
+  evaluated), the transforms of nested views and later phases, and a supported specification of Phase 5
   constructs has no report; the parse warnings and the reports are delivered together in document order.
 - **Aggregating Transforms And Encoding Properties Are Validated And Reported By What Is Computed**:
   `SpecParserAggregatesTests.SpecParser_Parse_AggregateTransformShapesArePinned`,
@@ -116,3 +119,35 @@ scenario in the three unit verification documents passes without error or unexpe
   on a non-linear scale (not applied: Vega-Lite does not stack on a log, pow, sqrt, or symlog scale), an `order`
   without a stack, and a secondary channel that a mark cannot draw), and the transforms
   of later phases; the document-level test now uses a `regression` transform as its example of an unsupported transform.
+- **Time Constructs Are Validated At Open, Written As Expressions, And Reported Only Where They Are Not Applied**:
+  `SpecParserTimeTests.SpecParser_TimeUnit_AcceptsEveryName`,
+  `SpecParserTimeTests.SpecParser_TimeUnit_UnknownUnitIsLocated`,
+  `SpecParserTimeTests.SpecParser_DateTimeObject_InDomainPredicateAndValues_Validated`,
+  `SpecParserTimeTests.SpecParser_TickCountInterval_Validated`,
+  `SpecParserTimeTests.SpecParser_TimeFormat_SpecifierLimitsAreSpecificationErrors`,
+  `SpecParserTimeTests.SpecParser_TimePredicates_AreCompiledOnceUnderThePredicate`,
+  `PredicateSourceTimeTests.PredicateSource_TimeUnit_Equal_Month`,
+  `PredicateSourceTimeTests.PredicateSource_WeekPart_IsOmittedAndWarned`,
+  `FeatureCatalogTimeTests.FeatureCatalog_Visit_TemporalFieldsAndTimeUnitsAreSupported`,
+  `FeatureCatalogTimeTests.FeatureCatalog_Visit_BinnedTimeUnitIsReportedAtTheValue`,
+  `FeatureCatalogTimeTests.FeatureCatalog_Visit_WeekAndDayOfYearPartsOfPredicatesAreWarnings`,
+  `FeatureCatalogTimeTests.FeatureCatalog_Visit_TimeIdsAreDeliveredAndStrictModeThrows`,
+  `FeatureCatalogTests.FeatureCatalog_Visit_CustomDateFormatIsSupportedAndReportsNothing`,
+  `FeatureCatalogTests.FeatureCatalog_Visit_TimeUnitAndDateTestsAreSupported` — the parser checks the time constructs
+  with the rules of the `Data` subsystem (an unknown time unit, a date-time object with an unknown key, a month, quarter,
+  or day that is not one, a `tickCount` or `nice` interval that is not one of the eight, a time format of more than 1,024
+  characters or 4,096 pieces, and a `date:` or `utc:` parse
+  entry without a quoted format are `VegaLiteSpecException` errors at the offending member), compiles each time
+  predicate once into an expression written with the date and time functions (so it is evaluated in the calendar of the
+  chart), and the catalog, which reads the same units with `TimeUnitSpec`, reports nothing for a supported
+  specification that uses temporal fields, time units, time and UTC scales, date-time objects, a custom date format, and
+  the `timeUnit` transform, while the parts that are not applied are reported at the exact value: a binned unit
+  (`vl-timeunit-binned`, an unsupported feature, so strict mode throws at the first), a `maxbins` unit in a predicate,
+  the `week` and
+  `dayofyear` parts of a predicate (`vl-predicate-timeunit-part`, a warning that strict mode delivers without
+  stopping), a band position of a rect or bar, a date-time `datum`, intervals on a scale that has no time scale, a
+  `zero` on a time scale, and the scale types that a temporal field cannot use. The identifiers of the earlier phases
+  that said time was unsupported (`vl-type-temporal`, `vl-encoding-timeunit`, `vl-transform-timeunit` for a drawn view,
+  `vl-transform-filter-timeunit`, `vl-transform-filter-datetime`, `vl-encoding-condition-test`,
+  `vl-data-parse-date-format`, `vl-scale-time`, and `vl-scale-utc`) are never produced, and the end-to-end render of a
+  time chart through the public API is verified at the system tier.

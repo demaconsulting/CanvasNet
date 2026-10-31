@@ -33,8 +33,13 @@ eye: three rows against a `MaxDataRows` of two fail, and exactly three pass; thr
 two fail at the pointer of the third leaf, `/data/values/0/c`; two tables of three rows against a total of five fail
 at the second.
 
-Unit tests reside in `DataLoaderTests.cs` within the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `Data`
-folder, with the shared helpers in `DataTestSupport.cs`.
+Unit tests reside in `DataLoaderTests.cs` and `DataLoaderCalendarTests.cs` within the
+`DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `Data` folder, with the shared helpers in
+`DataTestSupport.cs` and `TimeTestSupport.cs` (the latter builds the calendars: UTC, a fixed offset, and a zone with a
+daylight-saving rule). The calendar scenarios build a loader directly with a `TimeCalendar` (the `calendar` argument of
+the constructor), and two of them render a whole document through `VegaLiteDocument` to show that the
+`VegaLiteRenderOptions.TimeZone` option reaches the data stage; the zone arithmetic is checked by hand (at a fixed
+offset of +05:30 a local `10:00` is `04:30Z`; at +01:00 it is `09:00Z`; at +05:00 it is `05:00Z`).
 
 #### Test Environment
 
@@ -94,7 +99,7 @@ and that the resolver callback, which the test supplies, received no request.
 **Tests**: `DataLoaderTests.DataLoader_Load_LocalCsvUrlUsesRelativeFile`,
 `DataLoaderTests.DataLoader_InferFormatType_UsesTheExtension`,
 `DataLoaderTests.DataLoader_Load_JsonPropertyAndExplicitParseAreApplied`,
-and `DataLoaderTests.DataLoader_Load_DefaultDelimitedTextKeepsTextValues`,
+`DataLoaderTests.DataLoader_Load_DefaultDelimitedTextKeepsTextValues`,
 `DataLoaderTests.DataLoader_Load_FileIsReadOnceWhenNamedAgain`
 
 Asserts that a relative `url` is read from the base directory (also from a sub folder) and that a CSV with quoted commas
@@ -147,6 +152,32 @@ and without allocating, while an overflowing difference in the wrong direction i
 Asserts that two values of a CSV that an explicit `number` conversion cannot read are null and give one
 `vl-data-parse-failed` warning for the field, located at `/data`, that names the count, while a field that was not named
 is untouched.
+
+##### Calendar And Implicit Dates
+
+**Tests**: `DataLoaderCalendarTests.DataLoader_Load_PassesTheCalendarToInlineCsvJsonAndCallerRows`,
+`DataLoaderCalendarTests.DataLoader_Load_DefaultCalendarIsUtcAndCallerDatesAreNotMoved`,
+`DataLoaderCalendarTests.DataLoader_Load_ImplicitDateFieldsApplyOnlyWhenGiven`,
+`DataLoaderCalendarTests.DataLoader_Load_SecondaryLookupDataIsNotImplicitlyParsed`,
+`DataLoaderCalendarTests.DataLoader_Render_TimeZoneOptionReachesTheDataStage`,
+`DataLoaderCalendarTests.DataLoader_Render_CustomDateFormatRendersInStrictMode`
+
+Asserts that the calendar of a render reaches every kind of source of a view: with a zone at +05:30, an explicit
+`parse: {d: "date"}` of the text `2024-03-05T10:00` gives `04:30Z` (10:00 minus 5 h 30 min) for inline values, a CSV
+file, a JSON file, the rows of the caller for a named dataset, and a dataset defined in the specification, each of kind
+date. A loader without a calendar reads in UTC (`10:00Z`), and the dates a caller supplies as a `DateTime` are not
+moved by a zone (a loader at -08:00 keeps `10:00Z`), because they are instants already. The implicit date fields (the
+temporal fields of the encoding) are applied to the main data of a CSV and of a JSON source when they are passed to
+`Load` (at +01:00 `2024-03-05T10:00` is `09:00Z`), an explicit `parse` entry wins (`e: "string"` stays text), and the
+same data loaded as a secondary source without the fields stays text. The data of a lookup is never implicitly parsed:
+when the temporal field `d` exists only in the lookup source (the main data is loaded with `TemporalFields.Collect` of
+the specification), the looked-up value arrives as the text `2024-03-05` that the source holds. End to end, a document
+whose rows hold `2024-03-05T10:00:00Z` and `2024-03-05T10:00:00` with an explicit date parse has the two rows at the
+same position in UTC (both are 10:00Z), while with `TimeZone` at +05:00 the row without an offset is 05:00Z, five
+hours earlier, and so is to the left of the other. A specification with `date:'%d/%m/%Y'` renders in strict mode, since
+a custom date format is no longer an unsupported feature, and the 5th of March (`05/03/2024`) lies to the left of the
+15th. The calendar that the expression context and the evaluator carry is verified in the expression units (see
+_Expression Functions Verification_ and _Expression Evaluator Verification_).
 
 ##### Hard Failures
 

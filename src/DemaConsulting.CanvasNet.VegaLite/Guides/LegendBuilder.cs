@@ -100,6 +100,10 @@ internal sealed record LegendResult(
 ///         <see cref="VegaLiteSpecException"/>. The builder is stateless between calls and safe for concurrent use.
 ///     </para>
 ///     <para>
+///         <b>Temporal fields.</b> The dates of a field with a time unit are labeled with the legend's <c>format</c>, the specifier of the unit or <c>config.timeFormat</c>; the
+///         legend of a temporal color or of a size or an opacity over dates has the time ticks of its domain (see <c>LegendBuilder.Time.cs</c>).
+///     </para>
+///     <para>
 ///         <b>Not drawn.</b> <c>titleOrient</c> other than <c>top</c>, <c>clipHeight</c>, <c>encode</c>, <c>labelExpr</c> and custom format types
 ///         (the feature catalog reports them); the symbols of the <c>arrow</c>, <c>wedge</c> and <c>triangle</c> shapes use the box of their path.
 ///     </para>
@@ -151,7 +155,8 @@ internal sealed partial class LegendBuilder
         ArgumentNullException.ThrowIfNull(spec);
         ArgumentNullException.ThrowIfNull(budget);
         cancellationToken.ThrowIfCancellationRequested();
-        var context = new Context(spec, budget, cancellationToken, new ExpressionFunctionContext(_limits, cancellationToken), dataWidth, dataHeight, _sourceName);
+        // The evaluation that label text is charged to knows the calendar of the chart's time scale (UTC when the legend has none)
+        var context = new Context(spec, budget, cancellationToken, new ExpressionFunctionContext(_limits, cancellationToken, spec.Canonical.Scale.Calendar), dataWidth, dataHeight, _sourceName);
         var s = spec.Settings;
         var location = spec.Location;
         var padding = s.Number("padding") ?? 0;
@@ -341,6 +346,10 @@ internal sealed partial class LegendBuilder
     /// <summary>
     ///     Reads the explicit <c>values</c> of the legend.
     /// </summary>
+    /// <remarks>
+    ///     The entries of the legend of a temporal field may be timestamps, date texts or date-time objects (see <c>TemporalValue</c>); the other entries are numbers, texts,
+    ///     booleans and null.
+    /// </remarks>
     /// <param name="c">The build state.</param>
     /// <returns>The values, or null when the legend has none.</returns>
     /// <exception cref="VegaLiteRenderException">Thrown, with the location of the property, when there are more values than <see cref="VegaLiteLimits.MaxScaleDomainSize"/>.</exception>
@@ -362,6 +371,16 @@ internal sealed partial class LegendBuilder
         foreach (var item in node.Items)
         {
             c.Token.ThrowIfCancellationRequested();
+            if (IsTemporal(c) && item.Kind is SpecNodeKind.Number or SpecNodeKind.String or SpecNodeKind.Object)
+            {
+                if (TemporalValue(c, item) is { } date)
+                {
+                    values.Add(date);
+                }
+
+                continue;
+            }
+
             var value = item.Kind switch
             {
                 SpecNodeKind.Number => DataValue.FromNumber(item.NumberValue),

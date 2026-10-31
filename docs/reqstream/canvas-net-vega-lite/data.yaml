@@ -9,9 +9,12 @@
 # datasets, and sequences are read; remote URLs and the other sources are empty tables that the feature
 # catalog reports, and nothing here uses the network. Phase 5 adds the immutable array, object, and regular
 # expression cell values that expressions produce, the loading of a lookup source through the same per-call
-# loader, and the derived-row reservations of the transforms. Each requirement here links down to the unit
-# requirements that implement it. See docs/verification/canvas-net-vega-lite/data.md for the test-evidence
-# mapping.
+# loader, and the derived-row reservations of the transforms. Phase 8 adds the time calendar (instants, time
+# zones, the d3-time intervals, the Vega-Lite time units, and the datetime objects: TimeCalendar), the text of dates
+# (the d3-time-format formatter and parser, the Vega multi-format, and the JavaScript Date.parse rules: TimeFormat),
+# and the conversion of dates by the parse directives, all in the one time zone the caller chooses (UTC by
+# default). Each requirement here links down to the unit requirements that implement it. See
+# docs/verification/canvas-net-vega-lite/data.md for the test-evidence mapping.
 
 sections:
   - title: CanvasNetVegaLite Requirements
@@ -99,9 +102,13 @@ sections:
               The Data subsystem shall convert the values of a data source only as its format parse property
               says, matching Vega: delimited text keeps every cell as a string unless parse is auto (the
               explicit opt-in to per-column inference), named fields are converted to number, boolean,
-              date, or string, and null keeps a source as read; ISO 8601 dates are read as instants in
-              UTC, a value that cannot be converted becomes null with one vl-data-parse-failed warning per
-              field, and a custom date format is left as read. Text beyond the supported date range is
+              date, or string, and null keeps a source as read; a date is read by the JavaScript
+              Date.parse rules (ISO 8601 and the documented legacy forms, a text with only a date being
+              UTC and a date-time without a zone a time of the time zone of the chart), a custom date
+              format of a parse entry (date or utc with a d3 time format) is applied, and the fields
+              that the specification uses as dates are converted implicitly unless the parse property
+              says otherwise; a value that cannot be converted becomes null with one vl-data-parse-failed
+              warning per field. Text beyond the supported date range is
               not a date: it stays text under inference and becomes null with the same warning under an
               explicit date conversion. Quantitative encodings still coerce numeric
               text when they are drawn.
@@ -112,7 +119,9 @@ sections:
             children:
               - CanvasNetVegaLite-Data-DelimitedTextParser-Inference
               - CanvasNetVegaLite-Data-DelimitedTextParser-ExplicitParse
-              - CanvasNetVegaLite-Data-DelimitedTextParser-CustomDateFormat
+              - CanvasNetVegaLite-Data-DelimitedTextParser-CustomDates
+              - CanvasNetVegaLite-Data-DelimitedTextParser-DateParse
+              - CanvasNetVegaLite-Data-DelimitedTextParser-ImplicitDates
               - CanvasNetVegaLite-Data-DataLoader-ParseDefaults
               - CanvasNetVegaLite-Data-DataLoader-ParseFailures
               - CanvasNetVegaLite-Data-DataTable-DateValues
@@ -120,8 +129,10 @@ sections:
               - DataLoader_Load_LocalCsvUrlUsesRelativeFile
               - DataLoader_Load_DefaultDelimitedTextKeepsTextValues
               - DataLoader_Load_ParseFailuresAreCollectedAsWarnings
-              - DelimitedTextParser_Parse_AutoOutOfRangeIsoDateStaysText
-              - DelimitedTextParser_Parse_ExplicitOutOfRangeIsoDateBecomesNullAndWarning
+              - DelimitedTextParser_Parse_AutoOutOfRangeDateStaysText
+              - DelimitedTextParser_Parse_ExplicitOutOfRangeDateBecomesNullAndWarning
+              - DelimitedTextParser_Parse_CustomDateFormatIsApplied
+              - ParseDirectives_Implicit_AppliesToTemporalFieldsOnly
               - CanvasNetVegaLite_SystemIntegration_Data_ParseFailuresAreDeliveredAsWarnings
               - CanvasNetVegaLite_SystemIntegration_Data_DefaultDelimitedTextPreservesTextAndQuantitativeRenderCoerces
 
@@ -189,6 +200,7 @@ sections:
               - CanvasNetVegaLite-Data-DataFileResolver-Cancellation
               - CanvasNetVegaLite-Data-DelimitedTextParser-Limits
               - CanvasNetVegaLite-Data-DelimitedTextParser-Cancellation
+              - CanvasNetVegaLite-Data-DelimitedTextParser-Polling
               - CanvasNetVegaLite-Data-DataLoader-DerivedRowBudget
             tests:
               - DataLoader_Load_RowLimitFailsWithLocation
@@ -231,3 +243,109 @@ sections:
             tests:
               - DataLoader_Load_LookupSourcesShareTheSandboxCacheAndBudgetOfTheCall
               - RowTransforms_Apply_LookupSourceSharesTheRowBudget
+
+          - id: CanvasNetVegaLite-Data-TimeCalendar
+            title: >-
+              The Data subsystem shall provide one time calendar for the whole render, made from the
+              time zone that the caller sets (UTC when none is set), that converts instants (milliseconds
+              since the epoch, in the years 1 to 9999) to and from civil date parts with the arithmetic
+              of ECMAScript, giving NaN, never an exception, outside that range, follows the daylight
+              saving rules of the zone with the ECMAScript rule for the wall times that occur twice or not
+              at all, provides the d3-time intervals (millisecond to year, local and UTC) with their
+              floors, ceilings, offsets, counts, and bounded ranges, and never reads the host time zone,
+              the clock, or the host culture.
+            justification: |
+              Every time unit, scale, tick, label, and function of the time phase reads dates through one
+              calendar; its range and its zone rule must be fixed once, be total, and be platform
+              independent.
+            children:
+              - CanvasNetVegaLite-Data-TimeCalendar-Instants
+              - CanvasNetVegaLite-Data-TimeCalendar-Range
+              - CanvasNetVegaLite-Data-TimeCalendar-Totality
+              - CanvasNetVegaLite-Data-TimeCalendar-Zones
+              - CanvasNetVegaLite-Data-TimeCalendar-GapOverlap
+              - CanvasNetVegaLite-Data-TimeCalendar-Intervals
+              - CanvasNetVegaLite-Data-TimeCalendar-IntervalNames
+              - CanvasNetVegaLite-Data-TimeCalendar-IntervalRange
+              - CanvasNetVegaLite-Data-DataLoader-Calendar
+            tests:
+              - TimeCalendar_ToParts_Utc_Anchor_20240229T123456789
+              - TimeCalendar_FromParts_Utc_RejectsNonFiniteAndOutOfRange
+              - TimeCalendar_Extremes_NeverThrow
+              - TimeCalendarZone_UsLike_Gap_0230BecomesThe0330Instant
+              - TimeCalendarZone_UsLike_Overlap_0130IsTheEarlierInstant
+              - TimeCalendarInterval_Day_AcrossSpringForwardIs23Hours
+              - DataLoader_Load_PassesTheCalendarToInlineCsvJsonAndCallerRows
+
+          - id: CanvasNetVegaLite-Data-TimeUnits
+            title: >-
+              The Data subsystem shall read the Vega-Lite time units (the single and multi-part names with
+              the optional utc prefix, and the object form with unit, maxbins, step, and utc), name their
+              derived fields, floor an instant to a unit and find its end with the Vega timeFloor, utcFloor,
+              and timeBin algorithms (the year 2012 for a unit without a year), and read the Vega-Lite
+              datetime objects with their defaults, names, quarter and weekday rules, and overflow.
+            justification: |
+              Time units and datetime objects are written in specifications; reading and computing them as
+              Vega-Lite does is what makes a time chart mean the same in both.
+            children:
+              - CanvasNetVegaLite-Data-TimeCalendar-TimeUnits
+              - CanvasNetVegaLite-Data-TimeCalendar-TimeUnitFloors
+              - CanvasNetVegaLite-Data-TimeCalendar-MaxBins
+              - CanvasNetVegaLite-Data-TimeCalendar-DateTimeObjects
+            tests:
+              - TimeUnitSpec_Parse_AcceptsEveryVegaLiteName
+              - TimeUnitSpec_Floor_UsesReferenceYear2012_ForUnitsWithoutYear
+              - TimeUnitSpec_MaxBins_PicksVegaTimeBinIntervals
+              - DateTimeObject_ToMilliseconds_AllKeysAndOverflow
+
+          - id: CanvasNetVegaLite-Data-TimeFormatting
+            title: >-
+              The Data subsystem shall format an instant with the d3-time-format directives of the English
+              locale (the text Invalid Date for an invalid instant), with the Vega multi-format that
+              labels a time axis without a format and the default format of a time unit, in the fields of the
+              zone of the calendar, using only English names and invariant ASCII digits so that the host
+              culture changes nothing, stop with an exception that the caller maps to a located error
+              when the text would exceed the length limit, and refuse a specifier that is too long or expands
+              to too many pieces.
+            justification: |
+              The labels of every time axis, legend, and expression come from this formatter; it must read
+              like Vega-Lite, be identical on every machine, and be bounded.
+            children:
+              - CanvasNetVegaLite-Data-TimeFormat-Format
+              - CanvasNetVegaLite-Data-TimeFormat-InvalidDate
+              - CanvasNetVegaLite-Data-TimeFormat-MultiFormat
+              - CanvasNetVegaLite-Data-TimeFormat-UnitSpecifier
+              - CanvasNetVegaLite-Data-TimeFormat-EnglishLocaleAndCulture
+              - CanvasNetVegaLite-Data-TimeFormat-LengthLimit
+              - CanvasNetVegaLite-Data-TimeFormat-SpecifierLimit
+            tests:
+              - TimeFormat_Format_EveryDirective_Utc
+              - TimeFormatMulti_Default_PicksTheCoarsestExactUnit
+              - TimeUnitSpec_Specifier_FollowsVegaTimeUnitSpecifier
+              - TimeFormat_Format_IgnoresTheCurrentCulture
+              - TimeFormat_Format_TooLong_Throws
+              - TimeFormat_Compile_SpecifierLength_IsLimited
+
+          - id: CanvasNetVegaLite-Data-DateParsing
+            title: >-
+              The Data subsystem shall parse the text of a date with the d3-time-format specifiers
+              (timeParse in the zone of the calendar and utcParse in UTC) and with the JavaScript Date.parse
+              rules (the ECMAScript date-time format and a documented subset of the legacy forms, a text with
+              only a date being UTC and a date-time without a zone a time of the zone of the calendar),
+              failing, never throwing, for a text that does not match and refusing a long text before
+              scanning it, so that the cost of one cell is bounded whatever its length.
+            justification: |
+              Dates in data files and in expressions must be read the way Vega reads them, and parsing
+              untrusted text must be total and cheap.
+            children:
+              - CanvasNetVegaLite-Data-TimeFormat-Parse
+              - CanvasNetVegaLite-Data-TimeFormat-ParseTotality
+              - CanvasNetVegaLite-Data-TimeFormat-JsDateParse
+              - CanvasNetVegaLite-Data-TimeFormat-JsDateParseLimits
+              - CanvasNetVegaLite-Data-DelimitedTextParser-DateParse
+            tests:
+              - TimeFormatParse_DayMonthYear
+              - TimeFormatParse_LongInputFailsFast
+              - JsDateParser_Iso_DateOnly_IsUtc
+              - JsDateParser_Rejects_OverLongText
+              - ParseDirectives_Date_UsesTheCalendarZoneForDateTimesWithoutOffset

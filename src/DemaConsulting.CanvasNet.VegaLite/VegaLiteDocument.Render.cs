@@ -307,8 +307,9 @@ public sealed partial class VegaLiteDocument
             // The data is read first, before any scene item is charged and before any scale exists: one loader (so one file
             // cache, one file count and one row budget) serves this call, from the sandbox that the effective open options
             // define, so a data failure never depends on what a later stage would have done
-            var loader = new DataLoader(_tree.SourceName, options.Limits, Options, root["datasets"], options.Datasets, cancellationToken);
-            table = loader.Load(root["data"]);
+            var calendar = TimeCalendar.Create(options.TimeZone);
+            var loader = new DataLoader(_tree.SourceName, options.Limits, Options, root["datasets"], options.Datasets, cancellationToken, calendar: calendar);
+            table = loader.Load(root["data"], TemporalFields.Collect(root));
 
             // Recorded as soon as the data is loaded, so a later failure of the build can still deliver them
             var reported = loader.Warnings.Count;
@@ -317,7 +318,7 @@ public sealed partial class VegaLiteDocument
             // The parameters are evaluated once, then the row transforms run in the order of the specification, on the
             // loaded rows and before any scale exists; they share the loader (row budget, sandbox) and the evaluator (steps)
             var parameters = new Dictionary<string, DataValue>(StringComparer.Ordinal);
-            var evaluator = new ExpressionEvaluator(options.Limits, cancellationToken, parameters);
+            var evaluator = new ExpressionEvaluator(options.Limits, cancellationToken, parameters, calendar);
             expressions = new RowExpressions(_tree.Expressions, evaluator);
             var transformWarnings = new List<FeatureReport>();
             try
@@ -377,7 +378,7 @@ public sealed partial class VegaLiteDocument
     {
         var sourceName = _tree.SourceName;
         var budget = inputs.Budget;
-        var axisBuilder = new AxisBuilder(inputs.Measurer, inputs.Config, inputs.Limits, sourceName);
+        var axisBuilder = new AxisBuilder(inputs.Measurer, inputs.Config, inputs.Limits, sourceName, inputs.Data.Evaluation.Calendar);
         var legendSpecs = LegendPlan.Create(_tree.Root, inputs.Scales, inputs.Config, sourceName);
         var legendBuilder = new LegendBuilder(inputs.Measurer, inputs.Limits, sourceName);
         var measure = ViewLayout.Measure(inputs.Request, default, inputs.Title);

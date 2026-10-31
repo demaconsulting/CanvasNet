@@ -9,7 +9,8 @@ namespace DemaConsulting.CanvasNet.VegaLite.Expressions;
 ///     The predicates follow Vega: <c>isNumber</c> accepts NaN and the infinities, <c>isObject</c> accepts arrays, dates
 ///     and regular expressions, <c>isNaN</c> and <c>isFinite</c> do not coerce their argument (like
 ///     <c>Number.isNaN</c> and <c>Number.isFinite</c>) and <c>isValid</c> rejects null and NaN. The conversions map null
-///     and the empty string to null, so a missing value stays missing.
+///     and the empty string to null, so a missing value stays missing; <c>toDate</c> reads a date, a number of
+///     milliseconds or a date text (see the date and time functions) and gives null for anything that is not a valid date.
 /// </remarks>
 internal static partial class ExpressionFunctions
 {
@@ -30,6 +31,12 @@ internal static partial class ExpressionFunctions
         table["isNaN"] = (a, _) => DataValue.FromBoolean(Arg(a, 0) is { IsNumber: true } n && double.IsNaN(n.Number));
         table["isValid"] = (a, _) => DataValue.FromBoolean(Arg(a, 0) is { IsNull: false } v && !(v.IsNumber && double.IsNaN(v.Number)));
         table["toBoolean"] = (a, _) => ToBoolean(Arg(a, 0));
+        table["toDate"] = (a, c) =>
+        {
+            // Null and the empty text are missing values; a date stays itself; a number or a text is read as an instant
+            var value = Arg(a, 0);
+            return IsNullOrEmptyString(value) ? default : DateOrNull(Instant(value, c));
+        };
         table["toNumber"] = (a, c) =>
         {
             var value = Arg(a, 0);

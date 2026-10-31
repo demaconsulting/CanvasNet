@@ -37,6 +37,9 @@ internal sealed class ExpressionFunctionContext
     /// <summary>The number of regular expressions the cache holds before it is cleared.</summary>
     private const int RegexCacheSize = 64;
 
+    /// <summary>The longest time format specifier the cache keeps; with <see cref="RegexCacheSize"/> entries it holds a few thousand characters at most.</summary>
+    private const int MaxCachedSpecifierLength = 64;
+
     /// <summary>The characters that one step pays for in size-proportional work.</summary>
     private const int CharactersPerStep = 64;
 
@@ -49,21 +52,36 @@ internal sealed class ExpressionFunctionContext
     /// <summary>The compiled regular expressions of this evaluation by flags and source.</summary>
     private readonly Dictionary<string, ExpressionRegex> _regexCache = new(StringComparer.Ordinal);
 
+    /// <summary>The compiled time formatters of this evaluation by specifier.</summary>
+    private readonly Dictionary<string, TimeFormatter> _timeFormatCache = new(StringComparer.Ordinal);
+
     /// <summary>
     ///     Initializes a new instance of the <see cref="ExpressionFunctionContext"/> class.
     /// </summary>
     /// <param name="limits">The limits to enforce; the defaults when null.</param>
     /// <param name="cancellationToken">The cancellation token of the call.</param>
-    public ExpressionFunctionContext(VegaLiteLimits? limits, CancellationToken cancellationToken)
+    /// <param name="calendar">The calendar of the date and time functions (the zone of local dates); UTC when null.</param>
+    public ExpressionFunctionContext(VegaLiteLimits? limits, CancellationToken cancellationToken, TimeCalendar? calendar = null)
     {
         limits ??= VegaLiteLimits.Default;
         MaxStringLength = limits.MaxStringLength;
         MaxSteps = limits.MaxEvaluationSteps;
+        MaxArrayLength = limits.MaxScaleDomainSize;
+        Calendar = calendar ?? TimeCalendar.Utc;
         _cancellationToken = cancellationToken;
     }
 
     /// <summary>Gets the longest string an expression may produce.</summary>
     public int MaxStringLength { get; }
+
+    /// <summary>Gets the most elements a function may build into one array (the date sequences); the limit of a scale domain.</summary>
+    public int MaxArrayLength { get; }
+
+    /// <summary>Gets the calendar of the date and time functions: the zone of local dates, UTC unless the render was given a time zone.</summary>
+    public TimeCalendar Calendar { get; }
+
+    /// <summary>Gets the cancellation token of the call, for functions that run their own loops.</summary>
+    public CancellationToken CancellationToken => _cancellationToken;
 
     /// <summary>Gets the step budget of the evaluation.</summary>
     public long MaxSteps { get; }
@@ -103,10 +121,17 @@ internal sealed class ExpressionFunctionContext
     /// <param name="size">The number of characters or elements touched.</param>
     /// <exception cref="ExpressionRuntimeException">Thrown when the step budget is exhausted.</exception>
     /// <exception cref="OperationCanceledException">Thrown when cancellation was requested at a check point.</exception>
-    public void ChargeSize(long size)
+    public void ChargeSize(long size) => ChargeSteps(size / CharactersPerStep);
+
+    /// <summary>
+    ///     Counts a number of whole steps, for work that costs one step for every element it produces.
+    /// </summary>
+    /// <param name="units">The number of steps; zero and negative counts cost nothing.</param>
+    /// <exception cref="ExpressionRuntimeException">Thrown when the step budget is exhausted.</exception>
+    /// <exception cref="OperationCanceledException">Thrown when cancellation was requested at a check point.</exception>
+    public void ChargeSteps(long units)
     {
         // Small inputs cost nothing extra: the instruction that called the function was already counted
-        var units = size / CharactersPerStep;
         if (units <= 0)
         {
             return;
@@ -135,8 +160,83 @@ internal sealed class ExpressionFunctionContext
     {
         if (length > MaxStringLength)
         {
-            throw new ExpressionRuntimeException(
-                $"The expression produced a string longer than the limit of {MaxStringLength} characters (VegaLiteLimits.MaxStringLength).");
+            throw StringLimitExceeded();
+        }
+    }
+
+    /// <summary>
+    ///     Creates the exception for a string that is longer than <see cref="MaxStringLength"/>.
+    /// </summary>
+    /// <returns>The exception.</returns>
+    public ExpressionRuntimeException StringLimitExceeded() =>
+        new($"The expression produced a string longer than the limit of {MaxStringLength} characters (VegaLiteLimits.MaxStringLength).");
+
+    /// <summary>
+    ///     Gets the compiled formatter of a time format specifier, from the cache when it was used before.
+    /// </summary>
+    /// <remarks>
+    ///     The cache is bounded by size, not only by count: it holds at most <see cref="RegexCacheSize"/> specifiers of at most
+    ///     <see cref="MaxCachedSpecifierLength"/> characters each; a longer specifier is compiled for the call and not kept.
+    /// </remarks>
+    /// <param name="specifier">The d3 time format specifier.</param>
+    /// <returns>The formatter.</returns>
+    /// <exception cref="ExpressionRuntimeException">Thrown when the specifier is longer than <see cref="TimeFormat.MaxSpecifierLength"/> or expands to more than <see cref="TimeFormat.MaxTokenCount"/> pieces.</exception>
+    public TimeFormatter GetTimeFormatter(string specifier)
+    {
+        if (_timeFormatCache.TryGetValue(specifier, out var cached))
+        {
+            return cached;
+        }
+
+        var created = CompileTimeFormat(specifier);
+        if (specifier.Length > MaxCachedSpecifierLength)
+        {
+            return created;
+        }
+
+        if (_timeFormatCache.Count >= RegexCacheSize)
+        {
+            _timeFormatCache.Clear();
+        }
+
+        _timeFormatCache[specifier] = created;
+        return created;
+    }
+
+    /// <summary>
+    ///     Compiles a time format specifier within the limits of the formatter.
+    /// </summary>
+    /// <param name="specifier">The d3 time format specifier.</param>
+    /// <returns>The formatter.</returns>
+    /// <exception cref="ExpressionRuntimeException">Thrown when the specifier is too long or expands to too many pieces.</exception>
+    public static TimeFormatter CompileTimeFormat(string specifier)
+    {
+        try
+        {
+            return TimeFormat.Compile(specifier);
+        }
+        catch (TimeFormatSpecifierException ex)
+        {
+            throw new ExpressionRuntimeException(ex.Message);
+        }
+    }
+
+    /// <summary>
+    ///     Builds a multi-format within the limits of the formatter.
+    /// </summary>
+    /// <param name="calendar">The calendar of the multi-format.</param>
+    /// <param name="overrides">The specifiers that replace the defaults, or null.</param>
+    /// <returns>The formatter.</returns>
+    /// <exception cref="ExpressionRuntimeException">Thrown when an override is too long or expands to too many pieces.</exception>
+    public static TimeFormatter CompileMultiFormat(TimeCalendar calendar, IReadOnlyDictionary<string, string>? overrides)
+    {
+        try
+        {
+            return TimeFormat.Multi(calendar, overrides);
+        }
+        catch (TimeFormatSpecifierException ex)
+        {
+            throw new ExpressionRuntimeException(ex.Message);
         }
     }
 

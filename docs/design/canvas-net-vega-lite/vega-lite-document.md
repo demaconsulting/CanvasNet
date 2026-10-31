@@ -68,7 +68,8 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   transforms and the row-bound mark values; a selection parameter name is accepted and ignored), `Datasets` (named
   lists of rows of the same value
   kinds, deep-copied; a caller dataset replaces a top-level dataset of the same name, and a `DateTime` or
-  `DateTimeOffset` becomes a date in UTC), `TimeZone` (`TimeZoneInfo?`; null is UTC), `ContainerWidth` (default 400) and
+  `DateTimeOffset` becomes a date in UTC), `TimeZone` (`TimeZoneInfo?`; **null is UTC**; the one zone in which the chart
+  works, see _Time zone and calendar_ below), `ContainerWidth` (default 400) and
   `ContainerHeight` (default 300) (each 1 to `Surface.MaxDimension`), `Fonts` (`VegaLiteFontOptions?`), `Limits`
   (default `VegaLiteLimits.Default`; null throws `ArgumentNullException`), `WarningHandler`
   (`Action<VegaLiteDiagnostic>?`), `UnsupportedFeatureHandler` (`Action<VegaLiteUnsupportedFeature>?`), and
@@ -85,7 +86,10 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   _CanvasNetVegaLite System Design_. The three expression limits (`MaxExpressionLength`, `MaxExpressionDepth`, and
   `MaxEvaluationSteps`) are active since phase 5, and `MaxDataRows` and `MaxFieldCount` also bound the tables that the row
   and aggregating transforms and the implicit pipeline derive; since phase 6 `MaxEvaluationSteps` also bounds the work of
-  the aggregating transforms and `MaxScaleDomainSize` the number of bins. No limit was added.
+  the aggregating transforms and `MaxScaleDomainSize` the number of bins. No limit was added. Phase 8 (time) added no
+  limit either: time ticks are bounded by `MaxTicks`, formatted dates by `MaxStringLength`, date sequences, discrete date
+  domains, and the `maxbins` of a time unit by `MaxScaleDomainSize`, the work of the time-unit transform and of the date
+  functions by `MaxEvaluationSteps`, and the number of derived fields and rows by `MaxFieldCount` and `MaxDataRows`.
 - **`VegaLiteLocation`** (`readonly record struct (string? File, string Pointer, int Line, int Column)`) - a position
   in the specification. A column counts UTF-16 code units, a tab counts as one column, and a line ends at `\n`.
   `default` (line zero, empty pointer) means "unknown"; `IsKnown` is true when a line or a pointer is present.
@@ -140,19 +144,35 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   exceptions ignored; on success a handler exception propagates after the result is disposed.
 - `PrepareChart(options, token)` - the layout described in the system design (configuration, measurer, data,
   scales, view request, title, and either the empty layout or `BuildChart`). For a single view with a supported mark it
-  creates one `DataLoader` for the call (passing the effective open options, the top-level `datasets` node, the
-  caller's `Datasets`, the limits, and the token), loads the data **before** the scene budget is created and before the
-  scales are resolved, and then, on the same loader: creates one `ExpressionEvaluator` for the call (the limits, the
-  token, and the dictionary of parameter values), calls `ParameterEnvironment.Populate` (the static parameters, with the
+  first creates the **calendar** of the call once, `TimeCalendar.Create(options.TimeZone)` (null gives the UTC
+  singleton), then creates one `DataLoader` for the call (passing the effective open options, the top-level `datasets`
+  node, the
+  caller's `Datasets`, the limits, the token, and the calendar), loads the data **before** the scene budget is created
+  and before the
+  scales are resolved, passing `TemporalFields.Collect(root)` (the canonical names of the fields that the encoding,
+  the `timeUnit` transforms, and the filter and condition predicates use as dates) so that the loader date-parses them
+  implicitly in the calendar unless `format.parse` names them (or is null), and then, on the same loader: creates one
+  `ExpressionEvaluator` for the call (the limits, the
+  token, the dictionary of parameter values, and the **same calendar**, which reaches every expression function
+  through `ExpressionFunctionContext.Calendar`), calls `ParameterEnvironment.Populate` (the static parameters, with the
   caller's `Parameters`), and calls `RowTransforms.Apply` over the loaded table with a `TransformContext` (which also
-  runs the aggregating transforms); it then creates the `EncodingPlan` of the view (`EncodingPlan.Create`, a pure function
+  runs the aggregating transforms, the `timeUnit` transform, and the time-aware predicates); it then creates the
+  `EncodingPlan` of the view (`EncodingPlan.Create`, a pure function
   of the specification and the configuration) and runs `EncodingTransforms.Apply` on the same context, which performs the
-  implicit bin, aggregate, and stack of the encoding in Vega-Lite's order and returns the `EncodingData` (the **Raw** and
-  **Main** tables and the bins). The scales are resolved from the plan and the data (a sort by an aggregate and an
-  `unaggregated` domain read Raw, everything else Main), and the marks draw Main, so the field names, the titles, and the
-  tables agree by construction; the `RowExpressions` (the compiled
+  implicit bin, **time unit**, aggregate, and stack of the encoding in Vega-Lite's order and returns the `EncodingData`
+  (the **Raw** and
+  **Main** tables, the bins, and the resolved time units). The scales are resolved from the plan and the data (a sort by
+  an aggregate and an
+  `unaggregated` domain read Raw, everything else Main; the resolver reads the calendar from the evaluation facts of the
+  `EncodingData`, so its signature did not change), and the marks draw Main, so the field names, the titles, and the
+  tables agree by construction; the axes and legends read the calendar and the time unit from each `ResolvedScale`
+  (`BuildChart` also gives the `AxisBuilder` the calendar of the chart, `EncodingData.Evaluation.Calendar`, for the
+  labels of a field that is not temporal but has `formatType: "time"`), and
+  the legend builder passes the calendar of its canonical scale to its own `ExpressionFunctionContext`; the
+  `RowExpressions` (the compiled
   expressions and the evaluator) go to
-  `MarkBuilder`. The findings of the data stage are kept in the plan in this order: the loader's warnings
+  `MarkBuilder`. `ApplyStandalone` (the entry the tests use for the implicit pipeline alone) passes `TimeCalendar.Utc`
+  explicitly. The findings of the data stage are kept in the plan in this order: the loader's warnings
   (`vl-data-parse-failed`), the warnings of a lookup source (the loader's warnings that arose while the transforms ran),
   and then the transform warnings (`vl-expr-runtime`, `vl-transform-runtime`); they are recorded
   in the report sink as soon as
@@ -166,6 +186,25 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   title). `PrepareChartOrReport` wraps it so
   that a `VegaLiteSpecException` or `VegaLiteRenderException` still delivers the document's reports before it is
   rethrown (in strict mode the first unsupported feature wins).
+- **Time zone and calendar** (the pipeline step "calendar", Phase 8). `VegaLiteRenderOptions.TimeZone` is the **only**
+  zone the renderer ever uses: no code of the pipeline reads `TimeZoneInfo.Local`, the host clock, or the host culture,
+  so a render depends only on the specification, the data, and the options. The XML documentation of the property reads
+  "the time zone in which dates are interpreted and time units are computed, or null for UTC", with the remark that UTC
+  is the default so that output does not depend on the host's local time zone (the code of Phase 8 did not change that
+  text; this section is the full statement). The zone is applied to: a date-time **without an offset** in the data
+  (`2024-03-05T13:00:00` and the legacy forms of `Date.parse`; a date-only ISO text and a text with an offset or `Z` are
+  not shifted), the `date:'%fmt'` parse directives (`utc:'%fmt'` always reads UTC), the **local** time units (`month`,
+  `yearmonthdate`, `hours`, and so on: the day boundaries are local midnights, so a day of a zone with daylight saving
+  time can be 23 or 25 hours long), the ticks and `nice` boundaries of a `time` scale, the labels of its axes and
+  legends, the local date and time functions of the expressions (`datetime`, `month`, `timeFormat`, ...), and the
+  dates of a date-time object that does not say `utc`. It is **not** applied to the `utc*` time units, `utc` scales,
+  `utcFormat`, `utcParse`, and `utc` date-time objects, which always use UTC, nor to a `DateTime` or `DateTimeOffset`
+  that the caller supplies (those are converted to UTC instants, as before). The offset of a zone at an instant comes
+  from `TimeZoneInfo.GetUtcOffset(DateTime utc)`; a fixed-offset zone and UTC take a fast path; a local wall time is
+  converted to an instant by the ECMAScript rule (the offset before the transition: in a spring-forward gap 02:30 is
+  03:30, and in a fall-back overlap the earlier instant wins; this assumes at most one transition in 48 hours, which is
+  true of every real zone). The public API did not change: `TimeZone` already existed and was documented as the
+  zone of the dates.
 - `ValidateParameters(options)` - checks every `Parameters` key against `ParameterNames` and reports the first unknown
   name in ordinal order, so the message does not depend on the caller's dictionary order.
 
@@ -181,11 +220,15 @@ Errors are typed and fail closed. Null arguments and invalid options throw `Argu
 wrong value, and plain Vega are `VegaLiteSpecException`s with the location of the first problem (detected by
 `SpecParser`; the unit only delegates). That includes an expression that cannot be compiled
 and a transform, predicate, or
-parameter of the wrong shape: they fail **when the document is opened**, not when it is rendered. Failures while preparing
+parameter of the wrong shape, an unknown time unit, a date-time object with an unknown month or day name, and a
+`tickCount` or `nice` interval with an unknown name or a non-positive step: they fail **when the document is opened**,
+not when it is rendered. Failures while preparing
 the chart are `VegaLiteSpecException` (an invalid axis
-orientation, d3 format, scale domain or range) or `VegaLiteRenderException` (a data,
+orientation, d3 format, scale domain or range, including a temporal domain entry that is not a date) or
+`VegaLiteRenderException` (a data,
 transform, expression, scale, axis, or
-scene limit, an exhausted evaluation step budget, an invalid or too slow regular expression, and a
+scene limit (including more time ticks than `MaxTicks` and a formatted date longer than `MaxStringLength`), an exhausted
+evaluation step budget, an invalid or too slow regular expression, and a
 local data file or named dataset that cannot be used: no file source, a path the sandbox refuses, a link, a missing or
 unreadable file, invalid UTF-8, invalid JSON or delimited text, an undefined name; in lenient and strict mode alike),
 each with a location and thrown from the stage that detected them; the unit does not catch and convert them,
@@ -201,10 +244,14 @@ throws after a successful call propagates its exception (the surface is disposed
   `ConfigResolver`, `ResolvedConfig`
 - **`Data` subsystem** - `DataLoader` (one instance per call; reads local files through `DataFileResolver` and
   delimited text through `DelimitedTextParser`, and carries the row budget of the call), `DataTable`, `DataFileResolver`,
-  `DelimitedTextParser`
-- **`Expressions` subsystem** - `ExpressionEvaluator` (one instance per call, with the parameter dictionary)
-- **`Transforms` subsystem** - `ParameterEnvironment`, `RowTransforms` (which dispatches to `AggregateTransforms`),
-  `EncodingPlan`, `EncodingTransforms`, `EncodingData`, `TransformContext`, and `RowExpressions`
+  `DelimitedTextParser`, and `TimeCalendar` (created once per call from `VegaLiteRenderOptions.TimeZone` and passed to
+  the loader and the evaluator; see _Time Calendar Design_)
+- **`Expressions` subsystem** - `ExpressionEvaluator` (one instance per call, with the parameter dictionary and the
+  calendar)
+- **`Transforms` subsystem** - `ParameterEnvironment`, `RowTransforms` (which dispatches to `AggregateTransforms` and
+  `TimeUnitTransform`),
+  `EncodingPlan`, `EncodingTransforms`, `EncodingData`, `TransformContext`, `RowExpressions`, and `TemporalFields` (the
+  implicit date-parse fields)
 - **`Scales` subsystem** - `ScaleResolver` (the pipeline entry that takes the plan and the data), `ResolvedScales`
 - **`Guides` subsystem** - `TextMeasurer`, `TitleBuilder`, `TitleBlock`, `AxisBuilder`, `AxisRequest`, `AxisResult`,
   `LegendPlan`, `LegendBuilder`, `LegendResult`

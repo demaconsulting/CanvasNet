@@ -930,7 +930,7 @@ public class VegaLiteChartIntegrationTests
         // Arrange: line 3 calls a function of a later phase, line 4 stores a regular expression
         const string Json = """
             { "data": { "values": [ { "a": 1 } ] },
-              "transform": [ { "calculate": "datetime(2020, 1, 1)", "as": "d" },
+              "transform": [ { "calculate": "geoArea(1)", "as": "d" },
                              { "calculate": "regexp('a')", "as": "r" } ],
               "mark": "point", "encoding": { "x": { "field": "a", "type": "quantitative" } } }
             """;
@@ -952,12 +952,12 @@ public class VegaLiteChartIntegrationTests
         // Assert: the chart renders without the unsupported call; the report is at the string value of the expression, and the
         // warning of the data stage follows it
         Assert.Equal(
-            ["U vl-expr-function-datetime /transform/0/calculate 2:33", "W vl-expr-runtime /transform/1/calculate 3:33"],
+            ["U vl-expr-function-geoarea /transform/0/calculate 2:33", "W vl-expr-runtime /transform/1/calculate 3:33"],
             lenientLog);
 
         // Assert: strict mode throws for the first report, delivers only it, and the warning that comes later is never delivered
-        Assert.Equal(("vl-expr-function-datetime", "/transform/0/calculate"), (ex.Feature, ex.Location.Pointer));
-        Assert.Equal(["U vl-expr-function-datetime /transform/0/calculate 2:33"], log);
+        Assert.Equal(("vl-expr-function-geoarea", "/transform/0/calculate"), (ex.Feature, ex.Location.Pointer));
+        Assert.Equal(["U vl-expr-function-geoarea /transform/0/calculate 2:33"], log);
     }
 
     /// <summary>
@@ -977,7 +977,7 @@ public class VegaLiteChartIntegrationTests
                 { "density": "a" },
                 { "quantile": "a" },
                 { "timeUnit": "year", "field": "d", "as": "y" },
-                { "calculate": "timeFormat(now(), '%Y') + format(1, ',')", "as": "t" }
+                { "calculate": "now() + format(1, ',')", "as": "t" }
               ],
               "mark": "point",
               "encoding": { "x": { "field": "a", "type": "quantitative", "condition": { "param": "sel", "value": 1 } } } }
@@ -992,7 +992,7 @@ public class VegaLiteChartIntegrationTests
         Assert.Equal(
             [
                 "vl-param-selection", "vl-transform-regression", "vl-transform-loess", "vl-transform-density", "vl-transform-quantile",
-                "vl-transform-timeunit", "vl-expr-function-timeformat", "vl-expr-function-now", "vl-expr-function-format", "vl-encoding-condition",
+                "vl-expr-function-now", "vl-expr-function-format", "vl-encoding-condition",
             ],
             reported);
         Assert.True(surface.Width > 0);

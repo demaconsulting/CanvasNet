@@ -1,22 +1,29 @@
 ## Transforms Subsystem Verification Design
 
 This document describes the subsystem-level verification strategy for the `Transforms` subsystem (internal namespace
-`DemaConsulting.CanvasNet.VegaLite.Transforms`). The subsystem contains three units: `RowTransforms`, which executes
+`DemaConsulting.CanvasNet.VegaLite.Transforms`). The subsystem contains four units: `RowTransforms`, which executes
 the row transforms of the drawn view (`calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot`, and `lookup`) over an
 immutable `DataTable`, evaluates the static parameters of the root view, and samples deterministically;
 `AggregateTransforms`, which executes the grouped transforms (`aggregate`, `joinaggregate`, `window`, `bin`, `stack`,
-and `impute`) with their measure, bin, stack, and sort internals; and `EncodingPlan`, which plans and runs the implicit
-bin, aggregate, and stack that the encoding of the drawn view asks for. The transforms of later phases (`timeUnit`,
-`regression`, `loess`, `density`, `quantile`, and `extent`) are added to this subsystem by later releases.
+and `impute`) with their measure, bin, stack, and sort internals; `EncodingPlan`, which plans and runs the implicit
+bin, time unit, aggregate, and stack that the encoding of the drawn view asks for; and `TimeUnitTransform` (with the
+`TemporalFields` collector), which adds the start and the end of the time unit of a date to every row, for the
+`timeUnit` transform and for the time unit of a channel. The transforms of later phases (`regression`, `loess`,
+`density`, `quantile`, and `extent`) are added to this subsystem by later releases.
 
 ### Verification Approach
 
-The unit verification (see the _RowTransforms_, _AggregateTransforms_, and _EncodingPlan Unit Verification Designs_
-under `transforms/`) is complete for each unit's own behavior. The subsystem-level scenarios verify the units working
-together and with the units that feed them and consume their output. `RowTransforms` dispatches the six grouped
-transforms to `AggregateTransforms` in the order of the specification, so the scenarios compose them (a window whose rank
-drives a following filter; the grouped transforms run as one pipeline under other cultures), and `EncodingPlan` runs the
-bin, aggregate, and stack engines of `AggregateTransforms` over the table that the explicit transforms produced. The
+The unit verification (see the _RowTransforms_, _AggregateTransforms_, _EncodingPlan_, and _TimeUnitTransform Unit
+Verification Designs_ under `transforms/`) is complete for each unit's own behavior. The subsystem-level scenarios
+verify the units working together and with the units that feed them and consume their output. `RowTransforms` dispatches
+the six grouped transforms to `AggregateTransforms` in the order of the specification, so the scenarios compose them (a
+window whose rank drives a following filter; the grouped transforms run as one pipeline under other cultures), and
+`EncodingPlan` runs the bin, time unit, aggregate, and stack engines over the table that the explicit transforms
+produced, in Vega-Lite's order: bin, then time unit, then aggregate, then stack. The `timeUnit` transform and the time
+unit of a channel are one engine: `RowTransforms` and `EncodingTransforms` both call `TimeUnitTransform.Apply` with the
+calendar of the chart (the zone of the render options), so the scenarios verify that a time zone moves the unit
+boundaries in the explicit transform, in the implicit stage, and in the filter predicates alike, and that the aggregate
+that follows groups by the start of the unit. The
 subsystem-level scenarios also verify the units working with the units around them: the real `SpecParser` compiles the
 expressions of the transforms and the parameters and validates the shape of every transform and of the aggregate, bin,
 stack, and sort properties of an encoding at the time the document is opened; the real `DataLoader` supplies the source
@@ -29,7 +36,10 @@ whose rows were filtered, calculated, reshaped, looked up, sampled, sorted, aggr
 charts of 100 by 100 pixels without padding, axes, and title, in which the position of every mark is derived by hand from
 a scale domain of 0 to 10, so a dot is found by one pixel; the scenarios of the implicit pipeline use the fixtures
 `aggregate-bars`, `histogram`, `stacked-bars`, `binned-ranges`, and `window-cumulative`, in which the bars are derived by
-hand from the scale formulas.
+hand from the scale formulas. The time scenarios build every zone in the test (`TimeZoneInfo.CreateCustomTimeZone`, never
+`TimeZoneInfo.Local`), use the dates of 2024 whose day numbers are derived in the _TimeCalendar Unit Verification
+Design_, and assert on the start and the end of each unit, so the result of a time unit never depends on the host's
+zone, clock, or culture.
 
 No mocking or stubbing is used. The subsystem is internal, so its tests reach it through the test assembly's
 `InternalsVisibleTo` access. The subsystem reads files only through the sandbox of the data loader and never reads the
@@ -43,14 +53,17 @@ network.
 - **Files**: Per-test temporary directories (created and deleted by the test) for the lookups in files and for the
   sandbox scenario; every other specification is an in-memory string; no network
 - **Isolation**: Each test parses its own specification and renders it with its own options. The determinism scenario
-  renders one document from twelve concurrent tasks and compares each result with a single-threaded baseline
+  renders one document from twelve concurrent tasks and compares each result with a single-threaded baseline. Every
+  time zone is a custom zone that the test creates; no test reads the host's zone or clock, and the culture scenarios
+  switch the current culture on the test thread and restore it afterwards
 
 ### Acceptance Criteria
 
 The `Transforms` subsystem's verification passes when every subsystem-level scenario below and every unit-level
 scenario in the unit verification documents passes without error or unexpected exception. Any row that is kept, dropped,
 reordered, or computed differently from the hand-derived expectation, a group, bin, or stack range that differs from
-the hand-derived one, a different sample for the same data and
+the hand-derived one, a time unit whose start or end differs from the hand-derived instant (or that ignores the zone of
+the chart or does not ignore it for a `utc` unit), a different sample for the same data and
 pointer, a pixel outside its analytic position, a limit that does not fail closed with the location of the transform,
 a read outside the sandbox, a measured size that differs from the rendered size, or a render that is not byte-identical
 to the baseline constitutes a failure.
@@ -87,6 +100,50 @@ to the baseline constitutes a failure.
   renders with identical pixels, and a discrete channel sorted by the `sum` of a field puts the categories with sums 1,
   5, and 10 in that order from left to right, and in the reverse order when descending; and the shorthands `y` and `-y`
   (and `x` and `-x` on a horizontal chart) order the categories of a bar chart by the sum of its other channel.
+- **Time Units Are Computed Before The Aggregate And Follow The Zone Of The Chart**:
+  `RowTransformsTimeTests.RowTransforms_TimeUnitTransform_ThenAggregate`,
+  `RowTransformsTimeTests.RowTransforms_TimeUnitTransform_UsesTheChartZone`,
+  `EncodingTransformsTimeTests.EncodingTransforms_TimeUnitThenAggregate_CountsByMonth`,
+  `EncodingTransformsTimeTests.EncodingTransforms_BinThenTimeUnitThenAggregate_ThenStack`,
+  `EncodingTransformsTimeTests.EncodingTransforms_TimeUnit_FollowsTheCalendarOfTheChart`,
+  `TimeUnitTransformTests.TimeUnitTransform_Zone_LocalDayAcrossDst`,
+  `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_YearMonthBarsSpanTheirMonthsAndLabelTheMonths`,
+  `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_TimeZoneOptionShiftsTimeUnitBoundaries`,
+  `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_DstDayIsNot24Hours` — the six dates of January
+  (two), February (three), and March (one) are counted per month by the explicit `timeUnit` transform and by the time
+  unit of a channel alike (2, 3, and 1, in first-seen order, at the month starts 2024-01-01, 2024-02-01, and
+  2024-03-01 with the ends one month later), the unit stage runs after a bin and before the aggregate and the stack (the
+  values 5, 15, 15 and the months January, January, and February of 2012 stack descending on y), the local month of
+  2024-03-01T02:00Z at -5 h is February 2024, and the local day of 2024-03-10T12:00Z starts at 05:00Z and ends at
+  04:00Z the next day, 23 hours later. In the chart of three months over 91 days and 300 pixels the bars span their
+  months, with the unit boundaries derived by hand (31 / 91 x 300 = 102.198 pixels for February 1), and in a zone five
+  and a half hours ahead a point at 2024-03-05T20:00Z is on March 6, one day of the scale (40 pixels over 10 days) to
+  the right of its UTC position, while a day that starts at the spring change is 23 hours, so March 10 begins 240
+  pixels into 470 pixels of 47 hours (10 pixels an hour) and not 235 as in UTC.
+- **Time Units In Filters, Encodings, And Scales Share The Same Data Stage**:
+  `RowTransformsTimeTests.RowTransforms_Filter_TimeUnitEqualMonth`,
+  `RowTransformsTimeTests.RowTransforms_Filter_ZoneChangesTheDate`,
+  `RowTransformsTimeTests.RowTransforms_Filter_UnparsedStringDatesAreParsedImplicitly`,
+  `TimeUnitTransformTests.TimeUnitTransform_ImplicitParseReadsTextDates`,
+  `TemporalFieldsTests.TemporalFields_Collect_FilterPredicatesWithTimeUnitsAndDatetimeObjects`,
+  `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_FilterByTimeUnitAndDatetimeObject`,
+  `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_OrdinalTimeUnitUsesABandScale`,
+  `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_UtcScaleIgnoresTheZoneOption` — the fields that
+  the encoding, the time unit transform, and the filter predicates read as dates (`TemporalFields.Collect`) are parsed
+  once by the data loader, so a text date such as `Mar 17, 2024` is the same date for a filter, a unit, and a scale; a
+  filter on a time unit keeps only the points in February and March (5 pixels a day over 54 days, March 30 at the right
+  end), an ordinal time unit is three bands of 90 pixels in a step of 100, and a `utc` scale draws the same pixels with
+  and without a zone.
+- **Time Limits, Budget, And Cancellation Fail Closed**:
+  `TimeUnitTransformTests.TimeUnitTransform_StepsAreCharged`,
+  `TimeUnitTransformTests.TimeUnitTransform_FieldLimit_IsCheckedBeforeAllocation`,
+  `TimeUnitTransformTests.TimeUnitTransform_Cancellation_StopsTheRowLoop`,
+  `EncodingTransformsTimeTests.EncodingTransforms_TimeUnit_FailureIsLocatedAtTheChannelUnit`,
+  `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_Limits_TickCountAndStringLimitsAreEnforced` —
+  10,000 rows cost 312 evaluation steps in UTC and 1,250 in a zone, so a budget of 100 fails the transform at
+  `/transform/0` and the unit of a channel at `/encoding/x/timeUnit`, each naming the limit, the added fields count
+  against the field limit before anything is allocated, a canceled token stops the row loop, and the tick and label
+  limits of the time axis are located render errors.
 - **Aggregate Bars, Histogram, And Stacked Layers Are Computed From The Encoding**:
   `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Aggregation_SumBarsHaveHandDerivedGeometryAndTitles`,
   `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Binning_HistogramCountsEveryBin`,
@@ -154,13 +211,21 @@ to the baseline constitutes a failure.
   `FeatureCatalogTests.FeatureCatalog_Visit_NestedViewAggregatingTransformsAreStillReported`,
   `FeatureCatalogTests.FeatureCatalog_Visit_UnsupportedPartsOfSupportedTransformsAreReported`,
   `FeatureCatalogTests.FeatureCatalog_Visit_NestedViewTransformsAndVariableParametersAreReported`,
+  `FeatureCatalogTimeTests.FeatureCatalog_Visit_TemporalFieldsAndTimeUnitsAreSupported`,
+  `FeatureCatalogTimeTests.FeatureCatalog_Visit_BinnedTimeUnitIsReportedAtTheValue`,
+  `FeatureCatalogTimeTests.FeatureCatalog_Visit_MaxBinsTimeUnitIsReportedInPredicatesOnly`,
+  `FeatureCatalogTimeTests.FeatureCatalog_Visit_WeekAndDayOfYearPartsOfPredicatesAreWarnings`,
+  `FeatureCatalogTimeTests.FeatureCatalog_Visit_NestedTimeUnitTransformIsReportedAndRemovedIdsAreGone`,
   `RowTransformsTests.RowTransforms_Apply_TransformsOfLaterPhasesAreSkipped`,
   `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Aggregation_OnlyTheUnsupportedPartIsReported`,
+  `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_StrictModeReportsBinnedTimeUnitAndRectBandPosition`,
   `VegaLiteChartIntegrationTests.CanvasNetVegaLite_SystemIntegration_Deferred_FeaturesAreStillReported` — the six grouped
-  transforms of the drawn view are computed and not reported, while the transforms of later phases (`timeUnit`,
-  `regression`, `loess`, `density`, `quantile`, and `extent`), every transform of a nested view, the selection
-  parameters, the conditions on a channel that takes none, and the parts of the supported transforms that are not
-  computed (a selection
-  or a time unit in a filter, a pivot operation other than `sum` and `count`, a lookup in a parameter, a bin extent that
-  is a parameter) are reported once each in document order, are skipped by the executor, and the chart is still drawn;
-  a time unit next to the aggregate of the fixture is the one report, which strict mode turns into an exception.
+  transforms and the `timeUnit` transform of the drawn view are computed and not reported, while the transforms of
+  later phases (`regression`, `loess`, `density`, `quantile`, and `extent`), every transform of a nested view (the
+  `timeUnit` transform of a nested view included), the selection parameters, the conditions on a channel that takes
+  none, and the parts of the supported transforms that are not computed (a selection in a filter, a pivot operation
+  other than `sum` and `count`, a lookup in a parameter, a bin extent that is a parameter, the `week` and `dayofyear`
+  parts and the `maxbins` form of a time unit in a filter predicate, and a binned time unit) are reported once each in
+  document order, are skipped by the executor, and the chart is still drawn; a binned time unit next to the aggregate of
+  the fixture is the one report, `vl-timeunit-binned` at `/encoding/x/timeUnit`, which strict mode turns into an
+  exception.

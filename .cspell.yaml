@@ -677,6 +677,7 @@ words:
   - Kahan
   - tahoma
   - tickband
+  - tickcount
   - tickminstep
   - timeunit
   - timeformat
@@ -717,6 +718,59 @@ words:
   - underflows
   - variancep
   - welford
+  - binnedhours
+  - binnedmonth
+  - binnedutcyearmonthdate
+  - binnedyear
+  - binnedyearmonth
+  - dayhours
+  - dayhoursminutes
+  - dayhoursminutesseconds
+  - dayofyear
+  - hoursminutes
+  - hoursminutesseconds
+  - minutesseconds
+  - monthdate
+  - monthdatehours
+  - monthdatehoursminutes
+  - monthdatehoursminutesseconds
+  - quartermonth
+  - secondsmilliseconds
+  - utcdayofyear
+  - utcmonth
+  - utcmonthdate
+  - utctimeunit
+  - utcyearmonth
+  - utcyearmonthdate
+  - weekdayhours
+  - weekdayhoursminutes
+  - weekdayhoursminutesseconds
+  - yeardayofyear
+  - yearmonth
+  - yearmonthdate
+  - yearmonthdatehours
+  - yearmonthdatehoursminutes
+  - yearmonthdatehoursminutesseconds
+  - yearquarter
+  - yearquartermonth
+  - yearweek
+  - yearweekday
+  - yearweekdayhours
+  - yearweekdayhoursminutes
+  - yearweekdayhoursminutesseconds
+  - geoarea
+  - isoweek
+  - timezoneoffset
+  - utcdate
+  - utcday
+  - utchours
+  - utcisoweek
+  - utcmilliseconds
+  - utcminutes
+  - utcquarter
+  - utcseconds
+  - utcweek
+  - utcyear
 # Exclude common build artifacts, dependencies, and vendored third-party code
 ignorePaths:
   - "**/.git/**"

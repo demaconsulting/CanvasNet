@@ -236,40 +236,52 @@ software items, specifically:
   limits, structural validation, the compilation of expressions, and duplicate and unknown key warnings),
   `FeatureCatalog` (the stable `vl-*` reports
   of every recognized-but-unsupported construct), and `ConfigResolver` (the Vega and Vega-Lite default configuration
-  merged with the configuration of the specification and of the caller). The `Data` subsystem has four units:
+  merged with the configuration of the specification and of the caller). The `Data` subsystem has six units:
   `DataTable` (typed values and tables), `DataLoader` (the source of a view - inline rows, a local file, a named
   dataset, or a sequence - under data limits), `DataFileResolver` (sandboxed, bounded, strict-UTF-8 reading of local
-  data files, or through the caller's callback), and `DelimitedTextParser` (CSV, TSV, and DSV, the `parse`
-  conversions, and the per-column type inference). The `Expressions` subsystem has three units: `ExpressionParser` (a
+  data files, or through the caller's callback), `DelimitedTextParser` (CSV, TSV, and DSV, the `parse`
+  conversions, and the per-column type inference), `TimeCalendar` (ECMAScript time arithmetic over the years 1 to 9999
+  in UTC or the caller's time zone, the d3-time intervals, the Vega-Lite time units, and the `DateTime` object), and
+  `TimeFormat` (d3-time-format formatting and parsing with the English locale, Vega's multi-format, and JavaScript's
+  `Date.parse`). The `Expressions` subsystem has three units: `ExpressionParser` (a
   bounded compiler of the Vega expression language into an immutable postfix program), `ExpressionEvaluator` (a
   culture-invariant interpreter with JavaScript coercion under a step budget), and `ExpressionFunctions` (the closed
-  table of 57 pure functions with the safe regular expression translation). The `Transforms` subsystem has three units:
+  table of 99 pure functions, including the date and time functions, with the safe regular expression translation).
+  The `Transforms` subsystem has four units:
   `RowTransforms` (the static parameter environment and the `calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot`,
-  and `lookup` transforms between the loader and the scales), `AggregateTransforms` (the `aggregate`, `joinaggregate`,
+  `lookup`, and `timeUnit` transforms between the loader and the scales), `AggregateTransforms` (the `aggregate`,
+  `joinaggregate`,
   `window`, `bin`, `stack`, and `impute` transforms with the aggregate operations, the bin algorithm, and the stack rules),
-  and `EncodingPlan` (the implicit bin, aggregate, and stack of a view's encoding, with the field names and titles
+  `EncodingPlan` (the implicit bin, time unit, aggregate, and stack of a view's encoding, with the field names and titles
   that every
-  channel reads). The `Scales` subsystem has
-  six units: `ScaleModel` (the linear, logarithmic, power, symlog, band, point, ordinal, sequential, diverging, and
+  channel reads), and `TimeUnitTransform` (the start and the end of a time unit for every row, and the fields that are
+  read as dates). The `Scales` subsystem has
+  six units: `ScaleModel` (the linear, time, UTC, logarithmic, power, symlog, band, point, ordinal, sequential,
+  diverging, and
   discretizing mappings), `ScaleResolver` (the Vega-Lite inference of
-  scale types, domains, ranges, and paddings), `Ticks` (the d3-array tick algorithms), `NumberFormat` (the d3-format
+  scale types, domains, ranges, and paddings), `Ticks` (the d3-array and d3-time tick algorithms), `NumberFormat` (the
+  d3-format
   number formatter), `ColorSchemes` (the 68 Vega color schemes and the configuration of a color range), and
-  `ColorInterpolator` (the sRGB, HSL, CIELAB, and HCL color interpolation). The `Guides` subsystem has five units:
+  `ColorInterpolator` (the sRGB, HSL, CIELAB, and HCL color interpolation). The `Guides` subsystem has six units:
   `TextMeasurer` (bundled-font resolution, measurement, and truncation), `TitleBuilder` (title and subtitle),
   `AxisBuilder` (grid, ticks, labels, domain, and title of an axis), `LabelOverlap` (parity and greedy removal of
-  overlapping labels), and `LegendBuilder` (symbol, gradient, and discrete gradient legends). The `Layout` subsystem has
+  overlapping labels), `LegendBuilder` (symbol, gradient, and discrete gradient legends), and `TimeLabels` (the label
+  format, interval tick count, and default tick count of time axes and legends). The `Layout` subsystem has
   two units, `ViewLayout` (data rectangle, padding, autosize, title placement, and view border) and `LegendLayout`
   (the placement of the legends around the data rectangle and the axes, and their extents). The `Marks` subsystem has one
   unit, `MarkBuilder` (bar, rect, point, circle, square, rule, and tick geometry and paint, with the color, size, shape,
-  opacity, stroke, and angle channels and conditional encodings). The `Scenegraph`
+  opacity, stroke, and angle channels, time-unit bands, and conditional encodings). The `Scenegraph`
   subsystem has three units: `SceneModel` (the immutable scene), `ScenePainter` (drawing a scene onto a `Surface`),
   and `CssColor` (CSS color parsing). Compositions, selection parameters,
-  conditions on a parameter, and time
+  and conditions on a parameter
   are deferred and reported with stable identifiers (local CSV, TSV, DSV, and JSON data files, named datasets, and
   sequences, a bounded subset of the Vega expression language, static variable parameters, the row transforms
-  `calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot`, and `lookup`, the aggregating transforms `aggregate`,
-  `joinaggregate`, `window`, `bin`, `stack`, and `impute`, and the aggregate, bin, stack, and sort properties of a channel
-  are supported; remote data is never fetched)
+  `calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot`, `lookup`, and `timeUnit`, the aggregating transforms
+  `aggregate`,
+  `joinaggregate`, `window`, `bin`, `stack`, and `impute`, the aggregate, bin, stack, and sort properties of a channel,
+  and time (temporal fields, time units, time scales and axes, date formats, and the `TimeZone` option, with the
+  calendar in UTC by default) are
+  supported; remote data is never fetched)
   — see _CanvasNetVegaLite System Design_
   (`canvas-net-vega-lite.md`) for the full supported/deferred boundary and its Implementation Phase Plan.
   `CanvasNetVegaLite` depends on the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, and `Rendering`
@@ -453,11 +465,14 @@ that parses, describes, measures, and renders charts, derived with attribution f
 licenses ship in the package): its direct unit, `VegaLiteDocument` (namespace `DemaConsulting.CanvasNet.VegaLite`), is
 the public API, its internal `SpecModel` subsystem (namespace `DemaConsulting.CanvasNet.VegaLite.SpecModel`) holds the
 `SpecParser`, `FeatureCatalog`, and `ConfigResolver` units, its internal `Data` subsystem holds the `DataTable`,
-`DataLoader`, `DataFileResolver`, and `DelimitedTextParser` units, its internal `Expressions` subsystem holds the
+`DataLoader`, `DataFileResolver`, `DelimitedTextParser`, `TimeCalendar`, and `TimeFormat` units, its internal
+`Expressions` subsystem holds the
 `ExpressionParser`, `ExpressionEvaluator`, and `ExpressionFunctions` units, its internal `Transforms` subsystem holds the
-`RowTransforms`, `AggregateTransforms`, and `EncodingPlan` units, its internal `Scales` subsystem holds the
+`RowTransforms`, `AggregateTransforms`, `EncodingPlan`, and `TimeUnitTransform` units, its internal `Scales` subsystem
+holds the
 `ScaleModel`, `ScaleResolver`, `Ticks`, `NumberFormat`, `ColorSchemes`, and `ColorInterpolator` units, its internal
-`Guides` subsystem holds the `TextMeasurer`, `TitleBuilder`, `AxisBuilder`, `LabelOverlap`, and `LegendBuilder`
+`Guides` subsystem holds the `TextMeasurer`, `TitleBuilder`, `AxisBuilder`, `LabelOverlap`, `LegendBuilder`, and
+`TimeLabels`
 units, its internal `Layout` subsystem holds the `ViewLayout` and `LegendLayout` units, its internal `Marks` subsystem
 holds the
 `MarkBuilder` unit, and its internal `Scenegraph` subsystem holds the `SceneModel`, `ScenePainter`, and `CssColor`
@@ -1111,6 +1126,7 @@ src/DemaConsulting.CanvasNet.VegaLite/
 │   ├── SpecParser.Validation.cs   — SpecParser: structural validation and unknown properties
 │   ├── SpecParser.Transforms.cs   — SpecParser: expression compilation, parameter, transform, and predicate validation
 │   ├── SpecParser.Aggregates.cs   — SpecParser: aggregating transform and aggregate, bin, stack, and sort validation
+│   ├── SpecParser.Time.cs         — SpecParser: time unit, date-time object, tick interval, and timeUnit transform validation
 │   ├── SpecExpressions.cs         — SpecParser: the compiled expressions of a specification
 │   ├── SpecNode.cs                — SpecParser: SpecNode, SpecNodeKind, NodePosition, and SpecTree
 │   ├── SpecMetadata.cs            — SpecParser: descriptive metadata of a specification
@@ -1125,7 +1141,18 @@ src/DemaConsulting.CanvasNet.VegaLite/
 │   ├── DataLoader.cs              — DataLoader: inline rows, files, named datasets, sequences, and the row budget
 │   ├── DataFileResolver.cs        — DataFileResolver: sandboxed bounded reads, cache, strict UTF-8, and data-file limits
 │   ├── DataFileResolver.Paths.cs  — DataFileResolver: path rules, candidates, root confinement, and the link walk
-│   └── DelimitedTextParser.cs     — DelimitedTextParser: CSV, TSV, and DSV, parse directives, and type inference
+│   ├── DelimitedTextParser.cs     — DelimitedTextParser: CSV, TSV, and DSV, parse directives, and type inference
+│   ├── TimeCalendar.cs            — TimeCalendar: DateParts, instants and wall-clock parts, and the integer civil arithmetic
+│   ├── TimeCalendar.Zone.cs       — TimeCalendar: the zone offset lookup and the gap and overlap rule
+│   ├── TimeCalendar.Intervals.cs  — TimeCalendar: the d3-time intervals, TimeIntervalKind, and TimeRangeLimitException
+│   ├── TimeUnits.cs               — TimeCalendar: TimeUnitSpec, the Vega-Lite time units
+│   ├── TimeDateObject.cs          — TimeCalendar: DateTimeObject, the Vega-Lite date-time object
+│   ├── TimeFormat.cs              — TimeFormat: the English locale tables and shared helpers
+│   ├── TimeFormat.Format.cs       — TimeFormat: TimeFormatter, the specifier compiler, and the length limit
+│   ├── TimeFormat.Parse.cs        — TimeFormat: the d3 time parser
+│   ├── TimeFormat.Multi.cs        — TimeFormat: Vega's multi-format
+│   ├── JsDateParser.cs            — TimeFormat: JavaScript Date.parse, the ECMAScript date-time string format
+│   └── JsDateParser.Legacy.cs     — TimeFormat: the documented subset of the legacy Date.parse forms
 ├── Expressions/                   — Expressions subsystem (internal)
 │   ├── NamespaceDoc.cs            — ExpressionParser: namespace-level XML documentation
 │   ├── ExpressionParser.cs        — ExpressionParser: entry point, length and depth limits, precedence climbing
@@ -1141,6 +1168,7 @@ src/DemaConsulting.CanvasNet.VegaLite/
 │   ├── ExpressionFunctions.Types.cs — ExpressionFunctions: type and conversion functions
 │   ├── ExpressionFunctions.Regex.cs — ExpressionFunctions: regexp, test, and the regular expression forms
 │   ├── ExpressionFunctions.Casing.cs — ExpressionFunctions: the case conversion of lower and upper
+│   ├── ExpressionFunctions.Time.cs — ExpressionFunctions: the date and time functions
 │   ├── ExpressionFunctionContext.cs — ExpressionFunctions: step budget, string limit, and regex cache
 │   └── ExpressionRegex.cs         — ExpressionFunctions: JavaScript regular expressions as safe .NET ones
 ├── Transforms/                    — Transforms subsystem (internal)
@@ -1165,8 +1193,10 @@ src/DemaConsulting.CanvasNet.VegaLite/
 │   ├── StackRules.cs              — AggregateTransforms: Vega-Lite's decision that a view stacks
 │   ├── WorkMeter.cs               — AggregateTransforms: step-budget charging of proportional work
 │   ├── StableSorter.cs            — AggregateTransforms: stable, cancelable merge sort
-│   ├── EncodingPlan.cs            — EncodingPlan: the plan of the implicit bin, aggregate, and stack
-│   └── EncodingTransforms.cs      — EncodingPlan: running the plan, and the Raw and Main tables
+│   ├── EncodingPlan.cs            — EncodingPlan: the plan of the implicit bin, time unit, aggregate, and stack
+│   ├── EncodingTransforms.cs      — EncodingPlan: running the plan, and the Raw and Main tables
+│   ├── TimeUnitTransform.cs       — TimeUnitTransform: the start and end of a time unit for every row
+│   └── TemporalFields.cs          — TimeUnitTransform: the fields that are read as dates
 ├── Scales/                        — Scales subsystem (internal)
 │   ├── NamespaceDoc.cs            — Scales: namespace-level XML documentation
 │   ├── ScaleModel.cs              — ScaleModel: linear, transformed, band, point, ordinal, and color mappings
@@ -1175,7 +1205,9 @@ src/DemaConsulting.CanvasNet.VegaLite/
 │   ├── ScaleResolver.Sort.cs      — ScaleResolver: the order of discrete domains, including sort by an aggregate
 │   ├── ScaleResolver.Color.cs     — ScaleResolver: the colors of color, fill, and stroke scales and quantile domains
 │   ├── ScaleResolver.Range.cs     — ScaleResolver: the ranges of the non-position channels and named ranges
+│   ├── ScaleResolver.Time.cs      — ScaleResolver: temporal domains, bounds, nice, and the time-unit scales
 │   ├── Ticks.cs                   — Ticks: d3-array ticks, nice, and Vega tick counts
+│   ├── Ticks.Time.cs              — Ticks: d3-time ticks, tick intervals, and nice for time scales
 │   ├── NumberFormat.cs            — NumberFormat: d3-format number formatting and tickFormat
 │   ├── ColorSchemes.cs            — ColorSchemes: ColorScheme, SchemeRange, SchemeUse, the catalog lookup, and range configuration
 │   ├── ColorSchemeData.cs         — ColorSchemes: the palette tables of the 68 color schemes (data only)
@@ -1190,7 +1222,9 @@ src/DemaConsulting.CanvasNet.VegaLite/
 │   ├── LegendBuilder.cs           — LegendBuilder: the legend group, title, box, and result records
 │   ├── LegendBuilder.Symbols.cs   — LegendBuilder: symbol legend entries, labels, symbols, and bounds
 │   ├── LegendBuilder.Gradient.cs  — LegendBuilder: gradient and discrete gradient legends
-│   └── LegendBuilder.Grid.cs      — LegendBuilder: the grid layout of Vega's layout transform
+│   ├── LegendBuilder.Time.cs      — LegendBuilder: the ticks, labels, and values of legends of temporal fields
+│   ├── LegendBuilder.Grid.cs      — LegendBuilder: the grid layout of Vega's layout transform
+│   └── TimeLabels.cs              — TimeLabels: date label format, interval tick count, default count, and values reader
 ├── Layout/                        — Layout subsystem (internal)
 │   ├── NamespaceDoc.cs            — Layout: namespace-level XML documentation
 │   ├── LegendLayout.cs            — LegendLayout: placement of the legends and their extents
@@ -1332,7 +1366,22 @@ subsystem for aggregation follow the same pattern: for `AggregateTransforms`, re
 `StableSorter.cs`), and tests `test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/AggregateTransformsTests.cs` (with
 the window, stack, impute, and joinaggregate test files, `AggregateMeasuresTests.cs`, `BinAlgorithmTests.cs`,
 `StackRulesTests.cs`, and `StableSorterTests.cs`); for `EncodingPlan`, the same paths with `encoding-plan`,
-`EncodingPlan.cs` and `EncodingTransforms.cs`, and `EncodingPlanTests.cs` and `EncodingTransformsTests.cs`. The attribution
+`EncodingPlan.cs` and `EncodingTransforms.cs`, and `EncodingPlanTests.cs` and `EncodingTransformsTests.cs`. The units
+added for time follow the same pattern: for `TimeCalendar` in the `Data` subsystem, requirements
+`docs/reqstream/canvas-net-vega-lite/data/time-calendar.yaml`, design
+`docs/design/canvas-net-vega-lite/data/time-calendar.md`, verification
+`docs/verification/canvas-net-vega-lite/data/time-calendar.md`, SysML2 model
+`docs/sysml2/model/canvas-net-vega-lite/data/time-calendar.sysml`, source
+`src/DemaConsulting.CanvasNet.VegaLite/Data/TimeCalendar.cs` (with `TimeCalendar.Zone.cs`, `TimeCalendar.Intervals.cs`,
+`TimeUnits.cs`, and `TimeDateObject.cs`), and tests
+`test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/TimeCalendarTests.cs` (with the zone, interval, epoch-day, time unit,
+and date-time object test files); for `TimeFormat`, the same paths with `time-format`, `TimeFormat.cs` (with its
+partial files and `JsDateParser.cs` and `JsDateParser.Legacy.cs`), and `TimeFormatTests.cs` (with the parse,
+multi-format, and `Date.parse` test files); for `TimeUnitTransform` in the `Transforms` subsystem, the same paths with
+`transforms/time-unit-transform`, `TimeUnitTransform.cs` and `TemporalFields.cs`, and `TimeUnitTransformTests.cs` and
+`TemporalFieldsTests.cs`; and for `TimeLabels` in the `Guides` subsystem, the same paths with `guides/time-labels`,
+`TimeLabels.cs` (the temporal legends are in `LegendBuilder.Time.cs`, a partial file of the `LegendBuilder` unit), and
+`TimeLabelsTests.cs`. The attribution
 record and license texts of the ported algorithms are in `src/DemaConsulting.CanvasNet.VegaLite/third-party/`.
 
 ## References

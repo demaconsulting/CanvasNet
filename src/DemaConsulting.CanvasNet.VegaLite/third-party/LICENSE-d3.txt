@@ -1,10 +1,14 @@
-Third-party license notices: d3-array, d3-format, d3-scale, d3-interpolate, d3-color and d3-scale-chromatic
-==========================================================================================================
+Third-party license notices: d3-array, d3-format, d3-scale, d3-time, d3-time-format, d3-interpolate, d3-color and d3-scale-chromatic
+===================================================================================================================================
 
 DemaConsulting.CanvasNet.VegaLite contains ports of numeric algorithms of the
 d3-array, d3-format and d3-scale packages (tick generation, tick step
 selection, domain extension to round values ("nice"), number formatting, tick
 label formats and the linear, band, point and ordinal scales), ports of the
+calendar interval algorithms of d3-time (floor, ceil, offset, count, every and
+range of the time intervals, and the time ticks and "nice" of the d3-scale time
+scale) and of the date formatting and parsing of d3-time-format (the
+directives, the padding flags and the English locale), ports of the
 color interpolation and conversion algorithms of d3-interpolate and d3-color
 (sRGB, HSL, CIELAB and HCL), the quantize, quantile, threshold, sequential and
 diverging scales of d3-scale, and the category color values of
@@ -13,6 +17,7 @@ ColorBrewer qualitative sets), which are released under the ISC License. The
 license text of each package is reproduced below exactly as published in the
 package repositories (https://github.com/d3/d3-array,
 https://github.com/d3/d3-format, https://github.com/d3/d3-scale,
+https://github.com/d3/d3-time, https://github.com/d3/d3-time-format,
 https://github.com/d3/d3-scale-chromatic, https://github.com/d3/d3-interpolate
 and https://github.com/d3/d3-color).
 
@@ -60,6 +65,44 @@ THIS SOFTWARE.
 
 --------------------------------------------------------------------------
 d3-scale (https://github.com/d3/d3-scale)
+--------------------------------------------------------------------------
+
+Copyright 2010-2021 Mike Bostock
+
+Permission to use, copy, modify, and/or distribute this software for any purpose
+with or without fee is hereby granted, provided that the above copyright notice
+and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
+FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
+THIS SOFTWARE.
+
+
+--------------------------------------------------------------------------
+d3-time (https://github.com/d3/d3-time)
+--------------------------------------------------------------------------
+
+Copyright 2010-2022 Mike Bostock
+
+Permission to use, copy, modify, and/or distribute this software for any purpose
+with or without fee is hereby granted, provided that the above copyright notice
+and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
+FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
+THIS SOFTWARE.
+
+
+--------------------------------------------------------------------------
+d3-time-format (https://github.com/d3/d3-time-format)
 --------------------------------------------------------------------------
 
 Copyright 2010-2021 Mike Bostock

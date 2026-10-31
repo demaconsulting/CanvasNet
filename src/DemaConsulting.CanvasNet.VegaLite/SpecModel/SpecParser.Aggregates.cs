@@ -734,15 +734,17 @@ internal sealed partial class SpecParser
     /// </remarks>
     /// <param name="definition">The channel definition that owns the sort.</param>
     /// <param name="sort">The array.</param>
-    /// <exception cref="VegaLiteSpecException">Thrown, at the item, when an item is an array or an object that is not a date-time of a temporal field.</exception>
+    /// <exception cref="VegaLiteSpecException">Thrown, at the item, when an item is an array, an object on a field that is not temporal, or an invalid date-time of a temporal field (at its member).</exception>
     private void ValidateSortArray(SpecNode definition, SpecNode sort)
     {
         var temporal = definition["type"] is { IsString: true, StringValue: "temporal" };
         var kinds = new HashSet<SpecNodeKind>();
         foreach (var item in sort.Items)
         {
-            if (item.IsObject && temporal && IsDateTimeObject(item))
+            if (item.IsObject && temporal)
             {
+                // A date-time object of a temporal field: every key and value is checked, and an invalid one is located at its member
+                ValidateDateTimeValue(item);
                 continue;
             }
 
@@ -765,15 +767,6 @@ internal sealed partial class SpecParser
                 FeatureReportKind.Warning));
         }
     }
-
-    /// <summary>
-    ///     Determines whether an object is a Vega-Lite date-time (a non-empty object with only date-time keys).
-    /// </summary>
-    /// <param name="node">The object.</param>
-    /// <returns><see langword="true"/> for an object whose every key is a date-time key with a string, number or boolean value.</returns>
-    private static bool IsDateTimeObject(SpecNode node) =>
-        node.Properties.Count > 0
-        && node.Properties.All(p => DateTimeKeys.Contains(p.Name!) && (p.IsString || p.IsNumber || p.IsBoolean));
 
     /// <summary>
     ///     Validates a <c>sort</c> object: <c>{field, op, order}</c> (sort by an operation over a field) or <c>{encoding, order}</c> (sort by another channel).

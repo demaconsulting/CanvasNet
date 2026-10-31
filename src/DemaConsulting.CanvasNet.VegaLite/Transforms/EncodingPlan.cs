@@ -41,6 +41,23 @@ internal sealed record BinPlan(
     string Format);
 
 /// <summary>
+///     The implicit time unit of a field that one or more encoding channels share (Vega-Lite names it by its unit and field, not by its channel).
+/// </summary>
+/// <param name="StartName">The literal name of the field that receives the start of the unit (<c>yearmonth_date</c>).</param>
+/// <param name="EndName">The literal name of the field that receives the end of the unit (<c>yearmonth_date_end</c>).</param>
+/// <param name="SourceField">The field path of the dates, as written in the specification.</param>
+/// <param name="Spec">The time unit as written (the <c>maxbins</c> form is resolved against the data when the transform runs; see <see cref="EncodingData.TimeUnits"/>).</param>
+/// <param name="Node">The <c>timeUnit</c> value of the first channel definition that asked for the unit (the location of failures).</param>
+/// <param name="HasBandEnd">Whether a channel reads the end of the unit as the second end of its position (a mark that spans the unit).</param>
+internal sealed record TimeUnitPlan(
+    string StartName,
+    string EndName,
+    string SourceField,
+    TimeUnitSpec Spec,
+    SpecNode Node,
+    bool HasBandEnd);
+
+/// <summary>
 ///     One channel definition of an encoding and what the implicit pipeline makes of it.
 /// </summary>
 /// <param name="Channel">The channel name (<c>x</c>, <c>x2</c>, <c>color</c>, <c>detail</c>, ...).</param>
@@ -56,6 +73,8 @@ internal sealed record BinPlan(
 /// <param name="IsStacked">Whether the channel carries the stack.</param>
 /// <param name="Title">The default title of the channel (Vega-Lite's verbal, plain or functional title; two merged for a range), or null when the channel reads no field.</param>
 /// <param name="FieldDefinition">The object that carries the field of the channel when it is not <paramref name="Definition"/>: the condition of a channel whose own definition is a value (Vega-Lite's <c>getFieldOrDatumDef</c>); otherwise null.</param>
+/// <param name="TimeUnit">The time unit of the channel (its field is the start of the unit), or null.</param>
+/// <param name="HasBandEnd">Whether the channel spans its time unit: its second end (<paramref name="Field2Path"/>) is the end of the unit.</param>
 internal sealed record ChannelPlan(
     string Channel,
     SpecNode Definition,
@@ -69,7 +88,9 @@ internal sealed record ChannelPlan(
     AggregateSpec? Measure,
     bool IsStacked,
     string? Title,
-    SpecNode? FieldDefinition = null)
+    SpecNode? FieldDefinition = null,
+    TimeUnitPlan? TimeUnit = null,
+    bool HasBandEnd = false)
 {
     /// <summary>Gets the object whose <c>type</c>, <c>scale</c>, <c>sort</c>, <c>bin</c> and <c>legend</c> the channel reads: its field condition, or else its own definition.</summary>
     public SpecNode FieldDef => FieldDefinition ?? Definition;
@@ -119,7 +140,7 @@ internal sealed record StackPlan(
     SpecNode Definition);
 
 /// <summary>
-///     What a view's encoding asks the data pipeline to do beyond the explicit transforms: bin the binned fields, aggregate the
+///     What a view's encoding asks the data pipeline to do beyond the explicit transforms: bin the binned fields, compute the time units, aggregate the
 ///     aggregated ones and stack the stacked channel; and the field every channel then reads.
 /// </summary>
 /// <remarks>
@@ -135,7 +156,10 @@ internal sealed record StackPlan(
 ///         the stacked channel is <c>y</c>, ascending otherwise). Titles are Vega-Lite's defaults: <c>Sum of x</c>,
 ///         <c>Count of Records</c> (<c>countTitle</c>), <c>x (binned)</c>, <c>y for max x</c>, two titles of a range merged
 ///         as <c>a, b</c>; the configuration <c>fieldTitle</c> selects <c>verbal</c> (the default), <c>functional</c>
-///         (<c>SUM(x)</c>) or <c>plain</c> (the field).
+///         (<c>SUM(x)</c>) or <c>plain</c> (the field). A <c>timeUnit</c> (bin wins over it) is named by its unit and field the same way
+///         (<c>yearmonth_date</c>, <c>month_step_2_date</c>, <c>timeunit_maxbins_10_date</c>, with <c>_end</c> for the end of the unit), is computed before the
+///         aggregate, titled <c>date (year-month)</c> (verbal), <c>YEARMONTH(date)</c> (functional) or <c>date</c> (plain), and the dimension of an aggregate is its start
+///         (and its end for a channel that spans the unit: a <c>temporal</c> <c>x</c> or <c>y</c> without a secondary channel whose mark has a band position).
 ///     </para>
 ///     <para>
 ///         <b>Differences from Vega-Lite.</b> <c>bin</c> is planned on <c>x</c> and <c>y</c> and on the channels that have a scale (<c>color</c>, <c>fill</c>,
@@ -165,6 +189,7 @@ internal sealed class EncodingPlan
     /// <param name="orient">The inferred orientation of the mark, or null.</param>
     /// <param name="channels">The channel plans.</param>
     /// <param name="bins">The distinct bins.</param>
+    /// <param name="timeUnits">The distinct time units.</param>
     /// <param name="aggregate">The aggregate, or null.</param>
     /// <param name="stack">The stack, or null.</param>
     /// <param name="needsRaw">Whether a scale reads the table as it was before the aggregate.</param>
@@ -173,6 +198,7 @@ internal sealed class EncodingPlan
         string? orient,
         IReadOnlyList<ChannelPlan> channels,
         IReadOnlyList<BinPlan> bins,
+        IReadOnlyList<TimeUnitPlan> timeUnits,
         AggregatePlan? aggregate,
         StackPlan? stack,
         bool needsRaw)
@@ -181,6 +207,7 @@ internal sealed class EncodingPlan
         Orient = orient;
         _channels = channels;
         Bins = bins;
+        TimeUnits = timeUnits;
         Aggregate = aggregate;
         Stack = stack;
         NeedsRaw = needsRaw;
@@ -198,6 +225,9 @@ internal sealed class EncodingPlan
     /// <summary>Gets the distinct implicit bins.</summary>
     public IReadOnlyList<BinPlan> Bins { get; }
 
+    /// <summary>Gets the distinct implicit time units.</summary>
+    public IReadOnlyList<TimeUnitPlan> TimeUnits { get; }
+
     /// <summary>Gets the implicit aggregate, or null when no definition aggregates.</summary>
     public AggregatePlan? Aggregate { get; }
 
@@ -207,8 +237,8 @@ internal sealed class EncodingPlan
     /// <summary>Gets a value indicating whether a scale reads the Raw table (a sort by field, or an unaggregated domain).</summary>
     public bool NeedsRaw { get; }
 
-    /// <summary>Gets a value indicating whether the encoding asks for no implicit bin, aggregate or stack.</summary>
-    public bool IsIdentity => Bins.Count == 0 && Aggregate is null && Stack is null;
+    /// <summary>Gets a value indicating whether the encoding asks for no implicit bin, time unit, aggregate or stack.</summary>
+    public bool IsIdentity => Bins.Count == 0 && TimeUnits.Count == 0 && Aggregate is null && Stack is null;
 
     /// <summary>
     ///     Gets the plan of the first definition of a channel.
@@ -231,11 +261,13 @@ internal sealed class EncodingPlan
         var (markType, specified) = ReadMark(view["mark"]);
         if (markType.Length == 0 || view["encoding"] is not { IsObject: true } encoding)
         {
-            return new EncodingPlan(markType, null, NoChannels, [], null, null, false);
+            return new EncodingPlan(markType, null, NoChannels, [], [], null, null, false);
         }
 
         var orient = ScaleResolver.InferOrient(markType, specified, encoding);
         var bins = new Dictionary<string, BinBuilder>(StringComparer.Ordinal);
+        var units = new Dictionary<string, TimeUnitBuilder>(StringComparer.Ordinal);
+        var time = new TimeContext(encoding, markType, view["mark"] is { IsObject: true } markDefinition ? markDefinition : null, units);
         var channels = new List<ChannelPlan>();
         foreach (var property in encoding.Properties)
         {
@@ -243,7 +275,7 @@ internal sealed class EncodingPlan
             {
                 if (definition.IsObject)
                 {
-                    channels.Add(PlanDefinition(property.Name!, definition, config, bins));
+                    channels.Add(PlanDefinition(property.Name!, definition, config, bins, time));
                 }
             }
         }
@@ -251,7 +283,13 @@ internal sealed class EncodingPlan
         // A bin that a discrete channel shows as text has the range field for every channel that shares it
         var binPlans = bins.Values.Select(b => b.Build()).ToList();
         var finalBins = binPlans.ToDictionary(b => b.StartName, StringComparer.Ordinal);
-        channels = [.. channels.Select(c => c.BinPlan is { } shared ? c with { BinPlan = finalBins[shared.StartName] } : c)];
+        var unitPlans = units.Values.Select(u => u.Build()).ToList();
+        var finalUnits = unitPlans.ToDictionary(u => u.StartName, StringComparer.Ordinal);
+        channels = [.. channels.Select(c => c with
+        {
+            BinPlan = c.BinPlan is { } shared ? finalBins[shared.StartName] : null,
+            TimeUnit = c.TimeUnit is { } sharedUnit ? finalUnits[sharedUnit.StartName] : null,
+        })];
         var decision = StackRules.Decide(markType, orient, encoding);
         var stack = decision is null ? null : PlanStack(decision, encoding, channels);
         if (stack is not null)
@@ -262,7 +300,7 @@ internal sealed class EncodingPlan
         channels = LinkRanges(channels);
         var aggregate = PlanAggregate(channels);
         var needsRaw = channels.Any(c => c.Channel is not ("x2" or "y2") && (UsesFieldSort(c.FieldDef) || c.FieldDef["scale"]?["domain"]?.AsString() == "unaggregated"));
-        return new EncodingPlan(markType, orient, channels, binPlans, aggregate, stack, needsRaw);
+        return new EncodingPlan(markType, orient, channels, binPlans, unitPlans, aggregate, stack, needsRaw);
     }
 
     /// <summary>
@@ -352,8 +390,9 @@ internal sealed class EncodingPlan
     /// <param name="definition">The definition object.</param>
     /// <param name="config">The configuration.</param>
     /// <param name="bins">The bins found so far, by start name.</param>
+    /// <param name="time">What the time units of the encoding need: the encoding, the mark and the units found so far.</param>
     /// <returns>The plan of the definition (without the stack and the secondary channel).</returns>
-    private static ChannelPlan PlanDefinition(string channel, SpecNode definition, ResolvedConfig config, Dictionary<string, BinBuilder> bins)
+    private static ChannelPlan PlanDefinition(string channel, SpecNode definition, ResolvedConfig config, Dictionary<string, BinBuilder> bins, TimeContext time)
     {
         var fieldDefinition = ChannelDefinitions.FieldDefinitionOf(definition);
         var source = fieldDefinition["field"] is { IsString: true } field && FieldPath.Canonicalize(field.StringValue) is not null ? field.StringValue : null;
@@ -399,8 +438,86 @@ internal sealed class EncodingPlan
         }
 
         var rawField = RawFieldOf(aggregate, source, valueField);
-        var title = valueField is null ? null : DefaultTitle(source, aggregate, bin == BinKind.Binning, config);
-        return new ChannelPlan(channel, definition, source, valueField, rawField, valueField, field2, bin, binPlan, aggregate?.Spec, false, title, ReferenceEquals(fieldDefinition, definition) ? null : fieldDefinition);
+        TimeUnitPlan? timeUnitPlan = null;
+        var hasBandEnd = false;
+        if (bin == BinKind.None && aggregate is null && source is not null && !StackRules.IsEnabled(fieldDefinition["bin"])
+            && fieldDefinition["timeUnit"] is { IsNull: false } unitNode && TimeUnitSpec.TryRead(unitNode, out var unit) && !unit.IsBinned)
+        {
+            // The field the channel reads is the start of its time unit; a bar or rect also reads the end, as the second end of its position
+            var start = unit.FieldName(source);
+            hasBandEnd = SpansUnit(channel, fieldDefinition, time, config);
+            if (!time.Units.TryGetValue(start, out var unitBuilder))
+            {
+                unitBuilder = new TimeUnitBuilder(start, source, unit, unitNode);
+                time.Units[start] = unitBuilder;
+            }
+
+            unitBuilder.HasBandEnd |= hasBandEnd;
+            valueField = EscapeName(start);
+            rawField = valueField;
+            field2 = hasBandEnd ? EscapeName(start + "_end") : null;
+            timeUnitPlan = unitBuilder.Build();
+        }
+
+        var title = valueField is null ? null : DefaultTitle(source, aggregate, bin == BinKind.Binning, timeUnitPlan?.Spec, config);
+        return new ChannelPlan(
+            channel,
+            definition,
+            source,
+            valueField,
+            rawField,
+            valueField,
+            field2,
+            bin,
+            binPlan,
+            aggregate?.Spec,
+            false,
+            title,
+            ReferenceEquals(fieldDefinition, definition) ? null : fieldDefinition,
+            timeUnitPlan,
+            hasBandEnd);
+    }
+
+    /// <summary>
+    ///     Tells whether a channel spans the time unit of its field: Vega-Lite's <c>hasBandEnd</c> for a temporal field with a time unit.
+    /// </summary>
+    /// <remarks>
+    ///     The channel is a position channel (<c>x</c> or <c>y</c>) of a field of the type <c>temporal</c> (the type a time unit implies when none is given) that has no
+    ///     secondary channel, and a band position is defined: the <c>bandPosition</c> of the definition, or the <c>timeUnitBandPosition</c> of the mark
+    ///     (the mark definition, then <c>config.&lt;mark&gt;</c> and <c>config.mark</c>; the bar, rect and tick have 0.5 by default, a point has none and sits at the start of the unit).
+    ///     A value that is not a number is not a band position (the configuration is read as it is everywhere: what is not of the right kind is ignored).
+    /// </remarks>
+    /// <param name="channel">The channel name.</param>
+    /// <param name="fieldDefinition">The object that holds the field, the type and the band position.</param>
+    /// <param name="time">The encoding and mark of the view.</param>
+    /// <param name="config">The configuration.</param>
+    /// <returns><see langword="true"/> when the channel reads the end of the unit as its second end.</returns>
+    private static bool SpansUnit(string channel, SpecNode fieldDefinition, TimeContext time, ResolvedConfig config)
+    {
+        if (channel is not ("x" or "y")
+            || (fieldDefinition["type"]?.AsString() ?? "temporal") != "temporal"
+            || time.Encoding[channel + "2"] is { IsObject: true })
+        {
+            return false;
+        }
+
+        if (fieldDefinition["bandPosition"] is { IsNumber: true })
+        {
+            return true;
+        }
+
+        if (time.MarkDefinition?["timeUnitBandPosition"] is { IsNumber: true })
+        {
+            return true;
+        }
+
+        List<string>? styles = null;
+        if (time.MarkDefinition?["style"] is { } style)
+        {
+            styles = [.. (style.IsArray ? style.Items : [style]).Select(s => s.AsString()).OfType<string>()];
+        }
+
+        return config.ResolveMarkProperty(time.MarkType, styles, "timeUnitBandPosition")?.AsNumber() is not null;
     }
 
     /// <summary>
@@ -528,6 +645,15 @@ internal sealed class EncodingPlan
                 yield return EscapeName(range);
             }
         }
+        else if (plan.TimeUnit is { } unit)
+        {
+            // The end of a unit follows from its start, so it adds no group; the aggregate keeps it for the marks that span the unit
+            yield return EscapeName(unit.StartName);
+            if (plan.HasBandEnd)
+            {
+                yield return EscapeName(unit.EndName);
+            }
+        }
         else if (plan.SourceField is { } field)
         {
             yield return field;
@@ -564,6 +690,10 @@ internal sealed class EncodingPlan
             if (plan.Bin == BinKind.Binning)
             {
                 groupBy.Add(EscapeName(plan.BinPlan!.EndName));
+            }
+            else if (plan.HasBandEnd)
+            {
+                groupBy.Add(EscapeName(plan.TimeUnit!.EndName));
             }
         }
 
@@ -673,9 +803,10 @@ internal sealed class EncodingPlan
     /// <param name="source">The field path, or null.</param>
     /// <param name="aggregate">The aggregate, or null.</param>
     /// <param name="binning">Whether the field is binned by the encoding.</param>
+    /// <param name="unit">The time unit of the field, or null.</param>
     /// <param name="config">The configuration (<c>fieldTitle</c>, <c>countTitle</c>).</param>
     /// <returns>The title.</returns>
-    private static string? DefaultTitle(string? source, MeasureInfo? aggregate, bool binning, ResolvedConfig config)
+    private static string? DefaultTitle(string? source, MeasureInfo? aggregate, bool binning, TimeUnitSpec? unit, ResolvedConfig config)
     {
         var mode = config.GetString("fieldTitle") ?? "verbal";
         if (aggregate is { Spec.Op: AggregateOp.Count })
@@ -686,6 +817,11 @@ internal sealed class EncodingPlan
         if (source is null)
         {
             return null;
+        }
+
+        if (unit is not null && aggregate is null && !binning)
+        {
+            return TimeUnitTitle(source, unit, mode);
         }
 
         if (aggregate is not null)
@@ -722,12 +858,85 @@ internal sealed class EncodingPlan
     }
 
     /// <summary>
+    ///     Gets the default title of a field with a time unit (Vega-Lite's verbal, functional and plain formatters).
+    /// </summary>
+    /// <param name="source">The field path.</param>
+    /// <param name="unit">The time unit.</param>
+    /// <param name="mode">The <c>fieldTitle</c> mode.</param>
+    /// <returns><c>date (year-month)</c> (verbal, the parts of the unit; the field alone for the <c>maxbins</c> form), <c>YEARMONTH(date)</c> (functional) or the field (plain).</returns>
+    private static string TimeUnitTitle(string source, TimeUnitSpec unit, string mode)
+    {
+        if (mode == "plain")
+        {
+            return source;
+        }
+
+        if (mode == "functional")
+        {
+            return (unit.Utc ? "UTC" : string.Empty) + (unit.Unit ?? "timeunit").ToUpperInvariant() + "(" + source + ")";
+        }
+
+        return unit.Parts.Count == 0 ? source : source + " (" + string.Join('-', unit.Parts) + ")";
+    }
+
+    /// <summary>
     ///     Upper-cases the first character of an operation name.
     /// </summary>
     /// <param name="text">The text.</param>
     /// <returns>The text with its first character in upper case.</returns>
     private static string TitleCase(string text) =>
         text.Length == 0 ? text : char.ToUpperInvariant(text[0]) + text[1..];
+
+    /// <summary>
+    ///     What the time units of an encoding need to know about their view.
+    /// </summary>
+    /// <param name="Encoding">The encoding object (a channel with a secondary channel has no band end).</param>
+    /// <param name="MarkType">The mark type.</param>
+    /// <param name="MarkDefinition">The mark definition object, or null when the mark is a name.</param>
+    /// <param name="Units">The units found so far, by start name.</param>
+    private sealed record TimeContext(SpecNode Encoding, string MarkType, SpecNode? MarkDefinition, Dictionary<string, TimeUnitBuilder> Units);
+
+    /// <summary>
+    ///     The time unit of a field while the plan collects the channels that share it.
+    /// </summary>
+    private sealed class TimeUnitBuilder
+    {
+        /// <summary>The literal name of the start field.</summary>
+        private readonly string _start;
+
+        /// <summary>The field of the dates.</summary>
+        private readonly string _field;
+
+        /// <summary>The unit.</summary>
+        private readonly TimeUnitSpec _spec;
+
+        /// <summary>The <c>timeUnit</c> value.</summary>
+        private readonly SpecNode _node;
+
+        /// <summary>
+        ///     Initializes a builder.
+        /// </summary>
+        /// <param name="start">The literal name of the start field.</param>
+        /// <param name="field">The field of the dates.</param>
+        /// <param name="spec">The unit.</param>
+        /// <param name="node">The <c>timeUnit</c> value.</param>
+        public TimeUnitBuilder(string start, string field, TimeUnitSpec spec, SpecNode node)
+        {
+            _start = start;
+            _field = field;
+            _spec = spec;
+            _node = node;
+        }
+
+        /// <summary>Gets or sets a value indicating whether a channel that shares the unit reads its end.</summary>
+        public bool HasBandEnd { get; set; }
+
+        /// <summary>
+        ///     Builds the plan of the unit.
+        /// </summary>
+        /// <returns>The plan.</returns>
+        public TimeUnitPlan Build() => new(_start, _start + "_end", _field, _spec, _node, HasBandEnd);
+    }
 
     /// <summary>
     ///     The measure of a definition with the facts the plan needs about it.

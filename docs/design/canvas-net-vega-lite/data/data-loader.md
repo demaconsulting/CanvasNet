@@ -56,12 +56,26 @@ unrepresentable count instead of printing it); the count is converted to an inte
 
 **Parse default.** As in Vega, no data-based type inference happens unless the specification asks for it. For CSV, TSV,
 and DSV an absent `format.parse` and `parse: null` keep every cell as a string (so `01234`, `2024-03-05`, and `true`
-stay text); `parse: "auto"` is the explicit opt-in to per-column inference of booleans, numbers, and ISO dates; a
+stay text); `parse: "auto"` is the explicit opt-in to per-column inference of booleans, numbers, and dates (ISO 8601 and
+the legacy
+`Date.parse` forms that `JsDateParser` knows); a
 `parse` object converts only the fields it names. The loader therefore always reads the directives with
 `defaultAuto: false`. A quantitative encoding still coerces numeric text to a number when it is drawn (`DataValue`
 parses it lazily for linear domains, positions, size, and opacity), which is a property of the encodings and not a
-parse mode. Date parsing of text for temporal
-encodings and time support arrive in Phase 8.
+parse mode.
+
+**Dates and the calendar.** The loader holds the `TimeCalendar` of the call (`calendar`, the last constructor argument;
+UTC when it is omitted; `VegaLiteDocument` creates it once from the `TimeZone` of the render options and gives the same
+instance to the expression evaluator). It is the zone that reads a date-time without an offset and a `date:'%fmt'`
+format; `utc:'%fmt'` and dates without a time are UTC. The loader also receives the **implicit date fields** of the main
+data, an optional second argument of `Load` (`IReadOnlySet<string>`: the canonical names that `TemporalFields.Collect`
+found in the encoding, the transforms, and the predicates; see _Time Unit Transform Design_). They reach the main data
+of every source (inline `values`,
+a spec dataset, a caller dataset, a CSV, TSV, or DSV file, and a JSON file) and are passed on to
+`ParseDirectives.Read`, so a temporal field is date-parsed as if `parse` named it as a `date`, unless the `parse`
+property names the field or is `null`; see _DelimitedTextParser_ for the rules. The data of a `lookup` is loaded through
+`Load(source)` without any, so a lookup source is never parsed implicitly. A caller's `DateTime` and `DateTimeOffset`
+are not read through the calendar: they are dates in UTC, as before.
 
 **Named data.** A `name` is looked up in the caller's datasets (`VegaLiteRenderOptions.Datasets`) first and then in
 the top-level `datasets` of the specification; the caller wins; neither defining it is an error.
@@ -71,14 +85,17 @@ drive path, or a network path) is the empty table and is never given to the reso
 
 #### Key Methods
 
-- `DataLoader(sourceName, limits, openOptions, specDatasets, callerDatasets, cancellationToken, isLink)` - creates the
-  loader and its `DataFileResolver` (the last argument is a test seam for the link probe).
-- `Load(SpecNode? data)` - returns `DataTable.Empty` unless `data` is an object; selects the source by precedence and
-  calls the loader of that source. The static `Load(data, sourceName, limits, token)` is the inline-only convenience
+- `DataLoader(sourceName, limits, openOptions, specDatasets, callerDatasets, cancellationToken, isLink, calendar)` - creates
+  the loader and its `DataFileResolver` (`isLink` is a test seam for the link probe; `calendar` is the `TimeCalendar`
+  of the date conversions, UTC when null).
+- `Load(SpecNode? data, IReadOnlySet<string>? implicitDateFields)` - returns `DataTable.Empty` unless `data` is an
+  object; selects the source by precedence and
+  calls the loader of that source with the implicit date fields. The static `Load(data, sourceName, limits, token)` is
+  the inline-only convenience
   (a source that needs a file or a named dataset fails there).
 - `LoadSpecRows` - checks the row count against the total budget (`Charge`) before any row is converted, flattens each
   row into a record while checking the field count of the row and the token every 1,024 rows, applies the `parse`
-  directives, and builds the table with `DataTable.FromRecords`.
+  directives (with the implicit date fields and the calendar), and builds the table with `DataTable.FromRecords`.
 - `LoadUrl` - classifies remote data, finds the type, asks the resolver for the file, and routes to `LoadDelimited`
   (the parser unit) or `LoadJson` (`JsonDocument` under `MaxJsonDepth`, then `ReadJsonRecords`: `format.property`,
   `Charge`, flatten; then parse). `ReadJsonRecords` is the one boundary around every element access of the rows: the
@@ -131,6 +148,7 @@ chart is still drawn.
 
 - **`DataFileResolver`** and **`DelimitedTextParser`** (with `ParseDirectives` and `ParseFailures`) - the other units of
   the `Data` subsystem
+- **`TimeCalendar`** - the calendar of the date conversions, defined in the `Data` subsystem (see _Time Calendar Design_)
 - **`DataTable`**, **`DataValue`**, **`FieldPath`** - the value and table model of the `DataTable` unit
 - **`SpecNode`**, **`SpecNodeKind`**, **`FeatureReport`**, and **`FeatureCatalog.IsSchemeBearingUrl`** - the tree of the
   `SpecParser` unit and the report type and remote-URL rule of the `FeatureCatalog` unit
@@ -141,8 +159,10 @@ chart is still drawn.
 
 #### Callers
 
-`VegaLiteDocument` creates one loader per `Measure` or `Render` call for a single view with a supported mark, calls
-`Load`, and delivers the `Warnings` after the reports of the specification. The loader is then the **context of the row
+`VegaLiteDocument` creates one loader per `Measure` or `Render` call for a single view with a supported mark, with the
+`TimeCalendar` that it creates once from `VegaLiteRenderOptions.TimeZone`, calls
+`Load` with the implicit date fields (`TemporalFields.Collect` of the root view), and delivers the `Warnings` after the
+reports of the specification. The loader is then the **context of the row
 transforms**: `RowTransforms` calls `Load` on the same instance for the `from.data` of a `lookup` (so the source has the
 sandbox, the file cache, the file and byte limits, and the row total of the main data) and reserves and releases the rows
 of its derived tables with `ReserveDerivedRows` and `ReleaseRows`; `ParameterEnvironment` converts the caller's

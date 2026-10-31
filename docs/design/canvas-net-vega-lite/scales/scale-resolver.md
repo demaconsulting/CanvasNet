@@ -2,7 +2,7 @@
 
 ![Scales Structure](VegaLiteScalesView.svg)
 
-The `ScaleResolver` unit is the second software unit in the `Scales` subsystem. It comprises five source files in the
+The `ScaleResolver` unit is the second software unit in the `Scales` subsystem. It comprises six source files in the
 `DemaConsulting.CanvasNet.VegaLite.Scales` namespace, all `internal`, that define four `internal` types:
 `ScaleResolver` (a `static partial` class), `ResolvedScales` (sealed class), `ResolvedScale` (sealed class), and
 `RangeEnd` (readonly record struct):
@@ -17,8 +17,11 @@ The `ScaleResolver` unit is the second software unit in the `Scales` subsystem. 
 - `ScaleResolver.Range.cs` - the output values of every non-position channel (numbers, shapes, dash patterns), the named
   and
   explicit ranges, the counts of discretizing scales, and the limit check of a specification array
+- `ScaleResolver.Time.cs` - the scales of temporal fields and of fields with a time unit: the time facts of a channel
+  (calendar, unit, temporal or not), the reading of explicit temporal domains, domain bounds, and datums, the
+  conversion of one entry to milliseconds, and the `nice` request of a time scale
 
-The files carry the provenance header comment for the Vega-Lite and Vega rules and the d3-scale
+The files carry the provenance header comment for the Vega-Lite and Vega rules and the d3-scale and d3-time
 behavior they port.
 
 #### Purpose
@@ -42,20 +45,32 @@ the `DiscreteWidth` and `DiscreteHeight` that a step-driven discrete position sc
 
 **`ResolvedScale`** (immutable) describes one channel before the size of the data rectangle is known: `Channel`, `Kind`,
 `FieldPath` (the field the marks read, which the encoding plan names: the derived field of a bin or an aggregate, or the
-upper end of a stack; null for a `datum`), `Field2Path` (the lower end of a stack, the end of a bin, or the field of `x2`
-or `y2`), `Title` (the default title of the plan), `Bin` (a `BinKind`) and `BinSpec` (the bins of a continuous channel that
-the encoding bins), `Stack` (the `StackOffset` of the stacked channel, or null), `DataType`, `Location` (the channel
+upper end of a stack; null for a `datum`), `Field2Path` (the lower end of a stack, the end of a bin, the end of a time
+unit, or the field of `x2` or `y2`), `Title` (the default title of the plan), `Bin` (a `BinKind`) and `BinSpec` (the
+bins of a continuous channel that
+the encoding bins), `Stack` (the `StackOffset` of the stacked channel, or null), `DataType` (`quantitative`,
+`temporal`, `nominal`, or `ordinal`), `Location` (the channel
 definition), the continuous `DomainStart` and
 `DomainEnd` (after the zero rule, before pixel padding and nice) and `Domain` (all the entries when the domain has more
 than two: a piecewise linear domain, the three entries of a diverging scale, the sorted values of a quantile scale, the
-thresholds of a threshold scale), `NiceCount`, `PaddingPixels`, `Clamp`, `Round`,
+thresholds of a threshold scale), `NiceCount`, `NiceInterval`, `PaddingPixels`, `Clamp`, `Round`,
 `Reverse`, the `DiscreteDomain`, `PaddingInner`, `PaddingOuter`, `Align`, `Step`, the `ExplicitRange` (a list of
 `RangeEnd` values, each a number or the keyword `width` or `height`), `RangeMin` and `RangeMax`, the `ValueRange` of a
 linear, band, or point scale of a numeric channel, the `NumberRange` of an ordinal or discretizing numeric scale, the
 `ColorRange` of an ordinal or discretizing color scale, the `ShapeRange` and the `DashRange`, the `Interpolator` of a
 sequential or diverging scale,
 `IsPosition`, and `NaturalExtent` (the step times the band space of a step-driven
-discrete scale). `CreateModel(extent)` builds the `ScaleModel` for a data-rectangle width (x) or height (y); the extent
+discrete scale). The time facts of the channel are `Calendar` (the `TimeCalendar` of its instants: UTC for a `utc` scale
+or a `utc` time unit or a color that asked for the scale type `utc`, otherwise the zone of the chart;
+null when the field is neither temporal nor has a time unit),
+`IsUtcTime` (the scale follows the UTC rules: kind `Utc`, a `utc` unit, or the `utc` type of a color channel, which the
+`Sequential` kind does not show),
+`TimeUnit` (the `TimeUnitSpec` of the field, the resolved one for the `maxbins` form, or null), `IsTemporalField` (the
+values of the field are instants: it is temporal or has a time unit), and `HasBandEnd` (the channel spans its time
+unit: `Field2Path` is the end of the unit, Vega-Lite's `hasBandEnd`, so a bar, rect, or tick covers the unit and a point
+can sit anywhere between its start and its end; false for the range that an `x2` or `y2` gives). `NiceInterval` is the
+`TimeTickRequest` (an interval name with an optional step) that `nice` extends a time scale to, null when `nice` uses
+`NiceCount` or is off. `CreateModel(extent)` builds the `ScaleModel` for a data-rectangle width (x) or height (y); the extent
 is ignored for every channel but x and y.
 
 **Inference rules** (Vega-Lite 6 behavior, ported with attribution):
@@ -70,12 +85,20 @@ is ignored for every channel but x and y.
   linear for a quantitative field and point scales otherwise; a quantitative `color`, `fill`, or `stroke` field that the
   encoding **bins** is a **bin-ordinal** scale instead (Vega-Lite's `defaultType`), whose domain is the edges of the bins
   (one more than the bins) and whose range is one color per bin (`ColorSchemes` with `SchemeUse.BinOrdinal`: the ramp
-  sampled once per bin), while the other channels keep their scale over the start of the bin. A temporal field has no
-  scale. An explicit `scale.type` of
-  linear, log, pow, sqrt, symlog, sequential (colors), quantile, quantize, threshold, bin-ordinal (a binned quantitative
+  sampled once per bin), while the other channels keep their scale over the start of the bin. A **temporal** field
+  (also the derived start of a time unit) gets Vega-Lite's default type: a **time** scale on the position, `size`,
+  `opacity`, `strokeWidth`, `fillOpacity`, `strokeOpacity`, and `angle` channels (a **utc** scale when its time unit is
+  a `utc` unit), a **sequential** scale over the milliseconds on `color`, `fill`, and `stroke` (Vega-Lite's default
+  there is
+  a `time` scale with a color range, which is drawn as the sequential scale: the same colors, with ticks and labels of
+  dates), and an ordinal scale on `shape` and `strokeDash`. A nominal or ordinal field with a time unit keeps the band,
+  point, and ordinal scales, over the **date values** of the unit. An explicit `scale.type` of
+  linear, log, pow, sqrt, symlog, time, utc, sequential (colors), quantile, quantize, threshold, bin-ordinal (a binned
+  quantitative
   color only: Vega-Lite refuses it for every other field type, and it is what the default is there), band, point, or
   ordinal is used when
-  both the channel and the field type accept it; otherwise (and for the types that are not drawn yet) the default applies.
+  both the channel and the field type accept it (the table below); otherwise the default applies (the feature catalog
+  reports a replaced type as `vl-scale-type-ignored`).
   The log, pow, sqrt, and symlog types are the continuous-to-continuous scales with a transform
   (`ResolvedScale.Transform`, a `ScaleTransform`): a **log** scale with its `base` (default 10), a **pow** scale with its
   `exponent` (default 1), a **sqrt** scale as the power 0.5 whatever `exponent` says, and a **symlog** scale with its
@@ -103,7 +126,9 @@ transform) for a
   bar (unless it is a range) and for quantitative sizes that are not quantized, the configured default otherwise, never
   for a binned field,
   and only
-  when a custom domain already spans zero; never for quantile and threshold scales and never for a log scale, whose domain
+  when a custom domain already spans zero; never for quantile and threshold scales, never for a time or UTC scale or any
+  temporal field (also the sequential scale of a temporal color: zero is not meaningful for dates), and never for a log
+  scale, whose domain
   cannot reach zero, even when `zero: true` is given), then `domainMin` and `domainMax`
   replace the first and the last entry (sequential and linear scales), and `domainMid` (colors) inserts the middle value
   before the first entry, after the last, or between the ends, as Vega's `configureDomain` does. **A log scale refuses a
@@ -127,13 +152,49 @@ transform) for a
   change only the first and the last entry as Vega's `configureDomain` does (so `nice` changes the last entry of the
   complete domain, as d3's `nice` does), and a domain of three entries over the default two-entry range uses its first
   two entries only.
+- **Temporal fields** (the partial file `ScaleResolver.Time.cs`). The values of a temporal field, and of
+  the derived start of a time unit, are instants (`DataValue.Date`, milliseconds since the epoch), and the calendar of the
+  scale is the zone of the chart (UTC for a `utc` scale or a `utc` unit), read from the evaluation facts of the render.
+  `Accepts` (`channelSupportScaleType` and `scaleTypeSupportDataType` of Vega-Lite, pinned by a test) takes an explicit
+  type when the channel and the field type both accept it:
+
+  <!-- markdownlint-disable MD013 -->
+  | Field type | Accepted explicit `scale.type` |
+  | ---------- | ------------------------------ |
+  | `temporal` | `time`, `utc` only (any other type, including `sequential`, `quantile`, `quantize`, and `threshold`, is replaced by the default) |
+  | `quantitative` | linear, log, pow, sqrt, symlog, sequential, the discretizing types, bin-ordinal (binned colors); never `time` or `utc` |
+  | `nominal`, `ordinal` | band, point, ordinal; never `time` or `utc` |
+  <!-- markdownlint-enable MD013 -->
+
+  A position, `size`, `opacity`, `strokeWidth`, or `angle` channel accepts the time and UTC kinds; a color channel
+  maps `time` and `utc` to the sequential scale (as `linear` is for numbers); `shape` and `strokeDash` do not accept
+  them. The **data domain** is the extent of the valid dates of the main table over the channel's field and its second
+  field (so the end of a time unit that a bar spans, and the `x2` and `y2` of a range, count), **without** the zero
+  rule, and an empty or unparsable field gets the default domain 0 to 1, as a linear scale does. An explicit
+  `scale.domain` has entries that are timestamps, date texts (read by `JsDateParser` in the calendar of the scale), or
+  date-time objects (`DateTimeObject`, in the calendar unless the object says `utc`); for a field with a **single local
+  time unit** a number below 10,000 or a text that is not a date names a part of the unit, Vega-Lite's `valueExpr` rule.
+  `domainMin` and `domainMax` take a timestamp or a date-time object, and `domainMid` of a temporal color a timestamp
+  (Vega-Lite's `domainMid` is `number | ExprRef`). A temporal `datum` (a number or a date text) is a domain of one
+  instant; a `datum` that is a date-time object stays reported. **`nice`** is off by default for a time scale (Vega-Lite
+  gives time scales no default): `true` asks for ten ticks, a positive number for that many, and a name or
+  `{interval, step}` for the boundaries of that interval (`TimeNiceRequest` gives `ResolvedScale.NiceCount` or
+  `NiceInterval`); a temporal sequential or diverging color scale ignores `nice` (milliseconds are not nice numbers).
+  **Padding**: a bar on a time axis gets no 5-pixel padding when its field has a time unit (the bar spans the unit, as for
+  a bin), an explicit `padding` and `continuousPadding` apply as for a linear scale; `clamp`, `round`, `reverse`,
+  `range`, `rangeMin`, `rangeMax`, and `sort: "descending"` behave as for a linear scale, and a y time scale runs
+  upward. A **nominal or ordinal field with a time unit** has a discrete domain of the distinct date values ordered
+  ascending by value by default (see _Sort forms_) and an explicit domain or sort array whose entries are converted with
+  the unit rule to the same millisecond value as the floor of the unit.
 - **Padding and nice.** A band scale has inner padding by mark from the configuration (bar 0.1, tick 0.25, others 0) and
   outer padding half of it; a point scale 0.5; `scale.padding` sets both. A continuous position scale gets nice with a
   count of 10 unless it has a custom domain **or is binned** (its bins already end on round values); a bar on its
   continuous axis (not a binned one) gets 5 pixels of padding. On a **log** scale `nice` floors and ceils the ends to
   powers of the base (`Ticks.LogNice`, the count plays no part), on pow, sqrt, and symlog scales it is the ordinary
   tick-based `nice` of the domain, and the pixel padding widens the domain around its middle **in the transformed
-  domain** (so a log domain keeps its geometric middle).
+  domain** (so a log domain keeps its geometric middle). On a **time or UTC** scale `nice` extends the domain to the
+  boundaries of a calendar interval with `Ticks.TimeNice` (after the pixel padding, like the numeric `nice`), in the
+  calendar of the scale, and a non-finite or out-of-range result keeps the padded domain.
 - **Range.** x is 0 to the width and y is the height to 0 (continuous) or 0 to the height (discrete). Size ranges follow
   the mark (point-like marks 4 to the square of 0.95 steps, bar and tick 2 to step minus 1, rule 1 to 4); `strokeWidth`
   is `minStrokeWidth` to `maxStrokeWidth` (1 to 4); the opacities are 0.3 to 0.8; `angle` is 0 to 360; a discretizing
@@ -180,14 +241,23 @@ transform) for a
   evaluation-step budget through a `WorkMeter` (one step per 64 values read and per 64 comparisons of the sort,
   `n * ceil(log2 n)`), and sorted by a bottom-up merge sort that polls the token. Strings are never built from data
   here: colors are
-  `#rrggbb` texts or texts the parser has already length-checked.
+  `#rrggbb` texts or texts the parser has already length-checked. The temporal reading adds no new limit: the explicit
+  domain, `domainMin`/`domainMax`, and sort arrays go through the same length checks (spec **and** configuration
+  arrays; the time scales add no configuration array) **before** any date is read, the data pass polls the token every
+  4,096 rows, every conversion of a date text is constant work (`JsDateParser` rejects text longer than 128
+  characters before scanning it), and the discrete date domain of a time-unit field is bounded by `MaxScaleDomainSize`
+  like any discrete domain.
 - **Sort forms** (`ScaleResolver.Sort.cs`). `"ascending"` and `"descending"` order the categories by value (a stable
   sort, null first, the order of `DataValue.Compare`); `null` keeps the data order; an array lists the categories (those
   it
   does not list come first). A sort array has at most `MaxScaleDomainSize` items (otherwise a `VegaLiteRenderException`
   located at the array that carries `the limit of` and `VegaLiteLimits.MaxScaleDomainSize`, which the tool maps to
   `budget-exceeded`), is read with the cancellation token polled every 4,096 items, and skips an object or array item
-  (the parser rejects them; the resolver never lets one stand for the null category). The other forms order the
+  (the parser rejects them; the resolver never lets one stand for the null category), except that for a temporal field
+  or a field with a time unit a number, a date text, or a date-time object is converted with the unit rule to the date
+  it names and so takes its place in the order (an entry that is not a date is skipped). For such a field the categories
+  are **dates**, ordered by value (the order of `DataValue.Compare`) ascending by default and descending with
+  `"descending"`, and the sort by a field or an encoding keeps working over them. The other forms order the
   categories by an **aggregate of a field over the rows of the Raw
   table** (the rows before the implicit aggregate, as Vega-Lite does, so a calculated, flattened, or looked-up
   field can be
@@ -221,6 +291,49 @@ asks for `bin-ordinal`, and a field that is not binned ignores the type). A
 dictionary from each listed value to its first position (a value listed twice counts at its first position), so
 ordering a domain costs one lookup per value rather than a search of the list per value.
 
+The temporal rules deviate from Vega-Lite or from the plan of this phase in these ways: (1) a temporal field accepts
+only the `time` and `utc` scale types (Vega-Lite 6's `scaleTypeSupportDataType`), so a `sequential`, `quantile`,
+`quantize`, or `threshold` type on it is replaced by the default and reported as `vl-scale-type-ignored` (an earlier
+plan allowed the discretizing types); (2) the default type of a temporal color is a `time` scale in Vega-Lite and is
+drawn as the sequential scale over the instants (the same colors, with the date ticks and labels of the legend); (3)
+`domainMid` takes a timestamp, not a date-time object, as in Vega-Lite; (4) a sort array of date-time objects is valid
+only for a field of type `temporal` (which gets a time scale), so a discrete scale converts numbers, texts, and objects
+with the unit rule but in practice only meets numbers and texts; (5) the calendar for
+the entries of an explicit domain and for a `datum` is the scale's (UTC for a `utc` scale or unit, otherwise the zone),
+where Vega-Lite always writes `datetime(...)` in local time; (6) a step of `{interval, step}` that gives no interval
+(below one, or negative) falls back to the default of about ten ticks, and a `nice` or `tickCount` number that is not
+positive gives none; (7) `utc`-prefixed interval names use the UTC calendar on a zone scale (Vega would report an
+error); (8) a degenerate domain gives its single instant as one tick, and an empty or unparsable temporal field gets
+the default domain 0 to 1; (9) `datum` with a date-time object is not implemented (`vl-encoding-datum-datetime`),
+while a `datum` of a number or a date text is; (10) a new warning `vl-scale-zero-ignored` reports `scale.zero` on a
+temporal field with a time or UTC scale, which Vega-Lite drops, and (like Vega-Lite's drop) the resolver ignores the
+`zero` of a temporal sequential color too, so the warning, which also covers the color channels, is true; (11) an
+explicit `utc` type on a temporal color keeps its meaning although the scale is the sequential one (Vega-Lite's `utc`
+color scale): the scale uses the UTC calendar and `ResolvedScale.IsUtcTime` is set, so the legend takes the whole-day
+ticks counted from the epoch and UTC labels whatever the zone of the chart is.
+
+**The `ScaleKind.Linear` audit.** `ScaleKind.Time` and `ScaleKind.Utc` are new enum members, so each of the 31 source
+sites that tested for `ScaleKind.Linear` was reviewed and decided deliberately:
+
+<!-- markdownlint-disable MD013 -->
+| Site | Decision |
+| ---- | -------- |
+| `ScaleModel` `Map`, `Invert`, and `Map(DataValue)` | accept `IsLinearLike` (`Linear`, `Time`, `Utc`) |
+| `CreateModel` | a new `Time`/`Utc` case: `ScaleModel.CreateTime` with the calendar |
+| `ResolveRange` (a y position runs upward) | `Linear`, `Time`, `Utc` |
+| `ChooseKind` and `TryParseKind` | a temporal branch; `time` and `utc` added; log, pow, symlog unchanged |
+| the three `Accepts` conditions | position and numeric channels accept `Time`/`Utc`; the type check is per field type |
+| `continuousToContinuous`, `supportsRangeLimits`, `Round` | include `Time`/`Utc` |
+| `NiceRule` | the time kinds have their own rule (`TimeNiceRequest`); a temporal sequential or diverging ignores `nice` |
+| `ScaleResolver.Range.cs` (`NumericOutputs`, `ReverseOf`) | `Time`/`Utc` added |
+| `MarkBuilder` stack and zero-or-min sites | unchanged: a time axis is not stacked or the measure axis |
+| `MarkBuilder` bin-end site | generalized to band ends (a bin or a time unit; see _MarkBuilder Unit Design_) |
+| `MarkBuilder` continuous-domain, range, and bar-thickness sites | `Time`/`Utc` added |
+| `AxisBuilder` tick path and default-grid sites | changed to route time scales to time ticks (see _AxisBuilder Unit Design_) |
+| `LegendBuilder` symbol and gradient sites | changed for temporal legends (see _LegendBuilder Unit Design_) |
+| 23 existing test sites | re-read: each asserts the scale of a quantitative field, so all stay; temporal parallels are in the new tests |
+<!-- markdownlint-enable MD013 -->
+
 A conditional channel resolves its scale from the **field definition** that the plan names (`ChannelPlan.FieldDef`): its
 own definition when that holds a field, else the first condition on a test that does. The type, the scale options, the
 domain, and the title of the scale come from that object, so a color given by `{"condition": {"test": ..., "field": "g",
@@ -238,9 +351,11 @@ parameter) resolve no scale.
   Main tables, configuration, mark, orient, encoding, limits, token, and the width and height steps), and resolves each
   present channel in the fixed order, reading the field of each from its `ChannelPlan`. The data is scanned with the token
   polled every 4,096 rows.
-- `ChooseKind`, `ChannelIsDrawn`, and `AcceptsScaleType` - the scale-type rules above; `BuildContinuous` builds the linear,
+- `ChooseKind`, `ChannelIsDrawn`, and `AcceptsScaleType` - the scale-type rules above (`ChooseKind` also takes whether
+  the field has a `utc` unit, for the default of a temporal position); `BuildContinuous` builds the linear, time, UTC,
   sequential, diverging, quantize, quantile, and threshold scales (domain, zero, `domainMin`, `domainMax`, `domainMid`,
-  nice, clamp), `BuildDiscrete` the band, point, and ordinal ones, and `BuildBinOrdinal` the bin-ordinal scale (the edges
+  nice, clamp; the temporal domain forms come from `ScaleResolver.Time.cs`), `BuildDiscrete` the band, point, and
+  ordinal ones, and `BuildBinOrdinal` the bin-ordinal scale (the edges
   of the bins from `EncodingData.Bins` as the domain - `sequence(start, stop + step / 2, step)`, one more than the bins,
   as
   Vega builds them from the `bins` of the scale - and one color per bin; no edge and no color for a field without a
@@ -249,12 +364,27 @@ parameter) resolve no scale.
   (position, color, shape and dash, numeric).
 - `InferOrient(markType, specified, encoding)` - the orientation rule above; a measure is an unbinned quantitative field
   or a count.
+- `ReadTimeUnit` and `MakeTimeFacts` (`ScaleResolver.Time.cs`) - find the time unit of a channel (from the plan; the
+  resolved unit of `EncodingData.TimeUnits` for the `maxbins` form) and, once the kind is known, build the private
+  `TimeFacts(Calendar, Unit, IsTemporal, IsUtc)` record: UTC (and `IsUtc`) for a `Utc` scale, a `utc` unit, or an
+  accepted explicit `utc` type of a color (`ChooseKind` reports it through its `utcRequested` output, since the kind of
+  a color is `Sequential`), otherwise the calendar of the
+  evaluation facts; null for a field that is neither temporal nor has a unit.
+- `ReadTemporalDomain`, `ToMilliseconds`, `ReadDomainBound`, and `ReadTemporalDatum` - read an explicit temporal domain
+  (at least two entries, each a date; otherwise a located `VegaLiteSpecException`), convert one number, text, or
+  date-time object entry to milliseconds (NaN when it is not a date), read `domainMin`, `domainMax`, and `domainMid`
+  (a timestamp is milliseconds as it is; an object is a date-time), and read a temporal `datum`; `ToDataValue(node,
+  time)` turns the same entries into `DataValue.Date` categories for the discrete scales and sort arrays.
+- `TimeNiceRequest(scaleDef)` - the `nice` request of a time scale: `true` is ten ticks, a positive number that count, a
+  known interval name or `{interval, step}` an interval request through `TimeTickRequest.TryFromInterval`; `false`, an
+  unknown name, and a bad number are no `nice`.
 - `ResolvedScale.CreateModel(extent)` - applies what depends on the extent: the range of a position scale (including an
   explicit range with `width` and `height` keywords, all of whose entries are kept for a linear scale, and `rangeMin`
   and `rangeMax`), the pixel
   padding of a continuous scale (the domain is widened so that the extreme values keep that distance from the edge),
-  then `nice` (after the padding, as Vega does), and builds a linear, sequential, diverging, quantize, quantile,
-  threshold, bin-ordinal,
+  then `nice` (after the padding, as Vega does; `Ticks.TimeNice` with the calendar for a time scale), and builds a
+  linear, time (`ScaleModel.CreateTime`, with the calendar and the UTC flag), UTC, sequential, diverging, quantize,
+  quantile, threshold, bin-ordinal,
   band, point, or ordinal `ScaleModel` (the discretizing scales from the output range of the channel); a non-finite
   domain after nice keeps the padded domain.
 - `ResolvedScale.NaturalExtent` - `step * BandSpace(count, inner, outer)`, the size a step-driven discrete scale needs.
@@ -276,7 +406,8 @@ A `scale.domain` or `scale.range` of the wrong shape (a range that is not an arr
 than two values; a quantitative domain with fewer than two numbers or with a non-number; a shape range that is not a
 list of strings; a dash range that is not a list of lists of numbers; a color that cannot be read; a color domain of
 four or more entries;
-an unknown scheme name or an unknown named range) is a `VegaLiteSpecException`
+an unknown scheme name or an unknown named range; a temporal domain with fewer than two entries or with an entry that is
+not a date: a timestamp, a date text, or a date-time object) is a `VegaLiteSpecException`
 located at the offending value (a name that comes from `config.range` is located at the channel). A color range that is
 empty or has an entry that is not a color is the same error, never a fallback to the default range. A log scale whose domain
 includes zero or crosses it is a `VegaLiteSpecException` at `scale.domain` (an explicit domain) or a
@@ -298,7 +429,8 @@ reported by the `FeatureCatalog`, and the resolver falls back or ignores them as
 
 #### Dependencies
 
-- **`ScaleModel`** (including its `ScaleTransform`), **`Ticks`** (the tick-based `nice` rule, `LogNice`, and `IsLogDomain`),
+- **`ScaleModel`** (including its `ScaleTransform`), **`Ticks`** (the tick-based `nice` rule, `LogNice`, `IsLogDomain`,
+  `TimeNice`, and `TimeTickRequest`),
   **`ColorSchemes`**, **`ColorInterpolator`**, and **`ColorRamp`** - the models, the
   nice rules,
   the scheme catalog and its range configuration, and the color interpolation
@@ -308,6 +440,9 @@ reported by the `FeatureCatalog`, and the resolver falls back or ignores them as
 - **`MeasureCell`**, **`MeasureEnvironment`**, **`WorkMeter`**, **`AggregateMeasures`**, and **`TableLayout`** - the
   accumulators and limits of the `AggregateTransforms` and `RowTransforms` units, for the sort by an aggregate
 - **`DataTable`** and **`DataValue`** - the data and values of the `Data` subsystem
+- **`TimeCalendar`**, **`TimeUnitSpec`**, **`DateTimeObject`**, and **`JsDateParser`** - the calendar, the time unit of
+  a field, the date-time objects, and the date-text reading of the `Data` subsystem (see _Time Calendar Design_ and
+  _Time Format Design_)
 - **`SpecNode`**, **`SpecParser`** (`TryParseSortShorthand`), and **`ResolvedConfig`** - the tree and the
   configuration of
   the `SpecModel` subsystem
@@ -320,7 +455,9 @@ reported by the `FeatureCatalog`, and the resolver falls back or ignores them as
 `VegaLiteDocument` calls the pipeline `Resolve` once per render, with the plan and the tables that `EncodingTransforms`
 produced. `FeatureCatalog` calls `InferOrient` (to decide whether the `order` channel orders a stack). `AxisBuilder` and
 `MarkBuilder` read the `ResolvedScale` (field path, second field, title, bin and stack facts, kind, domain, padding) and
-the models built from it. The tests in
-`test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverTests.cs` and `ScaleResolverColorTests.cs` call the
+the models built from it (the calendar, unit, temporal flag, band-end flag, and nice interval of a temporal channel
+included). The tests in
+`test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverTests.cs`, `ScaleResolverColorTests.cs`, and
+`ScaleResolverTimeTests.cs` call the
 resolver directly through
 `InternalsVisibleTo`.

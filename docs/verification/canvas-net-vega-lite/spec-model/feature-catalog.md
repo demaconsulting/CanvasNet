@@ -22,10 +22,15 @@ are reached through the test assembly's `InternalsVisibleTo` access.
 
 Several scenarios are xUnit theories whose data rows cover each form (every mark type, every autosize type, every
 schema version, every URL shape); this document lists each test method once. The shared helper `Visit` in
-`FeatureCatalogTests` parses a specification and returns the reports as `(identifier, pointer)` pairs.
+`FeatureCatalogTests` parses a specification and returns the reports as `(identifier, pointer)` pairs; the Phase 8
+class `FeatureCatalogTimeTests` has its own `Visit` and `VisitView` helpers of the same kind.
 
-Unit tests reside in `FeatureCatalogTests.cs` within the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the
-`SpecModel` folder.
+Unit tests reside in `FeatureCatalogTests.cs` and `FeatureCatalogTimeTests.cs` within the
+`DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `SpecModel` folder. Time is supported since Phase 8, so the
+tests of the earlier phases that asserted that a temporal field, a time unit, a custom date format, the `timeUnit`
+transform, or a time predicate was reported were changed to assert that nothing is reported (the identifiers that were
+retired are asserted absent), and the expression tests that used `datetime` and `timeFormat` as an example of an
+unsupported function now use `geoArea` and `gradient`, which are still outside the function table.
 
 #### Test Environment
 
@@ -63,14 +68,15 @@ Asserts that one original specification that deliberately uses a version 4 schem
 `fit`, a variable and a selection parameter, a projection, file data with a `csv` format and a `parse` map that holds a
 custom date format and a plain `number`, three transforms (`calculate`, `filter`, `regression`) in a root view that is a
 composition (so it is not drawn and its transforms are reported by name), an `arc` mark, a temporal `x` with a time
-unit, a `y` with aggregate, bin, stack, sort, and condition, a color with `bin` (supported, so it is silent), a log
-scale on a nominal field with a scheme
+unit (supported, so it is silent), a `y` with aggregate, bin, stack, sort, and condition, a color with `bin` (supported,
+so it is silent), a log scale on a nominal field with a scheme
 (which
 cannot use the type, so it is the warning `vl-scale-type-ignored`), a legend with
-`encode`, a `theta` and a `latitude` channel, and a layer with a `geoshape` yields exactly twenty-one reports whose
-`(identifier, pointer)` list is asserted in document order (for example `vl-data-parse-date-format` at
-`/data/format/parse/d`, `vl-encoding-condition` at `/encoding/y/condition`, and `vl-mark-geoshape` at
-`/layer/0/mark`; the local
+`encode`, a `theta` and a `latitude` channel, and a layer with a `geoshape` yields exactly seventeen reports whose
+`(identifier, pointer)` list is asserted in document order (for example `vl-encoding-condition` at
+`/encoding/y/condition` and `vl-mark-geoshape` at `/layer/0/mark`; the custom date format at `/data/format/parse/d`,
+the temporal type and time unit of `x` (`vl-type-temporal` and `vl-encoding-timeunit` of the earlier phases, now
+retired), the local
 file, the plain `number`, the variable parameter of the root view, the expression strings of the `calculate` and
 `filter` transforms, and the `aggregate`, `bin`, `stack`, and `sort` of `y` are silent, and no `vl-expr-calculate`,
 `vl-expr-filter`, `vl-param-variable`, `vl-encoding-aggregate`, `vl-encoding-stack`, or `vl-encoding-sort` is produced for
@@ -107,7 +113,7 @@ again by the catalog (the parser warns about it once).
 **Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_RemoteUrlsRemainVlDataRemoteUrl`,
 `FeatureCatalogTests.FeatureCatalog_IsSchemeBearingUrl_ClassifiesUrls`,
 `FeatureCatalogTests.FeatureCatalog_Visit_LocalUrlsAndPhase4FormatsAreSupported`,
-`FeatureCatalogTests.FeatureCatalog_Visit_CustomDateFormatReportsStableIdentifier`,
+`FeatureCatalogTests.FeatureCatalog_Visit_CustomDateFormatIsSupportedAndReportsNothing`,
 `FeatureCatalogTests.FeatureCatalog_Visit_DataSourcesReportTheirOwnIdentifiers`
 
 Asserts that remote data (every scheme-bearing form) reports `vl-data-remote-url` at the data object, never as a
@@ -119,7 +125,9 @@ operating system, while `a.csv`, `data/a.csv`, `../a.csv`, `a b.csv`, the empty 
 relative local urls, the csv, tsv, dsv, and json format types (with a delimiter, a `property` path, and `parse` maps of
 `date`, `number`, `boolean`, and `string`, `"auto"`, and `null`), a named dataset, and a sequence are supported and
 report nothing, so that strict mode accepts them; that a custom date format of a parse map (`date:'...'`, `utc:'...'`)
-reports `vl-data-parse-date-format` at its entry while plain `date` does not; and that empty or sourceless inline data
+is supported (the data stage applies it), so the catalog reports nothing for it and the retired identifier
+`vl-data-parse-date-format` never appears, which means that strict mode does not stop at it; and that empty or
+sourceless inline data
 warns with `vl-data-empty` while the recognized sources that are not read have their own identifiers
 (`vl-data-values-text` for text values or a referenced text dataset, and `vl-data-geo` for object values, `sphere`, a
 `topojson` format, or a referenced object dataset) and a referenced array dataset is silent. The retired
@@ -153,7 +161,8 @@ URL that is not a Vega-Lite schema produce a `vl-schema-version` warning at `/$s
 
 Asserts that the encoding identifiers that remain (`vl-encoding-bin` for `bin: "binned"` on a channel other than `x` and
 `y`,
-`vl-encoding-impute`, and `vl-encoding-bandposition`) are reported only when the property changes the chart (`bin: false`
+`vl-encoding-impute`, and `vl-encoding-bandposition`, which is narrowed by Phase 8: see the band position scenario
+below) are reported only when the property changes the chart (`bin: false`
 and `null`, `stack: false` and `null`, a `null` aggregate, an ascending sort shorthand, a `null` sort, an array sort, and
 a sort that names an `encoding` are silent, as are `timeUnit: null` and `impute: null`), and that the identifiers of the
 features that are computed (`vl-encoding-aggregate`, `vl-encoding-stack`, and the supported forms of `vl-encoding-sort`)
@@ -190,7 +199,8 @@ properties are not.
 
 Asserts that legends are not reported (the identifier `vl-guide-legend` is retired), that the legend properties that are
 not drawn are reported once each at the exact property (`vl-guide-legend-titleorient` for a title orient other than
-`top`, `vl-guide-legend-clipheight`, `vl-expr-label`, `vl-format-type-custom`, `vl-shape-path` for a symbol type that
+`top`, `vl-guide-legend-clipheight`, `vl-expr-label`, `vl-format-type-custom` (for a format type that is not `number`,
+`time`, or `utc`: the test uses `myFormat`), `vl-shape-path` for a symbol type that
 is a path, and `vl-guide-encode`), in document order, and that a `titleOrient` of `top`, a `null` legend, a null scale,
 and a legend object on a position channel produce no report.
 
@@ -203,8 +213,9 @@ and a legend object on a position channel produce no report.
 Asserts, on a view that is drawn, that expression references in properties that are not evaluated (a `width` that is an
 expression) report `vl-expr-ref` while the row-bound color expression of an encoding value is silent, that the
 selection parameter reports `vl-param-selection` while the variable parameter (with its `bind`, which is ignored) is
-silent, that a `filter` on a field predicate is silent while the `timeUnit` transform reports `vl-transform-timeunit` at
-its index (the `joinaggregate` of the same list is computed and silent), and that an expression reference in a
+silent, that a `filter` on a field predicate is silent and so is the `timeUnit` transform of a drawn view (computed since
+Phase 8, so the former `vl-transform-timeunit` is not produced for it; the `joinaggregate` of the same list is computed
+and silent), and that an expression reference in a
 mark `size` of a bar is reported at that property; that a specification with `hconcat`, a nested `vconcat`, `concat`,
 `facet`, `spec`, `repeat`, `resolve`, and `projection` reports the compositions and the projection and also examines the
 views nested at any depth (`/hconcat/0/mark`, `/hconcat/1/vconcat/0/mark`, `/spec/mark`); and that, as a theory,
@@ -230,13 +241,15 @@ by the Phase 6 scenario below.
 Asserts that the constructs that the compiled expressions list are reported once each, in document order, at the string
 value of the expression (the pointer of the `expr`, `calculate`, or `filter` string, and of an expression inside a
 predicate such as `/transform/4/filter/or/0`), as unsupported features with the message form "… (at expression offset
-N)": `vl-expr-function-datetime`, `vl-expr-function-timeformat`, `vl-expr-function-rgb`, and `vl-expr-function-format` (the
-name lower-cased; the message of the `timeFormat` report names it as written); `vl-expr-view-state` for `signal` and
+N)": `vl-expr-function-geoarea`, `vl-expr-function-gradient`, `vl-expr-function-rgb`, and `vl-expr-function-format` (the
+name lower-cased; the message of the `gradient` report names it as written; the date and time functions that the first
+three phases used for this example, `datetime` and `timeFormat`, are in the function table since Phase 8 and are no
+longer reported); `vl-expr-view-state` for `signal` and
 `event` in one filter and an undeclared `height` while
 `width`, which the specification declares as a parameter, is silent; and `vl-expr-construct-bitwise-and` and
 `vl-expr-construct-in`. It asserts that the first report is at line 2 (the parameter's expression) and that the message
-of the view-state report names `'height'`. A second scenario calls `timeFormat`, `timeformat`, and `TIMEFORMAT` in one
-expression and asserts three reports with the one identifier `vl-expr-function-timeformat`, in order of appearance, with
+of the view-state report names `'height'`. A second scenario calls `gradient`, `GRADIENT`, and `Gradient` in one
+expression and asserts three reports with the one identifier `vl-expr-function-gradient`, in order of appearance, with
 three distinct messages that name each spelling as written (so nothing is merged or lost).
 
 ##### Transforms Of Later Phases, Conditions, And Selections Stay Reported
@@ -245,9 +258,10 @@ three distinct messages that name each spelling as written (so nothing is merged
 
 Asserts that a drawn view with a selection parameter and the twelve transforms `aggregate`, `joinaggregate`, `window`,
 `bin`, `stack`, `impute`, `timeUnit`, `regression`, `loess`, `density`, `quantile`, and `extent` reports only
-`vl-param-selection`, then the transforms of later phases as `vl-transform-<name>` (`timeunit`, `regression`, `loess`,
-`density`, `quantile`, and `extent`, with `timeunit` in lower case) at their indexes 6 to 11 in document order, and the
-conditions on a parameter as `vl-encoding-condition-param`, while the six aggregating transforms are computed and silent.
+`vl-param-selection`, then the transforms of later phases as `vl-transform-<name>` (`regression`, `loess`, `density`,
+`quantile`, and `extent`) at their indexes 7 to 11 in document order, and the
+conditions on a parameter as `vl-encoding-condition-param`, while the six aggregating transforms and the `timeUnit`
+transform at index 6 (computed since Phase 8; the former `vl-transform-timeunit` is not produced) are silent.
 
 ##### Phase 6 Features Are Silent And The Remaining Parts Are Reported
 
@@ -268,11 +282,17 @@ aggregating transform of a nested view, which is not drawn, is still reported by
 **Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_UnsupportedPartsOfSupportedTransformsAreReported`
 
 Asserts the reports `vl-transform-filter-param` at the `param` and at the legacy `selection` of a filter on a selection
-parameter, `vl-transform-filter-timeunit` at the `timeUnit` of a predicate, `vl-transform-filter-datetime` at a date
-object in `oneOf` and in `equal`, `vl-transform-pivot-op` at an `op` other than `sum` and `count` (and none for
+parameter, `vl-transform-pivot-op` at an `op` other than `sum` and `count` (and none for
 `count`), `vl-transform-lookup-param` at a lookup from a parameter, and `vl-data-remote-url` at the data object of a
 lookup whose source is a remote URL, each at the pointer of the part, in document order, together with the selection
-parameter itself.
+parameter itself. Since Phase 8 a time unit and a date-time object in a predicate are evaluated, so neither
+`vl-transform-filter-timeunit` (at the `timeUnit` of a predicate) nor `vl-transform-filter-datetime` (at a date object in
+`oneOf` and in `equal`) is produced; instead the same transform list asserts the time reports at the exact value:
+`vl-predicate-timeunit-part` at the `timeUnit` of a filter with the unit `yearweek` (`/transform/9/filter/timeUnit`),
+`vl-timeunit-maxbins` at a filter with `{"maxbins": 10}` (`/transform/10/filter/timeUnit`), `vl-timeunit-binned` at a
+filter with a binned object unit (`/transform/11/filter/timeUnit`) and at a `timeUnit` transform with the name
+`binnedyearmonth` (`/transform/12/timeUnit`), while the `timeUnit` transform with `{"maxbins": 10}` is silent because
+the transform applies `maxbins`.
 
 ##### Nested Views Report Their Transforms And Variable Parameters
 
@@ -320,15 +340,98 @@ reported.
 
 **Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_ConditionsWithATestAreNotReported`,
 `FeatureCatalogTests.FeatureCatalog_Visit_ParameterConditionsAreReported`,
-`FeatureCatalogTests.FeatureCatalog_Visit_TimeUnitAndDateTestsAreReported`,
+`FeatureCatalogTests.FeatureCatalog_Visit_TimeUnitAndDateTestsAreSupported`,
 `FeatureCatalogTests.FeatureCatalog_Visit_ConditionOnAChannelThatTakesNoneIsReported`,
 `FeatureCatalogTests.FeatureCatalog_Visit_ConditionExpressionsAndFieldPropertiesAreVisited`
 
 Assert, as a theory of five color definitions, that a condition with an expression test, with a predicate object, with
 a composition of a range and a negated set, with a field, and an array of conditions on a field are not reported; that a
 condition on a `param` is `vl-encoding-condition-param` at the condition (at the item of an array), and a selection
-inside a composition at the `param` of the test; that a `timeUnit`, and a date object inside an `or`, are
-`vl-encoding-condition-test` at the predicate that holds them (and not for the part that is supported); that a
-condition on
+inside a composition at the `param` of the test; that a `timeUnit` and a date object inside an `or` are supported and
+not reported (the identifier `vl-encoding-condition-test` is retired), that the `yearweek` unit of a predicate is the
+warning `vl-predicate-timeunit-part` at the `timeUnit` of the test (`/encoding/color/condition/test/timeUnit`), and that
+a binned unit is `vl-timeunit-binned` at the same place; that a condition on
 `x` is `vl-encoding-condition` at the condition; and that a function outside the list in a test or in a `value.expr`
-is `vl-expr-function-now` at the text, and a `temporal` field in a field condition is `vl-type-temporal` at its `type`.
+is `vl-expr-function-now` at the text, a `temporal` field in a field condition is silent (the former `vl-type-temporal`
+is retired), and a `geojson` field is `vl-type-geojson` at its `type`.
+
+##### Time Is Supported: Temporal Fields, Units, Scales, And Predicates Report Nothing
+
+**Tests**: `FeatureCatalogTimeTests.FeatureCatalog_Visit_TemporalFieldsAndTimeUnitsAreSupported`,
+`FeatureCatalogTimeTests.FeatureCatalog_Visit_NestedTimeUnitTransformIsReportedAndRemovedIdsAreGone`
+
+Asserts that one original specification that uses the whole supported time subset produces no reports at all, so strict
+mode accepts it: two `timeUnit` transforms (`yearmonth`, and an object unit with a step and `utc`), a filter with a
+`timeUnit` and a `range`, a filter with a date-time object in `oneOf`, a bar with a temporal `x` with the unit
+`yearmonth`, the scale type `utc`, a `nice` of `month`, a domain of two date-time objects, an axis `tickCount` object
+and a format, and a temporal color with a `time` scale and a legend `tickCount` of `year`. The identifiers that said
+that time was not supported are retired and must not appear: a second specification that uses a temporal `x` with a
+unit, a filter with a unit, a filter with a date-time object, and a condition with a unit predicate produces no report
+at all (so none of `vl-type-temporal`, `vl-encoding-timeunit`, `vl-transform-timeunit` for a drawn view,
+`vl-transform-filter-timeunit`, `vl-transform-filter-datetime`, `vl-encoding-condition-test`, `vl-data-parse-date-format`,
+`vl-scale-time`, and `vl-scale-utc`); and a `timeUnit` transform in a nested view of a composition, which is not drawn,
+is still reported by the generic rule as `vl-transform-timeunit` at `/layer/0/transform/0`.
+
+##### Time Unit Reports: Binned And Maxbins
+
+**Tests**: `FeatureCatalogTimeTests.FeatureCatalog_Visit_BinnedTimeUnitIsReportedAtTheValue`,
+`FeatureCatalogTimeTests.FeatureCatalog_Visit_MaxBinsTimeUnitIsReportedInPredicatesOnly`,
+`FeatureCatalogTimeTests.FeatureCatalog_Visit_WeekAndDayOfYearPartsOfPredicatesAreWarnings`,
+`FeatureCatalogTimeTests.FeatureCatalog_Visit_TimeIdsAreDeliveredAndStrictModeThrows`
+
+Asserts that a binned unit, by the name `binnedyearmonth` or by the object `{"unit":"yearmonth","binned":true}`, is
+`vl-timeunit-binned` at the `timeUnit` value (`/encoding/x/timeUnit`) while `binned: false` is silent; that the
+`{"maxbins": 10}` form is silent in an encoding and in the `timeUnit` transform (where the extent of the data resolves
+it) and is `vl-timeunit-maxbins` in a predicate (`/transform/0/filter/timeUnit`), which has no data extent to bin; that
+a predicate whose unit has a `week` or `dayofyear` part (`yearweek` in a filter, `dayofyear` inside an `and`) is the
+warning `vl-predicate-timeunit-part` at the `timeUnit` of the predicate (`/transform/0/filter/timeUnit` and
+`/transform/1/filter/and/0/timeUnit`), of kind `Warning`, while `yearmonth` in a predicate and `yearweek` in an
+encoding are silent. Through the public API, a render in strict mode of a specification with a binned unit throws a
+`VegaLiteUnsupportedFeatureException` whose `Feature` is `vl-timeunit-binned`, the same specification rendered leniently
+delivers exactly one report `vl-timeunit-binned /encoding/x/timeUnit` to the unsupported-feature handler, and the
+`yearweek` predicate is delivered as a warning (its message names the week) and does not throw in strict mode.
+
+##### Band Position, Datum, And Interval Reports
+
+**Tests**: `FeatureCatalogTimeTests.FeatureCatalog_Visit_BandPositionIdentifiers`,
+`FeatureCatalogTimeTests.FeatureCatalog_Visit_DatumDatetimeIsReported`,
+`FeatureCatalogTimeTests.FeatureCatalog_Visit_IntervalsOnScalesThatAreNotTimeScales`
+
+Asserts that a `bandPosition` of 0.25 on the bar of a field with a time unit is `vl-encoding-bandposition-rect` at
+`/encoding/x/bandPosition`, while 0.5 and the same value on a point are silent; that a `timeUnitBandPosition` that is
+not 0.5 is reported at the place that sets it, in the mark definition of a `rect`
+(`/mark/timeUnitBandPosition`), in `config.bar` (`/config/bar/timeUnitBandPosition`), or in `config.mark`
+(`/config/mark/timeUnitBandPosition`), and a tick is silent; and that the narrowed `vl-encoding-bandposition` remains
+for a `bandPosition` on a quantitative field and on a binned field (`/encoding/x/bandPosition`). It asserts that a
+date-time object as the `datum` of a channel is `vl-encoding-datum-datetime` at the object (`/encoding/x/datum`), while
+a number and the repeat reference `{"repeat":"column"}` are silent. It also asserts that an interval on a channel that
+has no time scale is a warning that the default is used: on a quantitative `x` and color, a `nice` of `month` is
+`vl-scale-nice-interval` at `/encoding/x/scale/nice`, and the `tickCount` objects of the axis and the legend are
+`vl-guide-axis-tickcount-interval` at `/encoding/x/axis/tickCount` and `/encoding/color/legend/tickCount`, while the
+same properties on a temporal field with the type `time` or with the default scale are silent, a number `nice` and
+`tickCount` are silent, and a temporal field with the type `linear` reports only `vl-scale-type-ignored` at the type.
+
+##### Scale Types And Zero Of Temporal Fields
+
+**Tests**: `FeatureCatalogTimeTests.FeatureCatalog_Visit_TimeAndUtcScaleTypesFollowVegaLite`,
+`FeatureCatalogTimeTests.FeatureCatalog_Visit_ZeroOnATimeScaleIsAWarning`
+
+Asserts that a temporal field accepts only the `time` and `utc` scale types: `utc` and `time` on `x`, `y`, and color
+are silent, while `band`, `sequential`, and `quantile` on temporal `x`, color, and size are each
+`vl-scale-type-ignored` at the type (`/encoding/x/scale/type`, `/encoding/color/scale/type`, and
+`/encoding/size/scale/type`), a temporal field on `shape` is `vl-scale-type-ignored` at the scale type when it names
+`time` and at the field `type` (`/encoding/shape/type`) when it names none (a channel that shows categories gets an
+ordinal scale), and `time` or `utc` on a nominal, ordinal, or quantitative field is the same warning. It also asserts
+that a `scale.zero` on a temporal field whose scale type is absent or `utc` is the warning `vl-scale-zero-ignored` at
+`/encoding/x/scale/zero` and `/encoding/y/scale/zero` (Vega-Lite drops it for a time scale), that `zero` on a
+quantitative field is silent, and that a temporal field with the type `linear` and `zero` reports only the ignored type.
+
+##### Format Types Are Narrowed
+
+**Tests**: `FeatureCatalogTimeTests.FeatureCatalog_Visit_FormatTypesNumberTimeAndUtcAreEvaluated`
+
+Asserts, as a theory of five format types on the axis and on the legend of a temporal field, that `number`, `time`, and
+`utc` report nothing and that `custom` and the wrongly cased `Time` report `vl-format-type-custom` at the `formatType`
+(`/encoding/x/axis/formatType` and `/encoding/color/legend/formatType`), and that the static
+`FeatureCatalog.IsEvaluatedFormatType` agrees with each row. The legend scenario of the earlier phases was changed to
+use the format type `myFormat` for its report, because `time` is evaluated now.

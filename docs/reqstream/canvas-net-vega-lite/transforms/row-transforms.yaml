@@ -27,8 +27,9 @@ sections:
                   in their written order, each reading an immutable table and producing a new one, handing the
                   transforms aggregate, joinaggregate, window, bin, stack, and impute to the AggregateTransforms
                   unit in that order among the others, shall return the input table itself when there is no
-                  transform, shall reject null arguments, and shall skip, without executing it, a transform
-                  that a later phase implements (the feature catalog reports it).
+                  transform, shall reject null arguments, shall hand a timeUnit transform to the
+                  TimeUnitTransform unit with the time calendar of the chart, and shall skip, without
+                  executing it, a transform that a later phase implements (the feature catalog reports it).
                 justification: |
                   Transforms are order dependent and the later stages must never see a table change; a
                   transform that is not implemented must not be approximated.
@@ -36,6 +37,8 @@ sections:
                   - RowTransforms_Apply_ChecksArgumentsAndReturnsTheInputWithoutTransforms
                   - RowTransforms_Apply_TransformsOfLaterPhasesAreSkipped
                   - AggregateTransforms_Window_ComposesWithFilter
+                  - RowTransforms_TimeUnitTransform_ThenAggregate
+                  - RowTransforms_TimeUnitTransform_UsesTheChartZone
 
               - id: CanvasNetVegaLite-Transforms-RowTransforms-Calculate
                 title: >-
@@ -75,6 +78,30 @@ sections:
                   - RowTransforms_Apply_FilterOneOfAndCompositionsAreChargedPerRow
                   - RowTransforms_Apply_FilterCompositeFieldReadsAreCharged
                   - RowTransforms_Apply_FilterOfAnArrayFieldWithLongTextIsALocatedFailure
+
+              - id: CanvasNetVegaLite-Transforms-RowTransforms-TimePredicates
+                title: >-
+                  The RowTransforms unit shall evaluate a filter or condition predicate that has a time unit
+                  or a datetime object by the compiled expression of the predicate (the left side the
+                  start of the unit of the field, the right side the datetime object or text of the value
+                  given the same unit) in the time zone of the chart: equal, lt, lte, gt, gte, range (the
+                  ends inclusive, an open end allowed, reversed ends accepted), and oneOf, with the utc
+                  functions for a utc unit, a field that holds text dates parsed implicitly, valid kept as it
+                  is, and the work of the expression charged to the step budget of the call.
+                justification: |
+                  Filtering by month or by a date range is the common use of a time chart; the comparison must
+                  read the date in the zone the caller chose and must be as bounded as any expression.
+                tests:
+                  - RowTransforms_Filter_TimeUnitEqualMonth
+                  - RowTransforms_Filter_TimeUnitNumbersAndOneOfMonths
+                  - RowTransforms_Filter_RangeOfDatetimeObjects_NoUnit
+                  - RowTransforms_Filter_ComparisonsWithADatetimeObject
+                  - RowTransforms_Filter_OneOfDays_Utc
+                  - RowTransforms_Filter_ZoneChangesTheDate
+                  - RowTransforms_Filter_DatetimeObjectIsReadInTheChartZone
+                  - RowTransforms_Filter_UnparsedStringDatesAreParsedImplicitly
+                  - RowTransforms_Filter_ExpressionPredicateIsCharged
+                  - RowTransforms_Filter_ValidWithATimeUnit
 
               - id: CanvasNetVegaLite-Transforms-RowTransforms-Parameters
                 title: >-

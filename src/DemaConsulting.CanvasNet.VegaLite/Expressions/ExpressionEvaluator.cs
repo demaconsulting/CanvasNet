@@ -95,12 +95,14 @@ internal sealed partial class ExpressionEvaluator
     /// <param name="limits">The limits to enforce; the defaults when null.</param>
     /// <param name="cancellationToken">The cancellation token of the call.</param>
     /// <param name="parameters">The parameter values by name; identifiers that name no entry evaluate to null.</param>
+    /// <param name="calendar">The calendar of the date and time functions; UTC when null.</param>
     public ExpressionEvaluator(
         VegaLiteLimits? limits,
         CancellationToken cancellationToken,
-        IReadOnlyDictionary<string, DataValue>? parameters = null)
+        IReadOnlyDictionary<string, DataValue>? parameters = null,
+        TimeCalendar? calendar = null)
     {
-        _context = new ExpressionFunctionContext(limits, cancellationToken);
+        _context = new ExpressionFunctionContext(limits, cancellationToken, calendar);
         _charge = _context.ChargeSize;
         _parameters = parameters;
     }

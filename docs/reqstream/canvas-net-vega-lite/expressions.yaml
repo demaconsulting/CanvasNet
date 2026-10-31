@@ -61,8 +61,11 @@ sections:
           - id: CanvasNetVegaLite-Expressions-Functions
             title: >-
               The Expressions subsystem shall provide exactly the whitelisted pure functions - the math,
-              text and array, type and conversion, and regular expression functions - with the JavaScript
-              and Vega results, invariant of the culture, and no function that reads a clock, a random
+              text and array, type and conversion, regular expression, and date and time functions (the
+              constructors, the local and utc date parts, the week and day of the year numbers, the
+              calendar offset and sequence, the d3 time format and parse functions, and the time unit
+              specifier, all in the time zone of the chart) - with the JavaScript and Vega results,
+              invariant of the culture, and no function that reads a clock (now is not provided), a random
               source, the file system, or the network.
             justification: |
               Calculated fields and filters need the Vega functions, and a closed list of them is what
@@ -72,11 +75,25 @@ sections:
               - CanvasNetVegaLite-Expressions-ExpressionFunctions-Math
               - CanvasNetVegaLite-Expressions-ExpressionFunctions-TextAndArrays
               - CanvasNetVegaLite-Expressions-ExpressionFunctions-TypesAndConversions
+              - CanvasNetVegaLite-Expressions-ExpressionFunctions-DateConstructors
+              - CanvasNetVegaLite-Expressions-ExpressionFunctions-DateParts
+              - CanvasNetVegaLite-Expressions-ExpressionFunctions-UtcParts
+              - CanvasNetVegaLite-Expressions-ExpressionFunctions-WeekAndDayOfYear
+              - CanvasNetVegaLite-Expressions-ExpressionFunctions-Offset
+              - CanvasNetVegaLite-Expressions-ExpressionFunctions-Sequence
+              - CanvasNetVegaLite-Expressions-ExpressionFunctions-Format
+              - CanvasNetVegaLite-Expressions-ExpressionFunctions-Parse
+              - CanvasNetVegaLite-Expressions-ExpressionFunctions-Names
+              - CanvasNetVegaLite-Expressions-ExpressionEvaluator-Calendar
             tests:
               - ExpressionFunctions_Names_AreExactlyTheWhitelist
               - ExpressionFunctions_Math_ExactValuesAndSpecialCases
               - ExpressionFunctions_Text_FollowJavaScriptAndVega
               - ExpressionFunctions_Types_PredicatesFollowVega
+              - ExpressionFunctions_Datetime_Components_AreALocalDate
+              - ExpressionFunctions_Getters_AtTheAnchorInstant
+              - ExpressionFunctions_TimeFormat_FormatsWithTheSpecifier
+              - ExpressionFunctions_Now_StaysUnsupported
 
           - id: CanvasNetVegaLite-Expressions-Bounds
             title: >-
@@ -91,12 +108,14 @@ sections:
               - CanvasNetVegaLite-Expressions-ExpressionEvaluator-StepBudget
               - CanvasNetVegaLite-Expressions-ExpressionEvaluator-Cancellation
               - CanvasNetVegaLite-Expressions-ExpressionFunctions-RegexSafety
+              - CanvasNetVegaLite-Expressions-ExpressionFunctions-TimeLimits
             tests:
               - ExpressionParser_Parse_LengthLimit_AcceptsUpToLimit
               - ExpressionParser_Parse_DepthLimit_AcceptsUpToLimit
               - ExpressionEvaluator_Evaluate_StepBudget_IsExact
               - ExpressionEvaluator_Evaluate_CanceledDuringEvaluation_ThrowsOperationCanceled
               - ExpressionFunctions_Regex_CatastrophicPatternsAreSafe
+              - ExpressionFunctions_Sequence_IsBoundedByTheScaleDomainLimit
 
           - id: CanvasNetVegaLite-Expressions-Locations
             title: >-
@@ -126,8 +145,10 @@ sections:
             children:
               - CanvasNetVegaLite-Expressions-ExpressionEvaluator-Determinism
               - CanvasNetVegaLite-Expressions-ExpressionFunctions-Determinism
+              - CanvasNetVegaLite-Expressions-ExpressionFunctions-TimeDeterminism
             tests:
               - ExpressionEvaluator_Evaluate_UnderAnyCulture_IsInvariant
               - ExpressionEvaluator_Evaluate_Concurrent_IsDeterministic
               - ExpressionParser_Parse_RepeatedAndConcurrent_GivesIdenticalResults
               - ExpressionFunctions_Repeated_ResultsAreIdentical
+              - ExpressionFunctions_Time_AreCultureInvariant
