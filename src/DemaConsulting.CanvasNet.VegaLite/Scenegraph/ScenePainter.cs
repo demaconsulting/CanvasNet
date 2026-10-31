@@ -86,7 +86,7 @@ internal readonly record struct ScenePlacement(double Scale, double OffsetX, dou
 ///         always give the same bytes. The painter holds no state and is safe for concurrent use.
 ///     </para>
 /// </remarks>
-internal sealed class ScenePainter
+internal sealed partial class ScenePainter
 {
     /// <summary>Half of the square root of three, the height factor of Vega's triangle symbols.</summary>
     private static readonly double HalfSqrt3 = Math.Sqrt(3) / 2;
@@ -311,6 +311,14 @@ internal sealed class ScenePainter
                     cancellationToken.ThrowIfCancellationRequested();
                     PaintPath(path, local);
                     break;
+                case SceneArc arc:
+                    cancellationToken.ThrowIfCancellationRequested();
+                    PaintArc(arc, local);
+                    break;
+                case SceneTrail trail:
+                    cancellationToken.ThrowIfCancellationRequested();
+                    PaintTrail(trail, local, cancellationToken);
+                    break;
                 case SceneSymbol symbol:
                     cancellationToken.ThrowIfCancellationRequested();
                     PaintSymbol(symbol, local);
@@ -449,6 +457,12 @@ internal sealed class ScenePainter
     /// <param name="local">The context of the enclosing group.</param>
     private static void PaintPath(ScenePath item, Context local)
     {
+        if (item.Segments.Count > 0)
+        {
+            PaintSegments(item, local);
+            return;
+        }
+
         if (item.Points.Count < 2 || item.Opacity <= 0 || item.Points.Any(p => !IsFinite(p.X, p.Y)))
         {
             return;
@@ -691,7 +705,7 @@ internal sealed class ScenePainter
             width,
             cap,
             join,
-            4f,
+            ResolveMiterLimit(item.StrokeMiterLimit),
             DashArray(item.StrokeDash, path, context.Scale),
             float.IsFinite(dashOffset) ? dashOffset : 0f);
 

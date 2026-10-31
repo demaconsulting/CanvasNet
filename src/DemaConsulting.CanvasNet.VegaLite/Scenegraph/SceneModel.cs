@@ -111,6 +111,13 @@ internal abstract record SceneItem
 
     /// <summary>Gets the line join of the stroke: <c>miter</c> (default), <c>round</c> or <c>bevel</c>.</summary>
     public string? StrokeJoin { get; init; }
+
+    /// <summary>
+    ///     Gets the miter limit of the stroke (the ratio of the miter length to the stroke width above which a miter join
+    ///     falls back to a bevel), or <see langword="null"/> for the default of 4. The painter clamps a value that is not
+    ///     finite or is below 1 to 1 and a value above 1,000 to 1,000.
+    /// </summary>
+    public double? StrokeMiterLimit { get; init; }
 }
 
 /// <summary>
@@ -355,15 +362,115 @@ internal sealed record SceneRule : SceneItem
 }
 
 /// <summary>
-///     A polyline or polygon through straight segments: a <c>line</c> mark or an axis domain with several legs.
+///     The kind of a <see cref="ScenePathSegment"/>.
 /// </summary>
+internal enum ScenePathSegmentKind
+{
+    /// <summary>Starts a new subpath at the point.</summary>
+    MoveTo,
+
+    /// <summary>Draws a straight line from the current point to the point.</summary>
+    LineTo,
+
+    /// <summary>Draws a cubic Bezier curve from the current point to the point.</summary>
+    CubicTo,
+
+    /// <summary>Closes the current subpath with a straight line back to its start.</summary>
+    Close,
+}
+
+/// <summary>
+///     One drawing command of a <see cref="ScenePath"/> that has segments, with absolute coordinates.
+/// </summary>
+/// <remarks>
+///     <see cref="ScenePathSegmentKind.MoveTo"/> and <see cref="ScenePathSegmentKind.LineTo"/> use (<see cref="X"/>,
+///     <see cref="Y"/>); <see cref="ScenePathSegmentKind.CubicTo"/> has the first control point (<see cref="X1"/>,
+///     <see cref="Y1"/>), the second control point (<see cref="X2"/>, <see cref="Y2"/>) and the end point (<see cref="X"/>,
+///     <see cref="Y"/>); <see cref="ScenePathSegmentKind.Close"/> uses no coordinate. Unused coordinates are zero.
+/// </remarks>
+/// <param name="Kind">The kind of the command.</param>
+/// <param name="X">The x coordinate of the point (the end point of a cubic).</param>
+/// <param name="Y">The y coordinate of the point (the end point of a cubic).</param>
+/// <param name="X1">The x coordinate of the first control point of a cubic.</param>
+/// <param name="Y1">The y coordinate of the first control point of a cubic.</param>
+/// <param name="X2">The x coordinate of the second control point of a cubic.</param>
+/// <param name="Y2">The y coordinate of the second control point of a cubic.</param>
+internal readonly record struct ScenePathSegment(
+    ScenePathSegmentKind Kind,
+    double X,
+    double Y,
+    double X1 = 0,
+    double Y1 = 0,
+    double X2 = 0,
+    double Y2 = 0)
+{
+    /// <summary>
+    ///     Creates a command that starts a new subpath.
+    /// </summary>
+    /// <param name="x">The x coordinate of the start.</param>
+    /// <param name="y">The y coordinate of the start.</param>
+    /// <returns>The command.</returns>
+    public static ScenePathSegment Move(double x, double y) => new(ScenePathSegmentKind.MoveTo, x, y);
+
+    /// <summary>
+    ///     Creates a command that draws a straight line.
+    /// </summary>
+    /// <param name="x">The x coordinate of the end.</param>
+    /// <param name="y">The y coordinate of the end.</param>
+    /// <returns>The command.</returns>
+    public static ScenePathSegment Line(double x, double y) => new(ScenePathSegmentKind.LineTo, x, y);
+
+    /// <summary>
+    ///     Creates a command that draws a cubic Bezier curve.
+    /// </summary>
+    /// <param name="x1">The x coordinate of the first control point.</param>
+    /// <param name="y1">The y coordinate of the first control point.</param>
+    /// <param name="x2">The x coordinate of the second control point.</param>
+    /// <param name="y2">The y coordinate of the second control point.</param>
+    /// <param name="x">The x coordinate of the end point.</param>
+    /// <param name="y">The y coordinate of the end point.</param>
+    /// <returns>The command.</returns>
+    public static ScenePathSegment Cubic(double x1, double y1, double x2, double y2, double x, double y) =>
+        new(ScenePathSegmentKind.CubicTo, x, y, x1, y1, x2, y2);
+
+    /// <summary>
+    ///     Creates a command that closes the current subpath.
+    /// </summary>
+    /// <returns>The command.</returns>
+    public static ScenePathSegment Close() => new(ScenePathSegmentKind.Close, 0, 0);
+
+    /// <summary>
+    ///     Determines whether every coordinate that the kind of the command uses is finite.
+    /// </summary>
+    /// <returns><see langword="true"/> when the command can be drawn.</returns>
+    public bool IsFinite() => Kind switch
+    {
+        ScenePathSegmentKind.Close => true,
+        ScenePathSegmentKind.CubicTo => double.IsFinite(X) && double.IsFinite(Y) && double.IsFinite(X1) && double.IsFinite(Y1)
+            && double.IsFinite(X2) && double.IsFinite(Y2),
+        _ => double.IsFinite(X) && double.IsFinite(Y),
+    };
+}
+
+/// <summary>
+///     A polyline, polygon or curve: a <c>line</c> or <c>area</c> mark or an axis domain with several legs.
+/// </summary>
+/// <remarks>
+///     A path is made either of <see cref="Points"/> (straight legs; <see cref="Closed"/> joins the last point to the first)
+///     or of <see cref="Segments"/> (move, line, cubic and close commands). When the segments are set they replace the
+///     points; <see cref="Closed"/> then has no effect, because a <see cref="ScenePathSegmentKind.Close"/> command closes a
+///     subpath.
+/// </remarks>
 internal sealed record ScenePath : SceneItem
 {
     /// <summary>The backing field of <see cref="Points"/>.</summary>
     private readonly IReadOnlyList<ScenePoint> _points;
 
+    /// <summary>The backing field of <see cref="Segments"/>.</summary>
+    private readonly IReadOnlyList<ScenePathSegment> _segments = [];
+
     /// <summary>
-    ///     Initializes a path.
+    ///     Initializes a path of straight legs.
     /// </summary>
     /// <param name="role">The role.</param>
     /// <param name="points">The points in drawing order; the list is copied.</param>
@@ -373,11 +480,117 @@ internal sealed record ScenePath : SceneItem
         _points = SceneLists.Copy(points);
     }
 
-    /// <summary>Gets the points in drawing order.</summary>
+    /// <summary>
+    ///     Initializes a path of drawing commands.
+    /// </summary>
+    /// <param name="role">The role.</param>
+    /// <param name="segments">The commands in drawing order; the list is copied.</param>
+    public ScenePath(string role, IEnumerable<ScenePathSegment> segments)
+        : base(role)
+    {
+        _points = [];
+        _segments = SceneLists.Copy(segments);
+    }
+
+    /// <summary>Gets the points in drawing order; empty for a path that has <see cref="Segments"/>.</summary>
     public IReadOnlyList<ScenePoint> Points => _points;
+
+    /// <summary>Gets the drawing commands; empty for a path of <see cref="Points"/>. When it is not empty it replaces the points.</summary>
+    public IReadOnlyList<ScenePathSegment> Segments => _segments;
 
     /// <summary>Gets a value indicating whether the last point is joined to the first (a polygon); <see langword="false"/> by default.</summary>
     public bool Closed { get; init; }
+}
+
+/// <summary>
+///     A circular or annular sector: a slice of an <c>arc</c> mark.
+/// </summary>
+/// <remarks>
+///     The sector is centered on (<see cref="X"/>, <see cref="Y"/>). Angles are in radians, measured clockwise from the
+///     12 o'clock position (d3-shape's convention), so an angle of 0 points up and π/2 points right. The geometry is that of
+///     <see cref="ArcGeometry"/>.
+/// </remarks>
+internal sealed record SceneArc : SceneItem
+{
+    /// <summary>
+    ///     Initializes an arc.
+    /// </summary>
+    /// <param name="role">The role.</param>
+    /// <param name="x">The x coordinate of the center.</param>
+    /// <param name="y">The y coordinate of the center.</param>
+    public SceneArc(string role, double x, double y)
+        : base(role)
+    {
+        X = x;
+        Y = y;
+    }
+
+    /// <summary>Gets the x coordinate of the center.</summary>
+    public double X { get; }
+
+    /// <summary>Gets the y coordinate of the center.</summary>
+    public double Y { get; }
+
+    /// <summary>Gets the inner radius in pixels; 0 by default (a pie slice).</summary>
+    public double InnerRadius { get; init; }
+
+    /// <summary>Gets the outer radius in pixels; 0 by default (a point).</summary>
+    public double OuterRadius { get; init; }
+
+    /// <summary>Gets the start angle in radians, clockwise from 12 o'clock; 0 by default.</summary>
+    public double StartAngle { get; init; }
+
+    /// <summary>Gets the end angle in radians, clockwise from 12 o'clock; 0 by default.</summary>
+    public double EndAngle { get; init; }
+
+    /// <summary>Gets the angular padding between neighboring sectors in radians; 0 by default.</summary>
+    public double PadAngle { get; init; }
+
+    /// <summary>Gets the radius of the rounded corners in pixels; 0 by default.</summary>
+    public double CornerRadius { get; init; }
+}
+
+/// <summary>
+///     A point of a trail: a position and the width of the trail there.
+/// </summary>
+/// <param name="X">The x coordinate.</param>
+/// <param name="Y">The y coordinate.</param>
+/// <param name="Size">The width of the trail at the point in pixels; a width that is not finite or not positive ends the run.</param>
+internal readonly record struct SceneTrailPoint(double X, double Y, double Size);
+
+/// <summary>
+///     A trail: a line whose width follows a size at every point, drawn as one filled outline per run of points.
+/// </summary>
+/// <remarks>
+///     <para>
+///         Each run is drawn as in Vega's trail: every pair of consecutive points becomes a capsule (two straight edges
+///         joined by half circles whose diameters are the sizes at the two points) and the capsules of all runs are filled
+///         and stroked as one path. A run of one point draws nothing; two coincident points draw a circle.
+///     </para>
+///     <para>
+///         The lists are copied when the trail is created. The cost of painting is proportional to the total number of points.
+///     </para>
+/// </remarks>
+internal sealed record SceneTrail : SceneItem
+{
+    /// <summary>The backing field of <see cref="Runs"/>.</summary>
+    private readonly IReadOnlyList<IReadOnlyList<SceneTrailPoint>> _runs;
+
+    /// <summary>
+    ///     Initializes a trail.
+    /// </summary>
+    /// <param name="role">The role.</param>
+    /// <param name="runs">The runs of points; the lists are copied.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="runs"/> or one of its runs is null.</exception>
+    public SceneTrail(string role, IEnumerable<IReadOnlyList<SceneTrailPoint>> runs)
+        : base(role)
+    {
+        ArgumentNullException.ThrowIfNull(runs);
+        _runs = SceneLists.Copy(runs.Select(SceneLists.Copy));
+    }
+
+    /// <summary>Gets the runs of points; each run is drawn on its own and a gap separates two runs.</summary>
+    public IReadOnlyList<IReadOnlyList<SceneTrailPoint>> Runs => _runs;
 }
 
 /// <summary>
