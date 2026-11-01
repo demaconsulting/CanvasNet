@@ -62,10 +62,13 @@ of every other length and character; verifies that the alpha pair is last.
 ##### CanvasNet-Canvas-CssColor-NamedColors: Named Colors
 
 **Tests**: `CssColor_TryGetNamedColor_Names_ReturnTheCssTableEntries`,
+`CssColor_TryGetNamedColor_EveryCssName_ReturnsTheSpecificationValue`,
 `CssColor_TryGetNamedColor_NotAName_ReturnsFalseWithDefaultColor`, `CssColor_TryParse_Names_MatchExpectedPixels`
 
-Verifies the count of 148, the sampled values against hexadecimal spellings in lower and upper case, `transparent`,
-the `gray` and `grey` pairs, and that the lookup is exact for anything that is not a name.
+Verifies the count of 148, the sampled values against hexadecimal spellings in lower and upper case, every one of the
+148 names (and `transparent`) in mixed, lower, and upper case against a table of the specification values written out
+independently in the test (so an incorrect or extra production entry fails), the `gray` and `grey` pairs, and that the
+lookup is exact for anything that is not a name.
 
 ##### CanvasNet-Canvas-CssColor-Functions: rgb and hsl Functions
 

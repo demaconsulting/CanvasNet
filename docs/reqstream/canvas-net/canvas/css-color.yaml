@@ -40,6 +40,7 @@ sections:
                   decide every pixel painted with a named color.
                 tests:
                   - CssColor_TryGetNamedColor_Names_ReturnTheCssTableEntries
+                  - CssColor_TryGetNamedColor_EveryCssName_ReturnsTheSpecificationValue
                   - CssColor_TryGetNamedColor_NotAName_ReturnsFalseWithDefaultColor
                   - CssColor_TryParse_Names_MatchExpectedPixels
 
