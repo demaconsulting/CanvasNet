@@ -1,0 +1,73 @@
+---
+# Software Unit Requirements for ImageDecoder
+#
+# These requirements describe the design-level behavior of the ImageDecoder unit: the ImageFormat
+# enum, the ImageFormats recognizers, and the ImageDecoder dispatcher.
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Codecs Requirements
+        sections:
+          - title: ImageDecoder Requirements
+            requirements:
+              - id: CanvasNet-Codecs-ImageDecoder-DetectSignature
+                title: >-
+                  The ImageFormats class shall recognize a PNG, JPEG, GIF, BMP, TIFF, or JPEG 2000 image
+                  from its first bytes, returning no format for empty, short, or unrecognized input without
+                  throwing.
+                justification: |
+                  Callers that receive an image without a trustworthy file name or media type need a single,
+                  shared, shallow signature check to choose a decoder; a bare "BM" prefix must not be taken
+                  for a bitmap, since it also begins ordinary text.
+                tests:
+                  - ImageFormats_Detect_KnownSignature_ReturnsFormat
+                  - ImageFormats_Detect_BmpWithPlausibleHeader_ReturnsBmp
+                  - ImageFormats_Detect_ImplausibleBmpHeader_ReturnsNull
+                  - ImageFormats_Detect_EmptyShortOrUnknown_ReturnsNull
+
+              - id: CanvasNet-Codecs-ImageDecoder-FromMediaType
+                title: >-
+                  The ImageFormats class shall map a media (MIME) type to its image format, ignoring case,
+                  surrounding whitespace, and parameters and accepting the common aliases, and shall return
+                  no format for a null, empty, or unsupported media type.
+                justification: |
+                  Embedded images (data URIs, OPC package parts, HTTP responses) are labeled with media
+                  types whose spelling varies in the wild (image/jpg, image/x-bmp); every consumer needs
+                  the same tolerant mapping rather than its own switch.
+                tests:
+                  - ImageFormats_FromMediaType_KnownType_ReturnsFormat
+                  - ImageFormats_FromMediaType_CaseWhitespaceAndParameters_AreNormalized
+                  - ImageFormats_FromMediaType_UnsupportedOrMissing_ReturnsNull
+
+              - id: CanvasNet-Codecs-ImageDecoder-Load
+                title: >-
+                  The ImageDecoder class shall decode an image supplied as a stream or a byte span by
+                  detecting its format from its first bytes, and shall decode a stream as a caller-specified
+                  format, in each case delegating to the matching codec, reading a seekable stream from its
+                  starting position (and leaving it there when the signature is not recognized) and reading a
+                  non-seekable stream through with its signature replayed.
+                justification: |
+                  Callers should not need a per-format switch to turn an arbitrary supported image into a
+                  Surface; delegating to the existing codecs keeps every codec limit and error contract
+                  unchanged.
+                tests:
+                  - ImageDecoder_LoadBytes_PngBmpTiff_DecodesExactPixels
+                  - ImageDecoder_LoadBytes_JpegGifJpeg2000_DispatchesToMatchingCodec
+                  - ImageDecoder_LoadStream_SeekableStreamAtOffset_DecodesFromStartPosition
+                  - ImageDecoder_LoadStream_UnrecognizedSeekableStream_KeepsStartPosition
+                  - ImageDecoder_LoadStream_NonSeekableStream_DecodesWholeImage
+                  - ImageDecoder_LoadStreamWithFormat_UsesGivenFormat
+
+              - id: CanvasNet-Codecs-ImageDecoder-LoadValidation
+                title: >-
+                  The ImageDecoder class shall reject data with no recognized image signature with
+                  InvalidDataException, a null stream with ArgumentNullException, and an undefined
+                  ImageFormat value with ArgumentOutOfRangeException.
+                justification: |
+                  An unrecognizable file is malformed input, which every codec reports as
+                  InvalidDataException; null and undefined enum values are programming errors that should
+                  fail immediately.
+                tests:
+                  - ImageDecoder_Load_UnrecognizedData_ThrowsInvalidDataException
+                  - ImageDecoder_Load_InvalidArguments_Throw

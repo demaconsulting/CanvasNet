@@ -839,9 +839,11 @@ resolves a `<p:pic>` shape's `<p:blipFill>/<a:blip>` into a decoded core `Surfac
   least one of these).
 - **Content-type dispatch**: the resolved media part's content type (via the existing
   `ResolvePart` content-type lookup) dispatches to a private `ResolveRasterDecoder` helper
-  mirroring `DemaConsulting.CanvasNet.Svg.SvgCodec.ResolveRasterDecoder`'s own
-  content-type-to-decoder dispatch pattern (PNG/JPEG/BMP/GIF, via the core raster codecs already
-  used elsewhere in `CanvasNet`) rather than inventing a second, divergent raster-decode entry
+  that maps it through the core `ImageFormats.FromMediaType` recognizer and decodes with
+  `ImageDecoder.Load(Stream, ImageFormat)` (the same shared dispatch
+  `DemaConsulting.CanvasNet.Svg.SvgCodec.ResolveRasterDecoder` uses; PNG/JPEG/BMP/TIFF/GIF, via the
+  core raster codecs; JPEG 2000 is recognized by the facade but deliberately not embedded) rather
+  than inventing a second, divergent raster-decode entry
   point. An unrecognized content type throws `PptxUnsupportedFeatureException` (feature token
   `"pptx-image-format"`).
 - **Crop rectangle**: `ResolveSrcRect(XElement blipFillElement)` resolves `<p:blipFill>`'s

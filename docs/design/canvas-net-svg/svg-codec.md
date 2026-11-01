@@ -1199,14 +1199,16 @@ regardless of whether any effect is present. Only an `href` of the form
 path/URL, or a `data:image/svg+xml` payload as an out-of-scope no-op (see the out-of-scope list
 above for the full rationale behind each).
 
-_Decode dispatch._ `ResolveRasterDecoder` maps the parsed MIME type to one of the five existing
-raster codecs' own `Load(Stream)` method - `image/png` → `PngCodec`, `image/jpeg` → `JpegCodec`,
-`image/bmp` → `BmpCodec`, `image/tiff` → `TiffCodec`, `image/gif` → `GifCodec` - with no new
+_Decode dispatch._ `ResolveRasterDecoder` maps the parsed MIME type through the core
+`ImageFormats.FromMediaType` recognizer to one of the five existing raster codecs, decoded with
+`ImageDecoder.Load(Stream, ImageFormat)` (a thin dispatcher over each codec's own `Load(Stream)`) -
+`image/png` → `PngCodec`, `image/jpeg` → `JpegCodec`, `image/bmp` → `BmpCodec`, `image/tiff` →
+`TiffCodec`, `image/gif` → `GifCodec` - with no new
 decode logic of any kind: the base64 payload is decoded to raw bytes, wrapped in a
-`MemoryStream`, and handed directly to that codec's own `Load`. `image/svg+xml` is listed
-explicitly in this switch (routing to the same out-of-scope no-op as an unrecognized MIME type)
-specifically to document the nested-SVG scope decision at the dispatch site itself, rather than
-leaving it to fall through an default case indistinguishably from a genuinely unsupported format.
+`MemoryStream`, and handed to that codec's own `Load`. `image/svg+xml` (a nested SVG, which the
+recognizer does not map to a raster format) and JPEG 2000 (which the recognizer maps but this
+codec deliberately does not embed) both route to the same out-of-scope no-op as an unrecognized
+MIME type, documenting the nested-SVG scope decision at the dispatch site itself.
 A malformed base64 payload (`FormatException`), a raster payload the target codec's own `Load`
 rejects (`InvalidDataException` - every one of the six codecs already documents this as its own
 malformed/oversized-data exception), an out-of-range decoded dimension

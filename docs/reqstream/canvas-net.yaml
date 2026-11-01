@@ -1105,6 +1105,37 @@ sections:
           - Jpeg2000Codec_Decode_EveryTruncationOfSmallStream_ThrowsInvalidData
           - Jpeg2000Codec_Decode_Part2Capabilities_ThrowsUnsupported
 
+  - title: Image Decoder API
+    requirements:
+      - id: CanvasNet-Lib-ImageFormatRecognition
+        title: >-
+          The library shall recognize an image's format (PNG, JPEG, GIF, BMP, TIFF, or JPEG 2000)
+          from its first bytes or from its media (MIME) type, tolerating case, whitespace,
+          parameters, and common media-type aliases.
+        tags: [system]
+        justification: |
+          Callers that receive an image without a trustworthy file name need a shared recognizer
+          rather than their own signature and media-type tables.
+        children:
+          - CanvasNet-Codecs-ImageDecoderFormatRecognition
+        tests:
+          - ImageFormats_Detect_KnownSignature_ReturnsFormat
+          - ImageFormats_FromMediaType_KnownType_ReturnsFormat
+
+      - id: CanvasNet-Lib-ImageDecoderLoad
+        title: >-
+          The library shall decode an image of any supported format into a Surface from a stream or
+          byte span, detecting the format automatically or using a caller-specified format.
+        tags: [system]
+        justification: |
+          Callers should not need a per-format switch to turn an arbitrary supported image into a
+          Surface.
+        children:
+          - CanvasNet-Codecs-ImageDecoderLoad
+        tests:
+          - ImageDecoder_LoadBytes_PngBmpTiff_DecodesExactPixels
+          - ImageDecoder_Load_UnrecognizedData_ThrowsInvalidDataException
+
   # Note: SVG rasterization is provided by the separate CanvasNetSvg system (its own package,
   # DemaConsulting.CanvasNet.Svg) - see docs/reqstream/canvas-net-svg.yaml, not this system.
 

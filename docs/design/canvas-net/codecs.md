@@ -4,9 +4,10 @@
 
 <!-- cspell:ignore rasterizing unparseable Linq -->
 
-The `Codecs` subsystem is the second software subsystem in CanvasNet. It groups six flat,
+The `Codecs` subsystem is the second software subsystem in CanvasNet. It groups six
 hand-rolled image-format codecs — `BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`, `GifCodec`,
-and `Jpeg2000Codec`. Four raster codecs (`BmpCodec`, `PngCodec`, `TiffCodec`, and `JpegCodec`) each
+and `Jpeg2000Codec` — and the `ImageDecoder` facade that recognizes an image's format and
+dispatches to them. Four raster codecs (`BmpCodec`, `PngCodec`, `TiffCodec`, and `JpegCodec`) each
 convert to and from a `DemaConsulting.CanvasNet.Canvas.Surface` pixel buffer; `GifCodec` is
 decode-only — it loads a `Surface` from the first frame of a GIF file but has no `Save` method;
 `Jpeg2000Codec` is likewise decode-only — it loads a `Surface` from a JPEG 2000 (JP2 or raw
@@ -20,9 +21,11 @@ Note: SVG rasterization is not part of this subsystem; it is provided by the sep
 ### Purpose
 
 The `Codecs` subsystem groups the software units responsible for reading and writing pixel data
-in standard image file formats. It is flat: none of its six units depend on one another.
+in standard image file formats. The six codec units are flat: none of them depends on another.
 `BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`, `GifCodec`, and `Jpeg2000Codec` depend only on the `Canvas`
-subsystem's `Surface` unit for their in-memory pixel representation.
+subsystem's `Surface` unit for their in-memory pixel representation. `ImageDecoder` is the one unit
+that depends on the others: it adds no decoding logic, only format recognition and dispatch to each
+codec's `Load(Stream)`.
 
 ### Units
 
@@ -42,6 +45,10 @@ subsystem's `Surface` unit for their in-memory pixel representation.
   codestreams); `Decode` additionally exposes the decoded color space and opacity channel, and
   is used by the PDF renderer for `/JPXDecode` images; see _Jpeg2000Codec Unit Design_
   (`codecs/jpeg2000-codec.md`)
+- **ImageDecoder** — public `ImageFormat` enum, `ImageFormats.Detect`/`FromMediaType` recognizers
+  (signature and media type), and `ImageDecoder.Load` dispatcher that decodes a stream or byte span
+  of any of the six formats into a `Surface`; see _ImageDecoder Unit Design_
+  (`codecs/image-decoder.md`)
 
 ### Shared Types
 
@@ -82,6 +89,33 @@ true total Image Descriptor count by walking the file's block structure, never r
 frame's decoded pixels into a `Surface` — see _GifCodec Unit Design_ (`codecs/gif-codec.md`) for
 the exact walk. Because `ImageInfo` is a record struct, `CanDecode` and `FrameCount` both
 participate in its generated value equality like every other member.
+
+#### PNG Filter and LZW Decoder (internal)
+
+`PngFilter` (`Codecs/PngFilter.cs`) and `LzwDecoder` (`Codecs/LzwDecoder.cs`) are `internal static`
+helpers; like `ZlibHelper` they are not software units of their own and are not part of the public
+API. Each replaces copies that had been written separately in the core and in the `CanvasNetPdf`
+package, and is shared with `CanvasNetPdf` through the core assembly's existing
+`InternalsVisibleTo` grant.
+
+- `PngFilter.DefilterRow(filterType, filtered, previousRow, output, bpp)` reverses one PNG
+  scanline filter (None, Sub, Up, Average, Paeth). It is used by `PngCodec` for every scanline and
+  by the PDF package's `/Predictor 10`-`15` reversal, whose per-row algorithm was a byte-for-byte
+  copy. Unknown filter types throw `InvalidDataException`.
+- `LzwDecoder.Decode(data, earlyChange, maxOutputBytes)` decodes the MSB-first, 9-12 bit LZW
+  variant common to TIFF (`earlyChange: true`, TIFF 6.0 section 13) and the PDF `LZWDecode` filter
+  (`/EarlyChange`, default early). It is **hard-bounded**: output beyond `maxOutputBytes` is rejected
+  before it is written, and the output buffer starts at `min(maxOutputBytes, max(4 KiB, 4 *
+  compressedLength))` bytes and doubles (capped at the limit) only when really filled, so a tiny
+  crafted stream cannot expand past the limit (`TiffCodec` passes the strip's expected size, the PDF
+  package its 64 MiB cap). The leading Clear code is optional for the shared decoder; `TiffCodec`
+  enforces its own rule that one must be present. The GIF LZW variant (LSB-first, different code
+  widths, no early change) is a different algorithm and is deliberately not shared.
+
+The PDF package's `FlateDecode` zlib helper is **not** shared with `ZlibHelper`: it tolerates a
+wrong Adler-32 trailer, a bad header check value, and preset dictionaries that `ZlibHelper`
+rejects, and it is bounded by a fixed global cap rather than a per-stream expected size, so unifying
+them would change behavior on real-world PDFs.
 
 #### Zlib Helper (internal)
 
@@ -235,6 +269,10 @@ of CanvasNet's target frameworks with no new runtime NuGet dependency. (The sepa
 
 ### Callers
 
-Each unit of the `Codecs` subsystem is a public API entry point, invoked directly by consumers of
-the CanvasNet package. No unit within the `Codecs` subsystem is called by any other subsystem, and
-no unit within the `Codecs` subsystem calls into any other unit of the `Codecs` subsystem.
+Each codec unit of the `Codecs` subsystem is a public API entry point, invoked directly by consumers of
+the CanvasNet package, as is `ImageDecoder`. `ImageDecoder`/`ImageFormats` are additionally called by
+the `CanvasNetSvg` (`data:` URI images), `CanvasNetPptx` (picture media parts), and `CanvasNetTool`
+(signature detection) packages, and the internal `PngFilter` and `LzwDecoder` helpers by the
+`CanvasNetPdf` package's stream filters. Within the `Codecs` subsystem the codec units do not call one
+another: `ImageDecoder` is the only unit that dispatches to the six codecs, and `PngCodec` (`PngFilter`)
+and `TiffCodec` (`LzwDecoder`) call only the internal helpers.

@@ -17,6 +17,7 @@ input-files:
   - docs/verification/canvas-net/codecs/jpeg-codec.md
   - docs/verification/canvas-net/codecs/gif-codec.md
   - docs/verification/canvas-net/codecs/jpeg2000-codec.md
+  - docs/verification/canvas-net/codecs/image-decoder.md
   - docs/verification/canvas-net/geometry.md
   - docs/verification/canvas-net/geometry/rect.md
   - docs/verification/canvas-net/geometry/path.md

@@ -1,8 +1,8 @@
 // cspell:ignore canvasnet jpeg tiff jpeg2000 pptx vsdx scad jfif Visio
-using System.Buffers.Binary;
 using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
+using DemaConsulting.CanvasNet.Codecs;
 
 namespace DemaConsulting.CanvasNet.Tool.Imaging;
 
@@ -15,17 +15,6 @@ internal static partial class SourceLoader
     ///     The number of bytes read from the start of a file to recognize its format.
     /// </summary>
     private const int HeaderLength = 4096;
-
-    /// <summary>
-    ///     The length of the BMP file header plus the size field of the bitmap header that follows it.
-    /// </summary>
-    private const int BmpHeaderLength = 18;
-
-    /// <summary>
-    ///     The sizes of the bitmap header (<c>BITMAPCOREHEADER</c> and the <c>BITMAPINFOHEADER</c> family) that
-    ///     follows the BMP file header.
-    /// </summary>
-    private static readonly int[] BmpDibHeaderSizes = [12, 40, 52, 56, 64, 108, 124];
 
     /// <summary>
     ///     The source kind of each file name extension (lower case, with the dot).
@@ -262,66 +251,29 @@ internal static partial class SourceLoader
     }
 
     /// <summary>
-    ///     Recognizes a format by its signature bytes.
+    ///     Recognizes a format by its signature bytes: the raster image formats through the core
+    ///     <see cref="ImageFormats.Detect(ReadOnlySpan{byte})"/>, plus the PDF signature.
     /// </summary>
     /// <param name="header">The first bytes of the file.</param>
     /// <returns>The kind, or <see langword="null"/> when no signature matches.</returns>
     private static SourceKind? DetectSignature(ReadOnlySpan<byte> header)
     {
-        if (header.StartsWith(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }))
+        var format = ImageFormats.Detect(header);
+        if (format != null)
         {
-            return SourceKind.Png;
+            return format.Value switch
+            {
+                ImageFormat.Png => SourceKind.Png,
+                ImageFormat.Jpeg => SourceKind.Jpeg,
+                ImageFormat.Gif => SourceKind.Gif,
+                ImageFormat.Bmp => SourceKind.Bmp,
+                ImageFormat.Tiff => SourceKind.Tiff,
+                ImageFormat.Jpeg2000 => SourceKind.Jpeg2000,
+                _ => throw new InvalidOperationException($"Unmapped image format {format.Value}.")
+            };
         }
 
-        if (header.StartsWith(new byte[] { 0xFF, 0xD8, 0xFF }))
-        {
-            return SourceKind.Jpeg;
-        }
-
-        if (header.StartsWith("GIF87a"u8) || header.StartsWith("GIF89a"u8))
-        {
-            return SourceKind.Gif;
-        }
-
-        if (header.StartsWith(new byte[] { 0x49, 0x49, 0x2A, 0x00 }) || header.StartsWith(new byte[] { 0x4D, 0x4D, 0x00, 0x2A }))
-        {
-            return SourceKind.Tiff;
-        }
-
-        // JP2 signature box, or a raw codestream (SOC followed by SIZ)
-        if (header.StartsWith(new byte[] { 0x00, 0x00, 0x00, 0x0C, 0x6A, 0x50, 0x20, 0x20, 0x0D, 0x0A, 0x87, 0x0A })
-            || header.StartsWith(new byte[] { 0xFF, 0x4F, 0xFF, 0x51 }))
-        {
-            return SourceKind.Jpeg2000;
-        }
-
-        if (header.StartsWith("%PDF-"u8))
-        {
-            return SourceKind.Pdf;
-        }
-
-        return LooksLikeBmp(header) ? SourceKind.Bmp : null;
-    }
-
-    /// <summary>
-    ///     Determines whether the header starts like a BMP file.
-    /// </summary>
-    /// <param name="header">The first bytes of the file.</param>
-    /// <returns><see langword="true"/> when the file starts with <c>BM</c> followed by a plausible bitmap header.</returns>
-    /// <remarks>
-    ///     The two-letter signature alone would also match text files, so the reserved fields (which are zero) and
-    ///     the size of the bitmap header that follows are checked as well.
-    /// </remarks>
-    private static bool LooksLikeBmp(ReadOnlySpan<byte> header)
-    {
-        if (header.Length < BmpHeaderLength || header[0] != (byte)'B' || header[1] != (byte)'M')
-        {
-            return false;
-        }
-
-        var reservedIsZero = header[6] == 0 && header[7] == 0 && header[8] == 0 && header[9] == 0;
-        var dibSize = BinaryPrimitives.ReadInt32LittleEndian(header.Slice(14, 4));
-        return reservedIsZero && Array.IndexOf(BmpDibHeaderSizes, dibSize) >= 0;
+        return header.StartsWith("%PDF-"u8) ? SourceKind.Pdf : null;
     }
 
     /// <summary>

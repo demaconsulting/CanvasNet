@@ -722,25 +722,24 @@ its own distinguishable `Feature` token.
   behavior (bare `FlateDecode`, no predictor) for cross-reference streams, object streams, and
   page `/Contents` — none of which regress. Each `FlateDecode` step decompresses via the existing
   `ZlibDecompress`; each `LZWDecode` step decompresses via `PdfDocument.Filters.Lzw.cs`'s
-  `DecodeLzw` — a from-scratch PDF-variant LZW decoder (fixed 258-entry initial table, MSB-first
-  variable 9-12 bit code packing, `/DecodeParms /EarlyChange`-controlled growth timing, mid-stream
-  Clear-code reinitialization), deliberately reimplemented rather than reused from either
-  `Codecs/Gif/GifCodec.Lzw.cs` (LSB-first bit packing, no `EarlyChange` concept, GIF-specific
-  Clear/EOI code values) or `Codecs/Tiff/TiffCodec.Compression.cs` (MSB-first and a fixed
-  early-change timing, but no `/EarlyChange` toggle) — both were read only as structural
-  references, per the same "independent reimplementation, cited by name for diffability" pattern
-  already used for the PNG predictor below. `ASCII85Decode`/`ASCIIHexDecode` decode via
+  `DecodeLzw` — a thin PDF wrapper (`/DecodeParms /EarlyChange`-controlled growth timing, a 64 MiB
+  output cap) over the core assembly's internal, output-bounded `Codecs/LzwDecoder.cs`
+  (`LzwDecoder.Decode(data, earlyChange, maxOutputBytes)`: fixed 258-entry initial table, MSB-first
+  variable 9-12 bit code packing, mid-stream Clear-code reinitialization), shared with `TiffCodec`'s
+  TIFF-flavor LZW (the identical stream layout with the early-change timing fixed on) through the
+  core assembly's `InternalsVisibleTo` grant to this package; the GIF LZW variant
+  (`Codecs/Gif/GifCodec.Lzw.cs`: LSB-first bit packing, no `EarlyChange` concept) is a genuinely
+  different algorithm and is not shared. `ASCII85Decode`/`ASCIIHexDecode` decode via
   `PdfDocument.Filters.Ascii.cs` (base-85/hex-digit ASCII armoring, per ISO 32000-1/2
   §7.4.3/§7.4.2), and `RunLengthDecode` decodes via `PdfDocument.Filters.RunLength.cs` (the
   PackBits-style scheme of §7.4.5). After a `FlateDecode` or `LZWDecode` step only (never after
   `ASCII85Decode`/`ASCIIHexDecode`/`RunLengthDecode`, which the PDF specification never pairs with
   a predictor), when `/DecodeParms` declares `/Predictor > 1`, the pipeline reverses either a TIFF
   predictor (`/Predictor 2` — per-row horizontal-difference reversal, requiring
-  `/BitsPerComponent 8`) or a PNG predictor (`/Predictor 10`-`15` — an independent
-  reimplementation, named identically for diffability, of
-  `Codecs/Png/PngCodec.Filtering.cs`'s `DefilterRow`/`Sub`/`Up`/`Average`/`Paeth`/Paeth-predictor
-  algorithm, since those methods are `private` in a different assembly and cannot be reused
-  directly).   Any other filter name (including `DCTDecode`/`CCITTFaxDecode`, which `PdfDocument.Images.cs`
+  `/BitsPerComponent 8`) or a PNG predictor (`/Predictor 10`-`15` — per-row reconstruction through
+  the core assembly's internal `Codecs/PngFilter.cs` `PngFilter.DefilterRow`, the same
+  scanline-filter reversal `PngCodec` itself uses, shared through the same `InternalsVisibleTo`
+  grant).   Any other filter name (including `DCTDecode`/`CCITTFaxDecode`, which `PdfDocument.Images.cs`
   always detects and bypasses before calling this pipeline; `JPXDecode` (handled by the dedicated JPX
   path described below), and
   `JBIG2Decode`/`Crypt`, which remain out of scope) throws

@@ -77,13 +77,22 @@ independent test-only CRC-32 implementation) so only the Adler-32 check is exerc
 **Tests**: `PngCodec_Load_FilterTypeSub_ReconstructsExpectedPixels`,
 `PngCodec_Load_FilterTypeUp_ReconstructsExpectedPixels`,
 `PngCodec_Load_FilterTypeAverage_ReconstructsExpectedPixels`,
-`PngCodec_Load_FilterTypePaeth_ReconstructsExpectedPixels`
+`PngCodec_Load_FilterTypePaeth_ReconstructsExpectedPixels`,
+`PngFilter_DefilterRow_None_CopiesRow`,
+`PngFilter_DefilterRow_Sub_AddsLeftNeighborAtBppStride`,
+`PngFilter_DefilterRow_Up_AddsPreviousRowModulo256`,
+`PngFilter_DefilterRow_Average_AddsFloorMeanOfLeftAndUp`,
+`PngFilter_DefilterRow_Paeth_PicksClosestPredictor`,
+`PngFilter_DefilterRow_UnknownFilterType_ThrowsInvalidDataException`
 
 For each of filter types 1 (Sub), 2 (Up), 3 (Average), and 4 (Paeth), hand-builds a small PNG
 whose filtered scanline bytes were computed independently (by applying the encode-direction
 complement of the filter formula to known raw pixel values), and asserts `Load` reconstructs the
 exact expected pixel values. Filter type 0 (None) is already exercised by every round-trip test,
-since `Save` always writes filter type 0.
+since `Save` always writes filter type 0. The internal `PngFilter` (shared with the PDF package's PNG
+predictors) is additionally tested directly in `PngFilterTests.cs` with hand-computed rows for each
+filter type (including the bytes-per-pixel stride, modulo-256 wrap, the Paeth left/up/upper-left
+choices) and an undefined filter type.
 
 ##### CanvasNet-Codecs-PngCodec-LoadFromPath / CanvasNet-Codecs-PngCodec-SaveToPath: File Path Overloads Round-Trip
 

@@ -986,3 +986,36 @@ sections:
             tests:
               - Jpeg2000Codec_Load_NotJpeg2000_ThrowsInvalidData
               - Jpeg2000Codec_Decode_Part2Capabilities_ThrowsUnsupported
+
+          - id: CanvasNet-Codecs-ImageDecoderFormatRecognition
+            title: >-
+              The Codecs subsystem shall recognize an image's format (PNG, JPEG, GIF, BMP, TIFF, or
+              JPEG 2000) from its first bytes or from its media (MIME) type, tolerating case,
+              whitespace, parameters, and common media-type aliases, and shall report no format for
+              unrecognized input.
+            justification: |
+              Callers need one shared, tolerant recognizer to choose a decoder for images that arrive
+              without a trustworthy file name, instead of each consumer carrying its own signature
+              and media-type tables.
+            children:
+              - CanvasNet-Codecs-ImageDecoder-DetectSignature
+              - CanvasNet-Codecs-ImageDecoder-FromMediaType
+            tests:
+              - ImageFormats_Detect_KnownSignature_ReturnsFormat
+              - ImageFormats_FromMediaType_KnownType_ReturnsFormat
+
+          - id: CanvasNet-Codecs-ImageDecoderLoad
+            title: >-
+              The Codecs subsystem shall decode an image of any supported format into a Surface from a
+              stream or byte span, detecting the format from the image's first bytes or using a
+              caller-specified format, and shall reject unrecognized data with InvalidDataException.
+            justification: |
+              Callers should not need a per-format switch to turn an arbitrary supported image into a
+              Surface; a thin dispatcher over the existing codecs keeps every codec's limits and error
+              contract unchanged.
+            children:
+              - CanvasNet-Codecs-ImageDecoder-Load
+              - CanvasNet-Codecs-ImageDecoder-LoadValidation
+            tests:
+              - ImageDecoder_LoadBytes_PngBmpTiff_DecodesExactPixels
+              - ImageDecoder_Load_UnrecognizedData_ThrowsInvalidDataException

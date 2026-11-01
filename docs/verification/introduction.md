@@ -33,8 +33,9 @@ constituent software items, specifically:
   32-bit RGBA pixel buffer with span-based row access), the `Rgba32` unit, and the `CssColor` unit
   (the shared CSS color parser)
 - **Codecs (Subsystem)** — Image format codecs: `BmpCodec`, `PngCodec`, `TiffCodec`,
-  `JpegCodec`, `GifCodec`, and `Jpeg2000Codec`; the first four convert to and from a `Surface`
-  pixel buffer, while `GifCodec` and `Jpeg2000Codec` are decode-only loaders
+  `JpegCodec`, `GifCodec`, `Jpeg2000Codec`, and `ImageDecoder`; the first four convert to and from a `Surface`
+  pixel buffer, `GifCodec` and `Jpeg2000Codec` are decode-only loaders, and `ImageDecoder` is the
+  format-recognition and dispatch facade over them
 - **Geometry (Subsystem)** — Vector-geometry primitives: `Rect`, `Path`, `BezierFlattening`,
   `SvgArcConverter`, and `CornerRoundEffect`
 - **Drawing (Subsystem)** — Vector rasterization and stroke conversion: `PathFiller`,

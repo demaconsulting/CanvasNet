@@ -1,7 +1,7 @@
 ## Codecs Subsystem Verification Design
 
 This document describes the subsystem-level verification strategy for the `Codecs` subsystem
-(the `BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`, `GifCodec`, and `Jpeg2000Codec` units).
+(the `BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`, `GifCodec`, `Jpeg2000Codec`, and `ImageDecoder` units).
 
 Note: SVG rasterization verification is not part of this subsystem's verification; it is
 provided by the separate `CanvasNetSvg` system (its own package,
@@ -50,3 +50,10 @@ has no tests of its own; it is verified through the decompression-bound scenario
 (`CanvasNet-Codecs-PngCodec-LoadDecompressionBound` and
 `CanvasNet-Codecs-TiffCodec-LoadDecompressionBound`), which exercise its hard output limit, and
 through every valid-fixture decode that exercises its checksum validation.
+
+The `ImageDecoder` unit is verified by `ImageFormatsTests` and `ImageDecoderTests` (see _ImageDecoder
+Unit Verification Design_, `codecs/image-decoder.md`). Likewise, the internal `PngFilter` and
+`LzwDecoder` are not software units; they are verified by direct tests (`PngFilterTests`,
+`LzwDecoderTests`) cited from the `PngCodec` filter-reconstruction and `TiffCodec` LZW and
+decompression-bound scenarios, and by the PDF package's own predictor and `LZWDecode` tests, which
+exercise the same shared code through the PDF filter pipeline.

@@ -1467,6 +1467,23 @@ public class TiffCodecTests
         Assert.Throws<InvalidDataException>(() => TiffCodec.Load(stream));
     }
 
+    /// <summary>
+    ///     Verifies that Load rejects an LZW strip that does not begin with a Clear code (TIFF
+    ///     requires one, even though the shared LZW decoder treats it as optional).
+    /// </summary>
+    [Fact]
+    public void TiffCodec_Load_LzwStripWithoutLeadingClear_ThrowsInvalidDataException()
+    {
+        // Arrange: a valid LZW strip whose first byte is changed so the first 9-bit code is not Clear
+        var strip = TestEncodeLzw(new byte[48]);
+        strip[0] = 0x00;
+        var file = StandardRgbBuilder(false, 4, 4, 5, 4).WithStrips(strip).Build();
+        using var stream = new MemoryStream(file);
+
+        // Act & Assert
+        Assert.Throws<InvalidDataException>(() => TiffCodec.Load(stream));
+    }
+
     // ------------------------------------------------------------------------------------------
     // Malformed-data rejection
     // ------------------------------------------------------------------------------------------
