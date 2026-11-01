@@ -29,31 +29,38 @@ sections:
               - id: CanvasNet-Fonts-FontDirectoryScanner-DeterministicOrder
                 title: >-
                   The FontDirectoryScanner type shall return the same faces in the same order for
-                  the same directory trees: roots in the order supplied, and the font files found
-                  under one root in alphabetical order of their full paths (ordinal, ignoring case,
-                  with the case-sensitive ordinal order breaking a tie), with a file reachable
-                  from more than one root reported once.
+                  the same directory trees, whatever order the file system lists entries in: roots
+                  in the order supplied, and within a root depth first, each directory's own font
+                  files (in alphabetical order: ordinal, ignoring case, with the case-sensitive
+                  ordinal order breaking a tie) before its subdirectories (in the same order), with
+                  a file reachable from more than one root reported once.
                 justification: |
                   A font search that takes the first of equally good faces, or a scan that stops at
                   a bound, must not depend on the order a file system happens to list its
                   entries in, or the same document would render differently from one machine to
-                  the next.
+                  the next; a directory's own fonts precede its subdirectories' to keep the order
+                  the host font catalog has always had.
                 tests:
                   - FontDirectoryScanner_Scan_NestedDirectories_ResultIsDeterministicallyOrdered
                   - FontDirectoryScanner_Scan_SeveralRoots_RootOrderKeptAndDuplicatesReportedOnce
+                  - FontDirectoryScanner_Scan_RootFileAndChildFile_RootFileComesFirstAndCountsFirst
 
               - id: CanvasNet-Fonts-FontDirectoryScanner-BoundedScan
                 title: >-
                   The FontDirectoryScanner type shall stop a scan at the first of the bounds of
-                  its FontScanLimits (directories, entries, font files, faces) that it reaches,
-                  keeping what it found before that point, and FontScanLimits shall reject a bound
-                  of less than one.
+                  its FontScanLimits (directories, entries, font files, faces) that it reaches, in
+                  traversal order, keeping what it found before that point (counting a directory's
+                  entries against the entry bound as a whole, so a directory the remaining budget
+                  cannot cover is not used at all), and FontScanLimits shall reject a bound of less
+                  than one.
                 justification: |
                   A huge or hostile directory tree must not make a scan run for an unbounded time
                   or build an unbounded result; reaching a bound is a normal outcome, not an
-                  error, so the faces found before it stay available.
+                  error, so the faces found before it stay available, and the part that is kept
+                  must not depend on the order the file system lists entries in.
                 tests:
                   - FontDirectoryScanner_Scan_FontFileLimit_KeepsTheFirstFilesInPathOrder
+                  - FontDirectoryScanner_Scan_RootFileAndChildFile_RootFileComesFirstAndCountsFirst
                   - FontDirectoryScanner_Scan_FaceLimit_KeepsTheFirstFaces
                   - FontDirectoryScanner_Scan_DirectoryLimit_StopsTheDescent
                   - FontDirectoryScanner_Scan_EntryLimit_StopsTheExamination

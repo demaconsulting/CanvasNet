@@ -1301,10 +1301,12 @@ public sealed record FontScanLimits
 }
 ```
 
-The scan is deterministic - roots in the order given, files in alphabetical (case-insensitive) path
-order - so the same tree always yields the same faces in the same order. It stops at the first
-`FontScanLimits` bound it reaches (each at least 1, counted across all roots) and keeps what it
-found; a bound is not an error. A missing or unreadable directory, a font file that does not parse,
+The scan is deterministic - roots in the order given, and within a root depth first, each directory's
+own font files (alphabetical, ignoring case) before its subdirectories - so the same tree always
+yields the same faces in the same order. It stops at the first `FontScanLimits` bound it reaches in
+that order (each at least 1, counted across all roots) and keeps what it found; a directory's entries
+count against `MaxEntries` as a whole, so a directory the remaining budget cannot cover is not used
+at all. A bound is not an error. A missing or unreadable directory, a font file that does not parse,
 or one corrupt face of a collection is skipped. A subdirectory that is a link (symbolic link,
 junction, or other reparse point) is never followed; a root that is a link and a font file that is
 a link are skipped unless you pass `trustLinkedFiles: true`. `Scan` throws only

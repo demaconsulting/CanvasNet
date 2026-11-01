@@ -11,9 +11,11 @@ its `FontScanLimits` bounds record.
 real bundled Liberation fonts (extracted from the assembly's embedded resources) and with
 deliberately unparseable files, so every test is deterministic regardless of what is installed on
 the machine running the tests. The ordering tests create files out of order (including a mixed-case
-name) and compare against the case-insensitive alphabetical ordering of their full paths. The limit
+name) and compare against the traversal order (a directory's font files in case-insensitive alphabetical order,
+then its subdirectories). The limit
 tests use directories of several identical fonts so the expected survivors are the first ones in
-path order. The link tests create directory links
+traversal order; the entry-bound test uses a directory whose entries exceed the budget, so its result cannot
+depend on the order the file system lists entries in. The link tests create directory links
 without administrator privileges where the platform allows it - a symbolic link on Unix, a junction
 (`mklink /J`) on Windows - and a file symbolic link where permitted; where the environment cannot
 create a link the test returns early rather than failing (link creation is privilege dependent),
@@ -46,22 +48,28 @@ bold/italic/fixed-pitch flags, absolute path and face index; scans a directory o
 ##### CanvasNet-Fonts-FontDirectoryScanner-DeterministicOrder: Same Tree, Same Order
 
 **Tests**: `FontDirectoryScanner_Scan_NestedDirectories_ResultIsDeterministicallyOrdered`,
-`FontDirectoryScanner_Scan_SeveralRoots_RootOrderKeptAndDuplicatesReportedOnce`
+`FontDirectoryScanner_Scan_SeveralRoots_RootOrderKeptAndDuplicatesReportedOnce`,
+`FontDirectoryScanner_Scan_RootFileAndChildFile_RootFileComesFirstAndCountsFirst`
 
-Creates fonts in a scrambled order across nested directories and asserts two scans return equal results in
-the case-insensitive alphabetical order of the full paths; scans several roots (one repeated, one spelled
-with `.`) and asserts the
-root order is kept and no file is reported twice.
+Creates fonts in a scrambled order across nested directories (including mixed-case names) and asserts two scans
+return equal results in traversal order: each directory's own font files in case-insensitive alphabetical order,
+then its subdirectories; scans several roots (one repeated, one spelled with `.`) and asserts the
+root order is kept and no file is reported twice; places the same family and style in a root file and in a
+subdirectory file and asserts the root file comes first and is the one `FindInFamily` selects.
 
 ##### CanvasNet-Fonts-FontDirectoryScanner-BoundedScan: Bounds Stop the Scan Deterministically
 
-**Tests**: `FontDirectoryScanner_Scan_FontFileLimit_KeepsTheFirstFilesInPathOrder`,`FontDirectoryScanner_Scan_FaceLimit_KeepsTheFirstFaces`,
+**Tests**: `FontDirectoryScanner_Scan_FontFileLimit_KeepsTheFirstFilesInPathOrder`,
+`FontDirectoryScanner_Scan_RootFileAndChildFile_RootFileComesFirstAndCountsFirst`,
+`FontDirectoryScanner_Scan_FaceLimit_KeepsTheFirstFaces`,
 `FontDirectoryScanner_Scan_DirectoryLimit_StopsTheDescent`,
 `FontDirectoryScanner_Scan_EntryLimit_StopsTheExamination`,
 `FontScanLimits_Properties_RejectLessThanOneAndHaveDocumentedDefaults`
 
-Applies each of the four bounds to a tree that exceeds it and asserts the faces kept are the first ones (a
-directory bound keeps the root's fonts and not the subdirectory's); asserts the documented defaults and that each
+Applies each of the four bounds to a tree that exceeds it and asserts the faces kept are the first ones in
+traversal order (a directory bound keeps the root's fonts and not the subdirectory's; a font-file bound of one keeps
+the root's file rather than a subdirectory's; an entry bound that a directory's entries exceed uses none of that
+directory while keeping the complete directories before it); asserts the documented defaults and that each
 property throws `ArgumentOutOfRangeException` for a value below one.
 
 ##### CanvasNet-Fonts-FontDirectoryScanner-LinkPolicy: Links Are Never Followed Below the Root

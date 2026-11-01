@@ -54,7 +54,7 @@ framework and every operating system in this repository's CI matrix.
 
 Runs `Fonts` and `FindBestMatch` against the real host filesystem's well-known font directories,
 asserting either that at least one real font was discovered and every discovered entry has a
-non-empty family name and a `.ttf`/`.ttc`/`.otf` file path, or that the catalog is gracefully
+non-empty family name and a `.ttf`/`.ttc`/`.otf`/`.otc` file path, or that the catalog is gracefully
 empty (never throwing) - and that a well-known platform font family resolves to a real, loadable
 font when it happens to be installed, without depending on any particular font actually being
 present on the CI runner.

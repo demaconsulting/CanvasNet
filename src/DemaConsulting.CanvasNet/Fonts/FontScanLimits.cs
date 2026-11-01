@@ -7,8 +7,8 @@ namespace DemaConsulting.CanvasNet.Fonts;
 /// <remarks>
 ///     <para>
 ///         The scan stops at the first bound it reaches and keeps what it found before that point: the
-///         part of a tree it reads is deterministic, because directories are visited in ordinal order.
-///         Reaching a bound is not an error.
+///         part of a tree it reads is deterministic, because directories and files are visited in a fixed
+///         order (see <see cref="FontDirectoryScanner"/>). Reaching a bound is not an error.
 ///     </para>
 ///     <para>
 ///         <b>Thread safety</b>: instances are immutable once constructed (the properties are
@@ -53,7 +53,8 @@ public sealed record FontScanLimits
 
     /// <summary>
     ///     Gets the largest number of directory entries (files and subdirectories) one scan examines,
-    ///     across all of its roots (default 200,000).
+    ///     across all of its roots (default 200,000). The entries of a directory count as a whole: a
+    ///     directory whose entries would exceed what is left is not used at all.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when set to less than one.</exception>
     public int MaxEntries

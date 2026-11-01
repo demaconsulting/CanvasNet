@@ -9,12 +9,17 @@ namespace DemaConsulting.CanvasNet.Fonts;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         The scan is deterministic: directories are visited depth first in alphabetical order (ordinal,
-///         ignoring case, with the case-sensitive ordinal order as a tie-break), and the
-///         font files found under one root are examined in that order of their full paths, so the same
-///         tree always yields the same faces in the same order, and the part of an oversized tree that is
-///         read when a bound is reached (<see cref="FontScanLimits"/>) is always the same part. Roots are
-///         scanned in the order given, and a file reachable from more than one root is reported once.
+///         The scan is deterministic, whatever order the file system lists entries in. Within a root it
+///         visits a directory's own font files first, in path order, and then descends into its
+///         subdirectories, in path order (depth first), so a font file in a directory always precedes those
+///         of its subdirectories; path order is ordinal ignoring case, with the case-sensitive ordinal order
+///         as a tie-break. The same tree therefore always yields the same faces in the same order. The
+///         bounds of <see cref="FontScanLimits"/> are applied in that traversal order: the scan stops at the
+///         first directory, font file, or face past its bound, and the entries of a directory are counted
+///         against <see cref="FontScanLimits.MaxEntries"/> as a whole - when the remaining budget cannot cover
+///         them, none of that directory is used - so the part of an oversized tree that is read is always the
+///         same part. Roots are scanned in the order given, and a file reachable from more than one root is
+///         reported once.
 ///     </para>
 ///     <para>
 ///         The scan recognizes the <c>.ttf</c>, <c>.otf</c>, <c>.ttc</c> and <c>.otc</c> extensions in
@@ -85,9 +90,8 @@ public static class FontDirectoryScanner
                 break;
             }
 
-            // Sorted so that the result does not depend on the order the file system lists the files in
+            // The files come back in traversal order (see the class remarks), which is already deterministic
             var files = CollectFontFiles(directory, trustLinkedFiles, budget, cancellationToken);
-            files.Sort(PathOrder);
             foreach (var file in files.Where(seen.Add))
             {
                 if (budget.FacesStopped)
@@ -109,7 +113,7 @@ public static class FontDirectoryScanner
     /// <param name="trustLinkedFiles">Whether a root that is a link and linked font files are accepted.</param>
     /// <param name="budget">The bounds of the scan.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>The font files, in no particular order.</returns>
+    /// <returns>The font files, in traversal order.</returns>
     private static List<string> CollectFontFiles(
         string? root,
         bool trustLinkedFiles,
@@ -160,8 +164,14 @@ public static class FontDirectoryScanner
     }
 
     /// <summary>
-    ///     Lists one directory: adds its font files to the result and its subdirectories (except links) to the pending stack.
+    ///     Lists one directory: adds its font files (in path order) to the result and its subdirectories (except
+    ///     links) to the pending stack, so a directory's own font files precede those of its subdirectories.
     /// </summary>
+    /// <remarks>
+    ///     The entries of a directory are counted against the entry bound as a whole: when the remaining budget
+    ///     cannot cover them all, none of them is used and the collection stops, so that what was kept is always
+    ///     made of complete directories, whatever order the file system lists the entries in.
+    /// </remarks>
     /// <param name="directory">The directory.</param>
     /// <param name="trustLinkedFiles">Whether linked font files are accepted.</param>
     /// <param name="files">The list to add the font files to.</param>
@@ -178,14 +188,18 @@ public static class FontDirectoryScanner
     {
         var fonts = new List<string>();
         var subdirectories = new List<string>();
+        var entries = 0;
         try
         {
             foreach (var entry in new DirectoryInfo(directory).EnumerateFileSystemInfos())
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (!budget.TryCountEntry())
+
+                // Never examine more than the budget allows, however large the directory is
+                if (++entries > budget.RemainingEntries)
                 {
-                    break;
+                    budget.StopCollection();
+                    return;
                 }
 
                 if (entry.Attributes.HasFlag(FileAttributes.Directory))
@@ -207,6 +221,8 @@ public static class FontDirectoryScanner
             // A directory that cannot be listed (removed meanwhile, not permitted, ...) contributes nothing
             return;
         }
+
+        budget.CountEntries(entries);
 
         fonts.Sort(PathOrder);
         foreach (var font in fonts)
@@ -381,9 +397,15 @@ public static class FontDirectoryScanner
         /// <returns><see langword="false"/> when the bound is reached.</returns>
         public bool TryCountDirectory() => CountCollected(ref _directories, limits.MaxDirectories);
 
-        /// <summary>Counts a directory entry to be examined.</summary>
-        /// <returns><see langword="false"/> when the bound is reached.</returns>
-        public bool TryCountEntry() => CountCollected(ref _entries, limits.MaxEntries);
+        /// <summary>Gets the number of directory entries the scan may still examine.</summary>
+        public int RemainingEntries => limits.MaxEntries - _entries;
+
+        /// <summary>Counts the entries of a directory that was examined whole.</summary>
+        /// <param name="count">The number of entries.</param>
+        public void CountEntries(int count) => _entries += count;
+
+        /// <summary>Stops the collection of files, because a directory's entries exceed the entry bound.</summary>
+        public void StopCollection() => CollectionStopped = true;
 
         /// <summary>Counts a font file to be accepted.</summary>
         /// <returns><see langword="false"/> when the bound is reached.</returns>

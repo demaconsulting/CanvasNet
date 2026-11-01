@@ -108,8 +108,10 @@ public sealed partial class VsdxDocument
         {
             return TrueTypeFont.Load(info.FilePath, info.FaceIndex);
         }
-        catch (Exception ex) when (ex is IOException or InvalidDataException or NotSupportedException or UnauthorizedAccessException or ArgumentException)
+        catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException
+            or ArgumentException or NotSupportedException or OverflowException or System.Security.SecurityException)
         {
+            // The same tolerance as SystemFontCatalog.Load: a vanished, unreadable or damaged file is not a failure
             return null;
         }
     }

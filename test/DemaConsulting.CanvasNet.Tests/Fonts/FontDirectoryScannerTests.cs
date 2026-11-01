@@ -52,8 +52,9 @@ public class FontDirectoryScannerTests
     }
 
     /// <summary>
-    ///     Proves that the result is the same, in the same order, on every scan, and that the order is the ordinal
-    ///     order of the full file paths regardless of the order the files were created in.
+    ///     Proves that the result is the same, in the same order, on every scan, and that the order is
+    ///     the traversal order - a directory's font files in path order, then its subdirectories in path order -
+    ///     regardless of the order the files were created in.
     /// </summary>
     [Fact]
     public void FontDirectoryScanner_Scan_NestedDirectories_ResultIsDeterministicallyOrdered()
@@ -63,24 +64,24 @@ public class FontDirectoryScannerTests
         directory.Write(Regular, "B.ttf");
         directory.Write(Bold, Path.Join("sub", "a.ttf"));
         directory.Write(SerifItalic, Path.Join("sub", "deeper", "c.ttf"));
+        directory.Write(Bold, Path.Join("Another", "m.ttf"));
         directory.Write(Regular, "a.ttf");
 
         var first = Scan([directory.Path]);
         var second = Scan([directory.Path]);
 
-        var expected = new[] { "a.ttf", "B.ttf", "z.ttf", Path.Join("sub", "a.ttf"), Path.Join("sub", "deeper", "c.ttf") }
+        // Case-insensitive alphabetical (an ordinal order would put B.ttf and Another first)
+        var expected = new[]
+            {
+                "a.ttf", "B.ttf", "z.ttf",
+                Path.Join("Another", "m.ttf"),
+                Path.Join("sub", "a.ttf"),
+                Path.Join("sub", "deeper", "c.ttf"),
+            }
             .Select(name => Path.Join(directory.Path, name))
-            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(path => path, StringComparer.Ordinal)
             .ToArray();
         Assert.Equal(expected, first.Select(f => f.FilePath));
         Assert.Equal(first, second);
-
-        // Alphabetical regardless of case, as a case-insensitive file system lists them (an ordinal order
-        // would put B.ttf first)
-        Assert.True(
-            first.Select(f => f.FilePath).ToList().IndexOf(Path.Join(directory.Path, "a.ttf"))
-            < first.Select(f => f.FilePath).ToList().IndexOf(Path.Join(directory.Path, "B.ttf")));
     }
 
     /// <summary>
@@ -143,7 +144,7 @@ public class FontDirectoryScannerTests
     }
 
     /// <summary>
-    ///     Proves that the font-file bound stops the collection at the first files in ordinal order.
+    ///     Proves that the font-file bound stops the collection at the first files of a directory in path order.
     /// </summary>
     [Fact]
     public void FontDirectoryScanner_Scan_FontFileLimit_KeepsTheFirstFilesInPathOrder()
@@ -157,6 +158,27 @@ public class FontDirectoryScannerTests
         var result = Scan([directory.Path], new FontScanLimits { MaxFontFiles = 2 });
 
         Assert.Equal(["a.ttf", "b.ttf"], result.Select(f => Path.GetFileName(f.FilePath)));
+    }
+
+    /// <summary>
+    ///     Proves that a directory's own font files come before those of its subdirectories - so the first
+    ///     of two equally good faces is the one in the parent directory, as in the earlier catalog scan - and
+    ///     that the font-file bound counts in that same traversal order.
+    /// </summary>
+    [Fact]
+    public void FontDirectoryScanner_Scan_RootFileAndChildFile_RootFileComesFirstAndCountsFirst()
+    {
+        using var directory = new TempDirectory();
+        directory.Write(Regular, "z.ttf");
+        directory.Write(Regular, Path.Join("a", "a.ttf"));
+        var rootFile = Path.Join(directory.Path, "z.ttf");
+
+        var all = Scan([directory.Path]);
+        var limited = Scan([directory.Path], new FontScanLimits { MaxFontFiles = 1 });
+
+        Assert.Equal([rootFile, Path.Join(directory.Path, "a", "a.ttf")], all.Select(f => f.FilePath));
+        Assert.Equal(rootFile, SystemFontCatalog.FindInFamily(all, "Liberation Sans", false, false)?.FilePath);
+        Assert.Equal(rootFile, Assert.Single(limited).FilePath);
     }
 
     /// <summary>
@@ -193,20 +215,35 @@ public class FontDirectoryScannerTests
     }
 
     /// <summary>
-    ///     Proves that the entry bound stops the examination of a directory.
+    ///     Proves that the entry bound counts a directory's entries as a whole: a directory the remaining
+    ///     budget cannot cover is not used at all, whatever order the file system lists its entries in, while
+    ///     the complete directories before it are kept.
     /// </summary>
     [Fact]
     public void FontDirectoryScanner_Scan_EntryLimit_StopsTheExamination()
     {
-        using var directory = new TempDirectory();
+        using var tooBig = new TempDirectory();
         foreach (var name in new[] { "a.ttf", "b.ttf", "c.ttf" })
         {
-            directory.Write(Regular, name);
+            tooBig.Write(Regular, name);
         }
 
-        var result = Scan([directory.Path], new FontScanLimits { MaxEntries = 1 });
+        using var nested = new TempDirectory();
+        nested.Write(Regular, "a.ttf");
+        foreach (var name in new[] { "x.ttf", "y.ttf", "z.ttf" })
+        {
+            nested.Write(Bold, Path.Join("sub", name));
+        }
 
-        Assert.Single(result);
+        // Three entries do not fit in a budget of one: none of them is used
+        Assert.Empty(Scan([tooBig.Path], new FontScanLimits { MaxEntries = 1 }));
+
+        // The root's two entries (a font and the subdirectory) fit; the subdirectory's three do not
+        var result = Scan([nested.Path], new FontScanLimits { MaxEntries = 2 });
+        Assert.Equal(Path.Join(nested.Path, "a.ttf"), Assert.Single(result).FilePath);
+
+        // With room for everything, the subdirectory is read too
+        Assert.Equal(4, Scan([nested.Path], new FontScanLimits { MaxEntries = 5 }).Count);
     }
 
     /// <summary>

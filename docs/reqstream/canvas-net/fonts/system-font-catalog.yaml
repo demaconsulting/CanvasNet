@@ -16,7 +16,7 @@ sections:
                   The SystemFontCatalog type shall discover every font file installed on the host
                   operating system by directory-scanning a documented set of well-known font
                   directories (Windows/macOS/Linux, no Windows registry), enumerating every face of
-                  every candidate .ttf/.ttc/.otf file found.
+                  every candidate .ttf/.ttc/.otf/.otc file found.
                 justification: |
                   Callers substituting a non-embedded font need to know what fonts are actually
                   installed on the host machine; a directory scan is portable across every

@@ -37,23 +37,33 @@ and loading it is `SystemFontCatalog.Load`'s.
 
 For each root, in the order given:
 
-1. **Collect.** An empty, `null`, missing, or malformed root contributes nothing. Unless
-   `trustLinkedFiles` is `true`, a root that is a link is skipped. The tree is walked depth first,
-   one directory at a time, listing entries with `DirectoryInfo.EnumerateFileSystemInfos`: a
-   subdirectory that is a link is never followed (in either mode), a font file (`.ttf`, `.otf`,
-   `.ttc`, `.otc`, case-insensitive) is accepted unless it is a link and `trustLinkedFiles` is
-   `false`, and subdirectories are visited in path order (below). An unreadable directory contributes
-   nothing.
-2. **Order.** The font files collected under the root are sorted by *path order* of their full
-   paths - ordinal comparison ignoring case, with the case-sensitive ordinal comparison breaking a
-   tie - and a file already reported for an earlier root is not reported again. Ignoring case
-   deliberately matches the alphabetical listing of the case-insensitive file systems of Windows
-   and macOS (the order the previous, unsorted catalog scan saw there, so `arial.ttf` still precedes
-   `ARIALN.TTF`), while the tie-break makes the order total and identical on every platform.
-3. **Read.** Each file is opened once (`FileShare.ReadWrite | FileShare.Delete`) and every face is
-   read through the internal `SfntHeaderReader` (face count, then per-face names and style); a face
-   or file that does not parse is skipped. The family name falls back to the file name without its
-   extension when the face has no usable name.
+1. **Collect, in traversal order.** An empty, `null`, missing, or malformed root contributes nothing.
+   Unless `trustLinkedFiles` is `true`, a root that is a link is skipped. The tree is walked depth
+   first with an explicit stack. For each directory: all of its entries are listed with
+   `DirectoryInfo.EnumerateFileSystemInfos` (at most as many as the entry budget still allows) and
+   classified - a subdirectory that is a link is never followed (in either mode), a font file
+   (`.ttf`, `.otf`, `.ttc`, `.otc`, case-insensitive) is accepted unless it is a link and
+   `trustLinkedFiles` is `false`; then the font files are sorted and added to the result **first**,
+   and the subdirectories, also sorted, are pushed so that the first is descended into next. A
+   directory's own font files therefore precede those of its subdirectories (as in the earlier
+   catalog scan), and no re-sorting of the whole result follows. An unreadable directory
+   contributes nothing.
+2. **Order and bounds.** *Path order* is ordinal comparison ignoring case, with the case-sensitive
+   ordinal comparison breaking a tie. Ignoring case deliberately matches the alphabetical listing
+   of the case-insensitive file systems of Windows and macOS (the order the previous catalog scan
+   saw there, so `arial.ttf` still precedes `ARIALN.TTF`), while the tie-break makes the order
+   total and identical on every platform. The bounds are applied in this traversal order and each
+   stops the collection at its first violation: the first directory past `MaxDirectories`, the
+   first font file past `MaxFontFiles`. A directory's entries are counted against `MaxEntries` as
+   a whole: when the remaining budget cannot cover them, none of that directory's entries is used
+   and the collection stops, so what was kept is always made of complete directories and never
+   depends on the order the file system lists entries in. A file already reported for an earlier
+   root is not reported again.
+3. **Read.** The collected files are read in traversal order. Each is opened once
+   (`FileShare.ReadWrite | FileShare.Delete`) and every face is read through the internal
+   `SfntHeaderReader` (face count, then per-face names and style); the reading stops at the first
+   face past `MaxFaces`. A face or file that does not parse is skipped. The family name falls back
+   to the file name without its extension when the face has no usable name.
 
 A "link" is the file-system *reparse-point attribute*, deliberately and not `FileSystemInfo.LinkTarget`:
 the attribute also covers reparse points `LinkTarget` does not report, so no redirection can reopen a
