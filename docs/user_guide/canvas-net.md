@@ -332,9 +332,11 @@ if (CssColor.TryParse("rebeccapurple", out var purple))         // (102, 51, 153
 - the 148 CSS named colors (`steelblue`, `rebeccapurple`, both `gray` and `grey` spellings, and so on) and
   `transparent`, in any letter case;
 - `rgb()` and `rgba()` with numbers (0 to 255) or percentages and an optional alpha as a number (0 to 1) or a
-  percentage, written with commas or with spaces and a slash (`rgb(10 20 30 / 50%)`);
+  percentage, in either CSS syntax: commas (`rgba(255, 0, 0, 0.5)`; three or four components) or spaces with an
+  optional slash before the alpha (`rgb(10 20 30 / 50%)`). The two syntaxes are not mixed (`rgb(1 2 3 0.5)` and
+  `rgb(1,2,3 / 0.5)` are not colors);
 - `hsl()` and `hsla()` with a hue in degrees (or with the unit `deg`, `rad`, `grad`, or `turn`), saturation and
-  lightness as percentages, and the same alpha forms.
+  lightness as percentages (the space syntax also accepts plain numbers: `hsl(0 100 50)`), and the same alpha forms.
 
 Out-of-range values are clamped and fractions are rounded half away from zero (`rgb(30%, 0, 0)` has the red channel
 77). `TryParse` returns `false` (and `default`) for anything else, including `null`, empty text, and `none`, and never

@@ -47,13 +47,18 @@ sections:
                 title: >-
                   The CssColor class shall parse the rgb, rgba, hsl, and hsla functions with channels as
                   numbers or percentages, a hue in degrees or with the unit deg, rad, grad, or turn, and
-                  an optional alpha as a number or a percentage, written with commas or with spaces and a
-                  slash, case-insensitively.
+                  an optional alpha as a number or a percentage, in the CSS comma syntax (three or four
+                  components) or the CSS space syntax (three components and an optional slash and alpha),
+                  case-insensitively, without mixing the syntaxes, with percentages required for hsl
+                  saturation and lightness in the comma syntax, and rejecting a hue whose converted value
+                  is not finite.
                 justification: |
                   Style sheets, chart specifications, and SVG documents spell colors with the CSS
                   functions; parsing them exactly decides the pixel values.
                 tests:
                   - CssColor_TryParse_FunctionForms_MatchExpectedPixels
+                  - CssColor_TryParse_MixedOrMalformedSyntax_ReturnsFalseWithDefaultColor
+                  - CssColor_TryParse_HueOverflowingAfterUnitConversion_ReturnsFalse
 
               - id: CanvasNet-Canvas-CssColor-RoundingAndClamping
                 title: >-

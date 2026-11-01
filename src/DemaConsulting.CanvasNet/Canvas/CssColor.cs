@@ -15,8 +15,8 @@ namespace DemaConsulting.CanvasNet.Canvas;
 ///     <list type="bullet">
 ///         <item><description>hexadecimal: <c>#rgb</c>, <c>#rgba</c>, <c>#rrggbb</c>, <c>#rrggbbaa</c> (a short digit is doubled: <c>#f80</c> is <c>#ff8800</c>; the alpha pair comes last, as in CSS, unlike <see cref="Rgba32.Parse(string)"/>);</description></item>
 ///         <item><description>the 148 CSS named colors (including <c>rebeccapurple</c> and the <c>grey</c> spellings) and <c>transparent</c>, in any letter case;</description></item>
-///         <item><description><c>rgb()</c> and <c>rgba()</c> with three channels as numbers (0 to 255) or percentages, and an optional alpha as a number (0 to 1) or a percentage, written with commas or with spaces and a slash (<c>rgb(10 20 30 / 50%)</c>);</description></item>
-///         <item><description><c>hsl()</c> and <c>hsla()</c> with a hue in degrees (a number, or with the unit <c>deg</c>, <c>rad</c>, <c>grad</c> or <c>turn</c>), saturation and lightness as percentages, and the same alpha forms.</description></item>
+///         <item><description><c>rgb()</c> and <c>rgba()</c> with three channels as numbers (0 to 255) or percentages, and an optional alpha as a number (0 to 1) or a percentage, in the comma syntax (<c>rgba(10, 20, 30, 0.5)</c>) or the space syntax with an optional slash before the alpha (<c>rgb(10 20 30 / 50%)</c>); the two syntaxes are not mixed;</description></item>
+///         <item><description><c>hsl()</c> and <c>hsla()</c> with a hue in degrees (a number, or with the unit <c>deg</c>, <c>rad</c>, <c>grad</c> or <c>turn</c>), saturation and lightness as percentages (the space syntax also takes numbers), and the same alpha forms.</description></item>
 ///     </list>
 ///     <para>
 ///         Out-of-range channels are clamped, as CSS specifies; fractions are rounded half away from zero. The
@@ -344,37 +344,67 @@ public static class CssColor
     }
 
     /// <summary>
-    ///     Splits the arguments of a color function into channel tokens and an optional alpha token.
+    ///     Splits the arguments of a color function into channel tokens and an optional alpha token, in one of the two
+    ///     CSS syntaxes: the legacy one (three or four comma-separated components, no slash) or the modern one (three
+    ///     space-separated components, optionally followed by a slash and one alpha). Mixed separators, empty
+    ///     components, and trailing commas are rejected.
     /// </summary>
     /// <param name="arguments">The text between the parentheses.</param>
     /// <param name="channels">The three channel tokens.</param>
     /// <param name="alpha">The alpha token, or null when the color has none.</param>
-    /// <returns><see langword="true"/> when there are three channels, optionally followed by an alpha.</returns>
-    private static bool TrySplitArguments(string arguments, out string[] channels, out string? alpha)
+    /// <param name="legacy"><see langword="true"/> for the comma syntax; <see langword="false"/> for the space syntax.</param>
+    /// <returns><see langword="true"/> when the arguments follow one of the two syntaxes.</returns>
+    private static bool TrySplitArguments(string arguments, out string[] channels, out string? alpha, out bool legacy)
     {
         channels = [];
         alpha = null;
-        var tokens = arguments.Replace(",", " ", StringComparison.Ordinal).Replace("/", " / ", StringComparison.Ordinal)
-            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
-        var list = new List<string>(tokens);
-        var slash = list.IndexOf("/");
-        if (slash >= 0)
+        legacy = arguments.Contains(',', StringComparison.Ordinal);
+        if (legacy)
         {
-            if (slash != 3 || list.Count != 5)
+            var parts = arguments.Split(',');
+            if (parts.Length is not (3 or 4) || arguments.Contains('/', StringComparison.Ordinal))
             {
                 return false;
             }
 
-            list.RemoveAt(slash);
+            for (var i = 0; i < parts.Length; i++)
+            {
+                parts[i] = parts[i].Trim();
+                if (parts[i].Length == 0 || parts[i].Any(char.IsWhiteSpace))
+                {
+                    return false;
+                }
+            }
+
+            channels = [parts[0], parts[1], parts[2]];
+            alpha = parts.Length == 4 ? parts[3] : null;
+            return true;
         }
 
-        if (list.Count is not (3 or 4))
+        var slashParts = arguments.Split('/');
+        if (slashParts.Length > 2)
         {
             return false;
         }
 
-        channels = [list[0], list[1], list[2]];
-        alpha = list.Count == 4 ? list[3] : null;
+        var components = slashParts[0].Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        if (components.Length != 3)
+        {
+            return false;
+        }
+
+        if (slashParts.Length == 2)
+        {
+            var alphaTokens = slashParts[1].Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+            if (alphaTokens.Length != 1)
+            {
+                return false;
+            }
+
+            alpha = alphaTokens[0];
+        }
+
+        channels = components;
         return true;
     }
 
@@ -387,7 +417,7 @@ public static class CssColor
     private static bool TryParseRgb(string arguments, out Rgba32 color)
     {
         color = default;
-        if (!TrySplitArguments(arguments, out var channels, out var alphaText))
+        if (!TrySplitArguments(arguments, out var channels, out var alphaText, out var legacy))
         {
             return false;
         }
@@ -395,7 +425,7 @@ public static class CssColor
         Span<byte> bytes = stackalloc byte[3];
         for (var i = 0; i < 3; i++)
         {
-            if (!TryParseNumberOrPercent(channels[i], 255, out var value))
+            if (!TryParseNumberOrPercent(channels[i], 255, !legacy, out var value))
             {
                 return false;
             }
@@ -403,7 +433,7 @@ public static class CssColor
             bytes[i] = ToByte(Math.Clamp(value, 0, 255));
         }
 
-        if (!TryParseAlpha(alphaText, out var alpha))
+        if (!TryParseAlpha(alphaText, !legacy, out var alpha))
         {
             return false;
         }
@@ -421,11 +451,14 @@ public static class CssColor
     private static bool TryParseHsl(string arguments, out Rgba32 color)
     {
         color = default;
-        if (!TrySplitArguments(arguments, out var channels, out var alphaText)
+
+        // The legacy comma syntax requires percentages for saturation and lightness; the space syntax also takes numbers
+        if (!TrySplitArguments(arguments, out var channels, out var alphaText, out var legacy)
+            || (legacy && !(channels[1].EndsWith('%') && channels[2].EndsWith('%')))
             || !TryParseHue(channels[0], out var hue)
-            || !TryParseNumberOrPercent(channels[1], 100, out var saturation)
-            || !TryParseNumberOrPercent(channels[2], 100, out var lightness)
-            || !TryParseAlpha(alphaText, out var alpha))
+            || !TryParseNumberOrPercent(channels[1], 100, !legacy, out var saturation)
+            || !TryParseNumberOrPercent(channels[2], 100, !legacy, out var lightness)
+            || !TryParseAlpha(alphaText, !legacy, out var alpha))
         {
             return false;
         }
@@ -449,7 +482,7 @@ public static class CssColor
     /// </summary>
     /// <param name="token">The token.</param>
     /// <param name="degrees">The hue in degrees.</param>
-    /// <returns><see langword="true"/> when the token is a hue.</returns>
+    /// <returns><see langword="true"/> when the token is a hue whose value in degrees is finite.</returns>
     private static bool TryParseHue(string token, out double degrees)
     {
         var lower = token.ToLowerInvariant();
@@ -465,7 +498,8 @@ public static class CssColor
             }
         }
 
-        if (TryParseNumber(number, out var value))
+        // The converted value can overflow even when the number itself is finite (1e308turn)
+        if (TryParseNumber(number, out var value) && double.IsFinite(value * factor))
         {
             degrees = value * factor;
             return true;
@@ -479,9 +513,10 @@ public static class CssColor
     ///     Parses an alpha value: absent (opaque), a number from 0 to 1 or a percentage.
     /// </summary>
     /// <param name="token">The token, or null.</param>
+    /// <param name="allowNone">Whether the keyword <c>none</c> is accepted (the space syntax).</param>
     /// <param name="alpha">The alpha as a byte.</param>
     /// <returns><see langword="true"/> when the token is absent or valid.</returns>
-    private static bool TryParseAlpha(string? token, out byte alpha)
+    private static bool TryParseAlpha(string? token, bool allowNone, out byte alpha)
     {
         alpha = 255;
         if (token is null)
@@ -489,7 +524,7 @@ public static class CssColor
             return true;
         }
 
-        if (!TryParseNumberOrPercent(token, 1, out var value))
+        if (!TryParseNumberOrPercent(token, 1, allowNone, out var value))
         {
             return false;
         }
@@ -503,9 +538,10 @@ public static class CssColor
     /// </summary>
     /// <param name="token">The token.</param>
     /// <param name="full">The value that 100% stands for.</param>
+    /// <param name="allowNone">Whether the keyword <c>none</c>, which counts as zero, is accepted (the space syntax).</param>
     /// <param name="value">The value.</param>
     /// <returns><see langword="true"/> when the token is valid.</returns>
-    private static bool TryParseNumberOrPercent(string token, double full, out double value)
+    private static bool TryParseNumberOrPercent(string token, double full, bool allowNone, out double value)
     {
         if (token.EndsWith('%'))
         {
@@ -519,8 +555,7 @@ public static class CssColor
             return false;
         }
 
-        // CSS lets a component be the keyword none, which counts as zero
-        if (string.Equals(token, "none", StringComparison.OrdinalIgnoreCase))
+        if (allowNone && string.Equals(token, "none", StringComparison.OrdinalIgnoreCase))
         {
             value = 0;
             return true;

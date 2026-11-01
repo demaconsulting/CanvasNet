@@ -150,6 +150,17 @@ public class CssColorTests
             ("hsl(-120, 100%, 50%)", new Rgba32(0, 0, 255, 255)),
             ("hsl(200 0% 40%)", new Rgba32(102, 102, 102, 255)),
             ("hsl(0, 100%, 100%)", new Rgba32(255, 255, 255, 255)),
+
+            // The space syntax takes numbers as well as percentages for saturation and lightness
+            ("hsl(0 100 50)", new Rgba32(255, 0, 0, 255)),
+            ("hsl(120deg 100% 50% / 0.5)", new Rgba32(0, 255, 0, 128)),
+
+            // Both syntaxes, written cleanly
+            ("rgba(1,2,3,0.5)", new Rgba32(1, 2, 3, 128)),
+            ("rgb(1 2 3 / 50%)", new Rgba32(1, 2, 3, 128)),
+            ("rgb(1 2 3/0.5)", new Rgba32(1, 2, 3, 128)),
+            ("rgb( 1 , 2 , 3 )", new Rgba32(1, 2, 3, 255)),
+            ("rgb(none none none / none)", new Rgba32(0, 0, 0, 0)),
         };
 
         // Act / Assert
@@ -207,6 +218,44 @@ public class CssColorTests
             Assert.False(CssColor.TryParse(text, out var color), text ?? "null");
             Assert.Equal(default, color);
         }
+    }
+
+    /// <summary>
+    ///     Validates that the two CSS function syntaxes are not mixed: the comma syntax has three or four components and
+    ///     no slash or <c>none</c>, the space syntax has three components and an optional slash and alpha, and a
+    ///     comma-syntax <c>hsl()</c> needs percentages.
+    /// </summary>
+    [Fact]
+    public void CssColor_TryParse_MixedOrMalformedSyntax_ReturnsFalseWithDefaultColor()
+    {
+        // Arrange: hybrids, empty components, trailing separators, none in the comma syntax, bare numbers in comma hsl()
+        string[] invalid =
+        [
+            "rgb(1 2 3 0.5)", "rgb(1,2,3 / 0.5)", "rgb(1, 2 3)", "rgb(1 2, 3)", "rgba(1 2 3 4)", "rgb(1,2,3,)", "rgb(,1,2,3)",
+            "rgb(1,,3)", "rgb(1 2 3 /)", "rgb(1 2 3 / 0.5 0.5)", "rgb(1 2 3 / 0.5 / 0.5)", "rgb(1 2 / 3)", "rgb(/ 1 2 3)",
+            "rgb(none,2,3)", "rgb(1,2,3,none)", "hsla(0,100%,50%,none)", "hsl(0,100,50)", "hsl(0,100%,50)", "hsl(0,100,50%)",
+            "hsl(0 100% 50% 0.5)", "hsl(0, 100% 50%)", "hsl(0,100%,50%,)",
+        ];
+
+        // Act / Assert
+        foreach (var text in invalid)
+        {
+            Assert.False(CssColor.TryParse(text, out var color), text);
+            Assert.Equal(default, color);
+        }
+    }
+
+    /// <summary>
+    ///     Validates that a hue whose unit conversion overflows to infinity is rejected instead of becoming black.
+    /// </summary>
+    [Fact]
+    public void CssColor_TryParse_HueOverflowingAfterUnitConversion_ReturnsFalse()
+    {
+        // Arrange / Act / Assert: 1e308 is finite, but 1e308 turns is 3.6e310 degrees
+        Assert.False(CssColor.TryParse("hsl(1e308turn,100%,50%)", out var color));
+        Assert.Equal(default, color);
+        Assert.False(CssColor.TryParse("hsl(1e308turn 100% 50%)", out _));
+        Assert.True(CssColor.TryParse("hsl(1e300deg 100% 50%)", out _));
     }
 
     /// <summary>

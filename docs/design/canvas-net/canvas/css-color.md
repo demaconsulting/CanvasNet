@@ -30,10 +30,13 @@ The accepted forms of `TryParse` are:
 - hexadecimal `#rgb`, `#rgba`, `#rrggbb`, and `#rrggbbaa` (a short digit is doubled; alpha 255 when absent);
 - the 148 named colors and `transparent`, in any letter case;
 - `rgb()` and `rgba()` with three channels as numbers (0 to 255) or percentages and an optional alpha as a number (0 to
-  1) or a percentage, written with commas or with spaces and a slash (`rgb(10 20 30 / 50%)`); the keyword `none` counts
-  as zero in a component;
-- `hsl()` and `hsla()` with a hue in degrees (a number, or with the unit `deg`, `rad`, `grad`, or `turn`), saturation and
-  lightness as percentages, and the same alpha forms.
+  1) or a percentage, in one of the two CSS syntaxes: the legacy comma syntax (three or four comma-separated
+  components, no slash, no `none`) or the modern space syntax (three space-separated components, optionally followed by
+  a slash and one alpha: `rgb(10 20 30 / 50%)`; the keyword `none` counts as zero in a component). The two are never
+  mixed: `rgb(1 2 3 0.5)`, `rgb(1,2,3 / 0.5)`, empty components, and trailing commas are rejected;
+- `hsl()` and `hsla()` with a hue in degrees (a number, or with the unit `deg`, `rad`, `grad`, or `turn`; a hue whose
+  converted value is not finite is rejected), saturation and lightness as percentages (in the space syntax also as
+  numbers), and the same two syntaxes and alpha forms.
 
 Out-of-range channels and alpha values are clamped, as CSS specifies, and fractional channel values are rounded half
 away from zero (so 30% of 255, which is 76.5, is 77). Surrounding white space is ignored by `TryParse`; function names

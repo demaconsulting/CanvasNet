@@ -69,10 +69,15 @@ the `gray` and `grey` pairs, and that the lookup is exact for anything that is n
 
 ##### CanvasNet-Canvas-CssColor-Functions: rgb and hsl Functions
 
-**Tests**: `CssColor_TryParse_FunctionForms_MatchExpectedPixels`
+**Tests**: `CssColor_TryParse_FunctionForms_MatchExpectedPixels`,
+`CssColor_TryParse_MixedOrMalformedSyntax_ReturnsFalseWithDefaultColor`,
+`CssColor_TryParse_HueOverflowingAfterUnitConversion_ReturnsFalse`
 
 Verifies `rgb()`, `rgba()`, `hsl()`, and `hsla()` in comma and space-and-slash syntax, with numbers, percentages, the
-`none` keyword, hue units, and the alpha as a number or a percentage.
+`none` keyword (space syntax), hue units, `hsl(0 100 50)` with plain numbers in the space syntax, and the alpha as a
+number or a percentage; verifies that the syntaxes are never mixed (`rgb(1 2 3 0.5)`, `rgb(1,2,3 / 0.5)`, empty
+components, trailing commas, `none` or bare-number saturation in the comma syntax are rejected); and that
+`hsl(1e308turn,100%,50%)`, whose converted hue overflows, is rejected rather than read as black.
 
 ##### CanvasNet-Canvas-CssColor-RoundingAndClamping: Rounding And Clamping
 
