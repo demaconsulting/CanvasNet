@@ -423,8 +423,8 @@ internal sealed partial class ScenePainter
     /// <param name="local">The context of the group's own coordinate system.</param>
     private static void PaintGroupBackground(SceneGroup group, Context local)
     {
-        var hasStroke = !CssColor.IsNone(group.Stroke);
-        if ((CssColor.IsNone(group.Fill) && group.FillGradient is null && !hasStroke) || group.Opacity <= 0)
+        var hasStroke = !CssPaint.IsNone(group.Stroke);
+        if ((CssPaint.IsNone(group.Fill) && group.FillGradient is null && !hasStroke) || group.Opacity <= 0)
         {
             return;
         }
@@ -544,7 +544,7 @@ internal sealed partial class ScenePainter
             || !double.IsFinite(text.Limit)
             || (text.LineHeight is { } lineHeight && !IsBoundedAt(local.Scale, lineHeight))
             || text.FontSize <= 0
-            || !CssColor.TryResolvePaint(text.Fill, text.FillOpacity * text.Opacity, out var color))
+            || !CssPaint.TryResolvePaint(text.Fill, text.FillOpacity * text.Opacity, out var color))
         {
             return;
         }
@@ -618,7 +618,7 @@ internal sealed partial class ScenePainter
         }
 
         if (!TryFillWithGradient(path, item, context, transform)
-            && CssColor.TryResolvePaint(item.Fill, item.FillOpacity * item.Opacity, out var fill))
+            && CssPaint.TryResolvePaint(item.Fill, item.FillOpacity * item.Opacity, out var fill))
         {
             PathFiller.Fill(context.Target, path.Transform(transform), fill, FillRule.NonZero, FlattenTolerance);
         }
@@ -661,7 +661,7 @@ internal sealed partial class ScenePainter
                 continue;
             }
 
-            stops.Add(new GradientStop((float)Math.Clamp(stop.Offset, 0, 1), CssColor.WithOpacity(color, opacity)));
+            stops.Add(new GradientStop((float)Math.Clamp(stop.Offset, 0, 1), CssPaint.WithOpacity(color, opacity)));
         }
 
         var bounds = path.GetBounds(FlattenTolerance);
@@ -710,7 +710,7 @@ internal sealed partial class ScenePainter
         // underflow to zero as a float; such a stroke cannot be drawn either, so it is skipped rather than handed to the stroker
         var width = (float)requestedWidth;
         if (!float.IsFinite(width) || !(width > 0)
-            || !CssColor.TryResolvePaint(item.Stroke, item.StrokeOpacity * item.Opacity, out var color))
+            || !CssPaint.TryResolvePaint(item.Stroke, item.StrokeOpacity * item.Opacity, out var color))
         {
             return;
         }

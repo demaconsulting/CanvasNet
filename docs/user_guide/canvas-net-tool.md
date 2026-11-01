@@ -982,14 +982,14 @@ The text result is `wrote sheet.png (1048x552 png, 52000 bytes): 6 images in 3 c
 | --- | --- | --- |
 | Size | `WxH`, both whole pixels, 1 to 8192 | `800x600` |
 | Geometry | `x,y,w,h` or `WxH+X+Y`; each value in pixels (`10`, `10px`) or percent (`10%`); `WxH` alone is at 0,0 | `10,10,200,100`, `200x100+10+10`, `10%,10%,80%,80%` |
-| Color | `#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA` (alpha **last**), the same without `#`, a basic CSS name, or `transparent` | `#336699`, `#33669980`, `white`, `transparent` |
+| Color | `#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA` (alpha **last**), the same without `#`, a CSS color name, or `transparent` | `#336699`, `#33669980`, `white`, `steelblue`, `transparent` |
 | Border | One number for every side, or `l,t,r,b` | `8`, `0,0,32,32` |
 | Degrees | A number, clockwise; negative turns counterclockwise | `90`, `-90`, `3.5` |
 
 <!-- markdownlint-enable MD013 -->
 
-The basic color names are `black`, `silver`, `gray` (`grey`), `white`, `maroon`, `red`, `purple`, `fuchsia`
-(`magenta`), `green`, `lime`, `olive`, `yellow`, `navy`, `blue`, `teal`, `aqua` (`cyan`), and `orange`. In a shell,
+Any of the 148 CSS color names is accepted in any letter case (for example `black`, `white`, `gray` or `grey`, `red`,
+`orange`, `steelblue`, `rebeccapurple`). The `rgb()` and `hsl()` function forms are not accepted. In a shell,
 quote
 a color that starts with `#` (`'#336699'`) or use the form without `#`, because many shells treat `#` as a comment.
 A value that does not match its grammar is a `usage-error` that quotes the value and shows an example.

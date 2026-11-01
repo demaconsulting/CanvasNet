@@ -30,7 +30,8 @@ constituent software items, specifically:
 
 - **CanvasNet (System)** — The complete .NET library system
 - **Canvas (Subsystem)** — Pixel-buffer primitives: the `Surface` unit (mutable, in-memory
-  32-bit RGBA pixel buffer with span-based row access) and the `Rgba32` unit
+  32-bit RGBA pixel buffer with span-based row access), the `Rgba32` unit, and the `CssColor` unit
+  (the shared CSS color parser)
 - **Codecs (Subsystem)** — Image format codecs: `BmpCodec`, `PngCodec`, `TiffCodec`,
   `JpegCodec`, `GifCodec`, and `Jpeg2000Codec`; the first four convert to and from a `Surface`
   pixel buffer, while `GifCodec` and `Jpeg2000Codec` are decode-only loaders
@@ -91,7 +92,7 @@ constituent software items, specifically:
   `AxisBuilder`, `LabelOverlap`, `LegendBuilder`, and `TimeLabels`), `Layout` (units `ViewLayout` and `LegendLayout`),
   `Marks` (units `MarkBuilder`, the bar, rect, symbol, rule, tick, line, area, trail, text, and arc marks, and
   `CurveBuilder`, the d3-shape curves), and `Scenegraph` (units `SceneModel`, `ScenePainter`, `ArcGeometry`, the d3-shape
-  arc, and `CssColor`) —
+  arc, and `CssPaint`) —
   see _CanvasNetVegaLite System Verification_ (`canvas-net-vega-lite.md`)
 - **CanvasNetTool (System)** — A separate software system shipped as the `DemaConsulting.CanvasNet.Tool` dotnet
   tool package (command `canvasnet`), containing six direct units, `Program`, `Context`, `ArgumentReader`,

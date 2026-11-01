@@ -1,0 +1,98 @@
+---
+# Software Unit Requirements for CssColor
+#
+# These requirements describe the design-level behavior of the CssColor unit of the Canvas subsystem: the
+# public static class that parses and formats CSS colors as Rgba32 values and is the one CSS color grammar
+# (named colors, hexadecimal forms, rgb() and hsl() functions) that every CanvasNet package shares.
+# See docs/verification/canvas-net/canvas/css-color.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Canvas Requirements
+        sections:
+          - title: CssColor Requirements
+            requirements:
+              - id: CanvasNet-Canvas-CssColor-ParseHex
+                title: >-
+                  The CssColor class shall parse the hexadecimal forms of three, four, six, and eight
+                  digits, case-insensitively, in CSS order (the alpha pair last, a short digit doubled,
+                  alpha 255 when absent), through TryParse (with a leading  #) and through TryParseHex
+                  (digits only), and TryParseHex shall reject any other length, a sign, white space, and
+                  any non-hexadecimal character.
+                justification: |
+                  Hexadecimal literals are the most common way to spell a color; consumers with a narrower
+                  grammar than the full CSS one (a modeling language, a command line) need the digit
+                  parser on its own.
+                tests:
+                  - CssColor_TryParse_HexForms_MatchExpectedPixels
+                  - CssColor_TryParseHex_DigitsOnly_AcceptsExactLengthsAndRejectsEverythingElse
+                  - CssColor_Parse_EightDigitHex_PutsAlphaLastUnlikeRgba32Parse
+
+              - id: CanvasNet-Canvas-CssColor-NamedColors
+                title: >-
+                  The CssColor class shall recognize the 148 CSS named colors (including rebeccapurple
+                  and the grey spellings) and transparent, in any letter case, through TryGetNamedColor
+                  and TryParse, report their count through NamedColorCount, and reject any other name
+                  and any name with surrounding white space in TryGetNamedColor.
+                justification: |
+                  One shared table of named colors replaces the copies that each package kept; the values
+                  decide every pixel painted with a named color.
+                tests:
+                  - CssColor_TryGetNamedColor_Names_ReturnTheCssTableEntries
+                  - CssColor_TryGetNamedColor_EveryCssName_ReturnsTheSpecificationValue
+                  - CssColor_TryGetNamedColor_NotAName_ReturnsFalseWithDefaultColor
+                  - CssColor_TryParse_Names_MatchExpectedPixels
+
+              - id: CanvasNet-Canvas-CssColor-Functions
+                title: >-
+                  The CssColor class shall parse the rgb, rgba, hsl, and hsla functions with channels as
+                  numbers or percentages, a hue in degrees or with the unit deg, rad, grad, or turn, and
+                  an optional alpha as a number or a percentage, in the CSS comma syntax (three or four
+                  components) or the CSS space syntax (three components and an optional slash and alpha),
+                  case-insensitively, without mixing the syntaxes, with percentages required for hsl
+                  saturation and lightness in the comma syntax, and rejecting a hue whose converted value
+                  is not finite.
+                justification: |
+                  Style sheets, chart specifications, and SVG documents spell colors with the CSS
+                  functions; parsing them exactly decides the pixel values.
+                tests:
+                  - CssColor_TryParse_FunctionForms_MatchExpectedPixels
+                  - CssColor_TryParse_MixedOrMalformedSyntax_ReturnsFalseWithDefaultColor
+                  - CssColor_TryParse_HueOverflowingAfterUnitConversion_ReturnsFalse
+
+              - id: CanvasNet-Canvas-CssColor-RoundingAndClamping
+                title: >-
+                  The CssColor class shall clamp out-of-range channels and alpha values to their valid
+                  range and round fractional channel values half away from zero.
+                justification: |
+                  CSS specifies clamping, and one rounding rule makes the same text give the same pixel in
+                  every package (a channel of 76.5 is 77, not 76).
+                tests:
+                  - CssColor_TryParse_OutOfRangeAndFractions_ClampAndRoundHalfAwayFromZero
+
+              - id: CanvasNet-Canvas-CssColor-InvalidText
+                title: >-
+                  The CssColor TryParse method shall return false with the default color, without
+                  throwing, for null, empty, and white-space text, none, malformed hexadecimal and
+                  function text, non-finite numbers, and unknown names, and the Parse method shall throw
+                  ArgumentNullException for null and FormatException for any other text that TryParse
+                  rejects.
+                justification: |
+                  Colors arrive as untrusted text in documents and configuration; bad text must fail
+                  cleanly rather than crash or silently produce a color.
+                tests:
+                  - CssColor_TryParse_InvalidText_ReturnsFalseWithDefaultColor
+                  - CssColor_Parse_InvalidText_ThrowsFormatException
+                  - CssColor_Parse_Null_ThrowsArgumentNullException
+
+              - id: CanvasNet-Canvas-CssColor-ToCss
+                title: >-
+                  The CssColor ToCss method shall format a color as lower-case hexadecimal CSS text,
+                  # rrggbb when the color is opaque and  # rrggbbaa otherwise, such that TryParse reads it
+                  back to the same color.
+                justification: |
+                  Callers that carry colors as CSS text (scene descriptions, configuration, diagnostics)
+                  need an exact spelling that reads back to the same color.
+                tests:
+                  - CssColor_ToCss_Colors_FormatAsHexAndRoundTrip

@@ -4,8 +4,8 @@
 #
 # These requirements describe the design-level behavior of the ScadTransforms unit: the internal static class
 # that builds the transform modules translate, rotate, scale, mirror, multmatrix and resize, and the color
-# module with its color parsing and named-color table (ScadTransforms, ScadTransforms.Resize, ScadColors,
-# ScadColorTable) in the DemaConsulting.CanvasNet.Scad.Geometry namespace.
+# module with its color parsing on top of the core CssColor named-color table (ScadTransforms,
+# ScadTransforms.Resize, ScadColors) in the DemaConsulting.CanvasNet.Scad.Geometry namespace.
 #
 # A transform applies to the implicit union of its children and is represented as a wrapper node carrying the
 # matrix (an identity adds none); a 2D shape gets the in-plane part of the matrix. An invalid argument is a
@@ -231,22 +231,22 @@ sections:
 
               - id: CanvasNetScad-ScadGeometry-ScadTransforms-ColorForms
                 title: >-
-                  The ScadTransforms unit shall build color from a name of the CSS named-color table (all 148
-                  names and transparent, case-insensitive), a hexadecimal string # rgb, # rgba,  # rrggbb, or
-                  # rrggbbaa, or a vector of three or four numbers from 0 to 1 (clamped and rounded to the
-                  nearest of 256 levels), given positionally or as c.
+                  The ScadTransforms unit shall build color from a name of the CSS named-color table of the
+                  core CssColor unit (all 148 names and transparent, case-insensitive), a hexadecimal string
+                  # rgb, # rgba, # rrggbb, or  # rrggbbaa, or a vector of three or four numbers from 0 to 1
+                  (clamped and rounded to the nearest of 256 levels), given positionally or as c.
                 justification: |
-                  Color values are the visible output of the module; every table entry, every hexadecimal
-                  form, and the clamping and rounding rule must be exact.
+                  Color values are the visible output of the module; the shared table entries, every
+                  hexadecimal form, and the clamping and rounding rule must be exact.
                 tests:
-                  - ScadColorTable_Colors_HoldTheCssNamesAndTransparent
-                  - ScadColors_EveryName_RendersAsItsTableEntry
+                  - ScadColors_Names_RenderAsTheSharedCssTable
                   - ScadColors_Forms_GiveTheExpectedOpaqueColor
 
               - id: CanvasNetScad-ScadGeometry-ScadTransforms-ColorInvalid
                 title: >-
-                  The ScadTransforms unit shall report an invalid color value (an unknown name, a malformed
-                  hexadecimal string, a vector of the wrong length or with a non-number, or any other type) as
+                  The ScadTransforms unit shall report an invalid color value (an unknown name, a CSS function
+                  string such as rgb() or hsl(), a malformed hexadecimal string, a vector of the wrong length
+                  or with a non-number, or any other type) as
                   a warning at the location of the instance and keep the children uncolored, shall warn about
                   an invalid alpha while still applying the color, and shall change nothing and report nothing
                   for color without a value or without children.

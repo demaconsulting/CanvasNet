@@ -48,7 +48,10 @@ Two accepted forms:
   string.
 
 Both forms are case-insensitive. The leading `#` is required; short forms (`#RGB`, `#ARGB`),
-missing `#`, wrong length, and non-hex characters are all rejected.
+missing `#`, wrong length, and non-hex characters are all rejected. Note that the alpha pair comes
+*first* in this format (`#AARRGGBB`), unlike CSS, where it comes last (`#RRGGBBAA`); to parse CSS
+colors (the CSS hexadecimal forms, `rgb()`, `hsl()`, and color names) use the `CssColor` unit
+instead (see *CssColor Unit Design*, `canvas/css-color.md`).
 
 `Parse(string)` throws:
 
@@ -106,8 +109,9 @@ Class Library. It has no dependency on any other CanvasNet unit.
 #### Callers
 
 `Rgba32` is a public API entry point, used throughout CanvasNet wherever a pixel color value is
-read or written: `Surface` (as the element type of its pixel spans), every `Codecs` unit, and
-every `Drawing` and `Fonts`/`Rendering` unit that accepts or returns a fill color. The public
+read or written: `Surface` (as the element type of its pixel spans), every `Codecs` unit, every
+`Drawing` and `Fonts`/`Rendering` unit that accepts or returns a fill color, and `CssColor` (as the
+result type of the CSS color parser). The public
 `CompositeOver(Rgba32, Rgba32)` helper is additionally called by
 `DemaConsulting.CanvasNet.Pptx`'s `PaintPicture` and `DemaConsulting.CanvasNet.Pdf`'s
 `CompositeImageOntoSurface` (see those packages' own design documentation).

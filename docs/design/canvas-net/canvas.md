@@ -4,7 +4,8 @@
 
 The `Canvas` subsystem is the first software subsystem in CanvasNet. It provides the pixel-buffer
 primitives on which all other CanvasNet functionality builds: a mutable, in-memory 32-bit RGBA
-pixel buffer (`Surface`) and the single-pixel value type it stores (`Rgba32`).
+pixel buffer (`Surface`), the single-pixel value type it stores (`Rgba32`), and the shared CSS color
+parser (`CssColor`) that turns color text into `Rgba32` values.
 
 ### Purpose
 
@@ -20,6 +21,10 @@ other subsystem: the `Codecs` subsystem depends on `Canvas`, not the other way a
 - **Rgba32** — a blittable four-byte value type representing a single RGBA pixel; its channel
   layout, hex-literal `Parse`/`TryParse` methods, and other behavior are documented in its own
   unit design, _Rgba32 Unit Design_ (`canvas/rgba32.md`)
+- **CssColor** — the public static CSS color parser and formatter, the one color grammar shared by every
+  CanvasNet package: hexadecimal forms, the 148 named colors, and the `rgb()` and `hsl()` functions, plus the
+  building blocks (`TryParseHex`, `TryGetNamedColor`) that consumers with a narrower grammar reuse; see
+  _CssColor Unit Design_ (`canvas/css-color.md`)
 
 ### Dependencies
 
@@ -40,4 +45,7 @@ a `Surface` when loading and reads its rows when saving — see _Codecs Subsyste
 unit, which composites each rasterized row directly via `Surface.CompositeOverSpan` — see
 _Drawing Subsystem Design_ (`drawing.md`) and _PathFiller Unit Design_
 (`drawing/path-filler.md`) for details. The `Canvas` subsystem itself has no dependency on the
-`Codecs` subsystem or on the `Drawing` subsystem.
+`Codecs` subsystem or on the `Drawing` subsystem. The `CssColor` unit is a public API entry point as well, called
+by the SVG codec, the Vega-Lite renderer, the OpenSCAD renderer, and the command-line tool (see _CssColor Unit
+Design_, `canvas/css-color.md`), and has no dependency other than `Rgba32` and the .NET base class library
+(`System.Collections.Frozen`, `System.Globalization`).

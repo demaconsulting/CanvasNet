@@ -1,41 +1,40 @@
+using System.Collections.Frozen;
 using System.Globalization;
-using DemaConsulting.CanvasNet.Canvas;
 
-namespace DemaConsulting.CanvasNet.VegaLite.Scenegraph;
+namespace DemaConsulting.CanvasNet.Canvas;
 
 /// <summary>
-///     Parses CSS colors into <see cref="Rgba32"/> values.
+///     Parses and formats CSS colors as <see cref="Rgba32"/> values.
 /// </summary>
 /// <remarks>
 ///     <para>
-///         Charts spell colors the CSS way (the Vega-Lite defaults are <c>#4c78a8</c> and <c>#ddd</c>), and the core
-///         library has no CSS parser, so this unit holds one. The accepted forms are:
+///         This is the one CSS color grammar shared by every CanvasNet package, so a color written in a style sheet,
+///         a chart specification or a command line means the same pixel everywhere. The forms accepted by
+///         <see cref="TryParse"/> are:
 ///     </para>
 ///     <list type="bullet">
-///         <item><description>hexadecimal: <c>#rgb</c>, <c>#rgba</c>, <c>#rrggbb</c>, <c>#rrggbbaa</c> (a short digit is doubled: <c>#f80</c> is <c>#ff8800</c>);</description></item>
+///         <item><description>hexadecimal: <c>#rgb</c>, <c>#rgba</c>, <c>#rrggbb</c>, <c>#rrggbbaa</c> (a short digit is doubled: <c>#f80</c> is <c>#ff8800</c>; the alpha pair comes last, as in CSS, unlike <see cref="Rgba32.Parse(string)"/>);</description></item>
 ///         <item><description>the 148 CSS named colors (including <c>rebeccapurple</c> and the <c>grey</c> spellings) and <c>transparent</c>, in any letter case;</description></item>
-///         <item><description><c>rgb()</c> and <c>rgba()</c> with three channels as numbers (0 to 255) or percentages, and an optional alpha as a number (0 to 1) or a percentage, written with commas or with spaces and a slash (<c>rgb(10 20 30 / 50%)</c>);</description></item>
-///         <item><description><c>hsl()</c> and <c>hsla()</c> with a hue in degrees (a number, or with the unit <c>deg</c>, <c>rad</c>, <c>grad</c> or <c>turn</c>), saturation and lightness as percentages, and the same alpha forms.</description></item>
+///         <item><description><c>rgb()</c> and <c>rgba()</c> with three channels as numbers (0 to 255) or percentages, and an optional alpha as a number (0 to 1) or a percentage, in the comma syntax (<c>rgba(10, 20, 30, 0.5)</c>) or the space syntax with an optional slash before the alpha (<c>rgb(10 20 30 / 50%)</c>); the two syntaxes are not mixed;</description></item>
+///         <item><description><c>hsl()</c> and <c>hsla()</c> with a hue in degrees (a number, or with the unit <c>deg</c>, <c>rad</c>, <c>grad</c> or <c>turn</c>), saturation and lightness as percentages (the space syntax also takes numbers), and the same alpha forms.</description></item>
 ///     </list>
 ///     <para>
-///         Out-of-range channels are clamped, as CSS specifies; fractions are rounded half away from zero. Parsing is
-///         culture invariant and never throws for bad text: <see cref="TryParse"/> returns <see langword="false"/>.
-///         The core pixel type holds straight (not premultiplied) alpha, so <c>rgba(255,0,0,0.5)</c> is
-///         <c>(255, 0, 0, 128)</c>.
+///         Out-of-range channels are clamped, as CSS specifies; fractions are rounded half away from zero. The
+///         pixel type holds straight (not premultiplied) alpha, so <c>rgba(255,0,0,0.5)</c> is
+///         <c>(255, 0, 0, 128)</c>. Parsing is culture invariant and never throws for bad text: <see cref="TryParse"/>
+///         returns <see langword="false"/>. Callers that accept a narrower grammar (for example names and hexadecimal
+///         digits only) combine <see cref="TryGetNamedColor"/> and <see cref="TryParseHex"/> themselves.
 ///     </para>
 ///     <para>
-///         <b>Paints.</b> A paint is a color or no color: <see langword="null"/>, an empty string and <c>none</c> mean
-///         "do not draw" (<see cref="IsNone"/>). <see cref="TryResolvePaint"/> applies that rule and an opacity in one
-///         step; a text that is neither a color nor none is treated as no paint as well, which is what a canvas does with
-///         a color it cannot parse.
+///         The class is stateless apart from an immutable table that is built once, and is thread-safe.
 ///     </para>
 /// </remarks>
-internal static class CssColor
+public static class CssColor
 {
     /// <summary>
     ///     The CSS named colors as PascalCase names and <c>0xRRGGBB</c> values; the table is built from numbers and
     ///     camel-case word parts so that no unusual all-lower-case spelling needs special handling by the spell checker.
-    ///     The names are lower-cased when the lookup table is built.
+    ///     The lookup table is case-insensitive.
     /// </summary>
     private static readonly (string Name, int Rgb)[] NamedColors =
     [
@@ -189,24 +188,16 @@ internal static class CssColor
         ("YellowGreen", 0x9ACD32),
     ];
 
-    /// <summary>The named colors by lower-case name; built once and never changed.</summary>
-    private static readonly Dictionary<string, Rgba32> Named = BuildNamedColors();
+    /// <summary>The named colors by case-insensitive name, <c>transparent</c> included; built once and never changed.</summary>
+    private static readonly FrozenDictionary<string, Rgba32> Named = BuildNamedColors();
 
     /// <summary>Gets the number of CSS named colors that are recognized, <c>transparent</c> not included.</summary>
     public static int NamedColorCount => Named.Count - 1;
 
     /// <summary>
-    ///     Determines whether a paint means "do not draw": null, empty, white space or <c>none</c>.
-    /// </summary>
-    /// <param name="text">The paint.</param>
-    /// <returns><see langword="true"/> for no paint.</returns>
-    public static bool IsNone(string? text) =>
-        string.IsNullOrWhiteSpace(text) || string.Equals(text.Trim(), "none", StringComparison.OrdinalIgnoreCase);
-
-    /// <summary>
     ///     Parses a CSS color.
     /// </summary>
-    /// <param name="text">The color text, for example <c>#4c78a8</c>, <c>steelblue</c> or <c>rgba(0, 0, 0, 0.5)</c>.</param>
+    /// <param name="text">The color text, for example <c>#4c78a8</c>, <c>steelblue</c> or <c>rgba(0, 0, 0, 0.5)</c>; surrounding white space is ignored.</param>
     /// <param name="color">The color when the text is valid; otherwise the default value.</param>
     /// <returns><see langword="true"/> when the text is a supported color; <see langword="false"/> for null, <c>none</c> and any other text.</returns>
     public static bool TryParse(string? text, out Rgba32 color)
@@ -226,7 +217,7 @@ internal static class CssColor
         var open = span.IndexOf('(');
         if (open < 0)
         {
-            return Named.TryGetValue(span.ToString().ToLowerInvariant(), out color);
+            return Named.TryGetValue(span.ToString(), out color);
         }
 
         if (span[^1] != ')')
@@ -247,81 +238,23 @@ internal static class CssColor
     /// <summary>
     ///     Parses a CSS color and fails loudly on bad text.
     /// </summary>
-    /// <param name="text">The color text.</param>
+    /// <param name="text">The color text, in any form <see cref="TryParse"/> accepts.</param>
     /// <returns>The color.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="text"/> is <see langword="null"/>.</exception>
     /// <exception cref="FormatException">Thrown when the text is not a supported color.</exception>
-    public static Rgba32 Parse(string? text) =>
-        TryParse(text, out var color) ? color : throw new FormatException($"'{text}' is not a supported CSS color.");
-
-    /// <summary>
-    ///     Resolves a paint and an opacity into the color to draw with.
-    /// </summary>
-    /// <param name="paint">The paint: a CSS color, <c>none</c> or null.</param>
-    /// <param name="opacity">The opacity that multiplies the alpha of the color, clamped to 0 to 1.</param>
-    /// <param name="color">The color to draw with when the method returns <see langword="true"/>.</param>
-    /// <returns><see langword="false"/> when there is nothing to draw: no paint, an unparseable paint, or a fully transparent result.</returns>
-    public static bool TryResolvePaint(string? paint, double opacity, out Rgba32 color)
+    public static Rgba32 Parse(string text)
     {
-        if (IsNone(paint) || !TryParse(paint, out color))
-        {
-            color = default;
-            return false;
-        }
-
-        color = WithOpacity(color, opacity);
-        return color.A > 0;
+        ArgumentNullException.ThrowIfNull(text);
+        return TryParse(text, out var color) ? color : throw new FormatException($"'{text}' is not a supported CSS color.");
     }
 
     /// <summary>
-    ///     Multiplies the alpha of a color by an opacity.
+    ///     Parses the digits of a hexadecimal color, the text after the <c>#</c>.
     /// </summary>
-    /// <param name="color">The color.</param>
-    /// <param name="opacity">The opacity; clamped to 0 to 1, and not a number counts as 1.</param>
-    /// <returns>The color with the new alpha, rounded half away from zero.</returns>
-    public static Rgba32 WithOpacity(Rgba32 color, double opacity)
-    {
-        var factor = double.IsNaN(opacity) ? 1 : Math.Clamp(opacity, 0, 1);
-        if (factor >= 1)
-        {
-            return color;
-        }
-
-        return new Rgba32(color.R, color.G, color.B, ToByte(color.A * factor));
-    }
-
-    /// <summary>
-    ///     Formats a color as a lower-case hexadecimal CSS color: <c>#rrggbb</c>, or <c>#rrggbbaa</c> when it is not opaque.
-    /// </summary>
-    /// <param name="color">The color.</param>
-    /// <returns>The CSS text, which <see cref="TryParse"/> reads back to the same color.</returns>
-    public static string ToCss(Rgba32 color) =>
-        color.A == 255
-            ? string.Create(CultureInfo.InvariantCulture, $"#{color.R:x2}{color.G:x2}{color.B:x2}")
-            : string.Create(CultureInfo.InvariantCulture, $"#{color.R:x2}{color.G:x2}{color.B:x2}{color.A:x2}");
-
-    /// <summary>
-    ///     Builds the table of named colors.
-    /// </summary>
-    /// <returns>The table, with <c>transparent</c> added.</returns>
-    private static Dictionary<string, Rgba32> BuildNamedColors()
-    {
-        var table = new Dictionary<string, Rgba32>(StringComparer.Ordinal);
-        foreach (var (name, value) in NamedColors)
-        {
-            table[name.ToLowerInvariant()] = new Rgba32((byte)(value >> 16), (byte)(value >> 8), (byte)value, 255);
-        }
-
-        table["transparent"] = new Rgba32(0, 0, 0, 0);
-        return table;
-    }
-
-    /// <summary>
-    ///     Parses the digits after the <c>#</c> of a hexadecimal color.
-    /// </summary>
-    /// <param name="digits">The digits: 3, 4, 6 or 8 of them.</param>
-    /// <param name="color">The color.</param>
+    /// <param name="digits">The digits: 3, 4, 6 or 8 of them, in any letter case, in CSS order (the alpha pair, when present, comes last).</param>
+    /// <param name="color">The color when the digits are valid (alpha 255 when the form has none); otherwise the default value.</param>
     /// <returns><see langword="true"/> when the digits are valid.</returns>
-    private static bool TryParseHex(ReadOnlySpan<char> digits, out Rgba32 color)
+    public static bool TryParseHex(ReadOnlySpan<char> digits, out Rgba32 color)
     {
         color = default;
         if (digits.Length is not (3 or 4 or 6 or 8))
@@ -335,27 +268,25 @@ internal static class CssColor
         var channels = digits.Length / (isShort ? 1 : 2);
         for (var i = 0; i < channels; i++)
         {
-            int value;
             if (isShort)
             {
-                if (!TryHexDigit(digits[i], out var digit))
+                if (!char.IsAsciiHexDigit(digits[i]))
                 {
                     return false;
                 }
 
-                value = (digit * 16) + digit;
+                var digit = HexValue(digits[i]);
+                values[i] = (digit * 16) + digit;
             }
             else
             {
-                if (!TryHexDigit(digits[2 * i], out var high) || !TryHexDigit(digits[(2 * i) + 1], out var low))
+                if (!char.IsAsciiHexDigit(digits[2 * i]) || !char.IsAsciiHexDigit(digits[(2 * i) + 1]))
                 {
                     return false;
                 }
 
-                value = (high * 16) + low;
+                values[i] = (HexValue(digits[2 * i]) * 16) + HexValue(digits[(2 * i) + 1]);
             }
-
-            values[i] = value;
         }
 
         color = new Rgba32((byte)values[0], (byte)values[1], (byte)values[2], (byte)values[3]);
@@ -363,55 +294,117 @@ internal static class CssColor
     }
 
     /// <summary>
-    ///     Converts one hexadecimal digit.
+    ///     Looks up a CSS named color.
     /// </summary>
-    /// <param name="c">The character.</param>
-    /// <param name="value">The value, 0 to 15.</param>
-    /// <returns><see langword="true"/> for a digit.</returns>
-    private static bool TryHexDigit(char c, out int value)
+    /// <param name="name">The name, in any letter case, without surrounding white space.</param>
+    /// <param name="color">The color when the name is known; otherwise the default value.</param>
+    /// <returns><see langword="true"/> for one of the 148 CSS color names or <c>transparent</c>; otherwise <see langword="false"/>.</returns>
+    public static bool TryGetNamedColor(string? name, out Rgba32 color)
     {
-        value = c switch
+        if (name is not null && Named.TryGetValue(name, out color))
         {
-            >= '0' and <= '9' => c - '0',
-            >= 'a' and <= 'f' => c - 'a' + 10,
-            >= 'A' and <= 'F' => c - 'A' + 10,
-            _ => -1,
-        };
-        return value >= 0;
+            return true;
+        }
+
+        color = default;
+        return false;
     }
 
     /// <summary>
-    ///     Splits the arguments of a color function into channel tokens and an optional alpha token.
+    ///     Formats a color as a lower-case hexadecimal CSS color: <c>#rrggbb</c>, or <c>#rrggbbaa</c> when it is not opaque.
+    /// </summary>
+    /// <param name="color">The color.</param>
+    /// <returns>The CSS text, which <see cref="TryParse"/> reads back to the same color.</returns>
+    public static string ToCss(Rgba32 color) =>
+        color.A == 255
+            ? string.Create(CultureInfo.InvariantCulture, $"#{color.R:x2}{color.G:x2}{color.B:x2}")
+            : string.Create(CultureInfo.InvariantCulture, $"#{color.R:x2}{color.G:x2}{color.B:x2}{color.A:x2}");
+
+    /// <summary>
+    ///     Gets the value of one hexadecimal digit.
+    /// </summary>
+    /// <param name="digit">The digit, already checked with <see cref="char.IsAsciiHexDigit"/>.</param>
+    /// <returns>The value, 0 to 15.</returns>
+    private static int HexValue(char digit) => digit <= '9' ? digit - '0' : (digit | 0x20) - 'a' + 10;
+
+    /// <summary>
+    ///     Builds the table of named colors.
+    /// </summary>
+    /// <returns>The table, with <c>transparent</c> added.</returns>
+    private static FrozenDictionary<string, Rgba32> BuildNamedColors()
+    {
+        var table = new Dictionary<string, Rgba32>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (name, value) in NamedColors)
+        {
+            table[name] = new Rgba32((byte)(value >> 16), (byte)(value >> 8), (byte)value, 255);
+        }
+
+        table["transparent"] = new Rgba32(0, 0, 0, 0);
+        return table.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    ///     Splits the arguments of a color function into channel tokens and an optional alpha token, in one of the two
+    ///     CSS syntaxes: the legacy one (three or four comma-separated components, no slash) or the modern one (three
+    ///     space-separated components, optionally followed by a slash and one alpha). Mixed separators, empty
+    ///     components, and trailing commas are rejected.
     /// </summary>
     /// <param name="arguments">The text between the parentheses.</param>
     /// <param name="channels">The three channel tokens.</param>
     /// <param name="alpha">The alpha token, or null when the color has none.</param>
-    /// <returns><see langword="true"/> when there are three channels, optionally followed by an alpha.</returns>
-    private static bool TrySplitArguments(string arguments, out string[] channels, out string? alpha)
+    /// <param name="legacy"><see langword="true"/> for the comma syntax; <see langword="false"/> for the space syntax.</param>
+    /// <returns><see langword="true"/> when the arguments follow one of the two syntaxes.</returns>
+    private static bool TrySplitArguments(string arguments, out string[] channels, out string? alpha, out bool legacy)
     {
         channels = [];
         alpha = null;
-        var tokens = arguments.Replace(",", " ", StringComparison.Ordinal).Replace("/", " / ", StringComparison.Ordinal)
-            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
-        var list = new List<string>(tokens);
-        var slash = list.IndexOf("/");
-        if (slash >= 0)
+        legacy = arguments.Contains(',', StringComparison.Ordinal);
+        if (legacy)
         {
-            if (slash != 3 || list.Count != 5)
+            var parts = arguments.Split(',');
+            if (parts.Length is not (3 or 4) || arguments.Contains('/', StringComparison.Ordinal))
             {
                 return false;
             }
 
-            list.RemoveAt(slash);
+            for (var i = 0; i < parts.Length; i++)
+            {
+                parts[i] = parts[i].Trim();
+                if (parts[i].Length == 0 || parts[i].Any(char.IsWhiteSpace))
+                {
+                    return false;
+                }
+            }
+
+            channels = [parts[0], parts[1], parts[2]];
+            alpha = parts.Length == 4 ? parts[3] : null;
+            return true;
         }
 
-        if (list.Count is not (3 or 4))
+        var slashParts = arguments.Split('/');
+        if (slashParts.Length > 2)
         {
             return false;
         }
 
-        channels = [list[0], list[1], list[2]];
-        alpha = list.Count == 4 ? list[3] : null;
+        var components = slashParts[0].Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        if (components.Length != 3)
+        {
+            return false;
+        }
+
+        if (slashParts.Length == 2)
+        {
+            var alphaTokens = slashParts[1].Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+            if (alphaTokens.Length != 1)
+            {
+                return false;
+            }
+
+            alpha = alphaTokens[0];
+        }
+
+        channels = components;
         return true;
     }
 
@@ -424,7 +417,7 @@ internal static class CssColor
     private static bool TryParseRgb(string arguments, out Rgba32 color)
     {
         color = default;
-        if (!TrySplitArguments(arguments, out var channels, out var alphaText))
+        if (!TrySplitArguments(arguments, out var channels, out var alphaText, out var legacy))
         {
             return false;
         }
@@ -432,7 +425,7 @@ internal static class CssColor
         Span<byte> bytes = stackalloc byte[3];
         for (var i = 0; i < 3; i++)
         {
-            if (!TryParseNumberOrPercent(channels[i], 255, out var value))
+            if (!TryParseNumberOrPercent(channels[i], 255, !legacy, out var value))
             {
                 return false;
             }
@@ -440,7 +433,7 @@ internal static class CssColor
             bytes[i] = ToByte(Math.Clamp(value, 0, 255));
         }
 
-        if (!TryParseAlpha(alphaText, out var alpha))
+        if (!TryParseAlpha(alphaText, !legacy, out var alpha))
         {
             return false;
         }
@@ -458,11 +451,14 @@ internal static class CssColor
     private static bool TryParseHsl(string arguments, out Rgba32 color)
     {
         color = default;
-        if (!TrySplitArguments(arguments, out var channels, out var alphaText)
+
+        // The legacy comma syntax requires percentages for saturation and lightness; the space syntax also takes numbers
+        if (!TrySplitArguments(arguments, out var channels, out var alphaText, out var legacy)
+            || (legacy && !(channels[1].EndsWith('%') && channels[2].EndsWith('%')))
             || !TryParseHue(channels[0], out var hue)
-            || !TryParseNumberOrPercent(channels[1], 100, out var saturation)
-            || !TryParseNumberOrPercent(channels[2], 100, out var lightness)
-            || !TryParseAlpha(alphaText, out var alpha))
+            || !TryParseNumberOrPercent(channels[1], 100, !legacy, out var saturation)
+            || !TryParseNumberOrPercent(channels[2], 100, !legacy, out var lightness)
+            || !TryParseAlpha(alphaText, !legacy, out var alpha))
         {
             return false;
         }
@@ -486,7 +482,7 @@ internal static class CssColor
     /// </summary>
     /// <param name="token">The token.</param>
     /// <param name="degrees">The hue in degrees.</param>
-    /// <returns><see langword="true"/> when the token is a hue.</returns>
+    /// <returns><see langword="true"/> when the token is a hue whose value in degrees is finite.</returns>
     private static bool TryParseHue(string token, out double degrees)
     {
         var lower = token.ToLowerInvariant();
@@ -502,7 +498,8 @@ internal static class CssColor
             }
         }
 
-        if (TryParseNumber(number, out var value))
+        // The converted value can overflow even when the number itself is finite (1e308turn)
+        if (TryParseNumber(number, out var value) && double.IsFinite(value * factor))
         {
             degrees = value * factor;
             return true;
@@ -516,9 +513,10 @@ internal static class CssColor
     ///     Parses an alpha value: absent (opaque), a number from 0 to 1 or a percentage.
     /// </summary>
     /// <param name="token">The token, or null.</param>
+    /// <param name="allowNone">Whether the keyword <c>none</c> is accepted (the space syntax).</param>
     /// <param name="alpha">The alpha as a byte.</param>
     /// <returns><see langword="true"/> when the token is absent or valid.</returns>
-    private static bool TryParseAlpha(string? token, out byte alpha)
+    private static bool TryParseAlpha(string? token, bool allowNone, out byte alpha)
     {
         alpha = 255;
         if (token is null)
@@ -526,7 +524,7 @@ internal static class CssColor
             return true;
         }
 
-        if (!TryParseNumberOrPercent(token, 1, out var value))
+        if (!TryParseNumberOrPercent(token, 1, allowNone, out var value))
         {
             return false;
         }
@@ -540,9 +538,10 @@ internal static class CssColor
     /// </summary>
     /// <param name="token">The token.</param>
     /// <param name="full">The value that 100% stands for.</param>
+    /// <param name="allowNone">Whether the keyword <c>none</c>, which counts as zero, is accepted (the space syntax).</param>
     /// <param name="value">The value.</param>
     /// <returns><see langword="true"/> when the token is valid.</returns>
-    private static bool TryParseNumberOrPercent(string token, double full, out double value)
+    private static bool TryParseNumberOrPercent(string token, double full, bool allowNone, out double value)
     {
         if (token.EndsWith('%'))
         {
@@ -556,8 +555,7 @@ internal static class CssColor
             return false;
         }
 
-        // CSS lets a component be the keyword none, which counts as zero
-        if (string.Equals(token, "none", StringComparison.OrdinalIgnoreCase))
+        if (allowNone && string.Equals(token, "none", StringComparison.OrdinalIgnoreCase))
         {
             value = 0;
             return true;

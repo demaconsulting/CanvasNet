@@ -23,33 +23,6 @@ internal sealed partial class ArgumentReader
     private const double MaxDpi = 2400;
 
     /// <summary>
-    ///     The named colors, with their opaque RGB values (the CSS basic colors and orange).
-    /// </summary>
-    private static readonly Dictionary<string, (byte R, byte G, byte B)> NamedColors = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["black"] = (0x00, 0x00, 0x00),
-        ["silver"] = (0xC0, 0xC0, 0xC0),
-        ["gray"] = (0x80, 0x80, 0x80),
-        ["grey"] = (0x80, 0x80, 0x80),
-        ["white"] = (0xFF, 0xFF, 0xFF),
-        ["maroon"] = (0x80, 0x00, 0x00),
-        ["red"] = (0xFF, 0x00, 0x00),
-        ["purple"] = (0x80, 0x00, 0x80),
-        ["fuchsia"] = (0xFF, 0x00, 0xFF),
-        ["magenta"] = (0xFF, 0x00, 0xFF),
-        ["green"] = (0x00, 0x80, 0x00),
-        ["lime"] = (0x00, 0xFF, 0x00),
-        ["olive"] = (0x80, 0x80, 0x00),
-        ["yellow"] = (0xFF, 0xFF, 0x00),
-        ["navy"] = (0x00, 0x00, 0x80),
-        ["blue"] = (0x00, 0x00, 0xFF),
-        ["teal"] = (0x00, 0x80, 0x80),
-        ["aqua"] = (0x00, 0xFF, 0xFF),
-        ["cyan"] = (0x00, 0xFF, 0xFF),
-        ["orange"] = (0xFF, 0xA5, 0x00)
-    };
-
-    /// <summary>
     ///     Parses an integer within a range.
     /// </summary>
     /// <param name="text">The text, an optional sign followed by digits.</param>
@@ -220,42 +193,34 @@ internal sealed partial class ArgumentReader
     /// </summary>
     /// <param name="text">
     ///     The text: <c>#RGB</c>, <c>#RGBA</c>, <c>#RRGGBB</c>, or <c>#RRGGBBAA</c> (CSS order: the alpha
-    ///     pair, when present, comes last; the <c>#</c> may be left out, which avoids shell quoting), a color
-    ///     name (black, silver, gray, grey, white, maroon, red, purple, fuchsia, magenta, green, lime, olive,
-    ///     yellow, navy, blue, teal, aqua, cyan, orange; any case), or <c>transparent</c>.
+    ///     pair, when present, comes last; the <c>#</c> may be left out, which avoids shell quoting), any of
+    ///     the 148 CSS color names (for example <c>black</c>, <c>white</c>, <c>red</c>, <c>orange</c>,
+    ///     <c>steelblue</c>; any case), or <c>transparent</c>.
     /// </param>
     /// <param name="option">The option or operand name, for messages.</param>
     /// <returns>The color with straight (non-premultiplied) alpha.</returns>
     /// <exception cref="ToolException">Thrown with code <c>usage-error</c> when the text is not a color.</exception>
     /// <remarks>
-    ///     This is deliberately not <see cref="Rgba32.Parse(string)"/>, which reads the alpha pair first.
+    ///     The names and hexadecimal digits come from <see cref="CssColor"/>. This is deliberately not
+    ///     <see cref="Rgba32.Parse(string)"/>, which reads the alpha pair first, and not
+    ///     <see cref="CssColor.TryParse"/>, because the command line offers only names and hexadecimal digits.
     /// </remarks>
     public static Rgba32 ParseColor(string text, string option)
     {
         ArgumentNullException.ThrowIfNull(text);
         ArgumentNullException.ThrowIfNull(option);
 
+        // A name (including transparent) wins over hexadecimal digits; the leading # is optional
         var trimmed = text.Trim();
-        if (string.Equals(trimmed, "transparent", StringComparison.OrdinalIgnoreCase))
+        if (CssColor.TryGetNamedColor(trimmed, out var named))
         {
-            return new Rgba32(0, 0, 0, 0);
-        }
-
-        if (NamedColors.TryGetValue(trimmed, out var named))
-        {
-            return new Rgba32(named.R, named.G, named.B, 0xFF);
+            return named;
         }
 
         var hex = trimmed.StartsWith('#') ? trimmed[1..] : trimmed;
-        if (hex.Length is 3 or 4 or 6 or 8 && hex.All(char.IsAsciiHexDigit))
+        if (CssColor.TryParseHex(hex, out var parsed))
         {
-            // Short forms double each digit (#abc is #aabbcc); alpha defaults to opaque
-            var full = hex.Length <= 4 ? string.Concat(hex.Select(c => new string(c, 2))) : hex;
-            var r = Convert.ToByte(full[..2], 16);
-            var g = Convert.ToByte(full[2..4], 16);
-            var b = Convert.ToByte(full[4..6], 16);
-            var a = full.Length == 8 ? Convert.ToByte(full[6..8], 16) : (byte)0xFF;
-            return new Rgba32(r, g, b, a);
+            return parsed;
         }
 
         throw Invalid(text, option, "a color: #RGB, #RRGGBB, #RRGGBBAA, a color name, or transparent", "#336699");

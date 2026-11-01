@@ -13,6 +13,7 @@ includes:
   - docs/reqstream/canvas-net/canvas.yaml
   - docs/reqstream/canvas-net/canvas/surface.yaml
   - docs/reqstream/canvas-net/canvas/rgba32.yaml
+  - docs/reqstream/canvas-net/canvas/css-color.yaml
   - docs/reqstream/canvas-net/codecs.yaml
   - docs/reqstream/canvas-net/codecs/bmp-codec.yaml
   - docs/reqstream/canvas-net/codecs/png-codec.yaml
@@ -140,7 +141,7 @@ includes:
   - docs/reqstream/canvas-net-vega-lite/scenegraph/scene-model.yaml
   - docs/reqstream/canvas-net-vega-lite/scenegraph/scene-painter.yaml
   - docs/reqstream/canvas-net-vega-lite/scenegraph/arc-geometry.yaml
-  - docs/reqstream/canvas-net-vega-lite/scenegraph/css-color.yaml
+  - docs/reqstream/canvas-net-vega-lite/scenegraph/css-paint.yaml
   - docs/reqstream/canvas-net-tool.yaml
   - docs/reqstream/canvas-net-tool/platform-requirements.yaml
   - docs/reqstream/canvas-net-tool/program.yaml

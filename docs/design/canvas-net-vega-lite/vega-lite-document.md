@@ -261,8 +261,9 @@ throws after a successful call propagates its exception (the surface is disposed
   `LegendPlan`, `LegendBuilder`, `LegendResult`
 - **`Layout` subsystem** - `ViewLayout` and its request and measure records, and `LegendLayout`
 - **`Marks` subsystem** - `MarkBuilder`
-- **`Scenegraph` subsystem** - `Scene`, `SceneItem`, `SceneBudget`, `ScenePainter`, `ScenePlacement`, `CssColor`
-- **Core `CanvasNet`** - `Surface` and `Rgba32` (public API); see _CanvasNetVegaLite System Design_
+- **`Scenegraph` subsystem** - `Scene`, `SceneItem`, `SceneBudget`, `ScenePainter`, `ScenePlacement`
+- **Core `CanvasNet`** - `Surface`, `Rgba32`, and `CssColor` (`ToCss` turns the caller's `Background` option into the
+  scene's string) (public API); see _CanvasNetVegaLite System Design_
 - **.NET base class library** - `System.IO`, `System.Text`, `System.Text.Json` (the configuration check),
   `System.Collections.ObjectModel`, `System.Globalization`
 

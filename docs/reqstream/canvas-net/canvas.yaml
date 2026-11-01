@@ -3,8 +3,9 @@
 #
 # These requirements decompose the CanvasNet system's pixel-buffer responsibilities into the
 # Canvas subsystem's own responsibility: providing a mutable, in-memory 32-bit RGBA pixel
-# buffer (the Surface unit) and its pixel value type (the Rgba32 unit). Each requirement here
-# links down to the Surface unit requirement that implements it.
+# buffer (the Surface unit), its pixel value type (the Rgba32 unit), and the shared CSS color parser (the
+# CssColor unit). Each requirement here
+# links down to the unit requirement that implements it.
 
 sections:
   - title: CanvasNet Requirements
@@ -399,6 +400,28 @@ sections:
             tests:
               - Rgba32_Parse_6HexUppercase_ReturnsExpectedRgbaWithAlpha255
               - Rgba32_TryParse_ValidInput_ReturnsTrueAndSetsResult
+
+          - id: CanvasNet-Canvas-CssColor
+            title: >-
+              The Canvas subsystem shall parse CSS color text (hexadecimal forms, the 148 named colors
+              and transparent, and the rgb, rgba, hsl, and hsla functions) into an Rgba32 pixel value
+              with a throwing and a non-throwing method, expose the hexadecimal-digit and named-color
+              parsers on their own, clamp and round half away from zero, and format an Rgba32 as CSS
+              text.
+            justification: |
+              Colors are written as text in style sheets, chart specifications, scripts, and command
+              lines; one shared grammar resolves the same text to the same pixel in every CanvasNet
+              package, and consumers with a narrower grammar reuse its building blocks.
+            children:
+              - CanvasNet-Canvas-CssColor-ParseHex
+              - CanvasNet-Canvas-CssColor-NamedColors
+              - CanvasNet-Canvas-CssColor-Functions
+              - CanvasNet-Canvas-CssColor-RoundingAndClamping
+              - CanvasNet-Canvas-CssColor-InvalidText
+              - CanvasNet-Canvas-CssColor-ToCss
+            tests:
+              - CssColor_TryParse_FunctionForms_MatchExpectedPixels
+              - CssColor_TryGetNamedColor_Names_ReturnTheCssTableEntries
 
           - id: CanvasNet-Canvas-Resize
             title: >-

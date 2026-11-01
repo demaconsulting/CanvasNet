@@ -15,7 +15,8 @@ _ArcGeometry Unit Verification Design_).
 
 The unit is verified by painting small scenes built from the model records and asserting on the pixels of the
 returned `Surface`, with expectations derived by hand from the geometry. The collaborators (the core `Surface`,
-`PathFiller`, `PathStroker`, `TextRenderer`, the bundled fonts, `CssColor`, and `TextMeasurer`) are real, because
+`PathFiller`, `PathStroker`, `TextRenderer`, the bundled fonts, `CssPaint`, the core `CssColor`, and
+`TextMeasurer`) are real, because
 the unit's contract is what its items cover; no mocking or stubbing is used. The internal types are reached through the
 test assembly's `InternalsVisibleTo` access.
 

@@ -592,6 +592,9 @@ public class ArgumentReaderTests
     [InlineData("RED", 255, 0, 0, 255)]
     [InlineData("grey", 128, 128, 128, 255)]
     [InlineData("orange", 255, 165, 0, 255)]
+    [InlineData("SteelBlue", 70, 130, 180, 255)]
+    [InlineData("rebeccapurple", 102, 51, 153, 255)]
+    [InlineData("  lightgoldenrodyellow ", 250, 250, 210, 255)]
     [InlineData("transparent", 0, 0, 0, 0)]
     [InlineData("Transparent", 0, 0, 0, 0)]
     public void ArgumentReader_ParseColor_NamesAndTransparent_ReturnsColor(string text, byte r, byte g, byte b, byte a)
@@ -618,6 +621,9 @@ public class ArgumentReaderTests
     [InlineData("#gggggg")]
     [InlineData("#123456789")]
     [InlineData("notacolor")]
+    [InlineData("rgb(255,0,0)")]
+    [InlineData("hsl(0,100%,50%)")]
+    [InlineData("none")]
     public void ArgumentReader_ParseColor_Invalid_ThrowsUsageError(string text)
     {
         // Arrange / Act: parse something that is not a color

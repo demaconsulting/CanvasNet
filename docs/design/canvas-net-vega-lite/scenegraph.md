@@ -19,8 +19,8 @@ core `Surface`. It is **internal**: its types are visible only to the other subs
   `ScenePlacement`: drawing a scene onto a `Surface` with fills (solid or linear gradient), strokes, dashes, miter limits,
   opacity, rotation, uniform scale, clipping, paths with curved segments, arcs, trails, and text; see _ScenePainter Unit
   Design_ (`scenegraph/scene-painter.md`)
-- **CssColor** - the internal static `CssColor`: CSS color text to `Rgba32`; see _CssColor Unit Design_
-  (`scenegraph/css-color.md`)
+- **CssPaint** - the internal static `CssPaint`: the paint rules of a chart (no paint, opacity) on top of the core
+  `CssColor` parser; see _CssPaint Unit Design_ (`scenegraph/css-paint.md`)
 - **ArcGeometry** - the internal static `ArcGeometry` and the helper `ArcPathWriter`: the outline of a circular or annular
   sector (the d3-shape arc generator, with its pad angle and corner radius) as a core `Path`; see _ArcGeometry Unit
   Design_ (`scenegraph/arc-geometry.md`)
@@ -35,12 +35,13 @@ names the subsystem `VegaLiteScenegraph` and the scene unit `VegaLiteSceneModel`
 `FindAll`, `OfType`, `CountItems`); `SceneBounds` with `Union`, `Translate`, and `Rotate`; `SceneBudget.Add`;
 `ScenePainter.Paint(Scene, int, int, ScenePlacement, CancellationToken)` and `Paint(Scene, Surface, ScenePlacement,
 CancellationToken)`, `ScenePainter.SymbolPath`, `ScenePainter.ResolveMiterLimit`, and `ScenePlacement.Uniform` and
-`ScenePlacement.Fit`; `CssColor.TryParse`, `Parse`, `IsNone`, `TryResolvePaint`, `WithOpacity`, and `ToCss`; and
+`ScenePlacement.Fit`; `CssPaint.IsNone`, `TryResolvePaint`, and `WithOpacity`; and
 `ArcGeometry.Build`.
 
 **Consumed**: `TextMeasurer` from the `Guides` subsystem (the painter resolves fonts and draws the lines the measurer
 produces); the public `VegaLiteLocation` and `VegaLiteRenderException` of the `VegaLiteDocument` unit; and the core
-`CanvasNet` public API: `Surface` and `Rgba32` (`Canvas`), `PathFiller`, `PathStroker`, and `LinearGradient` (`Drawing`),
+`CanvasNet` public API: `Surface`, `Rgba32`, and `CssColor` (`Canvas`), `PathFiller`, `PathStroker`, and
+`LinearGradient` (`Drawing`),
 `Path` and `PathBuilder` (`Geometry`), and `TextRenderer` (`Rendering`).
 
 **Consumers**: the builders of the `Guides`, `Layout`, and `Marks` subsystems create the items; `VegaLiteDocument` paints

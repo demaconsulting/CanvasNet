@@ -1,0 +1,45 @@
+---
+# Software Unit Requirements for CssPaint
+#
+# These requirements describe the design-level behavior of the CssPaint unit of the Scenegraph subsystem
+# (internal namespace DemaConsulting.CanvasNet.VegaLite.Scenegraph): the paint rules of a chart (no paint,
+# opacity) on top of the CSS color grammar that the core CanvasNet CssColor unit provides.
+# See docs/verification/canvas-net-vega-lite/scenegraph/css-paint.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Scenegraph Requirements
+        sections:
+          - title: CssPaint Requirements
+            requirements:
+              - id: CanvasNetVegaLite-Scenegraph-CssPaint-NoPaint
+                title: >-
+                  The CssPaint unit shall treat a null, empty, or white-space paint and none (in any letter
+                  case) as no paint, and shall resolve no paint, an unparseable paint, and a fully
+                  transparent result to nothing to draw without throwing.
+                justification: |
+                  The painter relies on one rule for when an item has paint; invalid text must not crash the
+                  renderer.
+                tests:
+                  - CssPaint_IsNone_NullEmptyAndNone_AreNoPaint
+                  - CssPaint_TryResolvePaint_NothingToDraw_ReturnsFalseWithDefaultColor
+
+              - id: CanvasNetVegaLite-Scenegraph-CssPaint-Opacity
+                title: >-
+                  The CssPaint unit shall multiply the alpha of a resolved color by an opacity clamped to 0
+                  to 1 (not a number counting as 1), rounding half away from zero.
+                justification: |
+                  Fill and stroke opacities scale the alpha of the paint; the exact byte decides the pixel.
+                tests:
+                  - CssPaint_TryResolvePaint_Opacity_MultipliesTheAlphaAndRoundsHalfAwayFromZero
+
+              - id: CanvasNetVegaLite-Scenegraph-CssPaint-SharedGrammar
+                title: >-
+                  The CssPaint unit shall parse the color of a paint with the shared CSS color grammar of
+                  the core CssColor unit.
+                justification: |
+                  One color grammar across every CanvasNet package; the unit keeps no color table or parser
+                  of its own.
+                tests:
+                  - CssPaint_TryResolvePaint_ColorText_UsesTheSharedCssGrammar

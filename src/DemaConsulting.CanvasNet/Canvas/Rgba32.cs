@@ -133,6 +133,11 @@ public struct Rgba32 : IEquatable<Rgba32>
     ///     Delegates to the shared internal <see cref="TryParseCore"/> so that the accept/reject
     ///     behavior is provably identical to <see cref="TryParse"/>.
     ///     </para>
+    ///     <para>
+    ///     The alpha pair comes <em>first</em> in this format (<c>#AARRGGBB</c>), unlike CSS, where it
+    ///     comes last. To parse CSS colors (<c>#rrggbbaa</c>, <c>rgb()</c>, <c>hsl()</c>, color names)
+    ///     use <see cref="CssColor"/> instead.
+    ///     </para>
     /// </remarks>
     public static Rgba32 Parse(string s)
     {

@@ -34,6 +34,7 @@ load/crop/resize/save workflows.
 - ✂️ **Cropping** - Independent-copy crop for load/crop/save workflows
 - 📐 **Resizing** - `Resize`/`ResizeToFit` with Nearest, Bilinear, Bicubic, Lanczos3 and Area filters
 - 🌈 **Compositing** - Alpha premultiply and Porter-Duff "over" compositing
+- 🎨 **CSS Colors** - `CssColor` parses CSS color text (names, hex, `rgb()`, `hsl()`) into `Rgba32`
 - 📀 **BMP Codec** - Load/save 24-bit/32-bit uncompressed BMP files
 - 🎨 **PNG Codec** - Load non-interlaced PNGs; save 8-bit RGB/RGBA
 - 🖨️ **TIFF Codec** - Load/save 8-bit RGB/RGBA/Grayscale TIFF files

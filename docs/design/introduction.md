@@ -29,7 +29,8 @@ software items, specifically:
 
 - **CanvasNet (System)** — The complete .NET library system
 - **Canvas (Subsystem)** — Pixel-buffer primitives: the `Surface` unit (mutable, in-memory
-  32-bit RGBA pixel buffer with span-based row access) and the `Rgba32` unit
+  32-bit RGBA pixel buffer with span-based row access), the `Rgba32` unit, and the `CssColor` unit
+  (the shared CSS color parser)
 - **Codecs (Subsystem)** — Image format codecs: `BmpCodec`, `PngCodec`, `TiffCodec`, and
   `JpegCodec`, each converting to and from a `Surface` pixel buffer; `GifCodec`, a decode-only
   unit that loads a `Surface` from the first frame of a GIF file; and `Jpeg2000Codec`, a decode-only
@@ -219,7 +220,7 @@ software items, specifically:
   glyph regions). The 2D Minkowski sum and a few other constructs are deferred and reported as
   unsupported features — see _CanvasNetScad System Design_ (`canvas-net-scad.md`) for the full
   supported/deferred boundary and its Implementation Phase Plan. `CanvasNetScad` depends on the `CanvasNet`
-  system's `Canvas` subsystem (`Surface`, `Rgba32`), and, for the `text` module, on its `Fonts` (`TrueTypeFont`,
+  system's `Canvas` subsystem (`Surface`, `Rgba32`, `CssColor`), and, for the `text` module, on its `Fonts` (`TrueTypeFont`,
   `SystemFontCatalog`, and the bundled Liberation fonts) and `Geometry` (`Path`, the glyph outlines) subsystems,
   and on `CanvasNetRender3D` (the scene, tessellation, and rendering API), all through their public API, and must
   never reference `CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`,
@@ -275,8 +276,8 @@ software items, specifically:
   data modes, the draw order, the polar and text rules, time-unit bands, and conditional encodings) and `CurveBuilder`
   (the d3-shape curves and the line and area generators that turn the defined points of a path into segments). The
   `Scenegraph` subsystem has four units: `SceneModel` (the immutable scene), `ScenePainter` (drawing a scene onto a
-  `Surface`), `ArcGeometry` (the d3-shape arc and the d3-path emulation behind the arc and trail items), and `CssColor`
-  (CSS color parsing). Compositions, selection parameters,
+  `Surface`), `ArcGeometry` (the d3-shape arc and the d3-path emulation behind the arc and trail items), and `CssPaint`
+  (the chart paint rules on top of the core `CssColor` parser). Compositions, selection parameters,
   and conditions on a parameter
   are deferred and reported with stable identifiers (local CSV, TSV, DSV, and JSON data files, named datasets, and
   sequences, a bounded subset of the Vega expression language, static variable parameters, the row transforms
@@ -356,7 +357,7 @@ diagram or the prose below.
 ![Software Structure](SoftwareStructureView.svg)
 
 CanvasNet is organized into six subsystems under the system level: the `Canvas` subsystem
-(the `Surface` and `Rgba32` units, namespace `DemaConsulting.CanvasNet.Canvas`), the `Codecs`
+(the `Surface`, `Rgba32`, and `CssColor` units, namespace `DemaConsulting.CanvasNet.Canvas`), the `Codecs`
 subsystem (the `BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`, `GifCodec`, and `Jpeg2000Codec` units,
 namespace `DemaConsulting.CanvasNet.Codecs`, flat — no further nesting), the
 `Geometry` subsystem (the
@@ -481,7 +482,7 @@ holds the
 units, its internal `Layout` subsystem holds the `ViewLayout` and `LegendLayout` units, its internal `Marks` subsystem
 holds the
 `MarkBuilder` and `CurveBuilder` units, and its internal `Scenegraph` subsystem holds the `SceneModel`, `ScenePainter`,
-`ArcGeometry`, and `CssColor`
+`ArcGeometry`, and `CssPaint`
 units (each subsystem lives in the sub-namespace and the sub-folder of its own name). In the SysML2 model the
 subsystem `part def` names carry the prefix `VegaLite` (`VegaLiteSpecModel`, `VegaLiteExpressions`, `VegaLiteTransforms`,
 `VegaLiteScenegraph`, and so on) and the
@@ -523,6 +524,7 @@ src/DemaConsulting.CanvasNet/
 │   ├── SurfaceResampler.Engine.cs — Internal separable resampling engine, device-window and
 │   │                                tile helpers
 │   ├── Rgba32.cs                — Single 32-bit RGBA pixel value type
+│   ├── CssColor.cs              — Shared CSS color parser and named-color table
 │   └── NamespaceDoc.cs          — Namespace-level XML documentation
 ├── Codecs/
 │   ├── BmpCodec.cs               — Uncompressed 24-bit/32-bit Windows BMP loader/saver
@@ -1038,7 +1040,6 @@ src/DemaConsulting.CanvasNet.Scad/
 │   ├── ScadTransforms.cs          — ScadTransforms: translate, rotate, scale, mirror, and multmatrix
 │   ├── ScadTransforms.Resize.cs   — ScadTransforms: resize
 │   ├── ScadColors.cs              — ScadTransforms: color
-│   ├── ScadColorTable.cs          — ScadTransforms: named color table
 │   ├── ScadShape2D.cs             — ScadExtrusions: symbolic 2D shape tree
 │   ├── ScadExtrusions.cs          — ScadExtrusions: distribution over the 2D tree and slabs
 │   ├── ScadExtrusions.Linear.cs   — ScadExtrusions: linear_extrude
@@ -1091,7 +1092,8 @@ src/DemaConsulting.CanvasNet.Scad/
     └── ScadFileResolver.Paths.cs  — ScadFileResolver: path normalization and sandbox
 ```
 
-`CanvasNetScad` uses the `CanvasNet` system (`Surface` and `Rgba32` of `Canvas`; for `text`, `TrueTypeFont` and
+`CanvasNetScad` uses the `CanvasNet` system (`Surface`, `Rgba32`, and `CssColor` of `Canvas`; for `text`,
+`TrueTypeFont` and
 `SystemFontCatalog` of `Fonts` and `Path` of `Geometry`) and `CanvasNetRender3D` (scene model,
 tessellation, rendering) through their public API from the `ScadGeometry` subsystem (the `ScadTextGeometry` unit
 for `Fonts` and `Geometry`) and the `BuildScene` and
@@ -1254,10 +1256,10 @@ src/DemaConsulting.CanvasNet.VegaLite/
     ├── ScenePainter.cs            — ScenePainter: drawing a scene onto a Surface and placement
     ├── ScenePainter.Paths.cs      — ScenePainter: segment paths, arcs, trails, and the miter limit
     ├── ArcGeometry.cs             — ArcGeometry: the d3-shape arc and the d3-path emulation
-    └── CssColor.cs                — CssColor: CSS color parsing
+    └── CssPaint.cs                — CssPaint: chart paint rules (none, opacity) on the core CssColor parser
 ```
 
-`CanvasNetVegaLite` uses only the `CanvasNet` system (`Surface` and `Rgba32` of `Canvas`, `Path` of `Geometry`,
+`CanvasNetVegaLite` uses only the `CanvasNet` system (`Surface`, `Rgba32`, and `CssColor` of `Canvas`, `Path` of `Geometry`,
 `PathFiller` and `PathStroker` of `Drawing`, `TrueTypeFont` and `SystemFontCatalog` of `Fonts`, and `TextRenderer` of
 `Rendering`) through its public API, and declares it as its only package dependency; the `ScenePainter`, `ArcGeometry`,
 and `TextMeasurer` units use it — see _CanvasNetVegaLite System Design_ (`canvas-net-vega-lite.md`).

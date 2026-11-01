@@ -135,7 +135,8 @@ drawn since phase 7.
   `Scenegraph/`): the assertion surface and the painter, with four units. `SceneModel` is the immutable scene
   (groups, rectangles, rules, paths with line and cubic segments, symbols, text, arcs, trails, bounds, and the item
   budget). `ScenePainter` draws a scene onto a `Surface` (in several partial files). `ArcGeometry` is the d3-shape arc
-  and the d3-path emulation that turn an arc item into a core `Path`. `CssColor` parses CSS colors. See _Scenegraph
+  and the d3-path emulation that turn an arc item into a core `Path`. `CssPaint` resolves a chart paint and an opacity
+  to a color on top of the core `CssColor` parser. See _Scenegraph
   Subsystem Design_ (`canvas-net-vega-lite/scenegraph.md`).
 
 The names of the subsystems in this document are the namespace and folder names; in the SysML2 model their `part def`
@@ -187,7 +188,7 @@ channel). This placement is why `Expressions` and `Data` need no dependency on `
 (deviation P8-D1). `VegaLiteDocument` creates the one `TimeCalendar` of a call from `VegaLiteRenderOptions.TimeZone`
 and hands it to the loader and the evaluator; the scales read it from the evaluation facts of the encoding data, and
 the axes and legends from the `ResolvedScale`. `SceneModel` depends on nothing else.
-`TextMeasurer` reads the `SceneModel` text and bounds types; `ScenePainter` calls `TextMeasurer` and `CssColor`.
+`TextMeasurer` reads the `SceneModel` text and bounds types; `ScenePainter` calls `TextMeasurer` and `CssPaint`.
 `TitleBuilder`, `AxisBuilder`, and `LegendBuilder` build `SceneModel` items using `TextMeasurer`; `AxisBuilder` and
 `LegendBuilder` share `LabelOverlap`, `AxisBuilder` uses `ScaleModel`, `Ticks`, and `NumberFormat`, and `LegendBuilder`
 uses `ResolvedScale`, `ScaleModel`, `Ticks`, and `NumberFormat`. `ViewLayout` builds the root of the scene around the
@@ -1218,7 +1219,7 @@ own scope, and everything not yet implemented is reported with a stable identifi
    (`VegaLiteDocument` and the options, limits, location, diagnostic, size, data reference, and exception types), the
    `SpecModel` subsystem (`SpecParser`, `FeatureCatalog`, `ConfigResolver`), the `Guides` units `TextMeasurer` and
    `TitleBuilder`, the `Layout` unit `ViewLayout`, the `Scenegraph` subsystem (`SceneModel`, `ScenePainter`,
-   `CssColor`), the attribution scaffolding under `third-party/`, original fixtures with a provenance README, and the
+   `CssPaint`), the attribution scaffolding under `third-party/`, original fixtures with a provenance README, and the
    complete companion documentation.
 2. **Phase 2 - First charts (delivered).** The `Data` subsystem (`DataTable`, `DataLoader`), the `Scales` subsystem
    (`ScaleModel`, `ScaleResolver`, `Ticks`, `NumberFormat`, `ColorSchemes`), the `Guides` unit `AxisBuilder`, the

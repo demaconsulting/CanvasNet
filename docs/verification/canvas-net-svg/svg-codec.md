@@ -131,6 +131,21 @@ windings cancel, while the default `nonzero` rule fills their union; `fill="none
 gap along a line (not merely "some pixels are stroked"); and `opacity` multiplies into a solid
 fill's alpha to a value distinguishably between fully transparent and fully opaque.
 
+#### CanvasNetSvg-SvgCodec-ColorGrammar: Shared CSS Color Grammar
+
+**Tests**: `SvgCodec_Load_FillSharedCssGrammar_ResolvesExtendedColorForms`,
+`SvgCodec_Load_FillRgbPercentHalfwayChannel_RoundsHalfAwayFromZero`,
+`SvgCodec_Load_RgbaAlphaInfinity_TreatsColorAsUnrecognizedNoPaint`
+
+Asserts, by sampling the interior pixel of a rect that covers the whole viewBox, that the forms the
+core `CssColor` grammar adds to the codec's original grammar resolve to the straight-alpha color CSS
+defines for them: `#0f08` (green with alpha `0x88`), `#00ff0080`, `hsl(120, 100%, 50%)`,
+`hsla(120 100% 50% / 50%)`, the space-and-slash `rgb(0 255 0 / 50%)`, and a mixed-case named color
+(`RebeccaPurple`); that `rgb(30%, 0, 0)` resolves the exact-half channel 76.5 to 77 (half away from
+zero, where the codec's former half-to-even rule gave 76); and that an `rgba()` color whose alpha is
+the non-finite text `Infinity` is unrecognized and paints nothing. The grammar itself is verified
+exhaustively by the `CssColor` unit tests in the core library.
+
 #### CanvasNetSvg-SvgCodec-Gradients: Gradient Fill/Stroke Resolution
 
 **Tests**: `SvgCodec_Load_LinearGradientUserSpaceOnUse_VariesAlongUserSpaceAxis`,

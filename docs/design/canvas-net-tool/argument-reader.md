@@ -80,15 +80,16 @@ used in the message. Numbers always use the invariant culture.
 | `ParseDpi(text, option)` | a number above 0 and at most 2400 | `float` |
 | `ParseSize(text, option)` | `WxH` (or `WXH`) in whole pixels, each at least 1 | `(int Width, int Height)` |
 | `ParseGeometry(text, option)` | `x,y,w,h` or `WxH+X+Y` (`WxH` alone is origin 0,0); each value whole pixels (optionally `px`) or a percent with `%` (fraction allowed, at most 100); the width and height are above 0 | `GeometrySpec` |
-| `ParseColor(text, option)` | `#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA` (CSS order, alpha last; `#` optional), a basic color name (any case), or `transparent` | `Rgba32` (straight alpha) |
+| `ParseColor(text, option)` | `#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA` (CSS order, alpha last; `#` optional), a CSS color name (any case), or `transparent` | `Rgba32` (straight alpha) |
 | `ParseDegrees(text, option)` | a finite number, optionally followed by `deg` | `double` normalized to at least 0 and below 360 |
 | `ParseFlip(text, option)` | `h`/`horizontal`, `v`/`vertical`, `both` (any case) | `FlipAxis` |
 | `ParsePad(text, option)` | `N` or `l,t,r,b` in whole pixels | `PadSpec` |
 | `ParseDefines(defs)` | `name=value` entries: a finite number is a `double`, `true`/`false` a `bool`, anything else a `string` (one pair of quotes removed) | `IReadOnlyDictionary<string, object?>` |
 <!-- markdownlint-enable MD013 -->
 
-The named colors are the CSS basic colors (black, silver, gray, grey, white, maroon, red, purple, fuchsia, magenta,
-green, lime, olive, yellow, navy, blue, teal, aqua, cyan) and orange. `ParseColor` is deliberately not
+`ParseColor` delegates the names and the hexadecimal digits to the core `CssColor` (`TryGetNamedColor`, which knows
+all 148 CSS color names and `transparent`, and `TryParseHex`); it adds only the optional leading `#`. The `rgb()` and
+`hsl()` function forms are deliberately not offered on the command line. `ParseColor` is deliberately not
 `Rgba32.Parse`, which reads the alpha pair first. The `#` is optional because a shell treats an unquoted `#` at the
 start of a word as a comment. A definition name is an identifier (letters, digits, `_`, and `$`, not starting with a
 digit); a value starting with `[` (a vector) is rejected rather than silently turned into text.
@@ -105,7 +106,8 @@ reported as an expected failure. A size or border wider than `Surface.MaxDimensi
 
 - **CommandRegistry** (Commands subsystem) - the `OptionSpec` record, and `EditDistance` for suggestions.
 - **ToolException** and **ErrorCodes** (Program unit) - the failures.
-- **CanvasNet core** - `Rgba32` and `Surface.MaxDimension`.
+- **CanvasNet core** - `Rgba32`, `CssColor` (the color names and hexadecimal digits behind `ParseColor`), and
+  `Surface.MaxDimension`.
 
 ### Callers
 

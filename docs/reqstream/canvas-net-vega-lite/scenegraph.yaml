@@ -5,7 +5,7 @@
 # subsystem (internal namespace DemaConsulting.CanvasNet.VegaLite.Scenegraph): the immutable scene model that
 # is the assertion surface for analytic tests (SceneModel), the painter that draws a scene onto a CanvasNet
 # Surface with only the public CanvasNet APIs (ScenePainter), the geometry of the arc mark (ArcGeometry), and the
-# CSS color parser (CssColor). Each
+# chart paint rules on top of the core CssColor parser (CssPaint). Each
 # requirement here links down to the unit requirements that implement it. See
 # docs/verification/canvas-net-vega-lite/scenegraph.md for the test-evidence mapping.
 
@@ -96,15 +96,18 @@ sections:
 
           - id: CanvasNetVegaLite-Scenegraph-Colors
             title: >-
-              The Scenegraph subsystem shall convert the CSS colors of a specification - hexadecimal
-              forms, the 148 named colors, rgb, rgba, hsl, and hsla functions, and transparent - to
-              CanvasNet colors, treat none, unparseable, and fully transparent paints as no paint, and
-              fail cleanly on invalid text.
+              The Scenegraph subsystem shall convert the CSS colors of a specification to CanvasNet
+              colors with the shared CSS color grammar of the core library (hexadecimal forms, the 148
+              named colors, rgb, rgba, hsl, and hsla functions, and transparent), and treat none,
+              unparseable, and fully transparent paints as no paint and apply an opacity to the alpha of
+              a paint.
             justification: |
-              Colors arrive as text in specifications and configuration and must be converted exactly.
+              Colors arrive as text in specifications and configuration and must be converted exactly,
+              with the same grammar as every other CanvasNet package.
             children:
-              - CanvasNetVegaLite-Scenegraph-CssColor-Parse
-              - CanvasNetVegaLite-Scenegraph-CssColor-Paint
+              - CanvasNetVegaLite-Scenegraph-CssPaint-NoPaint
+              - CanvasNetVegaLite-Scenegraph-CssPaint-Opacity
+              - CanvasNetVegaLite-Scenegraph-CssPaint-SharedGrammar
             tests:
-              - CssColor_Parse_SupportedFormsMatchRgba32
-              - CssColor_ResolvePaint_NoneOpacityAndRoundTrip
+              - CssPaint_TryResolvePaint_ColorText_UsesTheSharedCssGrammar
+              - CssPaint_TryResolvePaint_Opacity_MultipliesTheAlphaAndRoundsHalfAwayFromZero

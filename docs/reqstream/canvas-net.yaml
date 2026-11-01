@@ -269,6 +269,22 @@ sections:
         tests:
           - Rgba32_CompositeOver_PartiallyTransparentForegroundOverOpaqueBackground_BlendsExactly
 
+      - id: CanvasNet-Lib-CssColorParse
+        title: >-
+          The library shall parse CSS color text (hexadecimal forms with and without alpha, the 148
+          named colors and transparent, and the rgb, rgba, hsl, and hsla functions) into an Rgba32
+          pixel value through a public CssColor class, without throwing for invalid text, and format
+          an Rgba32 as CSS text.
+        tags: [system]
+        justification: |
+          Colors are written as text in style sheets, chart specifications, scripts, and command
+          lines; one public, tested CSS color grammar lets every CanvasNet package and every library
+          user resolve the same text to the same pixel instead of keeping divergent copies.
+        children:
+          - CanvasNet-Canvas-CssColor
+        tests:
+          - CssColor_TryParse_FunctionForms_MatchExpectedPixels
+
   - title: BMP Codec API
     requirements:
       - id: CanvasNet-Lib-BmpSave

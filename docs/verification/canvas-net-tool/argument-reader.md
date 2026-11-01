@@ -80,7 +80,9 @@ missing offset parts).
 **ArgumentReader_ParseColor_HexForms_ReturnsColorWithAlphaLast**,
 **ArgumentReader_ParseColor_NamesAndTransparent_ReturnsColor**, and **ArgumentReader_ParseColor_Invalid_ThrowsUsageError**:
 `#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA` (the alpha pair is last), a bare hex value, surrounding whitespace, names in
-any case, `transparent`, and invalid text.
+any case (the basic ones and extended ones such as `steelblue` and `rebeccapurple`, which come from the core
+`CssColor` table), `transparent`, and invalid text (including the `rgb()` and `hsl()` function forms, `none`, and
+names that are not CSS colors).
 
 **ArgumentReader_ParseDegrees_ValidAngle_ReturnsNormalizedAngle** and **ArgumentReader_ParseDegrees_Invalid_ThrowsUsageError**:
 `-90` becomes 270, `450` becomes 90, `360` becomes 0, a `deg` suffix is accepted; text, `NaN`, and `Infinity` are
