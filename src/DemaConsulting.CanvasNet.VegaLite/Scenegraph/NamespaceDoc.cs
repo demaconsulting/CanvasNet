@@ -3,7 +3,8 @@ namespace DemaConsulting.CanvasNet.VegaLite.Scenegraph;
 /// <summary>
 ///     The <c>Scenegraph</c> namespace is the last stage of the pipeline and the only one that touches pixels: an
 ///     immutable description of what to draw (<c>SceneModel</c>: groups, rectangles, rules, paths, symbols and text with
-///     resolved geometry and CSS paints), the parser for the CSS colors those paints use (<c>CssColor</c>) and the
+///     resolved geometry and CSS paints), the paint rules for the CSS colors those paints use (<c>CssPaint</c>, on top of
+///     the core <c>CssColor</c> parser) and the
 ///     painter that draws a scene onto a core <c>Surface</c> (<c>ScenePainter</c>).
 /// </summary>
 /// <remarks>

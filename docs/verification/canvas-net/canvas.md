@@ -1,7 +1,7 @@
 ## Canvas Subsystem Verification Design
 
 This document describes the subsystem-level verification strategy for the `Canvas` subsystem
-(the `Surface` unit and the `Rgba32` value-type unit).
+(the `Surface` unit, the `Rgba32` value-type unit, and the `CssColor` parser unit).
 
 ### Verification Approach
 
@@ -12,7 +12,8 @@ resampling API (requirements `CanvasNet-Canvas-Resize`, `-ResizeAlpha`, `-Resize
 `-ResizeToFit`) in isolation. No separate
 subsystem-level tests exist; the subsystem-level requirements reuse the same `Surface` unit tests
 as verification evidence, alongside the `Rgba32` unit's own tests (see _Rgba32 Unit Verification
-Design_, `canvas/rgba32.md`); the `Canvas` subsystem contains exactly these two units.
+Design_, `canvas/rgba32.md`) and the `CssColor` unit's own tests (see _CssColor Unit Verification Design_,
+`canvas/css-color.md`); the `Canvas` subsystem contains exactly these three units.
 
 ### Test Environment
 
@@ -29,7 +30,9 @@ exception.
 ### Test Scenarios
 
 The `Canvas` subsystem's test scenarios are those named in _Rgba32 Unit Verification Design_
-(`canvas/rgba32.md`) plus those named in _Surface Unit Verification Design_
+(`canvas/rgba32.md`), those named in _CssColor Unit Verification Design_ (`canvas/css-color.md`:
+hexadecimal and named colors, `rgb()`/`hsl()` functions, rounding and clamping, invalid text, and
+formatting), plus those named in _Surface Unit Verification Design_
 (`canvas/surface.md`): construction and invariants, indexer and span-accessor boundary conditions,
 `Crop` normal/boundary/error paths, `Resize`/`ResizeToFit` size, filter, premultiplied-alpha (no color
 fringe) and argument-validation behavior (`CanvasNet-Canvas-Resize*`),

@@ -1,4 +1,3 @@
-// cspell:ignore rebeccapurple aliceblue darkslategray darkslategrey yellowgreen dodgerblue nosuchcolor
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Scad.Geometry;
 using static DemaConsulting.CanvasNet.Scad.Tests.Geometry.ScadGeometryTestSupport;
@@ -6,8 +5,9 @@ using static DemaConsulting.CanvasNet.Scad.Tests.Geometry.ScadGeometryTestSuppor
 namespace DemaConsulting.CanvasNet.Scad.Tests.Geometry;
 
 /// <summary>
-///     Unit tests of <see cref="ScadColors"/> and <see cref="ScadColorTable"/>: the accepted color forms, the
-///     innermost-wins rule, invalid values, and the alpha channel of the appearance.
+///     Unit tests of <see cref="ScadColors"/>: the accepted color forms (names and hexadecimal strings through the
+///     shared core parser, and vectors), the innermost-wins rule, invalid values, and the alpha channel of the
+///     appearance.
 /// </summary>
 public class ScadColorsTests
 {
@@ -23,37 +23,21 @@ public class ScadColorsTests
     }
 
     /// <summary>
-    ///     Validates the size and a sample of the named-color table.
+    ///     Validates that named colors come from the shared CSS table, in any case, with <c>transparent</c> keeping its
+    ///     zero alpha.
     /// </summary>
     [Fact]
-    public void ScadColorTable_Colors_HoldTheCssNamesAndTransparent()
+    public void ScadColors_Names_RenderAsTheSharedCssTable()
     {
-        // Arrange / Act
-        var colors = ScadColorTable.Colors;
-
-        // Assert: 148 CSS names plus transparent, case-insensitive
-        Assert.Equal(149, colors.Count);
-        Assert.Equal(new Rgba32(255, 0, 0, 255), colors["red"]);
-        Assert.Equal(new Rgba32(255, 0, 0, 255), colors["RED"]);
-        Assert.Equal(new Rgba32(0x66, 0x33, 0x99, 255), colors["RebeccaPurple"]);
-        Assert.Equal(colors["gray"], colors["grey"]);
-        Assert.Equal(colors["darkslategray"], colors["darkslategrey"]);
-        Assert.Equal(new Rgba32(0, 0, 0, 0), colors["transparent"]);
-        Assert.Equal(new Rgba32(0xF0, 0xF8, 0xFF, 255), colors["aliceblue"]);
-        Assert.Equal(new Rgba32(0x9A, 0xCD, 0x32, 255), colors["yellowgreen"]);
-    }
-
-    /// <summary>
-    ///     Validates that every named color renders as exactly its table entry, opaque, except <c>transparent</c>.
-    /// </summary>
-    [Fact]
-    public void ScadColors_EveryName_RendersAsItsTableEntry()
-    {
-        // Arrange / Act / Assert
-        foreach (var (name, expected) in ScadColorTable.Colors.Where(c => c.Key != "transparent"))
-        {
-            Assert.Equal(expected, ColorOf($"color(\"{name}\")"));
-        }
+        // Arrange / Act / Assert: a sample across the table, case-insensitive, grey spellings equal
+        Assert.Equal(new Rgba32(255, 0, 0, 255), ColorOf("color(\"red\")"));
+        Assert.Equal(new Rgba32(255, 0, 0, 255), ColorOf("color(\"RED\")"));
+        Assert.Equal(new Rgba32(0x66, 0x33, 0x99, 255), ColorOf("color(\"RebeccaPurple\")"));
+        Assert.Equal(ColorOf("color(\"gray\")"), ColorOf("color(\"grey\")"));
+        Assert.Equal(ColorOf("color(\"darkslategray\")"), ColorOf("color(\"darkslategrey\")"));
+        Assert.Equal(new Rgba32(0, 0, 0, 0), ColorOf("color(\"transparent\")"));
+        Assert.Equal(new Rgba32(0xF0, 0xF8, 0xFF, 255), ColorOf("color(\"aliceblue\")"));
+        Assert.Equal(new Rgba32(0x9A, 0xCD, 0x32, 255), ColorOf("color(\"yellowgreen\")"));
     }
 
     /// <summary>
@@ -169,13 +153,18 @@ public class ScadColorsTests
     /// </summary>
     /// <param name="call">The color call.</param>
     [Theory]
-    [InlineData("color(\"nosuchcolor\")")]
+    [InlineData("color(\"bogus\")")]
     [InlineData("color(\"\")")]
     [InlineData("color(\"#12\")")]
     [InlineData("color(\"#12345\")")]
     [InlineData("color(\"#ggg\")")]
     [InlineData("color(\"#-12\")")]
     [InlineData("color(\"#+12\")")]
+    [InlineData("color(\"rgb(255, 0, 0)\")")]
+    [InlineData("color(\"rgba(255, 0, 0, 0.5)\")")]
+    [InlineData("color(\"hsl(0, 100%, 50%)\")")]
+    [InlineData("color(\" red\")")]
+    [InlineData("color(\"none\")")]
     [InlineData("color(5)")]
     [InlineData("color([1, 2])")]
     [InlineData("color([1, 2, 3, 4, 5])")]

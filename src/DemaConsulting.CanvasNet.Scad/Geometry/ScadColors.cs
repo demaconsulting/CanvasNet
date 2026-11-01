@@ -1,5 +1,4 @@
 // cspell:ignore rrggbbaa
-using System.Globalization;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Render3D.SceneModel;
 using DemaConsulting.CanvasNet.Scad.Evaluation;
@@ -11,9 +10,10 @@ namespace DemaConsulting.CanvasNet.Scad.Geometry;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         <b>Forms.</b> <c>color(c, alpha)</c> takes <c>c</c> as a name from the CSS named-color table
-///         (<see cref="ScadColorTable"/>, case-insensitive), a hexadecimal string <c>"#rgb"</c>, <c>"#rgba"</c>,
-///         <c>"#rrggbb"</c> or <c>"#rrggbbaa"</c>, or a vector <c>[r, g, b]</c> or <c>[r, g, b, a]</c> of numbers
+///         <b>Forms.</b> <c>color(c, alpha)</c> takes <c>c</c> as a name from the CSS named-color table of the core
+///         library (<see cref="CssColor.TryGetNamedColor"/>, case-insensitive), a hexadecimal string <c>"#rgb"</c>,
+///         <c>"#rgba"</c>, <c>"#rrggbb"</c> or <c>"#rrggbbaa"</c> (<see cref="CssColor.TryParseHex"/>), or a vector
+///         <c>[r, g, b]</c> or <c>[r, g, b, a]</c> of numbers
 ///         from 0 to 1 (values outside are clamped); the <c>alpha</c> argument overrides any alpha in <c>c</c>.
 ///         Channels are rounded to the nearest of 256 levels.
 ///     </para>
@@ -143,59 +143,24 @@ internal static class ScadColors
     /// <param name="color">The opaque color when valid.</param>
     /// <param name="alpha">The alpha from 0 to 1 when valid.</param>
     /// <returns><see langword="true"/> when the text is a known name or a valid hexadecimal color.</returns>
+    /// <remarks>
+    ///     The grammar is deliberately narrower than <see cref="CssColor.TryParse"/>: only the shared name table and
+    ///     hexadecimal digits are accepted, so a string such as <c>"rgb(255, 0, 0)"</c> is not a color here.
+    /// </remarks>
     private static bool TryParseString(string text, out Rgba32 color, out double alpha)
     {
         color = default;
         alpha = 1.0;
-        if (text.StartsWith('#'))
-        {
-            return TryParseHex(text.AsSpan(1), out color, out alpha);
-        }
-
-        if (!ScadColorTable.Colors.TryGetValue(text, out var named))
+        var found = text.StartsWith('#')
+            ? CssColor.TryParseHex(text.AsSpan(1), out var parsed)
+            : CssColor.TryGetNamedColor(text, out parsed);
+        if (!found)
         {
             return false;
         }
 
-        color = new Rgba32(named.R, named.G, named.B, 255);
-        alpha = named.A / 255.0;
-        return true;
-    }
-
-    /// <summary>
-    ///     Parses the digits of a hexadecimal color (three, four, six or eight digits).
-    /// </summary>
-    /// <param name="digits">The digits after the <c>#</c>.</param>
-    /// <param name="color">The opaque color when valid.</param>
-    /// <param name="alpha">The alpha from 0 to 1 when valid.</param>
-    /// <returns><see langword="true"/> when the digits are a valid color.</returns>
-    private static bool TryParseHex(ReadOnlySpan<char> digits, out Rgba32 color, out double alpha)
-    {
-        color = default;
-        alpha = 1.0;
-        if (digits.Length is not (3 or 4 or 6 or 8))
-        {
-            return false;
-        }
-
-        // Short forms repeat each digit; the long forms use two digits per channel
-        var width = digits.Length <= 4 ? 1 : 2;
-        var channels = digits.Length / width;
-        Span<int> values = stackalloc int[4];
-        values[3] = 255;
-        for (var i = 0; i < channels; i++)
-        {
-            // AllowHexSpecifier accepts hexadecimal digits only (no sign, no white space)
-            if (!int.TryParse(digits.Slice(i * width, width), NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out var parsed))
-            {
-                return false;
-            }
-
-            values[i] = width == 1 ? parsed * 17 : parsed;
-        }
-
-        color = new Rgba32((byte)values[0], (byte)values[1], (byte)values[2], 255);
-        alpha = values[3] / 255.0;
+        color = new Rgba32(parsed.R, parsed.G, parsed.B, 255);
+        alpha = parsed.A / 255.0;
         return true;
     }
 

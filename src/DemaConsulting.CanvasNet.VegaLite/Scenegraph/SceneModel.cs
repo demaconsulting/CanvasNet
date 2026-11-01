@@ -40,7 +40,7 @@ internal readonly record struct SceneEntry(SceneItem Item, double OffsetX, doubl
 ///     <para>
 ///         <b>Paints.</b> Colors are CSS color strings exactly as the specification and the configuration spell them
 ///         (<c>#4c78a8</c>, <c>rgba(0,0,0,0.5)</c>, <c>steelblue</c>); <see langword="null"/> (or <c>none</c>) means "no
-///         paint". They are parsed by <see cref="CssColor"/> when the scene is painted, so a test can assert the exact
+///         paint". They are parsed by the core <see cref="DemaConsulting.CanvasNet.Canvas.CssColor"/> when the scene is painted, so a test can assert the exact
 ///         string a mark received. Opacities multiply: the fill is drawn with <c>FillOpacity * Opacity</c> and the stroke
 ///         with <c>StrokeOpacity * Opacity</c>. A stroke without a <see cref="StrokeWidth"/> is one pixel wide, as in Vega.
 ///         A fill can also be a <see cref="SceneGradient"/> (<see cref="FillGradient"/>), which takes the place of the

@@ -117,8 +117,9 @@ sections:
       - id: CanvasNetTool-ArgumentReader-Color
         title: >-
           The ArgumentReader class shall parse a color written `#RGB`, `#RGBA`, `#RRGGBB`, or
-          `#RRGGBBAA` (CSS order, alpha last, `#` optional), as a color name, or as `transparent`,
-          and reject anything else with a usage error.
+          `#RRGGBBAA` (CSS order, alpha last, `#` optional), as any of the 148 CSS color names, or as
+          `transparent`, delegating the names and hexadecimal digits to the core CssColor unit, and
+          reject anything else (including the rgb() and hsl() function forms) with a usage error.
         justification: |
           Background and padding colors are specified in the notation people already know from CSS;
           the alpha pair comes last, unlike the leading alpha of the core library's own parser, and

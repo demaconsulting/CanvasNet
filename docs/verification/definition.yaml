@@ -9,6 +9,7 @@ input-files:
   - docs/verification/canvas-net/canvas.md
   - docs/verification/canvas-net/canvas/surface.md
   - docs/verification/canvas-net/canvas/rgba32.md
+  - docs/verification/canvas-net/canvas/css-color.md
   - docs/verification/canvas-net/codecs.md
   - docs/verification/canvas-net/codecs/bmp-codec.md
   - docs/verification/canvas-net/codecs/png-codec.md
@@ -127,7 +128,7 @@ input-files:
   - docs/verification/canvas-net-vega-lite/scenegraph.md
   - docs/verification/canvas-net-vega-lite/scenegraph/scene-model.md
   - docs/verification/canvas-net-vega-lite/scenegraph/scene-painter.md
-  - docs/verification/canvas-net-vega-lite/scenegraph/css-color.md
+  - docs/verification/canvas-net-vega-lite/scenegraph/css-paint.md
   - docs/verification/canvas-net-vega-lite/scenegraph/arc-geometry.md
   - docs/verification/canvas-net-tool.md
   - docs/verification/canvas-net-tool/program.md

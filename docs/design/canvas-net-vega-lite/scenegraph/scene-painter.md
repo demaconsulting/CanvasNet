@@ -169,7 +169,8 @@ point that is not usable only ends its run), and an unknown shape is a circle.
 #### Dependencies
 
 - **`Scene`** and the item types - the `SceneModel` unit
-- **`CssColor`** - color parsing, in the `CssColor` unit
+- **`CssPaint`** - the paint rules (no paint, opacity), in the `CssPaint` unit
+- **Core `CssColor`** - the parsing of every color string (`DemaConsulting.CanvasNet.Canvas`, public API)
 - **`ArcGeometry`** and **`ArcPathWriter`** - the outline of a `SceneArc` and the path calls for the capsules of a trail,
   in the `ArcGeometry` unit
 - **`TextMeasurer`** - font resolution and text lines, in the `Guides` subsystem

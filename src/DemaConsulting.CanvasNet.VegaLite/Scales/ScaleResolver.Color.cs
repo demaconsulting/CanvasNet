@@ -1,4 +1,5 @@
 // Portions derived from Vega-Lite and Vega (BSD-3-Clause), d3-scale and d3-interpolate (ISC); see third-party/README.md
+using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.VegaLite.Data;
 using DemaConsulting.CanvasNet.VegaLite.Expressions;
 using DemaConsulting.CanvasNet.VegaLite.Scenegraph;

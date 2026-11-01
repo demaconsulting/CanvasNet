@@ -306,6 +306,46 @@ result alpha is zero (both pixels fully transparent) the result is `(0, 0, 0, 0)
 combination is valid, the method never throws, and it uses the same formula and rounding as
 `Surface.CompositeOver(Rgba32)`. For many pixels use the `Surface` operations, which are vectorized.
 
+### CssColor
+
+`CssColor` is a public static class that turns CSS color text into `Rgba32` values and back. It is the one color
+grammar shared by every CanvasNet package, so the same text gives the same pixel in an SVG document, a Vega-Lite
+chart specification, and a tool option.
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+
+Rgba32 blue = CssColor.Parse("#4c78a8");                        // (76, 120, 168, 255)
+Rgba32 half = CssColor.Parse("rgba(255, 0, 0, 0.5)");           // (255, 0, 0, 128)
+Rgba32 same = CssColor.Parse("hsl(0 100% 50% / 50%)");          // (255, 0, 0, 128)
+
+if (CssColor.TryParse("rebeccapurple", out var purple))         // (102, 51, 153, 255)
+{
+    Console.WriteLine(CssColor.ToCss(purple));                  // Output: #663399
+}
+```
+
+`TryParse(string?, out Rgba32)` accepts surrounding white space and:
+
+- hexadecimal `#rgb`, `#rgba`, `#rrggbb`, and `#rrggbbaa` (the alpha pair comes **last**, as in CSS; this differs
+  from `Rgba32.Parse`, which reads `#AARRGGBB`);
+- the 148 CSS named colors (`steelblue`, `rebeccapurple`, both `gray` and `grey` spellings, and so on) and
+  `transparent`, in any letter case;
+- `rgb()` and `rgba()` with numbers (0 to 255) or percentages and an optional alpha as a number (0 to 1) or a
+  percentage, written with commas or with spaces and a slash (`rgb(10 20 30 / 50%)`);
+- `hsl()` and `hsla()` with a hue in degrees (or with the unit `deg`, `rad`, `grad`, or `turn`), saturation and
+  lightness as percentages, and the same alpha forms.
+
+Out-of-range values are clamped and fractions are rounded half away from zero (`rgb(30%, 0, 0)` has the red channel
+77). `TryParse` returns `false` (and `default`) for anything else, including `null`, empty text, and `none`, and never
+throws. `Parse(string)` is the throwing counterpart: `ArgumentNullException` for `null`, `FormatException` for text
+that is not a color.
+
+The building blocks are public for callers that accept a narrower grammar than CSS:
+`TryParseHex(ReadOnlySpan<char>, out Rgba32)` parses just the digits after the `#` (3, 4, 6, or 8 hexadecimal digits),
+and `TryGetNamedColor(string?, out Rgba32)` looks up an exact color name or `transparent`.
+`ToCss(Rgba32)` formats a color as `#rrggbb`, or `#rrggbbaa` when it is not opaque, and `NamedColorCount` is 148.
+
 ### ImageInfo
 
 ```csharp

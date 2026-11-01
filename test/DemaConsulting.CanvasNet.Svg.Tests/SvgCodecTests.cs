@@ -8155,6 +8155,55 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Proves that a paint is parsed with the shared CSS color grammar of the core library, which
+    ///     is wider than the original codec grammar: <c>#rgba</c>/<c>#rrggbbaa</c> hex, <c>hsl()</c>,
+    ///     and the space-and-slash <c>rgb()</c> syntax all resolve to the straight-alpha color CSS
+    ///     defines for them.
+    /// </summary>
+    /// <param name="fill">The <c>fill</c> attribute value.</param>
+    /// <param name="r">The expected red channel.</param>
+    /// <param name="g">The expected green channel.</param>
+    /// <param name="b">The expected blue channel.</param>
+    /// <param name="a">The expected alpha channel.</param>
+    [Theory]
+    [InlineData("#0f08", 0, 255, 0, 136)]
+    [InlineData("#00ff0080", 0, 255, 0, 128)]
+    [InlineData("hsl(120, 100%, 50%)", 0, 255, 0, 255)]
+    [InlineData("hsla(120 100% 50% / 50%)", 0, 255, 0, 128)]
+    [InlineData("rgb(0 255 0 / 50%)", 0, 255, 0, 128)]
+    [InlineData("RebeccaPurple", 102, 51, 153, 255)]
+    public void SvgCodec_Load_FillSharedCssGrammar_ResolvesExtendedColorForms(string fill, int r, int g, int b, int a)
+    {
+        // Arrange: one rect that covers the whole viewBox
+        var svg = $"<svg viewBox='0 0 10 10'><rect x='0' y='0' width='10' height='10' fill='{fill}'/></svg>";
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert: the interior pixel is fully covered, so it holds exactly the parsed straight-alpha color
+        Assert.Equal(new Rgba32((byte)r, (byte)g, (byte)b, (byte)a), surface[50, 50]);
+    }
+
+    /// <summary>
+    ///     Proves that fractional <c>rgb()</c> channels round half away from zero (the shared CSS color
+    ///     grammar's rule) rather than half to even: <c>30%</c> of 255 is 76.5, which is 77, not 76.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FillRgbPercentHalfwayChannel_RoundsHalfAwayFromZero()
+    {
+        // Arrange: a red channel of exactly 76.5
+        const string svg = "<svg viewBox='0 0 10 10'><rect x='0' y='0' width='10' height='10' fill='rgb(30%, 0, 0)'/></svg>";
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert
+        Assert.Equal(new Rgba32(77, 0, 0, 255), surface[50, 50]);
+    }
+
+    /// <summary>
     ///     Proves that a root <c>&lt;svg&gt;</c> element's <c>width</c>/<c>height</c> attribute
     ///     values of literal <c>Infinity</c> fall back to the CSS/UA default
     ///     <c>300x150</c> intrinsic size, rather than the undefined/saturated integer size that

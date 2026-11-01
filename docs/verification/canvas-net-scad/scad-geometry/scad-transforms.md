@@ -3,8 +3,8 @@
 <!-- cspell:ignore multmatrix newsize mislocated RRGGBBAA -->
 
 This document describes the unit-level verification strategy for the `ScadTransforms` unit: the internal
-`ScadTransforms` (`translate`, `rotate`, `scale`, `mirror`, `multmatrix`, `resize`), `ScadColors` (`color` and
-color parsing), and `ScadColorTable` (the named-color table), in the `DemaConsulting.CanvasNet.Scad.Geometry`
+`ScadTransforms` (`translate`, `rotate`, `scale`, `mirror`, `multmatrix`, `resize`) and `ScadColors` (`color` and
+color parsing on top of the core `CssColor` table), in the `DemaConsulting.CanvasNet.Scad.Geometry`
 namespace.
 
 #### Verification Approach
@@ -229,15 +229,14 @@ box, and that `resize([1, 2, 3]) { }` builds nothing and is silent.
 
 ##### CanvasNetScad-ScadGeometry-ScadTransforms-ColorForms: Color Values
 
-**Tests**: `ScadColorsTests.ScadColorTable_Colors_HoldTheCssNamesAndTransparent`,
-`ScadColorsTests.ScadColors_EveryName_RendersAsItsTableEntry`,
+**Tests**: `ScadColorsTests.ScadColors_Names_RenderAsTheSharedCssTable`,
 `ScadColorsTests.ScadColors_Forms_GiveTheExpectedOpaqueColor`
 
-Asserts that the table has exactly 149 entries with spot values (`red`, `RED`, `RebeccaPurple`, `aliceblue`,
-`yellowgreen`, the equal `gray` and `grey` pairs, and `transparent`), that every table entry except `transparent`
-renders as exactly its table color, and that names in any case, positional and named `c`, `#rgb`, `#rrggbb` in
-either case, vectors with clamping (`[2, -1, 0.5]` gives 255, 0, 128), and rounding give the expected opaque bytes
-with no warning or report.
+Asserts that named colors come from the shared core table with spot values (`red`, `RED`, `RebeccaPurple`,
+`aliceblue`, `yellowgreen`, the equal `gray` and `grey` pairs, and `transparent` with alpha 0), and that names in any
+case, positional and named `c`, `#rgb`, `#rrggbb` in either case, vectors with clamping (`[2, -1, 0.5]` gives 255,
+0, 128), and rounding give the expected opaque bytes with no warning or report. The table itself (148 names and
+every hexadecimal form) is verified by the core `CssColor` unit tests.
 
 ##### CanvasNetScad-ScadGeometry-ScadTransforms-ColorInvalid: Invalid Color
 
@@ -245,8 +244,10 @@ with no warning or report.
 `ScadColorsTests.ScadColors_InvalidAlpha_WarnsAndAppliesTheColor`,
 `ScadColorsTests.ScadColors_NoColorOrNoChildren_IsSilent`
 
-Asserts that an unknown name, an empty string, hexadecimal strings of the wrong length or with non-hexadecimal
-characters or a sign, a number, a boolean, a vector of the wrong length or with a non-number, and an infinite
+Asserts that an unknown name, an empty string, a name with a leading blank, `none`, a CSS function string
+(`rgb(255, 0, 0)`, `rgba(255, 0, 0, 0.5)`, `hsl(0, 100%, 50%)`: the narrow Scad grammar does not take the wider CSS
+forms), hexadecimal strings of the wrong length or with non-hexadecimal characters or a sign, a number, a boolean,
+a vector of the wrong length or with a non-number, and an infinite
 channel each give one warning at the instance beginning with `color:` and a cube without an appearance; that a
 non-numeric alpha warns while the color applies; and that `color()` and `color("red") { }` are silent.
 

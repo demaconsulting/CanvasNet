@@ -34,6 +34,7 @@ sections:
           - CanvasNetSvg-SvgCodec-GroupTransformInheritance
           - CanvasNetSvg-SvgCodec-TransformFunctions
           - CanvasNetSvg-SvgCodec-PresentationAttributes
+          - CanvasNetSvg-SvgCodec-ColorGrammar
           - CanvasNetSvg-SvgCodec-Gradients
           - CanvasNetSvg-SvgCodec-GradientHrefInheritance
           - CanvasNetSvg-SvgCodec-UseElement

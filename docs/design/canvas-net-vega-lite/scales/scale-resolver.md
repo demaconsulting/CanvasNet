@@ -482,7 +482,7 @@ reported by the `FeatureCatalog`, and the resolver falls back or ignores them as
   **`ColorSchemes`**, **`ColorInterpolator`**, and **`ColorRamp`** - the models, the
   nice rules,
   the scheme catalog and its range configuration, and the color interpolation
-- **`CssColor`** - the reading of the colors of a list of colors
+- **`CssColor`** (core `CanvasNet`, `Canvas` subsystem) - the reading of the colors of a list of colors
 - **`EncodingPlan`**, **`EncodingData`**, **`ChannelPlan`**, **`BinSpec`**, and **`StackOffset`** - the plan and the tables
   of the implicit pipeline (the `EncodingPlan` unit), which also reuses `InferOrient` of this unit
 - **`MeasureCell`**, **`MeasureEnvironment`**, **`WorkMeter`**, **`AggregateMeasures`**, and **`TableLayout`** - the

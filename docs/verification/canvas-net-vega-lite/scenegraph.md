@@ -3,13 +3,15 @@
 This document describes the subsystem-level verification strategy for the `Scenegraph` subsystem (internal namespace
 `DemaConsulting.CanvasNet.VegaLite.Scenegraph`), containing four units: `SceneModel` (the immutable scene records, the
 bounds helper, and the scene budget), `ScenePainter` (the scene to `Surface` painter), `ArcGeometry` (the outline of an
-arc mark, with the d3-path emulation that the trail painter shares), and `CssColor` (CSS color text to `Rgba32`).
+arc mark, with the d3-path emulation that the trail painter shares), and `CssPaint` (the chart paint rules on top of the
+core `CssColor` parser).
 
 ### Verification Approach
 
 The `Scenegraph` subsystem is verified at two tiers. The unit tests (see the unit verification designs under
 `scenegraph/`) verify each unit in isolation. The subsystem-level scenarios verify the units working together: the
-painter reads the immutable scene records, parses their CSS color strings with `CssColor` (so the scene carries the
+painter reads the immutable scene records, parses their CSS color strings with `CssPaint` and the core `CssColor`
+(so the scene carries the
 colors exactly as the specification and the configuration spell them, which is what the tests of the earlier stages
 assert), builds the outline of an arc item with `ArcGeometry`, and draws them to a real `Surface` with the core path
 filler, path stroker, and text renderer.

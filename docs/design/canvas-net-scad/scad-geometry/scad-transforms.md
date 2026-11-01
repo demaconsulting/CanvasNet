@@ -1,16 +1,16 @@
 ### ScadTransforms
 
-<!-- cspell:ignore multmatrix newsize unioned underflows evaluator subtree aliceblue yellowgreen rebeccapurple -->
+<!-- cspell:ignore multmatrix newsize unioned underflows evaluator subtree -->
 
-The `ScadTransforms` unit is the third software unit in the `ScadGeometry` subsystem. It comprises four source
+The `ScadTransforms` unit is the third software unit in the `ScadGeometry` subsystem. It comprises three source
 files in the `DemaConsulting.CanvasNet.Scad.Geometry` namespace, all `internal`:
 
 - `ScadTransforms.cs` — `ScadTransforms` (static partial class): `translate`, `rotate`, `scale`, `mirror`,
   `multmatrix`, the shared `Apply` step, the singularity rule, the argument readers, and the invalid-argument
   helper
 - `ScadTransforms.Resize.cs` — the `resize` module and its per-axis factor computation
-- `ScadColors.cs` — `ScadColors` (static class): the `color` module and the parsing of color values
-- `ScadColorTable.cs` — `ScadColorTable` (static class): the immutable table of named colors
+- `ScadColors.cs` — `ScadColors` (static class): the `color` module and the parsing of color values, on top of
+  the named-color table and hexadecimal parser of the core `CssColor` unit
 
 #### Purpose
 
@@ -60,9 +60,8 @@ Render3D convention (`CreateTranslation`, `CreateScale`, `CreateRotationX/Y/Z`, 
 **`SingularTolerance`** is `1e-12`: a determinant whose magnitude is at most this fraction of the product of the
 row lengths of the linear part is treated as zero.
 
-**`ScadColorTable.Colors`** is a `FrozenDictionary<string, Rgba32>` with an ordinal case-insensitive comparer
-holding the 148 CSS named colors (the extended color keywords, including both `gray` and `grey` spellings) plus
-`transparent` (0, 0, 0, 0): 149 entries. It is immutable and thread-safe.
+The named colors are not held by this unit: they come from the core `CssColor` table (the 148 CSS named
+colors plus `transparent` (0, 0, 0, 0)), which is immutable and thread-safe.
 
 #### Key Methods
 
@@ -152,10 +151,12 @@ the requested size:
 
 `Color(node, results, context)` binds `c` and `alpha`:
 
-- `c` goes through **`TryParse`**: a string is a name from `ScadColorTable.Colors` (case-insensitive) or, when
-  it starts with `#`, a hexadecimal color with 3 (`#rgb`), 4 (`#rgba`), 6, or 8 digits (**`TryParseHex`**:
-  short forms repeat each digit by multiplying with 17, only hexadecimal digits are accepted — no sign and no
-  white space); a vector of three or four numbers is clamped to 0..1 per channel and rounded to the nearest of
+- `c` goes through **`TryParse`**: a string is a name from the core `CssColor` table
+  (`CssColor.TryGetNamedColor`, case-insensitive) or, when it starts with `#`, a hexadecimal color with 3
+  (`#rgb`), 4 (`#rgba`), 6, or 8 digits (`CssColor.TryParseHex`: short forms repeat each digit, only
+  hexadecimal digits are accepted — no sign and no white space). The string grammar is deliberately the
+  narrow one: `"rgb(255, 0, 0)"` and `"hsl(...)"` are not colors here (`CssColor.TryParse` is not used). A vector
+  of three or four numbers is clamped to 0..1 per channel and rounded to the nearest of
   256 levels, rounding half away from zero (`ToByte`). Anything else is invalid.
   The parsed color is **always opaque** (`A = 255`); the alpha of the value (4th vector component, the last two
   hex digits, or the table entry — `transparent` has alpha 0) is returned separately.
@@ -233,8 +234,11 @@ All other problems are warnings.
   of a 2D shape.
 - **Render3D public types** — `Matrix4x4D`, `Vector3D`, `BoundingBox3D`, `GroupNode`, `NodeAppearance`,
   `Scene`.
-- **Core types** — `Rgba32` (`DemaConsulting.CanvasNet.Canvas`).
-- **.NET base class library** — `System.Collections.Frozen`, `System.Globalization` (invariant parsing).
+- **Core types** — `Rgba32` and `CssColor` (`DemaConsulting.CanvasNet.Canvas`): the named-color table
+  (`CssColor.TryGetNamedColor`) and the hexadecimal digit parser (`CssColor.TryParseHex`) behind the `color`
+  module. The unit deliberately does not use `CssColor.TryParse`, whose wider grammar (`rgb()`, `hsl()`) is not
+  part of the OpenSCAD `color` module.
+- **.NET base class library** — `System.Math` (rounding of vector channels).
 
 #### Callers
 
@@ -243,6 +247,7 @@ All other problems are warnings.
 iterative walk calls each once per instance, after the children are built. The unit tests in
 `test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadTransformsTests.cs`, `ScadResizeTests.cs`, and
 `ScadColorsTests.cs` evaluate small programs through `ScadGeometryTestSupport.Build` (the evaluator and the
-builder through `InternalsVisibleTo`) and call `ScadColorTable.Colors` directly. The approximate-bounds report
+builder through `InternalsVisibleTo`) and check the color forms through the resulting appearance. The
+approximate-bounds report
 of `resize` is additionally exercised by `ScadGeometryBuilderBooleanTests` and the deep transform chains by
 `ScadGeometryBuilderTransformDepthTests` and `ScadGeometryBuilderStackTests`.

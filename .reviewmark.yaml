@@ -152,6 +152,22 @@ reviews:
       - "src/DemaConsulting.CanvasNet/Canvas/Rgba32.cs"          # unit source
       - "test/DemaConsulting.CanvasNet.Tests/Canvas/Rgba32Tests.cs"  # unit tests
 
+  # CanvasNet-Canvas-CssColor Review (one per unit)
+  - id: CanvasNet-Canvas-CssColor
+    title: Review that CanvasNet Canvas CssColor Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+      - "docs/design/canvas-net/canvas.md"
+      - "docs/reqstream/canvas-net/canvas.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/canvas/css-color.yaml"      # unit requirements
+      - "docs/design/canvas-net/canvas/css-color.md"          # unit design
+      - "docs/verification/canvas-net/canvas/css-color.md"    # unit verification
+      - "docs/sysml2/model/canvas-net/canvas/css-color.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet/Canvas/CssColor.cs"        # unit source
+      - "test/DemaConsulting.CanvasNet.Tests/Canvas/CssColorTests.cs"  # unit tests
+
   # CanvasNet-Codecs Review (one per subsystem)
   - id: CanvasNet-Codecs
     title: Review that CanvasNet Codecs Subsystem Implementation is Correct
@@ -1840,7 +1856,6 @@ reviews:
       - "docs/sysml2/model/canvas-net-scad/scad-geometry/scad-transforms.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.Scad/Geometry/ScadTransforms*.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Scad/Geometry/ScadColors.cs"    # unit source
-      - "src/DemaConsulting.CanvasNet.Scad/Geometry/ScadColorTable.cs"  # unit source (color table provenance check)
       - "test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadTransformsTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadResizeTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadColorsTests.cs"  # unit tests
@@ -2781,21 +2796,21 @@ reviews:
       - "src/DemaConsulting.CanvasNet.VegaLite/third-party/README.md"  # provenance of the ported d3-shape arc
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/ArcGeometryTests.cs"  # unit tests
 
-  # CanvasNetVegaLite-Scenegraph-CssColor Review (one per unit)
-  - id: CanvasNetVegaLite-Scenegraph-CssColor
-    title: Review that CanvasNetVegaLite Scenegraph CssColor Implementation is Correct
+  # CanvasNetVegaLite-Scenegraph-CssPaint Review (one per unit)
+  - id: CanvasNetVegaLite-Scenegraph-CssPaint
+    title: Review that CanvasNetVegaLite Scenegraph CssPaint Implementation is Correct
     context:
       - "docs/design/canvas-net-vega-lite.md"
       - "docs/reqstream/canvas-net-vega-lite.yaml"
       - "docs/design/canvas-net-vega-lite/scenegraph.md"
       - "docs/reqstream/canvas-net-vega-lite/scenegraph.yaml"
     paths:
-      - "docs/reqstream/canvas-net-vega-lite/scenegraph/css-color.yaml"  # unit requirements
-      - "docs/design/canvas-net-vega-lite/scenegraph/css-color.md"    # unit design
-      - "docs/verification/canvas-net-vega-lite/scenegraph/css-color.md"  # unit verification
-      - "docs/sysml2/model/canvas-net-vega-lite/scenegraph/css-color.sysml"  # unit SysML2 model
-      - "src/DemaConsulting.CanvasNet.VegaLite/Scenegraph/CssColor.cs"  # unit source
-      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/CssColorTests.cs"  # unit tests
+      - "docs/reqstream/canvas-net-vega-lite/scenegraph/css-paint.yaml"  # unit requirements
+      - "docs/design/canvas-net-vega-lite/scenegraph/css-paint.md"    # unit design
+      - "docs/verification/canvas-net-vega-lite/scenegraph/css-paint.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/scenegraph/css-paint.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Scenegraph/CssPaint.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scenegraph/CssPaintTests.cs"  # unit tests
 
   # CanvasNetTool-Architecture Review (one per system)
   - id: CanvasNetTool-Architecture
