@@ -62,15 +62,18 @@ sections:
                   file's header-level tables (offset table, table directory, head, maxp, name,
                   OS/2, post; for a collection, its face offset table) rather than the whole file,
                   yielding the same family, subfamily and bold/italic/fixed-pitch metadata a full
-                  load would.
+                  load would, and shall treat a face whose name table declares a length above a fixed
+                  cap (1 MiB, far above any real font's) as malformed rather than allocating it.
                 justification: |
                   The first render builds the catalog by scanning every installed font; reading
                   every font file fully dominated cold-start cost while only name and style
-                  metadata are needed.
+                  metadata are needed, and a crafted font's declared table length must not decide
+                  how much memory a scan allocates.
                 tests:
                   - SystemFontCatalog_Fonts_HeaderOnlyScan_MatchesFullLoadForSyntheticFacesAndCollections
                   - SystemFontCatalog_Fonts_HeaderOnlyScan_MatchesFullLoadForBundledFonts
                   - SfntHeaderReader_ReadFace_ReadsOnlyHeaderBytesOfLargeFont
+                  - SfntHeaderReader_ReadFace_HugeDeclaredNameTable_IsRejectedWithoutReadingIt
 
               - id: CanvasNet-Fonts-SystemFontCatalog-FindBestMatchExactFamily
                 title: >-

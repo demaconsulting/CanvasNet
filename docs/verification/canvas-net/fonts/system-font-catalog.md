@@ -71,12 +71,15 @@ per process.
 
 **Tests**: `SystemFontCatalog_Fonts_HeaderOnlyScan_MatchesFullLoadForSyntheticFacesAndCollections`,
 `SystemFontCatalog_Fonts_HeaderOnlyScan_MatchesFullLoadForBundledFonts`,
-`SfntHeaderReader_ReadFace_ReadsOnlyHeaderBytesOfLargeFont`
+`SfntHeaderReader_ReadFace_ReadsOnlyHeaderBytesOfLargeFont`,
+`SfntHeaderReader_ReadFace_HugeDeclaredNameTable_IsRejectedWithoutReadingIt`
 
 Asserts the catalog entries for synthetic single-face and `.ttc` fonts (with `name`/`OS/2`/`post`
-tables) and for every bundled font equal the metadata a full `TrueTypeFont.Load` reports, and that
+tables) and for every bundled font equal the metadata a full `TrueTypeFont.Load` reports, that
 reading one face of a font padded with a 1 MiB glyph table reads under 4 KiB through a byte-counting
-stream wrapper (no timing is asserted).
+stream wrapper (no timing is asserted), and that a face whose `name` table declares 512 MiB (a
+sparse in-bounds "file" served by a test stream) is rejected with `InvalidDataException` after reading
+under 4 KiB, never allocating the table.
 
 ##### CanvasNet-Fonts-SystemFontCatalog-ToleratesMissingOrUnparseable: Missing/Unparseable Inputs Are Skipped
 

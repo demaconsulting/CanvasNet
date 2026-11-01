@@ -73,7 +73,10 @@ requires `CFF`) plus presence-only checks for `head`/`maxp`/`hhea`/`hmtx` and `l
 `CFF`, a non-zero `head.unitsPerEm`, a `maxp` version consistent with the outline flavor, and (for
 glyf-flavored faces) a valid `head.indexToLocFormat` (matching `TrueTypeFont.Load`), and delegates
 to the same `NameTable`/`StyleTable` parsers `TrueTypeFont` uses, so a valid
-font yields identical metadata. Behavioral difference: a face with valid headers but corrupt
+font yields identical metadata. The `name` table is read whole, so a face whose `name` table
+declares more than 1 MiB (the largest among the bundled and the Windows fonts is about 26 KB) is
+treated as malformed and skipped: a declared length only has to lie within the file, so without
+the cap a crafted (or sparse) font could force a huge allocation. Behavioral difference: a face with valid headers but corrupt
 glyph data is now listed (it only fails when actually loaded), and a standalone Type 1 program
 with a `.ttf`/`.otf` extension is no longer catalogued. A
 missing or inaccessible directory, an unparseable candidate file, or a single corrupt face within

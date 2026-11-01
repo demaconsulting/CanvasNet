@@ -58,6 +58,25 @@ internal static class SfntHeaderReader
     private const int MaxpPrefix = 6;
 
     /// <summary>
+    ///     The largest <c>name</c> table, in bytes, that is read: the table is read whole, so a declared length
+    ///     (which only has to lie within the file) must not decide how much is allocated. A real name table is a
+    ///     few tens of kilobytes at most (the largest among the bundled and the Windows fonts is about 26 KB), so
+    ///     1 MiB is far above any real font; a face that declares more is treated as malformed.
+    /// </summary>
+    private const int MaxNameTableBytes = 1024 * 1024;
+
+    /// <summary>
+    ///     Checks a declared <c>name</c> table length against <see cref="MaxNameTableBytes"/>.
+    /// </summary>
+    /// <param name="length">The declared length.</param>
+    /// <returns>The length, as an <see cref="int"/>.</returns>
+    /// <exception cref="InvalidDataException">Thrown when the length exceeds the bound.</exception>
+    private static int RequireNameTableLength(long length) =>
+        length <= MaxNameTableBytes
+            ? (int)length
+            : throw new InvalidDataException("The 'name' table is larger than any real font's.");
+
+    /// <summary>
     ///     Reports how many faces <paramref name="stream"/> holds: the <c>ttcf</c> face count, or
     ///     <c>1</c> for an ordinary (non-collection) file.
     /// </summary>
@@ -99,7 +118,7 @@ internal static class SfntHeaderReader
         var macStyle = ValidateHeadAndMaxp(stream, tables, isCff);
 
         var name = tables.TryGetValue("name", out var nameRange)
-            ? NameTable.Parse(ReadAt(stream, nameRange.Offset, checked((int)nameRange.Length)), 0, (int)nameRange.Length)
+            ? NameTable.Parse(ReadAt(stream, nameRange.Offset, RequireNameTableLength(nameRange.Length)), 0, (int)nameRange.Length)
             : NameTable.Empty;
 
         // OS/2 and post are packed (truncated to the bytes StyleTable reads) into one small buffer.

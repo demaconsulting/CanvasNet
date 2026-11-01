@@ -421,6 +421,38 @@ public class SystemFontCatalogTests
     }
 
     /// <summary>
+    ///     Proves that a face whose <c>name</c> table declares a huge (but in-bounds, as in a sparse file) length
+    ///     is rejected as malformed without that table being allocated or read.
+    /// </summary>
+    [Fact]
+    public void SfntHeaderReader_ReadFace_HugeDeclaredNameTable_IsRejectedWithoutReadingIt()
+    {
+        var font = BuildStyledFont("Alpha", "Regular", 400, 0x40, 0);
+        const uint declared = 512u * 1024 * 1024;
+
+        // Rewrite the declared length of the 'name' table; the "file" is long enough to hold it, so only the
+        // cap on the table size stands between the reader and a half-gigabyte allocation
+        long fileLength = font.Length;
+        var tableCount = (font[4] << 8) | font[5];
+        for (var i = 0; i < tableCount; i++)
+        {
+            var entry = 12 + (16 * i);
+            if (System.Text.Encoding.ASCII.GetString(font, entry, 4) == "name")
+            {
+                var offset = System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(font.AsSpan(entry + 8));
+                System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(font.AsSpan(entry + 12), declared);
+                fileLength = offset + (long)declared;
+            }
+        }
+
+        Assert.True(fileLength > declared);
+        using var counting = new CountingStream(new SparseStream(font, fileLength));
+
+        Assert.Throws<InvalidDataException>(() => SfntHeaderReader.ReadFace(counting, 0));
+        Assert.True(counting.BytesRead < 4096, $"Read {counting.BytesRead} bytes.");
+    }
+
+    /// <summary>
     ///     Proves that structurally inconsistent headers - an <c>OTTO</c> font without <c>CFF </c>,
     ///     a missing required table, a <c>maxp</c> inconsistent with the outline flavor, a zero
     ///     <c>unitsPerEm</c>, an invalid <c>indexToLocFormat</c>, a table or TTC face offset beyond
@@ -664,6 +696,53 @@ public class SystemFontCatalogTests
             .AddTable("OS/2", SyntheticFontBuilder.Os2(weight, fsSelection))
             .AddTable("post", SyntheticFontBuilder.Post(isFixedPitch))
             .Build();
+    }
+
+    /// <summary>A read-only seekable stream of a declared length whose bytes are a prefix followed by zeros (a sparse file).</summary>
+    private sealed class SparseStream(byte[] prefix, long length) : Stream
+    {
+        public override bool CanRead => true;
+
+        public override bool CanSeek => true;
+
+        public override bool CanWrite => false;
+
+        public override long Length => length;
+
+        public override long Position { get; set; }
+
+        public override void Flush()
+        {
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) => Read(buffer.AsSpan(offset, count));
+
+        public override int Read(Span<byte> buffer)
+        {
+            var count = (int)Math.Min(buffer.Length, Math.Max(0, length - Position));
+            for (var i = 0; i < count; i++)
+            {
+                buffer[i] = Position + i < prefix.Length ? prefix[Position + i] : (byte)0;
+            }
+
+            Position += count;
+            return count;
+        }
+
+        public override long Seek(long offset, SeekOrigin origin)
+        {
+            Position = origin switch
+            {
+                SeekOrigin.Begin => offset,
+                SeekOrigin.Current => Position + offset,
+                _ => length + offset,
+            };
+            return Position;
+        }
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
     /// <summary>A read-only seekable stream wrapper that counts the bytes read through it.</summary>
