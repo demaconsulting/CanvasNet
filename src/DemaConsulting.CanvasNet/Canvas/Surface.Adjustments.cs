@@ -200,7 +200,11 @@ public sealed partial class Surface
     ///     Otsu's method picks a threshold from the image itself, so a photograph needs no trial and error; the exact sums
     ///     and the rule for ties make the chosen level the same on every machine.
     /// </remarks>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="histogram"/> does not have 256 entries or has a negative count.</exception>
+    /// <exception cref="ArgumentException">
+    ///     Thrown when <paramref name="histogram"/> does not have 256 entries, has a negative count, or has counts so large
+    ///     that the sums or the score products do not fit a 64-bit integer (a histogram of any real image, at most
+    ///     <see cref="MaxDimension"/> squared pixels, always fits).
+    /// </exception>
     public static int OtsuThreshold(ReadOnlySpan<long> histogram)
     {
         if (histogram.Length != LevelCount)
@@ -208,50 +212,78 @@ public sealed partial class Surface
             throw new ArgumentException("The histogram must have 256 entries.", nameof(histogram));
         }
 
-        long total = 0;
-        long sum = 0;
-        for (var level = 0; level < LevelCount; level++)
+        foreach (var count in histogram)
         {
-            if (histogram[level] < 0)
+            if (count < 0)
             {
                 throw new ArgumentException("A histogram count cannot be negative.", nameof(histogram));
             }
-
-            total += histogram[level];
-            sum += level * histogram[level];
         }
 
-        long w0 = 0;
-        long s0 = 0;
-        var bestScore = -1.0;
-        var first = -1;
-        var last = -1;
-        for (var t = 0; t < LevelCount - 1; t++)
+        // The sums and score products are checked: a caller-supplied histogram with enormous counts must be
+        // rejected, not silently wrapped into a wrong threshold (any histogram of a real image fits easily)
+        try
         {
-            w0 += histogram[t];
-            s0 += t * histogram[t];
-            var w1 = total - w0;
-            if (w0 == 0 || w1 == 0)
-            {
-                continue;
-            }
-
-            var s1 = sum - s0;
-            var numerator = (double)((w1 * s0) - (w0 * s1));
-            var score = numerator * numerator / ((double)w0 * w1);
-            if (score > bestScore)
-            {
-                bestScore = score;
-                first = t;
-                last = t;
-            }
-            else if (score.CompareTo(bestScore) == 0)
-            {
-                last = t;
-            }
+            return OtsuThresholdChecked(histogram);
         }
+        catch (OverflowException)
+        {
+            throw new ArgumentException(
+                "The histogram counts are too large: their sums and products must fit a 64-bit integer.",
+                nameof(histogram));
+        }
+    }
 
-        return first < 0 ? OtsuFallback : (first + last) / 2;
+    /// <summary>
+    ///     Runs Otsu's method with checked 64-bit arithmetic.
+    /// </summary>
+    /// <param name="histogram">The 256 counts of the luma levels, already validated for length and sign.</param>
+    /// <returns>The threshold, as documented on <see cref="OtsuThreshold"/>.</returns>
+    /// <exception cref="OverflowException">Thrown when a sum or a score product does not fit a 64-bit integer.</exception>
+    private static int OtsuThresholdChecked(ReadOnlySpan<long> histogram)
+    {
+        checked
+        {
+            long total = 0;
+            long sum = 0;
+            for (var level = 0; level < LevelCount; level++)
+            {
+                total += histogram[level];
+                sum += level * histogram[level];
+            }
+
+            long w0 = 0;
+            long s0 = 0;
+            var bestScore = -1.0;
+            var first = -1;
+            var last = -1;
+            for (var t = 0; t < LevelCount - 1; t++)
+            {
+                w0 += histogram[t];
+                s0 += t * histogram[t];
+                var w1 = total - w0;
+                if (w0 == 0 || w1 == 0)
+                {
+                    continue;
+                }
+
+                var s1 = sum - s0;
+                var numerator = (double)((w1 * s0) - (w0 * s1));
+                var score = numerator * numerator / ((double)w0 * w1);
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    first = t;
+                    last = t;
+                }
+                else if (score.CompareTo(bestScore) == 0)
+                {
+                    last = t;
+                }
+            }
+
+            return first < 0 ? OtsuFallback : (first + last) / 2;
+        }
     }
 
     /// <summary>

@@ -66,7 +66,10 @@ black otherwise; level 255 gives an all-black result and level 0 makes only luma
 score(t) = ((double)(w1 * S0 - w0 * S1))^2 / ((double)w0 * w1)
 ```
 
-(the between-class variance up to a constant factor; `w1 * S0` is at most about 6.7e7 * 1.7e10, which fits a `long`;
+(the between-class variance up to a constant factor; for the histogram of any image up to `MaxDimension` squared pixels
+`w1 * S0` is at most about 6.7e7 * 1.7e10, which fits a `long`; the sums and products are computed in a `checked`
+context, so a caller-supplied histogram with counts too large for a `long` throws `ArgumentException` instead of
+wrapping into a wrong threshold;
 the final division is the only inexact step and is deterministic IEEE arithmetic). The candidate with the largest score
 wins. **Ties**: a gap of empty levels between two modes gives candidates with the same `(w0, S0)` and so bit-identical
 scores, and the result is the middle of the plateau, `T = (tFirst + tLast) / 2` with integer division, where `tFirst`
@@ -104,7 +107,8 @@ and applied to all three channels, so hues are preserved; a color cast is not re
 
 The adjustments have no expected runtime errors: a threshold, brightness, contrast, clip, gamma, or level outside its
 range throws `ArgumentOutOfRangeException`; a black level not below the white level, a table or histogram that does not
-have 256 entries, or a histogram with a negative count throws `ArgumentException`; every instance method throws
+have 256 entries, a histogram with a negative count, or a histogram whose sums or score products overflow a 64-bit
+integer throws `ArgumentException`; every instance method throws
 `ObjectDisposedException` on a disposed surface. Arguments are validated before any pixel is changed, so a failed call
 leaves the surface as it was. The command-line tool validates user input first and reports usage errors, so any
 exception from here is a defect of the caller.

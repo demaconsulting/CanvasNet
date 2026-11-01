@@ -70,7 +70,9 @@ sections:
                   The Surface class shall choose the automatic threshold of a 256-bin luma histogram as the level
                   from 0 to 254 that maximizes the between-class variance, calculated with exact 64-bit integer
                   sums, taking the middle of the first and last of the levels that tie ((first + last) / 2 with
-                  integer division) and returning 127 when no level has pixels on both sides.
+                  integer division) and returning 127 when no level has pixels on both sides, and shall reject a
+                  histogram whose sums or score products do not fit a 64-bit integer with ArgumentException instead of
+                  wrapping.
                 justification: |
                   Otsu's method picks a threshold from the image itself, so that a photograph needs no trial and
                   error; exact sums and a rule for ties make the chosen level the same on every machine.
@@ -78,6 +80,8 @@ sections:
                   - Surface_OtsuThreshold_TwoLevels_ReturnsMiddleOfGap
                   - Surface_OtsuThreshold_SingleLevel_ReturnsFallback127
                   - Surface_OtsuThreshold_UnevenClasses_SeparatesModes
+                  - Surface_OtsuThreshold_LargestImageCounts_ReturnsUnchangedResult
+                  - Surface_OtsuThreshold_CountsTooLargeForInt64_ThrowsArgumentException
 
               - id: CanvasNet-Canvas-SurfaceAdjustments-Levels
                 title: >-
@@ -145,7 +149,8 @@ sections:
                   The Surface class shall reject a threshold outside 0 to 255, a brightness outside -255 to 255, a
                   contrast that is not a number from -100 to 100, a clip that is not a number from 0 to 20, a
                   levels range or gamma outside its limits, and a table or histogram that does not have 256 entries
-                  (or has a negative count), and shall reject an adjustment of a disposed surface with
+                  (or has a negative count or counts too large for 64-bit sums), and shall reject an adjustment
+                  of a disposed surface with
                   ObjectDisposedException.
                 justification: |
                   Each of these is a defect of the caller and must fail fast and clearly, before any pixel is

@@ -242,6 +242,35 @@ public class SurfaceAdjustmentsTests
     }
 
     /// <summary>
+    ///     Verifies that Otsu's method gives the same result for the histogram of a largest-size image as for small counts.
+    /// </summary>
+    [Fact]
+    public void Surface_OtsuThreshold_LargestImageCounts_ReturnsUnchangedResult()
+    {
+        // A two-level histogram of a 8192 x 8192 image: the same gap rule as for 100 and 100 pixels
+        const long half = (long)Surface.MaxDimension * Surface.MaxDimension / 2;
+
+        Assert.Equal(109, Surface.OtsuThreshold(Histogram((20, half), (200, half))));
+        Assert.Equal(129, Surface.OtsuThreshold(Histogram((30, 900 * 60_000L), (40, 100 * 60_000L), (220, 50 * 60_000L))));
+    }
+
+    /// <summary>
+    ///     Verifies that Otsu's method rejects counts whose sums or products do not fit a 64-bit integer.
+    /// </summary>
+    [Fact]
+    public void Surface_OtsuThreshold_CountsTooLargeForInt64_ThrowsArgumentException()
+    {
+        // The total of two bins at the maximum overflows
+        Assert.Throws<ArgumentException>(() => Surface.OtsuThreshold(Histogram((20, long.MaxValue), (200, long.MaxValue))));
+
+        // The total fits, but the weighted sum (level * count) does not
+        Assert.Throws<ArgumentException>(() => Surface.OtsuThreshold(Histogram((255, long.MaxValue / 2))));
+
+        // The totals fit, but the score product w1 * S0 does not
+        Assert.Throws<ArgumentException>(() => Surface.OtsuThreshold(Histogram((10, long.MaxValue / 1000), (200, long.MaxValue / 1000))));
+    }
+
+    /// <summary>
     ///     Verifies that a levels table maps the endpoints and the midtone and that gamma moves the midtone.
     /// </summary>
     [Fact]

@@ -70,10 +70,14 @@ pixel is white; results are opaque.
 ##### CanvasNet-Canvas-SurfaceAdjustments-Otsu: Otsu Threshold
 
 **Tests**: `Surface_OtsuThreshold_TwoLevels_ReturnsMiddleOfGap`, `Surface_OtsuThreshold_SingleLevel_ReturnsFallback127`,
-`Surface_OtsuThreshold_UnevenClasses_SeparatesModes`
+`Surface_OtsuThreshold_UnevenClasses_SeparatesModes`, `Surface_OtsuThreshold_LargestImageCounts_ReturnsUnchangedResult`,
+`Surface_OtsuThreshold_CountsTooLargeForInt64_ThrowsArgumentException`
 
 `{20: 100, 200: 100}` gives 109; a single level, an empty histogram, and a single pixel level 255 give 127;
-`{30: 900, 40: 100, 220: 50}` gives 129.
+`{30: 900, 40: 100, 220: 50}` gives 129. The same two shapes scaled to the pixel count of a largest-size image
+(8192 by 8192) give the same 109 and 129. Counts that overflow a 64-bit integer throw `ArgumentException`: two bins at
+`long.MaxValue` (the total), one bin of `long.MaxValue / 2` at level 255 (the weighted sum), and two bins of
+`long.MaxValue / 1000` (the score product).
 
 ##### CanvasNet-Canvas-SurfaceAdjustments-Levels: Levels
 
