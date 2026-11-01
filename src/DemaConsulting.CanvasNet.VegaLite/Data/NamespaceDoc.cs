@@ -7,7 +7,8 @@ namespace DemaConsulting.CanvasNet.VegaLite.Data;
 /// </summary>
 /// <remarks>
 ///     The namespace is internal to the package and never uses the network. The only file access is the sandboxed
-///     reading of the local data files a chart names (<c>DataFileResolver</c>): relative paths under the base directory
+///     reading of the local data files a chart names (<c>DataFileResolver</c>, a thin layer over the core
+///     <c>SandboxedFileResolver</c>): relative paths under the base directory
 ///     and data paths of the open options, or the caller's resolver callback, with every link rejected and every read
 ///     bounded; remote data (a URL with a scheme or an absolute path) is never opened and yields an empty table that the
 ///     feature catalog reports. Inline rows, local CSV, TSV, DSV and JSON files, named datasets and generated sequences

@@ -1798,6 +1798,142 @@ the same row-vector composition convention as `Gradient.WithTransform`.
   not finite, or when `xStep`/`yStep` is not finite or is zero; thrown by `WithTransform` when the
   composed transform has a non-finite component.
 
+### SandboxedFileResolver
+
+```csharp
+namespace DemaConsulting.CanvasNet.Files;
+
+public sealed record SandboxOptions
+{
+    public string? BaseDirectory { get; init; }
+    public IReadOnlyList<string> SearchPaths { get; init; }      // default: empty
+    public Func<string, Stream?>? FileResolver { get; init; }
+    public long MaxFileBytes { get; init; }                      // default: 16 MiB
+}
+
+public sealed class SandboxedFileResolver
+{
+    public SandboxedFileResolver(SandboxOptions options, CancellationToken cancellationToken = default);
+    public bool HasSource { get; }
+    public StringComparer KeyComparer { get; }
+    public SandboxedFile? Resolve(string path, SandboxedFile? relativeTo = null);
+}
+
+public sealed class SandboxedFile
+{
+    public string Key { get; }
+    public string Directory { get; }
+    public string Root { get; }
+    public ReadOnlyMemory<byte> Content { get; }
+}
+
+public sealed class SandboxException : Exception
+{
+    public SandboxFailureKind Kind { get; }
+    public string Path { get; }
+    public string? Detail { get; }
+}
+
+public enum SandboxFailureKind
+{
+    EmptyPath, ControlCharacter, ColonInPath, AbsolutePath, OutsideRoot,
+    ThroughLink, LinkCheckFailed, CannotRead, TooLarge, InvalidRoot,
+}
+```
+
+`SandboxedFileResolver` turns an **untrusted relative path** (the text of an include directive, a data URL, a
+manifest entry) into the bytes of a file that is guaranteed to lie inside directories you chose, and refuses
+everything else. It is the resolver that the Vega-Lite and OpenSCAD packages use for their local files.
+
+`Resolve` looks for the path in `relativeTo`'s directory when you pass the file a reference came from (so a
+nested reference starts where the referring file lives), otherwise in `BaseDirectory`, and then in each entry of
+`SearchPaths`, in order; the first file that exists wins. It returns `null` when no candidate exists (a missing
+file is not an error). A backslash is the same as a slash. Each root is trusted, including a root you reach
+through a link; the files below it are not:
+
+- An empty or white-space path, an absolute path (a leading slash or backslash, UNC), a drive letter or any colon,
+  and any control character (C0, DEL, or C1) are refused before anything is touched. A `..` that would leave the
+  root the path is derived from is refused (`OutsideRoot`), even when the target exists; `.` and `..` that stay
+  inside the root are normalized.
+- A file that is, or lies below, a **symbolic link or junction** inside a root is refused (`ThroughLink`),
+  whatever the link points to, and a link that points nowhere is a link, not a missing file. If the link check
+  itself fails, the file is refused (`LinkCheckFailed`). To use linked content, name the real directory as a search
+  path.
+- A directory where a file is expected, a file that cannot be opened (for lack of permission, for example), and a
+  stream that fails are `CannotRead` - never "missing". Files are opened read-only and tolerate other programs
+  reading, writing, renaming, or deleting them at the same time.
+- At most `MaxFileBytes` bytes are read; a longer file (or a stream that never ends) is `TooLarge`. The bytes
+  come back in `SandboxedFile.Content`; decoding them is up to you.
+- With a `FileResolver` callback the file system is never touched: the callback receives the normalized logical
+  path (first under the logical root, then under each valid `SearchPaths` entry used as a prefix), on the calling
+  thread, at most once per path, and returns a readable stream (disposed by the resolver) or `null`. A callback
+  that throws, or whose stream fails, is `CannotRead`; a cancellation passes through unchanged.
+
+Every refusal is a `SandboxException`. Branch on `Kind` (never on the message): `Detail` is the reason phrase of
+a path-text failure (`the path is empty`, ...) or, for `ThroughLink`, the link's path relative to its root, and
+`Path` is the path as written (control characters replaced) for the path-text kinds and `OutsideRoot`, and
+otherwise the file's full path. **The message never contains a host directory** and is safe to show to the author
+of the path; `Path` of a file failure is the full path, so show it only to trusted callers, and the cause (when
+there is one) is the inner exception. An already canceled `CancellationToken` throws
+`OperationCanceledException` before anything is read.
+
+Each distinct file is read **once per resolver**, and a miss is remembered too, so a resolver serves one logical
+operation (one render, one document) and is then dropped. **An instance is not thread-safe**: use one per
+operation, or serialize access. `SandboxOptions` and the returned `SandboxedFile` are immutable and may be
+shared. Use `resolver.KeyComparer` to decide whether two `Key` values name the same file (it is ordinal for
+callback paths and case-insensitive for full paths on Windows and macOS).
+
+**Security note.** The sandbox protects against path-based escapes in a *static* directory tree. It is **not a
+security boundary against a concurrent local attacker** with write access to your directories: the link check and
+the open are separate operations, so a component swapped for a link between them is not noticed, and a hard link
+to a file outside the directories is read like any other file. Point it only at directories that untrusted
+parties cannot write to, or serve the files yourself with `FileResolver`.
+
+```csharp
+using System.Text;
+using DemaConsulting.CanvasNet.Files;
+
+var resolver = new SandboxedFileResolver(new SandboxOptions
+{
+    BaseDirectory = "/srv/site/content",
+    SearchPaths = ["/srv/site/shared"],
+    MaxFileBytes = 1_000_000,
+});
+
+try
+{
+    // "path" came from an untrusted document
+    var file = resolver.Resolve(path);
+    if (file is null)
+    {
+        Console.WriteLine("Not found.");
+    }
+    else
+    {
+        var text = Encoding.UTF8.GetString(file.Content.Span);
+
+        // A reference inside that file starts in the file's own directory
+        var included = resolver.Resolve("parts/header.txt", relativeTo: file);
+    }
+}
+catch (SandboxException ex) when (ex.Kind == SandboxFailureKind.ThroughLink)
+{
+    Console.WriteLine($"Links are not followed: {ex.Detail}");
+}
+catch (SandboxException ex)
+{
+    Console.WriteLine(ex.Message); // safe to show: names no host directory
+}
+```
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown by the constructor when `options` or its `SearchPaths` is null, and by `Resolve`
+  when `path` is null.
+- `ArgumentOutOfRangeException`: Thrown by the constructor when `MaxFileBytes` is not positive.
+- `SandboxException`: Thrown by `Resolve` for every refusal and read failure described above.
+- `OperationCanceledException`: Thrown by `Resolve` when the token is canceled.
+
 ## Examples
 
 ### Example 1: Surface Pixel Access

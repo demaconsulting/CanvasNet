@@ -25,6 +25,8 @@ public class ScadFileResolverSandboxTests
         "a\0b.scad",
         "a\u0001b.scad",
         "a\u007Fb.scad",
+        "a\u0085b.scad",
+        "a\u009Fb.scad",
         "a\nb.scad",
         "../x.scad",
         "..\\x.scad",
@@ -178,17 +180,24 @@ public class ScadFileResolverSandboxTests
     }
 
     /// <summary>
-    ///     Validates that a resolver exception is not wrapped.
+    ///     Validates that a resolver exception is a located read failure (the callback is untrusted code), that its own
+    ///     message is not copied, and that a cancellation raised by the callback passes through unchanged.
     /// </summary>
     [Fact]
-    public void ScadFileResolver_Load_ResolverException_Propagates()
+    public void ScadFileResolver_Load_ResolverException_IsLocatedReadFailure()
     {
         // Arrange
-        var options = new ScadOpenOptions { FileResolver = _ => throw new IOException("boom") };
+        var throwing = new ScadOpenOptions { FileResolver = _ => throw new IOException("boom") };
+        var canceling = new ScadOpenOptions { FileResolver = _ => throw new OperationCanceledException() };
 
-        // Act / Assert
-        var ex = Assert.Throws<IOException>(() => LoadDirectives(options, ["a.scad"]));
-        Assert.Equal("boom", ex.Message);
+        // Act
+        var ex = Assert.Throws<ScadEvaluationException>(() => LoadDirectives(throwing, ["a.scad"]));
+
+        // Assert
+        Assert.Contains("Include file 'a.scad' cannot be read", ex.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("boom", ex.Message, StringComparison.Ordinal);
+        Assert.Equal(1, ex.Location.Line);
+        Assert.Throws<OperationCanceledException>(() => LoadDirectives(canceling, ["a.scad"]));
     }
 
     /// <summary>

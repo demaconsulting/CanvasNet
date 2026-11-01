@@ -92,20 +92,21 @@ the six unit verification documents passes without error or unexpected exception
   The color of this scenario is a nominal column, so it claims nothing about a quantitative color.
 - **The Sandbox Refuses What It Must And Fails Closed**:
   `DataLoaderTests.DataLoader_Load_MissingLocalFileIsHardFailure`,
-  `DataFileResolverLinkTests.DataFileResolver_Load_LinkedDirectoryIsRejectedBeforeOpen`,
+  `DataFileResolverTests.DataFileResolver_Load_HostilePathTextIsRejectedWithoutAnyAccess`,
+  `DataFileResolverTests.DataFileResolver_Translate_EverySandboxKind_ProducesLocatedWording`,
   `DataFileResolverTests.DataFileResolver_Load_ExistingDirectoryAtFilePathIsLocatedReadFailure`,
-  `DataFileResolverTests.DataFileResolver_Load_ExistingFileOpenFailureIsLocatedReadFailure`,
-  `DataFileResolverTests.DataFileResolver_Load_FileNotFoundFromOpenIsMissingAndTriesNextRoot`,
+  `DataFileResolverTests.DataFileResolver_Load_CallbackStreamReadFailureIsLocated`,
   `DataFileResolverTests.DataFileResolver_Load_CallbackFailureIsLocatedReadFailure`,
   `DataLoaderTests.DataLoader_Load_JsonLoneSurrogateStringIsLocatedUnicodeFailure`,
   `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Data_MissingOrBlockedFileThrowsRenderException` —
   a missing file, a path outside the sandbox, and bytes that are not UTF-8 each fail with a located
-  `VegaLiteRenderException`, in lenient and strict mode alike, a file behind a link is refused before it is opened
-  (with the injected link probe), a directory in place of a file and a throwing resolver callback are located read
-  failures (never raw exceptions), an existing file whose open fails with an access or I/O error (raised by the
-  injected opener on every platform) is "cannot be read" and not "not found" while a "not found" from the open is a
-  missing candidate that lets the next root be tried, JSON text with an escaped lone surrogate is a located
-  invalid-Unicode failure, and an absolute path is remote data that is never opened.
+  `VegaLiteRenderException`, in lenient and strict mode alike, every refusal of the core sandbox (a path that is not
+  allowed, outside its root, behind a link, a link that cannot be checked, too large, an invalid configured directory)
+  is translated into a located error with Vega-Lite wording and without a host directory (the sandbox mechanics
+  themselves, with an injected link probe and open seam, are verified at the core `SandboxedFileResolver` unit), a
+  directory in place of a file and a throwing resolver callback are located read failures (never raw exceptions), JSON
+  text with an escaped lone surrogate is a located invalid-Unicode failure, and an absolute path is remote data that is
+  never opened.
 - **Named Datasets And Sequences**:
   `DataLoaderTests.DataLoader_Load_NamedDatasetsUseCallerPrecedence`,
   `DataLoaderTests.DataLoader_Load_CallerDateTimeMaxValuesClampToSupportedDate`,

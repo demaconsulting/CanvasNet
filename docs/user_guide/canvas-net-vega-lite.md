@@ -242,7 +242,8 @@ writing a file. The same `format.parse` rules apply to a named dataset.
 that exists wins. The rules are the same on every platform:
 
 - Only **relative** paths are read. A path that is empty, starts with a slash, has a drive letter or a colon, is a UNC
-  or network path, or contains a control character is refused. `.` and `..` are resolved, and a path that would leave
+  or network path, or contains a control character (including the C1 range) is refused. `.` and `..` are resolved,
+  and a path that would leave
   its folder (for example `../secret.csv`) is refused even if the file exists. A backslash is the same as a slash.
 - A **symbolic link or junction** inside a folder is never followed, whatever it points to: a file that is a link, or
   that lies below a directory that is a link, is refused before it is opened. The folder you name is trusted, including

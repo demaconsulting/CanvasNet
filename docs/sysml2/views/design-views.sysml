@@ -147,4 +147,8 @@ package CanvasNet {
     view RenderingView {
         expose Rendering;
     }
+
+    view FilesView {
+        expose Files;
+    }
 }

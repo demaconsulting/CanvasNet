@@ -1,0 +1,194 @@
+---
+# Software Unit Requirements for SandboxedFileResolver
+#
+# These requirements describe the design-level behavior of the SandboxedFileResolver unit of the Files
+# subsystem (namespace DemaConsulting.CanvasNet.Files): the public resolver that turns an untrusted relative path
+# into the bytes of a file inside caller-chosen directories (or a caller-supplied virtual file source), together
+# with the types it needs (SandboxOptions, SandboxedFile, SandboxException, SandboxFailureKind). It is the single
+# implementation of the sandbox rules that the Vega-Lite and OpenSCAD packages use for every local file, and it
+# is public so that library users can apply the same rules to their own untrusted paths. Each "tests" entry
+# cites an existing test method in the DemaConsulting.CanvasNet.Tests project; see
+# docs/verification/canvas-net/files/sandboxed-file-resolver.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Files Requirements
+        sections:
+          - title: SandboxedFileResolver Requirements
+            requirements:
+              - id: CanvasNet-Files-SandboxedFileResolver-Resolution
+                title: >-
+                  The SandboxedFileResolver class shall find the file a relative path names by searching,
+                  in order, the directory of the file the path is relative to (or, when none is given, the
+                  base directory) and then each search path, taking the first file that exists, shall treat
+                  backslashes as forward slashes so that every spelling of a path names one file, and shall
+                  return the file's key, directory, root, and bytes.
+                justification: |
+                  Callers write paths in different styles on different platforms and need one deterministic
+                  search order, with nested relative references (an include inside an included file) that
+                  start where the referring file lives.
+                tests:
+                  - SandboxedFileResolver_Resolve_RelativePathUsesBaseDirectoryThenSearchPaths
+                  - SandboxedFileResolver_Resolve_RelativeToFileStartsInItsDirectoryThenSearchPaths
+                  - SandboxedFileResolver_Resolve_ResolverModeRelativeToFileUsesItsLogicalDirectory
+
+              - id: CanvasNet-Files-SandboxedFileResolver-MissingFiles
+                title: >-
+                  The SandboxedFileResolver class shall report a path for which no candidate exists as no
+                  file (not as a failure), whether the candidates are on the file system or supplied by a
+                  callback, and shall report through HasSource whether any way of finding files is
+                  configured.
+                justification: |
+                  A missing file is an ordinary outcome that callers handle in their own way (a warning, an
+                  error, a fallback); only a refusal or a read failure is exceptional.
+                tests:
+                  - SandboxedFileResolver_Resolve_MissingFileReturnsNullAndNoSourceHasNone
+
+              - id: CanvasNet-Files-SandboxedFileResolver-PathText
+                title: >-
+                  The SandboxedFileResolver class shall reject, with a SandboxException of the matching
+                  kind and before any file-system access or callback request, an empty or white-space path,
+                  an absolute or rooted path, a drive or UNC path, a path containing a colon, and a path
+                  containing a control character (including NUL, DEL and the C1 range), and shall reject a
+                  null path with ArgumentNullException.
+                justification: |
+                  A path may come from an untrusted source; these forms are the usual ways to name something
+                  outside the intended directories, and the caller must be told which rule was broken.
+                tests:
+                  - SandboxedFileResolver_Resolve_HostilePathTextIsRejectedWithoutAnyAccess
+                  - SandboxedFileResolver_Resolve_NullPath_ThrowsArgumentNullException
+
+              - id: CanvasNet-Files-SandboxedFileResolver-Confinement
+                title: >-
+                  The SandboxedFileResolver class shall confine every candidate to the root it was derived
+                  from, rejecting with a SandboxException a path whose dot-dot segments leave that root
+                  (also for a path relative to a file, and also when the target exists, or lies in a
+                  sibling directory whose name merely starts with the root's name) while allowing dot-dot
+                  segments that stay inside the root, and shall report a configured base directory or
+                  search path that is not a valid path as a SandboxException.
+                justification: |
+                  Confinement is the point of the sandbox: untrusted text must never reach a file outside
+                  the directories the host chose.
+                tests:
+                  - SandboxedFileResolver_Resolve_DotDotInsideRootNormalizesAndEscapeIsRejected
+                  - SandboxedFileResolver_Resolve_SiblingWithSharedPrefixAndOutsideFileAreRefused
+                  - SandboxedFileResolver_Resolve_SearchPathConfinesCandidates
+                  - SandboxedFileResolver_Resolve_InvalidConfiguredDirectoryIsInvalidRoot
+
+              - id: CanvasNet-Files-SandboxedFileResolver-Links
+                title: >-
+                  In file-system mode the SandboxedFileResolver class shall refuse a file that is, or that
+                  lies beneath a directory that is, a symbolic link or junction below its root, whatever
+                  the link's target and including a dangling link, before the file is opened, naming the
+                  link relative to the root, shall judge a route that uses dot-dot segments on its
+                  normalized path, shall end the check at the first missing component, shall probe each
+                  component at most once, shall trust the root itself and everything above it, and shall
+                  fail closed (refuse the file) when the link check cannot be completed.
+                justification: |
+                  A link inside an allowed directory can point anywhere on the host, so a link is refused
+                  instead of followed; a check that cannot be completed must never fall back to reading the
+                  file; a dangling link must not be treated as a harmless missing file.
+                tests:
+                  - SandboxedFileResolver_Resolve_LinkedDirectoryIsRejectedBeforeOpen
+                  - SandboxedFileResolver_Resolve_LinkedFileIsRejectedBeforeOpen
+                  - SandboxedFileResolver_Resolve_LinkBelowSearchPathIsRejected
+                  - SandboxedFileResolver_Resolve_LinkedRootAndAncestorsAreTrusted
+                  - SandboxedFileResolver_Resolve_LinkAfterMissingComponentIsNotProbedAndFileIsMissing
+                  - SandboxedFileResolver_Resolve_MissingFinalComponentIsProbedAndDanglingLinkIsRejected
+                  - SandboxedFileResolver_Resolve_EveryComponentProbedOnceAndCached
+                  - SandboxedFileResolver_Resolve_DotDotRouteThroughLinkIsJudgedOnNormalizedPath
+                  - SandboxedFileResolver_Resolve_ProbeFailureFailsClosed
+
+              - id: CanvasNet-Files-SandboxedFileResolver-ResolverCallback
+                title: >-
+                  When the options supply a file resolver callback, the SandboxedFileResolver class shall
+                  use only that callback and shall not touch the file system, shall pass it only normalized
+                  logical paths (the logical root first, then each search path that is itself a valid
+                  logical path as a prefix) on the calling thread, shall dispose the stream it returns
+                  exactly once, and shall report a callback that throws, a failure while reading the
+                  stream, and a failure while disposing the stream as a SandboxException of kind CannotRead
+                  (keeping the cause as the inner exception), while letting a cancellation pass through
+                  unchanged.
+                justification: |
+                  Hosts that serve files from memory, archives, or a database need to control file access
+                  completely and must be able to trust that no other access happens; the callback is
+                  untrusted code, so its failures must never leak through the sandbox contract as raw
+                  exceptions.
+                tests:
+                  - SandboxedFileResolver_Resolve_ResolverModeUsesNormalizedLogicalPathsWithoutFileSystem
+                  - SandboxedFileResolver_Resolve_CallbackStreamReadFailureIsCannotRead
+                  - SandboxedFileResolver_Resolve_CallbackFailureIsCannotReadAndCancellationPassesThrough
+                  - SandboxedFileResolver_Resolve_StreamDisposeFailureIsCannotRead
+
+              - id: CanvasNet-Files-SandboxedFileResolver-Reading
+                title: >-
+                  The SandboxedFileResolver class shall report an existing directory where a file is
+                  expected, and an existing file that cannot be opened (an access or I/O failure, whatever
+                  an existence check reports), as a SandboxException of kind CannotRead that is never
+                  reported as missing and that ends the search, while a file that the open itself reports
+                  as not found is missing and lets the search continue with the next root; it shall open
+                  files read-only with FileShare.ReadWrite and FileShare.Delete.
+                justification: |
+                  An inaccessible file is not a missing one, so the caller can tell the author the real
+                  cause instead of sending them to look for a typo; permissive sharing keeps a concurrent
+                  writer or rename from failing the read; a raw I/O exception must not escape the
+                  documented contract.
+                tests:
+                  - SandboxedFileResolver_Resolve_ExistingDirectoryAtFilePathIsCannotRead
+                  - SandboxedFileResolver_Resolve_ExistingFileOpenFailureIsCannotRead
+                  - SandboxedFileResolver_Resolve_FileNotFoundFromOpenIsMissingAndTriesNextRoot
+                  - SandboxedFileResolver_Resolve_MissingFinalComponentIsDecidedByTheOpen
+                  - SandboxedFileResolver_Resolve_FileHeldOpenByWriterIsStillRead
+
+              - id: CanvasNet-Files-SandboxedFileResolver-SizeLimit
+                title: >-
+                  The SandboxedFileResolver class shall read at most the configured number of bytes of a
+                  file, from a real file and from a callback stream alike, accepting exactly the limit,
+                  failing with a SandboxException of kind TooLarge for a longer file, and stopping a stream
+                  that never ends one chunk past the limit.
+                justification: |
+                  A file is untrusted input and a stream may never end; an unbounded read would exhaust
+                  memory.
+                tests:
+                  - SandboxedFileResolver_Resolve_MaxFileBytesAtLimitAndOneOver
+                  - SandboxedFileResolver_Resolve_EndlessStreamStopsAtBound
+
+              - id: CanvasNet-Files-SandboxedFileResolver-Cache
+                title: >-
+                  The SandboxedFileResolver class shall look up each distinct candidate at most once per
+                  instance, remembering a miss as well as a hit and returning the same file instance for a
+                  file reached again under any spelling, and shall expose the key comparer under which two
+                  file keys name the same file (ordinal for logical paths, the platform's path comparison
+                  for full paths).
+                justification: |
+                  Repeated reads would multiply the cost of a hostile input and let a file change between
+                  two reads of one operation; callers need the comparer to detect cycles.
+                tests:
+                  - SandboxedFileResolver_Resolve_CacheRequestsEachCandidateOncePerResolver
+                  - SandboxedFileResolver_Resolve_FileSystemFilesAreCachedPerResolver
+                  - SandboxedFileResolver_KeyComparer_FollowsModeAndPlatform
+
+              - id: CanvasNet-Files-SandboxedFileResolver-Cancellation
+                title: >-
+                  The SandboxedFileResolver class shall honor cancellation: it shall make no request and
+                  open no file when the token is already canceled, throwing OperationCanceledException.
+                justification: |
+                  Reading may touch slow storage; a caller must be able to abandon it promptly.
+                tests:
+                  - SandboxedFileResolver_Resolve_CanceledTokenStopsBeforeAnyRequest
+
+              - id: CanvasNet-Files-SandboxedFileResolver-Failures
+                title: >-
+                  The SandboxException class shall carry the failure kind, the path the failure is about,
+                  and a kind-specific detail, keep the underlying cause as the inner exception, and have a
+                  message that names no host directory; the SandboxedFileResolver constructor shall reject
+                  a null options object or search path list and a non-positive size limit.
+                justification: |
+                  Callers turn a refusal into their own error type with their own wording and location
+                  without parsing text, and must not leak host directories to the author of an untrusted
+                  path; invalid configuration should fail immediately.
+                tests:
+                  - SandboxException_Constructor_EveryKind_KeepsFactsAndHidesHostPath
+                  - SandboxException_Constructor_NullPath_ThrowsArgumentNullException
+                  - SandboxedFileResolver_Constructor_InvalidArguments_Throw

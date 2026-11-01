@@ -1,95 +1,48 @@
+using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.Scad.Language;
 
 namespace DemaConsulting.CanvasNet.Scad.Evaluation;
 
 /// <summary>
-///     Path handling of <see cref="ScadFileResolver"/>: validation, candidate generation, the sandbox and reading.
+///     File access of <see cref="ScadFileResolver"/>: the bridge to the core sandbox, the decoding and parsing of what it
+///     returns, the display names of files and the translation of sandbox refusals into OpenSCAD wording.
 /// </summary>
 /// <remarks>
 ///     <para>
-///         <b>Path text.</b> Backslashes are first turned into forward slashes, so <c>a\b.scad</c> and
-///         <c>a/b.scad</c> are the same path on every platform. An empty path, a control character (including NUL),
-///         a colon anywhere (drive letters and alternate data streams) and a leading slash (absolute and UNC paths)
-///         are sandbox violations. A <c>..</c> that would leave the root a candidate is derived from is a sandbox
-///         violation too; <c>..</c> that stays inside the root is fine.
+///         <b>Delegation.</b> Everything that makes the access safe is done by the core
+///         <see cref="SandboxedFileResolver"/>: validation of the path text (an empty path, a control character, a colon,
+///         a leading slash), confinement of every candidate to the root it was derived from (the base directory or a
+///         library path), the refusal of symbolic links and junctions below a root whatever their target (a dangling
+///         final link included), the open and bounded read, the resolver-callback mode with normalized logical paths and
+///         the per-call file cache. The candidates are, in order, the directory of the including file and each library
+///         path; the including file is the <see cref="SandboxedFile"/> that the previous resolution returned.
 ///     </para>
 ///     <para>
-///         <b>File-system mode</b> (no resolver callback): the roots are the base directory and each library path as
-///         full paths. A candidate is the full path of the text combined with a directory and must lie under the root
-///         that directory belongs to (ordinal comparison; case-insensitive on Windows and macOS). Every component below
-///         the root, including the file itself, must not be a symbolic link or junction, whatever its target: the
-///         candidate is walked top-down from the root, only existing components are probed (a missing component means
-///         the file is missing, and nothing below it is examined), each component is probed once per resolver, and a
-///         probe that fails rejects the file. The root itself and everything above it are trusted, because the caller
-///         chose them. The check precedes opening the file, so nothing is read through a link and a file behind a link
-///         is not reported as existing. A caller who wants to use linked content adds the real directory as a library
-///         path. A concurrent change of the tree between the check and the open is not defended against.
-///     </para>
-///     <para>
-///         <b>Resolver mode</b>: no file system access happens. Candidates are normalized logical paths (forward
-///         slashes, no leading slash, <c>.</c> and <c>..</c> collapsed) handed to the callback; the first candidate that
-///         yields a stream wins. The logical root is the empty path; each library path that is itself a valid logical
-///         path is used as a logical directory prefix, and library paths that are not valid logical paths are ignored.
-///         The base directory plays no role in this mode.
+///         <b>What stays here.</b> The bytes the sandbox returns are decoded as UTF-8 with byte-order-mark detection and
+///         bounded to <see cref="ScadParser.MaxSourceLength"/> characters, parsed once per file, and named for locations
+///         (the path relative to the base directory with forward slashes when the file is under it, otherwise the full
+///         or logical path). A missing file is a warning; every other sandbox refusal, including a file that exists but
+///         cannot be read (a directory where a file is expected, a failing callback), is a located
+///         <see cref="ScadEvaluationException"/>.
 ///     </para>
 /// </remarks>
 internal sealed partial class ScadFileResolver
 {
-    /// <summary>The comparison used to decide whether a path is under a root and to compare file keys on this platform.</summary>
-    private static readonly StringComparison PathComparison =
-        OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+    /// <summary>
+    ///     The largest file, in bytes, the sandbox may read: four bytes per character of the source limit (the widest
+    ///     encoding the decoder detects, UTF-32) plus a four-byte byte-order mark, so the exact character limit is
+    ///     enforced on the decoded text and the byte bound only stops hostile streams.
+    /// </summary>
+    private const long MaxSourceBytes = (4L * ScadParser.MaxSourceLength) + 4;
 
-    /// <summary>The comparer for file keys in file-system mode.</summary>
-    private static readonly StringComparer PlatformKeyComparer =
-        PathComparison == StringComparison.OrdinalIgnoreCase ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+    /// <summary>The core sandbox that finds and reads the files.</summary>
+    private readonly SandboxedFileResolver _sandbox;
 
-    /// <summary>The loaded files by candidate key; <see langword="null"/> remembers a candidate that does not exist.</summary>
-    private readonly Dictionary<string, LoadedFile?> _files;
-
-    /// <summary>The comparer for file keys: platform path comparison in file-system mode, ordinal for logical paths.</summary>
-    private readonly StringComparer _keyComparer;
-
-    /// <summary>The link probe: tells whether a full path is a symbolic link or junction.</summary>
-    private readonly Func<string, bool> _isLink;
-
-    /// <summary>The probe results by full path of an existing component, so each component is probed once.</summary>
-    private readonly Dictionary<string, bool> _linkStates;
-
-    /// <summary>The full path of the base directory, or <see langword="null"/>; computed on first use.</summary>
+    /// <summary>The full path of the base directory, or <see langword="null"/> when there is none; computed on first use.</summary>
     private string? _baseRoot;
 
-    /// <summary>The full paths of the library directories; computed on first use.</summary>
-    private List<string>? _libraryRoots;
-
-    /// <summary>The valid logical library prefixes (resolver mode); computed on first use.</summary>
-    private List<string>? _logicalPrefixes;
-
-    /// <summary>
-    ///     A place a file may be found: where it is, and the root it must stay under.
-    /// </summary>
-    /// <param name="Key">The identity of the candidate (its normalized full or logical path).</param>
-    /// <param name="Root">The root the candidate is confined to.</param>
-    private sealed record Candidate(string Key, string Root);
-
-    /// <summary>
-    ///     Gets a value indicating whether the caller supplied a resolver callback (logical-path mode).
-    /// </summary>
-    private bool UsesResolver => _options.FileResolver is not null;
-
-    /// <summary>
-    ///     Creates the directory context of the main file.
-    /// </summary>
-    /// <returns>The base directory as both directory and root; the logical root in resolver mode; <see langword="null"/> when there is no base directory.</returns>
-    private FileContext? CreateMainContext()
-    {
-        if (UsesResolver)
-        {
-            return new FileContext(string.Empty, string.Empty);
-        }
-
-        EnsureRoots();
-        return _baseRoot is null ? null : new FileContext(_baseRoot, _baseRoot);
-    }
+    /// <summary>Whether <see cref="_baseRoot"/> has been computed.</summary>
+    private bool _baseRootKnown;
 
     /// <summary>
     ///     Computes the identity of the main file so that a file that includes it is detected as a cycle.
@@ -98,7 +51,7 @@ internal sealed partial class ScadFileResolver
     /// <returns>The full path in file-system mode when the name is a valid path; otherwise <see langword="null"/>.</returns>
     private string? MainKey(string? mainName)
     {
-        if (mainName is null || UsesResolver)
+        if (mainName is null || _options.FileResolver is not null)
         {
             return null;
         }
@@ -117,362 +70,88 @@ internal sealed partial class ScadFileResolver
     ///     Finds, reads and parses the file a directive refers to.
     /// </summary>
     /// <param name="directive">The directive.</param>
-    /// <param name="context">The directory context of the file that contains it, or <see langword="null"/>.</param>
+    /// <param name="referrer">The file that contains the directive, or <see langword="null"/> for the main file.</param>
     /// <returns>The loaded file, or <see langword="null"/> when no candidate exists.</returns>
-    /// <exception cref="ScadEvaluationException">Thrown for a sandbox violation.</exception>
-    private LoadedFile? Resolve(ScadDirectiveStatement directive, FileContext? context)
+    /// <exception cref="ScadEvaluationException">Thrown for a sandbox refusal.</exception>
+    /// <exception cref="InvalidDataException">Thrown when the file exceeds the source size limit.</exception>
+    private LoadedFile? Resolve(ScadDirectiveStatement directive, SandboxedFile? referrer)
     {
         _cancellation.ThrowIfCancellationRequested();
-        var text = ValidatePathText(directive.Path, directive.Location);
-
-        // Candidates are produced lazily: the first one that exists wins, so later roots are only examined on a miss
-        foreach (var candidate in Candidates(text, context, directive.Location))
-        {
-            var file = LoadCandidate(candidate, directive.Location);
-            if (file is not null)
-            {
-                return file;
-            }
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    ///     Validates and normalizes the path text of a directive.
-    /// </summary>
-    /// <param name="raw">The text between the angle brackets.</param>
-    /// <param name="location">The location of the directive.</param>
-    /// <returns>The text with backslashes turned into forward slashes.</returns>
-    /// <exception cref="ScadEvaluationException">Thrown when the text is empty, contains a control character or a colon, or is absolute.</exception>
-    private static string ValidatePathText(string raw, ScadSourceLocation location)
-    {
-        var reason = DescribeInvalidPath(raw);
-        if (reason is not null)
-        {
-            throw new ScadEvaluationException($"Include path '{Printable(raw)}' is not allowed: {reason}", location);
-        }
-
-        return raw.Replace('\\', '/');
-    }
-
-    /// <summary>
-    ///     Explains why a path text is not acceptable.
-    /// </summary>
-    /// <param name="raw">The path text.</param>
-    /// <returns>The reason, or <see langword="null"/> when the text is acceptable.</returns>
-    private static string? DescribeInvalidPath(string raw)
-    {
-        if (string.IsNullOrWhiteSpace(raw))
-        {
-            return "the path is empty";
-        }
-
-        if (raw.Any(c => c < ' ' || c == '\u007F'))
-        {
-            return "the path contains a control character";
-        }
-
-        if (raw.Contains(':', StringComparison.Ordinal))
-        {
-            return "the path contains a colon";
-        }
-
-        return raw[0] is '/' or '\\' ? "absolute paths are not permitted" : null;
-    }
-
-    /// <summary>
-    ///     Replaces control characters so that a path can be shown in a message.
-    /// </summary>
-    /// <param name="text">The text.</param>
-    /// <returns>The text with each control character replaced by a question mark.</returns>
-    private static string Printable(string text) => new(text.Select(c => c < ' ' || c == '\u007F' ? '?' : c).ToArray());
-
-    /// <summary>
-    ///     Generates the candidates for a path text in search order.
-    /// </summary>
-    /// <param name="text">The validated path text.</param>
-    /// <param name="context">The directory context of the including file.</param>
-    /// <param name="location">The location of the directive.</param>
-    /// <returns>The candidates: the including file's directory first, then each library path.</returns>
-    private IEnumerable<Candidate> Candidates(string text, FileContext? context, ScadSourceLocation location)
-    {
-        EnsureRoots();
-        if (context is not null)
-        {
-            yield return Combine(context.Directory, context.Root, text, location);
-        }
-
-        foreach (var root in UsesResolver ? _logicalPrefixes! : _libraryRoots!)
-        {
-            yield return Combine(root, root, text, location);
-        }
-    }
-
-    /// <summary>
-    ///     Combines a directory and a path text into a candidate confined to a root.
-    /// </summary>
-    /// <param name="directory">The directory to start from.</param>
-    /// <param name="root">The root the result must stay under.</param>
-    /// <param name="text">The validated path text.</param>
-    /// <param name="location">The location of the directive.</param>
-    /// <returns>The candidate.</returns>
-    /// <exception cref="ScadEvaluationException">Thrown when the result is not under the root.</exception>
-    private Candidate Combine(string directory, string root, string text, ScadSourceLocation location)
-    {
-        var path = UsesResolver ? CombineLogical(directory, root, text) : CombineFileSystem(directory, root, text);
-        return path is null
-            ? throw new ScadEvaluationException($"Include path '{text}' is outside the allowed directories", location)
-            : new Candidate(path, root);
-    }
-
-    /// <summary>
-    ///     Combines a directory and a path text in file-system mode.
-    /// </summary>
-    /// <param name="directory">The full path of the directory.</param>
-    /// <param name="root">The full path of the root.</param>
-    /// <param name="text">The validated path text.</param>
-    /// <returns>The full path, or <see langword="null"/> when it is not under the root or is not a valid path.</returns>
-    private static string? CombineFileSystem(string directory, string root, string text)
-    {
+        SandboxedFile? found;
         try
         {
-            var full = Path.GetFullPath(text, directory);
-            return IsUnder(full, root) ? full : null;
+            found = _sandbox.Resolve(directive.Path, referrer);
         }
-        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        catch (SandboxException ex)
+        {
+            throw Translate(ex, directive.Location);
+        }
+
+        if (found is null)
         {
             return null;
         }
-    }
 
-    /// <summary>
-    ///     Combines a logical directory and a path text in resolver mode.
-    /// </summary>
-    /// <param name="directory">The logical directory (empty for the root).</param>
-    /// <param name="root">The logical root (a prefix of <paramref name="directory"/>).</param>
-    /// <param name="text">The validated path text.</param>
-    /// <returns>The normalized logical path, or <see langword="null"/> when a <c>..</c> would leave the root.</returns>
-    private static string? CombineLogical(string directory, string root, string text)
-    {
-        var segments = directory.Split('/', StringSplitOptions.RemoveEmptyEntries).ToList();
-        var floor = root.Split('/', StringSplitOptions.RemoveEmptyEntries).Length;
-
-        // Collapse "." and ".." textually; popping below the root is the escape that is refused
-        foreach (var segment in text.Split('/', StringSplitOptions.RemoveEmptyEntries))
+        // The file is parsed once; its locations carry the display name so errors point into the right file
+        if (!_files.TryGetValue(found.Key, out var loaded))
         {
-            if (segment == "..")
-            {
-                if (segments.Count <= floor)
-                {
-                    return null;
-                }
-
-                segments.RemoveAt(segments.Count - 1);
-            }
-            else if (segment != ".")
-            {
-                segments.Add(segment);
-            }
+            var display = DisplayName(found.Key);
+            loaded = new LoadedFile(found.Key, display, ScadParser.Parse(ScadDocument.DecodeBounded(found.Content), display), found);
+            _files[found.Key] = loaded;
         }
 
-        return string.Join('/', segments);
-    }
-
-    /// <summary>
-    ///     Determines whether a full path is the root or lies under it.
-    /// </summary>
-    /// <param name="full">The full path.</param>
-    /// <param name="root">The full path of the root.</param>
-    /// <returns><see langword="true"/> when <paramref name="full"/> is inside <paramref name="root"/>.</returns>
-    private static bool IsUnder(string full, string root)
-    {
-        var trimmed = root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        return string.Equals(full, trimmed, PathComparison)
-            || full.StartsWith(trimmed + Path.DirectorySeparatorChar, PathComparison);
-    }
-
-    /// <summary>
-    ///     Loads a candidate through the cache.
-    /// </summary>
-    /// <param name="candidate">The candidate.</param>
-    /// <param name="location">The location of the directive, for sandbox errors.</param>
-    /// <returns>The loaded file, or <see langword="null"/> when it does not exist.</returns>
-    private LoadedFile? LoadCandidate(Candidate candidate, ScadSourceLocation location)
-    {
-        if (_files.TryGetValue(candidate.Key, out var cached))
-        {
-            return cached;
-        }
-
-        _cancellation.ThrowIfCancellationRequested();
-        var text = ReadText(candidate, location);
-        LoadedFile? loaded = null;
-        if (text is not null)
-        {
-            // The file is parsed once; its locations carry the display name so errors point into the right file
-            var display = DisplayName(candidate.Key);
-            loaded = new LoadedFile(
-                candidate.Key,
-                display,
-                ScadParser.Parse(text, display),
-                new FileContext(DirectoryOf(candidate.Key), candidate.Root));
-        }
-
-        _files[candidate.Key] = loaded;
         return loaded;
     }
 
     /// <summary>
-    ///     Reads the text of a candidate from the resolver callback or the file system.
+    ///     Translates a sandbox refusal into the OpenSCAD wording.
     /// </summary>
-    /// <param name="candidate">The candidate.</param>
-    /// <param name="location">The location of the directive, for sandbox errors.</param>
-    /// <returns>The text, or <see langword="null"/> when the candidate does not exist.</returns>
-    /// <exception cref="InvalidDataException">Thrown when the file is longer than the source size limit.</exception>
-    private string? ReadText(Candidate candidate, ScadSourceLocation location)
-    {
-        if (UsesResolver)
-        {
-            // The callback owns what it returns until it is handed to us; we dispose it after reading
-            using var stream = _options.FileResolver!(candidate.Key);
-            return stream is null ? null : ScadDocument.ReadBounded(stream);
-        }
-
-        // The walk runs before the file is opened (and before File.Exists on the final component), so nothing is
-        // ever read through a link and a file behind a link is never reported as existing
-        if (!WalkRejectingLinks(candidate, location) || !File.Exists(candidate.Key))
-        {
-            return null;
-        }
-
-        using var file = File.OpenRead(candidate.Key);
-        return ScadDocument.ReadBounded(file);
-    }
-
-    /// <summary>
-    ///     Walks the components of a candidate from the root down to the file and rejects the first link.
-    /// </summary>
-    /// <param name="candidate">The candidate; its key is a full path under its root.</param>
+    /// <param name="ex">The sandbox exception.</param>
     /// <param name="location">The location of the directive.</param>
-    /// <returns><see langword="true"/> when every component exists and none is a link; <see langword="false"/> when a component does not exist.</returns>
-    /// <exception cref="ScadEvaluationException">Thrown when a component is a link, or cannot be checked.</exception>
-    private bool WalkRejectingLinks(Candidate candidate, ScadSourceLocation location)
+    /// <returns>The exception to throw: a located evaluation error, or the source-size error for a file that is too large.</returns>
+    internal Exception Translate(SandboxException ex, ScadSourceLocation location) => ex.Kind switch
     {
-        // The root itself and everything above it are trusted; only components strictly below it are examined
-        var current = candidate.Root;
-        foreach (var segment in Path.GetRelativePath(candidate.Root, candidate.Key).Split(Path.DirectorySeparatorChar))
-        {
-            current = Path.Join(current, segment);
-            if (!_linkStates.TryGetValue(current, out var isLink))
-            {
-                // The first missing component ends the walk: nothing below it can exist, so it is never probed
-                if (!File.Exists(current) && !Directory.Exists(current))
-                {
-                    return false;
-                }
-
-                isLink = ProbeLink(current, candidate, location);
-                _linkStates[current] = isLink;
-            }
-
-            if (isLink)
-            {
-                throw new ScadEvaluationException(
-                    $"Include file '{DisplayName(candidate.Key)}' passes through a link ('{Path.GetRelativePath(candidate.Root, current).Replace('\\', '/')}'); links are not followed inside the allowed directories",
-                    location);
-            }
-        }
-
-        return true;
-    }
-
-    /// <summary>
-    ///     Asks the link probe about one existing component, failing closed when the probe cannot answer.
-    /// </summary>
-    /// <param name="path">The full path of the component.</param>
-    /// <param name="candidate">The candidate being examined.</param>
-    /// <param name="location">The location of the directive.</param>
-    /// <returns><see langword="true"/> when the component is a symbolic link or junction.</returns>
-    /// <exception cref="ScadEvaluationException">Thrown when the probe fails.</exception>
-    private bool ProbeLink(string path, Candidate candidate, ScadSourceLocation location)
-    {
-        try
-        {
-            return _isLink(path);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
-        {
-            throw new ScadEvaluationException($"Include file '{DisplayName(candidate.Key)}' cannot be checked for links and is not read", location);
-        }
-    }
-
-    /// <summary>
-    ///     The default link probe: a symbolic link or junction has a link target, whether it names a file or a directory.
-    /// </summary>
-    /// <param name="path">The full path of an existing file or directory.</param>
-    /// <returns><see langword="true"/> when the path is a symbolic link or junction.</returns>
-    private static bool DefaultIsLink(string path) =>
-        (Directory.Exists(path) ? new DirectoryInfo(path).LinkTarget : new FileInfo(path).LinkTarget) is not null;
+        SandboxFailureKind.EmptyPath or SandboxFailureKind.ControlCharacter or SandboxFailureKind.ColonInPath
+            or SandboxFailureKind.AbsolutePath => new ScadEvaluationException($"Include path '{ex.Path}' is not allowed: {ex.Detail}", location),
+        SandboxFailureKind.OutsideRoot => new ScadEvaluationException($"Include path '{ex.Path}' is outside the allowed directories", location),
+        SandboxFailureKind.ThroughLink => new ScadEvaluationException(
+            $"Include file '{DisplayName(ex.Path)}' passes through a link ('{ex.Detail}'); links are not followed inside the allowed directories",
+            location),
+        SandboxFailureKind.LinkCheckFailed => new ScadEvaluationException(
+            $"Include file '{DisplayName(ex.Path)}' cannot be checked for links and is not read", location),
+        SandboxFailureKind.TooLarge => ScadParser.CreateSourceTooLongException(),
+        SandboxFailureKind.InvalidRoot => new ScadEvaluationException(
+            "A configured directory (BaseDirectory or LibraryPaths) is not a valid path", location),
+        _ => new ScadEvaluationException($"Include file '{DisplayName(ex.Path)}' cannot be read", location),
+    };
 
     /// <summary>
     ///     Gets the name shown in source locations for a file.
     /// </summary>
-    /// <param name="key">The candidate key.</param>
+    /// <param name="key">The file key: a full path, or a logical path in resolver mode.</param>
     /// <returns>The logical path in resolver mode; the path relative to the base directory (forward slashes) when the file is under it; otherwise the full path.</returns>
     private string DisplayName(string key)
     {
-        if (UsesResolver || _baseRoot is null || !IsUnder(key, _baseRoot))
+        if (_options.FileResolver is not null)
         {
             return key;
         }
 
-        return Path.GetRelativePath(_baseRoot, key).Replace('\\', '/');
-    }
-
-    /// <summary>
-    ///     Gets the directory of a candidate key.
-    /// </summary>
-    /// <param name="key">The full path, or the logical path in resolver mode.</param>
-    /// <returns>The directory; the empty string for a logical file at the root.</returns>
-    private string DirectoryOf(string key)
-    {
-        if (UsesResolver)
+        // The base directory was validated by the sandbox before any file was found, so computing it here cannot fail
+        if (!_baseRootKnown)
         {
-            var slash = key.LastIndexOf('/');
-            return slash < 0 ? string.Empty : key[..slash];
+            _baseRoot = _options.BaseDirectory is null ? null : Path.GetFullPath(_options.BaseDirectory);
+            _baseRootKnown = true;
         }
 
-        return Path.GetDirectoryName(key)!;
-    }
-
-    /// <summary>
-    ///     Computes the roots on first use, so a document without directives never touches the path options.
-    /// </summary>
-    private void EnsureRoots()
-    {
-        if (_libraryRoots is not null)
+        if (_baseRoot is null)
         {
-            return;
+            return key;
         }
 
-        if (UsesResolver)
-        {
-            _logicalPrefixes = _options.LibraryPaths.Select(NormalizePrefix).OfType<string>().ToList();
-            _libraryRoots = [];
-            return;
-        }
-
-        _baseRoot = _options.BaseDirectory is null ? null : Path.GetFullPath(_options.BaseDirectory);
-        _libraryRoots = _options.LibraryPaths.Select(Path.GetFullPath).ToList();
-        _logicalPrefixes = [];
+        // A file outside the base directory (or on another drive) has a ".."-leading or rooted relative path and keeps its full path
+        var relative = Path.GetRelativePath(_baseRoot, key);
+        var outside = relative == ".." || relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal) || Path.IsPathRooted(relative);
+        return outside ? key : relative.Replace('\\', '/');
     }
-
-    /// <summary>
-    ///     Normalizes a library path into a logical directory prefix.
-    /// </summary>
-    /// <param name="path">The library path.</param>
-    /// <returns>The prefix, or <see langword="null"/> when the path is not a valid logical path.</returns>
-    private static string? NormalizePrefix(string path) =>
-        DescribeInvalidPath(path) is null ? CombineLogical(string.Empty, string.Empty, path.Replace('\\', '/')) : null;
 }

@@ -1,4 +1,5 @@
 using System.Text;
+using DemaConsulting.CanvasNet.Files;
 
 namespace DemaConsulting.CanvasNet.VegaLite.Data;
 
@@ -19,58 +20,46 @@ internal sealed record DataFile(string Key, string Display, string Text);
 ///         <b>Scope.</b> The resolver handles relative local paths only. A URL that has a scheme, or that is absolute,
 ///         rooted, a drive path or a network path, never reaches it: <see cref="DataLoader"/> classifies such a URL as
 ///         remote data (reported by the feature catalog, never fetched) before it asks the resolver for anything. The
-///         resolver itself also rejects such a path (and an empty path, a control character, a colon and a path that
-///         leaves its root) as a sandbox violation, so it stays safe when used on its own. The resolver is
-///         independent of every other CanvasNet project; it re-implements the path rules of the other file resolvers
-///         of the library instead of referencing them.
+///         sandbox itself also rejects such a path (and an empty path, a control character, a colon and a path that
+///         leaves its root), so the resolver stays safe when used on its own.
 ///     </para>
 ///     <para>
-///         <b>Search order.</b> In file-system mode a path is looked for under the base directory of the document
-///         (<see cref="VegaLiteOpenOptions.BaseDirectory"/>) and then under each entry of
-///         <see cref="VegaLiteOpenOptions.DataPaths"/>, in declaration order; the first existing file wins. With a
-///         <see cref="VegaLiteOpenOptions.FileResolver"/> the file system is never touched: the callback receives the
-///         normalized logical path (forward slashes, no leading slash, <c>.</c> and <c>..</c> collapsed) under the
-///         logical root and under each data path that is itself a valid logical path, and the stream it returns is
-///         disposed here. The environment variables and the current directory are never consulted for the base
-///         directory.
+///         <b>Delegation.</b> Everything that makes the access safe is done by the core
+///         <see cref="SandboxedFileResolver"/>: path validation, confinement to the base directory and each data path,
+///         the refusal of symbolic links and junctions, the open and bounded read (with the byte limit
+///         <see cref="VegaLiteLimits.MaxDataBytes"/>), the resolver-callback mode and the per-call file cache. This class
+///         adds what is specific to Vega-Lite: the search order (base directory, then <see cref="VegaLiteOpenOptions.DataPaths"/>
+///         in declaration order, or with a <see cref="VegaLiteOpenOptions.FileResolver"/> the normalized logical path under
+///         the logical root and each data path), the distinct-file limit <see cref="VegaLiteLimits.MaxDataFiles"/>, strict
+///         UTF-8 decoding (a byte-order mark is removed; invalid UTF-8 is rejected, never replaced by U+FFFD) and the
+///         translation of every <see cref="SandboxException"/> into a located <see cref="VegaLiteRenderException"/> with
+///         Vega-Lite wording. A local data file that cannot be used is never treated as an empty dataset: a file that is
+///         missing, blocked by the sandbox, unreadable or undecodable is a failure. Only a cancellation passes through
+///         unchanged.
 ///     </para>
 ///     <para>
-///         <b>Reading.</b> A file is read as bytes with a bound: at most <see cref="VegaLiteLimits.MaxDataBytes"/>
-///         bytes, so an endless stream stops one chunk past the limit, and at most
-///         <see cref="VegaLiteLimits.MaxDataFiles"/> distinct files per call. The bytes are decoded as strict UTF-8
-///         (a byte-order mark is removed; invalid UTF-8 is rejected, never replaced by U+FFFD), the same strictness as
-///         the specification text. A file that is found, read or decoded wrongly, a file that is missing and a file that
-///         is blocked by the sandbox are all failures (<see cref="VegaLiteRenderException"/>): a local data file that
-///         cannot be used is never treated as an empty dataset. A directory where a file is expected, an open that fails
-///         with an I/O or access error (an existing file the process cannot open is unreadable, never missing: only the
-///         open attempt itself reporting "not found" makes a candidate missing), and a callback that throws or whose stream fails to read or dispose are the same
-///         located read failure; only a cancellation passes through unchanged. Files are opened read-only with
-///         <see cref="FileShare.ReadWrite"/> and <see cref="FileShare.Delete"/>, so concurrent readers, writers and
-///         rename or delete operations by other processes do not block the bounded read.
-///     </para>
-///     <para>
-///         <b>Cache.</b> Each distinct candidate is requested at most once per instance (a miss is remembered too, so a
-///         resolver callback sees each logical path at most once). An instance serves one measure or render call, runs
-///         only on the calling thread and is not thread-safe. See <c>DataFileResolver.Paths</c> for the path rules and the
-///         link check; a concurrent change of the tree between the link check and the open is not defended against.
+///         <b>Cache.</b> Each distinct file is requested at most once per instance (a miss is remembered too, so a
+///         resolver callback sees each logical path at most once) and decoded at most once; it counts once against
+///         <see cref="VegaLiteLimits.MaxDataFiles"/>. An instance serves one measure or render call, runs only on the
+///         calling thread and is not thread-safe.
 ///     </para>
 /// </remarks>
-internal sealed partial class DataFileResolver
+internal sealed class DataFileResolver
 {
-    /// <summary>The number of bytes read from a stream per call.</summary>
-    private const int ReadChunkSize = 8192;
-
     /// <summary>The strict UTF-8 decoder: invalid bytes throw instead of becoming U+FFFD.</summary>
     private static readonly UTF8Encoding StrictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
-    /// <summary>The effective open options (base directory, data paths, resolver callback).</summary>
-    private readonly VegaLiteOpenOptions _options;
+    /// <summary>The core sandbox that finds and reads the files.</summary>
+    private readonly SandboxedFileResolver _sandbox;
 
     /// <summary>The render limits.</summary>
     private readonly VegaLiteLimits _limits;
 
-    /// <summary>The cancellation token polled between files and chunks.</summary>
+    /// <summary>The cancellation token polled between files.</summary>
     private readonly CancellationToken _cancellation;
+
+    /// <summary>The decoded files by key; each distinct file is decoded once.</summary>
+    private readonly Dictionary<string, DataFile> _files;
 
     /// <summary>The number of distinct files read so far.</summary>
     private int _filesRead;
@@ -81,30 +70,26 @@ internal sealed partial class DataFileResolver
     /// <param name="options">The effective open options.</param>
     /// <param name="limits">The render limits.</param>
     /// <param name="cancellation">The cancellation token, polled between files and chunks.</param>
-    /// <param name="isLink">The probe that tells whether a full path is a symbolic link or junction; <see langword="null"/> uses the file system. A seam for tests.</param>
-    /// <param name="openFile">The opener of a file-system candidate for reading; <see langword="null"/> opens the file read-only on the file system. A seam for tests (it lets a test raise an access or I/O failure without any file-system permission or lock assumption).</param>
-    public DataFileResolver(
-        VegaLiteOpenOptions options,
-        VegaLiteLimits limits,
-        CancellationToken cancellation,
-        Func<string, bool>? isLink = null,
-        Func<string, Stream>? openFile = null)
+    public DataFileResolver(VegaLiteOpenOptions options, VegaLiteLimits limits, CancellationToken cancellation)
     {
-        _options = options;
         _limits = limits;
         _cancellation = cancellation;
-        _isLink = isLink ?? DefaultIsLink;
-        _openFile = openFile ?? DefaultOpenFile;
-        _keyComparer = options.FileResolver is null ? PlatformKeyComparer : StringComparer.Ordinal;
-        _files = new Dictionary<string, DataFile?>(_keyComparer);
-        _linkStates = new Dictionary<string, bool>(_keyComparer);
+        _sandbox = new SandboxedFileResolver(
+            new SandboxOptions
+            {
+                BaseDirectory = options.BaseDirectory,
+                SearchPaths = options.DataPaths,
+                FileResolver = options.FileResolver,
+                MaxFileBytes = limits.MaxDataBytes,
+            },
+            cancellation);
+        _files = new Dictionary<string, DataFile>(_sandbox.KeyComparer);
     }
 
     /// <summary>
     ///     Gets a value indicating whether at least one way of finding files is configured.
     /// </summary>
-    public bool HasFileSource =>
-        _options.FileResolver is not null || _options.BaseDirectory is not null || _options.DataPaths.Count > 0;
+    public bool HasFileSource => _sandbox.HasSource;
 
     /// <summary>
     ///     Finds and reads the file a relative path names.
@@ -131,150 +116,29 @@ internal sealed partial class DataFileResolver
                 location);
         }
 
-        // Candidates are produced lazily: the first one that exists wins, so later roots are only examined on a miss
-        var text = ValidatePathText(path, location);
-        foreach (var candidate in Candidates(text, location))
+        // The sandbox validates the path, confines it, refuses links and reads the file; its refusals become located errors
+        var display = path.Replace('\\', '/');
+        SandboxedFile? found;
+        try
         {
-            var file = LoadCandidate(candidate, text, location);
-            if (file is not null)
-            {
-                return file;
-            }
+            found = _sandbox.Resolve(path);
+        }
+        catch (SandboxException ex)
+        {
+            throw Translate(ex, display, location);
         }
 
-        throw new VegaLiteRenderException($"The data file '{text}' was not found.", location);
-    }
+        if (found is null)
+        {
+            throw new VegaLiteRenderException($"The data file '{display}' was not found.", location);
+        }
 
-    /// <summary>
-    ///     Loads a candidate through the cache.
-    /// </summary>
-    /// <param name="candidate">The candidate.</param>
-    /// <param name="display">The name shown in messages.</param>
-    /// <param name="location">The location of the path, for errors.</param>
-    /// <returns>The file, or <see langword="null"/> when the candidate does not exist.</returns>
-    private DataFile? LoadCandidate(Candidate candidate, string display, VegaLiteLocation location)
-    {
-        if (_files.TryGetValue(candidate.Key, out var cached))
+        // A file that is reached again (by another spelling or another request) is served from the cache and counts once
+        if (_files.TryGetValue(found.Key, out var cached))
         {
             return cached;
         }
 
-        _cancellation.ThrowIfCancellationRequested();
-        var bytes = ReadBytes(candidate, display, location);
-        var file = bytes is null ? null : new DataFile(candidate.Key, display, Decode(bytes, display, location));
-        _files[candidate.Key] = file;
-        return file;
-    }
-
-    /// <summary>
-    ///     Reads the bytes of a candidate from the resolver callback or the file system.
-    /// </summary>
-    /// <param name="candidate">The candidate.</param>
-    /// <param name="display">The name shown in messages.</param>
-    /// <param name="location">The location of the path, for errors.</param>
-    /// <returns>The bytes, or <see langword="null"/> when the candidate does not exist.</returns>
-    private byte[]? ReadBytes(Candidate candidate, string display, VegaLiteLocation location)
-    {
-        if (UsesResolver)
-        {
-            return ReadFromCallback(candidate, display, location);
-        }
-
-        // The walk runs before the file is opened, so nothing is ever read through a link and a file behind a link is
-        // never reported as existing. A missing intermediate component ends the candidate there; the final component is
-        // not decided by an existence probe, because a probe reports "missing" for an existing file it cannot access
-        if (!WalkRejectingLinks(candidate, display, location))
-        {
-            return null;
-        }
-
-        // A directory where a file is expected is not a missing file: it exists but cannot be read as data
-        if (Directory.Exists(candidate.Key))
-        {
-            throw CannotRead(display, location);
-        }
-
-        try
-        {
-            // The open attempt decides: only "not found" means the candidate is missing
-            using var file = _openFile(candidate.Key);
-            return ReadBounded(file, display, location);
-        }
-        catch (FileNotFoundException)
-        {
-            // The file is missing (or vanished since the walk): the next candidate is tried
-            return null;
-        }
-        catch (DirectoryNotFoundException)
-        {
-            return null;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            // Any other failure to open the file (sharing, access, device) is a located read failure
-            throw CannotRead(display, location);
-        }
-    }
-
-    /// <summary>
-    ///     The default opener: read-only access that tolerates concurrent readers, writers and rename or delete
-    ///     operations by other processes, so a file that is being written elsewhere does not turn into a sharing violation.
-    /// </summary>
-    /// <param name="path">The full path of the file.</param>
-    /// <returns>The open stream.</returns>
-    private static FileStream DefaultOpenFile(string path) =>
-        new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, ReadChunkSize);
-
-    /// <summary>
-    ///     Reads the bytes of a candidate from the resolver callback.
-    /// </summary>
-    /// <remarks>
-    ///     The callback, the bounded read and the disposal of the returned stream form one boundary: a failure of any of
-    ///     them (other than a cancellation or a limit failure that is already located) is the located read failure,
-    ///     because the callback is untrusted code that must not leak a raw exception through the render contract.
-    /// </remarks>
-    /// <param name="candidate">The candidate.</param>
-    /// <param name="display">The name shown in messages.</param>
-    /// <param name="location">The location of the path, for errors.</param>
-    /// <returns>The bytes, or <see langword="null"/> when the callback has no such file.</returns>
-    private byte[]? ReadFromCallback(Candidate candidate, string display, VegaLiteLocation location)
-    {
-        try
-        {
-            // The callback owns what it returns until it is handed to us; we dispose it exactly once after reading
-            using var stream = _options.FileResolver!(candidate.Key);
-            return stream is null ? null : ReadBounded(stream, display, location);
-        }
-        catch (Exception ex) when (ex is not (OperationCanceledException or VegaLiteRenderException))
-        {
-            throw CannotRead(display, location);
-        }
-    }
-
-    /// <summary>
-    ///     Creates the exception for a file that cannot be read.
-    /// </summary>
-    /// <param name="display">The name shown in messages.</param>
-    /// <param name="location">The location of the path.</param>
-    /// <returns>The exception, ready to throw.</returns>
-    private static VegaLiteRenderException CannotRead(string display, VegaLiteLocation location) =>
-        new($"The data file '{display}' cannot be read.", location);
-
-    /// <summary>
-    ///     Reads a whole stream as bytes under the limits, stopping once a limit is certainly exceeded.
-    /// </summary>
-    /// <remarks>
-    ///     The file counts against <see cref="VegaLiteLimits.MaxDataFiles"/> as soon as it is known to exist, before any
-    ///     byte is read. A size the stream reports is checked first, and the running length is checked after every
-    ///     chunk, so a stream that never ends stops one chunk past the limit.
-    /// </remarks>
-    /// <param name="stream">The stream; it is left open.</param>
-    /// <param name="display">The name shown in messages.</param>
-    /// <param name="location">The location of the path, for errors.</param>
-    /// <returns>The bytes.</returns>
-    /// <exception cref="VegaLiteRenderException">Thrown when a limit is exceeded or the stream cannot be read.</exception>
-    private byte[] ReadBounded(Stream stream, string display, VegaLiteLocation location)
-    {
         if (_filesRead >= _limits.MaxDataFiles)
         {
             throw new VegaLiteRenderException(
@@ -282,44 +146,39 @@ internal sealed partial class DataFileResolver
         }
 
         _filesRead++;
-        var max = _limits.MaxDataBytes;
-        try
-        {
-            if (stream.CanSeek && stream.Length > max)
-            {
-                throw TooLarge(display, location);
-            }
-
-            using var bytes = new MemoryStream();
-            var buffer = new byte[ReadChunkSize];
-            int count;
-            while ((count = stream.Read(buffer, 0, buffer.Length)) > 0)
-            {
-                if (bytes.Length + count > max)
-                {
-                    throw TooLarge(display, location);
-                }
-
-                bytes.Write(buffer, 0, count);
-                _cancellation.ThrowIfCancellationRequested();
-            }
-
-            return bytes.ToArray();
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
-        {
-            throw CannotRead(display, location);
-        }
+        var file = new DataFile(found.Key, display, Decode(found.Content.Span, display, location));
+        _files[found.Key] = file;
+        return file;
     }
 
     /// <summary>
-    ///     Creates the exception for a file that is longer than the byte limit.
+    ///     Translates a sandbox refusal into the located render exception with Vega-Lite wording.
     /// </summary>
-    /// <param name="display">The name shown in messages.</param>
-    /// <param name="location">The location of the path.</param>
+    /// <param name="ex">The sandbox exception.</param>
+    /// <param name="display">The name shown in messages: the path as written, with forward slashes.</param>
+    /// <param name="location">The location of the path, for errors.</param>
     /// <returns>The exception, ready to throw.</returns>
-    private VegaLiteRenderException TooLarge(string display, VegaLiteLocation location) =>
-        new($"The data file '{display}' is larger than the limit of {_limits.MaxDataBytes} bytes (MaxDataBytes).", location);
+    internal VegaLiteRenderException Translate(SandboxException ex, string display, VegaLiteLocation location) => ex.Kind switch
+    {
+        SandboxFailureKind.EmptyPath or SandboxFailureKind.ControlCharacter or SandboxFailureKind.ColonInPath
+            or SandboxFailureKind.AbsolutePath => new($"The data path '{ex.Path}' is not allowed: {ex.Detail}.", location),
+        SandboxFailureKind.OutsideRoot => new($"The data path '{display}' is outside the allowed directories.", location),
+        SandboxFailureKind.ThroughLink => new(
+            $"The data file '{display}' passes through a link ('{ex.Detail}'); links are not followed inside the allowed directories.",
+            location),
+        SandboxFailureKind.LinkCheckFailed => new($"The data file '{display}' cannot be checked for links and is not read.", location),
+        SandboxFailureKind.TooLarge => new(
+            $"The data file '{display}' is larger than the limit of {_limits.MaxDataBytes} bytes (MaxDataBytes).", location),
+        SandboxFailureKind.InvalidRoot => new("A configured data directory (BaseDirectory or DataPaths) is not a valid path.", location),
+        _ => new($"The data file '{display}' cannot be read.", location),
+    };
+
+    /// <summary>
+    ///     Replaces control characters so that a path can be shown in a message.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <returns>The text with each control character replaced by a question mark.</returns>
+    private static string Printable(string text) => new(text.Select(c => char.IsControl(c) ? '?' : c).ToArray());
 
     /// <summary>
     ///     Decodes the bytes of a file as strict UTF-8, removing a byte-order mark.
@@ -329,13 +188,13 @@ internal sealed partial class DataFileResolver
     /// <param name="location">The location of the path, for errors.</param>
     /// <returns>The text.</returns>
     /// <exception cref="VegaLiteRenderException">Thrown when the bytes are not valid UTF-8.</exception>
-    private static string Decode(byte[] bytes, string display, VegaLiteLocation location)
+    private static string Decode(ReadOnlySpan<byte> bytes, string display, VegaLiteLocation location)
     {
         // The byte-order mark of UTF-8 is EF BB BF; any other encoding (UTF-16, for example) fails the strict decode
         var start = bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF ? 3 : 0;
         try
         {
-            return StrictUtf8.GetString(bytes, start, bytes.Length - start);
+            return StrictUtf8.GetString(bytes[start..]);
         }
         catch (DecoderFallbackException)
         {

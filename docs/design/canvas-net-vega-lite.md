@@ -153,7 +153,9 @@ delimiter (`DelimitedTextParser.IsValidDelimiter`) and the classification of a `
 (`ParseDirectives.TryClassify`, in the `DelimitedTextParser` unit), and `DataLoader` uses the one definition of a
 remote URL (`FeatureCatalog.IsSchemeBearingUrl`). `FeatureCatalog` and `ConfigResolver` read the `SpecTree` and
 `SpecNode` types of `SpecParser`. `DataLoader` reads `SpecNode`, asks `DataFileResolver` for the text of a data file,
-hands delimited text to `DelimitedTextParser`, and builds `DataTable`; `DataFileResolver` depends only on the public
+hands delimited text to `DelimitedTextParser`, and builds `DataTable`; `DataFileResolver` depends only on the core
+`SandboxedFileResolver` (see _SandboxedFileResolver Unit Design_, `canvas-net/files/sandboxed-file-resolver.md`)
+and the public
 option, limit, and exception types, and `DelimitedTextParser` on those and the value type of `DataTable` (and the
 `SpecNode` of the `format` object), never on `DataLoader`. `ScaleResolver` reads the `SpecNode` tree, the
 `DataTable`, and the `ResolvedConfig`, and builds `ScaleModel` instances, using `Ticks` and `ColorSchemes`;
@@ -288,13 +290,15 @@ subsystem design documents for the complete constructor, property, and exception
   **`Geometry`** subsystem (`Path` and `PathBuilder`, for the symbol shapes and the rectangles and strokes that are
   filled); the **`Drawing`** subsystem (`PathFiller` and `PathStroker`, which fill and stroke every shape); the
   **`Fonts`** subsystem (`TrueTypeFont`, `SystemFontCatalog`, and the bundled Liberation fonts, for font resolution);
-  and the **`Rendering`** subsystem (`TextRenderer`, for text measurement and drawing)
+  the **`Rendering`** subsystem (`TextRenderer`, for text measurement and drawing); and the **`Files`** subsystem
+  (`SandboxedFileResolver` with `SandboxOptions`, `SandboxedFile`, and `SandboxException`, which the `DataFileResolver`
+  unit uses for all local data-file access)
 
 The dependency is declared as the package dependency of `DemaConsulting.CanvasNet.VegaLite`; the public API exposes
 the core `Surface` and `Rgba32`. The dependency is modeled in the SysML2 model as the `usesCanvas`, `usesDrawing`,
-`usesFonts`, `usesGeometry`, and `usesRendering` dependencies of the `CanvasNetVegaLite` system (the model records
-dependencies at the system level only, as for every other satellite system). No core API and no `InternalsVisibleTo`
-entry was added for the system.
+`usesFiles`, `usesFonts`, `usesGeometry`, and `usesRendering` dependencies of the `CanvasNetVegaLite` system (the model
+records dependencies at the system level only, as for every other satellite system). No `InternalsVisibleTo` entry was
+added for the system: the `Files` subsystem is public core API.
 
 **`CanvasNetVegaLite` must never reference `DemaConsulting.CanvasNet.Charts`, `DemaConsulting.CanvasNet.Svg`,
 `DemaConsulting.CanvasNet.Pdf`, `DemaConsulting.CanvasNet.Pptx`, `DemaConsulting.CanvasNet.Vsdx`,

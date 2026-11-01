@@ -21,5 +21,6 @@ package CanvasNet {
         part drawing : Drawing;
         part fonts : Fonts;
         part renderingSubsystem : Rendering;
+        part files : Files;
     }
 }

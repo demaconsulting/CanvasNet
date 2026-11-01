@@ -6,9 +6,10 @@ The `ScadFileResolver` unit is the fourth software unit in the `ScadEvaluation` 
 source files in the `DemaConsulting.CanvasNet.Scad.Evaluation` namespace, all `internal`:
 
 - `ScadFileResolver.cs` — `ScadFileResolver` (sealed partial class): the phase A driver — expansion, library
-  loading from a work queue, the file cache, and the cycle, depth, count, and statement limits
-- `ScadFileResolver.Paths.cs` — path normalization, candidate generation, the sandbox checks (including the
-  link walk), and file and callback access
+  loading from a work queue, and the cycle, depth, count, and statement limits
+- `ScadFileResolver.Paths.cs` — the bridge to the core `SandboxedFileResolver` (see _SandboxedFileResolver Unit
+  Design_, `canvas-net/files/sandboxed-file-resolver.md`): decoding and parsing of the file it returns, the
+  per-file cache, display names, and the OpenSCAD wording of each sandbox refusal
 - `ScadSourceUnit.cs` — `ScadSourceUnit`: a source file after `include` expansion plus the libraries it
   imports with `use`
 
@@ -17,8 +18,11 @@ source files in the `DemaConsulting.CanvasNet.Scad.Evaluation` namespace, all `i
 `ScadFileResolver` resolves the `include` and `use` directives of a document **before any evaluation** and
 produces an immutable, include-expanded `ScadSourceUnit` for the main document together with the library units
 it imports. It is the only code in the library that touches the file system or calls the caller's file
-resolver callback, and it confines that access to a sandbox, because a document may come from an untrusted
-source. Doing all file access in one phase on the calling thread keeps the evaluator pure and restartable (a
+resolver callback, and it does so only through the core sandbox, because a document may come from an untrusted
+source. The sandbox mechanics (path validation, confinement, link refusal, open and bounded read, callback mode,
+cache) are implemented and verified once in the core `Files` subsystem; this unit keeps what is specific to OpenSCAD:
+the search context, cycles and limits, decoding, naming, and wording. Doing all file access in one phase on the calling
+thread keeps the evaluator pure and restartable (a
 restart repeats no I/O and never calls the callback again) and makes missing-file warnings precede any output.
 The resolution policy and the sandbox are original decisions of the CanvasNetScad dialect (see
 _CanvasNetScad System Design_, Clean-Room Provenance); no OpenSCAD source or manual text was consulted.
@@ -40,12 +44,14 @@ cycle; the evaluator handles that. `FromProgram(program, name)` builds a unit wi
 dropped) for evaluating a program in isolation.
 
 **Resolver state.** One instance per `Load` call, holding the effective `ScadOpenOptions`, the `ScadLimits`, the
-`ScadEvaluationSink` (for missing-file warnings), the cancellation token, the caches, the library work queue,
-and the counters for inclusions and expanded statements. The cache is **per call**: nothing is shared across
-calls, so concurrent evaluations of one document cannot influence each other.
+`ScadEvaluationSink` (for missing-file warnings), the cancellation token, one core `SandboxedFileResolver` (created
+from the options: `BaseDirectory`, `LibraryPaths` as the search paths, `FileResolver`, and a byte limit of four bytes per
+character of the source limit plus a byte-order mark), the parsed-file cache, the library work queue, and the counters
+for inclusions and expanded statements. The caches are **per call**: nothing is shared across calls, so concurrent
+evaluations of one document cannot influence each other.
 
-**Roots.** The allowed roots are the base directory of the options and each library path (all converted with
-`Path.GetFullPath`), or, in resolver mode, the logical paths handed to the callback.
+**Roots.** The allowed roots are the base directory of the options and each library path, or, in resolver mode, the
+logical paths handed to the callback; the sandbox computes them.
 
 #### Key Methods
 
@@ -83,46 +89,36 @@ none, so it needs a library path or a resolver to use `include` or `use`. Two sp
 example `a/../b.scad` and `b.scad`) are one file; file-name case is significant on Linux and insensitive on
 Windows and macOS (the platform comparer is used for the file keys and the root checks).
 
-- **File-system mode** (no `FileResolver`): a candidate is `Path.GetFullPath`-normalized and accepted only if it
-  lies under the root it was derived from. `..` that stays inside the root is allowed. **Link policy:** a
-  candidate is rejected when **any component strictly below its root, including the file itself, is a symbolic
-  link or junction, whatever the target** (`FileSystemInfo.LinkTarget` is not null; the probe is an injectable
-  `Func<string, bool>` that defaults to that check). The walk runs **top-down from the root**, probes only
-  components that exist, and ends at the first nonexistent component (the file is then missing, the search
-  continues, and nothing below the missing component is probed, so the existence of a file behind a link is never
-  revealed); the first link raises `Include file '…' passes through a link ('<component below the root>'); links
-  are not followed inside the allowed directories`. The walk happens before the file is opened, on the normalized
-  path (so `a/../lib/x.scad` is judged as `lib/x.scad`), and each component is probed once per resolver call
-  (results are cached). A probe that throws (`IOException`, `UnauthorizedAccessException`, …) **fails closed**
-  with `Include file '…' cannot be checked for links and is not read`. The **root itself and everything above it
-  are trusted** — the caller chose them, and this keeps hosts whose temporary folder is itself a link working.
-  Strict rejection was chosen over resolving real paths because resolution is ambiguous (relative links, chains,
-  junction targets) and racy; it tightens an earlier rule that allowed a file link whose target was inside a root.
-  To use linked content, a caller adds the real directory as a library path. **Residual risk (documented, accepted):**
-  the sandbox protects against path-based escapes in static file trees; it is **not a security boundary against a
-  concurrent local attacker with write access to the included folders**. Such an attacker, who can modify the tree
-  between the check and the open (a time-of-check/time-of-use race), is outside
-  the threat model of an untrusted document plus caller-chosen directories: the link walk and the later
-  `File.Exists`/`File.OpenRead` are separate file-system operations, so a component swapped for a link in
-  between is not noticed. **Hard links cannot be detected:** a hard link is an ordinary directory entry that names
-  the same file as another entry, so it carries no marker the link probe could see (`LinkTarget` is null), and
-  an extra name for a file outside the roots that someone with write access created inside a root is therefore
-  read like any regular file. Keeping the allowed directories free of hard links to files outside them is the
-  caller's responsibility, as is controlling who may write there; neither the requirement nor the tests claim
-  protection against either case. A directory in place of a file
-  counts as missing. Files are read with the shared bounded UTF-8 reader of `ScadDocument` (byte-order mark
-  detection, at most 4,194,304 characters).
+- **File-system mode** (no `FileResolver`): the sandbox accepts a candidate only if it lies under the root it was
+  derived from (`..` that stays inside the root is allowed) and refuses it when **any component strictly below its
+  root, including the file itself, is a symbolic link or junction, whatever the target, a dangling link included**
+  (the link rule, its fail-closed probe, the top-down walk, the trusted root and the residual risks are specified at the
+  core unit: _SandboxedFileResolver Unit Design_). A link raises `Include file '…' passes through a link ('<component
+  below the root>'); links are not followed inside the allowed directories`, and a link check that cannot be completed
+  raises `Include file '…' cannot be checked for links and is not read`. To use linked content, a caller adds the real
+  directory as a library path. **Residual risk (documented, accepted):** the sandbox protects against path-based
+  escapes in static file trees; it is **not a security boundary against a concurrent local attacker with write access to
+  the included folders**, and **hard links cannot be detected**; keeping the allowed directories free of hard links to
+  files outside them is the caller's responsibility, as is controlling who may write there; neither the requirement nor
+  the tests claim protection against either case. A **directory in place of a file** (and any file that exists but
+  cannot be opened) is a located `Include file '…' cannot be read` error, never a silently missing file. Files are
+  opened read-only with shared access. The bytes the sandbox returns are decoded by `ScadDocument` with the shared
+  bounded rules (UTF-8 with byte-order mark detection, at most 4,194,304 characters).
 - **Resolver mode** (`FileResolver` supplied): **no file-system access at all.** Each candidate is a
   normalized **logical path** (forward slashes, no leading `/`, `..` collapsed) handed to the callback; the first
-  non-null stream wins; the unit reads it with the shared bounded reader and then disposes of it. Library paths
+  non-null stream wins; the sandbox reads it with its bounded reader and then disposes of it. Library paths
   are used as logical prefixes; entries that
   are not valid logical paths (rooted, a colon, `..` escaping, control characters) are silently ignored; the
-  base directory plays no role. An exception thrown by the callback propagates unchanged.
+  base directory plays no role. An exception thrown by the callback (or by its stream) is a located
+  `Include file '…' cannot be read` error, without the callback's own text; a cancellation raised by the callback
+  passes through unchanged.
 - **Hostile paths** — an absolute path, a drive letter or a colon anywhere in the text (which also excludes
-  alternate data streams), an empty path, a control character (including NUL), and `..` above the root — are a
-  **sandbox violation**: `Include path 'p' is not allowed: <reason>`, or
+  alternate data streams), an empty path, a control character (including NUL, and C1 characters), and `..` above the
+  root — are a **sandbox violation**: `Include path 'p' is not allowed: <reason>`, or
   `Include path 'p' is outside the allowed directories`. In resolver mode the violation is raised **before** the
-  callback is asked, so the callback only ever sees normalized logical paths.
+  callback is asked, so the callback only ever sees normalized logical paths. A configured base directory or library
+  path that is not a valid path is a located `A configured directory (BaseDirectory or LibraryPaths) is not a valid path`
+  error.
 - **Display names** of loaded files are the logical path (resolver mode), the path relative to the base
   directory with `/` when the file is under it, and the full path otherwise.
 
@@ -147,27 +143,36 @@ Windows and macOS (the platform comparer is used for the file keys and the root 
 - **Warning**: a file that cannot be found (in any candidate) is `Can't open include file 'p'` — the same
   text for `include` and `use` — located at the directive; the directive is dropped, and no library unit is
   created for a missing `use`.
-- **`ScadEvaluationException`** (located at the directive): sandbox violations, cycles, the depth, count, and
+- **`ScadEvaluationException`** (located at the directive): sandbox violations (including a link, a failed link check,
+  a file that exists but cannot be read, and an invalid configured directory), cycles, the depth, count, and
   statement limits, and `Cannot resolve 'p': the document has no base directory, library path or file resolver`
   when a directive is found and there is nowhere to look.
 - **`ScadSyntaxException`** — a syntax error in an included or used file propagates unchanged; its location
   names that file (the parser is called with the file's display name).
-- **`InvalidDataException`** — a file longer than 4,194,304 characters. Other `IOException`s from reading an
-  existing file propagate as they are.
+- **`InvalidDataException`** — a file longer than 4,194,304 characters (also when the sandbox's byte bound is hit first).
 - **`OperationCanceledException`** — never wrapped.
 - The parser's own stack-safety fallback applies to each included file (`ScadParser.Parse` has its own gate);
   the parser's gate and the evaluator's gate are never held at the same time, because phase A finishes before
   phase B starts, so there is no lock-ordering hazard.
 
+**Behavior change from the shared sandbox.** Adopting the core sandbox made four rules stricter than this unit's
+earlier private implementation: a C1 control character in a path is refused (as C0 and DEL already were); a dangling
+final link is a link error rather than a "Can't open include file" warning; a directory in place of a file, a file
+that cannot be opened and an exception thrown by the resolver callback are located errors rather than a missing-file
+warning or a raw exception; and a configured base directory or library path that is not a valid path is a located
+error rather than a raw `ArgumentException`. Files are also opened with shared access and the open (not an existence
+check) decides missing versus unreadable.
+
 #### Dependencies
 
+- **`SandboxedFileResolver`**, **`SandboxOptions`**, **`SandboxedFile`**, **`SandboxException`**, and
+  **`SandboxFailureKind`** — the public types of the core `Files` subsystem that perform all file access.
 - **`ScadOpenOptions`** (the `ScadDocument` unit) — `BaseDirectory`, `LibraryPaths`, `FileResolver`.
-- **`ScadDocument.ReadBounded`** — the shared bounded UTF-8 stream reader (internal and static).
+- **`ScadDocument.DecodeBounded`** — the shared bounded UTF-8 decoder (internal and static).
 - **`ScadLanguage` subsystem** — `ScadParser.Parse(string, string?)` and the syntax tree (`ScadProgram`,
   `ScadDirectiveStatement`).
 - **`ScadEvaluationSink`** — receives the missing-file warnings. **`ScadLimits`** — the limits.
-- **.NET base class library** — `System.IO` (`File`, `Directory`, `FileInfo.LinkTarget`,
-  `DirectoryInfo.LinkTarget`, `Path`), and `System.Collections.Generic`.
+- **.NET base class library** — `System.IO` (`Path`, `MemoryStream`), and `System.Collections.Generic`.
 
 #### Callers
 
@@ -176,8 +181,8 @@ document's `Options`, `Program`, and `SourceName` on the calling thread before t
 in `test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadFileResolver*Tests.cs` call `Load` directly through
 `InternalsVisibleTo`, using the in-memory `ScadVirtualFiles` resolver (which records every path requested, so a
 test can assert that no other path is ever asked for) and, for file-system tests, a per-test temporary
-directory (`ScadTempDirectory`). The link rule is verified on every platform through the internal **link-probe
-seam** (an optional `Func<string, bool>` constructor parameter that tests replace with a fake reporting chosen
-real temporary paths as links, so the walk logic never needs a real link). Additional tests create real links (a
-junction or symbolic link) and skip themselves where the host does not permit creating them; they are not cited
-by a requirement.
+directory (`ScadTempDirectory`). The sandbox mechanics (the link walk and its fail-closed probe, the dangling-link
+rule, the open rules) are verified on every platform at the core unit through its internal link-probe and open seams;
+this unit's tests prove the wording and location of each refusal (`Translate`) and, with real links (a junction or
+symbolic link) that skip themselves where the host does not permit creating them, that a real link surfaces as a
+located error; the real-link tests are not cited by a requirement.

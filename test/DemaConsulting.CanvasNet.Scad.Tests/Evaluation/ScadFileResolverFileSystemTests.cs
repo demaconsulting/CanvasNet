@@ -157,23 +157,42 @@ public class ScadFileResolverFileSystemTests
     }
 
     /// <summary>
-    ///     Validates that a directory with the requested name is treated as a missing file.
+    ///     Validates that a directory with the requested name is a located read failure (it exists but cannot be read as
+    ///     source), not a missing file, and that the message does not reveal the host path.
     /// </summary>
     [Fact]
-    public void ScadFileResolver_Load_DirectoryInsteadOfFile_IsMissing()
+    public void ScadFileResolver_Load_DirectoryInsteadOfFile_IsReadFailure()
     {
         // Arrange
         using var directory = new ScadTempDirectory();
         Directory.CreateDirectory(directory.Combine("folder.scad"));
-        var sink = new ScadEvaluationSink(ScadLimits.Default);
         var options = new ScadOpenOptions { BaseDirectory = directory.Path };
 
         // Act
-        var unit = Load("include <folder.scad>\n", options, sink: sink);
+        var ex = Assert.Throws<ScadEvaluationException>(() => Load("include <folder.scad>\n", options));
 
         // Assert
-        Assert.Empty(unit.Statements);
-        Assert.Single(sink.Diagnostics);
+        Assert.Contains("Include file 'folder.scad' cannot be read", ex.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(directory.Path, ex.Message, StringComparison.Ordinal);
+        Assert.Equal(1, ex.Location.Line);
+    }
+
+    /// <summary>
+    ///     Validates that a configured base directory that is not a valid path is a located error, not a raw
+    ///     argument exception.
+    /// </summary>
+    [Fact]
+    public void ScadFileResolver_Load_InvalidConfiguredDirectory_IsLocatedError()
+    {
+        // Arrange: a NUL character is never valid in a path
+        var options = new ScadOpenOptions { BaseDirectory = "bad\0dir" };
+
+        // Act
+        var ex = Assert.Throws<ScadEvaluationException>(() => LoadDirectives(options, ["a.scad"]));
+
+        // Assert
+        Assert.Contains("is not a valid path", ex.Message, StringComparison.Ordinal);
+        Assert.Equal(1, ex.Location.Line);
     }
 
     /// <summary>

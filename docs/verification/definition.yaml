@@ -39,6 +39,8 @@ input-files:
   - docs/verification/canvas-net/rendering/canvas.md
   - docs/verification/canvas-net/rendering/text-renderer.md
   - docs/verification/canvas-net/rendering/shapes.md
+  - docs/verification/canvas-net/files.md
+  - docs/verification/canvas-net/files/sandboxed-file-resolver.md
   - docs/verification/canvas-net-svg.md
   - docs/verification/canvas-net-svg/svg-codec.md
   - docs/verification/canvas-net-pdf.md

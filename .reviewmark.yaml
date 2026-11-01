@@ -735,6 +735,42 @@ reviews:
       - "src/DemaConsulting.CanvasNet/Rendering/Shapes.cs"          # unit source
       - "test/DemaConsulting.CanvasNet.Tests/Rendering/ShapesTests.cs"  # unit tests
 
+  # CanvasNet-Files Review (one per subsystem)
+  - id: CanvasNet-Files
+    title: Review that CanvasNet Files Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/files.yaml"                # subsystem requirements
+      - "docs/design/canvas-net/files.md"                    # subsystem design
+      - "docs/verification/canvas-net/files.md"              # subsystem verification
+      - "docs/sysml2/model/canvas-net/files.sysml"           # subsystem model
+      - "src/DemaConsulting.CanvasNet/Files/NamespaceDoc.cs"  # namespace documentation
+
+  # CanvasNet-Files-SandboxedFileResolver Review (one per unit)
+  - id: CanvasNet-Files-SandboxedFileResolver
+    title: Review that CanvasNet Files SandboxedFileResolver Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+      - "docs/design/canvas-net/files.md"
+      - "docs/reqstream/canvas-net/files.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/files/sandboxed-file-resolver.yaml"  # unit requirements
+      - "docs/design/canvas-net/files/sandboxed-file-resolver.md"      # unit design
+      - "docs/verification/canvas-net/files/sandboxed-file-resolver.md"  # unit verification
+      - "docs/sysml2/model/canvas-net/files/sandboxed-file-resolver.sysml"  # unit model
+      - "src/DemaConsulting.CanvasNet/Files/SandboxedFileResolver*.cs"  # unit source (resolver and path rules)
+      - "src/DemaConsulting.CanvasNet/Files/SandboxOptions.cs"          # unit source (options)
+      - "src/DemaConsulting.CanvasNet/Files/SandboxedFile.cs"           # unit source (result)
+      - "src/DemaConsulting.CanvasNet/Files/SandboxException.cs"        # unit source (failure)
+      - "src/DemaConsulting.CanvasNet/Files/SandboxFailureKind.cs"      # unit source (failure kinds)
+      - "test/DemaConsulting.CanvasNet.Tests/Files/SandboxedFileResolverTests.cs"      # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Files/SandboxedFileResolverLinkTests.cs"  # unit tests (link walk)
+      - "test/DemaConsulting.CanvasNet.Tests/Files/SandboxExceptionTests.cs"           # unit tests (exception)
+      - "test/DemaConsulting.CanvasNet.Tests/Files/SandboxTestSupport.cs"              # shared test support
+
   # CanvasNetSvg-Architecture Review (one per system)
   - id: CanvasNetSvg-Architecture
     title: Review that CanvasNetSvg Architecture Satisfies Requirements
@@ -2219,9 +2255,9 @@ reviews:
       - "docs/design/canvas-net-vega-lite/data/data-file-resolver.md"  # unit design
       - "docs/verification/canvas-net-vega-lite/data/data-file-resolver.md"  # unit verification
       - "docs/sysml2/model/canvas-net-vega-lite/data/data-file-resolver.sysml"  # unit SysML2 model
-      - "src/DemaConsulting.CanvasNet.VegaLite/Data/DataFileResolver*.cs"  # unit source (resolver and path rules)
+      - "src/DemaConsulting.CanvasNet.VegaLite/Data/DataFileResolver*.cs"  # unit source (over the core sandbox)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataFileResolverTests.cs"  # unit tests
-      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataFileResolverLinkTests.cs"  # unit tests (link walk)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataFileResolverLinkTests.cs"  # unit tests (real links)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataTestSupport.cs"  # shared test support (files, links)
 
   # CanvasNetVegaLite-Data-DelimitedTextParser Review (one per unit)

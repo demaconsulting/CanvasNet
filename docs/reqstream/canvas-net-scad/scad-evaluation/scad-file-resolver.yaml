@@ -6,10 +6,13 @@
 # immutable, include-expanded source unit and the list of used library units (ScadFileResolver,
 # ScadFileResolver.Paths, ScadSourceUnit) in the DemaConsulting.CanvasNet.Scad.Evaluation namespace.
 #
-# The resolver is the only code that touches the file system or calls the caller's file resolver, and it
-# enforces a sandbox: environment variables are never consulted, and a path may only name a file under the
-# base directory or a library path (file-system mode) or a logical path handed to the caller's callback
-# (resolver mode). Each "tests" entry cites an existing test method in the
+# The resolver is the only code that touches the file system or calls the caller's file resolver, and it does
+# so only through the core sandboxed file resolver (CanvasNet-Files-SandboxedFileResolver-*, which carries the
+# requirements and tests of the sandbox mechanics): environment variables are never consulted, and a path may
+# only name a file under the base directory or a library path (file-system mode) or a logical path handed to
+# the caller's callback (resolver mode). The requirements here cover what is specific to OpenSCAD (search
+# context, cycles and limits, decoding, and the wording and location of each refusal). Each "tests" entry
+# cites an existing test method in the
 # DemaConsulting.CanvasNet.Scad.Tests project; see
 # docs/verification/canvas-net-scad/scad-evaluation/scad-file-resolver.md for the test-evidence mapping.
 
@@ -84,19 +87,24 @@ sections:
               - id: CanvasNetScad-ScadEvaluation-ScadFileResolver-Sandbox
                 title: >-
                   The ScadFileResolver unit shall confine every file access to the base directory and
-                  the configured library paths: it shall reject, with an evaluation error and without
-                  asking the caller's resolver or the file system, an absolute path, a drive or colon,
-                  an empty path, a control character, and a path that climbs above its root, while
+                  the configured library paths by delegating to the core sandboxed file resolver, and
+                  shall report each of its refusals as an evaluation error located at the directive,
+                  without asking the caller's resolver or the file system: an absolute path, a drive or
+                  colon, an empty path, a control character (including the C1 range), a path that
+                  climbs above its root, and a configured directory that is not a valid path, while
                   allowing dot-dot segments that stay inside the root; it shall refuse an existing
                   file outside every root, including a sibling folder that merely shares a name
                   prefix with a root; in file-system mode it shall also refuse a file that is, or
                   that lies beneath a directory that is, a symbolic link or junction below its root,
-                  whatever the link's target, without reading the file or revealing whether it exists,
-                  while trusting the root itself and everything above it.
+                  whatever the link's target and including a dangling link (reported as a link error,
+                  not as a missing file), without reading the file or revealing whether it exists,
+                  naming the link relative to its root, and failing closed when the link check cannot
+                  be completed.
                 justification: |
                   A document may come from an untrusted source; an include path must never be a way to
                   read arbitrary files of the host. A link inside an allowed directory can point
-                  anywhere, so a link is refused instead of being followed.
+                  anywhere, so a link is refused instead of being followed; the author must be told
+                  which rule the path broke.
                 tests:
                   - ScadFileResolver_Load_HostilePath_InResolverMode_ThrowsWithoutAskingResolver
                   - ScadFileResolver_Load_HostilePath_InFileSystemMode_Throws
@@ -105,16 +113,9 @@ sections:
                   - ScadFileResolver_Load_FileSystem_LibraryRootConfinesCandidates
                   - ScadFileResolver_Load_FileSystem_ExistingFileOutsideRoot_IsRefused
                   - ScadFileResolver_Load_FileSystem_SiblingWithSharedPrefix_IsOutsideRoot
-                  - ScadFileResolverLink_Load_LinkedDirectoryBetweenRootAndFile_IsRejected
-                  - ScadFileResolverLink_Load_LinkedDirectoryAtAnyDepth_IsRejected
-                  - ScadFileResolverLink_Load_LinkedFile_IsRejectedWhateverItsTarget
-                  - ScadFileResolverLink_Load_LinkedLibraryRootComponent_IsRejected
-                  - ScadFileResolverLink_Load_LinkedRootAndAncestors_AreTrusted
-                  - ScadFileResolverLink_Load_LinkAfterMissingComponent_IsNotProbed_AndFileIsMissing
-                  - ScadFileResolverLink_Load_EveryComponentProbedOnce_AndCached
-                  - ScadFileResolverLink_Load_ProbeThrows_FailsClosed
-                  - ScadFileResolverLink_Load_ResolverMode_NeverProbes
-                  - ScadFileResolverLink_Load_DotDotRouteThroughLink_IsJudgedOnNormalizedPath
+                  - ScadFileResolver_Load_InvalidConfiguredDirectory_IsLocatedError
+                  - ScadFileResolverLink_Translate_EverySandboxKind_ProducesLocatedWording
+                  - ScadFileResolverLink_Translate_TooLarge_IsSourceTooLong
 
               - id: CanvasNetScad-ScadEvaluation-ScadFileResolver-ResolverCallback
                 title: >-
@@ -122,15 +123,19 @@ sections:
                   only that resolver and shall not touch the file system, shall pass it only
                   normalized logical paths, shall ask it once for a path that is missing, shall use
                   the stream it returns, shall ignore library paths that are not valid logical
-                  paths, and shall let an exception thrown by the resolver propagate unchanged.
+                  paths, and shall report an exception thrown by the resolver (or by its stream) as
+                  an evaluation error located at the directive that does not copy the resolver's own
+                  message, while letting a cancellation pass through unchanged.
                 justification: |
                   Hosts that serve documents from memory, archives, or a database need to control
-                  file access completely, and must be able to trust that no other access happens.
+                  file access completely, and must be able to trust that no other access happens;
+                  the callback is untrusted code, so its failures must not leak through the
+                  evaluation contract as raw exceptions.
                 tests:
                   - ScadFileResolver_Load_ResolverMode_RequestsOnlyNormalizedLogicalPaths
                   - ScadFileResolver_Load_ResolverMode_DoesNotTouchFileSystem
                   - ScadFileResolver_Load_ResolverMode_UsesCallbackStream
-                  - ScadFileResolver_Load_ResolverException_Propagates
+                  - ScadFileResolver_Load_ResolverException_IsLocatedReadFailure
                   - ScadFileResolver_Load_InvalidLogicalLibraryPaths_AreIgnored
                   - ScadFileResolver_Load_MissingFileTwice_AsksResolverOnce
 
@@ -138,15 +143,16 @@ sections:
                 title: >-
                   When no resolver is supplied, the ScadFileResolver unit shall read included files
                   from the file system as UTF-8 with byte-order-mark detection, resolving relative
-                  includes against the folder of an opened file, and shall treat a directory in place
-                  of a file as a missing file.
+                  includes against the folder of an opened file, and shall report a directory in
+                  place of a file as an evaluation error located at the directive (it exists but
+                  cannot be read, so it is not a missing file).
                 justification: |
                   Opening a model from disk and including its neighbors is the common case and must
                   work without any callback.
                 tests:
                   - ScadFileResolver_Load_OpenedFile_ResolvesRelativeIncludes
                   - ScadFileResolver_Load_Utf8BomFile_IsAccepted
-                  - ScadFileResolver_Load_DirectoryInsteadOfFile_IsMissing
+                  - ScadFileResolver_Load_DirectoryInsteadOfFile_IsReadFailure
 
               - id: CanvasNetScad-ScadEvaluation-ScadFileResolver-Cycles
                 title: >-

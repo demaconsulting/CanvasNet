@@ -99,19 +99,17 @@ internal static class ScadResolverTestSupport
     /// <param name="limits">The limits, or null for the defaults.</param>
     /// <param name="sink">The sink that receives warnings, or null to create one.</param>
     /// <param name="cancellation">The cancellation token.</param>
-    /// <param name="isLink">The link probe handed to the resolver, or null for the file system.</param>
     /// <returns>The expanded main unit.</returns>
     public static ScadSourceUnit Load(
         string source,
         ScadOpenOptions options,
         ScadLimits? limits = null,
         ScadEvaluationSink? sink = null,
-        CancellationToken? cancellation = null,
-        Func<string, bool>? isLink = null)
+        CancellationToken? cancellation = null)
     {
         var effectiveLimits = limits ?? ScadLimits.Default;
         var document = ScadDocument.Parse(source, options);
-        var resolver = new ScadFileResolver(document.Options, effectiveLimits, sink ?? new ScadEvaluationSink(effectiveLimits), cancellation ?? TestContext.Current.CancellationToken, isLink);
+        var resolver = new ScadFileResolver(document.Options, effectiveLimits, sink ?? new ScadEvaluationSink(effectiveLimits), cancellation ?? TestContext.Current.CancellationToken);
         return resolver.Load(document.Program, document.SourceName);
     }
 
@@ -140,9 +138,8 @@ internal static class ScadResolverTestSupport
     /// <param name="options">The open options.</param>
     /// <param name="paths">The include paths, one directive each on lines 1, 2, ...</param>
     /// <param name="limits">The limits, or null for the defaults.</param>
-    /// <param name="isLink">The link probe handed to the resolver, or null for the file system.</param>
     /// <returns>The expanded main unit.</returns>
-    public static ScadSourceUnit LoadDirectives(ScadOpenOptions options, IReadOnlyList<string> paths, ScadLimits? limits = null, Func<string, bool>? isLink = null)
+    public static ScadSourceUnit LoadDirectives(ScadOpenOptions options, IReadOnlyList<string> paths, ScadLimits? limits = null)
     {
         var effectiveLimits = limits ?? ScadLimits.Default;
         var statements = new List<ScadStatement>();
@@ -151,7 +148,7 @@ internal static class ScadResolverTestSupport
             statements.Add(new ScadDirectiveStatement(ScadDirectiveKind.Include, paths[i]) { Location = new ScadSourceLocation("main.scad", i + 1, 1) });
         }
 
-        var resolver = new ScadFileResolver(options, effectiveLimits, new ScadEvaluationSink(effectiveLimits), CancellationToken.None, isLink);
+        var resolver = new ScadFileResolver(options, effectiveLimits, new ScadEvaluationSink(effectiveLimits), CancellationToken.None);
         return resolver.Load(new ScadProgram(statements), "main.scad");
     }
 

@@ -1177,6 +1177,48 @@ sections:
           - ImageDecoder_LoadBytes_PngBmpTiff_DecodesExactPixels
           - ImageDecoder_Load_UnrecognizedData_ThrowsInvalidDataException
 
+  - title: Sandboxed File Access API
+    requirements:
+      - id: CanvasNet-Lib-SandboxedFileResolution
+        title: >-
+          The library shall resolve an untrusted relative path to the bytes of a file by searching a base
+          directory, additional search paths, or the directory of a previously resolved file (or a
+          caller-supplied virtual file source), reading each file with shared access, within a byte limit,
+          once per resolver, and distinguishing a file that does not exist from one that cannot be read.
+        tags: [system]
+        justification: |
+          Programs that read files named by untrusted text (include directives, data URLs) need one
+          deterministic, bounded way to find and read them, and library users should not have to write it
+          again.
+        children:
+          - CanvasNet-Files-Resolution
+          - CanvasNet-Files-ResolverCallback
+          - CanvasNet-Files-BoundedReading
+        tests:
+          - SandboxedFileResolver_Resolve_RelativePathUsesBaseDirectoryThenSearchPaths
+          - SandboxedFileResolver_Resolve_ResolverModeUsesNormalizedLogicalPathsWithoutFileSystem
+          - SandboxedFileResolver_Resolve_MaxFileBytesAtLimitAndOneOver
+
+      - id: CanvasNet-Lib-SandboxedFileSafety
+        title: >-
+          The library shall confine that file access to the directories the caller chose: it shall refuse a
+          path that is empty, absolute, a drive or UNC path, contains a colon or a control character, or
+          leaves its root, shall never follow a symbolic link or junction below a root, and shall report
+          every refusal as an exception that identifies the rule that was broken without revealing a host
+          directory.
+        tags: [system, security]
+        justification: |
+          A path may come from an untrusted source and must never become a way to read arbitrary files of
+          the host; callers need to tell the author which rule the path broke.
+        children:
+          - CanvasNet-Files-Confinement
+          - CanvasNet-Files-LinkRefusal
+          - CanvasNet-Files-FailureReporting
+        tests:
+          - SandboxedFileResolver_Resolve_HostilePathTextIsRejectedWithoutAnyAccess
+          - SandboxedFileResolver_Resolve_LinkedDirectoryIsRejectedBeforeOpen
+          - SandboxException_Constructor_EveryKind_KeepsFactsAndHidesHostPath
+
   # Note: SVG rasterization is provided by the separate CanvasNetSvg system (its own package,
   # DemaConsulting.CanvasNet.Svg) - see docs/reqstream/canvas-net-svg.yaml, not this system.
 

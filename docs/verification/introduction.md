@@ -43,6 +43,8 @@ constituent software items, specifically:
   `PathStroker`, `GradientPaint`, and `TilePaint`
 - **Fonts (Subsystem)** — TrueType (`glyf`-based) SFNT font loading and glyph-outline extraction:
   `TrueTypeFont` and `SystemFontCatalog`
+- **Files (Subsystem)** — Sandboxed file access: the `SandboxedFileResolver` unit and its supporting
+  `SandboxOptions`, `SandboxedFile`, `SandboxException`, and `SandboxFailureKind` types
 - **CanvasNetSvg (System)** — A separate, independently-distributed software system providing
   SVG (Scalable Vector Graphics) rasterization, containing a single unit, `SvgCodec` — see
   _CanvasNetSvg System Verification_ (`canvas-net-svg.md`)

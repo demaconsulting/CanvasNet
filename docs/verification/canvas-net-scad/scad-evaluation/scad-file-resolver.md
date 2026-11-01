@@ -21,14 +21,15 @@ Two kinds of file source are used, and both are real implementations of the unit
   deletes, for real files, folders, library paths, byte-order marks, and (where the host permits creating them)
   directory links.
 
-The link rule (a symbolic link or junction below a root is rejected whatever its target) is verified in two layers.
-The **cited** scenarios (`ScadFileResolverLinkTests`) inject a fake link probe through the resolver's internal
-constructor seam (`Func<string, bool>`): the fake reports chosen paths of real temporary files and directories as
-links, so the walk logic (top-down order, existing components only, caching, trusted root, fail-closed probe,
-resolver mode never probing, dot-dot normalization) is proven on every platform without creating a link, and these
-tests never skip. The **not cited** scenarios create real links (a junction through `mklink /J` or a symbolic link
-through the framework) and so additionally prove the default probe against the real file system; they skip
-themselves where the host cannot create links and are listed here as additional evidence only.
+The sandbox mechanics are verified once, at the core unit (see _SandboxedFileResolver Unit Verification Design_,
+`canvas-net/files/sandboxed-file-resolver.md`): the link rule (a symbolic link or junction below a root is rejected
+whatever its target, a dangling link included) is proven on every platform with an injected link probe and open seam
+that this project cannot reach, because they are internal to the core package. What this unit proves is its own layer:
+the wording and location of each refusal (`ScadFileResolver.Translate` is called with a `SandboxException` of every
+kind), the end-to-end path from the sandbox to the located error through hostile paths and the callback, and - with real
+links (a junction through `mklink /J` or a symbolic link through the framework, skipping themselves where the host
+cannot create links, and listed here as additional evidence only) - that a real link surfaces as a located error that
+names the link relative to its root and not the host directory.
 
 Limits are verified in memory with generated chains: include depth at the limit and one over (and the default limit
 and the maximum of 64 on a thread with a small stack, to show that expansion is not stack-bound), cycles and
@@ -117,28 +118,22 @@ that file-name case follows the platform.
 `ScadFileResolverSandboxTests.ScadFileResolver_Load_FileSystem_LibraryRootConfinesCandidates`,
 `ScadFileResolverSandboxTests.ScadFileResolver_Load_FileSystem_ExistingFileOutsideRoot_IsRefused`,
 `ScadFileResolverSandboxTests.ScadFileResolver_Load_FileSystem_SiblingWithSharedPrefix_IsOutsideRoot`,
-`ScadFileResolverLinkTests.ScadFileResolverLink_Load_LinkedDirectoryBetweenRootAndFile_IsRejected`,
-`ScadFileResolverLinkTests.ScadFileResolverLink_Load_LinkedDirectoryAtAnyDepth_IsRejected`,
-`ScadFileResolverLinkTests.ScadFileResolverLink_Load_LinkedFile_IsRejectedWhateverItsTarget`,
-`ScadFileResolverLinkTests.ScadFileResolverLink_Load_LinkedLibraryRootComponent_IsRejected`,
-`ScadFileResolverLinkTests.ScadFileResolverLink_Load_LinkedRootAndAncestors_AreTrusted`,
-`ScadFileResolverLinkTests.ScadFileResolverLink_Load_LinkAfterMissingComponent_IsNotProbed_AndFileIsMissing`,
-`ScadFileResolverLinkTests.ScadFileResolverLink_Load_EveryComponentProbedOnce_AndCached`,
-`ScadFileResolverLinkTests.ScadFileResolverLink_Load_ProbeThrows_FailsClosed`,
-`ScadFileResolverLinkTests.ScadFileResolverLink_Load_ResolverMode_NeverProbes`,
-`ScadFileResolverLinkTests.ScadFileResolverLink_Load_DotDotRouteThroughLink_IsJudgedOnNormalizedPath`
+`ScadFileResolverFileSystemTests.ScadFileResolver_Load_InvalidConfiguredDirectory_IsLocatedError`,
+`ScadFileResolverLinkTests.ScadFileResolverLink_Translate_EverySandboxKind_ProducesLocatedWording`,
+`ScadFileResolverLinkTests.ScadFileResolverLink_Translate_TooLarge_IsSourceTooLong`
 
-Asserts that absolute paths, drive letters, colons, empty paths, control characters, and paths climbing above the
-root throw an evaluation error (in resolver mode without asking the callback), that dot-dot segments inside the
-root are allowed, that a nested file whose own include escapes the root is rejected, that a library root confines
-its own candidates, that an existing file outside every root is refused, and that a sibling folder sharing a name
-prefix with a root is outside it. The link scenarios (fake probe, never skipped) assert that a linked directory at
-depth one, two, or three, a linked file, and a linked component below a library root are each rejected with a
-message that names the component below the root and contains `link` (the file is never read), that a linked root
-and its ancestors are trusted, that the walk ends at the first missing component without probing below it, that
-each component is probed once, that a failing probe rejects the file, that resolver mode never asks the probe, and
-that a route through dot-dot is judged on the normalized path. Additional evidence, not cited by the requirement
-and skipped where links cannot be created: `ScadFileResolverLinkTests.ScadFileResolverLink_Load_RealDirectoryLink_EscapingRoot_IsRejected`,
+Asserts that absolute paths, drive letters, colons, empty paths, control characters (C0, DEL and C1), and paths
+climbing above the root throw an evaluation error (in resolver mode without asking the callback), that dot-dot
+segments inside the root are allowed, that a nested file whose own include escapes the root is rejected, that a
+library root confines its own candidates, that an existing file outside every root is refused, that a sibling folder
+sharing a name prefix with a root is outside it, and that a base directory that is not a valid path is a located error.
+The translation scenarios assert, for every sandbox failure kind (path text, outside the root, through a link, link
+check failed, cannot be read, invalid configured directory), the OpenSCAD message, the location of the directive, the
+file named relative to the base directory and the absence of any host directory, and that a file that is too large is
+the source-size `InvalidDataException`. Additional evidence, not cited by the requirement
+and skipped where links cannot be created: `ScadFileResolverLinkTests.ScadFileResolverLink_Load_RealDanglingLink_IsRejected_WhileMissingFileWarns`
+(a dangling link is a link error while a missing file is only a warning),
+`…_RealDirectoryLink_EscapingRoot_IsRejected`,
 `…_RealDirectoryLink_InsideRoot_IsRejected`, `…_RealFileLink_IsRejected` (a file link is rejected even when its
 target is inside the root), `…_RealLinkedBaseDirectoryItself_IsAllowed`, and the end-to-end
 `ScadDocumentEvaluateSafetyTests.ScadDocument_Evaluate_FileSystemSandbox_DirectoryLinkEscape_IsRejected`.
@@ -154,23 +149,25 @@ attacker with write access to the included folders.
 **Tests**: `ScadFileResolverSandboxTests.ScadFileResolver_Load_ResolverMode_RequestsOnlyNormalizedLogicalPaths`,
 `ScadFileResolverSandboxTests.ScadFileResolver_Load_ResolverMode_DoesNotTouchFileSystem`,
 `ScadFileResolverSandboxTests.ScadFileResolver_Load_ResolverMode_UsesCallbackStream`,
-`ScadFileResolverSandboxTests.ScadFileResolver_Load_ResolverException_Propagates`,
+`ScadFileResolverSandboxTests.ScadFileResolver_Load_ResolverException_IsLocatedReadFailure`,
 `ScadFileResolverIncludeTests.ScadFileResolver_Load_InvalidLogicalLibraryPaths_AreIgnored`,
 `ScadFileResolverIncludeTests.ScadFileResolver_Load_MissingFileTwice_AsksResolverOnce`
 
 Asserts that only normalized logical paths reach the callback, that a base directory that does not exist is never
-touched, that the stream returned by the callback is the source used, that an exception from the callback
-propagates unchanged, that library paths that are not valid logical paths are ignored, and that a missing path is
+touched, that the stream returned by the callback is the source used, that an exception from the callback is a
+located `cannot be read` error that does not copy the callback's message while a cancellation passes through
+unchanged, that library paths that are not valid logical paths are ignored, and that a missing path is
 requested once.
 
 ##### CanvasNetScad-ScadEvaluation-ScadFileResolver-FileSystem: Files On Disk
 
 **Tests**: `ScadFileResolverFileSystemTests.ScadFileResolver_Load_OpenedFile_ResolvesRelativeIncludes`,
 `ScadFileResolverFileSystemTests.ScadFileResolver_Load_Utf8BomFile_IsAccepted`,
-`ScadFileResolverFileSystemTests.ScadFileResolver_Load_DirectoryInsteadOfFile_IsMissing`
+`ScadFileResolverFileSystemTests.ScadFileResolver_Load_DirectoryInsteadOfFile_IsReadFailure`
 
 Asserts that a document opened from a file resolves relative includes against its folder, that a UTF-8 file with a
-byte-order mark is accepted, and that a directory in place of a file counts as missing.
+byte-order mark is accepted, and that a directory in place of a file is a located `cannot be read` error (not a
+missing file) that does not reveal the host directory.
 
 ##### CanvasNetScad-ScadEvaluation-ScadFileResolver-Cycles: Include Cycles
 
