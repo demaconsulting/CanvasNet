@@ -57,7 +57,8 @@ file as an output before it (`usage-error`: two outputs cannot share a file). Nu
 **Stage(surface, outputPath, inputPathForGuard, options)**: validates the arguments (a quality outside 1 to 100 is
 a defect of the caller and throws `ArgumentOutOfRangeException`), resolves the format, checks the target, flattens
 the surface over `FlattenBackground` when the format is JPEG and any pixel is not opaque (using
-`SurfaceOperations`), creates the target directory when needed, and encodes into a temporary file in the target
+`Surface.FlattenOver` and `Surface.HasTransparency`), creates the target directory when needed, and encodes into a
+temporary file in the target
 directory (a short fixed name with a new GUID, so a long target name cannot make the temporary name too long;
 created with `CreateNew`). It returns a `StagedOutput` that holds the temporary file and the `WriteResult` (with
 the size of the encoded file). A failure while staging deletes the temporary file and is reported as
@@ -92,8 +93,9 @@ check while `NoClobber` is set and the target now exists (another process create
 #### Dependencies
 
 - **ToolException** and **ErrorCodes** - the expected-error contract.
-- **SourceLoader** (the `SurfaceOperations` helper and the format names) - flattening and `ToFormatName`.
-- **CanvasNet core library** - `Surface`, `Rgba32`, and the PNG, JPEG, BMP, and TIFF codecs.
+- **SourceLoader** (the format names) - `ToFormatName`.
+- **CanvasNet core library** - `Surface` (including `FlattenOver` and `HasTransparency`), `Rgba32`, and the PNG, JPEG,
+  BMP, and TIFF codecs.
 
 #### Callers
 

@@ -76,7 +76,7 @@ internal static partial class SourceLoader
             // A raster source keeps its transparency unless a background color was asked for
             if (options.Background is { A: > 0 } background)
             {
-                surface = Replace(surface, SurfaceOperations.FlattenOver(surface, background));
+                surface = Replace(surface, surface.FlattenOver(background));
                 operations.Add(Operation("flatten", ("background", FormatColor(background))));
             }
 

@@ -46,7 +46,7 @@ Example (pinned by a test): the gray levels 128 (4 pixels), 144 (2), 160 (1), an
 *Luma statistics* (`LumaStatistics`) come from the histogram: `Mean` is the sum of the levels divided by the pixel count,
 rounded to 2 decimals; `Min` and `Max` are the smallest and largest level that occurs; the percentiles `P1`, `P50`, and
 `P99` are the smallest level whose cumulative count is at least `ceil(N * p / 100)`, with a minimum of 1 pixel; `Otsu`
-is `ImageAdjustments.OtsuThreshold` of the histogram, which is what an automatic threshold would choose for an image
+is `Surface.OtsuThreshold` of the histogram, which is what an automatic threshold would choose for an image
 flattened over the same background; and `Histogram` is 16 counts, the number of pixels whose level divided by 16 (an
 integer shift) is the index. Example: an image with each gray level once has the mean 127.5, `P1` 2 (the third pixel), `P50`
 127, `P99` 253, `Otsu` 127, and 16 pixels in each bin.
@@ -54,7 +54,7 @@ integer shift) is the index. Example: an image with each gray level once has the
 **Sample(surface, x, y, radius)**: `x` and `y` are integers inside the image, otherwise `ToolException` with code
 `usage-error` and the message `The point 5000,10 is outside the 4032x3024 image.` with a hint naming the valid range;
 the radius is 0 to 8 (`MaxRadius`). The result is `PixelSample(X, Y, Pixel, Luma, Window)` with the pixel as stored (not
-flattened) and `ImageAdjustments.Luma` of it (over white). When the radius is above 0 the window is
+flattened) and `Surface.Luma` of it (over white). When the radius is above 0 the window is
 `[x - r, x + r] x [y - r, y + r]` **clipped** to the image, so `PixelWindow` carries the actual rectangle (`X`, `Y`,
 `Width`, `Height`), all of its pixels in row-major order, and `Mean`, each channel (alpha included) rounded half up as
 `(2 * sum + n) / (2 * n)`. For a radius of 0 the window is `null`.
@@ -67,8 +67,7 @@ outside its range throws `ArgumentOutOfRangeException`; these are defects of the
 
 #### Dependencies
 
-- **CanvasNet core library** - `Surface` and `Rgba32`.
-- **ImageAdjustments** - `Luma` and `OtsuThreshold`.
+- **CanvasNet core library** - `Surface`, `Rgba32`, `Surface.Luma`, and `Surface.OtsuThreshold`.
 - **ToolException and ErrorCodes** - the usage error for a point outside the image.
 
 #### Callers

@@ -35,7 +35,7 @@ namespace DemaConsulting.CanvasNet.Canvas;
 ///     the pixel buffer throws <see cref="ObjectDisposedException"/> once the instance has been
 ///     disposed.
 /// </remarks>
-public sealed class Surface : IDisposable
+public sealed partial class Surface : IDisposable
 {
     /// <summary>
     ///     The number of bytes used to store a single pixel (one byte per RGBA channel).

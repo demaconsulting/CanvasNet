@@ -21,14 +21,17 @@ draws a grid on pixels in the order the options were written,
 JPEG, BMP, and TIFF files, and `ImageComparison`, which compares two images of the same size (error metrics, a
 structural similarity, a per-cell grid, and threshold checks) and creates difference, overlay, and side-by-side
 pictures, `ContactSheet`, which composes a grid of images, each fitted into a cell, with optional labels drawn in
-the bundled font, and `ImageAdjustments`, which adjusts the tone and color of pixels in place (luma, grayscale, invert,
-fixed and Otsu thresholds, levels, brightness, contrast, and auto-levels), and `ImageGeometry`, which rotates pixels by
-any angle onto an expanded canvas with a fill color, finds the content bounds inside a uniform border, and estimates the
+the bundled font, and `ImageGeometry`, which rotates pixels by
+any angle onto an expanded canvas with a fill color and estimates the
 skew of near-horizontal lines, `GridOverlay`, which draws a labeled coordinate grid over pixels in place, and
 `ImageAnalysis`, which reports the dominant colors, the luma statistics, and the pixels at a point of an image. The
+pixel arithmetic that is not specific to the tool (flip, pad, trim, fit, flatten, and the tone adjustments: luma,
+grayscale, invert, fixed and Otsu thresholds, levels, brightness, contrast, and auto-levels) is part of the core
+`Surface` class, documented in _SurfaceAdjustments Unit Design_ and _SurfaceTransforms Unit Design_ of the `Canvas`
+subsystem; the units here delegate to it. The
 supporting
 types shared by the units (`SourceKind`, `OutputFormat`, `SourceInfo`, `SourceOptions`, `ScadViewOptions`, `ChartFacts`,
-`LoadedSource`, `AppliedOperation`, `ImageDiagnostic`, `SourcePage`, and the pixel helpers `SurfaceOperations`) are
+`LoadedSource`, `AppliedOperation`, `ImageDiagnostic`, and `SourcePage`) are
 documented in the design of the unit that owns them; the operation records of the pipeline are documented with
 `ImagePipeline`.
 
@@ -44,8 +47,9 @@ several of its pages.
 
 **ImagePipeline.Parse(reader, verb, verbOperand)** and **ImagePipeline.Apply(input, operations, defaultPadColor,
 out applied, userBackground)** (provided to the commands): read the ordered operations of a command line (the operation
-of a verb command first), and apply them to a surface (running the units `ImageAdjustments`, `ImageGeometry`, and
-`GridOverlay` for the photo operations), giving a new surface and the list of what was done.
+of a verb command first), and apply them to a surface (calling the core `Surface` adjustments, flip, pad, and trim and
+the units `ImageGeometry` and `GridOverlay` for the photo operations), giving a new surface and the list of what was
+done.
 
 **ImageWriter.ResolveFormat**, **ImageWriter.CheckTarget**, **ImageWriter.CheckTargets**, and **ImageWriter.Write**
 (provided to the commands): choose the output format, check an output (or all the outputs of a command against all its
@@ -55,14 +59,9 @@ inputs) before any work is done, and write a surface atomically.
 and **ContactSheet.Detach()** (provided to the commands): calculate the geometry of a sheet (refusing one that is too
 large) before anything is loaded, then compose the sheet one image at a time and hand it to the caller.
 
-**ImageAdjustments.Grayscale**, **Invert**, **Threshold**, **ApplyTable**, **AutoLevels**, and the table and histogram
-helpers (provided to the pipeline and the analysis): adjust the pixels of a surface the caller owns in place, and
-calculate luma, histograms, the Otsu threshold, and the levels, brightness, and contrast tables.
-
 **ImageGeometry.CheckRotatedSize(width, height, degrees)**, **ImageGeometry.RotateArbitrary(source, degrees, fill,
-nearest)**, **ImageGeometry.FindTrimBounds(surface, tolerance)**, **ImageGeometry.Trim(surface, tolerance)**, and
-**ImageGeometry.EstimateSkew(surface)** (provided to the pipeline): size and refuse a rotated canvas, rotate by any angle
-onto an expanded canvas with a fill color, find or crop to the content inside a uniform border, and estimate the skew of
+nearest)**, and **ImageGeometry.EstimateSkew(surface)** (provided to the pipeline): size and refuse a rotated canvas,
+rotate by any angle onto an expanded canvas with a fill color, and estimate the skew of
 the near-horizontal lines of an image with a confidence.
 
 **GridOverlay.Draw(surface, spacing, color)** (provided to the pipeline): draw a labeled coordinate grid in place and

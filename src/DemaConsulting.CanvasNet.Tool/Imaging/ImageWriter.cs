@@ -341,8 +341,8 @@ internal static class ImageWriter
         CheckTarget(outputPath, inputPathForGuard, options.NoClobber);
 
         // JPEG has no transparency: flatten first, but only when there is something to flatten
-        var flatten = format == OutputFormat.Jpeg && SurfaceOperations.HasTransparency(surface);
-        var pixels = flatten ? SurfaceOperations.FlattenOver(surface, options.FlattenBackground) : surface;
+        var flatten = format == OutputFormat.Jpeg && surface.HasTransparency();
+        var pixels = flatten ? surface.FlattenOver(options.FlattenBackground) : surface;
         try
         {
             var fullPath = Path.GetFullPath(outputPath);

@@ -91,7 +91,7 @@ public class ImagingSubsystemTests
             default:
                 using (var drawn = SvgCodec.Load(path, 100, 80))
                 {
-                    return SurfaceOperations.FlattenOver(drawn, new Rgba32(255, 255, 255, 255));
+                    return drawn.FlattenOver(new Rgba32(255, 255, 255, 255));
                 }
         }
     }

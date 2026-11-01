@@ -1,0 +1,155 @@
+---
+# cspell:ignore luma otsu grayscale gamma percentile percentiles midtone midtones
+# Software Unit Requirements for SurfaceAdjustments
+#
+# These requirements describe the design-level behavior of the SurfaceAdjustments unit of the Canvas subsystem: the
+# tone and color adjustments of the Surface class (luma, grayscale, invert, fixed and Otsu thresholds, levels,
+# brightness, contrast, and the auto-levels stretch). The adjustments change a surface in place, work on pixels only
+# (they know nothing of files, options, or commands), use exact integer arithmetic wherever a number decides a pixel,
+# process rows in parallel with disjoint output, and sum histograms in fixed blocks, so the results are the same on
+# any number of cores. See docs/verification/canvas-net/canvas/surface-adjustments.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Canvas Requirements
+        sections:
+          - title: SurfaceAdjustments Requirements
+            requirements:
+              - id: CanvasNet-Canvas-SurfaceAdjustments-Luma
+                title: >-
+                  The Surface class shall calculate the luma of an opaque pixel as (77 R + 150 G + 29 B + 128)
+                  shifted right by 8 bits, and the luma of a translucent pixel as the luma of the pixel flattened
+                  over white, (Y A + 255 (255 - A) + 127) divided by 255 with integer division, so that a fully
+                  transparent pixel has the luma 255.
+                justification: |
+                  Every tone operation, the histogram, and any analysis built on them must agree on one brightness
+                  of a pixel; fixed-point weights give the same number on every machine, and flattening over white
+                  treats transparent paper as the white it will look like.
+                tests:
+                  - Surface_Luma_OpaqueAndTranslucentPixels_UsesFixedPointWeightsOverWhite
+
+              - id: CanvasNet-Canvas-SurfaceAdjustments-Grayscale
+                title: >-
+                  The Surface class shall replace the red, green, and blue of each pixel with the luma of its own
+                  color in place, leaving the alpha unchanged and a gray pixel unchanged.
+                justification: |
+                  A gray copy of a photograph is the first step of reading ink strokes; keeping the alpha channel
+                  means the operation never makes a transparent area visible.
+                tests:
+                  - Surface_Grayscale_ColorPixels_SetsEqualChannelsAndKeepsAlpha
+                  - Surface_Grayscale_AlreadyGray_IsUnchanged
+
+              - id: CanvasNet-Canvas-SurfaceAdjustments-Invert
+                title: >-
+                  The Surface class shall replace each of the red, green, and blue channels of each pixel with its
+                  complement from 255 in place, leaving the alpha unchanged, so that inverting twice restores the
+                  original.
+                justification: |
+                  Light marks on a dark ground must be turned into dark marks on a light ground for the operations
+                  that assume the latter, and an inversion that is its own inverse is easy to reason about and to
+                  verify.
+                tests:
+                  - Surface_Invert_Pixels_ComplementsColorAndKeepsAlpha
+                  - Surface_Invert_Twice_RestoresOriginal
+
+              - id: CanvasNet-Canvas-SurfaceAdjustments-Threshold
+                title: >-
+                  The Surface class shall turn each pixel into opaque white when its luma over white is greater
+                  than a level from 0 to 255, and into opaque black otherwise, in place.
+                justification: |
+                  A pure black and white picture is the clearest input for reading strokes; basing the decision on
+                  the luma over white makes a translucent pixel behave as it looks, and an opaque result needs no
+                  further flattening.
+                tests:
+                  - Surface_Threshold_FixedLevel_WhiteOnlyAboveLevel
+                  - Surface_Threshold_TranslucentPixel_UsesLumaOverWhiteAndIsOpaque
+
+              - id: CanvasNet-Canvas-SurfaceAdjustments-Otsu
+                title: >-
+                  The Surface class shall choose the automatic threshold of a 256-bin luma histogram as the level
+                  from 0 to 254 that maximizes the between-class variance, calculated with exact 64-bit integer
+                  sums, taking the middle of the first and last of the levels that tie ((first + last) / 2 with
+                  integer division) and returning 127 when no level has pixels on both sides.
+                justification: |
+                  Otsu's method picks a threshold from the image itself, so that a photograph needs no trial and
+                  error; exact sums and a rule for ties make the chosen level the same on every machine.
+                tests:
+                  - Surface_OtsuThreshold_TwoLevels_ReturnsMiddleOfGap
+                  - Surface_OtsuThreshold_SingleLevel_ReturnsFallback127
+                  - Surface_OtsuThreshold_UnevenClasses_SeparatesModes
+
+              - id: CanvasNet-Canvas-SurfaceAdjustments-Levels
+                title: >-
+                  The Surface class shall map the red, green, and blue of every pixel in place through a levels
+                  table built from a black level from 0 to 254, a white level from 1 to 255 above it, and a gamma
+                  from 0.1 to 10, in which the entry for a level v is 255 times the clamped fraction
+                  (v - black) / (white - black) raised to 1 / gamma, rounded half away from zero, leaving the
+                  alpha unchanged, and shall reject a value outside these ranges.
+                justification: |
+                  Levels are the standard way of stretching the useful range of a photograph and of lifting its
+                  midtones; a documented formula lets a user and a test predict every output level.
+                tests:
+                  - Surface_BuildLevelsTable_BlackWhiteGamma_MapsEndpointsAndMidtone
+                  - Surface_BuildLevelsTable_InvalidRange_Throws
+                  - Surface_LevelsBrightnessContrast_Pixels_ApplyTheirTablesAndKeepAlpha
+
+              - id: CanvasNet-Canvas-SurfaceAdjustments-BrightnessContrast
+                title: >-
+                  The Surface class shall add an amount from -255 to 255 to each level of the red, green, and blue
+                  of every pixel and clamp, and change the contrast for a value from -100 to 100 by mapping a level
+                  v to the clamped, rounded value of f (v - 128) + 128 with f = 259 (C + 255) / (255 (259 - C))
+                  and C = contrast * 255 / 100 (the identity at 0, pivoting at 128), in place, leaving the alpha
+                  unchanged and a gray pixel gray.
+                justification: |
+                  Brightness and contrast are the two adjustments a user reaches for first; table-based application
+                  makes every tone operation cost one pass and keeps a gray pixel gray.
+                tests:
+                  - Surface_BuildBrightnessTable_ShiftsAndClamps
+                  - Surface_BuildContrastTable_PivotsAtMidGray
+                  - Surface_ApplyTable_Pixels_MapsRgbAndKeepsAlpha
+                  - Surface_LevelsBrightnessContrast_Pixels_ApplyTheirTablesAndKeepAlpha
+
+              - id: CanvasNet-Canvas-SurfaceAdjustments-AutoLevels
+                title: >-
+                  The Surface class shall find the auto-levels black and white points of a luma histogram as the
+                  smallest level whose cumulative count from black, and the largest level whose cumulative count
+                  from white, is at least k = max(1, ceil(N p / 100)) pixels for N pixels and a clip p from 0 to 20
+                  percent, shall report a flat image (points less than one level apart, or no pixels) as having no
+                  range and leave it unchanged, and shall stretch the red, green, and blue of any other image in
+                  place from the points to 0 and 255 with a levels table of gamma 1.
+                justification: |
+                  A photograph taken in poor light uses a narrow band of levels; a percentile stretch ignores a few
+                  specks at either end, follows luma so that hues are preserved, and leaves an image with no
+                  contrast alone instead of amplifying noise.
+                tests:
+                  - Surface_AutoLevelsRange_ClipPercent_PicksPercentilePoints
+                  - Surface_AutoLevelsRange_FlatImage_ReturnsNull
+                  - Surface_AutoLevels_LowContrastImage_StretchesToFullRange
+
+              - id: CanvasNet-Canvas-SurfaceAdjustments-Deterministic
+                title: >-
+                  The Surface class shall give the same pixels and the same histogram when the same adjustments are
+                  applied to the same pixels twice, on any number of cores, by processing rows in parallel with
+                  disjoint output and summing histograms in fixed blocks of 64 rows merged in block order.
+                justification: |
+                  Results are compared, cached, and checked into source control; they must not depend on how many
+                  cores ran the work or on how it was scheduled.
+                tests:
+                  - Surface_Adjustments_SameInputTwice_ProduceIdenticalPixels
+                  - Surface_LumaHistogram_LargeImage_MatchesSequentialReference
+                  - Surface_ApplyTable_LargeImage_MatchesPerPixelReference
+
+              - id: CanvasNet-Canvas-SurfaceAdjustments-Arguments
+                title: >-
+                  The Surface class shall reject a threshold outside 0 to 255, a brightness outside -255 to 255, a
+                  contrast that is not a number from -100 to 100, a clip that is not a number from 0 to 20, a
+                  levels range or gamma outside its limits, and a table or histogram that does not have 256 entries
+                  (or has a negative count), and shall reject an adjustment of a disposed surface with
+                  ObjectDisposedException.
+                justification: |
+                  Each of these is a defect of the caller and must fail fast and clearly, before any pixel is
+                  changed.
+                tests:
+                  - Surface_Adjustments_OutOfRangeArguments_Throw
+                  - Surface_Adjustments_AfterDispose_ThrowObjectDisposedException

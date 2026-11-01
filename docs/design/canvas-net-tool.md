@@ -59,9 +59,8 @@ consists of six direct units and two subsystems:
   flattening, and the mapping of library exceptions to expected errors),
   `ImagePipeline` (the ordered crop, resize, fit, rotate by any angle, flip, pad, tone-adjustment, deskew, trim, and
   grid operations, which the `render` command, the verb commands `crop`, `resize`, `rotate`, `flip`, and `pad`, and
-  `inspect` share),
-  `ImageAdjustments` (luma, grayscale, invert, threshold with the Otsu method, levels, brightness, contrast, and
-  auto-levels), `ImageGeometry` (rotation by any angle with canvas expansion and fill, skew estimation, and trim),
+  `inspect` share, delegating flip, pad, trim, and the tone adjustments to the core `Surface`),
+  `ImageGeometry` (rotation by any angle with canvas expansion and fill, and skew estimation),
   `GridOverlay` (the labeled coordinate grid), `ImageAnalysis` (dominant colors, luma statistics, and pixel samples),
   `ImageWriter` (PNG, JPEG, BMP, and TIFF output, written atomically with the overwrite policy),
   `ImageComparison` (the exact error metrics, the windowed structural similarity, the per-cell grid, the threshold

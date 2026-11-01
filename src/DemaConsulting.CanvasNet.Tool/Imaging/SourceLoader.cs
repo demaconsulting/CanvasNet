@@ -238,7 +238,7 @@ internal static partial class SourceLoader
     ///     <see cref="SourceOptions.Scale"/> is cleared, so that the source is rendered sharply at the box (a document
     ///     page is fitted inside it and centered, an SVG follows its own aspect-ratio rule, and a model fills it).
     ///     For a raster source, <paramref name="options"/> unchanged: the caller fits the loaded pixels with
-    ///     <see cref="SurfaceOperations.FitInto"/>.
+    ///     <see cref="Surface.FitInto"/>.
     /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="info"/> or <paramref name="options"/> is <see langword="null"/>.</exception>
     internal static SourceOptions BoxOptions(SourceInfo info, SourceOptions options, int width, int height)

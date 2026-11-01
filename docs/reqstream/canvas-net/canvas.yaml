@@ -1,9 +1,11 @@
 ---
+# cspell:ignore otsu
 # Software Subsystem Requirements for Canvas
 #
 # These requirements decompose the CanvasNet system's pixel-buffer responsibilities into the
 # Canvas subsystem's own responsibility: providing a mutable, in-memory 32-bit RGBA pixel
-# buffer (the Surface unit), its pixel value type (the Rgba32 unit), and the shared CSS color parser (the
+# buffer (the Surface unit with its SurfaceAdjustments and SurfaceTransforms parts), its pixel value type (the
+# Rgba32 unit), and the shared CSS color parser (the
 # CssColor unit). Each requirement here
 # links down to the unit requirement that implements it.
 
@@ -423,6 +425,69 @@ sections:
               - CssColor_TryParse_FunctionForms_MatchExpectedPixels
               - CssColor_TryGetNamedColor_Names_ReturnTheCssTableEntries
 
+          - id: CanvasNet-Canvas-SurfaceCopy
+            title: >-
+              The Canvas subsystem shall create an independent copy of a surface and copy the pixels of one
+              surface onto another at a position, opaquely and clipped to the destination.
+            justification: |
+              Working on a copy, and placing sheets, borders, and tiles into a larger surface, are needed by
+              every renderer and by the image tools; one tested copy replaces the hand-written row loops each
+              consumer would otherwise repeat.
+            children:
+              - CanvasNet-Canvas-Surface-Clone
+              - CanvasNet-Canvas-Surface-CopyFrom
+              - CanvasNet-Canvas-Surface-CopyFromClipped
+              - CanvasNet-Canvas-Surface-CopyFromInvalid
+            tests:
+              - Surface_Clone_ValidSurface_ReturnsIdenticalPixels
+              - Surface_CopyFrom_InsideDestination_ReplacesPixelsWithoutBlending
+              - Surface_CopyFrom_PartlyOutside_ClipsToDestination
+
+          - id: CanvasNet-Canvas-SurfaceAdjustments
+            title: >-
+              The Canvas subsystem shall adjust the tone and color of a surface in place (grayscale, invert, fixed
+              and Otsu thresholds, levels, brightness, contrast, and auto-levels), with a fixed-point luma over
+              white and results that do not depend on the number of cores.
+            justification: |
+              Reading and preparing photographs and scans needs tone adjustments whose arithmetic is documented
+              and repeatable; offering them in the core library lets every package and library user share them.
+            children:
+              - CanvasNet-Canvas-SurfaceAdjustments-Luma
+              - CanvasNet-Canvas-SurfaceAdjustments-Grayscale
+              - CanvasNet-Canvas-SurfaceAdjustments-Invert
+              - CanvasNet-Canvas-SurfaceAdjustments-Threshold
+              - CanvasNet-Canvas-SurfaceAdjustments-Otsu
+              - CanvasNet-Canvas-SurfaceAdjustments-Levels
+              - CanvasNet-Canvas-SurfaceAdjustments-BrightnessContrast
+              - CanvasNet-Canvas-SurfaceAdjustments-AutoLevels
+              - CanvasNet-Canvas-SurfaceAdjustments-Deterministic
+              - CanvasNet-Canvas-SurfaceAdjustments-Arguments
+            tests:
+              - Surface_Luma_OpaqueAndTranslucentPixels_UsesFixedPointWeightsOverWhite
+              - Surface_Grayscale_ColorPixels_SetsEqualChannelsAndKeepsAlpha
+              - Surface_AutoLevels_LowContrastImage_StretchesToFullRange
+
+          - id: CanvasNet-Canvas-SurfaceTransforms
+            title: >-
+              The Canvas subsystem shall provide the pure whole-surface transformations flip, half turn, pad, trim,
+              fit into a box, and flatten over a color, each returning a new surface and leaving the source
+              unchanged.
+            justification: |
+              Mirroring, margins, content cropping, box fitting, and transparency removal are the basic
+              operations of image preparation; as pure functions of the core surface they are reusable and easy to
+              verify.
+            children:
+              - CanvasNet-Canvas-SurfaceTransforms-Flip
+              - CanvasNet-Canvas-SurfaceTransforms-Pad
+              - CanvasNet-Canvas-SurfaceTransforms-Trim
+              - CanvasNet-Canvas-SurfaceTransforms-FitInto
+              - CanvasNet-Canvas-SurfaceTransforms-Flatten
+              - CanvasNet-Canvas-SurfaceTransforms-Disposed
+            tests:
+              - Surface_Flip_Pixels_MirrorAboutTheAxes
+              - Surface_Pad_Border_AddsColoredBorderAndCopiesPixels
+              - Surface_FindTrimBounds_UniformBorder_ReturnsContentBox
+
           - id: CanvasNet-Canvas-Resize
             title: >-
               The Canvas subsystem shall create a resampled copy of a surface at a requested size using a
@@ -504,6 +569,7 @@ sections:
               - Surface_GetRowSpanBytes_AfterDispose_ThrowsObjectDisposedException
               - Surface_GetRowSpan_AfterDispose_ThrowsObjectDisposedException
               - Surface_Crop_AfterDispose_ThrowsObjectDisposedException
+              - Surface_Clone_AfterDispose_ThrowsObjectDisposedException
               - Surface_PremultiplyAlpha_AfterDispose_ThrowsObjectDisposedException
               - Surface_UnpremultiplyAlpha_AfterDispose_ThrowsObjectDisposedException
               - Surface_CompositeOverSurface_AfterDispose_ThrowsObjectDisposedException

@@ -21,7 +21,7 @@ internal sealed record DominantColor(Rgba32 Color, long Pixels, double Fraction)
 /// <param name="P1">The 1st percentile: the smallest level whose cumulative count is at least 1 percent of the pixels.</param>
 /// <param name="P50">The 50th percentile (the median level).</param>
 /// <param name="P99">The 99th percentile.</param>
-/// <param name="Otsu">The threshold <see cref="ImageAdjustments.OtsuThreshold"/> chooses for the histogram.</param>
+/// <param name="Otsu">The threshold <see cref="Surface.OtsuThreshold"/> chooses for the histogram.</param>
 /// <param name="Histogram">Sixteen counts: the number of pixels with the luma <c>level &gt;&gt; 4</c> equal to the index.</param>
 internal sealed record LumaStatistics(double Mean, int Min, int Max, int P1, int P50, int P99, int Otsu, IReadOnlyList<long> Histogram);
 
@@ -50,7 +50,7 @@ internal sealed record PixelWindow(int X, int Y, int Width, int Height, Rgba32 M
 /// <param name="X">The x position of the point.</param>
 /// <param name="Y">The y position of the point.</param>
 /// <param name="Pixel">The pixel at the point.</param>
-/// <param name="Luma">The <see cref="ImageAdjustments.Luma"/> of the pixel.</param>
+/// <param name="Luma">The <see cref="Surface.Luma"/> of the pixel.</param>
 /// <param name="Window">The window around the point when a radius was asked for; otherwise <see langword="null"/>.</param>
 internal sealed record PixelSample(int X, int Y, Rgba32 Pixel, int Luma, PixelWindow? Window);
 
@@ -187,7 +187,7 @@ internal static class ImageAnalysis
         var pixel = surface[x, y];
         if (radius == 0)
         {
-            return new PixelSample(x, y, pixel, ImageAdjustments.Luma(pixel), null);
+            return new PixelSample(x, y, pixel, Surface.Luma(pixel), null);
         }
 
         var left = Math.Max(0, x - radius);
@@ -215,7 +215,7 @@ internal static class ImageAnalysis
 
         long n = pixels.Length;
         var mean = new Rgba32(Mean(sumR, n), Mean(sumG, n), Mean(sumB, n), Mean(sumA, n));
-        return new PixelSample(x, y, pixel, ImageAdjustments.Luma(pixel), new PixelWindow(left, top, width, height, mean, pixels));
+        return new PixelSample(x, y, pixel, Surface.Luma(pixel), new PixelWindow(left, top, width, height, mean, pixels));
     }
 
     /// <summary>
@@ -330,7 +330,7 @@ internal static class ImageAnalysis
             Percentile(histogram, total, 1),
             Percentile(histogram, total, 50),
             Percentile(histogram, total, 99),
-            ImageAdjustments.OtsuThreshold(histogram),
+            Surface.OtsuThreshold(histogram),
             coarse);
     }
 

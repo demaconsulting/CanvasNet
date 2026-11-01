@@ -18,8 +18,10 @@ namespace DemaConsulting.CanvasNet.Tool.Imaging;
 ///         soon as the next one exists.
 ///     </para>
 ///     <para>
-///         The transformations are written over <see cref="Surface"/> rows, because the surface itself offers only
-///         crop, resize, and composite. Rotation by a right angle is an exact pixel move, rotation by any other angle
+///         The pixel operations themselves (flip, pad, trim, and the photo adjustments) are methods of
+///         <see cref="Surface"/> in the core library; this class orders them, validates and parses the command line,
+///         maps a failure to a <see cref="ToolException"/>, and describes each step in an <see cref="AppliedOperation"/>.
+///         Rotation by a right angle is an exact pixel move, rotation by any other angle
 ///         (and the correction of a skew) is <see cref="ImageGeometry.RotateArbitrary"/> onto an expanded canvas. An
 ///         explicitly requested rotation or a border larger than <see cref="Surface.MaxDimension"/> is refused
 ///         before allocation, with the code <c>size-limit</c>. Deskew is best effort: when its automatic correction
@@ -248,8 +250,8 @@ internal static class ImagePipeline
         var allowUpscale = reader.Has(AllowUpscaleOption);
         Rgba32? padColor = reader.Get(PadColorOption) is { } colorText ? ArgumentReader.ParseColor(colorText, PadColorOption) : null;
         Rgba32? rotateFill = reader.Get(RotateFillOption) is { } fillText ? ArgumentReader.ParseColor(fillText, RotateFillOption) : null;
-        var clip = reader.GetDouble(AutoLevelsClipOption, 0, ImageAdjustments.MaxClipPercent);
-        var trimTolerance = reader.GetInt(TrimToleranceOption, 0, ImageGeometry.MaxTrimTolerance);
+        var clip = reader.GetDouble(AutoLevelsClipOption, 0, Surface.MaxAutoLevelsClipPercent);
+        var trimTolerance = reader.GetInt(TrimToleranceOption, 0, Surface.MaxTrimTolerance);
 
         var operations = new List<IImageOperation>();
         if (verb != null)
@@ -274,7 +276,7 @@ internal static class ImagePipeline
                 LevelsOption => ParseLevels(value!, name),
                 BrightnessOption => new BrightnessOperation(ArgumentReader.ParseInt(value!, name, -255, 255)),
                 ContrastOption => new ContrastOperation(ArgumentReader.ParseNumber(value!, name, -100, 100)),
-                AutoLevelsOption => new AutoLevelsOperation(clip ?? ImageAdjustments.DefaultClipPercent),
+                AutoLevelsOption => new AutoLevelsOperation(clip ?? Surface.DefaultAutoLevelsClipPercent),
                 DeskewOption => new DeskewOperation(rotateFill, filter),
                 TrimOption => new TrimOperation(trimTolerance ?? DefaultTrimTolerance),
                 GridOption => ParseGrid(value!, name),
@@ -379,7 +381,7 @@ internal static class ImagePipeline
 
             if (ReferenceEquals(current, input))
             {
-                current = input.Crop(0, 0, input.Width, input.Height);
+                current = input.Clone();
             }
         }
         catch
@@ -499,7 +501,7 @@ internal static class ImagePipeline
         var black = ArgumentReader.ParseInt(parts[0].Trim(), name, 0, 254);
         var white = ArgumentReader.ParseInt(parts[1].Trim(), name, 1, 255);
         var gamma = parts.Length == 3
-            ? ArgumentReader.ParseNumber(parts[2].Trim(), name, ImageAdjustments.MinGamma, ImageAdjustments.MaxGamma)
+            ? ArgumentReader.ParseNumber(parts[2].Trim(), name, Surface.MinGamma, Surface.MaxGamma)
             : 1.0;
         if (black >= white)
         {
@@ -566,24 +568,24 @@ internal static class ImagePipeline
             PadOperation pad => ApplyPad(source, pad, defaultPadColor),
             GrayscaleOperation => InPlace(source, owned, surface =>
             {
-                ImageAdjustments.Grayscale(surface);
+                surface.Grayscale();
                 return SourceLoader.Operation("grayscale", ("width", surface.Width), ("height", surface.Height));
             }),
             InvertOperation => InPlace(source, owned, surface =>
             {
-                ImageAdjustments.Invert(surface);
+                surface.Invert();
                 return SourceLoader.Operation("invert", ("width", surface.Width), ("height", surface.Height));
             }),
             ThresholdOperation threshold => InPlace(source, owned, surface => ApplyThreshold(surface, threshold)),
             LevelsOperation levels => InPlace(source, owned, surface => ApplyLevels(surface, levels)),
             BrightnessOperation brightness => InPlace(source, owned, surface =>
             {
-                ImageAdjustments.ApplyTable(surface, ImageAdjustments.BuildBrightnessTable(brightness.Amount));
+                surface.Brightness(brightness.Amount);
                 return SourceLoader.Operation("brightness", ("amount", brightness.Amount), ("width", surface.Width), ("height", surface.Height));
             }),
             ContrastOperation contrast => InPlace(source, owned, surface =>
             {
-                ImageAdjustments.ApplyTable(surface, ImageAdjustments.BuildContrastTable(contrast.Amount));
+                surface.Contrast(contrast.Amount);
                 return SourceLoader.Operation("contrast", ("amount", contrast.Amount), ("width", surface.Width), ("height", surface.Height));
             }),
             AutoLevelsOperation autoLevels => InPlace(source, owned, surface => ApplyAutoLevels(surface, autoLevels)),
@@ -603,7 +605,7 @@ internal static class ImagePipeline
     /// <returns>The changed surface and the description.</returns>
     private static (Surface, AppliedOperation) InPlace(Surface source, bool owned, Func<Surface, AppliedOperation> change)
     {
-        var target = owned ? source : source.Crop(0, 0, source.Width, source.Height);
+        var target = owned ? source : source.Clone();
         try
         {
             return (target, change(target));
@@ -628,8 +630,8 @@ internal static class ImagePipeline
     private static AppliedOperation ApplyThreshold(Surface surface, ThresholdOperation threshold)
     {
         var automatic = threshold.Level == null;
-        var level = threshold.Level ?? ImageAdjustments.OtsuThreshold(ImageAdjustments.LumaHistogram(surface));
-        ImageAdjustments.Threshold(surface, level);
+        var level = threshold.Level ?? Surface.OtsuThreshold(surface.LumaHistogram());
+        surface.Threshold(level);
         return SourceLoader.Operation(
             "threshold",
             ("auto", automatic),
@@ -646,7 +648,7 @@ internal static class ImagePipeline
     /// <returns>The description.</returns>
     private static AppliedOperation ApplyLevels(Surface surface, LevelsOperation levels)
     {
-        ImageAdjustments.ApplyTable(surface, ImageAdjustments.BuildLevelsTable(levels.Black, levels.White, levels.Gamma));
+        surface.Levels(levels.Black, levels.White, levels.Gamma);
         return SourceLoader.Operation(
             "levels",
             ("black", levels.Black),
@@ -664,7 +666,7 @@ internal static class ImagePipeline
     /// <returns>The description: the points found, or <c>applied: false</c> for a flat image, which is left unchanged.</returns>
     private static AppliedOperation ApplyAutoLevels(Surface surface, AutoLevelsOperation autoLevels)
     {
-        return ImageAdjustments.AutoLevels(surface, autoLevels.ClipPercent) is { } points
+        return surface.AutoLevels(autoLevels.ClipPercent) is { } points
             ? SourceLoader.Operation(
                 "auto-levels",
                 ("clip", autoLevels.ClipPercent),
@@ -713,7 +715,7 @@ internal static class ImagePipeline
     /// </returns>
     private static (Surface, AppliedOperation) ApplyTrim(Surface source, TrimOperation trim)
     {
-        var bounds = ImageGeometry.FindTrimBounds(source, trim.Tolerance);
+        var bounds = source.FindTrimBounds(trim.Tolerance);
         var (x, y, width, height) = bounds ?? (0, 0, source.Width, source.Height);
         var result = source.Crop(x, y, width, height);
         var trimmed = width != source.Width || height != source.Height;
@@ -790,7 +792,7 @@ internal static class ImagePipeline
     /// <returns>The copy and its description (<c>reason</c> only when one was given).</returns>
     private static (Surface, AppliedOperation) SkipDeskew(Surface source, SkewEstimate estimate, string? reason)
     {
-        var copy = source.Crop(0, 0, source.Width, source.Height);
+        var copy = source.Clone();
         var fields = new List<(string, object)>
         {
             ("skewDegrees", estimate.Degrees),
@@ -830,28 +832,7 @@ internal static class ImagePipeline
             return background;
         }
 
-        return IsOpaque(source) ? new Rgba32(255, 255, 255, 255) : new Rgba32(0, 0, 0, 0);
-    }
-
-    /// <summary>
-    ///     Determines whether every pixel of a surface is opaque.
-    /// </summary>
-    /// <param name="surface">The surface.</param>
-    /// <returns><see langword="true"/> when no pixel has an alpha below 255.</returns>
-    private static bool IsOpaque(Surface surface)
-    {
-        for (var y = 0; y < surface.Height; y++)
-        {
-            foreach (var pixel in surface.GetRowSpan(y))
-            {
-                if (pixel.A != 255)
-                {
-                    return false;
-                }
-            }
-        }
-
-        return true;
+        return source.HasTransparency() ? new Rgba32(0, 0, 0, 0) : new Rgba32(255, 255, 255, 255);
     }
 
     /// <summary>
@@ -939,7 +920,7 @@ internal static class ImagePipeline
         var scaled = fit.AllowUpscale || source.Width > fit.Width || source.Height > fit.Height;
         var result = scaled
             ? source.ResizeToFit(fit.Width, fit.Height, fit.Filter)
-            : source.Crop(0, 0, source.Width, source.Height);
+            : source.Clone();
         return (result, SourceLoader.Operation(
             "fit",
             ("width", result.Width),
@@ -1008,7 +989,7 @@ internal static class ImagePipeline
 
                 break;
             case 180:
-                result = MirrorBoth(source);
+                result = source.Rotate180();
                 break;
             default:
                 // A pixel at (x, y) of the source lands at (y, width - 1 - x): the top row becomes the left column
@@ -1036,55 +1017,18 @@ internal static class ImagePipeline
     /// <returns>The mirrored surface and its description.</returns>
     private static (Surface, AppliedOperation) ApplyFlip(Surface source, FlipOperation flip)
     {
-        Surface result;
-        switch (flip.Axis)
+        var result = flip.Axis switch
         {
-            case FlipAxis.Horizontal:
-                result = new Surface(source.Width, source.Height);
-                for (var y = 0; y < source.Height; y++)
-                {
-                    var row = result.GetRowSpan(y);
-                    source.GetRowSpan(y).CopyTo(row);
-                    row.Reverse();
-                }
-
-                break;
-            case FlipAxis.Vertical:
-                result = new Surface(source.Width, source.Height);
-                for (var y = 0; y < source.Height; y++)
-                {
-                    source.GetRowSpan(source.Height - 1 - y).CopyTo(result.GetRowSpan(y));
-                }
-
-                break;
-            default:
-                result = MirrorBoth(source);
-                break;
-        }
+            FlipAxis.Horizontal => source.FlipHorizontal(),
+            FlipAxis.Vertical => source.FlipVertical(),
+            _ => source.Rotate180()
+        };
 
         return (result, SourceLoader.Operation(
             "flip",
             ("axis", flip.Axis.ToString().ToLowerInvariant()),
             ("width", result.Width),
             ("height", result.Height)));
-    }
-
-    /// <summary>
-    ///     Mirrors a surface about both axes, which is a rotation by 180 degrees.
-    /// </summary>
-    /// <param name="source">The surface.</param>
-    /// <returns>A new surface.</returns>
-    private static Surface MirrorBoth(Surface source)
-    {
-        var result = new Surface(source.Width, source.Height);
-        for (var y = 0; y < source.Height; y++)
-        {
-            var row = result.GetRowSpan(y);
-            source.GetRowSpan(source.Height - 1 - y).CopyTo(row);
-            row.Reverse();
-        }
-
-        return result;
     }
 
     /// <summary>
@@ -1095,6 +1039,10 @@ internal static class ImagePipeline
     /// <param name="defaultColor">The color of the border when the operation names none.</param>
     /// <returns>The padded surface and its description.</returns>
     /// <exception cref="ToolException">Thrown with code <c>size-limit</c> when the result would be larger than <see cref="Surface.MaxDimension"/>.</exception>
+    /// <remarks>
+    ///     The size is checked here, before <see cref="Surface.Pad"/> would refuse it with an <see cref="ArgumentException"/>,
+    ///     so that the error carries the code <c>size-limit</c>, the size, and the hint to use a smaller border.
+    /// </remarks>
     private static (Surface, AppliedOperation) ApplyPad(Surface source, PadOperation pad, Rgba32 defaultColor)
     {
         var border = pad.Border;
@@ -1109,13 +1057,7 @@ internal static class ImagePipeline
                 "Use a smaller --pad, or crop or shrink the image first.");
         }
 
-        var result = new Surface((int)width, (int)height);
-        if (color != new Rgba32(0, 0, 0, 0))
-        {
-            result.Clear(color);
-        }
-
-        result.CopyFrom(source, border.Left, border.Top);
+        var result = source.Pad(border.Left, border.Top, border.Right, border.Bottom, color);
 
         return (result, SourceLoader.Operation(
             "pad",

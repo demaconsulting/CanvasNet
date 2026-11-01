@@ -294,7 +294,7 @@ public class ContactSheetTests
         // Assert: the transparent image shows the background, and every pixel of the sheet is opaque
         Assert.Equal(Background, pixels[5, 5]);
         Assert.Equal(new Rgba32(255, 255, 255, 255), pixels[25, 5]);
-        Assert.False(SurfaceOperations.HasTransparency(pixels));
+        Assert.False(pixels.HasTransparency());
     }
 
     /// <summary>

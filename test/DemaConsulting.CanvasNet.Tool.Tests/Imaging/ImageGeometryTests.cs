@@ -5,7 +5,7 @@ using DemaConsulting.CanvasNet.Tool.Imaging;
 namespace DemaConsulting.CanvasNet.Tool.Tests.Imaging;
 
 /// <summary>
-///     Unit tests for the ImageGeometry class: the size and pixels of rotation, and the bounds of a trim.
+///     Unit tests for the ImageGeometry class: the size and pixels of rotation.
 /// </summary>
 public class ImageGeometryTests
 {
@@ -386,117 +386,6 @@ public class ImageGeometryTests
     }
 
     /// <summary>
-    ///     Verifies that a uniform border is trimmed to the content box.
-    /// </summary>
-    [Fact]
-    public void ImageGeometry_FindTrimBounds_UniformBorder_ReturnsContentBox()
-    {
-        using var surface = Solid(20, 10, White);
-        FillRect(surface, 4, 2, 5, 3, Black);
-
-        Assert.Equal((4, 2, 5, 3), ImageGeometry.FindTrimBounds(surface, 8));
-
-        using var trimmed = ImageGeometry.Trim(surface, 8);
-        Assert.Equal((5, 3), (trimmed.Width, trimmed.Height));
-        Assert.Equal(Black, trimmed[0, 0]);
-        Assert.Equal(Black, trimmed[4, 2]);
-    }
-
-    /// <summary>
-    ///     Verifies that noise within the tolerance is background and noise beyond it is content.
-    /// </summary>
-    [Fact]
-    public void ImageGeometry_FindTrimBounds_Tolerance_IgnoresNoiseBelowTolerance()
-    {
-        using var surface = Solid(20, 10, White);
-        FillRect(surface, 8, 4, 4, 3, Black);
-        surface[1, 1] = new Rgba32(250, 252, 255, 255);
-        surface[18, 8] = new Rgba32(255, 255, 255, 248);
-
-        Assert.Equal((8, 4, 4, 3), ImageGeometry.FindTrimBounds(surface, 8));
-        Assert.Equal((8, 4, 4, 3), ImageGeometry.FindTrimBounds(surface, 7));
-
-        // At a tolerance of 4 the pixel at 1,1 (distance 5) and at 18,8 (distance 7) are content.
-        Assert.Equal((1, 1, 18, 8), ImageGeometry.FindTrimBounds(surface, 4));
-        Assert.Equal((1, 1, 18, 8), ImageGeometry.FindTrimBounds(surface, 0));
-    }
-
-    /// <summary>
-    ///     Verifies that all transparent pixels are equal whatever their color.
-    /// </summary>
-    [Fact]
-    public void ImageGeometry_FindTrimBounds_TransparentBorder_TreatsAllTransparentPixelsAsEqual()
-    {
-        using var surface = Solid(12, 8, new Rgba32(0, 0, 0, 0));
-        surface[0, 0] = new Rgba32(255, 0, 0, 0);
-        surface[11, 0] = new Rgba32(0, 255, 0, 0);
-        surface[0, 7] = new Rgba32(0, 0, 255, 0);
-        surface[11, 7] = new Rgba32(7, 7, 7, 0);
-        surface[5, 3] = new Rgba32(10, 20, 30, 255);
-        surface[6, 4] = new Rgba32(10, 20, 30, 40);
-
-        Assert.Equal((5, 3, 2, 2), ImageGeometry.FindTrimBounds(surface, 8));
-    }
-
-    /// <summary>
-    ///     Verifies that the most frequent corner color is the background and a tie goes to the first corner.
-    /// </summary>
-    [Fact]
-    public void ImageGeometry_FindTrimBounds_CornerMajority_ChoosesMostFrequentCorner()
-    {
-        // Three white corners: the red pixel at the top right is content.
-        using var majority = Solid(10, 10, White);
-        majority[9, 0] = new Rgba32(255, 0, 0, 255);
-        FillRect(majority, 3, 3, 2, 2, Black);
-
-        Assert.Equal((3, 0, 7, 5), ImageGeometry.FindTrimBounds(majority, 8));
-
-        // Two white and two black corners tie, so the top left (white) wins and the black half is content.
-        using var tie = Solid(10, 6, White);
-        FillRect(tie, 5, 0, 5, 6, Black);
-
-        Assert.Equal((5, 0, 5, 6), ImageGeometry.FindTrimBounds(tie, 8));
-    }
-
-    /// <summary>
-    ///     Verifies that an image without content has no trim bounds and is copied unchanged.
-    /// </summary>
-    [Fact]
-    public void ImageGeometry_FindTrimBounds_AllBackground_ReturnsNull()
-    {
-        using var blank = Solid(9, 7, new Rgba32(200, 200, 200, 255));
-        using var nearly = Solid(9, 7, new Rgba32(200, 200, 200, 255));
-        nearly[4, 3] = new Rgba32(205, 195, 200, 255);
-        using var single = Solid(1, 1, White);
-
-        Assert.Null(ImageGeometry.FindTrimBounds(blank, 0));
-        Assert.Null(ImageGeometry.FindTrimBounds(nearly, 8));
-        Assert.Null(ImageGeometry.FindTrimBounds(single, 0));
-
-        using var copy = ImageGeometry.Trim(blank, 0);
-        SurfaceAssert.Equal(blank, copy);
-        Assert.NotSame(blank, copy);
-    }
-
-    /// <summary>
-    ///     Verifies that content touching every edge is not trimmed.
-    /// </summary>
-    [Fact]
-    public void ImageGeometry_Trim_ContentTouchingEdges_ReturnsFullImage()
-    {
-        using var surface = Solid(8, 6, White);
-        surface[0, 2] = Black;
-        surface[7, 3] = Black;
-        surface[3, 0] = Black;
-        surface[4, 5] = Black;
-
-        Assert.Equal((0, 0, 8, 6), ImageGeometry.FindTrimBounds(surface, 8));
-
-        using var trimmed = ImageGeometry.Trim(surface, 8);
-        SurfaceAssert.Equal(surface, trimmed);
-    }
-
-    /// <summary>
     ///     Verifies that null and invalid arguments are rejected.
     /// </summary>
     [Fact]
@@ -505,8 +394,6 @@ public class ImageGeometryTests
         using var surface = Solid(4, 4, White);
 
         Assert.Throws<ArgumentNullException>(() => ImageGeometry.RotateArbitrary(null!, 10, White, nearest: false));
-        Assert.Throws<ArgumentNullException>(() => ImageGeometry.FindTrimBounds(null!, 8));
-        Assert.Throws<ArgumentNullException>(() => ImageGeometry.Trim(null!, 8));
         Assert.Throws<ArgumentNullException>(() => ImageGeometry.EstimateSkew(null!));
 
         Assert.Throws<ArgumentOutOfRangeException>(() => ImageGeometry.RotateArbitrary(surface, double.NaN, White, nearest: false));
@@ -515,8 +402,5 @@ public class ImageGeometryTests
         Assert.Throws<ArgumentOutOfRangeException>(() => ImageGeometry.RotatedSize(5, 0, 10));
         Assert.Throws<ArgumentOutOfRangeException>(() => ImageGeometry.RotatedSize(5, 5, double.NegativeInfinity));
         Assert.Throws<ArgumentOutOfRangeException>(() => ImageGeometry.CheckRotatedSize(5, 5, double.NaN));
-        Assert.Throws<ArgumentOutOfRangeException>(() => ImageGeometry.FindTrimBounds(surface, -1));
-        Assert.Throws<ArgumentOutOfRangeException>(() => ImageGeometry.FindTrimBounds(surface, 256));
-        Assert.Throws<ArgumentOutOfRangeException>(() => ImageGeometry.Trim(surface, 256));
     }
 }

@@ -3,8 +3,8 @@
 # Software Unit Requirements for the ImageGeometry Class
 #
 # The ImageGeometry class holds the geometry of a surface that the pipeline needs beyond right-angle moves: rotation
-# by any angle onto an expanded canvas with a fill color (nearest or bilinear sampling), and the bounds of the content
-# inside a uniform border (trim), and the estimation of the skew of near-horizontal lines (deskew). It works on
+# by any angle onto an expanded canvas with a fill color (nearest or bilinear sampling), and the estimation of the skew
+# of near-horizontal lines (deskew); the trim of a uniform border is the core Surface.Trim. It works on
 # surfaces only: it knows nothing of files, options, or commands. Every
 # pixel of a rotation is computed from its own coordinates and rows are processed in parallel with disjoint output, so
 # the results are the same on any number of cores.
@@ -83,26 +83,6 @@ sections:
         tests:
           - ImageGeometry_RotateArbitrary_ResultTooLarge_ThrowsSizeLimitBeforeAllocating
 
-      - id: CanvasNetTool-Imaging-ImageGeometry-Trim
-        title: >-
-          The ImageGeometry class shall find the inclusive bounding box of the pixels whose distance from the
-          background color is greater than a tolerance of 0 to 255, taking the background color as the most
-          frequent of the four corner pixels (a tie going to the earliest of top left, top right, bottom left, and
-          bottom right), the distance as 0 between two fully transparent pixels and otherwise the largest absolute
-          difference of red, green, blue, and alpha, and shall report no box, and trim nothing, when every pixel is
-          background.
-        justification: |
-          A photograph or scan of a drawing has a margin of paper or empty canvas; a documented background rule
-          and tolerance make the crop predictable, and an image with no content is reported rather than reduced to
-          nothing.
-        tests:
-          - ImageGeometry_FindTrimBounds_UniformBorder_ReturnsContentBox
-          - ImageGeometry_FindTrimBounds_Tolerance_IgnoresNoiseBelowTolerance
-          - ImageGeometry_FindTrimBounds_TransparentBorder_TreatsAllTransparentPixelsAsEqual
-          - ImageGeometry_FindTrimBounds_CornerMajority_ChoosesMostFrequentCorner
-          - ImageGeometry_FindTrimBounds_AllBackground_ReturnsNull
-          - ImageGeometry_Trim_ContentTouchingEdges_ReturnsFullImage
-
       - id: CanvasNetTool-Imaging-ImageGeometry-SkewEstimate
         title: >-
           The ImageGeometry class shall estimate the skew of the dominant near-horizontal structure of an image,
@@ -151,8 +131,8 @@ sections:
 
       - id: CanvasNetTool-Imaging-ImageGeometry-Arguments
         title: >-
-          The ImageGeometry class shall reject a null surface, an angle that is not finite, a width or height below
-          1, and a trim tolerance outside 0 to 255.
+          The ImageGeometry class shall reject a null surface, an angle that is not finite, and a width or height
+          below 1.
         justification: |
           Each of these is a defect of the caller (the pipeline validates user input first) and must fail fast and
           clearly.

@@ -65,7 +65,7 @@ is `ToolException(size-mismatch)` with the hint to use `--resize-to`. With `--re
 its natural size and the second is loaded into that size; with `b` the roles are exchanged; with `WxH` both are loaded
 into that size. Loading into a box is `SourceLoader.OpenPages` with `SourceLoader.BoxOptions` (a vector input - SVG, a
 document page, a model - is rendered at the box, so it is sharp and never resampled), then, when the pixels are not
-the box size, `SurfaceOperations.FitInto` with `--fit` and the background (a raster input is enlarged or shrunk with
+the box size, the core `Surface.FitInto` with `--fit` and the background (a raster input is enlarged or shrunk with
 `contain`, keeping its aspect ratio and centered over the background, or resampled to the box with `stretch`); the
 operation is reported as `fit` (with `mode`, `width`, `height`, and `background`) or `resize`. Every input is flattened
 over the background by the loader, so both are opaque. The side owns the pixels of the loaded source from then on.
@@ -126,8 +126,8 @@ defect and propagates. Null arguments throw `ArgumentNullException`.
 - **Context** - the `Json` flag and `WriteLine`.
 - **Program** - the tool version for the JSON result.
 - **RenderCommand** - the shared option declarations, the reading of the model options, and `WriteField`.
-- **SourceLoader**, **SurfaceOperations**, **ImageComparison**, and **ImageWriter** (Imaging) - everything that touches
-  files and pixels.
+- **SourceLoader**, **ImageComparison**, and **ImageWriter** (Imaging), and the core `Surface.FitInto` - everything that
+  touches files and pixels.
 
 #### Callers
 

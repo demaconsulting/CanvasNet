@@ -1,10 +1,13 @@
 ## Canvas
 
+<!-- cspell:ignore otsu -->
+
 ![Canvas Structure](CanvasView.svg)
 
 The `Canvas` subsystem is the first software subsystem in CanvasNet. It provides the pixel-buffer
 primitives on which all other CanvasNet functionality builds: a mutable, in-memory 32-bit RGBA
-pixel buffer (`Surface`), the single-pixel value type it stores (`Rgba32`), and the shared CSS color
+pixel buffer (`Surface`) with its tone and color adjustments (`SurfaceAdjustments`) and whole-surface
+transformations (`SurfaceTransforms`), the single-pixel value type it stores (`Rgba32`), and the shared CSS color
 parser (`CssColor`) that turns color text into `Rgba32` values.
 
 ### Purpose
@@ -16,8 +19,15 @@ other subsystem: the `Codecs` subsystem depends on `Canvas`, not the other way a
 ### Units
 
 - **Surface** — mutable, in-memory 32-bit RGBA pixel buffer with allocation-free row access,
-  independent-copy cropping and resampling (`Resize`/`ResizeToFit` with the `ResamplingMode`
-  filters, backed by the internal separable `SurfaceResampler` engine); see _Surface Unit Design_ (`canvas/surface.md`)
+  independent-copy cropping and cloning, an opaque clipped `CopyFrom`, and resampling (`Resize`/`ResizeToFit` with the
+  `ResamplingMode` filters, backed by the internal separable `SurfaceResampler` engine); see _Surface Unit Design_
+  (`canvas/surface.md`)
+- **SurfaceAdjustments** — the in-place tone and color adjustments of `Surface` (`Luma`, `Grayscale`, `Invert`,
+  `Threshold`, `OtsuThreshold`, `Levels`, `Brightness`, `Contrast`, `AutoLevels`, `LumaHistogram`), a partial class
+  file of `Surface`; see _SurfaceAdjustments Unit Design_ (`canvas/surface-adjustments.md`)
+- **SurfaceTransforms** — the pure whole-surface transformations of `Surface` (`FlipHorizontal`, `FlipVertical`,
+  `Rotate180`, `Pad`, `Trim`/`FindTrimBounds`, `FitInto` with `FitMode`, `FlattenOver`, `HasTransparency`), a partial
+  class file of `Surface`; see _SurfaceTransforms Unit Design_ (`canvas/surface-transforms.md`)
 - **Rgba32** — a blittable four-byte value type representing a single RGBA pixel; its channel
   layout, hex-literal `Parse`/`TryParse` methods, and other behavior are documented in its own
   unit design, _Rgba32 Unit Design_ (`canvas/rgba32.md`)
@@ -48,4 +58,6 @@ _Drawing Subsystem Design_ (`drawing.md`) and _PathFiller Unit Design_
 `Codecs` subsystem or on the `Drawing` subsystem. The `CssColor` unit is a public API entry point as well, called
 by the SVG codec, the Vega-Lite renderer, the OpenSCAD renderer, and the command-line tool (see _CssColor Unit
 Design_, `canvas/css-color.md`), and has no dependency other than `Rgba32` and the .NET base class library
-(`System.Collections.Frozen`, `System.Globalization`).
+(`System.Collections.Frozen`, `System.Globalization`). The `SurfaceAdjustments` and `SurfaceTransforms` units are public
+API as well, called by the command-line tool's image pipeline, source loader, contact sheet, and image writer, which keep
+only the option parsing, the order of the steps, the error mapping, and the reporting of each step.

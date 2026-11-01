@@ -43,7 +43,7 @@ is 0 the pixel becomes transparent black `(0, 0, 0, 0)`. Example (pinned by a te
 Sans font (loaded once per call with `SystemFontCatalog.LoadBundledFallback`, never a system font) through the Rendering
 text renderer. With the metrics of the text, the label box is the text width (rounded up) plus 4 pixels wide and the
 ascent plus descent (rounded up) plus 2 pixels high. The box is filled by blending the **backing** color at alpha 192: white
-when the luma of the line color is below 128 (`ImageAdjustments.Luma` of the opaque color), black otherwise; the text is
+when the luma of the line color is below 128 (`Surface.Luma` of the opaque color), black otherwise; the text is
 drawn in the line color made opaque.
 
 - A vertical-line label sits at the top edge: box left `x + 1`, box top 1, text left `x + 3`, baseline
@@ -70,7 +70,7 @@ defect of the caller. A null surface throws `ArgumentNullException`; a spacing o
 
 - **CanvasNet core library** - `Surface` and `Rgba32`.
 - **CanvasNet Rendering and Fonts libraries** - the text renderer and the bundled font.
-- **ImageAdjustments** - `Luma`, to choose the backing of a label.
+- **CanvasNet core library** - `Surface.Luma`, to choose the backing of a label.
 
 #### Callers
 

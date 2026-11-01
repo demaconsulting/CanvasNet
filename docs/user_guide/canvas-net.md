@@ -1,5 +1,7 @@
 # CanvasNet Core Library
 
+<!-- cspell:ignore otsu midtone midtones -->
+
 ## Basic Usage
 
 ```csharp
@@ -158,6 +160,32 @@ A new `Surface` containing an independent copy of the requested pixels.
 - `ArgumentOutOfRangeException`: Thrown when any argument is invalid or the region exceeds the
   source surface's bounds.
 
+##### Clone
+
+```csharp
+public Surface Clone()
+```
+
+Creates a new, independent `Surface` with the same size and pixels; use it before an in-place
+operation (such as the adjustments below) when the original must be kept.
+
+##### CopyFrom
+
+```csharp
+public void CopyFrom(Surface source, int destX, int destY)
+```
+
+Copies the pixels of `source` onto this surface with its top-left pixel at `(destX, destY)`. The
+copy is opaque (every source pixel, alpha included, replaces the pixel underneath; use
+`CompositeOver` to blend) and clipped to this surface (the part of `source` outside it is ignored,
+and a source entirely outside changes nothing).
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown when `source` is null.
+- `ArgumentException`: Thrown when `source` is this surface.
+- `ObjectDisposedException`: Thrown when either surface has been disposed.
+
 ##### Resize
 
 ```csharp
@@ -281,6 +309,96 @@ formula is evaluated — every pixel becomes exactly `color`, regardless of `col
 was previously stored there. This is the recommended way to establish a known background before
 drawing (for example clearing a surface to transparent black before filling shapes onto it).
 Never throws. `Canvas.Clear(Rgba32)` is a thin, transform-independent passthrough to this method.
+
+#### Surface Transformations
+
+These methods are pure: each returns a new `Surface` (or a value) and never changes the surface it
+is called on. Each throws `ObjectDisposedException` when the surface has been disposed.
+
+```csharp
+public Surface FlipHorizontal()   // mirror left and right
+public Surface FlipVertical()     // mirror top and bottom
+public Surface Rotate180()        // mirror about both axes
+public Surface Pad(int left, int top, int right, int bottom, Rgba32 color)
+public (int X, int Y, int Width, int Height)? FindTrimBounds(int tolerance)
+public Surface Trim(int tolerance)
+public Surface FitInto(int boxWidth, int boxHeight, FitMode mode, Rgba32 fill,
+    ResamplingMode filter = ResamplingMode.Auto)
+public Surface FlattenOver(Rgba32 background)
+public bool HasTransparency()
+```
+
+- `Pad` surrounds the surface with a border of the given widths and `color` and copies the pixels
+  in without blending. It throws `ArgumentOutOfRangeException` for a negative width and
+  `ArgumentException` when the result would be larger than `Surface.MaxDimension` on a side.
+- `FindTrimBounds` finds the box of the content inside a uniform border: the background is the most
+  frequent of the four corner colors, all fully transparent pixels are equal, and a pixel is
+  background when its largest channel difference from the background is at most `tolerance`
+  (0 to `Surface.MaxTrimTolerance`, 255). It returns `null` when every pixel is background. `Trim`
+  crops to that box, or returns a copy when there is no content.
+- `FitInto` returns a surface of exactly the box. With `FitMode.Contain` the image keeps its aspect
+  ratio, is scaled to touch the box on its limiting side (a small image is enlarged), and is centered
+  on `fill`; with `FitMode.Stretch` it is resampled to the box.
+- `FlattenOver` composites the surface over a solid color into a new, opaque surface;
+  `HasTransparency` tells whether any pixel has an alpha below 255 (for example before saving to a
+  format without an alpha channel).
+
+```csharp
+using var photo = PngCodec.Load("scan.png");
+using var content = photo.Trim(tolerance: 8);                       // remove the paper margin
+using var framed = content.Pad(16, 16, 16, 16, new Rgba32(255, 255, 255, 255));
+using var thumbnail = framed.FitInto(256, 256, FitMode.Contain, new Rgba32(0, 0, 0, 0));
+```
+
+#### Surface Adjustments
+
+These methods adjust the tone and color of the pixels **in place** (like `Clear`); call `Clone()`
+first to keep the original. Red, green, and blue change and alpha is unchanged. Rows are processed
+in parallel, and the results do not depend on the number of cores. Each throws
+`ObjectDisposedException` when the surface has been disposed.
+
+```csharp
+public static int Luma(Rgba32 pixel)
+public void Grayscale()
+public void Invert()
+public void Threshold(int level)
+public long[] LumaHistogram()
+public static int OtsuThreshold(ReadOnlySpan<long> histogram)
+public void Levels(int black, int white, double gamma = 1.0)
+public void Brightness(int amount)
+public void Contrast(double contrast)
+public (int Black, int White)? AutoLevels(double clipPercent = Surface.DefaultAutoLevelsClipPercent)
+```
+
+- `Luma` is the BT.601 fixed-point luma `(77 R + 150 G + 29 B + 128) >> 8` of an opaque pixel; a
+  translucent pixel is flattened over white first, so a fully transparent pixel has the luma 255.
+- `Grayscale` sets red, green, and blue to the luma of the pixel's own color; `Invert` replaces each
+  color channel `c` with `255 - c`.
+- `Threshold(level)` (0 to 255) makes a pixel opaque white when its luma over white is greater than
+  `level`, and opaque black otherwise. `OtsuThreshold` chooses a level from a 256-bin histogram
+  (for example from `LumaHistogram()`) by maximizing the between-class variance, so
+  `surface.Threshold(Surface.OtsuThreshold(surface.LumaHistogram()))` converts to black and white with an
+  automatic level.
+- `Levels` maps `black` (0 to 254) to 0 and `white` (1 to 255, above `black`) to 255 with a midtone
+  `gamma` from `Surface.MinGamma` (0.1) to `Surface.MaxGamma` (10); a gamma above 1 brightens the
+  midtones. `Brightness` adds an amount from -255 to 255 and clamps. `Contrast` takes a value from
+  -100 to 100 and pivots around mid-gray (0 changes nothing).
+- `AutoLevels` stretches the image so that the black and white points of its luma histogram, ignoring
+  `clipPercent` (0 to `Surface.MaxAutoLevelsClipPercent`, 20) of the pixels at each end, become 0 and
+  255. It returns the points it applied, or `null` when the image is flat and was left unchanged.
+
+**Exceptions:** an argument outside its range throws `ArgumentOutOfRangeException`; `black` not
+below `white`, or a histogram that does not have 256 entries or has a negative count, throws
+`ArgumentException`.
+
+```csharp
+using var scan = PngCodec.Load("page.png");
+scan.AutoLevels();      // stretch a dull scan to the full range
+scan.Contrast(20);
+using var blackAndWhite = scan.Clone();
+blackAndWhite.Grayscale();
+blackAndWhite.Threshold(Surface.OtsuThreshold(blackAndWhite.LumaHistogram()));
+```
 
 ### Rgba32
 

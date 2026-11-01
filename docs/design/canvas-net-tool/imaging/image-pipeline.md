@@ -11,8 +11,10 @@ command line into operations and to apply them, left to right, to the pixels of 
 size, fit inside a box, rotate by any angle, flip, pad, the tone adjustments (grayscale, invert, threshold, levels,
 brightness, contrast, auto-levels), deskew, trim, and grid. The `render` command, the `inspect` command, and the verb
 commands `crop`, `resize`, `rotate`, `flip`, and `pad` share it, so a verb is exactly `render` with one operation placed
-first. The arithmetic of the new operations lives in the units `ImageAdjustments`, `ImageGeometry`, and `GridOverlay`;
-the pipeline parses their options, decides which surface they work on, and reports what they did. The unit is the
+first. The arithmetic of the pixel operations lives in the core `Surface` class (flip, pad, trim, and the tone
+adjustments) and in the units `ImageGeometry` (rotation and skew) and `GridOverlay`;
+the pipeline parses their options, decides which surface they work on, maps a refusal to a `ToolException`, and
+reports what they did. The unit is the
 static class `ImagePipeline` (`ImagePipeline.cs`) and the operation types in `ImageOperations.cs`.
 
 #### Data Model
@@ -136,22 +138,24 @@ to 360 before the rotation) with the rules of rotate, so the report gives the sk
 lines descend to the right), the correction, the confidence, and the fill and filter. Text mode prints a warning for
 the size-limit skip; the numbers are in the `--json` result.
 
-**Trim**: `ImageGeometry.FindTrimBounds` with the tolerance; the surface is cropped to the box (a copy of the box, not of
+**Trim**: `Surface.FindTrimBounds` with the tolerance; the surface is cropped to the box (a copy of the box, not of
 the whole image). An image that is all background is copied unchanged and reported with the whole image as the box,
 `trimmed: false` and `empty: true`; an image whose content touches every edge is also unchanged, with
 `trimmed: false` and `empty: false`.
 
-**The adjustments**: grayscale and invert call the unit directly; `threshold` computes `OtsuThreshold(LumaHistogram)`
-first for `auto` and reports the level used; `levels`, `brightness`, and `contrast` build their 256-entry table and
-apply it (a chain of them is a chain of passes in the order written); `auto-levels` is
-`ImageAdjustments.AutoLevels(surface, clip)` and reports the points it applied, or that the image was flat. **Grid**
+**The adjustments**: grayscale and invert call the core `Surface` methods directly; `threshold` computes
+`Surface.OtsuThreshold(surface.LumaHistogram())` first for `auto` and reports the level used; `levels`, `brightness`,
+and `contrast` call `Surface.Levels`, `Brightness`, and `Contrast` (a chain of them is a chain of passes in the order
+written); `auto-levels` is `Surface.AutoLevels(clip)` and reports the points it applied, or that the image was flat.
+Each runs in place on a surface the pipeline owns (a `Surface.Clone` when the surface is the caller's input). **Grid**
 is `GridOverlay.Draw` with the color (default `GridOverlay.DefaultColor`); the coordinates are those of the image at
 that point of the pipeline, so `--grid` last gives the final coordinates.
 
-**Pad** allocates the larger surface, fills it with the color (not at all for fully transparent, which a new surface
-already is; pixels are stored with straight alpha, so a color is written as given), and copies the image rows into
-place; a result larger than `Surface.MaxDimension` on a side is `size-limit` before it is allocated. **Flip** reverses
-each row, the order of the rows, or both.
+**Pad** checks the size first, so that a result larger than `Surface.MaxDimension` on a side is `size-limit` (with the
+size and the hint) before anything is allocated, then calls `Surface.Pad` with the color (a fully transparent color is
+not filled, because a new surface already is; pixels are stored with straight alpha, so a color is written as given).
+**Flip** is `Surface.FlipHorizontal`, `FlipVertical`, or `Rotate180` (both axes); a rotation by 180 degrees is
+`Rotate180` too, while the quarter turns stay in the pipeline.
 
 #### Error Handling
 
@@ -168,9 +172,9 @@ argument throws `ArgumentNullException`; an unknown verb name, or a verb without
   root-namespace unit; it is the parsing of the operations, not any command-line output.
 - **ToolException** and **ErrorCodes** - the expected-error contract.
 - **SourceLoader** - the `AppliedOperation` record, `Operation` helper, and `FormatColor`.
-- **ImageAdjustments**, **ImageGeometry**, and **GridOverlay** - the arithmetic of the tone adjustments, the rotation,
-  the skew estimate, the trim, and the grid.
-- **CanvasNet core library** - `Surface`, `Rgba32`, and `ResamplingMode`.
+- **ImageGeometry** and **GridOverlay** - the rotation, the skew estimate, and the grid.
+- **CanvasNet core library** - `Surface` (the flip, pad, trim, and tone adjustments, `Clone`, and `CopyFrom`), `Rgba32`,
+  and `ResamplingMode`.
 
 #### Callers
 

@@ -1,19 +1,21 @@
 ## Canvas Subsystem Verification Design
 
 This document describes the subsystem-level verification strategy for the `Canvas` subsystem
-(the `Surface` unit, the `Rgba32` value-type unit, and the `CssColor` parser unit).
+(the `Surface` unit with its `SurfaceAdjustments` and `SurfaceTransforms` parts, the `Rgba32` value-type unit, and the
+`CssColor` parser unit).
 
 ### Verification Approach
 
 The `Canvas` subsystem is verified entirely through its constituent units' tests: the `Surface`
 unit's tests (see _Surface Unit Verification Design_, `canvas/surface.md`) exercise every public
-constructor, property, indexer, span accessor, the `Crop` method, and the `Resize`/`ResizeToFit`
+constructor, property, indexer, span accessor, the `Crop`, `Clone`, and `CopyFrom` methods, and the `Resize`/`ResizeToFit`
 resampling API (requirements `CanvasNet-Canvas-Resize`, `-ResizeAlpha`, `-ResizeValidation` and
 `-ResizeToFit`) in isolation. No separate
 subsystem-level tests exist; the subsystem-level requirements reuse the same `Surface` unit tests
-as verification evidence, alongside the `Rgba32` unit's own tests (see _Rgba32 Unit Verification
-Design_, `canvas/rgba32.md`) and the `CssColor` unit's own tests (see _CssColor Unit Verification Design_,
-`canvas/css-color.md`); the `Canvas` subsystem contains exactly these three units.
+as verification evidence, alongside the `SurfaceAdjustments` and `SurfaceTransforms` unit tests (see their
+verification designs, `canvas/surface-adjustments.md` and `canvas/surface-transforms.md`), the `Rgba32` unit's own tests
+(see _Rgba32 Unit Verification Design_, `canvas/rgba32.md`) and the `CssColor` unit's own tests (see _CssColor Unit
+Verification Design_, `canvas/css-color.md`); the `Canvas` subsystem contains exactly these five units.
 
 ### Test Environment
 
@@ -32,9 +34,13 @@ exception.
 The `Canvas` subsystem's test scenarios are those named in _Rgba32 Unit Verification Design_
 (`canvas/rgba32.md`), those named in _CssColor Unit Verification Design_ (`canvas/css-color.md`:
 hexadecimal and named colors, `rgb()`/`hsl()` functions, rounding and clamping, invalid text, and
-formatting), plus those named in _Surface Unit Verification Design_
+formatting), those named in _SurfaceAdjustments Unit Verification Design_ (`canvas/surface-adjustments.md`: luma,
+grayscale, invert, thresholds, levels, brightness, contrast, and auto-levels) and _SurfaceTransforms Unit Verification
+Design_ (`canvas/surface-transforms.md`: flip, pad, trim, fit, and flatten), plus those named in _Surface Unit
+Verification Design_
 (`canvas/surface.md`): construction and invariants, indexer and span-accessor boundary conditions,
-`Crop` normal/boundary/error paths, `Resize`/`ResizeToFit` size, filter, premultiplied-alpha (no color
+`Crop`, `Clone`, and `CopyFrom` normal/boundary/error paths, `Resize`/`ResizeToFit` size, filter,
+premultiplied-alpha (no color
 fringe) and argument-validation behavior (`CanvasNet-Canvas-Resize*`),
 `PremultiplyAlpha`/`UnpremultiplyAlpha`/`CompositeOver`
 compositing correctness, and `Dispose` idempotency. No subsystem-level test exists beyond

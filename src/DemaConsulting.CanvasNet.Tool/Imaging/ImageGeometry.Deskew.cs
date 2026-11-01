@@ -70,7 +70,7 @@ internal static partial class ImageGeometry
     /// <returns>
     ///     The skew from -15 to 15 degrees, positive when the lines descend to the right, with a confidence. The
     ///     estimate is made on an <b>analysis plane</b>: with <c>f = ceil(max(W, H) / 1024)</c> each analysis pixel is the
-    ///     integer mean, <c>(sum + n / 2) / n</c>, of the <see cref="ImageAdjustments.Luma"/> of its (possibly partial)
+    ///     integer mean, <c>(sum + n / 2) / n</c>, of the <see cref="Surface.Luma"/> of its (possibly partial)
     ///     <c>f</c> by <c>f</c> block, so transparency is flattened over white. A pixel of the plane is a <b>dark mark</b>
     ///     when <c>sum - v * count &gt;= 10 * count</c> for the window of radius 8 around it (clipped to the plane; at least
     ///     10 levels darker than the local mean, exact integers), which is immune to uneven lighting. With fewer than
@@ -269,7 +269,7 @@ internal static partial class ImageGeometry
                     var row = surface.GetRowSpan(sy);
                     for (var sx = left; sx < right; sx++)
                     {
-                        sum += ImageAdjustments.Luma(row[sx]);
+                        sum += Surface.Luma(row[sx]);
                     }
                 }
 
