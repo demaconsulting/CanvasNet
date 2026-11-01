@@ -163,8 +163,13 @@ end
 -- Collapses "." and ".." segments, which pandoc.path.normalize leaves in place.
 local function collapse(path)
   local parts = {}
-  for _, part in ipairs(pandoc.path.split(pandoc.path.normalize(path))) do
-    if part == ".." and #parts > 0 and parts[#parts] ~= ".." then
+  local split = pandoc.path.split(pandoc.path.normalize(path))
+  -- A rooted path's first part ("/", "C:\", a share) is its root, which a ".." above it leaves in place.
+  local root = (split[1] and split[1]:match("[/\\]$")) and 1 or 0
+  for _, part in ipairs(split) do
+    if part == ".." and #parts == root and root == 1 then
+      -- Climbing above the root stays at the root.
+    elseif part == ".." and #parts > root and parts[#parts] ~= ".." then
       table.remove(parts)
     elseif part ~= "." then
       table.insert(parts, part)
