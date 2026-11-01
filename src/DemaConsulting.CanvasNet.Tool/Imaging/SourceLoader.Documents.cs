@@ -211,10 +211,7 @@ internal static partial class SourceLoader
                 result.Clear(fill);
                 var left = (width - surface.Width) / 2;
                 var top = (height - surface.Height) / 2;
-                for (var y = 0; y < surface.Height; y++)
-                {
-                    surface.GetRowSpan(y).CopyTo(result.GetRowSpan(top + y)[left..]);
-                }
+                result.CopyFrom(surface, left, top);
 
                 return result;
             }

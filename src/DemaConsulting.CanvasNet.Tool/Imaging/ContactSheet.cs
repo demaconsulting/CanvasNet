@@ -247,10 +247,7 @@ internal sealed class ContactSheet : IDisposable
                 fitted = flattened;
             }
 
-            for (var row = 0; row < fitted.Height; row++)
-            {
-                fitted.GetRowSpan(row).CopyTo(sheet.GetRowSpan(y + row)[x..]);
-            }
+            sheet.CopyFrom(fitted, x, y);
         }
         finally
         {

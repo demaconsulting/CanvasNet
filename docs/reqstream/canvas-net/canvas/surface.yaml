@@ -140,6 +140,51 @@ sections:
                   - Surface_Crop_ModifyResult_DoesNotAffectSource
                   - Surface_Crop_ModifySource_DoesNotAffectResult
 
+              - id: CanvasNet-Canvas-Surface-Clone
+                title: The Surface class shall create an independent copy of the whole surface.
+                justification: |
+                  Callers that must keep an original while changing a working copy need a one-call
+                  copy whose buffer is separate from the source; expressing it as a dedicated member
+                  states the intent instead of a whole-surface Crop.
+                tests:
+                  - Surface_Clone_ValidSurface_ReturnsIdenticalPixels
+                  - Surface_Clone_ModifyEither_DoesNotAffectTheOther
+
+              - id: CanvasNet-Canvas-Surface-CopyFrom
+                title: >-
+                  The Surface class shall copy the pixels of another surface onto itself at a given
+                  position, replacing the pixels underneath without blending.
+                justification: |
+                  Compositing sheets, borders, and tiles needs an exact placement of one surface into
+                  another; an opaque copy preserves the source pixels, alpha included, and replaces the
+                  hand-written row loops otherwise repeated by every consumer.
+                tests:
+                  - Surface_CopyFrom_InsideDestination_ReplacesPixelsWithoutBlending
+                  - Surface_CopyFrom_Source_IsNotModified
+
+              - id: CanvasNet-Canvas-Surface-CopyFromClipped
+                title: >-
+                  The Surface class shall clip a CopyFrom to its own bounds, ignoring any part of the
+                  source that falls outside and changing nothing when the source lies entirely outside.
+                justification: |
+                  Callers place surfaces at computed positions that may partly or wholly lie outside the
+                  destination (including negative and extreme values); clipping makes this safe without
+                  per-caller bounds arithmetic.
+                tests:
+                  - Surface_CopyFrom_PartlyOutside_ClipsToDestination
+                  - Surface_CopyFrom_EntirelyOutside_LeavesDestinationUnchanged
+
+              - id: CanvasNet-Canvas-Surface-CopyFromInvalid
+                title: >-
+                  The Surface class shall reject a null source or the surface itself passed to CopyFrom
+                  with ArgumentNullException or ArgumentException, and a disposed surface with
+                  ObjectDisposedException.
+                justification: |
+                  A null source cannot be copied, and copying a surface onto itself would make
+                  overlapping rows depend on the copy order; disposed surfaces must not be touched.
+                tests:
+                  - Surface_CopyFrom_InvalidArguments_Throw
+
               - id: CanvasNet-Canvas-Surface-CropInvalidX
                 title: The Surface class shall reject a negative x argument to Crop with ArgumentOutOfRangeException.
                 justification: |
@@ -404,6 +449,7 @@ sections:
                   - Surface_GetRowSpanBytes_AfterDispose_ThrowsObjectDisposedException
                   - Surface_GetRowSpan_AfterDispose_ThrowsObjectDisposedException
                   - Surface_Crop_AfterDispose_ThrowsObjectDisposedException
+                  - Surface_Clone_AfterDispose_ThrowsObjectDisposedException
                   - Surface_PremultiplyAlpha_AfterDispose_ThrowsObjectDisposedException
                   - Surface_UnpremultiplyAlpha_AfterDispose_ThrowsObjectDisposedException
                   - Surface_CompositeOverSurface_AfterDispose_ThrowsObjectDisposedException

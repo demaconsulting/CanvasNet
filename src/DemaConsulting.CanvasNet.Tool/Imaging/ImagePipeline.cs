@@ -1115,10 +1115,7 @@ internal static class ImagePipeline
             result.Clear(color);
         }
 
-        for (var y = 0; y < source.Height; y++)
-        {
-            source.GetRowSpan(y).CopyTo(result.GetRowSpan(y + border.Top)[border.Left..]);
-        }
+        result.CopyFrom(source, border.Left, border.Top);
 
         return (result, SourceLoader.Operation(
             "pad",

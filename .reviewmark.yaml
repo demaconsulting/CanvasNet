@@ -133,6 +133,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet/Canvas/ResamplingMode.cs"   # public resampling filter enum
       - "src/DemaConsulting.CanvasNet/Canvas/NamespaceDoc.cs"     # Canvas namespace documentation
       - "test/DemaConsulting.CanvasNet.Tests/Canvas/SurfaceTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Canvas/SurfaceCopyTests.cs"  # clone and copy unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Canvas/SurfaceResamplerTests.cs"  # resampler unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Canvas/SurfaceResizeTests.cs"  # resize unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Canvas/SurfaceResizeCodecRoundTripTests.cs"  # round-trip tests

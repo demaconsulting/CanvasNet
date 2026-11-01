@@ -87,7 +87,7 @@ public static partial class SvgCodec
         }
 
         var sampled = SampleImageIntoRegion(decodedSurface, primitiveSubregion, imageToPixel, pixelToImage, nearest: false);
-        CopySurfaceInto(sampled, output, primitiveSubregion.X, primitiveSubregion.Y);
+        output.CopyFrom(sampled, primitiveSubregion.X, primitiveSubregion.Y);
     }
 
     /// <summary>

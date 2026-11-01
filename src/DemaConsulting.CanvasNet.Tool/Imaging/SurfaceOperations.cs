@@ -88,10 +88,7 @@ internal static class SurfaceOperations
             result.Clear(fill);
             var left = (boxWidth - width) / 2;
             var top = (boxHeight - height) / 2;
-            for (var y = 0; y < height; y++)
-            {
-                fitted.GetRowSpan(y).CopyTo(result.GetRowSpan(top + y)[left..]);
-            }
+            result.CopyFrom(fitted, left, top);
 
             return result;
         }

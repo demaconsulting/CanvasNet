@@ -437,6 +437,80 @@ public sealed class Surface : IDisposable
     }
 
     /// <summary>
+    ///     Creates a new, independent <see cref="Surface"/> with the same size and pixels as this one.
+    /// </summary>
+    /// <returns>A new <see cref="Surface"/> that owns a separate copy of every pixel.</returns>
+    /// <exception cref="ObjectDisposedException">Thrown when this surface has been disposed.</exception>
+    /// <remarks>
+    ///     Exists so that the very common "work on a copy" step reads as its intent rather than as a
+    ///     whole-surface <see cref="Crop"/>. Subsequent writes to either surface never affect the other.
+    /// </remarks>
+    /// <example>
+    ///     <code>
+    ///     var copy = surface.Clone();
+    ///     copy.Clear(new Rgba32(0, 0, 0, 255)); // the original is unchanged
+    ///     </code>
+    /// </example>
+    public Surface Clone()
+    {
+        return Crop(0, 0, Width, Height);
+    }
+
+    /// <summary>
+    ///     Copies the pixels of another surface onto this surface at a position, replacing the pixels underneath.
+    /// </summary>
+    /// <param name="source">The surface to copy from; it is not modified.</param>
+    /// <param name="destX">The column of this surface that receives the left edge of <paramref name="source"/>; may be negative or beyond the right edge.</param>
+    /// <param name="destY">The row of this surface that receives the top edge of <paramref name="source"/>; may be negative or beyond the bottom edge.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="source"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="source"/> is this surface.</exception>
+    /// <exception cref="ObjectDisposedException">Thrown when this surface or <paramref name="source"/> has been disposed.</exception>
+    /// <remarks>
+    ///     The copy is <b>opaque</b>: every source pixel, including its alpha, replaces the destination pixel without
+    ///     blending (use <see cref="CompositeOver(Surface)"/> to blend). The copy is <b>clipped</b> to this surface:
+    ///     the part of <paramref name="source"/> that falls outside it is ignored, and a source that lies entirely
+    ///     outside leaves this surface unchanged. Whole rows are copied with one <see cref="Span{T}.CopyTo"/> call
+    ///     each. A surface cannot be copied onto itself, because overlapping regions would make the result depend on
+    ///     the copy order.
+    /// </remarks>
+    /// <example>
+    ///     <code>
+    ///     var sheet = new Surface(100, 100);
+    ///     sheet.CopyFrom(tile, 10, 20);   // tile's top-left pixel lands at (10, 20)
+    ///     </code>
+    /// </example>
+    public void CopyFrom(Surface source, int destX, int destY)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ObjectDisposedException.ThrowIf(source._disposed, source);
+        if (ReferenceEquals(source, this))
+        {
+            throw new ArgumentException("A surface cannot be copied onto itself.", nameof(source));
+        }
+
+        // Work out the part of the source that lands inside this surface; long arithmetic keeps
+        // extreme positions from overflowing
+        var firstX = Math.Max(0L, -(long)destX);
+        var endX = Math.Min(source.Width, (long)Width - destX);
+        var firstY = Math.Max(0L, -(long)destY);
+        var endY = Math.Min(source.Height, (long)Height - destY);
+        if (endX <= firstX || endY <= firstY)
+        {
+            return;
+        }
+
+        // Copy each clipped source row in one bulk operation; the clipped range is within the
+        // source, so it fits an int
+        var start = (int)firstX;
+        var length = (int)(endX - firstX);
+        for (var y = (int)firstY; y < endY; y++)
+        {
+            source.GetRowSpan(y).Slice(start, length).CopyTo(GetRowSpan(destY + y).Slice(destX + start, length));
+        }
+    }
+
+    /// <summary>
     ///     Returns a new surface containing this surface resampled to the given size.
     /// </summary>
     /// <param name="width">The width, in pixels, of the result. Must be between 1 and <see cref="MaxDimension"/>.</param>
