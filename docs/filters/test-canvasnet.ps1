@@ -308,7 +308,7 @@ try {
     }
     Set-Content (Join-Path $many 'big.scad') -Value ((1..512 | ForEach-Object { "include <i$_.scad>" }) -join "`n")
     $bigModel = Invoke-Filter 'many-scad' '![m](many/big.scad)'
-    Write-Result ($bigModel.ExitCode -ne 0 -and $bigModel.Log -match 'includes more than 512 files') `
+    Write-Result ($bigModel.ExitCode -ne 0 -and $bigModel.Log -match 'includes are more than 512 files') `
         'a model that includes too many files fails with the limit' $bigModel.Log
 }
 catch {

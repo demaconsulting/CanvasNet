@@ -56,9 +56,9 @@ that decides the picture:
 
   - the file, and every file it pulls in that exists: for a model every file named by include <...> or
     use <...> (followed recursively, relative to the including file, an absolute name as it is; at most 512
-    files); for a chart every local data file named by a "url" in a "data" object of the specification
+    files, counting the model); for a chart every local data file named by a "url" in a "data" object of the specification
     (relative to the specification's folder; a remote URL, which the tool never reads, is skipped); a chart
-    that names more than 512 different data files, or a model that includes more than 512, stops the build,
+    that names more than 512 different data files, or a model that with its includes is more than 512 files, stops the build,
     since a file left out of the hash could change without the picture being drawn again;
   - the drawing attributes, with the defaults this filter adds;
   - the tool: its --version text, the CANVASNET_TOOL text, and, for a local build named by that text, a
@@ -428,8 +428,8 @@ local function add_scad_sources(root, path, seen, parts, depth)
     return
   end
   if #parts >= MAX_DEPENDENCIES then
-    fail("the model includes more than " .. MAX_DEPENDENCIES .. " files; the limit is " .. MAX_DEPENDENCIES
-      .. " (every file must be hashed so that a changed one is drawn again)")
+    fail("the model and the files it includes are more than " .. MAX_DEPENDENCIES .. " files; the limit is "
+      .. MAX_DEPENDENCIES .. ", counting the model (every file must be hashed so that a changed one is drawn again)")
   end
   table.insert(parts, label(root, path) .. "\n" .. content)
   local folder = pandoc.path.directory(path)
