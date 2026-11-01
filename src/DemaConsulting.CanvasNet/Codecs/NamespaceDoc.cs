@@ -19,7 +19,9 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///     <see cref="Jpeg2000Codec"/> are decode-only: <see cref="GifCodec"/> loads a
 ///     <see cref="DemaConsulting.CanvasNet.Canvas.Surface"/> from the first frame of a
 ///     GIF file and <see cref="Jpeg2000Codec"/> from a JPEG 2000 image, and neither has a <c>Save</c>
-///     method. SVG rasterization is no longer part of this
+///     method. <see cref="ImageFormats"/> and <see cref="ImageDecoder"/> add a format-neutral
+///     facade over all six codecs: recognize an image's <see cref="ImageFormat"/> from its signature
+///     or media type, and decode it without a per-format switch. SVG rasterization is no longer part of this
 ///     namespace - it now lives in the separate <c>DemaConsulting.CanvasNet.Svg</c> package's
 ///     <c>DemaConsulting.CanvasNet.Svg</c> namespace.
 /// </summary>

@@ -39,7 +39,7 @@ public static partial class PngCodec
             var filtered = rawData.Slice(offset, rowBytes);
             offset += rowBytes;
 
-            DefilterRow(filterType, filtered, previousRow, currentRow, bpp);
+            PngFilter.DefilterRow(filterType, filtered, previousRow, currentRow, bpp);
             ExtractSamples(currentRow, width, bitDepth, samplesPerPixel, samples);
             MapSamplesToRgba(samples, width, colorType, bitDepth, palette, trns, surface.GetRowSpanBytes(y));
 

@@ -68,8 +68,10 @@ so it is checked on the file name and the `formats` listing adds it to the exten
 
 **Detect(path)**: throws `input-unreadable` for a directory and `input-not-found` for a missing file. Reads the
 first 4096 bytes and decides in this order: the signature bytes of PNG, JPEG, GIF, TIFF (either byte order),
-JPEG 2000 (a JP2 signature box or a raw codestream), PDF, and BMP (the `BM` letters alone would also match text, so
-the reserved fields and the size of the bitmap header that follows are checked too); for a ZIP signature, the
+JPEG 2000 (a JP2 signature box or a raw codestream), and BMP (the `BM` letters alone would also match text, so
+the reserved fields and the size of the bitmap header that follows are checked too) - all recognized by the core
+`ImageFormats.Detect` and mapped to the matching kind - and then PDF (the one signature this tool adds itself);
+for a ZIP signature, the
 entries of the archive (`ppt/presentation.xml` is a presentation, `visio/document.xml` is a drawing, and any other
 readable archive, such as a Word or Excel file, is `unsupported-format` whatever its extension), while an archive
 that cannot be read falls back to the extension `.pptx` or `.vsdx` so that the load reports it as corrupt; SVG text
@@ -298,7 +300,8 @@ loader has no case for - which cannot happen while every kind of `SourceKind` is
 #### Dependencies
 
 - **ToolException** and **ErrorCodes** - the expected-error contract.
-- **CanvasNet core library** - `Surface`, `Rgba32`, and the PNG, JPEG, BMP, TIFF, GIF, and JPEG 2000 codecs.
+- **CanvasNet core library** - `Surface`, `Rgba32`, the PNG, JPEG, BMP, TIFF, GIF, and JPEG 2000 codecs, and
+  `ImageFormats.Detect` (the shared signature recognizer behind `DetectSignature`).
 - **CanvasNet SVG system** - `SvgCodec` renders SVG and reports its intrinsic size.
 - **CanvasNet PDF, PPTX, and VSDX systems** - `PdfDocument`, `PptxDocument`, and `VsdxDocument` list and render the
   pages of a document, and report the features they cannot draw.

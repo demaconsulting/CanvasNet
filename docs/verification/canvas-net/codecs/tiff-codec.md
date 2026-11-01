@@ -107,12 +107,24 @@ an independent test-only PackBits encoder, and loads the real-world `rgb_packbit
 `TiffCodec_Load_RgbFixture_MatchesSourcePngWithOpaqueAlpha`,
 `TiffCodec_Load_RgbaFixture_MatchesSourcePngExactly`,
 `TiffCodec_Load_GrayscaleFixture_HasEqualRgbChannels`,
-`TiffCodec_SaveThenLoad_LzwLargeVariedImage_RoundTripsAcrossAllCodeWidthBoundaries`
+`TiffCodec_SaveThenLoad_LzwLargeVariedImage_RoundTripsAcrossAllCodeWidthBoundaries`,
+`LzwDecoder_Decode_SpecExample_DecodesExpectedBytes`,
+`LzwDecoder_Decode_RoundTripsAcrossWidthBoundariesAndFullTable`,
+`LzwDecoder_Decode_WrongEarlyChangeTiming_ThrowsInvalidDataException`,
+`LzwDecoder_Decode_RepeatedByteRun_DecodesKwKwKCodes`,
+`LzwDecoder_Decode_InvalidCode_ThrowsInvalidDataException`,
+`LzwDecoder_Decode_ClearMidStream_ResetsTable`,
+`LzwDecoder_Decode_NoLeadingClear_Decodes`
 
 Saves and loads a surface using `TiffCompression.Lzw`; separately, decodes strips built with an
 independent test-only TIFF-flavor LZW encoder (including a repeating-pattern case that exercises
 dictionary growth and code-width transitions), and loads the real-world `rgb_lzw.tiff`/
-`rgba_lzw.tiff`/`gray_lzw.tiff` fixtures (genuine third-party encoder output).
+`rgba_lzw.tiff`/`gray_lzw.tiff` fixtures (genuine third-party encoder output). The internal
+`LzwDecoder` that performs the decode (shared with the PDF package) is also tested directly in
+`LzwDecoderTests.cs`: the ISO 32000 worked example, round trips of 40,000 bytes with both
+code-width timings (crossing every width boundary and filling the 4096-entry table), the
+wrong-timing rejection, a long single-byte run (the self-referential code), invalid codes, a
+mid-stream Clear, and the optional leading Clear.
 `TiffCodec_SaveThenLoad_LzwLargeVariedImage_RoundTripsAcrossAllCodeWidthBoundaries` closes a
 previously-unexercised verification gap: it round-trips a 200x200, high-entropy RGBA surface
 through `TiffCodec`'s own production `Save` and `Load`, whose raw post-predictor byte stream
@@ -282,11 +294,14 @@ turn, and asserts `Load` throws `InvalidDataException` for every case.
 ##### CanvasNet-Codecs-TiffCodec-LoadTruncatedStream: Load Rejects a Truncated Stream
 
 **Tests**: `TiffCodec_Load_TruncatedHeader_ThrowsInvalidDataException`,
-`TiffCodec_Load_TruncatedStripData_ThrowsInvalidDataException`
+`TiffCodec_Load_TruncatedStripData_ThrowsInvalidDataException`,
+`TiffCodec_Load_LzwStripWithoutLeadingClear_ThrowsInvalidDataException`,
+`LzwDecoder_Decode_MissingEndCode_ThrowsInvalidDataException`
 
 Builds a stream that ends before the 8-byte header is complete, and separately a file whose strip
 data is shorter than the declared image dimensions require, and asserts `Load` throws
-`InvalidDataException` for both.
+`InvalidDataException` for both. An LZW strip whose first code is not Clear (which TIFF requires) is
+likewise rejected, and the shared `LzwDecoder` rejects a bit stream that ends before its end code.
 
 ##### CanvasNet-Codecs-TiffCodec-TagValueBoundsValidation: Load and GetInfo Reject Zero-Count and Overflowing Tag Arithmetic
 
@@ -391,7 +406,11 @@ would otherwise require is never allocated).
 `TiffCodec_Load_DeflateStripsInflateToExactlyExpectedSizes_DecodesExpectedPixels`,
 `TiffCodec_Load_DeflateLastStripPaddedToFullRowsPerStrip_DecodesAndIgnoresPadding`,
 `TiffCodec_Load_PackBitsStripExpandsBeyondExpectedSize_ThrowsInvalidDataException`,
-`TiffCodec_Load_LzwStripExpandsBeyondExpectedSize_ThrowsInvalidDataException`
+`TiffCodec_Load_LzwStripExpandsBeyondExpectedSize_ThrowsInvalidDataException`,
+`LzwDecoder_Decode_OutputLimit_AcceptsExactSizeAndRejectsOneMore`,
+`LzwDecoder_Decode_Bomb_RejectedAtLimit`,
+`LzwDecoder_Decode_ZeroLimit_AcceptsOnlyEmptyOutput`,
+`LzwDecoder_Decode_UnrepresentableLimit_ThrowsInvalidDataException`
 
 Hand-builds TIFF files whose only Deflate strip is a valid zlib stream of 64 MB of zeros (a few
 tens of kilobytes compressed) for an image needing only a few hundred bytes — once with a normal
@@ -402,7 +421,9 @@ far below the bomb's size (proving the output is never fully inflated). A strip 
 exactly one byte beyond a full strip is rejected; strips that inflate to exactly the expected
 sizes (a full first strip and a shorter final strip) decode to the expected pixels, and a final strip
 padded up to a full `RowsPerStrip` rows is tolerated with the padding ignored. PackBits and LZW
-strips that expand beyond the same bound are likewise rejected.
+strips that expand beyond the same bound are likewise rejected. The shared `LzwDecoder` is tested
+directly at its limit (exactly the limit accepted, one byte more rejected), with a 4 MiB single-byte
+run encoded in a few kilobytes against a 64 KiB limit, and with zero and unrepresentable limits.
 
 ##### CanvasNet-Codecs-TiffCodec-GetInfoValidation: GetInfo Rejects Invalid Arguments and Malformed Headers
 

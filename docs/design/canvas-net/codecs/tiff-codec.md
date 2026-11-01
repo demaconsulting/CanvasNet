@@ -36,8 +36,9 @@ static utility shape was chosen over an object with nothing to construct or conf
 | `Deflate`  | 8             | zlib-wrapped DEFLATE, matching `PngCodec`'s own IDAT wrapper. |
 | `PackBits` | 32773         | Apple/TIFF PackBits run-length encoding (TIFF 6.0 Section 9). |
 
-**Architectural decision**: the TIFF-flavor LZW implementation (`EncodeLzw`/`DecodeLzw` in
-`TiffCodec.Compression.cs`) deliberately uses *different* numeric code-width-bump thresholds for
+**Architectural decision**: the TIFF-flavor LZW implementation (`EncodeLzw` in
+`TiffCodec.Compression.cs` and the shared decoder `LzwDecoder`, `Codecs/LzwDecoder.cs`) deliberately
+uses *different* numeric code-width-bump thresholds for
 encoding (512/1024/2048 table entries) than for decoding (511/1023/2047 table entries). This is
 not an inconsistency to "fix" - it directly implements the code-width transition convention
 mandated by TIFF 6.0 Section 13, often called the "early change" rule: because an LZW decoder can
@@ -48,8 +49,20 @@ after a width transition, corrupting the rest of the stream. TIFF's encoder uses
 thresholds; its decoder widens one table entry *earlier* to exactly compensate for that
 structural one-entry lag, so both sides change width at the same absolute bit position in the
 stream. Every TIFF-flavor LZW reader - including the canonical `libtiff` reference implementation
-and Pillow, which delegates to it - relies on this asymmetry, so `EncodeLzw` and `DecodeLzw` must
-keep their thresholds numerically different from each other.
+and Pillow, which delegates to it - relies on this asymmetry, so `EncodeLzw` and the decoder's
+`earlyChange: true` timing must keep their thresholds numerically different from each other.
+
+**Shared decoder**: decoding is performed by the internal `LzwDecoder.Decode(data, earlyChange,
+maxOutputBytes)` (`Codecs/LzwDecoder.cs`), which is also used, through the `InternalsVisibleTo`
+grant, by the `CanvasNetPdf` package's `LZWDecode` filter - the two formats share the stream
+layout (258-entry initial table, MSB-first 9-12 bit codes, Clear 256, end 257) and differ only in
+the code-width growth timing, which `TiffCodec` fixes at `earlyChange: true` and PDF selects
+through `/DecodeParms /EarlyChange`. `TiffCodec.DecodeLzw` wraps it with the one TIFF-specific rule
+(the stream must begin with a Clear code, which the shared decoder treats as optional) and passes
+the per-strip output bound (see *Design decision — bounded strip decompression* below). The shared decoder records the
+table as prefix/suffix/length arrays (at most 4096 entries, like the PDF decoder; the previous
+TIFF-private decoder kept growing a list of copied entries past the 12-bit limit, which could never
+be referenced) and writes each sequence directly into a bounded, on-demand-grown output buffer.
 
 ##### TIFF header (8 bytes)
 

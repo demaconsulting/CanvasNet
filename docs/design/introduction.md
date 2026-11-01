@@ -34,7 +34,10 @@ software items, specifically:
 - **Codecs (Subsystem)** — Image format codecs: `BmpCodec`, `PngCodec`, `TiffCodec`, and
   `JpegCodec`, each converting to and from a `Surface` pixel buffer; `GifCodec`, a decode-only
   unit that loads a `Surface` from the first frame of a GIF file; and `Jpeg2000Codec`, a decode-only
-  JPEG 2000 Part 1 decoder (JP2 and raw codestreams) also used for PDF `/JPXDecode` images
+  JPEG 2000 Part 1 decoder (JP2 and raw codestreams) also used for PDF `/JPXDecode` images; and
+  `ImageDecoder`, a format-neutral facade (`ImageFormat`, `ImageFormats`, `ImageDecoder`) that
+  recognizes an image's format from its signature or media type and decodes it through the
+  matching codec
 - **Geometry (Subsystem)** — Vector-geometry primitives, distinct from the `Drawing`
   subsystem (which covers rasterization built on top of these primitives): the `Rect` unit
   (axis-aligned bounding rectangle), the `Path` unit (immutable vector path and its
@@ -358,7 +361,7 @@ diagram or the prose below.
 
 CanvasNet is organized into six subsystems under the system level: the `Canvas` subsystem
 (the `Surface`, `Rgba32`, and `CssColor` units, namespace `DemaConsulting.CanvasNet.Canvas`), the `Codecs`
-subsystem (the `BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`, `GifCodec`, and `Jpeg2000Codec` units,
+subsystem (the `BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`, `GifCodec`, `Jpeg2000Codec`, and `ImageDecoder` units,
 namespace `DemaConsulting.CanvasNet.Codecs`, flat — no further nesting), the
 `Geometry` subsystem (the
 `Rect`, `Path`, `BezierFlattening`, and `SvgArcConverter` units, namespace
@@ -558,6 +561,14 @@ src/DemaConsulting.CanvasNet/
 │   ├── UnsupportedImageFeatureException.cs — Thrown by `Load` for a well-formed but
 │   │                                unsupported file feature (for example PNG Adam7
 │   │                                interlacing), distinct from `InvalidDataException`
+│   ├── ImageFormat.cs            — Public enum of the supported raster formats
+│   ├── ImageFormats.cs           — Public signature and media-type recognizer
+│   ├── ImageDecoder.cs           — Public decode-any-supported-format dispatcher
+│   ├── ZlibHelper.cs             — Internal bounded zlib helper shared by `PngCodec`/`TiffCodec`
+│   ├── PngFilter.cs              — Internal PNG scanline-filter reversal shared by `PngCodec`
+│   │                                and the PDF package's PNG predictors
+│   ├── LzwDecoder.cs             — Internal bounded LZW decoder shared by `TiffCodec` and the
+│   │                                PDF package's `LZWDecode`
 │   └── NamespaceDoc.cs           — Namespace-level XML documentation
 ├── Drawing/
 │   ├── FillRule.cs                — Nonzero/even-odd fill-rule enumeration

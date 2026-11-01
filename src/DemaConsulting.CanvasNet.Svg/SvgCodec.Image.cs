@@ -409,31 +409,28 @@ public static partial class SvgCodec
     }
 
     /// <summary>
-    ///     Maps a <c>data:</c> URI's parsed MIME type token to the matching sibling raster codec's
-    ///     own <c>Load(Stream)</c> entry point - pure dispatch, no new decode logic is written
+    ///     Maps a <c>data:</c> URI's parsed MIME type token to a raster decoder - pure dispatch
+    ///     through the core <see cref="ImageFormats.FromMediaType(string?)"/> /
+    ///     <see cref="ImageDecoder.Load(Stream, ImageFormat)"/> facade; no decode logic is written
     ///     anywhere in this file (see this class's remarks).
     /// </summary>
     /// <param name="mimeType">The lower-invariant MIME type token parsed by <see cref="TryParseDataUri"/>.</param>
     /// <returns>
-    ///     <see cref="PngCodec.Load(Stream)"/>, <see cref="JpegCodec.Load(Stream)"/>,
-    ///     <see cref="BmpCodec.Load(Stream)"/>, <see cref="TiffCodec.Load(Stream)"/>, or
-    ///     <see cref="GifCodec.Load(Stream)"/> for the matching recognized MIME type; otherwise
-    ///     <see langword="null"/> for any unrecognized MIME type - including <c>image/svg+xml</c>
-    ///     (a nested SVG document), listed explicitly below (rather than left to fall through to
-    ///     the default case implicitly) to document that its exclusion is this phase's own
-    ///     deliberate scope decision, not an oversight (see this class's remarks on nested-SVG-in-
-    ///     image scoping).
+    ///     A decoder over <see cref="PngCodec"/>, <see cref="JpegCodec"/>, <see cref="BmpCodec"/>,
+    ///     <see cref="TiffCodec"/>, or <see cref="GifCodec"/> for the matching recognized MIME type;
+    ///     otherwise <see langword="null"/> for any unrecognized MIME type - including
+    ///     <c>image/svg+xml</c> (a nested SVG document) and JPEG 2000 (which the core facade
+    ///     recognizes but this codec deliberately does not embed), so their exclusion is this
+    ///     codec's own deliberate scope decision, not an oversight (see this class's remarks on
+    ///     nested-SVG-in-image scoping).
     /// </returns>
-    private static Func<Stream, Surface>? ResolveRasterDecoder(string mimeType) => mimeType switch
+    private static Func<Stream, Surface>? ResolveRasterDecoder(string mimeType)
     {
-        "image/png" => PngCodec.Load,
-        "image/jpeg" or "image/jpg" => JpegCodec.Load,
-        "image/bmp" or "image/x-bmp" or "image/x-ms-bmp" => BmpCodec.Load,
-        "image/tiff" or "image/x-tiff" => TiffCodec.Load,
-        "image/gif" => GifCodec.Load,
-        "image/svg+xml" => null,
-        _ => null
-    };
+        var format = ImageFormats.FromMediaType(mimeType);
+        return format is null or ImageFormat.Jpeg2000
+            ? null
+            : stream => ImageDecoder.Load(stream, format.Value);
+    }
 
     /// <summary>
     ///     Samples <paramref name="decodedSurface"/> into a fresh region-sized buffer, one pixel at

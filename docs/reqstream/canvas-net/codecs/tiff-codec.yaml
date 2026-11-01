@@ -109,6 +109,13 @@ sections:
                   - TiffCodec_Load_RgbaFixture_MatchesSourcePngExactly
                   - TiffCodec_Load_GrayscaleFixture_HasEqualRgbChannels
                   - TiffCodec_SaveThenLoad_LzwLargeVariedImage_RoundTripsAcrossAllCodeWidthBoundaries
+                  - LzwDecoder_Decode_SpecExample_DecodesExpectedBytes
+                  - LzwDecoder_Decode_RoundTripsAcrossWidthBoundariesAndFullTable
+                  - LzwDecoder_Decode_WrongEarlyChangeTiming_ThrowsInvalidDataException
+                  - LzwDecoder_Decode_RepeatedByteRun_DecodesKwKwKCodes
+                  - LzwDecoder_Decode_InvalidCode_ThrowsInvalidDataException
+                  - LzwDecoder_Decode_ClearMidStream_ResetsTable
+                  - LzwDecoder_Decode_NoLeadingClear_Decodes
 
               - id: CanvasNet-Codecs-TiffCodec-CompressionDeflate
                 title: The TiffCodec class shall save and load a TIFF image using TiffCompression.Deflate.
@@ -319,6 +326,8 @@ sections:
                 tests:
                   - TiffCodec_Load_TruncatedHeader_ThrowsInvalidDataException
                   - TiffCodec_Load_TruncatedStripData_ThrowsInvalidDataException
+                  - TiffCodec_Load_LzwStripWithoutLeadingClear_ThrowsInvalidDataException
+                  - LzwDecoder_Decode_MissingEndCode_ThrowsInvalidDataException
 
               - id: CanvasNet-Codecs-TiffCodec-FixtureSupported
                 title: >-
@@ -469,3 +478,7 @@ sections:
                   - TiffCodec_Load_DeflateLastStripPaddedToFullRowsPerStrip_DecodesAndIgnoresPadding
                   - TiffCodec_Load_PackBitsStripExpandsBeyondExpectedSize_ThrowsInvalidDataException
                   - TiffCodec_Load_LzwStripExpandsBeyondExpectedSize_ThrowsInvalidDataException
+                  - LzwDecoder_Decode_OutputLimit_AcceptsExactSizeAndRejectsOneMore
+                  - LzwDecoder_Decode_Bomb_RejectedAtLimit
+                  - LzwDecoder_Decode_ZeroLimit_AcceptsOnlyEmptyOutput
+                  - LzwDecoder_Decode_UnrepresentableLimit_ThrowsInvalidDataException

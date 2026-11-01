@@ -289,11 +289,10 @@ public sealed partial class PdfDocument
     ///     its own filter-type tag byte (<c>0</c>-<c>4</c>); predictors <c>10</c>-<c>14</c> are
     ///     each a single fixed filter (<c>10</c> = None through <c>14</c> = Paeth) applied to
     ///     every row uniformly, with no per-row tag byte at all - a row is exactly
-    ///     <paramref name="columns"/>' worth of payload bytes. Each row is reconstructed via
-    ///     <see cref="DefilterRow"/> - an independent reimplementation of
-    ///     <c>Codecs/Png/PngCodec.Filtering.cs</c>'s exact algorithm (not reusable across
-    ///     assemblies: those methods are <see langword="private"/>), named identically for direct
-    ///     diffability against the original.
+    ///     <paramref name="columns"/>' worth of payload bytes. Each row is reconstructed via the
+    ///     core <c>PngFilter.DefilterRow</c> (<c>Codecs/PngFilter.cs</c>), the same internal
+    ///     scanline-filter reversal <c>PngCodec</c> itself uses, shared through the core
+    ///     assembly's <c>InternalsVisibleTo</c> grant to this package.
     /// </summary>
     /// <exception cref="InvalidDataException">
     ///     Thrown when <paramref name="data"/>'s length is not an exact multiple of the row
@@ -343,123 +342,11 @@ public sealed partial class PdfDocument
             }
 
             var outputRow = result.AsSpan(row * rowBytes, rowBytes);
-            DefilterRow(filterType, filteredRow, previousRow, outputRow, bpp);
+            PngFilter.DefilterRow(filterType, filteredRow, previousRow, outputRow, bpp);
             outputRow.CopyTo(previousRow);
         }
 
         return result;
-    }
-
-    /// <summary>
-    ///     Reconstructs one filtered PNG scanline into its raw (unfiltered) pixel bytes. See
-    ///     <c>Codecs/Png/PngCodec.Filtering.cs</c>'s identically named/shaped method - this is an
-    ///     independent reimplementation of the same algorithm.
-    /// </summary>
-    /// <exception cref="InvalidDataException">
-    ///     Thrown when <paramref name="filterType"/> is not a value from 0 to 4.
-    /// </exception>
-    private static void DefilterRow(
-        byte filterType,
-        ReadOnlySpan<byte> filtered,
-        ReadOnlySpan<byte> previousRow,
-        Span<byte> output,
-        int bpp)
-    {
-        switch (filterType)
-        {
-            case 0: // None
-                filtered.CopyTo(output);
-                break;
-
-            case 1: // Sub
-                DefilterSub(filtered, output, bpp);
-                break;
-
-            case 2: // Up
-                DefilterUp(filtered, previousRow, output);
-                break;
-
-            case 3: // Average
-                DefilterAverage(filtered, previousRow, output, bpp);
-                break;
-
-            case 4: // Paeth
-                DefilterPaeth(filtered, previousRow, output, bpp);
-                break;
-
-            default:
-                throw new InvalidDataException(
-                    $"Unsupported PNG filter type {filterType}; only filter types 0-4 are supported.");
-        }
-    }
-
-    /// <summary>Reconstructs a scanline filtered with PNG filter type 1 (Sub).</summary>
-    private static void DefilterSub(ReadOnlySpan<byte> filtered, Span<byte> output, int bpp)
-    {
-        for (var i = 0; i < filtered.Length; i++)
-        {
-            int left = i >= bpp ? output[i - bpp] : 0;
-            output[i] = (byte)(filtered[i] + left);
-        }
-    }
-
-    /// <summary>Reconstructs a scanline filtered with PNG filter type 2 (Up).</summary>
-    private static void DefilterUp(ReadOnlySpan<byte> filtered, ReadOnlySpan<byte> previousRow, Span<byte> output)
-    {
-        for (var i = 0; i < filtered.Length; i++)
-        {
-            output[i] = (byte)(filtered[i] + previousRow[i]);
-        }
-    }
-
-    /// <summary>Reconstructs a scanline filtered with PNG filter type 3 (Average).</summary>
-    private static void DefilterAverage(
-        ReadOnlySpan<byte> filtered,
-        ReadOnlySpan<byte> previousRow,
-        Span<byte> output,
-        int bpp)
-    {
-        for (var i = 0; i < filtered.Length; i++)
-        {
-            int left = i >= bpp ? output[i - bpp] : 0;
-            int up = previousRow[i];
-            output[i] = (byte)(filtered[i] + ((left + up) / 2));
-        }
-    }
-
-    /// <summary>Reconstructs a scanline filtered with PNG filter type 4 (Paeth).</summary>
-    private static void DefilterPaeth(
-        ReadOnlySpan<byte> filtered,
-        ReadOnlySpan<byte> previousRow,
-        Span<byte> output,
-        int bpp)
-    {
-        for (var i = 0; i < filtered.Length; i++)
-        {
-            int left = i >= bpp ? output[i - bpp] : 0;
-            int up = previousRow[i];
-            int upperLeft = i >= bpp ? previousRow[i - bpp] : 0;
-            output[i] = (byte)(filtered[i] + PaethPredictor(left, up, upperLeft));
-        }
-    }
-
-    /// <summary>
-    ///     Computes the PNG Paeth predictor value for a pixel from its left, upper, and
-    ///     upper-left neighbor byte values.
-    /// </summary>
-    private static int PaethPredictor(int a, int b, int c)
-    {
-        var p = a + b - c;
-        var pa = Math.Abs(p - a);
-        var pb = Math.Abs(p - b);
-        var pc = Math.Abs(p - c);
-
-        if (pa <= pb && pa <= pc)
-        {
-            return a;
-        }
-
-        return pb <= pc ? b : c;
     }
 
     /// <summary>Reads an integer dictionary entry (resolving an indirect reference), or a default when absent.</summary>

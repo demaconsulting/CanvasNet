@@ -64,6 +64,12 @@ sections:
                   - PngCodec_Load_FilterTypeUp_ReconstructsExpectedPixels
                   - PngCodec_Load_FilterTypeAverage_ReconstructsExpectedPixels
                   - PngCodec_Load_FilterTypePaeth_ReconstructsExpectedPixels
+                  - PngFilter_DefilterRow_None_CopiesRow
+                  - PngFilter_DefilterRow_Sub_AddsLeftNeighborAtBppStride
+                  - PngFilter_DefilterRow_Up_AddsPreviousRowModulo256
+                  - PngFilter_DefilterRow_Average_AddsFloorMeanOfLeftAndUp
+                  - PngFilter_DefilterRow_Paeth_PicksClosestPredictor
+                  - PngFilter_DefilterRow_UnknownFilterType_ThrowsInvalidDataException
 
               - id: CanvasNet-Codecs-PngCodec-LoadFromPath
                 title: The PngCodec class shall load a Surface from a PNG file given a file path.

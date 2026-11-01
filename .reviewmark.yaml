@@ -218,9 +218,11 @@ reviews:
       - "src/DemaConsulting.CanvasNet/Codecs/PngCodec.cs"         # unit source (public API entry point)
       - "src/DemaConsulting.CanvasNet/Codecs/Png/**/*.cs"         # unit source (partial-class implementation files)
       - "src/DemaConsulting.CanvasNet/Codecs/ZlibHelper.cs"       # shared internal zlib helper (bounded inflate)
+      - "src/DemaConsulting.CanvasNet/Codecs/PngFilter.cs"        # shared internal PNG scanline-filter reversal
       - "src/DemaConsulting.CanvasNet/Codecs/ImageInfo.cs"        # shared header-only probe result type
       - "src/DemaConsulting.CanvasNet/Codecs/UnsupportedImageFeatureException.cs"  # shared exception type
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/PngCodecTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Codecs/PngFilterTests.cs"  # shared filter-reversal tests
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/PngSuiteTests.cs"  # PngSuite conformance tests
 
   # CanvasNet-Codecs-TiffCodec Review (one per unit)
@@ -238,8 +240,10 @@ reviews:
       - "src/DemaConsulting.CanvasNet/Codecs/TiffCodec.cs"        # unit source (public API entry point)
       - "src/DemaConsulting.CanvasNet/Codecs/Tiff/**/*.cs"        # unit source (partial-class implementation files)
       - "src/DemaConsulting.CanvasNet/Codecs/ZlibHelper.cs"       # shared internal zlib helper (bounded inflate)
+      - "src/DemaConsulting.CanvasNet/Codecs/LzwDecoder.cs"       # shared internal bounded LZW decoder
       - "src/DemaConsulting.CanvasNet/Codecs/ImageInfo.cs"        # shared header-only probe result type
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/TiffCodecTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Codecs/LzwDecoderTests.cs"  # shared LZW decoder tests
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/TiffFixtureTests.cs"  # fixture conformance tests
 
   # CanvasNet-Codecs-JpegCodec Review (one per unit)
@@ -303,6 +307,25 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/Jpeg2000TestEncoder*.cs"    # test-only JPEG 2000 encoder
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/Jpeg2000FixtureTests.cs"    # real-encoder fixture tests
       - "test/DemaConsulting.CanvasNet.Tests/Jpeg2000Fixtures/**"               # real-encoder fixture corpus + README
+
+  # CanvasNet-Codecs-ImageDecoder Review (one per unit)
+  - id: CanvasNet-Codecs-ImageDecoder
+    title: Review that CanvasNet Codecs ImageDecoder Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+      - "docs/design/canvas-net/codecs.md"
+      - "docs/reqstream/canvas-net/codecs.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/codecs/image-decoder.yaml"    # unit requirements
+      - "docs/design/canvas-net/codecs/image-decoder.md"        # unit design
+      - "docs/verification/canvas-net/codecs/image-decoder.md"  # unit verification
+      - "src/DemaConsulting.CanvasNet/Codecs/ImageFormat.cs"     # unit source (public format enum)
+      - "src/DemaConsulting.CanvasNet/Codecs/ImageFormats.cs"    # unit source (public signature/media-type recognizer)
+      - "src/DemaConsulting.CanvasNet/Codecs/ImageDecoder.cs"    # unit source (public decoder facade)
+      - "src/DemaConsulting.CanvasNet/Codecs/NamespaceDoc.cs"    # Codecs namespace documentation
+      - "test/DemaConsulting.CanvasNet.Tests/Codecs/ImageFormatsTests.cs"  # recognizer tests
+      - "test/DemaConsulting.CanvasNet.Tests/Codecs/ImageDecoderTests.cs"  # decoder tests
 
   # CanvasNet-Geometry Review (one per subsystem)
   - id: CanvasNet-Geometry

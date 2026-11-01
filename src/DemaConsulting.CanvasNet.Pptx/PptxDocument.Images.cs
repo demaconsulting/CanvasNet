@@ -206,34 +206,32 @@ public sealed partial class PptxDocument
     }
 
     /// <summary>
-    ///     Maps a media part's resolved OPC content type to the matching sibling raster codec's
-    ///     own <c>Load(Stream)</c> entry point - pure dispatch, mirroring
-    ///     <c>DemaConsulting.CanvasNet.Svg</c>'s <c>SvgCodec.Image.cs</c>'s own
-    ///     <c>ResolveRasterDecoder</c> MIME-type dispatcher exactly (same five codecs, same
-    ///     recognized content-type strings).
+    ///     Maps a media part's resolved OPC content type to a raster decoder - pure dispatch
+    ///     through the core <see cref="ImageFormats.FromMediaType(string?)"/> /
+    ///     <see cref="ImageDecoder.Load(Stream, ImageFormat)"/> facade, matching
+    ///     <c>DemaConsulting.CanvasNet.Svg</c>'s <c>SvgCodec.Image.cs</c> <c>ResolveRasterDecoder</c>
+    ///     (same five codecs, same recognized content-type strings).
     /// </summary>
     /// <param name="contentType">The media part's resolved OPC content type.</param>
     /// <returns>
-    ///     <see cref="PngCodec.Load(Stream)"/>, <see cref="JpegCodec.Load(Stream)"/>,
-    ///     <see cref="BmpCodec.Load(Stream)"/>, <see cref="TiffCodec.Load(Stream)"/>, or
-    ///     <see cref="GifCodec.Load(Stream)"/> for the matching recognized content type; otherwise
-    ///     <see langword="null"/> for any unrecognized content type (for example
-    ///     <c>"image/x-emf"</c> or <c>"image/x-wmf"</c>). This dispatcher's <c>Func&lt;Stream,
-    ///     Surface&gt;</c> shape intentionally excludes <c>"image/svg+xml"</c>: an SVG-only picture
-    ///     is handled by a distinct branch in <see cref="ResolvePictureSurface"/>
+    ///     A decoder over <see cref="PngCodec"/>, <see cref="JpegCodec"/>, <see cref="BmpCodec"/>,
+    ///     <see cref="TiffCodec"/>, or <see cref="GifCodec"/> for the matching recognized content
+    ///     type; otherwise <see langword="null"/> for any unrecognized content type (for example
+    ///     <c>"image/x-emf"</c> or <c>"image/x-wmf"</c>, or JPEG 2000, which the core facade
+    ///     recognizes but a presentation picture deliberately does not embed). This dispatcher's
+    ///     <c>Func&lt;Stream, Surface&gt;</c> shape intentionally excludes <c>"image/svg+xml"</c>: an
+    ///     SVG-only picture is handled by a distinct branch in <see cref="ResolvePictureSurface"/>
     ///     (<see cref="ResolveSvgOnlyPictureSurface"/>) before this dispatcher is ever consulted,
     ///     since <see cref="SvgCodec.Load(Stream, int, int, System.Collections.Generic.IReadOnlyDictionary{string, DemaConsulting.CanvasNet.Fonts.TrueTypeFont}?)"/>
     ///     requires explicit raster target dimensions this dispatcher's signature cannot carry.
     /// </returns>
-    private static Func<Stream, Surface>? ResolveRasterDecoder(string contentType) => NormalizeMediaType(contentType) switch
+    private static Func<Stream, Surface>? ResolveRasterDecoder(string contentType)
     {
-        "image/png" => PngCodec.Load,
-        "image/jpeg" or "image/jpg" => JpegCodec.Load,
-        "image/bmp" or "image/x-bmp" or "image/x-ms-bmp" => BmpCodec.Load,
-        "image/tiff" or "image/x-tiff" => TiffCodec.Load,
-        "image/gif" => GifCodec.Load,
-        _ => null
-    };
+        var format = ImageFormats.FromMediaType(contentType);
+        return format is null or ImageFormat.Jpeg2000
+            ? null
+            : stream => ImageDecoder.Load(stream, format.Value);
+    }
 
     /// <summary>
     ///     The <see cref="PptxUnsupportedFeatureException.Feature"/> token thrown for an EMF/WMF

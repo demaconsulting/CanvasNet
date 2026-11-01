@@ -41,6 +41,7 @@ load/crop/resize/save workflows.
 - 🗜️ **JPEG Codec** - Load baseline/progressive; save baseline JPEG
 - 🎞️ **GIF Codec** - Decode-only load of first GIF frame; `GetInfo` reports the true frame count
 - 🖼️ **JPEG 2000 Codec** - Decode-only load of JP2 files and raw codestreams
+- 🔎 **Image Decoder** - Detect an image's format by signature or media type and decode it to a surface
 - 📐 **SVG Codec** - Rasterize a common SVG subset to a surface
 - 📄 **PDF Document** - Open, inspect, and rasterize PDF pages with font substitution
 - 📽️ **PowerPoint Rendering** - Rasterize `.pptx` slides to a surface

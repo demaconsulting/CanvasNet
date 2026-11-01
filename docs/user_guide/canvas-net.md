@@ -1056,6 +1056,55 @@ var limits = new Jpeg2000DecoderLimits
 var image = Jpeg2000Codec.Decode(untrustedBytes, limits);
 ```
 
+### ImageDecoder
+
+```csharp
+public enum ImageFormat { Png, Jpeg, Gif, Bmp, Tiff, Jpeg2000 }
+
+public static class ImageFormats
+{
+    public static ImageFormat? Detect(ReadOnlySpan<byte> header);
+    public static ImageFormat? FromMediaType(string? mediaType);
+}
+
+public static class ImageDecoder
+{
+    public static Surface Load(Stream stream);
+    public static Surface Load(ReadOnlySpan<byte> data);
+    public static Surface Load(Stream stream, ImageFormat format);
+}
+```
+
+`ImageDecoder` loads an image of any supported format into a `Surface` without a per-format
+`switch`. It only recognizes the format and delegates to the matching codec's own `Load(Stream)`,
+so every codec's limits, tolerances, and exceptions apply unchanged.
+
+`ImageFormats.Detect` recognizes the format from the first bytes of a file (18 bytes are enough
+for every format) and returns `null` when none matches; it never throws. A bitmap is recognized
+only when its file header is plausible, because a bare `BM` also begins ordinary text.
+`ImageFormats.FromMediaType` maps a media (MIME) type to a format, ignoring case, surrounding
+whitespace, and `;` parameters, and accepting the common aliases (`image/jpg`, `image/x-bmp`,
+`image/x-ms-bmp`, `image/x-tiff`); it returns `null` for `null`, empty, and unsupported types such
+as `image/svg+xml`.
+
+`ImageDecoder.Load(Stream)` detects the format from the stream's first bytes. A seekable stream is
+rewound to where it started; a non-seekable stream is decoded without being buffered whole. The
+stream is read, not closed. `Load(ReadOnlySpan<byte>)` does the same for bytes already in memory,
+and `Load(Stream, ImageFormat)` skips the detection and decodes as the format you name. Data with
+no recognized signature throws `InvalidDataException`; a null stream throws
+`ArgumentNullException`, and an undefined `ImageFormat` throws `ArgumentOutOfRangeException`.
+
+```csharp
+using DemaConsulting.CanvasNet.Codecs;
+
+// Decode whatever a user uploaded, as long as it is one of the supported formats
+using var upload = File.OpenRead("upload.bin");
+using var surface = ImageDecoder.Load(upload);
+
+// Choose the decoder from an HTTP Content-Type header
+var format = ImageFormats.FromMediaType("Image/JPG; q=0.8");   // ImageFormat.Jpeg
+```
+
 ### TrueTypeFont
 
 The `TrueTypeFont` class loads glyph-based TrueType (`glyf`-based) SFNT fonts and CFF/OpenType

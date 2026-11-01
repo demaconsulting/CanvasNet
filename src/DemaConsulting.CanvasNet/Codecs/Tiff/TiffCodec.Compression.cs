@@ -178,7 +178,7 @@ public static partial class TiffCodec
     ///     asymmetric pair: it uses the plain, unadjusted thresholds (code size bumps immediately
     ///     after table entry 511/1023/2047 is created), matching the canonical libtiff
     ///     <c>LZWPreEncode</c>/<c>LZWEncode</c> behavior. This must stay numerically different from
-    ///     <see cref="AddLzwTableEntry"/>'s thresholds - making them symmetric (either by adjusting
+    ///     the decoder's early-change thresholds (511/1023/2047, see <see cref="DecodeLzw"/>) - making them symmetric (either by adjusting
     ///     this encoder to match the decoder's "early" thresholds, or vice versa) breaks
     ///     interoperability with every TIFF-flavor LZW reader, including this library's own
     ///     <see cref="DecodeLzw"/> and third-party readers such as libtiff/Pillow.
@@ -234,21 +234,22 @@ public static partial class TiffCodec
     }
 
     /// <summary>
-    ///     Decodes a TIFF-flavor LZW (TIFF 6.0 Section 13) byte stream, mirroring the table
-    ///     construction of <see cref="EncodeLzw"/> exactly (variable-width 9-12 bit codes,
-    ///     MSB-first bit packing, clear code 256, end-of-information code 257).
+    ///     Decodes a TIFF-flavor LZW (TIFF 6.0 Section 13) byte stream (variable-width 9-12 bit
+    ///     codes, MSB-first bit packing, clear code 256, end-of-information code 257) through the
+    ///     shared <see cref="LzwDecoder"/>, requiring - as TIFF does - that the stream begin with
+    ///     a Clear code.
     /// </summary>
     /// <remarks>
-    ///     Per TIFF 6.0 Section 13's "early change" convention, this decoder (via
-    ///     <see cref="AddLzwTableEntry"/>) widens the code size one table entry <em>earlier</em>
-    ///     than <see cref="EncodeLzw"/> does. This is intentional and required: an LZW decoder
-    ///     can only materialize a new table entry one iteration after the encoder created the
-    ///     corresponding entry (it needs to see the next code first), so decoding with the
-    ///     encoder's plain thresholds would read the widened code one bit short. Widening one
-    ///     entry early exactly compensates for that lag so both sides switch widths at the same
-    ///     absolute bit position in the stream. Do not change these thresholds to match
-    ///     <see cref="EncodeLzw"/>'s plain/unadjusted thresholds - doing so reintroduces this
-    ///     exact class of bug (bit stream misalignment and
+    ///     Per TIFF 6.0 Section 13's "early change" convention, the decoder widens the code size
+    ///     one table entry <em>earlier</em> than <see cref="EncodeLzw"/> does (511/1023/2047 table
+    ///     entries versus the encoder's plain 512/1024/2048), hence <c>earlyChange: true</c>. This
+    ///     is intentional and required: an LZW decoder can only materialize a new table entry one
+    ///     iteration after the encoder created the corresponding entry (it needs to see the next
+    ///     code first), so decoding with the encoder's plain thresholds would read the widened
+    ///     code one bit short. Widening one entry early exactly compensates for that lag so both
+    ///     sides switch widths at the same absolute bit position in the stream. Do not change
+    ///     these thresholds to match <see cref="EncodeLzw"/>'s plain/unadjusted thresholds -
+    ///     doing so reintroduces this exact class of bug (bit stream misalignment and
     ///     <see cref="System.IO.InvalidDataException"/> on decode, or silent corruption).
     /// </remarks>
     /// <param name="data">The LZW-encoded bytes.</param>
@@ -263,112 +264,13 @@ public static partial class TiffCodec
     /// </exception>
     private static byte[] DecodeLzw(byte[] data, long maxOutputBytes)
     {
-        var reader = new LzwBitReader(data);
-        using var output = new MemoryStream();
-        var codeSize = 9;
-        var table = new List<byte[]>();
-        byte[]? previousEntry = null;
-
-        var firstCode = reader.ReadCode(codeSize);
-        if (firstCode != LzwClearCode)
+        // The first 9-bit code must be Clear (the shared decoder treats it as optional).
+        if (data.Length < 2 || ((data[0] << 1) | (data[1] >> 7)) != LzwClearCode)
         {
             throw new InvalidDataException("TIFF LZW stream does not start with a Clear code.");
         }
 
-        while (true)
-        {
-            var code = reader.ReadCode(codeSize);
-            if (code == LzwEoiCode)
-            {
-                break;
-            }
-
-            if (code == LzwClearCode)
-            {
-                table.Clear();
-                codeSize = 9;
-                previousEntry = null;
-                continue;
-            }
-
-            var entry = ResolveLzwEntry(code, table, previousEntry);
-            if (output.Length + entry.Length > maxOutputBytes)
-            {
-                throw new InvalidDataException(
-                    $"Decoded TIFF LZW data exceeds the expected size of {maxOutputBytes} bytes.");
-            }
-
-            output.Write(entry, 0, entry.Length);
-
-            if (previousEntry is not null)
-            {
-                codeSize = AddLzwTableEntry(table, previousEntry, entry, codeSize);
-            }
-
-            previousEntry = entry;
-        }
-
-        return output.ToArray();
-    }
-
-    /// <summary>
-    ///     Resolves the byte sequence for a single decoded LZW <paramref name="code"/>: a literal
-    ///     byte value for codes below 256, an existing table entry for already-known codes, or
-    ///     the classic LZW "KwKwK" reconstruction (previous entry plus its own first byte) for
-    ///     the one code that is always exactly one past the current table end.
-    /// </summary>
-    /// <exception cref="System.IO.InvalidDataException">Thrown when <paramref name="code"/> is invalid.</exception>
-    private static byte[] ResolveLzwEntry(int code, List<byte[]> table, byte[]? previousEntry)
-    {
-        if (code < 256)
-        {
-            return [(byte)code];
-        }
-
-        if (code - LzwFirstCode < table.Count)
-        {
-            return table[code - LzwFirstCode];
-        }
-
-        if (code - LzwFirstCode == table.Count && previousEntry is not null)
-        {
-            var entry = new byte[previousEntry.Length + 1];
-            previousEntry.CopyTo(entry, 0);
-            entry[^1] = previousEntry[0];
-            return entry;
-        }
-
-        throw new InvalidDataException("Invalid TIFF LZW code sequence.");
-    }
-
-    /// <summary>
-    ///     Appends a new table entry formed from <paramref name="previousEntry"/> plus the first
-    ///     byte of <paramref name="entry"/>, then widens <paramref name="codeSize"/> if the table
-    ///     has just grown past a code-width boundary, returning the (possibly updated) code size.
-    /// </summary>
-    /// <remarks>
-    ///     The thresholds here (511/1023/2047 table entries) deliberately implement TIFF 6.0
-    ///     Section 13's decoder-side "early change" convention, which is one table entry earlier
-    ///     than <see cref="EncodeLzw"/>'s plain/unadjusted thresholds (512/1024/2048). This is not
-    ///     a bug and must not be "fixed" to match <see cref="EncodeLzw"/> numerically - see the
-    ///     remarks on <see cref="DecodeLzw"/> and <see cref="EncodeLzw"/> for the full rationale
-    ///     (the decoder's new-table-entry registration inherently lags the encoder's by one
-    ///     iteration, and this earlier threshold compensates for exactly that lag).
-    /// </remarks>
-    private static int AddLzwTableEntry(List<byte[]> table, byte[] previousEntry, byte[] entry, int codeSize)
-    {
-        var newEntry = new byte[previousEntry.Length + 1];
-        previousEntry.CopyTo(newEntry, 0);
-        newEntry[^1] = entry[0];
-        table.Add(newEntry);
-
-        var nextCode = LzwFirstCode + table.Count;
-        if (nextCode is 511 or 1023 or 2047)
-        {
-            codeSize++;
-        }
-
-        return codeSize;
+        return LzwDecoder.Decode(data, earlyChange: true, maxOutputBytes);
     }
 
     /// <summary>
@@ -403,35 +305,6 @@ public static partial class TiffCodec
             }
 
             return [.. _bytes];
-        }
-    }
-
-    /// <summary>
-    ///     Unpacks variable-width (9-12 bit) LZW codes from bytes packed MSB-first, as required by
-    ///     the TIFF specification.
-    /// </summary>
-    private sealed class LzwBitReader(byte[] data)
-    {
-        private int _bytePos;
-        private ulong _bitBuffer;
-        private int _bitCount;
-
-        public int ReadCode(int bits)
-        {
-            while (_bitCount < bits)
-            {
-                if (_bytePos >= data.Length)
-                {
-                    throw new InvalidDataException("Truncated TIFF LZW stream (missing end-of-information code).");
-                }
-
-                _bitBuffer = (_bitBuffer << 8) | data[_bytePos];
-                _bytePos++;
-                _bitCount += 8;
-            }
-
-            _bitCount -= bits;
-            return (int)((_bitBuffer >> _bitCount) & ((1UL << bits) - 1));
         }
     }
 }

@@ -122,7 +122,8 @@ capability):
 where `samplesPerPixel` is 1 for Grayscale/Palette, 2 for Grayscale+alpha, 3 for Truecolor, and 4 for Truecolor+alpha.
 For every color type/bit-depth combination `Save` writes (RGB/RGBA at bit depth 8), this is 3 or 4 exactly as before;
 `Load` computes the same formula generically so the unchanged
-`DefilterRow`/`DefilterSub`/`DefilterUp`/`DefilterAverage`/`DefilterPaeth` reconstruction logic works identically for
+`PngFilter.DefilterRow` (`Codecs/PngFilter.cs`, the internal scanline-filter reversal that `PngCodec` shares with the
+PDF package's PNG predictors) reconstruction logic works identically for
 every bit depth and color type it now decodes, including sub-byte depths where `bpp` is 1 (multiple pixels, or
 fractional pixels for depth 1/2/4, share a single filter-reference byte, per the PNG specification). All five filter
 types are reconstructed on load. On save, every scanline uses filter type 0 (None) - see _Key
