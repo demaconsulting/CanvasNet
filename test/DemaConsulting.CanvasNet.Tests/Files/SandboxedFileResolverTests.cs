@@ -660,6 +660,86 @@ public class SandboxedFileResolverTests
     }
 
     /// <summary>
+    ///     Validates that a callback that throws a <see cref="SandboxException"/> of its own (here a link failure it
+    ///     forges) cannot pass it through: it is a <c>CannotRead</c> failure that keeps the forged exception as the cause.
+    /// </summary>
+    [Fact]
+    public void SandboxedFileResolver_Resolve_CallbackThrowingSandboxExceptionIsCannotRead()
+    {
+        // Arrange: a callback that raises a sandbox exception of another kind, and a stream that does the same while read
+        var forged = new SandboxException(SandboxFailureKind.ThroughLink, "forged", "x");
+        var throwing = Create(new SandboxOptions { FileResolver = _ => throw forged });
+        var failingRead = Create(new SandboxOptions { FileResolver = _ => new ForgingStream(forged) });
+
+        // Act
+        var fromCallback = Assert.Throws<SandboxException>(() => throwing.Resolve("a.txt"));
+        var fromStream = Assert.Throws<SandboxException>(() => failingRead.Resolve("a.txt"));
+
+        // Assert
+        Assert.Equal(SandboxFailureKind.CannotRead, fromCallback.Kind);
+        Assert.Same(forged, fromCallback.InnerException);
+        Assert.Equal(SandboxFailureKind.CannotRead, fromStream.Kind);
+    }
+
+    /// <summary>
+    ///     Validates the file limit: files up to the limit are read, a file that is already read (also under another
+    ///     spelling) does not count again, a file that does not exist does not count, and a new file beyond the limit is
+    ///     refused with <c>TooManyFiles</c> before the callback is even asked for it.
+    /// </summary>
+    [Fact]
+    public void SandboxedFileResolver_Resolve_MaxFilesAtLimitAndOneOver()
+    {
+        // Arrange
+        var files = new SandboxVirtualFiles().With("a.txt", "a").With("b.txt", "b").With("c.txt", "c");
+        var resolver = Create(new SandboxOptions { FileResolver = files.Resolve, MaxFiles = 2 });
+
+        // Act: exactly the limit, a miss, and one of the files again under another spelling
+        resolver.Resolve("a.txt");
+        Assert.Null(resolver.Resolve("missing.txt"));
+        resolver.Resolve("b.txt");
+        resolver.Resolve("./a.txt");
+        var over = Assert.Throws<SandboxException>(() => resolver.Resolve("c.txt"));
+
+        // Assert: the new file was refused without any request for it
+        Assert.Equal(SandboxFailureKind.TooManyFiles, over.Kind);
+        Assert.Equal("c.txt", over.Path);
+        Assert.Equal(["a.txt", "missing.txt", "b.txt"], files.Requests);
+    }
+
+    /// <summary>
+    ///     Validates that on the file system a new file beyond the limit is never opened, while files already read are
+    ///     still served from the cache.
+    /// </summary>
+    [Fact]
+    public void SandboxedFileResolver_Resolve_MaxFilesOnFileSystemNeverOpensTheExtraFile()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        directory.Write("root/a.txt", "a");
+        directory.Write("root/b.txt", "b");
+        var opened = new List<string>();
+        var resolver = new SandboxedFileResolver(
+            new SandboxOptions { BaseDirectory = directory.Combine("root"), MaxFiles = 1 },
+            Ct,
+            null,
+            path =>
+            {
+                opened.Add(path);
+                return new FileStream(path, FileMode.Open, FileAccess.Read);
+            });
+
+        // Act
+        var first = resolver.Resolve("a.txt");
+        var again = resolver.Resolve("a.txt");
+        var over = Assert.Throws<SandboxException>(() => resolver.Resolve("b.txt"));
+
+        // Assert
+        Assert.Same(first, again);
+        Assert.Equal(SandboxFailureKind.TooManyFiles, over.Kind);
+        Assert.Equal([Path.GetFullPath(directory.Combine("root/a.txt"))], opened);
+    }
+
+    /// <summary>
     ///     Validates that invalid construction arguments are rejected immediately.
     /// </summary>
     [Fact]
@@ -670,6 +750,23 @@ public class SandboxedFileResolverTests
         Assert.Throws<ArgumentNullException>(() => new SandboxedFileResolver(new SandboxOptions { SearchPaths = null! }));
         Assert.Throws<ArgumentOutOfRangeException>(() => new SandboxedFileResolver(new SandboxOptions { MaxFileBytes = 0 }));
         Assert.Throws<ArgumentOutOfRangeException>(() => new SandboxedFileResolver(new SandboxOptions { MaxFileBytes = -1 }));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new SandboxedFileResolver(new SandboxOptions { MaxFiles = -1 }));
+    }
+
+    /// <summary>
+    ///     A stream whose reads fail with a sandbox exception.
+    /// </summary>
+    private sealed class ForgingStream : MemoryStream
+    {
+        /// <summary>The exception every read throws.</summary>
+        private readonly SandboxException _failure;
+
+        /// <summary>Initializes the stream.</summary>
+        /// <param name="failure">The exception to throw.</param>
+        public ForgingStream(SandboxException failure) => _failure = failure;
+
+        /// <inheritdoc/>
+        public override int Read(byte[] buffer, int offset, int count) => throw _failure;
     }
 
     /// <summary>

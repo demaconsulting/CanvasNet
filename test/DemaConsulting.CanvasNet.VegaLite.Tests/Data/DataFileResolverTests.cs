@@ -292,10 +292,11 @@ public class DataFileResolverTests
     [InlineData(SandboxFailureKind.CannotRead, "The data file 'a/b.csv' cannot be read.")]
     [InlineData(SandboxFailureKind.TooLarge, "The data file 'a/b.csv' is larger than the limit of 10 bytes (MaxDataBytes).")]
     [InlineData(SandboxFailureKind.InvalidRoot, "A configured data directory (BaseDirectory or DataPaths) is not a valid path.")]
+    [InlineData(SandboxFailureKind.TooManyFiles, "The chart reads more than the limit of 3 data files (MaxDataFiles); the file 'a/b.csv' was not read.")]
     public void DataFileResolver_Translate_EverySandboxKind_ProducesLocatedWording(SandboxFailureKind kind, string expected)
     {
         // Arrange: a sandbox exception as the core would raise it (the host path of a file failure must never be shown)
-        var resolver = Create(new VegaLiteOpenOptions(), new VegaLiteLimits { MaxDataBytes = 10 });
+        var resolver = Create(new VegaLiteOpenOptions(), new VegaLiteLimits { MaxDataBytes = 10, MaxDataFiles = 3 });
         var isPathText = kind is SandboxFailureKind.EmptyPath;
         var detail = kind == SandboxFailureKind.ThroughLink ? "a" : null;
         if (isPathText)
@@ -352,6 +353,9 @@ public class DataFileResolverTests
         // Assert: the message names the limit in the form the Tool recognizes, and carries the location
         Assert.Contains("the limit of 2 data files (MaxDataFiles)", over.Message, StringComparison.Ordinal);
         Assert.Equal(Where, over.Location);
+
+        // Assert: the extra file was refused before it was read - the callback was never asked for it
+        Assert.DoesNotContain("c.csv", files.Requests);
     }
 
     /// <summary>

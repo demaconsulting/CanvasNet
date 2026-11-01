@@ -24,6 +24,7 @@ public class SandboxExceptionTests
     [InlineData(SandboxFailureKind.CannotRead)]
     [InlineData(SandboxFailureKind.TooLarge)]
     [InlineData(SandboxFailureKind.InvalidRoot)]
+    [InlineData(SandboxFailureKind.TooManyFiles)]
     public void SandboxException_Constructor_EveryKind_KeepsFactsAndHidesHostPath(SandboxFailureKind kind)
     {
         // Arrange

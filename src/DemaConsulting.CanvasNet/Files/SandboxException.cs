@@ -89,6 +89,7 @@ public sealed class SandboxException : Exception
             SandboxFailureKind.CannotRead => "The file cannot be read.",
             SandboxFailureKind.TooLarge => "The file is larger than the allowed size.",
             SandboxFailureKind.InvalidRoot => "A configured directory (BaseDirectory or SearchPaths) is not a valid path.",
+            SandboxFailureKind.TooManyFiles => "The limit on the number of files was reached; the file was not read.",
             _ => "The file was refused by the sandbox.",
         };
     }

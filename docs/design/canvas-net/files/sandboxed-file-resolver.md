@@ -25,14 +25,15 @@ users get exactly the rules the CanvasNet packages use; the `CanvasNetVegaLite` 
 use it for every local file.
 
 The unit's behavior is specified by the `CanvasNet-Files-SandboxedFileResolver-*` requirements (`Resolution`,
-`MissingFiles`, `PathText`, `Confinement`, `Links`, `ResolverCallback`, `Reading`, `SizeLimit`, `Cache`,
+`MissingFiles`, `PathText`, `Confinement`, `Links`, `ResolverCallback`, `Reading`, `SizeLimit`, `FileLimit`, `Cache`,
 `Cancellation`, and `Failures`) in `docs/reqstream/canvas-net/files/sandboxed-file-resolver.yaml`.
 
 #### Data Model
 
 **`SandboxOptions`** (immutable record): `BaseDirectory` (trusted directory searched first; ignored in callback mode),
 `SearchPaths` (additional trusted roots, searched in order), `FileResolver` (`Func<string, Stream?>`, a callback that
-replaces the file system), and `MaxFileBytes` (default 16 MiB, must be positive).
+replaces the file system), `MaxFileBytes` (default 16 MiB, must be positive), and `MaxFiles` (optional, default none: the
+number of distinct files one resolver may read; must not be negative).
 
 **`SandboxedFile`** (immutable): `Key` (the identity of the file: its normalized full path, or its normalized logical
 path in callback mode; compared under the resolver's `KeyComparer`), `Directory` (the file's directory), `Root` (the
@@ -46,10 +47,13 @@ path-text failure, the root-relative link path of a link failure, otherwise `nul
 inner exception. The message is an English sentence that never contains a host directory.
 
 **`SandboxFailureKind`**: `EmptyPath`, `ControlCharacter`, `ColonInPath`, `AbsolutePath` (the path text itself),
-`OutsideRoot`, `ThroughLink`, `LinkCheckFailed`, `CannotRead`, `TooLarge`, and `InvalidRoot`.
+`OutsideRoot`, `ThroughLink`, `LinkCheckFailed`, `CannotRead`, `TooLarge`, `InvalidRoot`, and `TooManyFiles`.
 
 **`SandboxedFileResolver`** is created for one logical operation with the options and a cancellation token. It holds the
-cache of the files found by candidate key (a `null` remembers a candidate that does not exist), the result of each link
+cache of the files found by root and candidate key (a `null` remembers a candidate that does not exist; the root is part
+of the identity because the link checks run on the components below a candidate's own root, so a file reached through one
+root - for example a trusted search path that is itself a link - must never answer for another root), the keys of the
+distinct files read (for `MaxFiles`), the result of each link
 probe by full path, and the roots, which are computed on first use. **It is not thread-safe**: its caches are
 unsynchronized and the callback is invoked on the calling thread; use one instance per operation or serialize access.
 The options and results are immutable and may be shared. An internal constructor accepts a link probe
@@ -67,8 +71,11 @@ starts with a slash (absolute and UNC paths) is refused before anything is touch
 normalizes `.` and `..`; a result that is not under the root (ordinal comparison, case-insensitive on Windows and macOS)
 is refused with `OutsideRoot`, while `..` that stays inside the root is fine.
 
-**Invariants**: a candidate is looked up at most once per instance (hit or miss); every component below a root is checked
-for a link before the file is opened; no more than `MaxFileBytes` bytes are read of any file; every failure that is not
+**Invariants**: a candidate (root plus key) is looked up at most once per instance (hit or miss); every component
+below a
+root is checked for a link before the file is opened, for every root the file is reached through; no more than
+`MaxFileBytes` bytes are read of any file; with `MaxFiles` set, no more than that many distinct files are read and
+a new file beyond it is never opened or requested; every failure that is not
 a cancellation or an argument error is a `SandboxException`.
 
 #### Key Methods
@@ -77,7 +84,10 @@ a cancellation or an argument error is a `SandboxException`.
   `relativeTo` with its root, or else the base directory, or in callback mode the logical root, and then each search
   path in declaration order), loading each through the cache and returning the first file that exists, or `null` when
   none does (and when no source is configured). A null `path` is an `ArgumentNullException`.
-- `LoadCandidate` - answers from the cache, otherwise reads the bytes and remembers the result.
+- `LoadCandidate` - answers from the cache (keyed by root and candidate key); otherwise, when `MaxFiles` is set and that
+  many distinct files were already read, refuses a candidate whose key was not read before with `TooManyFiles` **before
+  anything is opened or requested** (so a file beyond the limit is never touched, and a file already read through another
+  root does not count again); otherwise reads the bytes, remembers the result, and counts the file when it exists.
 - `ReadBytes` - in callback mode delegates to `ReadFromCallback`; in file-system mode first runs the link walk (which
   stops a candidate whose directory is missing but leaves the final component to the open), treats an existing
   directory where the file is expected as `CannotRead` (not a missing file), then attempts to open the file read-only
@@ -87,12 +97,13 @@ a cancellation or an argument error is a `SandboxException`.
   that is missing, or that vanished since the walk) makes the candidate missing and lets the search continue; any other
   `IOException` or `UnauthorizedAccessException` of the open is `CannotRead` and ends the search.
 - `ReadFromCallback` - calls the callback with the normalized logical path, reads the stream it returns, and disposes it
-  exactly once, all inside one boundary: a failure of the callback, of the bounded read, or of the disposal (any
-  exception other than a cancellation or an already created `SandboxException`) is `CannotRead` with the cause kept as the
-  inner exception.
+  exactly once, all inside one boundary: a failure of the callback, of the bounded read, or of the disposal - **any**
+  exception other than a cancellation, including a `SandboxException` that the callback or its stream throws itself - is
+  `CannotRead` with the cause kept as the inner exception, so untrusted code can neither leak a raw exception nor forge
+  another failure kind. The size failure is raised by the resolver outside that boundary.
 - `ReadBounded` - checks a size the stream reports, then reads in 8 KiB chunks and stops as soon as the running length
-  exceeds `MaxFileBytes` (`TooLarge`), so a stream that never ends stops one chunk past the limit; the token is observed
-  after every chunk.
+  exceeds `MaxFileBytes` (returning no bytes, which the caller reports as `TooLarge`), so a stream that never ends stops
+  one chunk past the limit; the token is observed after every chunk. Failures of the stream are left to the caller.
 - `WalkRejectingLinks` and `ProbeLink` - walk the candidate top-down from the root, probing each existing component once
   (the first missing component above the file ends the walk and nothing below it is probed; the final component is always
   probed, so a dangling link is refused as a link, while a file that is not a link is left to the open attempt); a
@@ -128,7 +139,8 @@ Every failure is a `SandboxException` (never an empty result for a refusal): the
 valid path (`InvalidRoot`), a component is a link (`ThroughLink`) or the link check fails (`LinkCheckFailed`), the file
 exists but cannot be read - a directory where a file is expected, an open that fails with an `IOException` or
 `UnauthorizedAccessException`, a stream that fails while being read, a callback that throws, or a callback stream whose
-disposal throws (`CannotRead`) - or the file is longer than `MaxFileBytes` (`TooLarge`). A file that does not exist is not
+disposal throws (`CannotRead`) - or the file is longer than `MaxFileBytes` (`TooLarge`), or reading a new file would
+exceed `MaxFiles` (`TooManyFiles`). A file that does not exist is not
 a failure: `Resolve` returns `null`. The callback is untrusted caller code, so its failures are normalized to
 `CannotRead` and its own message is not copied into the exception message (the cause is kept as the inner exception for
 trusted diagnostics). A canceled token is an `OperationCanceledException`, never wrapped (also when the callback raises

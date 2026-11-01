@@ -126,7 +126,10 @@ read is not read again, also when it is asked for under another spelling.
 **Tests**: `DataFileResolverTests.DataFileResolver_Load_MaxDataFilesAtLimitAndOneOver`
 
 Asserts with a limit of two that two distinct files are read, a file loaded again and a file that does not exist do not
-count, and the first file over the limit fails with "the limit of 2 data files (MaxDataFiles)" and the location.
+count, and the first file over the limit fails with "the limit of 2 data files (MaxDataFiles)" and the location. The
+file over the limit is refused by the sandbox before it is read: the callback records its requests and is never asked for
+it. The translation of the sandbox's `TooManyFiles` kind to this wording is also asserted by the translation scenario
+above (`DataFileResolver_Translate_EverySandboxKind_ProducesLocatedWording`).
 
 ##### Byte Limit
 

@@ -21,9 +21,13 @@ namespace DemaConsulting.CanvasNet.Files;
 ///         file system is never touched and the callback is asked for normalized logical paths instead.
 ///     </para>
 ///     <para>
-///         <b>Caching.</b> Each distinct candidate is looked up at most once per instance (a miss is remembered too, so
+///         <b>Caching.</b> Each distinct candidate (a file together with the root it is confined to) is looked up at
+///         most once per instance (a miss is remembered too, so
 ///         a callback sees each logical path at most once, and a file changed after its first read is not read again).
-///         An instance therefore serves one logical operation (one render, one document) and is then dropped.
+///         The root is part of the identity because the link checks are relative to it: a file reached through one root
+///         never answers for another. An instance therefore serves one logical operation (one render, one document) and
+///         is then dropped. When <see cref="SandboxOptions.MaxFiles"/> is set, the distinct files read are counted and
+///         a new file beyond the limit is refused before it is opened or requested.
 ///     </para>
 ///     <para>
 ///         <b>Thread safety.</b> An instance is <b>not</b> thread-safe: it keeps unsynchronized per-instance caches and
@@ -57,8 +61,11 @@ public sealed partial class SandboxedFileResolver
     /// <summary>The opener of a file-system candidate: a seam so tests can raise an open failure.</summary>
     private readonly Func<string, Stream> _openFile;
 
-    /// <summary>The resolved files by candidate key; <see langword="null"/> remembers a candidate that does not exist.</summary>
+    /// <summary>The resolved files by root and candidate key; <see langword="null"/> remembers a candidate that does not exist.</summary>
     private readonly Dictionary<string, SandboxedFile?> _files;
+
+    /// <summary>The keys of the distinct files read so far, counted against <see cref="SandboxOptions.MaxFiles"/>.</summary>
+    private readonly HashSet<string> _readKeys;
 
     /// <summary>
     ///     Initializes a resolver for one operation.
@@ -66,7 +73,7 @@ public sealed partial class SandboxedFileResolver
     /// <param name="options">Where files may be found and how large they may be. Must not be null.</param>
     /// <param name="cancellationToken">The token polled before each file is read and after each chunk.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="options"/> or its <see cref="SandboxOptions.SearchPaths"/> is null.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when <see cref="SandboxOptions.MaxFileBytes"/> is not positive.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <see cref="SandboxOptions.MaxFileBytes"/> is not positive or <see cref="SandboxOptions.MaxFiles"/> is negative.</exception>
     public SandboxedFileResolver(SandboxOptions options, CancellationToken cancellationToken = default)
         : this(options, cancellationToken, null, null)
     {
@@ -89,12 +96,14 @@ public sealed partial class SandboxedFileResolver
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(options.SearchPaths);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(options.MaxFileBytes, 0L);
+        ArgumentOutOfRangeException.ThrowIfNegative(options.MaxFiles ?? 0);
         _options = options;
         _cancellation = cancellationToken;
         _isLink = isLink ?? DefaultIsLink;
         _openFile = openFile ?? DefaultOpenFile;
         KeyComparer = options.FileResolver is null ? PlatformKeyComparer : StringComparer.Ordinal;
         _files = new Dictionary<string, SandboxedFile?>(KeyComparer);
+        _readKeys = new HashSet<string>(KeyComparer);
         _linkStates = new Dictionary<string, bool>(KeyComparer);
     }
 
@@ -132,7 +141,8 @@ public sealed partial class SandboxedFileResolver
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="path"/> is null.</exception>
     /// <exception cref="SandboxException">
     ///     Thrown when the path text is not allowed, a <c>..</c> leaves the root, a component is a link or cannot be
-    ///     checked, a configured directory is invalid, or the file exists but cannot be read or is too large.
+    ///     checked, a configured directory is invalid, the file exists but cannot be read or is too large, or reading it
+    ///     would exceed <see cref="SandboxOptions.MaxFiles"/>.
     /// </exception>
     /// <exception cref="OperationCanceledException">Thrown when the cancellation token is canceled.</exception>
     public SandboxedFile? Resolve(string path, SandboxedFile? relativeTo = null)
@@ -163,15 +173,30 @@ public sealed partial class SandboxedFileResolver
     /// <returns>The file, or <see langword="null"/> when the candidate does not exist.</returns>
     private SandboxedFile? LoadCandidate(Candidate candidate)
     {
-        if (_files.TryGetValue(candidate.Key, out var cached))
+        // The cache identity includes the root: the link checks are relative to the root a candidate is confined to, so a
+        // file reached through one root (for example a trusted, linked search path) must never answer for another root
+        var cacheKey = candidate.Root + '\0' + candidate.Key;
+        if (_files.TryGetValue(cacheKey, out var cached))
         {
             return cached;
+        }
+
+        // The file limit is enforced before anything is looked up, so a file beyond it is never opened or requested;
+        // a file that was already read (through any root) does not count again
+        if (_options.MaxFiles is { } maxFiles && _readKeys.Count >= maxFiles && !_readKeys.Contains(candidate.Key))
+        {
+            throw new SandboxException(SandboxFailureKind.TooManyFiles, candidate.Key);
         }
 
         _cancellation.ThrowIfCancellationRequested();
         var bytes = ReadBytes(candidate);
         var file = bytes is null ? null : new SandboxedFile(candidate.Key, DirectoryOf(candidate.Key), candidate.Root, bytes);
-        _files[candidate.Key] = file;
+        _files[cacheKey] = file;
+        if (file is not null)
+        {
+            _readKeys.Add(candidate.Key);
+        }
+
         return file;
     }
 
@@ -201,11 +226,12 @@ public sealed partial class SandboxedFileResolver
             throw new SandboxException(SandboxFailureKind.CannotRead, candidate.Key);
         }
 
+        byte[]? bytes;
         try
         {
             // The open attempt decides: only "not found" means the candidate is missing
             using var file = _openFile(candidate.Key);
-            return ReadBounded(file, candidate.Key);
+            bytes = ReadBounded(file);
         }
         catch (FileNotFoundException)
         {
@@ -216,11 +242,13 @@ public sealed partial class SandboxedFileResolver
         {
             return null;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
         {
-            // Any other failure to open the file (sharing, access, device) is a located read failure
+            // Any other failure to open or read the file (sharing, access, device) is a located read failure
             throw new SandboxException(SandboxFailureKind.CannotRead, candidate.Key, innerException: ex);
         }
+
+        return bytes ?? throw new SandboxException(SandboxFailureKind.TooLarge, candidate.Key);
     }
 
     /// <summary>
@@ -237,24 +265,35 @@ public sealed partial class SandboxedFileResolver
     /// </summary>
     /// <remarks>
     ///     The callback, the bounded read and the disposal of the returned stream form one boundary: a failure of any of
-    ///     them (other than a cancellation or a size failure that is already a <see cref="SandboxException"/>) is a
-    ///     <see cref="SandboxFailureKind.CannotRead"/> failure, because the callback is untrusted code that must not leak
-    ///     a raw exception through the sandbox contract.
+    ///     them - including a <see cref="SandboxException"/> that the callback itself throws - is a
+    ///     <see cref="SandboxFailureKind.CannotRead"/> failure (a cancellation excepted), because the callback is untrusted
+    ///     code that must not leak a raw exception, or forge another failure kind, through the sandbox contract. The
+    ///     size failure is raised by this resolver outside that boundary.
     /// </remarks>
     /// <param name="candidate">The candidate.</param>
     /// <returns>The bytes, or <see langword="null"/> when the callback has no such file.</returns>
     private byte[]? ReadFromCallback(Candidate candidate)
     {
+        byte[]? bytes;
         try
         {
             // The callback owns what it returns until it is handed to us; we dispose it exactly once after reading
             using var stream = _options.FileResolver!(candidate.Key);
-            return stream is null ? null : ReadBounded(stream, candidate.Key);
+            if (stream is null)
+            {
+                return null;
+            }
+
+            bytes = ReadBounded(stream);
         }
-        catch (Exception ex) when (ex is not (OperationCanceledException or SandboxException))
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            // Everything the callback or its stream raises - even a SandboxException of its own - is a read failure
             throw new SandboxException(SandboxFailureKind.CannotRead, candidate.Key, innerException: ex);
         }
+
+        // The size failure is generated here, outside the callback boundary, so the callback can never forge it
+        return bytes ?? throw new SandboxException(SandboxFailureKind.TooLarge, candidate.Key);
     }
 
     /// <summary>
@@ -262,41 +301,33 @@ public sealed partial class SandboxedFileResolver
     /// </summary>
     /// <remarks>
     ///     A size the stream reports is checked first, and the running length is checked after every chunk, so a stream
-    ///     that never ends stops one chunk past the limit.
+    ///     that never ends stops one chunk past the limit. Failures of the stream itself are not caught here: the caller
+    ///     decides what a failing source means.
     /// </remarks>
     /// <param name="stream">The stream; it is left open.</param>
-    /// <param name="key">The key of the file, for failures.</param>
-    /// <returns>The bytes.</returns>
-    /// <exception cref="SandboxException">Thrown when the limit is exceeded or the stream cannot be read.</exception>
-    private byte[] ReadBounded(Stream stream, string key)
+    /// <returns>The bytes, or <see langword="null"/> when the stream is longer than the size limit.</returns>
+    private byte[]? ReadBounded(Stream stream)
     {
         var max = _options.MaxFileBytes;
-        try
+        if (stream.CanSeek && stream.Length > max)
         {
-            if (stream.CanSeek && stream.Length > max)
+            return null;
+        }
+
+        using var bytes = new MemoryStream();
+        var buffer = new byte[ReadChunkSize];
+        int count;
+        while ((count = stream.Read(buffer, 0, buffer.Length)) > 0)
+        {
+            if (bytes.Length + count > max)
             {
-                throw new SandboxException(SandboxFailureKind.TooLarge, key);
+                return null;
             }
 
-            using var bytes = new MemoryStream();
-            var buffer = new byte[ReadChunkSize];
-            int count;
-            while ((count = stream.Read(buffer, 0, buffer.Length)) > 0)
-            {
-                if (bytes.Length + count > max)
-                {
-                    throw new SandboxException(SandboxFailureKind.TooLarge, key);
-                }
-
-                bytes.Write(buffer, 0, count);
-                _cancellation.ThrowIfCancellationRequested();
-            }
-
-            return bytes.ToArray();
+            bytes.Write(buffer, 0, count);
+            _cancellation.ThrowIfCancellationRequested();
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
-        {
-            throw new SandboxException(SandboxFailureKind.CannotRead, key, innerException: ex);
-        }
+
+        return bytes.ToArray();
     }
 }

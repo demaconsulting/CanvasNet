@@ -130,11 +130,13 @@ sections:
                   The DataFileResolver unit shall read at most the configured number of distinct data
                   files, counting a file when it is found and not when it is requested again or does not
                   exist, accepting exactly the limit, and failing with a VegaLiteRenderException that names
-                  the limit for the first file over it, which is not read.
+                  the limit for the first file over it, which is refused by the core sandboxed file resolver
+                  before it is opened or the resolver callback is asked for it.
                 justification: |
                   The number of files bounds the work and the memory of the data stage.
                 tests:
                   - DataFileResolver_Load_MaxDataFilesAtLimitAndOneOver
+                  - DataFileResolver_Translate_EverySandboxKind_ProducesLocatedWording
 
               - id: CanvasNetVegaLite-Data-DataFileResolver-ByteLimit
                 title: >-

@@ -1809,6 +1809,7 @@ public sealed record SandboxOptions
     public IReadOnlyList<string> SearchPaths { get; init; }      // default: empty
     public Func<string, Stream?>? FileResolver { get; init; }
     public long MaxFileBytes { get; init; }                      // default: 16 MiB
+    public int? MaxFiles { get; init; }                          // default: no limit
 }
 
 public sealed class SandboxedFileResolver
@@ -1837,7 +1838,7 @@ public sealed class SandboxException : Exception
 public enum SandboxFailureKind
 {
     EmptyPath, ControlCharacter, ColonInPath, AbsolutePath, OutsideRoot,
-    ThroughLink, LinkCheckFailed, CannotRead, TooLarge, InvalidRoot,
+    ThroughLink, LinkCheckFailed, CannotRead, TooLarge, InvalidRoot, TooManyFiles,
 }
 ```
 
@@ -1864,10 +1865,14 @@ through a link; the files below it are not:
   reading, writing, renaming, or deleting them at the same time.
 - At most `MaxFileBytes` bytes are read; a longer file (or a stream that never ends) is `TooLarge`. The bytes
   come back in `SandboxedFile.Content`; decoding them is up to you.
+- Set `MaxFiles` to cap the number of **distinct files** one resolver reads. A file already read (also through
+  another spelling) never counts again and a file that does not exist does not count; once the cap is reached, a new
+  file is refused with `TooManyFiles` **before it is opened or the callback is asked for it**.
 - With a `FileResolver` callback the file system is never touched: the callback receives the normalized logical
   path (first under the logical root, then under each valid `SearchPaths` entry used as a prefix), on the calling
   thread, at most once per path, and returns a readable stream (disposed by the resolver) or `null`. A callback
-  that throws, or whose stream fails, is `CannotRead`; a cancellation passes through unchanged.
+  that throws, or whose stream fails, is `CannotRead` - even when what it throws is itself a `SandboxException`,
+  which can never pass through with another kind; a cancellation passes through unchanged.
 
 Every refusal is a `SandboxException`. Branch on `Kind` (never on the message): `Detail` is the reason phrase of
 a path-text failure (`the path is empty`, ...) or, for `ThroughLink`, the link's path relative to its root, and
@@ -1877,7 +1882,8 @@ of the path; `Path` of a file failure is the full path, so show it only to trust
 there is one) is the inner exception. An already canceled `CancellationToken` throws
 `OperationCanceledException` before anything is read.
 
-Each distinct file is read **once per resolver**, and a miss is remembered too, so a resolver serves one logical
+Each distinct file is read **once per resolver** (per root it is reached through, so the link checks of every root
+always run), and a miss is remembered too, so a resolver serves one logical
 operation (one render, one document) and is then dropped. **An instance is not thread-safe**: use one per
 operation, or serialize access. `SandboxOptions` and the returned `SandboxedFile` are immutable and may be
 shared. Use `resolver.KeyComparer` to decide whether two `Key` values name the same file (it is ordinal for
@@ -1930,7 +1936,7 @@ catch (SandboxException ex)
 
 - `ArgumentNullException`: Thrown by the constructor when `options` or its `SearchPaths` is null, and by `Resolve`
   when `path` is null.
-- `ArgumentOutOfRangeException`: Thrown by the constructor when `MaxFileBytes` is not positive.
+- `ArgumentOutOfRangeException`: Thrown by the constructor when `MaxFileBytes` is not positive or `MaxFiles` is negative.
 - `SandboxException`: Thrown by `Resolve` for every refusal and read failure described above.
 - `OperationCanceledException`: Thrown by `Resolve` when the token is canceled.
 

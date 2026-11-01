@@ -126,6 +126,32 @@ public class SandboxedFileResolverLinkTests
     }
 
     /// <summary>
+    ///     Validates that a file read through one root is never served for another root: a file first resolved through a
+    ///     trusted search path that is itself a link must still be refused when it is reached again through the base
+    ///     directory, whose link checks run on the components below that root.
+    /// </summary>
+    [Fact]
+    public void SandboxedFileResolver_Resolve_FileCachedUnderLinkedSearchRootIsCheckedAgainForAnotherRoot()
+    {
+        // Arrange: "alias" is a link and also a (trusted) search path; the file is first found through that search path
+        using var directory = new SandboxTempDirectory();
+        directory.Write("root/alias/x.txt", "x");
+        directory.Write("root/sub/f.txt", "f");
+        var probe = new FakeLinks().With(directory.Combine("root/alias"));
+        var resolver = Create(directory.Combine("root"), probe, directory.Combine("root/alias"));
+        var viaSearchPath = resolver.Resolve("x.txt");
+        var referrer = resolver.Resolve("sub/f.txt");
+
+        // Act: the same file again, now through the base directory root, which makes "alias" a link below that root
+        var ex = Assert.Throws<SandboxException>(() => resolver.Resolve("../alias/x.txt", referrer));
+
+        // Assert: the first resolution was legitimate; the second must not be answered from the cache
+        Assert.Equal("x", Encoding.UTF8.GetString(viaSearchPath!.Content.Span));
+        Assert.Equal(SandboxFailureKind.ThroughLink, ex.Kind);
+        Assert.Equal("alias", ex.Detail);
+    }
+
+    /// <summary>
     ///     Validates that a link below a search path root is rejected too (the base directory has no such file).
     /// </summary>
     [Fact]

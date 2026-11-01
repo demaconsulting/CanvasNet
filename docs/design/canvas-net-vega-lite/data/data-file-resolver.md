@@ -32,12 +32,14 @@ messages), and `Text` (the decoded text, without the byte-order mark).
 
 **`DataFileResolver`** is created for one measure or render call with the effective `VegaLiteOpenOptions`, the
 `VegaLiteLimits` and a cancellation token. It creates one `SandboxedFileResolver` from them (`BaseDirectory` as the base
-directory, `DataPaths` as the search paths, `FileResolver` as the callback, `MaxDataBytes` as the byte limit) and holds
-the decoded files by key and the number of files read. It is not thread-safe and runs on the calling thread only.
+directory, `DataPaths` as the search paths, `FileResolver` as the callback, `MaxDataBytes` as the byte limit,
+`MaxDataFiles` as the file limit) and holds
+the decoded files by key. It is not thread-safe and runs on the calling thread only.
 `HasFileSource` says whether the sandbox has anything to look in.
 
 **Invariants**: a file is requested from the sandbox at most once per instance (hit or miss - the sandbox caches) and
-decoded at most once; no more than `MaxDataFiles` distinct files are read and none longer than `MaxDataBytes` bytes; the
+decoded at most once; no more than `MaxDataFiles` distinct files are read (the sandbox refuses the next one before it is
+opened or the callback is asked for it) and none longer than `MaxDataBytes` bytes; the
 text of a returned file is valid UTF-8.
 
 #### Key Methods
@@ -45,10 +47,12 @@ text of a returned file is valid UTF-8.
 - `Load(path, location)` - the entry point. Fails if no file source is configured; asks the sandbox to resolve the path
   (the base directory first, then each data path in declaration order, or in resolver mode the logical root and then
   each prefix); fails with "not found" when the sandbox returns nothing; answers a file reached before (under any
-  spelling) from its cache; otherwise counts the file against `MaxDataFiles`, decodes it and remembers it.
+  spelling) from its cache; otherwise decodes the file and remembers it. The file limit is enforced by the sandbox
+  (`MaxFiles`), before the file beyond it is read.
 - `Translate` - turns a `SandboxException` into the located `VegaLiteRenderException` by its kind: "is not allowed" (the
   four path-text kinds, with the reason), "is outside the allowed directories", "passes through a link", "cannot be
-  checked for links", "is larger than the limit of ... bytes (MaxDataBytes)", "is not a valid path" (a configured
+  checked for links", "is larger than the limit of ... bytes (MaxDataBytes)", "reads more than the limit of ... data
+  files (MaxDataFiles)", "is not a valid path" (a configured
   directory), and "cannot be read" for everything else. The messages name the path as the specification wrote it,
   never a
   host directory, and the callback's own message is not copied.

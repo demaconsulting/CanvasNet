@@ -108,17 +108,19 @@ sections:
                   logical path as a prefix) on the calling thread, shall dispose the stream it returns
                   exactly once, and shall report a callback that throws, a failure while reading the
                   stream, and a failure while disposing the stream as a SandboxException of kind CannotRead
-                  (keeping the cause as the inner exception), while letting a cancellation pass through
-                  unchanged.
+                  (keeping the cause as the inner exception), including a SandboxException that the callback
+                  or its stream throws itself (which can never carry another kind through), while letting a
+                  cancellation pass through unchanged.
                 justification: |
                   Hosts that serve files from memory, archives, or a database need to control file access
                   completely and must be able to trust that no other access happens; the callback is
                   untrusted code, so its failures must never leak through the sandbox contract as raw
-                  exceptions.
+                  exceptions or forge another failure kind.
                 tests:
                   - SandboxedFileResolver_Resolve_ResolverModeUsesNormalizedLogicalPathsWithoutFileSystem
                   - SandboxedFileResolver_Resolve_CallbackStreamReadFailureIsCannotRead
                   - SandboxedFileResolver_Resolve_CallbackFailureIsCannotReadAndCancellationPassesThrough
+                  - SandboxedFileResolver_Resolve_CallbackThrowingSandboxExceptionIsCannotRead
                   - SandboxedFileResolver_Resolve_StreamDisposeFailureIsCannotRead
 
               - id: CanvasNet-Files-SandboxedFileResolver-Reading
@@ -154,19 +156,38 @@ sections:
                   - SandboxedFileResolver_Resolve_MaxFileBytesAtLimitAndOneOver
                   - SandboxedFileResolver_Resolve_EndlessStreamStopsAtBound
 
+              - id: CanvasNet-Files-SandboxedFileResolver-FileLimit
+                title: >-
+                  The SandboxedFileResolver class shall, when a file limit is configured, read at most that
+                  many distinct files, counting a file when it is found and not when it is served again from
+                  the cache or does not exist, accepting exactly the limit, and refusing a new file beyond it
+                  with a SandboxException of kind TooManyFiles before the file is opened or the callback is
+                  asked for it.
+                justification: |
+                  The number of files bounds the work and the memory of a hostile input; refusing before the
+                  open keeps the extra file untouched.
+                tests:
+                  - SandboxedFileResolver_Resolve_MaxFilesAtLimitAndOneOver
+                  - SandboxedFileResolver_Resolve_MaxFilesOnFileSystemNeverOpensTheExtraFile
+
               - id: CanvasNet-Files-SandboxedFileResolver-Cache
                 title: >-
-                  The SandboxedFileResolver class shall look up each distinct candidate at most once per
-                  instance, remembering a miss as well as a hit and returning the same file instance for a
-                  file reached again under any spelling, and shall expose the key comparer under which two
-                  file keys name the same file (ordinal for logical paths, the platform's path comparison
-                  for full paths).
+                  The SandboxedFileResolver class shall look up each distinct candidate (a file together
+                  with the root it is confined to) at most once per instance, remembering a miss as well as
+                  a hit and returning the same file instance for a file reached again under any spelling
+                  through the same root, shall never answer a request through one root from the result of
+                  another root (so the link checks of every root always run), and shall expose the key
+                  comparer under which two file keys name the same file (ordinal for logical paths, the
+                  platform's path comparison for full paths).
                 justification: |
                   Repeated reads would multiply the cost of a hostile input and let a file change between
-                  two reads of one operation; callers need the comparer to detect cycles.
+                  two reads of one operation; the link checks are relative to a root, so a file accepted
+                  through a trusted, linked search path must not be accepted through another root by cache
+                  accident; callers need the comparer to detect cycles.
                 tests:
                   - SandboxedFileResolver_Resolve_CacheRequestsEachCandidateOncePerResolver
                   - SandboxedFileResolver_Resolve_FileSystemFilesAreCachedPerResolver
+                  - SandboxedFileResolver_Resolve_FileCachedUnderLinkedSearchRootIsCheckedAgainForAnotherRoot
                   - SandboxedFileResolver_KeyComparer_FollowsModeAndPlatform
 
               - id: CanvasNet-Files-SandboxedFileResolver-Cancellation
@@ -183,7 +204,8 @@ sections:
                   The SandboxException class shall carry the failure kind, the path the failure is about,
                   and a kind-specific detail, keep the underlying cause as the inner exception, and have a
                   message that names no host directory; the SandboxedFileResolver constructor shall reject
-                  a null options object or search path list and a non-positive size limit.
+                  a null options object or search path list, a non-positive size limit and a negative file
+                  limit.
                 justification: |
                   Callers turn a refusal into their own error type with their own wording and location
                   without parsing text, and must not leak host directories to the author of an untrusted

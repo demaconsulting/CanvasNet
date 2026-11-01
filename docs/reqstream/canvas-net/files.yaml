@@ -79,18 +79,22 @@ sections:
           - id: CanvasNet-Files-BoundedReading
             title: >-
               The Files subsystem shall read a file with shared access, never reporting an unreadable file as
-              missing, within a configured byte limit that also stops a stream that never ends, and shall stop
-              when the cancellation token is canceled.
+              missing, within a configured byte limit that also stops a stream that never ends and an optional
+              limit on the number of distinct files that refuses the file beyond it before it is opened, and
+              shall stop when the cancellation token is canceled.
             justification: |
-              Files are untrusted input; an unbounded read would exhaust memory, an inaccessible file must not
-              be mistaken for a missing one, and callers need to abandon slow reads.
+              Files are untrusted input; an unbounded read would exhaust memory, so would an unbounded number of
+              files, an inaccessible file must not be mistaken for a missing one, and callers need to abandon
+              slow reads.
             children:
               - CanvasNet-Files-SandboxedFileResolver-Reading
               - CanvasNet-Files-SandboxedFileResolver-SizeLimit
+              - CanvasNet-Files-SandboxedFileResolver-FileLimit
               - CanvasNet-Files-SandboxedFileResolver-Cancellation
             tests:
               - SandboxedFileResolver_Resolve_ExistingFileOpenFailureIsCannotRead
               - SandboxedFileResolver_Resolve_MaxFileBytesAtLimitAndOneOver
+              - SandboxedFileResolver_Resolve_MaxFilesAtLimitAndOneOver
               - SandboxedFileResolver_Resolve_CanceledTokenStopsBeforeAnyRequest
 
           - id: CanvasNet-Files-FailureReporting

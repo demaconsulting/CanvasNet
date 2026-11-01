@@ -43,4 +43,7 @@ public enum SandboxFailureKind
 
     /// <summary>A configured base directory or search path is not a valid path.</summary>
     InvalidRoot,
+
+    /// <summary>The resolver already read <see cref="SandboxOptions.MaxFiles"/> distinct files; this one was not read.</summary>
+    TooManyFiles,
 }

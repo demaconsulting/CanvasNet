@@ -153,6 +153,7 @@ documented residual risks (see _SandboxedFileResolver Unit Design_), and no test
 **Tests**: `SandboxedFileResolver_Resolve_ResolverModeUsesNormalizedLogicalPathsWithoutFileSystem`,
 `SandboxedFileResolver_Resolve_CallbackStreamReadFailureIsCannotRead`,
 `SandboxedFileResolver_Resolve_CallbackFailureIsCannotReadAndCancellationPassesThrough`,
+`SandboxedFileResolver_Resolve_CallbackThrowingSandboxExceptionIsCannotRead`,
 `SandboxedFileResolver_Resolve_StreamDisposeFailureIsCannotRead`
 
 Asserts that the callback receives only normalized logical paths (the root first, then each valid search path as a prefix
@@ -160,7 +161,9 @@ in declaration order, invalid search paths ignored) while a same-named file in t
 stream it handed out is disposed, that every request came from the calling thread, and that an escape above the logical
 root is refused without a request. It also asserts the `CannotRead` contract of the callback boundary: a stream that fails
 while it is read, a callback that throws, and a stream whose disposal throws after a complete read are each a failure that
-keeps the cause as the inner exception and does not copy the callback's own text into the message, the failing stream is
+keeps the cause as the inner exception and does not copy the callback's own text into the message, a callback or stream
+that throws a `SandboxException` of its own (here a forged link failure) is still `CannotRead` with the forged exception
+as the cause, the failing stream is
 disposed exactly once, and a cancellation raised by the callback passes through unchanged as `OperationCanceledException`.
 
 ##### CanvasNet-Files-SandboxedFileResolver-Reading: Directories, Open Failures, And Shared Access
@@ -192,15 +195,30 @@ Asserts, for virtual and real files alike, that a file of exactly the limit (10 
 `TooLarge`, and that a stream that never ends, with a limit of 20,000 bytes, is refused after at most the limit plus one
 chunk of 8 KiB was read.
 
+##### CanvasNet-Files-SandboxedFileResolver-FileLimit: Distinct File Limit
+
+**Tests**: `SandboxedFileResolver_Resolve_MaxFilesAtLimitAndOneOver`,
+`SandboxedFileResolver_Resolve_MaxFilesOnFileSystemNeverOpensTheExtraFile`
+
+Asserts with a limit of two that two distinct files are read, that a file resolved again (also under another spelling)
+and a file that does not exist do not count, and that the first new file over the limit is `TooManyFiles` naming that
+file while the callback was never asked for it (the recorded requests stop at the last file before the limit). On the file
+system, with a limit of one and an injected opener, the second file is refused and never opened, while the first is still
+served from the cache.
+
 ##### CanvasNet-Files-SandboxedFileResolver-Cache: Per-Instance Cache
 
 **Tests**: `SandboxedFileResolver_Resolve_CacheRequestsEachCandidateOncePerResolver`,
 `SandboxedFileResolver_Resolve_FileSystemFilesAreCachedPerResolver`,
+`SandboxedFileResolver_Resolve_FileCachedUnderLinkedSearchRootIsCheckedAgainForAnotherRoot`,
 `SandboxedFileResolver_KeyComparer_FollowsModeAndPlatform`
 
 Asserts that a file resolved twice is requested once and is the same object, that a miss is remembered (requested once per
 candidate), that a new resolver starts with an empty cache, that in file-system mode a file changed after its first
-read is not read again, also when it is asked for under another spelling, and that the key comparer is ordinal for
+read is not read again, also when it is asked for under another spelling, that a file first resolved through a trusted
+search path that is itself a link (injected probe) is **not** served from the cache when the same file is requested
+again relative to a file under the base directory - the link check of that root runs and refuses it as `ThroughLink` - and
+that the key comparer is ordinal for
 logical paths and
 case-insensitive for full paths exactly on Windows and macOS.
 
@@ -219,5 +237,5 @@ Asserts that an already canceled token throws `OperationCanceledException` befor
 Asserts, for every failure kind, that the exception keeps its kind, path, detail, and inner exception, that its message
 is never empty, contains the path only for the path-text kinds and `OutsideRoot`, and never contains a host
 directory, that a
-null path is an `ArgumentNullException`, and that a null options object, a null search path list, and a zero or negative
-size limit are rejected at construction.
+null path is an `ArgumentNullException`, and that a null options object, a null search path list, a zero or negative
+size limit and a negative file limit are rejected at construction.

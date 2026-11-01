@@ -27,10 +27,12 @@ internal sealed record DataFile(string Key, string Display, string Text);
 ///         <b>Delegation.</b> Everything that makes the access safe is done by the core
 ///         <see cref="SandboxedFileResolver"/>: path validation, confinement to the base directory and each data path,
 ///         the refusal of symbolic links and junctions, the open and bounded read (with the byte limit
-///         <see cref="VegaLiteLimits.MaxDataBytes"/>), the resolver-callback mode and the per-call file cache. This class
+///         <see cref="VegaLiteLimits.MaxDataBytes"/> and the distinct-file limit <see cref="VegaLiteLimits.MaxDataFiles"/>,
+///         the latter enforced before the file beyond it is opened or requested), the resolver-callback mode and the
+///         per-call file cache. This class
 ///         adds what is specific to Vega-Lite: the search order (base directory, then <see cref="VegaLiteOpenOptions.DataPaths"/>
 ///         in declaration order, or with a <see cref="VegaLiteOpenOptions.FileResolver"/> the normalized logical path under
-///         the logical root and each data path), the distinct-file limit <see cref="VegaLiteLimits.MaxDataFiles"/>, strict
+///         the logical root and each data path), strict
 ///         UTF-8 decoding (a byte-order mark is removed; invalid UTF-8 is rejected, never replaced by U+FFFD) and the
 ///         translation of every <see cref="SandboxException"/> into a located <see cref="VegaLiteRenderException"/> with
 ///         Vega-Lite wording. A local data file that cannot be used is never treated as an empty dataset: a file that is
@@ -40,7 +42,7 @@ internal sealed record DataFile(string Key, string Display, string Text);
 ///     <para>
 ///         <b>Cache.</b> Each distinct file is requested at most once per instance (a miss is remembered too, so a
 ///         resolver callback sees each logical path at most once) and decoded at most once; it counts once against
-///         <see cref="VegaLiteLimits.MaxDataFiles"/>. An instance serves one measure or render call, runs only on the
+///         <see cref="VegaLiteLimits.MaxDataFiles"/> in the sandbox. An instance serves one measure or render call, runs only on the
 ///         calling thread and is not thread-safe.
 ///     </para>
 /// </remarks>
@@ -61,9 +63,6 @@ internal sealed class DataFileResolver
     /// <summary>The decoded files by key; each distinct file is decoded once.</summary>
     private readonly Dictionary<string, DataFile> _files;
 
-    /// <summary>The number of distinct files read so far.</summary>
-    private int _filesRead;
-
     /// <summary>
     ///     Initializes a resolver for one measure or render call.
     /// </summary>
@@ -81,6 +80,7 @@ internal sealed class DataFileResolver
                 SearchPaths = options.DataPaths,
                 FileResolver = options.FileResolver,
                 MaxFileBytes = limits.MaxDataBytes,
+                MaxFiles = limits.MaxDataFiles,
             },
             cancellation);
         _files = new Dictionary<string, DataFile>(_sandbox.KeyComparer);
@@ -133,19 +133,12 @@ internal sealed class DataFileResolver
             throw new VegaLiteRenderException($"The data file '{display}' was not found.", location);
         }
 
-        // A file that is reached again (by another spelling or another request) is served from the cache and counts once
+        // A file that is reached again (by another spelling or another request) is served from the cache
         if (_files.TryGetValue(found.Key, out var cached))
         {
             return cached;
         }
 
-        if (_filesRead >= _limits.MaxDataFiles)
-        {
-            throw new VegaLiteRenderException(
-                $"The chart reads more than the limit of {_limits.MaxDataFiles} data files (MaxDataFiles); the file '{display}' was not read.", location);
-        }
-
-        _filesRead++;
         var file = new DataFile(found.Key, display, Decode(found.Content.Span, display, location));
         _files[found.Key] = file;
         return file;
@@ -170,6 +163,9 @@ internal sealed class DataFileResolver
         SandboxFailureKind.TooLarge => new(
             $"The data file '{display}' is larger than the limit of {_limits.MaxDataBytes} bytes (MaxDataBytes).", location),
         SandboxFailureKind.InvalidRoot => new("A configured data directory (BaseDirectory or DataPaths) is not a valid path.", location),
+        SandboxFailureKind.TooManyFiles => new(
+            $"The chart reads more than the limit of {_limits.MaxDataFiles} data files (MaxDataFiles); the file '{display}' was not read.",
+            location),
         _ => new($"The data file '{display}' cannot be read.", location),
     };
 
