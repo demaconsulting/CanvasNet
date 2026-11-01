@@ -1212,15 +1212,20 @@ internet) is left alone, and the tool is not started for it.
 | `projection` | `.scad` | `ortho` (default) or `perspective` |
 | `define-NAME` | `.scad` | Sets the model variable `NAME`, for example `define-wall_height=44` |
 
-Every value is checked: an attribute that belongs to another input type, a malformed number, or a source that lies
-outside the document's resource path stops the build with a message that names the picture. All other attributes
-(`width`, `height`, an identifier, a class) stay on the picture. The source is found on the document's resource path,
-like any picture. The filter checks the file name only: it does not follow or check symbolic links.
+Every value is checked: an attribute that belongs to another input type, a malformed number, or a source that cannot be
+found stops the build with a message that names the picture. All other attributes
+(`width`, `height`, an identifier, a class) stay on the picture. The source is found the way Pandoc finds any picture:
+an absolute name is used if the file opens, and a relative name is tried in each folder of the document's resource
+path, taking the first file that opens. The filter is not a security boundary: it runs your own documents with your own
+permissions, and Pandoc itself embeds pictures from any path, so it applies no containment rule. What a model or a
+chart may read is decided by the tool's own sandbox when the picture is drawn, and a dependency the tool refuses still
+stops the build with the tool's message.
 
 The filter writes each PNG to `docs/generated/canvasnet/`, a build-output folder that is ignored by Git: draw the
 pictures when you build, and never commit them. The file name is made from a hash of everything that decides the
 picture, so an unchanged source is not drawn again and a changed one always is. The hash covers the source file,
-the files a model pulls in with `include` and `use`, the data files a chart names with a relative `data.url`, the
+the files a model pulls in with `include` and `use`, the local data files a chart names with `data.url` (each one
+that exists, wherever it lies; a remote URL is skipped, since the tool never reads it), the
 attributes, the tool's version, and the filter's own version. A picture is written under a temporary name and then
 renamed, so builds that run at the same time are safe. The `src` of the picture is written relative to the output
 HTML file, so a PDF made from that HTML by WeasyPrint finds it. The tool's failures stop the build with the tool's own

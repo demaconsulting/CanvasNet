@@ -6,8 +6,9 @@
     Builds a small document tree in a temporary folder, runs "dotnet pandoc" with docs/filters/canvasnet.lua
     over it, and checks what the filter promises: pictures are drawn once and found again (cache), a change to
     the source, an included file, a chart's data file, or an attribute draws a new picture, other pictures are
-    left alone without starting the tool, wrong attributes and a path that leaves the resource path are clear
-    errors, and a model the tool cannot draw stops the build with the tool's message.
+    left alone without starting the tool, wrong attributes and a missing file are clear errors, a path that
+    leaves the document's folder renders (the filter has no containment rule), a dependency the tool refuses
+    fails with the tool's message, and a model the tool cannot draw stops the build with the tool's message.
 
     The tool is the one the filter would use: "dotnet canvasnet" from the tool manifest (copied into the
     temporary folder, so the tool must be restored or installed first, as the build-docs CI job does), or the
@@ -240,8 +241,7 @@ try {
         'a fractional vsdx dpi'      = @('![m](davehoward-test4-connectors.vsdx){dpi=96.5}', 'a whole number')
         'a bad define name'          = @('![m](t.scad){define-1x=3}', 'variable name')
         'an out-of-range elevation'  = @('![m](t.scad){elevation=120}', 'elevation')
-        'a missing file'             = @('![m](nothing-here.scad)', 'cannot find')
-        'a path above the resource path' = @('![m](../../../outside.pdf)', "outside the document's resource path")
+        'a missing file'             = @('![m](nothing-here.scad)', "cannot find 'nothing-here.scad' in the document's resource path")
     }
     foreach ($case in $errors.Keys) {
         $run = Invoke-Filter ('err-' + ($case -replace '\W', '-')) $errors[$case][0]
@@ -249,18 +249,19 @@ try {
             "rejects $case" $run.Log
     }
 
-    # --- Containment is lexical and assumes nothing about case -----------------------------------------------
-    # The filter never compares folder names or folds case: a name is refused when, collapsed, it starts with
-    # "..", and a file is found by opening it. So these checks give the same result on every OS and on both
-    # case-sensitive and case-insensitive file systems.
-    Copy-Item (Join-Path $showcase 'mesh-shading.pdf') (Join-Path $root 'esc.pdf')
-    $escape = Invoke-Filter 'esc-image' '![m](../../../esc.pdf){dpi=48}'
-    Write-Result ($escape.ExitCode -ne 0 -and $escape.Log -match "outside the document's resource path") `
-        'a ../ escape in an image src is rejected' $escape.Log
+    # --- Paths are resolved like Pandoc does; the filter has no containment rule --------------------------
+    # An image src may leave the document's folder with "../" (the tree is docs/guide, so three levels up is
+    # the temporary root), and an absolute src is used as it is.
+    $upward = Invoke-Filter 'up-image' '![m](../../../outside.pdf){dpi=48}'
+    Write-Result ($upward.ExitCode -eq 0 -and $upward.Html -match 'generated/canvasnet/outside-') `
+        'a ../ image src outside the document folder renders' $upward.Log
+    $abs = ((Join-Path $root 'outside.pdf') -replace '\\', '/')
+    $absolute = Invoke-Filter 'abs-image' "![m](<$abs>){dpi=48}"
+    Write-Result ($absolute.ExitCode -eq 0 -and $absolute.Html -match 'generated/canvasnet/outside-') `
+        'an absolute image src renders' $absolute.Log
 
-    # A model and a chart whose include / data url leave their folder: the filter does not follow them (it
-    # never hashes a file outside the folder), and the tool, which is the authority and enforces its own
-    # sandbox when it opens files, refuses them at render time with its own message.
+    # An include or data url that leaves its folder is followed and hashed; the tool's own sandbox decides
+    # whether it may read it, and here it refuses, so the build fails with the tool's message.
     $sub = Join-Path $guide 'esc'
     New-Item -ItemType Directory -Force -Path $sub | Out-Null
     Set-Content (Join-Path $guide 'outer.scad') -Value 'module outer() { cube([3, 3, 3]); }'
@@ -269,38 +270,15 @@ try {
     Set-Content (Join-Path $sub 'c.vl.json') -Value $urlSpec.Replace('URL', '../outer.csv')
     foreach ($dep in 'm.scad', 'c.vl.json') {
         $run = Invoke-Filter ('esc-dep-' + ($dep -replace '\W', '-')) "![x](esc/$dep)"
-        Write-Result ($run.ExitCode -ne 0 -and $run.Log -match 'outside the allowed directories' -and
-            $run.Log -notmatch 'outside the document') `
-            "an include or data url leaving the folder is not followed; the tool refuses it ($dep)" $run.Log
+        Write-Result ($run.ExitCode -ne 0 -and $run.Log -match 'outside the allowed directories') `
+            "a dependency outside the folder fails with the tool's message ($dep)" $run.Log
     }
-    # A case-variant sibling of the resource folder (docs/GUIDE next to docs/guide) is rejected by the lexical
-    # rule on every OS: the name starts with ".." once collapsed, whatever the file system makes of GUIDE.
-    $sibling = Join-Path $tree 'docs/GUIDE'
-    New-Item -ItemType Directory -Force -Path $sibling | Out-Null
-    Copy-Item (Join-Path $showcase 'mesh-shading.pdf') (Join-Path $sibling 'case.pdf')
-    $case = Invoke-Filter 'case-variant' '![m](../GUIDE/case.pdf){dpi=48}'
-    Write-Result ($case.ExitCode -ne 0 -and $case.Log -match "outside the document's resource path") `
-        'a case-variant sibling of the resource folder is rejected, whatever the OS' $case.Log
 
-    # The same file named with two spellings (different case where the file system folds it, a missing file
-    # where it does not) must not break the build or the cache: the exact text is the key, nothing is assumed.
-    Set-Content (Join-Path $guide 'Twice.scad') -Value 'module twice() { cube([2, 2, 2]); }'
-    Set-Content (Join-Path $guide 'twice-main.scad') -Value "include <Twice.scad>`ninclude <TWICE.scad>`ninclude <twice.scad>`ncube(4);"
-    $twice = Invoke-Filter 'twice' '![m](twice-main.scad)'
-    Write-Result ($twice.ExitCode -eq 0) 'one file named with two spellings does not break the build' $twice.Log
-    $twiceCount = @(Get-Pictures).Count
-    $twiceAgain = Invoke-Filter 'twice' '![m](twice-main.scad)'
-    Write-Result ($twiceAgain.ExitCode -eq 0 -and @(Get-Pictures).Count -eq $twiceCount) `
-        'and the second run finds the same picture' $twiceAgain.Log
-
-    # An include cycle whose spellings differ in case still ends (the dependency walk is finite).
-    Set-Content (Join-Path $guide 'cyc-a.scad') -Value "include <CYC-B.scad>`ncube(3);"
-    Set-Content (Join-Path $guide 'cyc-b.scad') -Value "include <Cyc-A.scad>`ninclude <cyc-a.scad>`ncube(2);"
+    # An include cycle ends.
+    Set-Content (Join-Path $guide 'cyc-a.scad') -Value "include <cyc-b.scad>`ncube(3);"
+    Set-Content (Join-Path $guide 'cyc-b.scad') -Value "include <cyc-a.scad>`ncube(2);"
     $cycle = Invoke-Filter 'cycle' '![m](cyc-a.scad)'
-    Write-Result ($cycle.ExitCode -eq 0 -or $cycle.Log -match 'SCAD|include|cannot') `
-        'an include cycle with differing case ends' $cycle.Log
-    Write-Result ($cycle.Log -notmatch 'levels deep|stack overflow|limit is 512') `
-        'the cycle is ended by the exact keys, not by a limit' $cycle.Log
+    Write-Result ($cycle.Log -notmatch 'levels deep|limit is 512') 'an include cycle ends without reaching a limit' $cycle.Log
     # --- Dependency limit ---------------------------------------------------------------------------------
     # A chart that names more data files than the filter hashes (512) must fail, not draw from a partial hash.
     $many = Join-Path $guide 'many'
@@ -323,6 +301,15 @@ try {
     $at = Invoke-Filter 'many-at' '![c](many/chart512.vl.json)'
     Write-Result ($at.ExitCode -eq 0 -and $at.Log -notmatch 'the limit is 512') `
         'a chart with exactly 512 data files is not rejected by the limit' $at.Log
+
+    # The same limit for a model: the model plus 512 included files is 513 hashed files.
+    foreach ($n in 1..512) {
+        Set-Content (Join-Path $many "i$n.scad") -Value "module m$n() { cube($n); }"
+    }
+    Set-Content (Join-Path $many 'big.scad') -Value ((1..512 | ForEach-Object { "include <i$_.scad>" }) -join "`n")
+    $bigModel = Invoke-Filter 'many-scad' '![m](many/big.scad)'
+    Write-Result ($bigModel.ExitCode -ne 0 -and $bigModel.Log -match 'includes more than 512 files') `
+        'a model that includes too many files fails with the limit' $bigModel.Log
 }
 catch {
     $script:failures++
