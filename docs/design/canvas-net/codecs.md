@@ -272,5 +272,7 @@ of CanvasNet's target frameworks with no new runtime NuGet dependency. (The sepa
 Each codec unit of the `Codecs` subsystem is a public API entry point, invoked directly by consumers of
 the CanvasNet package, as is `ImageDecoder`. `ImageDecoder`/`ImageFormats` are additionally called by
 the `CanvasNetSvg` (`data:` URI images), `CanvasNetPptx` (picture media parts), and `CanvasNetTool`
-(signature detection) packages. No unit within the `Codecs` subsystem is called by any other
-subsystem, and only `ImageDecoder` calls into other units of the `Codecs` subsystem (the six codecs).
+(signature detection) packages, and the internal `PngFilter` and `LzwDecoder` helpers by the
+`CanvasNetPdf` package's stream filters. Within the `Codecs` subsystem the codec units do not call one
+another: `ImageDecoder` is the only unit that dispatches to the six codecs, and `PngCodec` (`PngFilter`)
+and `TiffCodec` (`LzwDecoder`) call only the internal helpers.
