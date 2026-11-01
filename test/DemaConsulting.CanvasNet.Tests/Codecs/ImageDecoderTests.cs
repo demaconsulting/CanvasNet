@@ -154,6 +154,21 @@ public class ImageDecoderTests
         Assert.Throws<InvalidDataException>(() => ImageDecoder.Load(nonSeekable));
     }
 
+    /// <summary>Proves a seekable stream whose signature is not recognized is left at its starting position.</summary>
+    [Fact]
+    public void ImageDecoder_LoadStream_UnrecognizedSeekableStream_KeepsStartPosition()
+    {
+        // Arrange
+        byte[] garbage = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
+        using var stream = new MemoryStream(garbage) { Position = 2 };
+
+        // Act
+        Assert.Throws<InvalidDataException>(() => ImageDecoder.Load(stream));
+
+        // Assert
+        Assert.Equal(2, stream.Position);
+    }
+
     /// <summary>Proves an explicit format is decoded without sniffing, and the codec rejects data of another format.</summary>
     [Fact]
     public void ImageDecoder_LoadStreamWithFormat_UsesGivenFormat()

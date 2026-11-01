@@ -45,7 +45,8 @@ sections:
                   The ImageDecoder class shall decode an image supplied as a stream or a byte span by
                   detecting its format from its first bytes, and shall decode a stream as a caller-specified
                   format, in each case delegating to the matching codec, reading a seekable stream from its
-                  starting position and a non-seekable stream without buffering it whole.
+                  starting position (and leaving it there when the signature is not recognized) and reading a
+                  non-seekable stream through with its signature replayed.
                 justification: |
                   Callers should not need a per-format switch to turn an arbitrary supported image into a
                   Surface; delegating to the existing codecs keeps every codec limit and error contract
@@ -54,6 +55,7 @@ sections:
                   - ImageDecoder_LoadBytes_PngBmpTiff_DecodesExactPixels
                   - ImageDecoder_LoadBytes_JpegGifJpeg2000_DispatchesToMatchingCodec
                   - ImageDecoder_LoadStream_SeekableStreamAtOffset_DecodesFromStartPosition
+                  - ImageDecoder_LoadStream_UnrecognizedSeekableStream_KeepsStartPosition
                   - ImageDecoder_LoadStream_NonSeekableStream_DecodesWholeImage
                   - ImageDecoder_LoadStreamWithFormat_UsesGivenFormat
 

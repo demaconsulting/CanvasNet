@@ -60,10 +60,12 @@ unsupported types (including `image/svg+xml` and EMF/WMF metafiles) return `null
 ##### ImageDecoder.Load(Stream stream)
 
 Reads up to 32 leading bytes, detects the format, and decodes. A seekable stream is rewound to the
-position it started at (so a stream already positioned inside a larger container works); a
-non-seekable stream is wrapped in a private forward-only `PrefixedStream` that replays the already
-consumed header bytes and then continues with the underlying stream, so the image is never buffered
-whole. The stream is read, not closed.
+position it started at before the format is checked (so a stream already positioned inside a larger
+container works, and an unrecognized stream is left where it was); a non-seekable stream is wrapped in
+a private forward-only `PrefixedStream` that replays the already consumed header bytes and then
+continues with the underlying stream, so the facade adds no buffering of its own (codecs that need the
+whole file, such as JPEG, TIFF, and JPEG 2000, still read it into memory). The stream is read, not
+closed.
 
 ##### ImageDecoder.Load(ReadOnlySpan&lt;byte&gt; data)
 

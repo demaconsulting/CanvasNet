@@ -49,12 +49,14 @@ non-image types yield `null`.
 **Tests**: `ImageDecoder_LoadBytes_PngBmpTiff_DecodesExactPixels`,
 `ImageDecoder_LoadBytes_JpegGifJpeg2000_DispatchesToMatchingCodec`,
 `ImageDecoder_LoadStream_SeekableStreamAtOffset_DecodesFromStartPosition`,
+`ImageDecoder_LoadStream_UnrecognizedSeekableStream_KeepsStartPosition`,
 `ImageDecoder_LoadStream_NonSeekableStream_DecodesWholeImage`,
 `ImageDecoder_LoadStreamWithFormat_UsesGivenFormat`
 
 Asserts lossless formats decode to exactly the source pixels, the lossy and decode-only formats
 dispatch to the right codec (by dimensions and the known GIF pixel), a seekable stream positioned
-inside a larger buffer is decoded from that position, a non-seekable stream is decoded completely
+inside a larger buffer is decoded from that position and is left at that position when its signature
+is not recognized, a non-seekable stream is decoded completely
 (the replayed header and the remainder join seamlessly), and an explicit format is honored while
 data of another format is rejected by the codec.
 

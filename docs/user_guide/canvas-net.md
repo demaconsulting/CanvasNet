@@ -1088,7 +1088,9 @@ whitespace, and `;` parameters, and accepting the common aliases (`image/jpg`, `
 as `image/svg+xml`.
 
 `ImageDecoder.Load(Stream)` detects the format from the stream's first bytes. A seekable stream is
-rewound to where it started; a non-seekable stream is decoded without being buffered whole. The
+rewound to where it started, also when the format is not recognized. A non-seekable stream is read
+through with its first bytes replayed to the codec; codecs that need the whole file (JPEG, TIFF, and
+JPEG 2000) still read it into memory. The
 stream is read, not closed. `Load(ReadOnlySpan<byte>)` does the same for bytes already in memory,
 and `Load(Stream, ImageFormat)` skips the detection and decodes as the format you name. Data with
 no recognized signature throws `InvalidDataException`; a null stream throws

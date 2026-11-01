@@ -21,8 +21,10 @@ public static class ImageDecoder
     /// </summary>
     /// <param name="stream">
     ///     A readable stream positioned at the start of the image. The stream is read, not closed. A
-    ///     seekable stream is rewound after the signature is read; a non-seekable stream is read
-    ///     through without being buffered beyond the signature.
+    ///     seekable stream is rewound to its starting position after the signature is read, including
+    ///     when the signature is not recognized. A non-seekable stream is read through; the signature is
+    ///     replayed rather than buffered with the image, though a codec that needs the whole file
+    ///     (JPEG, TIFF, JPEG 2000) still reads it into memory.
     /// </param>
     /// <returns>The decoded image.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="stream"/> is <see langword="null"/>.</exception>
@@ -47,17 +49,24 @@ public static class ImageDecoder
             headerLength += read;
         }
 
-        var format = ImageFormats.Detect(header.AsSpan(0, headerLength))
-            ?? throw new InvalidDataException("The data is not a recognized image format.");
-
+        var format = ImageFormats.Detect(header.AsSpan(0, headerLength));
         if (stream.CanSeek)
         {
             stream.Position = startPosition;
-            return Load(stream, format);
+        }
+
+        if (format is null)
+        {
+            throw new InvalidDataException("The data is not a recognized image format.");
+        }
+
+        if (stream.CanSeek)
+        {
+            return Load(stream, format.Value);
         }
 
         using var replay = new PrefixedStream(header.AsSpan(0, headerLength).ToArray(), stream);
-        return Load(replay, format);
+        return Load(replay, format.Value);
     }
 
     /// <summary>
