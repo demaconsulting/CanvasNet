@@ -20,7 +20,10 @@ internal static class SurfaceAssert
         {
             for (var x = 0; x < expected.Width; x++)
             {
-                Assert.True(expected[x, y] == actual[x, y], $"Pixel ({x},{y}) is {actual[x, y]}, expected {expected[x, y]}");
+                if (expected[x, y] != actual[x, y])
+                {
+                    Assert.Fail($"Pixel ({x},{y}) is {actual[x, y]}, expected {expected[x, y]}");
+                }
             }
         }
     }
@@ -41,7 +44,10 @@ internal static class SurfaceAssert
             {
                 var (e, a) = (expected[x, y], actual[x, y]);
                 var difference = new[] { Math.Abs(e.R - a.R), Math.Abs(e.G - a.G), Math.Abs(e.B - a.B), Math.Abs(e.A - a.A) }.Max();
-                Assert.True(difference <= tolerance, $"Pixel ({x},{y}) is {a}, expected {e} within {tolerance}");
+                if (difference > tolerance)
+                {
+                    Assert.Fail($"Pixel ({x},{y}) is {a}, expected {e} within {tolerance}");
+                }
             }
         }
     }

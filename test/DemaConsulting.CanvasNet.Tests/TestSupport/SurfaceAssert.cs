@@ -20,7 +20,10 @@ internal static class SurfaceAssert
         {
             for (var x = 0; x < expected.Width; x++)
             {
-                Assert.True(expected[x, y] == actual[x, y], $"Pixel ({x},{y}) is {actual[x, y]}, expected {expected[x, y]}");
+                if (expected[x, y] != actual[x, y])
+                {
+                    Assert.Fail($"Pixel ({x},{y}) is {actual[x, y]}, expected {expected[x, y]}");
+                }
             }
         }
     }

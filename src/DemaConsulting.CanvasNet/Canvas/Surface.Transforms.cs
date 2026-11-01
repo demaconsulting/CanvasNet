@@ -13,8 +13,10 @@ namespace DemaConsulting.CanvasNet.Canvas;
 ///         down; surfaces hold straight (non-premultiplied) alpha.
 ///     </para>
 ///     <para>
-///         Each is a pixel move or a per-row copy with no resampling, so the pixels of the result are exact copies of
-///         pixels of the source. A surface must not be changed by another thread while a transformation reads it.
+///         The flips, the rotation, pad, and trim are pixel moves or per-row copies with no resampling, so the pixels of
+///         their results are exact copies of pixels of the source; <see cref="FitInto"/> resamples and
+///         <see cref="FlattenOver"/> blends (see each method). A surface must not be changed by another thread while a
+///         transformation reads it.
 ///     </para>
 /// </remarks>
 public sealed partial class Surface
