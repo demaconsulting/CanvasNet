@@ -636,3 +636,16 @@ var scene = ScadDocument.Parse("linear_extrude(height = 1) text(\"HI\", size = 1
 var bounds = scene.ComputeBounds();
 Console.WriteLine($"{bounds.Max.X:F2} x {bounds.Max.Y:F2}"); // Output: 16.91 x 14.09
 ```
+
+### Example 38: Drawing an OpenSCAD Model in a Pandoc Document
+
+The Pandoc filter `docs/filters/canvasnet.lua` draws a picture whose file is a `.scad` model, using the
+`canvasnet` command-line tool (see *Using the Tool in Pandoc Documents* in the tool chapter). The attributes choose
+the viewpoint and set the model's variables, and `width` stays on the picture. This guide draws
+`examples/bracket.scad` with a taller upright leg than the model's own:
+
+```markdown
+![Bracket with a taller upright leg](examples/bracket.scad){view=iso define-wall_height=44 size=1200x900 width=60%}
+```
+
+![Bracket with a taller upright leg](examples/bracket.scad){view=iso define-wall_height=44 size=1200x900 width=60%}

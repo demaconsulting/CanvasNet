@@ -1173,6 +1173,81 @@ The size and EXIF steps always run before the first pipeline operation: for exam
 --rotate 90 -o out.png` rotates the already upright photo, and `render drawing.svg --width 800 --crop 0,0,50%,100%`
 crops the 800-pixel drawing, not the natural-size one.
 
+## Using the Tool in Pandoc Documents
+
+The repository's `docs/filters/canvasnet.lua` is a self-contained Pandoc Lua filter that draws models, charts, and
+document pages with the tool when a document is built, so a Markdown file can refer to the source of a picture
+instead of a rendered copy. Copy the file into a documentation repository (it needs Pandoc 3 and no other
+library), pin the tool, and add the filter to the Pandoc defaults file of each document:
+
+```bash
+dotnet new tool-manifest
+dotnet tool install DemaConsulting.CanvasNet.Tool
+```
+
+```yaml
+filters:
+  - docs/filters/canvasnet.lua
+```
+
+A picture whose file name ends in `.scad`, `.vl.json`, `.vl`, `.vsdx`, `.pptx`, or `.pdf` is then drawn as a PNG,
+and the attributes written after it choose how. Any other picture (a PNG, a JPEG, an SVG, an address on the
+internet) is left alone, and the tool is not started for it.
+
+```markdown
+![Pump mount](pump-mount.scad){view=top define-hole_radius=4 width=60%}
+![Sales by region](sales.vl.json){scale=2}
+![The wiring](wiring.vsdx){page=2 dpi=150}
+```
+
+| Attribute | Applies to | Meaning |
+| --- | --- | --- |
+| `size` | all | The picture in pixels, `WIDTHxHEIGHT` (a model is 1600x1200 unless `scale` is given) |
+| `scale` | all | Multiplies the natural size by a number from 0.001 to 8192 (not with `size`) |
+| `background` | all | `#RRGGBB`, `#RRGGBBAA`, a color name, or `transparent` (a model is drawn over white) |
+| `page` | `.vsdx`, `.pptx`, `.pdf` | The page or slide, counted from 1 (default 1) |
+| `dpi` | `.vsdx`, `.pptx`, `.pdf` | The resolution in dots per inch, above 0 up to 2400 (whole number for `.vsdx`) |
+| `view` | `.scad` | `iso` (default), `front`, `back`, `left`, `right`, `top`, or `bottom` |
+| `azimuth`, `elevation` | `.scad` | The viewpoint in degrees (elevation from -90 to 90) |
+| `projection` | `.scad` | `ortho` (default) or `perspective` |
+| `define-NAME` | `.scad` | Sets the model variable `NAME`, for example `define-wall_height=44` |
+
+Every value is checked: an attribute that belongs to another input type, a malformed number, or a source that cannot be
+found stops the build with a message that names the picture. All other attributes
+(`width`, `height`, an identifier, a class) stay on the picture. The source is found the way Pandoc finds any picture:
+an absolute name is used if the file opens, and a relative name is tried in each folder of the document's resource
+path, taking the first file that opens. The filter is not a security boundary: it runs your own documents with your own
+permissions, and Pandoc itself embeds pictures from any path, so it applies no containment rule. What a model or a
+chart may read is decided by the tool's own sandbox when the picture is drawn, and a dependency the tool refuses still
+stops the build with the tool's message.
+
+The filter writes each PNG to `docs/generated/canvasnet/`, a build-output folder that is ignored by Git: draw the
+pictures when you build, and never commit them. The file name is made from a hash of everything that decides the
+picture, so an unchanged source is not drawn again and a changed one always is. The hash covers the source file,
+the files a model pulls in with `include` and `use`, the local data files a chart names with `data.url` (each one
+that exists, wherever it lies; a remote URL is skipped, since the tool never reads it), the
+attributes, the tool's version, and the filter's own version. A picture is written under a temporary name and then
+renamed, so builds that run at the same time are safe. The `src` of the picture is written relative to the output
+HTML file, so a PDF made from that HTML by WeasyPrint finds it. The tool's failures stop the build with the tool's own
+message, and what the tool leaves out of a picture, and a model's `echo()` lines, are shown as Pandoc warnings.
+A Markdown viewer that does not run Pandoc, such as GitHub, shows these pictures as broken images, so keep the images
+of a README as committed PNG files (see `docs/images/render-images.ps1` in this repository).
+
+The filter runs `dotnet canvasnet`, the tool a repository pins in its `.config/dotnet-tools.json`. The environment
+variable `CANVASNET_TOOL` replaces that command, for local development only, for example to try a build of the tool
+that is not installed: its value is a program and optional leading arguments, separated by spaces, with double
+quotes around a part that contains spaces and no backslash escapes.
+
+```bash
+CANVASNET_TOOL="dotnet src/DemaConsulting.CanvasNet.Tool/bin/Release/net10.0/DemaConsulting.CanvasNet.Tool.dll" \
+  dotnet pandoc --defaults docs/user_guide/definition.yaml --output docs/user_guide/generated/user_guide.html
+```
+
+The CanvasNet repository does not pin the tool in its manifest. Its build installs the package it has just built as a
+local tool before the documents are built, and uses `CANVASNET_TOOL` only on a developer's machine. The header of
+`canvasnet.lua` is the full reference, and the examples in the chapters on the Scad, Vega-Lite, VSDX, PPTX, and PDF
+packages are drawn this way.
+
 ## Using the Tool from an AI Agent
 
 The tool is meant to be used by an agent that can look at images: it turns anything the agent cannot see directly (a

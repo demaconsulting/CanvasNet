@@ -51,6 +51,7 @@ load/crop/resize/save workflows.
 - 📉 **Vega-Lite Charts** - Render a growing subset of Vega-Lite specs (see User Guide)
 - 🔍 **Header-Only Probing** - `GetInfo` reads headers without decoding pixels (GIF excepted)
 - 🖥️ **Command-Line Tool** - The script- and agent-friendly `canvasnet` dotnet tool, with photo clean-up
+- 📝 **Pandoc Filter** - Draw models, charts, and pages in Pandoc documents (see User Guide)
 - 🖌️ **Path Filling** - Antialiased nonzero/even-odd fill of vector paths
 - 🖊️ **Stroke-to-Fill** - Convert stroked paths into fillable outlines
 - 🌅 **Gradient Paint** - Linear or radial gradient fills with spread

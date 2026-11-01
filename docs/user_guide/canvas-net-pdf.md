@@ -244,3 +244,15 @@ var options = new PdfRenderOptions { BackgroundColor = new Rgba32(0, 0, 0, 0) };
 using var page = pdf.Render(0, 150f, options);
 PngCodec.Save(page, "page1.png");
 ```
+
+### Example 42: Drawing a PDF Page in a Pandoc Document
+
+The Pandoc filter `docs/filters/canvasnet.lua` draws one page of a `.pdf` file; `page` counts from 1 and `dpi`
+sets the resolution. The page below is the original `docs/images/showcase/mesh-shading.pdf` of this repository,
+a copy of a hand-authored test fixture.
+
+```markdown
+![A PDF page with mesh shading](mesh-shading.pdf){page=1 dpi=96 width=40%}
+```
+
+![A PDF page with mesh shading](mesh-shading.pdf){page=1 dpi=96 width=40%}

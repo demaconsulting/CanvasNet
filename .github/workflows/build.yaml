@@ -555,6 +555,15 @@ jobs:
           merge-multiple: true
         continue-on-error: true
 
+      # The Pandoc filter (docs/filters/canvasnet.lua) draws the models, charts, and pages of the documents
+      # with the canvasnet tool. This job installs the package the build job has just made, as in the
+      # integration tests, so the documents are drawn by the tool that is being released.
+      - name: Download CanvasNet tool package
+        uses: actions/download-artifact@v8
+        with:
+          name: packages-windows-latest
+          path: packages
+
       # === INSTALL DEPENDENCIES ===
       # This section installs all required dependencies and tools for document generation.
       # Downstream projects: Add any additional dependency installations here.
@@ -574,6 +583,17 @@ jobs:
 
       - name: Restore Tools
         run: dotnet tool restore
+
+      # A local install writes the tool into this job's copy of .config/dotnet-tools.json (nothing is
+      # committed), which is where "dotnet canvasnet" looks; a global install would not be found by that
+      # command. It must come after "Restore Tools" and before the first Pandoc step.
+      - name: Install CanvasNet tool for the Pandoc filter
+        run: >
+          dotnet tool install
+          --local
+          --add-source packages
+          --version ${{ inputs.version }}
+          DemaConsulting.CanvasNet.Tool
 
       # === CAPTURE TOOL VERSIONS ===
       # This section captures the versions of all tools used in the build process.
@@ -598,6 +618,20 @@ jobs:
       - name: Create documents output directory
         shell: bash
         run: mkdir -p docs/generated
+
+      # === CHECK THE PANDOC FILTER AND THE COMMITTED IMAGES ===
+      # The filter draws the models, charts, and pages of the documents. Its test runs a few small documents
+      # through Pandoc, and the image check draws the README images again and compares them with the committed
+      # files within a tolerance (see docs/images/README.md). Both use the tool installed above.
+      # Downstream projects: Remove this section if the repository has no Pandoc filter or committed images.
+
+      - name: Test the Pandoc filter
+        shell: pwsh
+        run: ./docs/filters/test-canvasnet.ps1
+
+      - name: Check committed README images are current
+        shell: pwsh
+        run: ./docs/images/render-images.ps1 -Check
 
       # === COMPILE BUILD NOTES ===
       # This section generates the Build Notes document. BuildMark and VersionMark self-validations
@@ -1033,8 +1067,13 @@ jobs:
       # This section uploads all generated documentation artifacts.
       # Downstream projects: Add any additional artifact uploads here.
 
+      # The Pandoc filter's intermediate PNGs (docs/generated/canvasnet/) stay out of the artifact:
+      # release.yaml attaches everything in the downloaded artifact to the release.
       - name: Upload documentation
         uses: actions/upload-artifact@v7
         with:
           name: documents
-          path: docs/generated/*
+          path: |-
+            docs/generated/*
+            !docs/generated/canvasnet
+            !docs/generated/canvasnet/**
