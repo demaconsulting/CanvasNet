@@ -190,3 +190,4 @@ if ($failed) {
 if ($Check) {
     Write-Host 'The committed images are current.'
 }
+exit 0

@@ -342,3 +342,5 @@ if ($script:failures -gt 0) {
     exit 1
 }
 Write-Host 'All checks passed'
+# Expected tool failures above leave a nonzero $LASTEXITCODE that would otherwise become this script's exit code.
+exit 0
