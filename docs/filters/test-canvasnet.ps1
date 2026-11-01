@@ -274,11 +274,12 @@ try {
             "a dependency outside the folder fails with the tool's message ($dep)" $run.Log
     }
 
-    # An include cycle ends.
+    # An include cycle ends in the filter, and the tool then reports the cycle.
     Set-Content (Join-Path $guide 'cyc-a.scad') -Value "include <cyc-b.scad>`ncube(3);"
     Set-Content (Join-Path $guide 'cyc-b.scad') -Value "include <cyc-a.scad>`ncube(2);"
     $cycle = Invoke-Filter 'cycle' '![m](cyc-a.scad)'
-    Write-Result ($cycle.Log -notmatch 'levels deep|limit is 512') 'an include cycle ends without reaching a limit' $cycle.Log
+    Write-Result ($cycle.ExitCode -ne 0 -and $cycle.Log -match 'Include cycle' -and $cycle.Log -notmatch 'levels deep|limit is 512') `
+        'an include cycle ends in the filter and fails with the tool''s message' $cycle.Log
     # --- Dependency limit ---------------------------------------------------------------------------------
     # A chart that names more data files than the filter hashes (512) must fail, not draw from a partial hash.
     $many = Join-Path $guide 'many'
