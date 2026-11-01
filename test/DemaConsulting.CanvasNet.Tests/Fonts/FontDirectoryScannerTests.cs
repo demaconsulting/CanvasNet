@@ -103,6 +103,87 @@ public class FontDirectoryScannerTests
     }
 
     /// <summary>
+    ///     Proves that a bound that is reached ends the scan before the remaining roots are even enumerated.
+    /// </summary>
+    [Theory]
+    [InlineData(1, 5_000)]
+    [InlineData(5_000, 1)]
+    public void FontDirectoryScanner_Scan_BoundReached_RemainingRootsAreNotEnumerated(int maxFontFiles, int maxFaces)
+    {
+        using var directory = new TempDirectory();
+        directory.Write(Regular, "a.ttf");
+        directory.Write(Bold, "b.ttf");
+
+        // Throws when the scan asks for a root after the first: it must have stopped by then
+        static IEnumerable<string> RootThenFail(string root)
+        {
+            yield return root;
+            throw new InvalidOperationException("The scan went on past a bound that was reached.");
+        }
+
+        var result = FontDirectoryScanner.Scan(
+            RootThenFail(directory.Path),
+            new FontScanLimits { MaxFontFiles = maxFontFiles, MaxFaces = maxFaces },
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(Path.Join(directory.Path, "a.ttf"), Assert.Single(result).FilePath);
+    }
+
+    /// <summary>
+    ///     Proves that a root given more than once does not consume the font-file bound again: only unique files count.
+    /// </summary>
+    [Fact]
+    public void FontDirectoryScanner_Scan_RepeatedRoot_DuplicatesDoNotConsumeTheFontFileBound()
+    {
+        using var first = new TempDirectory();
+        using var second = new TempDirectory();
+        first.Write(Regular, "a.ttf");
+        second.Write(Bold, "b.ttf");
+
+        var result = Scan([first.Path, first.Path, second.Path], new FontScanLimits { MaxFontFiles = 2 });
+
+        Assert.Equal(
+            [Path.Join(first.Path, "a.ttf"), Path.Join(second.Path, "b.ttf")],
+            result.Select(f => f.FilePath));
+    }
+
+    /// <summary>
+    ///     Proves that a collection header declaring more faces than the file can hold is rejected without
+    ///     reading or sizing anything from the count, and that a declared count that fits the file is still
+    ///     bounded by the face bound (the faces after it are not read).
+    /// </summary>
+    [Fact]
+    public void FontDirectoryScanner_Scan_CraftedCollectionHeaders_AreBoundedByTheFileAndTheFaceLimit()
+    {
+        using var directory = new TempDirectory();
+        File.WriteAllBytes(Path.Join(directory.Path, "a-huge.ttc"), CollectionHeader(uint.MaxValue, 0));
+        File.WriteAllBytes(Path.Join(directory.Path, "b-big.ttc"), CollectionHeader(10_000, 10_000));
+        directory.Write(Regular, "z.ttf");
+
+        var result = Scan([directory.Path], new FontScanLimits { MaxFaces = 2 });
+
+        // The huge declaration is rejected (and costs no face); the large one uses up the face bound
+        Assert.Empty(result);
+        Assert.Equal(Path.Join(directory.Path, "z.ttf"), Assert.Single(Scan([directory.Path], new FontScanLimits { MaxFaces = 10_003 })).FilePath);
+    }
+
+    /// <summary>
+    ///     Builds a collection header declaring a face count, followed by an offset table of the given length
+    ///     whose entries all point at the start of the file (so no face parses).
+    /// </summary>
+    /// <param name="declaredCount">The face count to declare.</param>
+    /// <param name="tableEntries">The number of offset-table entries to include.</param>
+    /// <returns>The file bytes.</returns>
+    private static byte[] CollectionHeader(uint declaredCount, int tableEntries)
+    {
+        var bytes = new byte[12 + (tableEntries * 4)];
+        "ttcf"u8.CopyTo(bytes);
+        bytes[5] = 1; // version 1.0
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(bytes.AsSpan(8), declaredCount);
+        return bytes;
+    }
+
+    /// <summary>
     ///     Proves that a missing, empty or <see langword="null"/> root contributes nothing and does not stop the
     ///     other roots from being scanned.
     /// </summary>

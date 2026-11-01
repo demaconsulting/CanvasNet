@@ -43,23 +43,30 @@ sections:
                 tests:
                   - FontDirectoryScanner_Scan_NestedDirectories_ResultIsDeterministicallyOrdered
                   - FontDirectoryScanner_Scan_SeveralRoots_RootOrderKeptAndDuplicatesReportedOnce
+                  - FontDirectoryScanner_Scan_RepeatedRoot_DuplicatesDoNotConsumeTheFontFileBound
                   - FontDirectoryScanner_Scan_RootFileAndChildFile_RootFileComesFirstAndCountsFirst
 
               - id: CanvasNet-Fonts-FontDirectoryScanner-BoundedScan
                 title: >-
                   The FontDirectoryScanner type shall stop a scan at the first of the bounds of
                   its FontScanLimits (directories, entries, font files, faces) that it reaches, in
-                  traversal order, keeping what it found before that point (counting a directory's
+                  traversal order, keeping what it found before that point and not enumerating any
+                  further root (counting a directory's
                   entries against the entry bound as a whole, so a directory the remaining budget
-                  cannot cover is not used at all), and FontScanLimits shall reject a bound of less
-                  than one.
+                  cannot cover is not used at all, and counting a file reachable from several roots
+                  once), shall reject a collection header whose declared face count cannot fit in
+                  the file without sizing anything from it, and FontScanLimits shall reject a bound
+                  of less than one.
                 justification: |
-                  A huge or hostile directory tree must not make a scan run for an unbounded time
-                  or build an unbounded result; reaching a bound is a normal outcome, not an
-                  error, so the faces found before it stay available, and the part that is kept
-                  must not depend on the order the file system lists entries in.
+                  A huge or hostile directory tree, or a font file with a crafted header, must not
+                  make a scan run for an unbounded time or allocate an unbounded amount; reaching a
+                  bound is a normal outcome, not an error, so the faces found before it stay
+                  available, and the part that is kept must not depend on the order the file system
+                  lists entries in.
                 tests:
                   - FontDirectoryScanner_Scan_FontFileLimit_KeepsTheFirstFilesInPathOrder
+                  - FontDirectoryScanner_Scan_BoundReached_RemainingRootsAreNotEnumerated
+                  - FontDirectoryScanner_Scan_CraftedCollectionHeaders_AreBoundedByTheFileAndTheFaceLimit
                   - FontDirectoryScanner_Scan_RootFileAndChildFile_RootFileComesFirstAndCountsFirst
                   - FontDirectoryScanner_Scan_FaceLimit_KeepsTheFirstFaces
                   - FontDirectoryScanner_Scan_DirectoryLimit_StopsTheDescent

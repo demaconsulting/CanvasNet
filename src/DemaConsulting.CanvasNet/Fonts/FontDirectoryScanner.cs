@@ -80,19 +80,17 @@ public static class FontDirectoryScanner
 
         var budget = new ScanBudget(limits ?? new FontScanLimits());
         var faces = new List<SystemFontInfo>();
+
+        // The files accepted so far: a file reachable from several roots is accepted (and counted against the
+        // bounds) once
         var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (var directory in directories)
         {
-            // Nothing more is read once every bound is reached; what was found before it stays
             cancellationToken.ThrowIfCancellationRequested();
-            if (budget.CollectionStopped && budget.FacesStopped)
-            {
-                break;
-            }
 
             // The files come back in traversal order (see the class remarks), which is already deterministic
-            var files = CollectFontFiles(directory, trustLinkedFiles, budget, cancellationToken);
-            foreach (var file in files.Where(seen.Add))
+            var files = CollectFontFiles(directory, trustLinkedFiles, seen, budget, cancellationToken);
+            foreach (var file in files)
             {
                 if (budget.FacesStopped)
                 {
@@ -100,6 +98,13 @@ public static class FontDirectoryScanner
                 }
 
                 AddFaces(file, faces, budget, cancellationToken);
+            }
+
+            // A bound that is reached ends the scan: what was found before it stays, and the remaining roots
+            // are not even enumerated
+            if (budget.CollectionStopped || budget.FacesStopped)
+            {
+                break;
             }
         }
 
@@ -111,12 +116,14 @@ public static class FontDirectoryScanner
     /// </summary>
     /// <param name="root">The root; nothing is collected when it does not exist (or is a link and links are not trusted).</param>
     /// <param name="trustLinkedFiles">Whether a root that is a link and linked font files are accepted.</param>
+    /// <param name="seen">The files accepted so far by the scan, which a file is added to when it is accepted.</param>
     /// <param name="budget">The bounds of the scan.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>The font files, in traversal order.</returns>
+    /// <returns>The new font files, in traversal order.</returns>
     private static List<string> CollectFontFiles(
         string? root,
         bool trustLinkedFiles,
+        HashSet<string> seen,
         ScanBudget budget,
         CancellationToken cancellationToken)
     {
@@ -157,7 +164,7 @@ public static class FontDirectoryScanner
                 break;
             }
 
-            ListDirectory(directory, trustLinkedFiles, files, pending, budget, cancellationToken);
+            ListDirectory(directory, trustLinkedFiles, files, seen, pending, budget, cancellationToken);
         }
 
         return files;
@@ -175,6 +182,7 @@ public static class FontDirectoryScanner
     /// <param name="directory">The directory.</param>
     /// <param name="trustLinkedFiles">Whether linked font files are accepted.</param>
     /// <param name="files">The list to add the font files to.</param>
+    /// <param name="seen">The files accepted so far by the scan; one already in it is skipped without being counted.</param>
     /// <param name="pending">The stack to push the subdirectories on, so that the first in <see cref="PathOrder"/> is popped first.</param>
     /// <param name="budget">The bounds of the scan.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
@@ -182,6 +190,7 @@ public static class FontDirectoryScanner
         string directory,
         bool trustLinkedFiles,
         List<string> files,
+        HashSet<string> seen,
         Stack<string> pending,
         ScanBudget budget,
         CancellationToken cancellationToken)
@@ -227,11 +236,18 @@ public static class FontDirectoryScanner
         fonts.Sort(PathOrder);
         foreach (var font in fonts)
         {
+            // A file already accepted through an earlier root (or a repeated one) is not counted again
+            if (seen.Contains(font))
+            {
+                continue;
+            }
+
             if (!budget.TryCountFontFile())
             {
                 break;
             }
 
+            seen.Add(font);
             files.Add(font);
         }
 

@@ -108,7 +108,8 @@ caller can ask "is this family available, in the closest style" without the gene
 substitution, and over any list of faces (for example the result of `FontDirectoryScanner.Scan`).
 Among the faces whose `FamilyName` case-insensitively equals `family`, the one with the fewest
 differing bold/italic flags wins and the first of equally good faces wins a tie; `null` when no
-face has the family. Throws `ArgumentNullException` for a `null` list or family.
+face has the family. Throws `ArgumentNullException` for a `null` list or family (`FindBestMatch`
+itself stays tolerant of a `null` hint: it has no exact match and falls through to the generic tier).
 
 ##### Load(info)
 

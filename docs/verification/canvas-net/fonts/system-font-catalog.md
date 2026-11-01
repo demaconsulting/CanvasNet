@@ -110,12 +110,15 @@ minimizing mismatched bold/italic flags.
 
 **Tests**: `SystemFontCatalog_FindBestMatch_NoExactFamily_FallsBackToGenericSansBucket`,
 `SystemFontCatalog_FindBestMatch_NoExactFamily_FallsBackToGenericSerifBucket`,
-`SystemFontCatalog_FindBestMatch_NoExactFamily_FallsBackToGenericFixedPitchBucket`
+`SystemFontCatalog_FindBestMatch_NoExactFamily_FallsBackToGenericFixedPitchBucket`,
+`SystemFontCatalog_FindBestMatch_NullFamilyHint_FallsThroughToGenericBucket`
 
 Builds a synthetic candidate list with no exact match for the requested family, but containing
 one of each generic bucket's well-known family names, asserting `FindBestMatchCore` returns the
 sans/serif/fixed-pitch bucket entry respectively, selecting the fixed-pitch bucket over the serif
-bucket when both `serif` and `fixedPitch` are requested together.
+bucket when both `serif` and `fixedPitch` are requested together; and passes a `null` family hint,
+asserting it has no exact match and falls through to the generic bucket (or to `null` for an empty list)
+rather than throwing.
 
 ##### CanvasNet-Fonts-SystemFontCatalog-FindBestMatchNoMatch: No Match Returns Null Without Consulting the Bundled Fallback
 

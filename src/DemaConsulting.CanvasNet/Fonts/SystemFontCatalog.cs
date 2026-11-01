@@ -288,7 +288,8 @@ public static class SystemFontCatalog
         bool serif,
         bool fixedPitch)
     {
-        var exactMatch = FindInFamily(candidates, familyNameHint, bold, italic);
+        // A null hint (tolerated, as before FindInFamily existed) simply has no exact family match
+        var exactMatch = familyNameHint is null ? null : FindInFamily(candidates, familyNameHint, bold, italic);
         if (exactMatch is not null)
         {
             return exactMatch;

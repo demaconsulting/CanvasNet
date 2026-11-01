@@ -49,12 +49,15 @@ bold/italic/fixed-pitch flags, absolute path and face index; scans a directory o
 
 **Tests**: `FontDirectoryScanner_Scan_NestedDirectories_ResultIsDeterministicallyOrdered`,
 `FontDirectoryScanner_Scan_SeveralRoots_RootOrderKeptAndDuplicatesReportedOnce`,
+`FontDirectoryScanner_Scan_RepeatedRoot_DuplicatesDoNotConsumeTheFontFileBound`,
 `FontDirectoryScanner_Scan_RootFileAndChildFile_RootFileComesFirstAndCountsFirst`
 
 Creates fonts in a scrambled order across nested directories (including mixed-case names) and asserts two scans
 return equal results in traversal order: each directory's own font files in case-insensitive alphabetical order,
 then its subdirectories; scans several roots (one repeated, one spelled with `.`) and asserts the
-root order is kept and no file is reported twice; places the same family and style in a root file and in a
+root order is kept and no file is reported twice; scans roots `[A, A, B]` with a font-file bound of two and
+asserts both A's and B's files are returned (the repeat does not consume the bound); places the same family and
+style in a root file and in a
 subdirectory file and asserts the root file comes first and is the one `FindInFamily` selects.
 
 ##### CanvasNet-Fonts-FontDirectoryScanner-BoundedScan: Bounds Stop the Scan Deterministically
@@ -64,12 +67,18 @@ subdirectory file and asserts the root file comes first and is the one `FindInFa
 `FontDirectoryScanner_Scan_FaceLimit_KeepsTheFirstFaces`,
 `FontDirectoryScanner_Scan_DirectoryLimit_StopsTheDescent`,
 `FontDirectoryScanner_Scan_EntryLimit_StopsTheExamination`,
+`FontDirectoryScanner_Scan_BoundReached_RemainingRootsAreNotEnumerated`,
+`FontDirectoryScanner_Scan_CraftedCollectionHeaders_AreBoundedByTheFileAndTheFaceLimit`,
 `FontScanLimits_Properties_RejectLessThanOneAndHaveDocumentedDefaults`
 
 Applies each of the four bounds to a tree that exceeds it and asserts the faces kept are the first ones in
 traversal order (a directory bound keeps the root's fonts and not the subdirectory's; a font-file bound of one keeps
 the root's file rather than a subdirectory's; an entry bound that a directory's entries exceed uses none of that
-directory while keeping the complete directories before it); asserts the documented defaults and that each
+directory while keeping the complete directories before it); passes a lazily enumerated list of roots that throws
+if asked for a second root, with the font-file or face bound reached in the first, proving the scan stops without
+enumerating further roots; scans a directory holding a collection file that declares `uint.MaxValue` faces
+(rejected, costing no face) and one that declares 10,000 faces (bounded by the face limit, so the font after
+it is not read); asserts the documented defaults and that each
 property throws `ArgumentOutOfRangeException` for a value below one.
 
 ##### CanvasNet-Fonts-FontDirectoryScanner-LinkPolicy: Links Are Never Followed Below the Root

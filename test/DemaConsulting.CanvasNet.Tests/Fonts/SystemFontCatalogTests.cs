@@ -190,6 +190,25 @@ public class SystemFontCatalogTests
     }
 
     /// <summary>
+    ///     Proves that a <see langword="null"/> family-name hint (tolerated before <c>FindInFamily</c> existed)
+    ///     still resolves through the generic tier instead of throwing.
+    /// </summary>
+    [Fact]
+    public void SystemFontCatalog_FindBestMatch_NullFamilyHint_FallsThroughToGenericBucket()
+    {
+        SystemFontInfo[] candidates =
+        [
+            new("Some Wholly Unrelated Family", "Regular", false, false, false, "/unrelated.ttf", 0),
+            new("Arial", "Regular", false, false, false, "/arial.ttf", 0),
+        ];
+
+        var match = SystemFontCatalog.FindBestMatchCore(candidates, null!, false, false, false, false);
+
+        Assert.Equal("/arial.ttf", match?.FilePath);
+        Assert.Null(SystemFontCatalog.FindBestMatchCore([], null!, false, false, false, false));
+    }
+
+    /// <summary>
     ///     Proves that a non-empty candidate list with no exact family match and no generic-bucket
     ///     match either (none of the well-known bucket family names are present) returns
     ///     <see langword="null"/>.
