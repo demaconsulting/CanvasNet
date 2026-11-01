@@ -8204,6 +8204,24 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Proves that an opacity applied to a color's alpha rounds half away from zero, like color parsing:
+    ///     an alpha of 5 at <c>fill-opacity</c> 0.5 is 2.5, which is 3, not 2.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_FillOpacityHalfwayAlpha_RoundsHalfAwayFromZero()
+    {
+        // Arrange: an alpha of exactly 2.5 after the opacity
+        const string svg = "<svg viewBox='0 0 10 10'><rect x='0' y='0' width='10' height='10' fill='#00000005' fill-opacity='0.5'/></svg>";
+
+        // Act
+        using var stream = ToStream(svg);
+        var surface = SvgCodec.Load(stream, 100, 100);
+
+        // Assert
+        Assert.Equal(3, surface[50, 50].A);
+    }
+
+    /// <summary>
     ///     Proves that a root <c>&lt;svg&gt;</c> element's <c>width</c>/<c>height</c> attribute
     ///     values of literal <c>Infinity</c> fall back to the CSS/UA default
     ///     <c>300x150</c> intrinsic size, rather than the undefined/saturated integer size that

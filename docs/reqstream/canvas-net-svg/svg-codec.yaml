@@ -114,7 +114,8 @@ sections:
               lighting-color) with the shared CSS color grammar of the core CssColor unit - named colors,
               hexadecimal forms with and without alpha, rgb()/rgba(), and hsl()/hsla() in comma or
               space-and-slash syntax, rounding fractional channels half away from zero - and shall treat
-              an unrecognized color as no paint.
+              an unrecognized color as no paint. An opacity applied to a color's alpha shall also round
+              half away from zero.
             justification: |
               One color grammar across every CanvasNet package means a color written in an SVG document
               resolves to the same pixel as the same text in a chart specification or a script; the
@@ -122,6 +123,7 @@ sections:
             tests:
               - SvgCodec_Load_FillSharedCssGrammar_ResolvesExtendedColorForms
               - SvgCodec_Load_FillRgbPercentHalfwayChannel_RoundsHalfAwayFromZero
+              - SvgCodec_Load_FillOpacityHalfwayAlpha_RoundsHalfAwayFromZero
               - SvgCodec_Load_RgbaAlphaInfinity_TreatsColorAsUnrecognizedNoPaint
           - id: CanvasNetSvg-SvgCodec-Gradients
             title: >-

@@ -80,13 +80,13 @@ public static partial class SvgCodec
         return inner.StartsWith('#') ? inner[1..] : null;
     }
 
-    /// <summary>Applies an alpha multiplier to a color, rounding and clamping the result to a valid byte.</summary>
+    /// <summary>Applies an alpha multiplier to a color, rounding half away from zero and clamping the result to a valid byte.</summary>
     /// <param name="color">The base color.</param>
     /// <param name="multiplier">The multiplier to apply to <paramref name="color"/>'s existing alpha.</param>
     /// <returns>The color with its alpha channel scaled.</returns>
     private static Rgba32 ApplyAlpha(Rgba32 color, float multiplier)
     {
-        var alpha = (byte)Math.Clamp(MathF.Round(color.A * multiplier), 0, 255);
+        var alpha = (byte)Math.Clamp(MathF.Round(color.A * multiplier, MidpointRounding.AwayFromZero), 0, 255);
         return new Rgba32(color.R, color.G, color.B, alpha);
     }
 

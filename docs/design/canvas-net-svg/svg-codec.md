@@ -59,7 +59,8 @@ nor cacheable) - see _ViewBox Fitting Policy_ below
 - Colors: every color value (`fill`, `stroke`, `stop-color`, `flood-color`, `lighting-color`) is parsed by
   the core `Canvas.CssColor` unit: the 148 CSS color names and `transparent`, `#rgb`/`#rgba`/`#rrggbb`/
   `#rrggbbaa`, `rgb()`/`rgba()` and `hsl()`/`hsla()` in comma or space-and-slash syntax, with fractional
-  channels rounded half away from zero; an unrecognized color is tolerated as no paint
+  channels rounded half away from zero (an opacity applied to a color's alpha rounds the same way); an
+  unrecognized color is tolerated as no paint
 - Gradients: `linearGradient`/`radialGradient` under `defs`, with `stop` children,
   `gradientUnits` (`objectBoundingBox`/`userSpaceOnUse`), `gradientTransform`, `spreadMethod`
   (`pad`/`reflect`/`repeat`), and a bounded, cycle-checked `href`/`xlink:href` template
