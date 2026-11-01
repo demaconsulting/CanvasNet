@@ -75,7 +75,8 @@ Applies each of the four bounds to a tree that exceeds it and asserts the faces 
 traversal order (a directory bound keeps the root's fonts and not the subdirectory's; a font-file bound of one keeps
 the root's file rather than a subdirectory's; an entry bound that a directory's entries exceed uses none of that
 directory while keeping the complete directories before it); passes a lazily enumerated list of roots that throws
-if asked for a second root, with the font-file or face bound reached in the first, proving the scan stops without
+if asked for a second root, with each of the directory, entry, font-file and face bounds consumed exactly (not
+exceeded) by the first root, proving the scan stops as soon as a bound is reached without
 enumerating further roots; scans a directory holding a collection file that declares `uint.MaxValue` faces
 (rejected, costing no face) and one that declares 10,000 faces (bounded by the face limit, so the font after
 it is not read); asserts the documented defaults and that each

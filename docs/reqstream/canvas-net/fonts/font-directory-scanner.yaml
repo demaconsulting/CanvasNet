@@ -48,12 +48,14 @@ sections:
 
               - id: CanvasNet-Fonts-FontDirectoryScanner-BoundedScan
                 title: >-
-                  The FontDirectoryScanner type shall stop a scan at the first of the bounds of
-                  its FontScanLimits (directories, entries, font files, faces) that it reaches, in
-                  traversal order, keeping what it found before that point and not enumerating any
+                  The FontDirectoryScanner type shall stop a scan as soon as any of the bounds of
+                  its FontScanLimits (directories, entries, font files, faces) is reached - not
+                  only when it would be exceeded - in traversal order, keeping what it found
+                  (including the item that reached the bound) and not enumerating any
                   further root (counting a directory's
                   entries against the entry bound as a whole, so a directory the remaining budget
-                  cannot cover is not used at all, and counting a file reachable from several roots
+                  cannot cover is not used at all, charging the entries a failing listing did
+                  yield, and counting a file reachable from several roots
                   once), shall reject a collection header whose declared face count cannot fit in
                   the file without sizing anything from it, and FontScanLimits shall reject a bound
                   of less than one.

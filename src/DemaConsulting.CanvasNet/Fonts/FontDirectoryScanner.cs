@@ -14,10 +14,12 @@ namespace DemaConsulting.CanvasNet.Fonts;
 ///         subdirectories, in path order (depth first), so a font file in a directory always precedes those
 ///         of its subdirectories; path order is ordinal ignoring case, with the case-sensitive ordinal order
 ///         as a tie-break. The same tree therefore always yields the same faces in the same order. The
-///         bounds of <see cref="FontScanLimits"/> are applied in that traversal order: the scan stops at the
-///         first directory, font file, or face past its bound, and the entries of a directory are counted
+///         bounds of <see cref="FontScanLimits"/> are applied in that traversal order, and every bound stops the
+///         scan as soon as its counter reaches the limit: the directory, font file, or face that reaches it is
+///         still used, and nothing after it is. The entries of a directory are counted
 ///         against <see cref="FontScanLimits.MaxEntries"/> as a whole - when the remaining budget cannot cover
-///         them, none of that directory is used - so the part of an oversized tree that is read is always the
+///         them, none of that directory is used (and the entries a failing listing did yield are charged) - so
+///         the part of an oversized tree that is read is always the
 ///         same part. Roots are scanned in the order given, and a file reachable from more than one root is
 ///         reported once.
 ///     </para>
@@ -227,7 +229,9 @@ public static class FontDirectoryScanner
         }
         catch (Exception ex) when (IsFileSystemFailure(ex))
         {
-            // A directory that cannot be listed (removed meanwhile, not permitted, ...) contributes nothing
+            // A directory that cannot be listed (removed meanwhile, not permitted, ...) contributes nothing, but
+            // the entries it did yield were examined and are charged to the budget
+            budget.CountEntries(entries);
             return;
         }
 
@@ -416,19 +420,26 @@ public static class FontDirectoryScanner
         /// <summary>Gets the number of directory entries the scan may still examine.</summary>
         public int RemainingEntries => limits.MaxEntries - _entries;
 
-        /// <summary>Counts the entries of a directory that was examined whole.</summary>
+        /// <summary>Counts the entries of a directory that were examined; the collection stops once the bound is reached.</summary>
         /// <param name="count">The number of entries.</param>
-        public void CountEntries(int count) => _entries += count;
+        public void CountEntries(int count)
+        {
+            _entries += count;
+            if (_entries >= limits.MaxEntries)
+            {
+                CollectionStopped = true;
+            }
+        }
 
         /// <summary>Stops the collection of files, because a directory's entries exceed the entry bound.</summary>
         public void StopCollection() => CollectionStopped = true;
 
         /// <summary>Counts a font file to be accepted.</summary>
-        /// <returns><see langword="false"/> when the bound is reached.</returns>
+        /// <returns><see langword="false"/> when the bound was already reached.</returns>
         public bool TryCountFontFile() => CountCollected(ref _fontFiles, limits.MaxFontFiles);
 
-        /// <summary>Counts a face to be read.</summary>
-        /// <returns><see langword="false"/> when the bound is reached.</returns>
+        /// <summary>Counts a face to be read; the reading stops once the bound is reached.</summary>
+        /// <returns><see langword="false"/> when the bound was already reached.</returns>
         public bool TryCountFace()
         {
             if (_faces >= limits.MaxFaces)
@@ -438,13 +449,20 @@ public static class FontDirectoryScanner
             }
 
             _faces++;
+
+            // The face just counted is still read; it is the last one
+            if (_faces >= limits.MaxFaces)
+            {
+                FacesStopped = true;
+            }
+
             return true;
         }
 
         /// <summary>Counts one unit against a collection bound, stopping the collection when it is reached.</summary>
         /// <param name="counter">The counter.</param>
         /// <param name="limit">The bound.</param>
-        /// <returns><see langword="false"/> when the bound is reached.</returns>
+        /// <returns><see langword="false"/> when the bound was already reached.</returns>
         private bool CountCollected(ref int counter, int limit)
         {
             if (counter >= limit)
@@ -454,6 +472,13 @@ public static class FontDirectoryScanner
             }
 
             counter++;
+
+            // The unit just counted is still used; it is the last one
+            if (counter >= limit)
+            {
+                CollectionStopped = true;
+            }
+
             return true;
         }
     }

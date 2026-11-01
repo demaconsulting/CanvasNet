@@ -52,11 +52,13 @@ For each root, in the order given:
    ordinal comparison breaking a tie. Ignoring case deliberately matches the alphabetical listing
    of the case-insensitive file systems of Windows and macOS (the order the previous catalog scan
    saw there, so `arial.ttf` still precedes `ARIALN.TTF`), while the tie-break makes the order
-   total and identical on every platform. The bounds are applied in this traversal order and each
-   stops the collection at its first violation: the first directory past `MaxDirectories`, the
-   first font file past `MaxFontFiles`. A directory's entries are counted against `MaxEntries` as
+   total and identical on every platform. The bounds are applied in this traversal order and every
+   bound stops the traversal as soon as its counter *reaches* the limit (not only when it would be
+   exceeded): the directory, font file, face, or directory's worth of entries that reaches it is still
+   used, and nothing after it. A directory's entries are counted against `MaxEntries` as
    a whole: when the remaining budget cannot cover them, none of that directory's entries is used
-   and the collection stops, so what was kept is always made of complete directories and never
+   and the collection stops (a listing that fails part-way charges the entries it did yield), so what
+   was kept is always made of complete directories and never
    depends on the order the file system lists entries in. A file already accepted for an earlier
    (or repeated) root is skipped *during* collection, so only unique files count against
    `MaxFontFiles`. Once a bound has stopped the collection or the face reading, the scan ends after
@@ -66,8 +68,8 @@ For each root, in the order given:
    `SfntHeaderReader`: the face count first, then one face at a time (for a collection only the
    one entry of the face offset table is read for each face, never the whole table). A declared face
    count that cannot fit in the file (`12 + 4 * count` bytes) makes the file unparseable, so a crafted
-   header cannot make the scan size or read anything from a huge count; the reading stops at the first
-   face past `MaxFaces`. A face or file that does not parse is skipped. The family name falls back
+   header cannot make the scan size or read anything from a huge count; the reading stops as soon as
+   the `MaxFaces`-th face has been read. A face or file that does not parse is skipped. The family name falls back
    to the file name without its extension when the face has no usable name.
 
 A "link" is the file-system *reparse-point attribute*, deliberately and not `FileSystemInfo.LinkTarget`:

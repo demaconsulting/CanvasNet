@@ -103,16 +103,20 @@ public class FontDirectoryScannerTests
     }
 
     /// <summary>
-    ///     Proves that a bound that is reached ends the scan before the remaining roots are even enumerated.
+    ///     Proves that a bound that is exactly consumed ends the scan before the remaining roots are even
+    ///     enumerated (the item that reaches the bound is still used).
     /// </summary>
     [Theory]
-    [InlineData(1, 5_000)]
-    [InlineData(5_000, 1)]
-    public void FontDirectoryScanner_Scan_BoundReached_RemainingRootsAreNotEnumerated(int maxFontFiles, int maxFaces)
+    [InlineData(1, 5_000, 5_000, 5_000)]
+    [InlineData(5_000, 1, 5_000, 5_000)]
+    [InlineData(5_000, 5_000, 1, 5_000)]
+    [InlineData(5_000, 5_000, 5_000, 1)]
+    public void FontDirectoryScanner_Scan_BoundReached_RemainingRootsAreNotEnumerated(
+        int maxDirectories, int maxEntries, int maxFontFiles, int maxFaces)
     {
+        // One directory, one entry, one font file, one face: each bound is consumed exactly, never exceeded
         using var directory = new TempDirectory();
         directory.Write(Regular, "a.ttf");
-        directory.Write(Bold, "b.ttf");
 
         // Throws when the scan asks for a root after the first: it must have stopped by then
         static IEnumerable<string> RootThenFail(string root)
@@ -123,7 +127,13 @@ public class FontDirectoryScannerTests
 
         var result = FontDirectoryScanner.Scan(
             RootThenFail(directory.Path),
-            new FontScanLimits { MaxFontFiles = maxFontFiles, MaxFaces = maxFaces },
+            new FontScanLimits
+            {
+                MaxDirectories = maxDirectories,
+                MaxEntries = maxEntries,
+                MaxFontFiles = maxFontFiles,
+                MaxFaces = maxFaces,
+            },
             cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(Path.Join(directory.Path, "a.ttf"), Assert.Single(result).FilePath);
