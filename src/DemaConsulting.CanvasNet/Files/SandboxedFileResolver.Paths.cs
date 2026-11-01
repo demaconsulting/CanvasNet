@@ -126,6 +126,35 @@ public sealed partial class SandboxedFileResolver
     }
 
     /// <summary>
+    ///     Checks that a file passed as the starting point of a relative path was resolved through one of this resolver's
+    ///     own roots, so a file from another resolver (with wider roots) cannot widen what this one may read.
+    /// </summary>
+    /// <remarks>
+    ///     The root of the file must equal a root this resolver is configured with (same comparison as file keys) and its
+    ///     directory must lie under that root; the candidate built from it is then confined to that root as usual.
+    ///     <see cref="SandboxedFile"/> cannot be constructed outside this assembly, so these two facts identify a file
+    ///     this resolver could have produced.
+    /// </remarks>
+    /// <param name="relativeTo">The file; its roots were computed by <see cref="EnsureRoots"/> already.</param>
+    /// <exception cref="ArgumentException">Thrown when the file does not belong to this resolver's roots.</exception>
+    private void ValidateRelativeTo(SandboxedFile relativeTo)
+    {
+        var roots = UsesResolver
+            ? _logicalPrefixes!.Prepend(string.Empty)
+            : _searchRoots!.Prepend(_baseRoot!).OfType<string>();
+        var knownRoot = roots.Any(root => KeyComparer.Equals(root, relativeTo.Root));
+        var directoryUnderRoot = UsesResolver
+            ? relativeTo.Root.Length == 0
+                || relativeTo.Directory == relativeTo.Root
+                || relativeTo.Directory.StartsWith(relativeTo.Root + "/", StringComparison.Ordinal)
+            : IsUnder(relativeTo.Directory, relativeTo.Root);
+        if (!knownRoot || !directoryUnderRoot)
+        {
+            throw new ArgumentException("The file was not resolved through one of this resolver's roots.", nameof(relativeTo));
+        }
+    }
+
+    /// <summary>
     ///     Generates the candidates for a path text in search order.
     /// </summary>
     /// <param name="text">The validated path text.</param>
@@ -338,13 +367,13 @@ public sealed partial class SandboxedFileResolver
 
         if (UsesResolver)
         {
-            _logicalPrefixes = _options.SearchPaths.Select(NormalizePrefix).OfType<string>().ToList();
+            _logicalPrefixes = _searchPaths.Select(NormalizePrefix).OfType<string>().ToList();
             _searchRoots = [];
             return;
         }
 
         _baseRoot = _options.BaseDirectory is null ? null : FullRoot(_options.BaseDirectory);
-        _searchRoots = _options.SearchPaths.Select(FullRoot).ToList();
+        _searchRoots = _searchPaths.Select(FullRoot).ToList();
         _logicalPrefixes = [];
     }
 

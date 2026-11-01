@@ -99,7 +99,9 @@ sections:
                   whatever the link's target and including a dangling link (reported as a link error,
                   not as a missing file), without reading the file or revealing whether it exists,
                   naming the link relative to its root, and failing closed when the link check cannot
-                  be completed.
+                  be completed; a file that is found through two overlapping roots shall be parsed and
+                  confined once per root, so its own relative includes are always judged against the root
+                  it was found under.
                 justification: |
                   A document may come from an untrusted source; an include path must never be a way to
                   read arbitrary files of the host. A link inside an allowed directory can point
@@ -114,6 +116,7 @@ sections:
                   - ScadFileResolver_Load_FileSystem_ExistingFileOutsideRoot_IsRefused
                   - ScadFileResolver_Load_FileSystem_SiblingWithSharedPrefix_IsOutsideRoot
                   - ScadFileResolver_Load_InvalidConfiguredDirectory_IsLocatedError
+                  - ScadFileResolver_Load_SameFileThroughOverlappingRoots_IsConfinedByEachRoot
                   - ScadFileResolverLink_Translate_EverySandboxKind_ProducesLocatedWording
                   - ScadFileResolverLink_Translate_TooLarge_IsSourceTooLong
 

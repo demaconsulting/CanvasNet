@@ -119,6 +119,7 @@ that file-name case follows the platform.
 `ScadFileResolverSandboxTests.ScadFileResolver_Load_FileSystem_ExistingFileOutsideRoot_IsRefused`,
 `ScadFileResolverSandboxTests.ScadFileResolver_Load_FileSystem_SiblingWithSharedPrefix_IsOutsideRoot`,
 `ScadFileResolverFileSystemTests.ScadFileResolver_Load_InvalidConfiguredDirectory_IsLocatedError`,
+`ScadFileResolverSandboxTests.ScadFileResolver_Load_SameFileThroughOverlappingRoots_IsConfinedByEachRoot`,
 `ScadFileResolverLinkTests.ScadFileResolverLink_Translate_EverySandboxKind_ProducesLocatedWording`,
 `ScadFileResolverLinkTests.ScadFileResolverLink_Translate_TooLarge_IsSourceTooLong`
 
@@ -126,7 +127,10 @@ Asserts that absolute paths, drive letters, colons, empty paths, control charact
 climbing above the root throw an evaluation error (in resolver mode without asking the callback), that dot-dot
 segments inside the root are allowed, that a nested file whose own include escapes the root is rejected, that a
 library root confines its own candidates, that an existing file outside every root is refused, that a sibling folder
-sharing a name prefix with a root is outside it, and that a base directory that is not a valid path is a located error.
+sharing a name prefix with a root is outside it, that a base directory that is not a valid path is a located error,
+and that
+the same physical file reached first through the base root and then through an overlapping library root is confined by
+each root in turn (the nested `../` include of the second find is refused as outside the library root).
 The translation scenarios assert, for every sandbox failure kind (path text, outside the root, through a link, link
 check failed, cannot be read, invalid configured directory), the OpenSCAD message, the location of the directive, the
 file named relative to the base directory and the absence of any host directory, and that a file that is too large is

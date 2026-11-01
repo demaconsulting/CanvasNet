@@ -46,7 +46,9 @@ dropped) for evaluating a program in isolation.
 **Resolver state.** One instance per `Load` call, holding the effective `ScadOpenOptions`, the `ScadLimits`, the
 `ScadEvaluationSink` (for missing-file warnings), the cancellation token, one core `SandboxedFileResolver` (created
 from the options: `BaseDirectory`, `LibraryPaths` as the search paths, `FileResolver`, and a byte limit of four bytes per
-character of the source limit plus a byte-order mark), the parsed-file cache, the library work queue, and the counters
+character of the source limit plus a byte-order mark), the per-file cache keyed by root and file key (a file found
+through two overlapping roots is parsed once per root, because the root confines the file's own relative directives),
+the library work queue, and the counters
 for inclusions and expanded statements. The caches are **per call**: nothing is shared across calls, so concurrent
 evaluations of one document cannot influence each other.
 

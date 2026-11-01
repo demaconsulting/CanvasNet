@@ -23,15 +23,19 @@ sections:
                   in order, the directory of the file the path is relative to (or, when none is given, the
                   base directory) and then each search path, taking the first file that exists, shall treat
                   backslashes as forward slashes so that every spelling of a path names one file, and shall
-                  return the file's key, directory, root, and bytes.
+                  return the file's key, directory, root, and bytes; a file passed as the starting point shall
+                  be honored only when its root is one of the resolver's own roots and its directory lies
+                  under that root, and shall otherwise be rejected with ArgumentException.
                 justification: |
                   Callers write paths in different styles on different platforms and need one deterministic
                   search order, with nested relative references (an include inside an included file) that
-                  start where the referring file lives.
+                  start where the referring file lives; a file from another resolver with wider roots must
+                  not widen what this resolver may read.
                 tests:
                   - SandboxedFileResolver_Resolve_RelativePathUsesBaseDirectoryThenSearchPaths
                   - SandboxedFileResolver_Resolve_RelativeToFileStartsInItsDirectoryThenSearchPaths
                   - SandboxedFileResolver_Resolve_ResolverModeRelativeToFileUsesItsLogicalDirectory
+                  - SandboxedFileResolver_Resolve_RelativeToFileOfAnotherResolverIsRejected
 
               - id: CanvasNet-Files-SandboxedFileResolver-MissingFiles
                 title: >-
@@ -66,15 +70,19 @@ sections:
                   (also for a path relative to a file, and also when the target exists, or lies in a
                   sibling directory whose name merely starts with the root's name) while allowing dot-dot
                   segments that stay inside the root, and shall report a configured base directory or
-                  search path that is not a valid path as a SandboxException.
+                  search path that is not a valid path as a SandboxException, and shall copy the search paths
+                  when it is created so that a later change to the caller's list neither adds nor removes a
+                  root.
                 justification: |
                   Confinement is the point of the sandbox: untrusted text must never reach a file outside
-                  the directories the host chose.
+                  the directories the host chose, and the host must not be able to change them by accident
+                  while a resolver is in use.
                 tests:
                   - SandboxedFileResolver_Resolve_DotDotInsideRootNormalizesAndEscapeIsRejected
                   - SandboxedFileResolver_Resolve_SiblingWithSharedPrefixAndOutsideFileAreRefused
                   - SandboxedFileResolver_Resolve_SearchPathConfinesCandidates
                   - SandboxedFileResolver_Resolve_InvalidConfiguredDirectoryIsInvalidRoot
+                  - SandboxedFileResolver_Constructor_SearchPathsAreSnapshotted
 
               - id: CanvasNet-Files-SandboxedFileResolver-Links
                 title: >-

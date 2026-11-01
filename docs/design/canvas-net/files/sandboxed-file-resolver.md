@@ -31,14 +31,16 @@ The unit's behavior is specified by the `CanvasNet-Files-SandboxedFileResolver-*
 #### Data Model
 
 **`SandboxOptions`** (immutable record): `BaseDirectory` (trusted directory searched first; ignored in callback mode),
-`SearchPaths` (additional trusted roots, searched in order), `FileResolver` (`Func<string, Stream?>`, a callback that
+`SearchPaths` (additional trusted roots, searched in order; copied when the resolver is created, so a later change to the
+caller's list has no effect), `FileResolver` (`Func<string, Stream?>`, a callback that
 replaces the file system), `MaxFileBytes` (default 16 MiB, must be positive), and `MaxFiles` (optional, default none: the
 number of distinct files one resolver may read; must not be negative).
 
 **`SandboxedFile`** (immutable): `Key` (the identity of the file: its normalized full path, or its normalized logical
 path in callback mode; compared under the resolver's `KeyComparer`), `Directory` (the file's directory), `Root` (the
 root the file is confined to), and `Content` (a `ReadOnlyMemory<byte>`; decoding is the caller's job, because the
-caller knows the expected encoding). Passing a `SandboxedFile` back to `Resolve` as `relativeTo` resolves a path relative
+caller knows the expected encoding). Passing a `SandboxedFile` back to `Resolve` as `relativeTo` (of the resolver that
+returned it, or one with the same roots) resolves a path relative
 to that file's directory, confined to its root.
 
 **`SandboxException`** (immutable): `Kind` (`SandboxFailureKind`), `Path` (the path text for the path-text kinds and
@@ -83,7 +85,10 @@ a cancellation or an argument error is a `SandboxException`.
 - `Resolve(path, relativeTo)` - the entry point. Validates the path text; walks the candidates (the directory of
   `relativeTo` with its root, or else the base directory, or in callback mode the logical root, and then each search
   path in declaration order), loading each through the cache and returning the first file that exists, or `null` when
-  none does (and when no source is configured). A null `path` is an `ArgumentNullException`.
+  none does (and when no source is configured). A null `path` is an `ArgumentNullException`. A `relativeTo` file is first
+  checked by `ValidateRelativeTo`: its root must equal one of this resolver's own roots and its directory must lie under
+  that root, otherwise it is an `ArgumentException` (a `SandboxedFile` cannot be created outside the assembly, so a file
+  from another resolver with wider roots is the only way to violate this, and it is refused).
 - `LoadCandidate` - answers from the cache (keyed by root and candidate key); otherwise, when `MaxFiles` is set and that
   many distinct files were already read, refuses a candidate whose key was not read before with `TooManyFiles` **before
   anything is opened or requested** (so a file beyond the limit is never touched, and a file already read through another

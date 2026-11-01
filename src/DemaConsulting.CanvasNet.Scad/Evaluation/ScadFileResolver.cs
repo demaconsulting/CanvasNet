@@ -60,10 +60,10 @@ internal sealed partial class ScadFileResolver
     /// <summary>The comparer under which two file keys name the same file (platform path comparison, or ordinal for logical paths).</summary>
     private readonly StringComparer _keyComparer;
 
-    /// <summary>The loaded files by key; each distinct file is parsed once.</summary>
+    /// <summary>The loaded files by root and key; each distinct file is parsed once per root it is reached through.</summary>
     private readonly Dictionary<string, LoadedFile> _files;
 
-    /// <summary>The loaded libraries by file key; an entry is registered before the library is expanded so libraries may use each other.</summary>
+    /// <summary>The loaded libraries by root and file key; an entry is registered before the library is expanded so libraries may use each other.</summary>
     private readonly Dictionary<string, ScadSourceUnit> _libraries;
 
     /// <summary>The libraries registered but not yet expanded.</summary>
@@ -245,11 +245,11 @@ internal sealed partial class ScadFileResolver
     private void AttachLibrary(ScadSourceUnit unit, LoadedFile file, ScadSourceLocation location)
     {
         // The cache entry is registered before the library is expanded, so mutually using libraries terminate
-        if (!_libraries.TryGetValue(file.Key, out var library))
+        if (!_libraries.TryGetValue(file.Identity, out var library))
         {
             CountInclusion(location);
             library = new ScadSourceUnit(file.Display);
-            _libraries.Add(file.Key, library);
+            _libraries.Add(file.Identity, library);
             _pendingLibraries.Enqueue((library, file));
         }
 
@@ -290,5 +290,9 @@ internal sealed partial class ScadFileResolver
     /// <param name="Display">The name used in source locations.</param>
     /// <param name="Program">The parsed program.</param>
     /// <param name="Source">The sandbox file, whose directory and root are the context for the file's own directives.</param>
-    private sealed record LoadedFile(string Key, string Display, ScadProgram Program, SandboxedFile Source);
+    private sealed record LoadedFile(string Key, string Display, ScadProgram Program, SandboxedFile Source)
+    {
+        /// <summary>Gets the identity of the file together with the root that confines it, used by the caches.</summary>
+        public string Identity => Source.Root + '\0' + Key;
+    }
 }

@@ -17,9 +17,12 @@ copies. The subsystem is public core API, not an internal helper: a library user
 untrusted text can apply exactly the rules those two packages use.
 
 The subsystem has no dependency on any other CanvasNet subsystem and uses only the .NET base class library. It is
-deliberately small: it does not decode text, count files, choose a search policy beyond "directory of the referring
+deliberately small: it does not decode text, choose a search policy beyond "directory of the referring
 file, then base directory, then search paths", or compare file names case-insensitively beyond the one platform rule
-needed to compare file keys (see _SandboxedFileResolver Unit Design_).
+needed to compare file keys (see _SandboxedFileResolver Unit Design_). Its only resource limits are the byte limit of one
+file (`MaxFileBytes`) and an optional limit on the number of distinct files one resolver reads (`MaxFiles`, off by
+default), which refuses a new file beyond it before the file is opened or requested; any other limit (include depth,
+cycles, text length) belongs to the caller.
 
 ### Units
 
@@ -33,7 +36,9 @@ needed to compare file keys (see _SandboxedFileResolver Unit Design_).
 
 The `Files` subsystem depends only on the .NET base class library (`System.IO` and `System.Collections.Generic`),
 available on every CanvasNet target framework, and has no runtime NuGet dependency. It has no dependency on the
-`Canvas`, `Codecs`, `Geometry`, `Drawing`, `Fonts`, or `Rendering` subsystems, and none of them depends on it.
+`Canvas`, `Codecs`, `Geometry`, `Drawing`, `Fonts`, or `Rendering` subsystems, and none of the core subsystems depends on
+it. Its consumers are outside the core package: the `CanvasNetVegaLite` and `CanvasNetScad` systems depend on it through
+its public API (see _Callers_).
 
 ### Callers
 

@@ -55,6 +55,9 @@ public sealed partial class SandboxedFileResolver
     /// <summary>The effective options.</summary>
     private readonly SandboxOptions _options;
 
+    /// <summary>A snapshot of <see cref="SandboxOptions.SearchPaths"/> taken at construction.</summary>
+    private readonly string[] _searchPaths;
+
     /// <summary>The cancellation token polled between files and chunks.</summary>
     private readonly CancellationToken _cancellation;
 
@@ -98,6 +101,9 @@ public sealed partial class SandboxedFileResolver
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(options.MaxFileBytes, 0L);
         ArgumentOutOfRangeException.ThrowIfNegative(options.MaxFiles ?? 0);
         _options = options;
+
+        // The caller's list may be mutable; a later change to it must not widen or reorder the roots of a running resolver
+        _searchPaths = options.SearchPaths.ToArray();
         _cancellation = cancellationToken;
         _isLink = isLink ?? DefaultIsLink;
         _openFile = openFile ?? DefaultOpenFile;
@@ -123,7 +129,7 @@ public sealed partial class SandboxedFileResolver
     ///     <see langword="false"/>; a caller that wants "no file source" to be an error of its own checks this first.
     /// </remarks>
     public bool HasSource =>
-        _options.FileResolver is not null || _options.BaseDirectory is not null || _options.SearchPaths.Count > 0;
+        _options.FileResolver is not null || _options.BaseDirectory is not null || _searchPaths.Length > 0;
 
     /// <summary>
     ///     Finds and reads the file a relative path names.
@@ -135,10 +141,15 @@ public sealed partial class SandboxedFileResolver
     /// <param name="relativeTo">
     ///     A file previously returned by this resolver whose directory is searched first (and which confines that
     ///     candidate to its <see cref="SandboxedFile.Root"/>), or <see langword="null"/> to start from the base
-    ///     directory.
+    ///     directory. Must come from this resolver (or one with the same roots); otherwise it is rejected.
     /// </param>
     /// <returns>The file, or <see langword="null"/> when no candidate exists (or no file source is configured).</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="path"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    ///     Thrown when <paramref name="relativeTo"/> was not resolved through one of this resolver's own roots (for
+    ///     example a file returned by another resolver with wider roots): its directory and root are trusted only when
+    ///     they match the roots this resolver was configured with.
+    /// </exception>
     /// <exception cref="SandboxException">
     ///     Thrown when the path text is not allowed, a <c>..</c> leaves the root, a component is a link or cannot be
     ///     checked, a configured directory is invalid, the file exists but cannot be read or is too large, or reading it
@@ -152,6 +163,13 @@ public sealed partial class SandboxedFileResolver
 
         // The path text is validated before anything is touched, so a hostile path never causes any file access or callback
         var text = ValidatePathText(path);
+
+        // A file the resolver did not hand out (or hands out for another set of roots) is not a trustworthy starting point
+        if (relativeTo is not null)
+        {
+            EnsureRoots();
+            ValidateRelativeTo(relativeTo);
+        }
 
         // Candidates are produced lazily: the first one that exists wins, so later roots are only examined on a miss
         foreach (var candidate in Candidates(text, relativeTo))

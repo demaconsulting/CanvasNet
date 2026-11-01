@@ -72,13 +72,15 @@ type constitutes a failure.
 
 **Tests**: `SandboxedFileResolver_Resolve_RelativePathUsesBaseDirectoryThenSearchPaths`,
 `SandboxedFileResolver_Resolve_RelativeToFileStartsInItsDirectoryThenSearchPaths`,
-`SandboxedFileResolver_Resolve_ResolverModeRelativeToFileUsesItsLogicalDirectory`
+`SandboxedFileResolver_Resolve_ResolverModeRelativeToFileUsesItsLogicalDirectory`,
+`SandboxedFileResolver_Resolve_RelativeToFileOfAnotherResolverIsRejected`
 
 Asserts that the same name in the base directory and in search paths is taken from the base directory, that a name only
 in a later search path is found there, that a backslash path is found, that the result carries the full-path key, the
 file's directory, the confining root, and the bytes, that a path relative to a resolved file starts in that file's
 directory (and may climb to, but not above, its root) before falling back to the search paths, and that the same holds
-for logical directories in callback mode.
+for logical directories in callback mode. A file returned by another resolver whose roots are wider (or different) is
+rejected with `ArgumentException` in file-system and in callback mode, while the resolver's own file still works.
 
 ##### CanvasNet-Files-SandboxedFileResolver-MissingFiles: Not Found Is Not A Failure
 
@@ -105,14 +107,15 @@ message that says the path is not allowed, and that the callback received no req
 **Tests**: `SandboxedFileResolver_Resolve_DotDotInsideRootNormalizesAndEscapeIsRejected`,
 `SandboxedFileResolver_Resolve_SiblingWithSharedPrefixAndOutsideFileAreRefused`,
 `SandboxedFileResolver_Resolve_SearchPathConfinesCandidates`,
-`SandboxedFileResolver_Resolve_InvalidConfiguredDirectoryIsInvalidRoot`
+`SandboxedFileResolver_Resolve_InvalidConfiguredDirectoryIsInvalidRoot`,
+`SandboxedFileResolver_Constructor_SearchPathsAreSnapshotted`
 
 Asserts that `.` and `..` segments inside the root (also with backslashes) name one file (the very same
 instance), that a `..` that leaves the root, directly or after a detour, is refused with `OutsideRoot` and the
 normalized path even though
 the file exists, that a sibling directory that merely shares a name prefix with the root is outside it, that a search path
 confines its own candidates, and that a configured base directory or search path that is not a valid path is `InvalidRoot`
-naming the configured directory.
+naming the configured directory. Changing the caller's search-path list after construction neither adds nor removes a root.
 
 ##### CanvasNet-Files-SandboxedFileResolver-Links: Links Are Refused Before The File Is Opened
 

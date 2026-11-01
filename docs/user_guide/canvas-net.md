@@ -1846,9 +1846,11 @@ public enum SandboxFailureKind
 manifest entry) into the bytes of a file that is guaranteed to lie inside directories you chose, and refuses
 everything else. It is the resolver that the Vega-Lite and OpenSCAD packages use for their local files.
 
-`Resolve` looks for the path in `relativeTo`'s directory when you pass the file a reference came from (so a
+`Resolve` looks for the path in `relativeTo`'s directory when you pass the file a reference came from (it must have been
+returned by this resolver or one with the same roots, or `Resolve` throws `ArgumentException`; so a
 nested reference starts where the referring file lives), otherwise in `BaseDirectory`, and then in each entry of
-`SearchPaths`, in order; the first file that exists wins. It returns `null` when no candidate exists (a missing
+`SearchPaths`, in order; the list is copied when the resolver is created. The first file that exists wins. It returns
+`null` when no candidate exists (a missing
 file is not an error). A backslash is the same as a slash. Each root is trusted, including a root you reach
 through a link; the files below it are not:
 
@@ -1937,6 +1939,7 @@ catch (SandboxException ex)
 - `ArgumentNullException`: Thrown by the constructor when `options` or its `SearchPaths` is null, and by `Resolve`
   when `path` is null.
 - `ArgumentOutOfRangeException`: Thrown by the constructor when `MaxFileBytes` is not positive or `MaxFiles` is negative.
+- `ArgumentException`: Thrown by `Resolve` when `relativeTo` was not resolved through one of this resolver's own roots.
 - `SandboxException`: Thrown by `Resolve` for every refusal and read failure described above.
 - `OperationCanceledException`: Thrown by `Resolve` when the token is canceled.
 

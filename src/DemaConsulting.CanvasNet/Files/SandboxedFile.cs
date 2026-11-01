@@ -36,7 +36,8 @@ public sealed class SandboxedFile
     /// <summary>
     ///     Gets the directory of the file (a full path, or a logical path in resolver-callback mode; the empty string
     ///     for a logical file at the root). Pass the file itself to
-    ///     <see cref="SandboxedFileResolver.Resolve(string, SandboxedFile?)"/> to resolve a path relative to it.
+    ///     <see cref="SandboxedFileResolver.Resolve(string, SandboxedFile?)"/> of the resolver that returned it (or one
+    ///     with the same roots) to resolve a path relative to it; another resolver rejects it.
     /// </summary>
     public string Directory { get; }
 

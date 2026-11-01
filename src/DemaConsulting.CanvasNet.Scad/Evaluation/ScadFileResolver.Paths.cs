@@ -92,12 +92,14 @@ internal sealed partial class ScadFileResolver
             return null;
         }
 
-        // The file is parsed once; its locations carry the display name so errors point into the right file
-        if (!_files.TryGetValue(found.Key, out var loaded))
+        // The file is parsed once per root it is reached through: the root confines the file's own relative directives, so
+        // the same physical file found through two overlapping roots must not share the first root's context
+        var identity = found.Root + '\0' + found.Key;
+        if (!_files.TryGetValue(identity, out var loaded))
         {
             var display = DisplayName(found.Key);
             loaded = new LoadedFile(found.Key, display, ScadParser.Parse(ScadDocument.DecodeBounded(found.Content), display), found);
-            _files[found.Key] = loaded;
+            _files[identity] = loaded;
         }
 
         return loaded;

@@ -740,6 +740,58 @@ public class SandboxedFileResolverTests
     }
 
     /// <summary>
+    ///     Validates that a file returned by one resolver cannot be used as the starting point of another resolver whose
+    ///     roots do not include the file's root: it would otherwise widen what the second resolver may read.
+    /// </summary>
+    [Fact]
+    public void SandboxedFileResolver_Resolve_RelativeToFileOfAnotherResolverIsRejected()
+    {
+        // Arrange: resolver A is rooted at the whole temp directory, B only at its "safe" folder
+        using var directory = new SandboxTempDirectory();
+        directory.Write("safe/f.txt", "f");
+        directory.Write("secret.txt", "secret");
+        var wide = Create(new SandboxOptions { BaseDirectory = directory.Path });
+        var narrow = Create(new SandboxOptions { BaseDirectory = directory.Combine("safe") });
+        var foreign = wide.Resolve("safe/f.txt");
+        var own = narrow.Resolve("f.txt");
+
+        // Act / Assert: the foreign file is refused, the resolver's own file still works
+        Assert.Throws<ArgumentException>(() => narrow.Resolve("../secret.txt", foreign));
+        Assert.Equal("f", Text(narrow.Resolve("f.txt", own)));
+
+        // Assert: the same holds in callback mode, where roots are logical search-path prefixes
+        var files = new SandboxVirtualFiles().With("other/x.txt", "x").With("y.txt", "y");
+        var withRoot = Create(new SandboxOptions { FileResolver = files.Resolve, SearchPaths = ["other"] });
+        var withoutRoot = Create(new SandboxOptions { FileResolver = files.Resolve });
+        var viaOther = withRoot.Resolve("x.txt");
+        Assert.Throws<ArgumentException>(() => withoutRoot.Resolve("y.txt", viaOther));
+    }
+
+    /// <summary>
+    ///     Validates that the search paths are copied when the resolver is created: changing the caller's list afterwards
+    ///     neither adds nor removes a root.
+    /// </summary>
+    [Fact]
+    public void SandboxedFileResolver_Constructor_SearchPathsAreSnapshotted()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        directory.Write("one/a.txt", "a");
+        directory.Write("two/b.txt", "b");
+        var paths = new List<string> { directory.Combine("one") };
+        var resolver = Create(new SandboxOptions { SearchPaths = paths });
+
+        // Act: the caller changes its list after construction
+        paths.Clear();
+        paths.Add(directory.Combine("two"));
+
+        // Assert: the original root still applies and the added one does not
+        Assert.True(resolver.HasSource);
+        Assert.Equal("a", Text(resolver.Resolve("a.txt")));
+        Assert.Null(resolver.Resolve("b.txt"));
+    }
+
+    /// <summary>
     ///     Validates that invalid construction arguments are rejected immediately.
     /// </summary>
     [Fact]

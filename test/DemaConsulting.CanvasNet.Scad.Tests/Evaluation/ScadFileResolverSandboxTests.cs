@@ -74,6 +74,29 @@ public class ScadFileResolverSandboxTests
     }
 
     /// <summary>
+    ///     Validates that a file found through one root is not reused for the same physical file found through another,
+    ///     overlapping root: the root confines the file's own relative includes, so a nested <c>..</c> include must be
+    ///     judged against the root the file was found under each time.
+    /// </summary>
+    [Fact]
+    public void ScadFileResolver_Load_SameFileThroughOverlappingRoots_IsConfinedByEachRoot()
+    {
+        // Arrange: lib/a.scad includes ../x.scad (fine under the base root, outside the library root lib)
+        using var directory = new ScadTempDirectory();
+        directory.Write("lib/a.scad", "include <../x.scad>\n");
+        directory.Write("x.scad", "x = 1;\n");
+        var options = new ScadOpenOptions { BaseDirectory = directory.Path, LibraryPaths = [directory.Combine("lib")] };
+
+        // Act: through the base root first (allowed), then the same file through the library root
+        var viaBase = Load("include <lib/a.scad>\n", options);
+        var ex = Assert.Throws<ScadEvaluationException>(() => Load("include <lib/a.scad>\ninclude <a.scad>\n", options));
+
+        // Assert: the second find is confined to the library root, so its nested include is refused
+        Assert.Equal(["x"], AssignmentNames(viaBase));
+        Assert.Contains("outside the allowed directories", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Validates that dot-dot that stays inside the root is allowed.
     /// </summary>
     [Fact]
