@@ -116,6 +116,39 @@ sections:
                   - SystemFontCatalog_FindBestMatch_EmptyCandidateList_ReturnsNull
                   - SystemFontCatalog_FindBestMatch_NoFamilyAndNoBucketMatch_ReturnsNull
 
+              - id: CanvasNet-Fonts-SystemFontCatalog-FindInFamily
+                title: >-
+                  The SystemFontCatalog type shall provide FindInFamily, selecting from a supplied
+                  list of faces the one whose family name equals the requested family exactly
+                  (case-insensitively, with no generic-family substitution) and whose bold/italic
+                  flags differ least from the requested style, the first of equally good faces
+                  winning, or null when no face has the family.
+                justification: |
+                  Callers that must distinguish "this family is installed" from "a generic
+                  substitute was chosen" - and callers searching a list of faces other than the
+                  host catalog, such as a scanned additional font directory - need the exact-family
+                  style match as a building block of its own, rather than each re-implementing it.
+                tests:
+                  - SystemFontCatalog_FindInFamily_ExactFamilyClosestStyle_FirstWinsTie
+                  - SystemFontCatalog_FindInFamily_UnknownFamilyOrEmptyList_ReturnsNullAndNullArgumentsThrow
+
+              - id: CanvasNet-Fonts-SystemFontCatalog-LoadCache
+                title: >-
+                  The SystemFontCatalog type shall provide Load, loading the font a SystemFontInfo
+                  describes at most once per process, returning the same instance for every later
+                  request for the same file and face (including from concurrent callers), and
+                  returning null, remembered likewise, for a file that has vanished or cannot be
+                  parsed.
+                justification: |
+                  Every document-format consumer previously kept its own process-wide cache of
+                  fonts loaded from catalog entries, and several let a vanished or damaged font
+                  file abort rendering; one shared, failure-tolerant cache avoids both the
+                  duplicated code and repeated parsing of the same font file.
+                tests:
+                  - SystemFontCatalog_Load_ScannedFace_LoadsOnceAndReturnsTheCachedInstance
+                  - SystemFontCatalog_Load_VanishedOrDamagedFile_ReturnsNullAndCachesTheFailure
+                  - SystemFontCatalog_Load_ConcurrentCallers_ShareOneInstance
+
               - id: CanvasNet-Fonts-SystemFontCatalog-LoadBundledFallback
                 title: >-
                   The SystemFontCatalog type shall load (and process-lifetime-cache) the

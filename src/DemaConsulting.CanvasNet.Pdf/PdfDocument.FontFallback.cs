@@ -36,20 +36,6 @@ public sealed partial class PdfDocument
         };
 
     /// <summary>
-    ///     Caches every <see cref="TrueTypeFont"/> loaded from a <see cref="SystemFontCatalog.FindBestMatch"/>
-    ///     hit, keyed by the matched font's <c>(FilePath, FaceIndex)</c> - deliberately a
-    ///     process-lifetime cache (unlike <see cref="_fontCache"/>'s per-<see cref="Render(int, int, int, PdfRenderOptions?)"/>
-    ///     call scope), since a system font file's bytes never change between calls, so
-    ///     re-parsing it from disk on every fallback lookup would reintroduce the "hundreds of
-    ///     files scanned repeatedly" cost <see cref="SystemFontCatalog.Fonts"/>'s own laziness
-    ///     already avoids at the discovery layer.
-    /// </summary>
-    private static readonly Dictionary<(string Path, int FaceIndex), TrueTypeFont> FallbackFontCache = [];
-
-    /// <summary>Guards <see cref="FallbackFontCache"/> against concurrent population.</summary>
-    private static readonly object FallbackFontCacheLock = new();
-
-    /// <summary>
     ///     Resolves the ordered <see cref="Fonts.TrueTypeFont"/> candidate list to substitute for
     ///     a simple TrueType font with no embedded <c>/FontDescriptor/FontFile2</c>: a
     ///     <c>Symbol</c>/<c>ZapfDingbats</c> <c>/BaseFont</c> resolves via a dedicated bundled
@@ -61,7 +47,8 @@ public sealed partial class PdfDocument
     ///     <c>/FontDescriptor</c> flags/weight/angle/name heuristics), searches the host
     ///     operating system's installed fonts via <see cref="SystemFontCatalog.FindBestMatch"/>
     ///     (falling back to a style-matched bundled Liberation Sans/Serif/Mono font via
-    ///     <see cref="SystemFontCatalog.LoadBundledFallback"/> when no system font matches), and
+    ///     <see cref="SystemFontCatalog.LoadBundledFallback"/> when no system font matches, or
+    ///     the matched one cannot be loaded by <see cref="SystemFontCatalog.Load"/>), and
     ///     appends a second, always-present, plain (non-serif, non-fixed-pitch, non-bold,
     ///     non-italic) bundled Liberation Sans candidate - a per-character glyph-coverage
     ///     fallback, consulted by <see cref="ResolvedSimpleFont.Resolve"/>'s existing first-
@@ -107,9 +94,8 @@ public sealed partial class PdfDocument
         var familyNameHint = StripFontNameDecoration(baseFontName);
 
         var match = SystemFontCatalog.FindBestMatch(familyNameHint, bold, italic, serif, fixedPitch);
-        var primary = match is { } found
-            ? LoadFallbackFontFromDisk(found.FilePath, found.FaceIndex)
-            : SystemFontCatalog.LoadBundledFallback(serif, fixedPitch, bold, italic);
+        var primary = (match is { } found ? SystemFontCatalog.Load(found) : null)
+            ?? SystemFontCatalog.LoadBundledFallback(serif, fixedPitch, bold, italic);
 
         // Per-character glyph-coverage fallback: the primary match above (a system font, or the
         // style-matched bundled Liberation substitute) is still just one font, picked purely from
@@ -149,26 +135,6 @@ public sealed partial class PdfDocument
                 SystemFontCatalog.LoadBundledFallbackCore("NotoSansSymbols2-Regular.ttf"),
             ]
             : [SystemFontCatalog.LoadBundledFallbackCore("NotoSansSymbols2-Regular.ttf")];
-    }
-
-    /// <summary>
-    ///     Loads (or returns the process-lifetime cached) <see cref="TrueTypeFont"/> for a
-    ///     specific system font file and face, as matched by <see cref="SystemFontCatalog.FindBestMatch"/>.
-    /// </summary>
-    private static TrueTypeFont LoadFallbackFontFromDisk(string path, int faceIndex)
-    {
-        lock (FallbackFontCacheLock)
-        {
-            var key = (path, faceIndex);
-            if (FallbackFontCache.TryGetValue(key, out var cached))
-            {
-                return cached;
-            }
-
-            var font = TrueTypeFont.Load(path, faceIndex);
-            FallbackFontCache[key] = font;
-            return font;
-        }
     }
 
     /// <summary>

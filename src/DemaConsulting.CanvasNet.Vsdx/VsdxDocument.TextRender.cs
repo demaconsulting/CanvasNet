@@ -89,9 +89,6 @@ public sealed partial class VsdxDocument
     /// <summary>Per-(code point, bold, italic) fallback results (null = nothing covers it), shared by all documents.</summary>
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<(int CodePoint, bool Bold, bool Italic), TrueTypeFont?> FallbackResults = new();
 
-    /// <summary>Loaded fallback fonts by file/face, <see langword="null"/> when the file cannot be parsed.</summary>
-    private static readonly System.Collections.Concurrent.ConcurrentDictionary<(string Path, int Face), TrueTypeFont?> FallbackFontCache = new();
-
     /// <summary>
     ///     Default per-glyph fallback: finds an installed font (preferred symbol/Unicode families
     ///     first, then every other catalog face, then the bundled Liberation faces) that has a
@@ -101,11 +98,15 @@ public sealed partial class VsdxDocument
     internal static TrueTypeFont? ResolveGlyphFallbackFont(int codePoint, bool bold, bool italic) =>
         FallbackResults.GetOrAdd((codePoint, bold, italic), static key => FindGlyphFallbackFont(key.CodePoint, key.Bold, key.Italic));
 
-    private static TrueTypeFont? LoadFallbackFontUncached(string path, int face)
+    /// <summary>
+    ///     Loads a catalog face transiently: unlike <see cref="SystemFontCatalog.Load"/> nothing is
+    ///     retained, so the catalog-wide sweep cannot pin every font it examines in memory.
+    /// </summary>
+    private static TrueTypeFont? LoadFallbackFontTransient(SystemFontInfo info)
     {
         try
         {
-            return TrueTypeFont.Load(path, face);
+            return TrueTypeFont.Load(info.FilePath, info.FaceIndex);
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or NotSupportedException or UnauthorizedAccessException or ArgumentException)
         {
@@ -113,12 +114,10 @@ public sealed partial class VsdxDocument
         }
     }
 
-    // Preferred families are few, so their fonts stay cached; the catalog-wide sweep
+    // Preferred families are few, so their fonts stay cached (SystemFontCatalog.Load); the catalog-wide sweep
     // loads each face transiently so an uncovered code point cannot pin every font in memory.
     private static TrueTypeFont? LoadFallbackFont(SystemFontInfo info, bool cache) =>
-        cache
-            ? FallbackFontCache.GetOrAdd((info.FilePath, info.FaceIndex), static key => LoadFallbackFontUncached(key.Path, key.Face))
-            : LoadFallbackFontUncached(info.FilePath, info.FaceIndex);
+        cache ? SystemFontCatalog.Load(info) : LoadFallbackFontTransient(info);
 
     private static IEnumerable<(SystemFontInfo Info, bool Cache)> EnumerateFallbackCandidates(bool bold, bool italic)
     {
@@ -144,9 +143,9 @@ public sealed partial class VsdxDocument
         {
             if (LoadFallbackFont(info, cache) is { } font && font.GetGlyphIndex(codePoint) != 0)
             {
-                // A sweep hit is promoted into the shared cache (keeping the instance just loaded) so all
+                // A sweep hit is promoted into the shared cache (the face is loaded again, retained) so all
                 // results for the same file/face share one font rather than each holding a private copy.
-                return cache ? font : FallbackFontCache.GetOrAdd((info.FilePath, info.FaceIndex), font)!;
+                return cache ? font : SystemFontCatalog.Load(info) ?? font;
             }
         }
 
@@ -172,16 +171,7 @@ public sealed partial class VsdxDocument
     internal static TrueTypeFont ResolveTextFont(string familyNameHint, bool bold, bool italic)
     {
         var match = SystemFontCatalog.FindBestMatch(familyNameHint, bold, italic, serif: false, fixedPitch: false);
-        return match is { } found
-            ? SystemFontCache.GetOrAdd((found.FilePath, found.FaceIndex), static key => TrueTypeFont.Load(key.Path, key.Face))
-            : SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold, italic);
+        return (match is { } found ? SystemFontCatalog.Load(found) : null)
+            ?? SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold, italic);
     }
-
-    /// <summary>
-    ///     Process-lifetime cache of the system fonts <see cref="ResolveTextFont"/> has loaded,
-    ///     keyed by file path and face index, so a page with many text shapes does not re-read and
-    ///     re-parse the same font file once per shape. A <see cref="TrueTypeFont"/> is immutable
-    ///     and thread-safe, so sharing one instance is behavior-identical.
-    /// </summary>
-    private static readonly System.Collections.Concurrent.ConcurrentDictionary<(string Path, int Face), TrueTypeFont> SystemFontCache = new();
 }

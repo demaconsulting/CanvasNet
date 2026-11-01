@@ -1215,6 +1215,14 @@ public static class SystemFontCatalog
         bool serif,
         bool fixedPitch);
 
+    public static SystemFontInfo? FindInFamily(
+        IReadOnlyList<SystemFontInfo> faces,
+        string family,
+        bool bold,
+        bool italic);
+
+    public static TrueTypeFont? Load(SystemFontInfo info);
+
     public static TrueTypeFont LoadBundledFallback(bool serif, bool fixedPitch, bool bold, bool italic);
 }
 ```
@@ -1241,6 +1249,18 @@ hand-maintained list of well-known generic family names (sans-serif, serif, or m
 selected by the `serif`/`fixedPitch` hints) for the first one actually present on the host system.
 It returns `null` when neither tier finds a match.
 
+`FindInFamily` is the exact-family building block of `FindBestMatch`: from any list of faces (the
+`Fonts` catalog, or the result of `FontDirectoryScanner.Scan`) it returns the face whose family
+name equals `family` (case-insensitively, with no generic-family substitution) and whose
+bold/italic flags differ least from the request - the first of equally good faces wins - or `null`
+when no face has the family.
+
+`Load` loads the font a `SystemFontInfo` describes through `TrueTypeFont.Load`, remembering the
+outcome for the lifetime of the process: the same instance is returned for every later request for
+that file and face (from any thread), and `null` - also remembered - for a file that has vanished or
+cannot be parsed, instead of an exception. Every loaded font stays in memory for the process
+lifetime, so use it for the faces you actually select rather than to examine a whole catalog.
+
 `LoadBundledFallback` selects one of the library's twelve embedded Liberation Sans/Serif/Mono
 TrueType fonts (by the requested `serif`/`fixedPitch`/`bold`/`italic` combination) and loads it via
 `TrueTypeFont.Load`, guaranteeing a usable font is always available even when the host system has
@@ -1249,9 +1269,54 @@ no suitable installed font (or no accessible font directory at all):
 ```csharp
 // Best-effort match against installed system fonts, falling back to a bundled font
 var match = SystemFontCatalog.FindBestMatch("Helvetica", bold: false, italic: false, serif: false, fixedPitch: false);
-var font = match is { } info
-    ? TrueTypeFont.Load(info.FilePath, info.FaceIndex)
-    : SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold: false, italic: false);
+var font = (match is { } info ? SystemFontCatalog.Load(info) : null)
+    ?? SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold: false, italic: false);
+```
+
+`SystemFontCatalog` is thread-safe: every member may be called concurrently.
+
+### FontDirectoryScanner
+
+The `FontDirectoryScanner` static class scans directory trees for font files and reports a
+`SystemFontInfo` for every well-formed face (`.ttf`, `.otf`, `.ttc`, `.otc`, any case), reading
+only each font's headers. It is what `SystemFontCatalog.Fonts` is built with, and is available for
+fonts in directories of your own:
+
+```csharp
+public static class FontDirectoryScanner
+{
+    public static IReadOnlyList<SystemFontInfo> Scan(
+        IEnumerable<string> directories,
+        FontScanLimits? limits = null,
+        bool trustLinkedFiles = false,
+        CancellationToken cancellationToken = default);
+}
+
+public sealed record FontScanLimits
+{
+    public int MaxDirectories { get; init; }  // default 10,000
+    public int MaxEntries { get; init; }      // default 200,000
+    public int MaxFontFiles { get; init; }    // default 5,000
+    public int MaxFaces { get; init; }        // default 20,000
+}
+```
+
+The scan is deterministic - roots in the order given, files in alphabetical (case-insensitive) path
+order - so the same tree always yields the same faces in the same order. It stops at the first
+`FontScanLimits` bound it reaches (each at least 1, counted across all roots) and keeps what it
+found; a bound is not an error. A missing or unreadable directory, a font file that does not parse,
+or one corrupt face of a collection is skipped. A subdirectory that is a link (symbolic link,
+junction, or other reparse point) is never followed; a root that is a link and a font file that is
+a link are skipped unless you pass `trustLinkedFiles: true`. `Scan` throws only
+`ArgumentNullException` (for a `null` directory list) and `OperationCanceledException`, and is
+thread-safe; `FontScanLimits` is immutable and may be shared.
+
+```csharp
+// Use a font from a directory of your own, falling back to the bundled font
+var faces = FontDirectoryScanner.Scan([@"C:\MyFonts"]);
+var wanted = SystemFontCatalog.FindInFamily(faces, "My Brand Sans", bold: true, italic: false);
+var font = (wanted is { } face ? SystemFontCatalog.Load(face) : null)
+    ?? SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold: true, italic: false);
 ```
 
 ### PathFiller

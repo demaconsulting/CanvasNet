@@ -622,6 +622,24 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Tests/Fonts/SystemFontCatalogRealDiscoveryIntegrationTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Fonts/BundledLiberationFontsTests.cs"  # unit tests
 
+  # CanvasNet-Fonts-FontDirectoryScanner Review (one per unit)
+  - id: CanvasNet-Fonts-FontDirectoryScanner
+    title: Review that CanvasNet Fonts FontDirectoryScanner Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+      - "docs/design/canvas-net/fonts.md"
+      - "docs/reqstream/canvas-net/fonts.yaml"
+      - "src/DemaConsulting.CanvasNet/Fonts/SfntHeaderReader.cs"  # header-only reader (reviewed with SystemFontCatalog)
+    paths:
+      - "docs/reqstream/canvas-net/fonts/font-directory-scanner.yaml"  # unit requirements
+      - "docs/design/canvas-net/fonts/font-directory-scanner.md"      # unit design
+      - "docs/verification/canvas-net/fonts/font-directory-scanner.md"  # unit verification
+      - "docs/sysml2/model/canvas-net/fonts/font-directory-scanner.sysml"  # unit model
+      - "src/DemaConsulting.CanvasNet/Fonts/FontDirectoryScanner.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet/Fonts/FontScanLimits.cs"        # bounds record source
+      - "test/DemaConsulting.CanvasNet.Tests/Fonts/FontDirectoryScannerTests.cs"  # unit tests
+
   # CanvasNet-Rendering Review (one per subsystem)
   - id: CanvasNet-Rendering
     title: Review that CanvasNet Rendering Subsystem Implementation is Correct

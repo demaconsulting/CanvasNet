@@ -354,6 +354,15 @@ The system exposes the following public API to external consumers:
   Returns the closest-matching `SystemFontInfo?` for the requested family-name hint and style, or
   `null` if neither an exact family match nor a well-known generic-family fallback is found.
   Never throws.
+- **SystemFontCatalog.FindInFamily(IReadOnlyList<SystemFontInfo> faces, string family, bool bold, bool italic)**:
+  Returns the face of `faces` whose family name exactly (case-insensitively) equals `family` in the
+  closest style, or `null`; never substitutes a generic family.
+- **SystemFontCatalog.Load(SystemFontInfo info)**: Loads the described font once per process (cached,
+  including failures) and returns `null` for a vanished or damaged file.
+- **FontDirectoryScanner.Scan(IEnumerable<string> directories, FontScanLimits? limits,
+  bool trustLinkedFiles, CancellationToken cancellationToken)**:
+  Deterministic, bounded, link-safe, header-only scan of directory trees returning a
+  `SystemFontInfo` per well-formed face.
 - **SystemFontCatalog.LoadBundledFallback(bool serif, bool fixedPitch, bool bold, bool italic)**:
   Returns a ready-to-query `TrueTypeFont` loaded from one of the library's twelve embedded
   Liberation Sans/Serif/Mono resources, selected by the requested style combination.
@@ -408,6 +417,9 @@ The system exposes the following public API to external consumers:
 | `TrueTypeFont.GetKerning(int,int)`           | Outbound         | Method / `int`                 | Any glyph indices             |
 | `SystemFontCatalog.Fonts`                    | Outbound         | Property / list return         | None                          |
 | `SystemFontCatalog.FindBestMatch(...)`       | Outbound         | Method / `SystemFontInfo?`     | None                          |
+| `SystemFontCatalog.FindInFamily(...)`        | Outbound         | Method / `SystemFontInfo?`     | Non-null faces and family     |
+| `SystemFontCatalog.Load(...)`                | Outbound         | Method / `TrueTypeFont?`       | None                          |
+| `FontDirectoryScanner.Scan(...)`             | Outbound         | Method / list return           | Non-null directory list       |
 | `SystemFontCatalog.LoadBundledFallback(...)` | Outbound         | Method / `TrueTypeFont`        | None                          |
 <!-- markdownlint-enable MD013 -->
 

@@ -60,9 +60,15 @@ pixel rendering remain outside this subsystem's boundary.
   supporting `TrueTypeFont`; see _TrueTypeFont Unit Design_ (`fonts/true-type-font.md`)
 - **SystemFontCatalog** — the second public unit of the subsystem, added this phase. It exposes
   `Fonts` (the lazily-built, process-lifetime-cached OS font catalog), `FindBestMatch` (best-effort
-  family-name/style matching against that catalog), and `LoadBundledFallback` (the bundled
-  Liberation Sans/Serif/Mono last resort); see _SystemFontCatalog Unit Design_
-  (`fonts/system-font-catalog.md`)
+  family-name/style matching against that catalog), `FindInFamily` (exact-family, closest-style
+  matching over any list of faces), `Load` (a process-wide cached, failure-tolerant font load for a
+  catalog entry), and `LoadBundledFallback` (the bundled Liberation Sans/Serif/Mono last resort);
+  see _SystemFontCatalog Unit Design_ (`fonts/system-font-catalog.md`)
+- **FontDirectoryScanner** — the third public unit of the subsystem. It exposes `Scan`, a
+  deterministic, bounded (`FontScanLimits`), link-safe, header-only scan of directory trees that
+  returns a `SystemFontInfo` per well-formed face; `SystemFontCatalog.Fonts` is built with it and a
+  caller may use it directly for its own font directories; see _FontDirectoryScanner Unit Design_
+  (`fonts/font-directory-scanner.md`)
 
 ### Dependencies
 
@@ -81,7 +87,7 @@ happens outside the subsystem itself.
 
 ### Callers
 
-`TrueTypeFont` and `SystemFontCatalog` are both public API entry points, called directly by
+`TrueTypeFont`, `SystemFontCatalog` and `FontDirectoryScanner` are public API entry points, called directly by
 consumers of the CanvasNet package. Within this repository, the subsystem is exercised by
 dedicated `Fonts` unit tests, by real-font integration tests in
 `TrueTypeFontRealFontIntegrationTests.cs` (covering real `.ttf`, `.otf`, and locally-assembled

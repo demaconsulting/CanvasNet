@@ -1224,10 +1224,11 @@ its own distinguishable `Feature` token.
   leading six-uppercase-letter-plus-`+` PDF subset tag and any trailing style-name suffix (for
   example `"Arial,BoldItalic"` and `"ABCDEF+Arial-BoldItalic"` both become `"Arial"`), and that
   hint plus the resolved flavor are passed to `Fonts.SystemFontCatalog.FindBestMatch`; a match is
-  loaded (and process-lifetime-cached by `(FilePath, FaceIndex)`, via `LoadFallbackFontFromDisk`)
-  from disk, while no match falls through to `Fonts.SystemFontCatalog.LoadBundledFallback`'s own
+  loaded through `Fonts.SystemFontCatalog.Load` (a process-lifetime cache keyed by
+  `(FilePath, FaceIndex)` that returns `null` for a vanished or damaged font file), and no match -
+  or a match that cannot be loaded - falls through to `Fonts.SystemFontCatalog.LoadBundledFallback`'s own
   bundled Liberation Sans/Serif/Mono font (which is itself already process-lifetime-cached by
-  `SystemFontCatalog`). This process-lifetime cache is deliberately broader-scoped than
+  `SystemFontCatalog`). These process-lifetime caches are deliberately broader-scoped than
   `_fontCache`'s per-`Render` call scope, since a system or bundled font file's bytes never
   change between calls or between documents. **This ordinary (non-Symbol/non-ZapfDingbats) branch
   now returns a 2-element candidate list** - `[primaryMatch, Fonts.SystemFontCatalog.

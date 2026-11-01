@@ -489,6 +489,131 @@ public class SystemFontCatalogTests
         }
     }
 
+    /// <summary>
+    ///     Proves that <see cref="SystemFontCatalog.FindInFamily"/> matches the family exactly and
+    ///     case-insensitively, prefers the style with the fewest differing flags, and lets the first of
+    ///     equally good faces win.
+    /// </summary>
+    [Fact]
+    public void SystemFontCatalog_FindInFamily_ExactFamilyClosestStyle_FirstWinsTie()
+    {
+        var faces = new[]
+        {
+            new SystemFontInfo("Other", "Regular", false, false, false, "other.ttf", 0),
+            new SystemFontInfo("Alpha", "Bold Italic", true, true, false, "alpha-bi.ttf", 0),
+            new SystemFontInfo("Alpha", "Bold", true, false, false, "alpha-b.ttf", 0),
+            new SystemFontInfo("ALPHA", "Italic", false, true, false, "alpha-i.ttf", 0),
+        };
+
+        Assert.Equal("alpha-bi.ttf", SystemFontCatalog.FindInFamily(faces, "alpha", true, true)?.FilePath);
+        Assert.Equal("alpha-b.ttf", SystemFontCatalog.FindInFamily(faces, "Alpha", true, false)?.FilePath);
+
+        // Regular is wanted but absent: Bold and Italic each differ by one flag, so the first of them wins
+        Assert.Equal("alpha-b.ttf", SystemFontCatalog.FindInFamily(faces, "Alpha", false, false)?.FilePath);
+    }
+
+    /// <summary>
+    ///     Proves that <see cref="SystemFontCatalog.FindInFamily"/> never substitutes another family, and rejects
+    ///     <see langword="null"/> arguments.
+    /// </summary>
+    [Fact]
+    public void SystemFontCatalog_FindInFamily_UnknownFamilyOrEmptyList_ReturnsNullAndNullArgumentsThrow()
+    {
+        var faces = new[] { new SystemFontInfo("Arial", "Regular", false, false, false, "arial.ttf", 0) };
+
+        Assert.Null(SystemFontCatalog.FindInFamily(faces, "Helvetica", false, false));
+        Assert.Null(SystemFontCatalog.FindInFamily([], "Arial", false, false));
+        Assert.Throws<ArgumentNullException>(() => SystemFontCatalog.FindInFamily(null!, "Arial", false, false));
+        Assert.Throws<ArgumentNullException>(() => SystemFontCatalog.FindInFamily(faces, null!, false, false));
+    }
+
+    /// <summary>
+    ///     Proves that <see cref="SystemFontCatalog.Load"/> loads the face a scan reported and returns the
+    ///     same cached instance for it afterward, even when the file is gone by then.
+    /// </summary>
+    [Fact]
+    public void SystemFontCatalog_Load_ScannedFace_LoadsOnceAndReturnsTheCachedInstance()
+    {
+        var root = Directory.CreateDirectory(
+            Path.Join(Path.GetTempPath(), "canvasnet-test-load-" + Guid.NewGuid())).FullName;
+
+        try
+        {
+            File.WriteAllBytes(Path.Join(root, "Valid.ttf"), BuildMinimalValidFont());
+            var info = Assert.Single(SystemFontCatalog.BuildCatalogFromRoots([root]));
+
+            var first = SystemFontCatalog.Load(info);
+            File.Delete(info.FilePath);
+            var second = SystemFontCatalog.Load(info);
+
+            Assert.NotNull(first);
+            Assert.Same(first, second);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>
+    ///     Proves that <see cref="SystemFontCatalog.Load"/> reports a vanished file and a damaged file as
+    ///     <see langword="null"/>, and remembers the failure rather than retrying.
+    /// </summary>
+    [Fact]
+    public void SystemFontCatalog_Load_VanishedOrDamagedFile_ReturnsNullAndCachesTheFailure()
+    {
+        var root = Directory.CreateDirectory(
+            Path.Join(Path.GetTempPath(), "canvasnet-test-load-failure-" + Guid.NewGuid())).FullName;
+
+        try
+        {
+            var vanished = new SystemFontInfo("Gone", "Regular", false, false, false, Path.Join(root, "Gone.ttf"), 0);
+            var damagedPath = Path.Join(root, "Damaged.ttf");
+            File.WriteAllBytes(damagedPath, [0x00, 0x01, 0x02, 0x03, 0x04]);
+            var damaged = new SystemFontInfo("Damaged", "Regular", false, false, false, damagedPath, 0);
+
+            Assert.Null(SystemFontCatalog.Load(vanished));
+            Assert.Null(SystemFontCatalog.Load(damaged));
+
+            // Both files become loadable, but the earlier failures are remembered
+            File.WriteAllBytes(vanished.FilePath, BuildMinimalValidFont());
+            File.WriteAllBytes(damagedPath, BuildMinimalValidFont());
+            Assert.Null(SystemFontCatalog.Load(vanished));
+            Assert.Null(SystemFontCatalog.Load(damaged));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>
+    ///     Proves that concurrent <see cref="SystemFontCatalog.Load"/> calls for one face all receive the same
+    ///     instance.
+    /// </summary>
+    [Fact]
+    public void SystemFontCatalog_Load_ConcurrentCallers_ShareOneInstance()
+    {
+        var root = Directory.CreateDirectory(
+            Path.Join(Path.GetTempPath(), "canvasnet-test-load-concurrent-" + Guid.NewGuid())).FullName;
+
+        try
+        {
+            File.WriteAllBytes(Path.Join(root, "Valid.ttf"), BuildMinimalValidFont());
+            var info = Assert.Single(SystemFontCatalog.BuildCatalogFromRoots([root]));
+
+            var loaded = new TrueTypeFont?[16];
+            Parallel.For(0, loaded.Length, i => loaded[i] = SystemFontCatalog.Load(info));
+
+            Assert.NotNull(loaded[0]);
+            Assert.All(loaded, font => Assert.Same(loaded[0], font));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     /// <summary>Builds a complete font with <c>name</c>, <c>OS/2</c> and <c>post</c> tables (optionally padding the <c>glyf</c> table).</summary>
     private static byte[] BuildStyledFont(
         string family,

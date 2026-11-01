@@ -699,7 +699,7 @@ plus the resolved total block height.
    preserved as their own token's own advance width, rather than collapsed). Each distinct
    `(FontFamily, Bold, Italic)` combination is resolved to a `TrueTypeFont` once via
    `fontResolver`, memoized per layout call; `ResolveTextFont` additionally shares loaded system
-   fonts across layouts through a process-lifetime path/face cache (see `ResolveTextFont` below).
+   fonts across layouts through `SystemFontCatalog.Load`'s process-lifetime path/face cache (see `ResolveTextFont` below).
    (Phase 1b's own theme/master/layout caches remain per-document, not static.)
    Tokens are packed greedily onto lines bounded by `widthEmu` less the body's horizontal insets;
    a single token that alone exceeds the available width is placed alone on its own (overflowing)
@@ -744,8 +744,9 @@ name hint to a concrete `TrueTypeFont` via the core `Fonts.SystemFontCatalog.Fin
 classification - unlike the PDF renderer's Standard-14 font concept, DrawingML typeface names are
 a free-form string with no implied serif/fixed-pitch/symbolic classification), falling back to
 `Fonts.SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold, italic)` when
-no installed font matches. A matched system font is loaded through a process-lifetime cache keyed
-by font file path and face index (the same keying `PdfDocument`'s fallback-font cache uses), so
+no installed font matches, or the matched font file has vanished or cannot be loaded. A matched
+system font is loaded through `Fonts.SystemFontCatalog.Load`, a process-lifetime cache keyed
+by font file path and face index (shared with the other format packages), so
 the many text bodies and table cells of one slide share a single parsed `TrueTypeFont` instead of
 each re-reading the font file (a `TrueTypeFont` is immutable and thread-safe, so sharing is
 behavior-identical). This resolves only a run's **primary** font (one call per distinct

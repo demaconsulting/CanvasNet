@@ -1,4 +1,3 @@
-using System.Security;
 using DemaConsulting.CanvasNet.Fonts;
 
 namespace DemaConsulting.CanvasNet.Svg;
@@ -56,7 +55,8 @@ public static partial class SvgCodec
     ///         </item>
     ///     </list>
     ///     The default resolution is cached per render, keyed by the <c>font-family</c> text and the
-    ///     bold/italic axes, and a given installed font file is loaded at most once per render.
+    ///     bold/italic axes, and a given installed font file is loaded at most once per process
+    ///     (<see cref="SystemFontCatalog.Load"/>).
     /// </remarks>
     private static TrueTypeFont ResolveFont(
         RenderContext context,
@@ -114,7 +114,7 @@ public static partial class SvgCodec
 
                 if (context.UseSystemFonts)
                 {
-                    var installed = TryLoadInstalledFont(context, name, bold, italic);
+                    var installed = TryLoadInstalledFont(name, bold, italic);
                     if (installed != null)
                     {
                         return installed;
@@ -168,7 +168,6 @@ public static partial class SvgCodec
     ///     Loads an installed font whose family name exactly (case-insensitively) equals
     ///     <paramref name="familyName"/>, choosing its closest bold/italic style.
     /// </summary>
-    /// <param name="context">The per-document render context, owning the loaded-file cache.</param>
     /// <param name="familyName">The unquoted family name.</param>
     /// <param name="bold">Whether a bold face is requested.</param>
     /// <param name="italic">Whether an italic face is requested.</param>
@@ -177,39 +176,13 @@ public static partial class SvgCodec
     ///     the matching font file cannot be loaded.
     /// </returns>
     /// <remarks>
-    ///     <see cref="SystemFontCatalog.FindBestMatch"/> falls back to a generic-family bucket when
-    ///     the requested family is not installed; that substitution is deliberately rejected here
-    ///     (the result's family name must equal the requested one) so the <c>font-family</c> list's
-    ///     next entry - and ultimately the bundled fallback - gets its turn instead.
+    ///     <see cref="SystemFontCatalog.FindInFamily"/> never substitutes a generic family, so the
+    ///     <c>font-family</c> list's next entry - and ultimately the bundled fallback - gets its turn
+    ///     when the requested family is not installed. The load (and a failed load) is cached
+    ///     process-wide by <see cref="SystemFontCatalog.Load"/>.
     /// </remarks>
-    private static TrueTypeFont? TryLoadInstalledFont(RenderContext context, string familyName, bool bold, bool italic)
-    {
-        var match = SystemFontCatalog.FindBestMatch(familyName, bold, italic, serif: false, fixedPitch: false);
-        if (match is not { } info || !string.Equals(info.FamilyName, familyName, StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        var fileKey = (info.FilePath, info.FaceIndex);
-        if (context.InstalledFontCache.TryGetValue(fileKey, out var cached))
-        {
-            return cached;
-        }
-
-        TrueTypeFont? font;
-        try
-        {
-            font = TrueTypeFont.Load(info.FilePath, info.FaceIndex);
-        }
-        catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException
-            or ArgumentException or NotSupportedException or OverflowException or SecurityException)
-        {
-            // A vanished, unreadable or damaged font file is tolerated: the caller moves on to the
-            // next family (and the failure is remembered so the file is not re-read)
-            font = null;
-        }
-
-        context.InstalledFontCache[fileKey] = font;
-        return font;
-    }
+    private static TrueTypeFont? TryLoadInstalledFont(string familyName, bool bold, bool italic) =>
+        SystemFontCatalog.FindInFamily(SystemFontCatalog.Fonts, familyName, bold, italic) is { } info
+            ? SystemFontCatalog.Load(info)
+            : null;
 }

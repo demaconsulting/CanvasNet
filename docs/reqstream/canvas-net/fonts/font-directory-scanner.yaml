@@ -1,0 +1,101 @@
+---
+# Software Unit Requirements for FontDirectoryScanner
+#
+# These requirements describe the design-level behavior of the FontDirectoryScanner unit
+# (including its FontScanLimits bounds record).
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Fonts Requirements
+        sections:
+          - title: FontDirectoryScanner Requirements
+            requirements:
+              - id: CanvasNet-Fonts-FontDirectoryScanner-HeaderOnlyDiscovery
+                title: >-
+                  The FontDirectoryScanner type shall report the family, subfamily, bold/italic/
+                  fixed-pitch style, absolute file path and face index of every well-formed face
+                  of every .ttf, .otf, .ttc and .otc file (extension matched in any case) found
+                  under the supplied directory trees, reading only each font file's header-level
+                  tables.
+                justification: |
+                  Callers that need to know which fonts a directory offers - the host operating
+                  system's font directories, or a caller-supplied additional font directory -
+                  must not pay to load every font fully just to read its name and style.
+                tests:
+                  - FontDirectoryScanner_Scan_BundledFonts_ReportsFamilyStyleAndAbsolutePath
+                  - FontDirectoryScanner_Scan_ExtensionsAndUnparseableFiles_OnlyWellFormedFontsReported
+
+              - id: CanvasNet-Fonts-FontDirectoryScanner-DeterministicOrder
+                title: >-
+                  The FontDirectoryScanner type shall return the same faces in the same order for
+                  the same directory trees: roots in the order supplied, and the font files found
+                  under one root in alphabetical order of their full paths (ordinal, ignoring case,
+                  with the case-sensitive ordinal order breaking a tie), with a file reachable
+                  from more than one root reported once.
+                justification: |
+                  A font search that takes the first of equally good faces, or a scan that stops at
+                  a bound, must not depend on the order a file system happens to list its
+                  entries in, or the same document would render differently from one machine to
+                  the next.
+                tests:
+                  - FontDirectoryScanner_Scan_NestedDirectories_ResultIsDeterministicallyOrdered
+                  - FontDirectoryScanner_Scan_SeveralRoots_RootOrderKeptAndDuplicatesReportedOnce
+
+              - id: CanvasNet-Fonts-FontDirectoryScanner-BoundedScan
+                title: >-
+                  The FontDirectoryScanner type shall stop a scan at the first of the bounds of
+                  its FontScanLimits (directories, entries, font files, faces) that it reaches,
+                  keeping what it found before that point, and FontScanLimits shall reject a bound
+                  of less than one.
+                justification: |
+                  A huge or hostile directory tree must not make a scan run for an unbounded time
+                  or build an unbounded result; reaching a bound is a normal outcome, not an
+                  error, so the faces found before it stay available.
+                tests:
+                  - FontDirectoryScanner_Scan_FontFileLimit_KeepsTheFirstFilesInPathOrder
+                  - FontDirectoryScanner_Scan_FaceLimit_KeepsTheFirstFaces
+                  - FontDirectoryScanner_Scan_DirectoryLimit_StopsTheDescent
+                  - FontDirectoryScanner_Scan_EntryLimit_StopsTheExamination
+                  - FontScanLimits_Properties_RejectLessThanOneAndHaveDocumentedDefaults
+
+              - id: CanvasNet-Fonts-FontDirectoryScanner-LinkPolicy
+                title: >-
+                  The FontDirectoryScanner type shall never follow a subdirectory that is a link
+                  (symbolic link, junction or other reparse point), and shall skip a root that is a
+                  link and a font file that is a link unless the caller asks it to trust linked
+                  files.
+                justification: |
+                  A link can point anywhere, including back at an ancestor of the scan (a cycle) or
+                  outside the font directory; directories that are known to use links, such as a
+                  system font directory, are scanned with trust, but a link below the root is never
+                  followed either way.
+                tests:
+                  - FontDirectoryScanner_Scan_LinkedSubdirectory_IsNeverFollowed
+                  - FontDirectoryScanner_Scan_LinkBackToParent_TerminatesAndFindsTheFont
+                  - FontDirectoryScanner_Scan_LinkedRoot_IsRefusedUnlessTrusted
+                  - FontDirectoryScanner_Scan_LinkedFile_IsSkippedUnlessTrusted
+
+              - id: CanvasNet-Fonts-FontDirectoryScanner-ToleratesUnusableInput
+                title: >-
+                  The FontDirectoryScanner type shall skip, without failing the scan, a missing,
+                  empty, null or malformed root, an unreadable directory, a font file that does
+                  not parse, and a single corrupt face of an otherwise well-formed collection.
+                justification: |
+                  Missing, locked-down or partly corrupt font directories are common in real
+                  deployments; every other well-formed font must still be discovered.
+                tests:
+                  - FontDirectoryScanner_Scan_MissingEmptyAndNullRoots_AreSkipped
+                  - FontDirectoryScanner_Scan_ExtensionsAndUnparseableFiles_OnlyWellFormedFontsReported
+
+              - id: CanvasNet-Fonts-FontDirectoryScanner-Cancellation
+                title: >-
+                  The FontDirectoryScanner type shall end a scan with OperationCanceledException
+                  when the supplied cancellation token is canceled, and shall reject a null list
+                  of directories with ArgumentNullException.
+                justification: |
+                  A scan of a large tree can take a noticeable time, so a caller that is itself
+                  cancellable must be able to stop it; an absent directory list is a caller
+                  defect, reported as such rather than treated as an empty scan.
+                tests:
+                  - FontDirectoryScanner_Scan_CanceledTokenAndNullDirectories_Throw

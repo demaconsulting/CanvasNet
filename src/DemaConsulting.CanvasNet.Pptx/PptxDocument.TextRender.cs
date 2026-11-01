@@ -173,7 +173,8 @@ public sealed partial class PptxDocument
     ///     never signals serif/fixed-pitch classification the way PDF's Standard-14/
     ///     FontDescriptor flags do, so both are always passed as <see langword="false"/>), falling
     ///     back to a bundled Liberation Sans/Serif font (<see cref="SystemFontCatalog.LoadBundledFallback"/>,
-    ///     also always <c>serif: false, fixedPitch: false</c>) when no system font matches. This
+    ///     also always <c>serif: false, fixedPitch: false</c>) when no system font matches or the
+    ///     matched font file cannot be loaded (<see cref="SystemFontCatalog.Load"/>). This
     ///     is the default <c>fontResolver</c> delegate production callers drive
     ///     <see cref="ResolveTextLayout"/> with; a test may inject its own delegate instead for
     ///     deterministic, machine-independent pixel assertions (see <see cref="ResolveTextLayout"/>'s
@@ -190,18 +191,7 @@ public sealed partial class PptxDocument
     internal static TrueTypeFont ResolveTextFont(string familyNameHint, bool bold, bool italic)
     {
         var match = SystemFontCatalog.FindBestMatch(familyNameHint, bold, italic, serif: false, fixedPitch: false);
-        return match is { } found
-            ? SystemFontCache.GetOrAdd((found.FilePath, found.FaceIndex), static key => TrueTypeFont.Load(key.Path, key.Face))
-            : SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold, italic);
+        return (match is { } found ? SystemFontCatalog.Load(found) : null)
+            ?? SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold, italic);
     }
-
-    /// <summary>
-    ///     Process-lifetime cache of the system fonts <see cref="ResolveTextFont"/> has loaded,
-    ///     keyed by file path and face index (the same keying <c>PdfDocument.FontFallback.cs</c>
-    ///     uses for its own fallback-font cache). Each text body memoizes fonts only for its own
-    ///     layout, so without this a slide with many shapes re-read and re-parsed the same font
-    ///     file once per shape. A <see cref="TrueTypeFont"/> is immutable and thread-safe, so
-    ///     sharing one instance across layouts and documents is behavior-identical.
-    /// </summary>
-    private static readonly System.Collections.Concurrent.ConcurrentDictionary<(string Path, int Face), TrueTypeFont> SystemFontCache = new();
 }

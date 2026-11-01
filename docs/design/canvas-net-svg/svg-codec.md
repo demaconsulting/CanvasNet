@@ -254,7 +254,7 @@ font-weight, font-style, text-anchor, and the three marker-start/marker-mid/mark
 specifications) that is threaded down through the element tree alongside an accumulated
 `System.Numerics.Matrix3x2` transform, plus a private `RenderContext` capturing fixed per-document
 state (the id→`XElement` index, the caller's font-family-to-`SvgFontFace`-list dictionary, the
-`UseSystemFonts` setting, the per-render resolved-font and installed-font-file caches, and the
+`UseSystemFonts` setting, the per-render resolved-font cache, and the
 resolved fit transform).
 
 ### XML Parsing Hardening (XXE)
@@ -1477,20 +1477,20 @@ child, and the filter bounds pre-pass, always returns a font, in this order:
    `ui-sans-serif`, `cursive`, and `fantasy` to Liberation Sans; `serif` and `ui-serif` to
    Liberation Serif; `monospace` and `ui-monospace` to Liberation Mono; `cursive`/`fantasy` have
    no better bundled match, so they use Sans); any other name is looked up among the host's
-   installed fonts with `SystemFontCatalog.FindBestMatch`, accepted only when the returned family
-   name equals the requested one (case-insensitively) - `FindBestMatch`'s own generic-bucket
-   substitution is rejected so a missing family falls to the next list entry rather than to an
-   arbitrary installed font - and the matched file is loaded with `TrueTypeFont.Load`. A file
-   that cannot be read or parsed is tolerated (the next family is tried). This step is skipped
+   installed fonts with `SystemFontCatalog.FindInFamily` over `SystemFontCatalog.Fonts` (an exact,
+   case-insensitive family match, closest style, with no generic-bucket substitution, so a missing
+   family falls to the next list entry rather than to an arbitrary installed font) and the
+   matched file is loaded with `SystemFontCatalog.Load`. A file
+   that cannot be read or parsed is tolerated (`Load` returns `null` and the next family is tried). This step is skipped
    when `SvgLoadOptions.UseSystemFonts` is `false`; generic keywords never consult installed fonts.
 3. **Last resort** - the bundled Liberation Sans.
 
 The requested weight/style reduce to two flags for steps 2 and 3: bold when the cascaded
 `font-weight` is `>= 600`, italic when `font-style` is `italic`/`oblique`. A `text` with no
 `font-family` at all resolves directly to step 3. The result is cached per render in the
-`RenderContext` (keyed by the raw `font-family` text and the two flags, and by file path/face index
-for loaded installed fonts, so a font file is read at most once per `Load` call); the only state
-shared beyond one render is what `SystemFontCatalog` already holds (its lazily scanned catalog and
+`RenderContext` (keyed by the raw `font-family` text and the two flags); the only state
+shared beyond one render is what `SystemFontCatalog` already holds (its lazily scanned catalog,
+the process-lifetime cache of loaded installed fonts behind `Load`, and the
 bundled-font cache), so the thread-safety contract is unchanged - `Load` remains safe to call
 concurrently.
 

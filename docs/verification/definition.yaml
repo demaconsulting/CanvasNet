@@ -32,6 +32,7 @@ input-files:
   - docs/verification/canvas-net/fonts.md
   - docs/verification/canvas-net/fonts/true-type-font.md
   - docs/verification/canvas-net/fonts/system-font-catalog.md
+  - docs/verification/canvas-net/fonts/font-directory-scanner.md
   - docs/verification/canvas-net/rendering.md
   - docs/verification/canvas-net/rendering/canvas.md
   - docs/verification/canvas-net/rendering/text-renderer.md
