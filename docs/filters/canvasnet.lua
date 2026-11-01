@@ -485,7 +485,8 @@ local function add_chart_sources(path, root, parts)
     return
   end
   table.insert(parts, pandoc.path.filename(path) .. "\n" .. content)
-  local ok, spec = pcall(pandoc.json.decode, content, false)
+  -- The tool ignores a leading UTF-8 byte order mark, so the data urls of such a file are hashed too.
+  local ok, spec = pcall(pandoc.json.decode, (content:gsub("^\239\187\191", "")), false)
   if not ok or type(spec) ~= "table" then
     return -- the tool reports the syntax error
   end

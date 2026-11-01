@@ -208,6 +208,18 @@ try {
     $pctAfter = @(Get-Pictures).Count
     Write-Result ($pctAfter -eq $pctBefore + 1) 'a data file with a percent sign in its name is hashed' "before $pctBefore, after $pctAfter"
 
+    # The tool ignores a leading byte order mark, so the data file of such a chart is hashed too.
+    Set-Content (Join-Path $guide 'bom.csv') -Value "k,v`na,1`nb,2"
+    [System.IO.File]::WriteAllText((Join-Path $guide 'bom.vl.json'), $urlSpec.Replace('URL', 'bom.csv'),
+        [System.Text.UTF8Encoding]::new($true))
+    Invoke-Filter 'bom' '![c](bom.vl.json)' | Out-Null
+    $bomBefore = @(Get-Pictures).Count
+    Set-Content (Join-Path $guide 'bom.csv') -Value "k,v`na,1`nb,9"
+    $bom = Invoke-Filter 'bom' '![c](bom.vl.json)'
+    $bomAfter = @(Get-Pictures).Count
+    Write-Result ($bom.ExitCode -eq 0 -and $bomAfter -eq $bomBefore + 1) `
+        'a chart with a byte order mark has its data file hashed' "before $bomBefore, after $bomAfter`n$($bom.Log)"
+
     # --- Pictures the filter ignores never start the tool -----------------------------------------------
     $saved = $env:CANVASNET_TOOL
     $env:CANVASNET_TOOL = 'no-such-program-canvasnet'
