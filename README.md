@@ -62,6 +62,7 @@ load/crop/resize/save workflows.
 - 🔤 **TrueType/CFF Fonts** - Load fonts and collections, extract glyph outlines, query metadata
 - 🗂️ **System Font Discovery** - Match a family/style against installed fonts, with a bundled fallback
 - 🎬 **Rendering** - Transform-aware canvas with text and shape drawing
+- 📦 **Package Reading** - `OpcPackage` and `SafeXml` read untrusted `.pptx`/`.vsdx` packages and XML safely
 - ⚡ **Span-Based** - Fast, allocation-conscious pixel and row access
 - 🔄 **Multi-Target** - Supports .NET 8, 9, and 10
 - 📦 **NuGet Ready** - Easy integration via NuGet package

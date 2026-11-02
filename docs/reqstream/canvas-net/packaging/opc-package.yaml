@@ -1,0 +1,150 @@
+---
+# Software Unit Requirements for OpcPackage
+#
+# These requirements describe the design-level behavior of the OpcPackage unit (including its
+# OpcFormatException).
+# cspell:ignore ECMA ordinally
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Packaging Requirements
+        sections:
+          - title: OpcPackage Requirements
+            requirements:
+              - id: CanvasNet-Packaging-OpcPackage-BoundedOpen
+                title: >-
+                  The OpcPackage type shall open a package from a readable stream by copying it into
+                  memory in chunks, rejecting it with OpcFormatException as soon as more than
+                  MaxPackageBytes bytes have been read, and also rejecting a stream that is not a
+                  readable ZIP archive, without closing the caller's stream.
+                justification: |
+                  A package stream may be huge, non-terminating, or not a package at all; counting the
+                  bytes while copying bounds both memory and read time before any ZIP parsing, and
+                  the caller keeps ownership of its stream.
+                tests:
+                  - OpcPackage_Open_MinimalValidPackage_OpensAndLeavesStreamOpen
+                  - OpcPackage_Open_NonZipStream_ThrowsOpcFormatException
+                  - OpcPackage_Open_NonTerminatingStream_ThrowsOpcFormatException
+
+              - id: CanvasNet-Packaging-OpcPackage-RequiredParts
+                title: >-
+                  The OpcPackage type shall require [Content_Types].xml and _rels/.rels, and shall
+                  reject with OpcFormatException a package missing either, a part that is not
+                  well-formed XML or whose root is not the OPC Types or Relationships element, a
+                  Default, Override or Relationship element lacking a required attribute, and two
+                  relationships of one part sharing an Id.
+                justification: |
+                  The two parts are the entry points to every other part; accepting a malformed one
+                  would let an incomplete content-type or relationship map pass as complete.
+                tests:
+                  - OpcPackage_Open_MissingContentTypes_ThrowsOpcFormatException
+                  - OpcPackage_Open_MissingPackageRelationships_ThrowsOpcFormatException
+                  - OpcPackage_Open_ContentTypesNotWellFormed_ThrowsOpcFormatException
+                  - OpcPackage_Open_ContentTypesWrongRoot_ThrowsOpcFormatException
+                  - OpcPackage_Open_ContentTypeEntryMissingAttribute_ThrowsOpcFormatException
+                  - OpcPackage_Open_RelationshipsWrongRoot_ThrowsOpcFormatException
+                  - OpcPackage_Open_RelationshipMissingAttribute_ThrowsOpcFormatException
+                  - OpcPackage_Open_DuplicateRelationshipId_ThrowsOpcFormatException
+
+              - id: CanvasNet-Packaging-OpcPackage-PartNames
+                title: >-
+                  The OpcPackage type shall compare part names ordinally (case-sensitively), so parts
+                  whose names differ only by case are distinct and an incorrectly cased reserved
+                  part name is not accepted, shall reject a package with two entries of an identical
+                  name with OpcFormatException, and shall accept a part path with or without a single
+                  leading slash.
+                justification: |
+                  Part-name comparison decides which part a name refers to; an identical duplicate
+                  would let one entry shadow another, and the reserved parts must be found only under
+                  their exact names.
+                tests:
+                  - OpcPackage_ResolvePart_NamesDifferingOnlyByCase_AreDistinctParts
+                  - OpcPackage_Open_WrongCaseContentTypesPartName_ThrowsOpcFormatException
+                  - OpcPackage_Open_DuplicateEntryNames_ThrowsOpcFormatException
+                  - OpcPackage_ContainsPart_ExactAndDifferentCaseNames_ReportsExistence
+                  - OpcPackage_NormalizePartPath_LeadingSlash_StripsOnlyOne
+
+              - id: CanvasNet-Packaging-OpcPackage-ContentTypes
+                title: >-
+                  The OpcPackage type shall resolve a part's content type from its Override entry when
+                  one exists, otherwise from the Default entry for its extension (matched in any
+                  case), and shall reject a part that does not exist, or has no content type, with
+                  OpcFormatException.
+                justification: |
+                  OPC defines Override as taking precedence over Default; a wrong precedence would
+                  misidentify a part, and a missing mapping must fail rather than guess.
+                tests:
+                  - OpcPackage_ResolvePart_Override_TakesPrecedenceOverDefault
+                  - OpcPackage_ResolvePart_NoOverride_UsesDefaultExtension
+                  - OpcPackage_ResolvePart_UnknownPartOrNoContentType_ThrowsOpcFormatException
+
+              - id: CanvasNet-Packaging-OpcPackage-Relationships
+                title: >-
+                  The OpcPackage type shall resolve a relationship's target relative to its source
+                  part's directory (or from the package root for a target starting with a slash),
+                  dropping "." segments and applying ".." segments and dropping any URI fragment
+                  (so a fragment-only target names the source part), shall reject with
+                  OpcFormatException a target with a ".." that would leave the package, an unknown
+                  relationship, and an external target, shall report a relationship's type, shall
+                  resolve by type suffix or by identifier (the non-throwing forms returning null),
+                  skipping external relationships, and shall treat a part without a relationships part as
+                  having none.
+                justification: |
+                  Relationships are how a reader finds every part; resolving them by the OPC rules
+                  gives the right target, and refusing a target outside the package keeps a hostile
+                  package from steering a reader out of it.
+                tests:
+                  - OpcPackage_ResolveRelationship_RelativeAbsoluteAndDotTargets_ResolveToPartPaths
+                  - OpcPackage_ResolveRelationship_FragmentTargets_DropTheFragment
+                  - OpcPackage_ResolveRelationship_TargetEscapesPackageRoot_ThrowsOpcFormatException
+                  - OpcPackage_ResolveRelationship_UnknownIdOrExternalTarget_ThrowsOpcFormatException
+                  - OpcPackage_TryResolveRelationship_PartWithoutRelationships_ReturnsNull
+                  - OpcPackage_ResolveRelationshipByType_SuffixMatch_ResolvesNonExternalTarget
+                  - OpcPackage_TryResolveRelationshipById_KnownUnknownAndExternal_ResolveOrReturnNull
+                  - OpcPackage_GetRelationshipType_KnownAndUnknownId_ReturnsTypeOrThrows
+                  - OpcPackage_ResolveRelationship_MalformedPartRelationships_ThrowsOnFirstUse
+
+              - id: CanvasNet-Packaging-OpcPackage-XmlParts
+                title: >-
+                  The OpcPackage type shall read every XML part through SafeXml bounded to
+                  MaxXmlPartCharacters characters, returning its root element, and shall reject a
+                  missing part, a part that is not well-formed, one that declares a DTD, and one
+                  that exceeds the bound with OpcFormatException.
+                justification: |
+                  Package parts are attacker-controlled; a bounded, DTD-free parse prevents an XML
+                  bomb or an external-entity read from a crafted part.
+                tests:
+                  - OpcPackage_Open_OversizedContentTypesPart_ThrowsOpcFormatException
+                  - OpcPackage_Open_ContentTypesWithDocumentType_ThrowsOpcFormatException
+                  - OpcPackage_LoadPartXmlRoot_PresentMissingAndMalformedParts_ReturnRootOrThrow
+
+              - id: CanvasNet-Packaging-OpcPackage-PartBytes
+                title: >-
+                  The OpcPackage type shall return a part's decompressed content as a new array,
+                  counting the bytes while copying rather than trusting the entry's declared length,
+                  and shall reject a part larger than MaxPartBytes, or one that does not exist, with
+                  OpcFormatException.
+                justification: |
+                  The compressed-to-decompressed ratio of a part is attacker-controlled (a zip bomb);
+                  bounding the bytes actually produced prevents a few kilobytes from exhausting
+                  memory.
+                tests:
+                  - OpcPackage_GetPartBytes_WellFormedPart_ReturnsExactBytes
+                  - OpcPackage_GetPartBytes_OversizedDecompressedEntry_ThrowsOpcFormatException
+
+              - id: CanvasNet-Packaging-OpcPackage-Validation
+                title: >-
+                  The OpcPackage type shall reject a null argument with ArgumentNullException naming
+                  the parameter and an unreadable stream with ArgumentException, shall make Dispose
+                  idempotent and reject any member used after it with ObjectDisposedException, and
+                  OpcFormatException shall carry the message and inner exception it is given.
+                justification: |
+                  A public API must report a caller's mistakes precisely and must not use released
+                  resources; the exception type is what callers catch to translate package errors.
+                tests:
+                  - OpcPackage_Open_NullStream_ThrowsArgumentNullException
+                  - OpcPackage_Open_UnreadableStream_ThrowsArgumentException
+                  - OpcPackage_Methods_NullArguments_ThrowArgumentNullExceptionWithParameterName
+                  - OpcPackage_Dispose_CalledTwiceThenUsed_DoesNotThrowUntilUsed
+                  - OpcFormatException_Constructors_CarryMessageAndInnerException

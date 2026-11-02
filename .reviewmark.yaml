@@ -735,6 +735,68 @@ reviews:
       - "src/DemaConsulting.CanvasNet/Rendering/Shapes.cs"          # unit source
       - "test/DemaConsulting.CanvasNet.Tests/Rendering/ShapesTests.cs"  # unit tests
 
+  # CanvasNet-Rendering-WordWrap Review (one per unit)
+  - id: CanvasNet-Rendering-WordWrap
+    title: Review that CanvasNet Rendering WordWrap Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+      - "docs/design/canvas-net/rendering.md"
+      - "docs/reqstream/canvas-net/rendering.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/rendering/word-wrap.yaml"        # unit requirements
+      - "docs/design/canvas-net/rendering/word-wrap.md"            # unit design
+      - "docs/verification/canvas-net/rendering/word-wrap.md"      # unit verification
+      - "docs/sysml2/model/canvas-net/rendering/word-wrap.sysml"   # unit model
+      - "src/DemaConsulting.CanvasNet/Rendering/WordWrap.cs"          # unit source
+      - "test/DemaConsulting.CanvasNet.Tests/Rendering/WordWrapTests.cs"  # unit tests
+
+  # CanvasNet-Packaging Review (one per subsystem)
+  - id: CanvasNet-Packaging
+    title: Review that CanvasNet Packaging Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/packaging.yaml"                # subsystem requirements
+      - "docs/design/canvas-net/packaging.md"                    # subsystem design
+      - "docs/verification/canvas-net/packaging.md"              # subsystem verification
+      - "docs/sysml2/model/canvas-net/packaging.sysml"           # subsystem model
+      - "src/DemaConsulting.CanvasNet/Packaging/NamespaceDoc.cs"  # namespace documentation
+
+  # CanvasNet-Packaging-OpcPackage Review (one per unit)
+  - id: CanvasNet-Packaging-OpcPackage
+    title: Review that CanvasNet Packaging OpcPackage Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+      - "docs/design/canvas-net/packaging.md"
+      - "docs/reqstream/canvas-net/packaging.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/packaging/opc-package.yaml"        # unit requirements
+      - "docs/design/canvas-net/packaging/opc-package.md"            # unit design
+      - "docs/verification/canvas-net/packaging/opc-package.md"      # unit verification
+      - "docs/sysml2/model/canvas-net/packaging/opc-package.sysml"   # unit model
+      - "src/DemaConsulting.CanvasNet/Packaging/OpcPackage.cs"          # unit source
+      - "src/DemaConsulting.CanvasNet/Packaging/OpcFormatException.cs"  # exception source
+      - "test/DemaConsulting.CanvasNet.Tests/Packaging/OpcPackageTests.cs"  # unit tests
+
+  # CanvasNet-Packaging-SafeXml Review (one per unit)
+  - id: CanvasNet-Packaging-SafeXml
+    title: Review that CanvasNet Packaging SafeXml Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+      - "docs/design/canvas-net/packaging.md"
+      - "docs/reqstream/canvas-net/packaging.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/packaging/safe-xml.yaml"        # unit requirements
+      - "docs/design/canvas-net/packaging/safe-xml.md"            # unit design
+      - "docs/verification/canvas-net/packaging/safe-xml.md"      # unit verification
+      - "docs/sysml2/model/canvas-net/packaging/safe-xml.sysml"   # unit model
+      - "src/DemaConsulting.CanvasNet/Packaging/SafeXml.cs"          # unit source
+      - "test/DemaConsulting.CanvasNet.Tests/Packaging/SafeXmlTests.cs"  # unit tests
+
   # CanvasNetSvg-Architecture Review (one per system)
   - id: CanvasNetSvg-Architecture
     title: Review that CanvasNetSvg Architecture Satisfies Requirements

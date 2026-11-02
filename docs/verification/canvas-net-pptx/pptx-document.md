@@ -97,100 +97,101 @@ leaking through uncaught.
 #### CanvasNetPptx-PptxDocument-ContentTypesValidation: Missing [Content_Types].xml Throws InvalidDataException
 
 **Tests**: `PptxDocument_Open_MissingContentTypes_ThrowsInvalidDataException`,
-`PptxDocument_Open_OversizedContentTypesPart_ThrowsInvalidDataException`,
-`PptxDocument_Open_ContentTypesWrongRoot_ThrowsInvalidDataException`,
-`PptxDocument_Open_ContentTypesDefaultMissingRequiredAttribute_ThrowsInvalidDataException`,
-`PptxDocument_Open_ContentTypesOverrideMissingRequiredAttribute_ThrowsInvalidDataException`
+`OpcPackage_Open_OversizedContentTypesPart_ThrowsOpcFormatException`,
+`OpcPackage_Open_ContentTypesWrongRoot_ThrowsOpcFormatException`,
+`OpcPackage_Open_ContentTypeEntryMissingAttribute_ThrowsOpcFormatException`
 
 Proves a package containing only `_rels/.rels` (no `[Content_Types].xml` entry at all) throws
-`InvalidDataException` from `Open`. Also proves `Open` fails closed for an attacker-controlled
-`[Content_Types].xml` part: one padded past the bounded character budget (an "XML bomb" pattern)
-throws `InvalidDataException` rather than risking unbounded memory use; a part whose root element
-is not the OPC `Types` element throws `InvalidDataException` rather than being silently accepted
-with no `Default`/`Override` entries found; and a `Default`/`Override` element missing one of its
-required attributes (`Extension`/`ContentType` or `PartName`/`ContentType` respectively) throws
-`InvalidDataException` rather than being silently discarded.
+`InvalidDataException` from `Open`. The `OpcPackage_*` tests belong to the core `OpcPackageTests`
+(the package mechanics live in the core `Packaging` subsystem; see `packaging/opc-package.md`) and
+prove the part-level rules that this class inherits: an attacker-controlled `[Content_Types].xml`
+padded past the bounded character budget (an "XML bomb" pattern) is rejected rather than risking
+unbounded memory use; a part whose root element is not the OPC `Types` element is rejected rather
+than silently accepted with no `Default`/`Override` entries found; and a `Default`/`Override`
+element missing one of its required attributes (`Extension`/`ContentType` or
+`PartName`/`ContentType` respectively) is rejected rather than silently discarded. `PptxDocument`
+rethrows each core `OpcFormatException` as `InvalidDataException` with the same message, which the
+retained `PptxDocument_*` test proves end to end.
 
 #### CanvasNetPptx-PptxDocument-MediaPartSizeValidation: Oversized Decompressed Part Throws InvalidDataException
 
-**Tests**: `PptxDocument_GetPartBytes_OversizedDecompressedEntry_ThrowsInvalidDataException`,
+**Tests**: `OpcPackage_GetPartBytes_OversizedDecompressedEntry_ThrowsOpcFormatException`,
 `PptxDocument_GetPartBytes_WellFormedPart_ReturnsExactBytes`
 
-Proves `GetPartBytes` rejects a part whose actual decompressed content exceeds the documented
-256 MiB bound with `InvalidDataException`, even when the part's compressed ZIP entry is tiny (a
-"zip bomb" - a highly-compressible, all-zero payload), proving the bound is enforced from bytes
-actually read during the copy rather than from any declared or compressed size. Also proves a
-normal-sized binary part is still returned byte-for-byte unchanged, confirming the new bound does
-not disturb ordinary media-part reads.
+The core test proves `GetPartBytes` rejects a part whose actual decompressed content exceeds the
+documented 256 MiB bound, even when the part's compressed ZIP entry is tiny (a "zip bomb" - a
+highly-compressible, all-zero payload), proving the bound is enforced from bytes actually read
+during the copy rather than from any declared or compressed size; `PptxDocument` rethrows it as
+`InvalidDataException`. The `PptxDocument` test proves a normal-sized binary part is still returned
+byte-for-byte unchanged through the adapter, confirming the bound does not disturb ordinary
+media-part reads.
 
 #### CanvasNetPptx-PptxDocument-PackageRelationshipsValidation: Missing _rels/.rels Throws InvalidDataException
 
 **Tests**: `PptxDocument_Open_MissingPackageRelationships_ThrowsInvalidDataException`,
-`PptxDocument_Open_PackageRelsWrongRoot_ThrowsInvalidDataException`,
-`PptxDocument_Open_RelationshipMissingRequiredAttribute_ThrowsInvalidDataException`
+`OpcPackage_Open_RelationshipsWrongRoot_ThrowsOpcFormatException`,
+`OpcPackage_Open_RelationshipMissingAttribute_ThrowsOpcFormatException`
 
 Proves a package containing only `[Content_Types].xml` (no package-level `_rels/.rels` entry at
-all) throws `InvalidDataException` from `Open`. Also proves a relationships part whose root
-element is not the OPC `Relationships` element throws `InvalidDataException` rather than being
-silently accepted with no relationships found, and a `<Relationship>` element missing one of its
-required attributes (`Id`, `Type`, or `Target`) throws `InvalidDataException` rather than being
-silently skipped.
+all) throws `InvalidDataException` from `Open`. The core tests prove that a relationships part whose
+root element is not the OPC `Relationships` element is rejected rather than silently accepted with
+no relationships found, and that a `<Relationship>` element missing one of its required attributes
+(`Id`, `Type`, or `Target`) is rejected rather than silently skipped.
 
 #### CanvasNetPptx-PptxDocument-CaseSensitivePartNames: OPC Part Names Compare Ordinally (Case-Sensitively)
 
-**Tests**: `PptxDocument_ResolvePart_PartNamesDifferingOnlyByCase_ResolveAsDistinctParts`,
-`PptxDocument_Open_WrongCaseContentTypesPartName_ThrowsInvalidDataException`,
-`PptxDocument_Open_DuplicateEntryNames_ThrowsInvalidDataException`
+**Tests**: `OpcPackage_ResolvePart_NamesDifferingOnlyByCase_AreDistinctParts`,
+`OpcPackage_Open_WrongCaseContentTypesPartName_ThrowsOpcFormatException`,
+`OpcPackage_Open_DuplicateEntryNames_ThrowsOpcFormatException`
 
-Declares a package with both `ppt/slides/Slide1.xml` and `ppt/slides/slide1.xml`, each given its
-own distinct `Override` content type, and asserts `ResolvePart` resolves each to its own distinct
-content type rather than the two names colliding under a case-insensitive comparison. Also proves
-a package whose reserved content-types part is incorrectly cased (for example
-`[content_types].xml` instead of `[Content_Types].xml`) is treated as if the part were entirely
-absent, throwing `InvalidDataException`; and proves a package containing two ZIP entries with
-exactly identical names throws `InvalidDataException` from `Open` rather than one silently
-shadowing the other.
+The core tests declare a package with both `doc/Page.xml` and `doc/page.xml`, each given its own
+distinct `Override` content type, and assert `ResolvePart` resolves each to its own distinct
+content type rather than the two names colliding under a case-insensitive comparison; prove a
+package whose reserved content-types part is incorrectly cased (for example `[content_types].xml`
+instead of `[Content_Types].xml`) is treated as if the part were entirely absent; and prove a
+package containing two ZIP entries with exactly identical names is rejected rather than one
+silently shadowing the other. `PptxDocument` surfaces each as `InvalidDataException`.
 
 #### CanvasNetPptx-PptxDocument-ContentTypeOverride: Override Content Type Takes Precedence Over Default Extension
 
-**Test**: `PptxDocument_ResolvePart_OverrideContentType_TakesPrecedenceOverDefaultExtension`
+**Test**: `OpcPackage_ResolvePart_Override_TakesPrecedenceOverDefault`
 
-Declares a `[Content_Types].xml` with both a `Default Extension="xml"` mapping to
-`"application/xml"` and a part-specific `Override PartName="/ppt/presentation.xml"` mapping to
-the real presentation content type. Asserts `ResolvePart("ppt/presentation.xml")` returns the
-override value, not the default, proving the documented precedence rule.
+The core test declares a `[Content_Types].xml` with both a `Default Extension="xml"` mapping to
+`"application/xml"` and a part-specific `Override` for one part, and asserts `ResolvePart` returns
+the override value, not the default, proving the documented precedence rule that
+`PptxDocument.ResolvePart` delegates to.
 
 #### CanvasNetPptx-PptxDocument-ContentTypeDefault: Default Extension Resolves, Unknown Part Fails Closed
 
-**Tests**: `PptxDocument_ResolvePart_NoOverride_ResolvesDefaultExtensionContentType`,
+**Tests**: `OpcPackage_ResolvePart_NoOverride_UsesDefaultExtension`,
 `PptxDocument_ResolvePart_UnknownPart_ThrowsInvalidDataException`
 
-Proves a part with no `Override` entry resolves via the `Default` extension mapping, and proves
-requesting a part path the package does not actually contain throws `InvalidDataException`
-rather than silently falling through to a spurious default.
+The core test proves a part with no `Override` entry resolves via the `Default` extension mapping,
+and the `PptxDocument` test proves requesting a part path the package does not actually contain
+throws `InvalidDataException` rather than silently falling through to a spurious default.
 
 #### CanvasNetPptx-PptxDocument-RelationshipResolution: Known Relationship Resolves, Unknown Relationship Fails Closed
 
 **Tests**: `PptxDocument_Open_WellFormedMinimalPackage_Succeeds` (also proves package-root
 relationship resolution via `ResolveRelationship(string.Empty, "rId1")`),
 `PptxDocument_ResolveRelationship_UnknownRelationshipId_ThrowsInvalidDataException`,
-`PptxDocument_ResolveRelationship_ExternalTargetMode_ThrowsInvalidDataException`
+`OpcPackage_ResolveRelationship_UnknownIdOrExternalTarget_ThrowsOpcFormatException`
 
 Proves a known relationship ID in the package-level `_rels/.rels` resolves to its declared
 target part path, and proves requesting an unknown relationship ID throws
-`InvalidDataException`. Also proves a relationship declaring `TargetMode="External"` throws
-`InvalidDataException` rather than being resolved as if it were an in-package target.
+`InvalidDataException`. The core test also proves a relationship declaring `TargetMode="External"`
+is rejected rather than being resolved as if it were an in-package target.
 
 #### CanvasNetPptx-PptxDocument-RelativeTargetTraversal: Relative "../" Target Resolves, Root Escape Fails Closed
 
-**Tests**: `PptxDocument_ResolveRelationship_RelativeTargetWithParentTraversal_ResolvesCorrectTarget`,
-`PptxDocument_ResolveRelationship_TargetEscapesPackageRoot_ThrowsInvalidDataException`
+**Tests**: `OpcPackage_ResolveRelationship_RelativeAbsoluteAndDotTargets_ResolveToPartPaths`,
+`OpcPackage_ResolveRelationship_TargetEscapesPackageRoot_ThrowsOpcFormatException`
 
-Declares `ppt/slides/slide1.xml`'s own relationship to `"../slideLayouts/slideLayout1.xml"` and
-asserts it resolves to `"ppt/slideLayouts/slideLayout1.xml"` (relative to the source part's own
-directory, not the package root). Separately, declares a relationship whose target traverses more
-`".."` segments than the source part has preceding directories, asserting
-`InvalidDataException` is thrown rather than producing a nonsensical or out-of-package path.
+The core tests declare a part's relationship to `"../layouts/layout1.xml"` and assert it resolves
+to `"layouts/layout1.xml"` (relative to the source part's own directory, not the package root),
+and that absolute and `.`-segment targets resolve too. Separately, a relationship whose target
+traverses more `".."` segments than the source part has preceding directories is rejected rather
+than producing a nonsensical or out-of-package path.
 
 #### CanvasNetPptx-PptxDocument-Dispose: Dispose Is Idempotent
 

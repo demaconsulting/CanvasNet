@@ -1,5 +1,6 @@
 using System.Text;
 using DemaConsulting.CanvasNet.Fonts;
+using DemaConsulting.CanvasNet.Rendering;
 
 namespace DemaConsulting.CanvasNet.Vsdx;
 
@@ -235,72 +236,21 @@ public sealed partial class VsdxDocument
     }
 
     /// <summary>
-    ///     Word-wraps a single paragraph's tokens into width-bounded lines - mirrors
-    ///     <c>PptxDocument.PackTokensIntoLines</c>'s own word-group atomicity rule (consecutive
-    ///     non-whitespace tokens never wrap mid-word, even across a run boundary with no
-    ///     intervening whitespace) and overflow policy (a token/word-group alone exceeding
-    ///     <paramref name="availableWidthInches"/> is still placed whole on its own, overflowing
-    ///     line, rather than looping indefinitely).
+    ///     Word-wraps a single paragraph's tokens into width-bounded lines with the core
+    ///     <see cref="WordWrap"/> packer - the same word-group atomicity rule as
+    ///     <c>PptxDocument.PackTokensIntoLines</c> (consecutive non-whitespace tokens never wrap
+    ///     mid-word, even across a run boundary with no intervening whitespace) and overflow policy
+    ///     (a token/word-group alone exceeding <paramref name="availableWidthInches"/> is still
+    ///     placed whole on its own, overflowing line, rather than looping indefinitely). VisioML
+    ///     has no explicit line-break or tab tokens here, so every token is a word or whitespace
+    ///     of fixed width.
     /// </summary>
-    private static List<List<ResolvedToken>> PackTokensIntoLines(IReadOnlyList<ResolvedToken> tokens, double availableWidthInches)
-    {
-        var lines = new List<List<ResolvedToken>>();
-        var currentLine = new List<ResolvedToken>();
-        var currentWidth = 0d;
-        var sawAnyToken = false;
-
-        var pendingGroup = new List<ResolvedToken>();
-        var pendingGroupWidth = 0d;
-
-        void FlushPendingGroup()
-        {
-            if (pendingGroup.Count == 0)
-            {
-                return;
-            }
-
-            Pack(pendingGroup, pendingGroupWidth);
-            pendingGroup.Clear();
-            pendingGroupWidth = 0d;
-        }
-
-        void Pack(IReadOnlyList<ResolvedToken> unit, double unitWidth)
-        {
-            var currentLineHasVisibleContent = currentLine.Any(static t => !t.IsWhitespace);
-            if (currentLineHasVisibleContent && currentWidth + unitWidth > availableWidthInches)
-            {
-                lines.Add(currentLine);
-                currentLine = [];
-                currentWidth = 0d;
-            }
-
-            currentLine.AddRange(unit);
-            currentWidth += unitWidth;
-        }
-
-        foreach (var token in tokens)
-        {
-            sawAnyToken = true;
-
-            if (token.IsWhitespace)
-            {
-                FlushPendingGroup();
-                Pack([token], token.WidthInches);
-                continue;
-            }
-
-            pendingGroup.Add(token);
-            pendingGroupWidth += token.WidthInches;
-        }
-
-        FlushPendingGroup();
-        if (sawAnyToken)
-        {
-            lines.Add(currentLine);
-        }
-
-        return lines;
-    }
+    private static List<List<ResolvedToken>> PackTokensIntoLines(IReadOnlyList<ResolvedToken> tokens, double availableWidthInches) =>
+        WordWrap.Pack(
+            tokens,
+            availableWidthInches,
+            static token => token.IsWhitespace ? WordWrapTokenKind.Whitespace : WordWrapTokenKind.Word,
+            static (token, _) => token.WidthInches);
 
     /// <summary>
     ///     Tokenizes and word-wraps a single paragraph group into its own <see cref="LineBox"/>

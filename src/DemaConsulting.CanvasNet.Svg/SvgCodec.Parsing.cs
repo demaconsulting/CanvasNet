@@ -12,6 +12,7 @@ using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Drawing;
 using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Geometry;
+using DemaConsulting.CanvasNet.Packaging;
 using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
 namespace DemaConsulting.CanvasNet.Svg;
@@ -39,22 +40,12 @@ public static partial class SvgCodec
         XDocument document;
         try
         {
-            // Bound the reader's total character count via MaxCharactersInDocument before
-            // XDocument.Load ever begins materializing the DOM tree - see MaxDocumentCharacters'
-            // own remarks for why this is a raw-size bound, not a full streaming parse.
-            // Disabling DTD processing and setting no XML resolver are already .NET's effective
-            // defaults for XmlReaderSettings; they are set explicitly below as defense-in-depth
-            // documentation clarity, making it explicit (rather than merely implicit) that this
-            // parser never processes a DOCTYPE declaration or resolves an external entity/DTD -
-            // hardening against XML External Entity (XXE) injection.
-            var settings = new XmlReaderSettings
-            {
-                MaxCharactersInDocument = MaxDocumentCharacters,
-                DtdProcessing = DtdProcessing.Prohibit,
-                XmlResolver = null
-            };
-            using var reader = XmlReader.Create(stream, settings);
-            document = XDocument.Load(reader, LoadOptions.None);
+            // SafeXml bounds the reader's total character count (MaxDocumentCharacters) before the
+            // DOM tree is ever materialized - see MaxDocumentCharacters' own remarks for why this
+            // is a raw-size bound, not a full streaming parse - and never processes a DOCTYPE
+            // declaration or resolves an external entity/DTD, hardening against XML External
+            // Entity (XXE) injection.
+            document = SafeXml.Load(stream, MaxDocumentCharacters);
         }
         catch (XmlException ex)
         {
@@ -104,19 +95,10 @@ public static partial class SvgCodec
             // still advances character-by-character through a single root-tag attribute value
             // even though it never reads any further afterward, so an oversized attribute value
             // alone (never mind the document body) could otherwise force this method to
-            // materialize an unbounded amount of data. Disabling DTD processing and setting no
-            // XML resolver are already .NET's effective defaults for XmlReaderSettings; they are
-            // set explicitly below as defense-in-depth documentation clarity, making it explicit
-            // (rather than merely implicit) that this parser never processes a DOCTYPE
-            // declaration or resolves an external entity/DTD - hardening against XML External
-            // Entity (XXE) injection.
-            var settings = new XmlReaderSettings
-            {
-                MaxCharactersInDocument = MaxDocumentCharacters,
-                DtdProcessing = DtdProcessing.Prohibit,
-                XmlResolver = null
-            };
-            using var reader = XmlReader.Create(stream, settings);
+            // materialize an unbounded amount of data. SafeXml.CreateReader supplies that character
+            // cap and never processes a DOCTYPE declaration or resolves an external entity/DTD,
+            // hardening against XML External Entity (XXE) injection.
+            using var reader = SafeXml.CreateReader(stream, MaxDocumentCharacters);
             if (reader.MoveToContent() != XmlNodeType.Element || reader.LocalName != "svg")
             {
                 throw new InvalidDataException("The document's root element is not an <svg> element.");

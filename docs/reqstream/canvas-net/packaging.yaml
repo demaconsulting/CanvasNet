@@ -1,0 +1,53 @@
+---
+# Software Subsystem Requirements for Packaging
+#
+# The Packaging subsystem provides the hardened building blocks for reading untrusted Open
+# Packaging Conventions (OPC) packages and untrusted XML: the OpcPackage unit (a bounded, read-only
+# view of an OPC ZIP package, with its OpcFormatException) and the SafeXml unit (XML loading with no
+# DTD processing, no external resolution, and a character bound). Each requirement here links down to
+# the unit requirements that implement it.
+# cspell:ignore ECMA
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Packaging Requirements
+        requirements:
+          - id: CanvasNet-Packaging-OpcPackage
+            title: >-
+              The Packaging subsystem shall open an Open Packaging Conventions ZIP package from a
+              stream within a fixed size bound, parse its content types and package-level
+              relationships, resolve a part's content type and the relationships between parts
+              (rejecting a target that leaves the package and never following an external one), and
+              read a part as hardened XML or as bytes within fixed size bounds, reporting every
+              malformed or oversized package as an OpcFormatException.
+            justification: |
+              Package readers take attacker-controlled files, so the container must be opened without
+              unbounded memory, a hostile relationship must not point outside the package, and one
+              reader serving every OPC-based format keeps those bounds identical for all of them.
+            children:
+              - CanvasNet-Packaging-OpcPackage-BoundedOpen
+              - CanvasNet-Packaging-OpcPackage-RequiredParts
+              - CanvasNet-Packaging-OpcPackage-PartNames
+              - CanvasNet-Packaging-OpcPackage-ContentTypes
+              - CanvasNet-Packaging-OpcPackage-Relationships
+              - CanvasNet-Packaging-OpcPackage-XmlParts
+              - CanvasNet-Packaging-OpcPackage-PartBytes
+              - CanvasNet-Packaging-OpcPackage-Validation
+
+          - id: CanvasNet-Packaging-SafeXml
+            title: >-
+              The Packaging subsystem shall load XML from untrusted input as a document, from a stream
+              or a string, or as a forward-only reader, with DTD processing prohibited, no external
+              resolver, and a caller-supplied character bound, reporting input that is malformed,
+              declares a DTD, or exceeds the bound as an XmlException and rejecting invalid arguments
+              before reading.
+            justification: |
+              A crafted XML document can read local files, make network requests, or expand to
+              gigabytes through entity declarations; the hardened settings must be applied identically
+              by every parser of untrusted XML, which one shared loader guarantees.
+            children:
+              - CanvasNet-Packaging-SafeXml-Hardened
+              - CanvasNet-Packaging-SafeXml-Bounded
+              - CanvasNet-Packaging-SafeXml-Reader
+              - CanvasNet-Packaging-SafeXml-Validation

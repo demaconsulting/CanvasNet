@@ -43,6 +43,10 @@ includes:
   - docs/reqstream/canvas-net/rendering/canvas.yaml
   - docs/reqstream/canvas-net/rendering/text-renderer.yaml
   - docs/reqstream/canvas-net/rendering/shapes.yaml
+  - docs/reqstream/canvas-net/rendering/word-wrap.yaml
+  - docs/reqstream/canvas-net/packaging.yaml
+  - docs/reqstream/canvas-net/packaging/opc-package.yaml
+  - docs/reqstream/canvas-net/packaging/safe-xml.yaml
   - docs/reqstream/canvas-net/platform-requirements.yaml
   - docs/reqstream/canvas-net-svg.yaml
   - docs/reqstream/canvas-net-svg/svg-codec.yaml
