@@ -297,6 +297,30 @@ public class FontResolverTests
     }
 
     /// <summary>
+    ///     Proves that a face of an additional directory is cached by the resolver that loaded it (so it is released
+    ///     with that resolver) and not shared with another resolver over the same directory, and that one resolver
+    ///     reuses its own face for different requests that select it.
+    /// </summary>
+    [Fact]
+    public void FontResolver_Resolve_DirectoryFaces_AreCachedPerResolver()
+    {
+        using var directory = new TempDirectory();
+        directory.Write(SerifBold);
+        var options = new FontResolverOptions { AdditionalDirectories = [directory.Path] };
+        var first = new FontResolver(options);
+        var second = new FontResolver(options);
+
+        var one = first.Resolve("Liberation Serif", true, false, out _);
+        var sameFace = first.Resolve("missing, 'liberation serif'", true, false, out _);
+        var other = second.Resolve("Liberation Serif", true, false, out _);
+
+        Assert.Equal(FontSource.AdditionalDirectory, one.Source);
+        Assert.NotSame(one, sameFace);
+        Assert.Same(one.Font, sameFace.Font);
+        Assert.NotSame(one.Font, other.Font);
+    }
+
+    /// <summary>
     ///     Proves that concurrent requests for one family list share one scan and one result font.
     /// </summary>
     [Fact]

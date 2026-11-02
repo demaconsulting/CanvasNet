@@ -54,7 +54,7 @@ internal readonly record struct ScadFontSpec(string Family, bool Bold, bool Ital
 ///     </para>
 ///     <para>
 ///         The resolver is used by one build on one thread and holds no state that outlives it (but for the
-///         process-wide font load cache of <see cref="SystemFontCatalog.Load"/>).
+///         process-wide font load cache of <see cref="SystemFontCatalog.Load"/> for installed faces).
 ///     </para>
 /// </remarks>
 internal sealed class ScadFontResolver

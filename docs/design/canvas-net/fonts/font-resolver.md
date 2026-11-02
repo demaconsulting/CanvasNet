@@ -51,7 +51,9 @@ Looks the request up in the cache, else resolves it:
    `trustLinkedFiles: false`, the configured limits and the cancellation token; a canceled scan
    throws and is not kept), then - only when `UseSystemFonts` is set - in the installed faces,
    each with `SystemFontCatalog.FindInFamily` (exact family, ignoring case, closest style, first
-   wins a tie) and `SystemFontCatalog.Load` (cached, `null` for a vanished or damaged file). A
+   wins a tie) and a load that returns `null` for a vanished or damaged file (a face of an additional
+   directory is loaded and cached by the resolver instance, a failed load included, so it is released
+   with the resolver; an installed face goes through `SystemFontCatalog.Load`, the process-wide cache). A
    face that is found but cannot be loaded makes the family fail: the later sources are not tried
    for it, the reason (`the font file '<path>' could not be loaded`) is remembered, and the next
    family of the list is tried.
@@ -63,7 +65,9 @@ Looks the request up in the cache, else resolves it:
    family that failed.
 
 The generic substitution of `SystemFontCatalog.FindBestMatch` is deliberately not used: it would
-make the result depend on what the host has installed.
+make the result depend on what the host has installed. Generic keywords always resolve to the bundled
+fonts first (CSS reserves those names), so a family literally named `serif` or `monospace` in a
+directory or among the installed fonts is never used.
 
 #### Error Handling
 
@@ -76,7 +80,8 @@ file) are skipped by `FontDirectoryScanner`.
 #### Dependencies
 
 `FontResolver` depends on `FontDirectoryScanner` (and its `FontScanLimits`), `SystemFontCatalog`
-(`Fonts`, `FindInFamily`, `Load`, `LoadBundledFallback`), `SystemFontInfo`, `TrueTypeFont` and
+(`Fonts`, `FindInFamily`, `Load`, the internal `LoadUncached`, `LoadBundledFallback`), `SystemFontInfo`,
+`TrueTypeFont` and
 `GenericFontFamilies`, all within the `Fonts` subsystem, and on `System.Collections.Concurrent`.
 
 #### Callers
@@ -93,7 +98,8 @@ file) are skipped by `FontDirectoryScanner`.
 
 Safe for concurrent use: the one-time scan runs under a lock (a published scan is read without
 one), the cache is a `ConcurrentDictionary` (two threads resolving the same new request at once
-may both resolve it, with the same result, because the fonts they load are shared by
-`SystemFontCatalog`), and the options are copied at construction. The cache holds one entry per
+may both resolve it, with the same result, because the fonts they load are shared: by the resolver's
+own directory-face cache or by `SystemFontCatalog`), and the options are copied at construction. The
+cache holds one entry per
 distinct request, so a resolver is meant to live as long as one render or job, not as long as a
 process that resolves untrusted family lists.

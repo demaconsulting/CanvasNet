@@ -80,12 +80,16 @@ sections:
                 title: >-
                   The FontResolver type shall copy the additional directories it is given, shall
                   reject options whose directory list or scan limits is null, shall default to
-                  bundled fonts only (no installed fonts, no aliases mapped, no directories), and
+                  bundled fonts only (no installed fonts, no aliases mapped, no directories), shall cache the
+                  faces it loads from the additional directories in the resolver itself (not process-wide, so
+                  two resolvers over one directory do not share them), and
                   shall be safe for concurrent use, giving concurrent requests for one family list
                   the same font.
                 justification: |
                   A resolver shared by the threads of one render must not be affected by later
-                  changes to a caller's list, and must not load or scan twice.
+                  changes to a caller's list, and must not load or scan twice; a long-running process
+                  that uses many temporary font directories must not keep every font it selected.
                 tests:
                   - FontResolver_Constructor_CopiesDirectoriesAndRejectsNullMembers
+                  - FontResolver_Resolve_DirectoryFaces_AreCachedPerResolver
                   - FontResolver_Resolve_ConcurrentRequests_ShareOneResultFont

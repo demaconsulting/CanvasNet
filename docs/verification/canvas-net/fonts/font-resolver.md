@@ -26,7 +26,7 @@ the first lookup (the scan is cached, the load is not) to prove the failure path
 - **Mocking**: None; real temporary directories created and removed by each test, and the
   injected installed-face list described above
 - **Isolation**: Each test creates its own uniquely named temporary directories and its own
-  resolver; the process-wide font load cache is shared but keyed by the unique file paths
+  resolver; the process-wide font load cache for installed faces is shared but keyed by the unique file paths
 
 #### Acceptance Criteria
 
@@ -89,9 +89,13 @@ kept), and does not throw for a keyword or when there is no additional directory
 ##### CanvasNet-Fonts-FontResolver-Options: Copying, Defaults And Concurrency
 
 **Tests**: `FontResolver_Constructor_CopiesDirectoriesAndRejectsNullMembers`,
+`FontResolver_Resolve_DirectoryFaces_AreCachedPerResolver`,
 `FontResolver_Resolve_ConcurrentRequests_ShareOneResultFont`
 
 Asserts that a directory added to the caller's list after construction is not searched, that
 options with a `null` directory list or `null` scan limits are rejected with
-`ArgumentNullException`, the documented defaults of `FontResolverOptions`, and that 64 parallel
+`ArgumentNullException`, the documented defaults of `FontResolverOptions`, that a directory face is
+the same font object for different requests that select it within one resolver but a different
+object in a second resolver over the same directory (the cache belongs to the resolver, not the
+process), and that 64 parallel
 requests for one family list all return the same font object.

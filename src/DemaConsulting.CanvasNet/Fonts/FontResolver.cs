@@ -47,7 +47,9 @@ public sealed record ResolvedFont(TrueTypeFont Font, string Family, FontSource S
 ///         the bundled font of that name. A family that is found nowhere is skipped, and an empty list, or a list that
 ///         is exhausted, resolves to the bundled Liberation Sans. The generic substitution of
 ///         <see cref="SystemFontCatalog.FindBestMatch"/> is deliberately not used, because it would make the result
-///         depend on what the host has installed.
+///         depend on what the host has installed. Generic keywords always resolve to the bundled fonts first (CSS
+///         reserves those names), so a font family literally named <c>serif</c> or <c>monospace</c> in a directory or
+///         among the installed fonts is never used.
 ///     </para>
 ///     <para>
 ///         <b>Style.</b> Within a family the face whose bold and italic flags differ from the request least wins, and
@@ -64,8 +66,9 @@ public sealed record ResolvedFont(TrueTypeFont Font, string Family, FontSource S
 ///         <b>Directories.</b> The additional directories are scanned once, on the first lookup that needs them, with
 ///         <see cref="FontDirectoryScanner.Scan"/> (deterministic, bounded by
 ///         <see cref="FontResolverOptions.ScanLimits"/>, header-only, never following a link and skipping linked
-///         files); a font is loaded only when it is selected, through <see cref="SystemFontCatalog.Load"/>, whose
-///         process-wide cache keeps a loaded face (or a failed load) for the life of the process.
+///         files); a font is loaded only when it is selected. A face of an additional directory is cached by the
+///         resolver instance (a failed load too), so it is released with the resolver; an installed face is loaded
+///         through <see cref="SystemFontCatalog.Load"/>, whose process-wide cache keeps it for the life of the process.
 ///     </para>
 ///     <para>
 ///         <b>Thread safety</b>: every member may be called concurrently. The one-time directory scan runs under a
@@ -109,6 +112,9 @@ public sealed class FontResolver
 
     /// <summary>The resolutions already made, by family list, bold and italic.</summary>
     private readonly ConcurrentDictionary<(string Family, bool Bold, bool Italic), Resolution> _resolved = new();
+
+    /// <summary>The faces loaded from the additional directories so far (and the failed loads), by file path and face index; owned by this resolver.</summary>
+    private readonly ConcurrentDictionary<(string FilePath, int FaceIndex), Lazy<TrueTypeFont?>> _directoryFonts = new();
 
     /// <summary>Guards the one-time scan of the additional directories.</summary>
     private readonly object _scanLock = new();
@@ -286,10 +292,20 @@ public sealed class FontResolver
     /// <param name="source">Where the face was found.</param>
     /// <param name="reason">Receives why the face could not be loaded when the result is <see langword="null"/>.</param>
     /// <returns>The face, or <see langword="null"/> when its file cannot be loaded.</returns>
-    private static ResolvedFont? Load(SystemFontInfo info, FontSource source, out string reason)
+    private ResolvedFont? Load(SystemFontInfo info, FontSource source, out string reason)
     {
         reason = string.Empty;
-        var font = SystemFontCatalog.Load(info);
+
+        // The installed fonts are a process-wide resource, shared through the catalog; a face of a caller-supplied
+        // directory is cached by this resolver only, so a long-running process that uses many temporary directories
+        // does not keep every font it ever selected
+        var font = source == FontSource.System
+            ? SystemFontCatalog.Load(info)
+            : _directoryFonts.GetOrAdd(
+                (info.FilePath, info.FaceIndex),
+                static key => new Lazy<TrueTypeFont?>(
+                    () => SystemFontCatalog.LoadUncached(key.FilePath, key.FaceIndex),
+                    LazyThreadSafetyMode.ExecutionAndPublication)).Value;
         if (font is not null)
         {
             return new ResolvedFont(font, info.FamilyName, source, info.Bold, info.Italic);

@@ -1488,7 +1488,9 @@ used, so the result depends only on what you configure.
 is the reason the fallback was used: `no such font family was found`, or `the font file '<path>'
 could not be loaded` for a face that was found but has vanished or is damaged (its family is then
 spent: the later sources are not tried for it, but the next family of the list is). A font that is
-loaded stays in memory for the process lifetime (`SystemFontCatalog.Load`). The token given to the
+loaded stays in memory for the life of the resolver for a face of `AdditionalDirectories` and for the life of the
+process for an installed face (`SystemFontCatalog.Load`). Generic keywords always resolve to the bundled fonts first
+(CSS reserves those names), so a family literally named `serif` or `monospace` is never looked up. The token given to the
 constructor cancels the scan of `AdditionalDirectories`, which runs once on the first lookup that
 needs it; a canceled scan makes `Resolve` throw `OperationCanceledException`.
 

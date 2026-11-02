@@ -196,7 +196,10 @@ only the translation and the warning text:
 1. **No family** (no `font` argument, or an empty family): the bundled Liberation Sans in the requested style,
    whatever fonts the host has, silently. This is what makes text without a `font` reproducible.
 2. **The generic names** (`sans-serif`, `sans`, `serif`, `monospace`, `mono`, and the other CSS generic keywords):
-   the bundled Liberation font of that design, silently. The well-known names of other systems (`Arial`,
+   the bundled Liberation font of that design, silently. They are matched **before** the additional directories and
+   the installed fonts (CSS reserves these names), so a font family literally named `sans`, `serif`, or the like in a
+   font directory is never used; this is a deliberate change from the earlier resolver, which searched the
+   directories first. The well-known names of other systems (`Arial`,
    `Times New Roman`, ...) are **not** mapped (`MapCommonAliasesToBundled` is `false`): they are looked up like any
    other family, and an unknown one is reported.
 3. **The additional directories** (`ScadFontResolutionOptions.AdditionalDirectories`), scanned once per build, only
@@ -204,7 +207,8 @@ only the translation and the warning text:
    recursively for `.ttf`, `.otf`, `.ttc`, and `.otc` files (a directory's own font files, in alphabetical order,
    before its subdirectories), reading only the font headers, so the result never depends on the order the file
    system lists files in and no parsed font is retained by the scan. A selected face is loaded when it is selected
-   (`SystemFontCatalog.Load`, remembered for the process), so a file removed after the scan falls back to the bundled
+   (a face of an additional directory is loaded when it is selected and kept by the resolver of the build only, so a
+   file removed after the scan falls back to the bundled
    sans font with the warning. A missing, malformed, or unreadable directory, a file that does not parse, and a face
    that does not parse are skipped without a diagnostic. The scan is **safe and bounded**: a link (reparse point)
    is never followed, whether it is a root, a subdirectory, or a font file (a root that is a link is not scanned, and
