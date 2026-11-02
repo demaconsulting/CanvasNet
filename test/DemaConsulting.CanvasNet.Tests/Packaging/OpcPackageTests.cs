@@ -116,6 +116,150 @@ public class OpcPackageTests
     }
 
     /// <summary>
+    ///     A seekable stream of zeros that allocates nothing: it reports a fixed length and records how many bytes were read,
+    ///     so a test can prove a size is judged from the length and how much memory the reader itself allocates.
+    /// </summary>
+    /// <param name="length">The length the stream reports and, unless <paramref name="endless"/>, supplies.</param>
+    /// <param name="endless">Whether reads never end (the reported length then lies).</param>
+    private sealed class ZeroStream(long length, bool endless = false) : Stream
+    {
+        public long BytesRead { get; private set; }
+
+        public override bool CanRead => true;
+
+        public override bool CanSeek => true;
+
+        public override bool CanWrite => false;
+
+        public override long Length => length;
+
+        public override long Position { get; set; }
+
+        public override void Flush()
+        {
+        }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            var size = endless ? count : (int)Math.Min(count, length - Position);
+            Array.Clear(buffer, offset, size);
+            Position += size;
+            BytesRead += size;
+            return size;
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
+    /// <summary>Proves a seekable stream longer than the package bound is rejected from its length, without reading it.</summary>
+    [Fact]
+    public void OpcPackage_Open_SeekableStreamOverBound_IsRejectedWithoutReading()
+    {
+        // Arrange
+        using var stream = new ZeroStream(OpcPackage.MaxPackageBytes + 1);
+
+        // Act / Assert
+        var exception = Assert.Throws<OpcFormatException>(() => OpcPackage.Open(stream));
+        Assert.Contains(OpcPackage.MaxPackageBytes.ToString(System.Globalization.CultureInfo.InvariantCulture), exception.Message);
+        Assert.Equal(0, stream.BytesRead);
+    }
+
+    /// <summary>
+    ///     Proves a seekable stream is buffered into one array of its own size: the memory allocated while opening
+    ///     (here a non-ZIP stream, which is rejected afterwards) stays at the stream's length plus a small constant,
+    ///     rather than the up to twice that a doubling buffer reaches.
+    /// </summary>
+    [Fact]
+    public void OpcPackage_Open_SeekableStream_AllocatesNoMoreThanItsLength()
+    {
+        // Arrange: a length just above a power of two, where a doubling buffer would allocate far more than needed
+        const long length = (16L * 1024 * 1024) + 12345;
+        using var stream = new ZeroStream(length);
+
+        // Act
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        Assert.Throws<OpcFormatException>(() => OpcPackage.Open(stream));
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        // Assert
+        Assert.Equal(length, stream.BytesRead);
+        Assert.True(allocated < length + (1024 * 1024), $"Allocated {allocated} bytes for {length}.");
+    }
+
+    /// <summary>
+    ///     Proves the bounded reader never holds an array beyond the bound, whether or not the length is known, rejects as
+    ///     soon as one byte more than the bound exists, and does not trust a lying length in either direction.
+    /// </summary>
+    [Fact]
+    public void OpcPackage_ReadBounded_NeverAllocatesBeyondTheBound()
+    {
+        // Arrange: a bound that is not a power of two, so a doubling buffer would overshoot it
+        const long max = 3_000_000;
+        const string message = "too big";
+
+        // Act / Assert: exactly at the bound, with an unknown, an exact, a too small and a too large expected length
+        foreach (var expected in new long[] { 0, max, 10, long.MaxValue })
+        {
+            using var atBound = new ZeroStream(max);
+            var segment = OpcPackage.ReadBounded(atBound, expected, max, message);
+            Assert.Equal(max, segment.Count);
+            Assert.True(segment.Array!.Length <= max, $"Array of {segment.Array.Length} for expected {expected}.");
+        }
+
+        // Act / Assert: one byte over the bound is rejected, after reading no more than the bound plus that byte
+        foreach (var expected in new long[] { 0, max, 10, long.MaxValue })
+        {
+            using var overBound = new ZeroStream(max + 1);
+            var exception = Assert.Throws<OpcFormatException>(() => OpcPackage.ReadBounded(overBound, expected, max, message));
+            Assert.Equal(message, exception.Message);
+            Assert.Equal(max + 1, overBound.BytesRead);
+        }
+
+        // Act / Assert: an endless stream is cut off at the same point
+        using var endless = new ZeroStream(0, endless: true);
+        Assert.Throws<OpcFormatException>(() => OpcPackage.ReadBounded(endless, 0, max, message));
+        Assert.Equal(max + 1, endless.BytesRead);
+    }
+
+    /// <summary>
+    ///     Proves a part is read into one array of its own size: the memory allocated while reading it stays at its
+    ///     length plus a small constant, rather than a doubling buffer plus a copy.
+    /// </summary>
+    [Fact]
+    public void OpcPackage_GetPartBytes_AllocatesNoMoreThanThePartLength()
+    {
+        // Arrange: a part just above a power of two
+        const long length = (4L * 1024 * 1024) + 321;
+        var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            foreach (var (name, content) in new[] { ("[Content_Types].xml", ContentTypesXml), ("_rels/.rels", PackageRelsXml) })
+            {
+                using var writer = new StreamWriter(archive.CreateEntry(name).Open(), new UTF8Encoding(false));
+                writer.Write(content);
+            }
+
+            WriteZeroEntry(archive, "media/big.bin", length);
+        }
+
+        stream.Position = 0;
+        using var package = OpcPackage.Open(stream);
+
+        // Act
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        var bytes = package.GetPartBytes("media/big.bin");
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        // Assert
+        Assert.Equal(length, bytes.Length);
+        Assert.True(allocated < length + (512 * 1024), $"Allocated {allocated} bytes for {length}.");
+    }
+
+    /// <summary>
     ///     Writes <paramref name="totalBytes"/> of zeros to a new entry in 64 KiB chunks. Zeros
     ///     compress extremely well, so the entry is a genuine zip-bomb shape: a tiny compressed entry
     ///     that inflates to many times its size.

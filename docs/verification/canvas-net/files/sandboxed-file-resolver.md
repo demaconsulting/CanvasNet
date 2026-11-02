@@ -183,6 +183,8 @@ disposed exactly once, and a cancellation raised by the callback passes through 
 `SandboxedFileResolver_Resolve_ExistingFileOpenFailureIsCannotRead`,
 `SandboxedFileResolver_Resolve_FileNotFoundFromOpenIsMissingAndTriesNextRoot`,
 `SandboxedFileResolver_Resolve_MissingFinalComponentIsDecidedByTheOpen`,
+`SandboxedFileResolver_Resolve_NotFoundWhileReadingOpenedFileIsCannotReadAndStopsSearch`,
+`SandboxedFileResolver_Resolve_InaccessibleIntermediateComponentIsCannotReadAndStopsSearch`,
 `SandboxedFileResolver_Resolve_FileHeldOpenByWriterIsStillRead`
 
 Asserts that an existing directory where the file is expected is `CannotRead` (it exists, so it is not missing) without
@@ -193,7 +195,11 @@ the file's key and the cause, and that only the first root was opened (the searc
 `FileNotFoundException` (and `DirectoryNotFoundException`) for the first root, the candidate is missing: the base directory
 is tried first, then the search path in declaration order, whose file is returned; with no other root the result is `null`.
 With an opener that records and delegates to the file system, a missing file whose directory exists reaches the open (the
-open decides it is missing) while a file below a missing directory never does (the walk stops that candidate). A file held
+open decides it is missing) while a file below a missing directory never does (the walk stops that candidate). A stream
+whose read fails with a `FileNotFoundException` or `DirectoryNotFoundException` after a successful open is `CannotRead`
+with the cause kept and the second root never opened (the file exists, so it is not a missing candidate), and a path
+whose directory name is far beyond the file-system component limit (a directory above the file that cannot be examined)
+is `CannotRead` rather than a miss that would continue to the next root. A file held
 open by another handle for reading and writing with the most permissive sharing is still read, which proves the default
 opener's sharing mode. No test asserts an operating-system-specific lock.
 

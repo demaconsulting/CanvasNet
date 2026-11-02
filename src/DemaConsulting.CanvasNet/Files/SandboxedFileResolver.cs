@@ -292,29 +292,36 @@ public sealed partial class SandboxedFileResolver
             throw new SandboxException(SandboxFailureKind.CannotRead, candidate.Key);
         }
 
-        byte[]? bytes;
+        // The open attempt decides, and only the open: "not found" from the open means the candidate is missing
+        Stream file;
         try
         {
-            // The open attempt decides: only "not found" means the candidate is missing
-            using var file = _openFile(candidate.Key);
-            bytes = ReadBounded(file);
+            file = _openFile(candidate.Key);
         }
-        catch (FileNotFoundException)
+        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
         {
             // The file is missing (or vanished since the walk): the next candidate is tried
             return null;
         }
-        catch (DirectoryNotFoundException)
-        {
-            return null;
-        }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
         {
-            // Any other failure to open or read the file (sharing, access, device) is a located read failure
+            // Any other failure to open the file (sharing, access, path too long, device) is a located read failure
             throw new SandboxException(SandboxFailureKind.CannotRead, candidate.Key, innerException: ex);
         }
 
-        return new Content(bytes);
+        // Once the file is open it exists: a failure while reading or closing it - even one that looks like "not found" -
+        // is a read failure that stops the search, never a missing candidate
+        try
+        {
+            using (file)
+            {
+                return new Content(ReadBounded(file));
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            throw new SandboxException(SandboxFailureKind.CannotRead, candidate.Key, innerException: ex);
+        }
     }
 
     /// <summary>

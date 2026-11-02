@@ -317,13 +317,39 @@ public sealed partial class SandboxedFileResolver
                     Path.GetRelativePath(candidate.Root, current).Replace('\\', '/'));
             }
 
-            if (index < segments.Length - 1 && !File.Exists(current) && !Directory.Exists(current))
+            if (index < segments.Length - 1 && !ComponentExists(current, candidate))
             {
                 return false;
             }
         }
 
         return true;
+    }
+
+    /// <summary>
+    ///     Tells whether a component above the file exists, without mistaking a component that cannot be examined for a
+    ///     missing one.
+    /// </summary>
+    /// <remarks>
+    ///     <see cref="File.Exists(string)"/> and <see cref="Directory.Exists(string)"/> report <see langword="false"/> for
+    ///     every failure, so an existing component that is inaccessible (or has an invalid or too long name) would end the
+    ///     walk as "missing" and let the search continue to another root. Reading the attributes distinguishes the cases:
+    ///     only a component that is genuinely not there reads as <c>-1</c>, and any other failure is reported.
+    /// </remarks>
+    /// <param name="path">The full path of the component.</param>
+    /// <param name="candidate">The candidate being examined.</param>
+    /// <returns><see langword="true"/> when the component exists; <see langword="false"/> when it is missing.</returns>
+    /// <exception cref="SandboxException">Thrown when the component cannot be examined.</exception>
+    private static bool ComponentExists(string path, Candidate candidate)
+    {
+        try
+        {
+            return (int)new FileInfo(path).Attributes != -1;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
+        {
+            throw new SandboxException(SandboxFailureKind.CannotRead, candidate.Key, innerException: ex);
+        }
     }
 
     /// <summary>

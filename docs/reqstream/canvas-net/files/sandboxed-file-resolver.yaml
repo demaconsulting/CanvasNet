@@ -144,7 +144,9 @@ sections:
                   an existence check reports), as a SandboxException of kind CannotRead that is never
                   reported as missing and that ends the search, while a file that the open itself reports
                   as not found is missing and lets the search continue with the next root; it shall open
-                  files read-only with FileShare.ReadWrite and FileShare.Delete.
+                  files read-only with FileShare.ReadWrite and FileShare.Delete. A failure while reading an
+                  opened file, or a directory above the file that exists but cannot be examined, shall be
+                  CannotRead and not a missing candidate, whatever exception type reports it.
                 justification: |
                   An inaccessible file is not a missing one, so the caller can tell the author the real
                   cause instead of sending them to look for a typo; permissive sharing keeps a concurrent
@@ -155,6 +157,8 @@ sections:
                   - SandboxedFileResolver_Resolve_ExistingFileOpenFailureIsCannotRead
                   - SandboxedFileResolver_Resolve_FileNotFoundFromOpenIsMissingAndTriesNextRoot
                   - SandboxedFileResolver_Resolve_MissingFinalComponentIsDecidedByTheOpen
+                  - SandboxedFileResolver_Resolve_NotFoundWhileReadingOpenedFileIsCannotReadAndStopsSearch
+                  - SandboxedFileResolver_Resolve_InaccessibleIntermediateComponentIsCannotReadAndStopsSearch
                   - SandboxedFileResolver_Resolve_FileHeldOpenByWriterIsStillRead
 
               - id: CanvasNet-Files-SandboxedFileResolver-SizeLimit

@@ -570,6 +570,75 @@ public class SandboxedFileResolverTests
     }
 
     /// <summary>
+    ///     Validates that a failure while reading a file that was opened is a <c>CannotRead</c> failure that stops the
+    ///     search, even when the failure is spelled "not found": once the open succeeded the file exists, so such an
+    ///     exception must not be mistaken for a missing candidate (which would continue with the next root).
+    /// </summary>
+    /// <param name="directoryNotFound">Whether the read raises a directory-not-found (otherwise a file-not-found) failure.</param>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void SandboxedFileResolver_Resolve_NotFoundWhileReadingOpenedFileIsCannotReadAndStopsSearch(bool directoryNotFound)
+    {
+        // Arrange: the first root's file opens but fails to read; the second root has a good file
+        using var directory = new SandboxTempDirectory();
+        directory.Write("base/a.txt", "from base");
+        directory.Write("two/a.txt", "from two");
+        var opened = new List<string>();
+        var resolver = new SandboxedFileResolver(
+            new SandboxOptions { BaseDirectory = directory.Combine("base"), SearchPaths = [directory.Combine("two")] },
+            Ct,
+            null,
+            path =>
+            {
+                opened.Add(path);
+                return new ThrowingReadStream(directoryNotFound ? new DirectoryNotFoundException("gone") : new FileNotFoundException("gone"));
+            });
+
+        // Act
+        var ex = Assert.Throws<SandboxException>(() => resolver.Resolve("a.txt"));
+
+        // Assert: unreadable (cause kept), and the second root was never tried
+        Assert.Equal(SandboxFailureKind.CannotRead, ex.Kind);
+        Assert.NotNull(ex.InnerException);
+        Assert.Equal([Path.GetFullPath(directory.Combine("base/a.txt"))], opened);
+    }
+
+    /// <summary>
+    ///     Validates that a directory above the file that exists but cannot be examined (here, a name too long for the
+    ///     file system) is a <c>CannotRead</c> failure that stops the search, not a missing candidate: an existence probe
+    ///     reports "missing" for every failure, so it must not decide whether the search continues.
+    /// </summary>
+    [Fact]
+    public void SandboxedFileResolver_Resolve_InaccessibleIntermediateComponentIsCannotReadAndStopsSearch()
+    {
+        // Arrange: two roots, and a path whose directory name is far beyond any file system's component limit
+        using var directory = new SandboxTempDirectory();
+        Directory.CreateDirectory(directory.Combine("base"));
+        Directory.CreateDirectory(directory.Combine("two"));
+        var resolver = Create(new SandboxOptions
+        {
+            BaseDirectory = directory.Combine("base"),
+            SearchPaths = [directory.Combine("two")],
+        });
+
+        // Act
+        var ex = Assert.Throws<SandboxException>(() => resolver.Resolve(new string('a', 300) + "/x.txt"));
+
+        // Assert
+        Assert.Equal(SandboxFailureKind.CannotRead, ex.Kind);
+        Assert.NotNull(ex.InnerException);
+    }
+
+    /// <summary>A stream that opens fine and then fails every read with the given exception.</summary>
+    /// <param name="failure">The exception every read raises.</param>
+    private sealed class ThrowingReadStream(Exception failure) : MemoryStream
+    {
+        /// <inheritdoc />
+        public override int Read(byte[] buffer, int offset, int count) => throw failure;
+    }
+
+    /// <summary>
     ///     Validates that the default opener shares the file with a concurrent writer: a file that another handle holds
     ///     open for reading and writing (and may be deleted or renamed) is still read.
     /// </summary>

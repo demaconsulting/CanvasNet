@@ -43,10 +43,14 @@ the stricter behavior of the two.
 ##### Open(stream)
 
 Validates `stream` (`ArgumentNullException`; `ArgumentException` with parameter name `stream` when
-it cannot be read). Copies it into a `MemoryStream` in 80 KiB chunks, throwing `OpcFormatException`
-the moment the running total exceeds `MaxPackageBytes`, so neither memory nor read time is
-unbounded for a huge or non-terminating stream, and never closes the caller's stream. The package is
-then opened over that buffer without a second copy. Opening reads `[Content_Types].xml` and
+it cannot be read). Reads it into one array in 80 KiB-or-larger reads, throwing `OpcFormatException`
+once more than `MaxPackageBytes` bytes are available, so neither memory nor read time is
+unbounded for a huge or non-terminating stream, and never closes the caller's stream. A seekable
+stream reports its remaining length: more than `MaxPackageBytes` is rejected at once without reading,
+and otherwise the array is sized to exactly that length (so the buffer is not a doubling
+`MemoryStream` that could hold up to twice the package). Whatever the stream reports, the array is
+clamped to and never grows past `MaxPackageBytes`; the bytes actually read decide. The package is
+then opened over that array without a second copy. Opening reads `[Content_Types].xml` and
 `_rels/.rels`: both must exist, be well-formed XML within `MaxXmlPartCharacters`, and have the OPC
 `Types`/`Relationships` root element; every `<Default>` needs `Extension` and `ContentType`, every
 `<Override>` needs `PartName` and `ContentType`, every `<Relationship>` needs `Id`, `Type` and
@@ -84,9 +88,13 @@ unspecified, so it is meant for navigations that are unique by type.
 
 `LoadPartXmlRoot` loads the part with `SafeXml.Load(stream, MaxXmlPartCharacters)` and returns the
 root element; an `XmlException` (not well-formed, a DTD, too long) becomes an `OpcFormatException`
-naming the part. `GetPartBytes` copies the part into a new array in chunks, counting what it
-actually reads rather than trusting the entry's declared length, and throws `OpcFormatException`
-once the count exceeds `MaxPartBytes`, so a "zip bomb" part cannot allocate beyond the bound.
+naming the part. `GetPartBytes` reads the part into one array, counting what it actually reads
+rather than trusting the entry's declared length (which only pre-sizes the array, clamped to
+`MaxPartBytes`, so an honest part is read into an exactly sized array with no second copy and a lying
+header cannot allocate beyond the bound), and throws `OpcFormatException` once more than
+`MaxPartBytes` bytes are available, so a "zip bomb" part cannot allocate beyond the bound. Both
+methods share the internal `ReadBounded`, which never lets the array exceed the bound (growth is by
+doubling clamped to it and a full array is probed with one byte instead of grown).
 
 #### Error Handling
 

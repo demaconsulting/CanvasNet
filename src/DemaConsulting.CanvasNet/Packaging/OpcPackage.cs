@@ -174,29 +174,20 @@ public sealed class OpcPackage : IDisposable
             throw new ArgumentException("The stream must be readable.", nameof(stream));
         }
 
-        var buffered = new MemoryStream();
-        try
+        // The package is read straight into one array that never grows past MaxPackageBytes. A seekable stream tells its
+        // remaining length, which is trusted only to reject early and to size the array (clamped, so a lying stream cannot
+        // make this allocate beyond the bound); the bytes actually read still decide.
+        var remaining = stream.CanSeek ? stream.Length - stream.Position : 0L;
+        var exceededMessage = $"The package stream exceeds the maximum supported size of {MaxPackageBytes} bytes.";
+        if (remaining > MaxPackageBytes)
         {
-            CopyBounded(
-                stream,
-                buffered,
-                MaxPackageBytes,
-                $"The package stream exceeds the maximum supported size of {MaxPackageBytes} bytes.");
-        }
-        catch
-        {
-            buffered.Dispose();
-            throw;
+            throw new OpcFormatException(exceededMessage);
         }
 
-        // Back the archive with the buffer already built (no second copy of up to 256 MiB). The
-        // MemoryStream was created with its default constructor, so its buffer is always exposed.
-        if (!buffered.TryGetBuffer(out var segment) || segment.Array is null)
-        {
-            throw new InvalidOperationException("The package buffer is not accessible.");
-        }
+        var segment = ReadBounded(stream, remaining, MaxPackageBytes, exceededMessage);
 
-        return new OpcPackage(new MemoryStream(segment.Array, 0, segment.Count, writable: false));
+        // Back the archive with the array already built (no second copy of up to 256 MiB); any spare capacity is unused
+        return new OpcPackage(new MemoryStream(segment.Array!, 0, segment.Count, writable: false));
     }
 
     /// <summary>
@@ -487,13 +478,20 @@ public sealed class OpcPackage : IDisposable
         }
 
         using var entryStream = entry.Open();
-        using var buffer = new MemoryStream();
-        CopyBounded(
+
+        // The declared length only sizes the array (clamped to the bound), so an honest part is read into one exactly
+        // sized array with no copy; a deceptive header cannot defeat the bound, because the bytes actually read decide
+        var segment = ReadBounded(
             entryStream,
-            buffer,
+            entry.Length,
             MaxPartBytes,
             $"The part '{partPath}' exceeds the maximum supported decompressed size of {MaxPartBytes} bytes (the compressed ZIP entry may be a decompression bomb).");
-        return buffer.ToArray();
+        if (segment.Count == segment.Array!.Length)
+        {
+            return segment.Array;
+        }
+
+        return segment.ToArray();
     }
 
     /// <summary>
@@ -513,30 +511,59 @@ public sealed class OpcPackage : IDisposable
     }
 
     /// <summary>
-    ///     Copies <paramref name="source"/> into <paramref name="destination"/> in fixed-size chunks,
-    ///     failing the moment the running total exceeds <paramref name="maxBytes"/>, so memory and read
-    ///     time stay bounded for a huge or non-terminating source.
+    ///     Reads <paramref name="source"/> to its end into one array, failing the moment more than
+    ///     <paramref name="maxBytes"/> bytes are available, so memory and read time stay bounded for a huge or
+    ///     non-terminating source.
     /// </summary>
-    /// <param name="source">The stream to copy from.</param>
-    /// <param name="destination">The stream to copy into.</param>
+    /// <remarks>
+    ///     The array is pre-sized from <paramref name="expectedLength"/> (clamped to the bound, so an untrustworthy
+    ///     length cannot allocate beyond it) and, when more data arrives, grown by doubling but never past
+    ///     <paramref name="maxBytes"/>. A full array is probed with a single byte rather than grown, so end of stream
+    ///     is detected without allocating, and the capacity never exceeds <paramref name="maxBytes"/> (a
+    ///     <see cref="MemoryStream"/> would double beyond it).
+    /// </remarks>
+    /// <param name="source">The stream to read.</param>
+    /// <param name="expectedLength">The length the source is expected to have, or zero or less when unknown.</param>
     /// <param name="maxBytes">The largest number of bytes that may be read.</param>
     /// <param name="exceededMessage">The message of the exception thrown when the bound is exceeded.</param>
-    /// <exception cref="OpcFormatException">Thrown once more than <paramref name="maxBytes"/> bytes have been read.</exception>
-    private static void CopyBounded(Stream source, MemoryStream destination, long maxBytes, string exceededMessage)
+    /// <returns>The array and the number of bytes of it that were read; spare capacity may follow them.</returns>
+    /// <exception cref="OpcFormatException">Thrown once more than <paramref name="maxBytes"/> bytes are available.</exception>
+    internal static ArraySegment<byte> ReadBounded(Stream source, long expectedLength, long maxBytes, string exceededMessage)
     {
-        var buffer = new byte[CopyChunkBytes];
-        var total = 0L;
-        int read;
-        while ((read = source.Read(buffer, 0, buffer.Length)) > 0)
+        var initial = expectedLength > 0 ? Math.Min(expectedLength, maxBytes) : Math.Min(CopyChunkBytes, maxBytes);
+        var buffer = new byte[initial];
+        var count = 0;
+        while (true)
         {
-            total += read;
-            if (total > maxBytes)
+            if (count == buffer.Length)
             {
-                throw new OpcFormatException(exceededMessage);
+                // Full: a single byte decides whether the source has ended or the array must grow
+                var next = source.ReadByte();
+                if (next < 0)
+                {
+                    break;
+                }
+
+                if (count >= maxBytes)
+                {
+                    throw new OpcFormatException(exceededMessage);
+                }
+
+                Array.Resize(ref buffer, (int)Math.Min(Math.Max(2L * buffer.Length, CopyChunkBytes), maxBytes));
+                buffer[count++] = (byte)next;
+                continue;
             }
 
-            destination.Write(buffer, 0, read);
+            var read = source.Read(buffer, count, buffer.Length - count);
+            if (read <= 0)
+            {
+                break;
+            }
+
+            count += read;
         }
+
+        return new ArraySegment<byte>(buffer, 0, count);
     }
 
     /// <summary>Opens <paramref name="stream"/> as a read-only ZIP archive, mapping any failure to <see cref="OpcFormatException"/>.</summary>
