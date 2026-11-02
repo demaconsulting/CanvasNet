@@ -1,13 +1,14 @@
 // cspell:ignore bilinear premultiplied
 using DemaConsulting.CanvasNet.Canvas;
-using DemaConsulting.CanvasNet.Tool.Imaging;
+using DemaConsulting.CanvasNet.Tests.TestSupport;
 
-namespace DemaConsulting.CanvasNet.Tool.Tests.Imaging;
+namespace DemaConsulting.CanvasNet.Tests.Canvas;
 
 /// <summary>
-///     Unit tests for the ImageGeometry class: the size and pixels of rotation.
+///     Unit tests for the rotation of the Surface class (part of the SurfaceGeometry unit): the size and pixels of a
+///     rotation by any angle.
 /// </summary>
-public class ImageGeometryTests
+public class SurfaceGeometryTests
 {
     /// <summary>
     ///     An opaque white color.
@@ -80,45 +81,45 @@ public class ImageGeometryTests
     ///     Verifies the canvas size for right and oblique angles.
     /// </summary>
     [Fact]
-    public void ImageGeometry_RotatedSize_RightAndObliqueAngles_ComputesCeilingOfBoundingBox()
+    public void Surface_RotatedSize_RightAndObliqueAngles_ComputesCeilingOfBoundingBox()
     {
-        Assert.Equal((100, 50), ImageGeometry.RotatedSize(100, 50, 0));
-        Assert.Equal((50, 100), ImageGeometry.RotatedSize(100, 50, 90));
-        Assert.Equal((107, 107), ImageGeometry.RotatedSize(100, 50, 45));
-        Assert.Equal((112, 94), ImageGeometry.RotatedSize(100, 50, 30));
-        Assert.Equal((2, 2), ImageGeometry.RotatedSize(1, 1, 45));
-        Assert.Equal((189, 167), ImageGeometry.RotatedSize(160, 100, 30));
-        Assert.Equal(ImageGeometry.RotatedSize(100, 50, 30), ImageGeometry.RotatedSize(100, 50, -330));
-        Assert.Equal(ImageGeometry.RotatedSize(100, 50, 30), ImageGeometry.RotatedSize(100, 50, 210));
+        Assert.Equal((100, 50), Surface.RotatedSize(100, 50, 0));
+        Assert.Equal((50, 100), Surface.RotatedSize(100, 50, 90));
+        Assert.Equal((107, 107), Surface.RotatedSize(100, 50, 45));
+        Assert.Equal((112, 94), Surface.RotatedSize(100, 50, 30));
+        Assert.Equal((2, 2), Surface.RotatedSize(1, 1, 45));
+        Assert.Equal((189, 167), Surface.RotatedSize(160, 100, 30));
+        Assert.Equal(Surface.RotatedSize(100, 50, 30), Surface.RotatedSize(100, 50, -330));
+        Assert.Equal(Surface.RotatedSize(100, 50, 30), Surface.RotatedSize(100, 50, 210));
     }
 
     /// <summary>
     ///     Verifies that floating-point noise at an exact fit does not add a pixel.
     /// </summary>
     [Fact]
-    public void ImageGeometry_RotatedSize_NearExactFit_DoesNotGainAPixel()
+    public void Surface_RotatedSize_NearExactFit_DoesNotGainAPixel()
     {
         foreach (var degrees in new[] { 90.0, 180.0, 270.0, 360.0, -90.0, 450.0, 720.0 })
         {
             var expected = Math.Abs(degrees % 180) > 45 && Math.Abs(degrees % 180) < 135 ? (50, 100) : (100, 50);
-            Assert.Equal(expected, ImageGeometry.RotatedSize(100, 50, degrees));
+            Assert.Equal(expected, Surface.RotatedSize(100, 50, degrees));
         }
 
-        Assert.Equal((8192, 8192), ImageGeometry.RotatedSize(8192, 8192, 90));
-        Assert.Equal((8192, 1), ImageGeometry.RotatedSize(8192, 1, 180));
+        Assert.Equal((8192, 8192), Surface.RotatedSize(8192, 8192, 90));
+        Assert.Equal((8192, 1), Surface.RotatedSize(8192, 1, 180));
     }
 
     /// <summary>
     ///     Verifies that a point right of the center moves below the center for a clockwise quarter turn.
     /// </summary>
     [Fact]
-    public void ImageGeometry_RotateArbitrary_Clockwise_MovesRightOfCenterBelowCenter()
+    public void Surface_RotateArbitrary_Clockwise_MovesRightOfCenterBelowCenter()
     {
         using var source = Solid(11, 11, White);
         var marker = new Rgba32(255, 0, 0, 255);
         source[8, 5] = marker;
 
-        using var turned = ImageGeometry.RotateArbitrary(source, 90, Black, nearest: true);
+        using var turned = source.RotateArbitrary(90, Black, nearest: true);
 
         Assert.Equal(11, turned.Width);
         Assert.Equal(11, turned.Height);
@@ -128,7 +129,7 @@ public class ImageGeometryTests
         // A point above the center moves to the right of it.
         using var up = Solid(11, 11, White);
         up[5, 2] = marker;
-        using var right = ImageGeometry.RotateArbitrary(up, 90, Black, nearest: true);
+        using var right = up.RotateArbitrary(90, Black, nearest: true);
         Assert.Equal(marker, right[8, 5]);
     }
 
@@ -136,12 +137,12 @@ public class ImageGeometryTests
     ///     Verifies that a solid image keeps its color throughout the interior of the rotated canvas.
     /// </summary>
     [Fact]
-    public void ImageGeometry_RotateArbitrary_SolidImage_FillsInteriorWithSourceColor()
+    public void Surface_RotateArbitrary_SolidImage_FillsInteriorWithSourceColor()
     {
         var color = new Rgba32(50, 100, 150, 255);
         using var source = Solid(30, 20, color);
 
-        using var rotated = ImageGeometry.RotateArbitrary(source, 20, Black, nearest: false);
+        using var rotated = source.RotateArbitrary(20, Black, nearest: false);
 
         var (cx, cy) = (rotated.Width / 2, rotated.Height / 2);
         for (var y = cy - 3; y <= cy + 3; y++)
@@ -157,7 +158,7 @@ public class ImageGeometryTests
     ///     Verifies that rotating a smooth image by a small angle and back stays close to the original.
     /// </summary>
     [Fact]
-    public void ImageGeometry_RotateArbitrary_RoundTripSmallAngle_StaysCloseToOriginal()
+    public void Surface_RotateArbitrary_RoundTripSmallAngle_StaysCloseToOriginal()
     {
         // Bilinear sampling reproduces a linear gradient exactly, so only rounding differs.
         using var source = new Surface(100, 60);
@@ -170,8 +171,8 @@ public class ImageGeometryTests
             }
         }
 
-        using var there = ImageGeometry.RotateArbitrary(source, 3, Black, nearest: false);
-        using var back = ImageGeometry.RotateArbitrary(there, -3, Black, nearest: false);
+        using var there = source.RotateArbitrary(3, Black, nearest: false);
+        using var back = there.RotateArbitrary(-3, Black, nearest: false);
 
         // 100x60 -> 104x66 -> 108x72: the original sits 4 columns and 6 rows into the result.
         Assert.Equal((104, 66), (there.Width, there.Height));
@@ -181,7 +182,10 @@ public class ImageGeometryTests
             for (var x = 10; x < 90; x++)
             {
                 var difference = Math.Abs(source[x, y].R - back[x + 4, y + 6].R);
-                Assert.True(difference <= 2, $"Pixel ({x},{y}) differs by {difference}");
+                if (difference > 2)
+                {
+                    Assert.Fail($"Pixel ({x},{y}) differs by {difference}");
+                }
             }
         }
     }
@@ -190,14 +194,14 @@ public class ImageGeometryTests
     ///     Verifies that the corners of the expanded canvas are exactly the fill color.
     /// </summary>
     [Fact]
-    public void ImageGeometry_RotateArbitrary_Corners_AreFillColor()
+    public void Surface_RotateArbitrary_Corners_AreFillColor()
     {
         var fill = new Rgba32(255, 0, 0, 255);
         using var source = Solid(100, 60, new Rgba32(0, 0, 255, 255));
 
         foreach (var nearest in new[] { true, false })
         {
-            using var rotated = ImageGeometry.RotateArbitrary(source, 30, fill, nearest);
+            using var rotated = source.RotateArbitrary(30, fill, nearest);
 
             Assert.Equal((117, 102), (rotated.Width, rotated.Height));
             Assert.Equal(fill, rotated[0, 0]);
@@ -211,11 +215,11 @@ public class ImageGeometryTests
     ///     Verifies that a transparent fill gives transparent corners and a soft alpha edge.
     /// </summary>
     [Fact]
-    public void ImageGeometry_RotateArbitrary_TransparentFill_EdgePixelsFadeInAlpha()
+    public void Surface_RotateArbitrary_TransparentFill_EdgePixelsFadeInAlpha()
     {
         using var source = Solid(40, 40, White);
 
-        using var rotated = ImageGeometry.RotateArbitrary(source, 45, new Rgba32(9, 9, 9, 0), nearest: false);
+        using var rotated = source.RotateArbitrary(45, new Rgba32(9, 9, 9, 0), nearest: false);
 
         Assert.Equal(default, rotated[0, 0]);
         Assert.Equal(White, rotated[rotated.Width / 2, rotated.Height / 2]);
@@ -246,12 +250,12 @@ public class ImageGeometryTests
     ///     Verifies that a semi-transparent fill is blended with the image in premultiplied space.
     /// </summary>
     [Fact]
-    public void ImageGeometry_RotateArbitrary_SemiTransparentFill_BlendsInPremultipliedSpace()
+    public void Surface_RotateArbitrary_SemiTransparentFill_BlendsInPremultipliedSpace()
     {
         var fill = new Rgba32(0, 0, 255, 128);
         using var source = Solid(40, 40, new Rgba32(255, 0, 0, 255));
 
-        using var rotated = ImageGeometry.RotateArbitrary(source, 45, fill, nearest: false);
+        using var rotated = source.RotateArbitrary(45, fill, nearest: false);
 
         Assert.Equal(fill, rotated[0, 0]);
         var checkedPixels = 0;
@@ -283,7 +287,7 @@ public class ImageGeometryTests
     ///     Verifies that nearest sampling copies source pixels and never blends.
     /// </summary>
     [Fact]
-    public void ImageGeometry_RotateArbitrary_Nearest_CopiesPixelsWithoutBlending()
+    public void Surface_RotateArbitrary_Nearest_CopiesPixelsWithoutBlending()
     {
         var first = new Rgba32(200, 30, 30, 255);
         var second = new Rgba32(30, 30, 200, 255);
@@ -291,7 +295,7 @@ public class ImageGeometryTests
         using var source = Solid(24, 24, first);
         FillRect(source, 12, 0, 12, 24, second);
 
-        using var rotated = ImageGeometry.RotateArbitrary(source, 17, fill, nearest: true);
+        using var rotated = source.RotateArbitrary(17, fill, nearest: true);
 
         var fillCount = 0;
         for (var y = 0; y < rotated.Height; y++)
@@ -299,7 +303,11 @@ public class ImageGeometryTests
             for (var x = 0; x < rotated.Width; x++)
             {
                 var pixel = rotated[x, y];
-                Assert.True(pixel == first || pixel == second || pixel == fill, $"Pixel ({x},{y}) is {pixel}");
+                if (pixel != first && pixel != second && pixel != fill)
+                {
+                    Assert.Fail($"Pixel ({x},{y}) is {pixel}");
+                }
+
                 if (pixel == fill)
                 {
                     fillCount++;
@@ -314,12 +322,12 @@ public class ImageGeometryTests
     ///     Verifies that bilinear sampling makes intermediate grays along a hard edge.
     /// </summary>
     [Fact]
-    public void ImageGeometry_RotateArbitrary_Bilinear_BlendsAHardEdge()
+    public void Surface_RotateArbitrary_Bilinear_BlendsAHardEdge()
     {
         using var source = Solid(40, 20, Black);
         FillRect(source, 20, 0, 20, 20, White);
 
-        using var rotated = ImageGeometry.RotateArbitrary(source, 10, White, nearest: false);
+        using var rotated = source.RotateArbitrary(10, White, nearest: false);
 
         var grays = 0;
         for (var y = 0; y < rotated.Height; y++)
@@ -344,7 +352,7 @@ public class ImageGeometryTests
     ///     Verifies that the fast paths give the same pixels as the generic sampler.
     /// </summary>
     [Fact]
-    public void ImageGeometry_RotateArbitrary_FastPathAndGenericPath_GiveSamePixels()
+    public void Surface_RotateArbitrary_FastPathAndGenericPath_GiveSamePixels()
     {
         using var source = RandomSurface(37, 29);
         var fills = new[] { new Rgba32(1, 2, 3, 0), new Rgba32(10, 20, 30, 200), White };
@@ -353,8 +361,8 @@ public class ImageGeometryTests
         {
             foreach (var degrees in new[] { 7.0, 30.0, 45.0, 90.0, 133.0, 200.0, 275.0, -12.5 })
             {
-                using var fast = ImageGeometry.RotateArbitrary(source, degrees, fill, nearest: false, useFastPaths: true);
-                using var generic = ImageGeometry.RotateArbitrary(source, degrees, fill, nearest: false, useFastPaths: false);
+                using var fast = source.RotateArbitraryCore(degrees, fill, nearest: false, useFastPaths: true);
+                using var generic = source.RotateArbitraryCore(degrees, fill, nearest: false, useFastPaths: false);
 
                 SurfaceAssert.Equal(generic, fast);
             }
@@ -365,42 +373,51 @@ public class ImageGeometryTests
     ///     Verifies that a result larger than the maximum size is refused before anything is allocated.
     /// </summary>
     [Fact]
-    public void ImageGeometry_RotateArbitrary_ResultTooLarge_ThrowsSizeLimitBeforeAllocating()
+    public void Surface_RotateArbitrary_ResultTooLarge_ThrowsBeforeAllocating()
     {
-        var thrown = Assert.Throws<ToolException>(() => ImageGeometry.CheckRotatedSize(8192, 8192, 45));
-        Assert.Equal(ErrorCodes.SizeLimit, thrown.Code);
-        Assert.Contains("11586", thrown.Message, StringComparison.Ordinal);
-        Assert.Contains("--fit", thrown.Hint, StringComparison.Ordinal);
+        // The size itself is reported, and is larger than the maximum; an exact quarter turn of the largest image fits.
+        Assert.Equal((11586, 11586), Surface.RotatedSize(8192, 8192, 45));
+        Assert.Equal((8192, 8192), Surface.RotatedSize(8192, 8192, 90));
 
-        // An exact quarter turn of the largest image fits.
-        Assert.Equal((8192, 8192), ImageGeometry.CheckRotatedSize(8192, 8192, 90));
-
-        // 8192x3400 at 45 degrees needs 8273 pixels on a side.
+        // 8192x3400 at 45 degrees needs 8197 pixels on a side.
         using var source = new Surface(8192, 3400);
         var before = GC.GetAllocatedBytesForCurrentThread();
-        var fromRotate = Assert.Throws<ToolException>(() => ImageGeometry.RotateArbitrary(source, 45, White, nearest: false));
+        var thrown = Assert.Throws<ArgumentException>(() => source.RotateArbitrary(45, White, nearest: false));
         var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 
-        Assert.Equal(ErrorCodes.SizeLimit, fromRotate.Code);
+        Assert.Contains("8197x8197", thrown.Message, StringComparison.Ordinal);
+        Assert.Contains("8192", thrown.Message, StringComparison.Ordinal);
         Assert.True(allocated < 1_000_000, $"{allocated} bytes were allocated before the refusal");
     }
 
     /// <summary>
-    ///     Verifies that null and invalid arguments are rejected.
+    ///     Verifies that invalid arguments are rejected.
     /// </summary>
     [Fact]
-    public void ImageGeometry_NullOrInvalidArguments_Throw()
+    public void Surface_RotationInvalidArguments_Throw()
     {
         using var surface = Solid(4, 4, White);
 
-        Assert.Throws<ArgumentNullException>(() => ImageGeometry.RotateArbitrary(null!, 10, White, nearest: false));
-        Assert.Throws<ArgumentNullException>(() => ImageGeometry.EstimateSkew(null!));
+        Assert.Throws<ArgumentOutOfRangeException>(() => surface.RotateArbitrary(double.NaN, White, nearest: false));
+        Assert.Throws<ArgumentOutOfRangeException>(() => surface.RotateArbitrary(double.PositiveInfinity, White, nearest: true));
+        Assert.Throws<ArgumentOutOfRangeException>(() => Surface.RotatedSize(0, 5, 10));
+        Assert.Throws<ArgumentOutOfRangeException>(() => Surface.RotatedSize(5, 0, 10));
+        Assert.Throws<ArgumentOutOfRangeException>(() => Surface.RotatedSize(Surface.MaxDimension + 1, 5, 10));
+        Assert.Throws<ArgumentOutOfRangeException>(() => Surface.RotatedSize(5, Surface.MaxDimension + 1, 10));
+        Assert.Throws<ArgumentOutOfRangeException>(() => Surface.RotatedSize(5, 5, double.NegativeInfinity));
+        Assert.Throws<ArgumentOutOfRangeException>(() => Surface.RotatedSize(5, 5, double.NaN));
+    }
 
-        Assert.Throws<ArgumentOutOfRangeException>(() => ImageGeometry.RotateArbitrary(surface, double.NaN, White, nearest: false));
-        Assert.Throws<ArgumentOutOfRangeException>(() => ImageGeometry.RotateArbitrary(surface, double.PositiveInfinity, White, nearest: true));
-        Assert.Throws<ArgumentOutOfRangeException>(() => ImageGeometry.RotatedSize(0, 5, 10));
-        Assert.Throws<ArgumentOutOfRangeException>(() => ImageGeometry.RotatedSize(5, 0, 10));
-        Assert.Throws<ArgumentOutOfRangeException>(() => ImageGeometry.RotatedSize(5, 5, double.NegativeInfinity));
-        Assert.Throws<ArgumentOutOfRangeException>(() => ImageGeometry.CheckRotatedSize(5, 5, double.NaN));
+    /// <summary>
+    ///     Verifies that the rotation and the skew estimation of a disposed surface are refused.
+    /// </summary>
+    [Fact]
+    public void Surface_RotationAndSkew_AfterDispose_ThrowObjectDisposedException()
+    {
+        var surface = Solid(4, 4, White);
+        surface.Dispose();
+
+        Assert.Throws<ObjectDisposedException>(() => surface.RotateArbitrary(10, White, nearest: false));
+        Assert.Throws<ObjectDisposedException>(() => surface.EstimateSkew());
     }
 }

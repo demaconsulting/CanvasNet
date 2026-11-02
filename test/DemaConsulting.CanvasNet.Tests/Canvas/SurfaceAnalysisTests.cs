@@ -1,13 +1,13 @@
 // cspell:ignore luma otsu
 using DemaConsulting.CanvasNet.Canvas;
-using DemaConsulting.CanvasNet.Tool.Imaging;
 
-namespace DemaConsulting.CanvasNet.Tool.Tests.Imaging;
+namespace DemaConsulting.CanvasNet.Tests.Canvas;
 
 /// <summary>
-///     Unit tests for the ImageAnalysis class: dominant colors, luma statistics, and pixel samples.
+///     Unit tests for the analysis of the Surface class (the SurfaceAnalysis unit): dominant colors, luma statistics,
+///     and pixel samples.
 /// </summary>
-public class ImageAnalysisTests
+public class SurfaceAnalysisTests
 {
     /// <summary>The opaque white background.</summary>
     private static readonly Rgba32 White = new(255, 255, 255, 255);
@@ -53,7 +53,7 @@ public class ImageAnalysisTests
     ///     Verifies that shades with the same top four bits per channel are counted as one color with the mean color.
     /// </summary>
     [Fact]
-    public void ImageAnalysis_Analyze_FourBitBuckets_GroupNearbyShadesIntoOneColor()
+    public void Surface_Analyze_FourBitBuckets_GroupNearbyShadesIntoOneColor()
     {
         using var surface = Row(
             new Rgba32(16, 32, 48, 255),
@@ -61,7 +61,7 @@ public class ImageAnalysisTests
             new Rgba32(16, 32, 48, 255),
             new Rgba32(31, 47, 63, 255));
 
-        var statistics = ImageAnalysis.Analyze(surface, White, 8);
+        var statistics = surface.Analyze(White, 8);
 
         Assert.Equal(4, statistics.TotalPixels);
         var color = Assert.Single(statistics.Colors);
@@ -76,12 +76,12 @@ public class ImageAnalysisTests
     ///     Verifies the order and the fractions of two colors.
     /// </summary>
     [Fact]
-    public void ImageAnalysis_Analyze_TwoColorImage_ReportsBothInPixelOrderWithFractions()
+    public void Surface_Analyze_TwoColorImage_ReportsBothInPixelOrderWithFractions()
     {
         var black = Gray(0);
         using var surface = Row(Repeat(black, 25).Concat(Repeat(White, 75)).ToArray());
 
-        var statistics = ImageAnalysis.Analyze(surface, White, 8);
+        var statistics = surface.Analyze(White, 8);
 
         Assert.Equal(2, statistics.Colors.Count);
         Assert.Equal(White, statistics.Colors[0].Color);
@@ -92,21 +92,21 @@ public class ImageAnalysisTests
         Assert.Equal(0.25, statistics.Colors[1].Fraction);
 
         using var thirds = Row(Gray(0), Gray(255), Gray(255));
-        Assert.Equal(0.666667, ImageAnalysis.Analyze(thirds, White, 8).Colors[0].Fraction);
+        Assert.Equal(0.666667, thirds.Analyze(White, 8).Colors[0].Fraction);
     }
 
     /// <summary>
     ///     Verifies that colors with equal counts are ordered by their bucket index.
     /// </summary>
     [Fact]
-    public void ImageAnalysis_Analyze_EqualCounts_OrderedByBucketIndex()
+    public void Surface_Analyze_EqualCounts_OrderedByBucketIndex()
     {
         var red = new Rgba32(255, 0, 0, 255);
         var green = new Rgba32(0, 255, 0, 255);
         var blue = new Rgba32(0, 0, 255, 255);
         using var surface = Row(red, green, blue, red, green, blue);
 
-        var statistics = ImageAnalysis.Analyze(surface, White, 8);
+        var statistics = surface.Analyze(White, 8);
 
         // Buckets: blue 0x00F, green 0x0F0, red 0xF00.
         Assert.Equal([blue, green, red], statistics.Colors.Select(c => c.Color).ToArray());
@@ -116,7 +116,7 @@ public class ImageAnalysisTests
     ///     Verifies that only the requested number of colors is reported, the most common first.
     /// </summary>
     [Fact]
-    public void ImageAnalysis_Analyze_CountLimit_ReportsOnlyTheMostCommon()
+    public void Surface_Analyze_CountLimit_ReportsOnlyTheMostCommon()
     {
         using var surface = Row(
             Repeat(Gray(0), 5)
@@ -126,8 +126,8 @@ public class ImageAnalysisTests
                 .Concat(Repeat(Gray(255), 1))
                 .ToArray());
 
-        var two = ImageAnalysis.Analyze(surface, White, 2);
-        var all = ImageAnalysis.Analyze(surface, White, 32);
+        var two = surface.Analyze(White, 2);
+        var all = surface.Analyze(White, 32);
 
         Assert.Equal(2, two.Colors.Count);
         Assert.Equal(Gray(0), two.Colors[0].Color);
@@ -140,7 +140,7 @@ public class ImageAnalysisTests
     ///     Verifies that buckets near the leader of a cluster merge, with the mean of the members, and distant ones do not.
     /// </summary>
     [Fact]
-    public void ImageAnalysis_Analyze_Gradient_MergesWithinClusterRadiusAndAveragesMembers()
+    public void Surface_Analyze_Gradient_MergesWithinClusterRadiusAndAveragesMembers()
     {
         // Buckets 8, 9, and 10 are within 2 of the leader (bucket 8, the most common); bucket 13 is not.
         using var surface = Row(
@@ -150,7 +150,7 @@ public class ImageAnalysisTests
                 .Concat(Repeat(Gray(208), 1))
                 .ToArray());
 
-        var statistics = ImageAnalysis.Analyze(surface, White, 8);
+        var statistics = surface.Analyze(White, 8);
 
         Assert.Equal(2, statistics.Colors.Count);
 
@@ -160,13 +160,14 @@ public class ImageAnalysisTests
         Assert.Equal(0.875, statistics.Colors[0].Fraction);
         Assert.Equal(Gray(208), statistics.Colors[1].Color);
         Assert.Equal(0.125, statistics.Colors[1].Fraction);
+        Assert.Equal(2, Surface.ClusterRadius);
     }
 
     /// <summary>
     ///     Verifies that translucent pixels are flattened over the background before they are counted.
     /// </summary>
     [Fact]
-    public void ImageAnalysis_Analyze_TransparentPixels_AreFlattenedOverBackground()
+    public void Surface_Analyze_TransparentPixels_AreFlattenedOverBackground()
     {
         using var surface = Row(
             new Rgba32(255, 0, 0, 0),
@@ -174,8 +175,8 @@ public class ImageAnalysisTests
             new Rgba32(255, 0, 0, 0),
             Gray(0));
 
-        var overWhite = ImageAnalysis.Analyze(surface, White, 8);
-        var overBlue = ImageAnalysis.Analyze(surface, new Rgba32(0, 0, 255, 255), 8);
+        var overWhite = surface.Analyze(White, 8);
+        var overBlue = surface.Analyze(new Rgba32(0, 0, 255, 255), 8);
 
         Assert.Equal(White, overWhite.Colors[0].Color);
         Assert.Equal(3, overWhite.Colors[0].Pixels);
@@ -184,15 +185,15 @@ public class ImageAnalysisTests
 
         // Black at alpha 128 over white: (0 * 128 + 255 * 127 + 127) / 255 = 127.
         using var half = Row(new Rgba32(0, 0, 0, 128));
-        Assert.Equal(Gray(127), ImageAnalysis.Analyze(half, White, 1).Colors[0].Color);
-        Assert.Equal(127, ImageAnalysis.Analyze(half, White, 1).Luma.Min);
+        Assert.Equal(Gray(127), half.Analyze(White, 1).Colors[0].Color);
+        Assert.Equal(127, half.Analyze(White, 1).Luma.Min);
     }
 
     /// <summary>
     ///     Verifies the luma statistics of an image with every gray level once.
     /// </summary>
     [Fact]
-    public void ImageAnalysis_Analyze_Luma_ReportsMeanMinMaxPercentilesOtsuAndHistogram()
+    public void Surface_Analyze_Luma_ReportsMeanMinMaxPercentilesOtsuAndHistogram()
     {
         using var surface = new Surface(256, 1);
         for (var x = 0; x < 256; x++)
@@ -200,7 +201,7 @@ public class ImageAnalysisTests
             surface[x, 0] = Gray(x);
         }
 
-        var luma = ImageAnalysis.Analyze(surface, White, 8).Luma;
+        var luma = surface.Analyze(White, 8).Luma;
 
         Assert.Equal(127.5, luma.Mean);
         Assert.Equal(0, luma.Min);
@@ -214,7 +215,7 @@ public class ImageAnalysisTests
         Assert.Equal(Enumerable.Repeat(16L, 16).ToArray(), luma.Histogram.ToArray());
 
         using var flat = Row(Gray(200), Gray(200));
-        var single = ImageAnalysis.Analyze(flat, White, 1).Luma;
+        var single = flat.Analyze(White, 1).Luma;
         Assert.Equal(200, single.Mean);
         Assert.Equal(200, single.Min);
         Assert.Equal(200, single.Max);
@@ -227,14 +228,14 @@ public class ImageAnalysisTests
     ///     Verifies that a sample reports the pixel and its luma.
     /// </summary>
     [Fact]
-    public void ImageAnalysis_Sample_Point_ReturnsColorAndLuma()
+    public void Surface_Sample_Point_ReturnsColorAndLuma()
     {
         using var surface = new Surface(5, 4);
         surface[2, 3] = new Rgba32(255, 0, 0, 255);
         surface[1, 1] = new Rgba32(0, 0, 0, 128);
 
-        var sample = ImageAnalysis.Sample(surface, 2, 3, 0);
-        var translucent = ImageAnalysis.Sample(surface, 1, 1, 0);
+        var sample = surface.Sample(2, 3);
+        var translucent = surface.Sample(1, 1, 0);
 
         Assert.Equal(2, sample.X);
         Assert.Equal(3, sample.Y);
@@ -248,7 +249,7 @@ public class ImageAnalysisTests
     ///     Verifies that a window is clipped to the image and that its mean includes alpha.
     /// </summary>
     [Fact]
-    public void ImageAnalysis_Sample_Radius_ReturnsClippedWindowAndMean()
+    public void Surface_Sample_Radius_ReturnsClippedWindowAndMean()
     {
         using var surface = new Surface(6, 6);
         for (var y = 0; y < 6; y++)
@@ -259,8 +260,8 @@ public class ImageAnalysisTests
             }
         }
 
-        var corner = ImageAnalysis.Sample(surface, 0, 0, 2);
-        var inner = ImageAnalysis.Sample(surface, 3, 3, 1);
+        var corner = surface.Sample(0, 0, 2);
+        var inner = surface.Sample(3, 3, 1);
 
         var window = corner.Window!;
         Assert.Equal((0, 0, 3, 3), (window.X, window.Y, window.Width, window.Height));
@@ -274,18 +275,17 @@ public class ImageAnalysisTests
     }
 
     /// <summary>
-    ///     Verifies that a point outside the image is a usage error.
+    ///     Verifies that a point outside the image is an out-of-range argument that names the coordinate.
     /// </summary>
     [Fact]
-    public void ImageAnalysis_Sample_OutsideImage_Throws()
+    public void Surface_Sample_OutsideImage_ThrowsArgumentOutOfRange()
     {
         using var surface = new Surface(6, 4);
 
-        foreach (var (x, y) in new[] { (6, 0), (0, 4), (-1, 0), (0, -1), (5000, 10) })
+        foreach (var (x, y, name) in new[] { (6, 0, "x"), (0, 4, "y"), (-1, 0, "x"), (0, -1, "y"), (5000, 10, "x") })
         {
-            var exception = Assert.Throws<ToolException>(() => ImageAnalysis.Sample(surface, x, y, 0));
-            Assert.Equal(ErrorCodes.UsageError, exception.Code);
-            Assert.Contains("6x4", exception.Message);
+            var exception = Assert.Throws<ArgumentOutOfRangeException>(() => surface.Sample(x, y, 0));
+            Assert.Equal(name, exception.ParamName);
         }
     }
 
@@ -293,7 +293,7 @@ public class ImageAnalysisTests
     ///     Verifies that the same image gives the same statistics.
     /// </summary>
     [Fact]
-    public void ImageAnalysis_Analyze_SameInputTwice_ReturnsIdenticalResult()
+    public void Surface_Analyze_SameInputTwice_ReturnsIdenticalResult()
     {
         var random = new Random(99);
         using var surface = new Surface(64, 48);
@@ -305,8 +305,8 @@ public class ImageAnalysisTests
             }
         }
 
-        var first = ImageAnalysis.Analyze(surface, White, 32);
-        var second = ImageAnalysis.Analyze(surface, White, 32);
+        var first = surface.Analyze(White, 32);
+        var second = surface.Analyze(White, 32);
 
         Assert.Equal(first.TotalPixels, second.TotalPixels);
         Assert.Equal(first.Colors, second.Colors);
@@ -316,19 +316,21 @@ public class ImageAnalysisTests
     }
 
     /// <summary>
-    ///     Verifies that invalid arguments are rejected.
+    ///     Verifies that invalid arguments are rejected, with the name of the argument, and that a disposed surface is refused.
     /// </summary>
     [Fact]
-    public void ImageAnalysis_NullOrOutOfRangeArguments_Throw()
+    public void Surface_AnalysisInvalidArguments_Throw()
     {
-        using var surface = new Surface(4, 4);
+        var surface = new Surface(4, 4);
 
-        Assert.Throws<ArgumentNullException>(() => ImageAnalysis.Analyze(null!, White, 8));
-        Assert.Throws<ArgumentOutOfRangeException>(() => ImageAnalysis.Analyze(surface, White, 0));
-        Assert.Throws<ArgumentOutOfRangeException>(() => ImageAnalysis.Analyze(surface, White, 33));
-        Assert.Throws<ArgumentException>(() => ImageAnalysis.Analyze(surface, new Rgba32(255, 255, 255, 254), 8));
-        Assert.Throws<ArgumentNullException>(() => ImageAnalysis.Sample(null!, 0, 0, 0));
-        Assert.Throws<ArgumentOutOfRangeException>(() => ImageAnalysis.Sample(surface, 0, 0, -1));
-        Assert.Throws<ArgumentOutOfRangeException>(() => ImageAnalysis.Sample(surface, 0, 0, 9));
+        Assert.Equal("colorCount", Assert.Throws<ArgumentOutOfRangeException>(() => surface.Analyze(White, 0)).ParamName);
+        Assert.Equal("colorCount", Assert.Throws<ArgumentOutOfRangeException>(() => surface.Analyze(White, 33)).ParamName);
+        Assert.Equal("background", Assert.Throws<ArgumentException>(() => surface.Analyze(new Rgba32(255, 255, 255, 254), 8)).ParamName);
+        Assert.Equal("radius", Assert.Throws<ArgumentOutOfRangeException>(() => surface.Sample(0, 0, -1)).ParamName);
+        Assert.Equal("radius", Assert.Throws<ArgumentOutOfRangeException>(() => surface.Sample(0, 0, 9)).ParamName);
+
+        surface.Dispose();
+        Assert.Throws<ObjectDisposedException>(() => surface.Analyze(White, 8));
+        Assert.Throws<ObjectDisposedException>(() => surface.Sample(0, 0, 0));
     }
 }

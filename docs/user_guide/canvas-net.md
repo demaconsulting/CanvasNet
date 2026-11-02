@@ -1,6 +1,6 @@
 # CanvasNet Core Library
 
-<!-- cspell:ignore otsu midtone midtones -->
+<!-- cspell:ignore otsu midtone midtones ssim -->
 
 ## Basic Usage
 
@@ -319,15 +319,23 @@ is called on. Each throws `ObjectDisposedException` when the surface has been di
 public Surface FlipHorizontal()   // mirror left and right
 public Surface FlipVertical()     // mirror top and bottom
 public Surface Rotate180()        // mirror about both axes
+public Surface ApplyExifOrientation(int orientation)   // 1 to 8, see JpegCodec.ReadExifOrientation
 public Surface Pad(int left, int top, int right, int bottom, Rgba32 color)
 public (int X, int Y, int Width, int Height)? FindTrimBounds(int tolerance)
 public Surface Trim(int tolerance)
 public Surface FitInto(int boxWidth, int boxHeight, FitMode mode, Rgba32 fill,
     ResamplingMode filter = ResamplingMode.Auto)
+public static (int Width, int Height) FitInside(int width, int height, int boxWidth, int boxHeight)
 public Surface FlattenOver(Rgba32 background)
 public bool HasTransparency()
 ```
 
+- The flips, `Rotate180`, `ApplyExifOrientation`, `Pad`, and `Trim` copy pixels exactly (no
+  resampling); `FitInto` resamples and `FlattenOver` blends translucent pixels.
+- `ApplyExifOrientation` turns a camera photograph upright: it moves every pixel to where the EXIF
+  `Orientation` value (1 to 8) puts it, swapping the width and height for 5 to 8, and returns a copy for 1.
+  `JpegCodec.Load` ignores the tag, so read it first with `JpegCodec.ReadExifOrientation`. An
+  orientation outside 1 to 8 throws `ArgumentOutOfRangeException`.
 - `Pad` surrounds the surface with a border of the given widths and `color` and copies the pixels
   in without blending. It throws `ArgumentOutOfRangeException` for a negative width and
   `ArgumentException` when the result would be larger than `Surface.MaxDimension` on a side.
@@ -338,7 +346,9 @@ public bool HasTransparency()
   crops to that box, or returns a copy when there is no content.
 - `FitInto` returns a surface of exactly the box. With `FitMode.Contain` the image keeps its aspect
   ratio, is scaled to touch the box on its limiting side (a small image is enlarged), and is centered
-  on `fill`; with `FitMode.Stretch` it is resampled to the box.
+  on `fill`; with `FitMode.Stretch` it is resampled to the box. `FitInside` is the size calculation
+  of the contain fit: the largest size with the aspect ratio of the image that fits the box (each side
+  rounded half away from zero and limited to 1 and the box).
 - `FlattenOver` composites the surface over a solid color into a new surface, which is opaque when
   the color is opaque; `HasTransparency` tells whether any pixel has an alpha below 255 (for example
   before saving to a format without an alpha channel).
@@ -398,6 +408,132 @@ scan.Contrast(20);
 using var blackAndWhite = scan.Clone();
 blackAndWhite.Grayscale();
 blackAndWhite.Threshold(Surface.OtsuThreshold(blackAndWhite.LumaHistogram()));
+```
+
+#### Surface Rotation and Skew
+
+`RotateArbitrary` turns the surface by any angle onto a canvas that is large enough to hold the whole
+image, and `EstimateSkew` finds the angle that levels a scanned or photographed page. Both are pure: they
+never change the surface they are called on and return a new surface or a value. Each throws
+`ObjectDisposedException` when the surface has been disposed.
+
+```csharp
+public static (int Width, int Height) RotatedSize(int width, int height, double degrees)
+public Surface RotateArbitrary(double degrees, Rgba32 fill, bool nearest = false)
+public SkewEstimate EstimateSkew()
+
+public readonly record struct SkewEstimate(double Degrees, double Confidence, bool Estimated)
+{
+    public bool IsCorrectable { get; }       // estimated, at least 0.05 degrees, confidence at least 0.4
+    public double CorrectionDegrees { get; } // clockwise angle (0 to below 360) that levels the image
+}
+```
+
+- Angles are in degrees and a positive angle turns **clockwise** on screen. `RotatedSize` is the size of
+  the bounding box of the rotated rectangle (100 by 50 at 30 degrees is 112 by 94); the width and height
+  must be 1 to `Surface.MaxDimension`, and the angle must be finite (`ArgumentOutOfRangeException`).
+- `RotateArbitrary` **resamples**: with `nearest: false` (the default) it interpolates bilinearly and the
+  edge of the image fades into `fill` over half a pixel, with `nearest: true` it copies the nearest
+  source pixel. A tap outside the image counts as `fill`; a fully transparent fill is stored as
+  transparent black. Even a right angle is resampled, so use `Rotate180` or `ApplyExifOrientation` for an
+  exact move, and rotating by an angle and back is not lossless. A result larger than
+  `Surface.MaxDimension` on a side (8192 by 8192 at 45 degrees would be 11586 by 11586) throws
+  `ArgumentException` before anything is allocated.
+- `EstimateSkew` assumes dark marks on a lighter ground (invert first for the opposite) and finds the
+  tilt of the dominant near-horizontal structure within 15 degrees: positive when the lines descend to
+  the right. `Degrees` is in hundredths of a degree; `Confidence` (0 to just below 1) says how much
+  better the best angle scores than a typical one, and `Estimated` is `false` (with `Degrees` and
+  `Confidence` 0) when the image has too few dark marks. An image without line structure scores below
+  0.4, but a very wide image of random content can come close, so show the confidence to the user
+  when you correct automatically. `IsCorrectable` applies the thresholds (estimated, `|Degrees|` at
+  least `SkewEstimate.MinCorrectedDegrees`, 0.05, and `Confidence` at least `SkewEstimate.MinConfidence`,
+  0.4), and `CorrectionDegrees` is the clockwise angle to pass to `RotateArbitrary`.
+
+```csharp
+using var page = PngCodec.Load("tilted-page.png");
+var skew = page.EstimateSkew();
+if (skew.IsCorrectable)
+{
+    using var level = page.RotateArbitrary(skew.CorrectionDegrees, new Rgba32(255, 255, 255, 255));
+    PngCodec.Save(level, "level-page.png");
+}
+```
+
+#### Surface Comparison
+
+`Compare` measures how much another surface of the same size differs from this one, and
+`CreateDiff`, `CreateOverlay`, and `CreateSideBySide` draw the difference. Neither surface is changed.
+The comparison is defined on opaque RGB (alpha is ignored) with exact integer sums, so the same inputs
+give the same numbers on every run.
+
+```csharp
+public ComparisonResult Compare(Surface other, int tolerance, int gridColumns, int gridRows)
+public Surface CreateDiff(Surface other, DiffStyle style, double gain)
+public Surface CreateOverlay(Surface other, double weightOfOther)
+public Surface CreateSideBySide(Surface other, Surface difference)
+public enum DiffStyle { Heat, Abs }
+```
+
+- `ComparisonResult.Metrics` (`ComparisonMetrics`) has `Mae` and `Rmse` (0 to 255, over all three
+  channels), `PsnrDb` (`null` for identical images), `Ssim` (the mean structural similarity of the luma,
+  -1 to 1, 1 for identical images), `MaxChannelDifference`, `Identical`, and `DifferingPixels` with its
+  ratio (pixels whose largest channel difference is above `tolerance`, 0 to 255). `Cells` is the grid of
+  `gridColumns` by `gridRows` cells (each 1 to `ComparisonResult.MaxGridSide`, 64, and no larger than the
+  image) whose boundaries are `floor(i * size / count)`, so they partition the image exactly; each
+  `ComparisonCell` has its position, size, `Mae`, `Rmse`, and differing-pixel ratio. `MaxCellRmse` and
+  `WorstCells(count)` find where the images differ most.
+- `CreateDiff` returns an opaque picture of the same size: with `DiffStyle.Heat` the largest channel
+  difference, multiplied by `gain` (0.1 to 255), is drawn through a ramp from black through red and
+  yellow to white; with `DiffStyle.Abs` each channel is its own amplified difference.
+  `CreateOverlay` blends the two surfaces, `weightOfOther` (0 to 1) being the weight of `other`: 0 gives
+  the colors of this surface and 1 the colors of `other`, and the result is opaque.
+  `CreateSideBySide` places this surface, `other`, and the `difference` picture left to right, separated
+  by gaps of `Surface.SideBySideGap` (8) pixels of gray `#808080`; when the sheet would be wider than
+  `Surface.MaxDimension` the three panels are scaled down first.
+- Surfaces of different sizes throw `ArgumentException` (naming both sizes), a null surface
+  `ArgumentNullException`, an argument out of range `ArgumentOutOfRangeException`, and a disposed
+  surface (either one) `ObjectDisposedException`.
+
+```csharp
+using var reference = PngCodec.Load("reference.png");
+using var redraw = PngCodec.Load("redraw.png");
+var result = reference.Compare(redraw, tolerance: 8, gridColumns: 4, gridRows: 4);
+Console.WriteLine($"RMSE {result.Metrics.Rmse:0.00}, SSIM {result.Metrics.Ssim:0.000}");
+using var heat = reference.CreateDiff(redraw, DiffStyle.Heat, gain: 4);
+using var sheet = reference.CreateSideBySide(redraw, heat);
+```
+
+#### Surface Analysis
+
+`Analyze` reports what a surface contains, and `Sample` reads the pixel at a point. The surface is never
+changed and the results are exact and the same on every run.
+
+```csharp
+public SurfaceStatistics Analyze(Rgba32 background, int colorCount)
+public PixelSample Sample(int x, int y, int radius = 0)
+```
+
+- `Analyze` flattens each pixel over the opaque `background` and counts the pixels in 4096 color
+  buckets (the top four bits of each channel). The buckets are clustered greedily (a bucket within 2
+  bucket units of the leader of a cluster joins it), so a gradient of paper shades is one color.
+  `SurfaceStatistics.Colors` lists the `colorCount` (1 to `SurfaceStatistics.MaxColors`, 32) most common
+  colors, each a `DominantColor` with the mean `Color` of its pixels, their number, and their `Fraction`
+  of all pixels. `Luma` (`LumaStatistics`) has the mean, minimum, and maximum luma, the 1st, 50th, and 99th
+  percentiles, the Otsu threshold (`OtsuThreshold` of the histogram), and a 16-bin histogram.
+  A background that is not opaque throws `ArgumentException`.
+- `Sample` returns the pixel at `(x, y)` as stored, with its `Luma` (flattened over white). With a
+  `radius` from 1 to `PixelSample.MaxRadius` (8) it also returns the `Window` of the points within the
+  radius, clipped to the surface, with the window's actual rectangle, its pixels in row-major order,
+  and the mean of each channel (alpha included). A point outside the surface or a radius out of range
+  throws `ArgumentOutOfRangeException`.
+
+```csharp
+using var photo = PngCodec.Load("napkin.png");
+var statistics = photo.Analyze(new Rgba32(255, 255, 255, 255), colorCount: 4);
+foreach (var color in statistics.Colors)
+{
+    Console.WriteLine($"{color.Color} {color.Fraction:P1}");
+}
 ```
 
 ### Rgba32
@@ -975,6 +1111,42 @@ Saves a `Surface` to a file as a JPEG image, overwriting any existing file at `p
 - `ArgumentNullException`: Thrown when `surface` or `path` is null.
 - `ArgumentException`: Thrown when `path` is an empty string.
 - `ArgumentOutOfRangeException`: Thrown when `quality` is less than 1 or greater than 100.
+
+##### JpegCodec.ReadExifOrientation(Stream stream)
+
+```csharp
+public static int? ReadExifOrientation(Stream stream)
+```
+
+Reads the EXIF `Orientation` (1 to 8) of a JPEG without decoding it. `Load` ignores the tag; apply
+the value with `Surface.ApplyExifOrientation`. The method reads forward through the marker
+segments in front of the image data (at most 64, so the stream may be forward-only), and returns
+`null` instead of throwing when the data is not a JPEG, has no EXIF segment, holds a value outside
+1 to 8, or is truncated or malformed.
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown when `stream` is null.
+
+##### JpegCodec.ReadExifOrientation(string path)
+
+```csharp
+public static int? ReadExifOrientation(string path)
+```
+
+Opens the file at `path` and reads its orientation as above.
+
+**Exceptions:**
+
+- `ArgumentNullException`: Thrown when `path` is null.
+- `IOException` (for example `FileNotFoundException`): Thrown when the file cannot be read.
+
+```csharp
+using var stored = JpegCodec.Load("photo.jpg");
+using var upright = JpegCodec.ReadExifOrientation("photo.jpg") is { } orientation
+    ? stored.ApplyExifOrientation(orientation)
+    : stored.Clone();
+```
 
 ### GifCodec
 

@@ -365,3 +365,25 @@ sections:
                   - JpegCodec_GetInfo_MissingSoiMarker_ThrowsInvalidDataException
                   - JpegCodec_GetInfo_TruncatedBeforeSofFound_ThrowsInvalidDataException
                   - JpegCodec_GetInfo_SosBeforeSof_ThrowsInvalidDataException
+
+              - id: CanvasNet-Codecs-JpegCodec-ReadExifOrientation
+                title: >-
+                  The JpegCodec class shall read the EXIF orientation (1 to 8, tag 0x0112, a one-element SHORT of the
+                  first directory, in either byte order) from a JPEG stream or file by examining only the marker
+                  segments in front of the image data (at most 64), returning no orientation instead of throwing for
+                  data that is not a JPEG, has no EXIF segment, holds a value outside 1 to 8, or is truncated or
+                  malformed, skipping an APP1 segment that is not EXIF, and working on a stream that cannot seek.
+                justification: |
+                  Cameras record the rotation needed to view a photograph upright in metadata that Load ignores;
+                  a reader that cannot be made to throw by a hostile or damaged file, and that reads only the
+                  start of the stream, lets a caller decide whether to turn the decoded pixels without decoding
+                  the image twice.
+                tests:
+                  - JpegCodec_ReadExifOrientation_ExifSegment_ReturnsOrientation
+                  - JpegCodec_ReadExifOrientation_NoExifSegment_ReturnsNull
+                  - JpegCodec_ReadExifOrientation_NotJpeg_ReturnsNull
+                  - JpegCodec_ReadExifOrientation_ValueOutOfRange_ReturnsNull
+                  - JpegCodec_ReadExifOrientation_TruncatedAtEveryLength_NeverThrows
+                  - JpegCodec_ReadExifOrientation_AfterOtherSegmentsInForwardOnlyStream_ReturnsOrientation
+                  - JpegCodec_ReadExifOrientation_Path_ReadsFile
+                  - JpegCodec_ReadExifOrientation_NullArgument_ThrowsArgumentNullException

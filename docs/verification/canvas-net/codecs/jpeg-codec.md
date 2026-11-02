@@ -12,7 +12,8 @@ against JPEG marker structure itself rather than only by round-tripping producti
 `JpegCodec`'s only documented dependency is `Surface` (a sibling in-house unit, not an external
 service), no mocking or stubbing is required.
 
-Unit tests reside in `JpegCodecTests.cs` within the `DemaConsulting.CanvasNet.Tests` project.
+Unit tests reside in `JpegCodecTests.cs` within the `DemaConsulting.CanvasNet.Tests` project; the tests of the EXIF
+orientation reader reside in `JpegCodecExifTests.cs`.
 Conformance testing against the `JpegFixtures` corpus (five real-world files generated with
 ImageMagick from the PngSuite corpus) resides separately in `JpegFixtureTests.cs` within the same
 project (see `JpegFixtures\README.md` for corpus provenance).
@@ -358,11 +359,29 @@ asserting `ArgumentNullException`, `ArgumentNullException`, `ArgumentException`,
 `InvalidDataException` (three times) respectively — the same exception contract as the
 corresponding `Load` scenarios, plus JPEG-specific malformed-ordering cases `Load` also rejects.
 
+##### CanvasNet-Codecs-JpegCodec-ReadExifOrientation: ReadExifOrientation Reads the Orientation Safely
+
+**Tests**: `JpegCodec_ReadExifOrientation_ExifSegment_ReturnsOrientation`,
+`JpegCodec_ReadExifOrientation_NoExifSegment_ReturnsNull`, `JpegCodec_ReadExifOrientation_NotJpeg_ReturnsNull`,
+`JpegCodec_ReadExifOrientation_ValueOutOfRange_ReturnsNull`,
+`JpegCodec_ReadExifOrientation_TruncatedAtEveryLength_NeverThrows`,
+`JpegCodec_ReadExifOrientation_AfterOtherSegmentsInForwardOnlyStream_ReturnsOrientation`,
+`JpegCodec_ReadExifOrientation_Path_ReadsFile`, `JpegCodec_ReadExifOrientation_NullArgument_ThrowsArgumentNullException`
+(in `JpegCodecExifTests.cs`)
+
+A JPEG written by the codec (which writes no EXIF) has an EXIF segment injected right after its start-of-image marker by
+a test-only helper that writes the TIFF structure by hand, in either byte order. All eight orientations are read in both
+byte orders; a JPEG without the segment, garbage, and an empty stream give `null`; the values 0, 9, and 255 give `null`;
+every prefix of the first 40 bytes is read without an exception and the whole segment is found; the segment is found
+after an APP0 and a non-EXIF APP1 segment in a stream that cannot seek; the path overload reads a file and propagates
+the `FileNotFoundException` of a missing one; a null stream and a null path throw `ArgumentNullException`.
+
 #### Acceptance Criteria
 
 A unit test run passes when all test methods above pass without error or unexpected exception; any
 unexpected exception type or wrong return/value relationship constitutes a failure. Across
-`JpegCodecTests.cs` and `JpegFixtureTests.cs`, this totals 55 test methods (51 in
-`JpegCodecTests.cs` and 4 in `JpegFixtureTests.cs`); several of these are `[Theory]` methods that
+`JpegCodecTests.cs`, `JpegFixtureTests.cs`, and `JpegCodecExifTests.cs`, this totals 63 test methods (51 in
+`JpegCodecTests.cs`, 4 in `JpegFixtureTests.cs`, and 8 in `JpegCodecExifTests.cs`); several of these are `[Theory]`
+methods that
 additionally expand to multiple executed xUnit test cases, plus the system-level integration
 scenarios documented in `docs/verification/canvas-net.md`.

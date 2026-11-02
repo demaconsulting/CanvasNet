@@ -4,9 +4,11 @@
 
 #### Verification Approach
 
-`SourceLoader` (with `ExifOrientation`) is verified with unit tests in
+`SourceLoader` is verified with unit tests in
 `SourceLoaderTests.cs`, `SourceLoaderVectorTests.cs` (the page-based sources), `SourceLoaderScadTests.cs` (the
-OpenSCAD models), `SourceLoaderVegaLiteTests.cs` (the Vega-Lite charts), and `ExifOrientationTests.cs`. The
+OpenSCAD models), and `SourceLoaderVegaLiteTests.cs` (the Vega-Lite charts); the reading and the application of the EXIF
+orientation are core operations (`JpegCodec.ReadExifOrientation` and `Surface.ApplyExifOrientation`) verified in the core
+test project, and here only their use by the loader is. The
 tests generate their inputs: rasters are written in memory
 with the CanvasNet codecs (a gradient that differs at every pixel and channel, so a mirroring, rotation, or offset
 changes it), the GIF with a small encoder in the test project (the libraries have none), EXIF segments are injected
@@ -363,16 +365,9 @@ given; colors are written `#RRGGBB` or `#RRGGBBAA`.
 **SourceLoader_Load_JpegWithExif_AppliesOrientationUnlessDisabled** and
 **SourceLoader_Load_JpegWithExifAndWidth_SizesTheOrientedImage**: orientations 6 and 8 swap the size, 3 keeps it, 1
 changes nothing, and `AutoOrient = false` leaves the stored image; the operation is recorded; a requested width
-applies to the upright image and the result equals orient-then-resize.
-
-**ExifOrientation_Read_ExifSegment_ReturnsOrientation** and the other `ExifOrientation_Read_*` tests: all eight
-orientations in both byte orders; no segment, not a JPEG, and empty data give `null`; values 0, 9, and 255 give
-`null`; every prefix of the first 40 bytes is read without an exception; the segment is found after an APP0 and a
-non-EXIF APP1 segment in a stream that cannot seek; the path overload reads a file and propagates the I/O failure of
-a missing one; a null stream throws. **ExifOrientation_Apply_Orientation_MapsPixels** and
-**ExifOrientation_Apply_InvalidArguments_Throw**: each orientation turns a 3x2 image of numbered pixels into the
-layout the EXIF specification defines (including the swapped sizes), the source is unchanged, and invalid arguments
-throw.
+applies to the upright image and the result equals orient-then-resize. (The reading of every orientation and the
+mapping of the pixels are verified by `JpegCodecExifTests.cs` and `SurfaceExifOrientationTests.cs` in the core test
+project.)
 
 **SourceLoader_Load_DamagedFile_ThrowsToolExceptionOrLoads**,
 **SourceLoader_Load_DamagedDocument_ThrowsToolExceptionOrLoads**,

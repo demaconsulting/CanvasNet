@@ -5,7 +5,7 @@
 # from the perspective of its consumers, without specifying implementation details.
 # cspell:ignore glyf sfnt cmap loca hmtx hhea maxp notdef
 # cspell:ignore codepoint codepoints subtable subtables subsetted renderable formedness
-# cspell:ignore otsu
+# cspell:ignore otsu bilinear
 # cspell:ignore rasterizing letterboxing Dasharray xlink Pillarboxes
 
 sections:
@@ -315,8 +315,8 @@ sections:
 
       - id: CanvasNet-Lib-SurfaceTransforms
         title: >-
-          The library shall flip, turn by 180 degrees, pad, trim, fit into a box, and flatten a Surface over a
-          color, each as a pure function that returns a new Surface.
+          The library shall flip, turn by 180 degrees, turn upright by an EXIF orientation, pad, trim, fit into a
+          box, and flatten a Surface over a color, each as a pure function that returns a new Surface.
         tags: [system]
         justification: |
           Mirroring, margins, content cropping, box fitting, and transparency removal are the everyday operations
@@ -325,6 +325,52 @@ sections:
           - CanvasNet-Canvas-SurfaceTransforms
         tests:
           - Surface_Pad_Border_AddsColoredBorderAndCopiesPixels
+
+      - id: CanvasNet-Lib-SurfaceGeometry
+        title: >-
+          The library shall rotate a Surface by any angle onto an expanded canvas with a fill color (nearest or
+          bilinear sampling), and shall estimate the skew of the dominant near-horizontal lines of a Surface.
+        tags: [system]
+        justification: |
+          Photographs and scans of pages and sketches are rarely level; rotating by an arbitrary angle without
+          losing corners, and finding the angle that levels the picture, are the geometric steps of cleaning
+          them up.
+        children:
+          - CanvasNet-Canvas-SurfaceGeometry
+        tests:
+          - Surface_RotateArbitrary_Corners_AreFillColor
+          - Surface_EstimateSkew_TiltedLines_FindsAngleWithinTolerance
+
+      - id: CanvasNet-Lib-SurfaceComparison
+        title: >-
+          The library shall compare two Surfaces of the same size with exact, repeatable error and similarity
+          measures and a grid of per-cell errors, and shall create a difference image, an overlay, and a
+          side-by-side image of them.
+        tags: [system]
+        justification: |
+          Judging how close a redraw is to a reference, and where it differs, needs numbers that agree between
+          runs and pictures that show the difference; the library offers both so that applications need no
+          comparison code of their own.
+        children:
+          - CanvasNet-Canvas-SurfaceComparison
+        tests:
+          - Surface_Compare_KnownDifference_ComputesMaeRmseAndPsnr
+          - Surface_CreateDiff_Heat_MapsDeltaThroughHotRamp
+
+      - id: CanvasNet-Lib-SurfaceAnalysis
+        title: >-
+          The library shall report the dominant colors and luma statistics of a Surface, and the pixel at a point
+          with the mean of its neighborhood, with exact results that are the same on every run.
+        tags: [system]
+        justification: |
+          Choosing how to adjust or convert an image starts from what it contains; reporting its colors, its
+          brightness distribution, and single pixels from the library lets applications ask without writing the
+          counting code.
+        children:
+          - CanvasNet-Canvas-SurfaceAnalysis
+        tests:
+          - Surface_Analyze_FourBitBuckets_GroupNearbyShadesIntoOneColor
+          - Surface_Sample_Radius_ReturnsClippedWindowAndMean
 
   - title: BMP Codec API
     requirements:
@@ -930,6 +976,21 @@ sections:
           - JpegCodec_GetInfo_MissingSoiMarker_ThrowsInvalidDataException
           - JpegCodec_GetInfo_TruncatedBeforeSofFound_ThrowsInvalidDataException
           - JpegCodec_GetInfo_SosBeforeSof_ThrowsInvalidDataException
+
+      - id: CanvasNet-Lib-JpegReadExifOrientation
+        title: >-
+          The library shall read the EXIF orientation of a JPEG stream or file without decoding the image, and
+          shall turn a Surface upright by an orientation from 1 to 8.
+        tags: [system]
+        justification: |
+          Photographs from cameras carry the rotation needed to view them upright in metadata the decoder
+          ignores; reading it safely and applying it exactly lets an application show them the right way up.
+        children:
+          - CanvasNet-Codecs-JpegReadExifOrientation
+          - CanvasNet-Canvas-SurfaceTransforms
+        tests:
+          - JpegCodec_ReadExifOrientation_ExifSegment_ReturnsOrientation
+          - Surface_ApplyExifOrientation_Orientation_MapsPixels
 
   - title: GIF Codec API
     requirements:

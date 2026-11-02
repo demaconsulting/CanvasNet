@@ -8,9 +8,9 @@
 # recognizes the format, applies the size policy (including the maximum image size), the page and
 # resolution of a document, the view and variables of a model, the EXIF orientation of a JPEG, and the
 # background color, collects the notes about features the libraries cannot draw, and maps the library
-# exceptions that mean "bad input" to expected errors. The EXIF reader and the orientation transform
-# (ExifOrientation) is part of this unit; the fit, flatten, and transparency helpers that used to be here are core
-# Surface methods.
+# exceptions that mean "bad input" to expected errors. The EXIF orientation is read by the core JpegCodec and
+# applied by the core Surface; the fit, flatten, and transparency helpers that used to be here are core
+# Surface methods as well.
 
 sections:
   - title: SourceLoader Unit Requirements
@@ -444,23 +444,13 @@ sections:
 
       - id: CanvasNetTool-Imaging-SourceLoader-Exif
         title: >-
-          The SourceLoader class shall read the EXIF orientation of a JPEG (either byte order, no
-          exception for malformed data) and shall turn the image upright by it unless auto-orientation is
-          switched off, applying the requested size to the upright image.
+          The SourceLoader class shall read the EXIF orientation of a JPEG with the core JPEG codec and shall turn
+          the image upright by it, with the core Surface, unless auto-orientation is switched off, applying the
+          requested size to the upright image.
         justification: |
           Cameras record rotation in metadata that the JPEG codec ignores; without applying it, photos
           appear sideways to the agent that looks at them.
         tests:
-          - ExifOrientation_Read_ExifSegment_ReturnsOrientation
-          - ExifOrientation_Read_NoExifSegment_ReturnsNull
-          - ExifOrientation_Read_NotJpeg_ReturnsNull
-          - ExifOrientation_Read_ValueOutOfRange_ReturnsNull
-          - ExifOrientation_Read_TruncatedAtEveryLength_NeverThrows
-          - ExifOrientation_Read_AfterOtherSegmentsInForwardOnlyStream_ReturnsOrientation
-          - ExifOrientation_Read_Path_ReadsFile
-          - ExifOrientation_Read_NullStream_ThrowsArgumentNullException
-          - ExifOrientation_Apply_Orientation_MapsPixels
-          - ExifOrientation_Apply_InvalidArguments_Throw
           - SourceLoader_Load_JpegWithExif_AppliesOrientationUnlessDisabled
           - SourceLoader_Load_JpegWithExifAndWidth_SizesTheOrientedImage
 

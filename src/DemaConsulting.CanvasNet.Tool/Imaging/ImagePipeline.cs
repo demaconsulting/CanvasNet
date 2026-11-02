@@ -22,7 +22,7 @@ namespace DemaConsulting.CanvasNet.Tool.Imaging;
 ///         <see cref="Surface"/> in the core library; this class orders them, validates and parses the command line,
 ///         maps a failure to a <see cref="ToolException"/>, and describes each step in an <see cref="AppliedOperation"/>.
 ///         Rotation by a right angle is an exact pixel move, rotation by any other angle
-///         (and the correction of a skew) is <see cref="ImageGeometry.RotateArbitrary"/> onto an expanded canvas. An
+///         (and the correction of a skew) is <see cref="Surface.RotateArbitrary(double, Rgba32, bool)"/> onto an expanded canvas. An
 ///         explicitly requested rotation or a border larger than <see cref="Surface.MaxDimension"/> is refused
 ///         before allocation, with the code <c>size-limit</c>. Deskew is best effort: when its automatic correction
 ///         would exceed that limit, it copies the input and reports why it was skipped.
@@ -744,25 +744,23 @@ internal static class ImagePipeline
     /// </returns>
     /// <remarks>
     ///     The skew is corrected only when it was estimated, its size is at least
-    ///     <see cref="ImageGeometry.MinCorrectedSkew"/> degrees, its confidence at least
-    ///     <see cref="ImageGeometry.MinConfidence"/>, and the expanded canvas (<see cref="ImageGeometry.RotatedSize"/>,
-    ///     the size <see cref="ImageGeometry.RotateArbitrary"/> allocates) fits <see cref="Surface.MaxDimension"/>.
+    ///     <see cref="SkewEstimate.MinCorrectedDegrees"/> degrees, its confidence at least
+    ///     <see cref="SkewEstimate.MinConfidence"/> (together <see cref="SkewEstimate.IsCorrectable"/>), and the expanded
+    ///     canvas (<see cref="Surface.RotatedSize"/>, the size <see cref="Surface.RotateArbitrary(double, Rgba32, bool)"/>
+    ///     allocates) fits <see cref="Surface.MaxDimension"/>.
     ///     Otherwise the image is copied unchanged; a size-limit skip includes a <c>reason</c> in its operation report.
     /// </remarks>
     private static (Surface, AppliedOperation) ApplyDeskew(Surface source, DeskewOperation deskew, Rgba32? userBackground)
     {
-        var estimate = ImageGeometry.EstimateSkew(source);
-        var correct = estimate.Estimated
-                      && Math.Abs(estimate.Degrees) >= ImageGeometry.MinCorrectedSkew
-                      && estimate.Confidence >= ImageGeometry.MinConfidence;
-        if (!correct)
+        var estimate = source.EstimateSkew();
+        if (!estimate.IsCorrectable)
         {
             return SkipDeskew(source, estimate, null);
         }
 
         var rotateDegrees = -estimate.Degrees;
-        var normalized = rotateDegrees < 0 ? rotateDegrees + 360 : rotateDegrees;
-        var (rotatedWidth, rotatedHeight) = ImageGeometry.RotatedSize(source.Width, source.Height, normalized);
+        var normalized = estimate.CorrectionDegrees;
+        var (rotatedWidth, rotatedHeight) = Surface.RotatedSize(source.Width, source.Height, normalized);
         if (rotatedWidth > Surface.MaxDimension || rotatedHeight > Surface.MaxDimension)
         {
             return SkipDeskew(source, estimate, "rotated image would exceed the maximum size");
@@ -770,7 +768,7 @@ internal static class ImagePipeline
 
         var fill = ResolveFill(source, deskew.Fill, userBackground);
         var nearest = deskew.Filter == ResamplingMode.Nearest;
-        var result = ImageGeometry.RotateArbitrary(source, normalized, fill, nearest);
+        var result = source.RotateArbitrary(normalized, fill, nearest);
         return (result, SourceLoader.Operation(
             "deskew",
             ("skewDegrees", estimate.Degrees),
@@ -808,6 +806,29 @@ internal static class ImagePipeline
         fields.Add(("width", copy.Width));
         fields.Add(("height", copy.Height));
         return (copy, SourceLoader.Operation("deskew", [.. fields]));
+    }
+
+    /// <summary>
+    ///     Refuses a rotation whose expanded canvas would be larger than the maximum image size.
+    /// </summary>
+    /// <param name="source">The surface to be rotated.</param>
+    /// <param name="degrees">The rotation in degrees, a finite number (clockwise).</param>
+    /// <exception cref="ToolException">Thrown with code <c>size-limit</c> when the rotated image would be larger than <see cref="Surface.MaxDimension"/> on a side.</exception>
+    /// <remarks>
+    ///     The size is checked here, before <see cref="Surface.RotateArbitrary(double, Rgba32, bool)"/> would refuse it with an
+    ///     <see cref="ArgumentException"/>, so that the error carries the code <c>size-limit</c>, the size, and the hint to
+    ///     shrink the image first.
+    /// </remarks>
+    private static void CheckRotatedSize(Surface source, double degrees)
+    {
+        var (width, height) = Surface.RotatedSize(source.Width, source.Height, degrees);
+        if (width > Surface.MaxDimension || height > Surface.MaxDimension)
+        {
+            throw new ToolException(
+                ErrorCodes.SizeLimit,
+                $"The rotated image would be {width}x{height} pixels, more than the maximum of {Surface.MaxDimension} pixels on a side.",
+                "Shrink the image first, for example --fit 4096x4096 before --rotate or --deskew.");
+        }
     }
 
     /// <summary>
@@ -940,7 +961,7 @@ internal static class ImagePipeline
     /// <param name="userBackground">The background color the user gave, or <see langword="null"/>.</param>
     /// <returns>
     ///     The rotated surface and its description. A right angle is an exact pixel move (for 90 and 270 degrees the width
-    ///     and height are swapped) and 0 is a copy; any other angle is <see cref="ImageGeometry.RotateArbitrary"/> onto an
+    ///     and height are swapped) and 0 is a copy; any other angle is <see cref="Surface.RotateArbitrary(double, Rgba32, bool)"/> onto an
     ///     expanded canvas, filled with the fill of the rule at <see cref="ResolveFill"/>, and also reports <c>fill</c> and
     ///     <c>filter</c> (<c>nearest</c> or <c>bilinear</c>).
     /// </returns>
@@ -952,7 +973,8 @@ internal static class ImagePipeline
         {
             var fill = ResolveFill(source, rotate.Fill, userBackground);
             var nearest = rotate.Filter == ResamplingMode.Nearest;
-            var turned = ImageGeometry.RotateArbitrary(source, rotate.Degrees, fill, nearest);
+            CheckRotatedSize(source, rotate.Degrees);
+            var turned = source.RotateArbitrary(rotate.Degrees, fill, nearest);
             return (turned, SourceLoader.Operation(
                 "rotate",
                 ("degrees", rotate.Degrees),

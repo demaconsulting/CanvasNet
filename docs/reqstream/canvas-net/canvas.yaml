@@ -1,10 +1,11 @@
 ---
-# cspell:ignore otsu
+# cspell:ignore otsu bilinear ssim
 # Software Subsystem Requirements for Canvas
 #
 # These requirements decompose the CanvasNet system's pixel-buffer responsibilities into the
 # Canvas subsystem's own responsibility: providing a mutable, in-memory 32-bit RGBA pixel
-# buffer (the Surface unit with its SurfaceAdjustments and SurfaceTransforms parts), its pixel value type (the
+# buffer (the Surface unit with its SurfaceAdjustments, SurfaceTransforms, SurfaceGeometry, SurfaceComparison, and
+# SurfaceAnalysis parts), its pixel value type (the
 # Rgba32 unit), and the shared CSS color parser (the
 # CssColor unit). Each requirement here
 # links down to the unit requirement that implements it.
@@ -469,15 +470,16 @@ sections:
 
           - id: CanvasNet-Canvas-SurfaceTransforms
             title: >-
-              The Canvas subsystem shall provide the pure whole-surface transformations flip, half turn, pad, trim,
-              fit into a box, and flatten over a color, each returning a new surface and leaving the source
-              unchanged.
+              The Canvas subsystem shall provide the pure whole-surface transformations flip, half turn, EXIF
+              orientation, pad, trim, fit into a box, and flatten over a color, each returning a new surface and
+              leaving the source unchanged.
             justification: |
-              Mirroring, margins, content cropping, box fitting, and transparency removal are the basic
-              operations of image preparation; as pure functions of the core surface they are reusable and easy to
-              verify.
+              Mirroring, turning a camera photograph upright, margins, content cropping, box fitting, and
+              transparency removal are the basic operations of image preparation; as pure functions of the core
+              surface they are reusable and easy to verify.
             children:
               - CanvasNet-Canvas-SurfaceTransforms-Flip
+              - CanvasNet-Canvas-SurfaceTransforms-ExifOrientation
               - CanvasNet-Canvas-SurfaceTransforms-Pad
               - CanvasNet-Canvas-SurfaceTransforms-Trim
               - CanvasNet-Canvas-SurfaceTransforms-FitInto
@@ -487,6 +489,75 @@ sections:
               - Surface_Flip_Pixels_MirrorAboutTheAxes
               - Surface_Pad_Border_AddsColoredBorderAndCopiesPixels
               - Surface_FindTrimBounds_UniformBorder_ReturnsContentBox
+              - Surface_ApplyExifOrientation_Orientation_MapsPixels
+
+          - id: CanvasNet-Canvas-SurfaceGeometry
+            title: >-
+              The Canvas subsystem shall rotate a surface by any angle onto an expanded canvas with a fill color
+              (nearest or bilinear sampling, refusing a canvas larger than the maximum surface size), and shall
+              estimate the skew of the dominant near-horizontal lines of a surface, with exact, repeatable results
+              that do not depend on the number of cores.
+            justification: |
+              A photograph of a page or a sketch is rarely level; estimating its tilt and rotating by an arbitrary
+              angle without losing corners are the geometric steps that turn it into a usable picture, and the
+              arithmetic belongs in the core library where every package and library user can share it.
+            children:
+              - CanvasNet-Canvas-SurfaceGeometry-RotatedSize
+              - CanvasNet-Canvas-SurfaceGeometry-RotateMapping
+              - CanvasNet-Canvas-SurfaceGeometry-RotateFill
+              - CanvasNet-Canvas-SurfaceGeometry-RotateFilter
+              - CanvasNet-Canvas-SurfaceGeometry-RotateLimit
+              - CanvasNet-Canvas-SurfaceGeometry-SkewEstimate
+              - CanvasNet-Canvas-SurfaceGeometry-SkewNoStructure
+              - CanvasNet-Canvas-SurfaceGeometry-SkewDeterministic
+              - CanvasNet-Canvas-SurfaceGeometry-Arguments
+            tests:
+              - Surface_RotateArbitrary_Corners_AreFillColor
+              - Surface_EstimateSkew_TiltedLines_FindsAngleWithinTolerance
+
+          - id: CanvasNet-Canvas-SurfaceComparison
+            title: >-
+              The Canvas subsystem shall compare two surfaces of the same size with exact, repeatable error and
+              similarity measures and a grid of per-cell errors, and shall create a difference image, an overlay,
+              and a side-by-side image of them.
+            justification: |
+              Judging how close a redraw is to its reference, and where it differs, needs numbers that agree
+              between runs and pictures that show the difference; one tested implementation in the core library
+              serves every package and library user.
+            children:
+              - CanvasNet-Canvas-SurfaceComparison-ErrorMetrics
+              - CanvasNet-Canvas-SurfaceComparison-Ssim
+              - CanvasNet-Canvas-SurfaceComparison-DiffPixels
+              - CanvasNet-Canvas-SurfaceComparison-Grid
+              - CanvasNet-Canvas-SurfaceComparison-DiffImage
+              - CanvasNet-Canvas-SurfaceComparison-Overlay
+              - CanvasNet-Canvas-SurfaceComparison-SideBySide
+              - CanvasNet-Canvas-SurfaceComparison-Arguments
+              - CanvasNet-Canvas-SurfaceComparison-Deterministic
+            tests:
+              - Surface_Compare_KnownDifference_ComputesMaeRmseAndPsnr
+              - Surface_CreateDiff_Heat_MapsDeltaThroughHotRamp
+
+          - id: CanvasNet-Canvas-SurfaceAnalysis
+            title: >-
+              The Canvas subsystem shall report the dominant colors and luma statistics of a surface, and the
+              pixel at a point with the mean of its neighborhood, with exact results that are the same on every
+              run.
+            justification: |
+              Choosing how to adjust or convert an image starts from what it contains; reporting its colors, its
+              brightness distribution, and single pixels from the core library lets every package and library user
+              ask without writing the counting code.
+            children:
+              - CanvasNet-Canvas-SurfaceAnalysis-Quantize
+              - CanvasNet-Canvas-SurfaceAnalysis-Dominant
+              - CanvasNet-Canvas-SurfaceAnalysis-Alpha
+              - CanvasNet-Canvas-SurfaceAnalysis-LumaStats
+              - CanvasNet-Canvas-SurfaceAnalysis-Sample
+              - CanvasNet-Canvas-SurfaceAnalysis-Deterministic
+              - CanvasNet-Canvas-SurfaceAnalysis-Arguments
+            tests:
+              - Surface_Analyze_FourBitBuckets_GroupNearbyShadesIntoOneColor
+              - Surface_Sample_Radius_ReturnsClippedWindowAndMean
 
           - id: CanvasNet-Canvas-Resize
             title: >-

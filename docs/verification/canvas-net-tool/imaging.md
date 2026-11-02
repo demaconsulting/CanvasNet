@@ -5,12 +5,13 @@
 ### Verification Approach
 
 The `Imaging` subsystem is verified at two tiers. The unit tests of `SourceLoader`, `ImagePipeline`, `ImageWriter`,
-`ImageComparison`, `ContactSheet`, `ImageGeometry`, `GridOverlay`, and `ImageAnalysis`
+`ImageComparison`, `ContactSheet`, and `GridOverlay`
 (see _SourceLoader Unit Verification Design_, _ImagePipeline Unit Verification Design_, _ImageWriter Unit
-Verification Design_, _ImageComparison Unit Verification Design_, _ContactSheet Unit Verification Design_,
-_ImageGeometry Unit Verification Design_, _GridOverlay Unit Verification
-Design_, and _ImageAnalysis Unit Verification Design_
-under `imaging/`) verify the units in isolation. The subsystem tests in `ImagingSubsystemTests.cs`
+Verification Design_, _ImageComparison Unit Verification Design_, _ContactSheet Unit Verification Design_, and
+_GridOverlay Unit Verification Design_
+under `imaging/`) verify the units in isolation; the rotation, the skew estimation, the comparison metrics and pictures,
+and the analysis of colors are core `Surface` operations verified in the `Canvas` subsystem (see _SurfaceGeometry_,
+_SurfaceComparison_, and _SurfaceAnalysis Unit Verification Design_). The subsystem tests in `ImagingSubsystemTests.cs`
 verify them working together, the way every
 command uses them: a source file of each supported kind (PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX,
 SCAD, and Vega-Lite) is loaded and written as each output format (PNG, JPEG, BMP, and TIFF) - an input-by-output

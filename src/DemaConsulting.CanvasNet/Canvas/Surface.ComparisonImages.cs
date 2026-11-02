@@ -1,30 +1,33 @@
-using DemaConsulting.CanvasNet.Canvas;
-
-namespace DemaConsulting.CanvasNet.Tool.Imaging;
+// cspell:ignore psnr rmse ssim
+namespace DemaConsulting.CanvasNet.Canvas;
 
 /// <summary>
-///     The picture creators of <see cref="ImageComparison"/>: difference, overlay, and side-by-side images.
+///     The picture creators of the comparison of <see cref="Surface"/>: difference, overlay, and side-by-side images.
 /// </summary>
 /// <remarks>
-///     All pictures are opaque and are computed with integer arithmetic (after the amplification and the overlay weight
-///     are rounded once), so the same inputs give the same pixels on every run.
+///     All pictures are opaque (the alpha of the inputs is ignored) and are computed with integer arithmetic (after the
+///     amplification and the overlay weight are rounded once), so the same inputs give the same pixels on every run.
+///     Neither input is modified or disposed.
 /// </remarks>
-internal static partial class ImageComparison
+public sealed partial class Surface
 {
+    /// <summary>The width in pixels of the gaps between the panels of a side-by-side image.</summary>
+    public const int SideBySideGap = 8;
+
     /// <summary>The color of the gaps of a side-by-side image.</summary>
     private static readonly Rgba32 GapColor = new(128, 128, 128, 255);
 
     /// <summary>
-    ///     Creates a difference image.
+    ///     Creates a difference image of this surface and another of the same size.
     /// </summary>
-    /// <param name="a">The first image; it is not modified or disposed.</param>
-    /// <param name="b">The second image; it is not modified or disposed.</param>
+    /// <param name="other">The surface to compare with; it is not modified or disposed.</param>
     /// <param name="style">How a difference is drawn.</param>
     /// <param name="gain">The amplification of a difference, 0.1 to 255.</param>
     /// <returns>A new opaque surface of the size of the images.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when an image is <see langword="null"/>.</exception>
-    /// <exception cref="ArgumentException">Thrown when the images have different sizes.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="other"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException">Thrown when the surfaces have different sizes.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when the gain is not 0.1 to 255 or the style is not defined.</exception>
+    /// <exception cref="ObjectDisposedException">Thrown when either surface has been disposed.</exception>
     /// <remarks>
     ///     <para>
     ///         With <see cref="DiffStyle.Heat"/> the pixel's difference is <c>delta = max(|dR|, |dG|, |dB|)</c> and
@@ -36,11 +39,12 @@ internal static partial class ImageComparison
     ///         With <see cref="DiffStyle.Abs"/> each channel is <c>min(255, round(|d| * gain))</c> of its own difference.
     ///     </para>
     /// </remarks>
-    public static Surface CreateDiff(Surface a, Surface b, DiffStyle style, double gain)
+    public Surface CreateDiff(Surface other, DiffStyle style, double gain)
     {
-        ArgumentNullException.ThrowIfNull(a);
-        ArgumentNullException.ThrowIfNull(b);
-        RequireSameSize(a, b);
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(other);
+        ObjectDisposedException.ThrowIf(other._disposed, other);
+        RequireSameSize(other);
         if (!Enum.IsDefined(style))
         {
             throw new ArgumentOutOfRangeException(nameof(style), style, "The diff style is not defined.");
@@ -51,7 +55,7 @@ internal static partial class ImageComparison
             throw new ArgumentOutOfRangeException(nameof(gain), gain, "The gain must be 0.1 to 255.");
         }
 
-        var result = new Surface(a.Width, a.Height);
+        var result = new Surface(Width, Height);
         try
         {
             // A table makes the amplification one lookup per channel difference
@@ -61,12 +65,12 @@ internal static partial class ImageComparison
                 amplified[d] = (byte)Math.Min(255, (int)Math.Round(d * gain, MidpointRounding.AwayFromZero));
             }
 
-            for (var y = 0; y < a.Height; y++)
+            for (var y = 0; y < Height; y++)
             {
-                var rowA = a.GetRowSpan(y);
-                var rowB = b.GetRowSpan(y);
+                var rowA = GetRowSpan(y);
+                var rowB = other.GetRowSpan(y);
                 var target = result.GetRowSpan(y);
-                for (var x = 0; x < a.Width; x++)
+                for (var x = 0; x < Width; x++)
                 {
                     var pa = rowA[x];
                     var pb = rowB[x];
@@ -98,47 +102,48 @@ internal static partial class ImageComparison
     }
 
     /// <summary>
-    ///     Creates an onion-skin overlay: a blend of two images.
+    ///     Creates an onion-skin overlay: a blend of this surface and another of the same size.
     /// </summary>
-    /// <param name="a">The first image; it is not modified or disposed.</param>
-    /// <param name="b">The second image; it is not modified or disposed.</param>
-    /// <param name="weightOfB">The weight of the second image, 0 to 1.</param>
+    /// <param name="other">The second surface; it is not modified or disposed.</param>
+    /// <param name="weightOfOther">The weight of the second surface, 0 to 1.</param>
     /// <returns>A new opaque surface of the size of the images.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when an image is <see langword="null"/>.</exception>
-    /// <exception cref="ArgumentException">Thrown when the images have different sizes.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="other"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException">Thrown when the surfaces have different sizes.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when the weight is not 0 to 1.</exception>
+    /// <exception cref="ObjectDisposedException">Thrown when either surface has been disposed.</exception>
     /// <remarks>
     ///     With <c>bw = round(weight * 255)</c> (half away from zero) each channel is
-    ///     <c>(a * (255 - bw) + b * bw + 127) / 255</c> in integer arithmetic, so weight 0 is the first image and
-    ///     weight 1 is the second image exactly.
+    ///     <c>(a * (255 - bw) + b * bw + 127) / 255</c> in integer arithmetic, so weight 0 is the colors of this surface and
+    ///     weight 1 the colors of the other exactly (both with alpha 255).
     /// </remarks>
-    public static Surface CreateOverlay(Surface a, Surface b, double weightOfB)
+    public Surface CreateOverlay(Surface other, double weightOfOther)
     {
-        ArgumentNullException.ThrowIfNull(a);
-        ArgumentNullException.ThrowIfNull(b);
-        RequireSameSize(a, b);
-        if (!(weightOfB >= 0 && weightOfB <= 1))
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(other);
+        ObjectDisposedException.ThrowIf(other._disposed, other);
+        RequireSameSize(other);
+        if (!(weightOfOther >= 0 && weightOfOther <= 1))
         {
-            throw new ArgumentOutOfRangeException(nameof(weightOfB), weightOfB, "The weight must be 0 to 1.");
+            throw new ArgumentOutOfRangeException(nameof(weightOfOther), weightOfOther, "The weight must be 0 to 1.");
         }
 
-        var weight = (int)Math.Round(weightOfB * 255, MidpointRounding.AwayFromZero);
-        var result = new Surface(a.Width, a.Height);
+        var weight = (int)Math.Round(weightOfOther * 255, MidpointRounding.AwayFromZero);
+        var result = new Surface(Width, Height);
         try
         {
-            for (var y = 0; y < a.Height; y++)
+            for (var y = 0; y < Height; y++)
             {
-                var rowA = a.GetRowSpan(y);
-                var rowB = b.GetRowSpan(y);
+                var rowA = GetRowSpan(y);
+                var rowB = other.GetRowSpan(y);
                 var target = result.GetRowSpan(y);
-                for (var x = 0; x < a.Width; x++)
+                for (var x = 0; x < Width; x++)
                 {
                     var pa = rowA[x];
                     var pb = rowB[x];
                     target[x] = new Rgba32(
-                        Blend(pa.R, pb.R, weight),
-                        Blend(pa.G, pb.G, weight),
-                        Blend(pa.B, pb.B, weight),
+                        OverlayBlend(pa.R, pb.R, weight),
+                        OverlayBlend(pa.G, pb.G, weight),
+                        OverlayBlend(pa.B, pb.B, weight),
                         255);
                 }
             }
@@ -153,38 +158,45 @@ internal static partial class ImageComparison
     }
 
     /// <summary>
-    ///     Creates a side-by-side image: the first image, the second image, and the difference, left to right.
+    ///     Creates a side-by-side image: this surface, a second surface, and a difference image, left to right.
     /// </summary>
-    /// <param name="a">The first image; it is not modified or disposed.</param>
-    /// <param name="b">The second image; it is not modified or disposed.</param>
-    /// <param name="diff">The difference image, of the same size; it is not modified or disposed.</param>
+    /// <param name="other">The second surface, of the same size; it is not modified or disposed.</param>
+    /// <param name="difference">The difference image (see <see cref="CreateDiff"/>), of the same size; it is not modified or disposed.</param>
     /// <returns>
     ///     A new surface: the three panels separated by gaps of <see cref="SideBySideGap"/> pixels of gray
     ///     (<c>#808080</c>), without labels.
     /// </returns>
-    /// <exception cref="ArgumentNullException">Thrown when an image is <see langword="null"/>.</exception>
-    /// <exception cref="ArgumentException">Thrown when the images have different sizes.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="other"/> or <paramref name="difference"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException">Thrown when the surfaces have different sizes.</exception>
+    /// <exception cref="ObjectDisposedException">Thrown when any of the surfaces has been disposed.</exception>
     /// <remarks>
-    ///     The sheet is <c>3 W + 2 gap</c> wide and <c>H</c> high. When that is wider or higher than
-    ///     <see cref="Surface.MaxDimension"/>, the three panels are first scaled down uniformly with the area filter to
+    ///     The sheet is <c>3 W + 2 gap</c> wide and <c>H</c> high; the panels are copied opaquely. When that is wider or
+    ///     higher than <see cref="MaxDimension"/>, the three panels are first scaled down uniformly with the area filter to
     ///     <c>floor(W s)</c> by <c>floor(H s)</c> pixels, where <c>s</c> is the largest factor that makes the sheet fit.
     /// </remarks>
-    public static Surface CreateSideBySide(Surface a, Surface b, Surface diff)
+    public Surface CreateSideBySide(Surface other, Surface difference)
     {
-        ArgumentNullException.ThrowIfNull(a);
-        ArgumentNullException.ThrowIfNull(b);
-        ArgumentNullException.ThrowIfNull(diff);
-        RequireSameSize(a, b);
-        RequireSameSize(a, diff);
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(other);
+        ArgumentNullException.ThrowIfNull(difference);
+        ObjectDisposedException.ThrowIf(other._disposed, other);
+        ObjectDisposedException.ThrowIf(difference._disposed, difference);
+        RequireSameSize(other);
+        if (Width != difference.Width || Height != difference.Height)
+        {
+            throw new ArgumentException(
+                $"The images have different sizes: {Width}x{Height} and {difference.Width}x{difference.Height}.",
+                nameof(difference));
+        }
 
-        var width = a.Width;
-        var height = a.Height;
+        var width = Width;
+        var height = Height;
         var gaps = 2 * SideBySideGap;
-        if ((3L * width) + gaps > Surface.MaxDimension || height > Surface.MaxDimension)
+        if ((3L * width) + gaps > MaxDimension || height > MaxDimension)
         {
             var scale = Math.Min(
-                (double)(Surface.MaxDimension - gaps) / (3.0 * width),
-                (double)Surface.MaxDimension / height);
+                (double)(MaxDimension - gaps) / (3.0 * width),
+                (double)MaxDimension / height);
             width = Math.Max(1, (int)Math.Floor(width * scale));
             height = Math.Max(1, (int)Math.Floor(height * scale));
         }
@@ -193,7 +205,7 @@ internal static partial class ImageComparison
         try
         {
             sheet.Clear(GapColor);
-            Surface[] panels = [a, b, diff];
+            Surface[] panels = [this, other, difference];
             for (var i = 0; i < panels.Length; i++)
             {
                 var left = i * (width + SideBySideGap);
@@ -223,23 +235,8 @@ internal static partial class ImageComparison
     /// <param name="second">The channel of the second image.</param>
     /// <param name="weight">The weight of the second image, 0 to 255.</param>
     /// <returns><c>(first * (255 - weight) + second * weight + 127) / 255</c>.</returns>
-    private static byte Blend(byte first, byte second, int weight)
+    private static byte OverlayBlend(byte first, byte second, int weight)
     {
         return (byte)(((first * (255 - weight)) + (second * weight) + 127) / 255);
-    }
-
-    /// <summary>
-    ///     Requires that two surfaces have the same size.
-    /// </summary>
-    /// <param name="first">The first surface.</param>
-    /// <param name="second">The second surface.</param>
-    /// <exception cref="ArgumentException">Thrown when the sizes differ.</exception>
-    private static void RequireSameSize(Surface first, Surface second)
-    {
-        if (first.Width != second.Width || first.Height != second.Height)
-        {
-            throw new ArgumentException(
-                $"The images have different sizes: {first.Width}x{first.Height} and {second.Width}x{second.Height}.");
-        }
     }
 }
