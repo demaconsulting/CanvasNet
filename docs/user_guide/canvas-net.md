@@ -339,9 +339,9 @@ public bool HasTransparency()
 - `FitInto` returns a surface of exactly the box. With `FitMode.Contain` the image keeps its aspect
   ratio, is scaled to touch the box on its limiting side (a small image is enlarged), and is centered
   on `fill`; with `FitMode.Stretch` it is resampled to the box.
-- `FlattenOver` composites the surface over a solid color into a new, opaque surface;
-  `HasTransparency` tells whether any pixel has an alpha below 255 (for example before saving to a
-  format without an alpha channel).
+- `FlattenOver` composites the surface over a solid color into a new surface, which is opaque when
+  the color is opaque; `HasTransparency` tells whether any pixel has an alpha below 255 (for example
+  before saving to a format without an alpha channel).
 
 ```csharp
 using var photo = PngCodec.Load("scan.png");

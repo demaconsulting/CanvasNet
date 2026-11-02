@@ -34,8 +34,9 @@ The unit adds no state to `Surface`. Its public surface is:
 
 Every transformation is a **pure function**: it never modifies or disposes the surface it is called on and returns a new
 surface that the caller owns. `(x, y)` has its origin at the top left with y down; surfaces hold straight
-(non-premultiplied) alpha. Each is a pixel move or a per-row copy with no resampling (except where `FitInto` calls
-`Resize`), so the pixels of the result are exact copies of pixels of the source.
+(non-premultiplied) alpha. The flips, the half turn, `Pad`, and `Trim` are pixel moves or per-row copies with no
+resampling, so the pixels of their results are exact copies of pixels of the source; `FitInto` resamples (through
+`Resize`) and `FlattenOver` blends translucent pixels over its background.
 
 #### Key Methods
 
