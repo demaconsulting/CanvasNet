@@ -325,6 +325,10 @@ mattering), and the calendar and data details by the _TimeCalendar_ and _DataLoa
 `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_ColorFieldsOfDifferentNamesJoinTheLegendTitle`,
 `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_IndependentLegendsGiveOneLegendPerLayer`,
 `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_ScaleConflictWarnsAndStillDraws`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_WrittenAxisTitleWinsOverDerivedAndOthersJoin`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_BarsWithWrittenTitlesAndMeanRuleKeepTheWrittenTitles`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_ErrorBandWithWrittenTitlesAndMeanLineKeepTheWrittenTitles`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_ErrorBandWithoutTitlesWritesItsFieldAsTheTitle`,
 `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_PropertiesOfTheTopLevelViewAreIgnoredInALayer`,
 `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_ViewAndDepthLimitsAreEnforced`,
 `VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_BoxPlot_VerticalTukeyIsDrawnFromTheQuartiles`,
@@ -346,7 +350,8 @@ top-level `calculate` is applied once, is seen by every layer, and is not report
 after it,
 the layers not seeing one another's results; that the layers draw in order, each in its own group of marks, over one
 pair of
-axes whose titles join, or over two axes (the second on the opposite side and with no grid) and one legend for each
+axes whose titles merge (a written title wins over a derived one, as in Vega-Lite; the others join), or over two axes
+(the second on the opposite side and with no grid) and one legend for each
 layer when
 `resolve` says independent; that a step sizes the union of the categories; that a layer with an unsupported mark is reported
 and the others are drawn, that a variable parameter declared in a layer and a transform inside a concatenation are reported,

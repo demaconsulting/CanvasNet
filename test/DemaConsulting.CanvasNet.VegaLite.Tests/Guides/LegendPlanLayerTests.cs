@@ -94,6 +94,56 @@ public class LegendPlanLayerTests
     }
 
     /// <summary>
+    ///     Validates that a written title wins over a derived one wherever the layer is (Vega-Lite's explicit-over-implicit merge), for the title of the channel definition and for
+    ///     <c>legend.title</c>, and that the derived titles of the other layers do not join it.
+    /// </summary>
+    [Fact]
+    public void LegendPlan_Create_WrittenTitleOfAnyLayerWinsOverDerivedTitles()
+    {
+        // Arrange / Act: the written title is on the last layer, in the middle, and on the legend object
+        var last = Plan([
+            """{ "mark": "bar", "encoding": { "color": { "field": "a", "type": "nominal" } } }""",
+            """{ "mark": "point", "encoding": { "color": { "field": "b", "type": "nominal" } } }""",
+            """{ "mark": "tick", "encoding": { "color": { "field": "a", "type": "nominal", "title": "Kind" } } }""",
+        ]);
+        var middle = Plan([
+            """{ "mark": "bar", "encoding": { "color": { "field": "a", "type": "nominal" } } }""",
+            """{ "mark": "point", "encoding": { "color": { "field": "b", "type": "nominal", "legend": { "title": "Group" } } } }""",
+        ]);
+
+        // Assert
+        Assert.Equal(["Kind"], Assert.Single(last).Title);
+        Assert.Equal(["Group"], Assert.Single(middle).Title);
+    }
+
+    /// <summary>
+    ///     Validates that different written titles of the layers join as <c>a, b</c> in layer order, that the same written title is one, and that a written <c>null</c> title
+    ///     switches the title of the legend off.
+    /// </summary>
+    [Fact]
+    public void LegendPlan_Create_WrittenTitlesJoinWhenDifferentAndMergeWhenEqual()
+    {
+        // Arrange / Act
+        var different = Plan([
+            """{ "mark": "bar", "encoding": { "color": { "field": "a", "type": "nominal", "title": "One" } } }""",
+            """{ "mark": "point", "encoding": { "color": { "field": "b", "type": "nominal", "title": "Two" } } }""",
+        ]);
+        var same = Plan([
+            """{ "mark": "bar", "encoding": { "color": { "field": "a", "type": "nominal", "title": "One" } } }""",
+            """{ "mark": "point", "encoding": { "color": { "field": "b", "type": "nominal", "title": "One" } } }""",
+        ]);
+        var off = Plan([
+            """{ "mark": "bar", "encoding": { "color": { "field": "a", "type": "nominal" } } }""",
+            """{ "mark": "point", "encoding": { "color": { "field": "b", "type": "nominal", "title": null } } }""",
+        ]);
+
+        // Assert
+        Assert.Equal(["One, Two"], Assert.Single(different).Title);
+        Assert.Equal(["One"], Assert.Single(same).Title);
+        Assert.Null(Assert.Single(off).Title);
+    }
+
+    /// <summary>
     ///     Validates that a channel that only a later layer has is planned from that layer, with the facts of its mark.
     /// </summary>
     [Fact]
@@ -175,5 +225,72 @@ public class LegendPlanLayerTests
         Assert.Empty(LegendPlan.Create([], parts.Config, null));
         Assert.Throws<ArgumentNullException>(() => LegendPlan.Create((IReadOnlyList<LegendLayer>)null!, parts.Config, null));
         Assert.Throws<ArgumentNullException>(() => LegendPlan.Create([new LegendLayer(parts.Tree.Root, parts.Scales)], null!, null));
+    }
+
+    /// <summary>
+    ///     Reads a written title from a JSON value.
+    /// </summary>
+    /// <param name="json">The JSON text of the title value.</param>
+    /// <returns>The written title.</returns>
+    private static GuideTitle Written(string json) => GuideTitle.FromWritten(SpecParser.Parse("{\"t\": " + json + "}").Root["t"]!);
+
+    /// <summary>
+    ///     Validates the merge of two titles that differ in being written or derived: the written title wins in either order and the derived one does not join it, a written title that
+    ///     switches the title off or has no text still wins over a derived one.
+    /// </summary>
+    [Fact]
+    public void LegendPlan_GuideTitle_WrittenWinsOverDerivedInEitherOrder()
+    {
+        // Arrange
+        var written = Written("\"Crates\"");
+        var derived = GuideTitle.FromField("Mean of crates");
+
+        // Act / Assert
+        Assert.Equal(["Crates"], GuideTitle.Merge(written, derived).Resolve());
+        Assert.Equal(["Crates"], GuideTitle.Merge(derived, written).Resolve());
+        Assert.Null(GuideTitle.Merge(derived, Written("null")).Resolve());
+        Assert.Null(GuideTitle.Merge(Written("\"\""), derived).Resolve());
+    }
+
+    /// <summary>
+    ///     Validates that two derived titles join as the distinct titles in order, and that a derived title without a field adds nothing.
+    /// </summary>
+    [Fact]
+    public void LegendPlan_GuideTitle_DerivedTitlesJoinDistinctInOrder()
+    {
+        // Arrange
+        var a = GuideTitle.FromField("week");
+        var b = GuideTitle.FromField("Mean of yield");
+
+        // Act
+        var joined = GuideTitle.Merge(GuideTitle.Merge(a, b), a);
+
+        // Assert
+        Assert.Equal(["week, Mean of yield"], joined.Resolve());
+        Assert.Equal(["week"], GuideTitle.Merge(a, GuideTitle.FromField(null)).Resolve());
+        Assert.Null(GuideTitle.Merge(GuideTitle.FromField(string.Empty), GuideTitle.FromField(null)).Resolve());
+    }
+
+    /// <summary>
+    ///     Validates that two written titles join with a comma, that equal ones merge into one, that a title without text is neutral, that a <c>null</c> title switches the merged
+    ///     title off, and that the lines of a written title are kept when it stands alone.
+    /// </summary>
+    [Fact]
+    public void LegendPlan_GuideTitle_WrittenTitlesJoinWhenDifferent()
+    {
+        // Arrange
+        var one = Written("\"One\"");
+        var two = Written("[\"Two\", \"lines\"]");
+
+        // Act / Assert
+        Assert.Equal(["One, Two, lines"], GuideTitle.Merge(one, two).Resolve());
+        Assert.Equal(["One"], GuideTitle.Merge(one, Written("\"One\"")).Resolve());
+        Assert.Equal(["One"], GuideTitle.Merge(one, Written("\"\"")).Resolve());
+        Assert.Equal(["One"], GuideTitle.Merge(Written("[]"), one).Resolve());
+        Assert.Null(GuideTitle.Merge(one, Written("null")).Resolve());
+        Assert.Null(GuideTitle.Merge(Written("null"), one).Resolve());
+        Assert.Equal(["Two", "lines"], two.Resolve());
+        Assert.Equal(["A", "B"], Written("\"A\\nB\"").Resolve());
+        Assert.Null(Written("7").Resolve());
     }
 }

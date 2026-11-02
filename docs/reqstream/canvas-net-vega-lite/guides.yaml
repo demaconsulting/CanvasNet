@@ -197,10 +197,11 @@ sections:
           - id: CanvasNetVegaLite-Guides-LayerGuides
             title: >-
               The Guides subsystem shall build the guides of a layered view as Vega-Lite does: one axis for
-              the layers that share a position scale and an axis (the titles of the layers joined), an axis for
+              the layers that share a position scale and an axis (the titles of the layers merged: a written
+              title wins over a derived one, the others joined), an axis for
               each of the others with the second on the opposite side and only the first with a grid unless the
-              axis object says otherwise, and one legend for the layers that share a legend, joining the titles
-              of the fields they describe.
+              axis object says otherwise, and one legend for the layers that share a legend, merging the titles
+              of the layers in the same way.
             justification: |
               The guides are what tells the reader which layer a position or a color stands for; a layered
               chart with duplicated or overlapping guides cannot be read.
@@ -210,4 +211,5 @@ sections:
             tests:
               - AxisBuilder_Build_DefaultOrientAndGridApplyOnlyWhenTheAxisSaysNothing
               - LegendPlan_Create_SameFieldInTwoLayersIsOneLegend
+              - LegendPlan_Create_WrittenTitleOfAnyLayerWinsOverDerivedTitles
               - LegendPlan_Create_LayersInDifferentScopesKeepTheirOwnLegends

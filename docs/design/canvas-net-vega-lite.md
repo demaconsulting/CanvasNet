@@ -1262,8 +1262,10 @@ The following decisions differ from, or are stricter than, the Vega-Lite referen
     **first** explicit domain; the legend of a merged channel takes the symbol facts and the properties of the **first**
     layer that has it (Vega-Lite merges them); the layer scales that cannot be merged keep their own with the warning
     `vl-layer-scale-conflict`. `resolve` can make a scale, an axis, or a legend independent, in nested layered views too.
-62. **Guides of layers (P10-D3)**: the layers that share a position scale and an axis have one axis, with the titles joined
-    (`a, b`); independent axes follow Vega-Lite's `parseLayerAxes` (the second axis moves to the opposite side unless the
+62. **Guides of layers (P10-D3)**: the layers that share a position scale and an axis have one axis, whose title merges
+    the titles of the layers as Vega-Lite's `mergeAxisComponent` does (a written title wins over a derived one, derived
+    titles and different written titles join as `a, b`, equal ones are one); the legend titles merge the same way;
+    independent axes follow Vega-Lite's `parseLayerAxes` (the second axis moves to the opposite side unless the
     axis says an `orient`, and only the first axis has a grid); the `config` orient of an axis does not count as
     explicit for
     that rule. A step (`{"step": n}` or the default) applies to the union of the categories of the layers.

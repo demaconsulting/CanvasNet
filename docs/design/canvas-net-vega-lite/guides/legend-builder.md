@@ -28,6 +28,12 @@ unit's behavior is specified by the `CanvasNetVegaLite-Guides-LegendBuilder-*` r
 
 - `LegendMember` - one channel that a legend explains: the channel, its `ResolvedScale`, the `ScaleModel` (a legend scale
   does not depend on the size of the data rectangle), the channel definition and its `legend` object.
+- `GuideTitle` - the title that one source (a channel, or a layer) gives a guide, written or derived, and its merge
+  (`Merge`): Vega-Lite's `mergeValuesWithExplicit` with `mergeTitleComponent` as the tie-breaker, shared by the legend titles
+  and the axis titles of layers. A written title (`FromWritten`: a string or an array of lines; null or another value
+  switches the title off, an empty one is neutral) wins over a derived one (`FromField`); two derived titles join as the
+  distinct parts in order; two different written titles join with a comma (equal ones are one); `Resolve` gives the lines
+  a guide shows.
 - `LegendMarkFacts` - what the symbols stand for: whether the mark is filled (a **trail is never filled for its legend**,
   see the paragraph on the path, area, arc, and text marks below), its fixed fill and stroke (the same rules
   the marks use), the opacity (0.7 for point-like marks, or the constant opacity channel), the fixed shape, the stroke
@@ -55,9 +61,11 @@ Scene roles: `legend` (group) containing `legend-entry` (group) and `legend-titl
   a layered view. For each channel, the layers that have the same **scope** for it (the function `Scope(channel)` that
   `VegaLiteDocument` builds from the layers' `resolve` of the legend and their scale groups, so layers whose legend or
   scale is independent are in different scopes) contribute one member: that of the first layer that has a legend for the
-  channel, planned with that layer's own scale (the merged one for a shared channel); the titles of the fields that the
-  other layers of the scope describe are joined with a comma (`a, b`), an explicit legend or channel title of the
-  first layer winning. Members of different layers and scopes then merge exactly as members of one view do (equal key and
+  channel, planned with that layer's own scale (the merged one for a shared channel); the titles of all the layers of
+  the scope merge as `GuideTitle.Merge` does (Vega-Lite's `mergeValuesWithExplicit` with `mergeTitleComponent`): a written
+  legend or channel title of any layer wins over the titles derived from fields, derived titles join with a comma
+  (`a, b`), different written titles join too, equal ones are one. Members of different layers and scopes then merge
+  exactly as members of one view do (equal key and
   scope), and the `LegendMarkFacts` of a legend are those of the layer that its first member comes from. A merged
   legend takes the properties of the first layer that has the channel (Vega-Lite merges the properties of all the layers).
 - `LegendPlan.Create(view, scales, config, sourceName)` - for each channel in the order color, size, shape, fill,
@@ -69,8 +77,11 @@ Scene roles: `legend` (group) containing `legend-entry` (group) and `legend-titl
   otherwise, `legend.type: symbol` forces symbols, and members of different kinds make a symbol legend. The orient
   is the explicit one or `right`; the direction is the explicit one, Vega-Lite's default for the orient (horizontal for
   top and bottom, and for the inner corners with gradients), then `config.legend.direction`, `symbolDirection` or
-  `gradientDirection`. The title is the explicit `legend.title` or channel `title` (null or empty means none), else the
-  distinct default titles of the members joined by a comma. `LegendPlan` itself did not change for time: a temporal
+  `gradientDirection`. The title is the merge of the titles of the members (`GuideTitle`, also used for the axis title of
+  layers): a member's title is **written** (`legend.title` or channel `title`; null means none, an empty text is neutral)
+  or **derived** from the field (its default title); a written title wins over a derived one, derived titles join by a
+  comma as distinct parts, different written titles join by a comma, and a written null switches the title off.
+  `LegendPlan` itself did not change for time: a temporal
   color is a sequential scale, so it is planned as a **gradient** legend, a size or opacity over a time scale and an
   ordinal field with a time unit are planned as **symbol** legends, and the merge key already uses the derived field
   name of the plan (a different time unit of the same field is a different key).

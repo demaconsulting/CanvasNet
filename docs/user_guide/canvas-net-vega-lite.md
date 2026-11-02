@@ -865,7 +865,8 @@ the scale:
 <!-- markdownlint-enable MD013 -->
 
 Channels that use the same field with the same domain (the same `scale.domain` and `sort`, and the same binning) are
-**merged** into one legend, whose title joins the distinct titles with a comma and whose symbols combine the channels
+**merged** into one legend, whose title merges the titles of the channels (a written title wins over a derived one;
+derived titles join with a comma) and whose symbols combine the channels
 (for example the color and the shape of one field); channels that ask for different `orient` values stay apart, and a
 merge of different kinds is a symbol legend. The title is the legend's `title`, else the title of the channel, else the
 default title of the field; `null` or an empty text gives none. The **placement** is the `orient`: `right` (the
@@ -1564,14 +1565,20 @@ domain is the union of the domains of the layers (after each layer's own `zero` 
 discrete scale is the union of the categories in the order of the layers (sorted when every layer sorts them the same
 way), and when a band scale and a point scale meet, the band scale wins. The first explicit `scale.domain` (or the first
 domain of a quantize, quantile, or threshold scale) is used for all the layers. The axis of a position channel is also
-one axis, with the titles of the layers joined as `a, b` (the distinct titles in layer order: a `bar` of `crates` with
-a `rule` of the mean of `crates` gives `crates, Mean of crates`), unless an `axis.title` says otherwise. A
+one axis. Its title is the merge of the titles of the layers, as in Vega-Lite: a **written** title (the `title` of a
+channel definition, or an `axis.title`) wins over a title **derived** from the field (`crates`, `Mean of crates`), so
+a `bar` with `"title": "Crates"` and a `rule` of the mean of `crates` gives the axis the title `Crates`. Derived titles
+join as `a, b` (the distinct titles in layer order: a `bar` of `crates` with a `rule` of the mean of `crates` gives
+`crates, Mean of crates`), and so do different written titles (`Crates, Mean`), while equal ones are one. A written
+`"title": null` removes the title. A `boxplot`, `errorbar`, or `errorband` writes the title of its measure (the
+`title` you gave, else the field name), so its title wins over the one derived for the aggregate of another layer. A
 channel definition that switches the axis off (`"axis": null`) removes it. Layers that cannot share a scale (a
 continuous scale with a discrete one, a linear scale with a log, pow, or time scale, or different discretizing scales)
 keep a scale of their own for the channel, and the warning `vl-layer-scale-conflict` names the layer that was left out.
 
-A legend that several layers share is one legend: it is made from the first layer that has the channel, its title joins
-the titles of the other layers' fields, and its symbols are those of the first layer's mark.
+A legend that several layers share is one legend: it is made from the first layer that has the channel, its title
+merges the titles of the layers in the same way (a written `legend.title` or `title` wins over the titles derived from
+the fields, which join as `a, b`), and its symbols are those of the first layer's mark.
 
 **`resolve`.** A layered view (the top-level one, or a nested one for its own layers) can give each channel a mode,
 `"shared"` or `"independent"`, for the scale, the axis, and the legend:
@@ -2725,7 +2732,8 @@ using DemaConsulting.CanvasNet.VegaLite;
 var strict = new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true };
 
 // 1. Bars and the mean as a dashed rule. The layers share the data and the y scale, so the rule is drawn at the mean of
-//    the bars; the y axis is titled "Crates, Mean of crates" because the two layers have different titles
+//    the bars; the y axis is titled "Crates": the bars write that title, and a written title wins over the one derived
+//    for the mean ("Mean of crates"), which would join it only if the bars wrote none
 var bars = VegaLiteDocument.Parse("""
     {
       "title": "Crates sold per stall and the mean",

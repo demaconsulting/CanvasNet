@@ -219,8 +219,11 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   `LegendPlan.Create(LegendLayers(...))` (a `LegendLayer` for each layer, its scope function from the `resolve` of the legend
   and the scale groups, so independent legends and scales give one legend for each) and the axes from `PlanAxes`:
   for each position channel the layers are grouped by (scale group, highest ancestor not making the axis independent,
-  explicit `axis.orient`), each group is one `AxisPlan` (the scale of its first member with the titles of the members joined
-  as `a, b`, a title written on the channel definitions joined too, and the definition that decides the axis properties:
+  explicit `axis.orient`), each group is one `AxisPlan` (the scale of its first member; the title merges the titles of the
+  members with `GuideTitle.Merge`, as Vega-Lite's `mergeAxisComponent` does: a written title - `axis.title`, else the
+  `title` of the channel definition - wins over one derived from the field, derived titles and different written titles
+  join as `a, b`; a written result is set as the `title` of the chosen definition with its `axis.title` removed, a derived
+  one is the title of the scale; and the definition that decides the axis properties:
   the first that switches the axis off, else the first with an `axis` object, else the first with a field or aggregate);
   several axes of one channel follow Vega-Lite's `parseLayerAxes` (`SeparateAxes`: a second axis moves to the opposite side
   when more axes are on its side than on the other, counting the side before the move; only the first axis keeps its grid;

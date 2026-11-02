@@ -370,7 +370,8 @@ sections:
           - id: CanvasNetVegaLite-VegaLiteDocument-LayerGuides
             title: >-
               The VegaLiteDocument unit shall plan the axes and legends of a layered view so that layers that
-              share a position scale and an axis have one axis (the titles joined), independent scales or axes
+              share a position scale and an axis have one axis (the titles merged: a written title wins over a
+              derived one, the others joined), independent scales or axes
               give one axis for each, the second on the opposite side and with no grid unless the axis object
               says otherwise, layers that share a legend have one legend and the others one each, a scale that
               cannot be shared is reported as a warning and still drawn, and a property that only the top-level
@@ -387,6 +388,10 @@ sections:
               - CanvasNetVegaLite_SystemIntegration_Layer_IndependentLegendsGiveOneLegendPerLayer
               - CanvasNetVegaLite_SystemIntegration_Layer_ScaleConflictWarnsAndStillDraws
               - CanvasNetVegaLite_SystemIntegration_Layer_PropertiesOfTheTopLevelViewAreIgnoredInALayer
+              - CanvasNetVegaLite_SystemIntegration_Layer_WrittenAxisTitleWinsOverDerivedAndOthersJoin
+              - CanvasNetVegaLite_SystemIntegration_Layer_BarsWithWrittenTitlesAndMeanRuleKeepTheWrittenTitles
+              - CanvasNetVegaLite_SystemIntegration_Layer_ErrorBandWithWrittenTitlesAndMeanLineKeepTheWrittenTitles
+              - CanvasNetVegaLite_SystemIntegration_Layer_ErrorBandWithoutTitlesWritesItsFieldAsTheTitle
 
           - id: CanvasNetVegaLite-VegaLiteDocument-CompositeMarkPipeline
             title: >-

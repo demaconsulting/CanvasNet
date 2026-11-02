@@ -256,7 +256,9 @@ sections:
                   The LegendBuilder unit shall plan the legends of the layers of a layered view over all the layers
                   as one view does: for each channel one legend for each scope (the layers that share the
                   channel's legend), from the first layer that has a legend for the channel, with the titles of
-                  the other layers' fields joined (a, b) and an explicit title of the first layer winning, the
+                  all the layers merged (a written title of any layer winning over the titles derived from fields,
+                  which are joined (a, b), different written titles joined, equal ones one, and a written null
+                  switching the title off), the
                   channels of different layers whose domains agree merging into one legend, the symbols of a
                   member drawn as the mark of the layer that the member comes from, and a disabled legend of
                   the layer honored; and shall give a view with one layer the same plan as the plan of that view.
@@ -266,6 +268,11 @@ sections:
                 tests:
                   - LegendPlan_Create_SameFieldInTwoLayersIsOneLegend
                   - LegendPlan_Create_TitlesOfDifferentFieldsJoin
+                  - LegendPlan_Create_WrittenTitleOfAnyLayerWinsOverDerivedTitles
+                  - LegendPlan_Create_WrittenTitlesJoinWhenDifferentAndMergeWhenEqual
+                  - LegendPlan_GuideTitle_WrittenWinsOverDerivedInEitherOrder
+                  - LegendPlan_GuideTitle_DerivedTitlesJoinDistinctInOrder
+                  - LegendPlan_GuideTitle_WrittenTitlesJoinWhenDifferent
                   - LegendPlan_Create_ChannelOfALaterLayerUsesThatLayersMark
                   - LegendPlan_Create_ChannelsOfDifferentLayersWithTheSameDomainMerge
                   - LegendPlan_Create_LayersInDifferentScopesKeepTheirOwnLegends

@@ -200,6 +200,128 @@ public class VegaLiteLayerIntegrationTests
     }
 
     /// <summary>
+    ///     Validates that the axis title of layers that share an axis follows Vega-Lite's explicit-over-implicit merge: a written title (<c>title</c> of the channel definition or
+    ///     <c>axis.title</c>) wins over a title derived from the field in either layer order, derived titles join as <c>a, b</c>, different written titles join too, equal ones are one,
+    ///     and a written <c>null</c> switches the title off.
+    /// </summary>
+    /// <param name="first">The y channel definition of the first layer (bars).</param>
+    /// <param name="second">The y channel definition of the second layer (rule).</param>
+    /// <param name="expected">The expected y axis title; null for no title.</param>
+    [Theory]
+    [InlineData("""{ "field": "v", "type": "quantitative", "title": "Crates" }""", """{ "aggregate": "mean", "field": "v", "type": "quantitative" }""", "Crates")]
+    [InlineData("""{ "aggregate": "mean", "field": "v", "type": "quantitative" }""", """{ "field": "v", "type": "quantitative", "title": "Crates" }""", "Crates")]
+    [InlineData("""{ "field": "v", "type": "quantitative" }""", """{ "aggregate": "mean", "field": "v", "type": "quantitative" }""", "v, Mean of v")]
+    [InlineData("""{ "field": "v", "type": "quantitative", "title": "Crates" }""", """{ "aggregate": "mean", "field": "v", "type": "quantitative", "title": "Mean crates" }""", "Crates, Mean crates")]
+    [InlineData("""{ "field": "v", "type": "quantitative", "title": "Crates" }""", """{ "aggregate": "mean", "field": "v", "type": "quantitative", "title": "Crates" }""", "Crates")]
+    [InlineData("""{ "field": "v", "type": "quantitative", "title": "Crates" }""", """{ "aggregate": "mean", "field": "v", "type": "quantitative", "axis": { "title": "Mine" } }""", "Crates, Mine")]
+    [InlineData("""{ "field": "v", "type": "quantitative", "axis": { "title": "Mine", "grid": false } }""", """{ "aggregate": "mean", "field": "v", "type": "quantitative" }""", "Mine")]
+    [InlineData("""{ "field": "v", "type": "quantitative", "title": "Crates", "axis": { "title": "Mine" } }""", """{ "aggregate": "mean", "field": "v", "type": "quantitative" }""", "Mine")]
+    [InlineData("""{ "field": "v", "type": "quantitative", "title": null }""", """{ "aggregate": "mean", "field": "v", "type": "quantitative" }""", null)]
+    [InlineData("""{ "field": "v", "type": "quantitative", "title": ["Crates", "sold"] }""", """{ "aggregate": "mean", "field": "v", "type": "quantitative" }""", "Crates|sold")]
+    public void CanvasNetVegaLite_SystemIntegration_Layer_WrittenAxisTitleWinsOverDerivedAndOthersJoin(string first, string second, string? expected)
+    {
+        // Arrange
+        var json = $$"""
+            {
+              {{CategoryData}},
+              "layer": [
+                { "mark": "bar", "encoding": { "x": { "field": "a", "type": "nominal" }, "y": {{first}} } },
+                { "mark": "rule", "encoding": { "y": {{second}} } }
+              ]
+            }
+            """;
+
+        // Act
+        var scene = SceneOf(json);
+
+        // Assert: the x axis is the field of the bars; the y title is the merge, shown as one line or several
+        var titles = Items<SceneText>(scene, "axis-title");
+        Assert.Equal("a", titles[0].Text);
+        Assert.Equal(expected is null ? 1 : 2, titles.Count);
+        if (expected is not null)
+        {
+            Assert.Equal(expected.Split('|'), titles[1].Lines);
+        }
+    }
+
+    /// <summary>
+    ///     Validates the reported bug on a bar layer with a mean rule where the bars write their titles: the shared y axis is titled <c>Crates</c> (not <c>Crates, Mean of crates</c>) and
+    ///     the x axis <c>Stall</c>.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Layer_BarsWithWrittenTitlesAndMeanRuleKeepTheWrittenTitles()
+    {
+        // Arrange
+        const string json = """
+            {
+              "data": { "values": [ { "stall": "Apples", "crates": 28 }, { "stall": "Pears", "crates": 55 }, { "stall": "Plums", "crates": 43 } ] },
+              "layer": [
+                { "mark": "bar", "encoding": { "x": { "field": "stall", "type": "nominal", "title": "Stall" }, "y": { "field": "crates", "type": "quantitative", "title": "Crates" } } },
+                { "mark": { "type": "rule", "color": "firebrick" }, "encoding": { "y": { "field": "crates", "type": "quantitative", "aggregate": "mean" } } }
+              ]
+            }
+            """;
+
+        // Act
+        var scene = SceneOf(json);
+
+        // Assert
+        Assert.Equal(["Stall", "Crates"], Texts(scene, "axis-title"));
+    }
+
+    /// <summary>
+    ///     Validates the reported bug on an error band with a mean line: the band writes the titles of both axes and the line derives its own (<c>week</c>, <c>Mean of yield</c>); the
+    ///     shared axes keep the written <c>Week</c> and <c>Yield</c>.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Layer_ErrorBandWithWrittenTitlesAndMeanLineKeepTheWrittenTitles()
+    {
+        // Arrange
+        const string json = """
+            {
+              "data": { "values": [ { "week": 1, "yield": 10 }, { "week": 1, "yield": 14 }, { "week": 2, "yield": 13 }, { "week": 2, "yield": 19 }, { "week": 3, "yield": 15 }, { "week": 3, "yield": 21 } ] },
+              "layer": [
+                { "mark": { "type": "errorband", "extent": "stdev", "borders": true },
+                  "encoding": { "x": { "field": "week", "type": "quantitative", "title": "Week" }, "y": { "field": "yield", "type": "quantitative", "title": "Yield" } } },
+                { "mark": { "type": "line", "color": "black" },
+                  "encoding": { "x": { "field": "week", "type": "quantitative" }, "y": { "field": "yield", "type": "quantitative", "aggregate": "mean" } } }
+              ]
+            }
+            """;
+
+        // Act
+        var scene = SceneOf(json);
+
+        // Assert
+        Assert.Equal(["Week", "Yield"], Texts(scene, "axis-title"));
+    }
+
+    /// <summary>
+    ///     Validates that an error band without written titles derives them from its field (as Vega-Lite's composite marks write them), so the line's <c>Mean of yield</c> does not join
+    ///     the band's <c>yield</c>.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Layer_ErrorBandWithoutTitlesWritesItsFieldAsTheTitle()
+    {
+        // Arrange
+        const string json = """
+            {
+              "data": { "values": [ { "week": 1, "yield": 10 }, { "week": 1, "yield": 14 }, { "week": 2, "yield": 13 }, { "week": 2, "yield": 19 } ] },
+              "layer": [
+                { "mark": "errorband", "encoding": { "x": { "field": "week", "type": "quantitative" }, "y": { "field": "yield", "type": "quantitative" } } },
+                { "mark": "line", "encoding": { "x": { "field": "week", "type": "quantitative" }, "y": { "field": "yield", "type": "quantitative", "aggregate": "mean" } } }
+              ]
+            }
+            """;
+
+        // Act
+        var scene = SceneOf(json);
+
+        // Assert
+        Assert.Equal(["week", "yield"], Texts(scene, "axis-title"));
+    }
+
+    /// <summary>
     ///     Validates text on bars: the encoding of the view is inherited, the labels sit at the bar tops on the center of the bands.
     /// </summary>
     [Fact]

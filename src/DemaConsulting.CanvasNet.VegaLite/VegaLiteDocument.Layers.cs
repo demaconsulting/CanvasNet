@@ -21,8 +21,8 @@ namespace DemaConsulting.CanvasNet.VegaLite;
 ///         bin, aggregate and stack of its encoding.
 ///     </para>
 ///     <para>
-///         The axes follow Vega-Lite's <c>parseLayerAxes</c>: the layers that share a position scale and do not resolve their axis as independent share one axis (the titles
-///         of the layers join as <c>a, b</c>); otherwise each group has an axis of its own, a second axis moves to the opposite side unless an <c>axis.orient</c> says otherwise, and only the first
+///         The axes follow Vega-Lite's <c>parseLayerAxes</c>: the layers that share a position scale and do not resolve their axis as independent share one axis (a written title of a layer wins
+///         over the titles derived from fields, which join as <c>a, b</c>); otherwise each group has an axis of its own, a second axis moves to the opposite side unless an <c>axis.orient</c> says otherwise, and only the first
 ///         has a grid. The legends are planned over all the layers (<see cref="LegendPlan"/>).
 ///     </para>
 /// </remarks>
@@ -297,7 +297,8 @@ public sealed partial class VegaLiteDocument
     ///     Plans the axis that a group of layers shares.
     /// </summary>
     /// <remarks>
-    ///     The scale is that of the first layer, titled with the distinct titles of the layers joined by a comma. The channel definition is the one that decides the properties of the axis: a
+    ///     The scale is that of the first layer. The title of the axis merges the titles of the layers as <see cref="GuideTitle"/> says (Vega-Lite's <c>mergeAxisComponent</c>): a written title wins
+    ///     over a derived one, the derived titles are joined by a comma, and different written titles are joined too. The channel definition is the one that decides the properties of the axis: a
     ///     definition that switches the axis off wins (an explicit <c>null</c> merges over an implicit axis, as in Vega-Lite), then the first that has an <c>axis</c>, then the first that has a field.
     /// </remarks>
     /// <param name="layers">The layers.</param>
@@ -323,29 +324,64 @@ public sealed partial class VegaLiteDocument
         var definition = chosen.Node;
         if (members.Count > 1)
         {
-            // The titles of the layers join, written ones (the title of a channel definition, as a composite mark writes for the fields it computes) like computed ones; as in Vega-Lite
-            // an explicit title of the axis itself still wins, so the joined title replaces the written title of the channel definition
-            var titles = new List<string>();
-            foreach (var member in members)
+            // The titles of the layers merge as Vega-Lite's mergeAxisComponent does: a written title (axis.title, the title of the channel definition, which a composite mark also writes
+            // for the fields it computes) wins over a derived one (Mean of x, the field); equal titles are one, others join as a, b. An axis that is switched off has no title
+            var merged = members
+                .Where(m => layers[m].Unit["encoding"]![channel]!["axis"] is not ({ IsNull: true } or { IsBoolean: true, BoolValue: false }))
+                .Select(m => WrittenOrDerivedTitle(layers[m], channel))
+                .Aggregate((GuideTitle?)null, (current, next) => current is null ? next : GuideTitle.Merge(current, next));
+            if (merged is { IsExplicit: true } written)
             {
-                var own = layers[member].Scales[channel]!;
-                var written = layers[member].Unit["encoding"]![channel]!["title"];
-                var computed = own.Title is { Length: > 0 } title ? title : own.FieldPath;
-                var part = written is { IsString: true } ? written.StringValue : computed;
-                if (!string.IsNullOrEmpty(part) && !titles.Contains(part, StringComparer.Ordinal))
-                {
-                    titles.Add(part);
-                }
+                definition = WithTitle(definition, written.Lines);
             }
-
-            scale = scale with { Title = string.Join(", ", titles) };
-            if (definition["title"] is { IsString: true })
+            else if (merged is not null)
             {
-                definition = SpecNode.Overlay(definition, definition.Properties.Where(p => p.Name != "title"));
+                scale = scale with { Title = merged.Resolve()?[0] };
             }
         }
 
         return new AxisPlan(channel, definition, scale, layers[chosen.Index].Scales.MarkType, null, null);
+    }
+
+    /// <summary>
+    ///     Gets the title that one layer gives the axis of a channel: the written <c>axis.title</c>, else the written <c>title</c> of the channel definition, else the title derived from the field.
+    /// </summary>
+    /// <param name="layer">The layer.</param>
+    /// <param name="channel">The channel.</param>
+    /// <returns>The title.</returns>
+    private static GuideTitle WrittenOrDerivedTitle(LayerChart layer, string channel)
+    {
+        var definition = layer.Unit["encoding"]![channel]!;
+        var node = (definition["axis"] is { IsObject: true } axis ? axis["title"] : null) ?? definition["title"];
+        if (node is not null)
+        {
+            return GuideTitle.FromWritten(node);
+        }
+
+        var own = layer.Scales[channel]!;
+        return GuideTitle.FromField(own.Title is { Length: > 0 } title ? title : own.FieldPath);
+    }
+
+    /// <summary>
+    ///     Gives a channel definition a written title that the axis shows: the <c>title</c> of the definition becomes the given lines and the <c>axis.title</c> (which would win) is dropped.
+    /// </summary>
+    /// <param name="definition">The channel definition.</param>
+    /// <param name="lines">The lines of the title; empty for a title without text, null for no title.</param>
+    /// <returns>The definition.</returns>
+    private static SpecNode WithTitle(SpecNode definition, IReadOnlyList<string>? lines)
+    {
+        var title = lines switch
+        {
+            null => SpecNode.Synthetic(definition, SpecNodeKind.Null, "title"),
+            { Count: 0 } => SpecNode.Synthetic(definition, SpecNodeKind.String, "title", string.Empty),
+            { Count: 1 } => SpecNode.Synthetic(definition, SpecNodeKind.String, "title", lines[0]),
+            _ => SpecNode.Synthetic(definition, SpecNodeKind.Array, "title", children: lines.Select(l => SpecNode.Synthetic(definition, SpecNodeKind.String, null, l))),
+        };
+        var properties = definition.Properties
+            .Where(p => p.Name != "title")
+            .Select(p => p.Name == "axis" && p.IsObject ? SpecNode.Overlay(p, p.Properties.Where(a => a.Name != "title")) : p)
+            .Append(title);
+        return SpecNode.Overlay(definition, properties);
     }
 
     /// <summary>

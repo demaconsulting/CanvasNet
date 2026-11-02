@@ -1542,9 +1542,10 @@ sections:
       - id: CanvasNetVegaLite-LayerGuides
         title: >-
           The library shall draw the guides of a layered view as Vega-Lite does: one axis for the layers that
-          share a position scale and an axis (the titles joined), one axis for each of the others, the second on
+          share a position scale and an axis (the titles merged: a written title wins over a derived one, the
+          others joined), one axis for each of the others, the second on
           the opposite side and only the first with a grid, one legend for the layers that share a legend (the
-          titles of their fields joined) and one for each of the others, and shall ignore, with a warning, the
+          titles merged the same way) and one for each of the others, and shall ignore, with a warning, the
           size, padding, background, config, datasets, and title of a layer.
         tags: [system]
         justification: |
@@ -1558,6 +1559,10 @@ sections:
           - CanvasNetVegaLite_SystemIntegration_Layer_IndependentAxesOfASharedScaleBothShowTheSameTicks
           - CanvasNetVegaLite_SystemIntegration_Layer_SharedColorFieldGivesOneLegend
           - CanvasNetVegaLite_SystemIntegration_Layer_ColorFieldsOfDifferentNamesJoinTheLegendTitle
+          - CanvasNetVegaLite_SystemIntegration_Layer_WrittenAxisTitleWinsOverDerivedAndOthersJoin
+          - CanvasNetVegaLite_SystemIntegration_Layer_BarsWithWrittenTitlesAndMeanRuleKeepTheWrittenTitles
+          - CanvasNetVegaLite_SystemIntegration_Layer_ErrorBandWithWrittenTitlesAndMeanLineKeepTheWrittenTitles
+          - CanvasNetVegaLite_SystemIntegration_Layer_ErrorBandWithoutTitlesWritesItsFieldAsTheTitle
           - CanvasNetVegaLite_SystemIntegration_Layer_IndependentLegendsGiveOneLegendPerLayer
           - CanvasNetVegaLite_SystemIntegration_Layer_PropertiesOfTheTopLevelViewAreIgnoredInALayer
 

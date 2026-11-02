@@ -354,7 +354,8 @@ public class VegaLiteCompositeMarkIntegrationTests
     }
 
     /// <summary>
-    ///     Validates a box plot as one layer of a layered view: the mean rule layer shares the measure scale with it, and the axis title joins the titles of both.
+    ///     Validates a box plot as one layer of a layered view: the mean rule layer shares the measure scale with it, and the axis title is the title the box plot writes for its
+    ///     field (a written title wins over the one derived for the aggregate, as in Vega-Lite).
     /// </summary>
     [Fact]
     public void CanvasNetVegaLite_CompositeMark_BoxPlot_LayersShareTheMeasureScale()
@@ -374,7 +375,7 @@ public class VegaLiteCompositeMarkIntegrationTests
         Assert.Equal([1, 2, 2, 2, 2, 1], MarkCounts(scene));
         var rule = Layer<SceneRule>(scene, 5).Single();
         Assert.Equal(206.25, rule.Y, 6);
-        Assert.Equal(["g", "v, Mean of v"], Texts(scene, "axis-title"));
+        Assert.Equal(["g", "v"], Texts(scene, "axis-title"));
         Assert.Equal([215.0, 160.0], Layer<SceneRect>(scene, 3).Select(b => b.Y));
     }
 

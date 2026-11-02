@@ -112,7 +112,8 @@ band opacity from the configuration and the `interpolate` and `tension` of a two
 `rule` per end, or a `line`). A default errorbar has three views (composite, view, rule); with ticks, five.
 
 **Part marks, titles, and defaults.** The title of a part is the written `title` of the measure, else the field, so the
-joined title of a layered axis reads as Vega-Lite's (the document joins the written titles). `scale` and `axis` of the
+merged title of a layered axis reads as Vega-Lite's: the title of a part counts as written, and wins over a title that
+another layer derives (the document merges the titles). `scale` and `axis` of the
 measure are copied to the primary channel of every part. Grouping channels are the remaining channels that have a field;
 a `bin`, a `timeUnit`, or an `aggregate` on a grouping channel is not applied (the catalog reports it as
 `vl-composite-grouping`): the rows are grouped by the raw field and an aggregating channel is left out.

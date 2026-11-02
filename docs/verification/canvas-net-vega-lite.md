@@ -1356,6 +1356,22 @@ the rule is at 75 pixels (6 of 8 of the height from the bottom) and as wide as t
 that the
 y axis title joins the two measures (`v, Mean of v`).
 
+### Layers: Written Titles Win Over Derived Titles On Shared Axes
+
+**Tests**: `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_WrittenAxisTitleWinsOverDerivedAndOthersJoin`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_BarsWithWrittenTitlesAndMeanRuleKeepTheWrittenTitles`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_ErrorBandWithWrittenTitlesAndMeanLineKeepTheWrittenTitles`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_ErrorBandWithoutTitlesWritesItsFieldAsTheTitle`
+
+Asserts Vega-Lite's merge of the axis titles of layers that share an axis, on the y axis of bars and a mean rule (the
+theory runs ten pairs of definitions): a written `title` or `axis.title` wins over the derived title in either layer order
+(`Crates`, `Mine`, and a two-line array), two derived titles join (`v, Mean of v`), two different written titles join
+(`Crates, Mean crates` and `Crates, Mine`), equal written titles are one, a written `axis.title` beats the `title` of the
+same definition, and a written `null` leaves the axis without a title. It asserts the reported chart of bars titled `Stall`
+and `Crates` with a mean rule (axes `Stall` and `Crates`, not `Crates, Mean of crates`) and the error band titled `Week`
+and `Yield` with a mean line (axes `Week` and `Yield`, not `Week, week`), and that an error band without titles writes its
+fields (`week`, `yield`), which win over the title `Mean of yield` derived for the line.
+
 ### Layers: Text Labels Sit On The Bars
 
 **Test**: `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_TextLabelsSitOnTheBars`
@@ -1503,7 +1519,8 @@ override it; and that `config.boxplot` sets the size (a box 8 wide, centered in 
 Asserts that a top-level filter applies before the box plot (with the outlier removed the domain is 0 to 16, A has the quartiles
 3.25 and 7.75, and its box is 84.375 pixels high from y = 154.6875), that a box plot layered with a mean rule shares the
 measure
-scale and the axis title joins both titles, that nothing is reported for the supported box plot in strict mode while a
+scale and the axis title is the title the box plot writes for its measure (`v`: a written title wins over the `Mean of v`
+derived for the rule), that nothing is reported for the supported box plot in strict mode while a
 `bin`, a
 `timeUnit`, or an `aggregate` on the grouping channel gives `vl-composite-grouping` and the chart is still drawn (and
 `vl-mark-boxplot` is never produced), that the nine views of a box plot count against `MaxViews` at the mark, that a box
