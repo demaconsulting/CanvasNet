@@ -76,7 +76,8 @@ software items, specifically:
   `Drawing`, and `Fonts`: the transform-aware `Canvas` wrapper, `TextRenderer` (measure and draw
   TrueType text with alignment and kerning), and `Shapes` (rectangle, rounded rectangle, and
   circle helpers)
-- **Files (Subsystem)** — Sandboxed file access, with no dependency on any other subsystem: the
+- **Files (Subsystem)** — Sandboxed file access, with no dependency on any other subsystem (and no core subsystem
+  depends on it): the
   `SandboxedFileResolver` unit (the public resolver plus its `SandboxOptions`, `SandboxedFile`,
   `SandboxException`, and `SandboxFailureKind` types) that turns an untrusted relative path into the bytes of
   a file inside caller-chosen directories (or a caller-supplied virtual file source), refusing escapes,

@@ -94,7 +94,8 @@ sections:
                   normalized path, shall end the check at the first missing component that is not a link,
                   shall probe each
                   component at most once, shall trust the root itself and everything above it, and shall
-                  fail closed (refuse the file) when the link check cannot be completed.
+                  fail closed (refuse the file, and not probe the same component again) when the link check
+                  cannot be completed.
                 justification: |
                   A link inside an allowed directory can point anywhere on the host, so a link is refused
                   instead of followed; a check that cannot be completed must never fall back to reading the
@@ -111,6 +112,7 @@ sections:
                   - SandboxedFileResolver_Resolve_EveryComponentProbedOnceAndCached
                   - SandboxedFileResolver_Resolve_DotDotRouteThroughLinkIsJudgedOnNormalizedPath
                   - SandboxedFileResolver_Resolve_ProbeFailureFailsClosed
+                  - SandboxedFileResolver_Resolve_ProbeFailureIsRememberedAndNotProbedAgain
 
               - id: CanvasNet-Files-SandboxedFileResolver-ResolverCallback
                 title: >-

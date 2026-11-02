@@ -89,8 +89,8 @@ DEMA Consulting best practices. The system consists of seven implemented subsyst
   `SandboxException`, and `SandboxFailureKind` types documented inline), which turns an untrusted
   relative path into the bytes of a file inside caller-chosen directories or a caller-supplied
   virtual file source, refusing escapes, hostile path text, and symbolic links or junctions. `Files`
-  depends on no other subsystem and none depends on it; the `CanvasNetVegaLite` and `CanvasNetScad`
-  systems use it through its public API. See _Files Subsystem Design_ (`files.md`).
+  depends on no other subsystem and no core subsystem depends on it; the satellite systems `CanvasNetVegaLite`
+  and `CanvasNetScad` depend on it through its public API. See _Files Subsystem Design_ (`files.md`).
 
 The `Codecs` subsystem depends on the `Canvas` subsystem's `Surface` unit (constructing surfaces
 and reading/writing rows via `Surface.GetRowSpanBytes`); the `Canvas` subsystem has no dependency

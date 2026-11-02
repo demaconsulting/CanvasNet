@@ -129,7 +129,8 @@ naming the configured directory. Changing the caller's search-path list after co
 `SandboxedFileResolverLinkTests.SandboxedFileResolver_Resolve_DanglingConfiguredRootIsTrustedAndHasNoFiles`,
 `SandboxedFileResolverLinkTests.SandboxedFileResolver_Resolve_EveryComponentProbedOnceAndCached`,
 `SandboxedFileResolverLinkTests.SandboxedFileResolver_Resolve_DotDotRouteThroughLinkIsJudgedOnNormalizedPath`,
-`SandboxedFileResolverLinkTests.SandboxedFileResolver_Resolve_ProbeFailureFailsClosed`
+`SandboxedFileResolverLinkTests.SandboxedFileResolver_Resolve_ProbeFailureFailsClosed`,
+`SandboxedFileResolverLinkTests.SandboxedFileResolver_Resolve_ProbeFailureIsRememberedAndNotProbedAgain`
 
 Asserts (with the fake probe, on every platform) that a linked directory at depth one, two, or three between the root and
 the file is rejected as `ThroughLink` before the file is opened (the file's bytes are unreadable, so reading it would give
@@ -144,7 +145,8 @@ instead of letting the search fall through to a later root that has the file, th
 probed (a dangling link is refused as a link, a plain missing
 file is missing, and both were probed), that each component is probed once however many files go through it, that a route
 through dot-dot is judged on the normalized path, that a probe that throws (access or I/O) rejects the file as
-`LinkCheckFailed` keeping the cause, and that callback mode never asks the probe.
+`LinkCheckFailed` keeping the cause (asking again repeats the failure with the same cause without probing again), and
+that callback mode never asks the probe.
 
 Additional evidence, not the only evidence and skipped only where the host cannot create links:
 `SandboxedFileResolver_Resolve_RealDanglingLinkIsRejectedOrCapabilitySkipped`,

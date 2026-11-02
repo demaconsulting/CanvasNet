@@ -129,7 +129,8 @@ a cancellation or an argument error is a `SandboxException`.
   attempt); a
   symbolic link or junction anywhere below the root, dangling or not, is `ThroughLink`, whatever its target; the root
   itself and everything above it are trusted (so a dangling configured root simply has no files); a probe that throws
-  rejects the file (`LinkCheckFailed`, fail closed).
+  rejects the file (`LinkCheckFailed`, fail closed); that failure is remembered per component, so a repeat throws an
+  equivalent `LinkCheckFailed` (same cause) without probing again.
 - `DefaultIsLink` - a component is a link when its `LinkTarget` is not null (symbolic links and junctions, for files and
   directories, existing or dangling); other reparse points that redirect nothing, such as the placeholders of a
   synchronized folder, are not rejected.

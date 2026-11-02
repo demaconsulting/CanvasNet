@@ -408,6 +408,32 @@ public class SandboxedFileResolverLinkTests
     }
 
     /// <summary>
+    ///     Validates that a probe failure is remembered: a component that could not be checked is probed once, and asking
+    ///     again fails with an equivalent <c>LinkCheckFailed</c> (same cause) without probing again.
+    /// </summary>
+    [Fact]
+    public void SandboxedFileResolver_Resolve_ProbeFailureIsRememberedAndNotProbedAgain()
+    {
+        // Arrange
+        using var directory = new SandboxTempDirectory();
+        directory.Write("root/a.txt", "a");
+        var cause = new IOException("broken");
+        var probe = new FakeLinks { Failure = cause };
+        var resolver = Create(directory.Combine("root"), probe);
+
+        // Act
+        var first = Assert.Throws<SandboxException>(() => resolver.Resolve("a.txt"));
+        var again = Assert.Throws<SandboxException>(() => resolver.Resolve("a.txt"));
+
+        // Assert: both are the same failure with the same cause, and the probe was asked once
+        Assert.Equal(SandboxFailureKind.LinkCheckFailed, first.Kind);
+        Assert.Equal(SandboxFailureKind.LinkCheckFailed, again.Kind);
+        Assert.Same(cause, again.InnerException);
+        Assert.Equal(first.Path, again.Path);
+        Assert.Single(probe.Calls);
+    }
+
+    /// <summary>
     ///     Validates with a real dangling symbolic link that it is rejected as a link while a truly missing file is
     ///     missing. The test skips only when the host cannot create file links.
     /// </summary>

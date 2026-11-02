@@ -51,6 +51,9 @@ public sealed partial class SandboxedFileResolver
     /// <summary>The probe results by full path of an existing component, so each component is probed once.</summary>
     private readonly Dictionary<string, bool> _linkStates;
 
+    /// <summary>The probe failures by full path of a component, so a component that cannot be checked is probed once.</summary>
+    private readonly Dictionary<string, Exception> _linkFailures;
+
     /// <summary>The full path of the base directory, or <see langword="null"/>; computed on first use.</summary>
     private string? _baseRoot;
 
@@ -332,12 +335,19 @@ public sealed partial class SandboxedFileResolver
     /// <exception cref="SandboxException">Thrown when the probe fails.</exception>
     private bool ProbeLink(string path, Candidate candidate)
     {
+        // A probe that could not answer is remembered too, so asking again fails the same way without probing again
+        if (_linkFailures.TryGetValue(path, out var failure))
+        {
+            throw new SandboxException(SandboxFailureKind.LinkCheckFailed, candidate.Key, innerException: failure);
+        }
+
         try
         {
             return _isLink(path);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
         {
+            _linkFailures[path] = ex;
             throw new SandboxException(SandboxFailureKind.LinkCheckFailed, candidate.Key, innerException: ex);
         }
     }

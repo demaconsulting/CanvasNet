@@ -131,6 +131,7 @@ public sealed partial class SandboxedFileResolver
         _contents = new Dictionary<string, Content?>(KeyComparer);
         _readKeys = new HashSet<string>(KeyComparer);
         _linkStates = new Dictionary<string, bool>(KeyComparer);
+        _linkFailures = new Dictionary<string, Exception>(KeyComparer);
     }
 
     /// <summary>
