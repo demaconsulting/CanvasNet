@@ -19,7 +19,7 @@ internal static partial class SourceLoader
     private static SourceInfo ProbeRaster(string path, SourceKind kind, long bytes)
     {
         var info = Read(path, kind, () => GetRasterInfo(path, kind));
-        var orientation = kind == SourceKind.Jpeg ? Read(path, kind, () => ExifOrientation.Read(path)) : null;
+        var orientation = kind == SourceKind.Jpeg ? Read(path, kind, () => JpegCodec.ReadExifOrientation(path)) : null;
         return new SourceInfo(
             path,
             kind,
@@ -59,7 +59,7 @@ internal static partial class SourceLoader
         {
             if (orientation is { } exif)
             {
-                surface = Replace(surface, ExifOrientation.Apply(surface, exif));
+                surface = Replace(surface, surface.ApplyExifOrientation(exif));
                 operations.Add(Operation("auto-orient", ("orientation", exif)));
             }
 

@@ -748,6 +748,20 @@ sections:
               - JpegCodec_GetInfo_TruncatedBeforeSofFound_ThrowsInvalidDataException
               - JpegCodec_GetInfo_SosBeforeSof_ThrowsInvalidDataException
 
+          - id: CanvasNet-Codecs-JpegReadExifOrientation
+            title: >-
+              The Codecs subsystem shall read the EXIF orientation of a JPEG stream or file without decoding the
+              image and without throwing for data that has none or is malformed.
+            justification: |
+              The JPEG decoder ignores the orientation that cameras record in metadata; callers need to read it
+              cheaply, and safely on untrusted files, to turn the decoded pixels upright.
+            children:
+              - CanvasNet-Codecs-JpegCodec-ReadExifOrientation
+            tests:
+              - JpegCodec_ReadExifOrientation_ExifSegment_ReturnsOrientation
+              - JpegCodec_ReadExifOrientation_TruncatedAtEveryLength_NeverThrows
+              - JpegCodec_ReadExifOrientation_Path_ReadsFile
+
           - id: CanvasNet-Codecs-GifLoad
             title: >-
               The Codecs subsystem shall load a Surface by decoding the first frame of a GIF

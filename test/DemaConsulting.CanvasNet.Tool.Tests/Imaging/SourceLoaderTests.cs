@@ -752,7 +752,7 @@ public class SourceLoaderTests
         // Act: load it at a width of 4
         using var loaded = SourceLoader.Load(path, new SourceOptions { Width = 4 });
         using var stored = JpegCodec.Load(path);
-        using var upright = ExifOrientation.Apply(stored, 6);
+        using var upright = stored.ApplyExifOrientation(6);
         using var expected = upright.Resize(4, 6);
 
         // Assert: 4x6 (the aspect ratio of the oriented image), equal to orient-then-resize

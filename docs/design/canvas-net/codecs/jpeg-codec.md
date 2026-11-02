@@ -315,6 +315,42 @@ Opens `path` as a read-only `FileStream` and delegates to `GetInfo(Stream)`.
 - `InvalidDataException` — see `GetInfo(Stream)`
 - Underlying file-system exceptions propagate uncaught
 
+##### ReadExifOrientation(Stream stream)
+
+Reads the EXIF `Orientation` (tag `0x0112`) of a JPEG without decoding it, in the partial class file
+`Jpeg/JpegCodec.Exif.cs`. A camera stores the pixels as the sensor delivered them and records in this tag how the image
+has to be turned to be viewed upright; `Load` ignores it (`Surface.ApplyExifOrientation` applies a value to pixels). The
+reader checks the start-of-image bytes `FF D8` (the `MarkerPrefix` and `MarkerSoi` constants `Load` also uses) and then
+walks the marker segments in front of the image data, at most 64 (`MaxExifSegments`), stopping at end-of-image or
+start-of-scan (`MarkerEoi`, `MarkerSos`): a marker without a length (TEM and the restart markers `MarkerRst0` to
+`MarkerRst7`) is passed, any other segment is skipped by its two-byte length, and the first APP1 segment (`MarkerApp1`,
+`0xE1`) that starts with `Exif\0\0` is read and parsed as TIFF: the byte-order mark `II` or `MM`, the magic number 42, and
+the first directory, in which the orientation is the entry with tag `0x0112` of type SHORT and count 1 (the value is in
+the first two bytes of its value field). An APP1 segment that is not EXIF (for example XMP) is skipped. The value is
+returned only when it is 1 to 8. The whole read is bounded by a **byte budget** of `MaxProbeHeaderBytes` (1 MiB) taken
+after the signature: every marker byte (a run of `0xFF` fill bytes included), every segment length, and every segment
+payload, whether read or skipped, is counted for seekable and forward-only streams alike, and the method returns `null`
+when it is used up, so a stream of fill bytes or of huge segments cannot make it read without end. Only forward reads
+and, when the stream can seek, a seek over a skipped segment are used,
+so the stream may be forward-only; the stream is not disposed.
+
+**Returns:** the orientation 1 to 8, or `null` when the data is not a JPEG, has no EXIF segment, has no or an invalid
+orientation entry, or is truncated or malformed in any way. It never throws for malformed data.
+
+**Throws:**
+
+- `ArgumentNullException` — `stream` is null
+- Underlying stream exceptions propagate uncaught
+
+##### ReadExifOrientation(string path)
+
+Opens `path` as a read-only `FileStream` and delegates to `ReadExifOrientation(Stream)`.
+
+**Throws:**
+
+- `ArgumentNullException` — `path` is null
+- Underlying file-system exceptions (for example `FileNotFoundException`) propagate uncaught
+
 #### Error Handling
 
 All argument validation happens at the start of each public method, before any image data is read
@@ -323,7 +359,9 @@ SOF markers, four-component frames, missing DHT/DQT/SOF/SOS segments, malformed 
 structure, or truncated data. There is no local recovery or retry logic inside `JpegCodec`; every
 validation failure results in an exception that propagates directly to the caller. `Save` validates
 `surface`, `stream`/`path`, and `quality` before the encoder writes any bytes, so an invalid call
-fails fast without producing a partial JPEG.
+fails fast without producing a partial JPEG. `ReadExifOrientation` is the exception to this rule for the content of the
+data: it validates `stream` or `path`, then treats every malformed, truncated, or unusable input as "no orientation" and
+returns `null` instead of throwing.
 
 #### Dependencies
 
@@ -354,5 +392,6 @@ then load scenarios.
 #### Callers
 
 `JpegCodec` is a public API entry point invoked directly by consumers of the CanvasNet package; it
-is not called by any other unit within this system. It calls into `Surface` (see *Dependencies*
-above) but nothing calls into it from within CanvasNet itself.
+is not called by any other unit within the core library. It calls into `Surface` (see *Dependencies*
+above) but nothing in the core library calls into it. The command-line tool's `SourceLoader` calls
+`ReadExifOrientation` to find the orientation that `Surface.ApplyExifOrientation` then applies.

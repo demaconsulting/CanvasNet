@@ -1,5 +1,6 @@
 // cspell:ignore canvasnet
 using System.Globalization;
+using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Tool.Imaging;
 
 namespace DemaConsulting.CanvasNet.Tool.Commands;
@@ -9,6 +10,9 @@ namespace DemaConsulting.CanvasNet.Tool.Commands;
 /// </summary>
 internal sealed partial class InspectCommand
 {
+    /// <summary>The default number of dominant colors of <c>inspect colors</c>.</summary>
+    internal const int DefaultColors = 8;
+
     /// <summary>The names of the subcommands, in the order they are listed.</summary>
     internal static readonly IReadOnlyList<string> SubcommandNames = ["colors", "pixel"];
 
@@ -28,8 +32,8 @@ internal sealed partial class InspectCommand
     internal static readonly IReadOnlyList<OptionSpec> OptionTable =
     [
         .. RenderCommand.OptionTable.Where(spec => !OutputOptionNames.Contains(spec.Name)),
-        new(CountOption, [], true, $"colors: the number of dominant colors to report, {ImageAnalysis.MinColors}-{ImageAnalysis.MaxColors} (default {ImageAnalysis.DefaultColors})", "N"),
-        new(RadiusOption, [], true, $"pixel: also report the pixels within this radius of the point and their mean, 0-{ImageAnalysis.MaxRadius} (default 0: the pixel only)", "R")
+        new(CountOption, [], true, $"colors: the number of dominant colors to report, {SurfaceStatistics.MinColors}-{SurfaceStatistics.MaxColors} (default {DefaultColors})", "N"),
+        new(RadiusOption, [], true, $"pixel: also report the pixels within this radius of the point and their mean, 0-{PixelSample.MaxRadius} (default 0: the pixel only)", "R")
     ];
 
     /// <summary>
@@ -87,8 +91,8 @@ internal sealed partial class InspectCommand
             point = ParsePoint(reader.Positionals[2]);
         }
 
-        var count = reader.GetInt(CountOption, ImageAnalysis.MinColors, ImageAnalysis.MaxColors) ?? ImageAnalysis.DefaultColors;
-        var radius = reader.GetInt(RadiusOption, 0, ImageAnalysis.MaxRadius) ?? 0;
+        var count = reader.GetInt(CountOption, SurfaceStatistics.MinColors, SurfaceStatistics.MaxColors) ?? DefaultColors;
+        var radius = reader.GetInt(RadiusOption, 0, PixelSample.MaxRadius) ?? 0;
         var source = RenderCommand.ReadSourceOptions(reader);
 
         // Every operation is parsed now so that a malformed one is reported before anything is loaded

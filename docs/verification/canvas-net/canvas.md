@@ -1,7 +1,8 @@
 ## Canvas Subsystem Verification Design
 
 This document describes the subsystem-level verification strategy for the `Canvas` subsystem
-(the `Surface` unit with its `SurfaceAdjustments` and `SurfaceTransforms` parts, the `Rgba32` value-type unit, and the
+(the `Surface` unit with its `SurfaceAdjustments`, `SurfaceTransforms`, `SurfaceGeometry`, `SurfaceComparison`, and
+`SurfaceAnalysis` parts, the `Rgba32` value-type unit, and the
 `CssColor` parser unit).
 
 ### Verification Approach
@@ -12,10 +13,12 @@ constructor, property, indexer, span accessor, the `Crop`, `Clone`, and `CopyFro
 resampling API (requirements `CanvasNet-Canvas-Resize`, `-ResizeAlpha`, `-ResizeValidation` and
 `-ResizeToFit`) in isolation. No separate
 subsystem-level tests exist; the subsystem-level requirements reuse the same `Surface` unit tests
-as verification evidence, alongside the `SurfaceAdjustments` and `SurfaceTransforms` unit tests (see their
-verification designs, `canvas/surface-adjustments.md` and `canvas/surface-transforms.md`), the `Rgba32` unit's own tests
+as verification evidence, alongside the `SurfaceAdjustments`, `SurfaceTransforms`, `SurfaceGeometry`,
+`SurfaceComparison`, and `SurfaceAnalysis` unit tests (see their
+verification designs, `canvas/surface-adjustments.md`, `canvas/surface-transforms.md`, `canvas/surface-geometry.md`,
+`canvas/surface-comparison.md`, and `canvas/surface-analysis.md`), the `Rgba32` unit's own tests
 (see _Rgba32 Unit Verification Design_, `canvas/rgba32.md`) and the `CssColor` unit's own tests (see _CssColor Unit
-Verification Design_, `canvas/css-color.md`); the `Canvas` subsystem contains exactly these five units.
+Verification Design_, `canvas/css-color.md`); the `Canvas` subsystem contains exactly these units.
 
 ### Test Environment
 
@@ -35,8 +38,12 @@ The `Canvas` subsystem's test scenarios are those named in _Rgba32 Unit Verifica
 (`canvas/rgba32.md`), those named in _CssColor Unit Verification Design_ (`canvas/css-color.md`:
 hexadecimal and named colors, `rgb()`/`hsl()` functions, rounding and clamping, invalid text, and
 formatting), those named in _SurfaceAdjustments Unit Verification Design_ (`canvas/surface-adjustments.md`: luma,
-grayscale, invert, thresholds, levels, brightness, contrast, and auto-levels) and _SurfaceTransforms Unit Verification
-Design_ (`canvas/surface-transforms.md`: flip, pad, trim, fit, and flatten), plus those named in _Surface Unit
+grayscale, invert, thresholds, levels, brightness, contrast, and auto-levels), _SurfaceTransforms Unit Verification
+Design_ (`canvas/surface-transforms.md`: flip, EXIF orientation, pad, trim, fit, and flatten), _SurfaceGeometry Unit
+Verification Design_ (`canvas/surface-geometry.md`: rotation by any angle and skew estimation), _SurfaceComparison Unit
+Verification Design_ (`canvas/surface-comparison.md`: metrics, grid, and difference pictures), and _SurfaceAnalysis Unit
+Verification Design_ (`canvas/surface-analysis.md`: dominant colors, luma statistics, and pixel samples), plus those
+named in _Surface Unit
 Verification Design_
 (`canvas/surface.md`): construction and invariants, indexer and span-accessor boundary conditions,
 `Crop`, `Clone`, and `CopyFrom` normal/boundary/error paths, `Resize`/`ResizeToFit` size, filter,

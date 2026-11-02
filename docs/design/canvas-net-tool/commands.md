@@ -38,7 +38,8 @@ ships with (`formats`, `info`, `render` with its alias `convert`, the verbs `cro
 
 **Imaging** (consumed): the `info`, `render`, verb, `compare`, `montage`, and `inspect` commands read, compare, compose,
 transform, analyze, and write files only through the `Imaging` subsystem (`SourceLoader`, `ImagePipeline`,
-`ImageComparison`, `ContactSheet`, `ImageAnalysis`, and `ImageWriter`); a command never calls a codec directly.
+`ImageComparison`, `ContactSheet`, and `ImageWriter`) and the core `Surface` (comparison and analysis); a command never
+calls a codec directly.
 
 **Shared option declarations**: `CompareCommand` and `MontageCommand` take the declarations of the options they share
 with `render` (`--page`, `--dpi`, the options of an OpenSCAD model, `--filter`, `--quality`, `--no-clobber`, and so on)

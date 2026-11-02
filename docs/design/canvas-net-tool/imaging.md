@@ -12,23 +12,22 @@ files. It is free of command-line concerns: it knows nothing of `Context` or the
 one way (`Commands` use `Imaging`); the one exception is that `ImagePipeline` reads its operations from an
 `ArgumentReader`, because the parsing of the transformation options belongs with the transformations. It is a
 subsystem rather than a single unit because loading, transforming, and writing are separate responsibilities with
-distinct requirements and tests. It contains nine units: `SourceLoader`, which recognizes a file, reads its
+distinct requirements and tests. It contains six units: `SourceLoader`, which recognizes a file, reads its
 header, and loads it (PNG, JPEG, BMP,
 TIFF, GIF, JPEG 2000, SVG, the pages of PDF, PPTX, and VSDX documents, a view of an OpenSCAD model, and a Vega-Lite chart),
 `ImagePipeline`, which crops, resizes, fits, rotates by any angle, flips, pads, adjusts the tone of, deskews, trims, and
 draws a grid on pixels in the order the options were written,
 `ImageWriter`, which writes PNG,
-JPEG, BMP, and TIFF files, and `ImageComparison`, which compares two images of the same size (error metrics, a
-structural similarity, a per-cell grid, and threshold checks) and creates difference, overlay, and side-by-side
-pictures, `ContactSheet`, which composes a grid of images, each fitted into a cell, with optional labels drawn in
-the bundled font, and `ImageGeometry`, which rotates pixels by
-any angle onto an expanded canvas with a fill color and estimates the
-skew of near-horizontal lines, `GridOverlay`, which draws a labeled coordinate grid over pixels in place, and
-`ImageAnalysis`, which reports the dominant colors, the luma statistics, and the pixels at a point of an image. The
-pixel arithmetic that is not specific to the tool (flip, pad, trim, fit, flatten, and the tone adjustments: luma,
-grayscale, invert, fixed and Otsu thresholds, levels, brightness, contrast, and auto-levels) is part of the core
-`Surface` class, documented in _SurfaceAdjustments Unit Design_ and _SurfaceTransforms Unit Design_ of the `Canvas`
-subsystem; the units here delegate to it. The
+JPEG, BMP, and TIFF files, and `ImageComparison`, which checks a comparison of two images against thresholds and holds
+the defaults of the comparison options, `ContactSheet`, which composes a grid of images, each fitted into a cell,
+with optional labels drawn in
+the bundled font, and `GridOverlay`, which draws a labeled coordinate grid over pixels in place. The
+pixel arithmetic that is not specific to the tool is part of the core
+`Surface` class and its units of the `Canvas` subsystem: flip, pad, trim, fit, flatten, and the EXIF orientation
+(_SurfaceTransforms Unit Design_), the tone adjustments (_SurfaceAdjustments Unit Design_), the rotation by any angle and
+the skew estimation (_SurfaceGeometry Unit Design_), the comparison of two surfaces and the difference pictures
+(_SurfaceComparison Unit Design_), and the analysis of colors (_SurfaceAnalysis Unit Design_); the units here delegate to
+it. The
 supporting
 types shared by the units (`SourceKind`, `OutputFormat`, `SourceInfo`, `SourceOptions`, `ScadViewOptions`, `ChartFacts`,
 `LoadedSource`, `AppliedOperation`, `ImageDiagnostic`, and `SourcePage`) are
@@ -47,8 +46,8 @@ several of its pages.
 
 **ImagePipeline.Parse(reader, verb, verbOperand)** and **ImagePipeline.Apply(input, operations, defaultPadColor,
 out applied, userBackground)** (provided to the commands): read the ordered operations of a command line (the operation
-of a verb command first), and apply them to a surface (calling the core `Surface` adjustments, flip, pad, and trim and
-the units `ImageGeometry` and `GridOverlay` for the photo operations), giving a new surface and the list of what was
+of a verb command first), and apply them to a surface (calling the core `Surface` adjustments, flip, pad, trim, rotation,
+and skew estimation and the unit `GridOverlay` for the photo operations), giving a new surface and the list of what was
 done.
 
 **ImageWriter.ResolveFormat**, **ImageWriter.CheckTarget**, **ImageWriter.CheckTargets**, and **ImageWriter.Write**
@@ -59,21 +58,14 @@ inputs) before any work is done, and write a surface atomically.
 and **ContactSheet.Detach()** (provided to the commands): calculate the geometry of a sheet (refusing one that is too
 large) before anything is loaded, then compose the sheet one image at a time and hand it to the caller.
 
-**ImageGeometry.CheckRotatedSize(width, height, degrees)**, **ImageGeometry.RotateArbitrary(source, degrees, fill,
-nearest)**, and **ImageGeometry.EstimateSkew(surface)** (provided to the pipeline): size and refuse a rotated canvas,
-rotate by any angle onto an expanded canvas with a fill color, and estimate the skew of
-the near-horizontal lines of an image with a confidence.
-
 **GridOverlay.Draw(surface, spacing, color)** (provided to the pipeline): draw a labeled coordinate grid in place and
 report the lines and labels drawn.
 
-**ImageAnalysis.Analyze(surface, background, count)** and **ImageAnalysis.Sample(surface, x, y, radius)** (provided to
-the commands): find the dominant colors and the luma statistics of an image, and read the pixel at a point and the mean
-of the window around it.
-
-**ImageComparison.Compare(a, b, tolerance, columns, rows)**, **ImageComparison.Evaluate(result, thresholds)**,
-**ImageComparison.CreateDiff**, **ImageComparison.CreateOverlay**, and **ImageComparison.CreateSideBySide** (provided to
-the commands): compare two surfaces of the same size, check the result against thresholds, and create the pictures.
+**ImageComparison.Evaluate(result, thresholds)**, **ImageComparison.MetricName**, **ImageComparison.TryParseMetric**,
+**ImageComparison.IsMinimum**, and **ImageComparison.Range** (provided to the commands): check a comparison result of the
+core `Surface.Compare` against thresholds and describe the metrics; the constants of the unit are the defaults of the
+comparison options. The comparison itself, the difference pictures, and the analysis of colors are called directly on the
+core `Surface` (`Compare`, `CreateDiff`, `CreateOverlay`, `CreateSideBySide`, `Analyze`, `Sample`).
 
 **Surface and the codecs** (consumed, from the CanvasNet core library): `Surface` holds the pixels; `PngCodec`,
 `JpegCodec`, `BmpCodec`, `TiffCodec`, `GifCodec`, and `Jpeg2000Codec` decode and encode; `SvgCodec` (from the

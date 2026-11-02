@@ -11,8 +11,8 @@ command line into operations and to apply them, left to right, to the pixels of 
 size, fit inside a box, rotate by any angle, flip, pad, the tone adjustments (grayscale, invert, threshold, levels,
 brightness, contrast, auto-levels), deskew, trim, and grid. The `render` command, the `inspect` command, and the verb
 commands `crop`, `resize`, `rotate`, `flip`, and `pad` share it, so a verb is exactly `render` with one operation placed
-first. The arithmetic of the pixel operations lives in the core `Surface` class (flip, pad, trim, and the tone
-adjustments) and in the units `ImageGeometry` (rotation and skew) and `GridOverlay`;
+first. The arithmetic of the pixel operations lives in the core `Surface` class (flip, pad, trim, the tone
+adjustments, rotation by any angle, and skew estimation) and in the unit `GridOverlay`;
 the pipeline parses their options, decides which surface they work on, maps a refusal to a `ToolException`, and
 reports what they did. The unit is the
 static class `ImagePipeline` (`ImagePipeline.cs`) and the operation types in `ImageOperations.cs`.
@@ -118,23 +118,26 @@ a copy and `scaled` is `false`.
 **Rotate**: the angle is a right angle when it is within 1e-9 degrees of a multiple of 90. A right angle is an exact
 pixel move: (x, y) goes to (height - 1 - y, x) for 90 degrees (the top row becomes the right column), to
 (width - 1 - x, height - 1 - y) for 180, and to (y, width - 1 - x) for 270, with the size swapped for a quarter turn;
-0 (or a full turn) is a copy. Any other angle is `ImageGeometry.RotateArbitrary` onto the expanded canvas
-(`ImageGeometry.CheckRotatedSize` refuses a canvas above 8192 on a side as `size-limit` before anything is allocated,
-with the hint to shrink first), with the nearest kernel for `--filter nearest` and the bilinear kernel for every other
+0 (or a full turn) is a copy. Any other angle is `Surface.RotateArbitrary` onto the expanded canvas
+(the pipeline's `CheckRotatedSize` refuses a canvas above 8192 on a side, found with `Surface.RotatedSize`, as `size-limit`
+before anything is allocated, with the hint to shrink first; the core method would refuse it with an
+`ArgumentException`), with the nearest kernel for `--filter nearest` and the bilinear kernel for every other
 value. **The fill** is the fill of the operation (`--rotate-fill`), else the background the user gave, else opaque white
 when every pixel of the surface being rotated is opaque (a photograph, a scan, a flattened drawing: the corners look
 like the paper and survive a viewer that paints transparency black), else transparent. This differs on purpose from
 `--pad`, whose raster default stays transparent: a pad adds a border that was asked for, a rotation exposes corners
 that nobody asked for.
 
-**Deskew**: `ImageGeometry.EstimateSkew` is run on the surface. The skew is corrected only when it was estimated
-(`Estimated`), its size is at least `MinCorrectedSkew` (0.05 degrees), its confidence is at least `MinConfidence`
-(0.4, the value pinned by the design of `ImageGeometry`; very wide images with random content can approach it), and
-the expanded canvas fits the maximum dimension. Otherwise the surface is copied unchanged and `applied` is `false`;
+**Deskew**: `Surface.EstimateSkew` is run on the surface. The skew is corrected only when the estimate is correctable
+(`SkewEstimate.IsCorrectable`: it was estimated, its size is at least `MinCorrectedDegrees`, 0.05 degrees, and its
+confidence is at least `MinConfidence`, 0.4, the value pinned by the design of `SurfaceGeometry`; very wide images with
+random content can approach it), and the expanded canvas fits the maximum dimension. Otherwise the surface is copied
+unchanged and `applied` is `false`;
 when the size limit is the reason, the operation also reports `reason: "rotated image would exceed the maximum size"`.
 This automatic skip is non-fatal, unlike an explicit `--rotate` request. When it is corrected the surface is rotated by
-the negative of the skew (`rotateDegrees = -skewDegrees`, a signed clockwise angle; the angle is normalized to 0 up
-to 360 before the rotation) with the rules of rotate, so the report gives the skew that was found (positive when the
+the negative of the skew (`rotateDegrees = -skewDegrees`, a signed clockwise angle; the angle given to the rotation is
+`SkewEstimate.CorrectionDegrees`, which is that angle normalized to 0 up
+to 360) with the rules of rotate, so the report gives the skew that was found (positive when the
 lines descend to the right), the correction, the confidence, and the fill and filter. Text mode prints a warning for
 the size-limit skip; the numbers are in the `--json` result.
 
@@ -172,9 +175,9 @@ argument throws `ArgumentNullException`; an unknown verb name, or a verb without
   root-namespace unit; it is the parsing of the operations, not any command-line output.
 - **ToolException** and **ErrorCodes** - the expected-error contract.
 - **SourceLoader** - the `AppliedOperation` record, `Operation` helper, and `FormatColor`.
-- **ImageGeometry** and **GridOverlay** - the rotation, the skew estimate, and the grid.
-- **CanvasNet core library** - `Surface` (the flip, pad, trim, and tone adjustments, `Clone`, and `CopyFrom`), `Rgba32`,
-  and `ResamplingMode`.
+- **GridOverlay** - the grid.
+- **CanvasNet core library** - `Surface` (the flip, pad, trim, tone adjustments, rotation, and skew estimation, `Clone`,
+  and `CopyFrom`), `SkewEstimate`, `Rgba32`, and `ResamplingMode`.
 
 #### Callers
 

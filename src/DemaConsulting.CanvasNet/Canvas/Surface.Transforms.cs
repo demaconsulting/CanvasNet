@@ -1,10 +1,10 @@
-// cspell:ignore premultiplied
+// cspell:ignore premultiplied transposed transversed
 namespace DemaConsulting.CanvasNet.Canvas;
 
 /// <summary>
 ///     The whole-surface transformations of <see cref="Surface"/> that complement <see cref="Crop"/> and
-///     <see cref="Resize"/>: flip, 180-degree rotation, pad, trim, fit into a box, flatten over a color, and the
-///     transparency test.
+///     <see cref="Resize"/>: flip, 180-degree rotation, EXIF orientation, pad, trim, fit into a box, flatten over a
+///     color, and the transparency test.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -13,10 +13,10 @@ namespace DemaConsulting.CanvasNet.Canvas;
 ///         down; surfaces hold straight (non-premultiplied) alpha.
 ///     </para>
 ///     <para>
-///         The flips, the rotation, pad, and trim are pixel moves or per-row copies with no resampling, so the pixels of
-///         their results are exact copies of pixels of the source; <see cref="FitInto"/> resamples and
-///         <see cref="FlattenOver"/> blends (see each method). A surface must not be changed by another thread while a
-///         transformation reads it.
+///         The flips, the rotation, the EXIF orientation, pad, and trim are pixel moves or per-row copies with no
+///         resampling, so the pixels of their results are exact copies of pixels of the source; <see cref="FitInto"/>
+///         resamples and <see cref="FlattenOver"/> blends (see each method). A surface must not be changed by another
+///         thread while a transformation reads it.
 ///     </para>
 /// </remarks>
 public sealed partial class Surface
@@ -324,6 +324,56 @@ public sealed partial class Surface
     }
 
     /// <summary>
+    ///     Creates the upright image that an EXIF orientation describes.
+    /// </summary>
+    /// <param name="orientation">The EXIF orientation, 1 to 8 (as read by <c>JpegCodec.ReadExifOrientation</c>): <c>1</c> upright, <c>2</c> mirrored left to right, <c>3</c> rotated 180 degrees, <c>4</c> mirrored top to bottom, <c>5</c> transposed (mirrored about the main diagonal), <c>6</c> to be rotated 90 degrees clockwise, <c>7</c> transversed (mirrored about the anti-diagonal), and <c>8</c> to be rotated 90 degrees counter-clockwise.</param>
+    /// <returns>
+    ///     A new surface whose pixels are exact copies of this surface's pixels moved to where the orientation puts them;
+    ///     for the orientations 5 to 8 its width and height are swapped. Orientation <c>1</c> returns an independent copy.
+    /// </returns>
+    /// <remarks>
+    ///     A camera stores the pixels as the sensor delivered them and records in the EXIF <c>Orientation</c> tag how the
+    ///     image has to be turned to be viewed upright; the JPEG codec ignores the tag and does not call this method.
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="orientation"/> is not 1 to 8.</exception>
+    /// <exception cref="ObjectDisposedException">Thrown when this surface has been disposed.</exception>
+    public Surface ApplyExifOrientation(int orientation)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentOutOfRangeException.ThrowIfLessThan(orientation, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(orientation, 8);
+
+        var width = Width;
+        var height = Height;
+        var swap = orientation >= 5;
+        var result = new Surface(swap ? height : width, swap ? width : height);
+
+        // Visit every pixel of the result and fetch the source pixel it shows
+        for (var y = 0; y < result.Height; y++)
+        {
+            var row = result.GetRowSpan(y);
+            for (var x = 0; x < result.Width; x++)
+            {
+                var (sx, sy) = orientation switch
+                {
+                    1 => (x, y),
+                    2 => (width - 1 - x, y),
+                    3 => (width - 1 - x, height - 1 - y),
+                    4 => (x, height - 1 - y),
+                    5 => (y, x),
+                    6 => (y, height - 1 - x),
+                    7 => (width - 1 - y, height - 1 - x),
+                    _ => (width - 1 - y, x)
+                };
+
+                row[x] = this[sx, sy];
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
     ///     Finds the largest size with the aspect ratio of an image that fits inside a box.
     /// </summary>
     /// <param name="width">The width of the image; must be at least 1.</param>
@@ -336,7 +386,7 @@ public sealed partial class Surface
     ///     1 and the box.
     /// </returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when an argument is less than 1.</exception>
-    internal static (int Width, int Height) FitInside(int width, int height, int boxWidth, int boxHeight)
+    public static (int Width, int Height) FitInside(int width, int height, int boxWidth, int boxHeight)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(width, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(height, 1);

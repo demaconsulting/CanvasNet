@@ -13,7 +13,8 @@ reports a bad file as an expected error. The unit consists of the static class `
 `SourceLoader.cs`, `SourceLoader.Detect.cs`, `SourceLoader.Raster.cs`, `SourceLoader.Svg.cs`,
 `SourceLoader.Documents.cs`, `SourceLoader.Pdf.cs`, `SourceLoader.Pptx.cs`, `SourceLoader.Vsdx.cs`,
 `SourceLoader.Scad.cs`, and `SourceLoader.VegaLite.cs`),
-`ExifOrientation`, and the supporting types in `SourceModels.cs`. The pixel helpers that used to be part of this unit
+and the supporting types in `SourceModels.cs`. The EXIF orientation is read by the core `JpegCodec.ReadExifOrientation`
+and applied by the core `Surface.ApplyExifOrientation`. The pixel helpers that used to be part of this unit
 (`FlattenOver`, `HasTransparency`, `FitInside`, and `FitInto`, with the `FitMode` enum) are methods of the core
 `Surface` class (the `SurfaceTransforms` unit of the `Canvas` subsystem).
 
@@ -98,7 +99,7 @@ empty or truncated `.png` is reported as corrupt by the load instead of as an un
 `unsupported-format` with a hint to run `canvasnet formats`.
 
 **Probe(path)**: `Detect`, then reads the header with the codec's `GetInfo` (and, for a JPEG, the EXIF orientation
-with `ExifOrientation.Read`) or, for an SVG, the intrinsic size with `SvgCodec.GetInfo`. A PDF, PPTX, or VSDX
+with `JpegCodec.ReadExifOrientation`) or, for an SVG, the intrinsic size with `SvgCodec.GetInfo`. A PDF, PPTX, or VSDX
 document is opened with its library and every page is listed in `Pages` (`SourcePage`: the 1-based number, the size
 in points and in pixels at 96 dots per inch, the rotation of a PDF page, the name of a VSDX page); the page count
 is `PageCount`, and `Width` and `Height` are those of page 1. A PDF page's size is the library's displayed
@@ -124,7 +125,7 @@ is not in `1..PageCount`; a single image has the one page 1.
 A *raster* load (`LoadRaster`)
 refuses an image whose stored size exceeds the maximum, applies the EXIF orientation when `AutoOrient` is set and
 the orientation is 2 to 8, computes the target size from the *oriented* size, checks it against the maximum, all
-before decoding; then decodes, orients (`ExifOrientation.Apply`), resizes when the size differs, and flattens over
+before decoding; then decodes, orients (`Surface.ApplyExifOrientation`), resizes when the size differs, and flattens over
 the background when one was given with some opacity. An *SVG* load (`LoadSvg`) computes the target size from the
 intrinsic size, checks it, renders with `SvgCodec.Load(path, width, height)`, and flattens over the background
 (white when none was given; none when the background has zero alpha). An SVG rendered at a size with another aspect
@@ -211,16 +212,11 @@ or the requested size is too large and a hint on how to choose a smaller one.
 
 **Read(path, kind, action)**: runs a read and maps exceptions (see *Error Handling*).
 
-**ExifOrientation.Read(stream or path)**: finds the orientation without throwing for malformed data. It checks
-the JPEG start-of-image marker, walks the marker segments (at most 64, stopping at the start of the scan or the end
-of the image, skipping fill bytes and segments without a length), reads the first `Exif` application segment, and
-parses the TIFF structure inside it: the byte-order mark, the magic number 42, and the first directory, looking for
-tag `0x0112` of type SHORT with count 1 and a value of 1 to 8. Anything else yields `null`.
-
-**ExifOrientation.Apply(surface, orientation)**: returns a new surface turned upright: for each pixel of the result,
-it fetches the source pixel the EXIF specification names (orientation 2 mirrors left to right, 3 turns by 180
-degrees, 4 mirrors top to bottom, 5 transposes, 6 turns clockwise, 7 transverses, 8 turns counter-clockwise); for
-5 to 8 the width and height are swapped.
+**The EXIF orientation**: `JpegCodec.ReadExifOrientation(path)` (core; it finds the orientation without throwing for
+malformed data, see *JpegCodec Unit Design*, `codecs/jpeg-codec.md`) runs inside `Read`, so a file that cannot be
+opened is mapped like any other read failure, and `Surface.ApplyExifOrientation(orientation)` (core;
+*SurfaceTransforms Unit Design*) turns the decoded surface upright, an exact move of the pixels that swaps the width and
+height for 5 to 8.
 
 **Surface.FlattenOver(background)** (core) composites a surface over a solid color into a new surface, and
 **Surface.HasTransparency()** (core) says whether any pixel is not opaque; the loader flattens with the first when a
@@ -234,10 +230,10 @@ cleared, so the source is rendered sharply at the box (a document page and a cha
 over the
 background, an SVG follows its own `preserveAspectRatio`, and a model fills it); for a raster kind the options
 unchanged, because the caller fits the decoded pixels with the core `Surface.FitInto`. The loader keeps its own
-private fit and center helpers for documents; they use the same rounding rule as the core fit (`Surface.FitInto`
-contained: the smaller of the two box ratios scales both sides, so a small image is enlarged, and each side is rounded
-half away from zero and limited to 1 and the box; the algorithm is documented in *SurfaceTransforms Unit Design*,
-`canvas/surface-transforms.md`).
+private center helper for documents (a page rendered smaller than the box is centered over the background); the fitted
+size comes from the core `Surface.FitInside` (the smaller of the two box ratios scales both sides, so a small image is
+enlarged, and each side is rounded half away from zero and limited to 1 and the box; the algorithm is documented in
+*SurfaceTransforms Unit Design*, `canvas/surface-transforms.md`).
 
 #### Error Handling
 
