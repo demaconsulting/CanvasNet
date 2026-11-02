@@ -1,0 +1,154 @@
+---
+# cspell:ignore bilinear premultiplied deskew downscales
+# Software Unit Requirements for SurfaceGeometry
+#
+# These requirements describe the design-level behavior of the SurfaceGeometry unit of the Canvas subsystem: the
+# rotation of a Surface by any angle onto an expanded canvas with a fill color (nearest or bilinear sampling), the
+# size of that canvas, and the estimation of the skew of the dominant near-horizontal lines of an image. Every pixel of
+# a rotation is computed from its own coordinates and rows are processed in parallel with disjoint output, so the
+# results are the same on any number of cores. See docs/verification/canvas-net/canvas/surface-geometry.md for the
+# test-evidence mapping.
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Canvas Requirements
+        sections:
+          - title: SurfaceGeometry Requirements
+            requirements:
+              - id: CanvasNet-Canvas-SurfaceGeometry-RotatedSize
+                title: >-
+                  The Surface class shall size the canvas of an image rotated by any finite angle as the bounding
+                  box of the rotated rectangle, with each side the ceiling of the width times the absolute cosine
+                  plus the height times the absolute sine (and the width times the sine plus the height times the
+                  cosine for the other side) less a tolerance of 1e-9 that absorbs floating-point noise, and at
+                  least 1, so that a right angle does not gain a pixel, after reducing the angle modulo 360
+                  degrees so that a huge finite angle cannot overflow.
+                justification: |
+                  A rotated photograph must not lose its corners, and an exact quarter turn must not grow a
+                  spurious row; a documented formula lets a caller predict the size of the result.
+                tests:
+                  - Surface_RotatedSize_RightAndObliqueAngles_ComputesCeilingOfBoundingBox
+                  - Surface_RotatedSize_NearExactFit_DoesNotGainAPixel
+                  - Surface_Rotation_HugeFiniteAngle_EqualsReducedAngle
+
+              - id: CanvasNet-Canvas-SurfaceGeometry-RotateMapping
+                title: >-
+                  The Surface class shall rotate an image clockwise on screen about the center of the image and
+                  the center of the expanded canvas, mapping the destination pixel (xd, yd) to the source
+                  coordinate u = dx cos θ + dy sin θ + W / 2 and v = -dx sin θ + dy cos θ + H / 2 with
+                  dx = xd + 0.5 - newW / 2 and dy = yd + 0.5 - newH / 2, calculated from the pixel's own
+                  coordinates, so that a point right of the center of the image lands below the center of the
+                  result for a quarter turn.
+                justification: |
+                  The direction and the center of a rotation are the first things a user checks; calculating every
+                  pixel from its own coordinates, with no accumulated error, makes the result independent of the
+                  order in which rows are processed.
+                tests:
+                  - Surface_RotateArbitrary_Clockwise_MovesRightOfCenterBelowCenter
+                  - Surface_RotateArbitrary_SolidImage_FillsInteriorWithSourceColor
+                  - Surface_RotateArbitrary_RoundTripSmallAngle_StaysCloseToOriginal
+
+              - id: CanvasNet-Canvas-SurfaceGeometry-RotateFill
+                title: >-
+                  The Surface class shall give every part of the expanded canvas outside the rotated image the
+                  fill color, treating a sampling tap outside the image as the fill color so that the rotated edge
+                  fades into it over half a pixel, blending taps in premultiplied form (the alpha is the rounded
+                  weighted sum of the tap alphas and each color the rounded weighted sum of color times alpha
+                  divided by that sum), and storing a pixel whose alpha is 0 as transparent black.
+                justification: |
+                  A rotation exposes corners nobody asked for; filling them with a chosen color, antialiasing the
+                  edge, and blending translucent colors correctly keeps a transparent or semi-transparent fill
+                  from darkening or tinting the image edge.
+                tests:
+                  - Surface_RotateArbitrary_Corners_AreFillColor
+                  - Surface_RotateArbitrary_TransparentFill_EdgePixelsFadeInAlpha
+                  - Surface_RotateArbitrary_SemiTransparentFill_BlendsInPremultipliedSpace
+
+              - id: CanvasNet-Canvas-SurfaceGeometry-RotateFilter
+                title: >-
+                  The Surface class shall sample the source with either the nearest pixel, copying source pixels
+                  without blending, or bilinear interpolation of the four surrounding pixels, and shall give the
+                  same pixels whether or not the fast paths (no bounds tests when all four taps are inside, a
+                  direct fill store when all are outside) are used.
+                justification: |
+                  Nearest keeps hard pixel edges for pixel art and masks and bilinear gives smooth photographs;
+                  the fast paths exist for speed on large images and must never change a pixel.
+                tests:
+                  - Surface_RotateArbitrary_Nearest_CopiesPixelsWithoutBlending
+                  - Surface_RotateArbitrary_Bilinear_BlendsAHardEdge
+                  - Surface_RotateArbitrary_FastPathAndGenericPath_GiveSamePixels
+
+              - id: CanvasNet-Canvas-SurfaceGeometry-RotateLimit
+                title: >-
+                  The Surface class shall refuse, with ArgumentException and before anything is allocated, a
+                  rotation whose expanded canvas would be larger than MaxDimension on a side.
+                justification: |
+                  A rotated canvas can be 41 percent larger than the image on a side and can exhaust memory;
+                  refusing it from the numbers alone is cheaper and clearer than failing partway through.
+                tests:
+                  - Surface_RotateArbitrary_ResultTooLarge_ThrowsBeforeAllocating
+
+              - id: CanvasNet-Canvas-SurfaceGeometry-SkewEstimate
+                title: >-
+                  The Surface class shall estimate the skew of the dominant near-horizontal structure of an image,
+                  within 15 degrees either way, as the angle (in hundredths of a degree, positive when the lines
+                  descend to the right) that maximizes the sum of the squared counts of the whole-pixel profile
+                  bins of its dark marks, searching every degree and then refining to 0.25 and 0.05 degrees, where
+                  the marks are the pixels of a gray analysis plane of at most 1024 pixels on its longest side that
+                  are at least 10 levels darker than the mean of the window of radius 8 around them, so that uneven
+                  lighting does not hide the lines.
+                justification: |
+                  A photographed sketch or page is rarely level; the lines of its writing or ruling give the tilt,
+                  a local comparison finds the ink under uneven lighting, and a coarse-to-fine search on a reduced
+                  plane finds the angle to a twentieth of a degree in milliseconds.
+                tests:
+                  - Surface_EstimateSkew_TiltedLines_FindsAngleWithinTolerance
+                  - Surface_EstimateSkew_SignConvention_DescendingToRightIsPositive
+                  - Surface_EstimateSkew_LargeImage_DownscalesAndStillFindsAngle
+                  - Surface_EstimateSkew_LightGroundUnevenLighting_StillFindsAngle
+                  - Surface_EstimateSkew_MarkContrastAtThreshold_IsMarkOnlyWhenAtLeastTenLevelsDarker
+
+              - id: CanvasNet-Canvas-SurfaceGeometry-SkewNoStructure
+                title: >-
+                  The Surface class shall report an image with fewer dark marks than the larger of 100 and 0.05
+                  percent of the pixels of the analysis plane as not estimated, with the skew 0 and the
+                  confidence 0, shall report the confidence of an estimate as the best score less the median of
+                  the 31 first-stage scores, over the best score, so that an image without line structure has a
+                  confidence below the 0.4 that SkewEstimate.IsCorrectable requires and ruled or text-like lines
+                  have one well above it, and shall give the clockwise rotation that levels the image as
+                  CorrectionDegrees.
+                justification: |
+                  A wrong angle is worse than none: an image of noise, a blank page, or a drawing without dominant
+                  lines must be left alone, and the caller needs a number that says how much the estimate can be
+                  trusted and the angle to rotate by.
+                tests:
+                  - Surface_EstimateSkew_BlankImage_IsNotEstimated
+                  - Surface_EstimateSkew_RandomNoise_HasLowConfidence
+                  - SkewEstimate_IsCorrectableAndCorrectionDegrees_FollowThresholdsAndSign
+                  - SkewEstimate_CorrectionDegrees_RotatedSurface_IsLevelled
+
+              - id: CanvasNet-Canvas-SurfaceGeometry-SkewDeterministic
+                title: >-
+                  The Surface class shall give the same estimate when the same pixels are analyzed twice, by
+                  using exact integer arithmetic for the marks, the bins, and the scores, a fixed-point cosine and
+                  sine so that last-bit differences of the library functions cannot move a pixel to another bin,
+                  and, for equal scores, the angle closest to 0 and then the smaller angle.
+                justification: |
+                  The estimated angle is reported to the user and decides how the image is rotated; it must not
+                  depend on floating-point rounding or on how a tie happens to fall.
+                tests:
+                  - Surface_EstimateSkew_SameInputTwice_ReturnsIdenticalResult
+                  - Surface_EstimateSkew_EqualScores_PrefersSmallerAbsoluteAngle
+
+              - id: CanvasNet-Canvas-SurfaceGeometry-Arguments
+                title: >-
+                  The Surface class shall reject, with ArgumentOutOfRangeException, an angle that is not finite
+                  and a width or height outside 1 to MaxDimension given to RotatedSize, and shall reject the
+                  rotation or skew estimation of a disposed surface with ObjectDisposedException.
+                justification: |
+                  Each of these is a defect of the caller and must fail fast and clearly; bounding the sizes keeps
+                  the arithmetic of a public size calculation free of overflow.
+                tests:
+                  - Surface_RotationInvalidArguments_Throw
+                  - Surface_RotationAndSkew_AfterDispose_ThrowObjectDisposedException

@@ -494,7 +494,6 @@ sections:
           before it transforms the picture.
         children:
           - CanvasNetTool-Commands-Inspect
-          - CanvasNetTool-Imaging-Analyze
         tests:
           - CanvasNetTool_Inspect_Colors_ReportsDominantColorsAndLumaAsJson
 
@@ -509,7 +508,6 @@ sections:
           Probing a stroke, a mark, or a dimension line by its coordinates is how a measurement of a sketch is checked.
         children:
           - CanvasNetTool-Commands-Inspect
-          - CanvasNetTool-Imaging-Analyze
         tests:
           - CanvasNetTool_Inspect_Pixel_ReportsValueAndNeighborhood
           - CanvasNetTool_Inspect_Errors_AreReportedAsExpectedErrors

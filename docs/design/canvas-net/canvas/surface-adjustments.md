@@ -122,6 +122,6 @@ exception from here is a defect of the caller.
 
 - **ImagePipeline** (command-line tool) - runs the adjustments as pipeline operations, using the public constants to
   validate the user's values.
-- **ImageGeometry**, **ImageAnalysis**, and **GridOverlay** (command-line tool) - use `Surface.Luma`; `ImageAnalysis`
-  also uses `Surface.OtsuThreshold`.
+- **GridOverlay** (command-line tool) - uses `Surface.Luma`.
+- **SurfaceAnalysis** (the same subsystem) - uses `Surface.OtsuThreshold` for the Otsu level of its luma statistics.
 - Consumers of the CanvasNet package - the adjustments are public API.

@@ -10,6 +10,9 @@ input-files:
   - docs/design/canvas-net/canvas/surface.md
   - docs/design/canvas-net/canvas/surface-adjustments.md
   - docs/design/canvas-net/canvas/surface-transforms.md
+  - docs/design/canvas-net/canvas/surface-geometry.md
+  - docs/design/canvas-net/canvas/surface-comparison.md
+  - docs/design/canvas-net/canvas/surface-analysis.md
   - docs/design/canvas-net/canvas/rgba32.md
   - docs/design/canvas-net/canvas/css-color.md
   - docs/design/canvas-net/codecs.md
@@ -154,9 +157,7 @@ input-files:
   - docs/design/canvas-net-tool/imaging/image-pipeline.md
   - docs/design/canvas-net-tool/imaging/image-comparison.md
   - docs/design/canvas-net-tool/imaging/contact-sheet.md
-  - docs/design/canvas-net-tool/imaging/image-geometry.md
   - docs/design/canvas-net-tool/imaging/grid-overlay.md
-  - docs/design/canvas-net-tool/imaging/image-analysis.md
   - docs/design/ots.md
   - docs/design/ots/buildmark.md
   - docs/design/ots/fileassert.md

@@ -1,9 +1,10 @@
 ---
-# cspell:ignore premultiplied
+# cspell:ignore premultiplied transversed
 # Software Unit Requirements for SurfaceTransforms
 #
 # These requirements describe the design-level behavior of the SurfaceTransforms unit of the Canvas subsystem: the
-# whole-surface transformations of the Surface class that complement Crop and Resize (flip, half turn, pad, trim, fit
+# whole-surface transformations of the Surface class that complement Crop and Resize (flip, half turn, EXIF
+# orientation, pad, trim, fit
 # into a box, flatten over a color, and the transparency test). Each is a pure function that returns a new surface and
 # never modifies the surface it is called on. See docs/verification/canvas-net/canvas/surface-transforms.md for the
 # test-evidence mapping.
@@ -89,6 +90,21 @@ sections:
                 tests:
                   - Surface_FlattenOver_TranslucentPixels_CompositesOverBackground
                   - Surface_HasTransparency_OpaqueAndTranslucentSurfaces_ReportsCorrectly
+
+              - id: CanvasNet-Canvas-SurfaceTransforms-ExifOrientation
+                title: >-
+                  The Surface class shall create the upright image that an EXIF orientation from 1 to 8 describes
+                  (upright, mirrored, rotated by 180 degrees, mirrored top to bottom, transposed, rotated 90 degrees
+                  clockwise, transversed, rotated 90 degrees counter-clockwise), moving every pixel exactly and
+                  swapping the width and height for the orientations 5 to 8, returning an independent copy for
+                  orientation 1, and rejecting an orientation outside 1 to 8.
+                justification: |
+                  A photograph that carries its rotation in metadata appears sideways unless the pixels are turned;
+                  an exact move of the pixels, as the EXIF specification defines it, loses nothing.
+                tests:
+                  - Surface_ApplyExifOrientation_Orientation_MapsPixels
+                  - Surface_ApplyExifOrientation_Pixels_AreExactCopiesIncludingAlpha
+                  - Surface_ApplyExifOrientation_InvalidArguments_Throw
 
               - id: CanvasNet-Canvas-SurfaceTransforms-Disposed
                 title: >-

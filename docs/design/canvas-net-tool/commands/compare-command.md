@@ -9,7 +9,8 @@
 `CompareCommand` is the `compare` command: it loads two inputs, brings them to one size, measures how much they differ,
 optionally writes pictures of the differences, checks the measures against thresholds, and reports the result. Its
 single responsibility is to turn a command line into one pass of load, compare, and write, and to report the result;
-the pixel work is `ImageComparison` and the loading is `SourceLoader`. The unit is the partial class `CompareCommand`
+the pixel work is the core `Surface` (`Compare`, `CreateDiff`, `CreateOverlay`, `CreateSideBySide`), `ImageComparison`
+checks the thresholds, and the loading is `SourceLoader`. The unit is the partial class `CompareCommand`
 in `CompareCommand.cs` (the run, the loading of the sides, the pictures, and the reporting) and
 `CompareCommand.Options.cs` (the option table and the reading of the settings). The command has no alias.
 
@@ -44,7 +45,8 @@ echo.
 
 **ReadSettings(reader)**: requires exactly two positional arguments; reads `--background` with `ParseColor` and rejects
 a color that is not opaque (`usage-error`; the default is white); reads `--grid` as `CxR` with `ParseInt` for each side
-(1 to 64; default 4x4); reads every `--threshold` as `metric=value` - the metric by `ImageComparison.TryParseMetric`, the
+(1 to 64, `ComparisonResult.MaxGridSide`; default 4x4, `ImageComparison.DefaultGridColumns` and `DefaultGridRows`); reads
+every `--threshold` as `metric=value` - the metric by `ImageComparison.TryParseMetric`, the
 value by `ParseNumber` within `ImageComparison.Range` - and rejects a metric given twice; reads `--tolerance` (0 to
 255, default 8), `--gain` (0.1 to 255, default 4), `--overlay-weight` (0 to 1, default 0.5), `--diff-style` (`heat` or
 `abs`), `--fit` (`contain` or `stretch`, with `ParseFit`, also used by `MontageCommand`), `--resize-to` (`a`, `b`, or a
@@ -57,7 +59,8 @@ input is a model, `PrepareSide` for each input (a per-side option given for an i
 `usage-error` naming the kind; shared options are skipped for an input they do not concern; `SourceLoader.CheckPage`,
 whose `page-out-of-range` is re-thrown with `Input a:` or `Input b:` in front), `ImageWriter.ResolveFormat` for every
 requested picture, and `ImageWriter.CheckTargets` for the pictures against both inputs and against each other. Then it
-loads the sides (`LoadSides`), checks the sizes, compares, evaluates the thresholds, writes the pictures
+loads the sides (`LoadSides`), checks the sizes, compares (`Surface.Compare`), evaluates the thresholds
+(`ImageComparison.Evaluate`), writes the pictures
 (`WriteOutputs`), and reports.
 
 **LoadSides / LoadSide**: without `--resize-to` both inputs are loaded at their natural size, and a difference in size
@@ -70,7 +73,8 @@ the box size, the core `Surface.FitInto` with `--fit` and the background (a rast
 operation is reported as `fit` (with `mode`, `width`, `height`, and `background`) or `resize`. Every input is flattened
 over the background by the loader, so both are opaque. The side owns the pixels of the loaded source from then on.
 
-**WriteOutputs / CreatePicture**: each requested picture is created, staged with `ImageWriter.Stage` (the first input
+**WriteOutputs / CreatePicture**: each requested picture is created (`Surface.CreateDiff`, `CreateOverlay`, or
+`CreateSideBySide`), staged with `ImageWriter.Stage` (the first input
 is the guard path; `CheckTargets` has already checked both), and disposed before the next is created, so at most the
 two inputs and one picture are in memory; the order is `diff`, `sideBySide`, `overlay`. The side-by-side picture
 always uses the heat map as its third panel. When every picture is staged, all are published together with
@@ -116,7 +120,7 @@ failures come
 from `SourceLoader` (`input-not-found`, `input-unreadable`, `unsupported-format`, `corrupt-input`,
 `unsupported-feature`, `page-out-of-range`, `size-limit`, `scad-error`, and `budget-exceeded`); a threshold that is not
 met is `threshold-failed` after the result was written. Every one is an expected error with exit code 1. An exception
-that is not a `ToolException` (for example one thrown by `ImageComparison` for an argument the command validated) is a
+that is not a `ToolException` (for example one thrown by `Surface.Compare` for an argument the command validated) is a
 defect and propagates. Null arguments throw `ArgumentNullException`.
 
 #### Dependencies
@@ -126,7 +130,8 @@ defect and propagates. Null arguments throw `ArgumentNullException`.
 - **Context** - the `Json` flag and `WriteLine`.
 - **Program** - the tool version for the JSON result.
 - **RenderCommand** - the shared option declarations, the reading of the model options, and `WriteField`.
-- **SourceLoader**, **ImageComparison**, and **ImageWriter** (Imaging), and the core `Surface.FitInto` - everything that
+- **SourceLoader**, **ImageComparison**, and **ImageWriter** (Imaging), and the core `Surface` (`FitInto`, `Compare`,
+  `CreateDiff`, `CreateOverlay`, `CreateSideBySide`) - everything that
   touches files and pixels.
 
 #### Callers

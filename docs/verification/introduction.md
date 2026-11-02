@@ -101,7 +101,7 @@ constituent software items, specifically:
   `ResultWriter`, `Validation`, and `PathHelpers`, a `Commands` subsystem with the `CommandRegistry`,
   `DiscoveryCommands`, `RenderCommand`, `CompareCommand`, `MontageCommand`, and `InspectCommand` units, and an
   `Imaging` subsystem with the `SourceLoader`, `ImagePipeline`, `ImageWriter`, `ImageComparison`, `ContactSheet`,
-  `ImageGeometry`, `GridOverlay`, and `ImageAnalysis` units — see _CanvasNetTool System
+  and `GridOverlay` units — see _CanvasNetTool System
   Verification_ (`canvas-net-tool.md`)
 
 The following OTS items are also covered:

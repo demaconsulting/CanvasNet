@@ -849,7 +849,7 @@ public class RenderCommandPipelineTests
         var skew = operation.GetProperty("skewDegrees").GetDouble();
         Assert.InRange(skew, 4.8, 5.2);
         Assert.Equal(-skew, operation.GetProperty("rotateDegrees").GetDouble());
-        Assert.True(operation.GetProperty("confidence").GetDouble() >= ImageGeometry.MinConfidence);
+        Assert.True(operation.GetProperty("confidence").GetDouble() >= SkewEstimate.MinConfidence);
         Assert.True(operation.GetProperty("applied").GetBoolean());
         var reported = document.RootElement.GetProperty("outputs")[0];
         using var result = PngCodec.Load(output);

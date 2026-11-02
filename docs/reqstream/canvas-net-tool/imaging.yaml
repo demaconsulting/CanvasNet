@@ -5,9 +5,9 @@
 # PURPOSE:
 # - Define requirements for the CanvasNetTool Imaging subsystem
 # - The Imaging subsystem turns files into pixels (SourceLoader), transforms pixels (ImagePipeline, over the core
-#   Surface flip, pad, trim, and tone adjustments), rotates (ImageGeometry), draws a coordinate grid (GridOverlay),
-#   measures colors (ImageAnalysis), compares
-#   two images and draws their differences (ImageComparison), composes a contact sheet (ContactSheet), and
+#   Surface flip, pad, trim, tone adjustment, rotation, and skew estimation), draws a coordinate grid (GridOverlay),
+#   checks a comparison of two images, which the core Surface computes, against thresholds (ImageComparison),
+#   composes a contact sheet (ContactSheet), and
 #   turns pixels into files (ImageWriter); it is free of command-line concerns apart from the parsing of
 #   the operations
 # - Subsystem requirements describe the externally visible load, compare, compose, and write behavior and are
@@ -108,25 +108,17 @@ sections:
 
       - id: CanvasNetTool-Imaging-Compare
         title: >-
-          The Imaging subsystem shall compare two loaded images of the same size, giving exact, repeatable
-          error and similarity measures, the error of each cell of a grid, and the check of those measures
-          against thresholds, and shall create a difference image, an overlay, and a side-by-side image that
-          the image writer writes as files, loading a vector source at the size of the reference.
+          The Imaging subsystem shall compare two loaded images of the same size by delegating the exact, repeatable
+          error and similarity measures, the error of each cell of a grid, and the difference image, overlay, and
+          side-by-side image to the core Surface, shall check those measures against thresholds, and shall write
+          the pictures as files with the image writer, loading a vector source at the size of the reference.
         justification: |
           Comparing a redraw with its reference is the same chain for every command: the loader produces
-          pixels of one size, the comparison measures and draws them, and the writer writes the pictures, so
-          that the numbers and the pictures agree between commands and runs.
+          pixels of one size, the core library measures and draws them, the thresholds decide, and the writer
+          writes the pictures, so that the numbers and the pictures agree between commands and runs.
         children:
-          - CanvasNetTool-Imaging-ImageComparison-ErrorMetrics
-          - CanvasNetTool-Imaging-ImageComparison-Ssim
-          - CanvasNetTool-Imaging-ImageComparison-DiffPixels
-          - CanvasNetTool-Imaging-ImageComparison-Grid
-          - CanvasNetTool-Imaging-ImageComparison-DiffImage
-          - CanvasNetTool-Imaging-ImageComparison-Overlay
-          - CanvasNetTool-Imaging-ImageComparison-SideBySide
           - CanvasNetTool-Imaging-ImageComparison-Thresholds
-          - CanvasNetTool-Imaging-ImageComparison-Arguments
-          - CanvasNetTool-Imaging-ImageComparison-Deterministic
+          - CanvasNetTool-Imaging-ImageComparison-Defaults
         tests:
           - Imaging_Compare_LoadedSourcesAreComparedAndVisualized
           - Imaging_Compare_SameInputsTwice_WriteIdenticalBytes
@@ -169,22 +161,17 @@ sections:
       - id: CanvasNetTool-Imaging-Geometry
         title: >-
           The Imaging subsystem shall rotate pixels by any angle onto an expanded canvas with a chosen fill color
-          (nearest or bilinear sampling, refusing a canvas larger than the maximum image size), and shall estimate
-          the skew of the dominant near-horizontal lines of an image, with exact, repeatable results that do not
-          depend on the number of cores.
+          (nearest or bilinear sampling, refusing a canvas larger than the maximum image size as the expected error
+          size-limit), and shall straighten an image by the skew estimated for its dominant near-horizontal lines,
+          by delegating the rotation and the estimate to the core Surface, with exact, repeatable results that do
+          not depend on the number of cores.
         justification: |
           A photograph of a sketch is rarely level; estimating its tilt and rotating by an arbitrary angle without
-          losing corners are the geometric steps that turn it into a usable picture.
+          losing corners are the geometric steps that turn it into a usable picture, and the pipeline decides when
+          and with what fill they run.
         children:
-          - CanvasNetTool-Imaging-ImageGeometry-RotatedSize
-          - CanvasNetTool-Imaging-ImageGeometry-RotateMapping
-          - CanvasNetTool-Imaging-ImageGeometry-RotateFill
-          - CanvasNetTool-Imaging-ImageGeometry-RotateFilter
-          - CanvasNetTool-Imaging-ImageGeometry-RotateLimit
-          - CanvasNetTool-Imaging-ImageGeometry-SkewEstimate
-          - CanvasNetTool-Imaging-ImageGeometry-SkewNoStructure
-          - CanvasNetTool-Imaging-ImageGeometry-SkewDeterministic
-          - CanvasNetTool-Imaging-ImageGeometry-Arguments
+          - CanvasNetTool-Imaging-ImagePipeline-RotateAngle
+          - CanvasNetTool-Imaging-ImagePipeline-Deskew
         tests:
           - Imaging_Photo_LoadedSourceAdjustedDeskewedTrimmedAndWritten
 
@@ -203,22 +190,6 @@ sections:
           - CanvasNetTool-Imaging-GridOverlay-Result
           - CanvasNetTool-Imaging-GridOverlay-Deterministic
           - CanvasNetTool-Imaging-GridOverlay-Arguments
-
-      - id: CanvasNetTool-Imaging-Analyze
-        title: >-
-          The Imaging subsystem shall report the dominant colors and luma statistics of an image, and the pixel at a
-          point with the mean of its neighborhood, with exact results that are the same on every run.
-        justification: |
-          An agent or a user must be able to ask what an image contains, for example the colors of a region or the
-          value of one pixel, before it chooses how to transform it.
-        children:
-          - CanvasNetTool-Imaging-ImageAnalysis-Quantize
-          - CanvasNetTool-Imaging-ImageAnalysis-Dominant
-          - CanvasNetTool-Imaging-ImageAnalysis-Alpha
-          - CanvasNetTool-Imaging-ImageAnalysis-LumaStats
-          - CanvasNetTool-Imaging-ImageAnalysis-Sample
-          - CanvasNetTool-Imaging-ImageAnalysis-Deterministic
-          - CanvasNetTool-Imaging-ImageAnalysis-Arguments
 
       - id: CanvasNetTool-Imaging-Determinism
         title: >-

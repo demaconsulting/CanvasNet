@@ -1,53 +1,41 @@
-// cspell:ignore exif jpeg transversed transverse
+// cspell:ignore exif transversed transverse
 using System.Buffers.Binary;
-using DemaConsulting.CanvasNet.Canvas;
 
-namespace DemaConsulting.CanvasNet.Tool.Imaging;
+namespace DemaConsulting.CanvasNet.Codecs;
 
 /// <summary>
-///     Reads the EXIF orientation of a JPEG file and applies an orientation to pixels.
+///     The EXIF orientation reader of <see cref="JpegCodec"/>.
 /// </summary>
 /// <remarks>
 ///     <para>
 ///         A camera stores the pixels as the sensor delivered them and records in the EXIF <c>Orientation</c> tag
-///         (<c>0x0112</c>) how the image has to be turned to be viewed upright; the JPEG codec ignores the tag.
-///         The values are the eight combinations of rotation and mirroring defined by the EXIF specification:
-///         <c>1</c> upright, <c>2</c> mirrored left to right, <c>3</c> rotated 180 degrees, <c>4</c> mirrored top to
-///         bottom, <c>5</c> transposed (mirrored about the main diagonal), <c>6</c> to be rotated 90 degrees
-///         clockwise, <c>7</c> transversed (mirrored about the anti-diagonal), and <c>8</c> to be rotated 90
-///         degrees counter-clockwise.
+///         (<c>0x0112</c>) how the image has to be turned to be viewed upright; <see cref="Load(Stream)"/> ignores the
+///         tag. The values are the eight combinations of rotation and mirroring defined by the EXIF specification (see
+///         <see cref="Canvas.Surface.ApplyExifOrientation"/>, which applies one to pixels).
 ///     </para>
 ///     <para>
-///         <see cref="Read(Stream)"/> never throws for malformed data: a file without a usable orientation simply
-///         has none. It reads only the marker segments in front of the image data.
+///         <see cref="ReadExifOrientation(Stream)"/> never throws for malformed data: a file without a usable orientation
+///         simply has none. It reads only the marker segments in front of the image data, no more than 64 of them, and
+///         no more than <c>MaxProbeHeaderBytes</c> (1 MiB) in all, counting fill bytes and skipped segments, so a
+///         hostile stream cannot make it read without end.
 ///     </para>
 /// </remarks>
-internal static class ExifOrientation
+public static partial class JpegCodec
 {
     /// <summary>
     ///     The most marker segments examined before giving up on finding the EXIF segment.
     /// </summary>
-    private const int MaxSegments = 64;
-
-    /// <summary>
-    ///     The JPEG start-of-image marker, the second byte of the signature.
-    /// </summary>
-    private const byte MarkerSoi = 0xD8;
-
-    /// <summary>
-    ///     The JPEG end-of-image marker.
-    /// </summary>
-    private const byte MarkerEoi = 0xD9;
-
-    /// <summary>
-    ///     The JPEG start-of-scan marker, after which no more header segments follow.
-    /// </summary>
-    private const byte MarkerSos = 0xDA;
+    private const int MaxExifSegments = 64;
 
     /// <summary>
     ///     The JPEG application-1 marker, which carries the EXIF data.
     /// </summary>
     private const byte MarkerApp1 = 0xE1;
+
+    /// <summary>
+    ///     The JPEG temporary marker (TEM), which has no length.
+    /// </summary>
+    private const byte MarkerTem = 0x01;
 
     /// <summary>
     ///     The size of the six-byte <c>Exif\0\0</c> identifier that starts an EXIF segment.
@@ -57,59 +45,64 @@ internal static class ExifOrientation
     /// <summary>
     ///     The size of one IFD entry in bytes.
     /// </summary>
-    private const int EntryLength = 12;
+    private const int ExifEntryLength = 12;
 
     /// <summary>
     ///     The tag number of the orientation entry.
     /// </summary>
-    private const int OrientationTag = 0x0112;
+    private const int ExifOrientationTag = 0x0112;
 
     /// <summary>
     ///     The TIFF field type SHORT, the type of the orientation entry.
     /// </summary>
-    private const int TypeShort = 3;
+    private const int ExifTypeShort = 3;
 
     /// <summary>
     ///     Reads the EXIF orientation from a JPEG stream.
     /// </summary>
-    /// <param name="stream">The stream positioned at the start of the JPEG data.</param>
+    /// <param name="stream">The stream positioned at the start of the JPEG data; it is read forward only as far as the EXIF segment and is not disposed.</param>
     /// <returns>The orientation, 1 to 8, or <see langword="null"/> when the data has none or is not a JPEG.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="stream"/> is <see langword="null"/>.</exception>
-    public static int? Read(Stream stream)
+    public static int? ReadExifOrientation(Stream stream)
     {
         ArgumentNullException.ThrowIfNull(stream);
 
         Span<byte> pair = stackalloc byte[2];
-        if (!TryFill(stream, pair) || pair[0] != 0xFF || pair[1] != MarkerSoi)
+        if (!TryFill(stream, pair) || pair[0] != MarkerPrefix || pair[1] != MarkerSoi)
         {
             return null;
         }
 
-        for (var segment = 0; segment < MaxSegments; segment++)
+        // The budget of bytes that may be consumed after the signature: marker bytes (fill bytes included), segment
+        // lengths, and segment payloads, whether read or skipped; it bounds the I/O whatever the data holds
+        var remaining = MaxProbeHeaderBytes;
+        for (var segment = 0; segment < MaxExifSegments; segment++)
         {
-            var marker = ReadMarker(stream);
+            var marker = ReadMarker(stream, ref remaining);
             if (marker is null or MarkerEoi or MarkerSos)
             {
                 return null;
             }
 
-            // Markers without a length: TEM (0x01) and the restart markers (0xD0-0xD7)
-            if (marker == 0x01 || marker is >= 0xD0 and <= 0xD7)
+            // Markers without a length: TEM and the restart markers
+            if (marker == MarkerTem || marker is >= MarkerRst0 and <= MarkerRst7)
             {
                 continue;
             }
 
-            if (!TryFill(stream, pair))
+            remaining -= pair.Length;
+            if (remaining < 0 || !TryFill(stream, pair))
             {
                 return null;
             }
 
             var payloadLength = BinaryPrimitives.ReadUInt16BigEndian(pair) - 2;
-            if (payloadLength < 0)
+            if (payloadLength < 0 || payloadLength > remaining)
             {
                 return null;
             }
 
+            remaining -= payloadLength;
             if (marker != MarkerApp1 || payloadLength < ExifHeaderLength)
             {
                 if (!TrySkip(stream, payloadLength))
@@ -129,7 +122,7 @@ internal static class ExifOrientation
             // An APP1 segment that is not EXIF (for example XMP) is skipped; the EXIF one is the answer either way
             if (payload.AsSpan(0, ExifHeaderLength).SequenceEqual("Exif\0\0"u8))
             {
-                return ParseTiff(payload.AsSpan(ExifHeaderLength));
+                return ParseExifTiff(payload.AsSpan(ExifHeaderLength));
             }
         }
 
@@ -141,55 +134,14 @@ internal static class ExifOrientation
     /// </summary>
     /// <param name="path">The path of the file.</param>
     /// <returns>The orientation, 1 to 8, or <see langword="null"/> when the file has none or is not a JPEG.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="path"/> is <see langword="null"/>.</exception>
     /// <exception cref="IOException">Thrown when the file cannot be read.</exception>
-    public static int? Read(string path)
+    public static int? ReadExifOrientation(string path)
     {
+        ArgumentNullException.ThrowIfNull(path);
+
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-        return Read(stream);
-    }
-
-    /// <summary>
-    ///     Applies an EXIF orientation to a surface, producing the upright image.
-    /// </summary>
-    /// <param name="source">The surface as stored; it is not modified or disposed.</param>
-    /// <param name="orientation">The orientation, 1 to 8; <c>1</c> returns an independent copy.</param>
-    /// <returns>A new surface; for the orientations 5 to 8 its width and height are swapped.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="source"/> is <see langword="null"/>.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="orientation"/> is not 1 to 8.</exception>
-    public static Surface Apply(Surface source, int orientation)
-    {
-        ArgumentNullException.ThrowIfNull(source);
-        ArgumentOutOfRangeException.ThrowIfLessThan(orientation, 1);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(orientation, 8);
-
-        var width = source.Width;
-        var height = source.Height;
-        var swap = orientation >= 5;
-        var result = new Surface(swap ? height : width, swap ? width : height);
-
-        // Visit every pixel of the result and fetch the source pixel it shows
-        for (var y = 0; y < result.Height; y++)
-        {
-            var row = result.GetRowSpan(y);
-            for (var x = 0; x < result.Width; x++)
-            {
-                var (sx, sy) = orientation switch
-                {
-                    1 => (x, y),
-                    2 => (width - 1 - x, y),
-                    3 => (width - 1 - x, height - 1 - y),
-                    4 => (x, height - 1 - y),
-                    5 => (y, x),
-                    6 => (y, height - 1 - x),
-                    7 => (width - 1 - y, height - 1 - x),
-                    _ => (width - 1 - y, x)
-                };
-
-                row[x] = source[sx, sy];
-            }
-        }
-
-        return result;
+        return ReadExifOrientation(stream);
     }
 
     /// <summary>
@@ -197,7 +149,7 @@ internal static class ExifOrientation
     /// </summary>
     /// <param name="tiff">The TIFF data: the byte-order mark, the header, and the directories.</param>
     /// <returns>The orientation, or <see langword="null"/> when there is none or the structure is malformed.</returns>
-    private static int? ParseTiff(ReadOnlySpan<byte> tiff)
+    private static int? ParseExifTiff(ReadOnlySpan<byte> tiff)
     {
         if (tiff.Length < 8)
         {
@@ -233,19 +185,19 @@ internal static class ExifOrientation
         var count = ReadUInt16(tiff, (int)directory, littleEndian);
         for (var i = 0; i < count; i++)
         {
-            var entry = directory + 2 + (i * (long)EntryLength);
-            if (entry + EntryLength > tiff.Length)
+            var entry = directory + 2 + (i * (long)ExifEntryLength);
+            if (entry + ExifEntryLength > tiff.Length)
             {
                 return null;
             }
 
-            if (ReadUInt16(tiff, (int)entry, littleEndian) != OrientationTag)
+            if (ReadUInt16(tiff, (int)entry, littleEndian) != ExifOrientationTag)
             {
                 continue;
             }
 
             // A one-element SHORT is stored in the first two bytes of the value field
-            if (ReadUInt16(tiff, (int)entry + 2, littleEndian) != TypeShort || ReadUInt32(tiff, (int)entry + 4, littleEndian) != 1)
+            if (ReadUInt16(tiff, (int)entry + 2, littleEndian) != ExifTypeShort || ReadUInt32(tiff, (int)entry + 4, littleEndian) != 1)
             {
                 return null;
             }
@@ -287,21 +239,28 @@ internal static class ExifOrientation
     ///     Reads the next marker: skips to the next <c>0xFF</c> byte and over any fill bytes.
     /// </summary>
     /// <param name="stream">The stream.</param>
-    /// <returns>The marker code, or <see langword="null"/> at the end of the data.</returns>
-    private static byte? ReadMarker(Stream stream)
+    /// <param name="remaining">The byte budget; every byte read, fill bytes included, is taken from it.</param>
+    /// <returns>The marker code, or <see langword="null"/> at the end of the data or when the budget is used up.</returns>
+    private static byte? ReadMarker(Stream stream, ref int remaining)
     {
         var next = stream.ReadByte();
-        if (next != 0xFF)
+        remaining--;
+        if (next != MarkerPrefix)
         {
             return null;
         }
 
-        // Any number of 0xFF fill bytes may precede the marker code
+        // Any number of 0xFF fill bytes may precede the marker code; the budget bounds the run
         do
         {
+            if (--remaining < 0)
+            {
+                return null;
+            }
+
             next = stream.ReadByte();
         }
-        while (next == 0xFF);
+        while (next == MarkerPrefix);
 
         return next < 0 ? null : (byte)next;
     }
