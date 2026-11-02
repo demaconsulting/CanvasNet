@@ -17,8 +17,10 @@ contains two units:
   (`layout/legend-layout.md`)
 
 The subsystem's namespace documentation is in `Layout/NamespaceDoc.cs`. Its behavior is specified by the
-`CanvasNetVegaLite-Layout-*` requirements in `docs/reqstream/canvas-net-vega-lite/layout.yaml`. In the first delivery the
-subsystem lays out a **single view**; the composition layout (layers, concatenation, facets, repeats) is a later phase.
+`CanvasNetVegaLite-Layout-*` requirements in `docs/reqstream/canvas-net-vega-lite/layout.yaml`. The subsystem lays out
+**one view**: a single view or a layered view, which is laid out as one view whose data rectangle is shared by all its
+layers (the size comes from the top-level view, and the discrete step hints from the **combined** discrete scale of the
+layers); the composition layout (concatenation, facets, repeats) is a later phase.
 
 ### Interfaces
 

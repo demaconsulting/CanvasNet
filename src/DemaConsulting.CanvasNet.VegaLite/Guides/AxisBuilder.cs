@@ -20,7 +20,9 @@ namespace DemaConsulting.CanvasNet.VegaLite.Guides;
 /// <param name="DataHeight">The height of the data rectangle in pixels.</param>
 /// <param name="MarkType">The mark type of the view, or null; a <c>rect</c> mark with a discrete channel draws its axis in front of the mark.</param>
 /// <param name="Budget">The scene budget the axis charges before it creates each item, or null for a budget of its own from <see cref="VegaLiteLimits.MaxSceneItems"/>.</param>
-internal sealed record AxisRequest(string Channel, SpecNode? ChannelDef, ResolvedScale Scale, ScaleModel Model, double DataWidth, double DataHeight, string? MarkType = null, SceneBudget? Budget = null);
+/// <param name="DefaultOrient">The side the axis takes when neither the <c>axis</c> object names one (the second axis of a layered view with independent axes is on the opposite side), or null for the usual side; it overrides the configuration's orient.</param>
+/// <param name="DefaultGrid">Whether the axis has a grid when neither the <c>axis</c> object says (a layered view keeps the grid of its first independent axis only), or null for the usual rule; it overrides the configuration's grid.</param>
+internal sealed record AxisRequest(string Channel, SpecNode? ChannelDef, ResolvedScale Scale, ScaleModel Model, double DataWidth, double DataHeight, string? MarkType = null, SceneBudget? Budget = null, string? DefaultOrient = null, bool? DefaultGrid = null);
 
 /// <summary>
 ///     One tick of an axis: the domain value, where it is on the axis and the label that names it.
@@ -186,7 +188,7 @@ internal sealed class AxisBuilder
         var location = (request.ChannelDef ?? axisNode)?.GetLocation(_sourceName) ?? default;
         var axis = axisNode is { IsObject: true } ? axisNode : null;
         var settings = new Settings(_config, axis, request.Channel, request.Scale.Kind);
-        var orient = ResolveOrient(settings, request.Channel, (axis?["orient"] ?? request.ChannelDef)?.GetLocation(_sourceName) ?? location);
+        var orient = ResolveOrient(settings, request.Channel, request.DefaultOrient, (axis?["orient"] ?? request.ChannelDef)?.GetLocation(_sourceName) ?? location);
         settings.Orient = orient;
         var isX = orient is "top" or "bottom";
         var extent = isX ? request.DataWidth : request.DataHeight;
@@ -328,12 +330,13 @@ internal sealed class AxisBuilder
     /// </summary>
     /// <param name="settings">The axis settings.</param>
     /// <param name="channel">The channel.</param>
+    /// <param name="defaultOrient">The side that a layered view gives the axis when the <c>axis</c> object names none, or null.</param>
     /// <param name="location">The location for the error.</param>
     /// <returns><c>top</c>, <c>bottom</c>, <c>left</c> or <c>right</c>.</returns>
     /// <exception cref="VegaLiteSpecException">Thrown when the orient is not valid for the channel.</exception>
-    private static string ResolveOrient(Settings settings, string channel, VegaLiteLocation location)
+    private static string ResolveOrient(Settings settings, string channel, string? defaultOrient, VegaLiteLocation location)
     {
-        var orient = settings.ExplicitOrVl("orient")?.AsString() ?? (channel == "x" ? "bottom" : "left");
+        var orient = settings.Explicit("orient")?.AsString() ?? defaultOrient ?? settings.ExplicitOrVl("orient")?.AsString() ?? (channel == "x" ? "bottom" : "left");
         var valid = channel == "x" ? orient is "top" or "bottom" : orient is "left" or "right";
         if (!valid)
         {
@@ -1110,7 +1113,7 @@ internal sealed class AxisBuilder
             Sign = orient is "left" or "top" ? -1 : 1;
             var rule = request.Scale.Kind is ScaleKind.Linear or ScaleKind.Time or ScaleKind.Utc;
             var binned = request.ChannelDef?["bin"] is { } bin && !bin.IsNull && !(bin.IsBoolean && !bin.BoolValue);
-            ShowGrid = settings.ExplicitOrVl("grid")?.AsBool() ?? (rule && (request.ChannelDef?["field"] is not null || request.ChannelDef?["aggregate"] is { IsNull: false }) && !binned);
+            ShowGrid = settings.Explicit("grid")?.AsBool() ?? request.DefaultGrid ?? settings.VlConfig("grid")?.AsBool() ?? (rule && (request.ChannelDef?["field"] is not null || request.ChannelDef?["aggregate"] is { IsNull: false }) && !binned);
             ShowTicks = settings.Bool("ticks") ?? true;
             ShowLabels = settings.Bool("labels") ?? true;
             ShowDomain = settings.Bool("domain") ?? true;

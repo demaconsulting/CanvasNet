@@ -38,6 +38,7 @@ the language that is implemented.
 | d3-path | 3.1.0 | ISC | Copyright 2015-2022 Mike Bostock | `CurveBuilder` (`Marks/`), `ArcGeometry` and `ScenePainter` (`Scenegraph/`) | The path writer: `moveTo`, `lineTo`, `bezierCurveTo`, `closePath` and the canvas `arc` call (the coincident-start test with a tolerance of 1e-6, the line to the start of the arc, the large-arc and sweep flags of the SVG arc command, the two half circles of a full circle, the rule that a close needs an open subpath); the emission is written as SVG arc commands, which the core path builder accepts |
 | Vega (`vega-scenegraph`, `vega-parser`) | `vega` 6.4.0 line, `main` branch read on 2026-10-31 | BSD-3-Clause | (c) 2015-2023, University of Washington Interactive Data Lab | `CurveBuilder` (`Marks/`), `ScenePainter` and `SceneModel` (`Scenegraph/`), `MarkBuilder` (`Marks/`) | The rule that a line, an area and a trail are drawn from the first item of their group (paint, stroke width, dash, interpolation and tension), the list of interpolation names that map to the d3-shape curves and the tension parameter of each, the `defined` rule of the path marks, the trail shape (two straight edges and two half circles between consecutive points, a width that follows the size of each point, a break at an undefined point), the arc mark's use of the d3-shape arc with the pad angle and the corner radius, and the text mark (the position, the rotation about it, the baselines, the line height, the polar offset, the truncation with an ellipsis, the line split of an array) |
 | Vega-Lite (`vega-lite`) | 6.5.0 (see the first row) | BSD-3-Clause | (c) 2015, University of Washington Interactive Data Lab | `MarkBuilder` (`Marks/`), `EncodingPlan`, `EncodingTransforms`, `StackRules` and `AggregateTransforms` (`Transforms/`), `ScaleResolver` (`Scales/`), `SpecParser` and `FeatureCatalog` (`SpecModel/`), `LegendPlan` (`Guides/`) | The rules of the line, area, trail, text and arc marks: which channels group the paths (`pathGroupingFields`) and which sort them, the `order` channel, the default sort of a line by its position, the `orient` inference, the area baseline and its range form, the point and line overlays of a path mark (the overlay mark definitions and the default area opacity), the invalid-data modes, the implicit impute of a stacked path mark and the `impute` of an encoding, the stack of a polar channel, the rules of the polar scales (the types, the zero rule and the ranges), the arc as a rectangle in polar coordinates, the format of a text value (number, time, binned and plain text) and the position of a label on a stacked slice, and the legend symbol of the path marks (a trail's symbol is stroked) |
+| Vega-Lite (`vega-lite`) | 6.5.0 (see the first row) | BSD-3-Clause | (c) 2015, University of Washington Interactive Data Lab | `SpecNormalizer` (`SpecModel/`: `SpecNormalizer.Composite.cs`, `SpecNormalizer.BoxPlot.cs` and `SpecNormalizer.ErrorBar.cs`), `ConfigResolver` (`SpecModel/`), `ScaleResolver` (`Scales/`: `ScaleResolver.Layers.cs`), `VegaLiteDocument` (`VegaLiteDocument.Layers.cs`), `AxisBuilder` and `LegendPlan` (`Guides/`) | The rules of the layers and the composite marks: the normalization of `boxplot`, `errorbar` and `errorband` into layers (the aggregate, joinaggregate, calculate and filter transforms and the rule, tick, bar, point, rect, area and line parts, the Tukey fences and the min-max form, the center and extent of an error bar, the part defaults and the order in which the part properties override one another, the orientation along the continuous axis, the grouping channels), the defaults of `config.boxplot`, `config.errorbar` and `config.errorband`, the merging of the domains of layered scales (the union of continuous domains, the ordered union of discrete ones, the precedence of the band scale over the point scale), the default sharing of scales and the `resolve` of scales, axes and legends, the merging of the titles of layered axes, and the placement of independent axes (the opposite side for the second axis, the grid only on the first) |
 
 ## Files read for `ConfigResolver`
 
@@ -332,6 +333,39 @@ line; the invalid-data modes `show` and `null` are reported and not applied, and
 by the invalid-data mode; the overlay points are not enabled by a `shape` channel; the implicit impute of a stacked path
 mark is skipped for a binned dimension; a text longer than the string limit is an error; and the number of labels, the
 text length, the segments and the scene items are bounded by the render limits.
+
+## Files read for the layers and the composite marks
+
+`SpecNormalizer.Composite.cs`, `SpecNormalizer.BoxPlot.cs` and `SpecNormalizer.ErrorBar.cs` (`SpecModel/`),
+`ScaleResolver.Layers.cs` (`Scales/`), `VegaLiteDocument.Layers.cs` (the root namespace), and the Phase 10 parts of
+`ConfigResolver`, `SpecParser`, `FeatureCatalog`, `LegendPlan` and `AxisBuilder` re-implement the following behavior in C#.
+The Vega-Lite files were read from the `main` branch (and the `v6.5.0` tag) for rules, structure and default values: the
+composite mark files live in `src/compositemark/`. No code, comments, tests, examples or output were copied: the tests of
+these units use values worked out by hand (the quartiles, fences, means and positions are derived in the verification
+documents), never output of Vega-Lite. The unit headers carry
+`Portions derived from Vega-Lite (BSD-3-Clause)` and name the file that applies.
+
+| Project | File | What was taken |
+| ------- | ---- | -------------- |
+| Vega-Lite | `src/compositemark/boxplot.ts` | the expansion of a box plot (`normalizeBoxPlot`): the Tukey form as the outlier points, the whiskers over the values inside the fences and the box with its median, the min-max form, the names of the computed fields, the box, median, rule, ticks and outlier parts and their default marks |
+| Vega-Lite | `src/compositemark/errorbar.ts` | the expansion of an error bar (`normalizeErrorBar`) and `errorBarParams`: the raw, range and error inputs, the center and extent choices and their aggregates, the rule and ticks parts |
+| Vega-Lite | `src/compositemark/errorband.ts` | the expansion of an error band (`normalizeErrorBand`): the band and the borders, the area and rect forms, the interpolation of a two-dimensional band |
+| Vega-Lite | `src/compositemark/common.ts`, `index.ts` | the part toggles and the order in which the part properties override one another (`partLayerMixins`), the orientation (`compositeMarkOrient`), the continuous axis (`compositeMarkContinuousAxis`), the grouping channels and the composite mark dispatch |
+| Vega-Lite | `src/compositemark/encoding.ts`, `util.ts` | the channels that a composite mark moves to its parts and the aggregates it extracts from the encoding |
+| Vega-Lite | `src/config.ts`, `src/compositemark/boxplot.ts`, `errorbar.ts`, `errorband.ts` | the default configuration of the composite marks: the box plot size, extent, median color and parts, the error bar center, rule and ticks, and the error band opacity and borders |
+| Vega-Lite | `src/compile/scale/domain.ts` | `mergeDomains`: the union of the domains of the layers of a shared scale and the combination of their sorts |
+| Vega-Lite | `src/compile/scale/parse.ts`, `src/compile/resolve.ts` | which layers share a scale, an axis or a legend by default, the `resolve` of each, and the rule that an independent scale gives an independent guide (`parseGuideResolve`) |
+| Vega-Lite | `src/scale.ts` | the precedence of the scale types when layers merge a scale (the band scale before the point scale) |
+| Vega-Lite | `src/compile/axis/parse.ts` | `parseLayerAxes`: the merging of the axes of the layers, the merging of their titles, the opposite side of the second independent axis and the grid of the first only |
+
+Where this package deliberately differs from the upstream behavior: the tooltip parts of the composite marks are omitted;
+the bin, the time unit and the aggregate of a channel that groups the rows of a composite mark are not applied (they are
+reported); the shorthand aggregates `boxplot`, `errorbar` and `errorband` of the measure are not accepted; the warnings
+that Vega-Lite only logs for a composite mark are not reproduced; the first explicit domain of the layers wins where
+Vega-Lite unions them; a merged legend takes the symbol facts of the first layer that has the channel (Vega-Lite merges
+the symbol encodings);
+the `orient` of the configuration of an axis is not an explicit orient for the placement of independent axes; and the
+number of views, their nesting and the scene items are bounded by the render limits.
 
 ## Expression language and row transforms (nothing ported)
 

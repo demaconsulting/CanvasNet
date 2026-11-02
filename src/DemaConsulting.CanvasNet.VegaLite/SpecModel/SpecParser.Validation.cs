@@ -46,7 +46,7 @@ internal sealed partial class SpecParser
     /// <summary>The names of the properties of a mark definition (the union of the primitive and composite marks).</summary>
     private static readonly HashSet<string> MarkKeys = Set(
         "align angle aria ariaRole ariaRoleDescription aspect band bandSize baseline binSpacing blend borders "
-        + "box clip color continuousBandSize cornerRadius cornerRadiusBottomLeft cornerRadiusBottomRight "
+        + "box center clip color continuousBandSize cornerRadius cornerRadiusBottomLeft cornerRadiusBottomRight "
         + "cornerRadiusEnd cornerRadiusTopLeft cornerRadiusTopRight cursor description dir discreteBandSize dx "
         + "dy ellipsis extent fill fillOpacity filled font fontSize fontStyle fontWeight height href "
         + "innerRadius interpolate invalid limit line lineBreak lineHeight median minBandSize opacity order "
@@ -316,6 +316,9 @@ internal sealed partial class SpecParser
                 break;
             case "layer" or "concat" or "hconcat" or "vconcat":
                 return ValidateViewList(property);
+            case "resolve":
+                ValidateResolve(property);
+                break;
             case "spec":
                 Check(property, ViewRules["spec"], name);
                 return [property];
@@ -604,6 +607,11 @@ internal sealed partial class SpecParser
                 }
 
                 CheckObject(node, MarkRules);
+                if (type.StringValue is "boxplot" or "errorbar" or "errorband")
+                {
+                    ValidateCompositeMark(node, type.StringValue);
+                }
+
                 foreach (var property in node.Properties.Where(p => !MarkKeys.Contains(p.Name!)))
                 {
                     WarnUnknown(property, "a mark definition");

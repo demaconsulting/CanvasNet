@@ -26,6 +26,10 @@ words:
   - Hival
   - Cmaps
   - unthemed
+  - undrawn
+  - interquartile
+  - Tukey
+  - compositemark
   - Unthemed
   - polymap
   - bimap
@@ -690,9 +694,11 @@ words:
   - vegalite
   - verdana
   - whitesmoke
+  - xerror
   - xoffset
   - yellowgreen
   - yellowgreenblue
+  - yerror
   - yocto
   - yotta
   - zindex

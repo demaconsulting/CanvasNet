@@ -299,6 +299,7 @@ sections:
               - CanvasNetVegaLite-Transforms-TimeUnitTransform-MaxBins
               - CanvasNetVegaLite-Transforms-TimeUnitTransform-Invalid
               - CanvasNetVegaLite-Transforms-TimeUnitTransform-TemporalFields
+              - CanvasNetVegaLite-Transforms-TimeUnitTransform-TemporalFieldsOfViews
               - CanvasNetVegaLite-Transforms-EncodingPlan-TimeUnits
             tests:
               - TimeUnitTransform_YearMonth_StartAndEnd

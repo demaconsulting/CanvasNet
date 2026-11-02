@@ -13,7 +13,9 @@
 # phase that stay unsupported; Phase 9 removed the reports of the marks line, area, trail, text, and arc, of
 # the channels text, theta, radius, theta2, radius2, order, and detail, and of the impute of x and y, and added the
 # reports of the invalid modes and the bundle area, and narrowed the channel reports to the marks that do not draw
-# the channel). See
+# the channel). Phase 10 removed the reports of the layer composition and of the marks boxplot, errorbar, and
+# errorband, reworded the report of a transform of a view that is not drawn, and added the reports of the properties
+# a layer ignores, of the grouping channels of a composite mark, and of the error channels of the other marks). See
 # docs/verification/canvas-net-vega-lite/spec-model/feature-catalog.md for the test-evidence mapping.
 
 sections:
@@ -27,7 +29,7 @@ sections:
                 title: >-
                   The FeatureCatalog unit shall report each unsupported construct with a stable
                   lower-case identifier built from its category and name (for example vl-transform-regression
-                  or vl-composition-layer, with spec names lower-cased and stripped of separators), a
+                  or vl-composition-hconcat, with spec names lower-cased and stripped of separators), a
                   message, and the pointer, line, and column of the construct, and shall return the
                   reports in document order.
                 justification: |
@@ -89,9 +91,11 @@ sections:
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-MarksAndChannels
                 title: >-
                   The FeatureCatalog unit shall report every mark other than bar, rect, point, circle,
-                  square, rule, tick, line, area, trail, text, and arc as vl-mark-type, every channel other than
+                  square, rule, tick, line, area, trail, text, arc, boxplot, errorbar, and errorband as
+                  vl-mark-type, every channel other than
                   x, y, theta, radius, theta2, radius2, text, color, fill, stroke, size, opacity, shape,
-                  strokeWidth, strokeDash, fillOpacity, strokeOpacity, and angle (and the accepted and ignored
+                  strokeWidth, strokeDash, fillOpacity, strokeOpacity, angle, xError, xError2, yError, and
+                  yError2 (and the accepted and ignored
                   tooltip, href, description, and key) as vl-channel-name, the channels of a mark that does not
                   draw them (as vl-channel-name, the channel being ignored), the geographic types, and the
                   encoding properties impute (on a channel other than x and y) and bandPosition when they change
@@ -215,15 +219,18 @@ sections:
                 title: >-
                   The FeatureCatalog unit shall report each transform of a later phase (regression,
                   loess, density, quantile, and extent) as vl-transform-name, every transform and every
-                  variable parameter of a nested view that is not drawn (the aggregating transforms and the
-                  timeUnit transform included),
+                  variable parameter of a view that is not drawn (inside a concat, hconcat, vconcat, facet,
+                  or repeat; the aggregating transforms and the
+                  timeUnit transform included, with a message that names the composition that holds the view
+                  and says that the transform is not applied),
                   each selection parameter (vl-param-selection), the conditions on a parameter
-                  (vl-encoding-condition-param), each projection, composition (layer, concat, hconcat,
+                  (vl-encoding-condition-param), each projection, composition (concat, hconcat,
                   vconcat, facet, repeat), and autosize fit mode, shall examine the nested views of a
                   composition, shall report each construct once at its own location, and shall not report
-                  the transforms calculate, filter, fold, flatten, sample, pivot, lookup, aggregate,
-                  joinaggregate, window, bin, timeUnit, stack, and impute or the variable parameters of the
-                  drawn view.
+                  the layer composition or the transforms calculate, filter, fold, flatten, sample, pivot,
+                  lookup, aggregate,
+                  joinaggregate, window, bin, timeUnit, stack, and impute or the variable parameters of a
+                  drawn view (the single view, a layered view, and its layers).
                 justification: |
                   A construct that changes what a chart means and that the renderer does not implement must be
                   reported rather than skipped, and one that it implements must not make every chart noisy.
@@ -236,6 +243,53 @@ sections:
                   - FeatureCatalog_Visit_Phase6FeaturesAreNotReportedAndRemainingPartsAre
                   - FeatureCatalog_Visit_CompositionsAreReportedAndNestedViewsExamined
                   - FeatureCatalog_Visit_AutosizeFitModesAreReported
+                  - FeatureCatalog_Visit_TopLevelTransformOfLayerSpecIsNotReported
+                  - FeatureCatalog_Visit_TransformOfConcatViewMessageNamesComposition
+                  - FeatureCatalog_Visit_TransformOfLayerInsideConcatNamesTheConcatenation
+                  - FeatureCatalog_Visit_TransformOfLaterPhaseInLayerIsNotSupportedYet
+                  - FeatureCatalog_Visit_LayerTransformsReportOnlyTheirUnsupportedParts
+
+              - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-LayerReports
+                title: >-
+                  The FeatureCatalog unit shall not report the layer composition (the stable identifier
+                  vl-composition-layer is retired), shall visit the encoding that a layer inherits once for each
+                  layer, with that layer's mark, reporting a construct of an inherited channel once at the
+                  location where it is written, and shall warn (vl-layer-property-ignored, at the property)
+                  about a width, height, autosize, padding, background, config, datasets, or title of a view
+                  inside a layered view, which only the top-level view decides.
+                justification: |
+                  A layered chart is drawn, so it must not be reported; a channel that one layer draws and
+                  another does not must be judged by the mark that uses it, and a property that a layer
+                  ignores must be named where it is written.
+                tests:
+                  - FeatureCatalog_Visit_LayerCompositionIsNeverReported
+                  - FeatureCatalog_Visit_InheritedEncodingIsVisitedPerLayerAndReportedOnce
+                  - FeatureCatalog_Visit_LayerPropertiesOfTheTopLevelViewAreWarnedAboutInALayer
+                  - FeatureCatalog_Visit_TopLevelTransformOfLayerSpecIsNotReported
+
+              - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-CompositeMarks
+                title: >-
+                  The FeatureCatalog unit shall not report the boxplot, errorbar, and errorband marks (the stable
+                  identifiers vl-mark-boxplot, vl-mark-errorbar, and vl-mark-errorband are retired) or their
+                  channels (the x2 and y2 ends of the two error marks, the xError, xError2, yError, and yError2
+                  channels of them, and the shape, angle, and strokeDash channels of the outliers of a boxplot),
+                  shall report a bin, a time unit, or an aggregate of a channel that groups the rows of a
+                  composite mark (vl-composite-grouping, at the channel), shall report the error channels of any
+                  other mark as ignored (vl-channel-xerror, vl-channel-xerror2, vl-channel-yerror, and
+                  vl-channel-yerror2), and shall report the size channel of an errorbar as not drawn.
+                justification: |
+                  A composite mark that is drawn must not make every chart noisy, but the parts of a specification
+                  that the expansion cannot honor must be named where they are written.
+                tests:
+                  - FeatureCatalog_Visit_BoxPlotIsSupportedWithItsChannels
+                  - FeatureCatalog_Visit_BinOrTimeUnitOfAGroupingChannelIsReported
+                  - FeatureCatalog_Visit_AggregateOfAGroupingChannelIsReportedButNotTheMeasure
+                  - FeatureCatalog_Visit_GroupingReportFollowsTheOrientationAndLayers
+                  - FeatureCatalog_Visit_UndecidableBoxPlotAndRetiredIdentifier
+                  - FeatureCatalog_Visit_ErrorBarAndErrorBandAreSupportedWithTheirChannels
+                  - FeatureCatalog_Visit_ErrorChannelsOfOtherMarksAreReported
+                  - FeatureCatalog_Visit_ErrorBarReportsTheChannelsItDoesNotDraw
+                  - FeatureCatalog_Visit_ErrorBarGroupingIsReportedAtTheGroupingChannel
 
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-ExpressionConstructs
                 title: >-

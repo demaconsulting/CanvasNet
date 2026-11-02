@@ -1,18 +1,21 @@
 ## SpecModel Subsystem Verification Design
 
 This document describes the subsystem-level verification strategy for the `SpecModel` subsystem (internal namespace
-`DemaConsulting.CanvasNet.VegaLite.SpecModel`), containing three units: `SpecParser` (together with the node, tree,
-and metadata types of its files), `FeatureCatalog`, and `ConfigResolver`.
+`DemaConsulting.CanvasNet.VegaLite.SpecModel`), containing four units: `SpecParser` (together with the node, tree,
+and metadata types of its files), `FeatureCatalog`, `ConfigResolver`, and `SpecNormalizer`.
 
 ### Verification Approach
 
 The `SpecModel` subsystem is verified at two tiers. The unit tests (see _SpecParser Unit Verification Design_,
-_FeatureCatalog Unit Verification Design_, and _ConfigResolver Unit Verification Design_ under `spec-model/`) verify
-each unit in isolation, including its internal types. The subsystem-level scenarios verify the three units working
+_FeatureCatalog Unit Verification Design_, _ConfigResolver Unit Verification Design_, and _SpecNormalizer Unit
+Verification Design_ under `spec-model/`) verify
+each unit in isolation, including its internal types. The subsystem-level scenarios verify the four units working
 together: the parser's immutable tree, with its JSON pointers and one-based line and column positions, is the input
-of both the feature catalog (which reports the recognized-but-unsupported constructs at those locations) and the
+of the feature catalog (which reports the recognized-but-unsupported constructs at those locations), of the
 configuration resolver (which merges the specification's `config` with the Vega-Lite defaults and the caller's
-configuration). The units' tests already run the real parser to build their input, and the document-level tests in
+configuration), and of the normalizer (which reduces the views to the layers that are drawn and expands the composite marks,
+over the original nodes). The units' tests already run the real parser to build their input, and the document-level
+tests in
 `VegaLiteDocumentSpecModelTests.cs` verify the subsystem's contract through the public `VegaLiteDocument`: that the
 metadata is read from the tree, that a wrong value fails at its pointer, that parse warnings and catalog reports are
 merged into one document-ordered, once-per-call delivery, and that rendering resolves the configuration.
@@ -36,7 +39,7 @@ original, small, and written for the test; no Vega-Lite example specification is
 ### Acceptance Criteria
 
 The `SpecModel` subsystem's verification passes when every subsystem-level scenario below and every unit-level
-scenario in the three unit verification documents passes without error or unexpected exception.
+scenario in the four unit verification documents passes without error or unexpected exception.
 
 ### Test Scenarios
 
@@ -166,3 +169,42 @@ scenario in the three unit verification documents passes without error or unexpe
   `vl-transform-filter-timeunit`, `vl-transform-filter-datetime`, `vl-encoding-condition-test`,
   `vl-data-parse-date-format`, `vl-scale-time`, and `vl-scale-utc`) are never produced, and the end-to-end render of a
   time chart through the public API is verified at the system tier.
+- **Layers Are Reduced To Unit Views, Validated At Open, And Reported By What Is Not Drawn**:
+  `SpecNormalizerTests.SpecNormalizer_Layers_LayersAreUnitsInDocumentOrder`,
+  `SpecNormalizerTests.SpecNormalizer_Layers_EncodingIsMergedInPlace`,
+  `SpecNormalizerTests.SpecNormalizer_Layers_ConcatenationInsideLayerIsUndrawn`,
+  `SpecParserResolveTests.SpecParser_Parse_ValidResolveIsAccepted`,
+  `SpecParserResolveTests.SpecParser_Parse_MalformedResolveReportsThePointer`,
+  `SpecParserResolveTests.SpecParser_IsDrawnView_LayersAreDrawnCompositionsAreNot`,
+  `SpecParserResolveTests.SpecParser_Parse_ExpressionsOfLayersAreCompiledButNotThoseOfConcatenations`,
+  `FeatureCatalogLayerTests.FeatureCatalog_Visit_TopLevelTransformOfLayerSpecIsNotReported`,
+  `FeatureCatalogLayerTests.FeatureCatalog_Visit_TransformOfConcatViewMessageNamesComposition`,
+  `FeatureCatalogLayerTests.FeatureCatalog_Visit_InheritedEncodingIsVisitedPerLayerAndReportedOnce`,
+  `FeatureCatalogLayerTests.FeatureCatalog_Visit_LayerPropertiesOfTheTopLevelViewAreWarnedAboutInALayer` — the parser
+  validates the `resolve` of a view when the document is opened (a located `VegaLiteSpecException` at the offending
+  member) and decides with one rule, `IsDrawnView`, that the root and the layers reached through `layer` arrays are
+  drawn and
+  that a concatenation, facet, or repeat is not (so that the expressions of a layer are compiled and those of a
+  concatenation are not); the normalizer, which reads the same tree, reduces the views to the unit views in document
+  order with the encoding that each inherits and records an undrawn composition wherever it is, even inside a layer; and
+  the
+  catalog, which reads the same tree and the same layer tree, no longer reports a `layer` or the transform of a layered
+  view,
+  reports the transform of a view inside a concatenation with the name of the composition, visits the encoding that a layer
+  inherits once for each layer with that layer's mark (reporting a construct once, at the place where it is written), and
+  warns about the properties that a layer ignores.
+- **Composite Marks Are Expanded And Reported By What The Expansion Does Not Apply**:
+  `SpecParserResolveTests.SpecParser_Parse_ValidCompositeMarkIsAccepted`,
+  `SpecParserResolveTests.SpecParser_Parse_MalformedCompositeMarkReportsThePointer`,
+  `SpecNormalizerBoxPlotTests.SpecNormalizer_Expand_TukeyBoxPlotIsOutlierWhiskerAndBoxViews`,
+  `SpecNormalizerErrorBarTests.SpecNormalizer_Expand_ErrorBarDefaultIsTheRuleOfTheMeanAndStandardError`,
+  `SpecNormalizerErrorBarTests.SpecNormalizer_Expand_ErrorBandTwoDimensionalIsAnAreaWithLineBorders`,
+  `FeatureCatalogCompositeTests.FeatureCatalog_Visit_BoxPlotIsSupportedWithItsChannels`,
+  `FeatureCatalogCompositeTests.FeatureCatalog_Visit_BinOrTimeUnitOfAGroupingChannelIsReported`,
+  `FeatureCatalogCompositeTests.FeatureCatalog_Visit_ErrorChannelsOfOtherMarksAreReported`,
+  `FeatureCatalogCompositeTests.ConfigResolver_Resolve_CarriesTheBoxPlotDefaults` — the parser checks the extent, the
+  center, and the parts of a composite mark; the configuration carries the defaults of the three marks; the normalizer expands
+  each mark into the layers Vega-Lite normalizes it to, with the transforms and the properties of the parts, using the
+  same orientation rule as the catalog; and the catalog reports nothing for a composite mark that is drawn (with the
+  channels that it uses) while reporting the grouping channel that has a bin, a time unit, or an aggregate, and the error
+  channels of a mark that does not use them.

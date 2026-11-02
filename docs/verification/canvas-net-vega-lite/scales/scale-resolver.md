@@ -76,7 +76,8 @@ The expected values are derived by hand from the Vega-Lite rules and arithmetic,
 Unit tests reside in `ScaleResolverTests.cs` (the scale kinds, domains, ranges, paddings, colors, and sizes),
 `ScaleResolverPlanTests.cs` (the plan-driven fields, domains, titles, and sorts), `ScaleResolverTimeTests.cs` (the
 scales of temporal fields and of fields with a time unit), `ScaleResolverPolarTests.cs` (the polar scales and the
-orientation of the line, area, trail, and arc marks), and `MarkChannelGatingTests.cs` (the table of the marks that draw
+orientation of the line, area, trail, and arc marks), `ScaleResolverLayerTests.cs` (the scales of the layers of a layered
+view, Phase 10), and `MarkChannelGatingTests.cs` (the table of the marks that draw
 each channel) within the
 `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `Scales` folder; the sorts over rows made by a calculate
 transform are in `RowTransformsTests.cs`, in the `Transforms` folder.
@@ -677,3 +678,83 @@ discrete time-unit field, that exactly three entries are accepted, and that a di
 from the data fails at `/encoding/x`; and that the resolution of a `yearmonth` bar with `nice` and an explicit
 domain (January 1 and April 2024) is identical under the Turkish and German cultures (kind `Time`, January 1 to
 April 1, count 10).
+
+##### Layered Scales: One Layer, One Channel, And Layers Without An Encoding
+
+**Tests**: `ScaleResolverLayerTests.ScaleResolver_ResolveLayers_SingleLayerIsTheSingleViewResult`,
+`ScaleResolverLayerTests.ScaleResolver_ResolveLayers_ChannelOfOneLayerIsTheViewsScale`,
+`ScaleResolverLayerTests.ScaleResolver_ResolveLayers_LayerWithoutEncodingHasNoScales`,
+`ScaleResolverLayerTests.ScaleResolver_ResolveLayers_ChecksItsArguments`
+
+Asserts that a single layer is resolved exactly like a single view and that the merged scales are the layer's scales
+(the very
+object, not a copy); that a channel that only one layer carries keeps that layer's scale as the scale of the view; that
+a
+layer without a mark or an encoding has no scales and does not disturb the others; and that null arguments, an empty
+list of
+layers, and a layer without a unit view are refused.
+
+##### Layered Scales: The Shared Continuous Domain Is The Union
+
+**Tests**: `ScaleResolverLayerTests.ScaleResolver_ResolveLayers_SharedContinuousDomainIsTheUnion`,
+`ScaleResolverLayerTests.ScaleResolver_ResolveLayers_UnionIncludesTheZeroOfALayer`,
+`ScaleResolverLayerTests.ScaleResolver_ResolveLayers_ExplicitContinuousDomainWins`,
+`ScaleResolverLayerTests.ScaleResolver_ResolveLayers_ExplicitContinuousDomainsAreMerged`,
+`ScaleResolverLayerTests.ScaleResolver_ResolveLayers_DiscretizingScaleIsTheFirstLayersOwn`
+
+With the sample data (`q` 3, 7, 12, 5 and `r` 10, 20, 35, 15), asserts that two layers whose `q` spans 3 to 12 and `r`
+spans 10 to
+35 without the zero rule share one scale for the view over the union 3 to 35, titled `q, r`, that both layers map with that
+domain but read their own field and keep their own title, that the zero rule of a layer applies before the union (a bar
+whose
+domain is 0 to 12 and a rule whose domain is 10 to 35 give 0 to 35), that the explicit domain of one layer decides the
+shared domain, that an explicit domain wins over the implicit ones wherever the layer is, that explicit domains that
+differ
+are merged into a union (0 to 100 and 50 to 200 give 0 to 200 for all three layers, the implicit layer between them
+included; a
+reversed 100 to 0 with 20 to 250 gives 0 to 250), that equal explicit domains count once (a piecewise 0, 50, 100 that two
+layers give stays piecewise), and that a discretizing scale is not combined (the first layer's domain and intervals are
+used
+by all the layers that share it, though the second layer's own data reaches 100).
+
+##### Layered Scales: The Shared Discrete Domain And The Scale Kind
+
+**Tests**: `ScaleResolverLayerTests.ScaleResolver_ResolveLayers_DiscreteDomainIsTheSortedUnion`,
+`ScaleResolverLayerTests.ScaleResolver_ResolveLayers_DiscreteOrderFollowsTheLayersSorts`,
+`ScaleResolverLayerTests.ScaleResolver_ResolveLayers_ExplicitDiscreteDomainWins`,
+`ScaleResolverLayerTests.ScaleResolver_ResolveLayers_ExplicitDiscreteDomainsAreMerged`,
+`ScaleResolverLayerTests.ScaleResolver_ResolveLayers_BandBeatsPointAndSizesTheView`,
+`ScaleResolverLayerTests.ScaleResolver_ResolveLayers_StepAppliesToTheCombinedCategories`,
+`ScaleResolverLayerTests.ScaleResolver_ResolveLayers_CombinedCategoriesAreLimited`
+
+Asserts that the categories are combined without repeats and sorted when every layer sorts ascending (a new category in
+the
+second layer's own data joins, every layer sees the combined categories, and an ordinal color scale is built for the combined
+domain); that the order is descending when every layer sorts descending and the first appearance (b, a, c, then the new
+category) when the layers disagree; that the explicit domain of the first layer that has one is the shared domain, that
+the explicit domains of several layers are merged in order of first appearance (`c, b, z` and `b, a, c, y` give
+`c, b, z, a, y`, a layer without one being ignored); that
+a band
+scale of a bar beats the point scale of a line whichever comes first, so both layers share the band scale with the bar's
+padding, and the default step of 20 pixels sizes the view for all four categories; that an explicit step sizes the union
+of
+the categories; and that the limit on the categories of a scale applies to the combined categories (three in each layer,
+six
+together, a limit of five, fail with `MaxScaleDomainSize`).
+
+##### Layered Scales: Independent Scales And Conflicts
+
+**Tests**: `ScaleResolverLayerTests.ScaleResolver_ResolveLayers_IndependentScaleStaysPerLayer`,
+`ScaleResolverLayerTests.ScaleResolver_ResolveLayers_NestedResolveDecidesWhichLayersShare`,
+`ScaleResolverLayerTests.ScaleResolver_ResolveLayers_IncompatibleScalesKeepTheirOwnAndAreReported`
+
+Asserts that `resolve.scale` independent keeps one scale for each layer, with no merged scale and no merged domain,
+while the
+other channels stay shared; that an independent scale in a nested layered view separates only the layers below it, and
+that an
+independent scale above a shared nested view still lets the layers of the nested view share (the groups of layers that share
+a scale are reported); and that layers whose scales cannot be merged (a linear and a logarithmic scale, a continuous and
+a
+discrete one) keep their own scale and give the warning `vl-layer-scale-conflict`, located at the channel of the layer
+that was
+left out.

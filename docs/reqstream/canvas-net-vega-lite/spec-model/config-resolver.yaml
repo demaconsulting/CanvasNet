@@ -62,3 +62,16 @@ sections:
                   - ConfigResolver_Resolve_ViewPropertiesFollowTheCellStyleChain
                   - ConfigResolver_Resolve_FontShorthandAppliesToTextAndGuideStyles
                   - ResolvedConfig_Accessors_ReadTypedValuesByDottedPath
+
+              - id: CanvasNetVegaLite-SpecModel-ConfigResolver-CompositeMarkDefaults
+                title: >-
+                  The ConfigResolver unit shall provide the Vega-Lite defaults of the composite marks (a
+                  boxplot of size 14 with the extent 1.5, a white median, and no end ticks; an errorbar with the
+                  mean as its center, the rule on, and the ticks off; an errorband with a band of opacity 0.3
+                  and no borders) below the specification's configuration and the caller's configuration.
+                justification: |
+                  The default look of a composite mark comes from the configuration, so the defaults must be
+                  pinned and the author's configuration must still override them.
+                tests:
+                  - ConfigResolver_Resolve_CarriesTheBoxPlotDefaults
+                  - ConfigResolver_Resolve_CarriesTheErrorBarAndErrorBandDefaults

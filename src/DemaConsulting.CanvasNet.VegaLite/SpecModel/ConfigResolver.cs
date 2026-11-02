@@ -551,8 +551,9 @@ internal sealed class ResolvedConfig
 ///     <para>
 ///         Rules that Vega-Lite applies in code rather than in configuration are exposed as constants:
 ///         <see cref="DefaultReducedOpacity"/>, <see cref="DefaultStep"/>, <see cref="DefaultStrokeWidth"/> and
-///         <see cref="IsFilledByDefault"/>. The defaults of the boxplot, error bar, error band and selection
-///         configuration are not carried because those features are not rendered.
+///         <see cref="IsFilledByDefault"/>. The defaults of the boxplot (size 14, extent 1.5, a white median, no end ticks), the error bar (center mean, rule on, ticks off) and the error band (band opacity 0.3,
+///         no borders; Vega-Lite <c>config.ts</c>) are carried and are read by the composite mark expansion (<see cref="SpecNormalizer.Expand"/>); those of the selection configuration are not
+///         carried because selections are not rendered.
 ///     </para>
 ///     <para>
 ///         The class is stateless and thread-safe; the defaults are built once.
@@ -666,6 +667,9 @@ internal static class ConfigResolver
           "text": { "color": "black" },
           "tick": { "binSpacing": 0, "continuousBandSize": 5, "minBandSize": 0.25, "timeUnitBandPosition": 0.5, "thickness": 1 },
           "trail": {},
+          "boxplot": { "size": 14, "extent": 1.5, "box": {}, "median": { "color": "white" }, "outliers": {}, "rule": {}, "ticks": null },
+          "errorbar": { "center": "mean", "rule": true, "ticks": false },
+          "errorband": { "band": { "opacity": 0.3 }, "borders": false },
           "scale": {
             "pointPadding": 0.5,
             "barBandPaddingInner": 0.1,

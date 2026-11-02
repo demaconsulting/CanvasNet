@@ -2,7 +2,7 @@
 
 ![SpecModel Structure](VegaLiteSpecModelView.svg)
 
-The `SpecParser` unit is the first software unit in the `SpecModel` subsystem. It comprises eight source files in the
+The `SpecParser` unit is the first software unit in the `SpecModel` subsystem. It comprises nine source files in the
 `DemaConsulting.CanvasNet.VegaLite.SpecModel` namespace, all `internal`:
 
 - `SpecParser.cs` - `SpecParser` (sealed partial class): the entry points, the single-pass reader with an explicit
@@ -17,6 +17,8 @@ The `SpecParser` unit is the first software unit in the `SpecModel` subsystem. I
 - `SpecParser.Time.cs` - the fifth part of `SpecParser`: the validation of the time constructs (time units, date-time
   objects, the interval forms of `tickCount` and `nice`, the `timeUnit` transform, and the time values of predicates) and
   the compilation of the time predicates
+- `SpecParser.Layers.cs` - the sixth part of `SpecParser`: the validation of the `resolve` of a view and of the properties
+  of the composite marks (`boxplot`, `errorbar`, `errorband`), and `IsResolveChannel`
 - `SpecExpressions.cs` - `SpecExpressions`: the compiled expressions of a tree, by the string node that holds the text
 - `SpecNode.cs` - `SpecNode`, `SpecNodeKind`, `NodePosition`, and `SpecTree`: the immutable tree
 - `SpecMetadata.cs` - `SpecMetadata` and `SpecMarkEntry`: the descriptive facts read from a tree
@@ -261,6 +263,30 @@ catalog (for example a binned unit).
 - **Parse directives** (`ValidateFormat`): a `date:` or `utc:` entry of `format.parse` without a format in matching
   quotes is an error at the entry (see the data format rules above).
 
+**Layer and composite rules (phase 10, `SpecParser.Layers.cs`).** The same fail-fast rule applies to the properties that
+phase 10 reads.
+
+- **`resolve`** (`ValidateResolve`) is an object whose `scale`, `axis`, and `legend` members are objects; each channel of
+  them is one that Vega-Lite resolves for that kind (`IsResolveChannel(kind, channel)`: for a scale the position, offset,
+  `time`, and the non-position channels `angle`, `color`, `fill`, `fillOpacity`, `opacity`, `radius`, `shape`, `size`,
+  `stroke`, `strokeDash`, `strokeOpacity`, `strokeWidth`, and `theta`; for an axis `x` and `y` only; for a legend the
+  non-position channels) and its value is `shared` or `independent`, each located at the offending member; a member other
+  than `scale`, `axis`, or `legend` is a `vl-unknown-property` warning.
+- **Composite mark properties** (`ValidateCompositeMark`, for a mark that is `boxplot`, `errorbar`, or `errorband`): the
+  `extent` of a boxplot is a number of at least zero or the text `min-max`, and that of an errorbar or errorband is one
+  of
+  `ci`, `iqr`, `stderr`, and `stdev`; the `center` is `mean` or `median`; and the parts `box`, `median`, `rule`, `ticks`,
+  `outliers`, `band`, and `borders` are a boolean or an object. `center` is among the known mark keys. These rules do not
+  apply to the primitive marks.
+- **Which views are drawn.** `IsDrawnView(root, view)` is true for the root and for a view reached from the root through
+  `layer` arrays only, with none of `concat`, `hconcat`, `vconcat`, `facet`, `repeat`, or `spec` on the view or above it;
+  `FindUndrawnComposition(view)` returns the nearest of `concat`, `hconcat`, `vconcat`, `facet`, and `repeat` on the
+  view or
+  an ancestor. The expressions of the views that are drawn are compiled when the document is opened: the conditions of the
+  encoding of a layer and of the layered view above it (a `size` condition of a layered view is compiled, the mark of the
+  layer deciding later whether it is evaluated), the `{"expr": ...}` values of the marks, and the transforms; a
+  concatenation is not compiled.
+
 **Limits and invariants.** The `MaxJsonDepth` bound is both the reader's depth option and the size of the frame array;
 a string longer than `MaxStringLength` and a number outside the double range are errors; a root that is not an object is
 an error; a duplicate key keeps the last value at the position of the first occurrence.
@@ -300,6 +326,7 @@ an error; a duplicate key keeps the last value at the position of the first occu
   `ValidatePredicateTime`, `CompileTimePredicate`, and `ValidateTimeUnitTransform` (`SpecParser.Time.cs`) apply the
   time rules. The static helpers `IsSupportedTransform(name)` (true for the six aggregating transforms and for
   `timeUnit` too), `IsTimeInterval(name)`, `IsDateTimeShaped(node)` (also used by the catalog), `IsDrawnView(root, view)`,
+  `FindUndrawnComposition(view)`, `IsResolveChannel(kind, channel)`,
   `IsViewSignal(name)`,
   `IsParameterDeclared(node, name)`, and `FindParameter(node, name)` are shared with the catalog and the transforms so that
   validation, reports, and execution agree on what is supported; the parameter index of a `params` array is built once per

@@ -104,6 +104,7 @@ input-files:
   - docs/design/canvas-net-vega-lite/spec-model/spec-parser.md
   - docs/design/canvas-net-vega-lite/spec-model/feature-catalog.md
   - docs/design/canvas-net-vega-lite/spec-model/config-resolver.md
+  - docs/design/canvas-net-vega-lite/spec-model/spec-normalizer.md
   - docs/design/canvas-net-vega-lite/data.md
   - docs/design/canvas-net-vega-lite/data/data-table.md
   - docs/design/canvas-net-vega-lite/data/data-loader.md

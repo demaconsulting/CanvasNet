@@ -43,7 +43,10 @@ Unit tests reside in `VegaLiteOpenOptionsTests.cs` (the open options and, in the
 `VegaLiteRenderOptionsTests.cs`, `VegaLiteLimitsTests.cs`, `VegaLiteLocationTests.cs`,
 `VegaLiteRecordsAndExceptionsTests.cs`, `VegaLiteReportSinkTests.cs`, `VegaLiteDocumentLayoutTests.cs`, and
 `SpecModel/VegaLiteDocumentSpecModelTests.cs`, and, for the time zone option, `VegaLiteTemporalScaleTests.cs` and
-`Data/DataLoaderCalendarTests.cs` within the `DemaConsulting.CanvasNet.VegaLite.Tests` project.
+`Data/DataLoaderCalendarTests.cs`, and, for the layers and the composite marks of Phase 10, the system-level tests
+`VegaLiteLayerIntegrationTests.cs` and `VegaLiteCompositeMarkIntegrationTests.cs` (the document's pipeline is verified
+through the public API: its stages are internal and are exercised for real) within the
+`DemaConsulting.CanvasNet.VegaLite.Tests` project.
 
 ### Test Environment
 
@@ -300,3 +303,67 @@ the first; and a color over a `utcyearmonthdate` time unit renders without a rep
 behavior of the scenarios is carried further by the time scenarios of the _CanvasNetVegaLite System Verification
 Design_ (the zone shifting a point by exactly one day, the day of the daylight saving change, and the host's zone not
 mattering), and the calendar and data details by the _TimeCalendar_ and _DataLoader_ designs.
+
+#### Layers And Composite Marks: Inherited Data, Transforms, Guides, And Limits
+
+**Tests**: `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_TopLevelCalculateIsAppliedAndNotReported`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_TransformsApplyTopLevelFirstThenPerLayer`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_LineAndPointShareOneAxisPair`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_BarsWithMeanRuleShareTheYScale`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_TextLabelsSitOnTheBars`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_NestedLayersInheritTheEncodingOfEveryLevel`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_OwnDataReplacesTheInheritedDataAndSharesTheScale`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_NullDataInheritsTheParentsRowsAndOwnDataReplacesThem`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_OwnDataLayerTemporalFieldDoesNotAffectInheritedTable`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_StepSizeUsesTheMergedDiscreteScale`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_MeasureMatchesRenderAndRenderIsDeterministic`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_UnsupportedLayerMarkIsReportedAndOthersAreDrawn`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_TransformInAConcatenationIsReportedAsNotApplied`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_EmptyLayerListDrawsOnlyTheBackground`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_VariableParameterInALayerIsStillReported`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_IndependentYScalesDrawTwoAxes`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_IndependentAxesOfASharedScaleBothShowTheSameTicks`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_SharedColorFieldGivesOneLegend`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_ColorFieldsOfDifferentNamesJoinTheLegendTitle`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_IndependentLegendsGiveOneLegendPerLayer`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_LegendPropertiesOfEveryLayerCountAndOrientConflictSplitsTheLegend`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_ScaleConflictWarnsAndStillDraws`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_WrittenAxisTitleWinsOverDerivedAndOthersJoin`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_BarsWithWrittenTitlesAndMeanRuleKeepTheWrittenTitles`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_ErrorBandWithWrittenTitlesAndMeanLineKeepTheWrittenTitles`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_ErrorBandWithoutTitlesWritesItsFieldAsTheTitle`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_PropertiesOfTheTopLevelViewAreIgnoredInALayer`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_ViewAndDepthLimitsAreEnforced`,
+`VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_BoxPlot_VerticalTukeyIsDrawnFromTheQuartiles`,
+`VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_BoxPlot_TopLevelTransformAppliesFirst`,
+`VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_BoxPlot_LayersShareTheMeasureScale`,
+`VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_BoxPlot_ExpandedViewsAreLimitedByMaxViews`,
+`VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_BoxPlot_MeasureMatchesRenderAndIsDeterministic`,
+`VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_ErrorBar_DefaultIsARuleOfTheMeanAndStandardError`,
+`VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_ErrorBar_LayersOverABar`,
+`VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_ErrorBar_ExpandedViewsAreLimitedByMaxViews`,
+`VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_ErrorBand_TwoDimensionalBandIsAnAreaWithLineBorders`
+
+The document's pipeline for layered views is verified through the public API, because its stages (the layer tree, the data
+walk, the scales of the layers, the axis planning, and the legend scopes) are internal and meaningful only together. The
+scenarios assert, with positions derived by hand, that the data is loaded where the nearest `data` is and that a layer's
+own
+`data` replaces the inherited table; that the transform of a layered view runs before the layers read the table (so a
+top-level `calculate` is applied once, is seen by every layer, and is not reported) and the transform of each layer
+after it,
+the layers not seeing one another's results; that the layers draw in order, each in its own group of marks, over one
+pair of
+axes whose titles merge (a written title wins over a derived one, as in Vega-Lite; the others join), or over two axes
+(the second on the opposite side and with no grid) and one legend for each
+layer when
+`resolve` says independent, and a shared legend that takes the properties of every layer (and splits when the explicit
+orients differ); that a step sizes the union of the categories; that a layer with an unsupported mark is reported
+and the others are drawn, that a variable parameter declared in a layer and a transform inside a concatenation are reported,
+and that a layered view with no layer draws only the background; that the limits of the views and of the nesting fail
+with a
+located error at the exact boundary; that a composite mark is computed from the rows that the transforms of the views
+above it
+left, draws its parts as layers that share the scale of the measure, and counts its views against `MaxViews`; and that
+`Measure` equals `Render` and the render is deterministic. The numbers of every scenario are listed in the _CanvasNetVegaLite
+System Verification Design_ (the layer and composite mark scenarios); the structure that they rely on is verified in the
+_SpecNormalizer_, _ScaleResolver_, _AxisBuilder_, and _LegendBuilder_ unit designs.

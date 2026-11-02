@@ -24,8 +24,9 @@ _CanvasNetVegaLite System Design_, Third-Party Provenance and Attribution).
 
 #### Purpose
 
-`MarkBuilder` builds the scene items of the mark of a single view: `bar`, `rect`, `point`, `circle`, `square`, `rule`,
-`tick`, `line`, `area`, `trail`, `text`, and `arc`, and the point and line overlays of the path marks. It exists so that
+`MarkBuilder` builds the scene items of the mark of a unit view (a single view, or one layer of a layered view): `bar`,
+`rect`, `point`, `circle`, `square`, `rule`, `tick`, `line`, `area`, `trail`, `text`, and `arc`, and the point and line
+overlays of the path marks. It exists so that
 the Vega-Lite mark geometry, the channel-to-property resolution, the paint defaults, and the invalid-data rules are
 defined in one place, separate from the scales that provide the mappings, from `CurveBuilder` that generates the curves,
 and from the painter that draws the result.

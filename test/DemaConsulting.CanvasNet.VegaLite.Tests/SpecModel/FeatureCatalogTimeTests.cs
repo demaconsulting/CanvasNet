@@ -253,7 +253,7 @@ public class FeatureCatalogTimeTests
         // Act
         var reports = Visit(
             """
-            { "layer": [ { "transform": [ { "timeUnit": "month", "field": "d", "as": "m" } ], "mark": "point" } ] }
+            { "hconcat": [ { "transform": [ { "timeUnit": "month", "field": "d", "as": "m" } ], "mark": "point" } ] }
             """);
         var everything = Visit(
             """
@@ -265,7 +265,7 @@ public class FeatureCatalogTimeTests
             """);
 
         // Assert
-        Assert.Contains(("vl-transform-timeunit", "/layer/0/transform/0"), reports);
+        Assert.Contains(("vl-transform-timeunit", "/hconcat/0/transform/0"), reports);
         Assert.Empty(everything);
     }
 

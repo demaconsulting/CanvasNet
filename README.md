@@ -165,7 +165,7 @@ marks; position, color,
 size, shape, and opacity encodings with legends, color schemes, and time scales and axes), draws only the bundled
 fonts, and never reads the
 network; a chart's CSV, TSV, DSV, or JSON data file is read from the folder of its specification and below it only
-(there is no data-folder option, and a missing file is a `vega-lite-error`); everything else (other marks, layers,
+(there is no data-folder option, and a missing file is a `vega-lite-error`); everything else (other marks,
 remote data, and so on) is left out and reported in `diagnostics` with a stable `vl-*` code (`--strict` turns the first
 such report into a failure). A malformed or invalid specification is the error `vega-lite-error`.
 

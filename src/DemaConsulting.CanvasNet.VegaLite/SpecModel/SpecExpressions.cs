@@ -46,6 +46,29 @@ internal sealed class SpecExpressions
         node is not null && _byNode.TryGetValue(node, out var compiled) ? compiled : null;
 
     /// <summary>
+    ///     Creates a collection that holds these expressions and some more.
+    /// </summary>
+    /// <remarks>
+    ///     This is how the expressions that the renderer writes itself (the <c>calculate</c> and <c>filter</c> of an expanded composite mark) are
+    ///     kept next to the expressions of the specification. This collection is not changed; an entry for a node that already has one is replaced
+    ///     in the copy.
+    /// </remarks>
+    /// <param name="additions">The string nodes and the expressions compiled for them.</param>
+    /// <returns>A new collection with the entries of this one and the additions.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="additions"/> is null.</exception>
+    public SpecExpressions With(IEnumerable<(SpecNode Node, CompiledExpression Expression)> additions)
+    {
+        ArgumentNullException.ThrowIfNull(additions);
+        var copy = new Dictionary<SpecNode, CompiledExpression>(_byNode, ReferenceEqualityComparer.Instance);
+        foreach (var (node, expression) in additions)
+        {
+            copy[node] = expression;
+        }
+
+        return new SpecExpressions(copy);
+    }
+
+    /// <summary>
     ///     Gets the compiled expression of an <c>{"expr": ...}</c> reference object.
     /// </summary>
     /// <param name="reference">The object with the <c>expr</c> string, or null.</param>

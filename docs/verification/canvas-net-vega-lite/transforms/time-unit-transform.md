@@ -218,6 +218,17 @@ a filter predicate with a time unit or a datetime object among its values makes 
 composition (`and`, `or`, `not`), while a plain comparison, a `valid` test, an expression text, and an expression
 reference do not; and that the test of a condition is read like a filter predicate.
 
+##### Implicit Date Fields Are Collected For Several Views
+
+**Tests**: `SpecNormalizerTests.TemporalFields_CollectAll_IsTheUnionOverTheViews`
+
+This test is in `SpecNormalizerTests.cs` (it is written with the layered specifications that need it) and calls
+`TemporalFields.CollectAll` directly. Asserts that the temporal fields of several views (the layers that a loaded table
+serves)
+are collected together as the union of the fields of each view, each field once, so that a table read by several layers
+has
+every date field parsed that any of them needs.
+
 ##### Time Units In The Encoding Are Named, Titled, And Planned
 
 **Tests**: `EncodingPlanTimeTests.EncodingPlan_Create_NamesATimeUnitFieldAndItsEnd`,

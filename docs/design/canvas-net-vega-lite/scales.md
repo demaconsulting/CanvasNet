@@ -14,12 +14,14 @@ six units:
 - **ScaleModel** - the internal `ScaleModel`, `ScaleKind`, and `ScaleRange`: the immutable linear, time, UTC, band,
   point, ordinal, sequential, diverging, quantize, quantile, threshold, and bin-ordinal mappings;
   see _ScaleModel Unit Design_ (`scales/scale-model.md`)
-- **ScaleResolver** - the internal static partial `ScaleResolver` (six files) with `ResolvedScales`, `ResolvedScale`,
+- **ScaleResolver** - the internal static partial `ScaleResolver` (seven files) with `ResolvedScales`, `ResolvedScale`,
+  `LayeredScales`,
   and
   `RangeEnd`: the Vega-Lite inference of scale types, domains (including the binned, stacked, ranged, unaggregated, and
   temporal ones), the order of discrete domains (also over the dates of a time unit), ranges, paddings, the colors and
-  schemes of color scales, the ranges of the non-position channels, and the polar `theta` and `radius` channels of the arc
-  and text marks (the full-circle angle range, the radius range, and the zero rule); see _ScaleResolver Unit Design_
+  schemes of color scales, the ranges of the non-position channels, the polar `theta` and `radius` channels of the arc
+  and text marks (the full-circle angle range, the radius range, and the zero rule), and the scales that the layers of
+  a layered view share or keep apart; see _ScaleResolver Unit Design_
   (`scales/scale-resolver.md`)
 - **Ticks** - the internal static partial `Ticks` (two files): the d3-array tick algorithms, the linear `nice`, the Vega
   tick-count rules, and the d3-time calendar ticks and `nice` of time and UTC scales; see _Ticks Unit Design_
@@ -41,7 +43,9 @@ The subsystem's namespace documentation is in `Scales/NamespaceDoc.cs`. Its beha
 **Exposed** (internal only): `ScaleResolver.Resolve(SpecNode, EncodingPlan, EncodingData, ResolvedConfig, string?,
 VegaLiteLimits?, CancellationToken)` (the pipeline entry), the convenience overload `ScaleResolver.Resolve(SpecNode,
 DataTable, ResolvedConfig, string?, VegaLiteLimits?, CancellationToken)` (which plans and runs the implicit pipeline
-itself), `ScaleResolver.InferOrient`, `ScaleResolver.AcceptsScaleType`, and `ScaleResolver.ChannelIsDrawn`;
+itself), `ScaleResolver.ResolveLayers(IReadOnlyList<LayerScaleInput>, ResolvedConfig, string?, VegaLiteLimits?,
+CancellationToken)` (the scales of the layers of a layered view; one layer gives the `Resolve` result),
+`ScaleResolver.InferOrient`, `ScaleResolver.AcceptsScaleType`, and `ScaleResolver.ChannelIsDrawn`;
 `ResolvedScale.CreateModel(extent)`; the `ScaleModel` factories (`CreateLinear`, `CreateTime`, `CreateBand`,
 `CreatePoint`,
 `CreateOrdinal`, `CreateSequential`, `CreateQuantize`, `CreateQuantile`, `CreateThreshold`, `CreateBinOrdinal`) with the
@@ -66,7 +70,7 @@ and
 `VegaLiteRenderException` types of the `VegaLiteDocument` unit. The .NET base class library supplies
 `System.Numerics`, `System.Text.RegularExpressions`, and `System.Globalization`.
 
-**Consumers**: `VegaLiteDocument` (`ScaleResolver.Resolve`), the `Transforms` subsystem (`EncodingPlan` uses
+**Consumers**: `VegaLiteDocument` (`ScaleResolver.ResolveLayers`), the `Transforms` subsystem (`EncodingPlan` uses
 `ScaleResolver.InferOrient`), the `SpecModel` subsystem (`FeatureCatalog` uses `InferOrient` and `ChannelIsDrawn`), the
 `Guides` subsystem
 (`AxisBuilder` uses `ScaleModel`, `Ticks`, and `NumberFormat`, and reads the `ResolvedScale`), and the `Marks` subsystem
@@ -90,6 +94,14 @@ applying zero, pixel padding, and nice is preserved. Anything outside the suppor
 `FeatureCatalog`; the resolver ignores or falls back deliberately (a property that the scale type or channel does not
 support is ignored; a color domain of four or more entries is a specification error) and the deviations are listed in
 _CanvasNetVegaLite System Design_.
+
+**Layers share scales by merging, not by rewriting.** The layers of a layered view are each resolved as a view of their
+own, then the scales of a channel that several layers carry are merged into one: the owner is the scale of the highest
+precedence (band before point before the rest), its domain is replaced by the union of the layers' domains and it is
+resolved again so that everything that depends on the domain is consistent, and each layer receives that scale bound to
+its own field. Every property that places a value is the shared scale's, so a line over a bar chart cannot be
+misaligned; `resolve` can keep the scales of a channel apart, and scales that cannot be combined stay the layer's own with
+a warning. The single-view path is unchanged: one layer is the single-view result.
 
 **Time scales are linear scales with a calendar.** A temporal field (and any field with a time unit) has values that
 are instants, milliseconds since the Unix epoch. `ScaleKind.Time` and `ScaleKind.Utc` are kinds of their own, not a flag

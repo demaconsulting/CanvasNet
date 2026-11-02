@@ -8,7 +8,9 @@
 # stack that the EncodingPlan unit plans, and the colors, schemes, and ranges of the color and non-position channels,
 # and the polar scales of theta and radius with the channel support table of the marks
 # (ScaleResolver.cs, ScaleResolver.Plan.cs, ScaleResolver.Sort.cs, ScaleResolver.Color.cs, and
-# ScaleResolver.Range.cs, and ScaleResolver.Time.cs for the temporal fields). See
+# ScaleResolver.Range.cs, and ScaleResolver.Time.cs for the temporal fields), and (Phase 10) the scales of the layers
+# of a layered view - the shared scale with the combined domain, the independent scales of resolve, and the conflicts -
+# in ScaleResolver.Layers.cs. See
 # docs/verification/canvas-net-vega-lite/scales/scale-resolver.md for the test-evidence mapping.
 
 sections:
@@ -509,3 +511,66 @@ sections:
                   - ScaleResolver_TemporalColor_ExplicitUtcType_UsesTheUtcCalendar
                   - ScaleResolver_TemporalColor_ZeroIsIgnored
                   - ScaleResolver_TemporalColorQuantile_Threshold_Quantize_FallBackToSequential
+
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-SharedScales
+                title: >-
+                  The ScaleResolver unit shall resolve the scales of the layers of a layered view so that a channel
+                  that two or more layers carry, and that resolve leaves shared (the default), has one scale
+                  whose continuous domain is the union of the domains of the layers (each after its own zero rule;
+                  explicit domains winning over implicit ones and, when they differ, all merged as Vega-Lite does
+                  (the extent of all their values)), whose discrete domain is the
+                  union of the categories in layer order (sorted when every layer sorts the same way, the explicit
+                  domains winning and merged in order of first appearance, and failing closed above the
+                  scale-domain limit), whose kind is the band scale
+                  rather than the point scale when the layers differ, whose step sizes the combined categories,
+                  whose title joins the distinct titles of the layers (a, b), and whose discretizing kinds are those
+                  of the first layer; shall give each layer that scale bound to the layer's own field, so that the
+                  marks of all layers are placed by the same mapping; shall leave a channel that one layer carries,
+                  and a layer without an encoding, as the layer's own result; and shall return exactly the result
+                  for the single view for a view with one layer.
+                justification: |
+                  Layers drawn on one axis must line up: a line over bars is only meaningful when both are placed
+                  by the same scale, and a single view must not change.
+                tests:
+                  - ScaleResolver_ResolveLayers_SingleLayerIsTheSingleViewResult
+                  - ScaleResolver_ResolveLayers_SharedContinuousDomainIsTheUnion
+                  - ScaleResolver_ResolveLayers_UnionIncludesTheZeroOfALayer
+                  - ScaleResolver_ResolveLayers_ChannelOfOneLayerIsTheViewsScale
+                  - ScaleResolver_ResolveLayers_DiscreteDomainIsTheSortedUnion
+                  - ScaleResolver_ResolveLayers_DiscreteOrderFollowsTheLayersSorts
+                  - ScaleResolver_ResolveLayers_ExplicitDiscreteDomainWins
+                  - ScaleResolver_ResolveLayers_ExplicitContinuousDomainWins
+                  - ScaleResolver_ResolveLayers_ExplicitContinuousDomainsAreMerged
+                  - ScaleResolver_ResolveLayers_ExplicitDiscreteDomainsAreMerged
+                  - ScaleResolver_ResolveLayers_BandBeatsPointAndSizesTheView
+                  - ScaleResolver_ResolveLayers_StepAppliesToTheCombinedCategories
+                  - ScaleResolver_ResolveLayers_DiscretizingScaleIsTheFirstLayersOwn
+                  - ScaleResolver_ResolveLayers_CombinedCategoriesAreLimited
+                  - ScaleResolver_ResolveLayers_LayerWithoutEncodingHasNoScales
+                  - ScaleResolver_ResolveLayers_ChecksItsArguments
+
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-IndependentScales
+                title: >-
+                  The ScaleResolver unit shall keep the scale of a channel apart for each layer (and give the
+                  merged result no scale for that channel) when the resolve of a layered view makes the scale
+                  independent, shall let the resolve of each layered view in a nest decide which layers below
+                  it share, and shall report the groups of layers that share a scale so that the guides can be
+                  built for each group.
+                justification: |
+                  Two layers with different measures on one chart need separate scales, and a nested layered view
+                  may share what its parent keeps apart.
+                tests:
+                  - ScaleResolver_ResolveLayers_IndependentScaleStaysPerLayer
+                  - ScaleResolver_ResolveLayers_NestedResolveDecidesWhichLayersShare
+
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-ScaleConflict
+                title: >-
+                  The ScaleResolver unit shall, when the scales of a shared channel cannot be merged (a continuous
+                  with a discrete scale, a linear with a logarithmic, power, or time scale, or different
+                  discretizing kinds), keep the scale of each incompatible layer as its own, and warn
+                  (vl-layer-scale-conflict) at the channel of the layer that was left out.
+                justification: |
+                  A merged scale that silently mixed incompatible kinds would place marks wrongly; the author
+                  must be told that the layers could not share the scale.
+                tests:
+                  - ScaleResolver_ResolveLayers_IncompatibleScalesKeepTheirOwnAndAreReported

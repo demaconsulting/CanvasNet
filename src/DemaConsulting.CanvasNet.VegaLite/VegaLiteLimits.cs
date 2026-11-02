@@ -171,8 +171,12 @@ public sealed class VegaLiteLimits
     }
 
     /// <summary>
-    ///     Gets the maximum number of views (the cells of a concatenation, facet or repeat); 1,000 by default.
+    ///     Gets the maximum number of views one specification may have (the root view, its layers, and the views that a composite mark such as
+    ///     <c>boxplot</c> stands for; the cells of a concatenation, facet or repeat will count when they are drawn); 1,000 by default.
     /// </summary>
+    /// <remarks>
+    ///     Enforced when the views of a specification are normalized, before any data is read: exceeding it is a <see cref="VegaLiteRenderException"/> located at the offending view.
+    /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is less than one.</exception>
     public int MaxViews
     {
@@ -181,9 +185,13 @@ public sealed class VegaLiteLimits
     }
 
     /// <summary>
-    ///     Gets the maximum nesting depth of view compositions (layers inside concatenations inside facets and so on);
+    ///     Gets the maximum nesting depth of view compositions (layers inside layers; concatenations and facets will count when they are drawn);
     ///     16 by default.
     /// </summary>
+    /// <remarks>
+    ///     Enforced when the views of a specification are normalized: the root layered view is level one, and exceeding the limit is a
+    ///     <see cref="VegaLiteRenderException"/> located at the offending <c>layer</c>. The views a composite mark expands to are not nesting levels.
+    /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is outside 1 to 64.</exception>
     public int MaxCompositionDepth
     {

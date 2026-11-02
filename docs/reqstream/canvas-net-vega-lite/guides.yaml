@@ -193,3 +193,25 @@ sections:
               - LegendBuilder_Time_LegendFormatOverridesAndUnitSpecifier
               - LegendBuilder_Time_SizeOnTimeScale_TicksAndLabels
               - CanvasNetVegaLite_SystemIntegration_Time_TemporalColorLegendShowsDates
+
+          - id: CanvasNetVegaLite-Guides-LayerGuides
+            title: >-
+              The Guides subsystem shall build the guides of a layered view as Vega-Lite does: one axis for
+              the layers that share a position scale and an axis (the titles of the layers merged: a written
+              title wins over a derived one, the others joined), an axis for
+              each of the others with the second on the opposite side and only the first with a grid unless the
+              axis object says otherwise, and one legend for the layers that share a legend, merging the titles
+              of the layers in the same way.
+            justification: |
+              The guides are what tells the reader which layer a position or a color stands for; a layered
+              chart with duplicated or overlapping guides cannot be read.
+            children:
+              - CanvasNetVegaLite-Guides-AxisBuilder-LayerAxes
+              - CanvasNetVegaLite-Guides-LegendBuilder-LayerLegends
+            tests:
+              - AxisBuilder_Build_DefaultOrientAndGridApplyOnlyWhenTheAxisSaysNothing
+              - LegendPlan_Create_SameFieldInTwoLayersIsOneLegend
+              - LegendPlan_Create_WrittenTitleOfAnyLayerWinsOverDerivedTitles
+              - LegendPlan_Create_LayersInDifferentScopesKeepTheirOwnLegends
+              - LegendPlan_Create_PropertiesOfALaterLayerAreKeptWhenTheFirstIsSilent
+              - LegendPlan_Create_ExplicitOrientConflictMakesTheLegendsIndependent

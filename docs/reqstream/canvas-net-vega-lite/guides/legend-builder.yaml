@@ -250,3 +250,35 @@ sections:
                   - LegendBuilder_Time_LabelsTogetherTooLong_IsLocated
                   - LegendBuilder_Time_FormatSpecifierLimits_AreSpecificationErrors
                   - LegendBuilder_Time_Culture_InvariantAndDeterministic
+
+              - id: CanvasNetVegaLite-Guides-LegendBuilder-LayerLegends
+                title: >-
+                  The LegendBuilder unit shall plan the legends of the layers of a layered view over all the layers
+                  as one view does: for each channel one legend for each scope (the layers that share the
+                  channel's legend), with the titles of all the layers merged (a written title of any layer
+                  winning over the titles derived from fields, which are joined (a, b), different written titles
+                  joined, equal ones one, and a written null switching the title off) and the legend properties
+                  of all the layers merged as Vega-Lite's mergeLegendComponent merges them (a property that one
+                  layer gives winning over the silence of the others, the first layer winning when several give
+                  it differently, explicit types that differ giving symbols), layers that give different orients
+                  explicitly not merged but given a legend each, the
+                  channels of different layers whose domains agree merging into one legend, the symbols of a
+                  member drawn as the mark of the layer that the member comes from, and a disabled legend of
+                  the layer honored; and shall give a view with one layer the same plan as the plan of that view.
+                justification: |
+                  A color that two layers share must give one legend, not two, and a legend that a layer keeps
+                  apart must stay apart; a single view must not change.
+                tests:
+                  - LegendPlan_Create_SameFieldInTwoLayersIsOneLegend
+                  - LegendPlan_Create_TitlesOfDifferentFieldsJoin
+                  - LegendPlan_Create_WrittenTitleOfAnyLayerWinsOverDerivedTitles
+                  - LegendPlan_Create_WrittenTitlesJoinWhenDifferentAndMergeWhenEqual
+                  - LegendPlan_GuideTitle_WrittenWinsOverDerivedInEitherOrder
+                  - LegendPlan_GuideTitle_DerivedTitlesJoinDistinctInOrder
+                  - LegendPlan_GuideTitle_WrittenTitlesJoinWhenDifferent
+                  - LegendPlan_Create_ChannelOfALaterLayerUsesThatLayersMark
+                  - LegendPlan_Create_ChannelsOfDifferentLayersWithTheSameDomainMerge
+                  - LegendPlan_Create_PropertiesOfALaterLayerAreKeptWhenTheFirstIsSilent
+                  - LegendPlan_Create_ExplicitOrientConflictMakesTheLegendsIndependent
+                  - LegendPlan_Create_LayersInDifferentScopesKeepTheirOwnLegends
+                  - LegendPlan_Create_SingleLayerMatchesTheViewOverloadAndDisableIsHonored

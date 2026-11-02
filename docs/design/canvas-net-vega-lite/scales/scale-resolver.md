@@ -2,10 +2,11 @@
 
 ![Scales Structure](VegaLiteScalesView.svg)
 
-The `ScaleResolver` unit is the second software unit in the `Scales` subsystem. It comprises six source files in the
-`DemaConsulting.CanvasNet.VegaLite.Scales` namespace, all `internal`, that define four `internal` types:
-`ScaleResolver` (a `static partial` class), `ResolvedScales` (sealed class), `ResolvedScale` (sealed class), and
-`RangeEnd` (readonly record struct):
+The `ScaleResolver` unit is the second software unit in the `Scales` subsystem. It comprises seven source files in the
+`DemaConsulting.CanvasNet.VegaLite.Scales` namespace, all `internal`, that define the `internal` types
+`ScaleResolver` (a `static partial` class), `ResolvedScales` (sealed class), `ResolvedScale` (sealed record),
+`RangeEnd` (readonly record struct), and, since phase 10, `LayerScaleInput` (record), `LayeredScales` (sealed class), and
+the `DomainOrder` enumeration:
 
 - `ScaleResolver.cs` - the entry points, the channel resolution (kind, continuous and discrete scales, the zero, nice, padding,
   and range rules), and the four types
@@ -20,13 +21,17 @@ The `ScaleResolver` unit is the second software unit in the `Scales` subsystem. 
 - `ScaleResolver.Time.cs` - the scales of temporal fields and of fields with a time unit: the time facts of a channel
   (calendar, unit, temporal or not), the reading of explicit temporal domains, domain bounds, and datums, the
   conversion of one entry to milliseconds, and the `nice` request of a time scale
+- `ScaleResolver.Layers.cs` - the scales of the layers of a layered view (`ResolveLayers`, `LayerScaleInput`,
+  `LayeredScales`): the shared scale with the combined domain, the independent scales, and the conflicts
 
 The files carry the provenance header comment for the Vega-Lite and Vega rules and the d3-scale and d3-time
 behavior they port.
 
 #### Purpose
 
-`ScaleResolver` infers, for each encoding channel of a single view, the scale that Vega-Lite would build: its kind, its
+`ScaleResolver` infers, for each encoding channel of a view (and, since phase 10, of each layer of a layered view, with
+the
+scales that the layers share merged), the scale that Vega-Lite would build: its kind, its
 domain, its range, its padding, and whether it is reversed, rounded, clamped, or extended by nice. It exists so the rules
 of Vega-Lite's scale inference (type by field type, channel, and mark; the zero, nice, and padding rules; default ranges;
 step sizing of discrete views) live in one place, separate from the pixel arithmetic of `ScaleModel` and from the
@@ -44,7 +49,8 @@ opacity, shape,
 strokeWidth, strokeDash, fillOpacity, strokeOpacity, angle), and
 the `DiscreteWidth` and `DiscreteHeight` that a step-driven discrete position scale needs.
 
-**`ResolvedScale`** (immutable) describes one channel before the size of the data rectangle is known: `Channel`, `Kind`,
+**`ResolvedScale`** (immutable; a `sealed record` since phase 10, so that a layer's scale can be derived with `with`)
+describes one channel before the size of the data rectangle is known: `Channel`, `Kind`,
 `FieldPath` (the field the marks read, which the encoding plan names: the derived field of a bin or an aggregate, or the
 upper end of a stack; null for a `datum`), `Field2Path` (the lower end of a stack, the end of a bin, the end of a time
 unit, or the field of `x2` or `y2`), `Title` (the default title of the plan), `Bin` (a `BinKind`) and `BinSpec` (the
@@ -75,7 +81,20 @@ can sit anywhere between its start and its end; false for the range that an `x2`
 `NiceCount` or is off. `CreateModel(extent)` builds the `ScaleModel` for a data-rectangle width (x) or height (y), or,
 for `radius`, for the
 largest radius that the data rectangle allows (the caller passes half of its smaller side); the extent is ignored for
-every other channel (also for `theta`, which always sweeps the full circle).
+every other channel (also for `theta`, which always sweeps the full circle). Since phase 10, `HasExplicitDomain` says
+that the
+domain came from the specification and `DomainOrder` (`Ascending`, `Descending`, `DataOrder`, or `Custom`) how a discrete
+domain was ordered; both are read when layers merge their scales.
+
+**Layered scales** (phase 10, `ScaleResolver.Layers.cs`). **`LayerScaleInput`** is a layer for the resolver: its
+`LayerNode` (the unit view, and through the parents the `resolve` of each layered view above it), its `EncodingPlan`, and
+its `EncodingData`. **`LayeredScales`** is the result: `PerLayer` (a `ResolvedScales` for each layer, which its marks
+use), `Merged` (the `ResolvedScales` of the whole view: the scales that guides and layout read), `Groups` (for each channel,
+the groups of layer indexes that share one scale), and `Warnings` (the `vl-layer-scale-conflict` reports). `Merged` has
+an
+entry for a channel only when the channel resolves to exactly one group; a channel that is independent, or whose layers
+could not be merged, has none, and `Groups` lists its groups so that the document can build a guide for each. For one
+layer `ResolveLayers` is the single-view `Resolve` and `Merged` is that very result.
 
 **Inference rules** (Vega-Lite 6 behavior, ported with attribution):
 
@@ -411,6 +430,37 @@ parameter) resolve no scale.
   (position, color, shape and dash, numeric).
 - `InferOrient(markType, specified, encoding)` - the orientation rule above; a measure is an unbinned quantitative field
   or a count.
+- `ResolveLayers(layers, config, sourceName, limits, token)` (`ScaleResolver.Layers.cs`) - resolves the scales of the
+  layers of a layered view in two passes. Pass 1 resolves each layer's unit view as `Resolve` does (`CreateContext` and
+  `ResolveChannels`, split out of the pipeline entry). Pass 2, for each channel that a layer carries, divides the
+  carrying layers into **groups that share the scale** (`GroupLayers`: a layer shares with the others below the highest
+  layered view above it such that every layered view on the way resolves the channel's scale as shared, so a nested
+  `resolve` decides) and merges each group of two or more (`MergeGroup`): the **owner** is the layer whose kind has the
+  highest precedence (band, then point, then the rest; ties go to the first); a layer whose scale cannot be combined
+  with the owner's (`CanMerge`: a discrete with a continuous scale, a different continuous kind or transform such as
+  linear with log or time, different discretizing kinds) keeps its own scale and the group yields a
+  `vl-layer-scale-conflict` warning located at its channel definition; the **shared domain** is combined
+  (`CombineDomains`): when any layer has an explicit domain, those decide (Vega-Lite's `mergeValuesWithExplicit`: an
+  explicit domain beats an implicit one, which is ignored; equal explicit domains count once, so a piecewise domain
+  that all give is kept; different ones are merged by Vega into a union, here the minimum and the maximum of all their
+  values), otherwise the
+  minimum of the starts and the maximum of the ends (each layer's domain already follows its own zero rule), or the first
+  piecewise domain; for a discrete scale the explicit domains' categories once each in order of first appearance, or
+  else every category
+  once in layer order, sorted when every layer sorts ascending or descending, failing
+  with a `VegaLiteRenderException` above `MaxScaleDomainSize`; the discretizing kinds (quantize, quantile, threshold, and
+  bin-ordinal) keep the owner's scale. The owner is then **re-resolved** with `Context.Shared` set to the combined domain
+  (the hooks are in `BuildContinuous`, which replaces the domain after the zero rule and the explicit bounds and before
+  the
+  output values, and in `DiscreteDomain`, which returns the combined categories, so
+  the outputs that depend on the size of the domain, a step extent, and the ordinal ranges are consistent). Each member
+  of
+  the group gets the shared scale **bound** to its own field (`Bind`: `FieldPath`, `Field2Path`, `Title`, `Bin`, `BinSpec`,
+  `Stack`, `DataType`, `Location`, `HasBandEnd`, `IsTemporalField`, and `TimeUnit` are the layer's, everything that
+  places a
+  value is the shared scale's, so the marks of all layers line up). The title of the merged scale joins the distinct titles
+  of the members (`a, b`). The cost beyond the single-view path is one `ResolveChannel` per shared channel and the
+  domain extraction already bounded by the limits.
 - `ReadTimeUnit` and `MakeTimeFacts` (`ScaleResolver.Time.cs`) - find the time unit of a channel (from the plan; the
   resolved unit of `EncodingData.TimeUnits` for the `maxbins` form) and, once the kind is known, build the private
   `TimeFacts(Calendar, Unit, IsTemporal, IsUtc)` record: UTC (and `IsUtc`) for a `Utc` scale, a `utc` unit, or an
@@ -491,7 +541,8 @@ reported by the `FeatureCatalog`, and the resolver falls back or ignores them as
 - **`TimeCalendar`**, **`TimeUnitSpec`**, **`DateTimeObject`**, and **`JsDateParser`** - the calendar, the time unit of
   a field, the date-time objects, and the date-text reading of the `Data` subsystem (see _Time Calendar Design_ and
   _Time Format Design_)
-- **`SpecNode`**, **`SpecParser`** (`TryParseSortShorthand`), and **`ResolvedConfig`** - the tree and the
+- **`SpecNode`**, **`SpecParser`** (`TryParseSortShorthand`), **`LayerNode`** (the unit view and the nested `resolve` of
+  each layer), and **`ResolvedConfig`** - the tree and the
   configuration of
   the `SpecModel` subsystem
 - **`VegaLiteLimits`**, **`VegaLiteLocation`**, **`VegaLiteSpecException`**, and **`VegaLiteRenderException`** - the public
@@ -500,14 +551,19 @@ reported by the `FeatureCatalog`, and the resolver falls back or ignores them as
 
 #### Callers
 
-`VegaLiteDocument` calls the pipeline `Resolve` once per render, with the plan and the tables that `EncodingTransforms`
-produced. `FeatureCatalog` calls `InferOrient` (to decide the stack of the view) and `ChannelIsDrawn` (to report a channel
+`VegaLiteDocument` calls `ResolveLayers` once per render (a view without `layer` is one layer, so the result is the
+single-view `Resolve`), with the plan and the tables that `EncodingTransforms`
+produced for each layer; the `Merged` scales give the discrete size hints of the layout, the axes, and the legends, and
+the
+`PerLayer` scales the marks of each layer. `FeatureCatalog` calls `InferOrient` (to decide the stack of the view) and
+`ChannelIsDrawn` (to report a channel
 that the mark does not draw). `AxisBuilder` and
 `MarkBuilder` read the `ResolvedScale` (field path, second field, title, bin and stack facts, kind, domain, padding) and
 the models built from it (the calendar, unit, temporal flag, band-end flag, and nice interval of a temporal channel
 included); `MarkBuilder` builds the polar models with the radius extent `min(width, height) / 2`. The tests in
 `test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverTests.cs`, `ScaleResolverColorTests.cs`,
-`ScaleResolverTimeTests.cs`, `ScaleResolverPolarTests.cs` (the polar scales and the orientation rules), and
+`ScaleResolverTimeTests.cs`, `ScaleResolverPolarTests.cs` (the polar scales and the orientation rules),
+`ScaleResolverLayerTests.cs` (the layered scales), and
 `MarkChannelGatingTests.cs` (the support table of `ChannelIsDrawn`) call the
 resolver directly through
 `InternalsVisibleTo`.

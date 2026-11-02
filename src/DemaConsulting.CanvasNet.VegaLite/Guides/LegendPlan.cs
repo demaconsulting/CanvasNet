@@ -29,7 +29,115 @@ internal enum LegendKind
 /// <param name="Model">The scale model (a legend scale does not depend on the size of the data rectangle).</param>
 /// <param name="Definition">The channel definition object of the encoding.</param>
 /// <param name="Legend">The <c>legend</c> object of the channel definition, or null when it has none.</param>
-internal sealed record LegendMember(string Channel, ResolvedScale Scale, ScaleModel Model, SpecNode Definition, SpecNode? Legend);
+internal sealed record LegendMember(string Channel, ResolvedScale Scale, ScaleModel Model, SpecNode Definition, SpecNode? Legend)
+{
+    /// <summary>Gets the title the layers that share this member's legend agree on (see <see cref="GuideTitle.Merge"/>), or null when only one layer contributes.</summary>
+    public GuideTitle? MergedTitle { get; init; }
+
+    /// <summary>Gets the <c>legend</c> objects of all the layers that share this member's legend in layer order (the first one is <see cref="Legend"/>), or null when only one layer contributes.</summary>
+    public IReadOnlyList<SpecNode>? LayerLegends { get; init; }
+
+    /// <summary>Gets the <c>legend</c> objects that give this member's properties, in layer order: those of all the layers that share the legend, else the one of the channel definition.</summary>
+    public IReadOnlyList<SpecNode> LegendObjects => LayerLegends ?? (Legend is null ? [] : [Legend]);
+
+    /// <summary>Gets the orient that a <c>legend</c> object gave explicitly (the first one in layer order), or null.</summary>
+    public string? ExplicitOrient => LegendObjects.Select(l => l["orient"]?.AsString()).FirstOrDefault(o => o is not null);
+}
+
+/// <summary>
+///     The title that one source (a layer, a channel) gives a guide, and the merge of several such titles: Vega-Lite's <c>mergeValuesWithExplicit</c> with
+///     <c>mergeTitleComponent</c> as the tie-breaker, shared by the axes and the legends.
+/// </summary>
+/// <remarks>
+///     <para>
+///         A title is <b>explicit</b> when it is written (<c>axis.title</c>, <c>legend.title</c> or the <c>title</c> of the channel definition; a composite mark writes the
+///         title of the fields it computes, as Vega-Lite does) and <b>implicit</b> when it is derived from the field (<c>Mean of x</c>, <c>x</c>). An explicit title wins over an
+///         implicit one; two implicit titles join as the distinct titles in order, <c>a, b</c>; two different explicit titles join as <c>a, b</c> too, and an explicit title that
+///         switches the title off (<c>null</c>) switches the merged title off. An explicit title without text (an empty string) is neutral in a join.
+///     </para>
+///     <para>
+///         The lines of an implicit title are the parts that join; the lines of an explicit title are the lines of the text. Use <see cref="Resolve"/> to get what the guide shows.
+///     </para>
+/// </remarks>
+/// <param name="IsExplicit">Whether the title is written (true) or derived (false).</param>
+/// <param name="Lines">The lines of an explicit title, or the parts of an implicit one; empty for no text, null for an explicit title that switches the title off.</param>
+internal sealed record GuideTitle(bool IsExplicit, IReadOnlyList<string>? Lines)
+{
+    /// <summary>
+    ///     Creates the title that is derived from the field of a channel.
+    /// </summary>
+    /// <param name="text">The derived title (<c>Mean of x</c>), the field when none, or null or empty when the channel reads no field.</param>
+    /// <returns>The implicit title.</returns>
+    public static GuideTitle FromField(string? text) => new(false, string.IsNullOrEmpty(text) ? [] : [text]);
+
+    /// <summary>
+    ///     Creates the title that a specification writes.
+    /// </summary>
+    /// <param name="node">The <c>title</c> value: a string (its lines), an array of strings (the lines); <c>null</c> and every other value switch the title off.</param>
+    /// <returns>The explicit title.</returns>
+    public static GuideTitle FromWritten(SpecNode node)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+        if (node.IsString)
+        {
+            return new GuideTitle(true, node.StringValue!.Length > 0 ? [.. TextMeasurer.SplitLines(node.StringValue)] : []);
+        }
+
+        return node.IsArray ? new GuideTitle(true, [.. node.Items.Where(i => i.IsString).Select(i => i.StringValue!)]) : new GuideTitle(true, null);
+    }
+
+    /// <summary>
+    ///     Merges two titles of the same guide.
+    /// </summary>
+    /// <param name="first">The title so far.</param>
+    /// <param name="second">The title to merge in.</param>
+    /// <returns>The explicit title when only one is explicit; otherwise the join of the two (the first when they are equal).</returns>
+    public static GuideTitle Merge(GuideTitle first, GuideTitle second)
+    {
+        ArgumentNullException.ThrowIfNull(first);
+        ArgumentNullException.ThrowIfNull(second);
+        if (first.IsExplicit != second.IsExplicit)
+        {
+            return first.IsExplicit ? first : second;
+        }
+
+        if (first.Lines is not null && second.Lines is not null && first.Lines.SequenceEqual(second.Lines, StringComparer.Ordinal))
+        {
+            return first;
+        }
+
+        if (!first.IsExplicit)
+        {
+            return first with { Lines = [.. first.Lines!.Union(second.Lines!, StringComparer.Ordinal)] };
+        }
+
+        if (first.Lines is null || second.Lines is null)
+        {
+            return first with { Lines = null };
+        }
+
+        if (second.Lines.Count == 0)
+        {
+            return first;
+        }
+
+        return first.Lines.Count == 0 ? second : first with { Lines = [string.Join(", ", first.Lines.Concat(second.Lines))] };
+    }
+
+    /// <summary>
+    ///     Gets the lines the guide shows.
+    /// </summary>
+    /// <returns>The lines (an implicit title is its parts joined by a comma); null for no title.</returns>
+    public IReadOnlyList<string>? Resolve()
+    {
+        if (Lines is null or { Count: 0 })
+        {
+            return null;
+        }
+
+        return IsExplicit ? Lines : [string.Join(", ", Lines)];
+    }
+}
 
 /// <summary>
 ///     What a legend needs to know about the mark that its symbols stand for.
@@ -222,8 +330,9 @@ internal sealed class LegendMarkFacts
 }
 
 /// <summary>
-///     Looks up legend properties in the order Vega-Lite and Vega define: the <c>legend</c> object of the channel (the first
-///     member of a merged legend that has the property), then <c>config.legend</c> with the Vega-Lite and Vega defaults.
+///     Looks up legend properties in the order Vega-Lite and Vega define: the <c>legend</c> objects of the channels and layers that share the legend (Vega-Lite's
+///     <c>mergeValuesWithExplicit</c>: a property that only one of them gives wins, and when several give it differently the first wins, layers before channels),
+///     then <c>config.legend</c> with the Vega-Lite and Vega defaults.
 /// </summary>
 internal sealed class LegendSettings
 {
@@ -273,6 +382,13 @@ internal sealed class LegendSettings
     /// <param name="name">The property.</param>
     /// <returns>The node, or null.</returns>
     public SpecNode? ExplicitNode(string name) => _legends.Select(l => l[name]).FirstOrDefault(n => n is not null);
+
+    /// <summary>
+    ///     Reads the distinct text values that the <c>legend</c> objects give a property, in order (Vega-Lite's conflict check of a property that is given explicitly more than once).
+    /// </summary>
+    /// <param name="name">The property.</param>
+    /// <returns>The distinct texts; empty when no legend object gives the property as text.</returns>
+    public IReadOnlyList<string> ExplicitTexts(string name) => [.. _legends.Select(l => l[name]?.AsString()).OfType<string>().Distinct()];
 
     /// <summary>
     ///     Reads a property with the full precedence: the legend object, then <c>config.legend</c>.
@@ -374,6 +490,17 @@ internal sealed class LegendSpec
 }
 
 /// <summary>
+///     One layer of a layered view as the legend planning sees it.
+/// </summary>
+/// <param name="View">The unit view of the layer (its <c>mark</c> and merged <c>encoding</c> are read).</param>
+/// <param name="Scales">The scales of the layer (those that its marks use).</param>
+/// <param name="Scope">
+///     Tells, for a channel, which legend the layer's channel belongs to: layers with the same scope text share the channel's legend, layers with different scopes have legends of their own.
+///     Null puts every channel of the layer in one scope.
+/// </param>
+internal sealed record LegendLayer(SpecNode View, ResolvedScales Scales, Func<string, string>? Scope = null);
+
+/// <summary>
 ///     Decides which legends a view has: for each channel with a legend, its kind and orient, and which channels share a legend.
 /// </summary>
 /// <remarks>
@@ -393,7 +520,11 @@ internal sealed class LegendSpec
 ///         <b>Merging.</b> Channels whose scale domains are the same (the same derived field with the same bin, the same kind of domain,
 ///         the same explicit <c>scale.domain</c> and <c>sort</c>) share one legend, unless both give an <c>orient</c> and the two differ. The
 ///         first channel in the order above is the canonical one: its scale decides the entries. The properties of the <c>legend</c> objects
-///         merge with the explicit one first and the first channel winning; the titles of the channels join as <c>a, b</c>.
+///         merge with the explicit one first and the first channel winning; the titles of the channels merge as <see cref="GuideTitle"/> says (a written title wins over a derived one, the others join as <c>a, b</c>).
+///     </para>
+///     <para>
+///         <b>Layers.</b> The legends of a layered view are planned over all its layers (<see cref="Create(IReadOnlyList{LegendLayer}, ResolvedConfig, string?)"/>): the layers that share the legend of
+///         a channel contribute one member, the other rules are the same.
 ///     </para>
 ///     <para>
 ///         The class is stateless and safe for concurrent use.
@@ -418,39 +549,155 @@ internal static class LegendPlan
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(scales);
         ArgumentNullException.ThrowIfNull(config);
-        if (config.GetBool("legend.disable") == true || view["encoding"] is not { IsObject: true } encoding)
+        return Create([new LegendLayer(view, scales)], config, sourceName);
+    }
+
+    /// <summary>
+    ///     Plans the legends of the layers of a layered view.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         For each channel, the layers that share a legend (the same <see cref="LegendLayer.Scope"/> for the channel) contribute one member: the first layer that has a legend for the
+    ///         channel decides its scale, definition and the mark facts of the symbols; the titles of all the layers merge as <see cref="GuideTitle"/> says (a written
+    ///         title of any layer wins over the titles derived from fields, the derived titles join as <c>a, b</c>, and different written titles join too); and the <c>legend</c> objects of
+    ///         all the layers give the properties as Vega-Lite's <c>mergeLegendComponent</c> merges them (a property that one layer gives wins over the silence of the others, and when
+    ///         several give it differently the first layer wins; explicit <c>type</c>s that differ give symbols). Layers that give different <c>orient</c>s explicitly cannot be merged, as
+    ///         in Vega-Lite: the channel's legend is then independent, a legend for each layer. The merged symbols follow the first layer's mark (a documented approximation of
+    ///         Vega-Lite's merge of the symbol encodings). Layers in different scopes (an independent legend or
+    ///         scale) have legends of their own. The members then merge into legends exactly as those of one view do, but only within a scope.
+    ///     </para>
+    ///     <para>A single layer with the default scope plans exactly what <see cref="Create(SpecNode, ResolvedScales, ResolvedConfig, string?)"/> plans for its view.</para>
+    /// </remarks>
+    /// <param name="layers">The layers in order.</param>
+    /// <param name="config">The effective configuration.</param>
+    /// <param name="sourceName">The source name for the locations of failures, or null.</param>
+    /// <returns>The legends in the order of their first channel; empty when no channel has a legend.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when an argument other than <paramref name="sourceName"/> is null.</exception>
+    public static IReadOnlyList<LegendSpec> Create(IReadOnlyList<LegendLayer> layers, ResolvedConfig config, string? sourceName)
+    {
+        ArgumentNullException.ThrowIfNull(layers);
+        ArgumentNullException.ThrowIfNull(config);
+        if (config.GetBool("legend.disable") == true)
         {
             return [];
         }
 
-        var mark = LegendMarkFacts.Create(view, config);
-        var groups = new List<(string Key, List<LegendMember> Members)>();
+        var facts = new Dictionary<int, LegendMarkFacts>();
+        var groups = new List<(string Key, List<LegendMember> Members, int Layer)>();
         foreach (var channel in ChannelOrder)
         {
-            if (!TryCreateMember(channel, encoding, scales, out var member))
+            foreach (var (member, layer) in CreateMembers(channel, layers))
             {
-                continue;
-            }
-
-            var key = Key(member);
-            var home = groups.FindIndex(g => g.Key == key && !OrientsConflict(g.Members, member));
-            if (home >= 0)
-            {
-                groups[home].Members.Add(member);
-            }
-            else
-            {
-                groups.Add((key, [member]));
+                var key = Key(member) + "#" + (layers[layer].Scope?.Invoke(channel) ?? string.Empty);
+                var home = groups.FindIndex(g => g.Key == key && !OrientsConflict(g.Members, member) && g.Members.All(m => m.Channel != member.Channel));
+                if (home >= 0)
+                {
+                    groups[home].Members.Add(member);
+                }
+                else
+                {
+                    groups.Add((key, [member], layer));
+                }
             }
         }
 
         var result = new List<LegendSpec>(groups.Count);
-        foreach (var (_, members) in groups)
+        foreach (var (_, members, layer) in groups)
         {
+            if (!facts.TryGetValue(layer, out var mark))
+            {
+                mark = LegendMarkFacts.Create(layers[layer].View, config);
+                facts[layer] = mark;
+            }
+
             result.Add(Build(members, mark, config, sourceName));
         }
 
         return result;
+    }
+
+    /// <summary>
+    ///     Creates the members of a channel: one for each scope that has a layer with a legend for it.
+    /// </summary>
+    /// <param name="channel">The channel.</param>
+    /// <param name="layers">The layers.</param>
+    /// <returns>The members with the index of the layer each came from, in layer order.</returns>
+    private static List<(LegendMember Member, int Layer)> CreateMembers(string channel, IReadOnlyList<LegendLayer> layers)
+    {
+        var found = new List<(string Scope, List<(LegendMember Member, int Layer)> Layers)>();
+        for (var i = 0; i < layers.Count; i++)
+        {
+            if (layers[i].View["encoding"] is not { IsObject: true } encoding || !TryCreateMember(channel, encoding, layers[i].Scales, out var member))
+            {
+                continue;
+            }
+
+            var scope = layers[i].Scope?.Invoke(channel) ?? string.Empty;
+            var home = found.FindIndex(f => f.Scope == scope);
+            if (home >= 0)
+            {
+                found[home].Layers.Add((member, i));
+            }
+            else
+            {
+                found.Add((scope, [(member, i)]));
+            }
+        }
+
+        var result = new List<(LegendMember, int)>(found.Count);
+        foreach (var (_, contributions) in found)
+        {
+            if (contributions.Count == 1)
+            {
+                result.Add(contributions[0]);
+            }
+            else if (contributions.Select(c => c.Member.ExplicitOrient).Where(o => o is not null).Distinct().Count() > 1)
+            {
+                // Vega-Lite's mergeLegendComponent cannot merge legends that give different orients explicitly: the channel's legend becomes independent, a legend for each layer
+                result.AddRange(contributions);
+            }
+            else
+            {
+                result.Add((MergeLayers(contributions), contributions[0].Layer));
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    ///     Merges the members of the layers that share the legend of a channel: the first layer's member carries the titles of all the layers (<see cref="GuideTitle.Merge"/>) and their
+    ///     <c>legend</c> objects, so that a property of any of them counts (the first layer that gives it wins).
+    /// </summary>
+    /// <param name="contributions">The members with their layers, in layer order.</param>
+    /// <returns>The merged member.</returns>
+    private static LegendMember MergeLayers(List<(LegendMember Member, int Layer)> contributions) =>
+        contributions[0].Member with
+        {
+            MergedTitle = contributions.Select(c => TitleOf(c.Member)).Aggregate(GuideTitle.Merge),
+            LayerLegends = [.. contributions.SelectMany(c => c.Member.LegendObjects)],
+        };
+
+    /// <summary>
+    ///     Gets the title that a member gives its legend: the written title of the <c>legend</c> object or of the channel definition, else the one derived from the field (the title of the
+    ///     scale, or the field for a scale without one); for a member of layers, the merge of the titles of the layers.
+    /// </summary>
+    /// <param name="member">The member.</param>
+    /// <returns>The title.</returns>
+    private static GuideTitle TitleOf(LegendMember member)
+    {
+        if (member.MergedTitle is { } merged)
+        {
+            return merged;
+        }
+
+        var node = member.Legend?["title"] ?? member.Definition["title"];
+        if (node is not null)
+        {
+            return GuideTitle.FromWritten(node);
+        }
+
+        return GuideTitle.FromField(member.Scale.Title is { Length: > 0 } title ? title : member.Scale.FieldPath);
     }
 
     /// <summary>
@@ -574,13 +821,13 @@ internal static class LegendPlan
     /// <returns><see langword="true"/> when the two must not be merged.</returns>
     private static bool OrientsConflict(List<LegendMember> members, LegendMember member)
     {
-        var candidate = member.Legend?["orient"]?.AsString();
+        var candidate = member.ExplicitOrient;
         if (candidate is null)
         {
             return false;
         }
 
-        var existing = members.Select(m => m.Legend?["orient"]?.AsString()).FirstOrDefault(o => o is not null);
+        var existing = members.Select(m => m.ExplicitOrient).FirstOrDefault(o => o is not null);
         return existing is not null && existing != candidate;
     }
 
@@ -594,7 +841,7 @@ internal static class LegendPlan
     /// <returns>The legend.</returns>
     private static LegendSpec Build(List<LegendMember> members, LegendMarkFacts mark, ResolvedConfig config, string? sourceName)
     {
-        var settings = new LegendSettings(config, [.. members.Where(m => m.Legend is not null).Select(m => m.Legend!)]);
+        var settings = new LegendSettings(config, [.. members.SelectMany(m => m.LegendObjects)]);
         var kind = ResolveKind(members, settings);
         var explicitOrient = settings.Explicit("orient")?.AsString();
         var orient = explicitOrient ?? settings.Text("orient") ?? "right";
@@ -622,7 +869,14 @@ internal static class LegendPlan
     private static LegendKind ResolveKind(List<LegendMember> members, LegendSettings settings)
     {
         var kinds = members.Select(GradientFor).Distinct().ToList();
-        var explicitType = settings.Explicit("type")?.AsString();
+        var explicitTypes = settings.ExplicitTexts("type");
+        if (explicitTypes.Count > 1)
+        {
+            // Vega-Lite: two explicit types that differ merge to the symbol type (there are only two, and symbols are preferred)
+            return LegendKind.Symbol;
+        }
+
+        var explicitType = explicitTypes.FirstOrDefault();
         if (explicitType == "symbol")
         {
             return LegendKind.Symbol;
@@ -683,52 +937,10 @@ internal static class LegendPlan
     }
 
     /// <summary>
-    ///     Resolves the title of a legend: an explicit title, else the titles of the channels joined by a comma.
+    ///     Resolves the title of a legend: the titles of the members merge (a written title wins over a derived one, the derived titles and different written titles join by a comma).
     /// </summary>
     /// <param name="members">The members.</param>
     /// <returns>The lines, or null for no title.</returns>
-    private static IReadOnlyList<string>? ResolveTitle(List<LegendMember> members)
-    {
-        foreach (var member in members)
-        {
-            var node = member.Legend?["title"] ?? member.Definition["title"];
-            if (node is not null)
-            {
-                return ExplicitLines(node);
-            }
-        }
-
-        var parts = new List<string>();
-        foreach (var scale in members.Select(m => m.Scale))
-        {
-            var part = scale.Title is { Length: > 0 } title ? title : scale.FieldPath;
-            if (!string.IsNullOrEmpty(part) && !parts.Contains(part, StringComparer.Ordinal))
-            {
-                parts.Add(part);
-            }
-        }
-
-        return parts.Count == 0 ? null : [string.Join(", ", parts)];
-    }
-
-    /// <summary>
-    ///     Reads title lines from a node: a string, or an array of strings; null and other values mean no title.
-    /// </summary>
-    /// <param name="node">The node.</param>
-    /// <returns>The lines, or null for no title.</returns>
-    private static IReadOnlyList<string>? ExplicitLines(SpecNode node)
-    {
-        if (node.IsString)
-        {
-            return node.StringValue!.Length > 0 ? [.. TextMeasurer.SplitLines(node.StringValue)] : null;
-        }
-
-        if (node.IsArray)
-        {
-            var lines = node.Items.Where(i => i.IsString).Select(i => i.StringValue!).ToList();
-            return lines.Count > 0 ? lines : null;
-        }
-
-        return null;
-    }
+    private static IReadOnlyList<string>? ResolveTitle(List<LegendMember> members) =>
+        members.Select(TitleOf).Aggregate(GuideTitle.Merge).Resolve();
 }

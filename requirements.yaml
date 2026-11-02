@@ -115,6 +115,7 @@ includes:
   - docs/reqstream/canvas-net-vega-lite/spec-model.yaml
   - docs/reqstream/canvas-net-vega-lite/spec-model/spec-parser.yaml
   - docs/reqstream/canvas-net-vega-lite/spec-model/feature-catalog.yaml
+  - docs/reqstream/canvas-net-vega-lite/spec-model/spec-normalizer.yaml
   - docs/reqstream/canvas-net-vega-lite/spec-model/config-resolver.yaml
   - docs/reqstream/canvas-net-vega-lite/data.yaml
   - docs/reqstream/canvas-net-vega-lite/data/data-table.yaml

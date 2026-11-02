@@ -52,7 +52,9 @@ returns the
 `EncodingPlan.OrderFields`, which tell a path mark how to split its rows into paths and in which order to draw them;
 `TimeUnitTransform.Apply(DataTable, requests, TransformContext, VegaLiteLocation, resolved)`, which adds the start and the
 end of time units to every row (`RowTransforms.Apply` dispatches the `timeUnit` transform to it), and
-`TemporalFields.Collect(SpecNode)`, which names the fields that the loader parses as dates; the accumulators and
+`TemporalFields.Collect(SpecNode)` and `TemporalFields.CollectAll(IEnumerable<SpecNode>)` (the union over several views,
+for
+a table that several layers read), which name the fields that the loader parses as dates; the accumulators and
 engines that other subsystems reuse
 (`MeasureCell`, `WorkMeter`, `BinAlgorithm`, `StackRules`, and the aggregate and stack engines of `AggregateTransforms`);
 and the `TransformContext` and `RowExpressions` records that carry what the stages share.
@@ -83,9 +85,10 @@ implicit stack -> **Main** -> scales -> marks. The imputes are the `impute` prop
 for a
 stacked line, area, or trail, the zeros that give every layer of the stack a point at every key; they run between the
 aggregate and the stack, as in Vega-Lite.
-Only the `transform` array of the drawn view (the root view without a composition) runs; the transforms of nested
-views of a
-composition are not drawn and are reported. Because the scales are resolved over the transformed tables, a domain and every
+Every view that is drawn runs its own `transform` array in the written order on the table that it inherits - the root view,
+a layered view (its transform applies before the layers below it read the table, so a top-level `calculate` runs once and
+every layer sees the calculated field), and each layer; the transforms of views inside a concatenation, facet, or repeat
+are not drawn and are reported. Because the scales are resolved over the transformed tables, a domain and every
 mark see the rows that the transforms produced, never the loaded ones; a sort of a discrete domain by an aggregate and a
 `scale.domain` of `unaggregated` read the **Raw** table, as Vega-Lite does, and everything else reads **Main**.
 

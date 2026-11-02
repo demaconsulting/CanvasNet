@@ -49,7 +49,9 @@ through the shared helper `ChartTestHelpers` to plan the legends of specificatio
 additionally builds them with the real `TextMeasurer`, `Ticks`, and `NumberFormat` and reads the scales of the same
 specifications for the sizes, opacities, and widths that the scale maps (the scale arithmetic itself is verified with
 the `ScaleModel` and `ScaleResolver` units). No mocking is used. The internal types are reached through the test
-assembly's `InternalsVisibleTo` access. Unit tests reside in `LegendPlanTests.cs` and `LegendBuilderTests.cs` within
+assembly's `InternalsVisibleTo` access. Unit tests reside in `LegendPlanTests.cs`, `LegendPlanLayerTests.cs` (the
+legends of
+the layers of a layered view, Phase 10), and `LegendBuilderTests.cs` within
 the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `Guides` folder; the legend symbols of the line, area,
 trail, arc, and text marks are in `LegendBuilderPathMarkTests.cs` (which reads the first legend through the shared
 `ChartTestHelpers.Legend` helper); the legends of temporal fields (the time
@@ -267,3 +269,45 @@ characters` and pass under 72, that an hourly `tickCount` over ten days
 throws `OperationCanceledException` while a live token builds the six labels; that a `config.timeFormat` or a legend
 `format` member of 1,025 characters is a located `VegaLiteSpecException` naming `the limit of 1024 characters`; and that
 the labels are the same under the Turkish, German, and invariant cultures and for two calls in a row.
+
+##### Legends Of The Layers Of A Layered View
+
+**Tests**: `LegendPlanLayerTests.LegendPlan_Create_SameFieldInTwoLayersIsOneLegend`,
+`LegendPlanLayerTests.LegendPlan_Create_TitlesOfDifferentFieldsJoin`,
+`LegendPlanLayerTests.LegendPlan_Create_WrittenTitleOfAnyLayerWinsOverDerivedTitles`,
+`LegendPlanLayerTests.LegendPlan_Create_WrittenTitlesJoinWhenDifferentAndMergeWhenEqual`,
+`LegendPlanLayerTests.LegendPlan_GuideTitle_WrittenWinsOverDerivedInEitherOrder`,
+`LegendPlanLayerTests.LegendPlan_GuideTitle_DerivedTitlesJoinDistinctInOrder`,
+`LegendPlanLayerTests.LegendPlan_GuideTitle_WrittenTitlesJoinWhenDifferent`,
+`LegendPlanLayerTests.LegendPlan_Create_ChannelOfALaterLayerUsesThatLayersMark`,
+`LegendPlanLayerTests.LegendPlan_Create_ChannelsOfDifferentLayersWithTheSameDomainMerge`,
+`LegendPlanLayerTests.LegendPlan_Create_PropertiesOfALaterLayerAreKeptWhenTheFirstIsSilent`,
+`LegendPlanLayerTests.LegendPlan_Create_ExplicitOrientConflictMakesTheLegendsIndependent`,
+`LegendPlanLayerTests.LegendPlan_Create_LayersInDifferentScopesKeepTheirOwnLegends`,
+`LegendPlanLayerTests.LegendPlan_Create_SingleLayerMatchesTheViewOverloadAndDisableIsHonored`
+
+Asserts that layers that color by the same field share one legend with one member and the title of the field; that the titles
+of different fields on the shared scale join in layer order (`a, b`); that a written title (a channel `title` or a
+`legend.title`) of any layer, first, middle, or last, wins over the derived titles of the others, as Vega-Lite's merge of
+explicit and implicit titles does; that different written titles join (`One, Two`), equal ones are one, and a written
+`null` switches the title off; the `GuideTitle` merge itself (written over derived in either order, derived titles
+joined as distinct parts in order, written titles joined with the lines of an array flattened, a title without text
+neutral, a written `null` winning); that a
+channel that only a later layer has is planned from that layer, with the facts (filled, fixed paint, and opacity) of its
+mark;
+that channels of different layers that explain the same domain (the color of the bars and the shape of the points, both
+by one
+field) share one legend, as channels of one view do; that layers in different scopes have a legend each, in layer order,
+and
+that a scope can differ by channel (a legend for each layer's color and one for the shared size, in the order of the first
+channel); that the legend properties of every layer count as Vega-Lite's `mergeLegendComponent` merges them (the orient
+and values that only the second layer gives are those of the one legend, with the mark of the first layer; of two layers
+that give the number of columns differently the first wins; a `gradient` type and a `symbol` type that differ give
+symbols while a `gradient` type and a silent layer give a gradient); that layers that give different explicit orients
+are
+not merged (a legend for each layer, each with the mark of its layer, also when the layer before them is silent),
+while an
+explicit orient with a silent layer, or the same orient twice, is one legend; and that a single layer plans exactly what
+the view overload plans for the same view and that the legends can
+still
+be switched off.

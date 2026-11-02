@@ -184,3 +184,16 @@ sections:
                 tests:
                   - AxisBuilder_Time_LabelFlushAndOverlapDefaults
                   - AxisBuilder_Time_NoRotationDefaultForTimeUnitOrdinal
+
+              - id: CanvasNetVegaLite-Guides-AxisBuilder-LayerAxes
+                title: >-
+                  The AxisBuilder unit shall build an axis on the side and with the grid that a layered view
+                  gives it when the axis object names none (the second independent axis of a position channel on
+                  the opposite side, and only the first axis with a grid), shall let an explicit orient or grid of
+                  the axis object win over those defaults and the configuration, and shall build an axis whose
+                  request names no default exactly as before.
+                justification: |
+                  Layers with independent axes need two axes that do not overlap, and an author's explicit orient
+                  or grid must still decide.
+                tests:
+                  - AxisBuilder_Build_DefaultOrientAndGridApplyOnlyWhenTheAxisSaysNothing

@@ -3,8 +3,10 @@
 This document describes the subsystem-level verification strategy for the `Layout` subsystem (internal namespace
 `DemaConsulting.CanvasNet.VegaLite.Layout`). In this release the subsystem contains two units: `ViewLayout`, which
 computes the data rectangle, padding, autosize, title and guide placement, background, and view border geometry of a
-single view and assembles the scene, and `LegendLayout`, which places the legends around the data rectangle and adds
-their room to the canvas (the composition layout of later releases adds units to this subsystem).
+single view (a layered view is laid out as one view, with the discrete step hints of its combined scales; the unit
+itself is unchanged) and assembles the scene, and `LegendLayout`, which places the legends around the data rectangle
+and adds their room to the canvas (the layout of the other compositions in later releases adds units to this
+subsystem).
 
 ### Verification Approach
 

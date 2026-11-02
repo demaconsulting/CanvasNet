@@ -18,7 +18,7 @@ public class DiscoveryCommandsChartTests
         """
         {
           "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
-          "title": "Info test",
+          "title": "Info test", "datasets": { "limits": [ { "v": 4 } ] },
           "width": 100,
           "height": 50,
           "params": [ { "name": "cutoff", "value": 3 } ],

@@ -312,7 +312,8 @@ try {
         'a chart with more than 512 data files fails naming the source and the limit' $over.Log
     New-ManyChart 512
     $at = Invoke-Filter 'many-at' '![c](many/chart512.vl.json)'
-    Write-Result ($at.ExitCode -eq 0 -and $at.Log -notmatch 'the limit is 512') `
+    # The filter must hash all 512; the tool then applies its own, lower data-file limit (MaxDataFiles), which is fine here.
+    Write-Result (($at.ExitCode -eq 0 -or $at.Log -match 'MaxDataFiles') -and $at.Log -notmatch 'the limit is 512') `
         'a chart with exactly 512 data files is not rejected by the limit' $at.Log
 
     # The same limit for a model: the model plus 512 included files is 513 hashed files.

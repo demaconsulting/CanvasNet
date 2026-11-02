@@ -4,13 +4,17 @@
 # These requirements decompose the CanvasNetVegaLite system's responsibility for the specification text into the
 # SpecModel subsystem (internal namespace DemaConsulting.CanvasNet.VegaLite.SpecModel): the bounded JSON parser
 # that builds an immutable tree with positions (SpecParser), the catalog that reports every recognized
-# construct outside the supported subset (FeatureCatalog), and the configuration resolver (ConfigResolver).
+# construct outside the supported subset (FeatureCatalog), the configuration resolver (ConfigResolver), and
+# (Phase 10) the normalizer that turns the views of a specification into a tree of layers and expands the
+# composite marks (SpecNormalizer).
 # Phase 5 adds the compilation of expressions and the validation of parameters and transforms (SpecParser); Phase 6
 # adds the validation of the aggregating transforms and of the aggregate, bin, stack, and sort of an encoding;
 # Phase 8 adds the validation of the time units, datetime objects, and tick intervals and the translation of
 # the time predicates, and retires the reports of the constructs that the time phase draws; Phase 9 adds the
 # validation of the properties of the line, area, trail, text, and arc marks and of the impute of an encoding,
-# and retires the reports of those marks and their channels.
+# and retires the reports of those marks and their channels; Phase 10 adds the validation of resolve and of the
+# properties of the composite marks, the tree of layers with the inheritance of data, transform, and encoding,
+# the expansion of boxplot, errorbar, and errorband, and retires the reports of layer and of those marks.
 # SpecModel knows everything about the specification text and nothing about data or pixels. Each requirement
 # here links down to the unit requirements that implement it. See
 # docs/verification/canvas-net-vega-lite/spec-model.md for the test-evidence mapping.
@@ -125,6 +129,8 @@ sections:
               - CanvasNetVegaLite-SpecModel-FeatureCatalog-TransformParts
               - CanvasNetVegaLite-SpecModel-FeatureCatalog-SortDiagnostics
               - CanvasNetVegaLite-SpecModel-FeatureCatalog-TimeIds
+              - CanvasNetVegaLite-SpecModel-FeatureCatalog-LayerReports
+              - CanvasNetVegaLite-SpecModel-FeatureCatalog-CompositeMarks
             tests:
               - FeatureCatalog_Visit_RecognizedUnsupportedPropertiesReturnsStableIds
               - FeatureCatalog_Visit_SupportedSpecificationHasNoReports
@@ -137,7 +143,58 @@ sections:
               - FeatureCatalog_Visit_CustomDateFormatIsSupportedAndReportsNothing
               - FeatureCatalog_Report_LineAreaTrailAreSupportedAndGeoshapeImageAreNot
               - FeatureCatalog_Report_ArcIsSupportedAndPolarChannelsAreGated
+              - FeatureCatalog_Visit_LayerCompositionIsNeverReported
+              - FeatureCatalog_Visit_BoxPlotIsSupportedWithItsChannels
               - CanvasNetVegaLite_SystemIntegration_Unsupported_MarkAndTransformCarryPointerLineColumn
+
+          - id: CanvasNetVegaLite-SpecModel-LayerValidation
+            title: >-
+              The SpecModel subsystem shall validate the resolve of a view (its scale, axis, and legend
+              objects, their channels, and the values shared and independent) and the properties of the
+              composite marks (the extent, the center, and the parts box, median, rule, ticks, outliers,
+              band, and borders), failing with a located specification exception at the first wrong value
+              and warning about an unknown resolve kind, and shall decide which views are drawn (the root and
+              the layers reached through layer arrays only) and which composition holds a view that is not.
+            justification: |
+              A mistake in the resolve of layers or in a composite mark must be found when the specification
+              is opened, with its location, and the rule for which views are drawn must be one definition that
+              the validation, the report, and the renderer share.
+            children:
+              - CanvasNetVegaLite-SpecModel-SpecParser-ResolveAndCompositeValidation
+              - CanvasNetVegaLite-SpecModel-SpecParser-DrawnViews
+            tests:
+              - SpecParser_Parse_ValidResolveIsAccepted
+              - SpecParser_Parse_MalformedResolveReportsThePointer
+              - SpecParser_Parse_MalformedCompositeMarkReportsThePointer
+              - SpecParser_IsDrawnView_LayersAreDrawnCompositionsAreNot
+
+          - id: CanvasNetVegaLite-SpecModel-Normalize
+            title: >-
+              The SpecModel subsystem shall describe the views of a specification as a tree of the unit
+              views that are drawn - the layers of a layered view with the encoding, size, data, transform,
+              and resolve that they inherit - shall expand the composite marks boxplot, errorbar, and
+              errorband into the primitive layers that Vega-Lite normalizes them to, and shall fail closed
+              at the limits of the nesting depth and of the number of views.
+            justification: |
+              The renderer draws primitive unit views; every layered and composite chart is first reduced to
+              them, so the reduction must be exact and bounded.
+            children:
+              - CanvasNetVegaLite-SpecModel-SpecNormalizer-LayerTree
+              - CanvasNetVegaLite-SpecModel-SpecNormalizer-Inheritance
+              - CanvasNetVegaLite-SpecModel-SpecNormalizer-Resolve
+              - CanvasNetVegaLite-SpecModel-SpecNormalizer-Limits
+              - CanvasNetVegaLite-SpecModel-SpecNormalizer-Expansion
+              - CanvasNetVegaLite-SpecModel-SpecNormalizer-BoxPlot
+              - CanvasNetVegaLite-SpecModel-SpecNormalizer-ErrorBar
+              - CanvasNetVegaLite-SpecModel-SpecNormalizer-ErrorBand
+              - CanvasNetVegaLite-SpecModel-SpecNormalizer-CompositeErrors
+            tests:
+              - SpecNormalizer_Layers_LayersAreUnitsInDocumentOrder
+              - SpecNormalizer_Layers_EncodingIsMergedInPlace
+              - SpecNormalizer_Layers_DepthLimitIsEnforced
+              - SpecNormalizer_Expand_TukeyBoxPlotIsOutlierWhiskerAndBoxViews
+              - SpecNormalizer_Expand_ErrorBarDefaultIsTheRuleOfTheMeanAndStandardError
+              - SpecNormalizer_Expand_ErrorBandTwoDimensionalIsAnAreaWithLineBorders
 
           - id: CanvasNetVegaLite-SpecModel-MarkValidation
             title: >-
@@ -271,6 +328,7 @@ sections:
               - CanvasNetVegaLite-SpecModel-ConfigResolver-V6Defaults
               - CanvasNetVegaLite-SpecModel-ConfigResolver-Precedence
               - CanvasNetVegaLite-SpecModel-ConfigResolver-StyleResolution
+              - CanvasNetVegaLite-SpecModel-ConfigResolver-CompositeMarkDefaults
             tests:
               - ConfigResolver_Resolve_VegaLiteV6DefaultsAndOverrides
               - ConfigResolver_Resolve_CallerConfigOverridesSpecConfig
