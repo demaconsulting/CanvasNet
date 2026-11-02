@@ -235,6 +235,10 @@ public sealed partial class Surface
     public Surface FitInto(int boxWidth, int boxHeight, FitMode mode, Rgba32 fill, ResamplingMode filter = ResamplingMode.Auto)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentOutOfRangeException.ThrowIfLessThan(boxWidth, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(boxWidth, MaxDimension);
+        ArgumentOutOfRangeException.ThrowIfLessThan(boxHeight, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(boxHeight, MaxDimension);
         if (!Enum.IsDefined(mode))
         {
             throw new ArgumentOutOfRangeException(nameof(mode), mode, "The fit mode is not defined.");
@@ -252,16 +256,17 @@ public sealed partial class Surface
             return fitted;
         }
 
-        var result = new Surface(boxWidth, boxHeight);
+        Surface? result = null;
         try
         {
+            result = new Surface(boxWidth, boxHeight);
             result.Clear(fill);
             result.CopyFrom(fitted, (boxWidth - width) / 2, (boxHeight - height) / 2);
             return result;
         }
         catch
         {
-            result.Dispose();
+            result?.Dispose();
             throw;
         }
         finally

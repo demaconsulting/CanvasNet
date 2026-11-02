@@ -441,7 +441,10 @@ public class SurfaceTransformsTests
         using var source = Solid(2, 2, Ink);
         Assert.Throws<ArgumentOutOfRangeException>(() => source.FitInto(4, 4, (FitMode)99, Fill));
         Assert.Throws<ArgumentOutOfRangeException>(() => source.FitInto(0, 4, FitMode.Contain, Fill));
-        Assert.Throws<ArgumentOutOfRangeException>(() => source.FitInto(4, Surface.MaxDimension + 1, FitMode.Stretch, Fill));
+        var stretch = Assert.Throws<ArgumentOutOfRangeException>(() => source.FitInto(4, Surface.MaxDimension + 1, FitMode.Stretch, Fill));
+        Assert.Equal("boxHeight", stretch.ParamName);
+        var contain = Assert.Throws<ArgumentOutOfRangeException>(() => source.FitInto(Surface.MaxDimension + 1, 4, FitMode.Contain, Fill));
+        Assert.Equal("boxWidth", contain.ParamName);
     }
 
     /// <summary>
