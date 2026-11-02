@@ -641,6 +641,9 @@ src/DemaConsulting.CanvasNet/
 │   ├── SystemFontCatalog.cs             — OS font discovery, best-effort matching, cached font load, bundled fallback
 │   ├── FontDirectoryScanner.cs          — Deterministic, bounded, link-safe header-only font directory scan
 │   ├── FontScanLimits.cs                — Bounds (directories, entries, font files, faces) of a font directory scan
+│   ├── GenericFontFamilies.cs           — Generic-family keyword/alias classification and CSS font-family list splitting
+│   ├── FontResolver.cs                  — Resolves a CSS font-family list to a loaded font (plus ResolvedFont, FontSource)
+│   ├── FontResolverOptions.cs           — Directories, installed-font and alias options of a FontResolver
 │   ├── BundledFonts/                    — Embedded Liberation Sans/Serif/Mono plus Noto Symbol/ZapfDingbats substitute
 │   │                                       .ttf files and OFL.txt license(s)
 │   └── NamespaceDoc.cs                  — Namespace-level XML documentation

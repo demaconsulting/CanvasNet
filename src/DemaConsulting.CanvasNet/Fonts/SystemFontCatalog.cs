@@ -430,7 +430,7 @@ public static class SystemFontCatalog
     /// <param name="path">The font file.</param>
     /// <param name="faceIndex">The face index.</param>
     /// <returns>The font, or <see langword="null"/> when it cannot be loaded.</returns>
-    private static TrueTypeFont? LoadUncached(string path, int faceIndex)
+    internal static TrueTypeFont? LoadUncached(string path, int faceIndex)
     {
         try
         {

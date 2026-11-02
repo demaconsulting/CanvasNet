@@ -69,6 +69,17 @@ pixel rendering remain outside this subsystem's boundary.
   returns a `SystemFontInfo` per well-formed face; `SystemFontCatalog.Fonts` is built with it and a
   caller may use it directly for its own font directories; see _FontDirectoryScanner Unit Design_
   (`fonts/font-directory-scanner.md`)
+- **GenericFontFamilies** — the fourth public unit. It holds the one table of CSS generic font
+  families and well-known aliases that classify a family name as sans-serif, serif or monospace
+  (`TryClassify`), and the one quote-aware CSS `font-family` list splitter (`SplitFamilyList`); see
+  _GenericFontFamilies Unit Design_ (`fonts/generic-font-families.md`)
+- **FontResolver** — the fifth public unit. `FontResolver.Resolve` resolves a CSS family list, a
+  bold flag and an italic flag to a loaded `ResolvedFont` without ever failing: a generic keyword
+  (optionally a well-known alias) maps to the bundled Liberation fonts, any other family is looked
+  up by exact name in additional directories (scanned with `FontDirectoryScanner`), then optionally
+  in the installed fonts (`SystemFontCatalog`), then among the bundled family names, and the
+  reason for a fallback is reported. It is configured by `FontResolverOptions`; see
+  _FontResolver Unit Design_ (`fonts/font-resolver.md`)
 
 ### Dependencies
 
@@ -87,7 +98,8 @@ happens outside the subsystem itself.
 
 ### Callers
 
-`TrueTypeFont`, `SystemFontCatalog` and `FontDirectoryScanner` are public API entry points, called directly by
+`TrueTypeFont`, `SystemFontCatalog`, `FontDirectoryScanner`, `GenericFontFamilies` and `FontResolver` are public API
+entry points, called directly by
 consumers of the CanvasNet package. Within this repository, the subsystem is exercised by
 dedicated `Fonts` unit tests, by real-font integration tests in
 `TrueTypeFontRealFontIntegrationTests.cs` (covering real `.ttf`, `.otf`, and locally-assembled
@@ -96,4 +108,6 @@ files through `TrueTypeFont.Load` itself), by `SystemFontCatalogRealDiscoveryInt
 (gated real-filesystem discovery), and by the two system-integration tests in `CanvasNetTests.cs`
 that load a synthetic font, query metrics, obtain an outline, and render that outline through
 `PathFiller` onto a `Surface`. `SystemFontCatalog` is additionally called by
-`DemaConsulting.CanvasNet.Pdf`'s `PdfDocument` when resolving a non-embedded font.
+`DemaConsulting.CanvasNet.Pdf`'s `PdfDocument` when resolving a non-embedded font. `FontResolver`
+resolves the default font of the Svg codec's `text` elements, the fonts of the Vega-Lite text
+measurer and the `font` argument of the OpenSCAD `text()` module.

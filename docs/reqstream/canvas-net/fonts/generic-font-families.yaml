@@ -1,0 +1,43 @@
+---
+# Software Unit Requirements for GenericFontFamilies
+#
+# These requirements describe the design-level behavior of the GenericFontFamilies unit.
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Fonts Requirements
+        sections:
+          - title: GenericFontFamilies Requirements
+            requirements:
+              - id: CanvasNet-Fonts-GenericFontFamilies-Classification
+                title: >-
+                  The GenericFontFamilies type shall classify a family name, ignoring case and
+                  without trimming or unquoting it, as sans-serif, serif or monospace when it is a
+                  CSS generic family keyword (sans-serif, system-ui, ui-sans-serif, cursive and
+                  fantasy; serif and ui-serif; monospace and ui-monospace) and, only when the caller
+                  asks for the common aliases, when it is a well-known family name (Arial,
+                  Helvetica, Times New Roman, Georgia, Courier New, Consolas, the Liberation family
+                  names, and similar), and shall not classify any other name, nor a null or empty
+                  one.
+                justification: |
+                  Several libraries each carried their own table of which family names mean
+                  sans-serif, serif or monospace; one table keeps them consistent, and keeping the
+                  well-known aliases optional lets a caller choose between machine-independent
+                  results and the use of an installed font of that name.
+                tests:
+                  - GenericFontFamilies_TryClassify_Keywords_AreClassifiedWithAndWithoutAliases
+                  - GenericFontFamilies_TryClassify_Aliases_AreClassifiedOnlyWhenRequested
+                  - GenericFontFamilies_TryClassify_OtherNames_AreNotClassified
+
+              - id: CanvasNet-Fonts-GenericFontFamilies-SplitFamilyList
+                title: >-
+                  The GenericFontFamilies type shall split a CSS font-family list at the commas
+                  outside single or double quotes, dropping the quotes and the white space around
+                  each name and the empty names, and shall give an empty list for a null or
+                  white-space list.
+                justification: |
+                  A family name may itself contain a comma when it is quoted, and the quotes are
+                  not part of the name; every consumer must read the list the same way.
+                tests:
+                  - GenericFontFamilies_SplitFamilyList_HonorsQuotesAndDropsEmptyNames

@@ -146,6 +146,34 @@ public class SvgDefaultFontTests
     }
 
     /// <summary>
+    ///     Proves the bundled family names resolve to the bundled font of that family rather than falling
+    ///     through to Liberation Sans, and that a quoted family may contain a comma.
+    /// </summary>
+    /// <param name="family">The CSS <c>font-family</c> value.</param>
+    /// <param name="serif">Whether Liberation Serif is expected.</param>
+    /// <param name="mono">Whether Liberation Mono is expected.</param>
+    [Theory]
+    [InlineData("Liberation Sans", false, false)]
+    [InlineData("Liberation Serif", true, false)]
+    [InlineData("'liberation serif'", true, false)]
+    [InlineData("Liberation Mono", false, true)]
+    [InlineData("No Such Family 7f3a, Liberation Serif", true, false)]
+    [InlineData("'No Such, Family 7f3a', serif", true, false)]
+    public void SvgCodec_Load_TextBundledFamilyNameSystemFontsDisabled_RendersThatBundledFamily(
+        string family, bool serif, bool mono)
+    {
+        // Arrange
+        var expected = RenderReference(Bundled(serif, mono));
+
+        // Act
+        var actual = Render(BuildSvg($"font-family=\"{family}\""), options: NoSystemFonts);
+
+        // Assert
+        Assert.True(CountInk(actual) > 0);
+        AssertSurfacesEqual(expected, actual);
+    }
+
+    /// <summary>
     ///     Proves <c>font-weight</c> and <c>font-style</c> select the matching bundled style variant
     ///     for a generic family (a weight of 600 or more is bold; <c>oblique</c> is italic).
     /// </summary>

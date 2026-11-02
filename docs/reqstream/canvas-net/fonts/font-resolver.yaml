@@ -1,0 +1,95 @@
+---
+# Software Unit Requirements for FontResolver
+#
+# These requirements describe the design-level behavior of the FontResolver unit (including its
+# FontResolverOptions, ResolvedFont and FontSource types).
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Fonts Requirements
+        sections:
+          - title: FontResolver Requirements
+            requirements:
+              - id: CanvasNet-Fonts-FontResolver-DefaultAndGeneric
+                title: >-
+                  The FontResolver type shall resolve a null, empty or white-space family list, and
+                  a list none of whose families is found, to the bundled Liberation Sans, shall
+                  resolve a CSS generic family keyword (and, when the options ask for it, a common
+                  alias such as Arial or Times New Roman, before any directory or installed font is
+                  consulted) to the bundled Liberation Sans, Serif or Mono, shall give the bundled
+                  face the requested bold and italic style, and shall return the same resolution
+                  for the same request.
+                justification: |
+                  A result that must be reproducible on every machine needs a last resort and a
+                  generic mapping that never depend on what is installed, and a caller must be able
+                  to choose whether well-known names are mapped to the bundled fonts or looked up.
+                tests:
+                  - FontResolver_Resolve_DefaultAndGenericKeywords_UseTheBundledFonts
+                  - FontResolver_Resolve_BoldAndItalic_SelectTheBundledStyleVariant
+                  - FontResolver_Resolve_CommonAliases_AreMappedBeforeDirectoriesOnlyWhenRequested
+
+              - id: CanvasNet-Fonts-FontResolver-LookupOrder
+                title: >-
+                  The FontResolver type shall look a family that is not generic up by exact name
+                  (ignoring case), in the additional directories in the order given, then - only
+                  when the options enable it, and without reading the installed fonts otherwise -
+                  in the installed fonts, then among the three bundled family names, taking within
+                  a source the face whose bold and italic flags differ least from the request and
+                  the first one found on a tie, and shall try the next family of the list when one
+                  is found nowhere.
+                justification: |
+                  The documented search order makes the result depend only on the inputs the caller
+                  controls, and never on the generic substitution of the installed-font catalog.
+                tests:
+                  - FontResolver_Resolve_NamedFamily_SearchesDirectoriesThenSystemThenBundledNames
+                  - FontResolver_Resolve_SystemFontsDisabled_NeverAsksForTheInstalledFaces
+
+              - id: CanvasNet-Fonts-FontResolver-FailureReporting
+                title: >-
+                  The FontResolver type shall report through its failure output, when it falls
+                  back to the bundled Liberation Sans, why no listed family was met - that no such
+                  family was found, or that a found face's font file could not be loaded (a face
+                  that is found but cannot be loaded failing its family without trying the later
+                  sources) - and shall report no failure when a family of the list was met or the
+                  list names no family.
+                justification: |
+                  A consumer that tells its user about a missing font needs the reason, and a
+                  vanished or damaged file must degrade to the fallback rather than fail the
+                  render.
+                tests:
+                  - FontResolver_Resolve_UnknownFamily_FallsBackToSansAndReportsWhyOnlyWhenNothingWasMet
+                  - FontResolver_Resolve_FoundFaceThatCannotBeLoaded_FailsTheFamilyAndReportsTheFile
+
+              - id: CanvasNet-Fonts-FontResolver-AdditionalDirectoryScan
+                title: >-
+                  The FontResolver type shall scan the additional directories at most once, on the
+                  first lookup that needs them, with FontDirectoryScanner under the configured
+                  FontScanLimits, skipping a missing directory and a file that is not a font, and
+                  shall end that scan with OperationCanceledException, without keeping the canceled
+                  scan, when its cancellation token is canceled.
+                justification: |
+                  A directory scan costs file-system time, must be bounded against a hostile tree,
+                  and must be cancellable by a caller that is itself cancellable; a resolver that
+                  never needs the directories must not scan them.
+                tests:
+                  - FontResolver_Resolve_AdditionalDirectories_AreScannedWithTheLimitsAndSkipUnusableInput
+                  - FontResolver_Resolve_CanceledToken_StopsTheScanOnlyWhenThereIsOneToDo
+
+              - id: CanvasNet-Fonts-FontResolver-Options
+                title: >-
+                  The FontResolver type shall copy the additional directories it is given, shall
+                  reject options whose directory list or scan limits is null, shall default to
+                  bundled fonts only (no installed fonts, no aliases mapped, no directories), shall cache the
+                  faces it loads from the additional directories in the resolver itself (not process-wide, so
+                  two resolvers over one directory do not share them), and
+                  shall be safe for concurrent use, giving concurrent requests for one family list
+                  the same font.
+                justification: |
+                  A resolver shared by the threads of one render must not be affected by later
+                  changes to a caller's list, and must not load or scan twice; a long-running process
+                  that uses many temporary font directories must not keep every font it selected.
+                tests:
+                  - FontResolver_Constructor_CopiesDirectoriesAndRejectsNullMembers
+                  - FontResolver_Resolve_DirectoryFaces_AreCachedPerResolver
+                  - FontResolver_Resolve_ConcurrentRequests_ShareOneResultFont

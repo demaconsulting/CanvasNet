@@ -11,7 +11,7 @@
 The `SvgCodec` class is the sole software unit of the `CanvasNetSvg` system - unlike the five
 units of the `CanvasNet` system's `Codecs` subsystem, whose dependencies are limited to
 `Canvas.Surface`, `SvgCodec`'s dependencies extend to `CanvasNet`'s `Geometry`, `Drawing`, and
-`Fonts` subsystems as well (the `Fonts` dependency includes `Fonts.SystemFontCatalog`, used to
+`Fonts` subsystems as well (the `Fonts` dependency includes `Fonts.FontResolver`, used to
 resolve a `text` element's font when the caller registers none - see the Dependencies section of
 _CanvasNetSvg System Design_,
 `../canvas-net-svg.md`). It provides hand-rolled, decode/
@@ -1472,8 +1472,11 @@ child, and the filter bounds pre-pass, always returns a font, in this order:
    semantics (the whole `font-family` list is checked against the caller's dictionary first, so a
    registered family later in the list still beats an earlier generic keyword). A family whose
    registered face list is empty no longer matches.
-2. **Each family of the `font-family` list, in order** - a generic keyword maps to the bundled
-   Liberation fonts via `SystemFontCatalog.LoadBundledFallback` (`sans-serif`, `system-ui`,
+2. **Each family of the `font-family` list, in order** - resolved by the core `FontResolver` (a resolver is
+   created once per render, in the `RenderContext`, with `UseSystemFonts` from `SvgLoadOptions` and no
+   additional directories or alias mapping): the list is split by `GenericFontFamilies.SplitFamilyList` (quotes
+   respected, so a quoted family may contain a comma); a generic keyword maps to the bundled
+   Liberation fonts (`sans-serif`, `system-ui`,
    `ui-sans-serif`, `cursive`, and `fantasy` to Liberation Sans; `serif` and `ui-serif` to
    Liberation Serif; `monospace` and `ui-monospace` to Liberation Mono; `cursive`/`fantasy` have
    no better bundled match, so they use Sans); any other name is looked up among the host's
@@ -1481,14 +1484,18 @@ child, and the filter bounds pre-pass, always returns a font, in this order:
    case-insensitive family match, closest style, with no generic-bucket substitution, so a missing
    family falls to the next list entry rather than to an arbitrary installed font) and the
    matched file is loaded with `SystemFontCatalog.Load`. A file
-   that cannot be read or parsed is tolerated (`Load` returns `null` and the next family is tried). This step is skipped
-   when `SvgLoadOptions.UseSystemFonts` is `false`; generic keywords never consult installed fonts.
+   that cannot be read or parsed is tolerated (`Load` returns `null` and the next family is tried). The
+   installed-font step is skipped when `SvgLoadOptions.UseSystemFonts` is `false`; generic keywords never consult
+   installed fonts. A name that no installed font has and that is one of the three bundled family names
+   (`Liberation Sans`, `Liberation Serif`, `Liberation Mono`) maps to that bundled font, so an
+   SVG written for those fonts renders with them, in Serif and Mono as well as Sans, even when nothing is installed
+   or the option is `false`.
 3. **Last resort** - the bundled Liberation Sans.
 
 The requested weight/style reduce to two flags for steps 2 and 3: bold when the cascaded
 `font-weight` is `>= 600`, italic when `font-style` is `italic`/`oblique`. A `text` with no
-`font-family` at all resolves directly to step 3. The result is cached per render in the
-`RenderContext` (keyed by the raw `font-family` text and the two flags); the only state
+`font-family` at all resolves directly to step 3. The result is cached per render by the
+`RenderContext`'s resolver (keyed by the raw `font-family` text and the two flags); the only state
 shared beyond one render is what `SystemFontCatalog` already holds (its lazily scanned catalog,
 the process-lifetime cache of loaded installed fonts behind `Load`, and the
 bundled-font cache), so the thread-safety contract is unchanged - `Load` remains safe to call

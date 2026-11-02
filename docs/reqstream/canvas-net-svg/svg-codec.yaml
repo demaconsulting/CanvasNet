@@ -353,7 +353,8 @@ sections:
               generic family (sans-serif, system-ui, ui-sans-serif, cursive, fantasy to the
               bundled Liberation Sans; serif and ui-serif to Liberation Serif; monospace and
               ui-monospace to Liberation Mono) to the matching bundled font, and any other
-              name to an installed font with that exact family name - and finally falling back
+              name to an installed font with that exact family name (or the bundled font of that
+              name for Liberation Sans, Serif or Mono) - and finally falling back
               to the bundled Liberation Sans, in each case in the requested font-weight (bold
               at 600 or more) and font-style.
             justification: |
@@ -369,6 +370,7 @@ sections:
               - SvgCodec_Load_TextGenericFamilies_SansSerifAndMonospaceRenderDifferently
               - SvgCodec_Load_TextGenericFamilyWithWeightAndStyle_RendersBundledStyleVariant
               - SvgCodec_Load_TextGenericSerifAndMonospaceBoldItalic_RendersBundledStyleVariants
+              - SvgCodec_Load_TextBundledFamilyNameSystemFontsDisabled_RendersThatBundledFamily
               - SvgCodec_Load_TextUnknownFamilySystemFontsDisabled_RendersBundledLiberationSans
               - SvgCodec_Load_TextWithoutFontFamilyAttribute_RendersBundledLiberationSans
               - SvgCodec_Load_TextFamilyList_UsesFirstResolvableFamilyInOrder

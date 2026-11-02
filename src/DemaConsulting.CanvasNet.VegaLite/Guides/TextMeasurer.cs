@@ -1,5 +1,4 @@
 // Portions derived from Vega (BSD-3-Clause); see third-party/README.md
-using System.Collections.Concurrent;
 using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Rendering;
 using DemaConsulting.CanvasNet.VegaLite.Scenegraph;
@@ -14,31 +13,6 @@ namespace DemaConsulting.CanvasNet.VegaLite.Guides;
 /// <param name="Weight">The weight: <c>normal</c>, <c>bold</c>, <c>bolder</c> or a number (600 and above is bold); null is normal.</param>
 /// <param name="Style">The style: <c>normal</c>, <c>italic</c> or <c>oblique</c>; null is normal.</param>
 internal readonly record struct TextFont(string? Family, double Size, string? Weight = null, string? Style = null);
-
-/// <summary>
-///     Where a resolved font came from.
-/// </summary>
-internal enum FontSource
-{
-    /// <summary>One of the Liberation fonts bundled with the core library: the same on every machine.</summary>
-    Bundled,
-
-    /// <summary>A font file found in one of <see cref="VegaLiteFontOptions.AdditionalDirectories"/>.</summary>
-    AdditionalDirectory,
-
-    /// <summary>A font installed on the host, used because <see cref="VegaLiteFontOptions.UseSystemFonts"/> is set.</summary>
-    System,
-}
-
-/// <summary>
-///     A font face that a <see cref="TextFont"/> request resolved to.
-/// </summary>
-/// <param name="Font">The loaded font; shared and safe to use from several threads.</param>
-/// <param name="Family">The family name of the face (for example <c>Liberation Sans</c>).</param>
-/// <param name="Source">Where the face came from.</param>
-/// <param name="Bold">Whether the face is bold.</param>
-/// <param name="Italic">Whether the face is italic.</param>
-internal sealed record ResolvedFont(TrueTypeFont Font, string Family, FontSource Source, bool Bold, bool Italic);
 
 /// <summary>
 ///     The size of a block of text lines.
@@ -66,12 +40,13 @@ internal readonly record struct FontMetrics(double Ascent, double Descent);
 ///         library, whatever fonts are installed.
 ///     </para>
 ///     <para>
-///         <b>Resolution.</b> The family list is read from left to right and the first family that resolves wins.
-///         <c>sans-serif</c>, <c>system-ui</c> and the common sans families (Helvetica, Arial, Helvetica Neue, Verdana,
-///         Tahoma, Segoe UI, ...) resolve to Liberation Sans; <c>serif</c>, Times, Times New Roman, Georgia and similar
-///         to Liberation Serif; <c>monospace</c>, Courier, Courier New, Menlo, Consolas and similar to Liberation Mono.
-///         Any other family is looked up by name (case-insensitive) in the
-///         <see cref="VegaLiteFontOptions.AdditionalDirectories"/> and then, only when
+///         <b>Resolution.</b> The core <see cref="FontResolver"/> does it, with the common aliases mapped to the
+///         bundled fonts first (<see cref="FontResolverOptions.MapCommonAliasesToBundled"/>): the family list is read
+///         from left to right and the first family that resolves wins. <c>sans-serif</c>, <c>system-ui</c> and the
+///         common sans families (Helvetica, Arial, Helvetica Neue, Verdana, Tahoma, Segoe UI, ...) resolve to Liberation
+///         Sans; <c>serif</c>, Times, Times New Roman, Georgia and similar to Liberation Serif; <c>monospace</c>,
+///         Courier, Courier New, Menlo, Consolas and similar to Liberation Mono. Any other family is looked up by name
+///         (case-insensitive) in the <see cref="VegaLiteFontOptions.AdditionalDirectories"/> and then, only when
 ///         <see cref="VegaLiteFontOptions.UseSystemFonts"/> is set, among the installed fonts; when nothing matches the
 ///         next family is tried, and an empty or exhausted list means Liberation Sans. A weight of 600 or more, or
 ///         <c>bold</c>/<c>bolder</c>, selects the bold face; <c>italic</c> or <c>oblique</c> the italic face. A family
@@ -95,38 +70,8 @@ internal readonly record struct FontMetrics(double Ascent, double Descent);
 /// </remarks>
 internal sealed class TextMeasurer
 {
-    /// <summary>Family names that resolve to the bundled sans-serif font.</summary>
-    private static readonly HashSet<string> SansFamilies = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "sans-serif", "system-ui", "ui-sans-serif", "-apple-system", "blinkmacsystemfont", "helvetica", "helvetica neue",
-        "arial", "verdana", "tahoma", "trebuchet ms", "segoe ui", "liberation sans", "dejavu sans", "roboto", "open sans",
-    };
-
-    /// <summary>Family names that resolve to the bundled serif font.</summary>
-    private static readonly HashSet<string> SerifFamilies = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "serif", "ui-serif", "times", "times new roman", "georgia", "liberation serif", "palatino", "palatino linotype",
-        "book antiqua", "cambria", "garamond",
-    };
-
-    /// <summary>Family names that resolve to the bundled monospace font.</summary>
-    private static readonly HashSet<string> MonospaceFamilies = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "monospace", "ui-monospace", "courier", "courier new", "menlo", "consolas", "monaco", "lucida console",
-        "liberation mono", "dejavu sans mono",
-    };
-
-    /// <summary>The most font files that are read from the additional directories.</summary>
-    internal const int MaxDirectoryFonts = 4096;
-
-    /// <summary>The font options.</summary>
-    private readonly VegaLiteFontOptions _options;
-
-    /// <summary>The resolved fonts by family list, bold and italic.</summary>
-    private readonly ConcurrentDictionary<(string Family, bool Bold, bool Italic), ResolvedFont> _cache = new();
-
-    /// <summary>The fonts found in the additional directories, read on first use.</summary>
-    private readonly Lazy<IReadOnlyList<ResolvedFont>> _directoryFonts;
+    /// <summary>The resolver that picks the face for a request; it caches the faces already resolved.</summary>
+    private readonly FontResolver _resolver;
 
     /// <summary>
     ///     Initializes a measurer.
@@ -134,8 +79,15 @@ internal sealed class TextMeasurer
     /// <param name="options">The font options, or null for the defaults (bundled fonts only).</param>
     public TextMeasurer(VegaLiteFontOptions? options = null)
     {
-        _options = options ?? new VegaLiteFontOptions();
-        _directoryFonts = new Lazy<IReadOnlyList<ResolvedFont>>(() => LoadDirectoryFonts(_options.AdditionalDirectories), LazyThreadSafetyMode.ExecutionAndPublication);
+        options ??= new VegaLiteFontOptions();
+
+        // The common aliases map to the bundled fonts first, so those names measure alike on every machine
+        _resolver = new FontResolver(new FontResolverOptions
+        {
+            AdditionalDirectories = options.AdditionalDirectories,
+            UseSystemFonts = options.UseSystemFonts,
+            MapCommonAliasesToBundled = true,
+        });
     }
 
     /// <summary>
@@ -165,62 +117,6 @@ internal sealed class TextMeasurer
         !string.IsNullOrWhiteSpace(style)
         && (string.Equals(style.Trim(), "italic", StringComparison.OrdinalIgnoreCase)
             || string.Equals(style.Trim(), "oblique", StringComparison.OrdinalIgnoreCase));
-
-    /// <summary>
-    ///     Splits a CSS font family list into family names.
-    /// </summary>
-    /// <param name="families">The list, for example <c>"Helvetica Neue", Arial, sans-serif</c>.</param>
-    /// <returns>The names without quotes or surrounding white space, in order; empty entries are dropped.</returns>
-    public static IReadOnlyList<string> SplitFamilies(string? families)
-    {
-        var result = new List<string>();
-        if (string.IsNullOrWhiteSpace(families))
-        {
-            return result;
-        }
-
-        var current = new System.Text.StringBuilder();
-        var quote = '\0';
-        void Flush()
-        {
-            var name = current.ToString().Trim();
-            current.Clear();
-            if (name.Length > 0)
-            {
-                result.Add(name);
-            }
-        }
-
-        foreach (var c in families)
-        {
-            if (quote != '\0')
-            {
-                if (c == quote)
-                {
-                    quote = '\0';
-                }
-                else
-                {
-                    current.Append(c);
-                }
-            }
-            else if (c is '"' or '\'')
-            {
-                quote = c;
-            }
-            else if (c == ',')
-            {
-                Flush();
-            }
-            else
-            {
-                current.Append(c);
-            }
-        }
-
-        Flush();
-        return result;
-    }
 
     /// <summary>
     ///     Splits text into lines at line feeds (a carriage return, alone or before a line feed, also ends a line).
@@ -285,12 +181,8 @@ internal sealed class TextMeasurer
     /// <param name="weight">The weight, or null for normal.</param>
     /// <param name="style">The style, or null for normal.</param>
     /// <returns>The face; never null, because the bundled Liberation Sans is the last resort.</returns>
-    public ResolvedFont Resolve(string? family, string? weight, string? style)
-    {
-        var bold = IsBold(weight);
-        var italic = IsItalic(style);
-        return _cache.GetOrAdd((family ?? string.Empty, bold, italic), key => ResolveUncached(SplitFamilies(key.Family), key.Bold, key.Italic));
-    }
+    public ResolvedFont Resolve(string? family, string? weight, string? style) =>
+        _resolver.Resolve(family, IsBold(weight), IsItalic(style), out _);
 
     /// <summary>
     ///     Measures the advance width of one line of text, without trimming or truncating it.
@@ -476,259 +368,6 @@ internal sealed class TextMeasurer
     /// </summary>
     /// <param name="family">The family name.</param>
     /// <returns>True when the family resolves to a bundled font whatever fonts are installed.</returns>
-    internal static bool IsMappedFamily(string family)
-    {
-        return SansFamilies.Contains(family) || SerifFamilies.Contains(family) || MonospaceFamilies.Contains(family);
-    }
-
-    /// <summary>
-    ///     Resolves a family list without the cache.
-    /// </summary>
-    /// <param name="families">The family names.</param>
-    /// <param name="bold">Whether bold is requested.</param>
-    /// <param name="italic">Whether italic is requested.</param>
-    /// <returns>The face.</returns>
-    private ResolvedFont ResolveUncached(IReadOnlyList<string> families, bool bold, bool italic)
-    {
-        foreach (var family in families)
-        {
-            if (SansFamilies.Contains(family))
-            {
-                return Bundled(serif: false, fixedPitch: false, bold, italic);
-            }
-
-            if (SerifFamilies.Contains(family))
-            {
-                return Bundled(serif: true, fixedPitch: false, bold, italic);
-            }
-
-            if (MonospaceFamilies.Contains(family))
-            {
-                return Bundled(serif: false, fixedPitch: true, bold, italic);
-            }
-
-            var named = FindNamed(family, bold, italic);
-            if (named is not null)
-            {
-                return named;
-            }
-        }
-
-        return Bundled(serif: false, fixedPitch: false, bold, italic);
-    }
-
-    /// <summary>
-    ///     Gets a bundled Liberation face.
-    /// </summary>
-    /// <param name="serif">Whether the serif family is requested.</param>
-    /// <param name="fixedPitch">Whether the monospace family is requested.</param>
-    /// <param name="bold">Whether bold is requested.</param>
-    /// <param name="italic">Whether italic is requested.</param>
-    /// <returns>The face.</returns>
-    private static ResolvedFont Bundled(bool serif, bool fixedPitch, bool bold, bool italic)
-    {
-        var font = SystemFontCatalog.LoadBundledFallback(serif, fixedPitch, bold, italic);
-        var family = "Liberation Sans";
-        if (fixedPitch)
-        {
-            family = "Liberation Mono";
-        }
-        else if (serif)
-        {
-            family = "Liberation Serif";
-        }
-
-        return new ResolvedFont(font, family, FontSource.Bundled, bold, italic);
-    }
-
-    /// <summary>
-    ///     Looks a named family up in the additional directories and, when allowed, the installed fonts.
-    /// </summary>
-    /// <param name="family">The family name.</param>
-    /// <param name="bold">Whether bold is requested.</param>
-    /// <param name="italic">Whether italic is requested.</param>
-    /// <returns>The face, or null when no allowed source has the family.</returns>
-    private ResolvedFont? FindNamed(string family, bool bold, bool italic)
-    {
-        ResolvedFont? best = null;
-        var bestScore = int.MaxValue;
-        foreach (var candidate in _directoryFonts.Value)
-        {
-            if (!string.Equals(candidate.Family, family, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            var score = (candidate.Bold != bold ? 1 : 0) + (candidate.Italic != italic ? 1 : 0);
-            if (score < bestScore)
-            {
-                best = candidate;
-                bestScore = score;
-            }
-        }
-
-        if (best is not null || !_options.UseSystemFonts)
-        {
-            return best;
-        }
-
-        // Installed fonts: the catalog entries of the family in catalog order, best style first, until one loads
-        var systemMatches = SystemFontCatalog.Fonts
-            .Where(f => string.Equals(f.FamilyName, family, StringComparison.OrdinalIgnoreCase))
-            .Select((f, index) => (Font: f, Index: index, Score: (f.Bold != bold ? 1 : 0) + (f.Italic != italic ? 1 : 0)))
-            .OrderBy(m => m.Score)
-            .ThenBy(m => m.Index)
-            .Select(m => m.Font);
-        foreach (var match in systemMatches)
-        {
-            var loaded = TryLoad(match.FilePath, match.FaceIndex);
-            if (loaded is not null)
-            {
-                return new ResolvedFont(loaded, match.FamilyName, FontSource.System, match.Bold, match.Italic);
-            }
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    ///     Reads the font files of the additional directories.
-    /// </summary>
-    /// <param name="directories">The directories, in order.</param>
-    /// <returns>The faces found: directories in the given order, files in ordinal order within a directory.</returns>
-    private static IReadOnlyList<ResolvedFont> LoadDirectoryFonts(IReadOnlyList<string> directories)
-    {
-        return LoadDirectoryFonts(directories, MaxDirectoryFonts);
-    }
-
-    /// <summary>
-    ///     Reads the font files of the additional directories, reading at most a given number of font files.
-    /// </summary>
-    /// <param name="directories">The directories, in order.</param>
-    /// <param name="maxFiles">The most font files to read, over all directories.</param>
-    /// <returns>The faces found: directories in the given order, files in ordinal order within a directory.</returns>
-    /// <remarks>
-    ///     The bound is applied while the directory is being enumerated: enumeration stops as soon as the font files
-    ///     found, over all directories, reach <paramref name="maxFiles"/>, so a huge tree is never listed in full. The
-    ///     files that were found are then sorted by ordinal path comparison, so the result is deterministic whenever the directories
-    ///     hold no more than <paramref name="maxFiles"/> font files; beyond that, which files are kept depends on the
-    ///     enumeration order of the file system.
-    /// </remarks>
-    internal static IReadOnlyList<ResolvedFont> LoadDirectoryFonts(IReadOnlyList<string> directories, int maxFiles)
-    {
-        var result = new List<ResolvedFont>();
-        var seen = 0;
-        foreach (var directory in directories)
-        {
-            if (seen >= maxFiles)
-            {
-                break;
-            }
-
-            if (!Directory.Exists(directory))
-            {
-                continue;
-            }
-
-            var options = new EnumerationOptions
-            {
-                RecurseSubdirectories = true,
-                MaxRecursionDepth = 4,
-                IgnoreInaccessible = true,
-                AttributesToSkip = FileAttributes.ReparsePoint | FileAttributes.System,
-                MatchCasing = MatchCasing.CaseInsensitive,
-            };
-            var files = new List<string>();
-            try
-            {
-                foreach (var file in Directory.EnumerateFiles(directory, "*.*", options))
-                {
-                    if (!file.EndsWith(".ttf", StringComparison.OrdinalIgnoreCase)
-                        && !file.EndsWith(".otf", StringComparison.OrdinalIgnoreCase)
-                        && !file.EndsWith(".ttc", StringComparison.OrdinalIgnoreCase))
-                    {
-                        continue;
-                    }
-
-                    files.Add(file);
-                    if (seen + files.Count >= maxFiles)
-                    {
-                        break;
-                    }
-                }
-            }
-            catch (Exception ex) when (IsSkippable(ex))
-            {
-                // An enumeration that fails midway keeps the files found so far
-            }
-
-            files.Sort(StringComparer.Ordinal);
-            foreach (var file in files)
-            {
-                AddFaces(file, result);
-            }
-
-            seen += files.Count;
-        }
-
-        return result;
-    }
-
-    /// <summary>
-    ///     Adds every readable face of a font file.
-    /// </summary>
-    /// <param name="file">The path of the file.</param>
-    /// <param name="result">The list that receives the faces.</param>
-    private static void AddFaces(string file, List<ResolvedFont> result)
-    {
-        int faceCount;
-        try
-        {
-            faceCount = TrueTypeFont.GetFaceCount(file);
-        }
-        catch (Exception ex) when (IsSkippable(ex))
-        {
-            return;
-        }
-
-        for (var face = 0; face < faceCount; face++)
-        {
-            var font = TryLoad(file, face);
-            if (font is null)
-            {
-                continue;
-            }
-
-            var name = font.GetNameInfo();
-            var family = string.IsNullOrWhiteSpace(name.FamilyName) ? Path.GetFileNameWithoutExtension(file) : name.FamilyName;
-            result.Add(new ResolvedFont(font, family, FontSource.AdditionalDirectory, font.IsBold, font.IsItalic));
-        }
-    }
-
-    /// <summary>
-    ///     Loads one face of a font file, treating an unusable file as absent.
-    /// </summary>
-    /// <param name="file">The path of the file.</param>
-    /// <param name="faceIndex">The face index.</param>
-    /// <returns>The font, or null when the file cannot be read as a font.</returns>
-    private static TrueTypeFont? TryLoad(string file, int faceIndex)
-    {
-        try
-        {
-            return TrueTypeFont.Load(file, faceIndex);
-        }
-        catch (Exception ex) when (IsSkippable(ex))
-        {
-            return null;
-        }
-    }
-
-    /// <summary>
-    ///     Determines whether an exception only means that a font file is unusable.
-    /// </summary>
-    /// <param name="ex">The exception.</param>
-    /// <returns><see langword="true"/> for the failures of reading a missing, locked or malformed file.</returns>
-    private static bool IsSkippable(Exception ex) =>
-        ex is IOException or UnauthorizedAccessException or InvalidDataException or ArgumentException
-            or NotSupportedException or OverflowException or FormatException or InvalidOperationException;
+    internal static bool IsMappedFamily(string family) =>
+        GenericFontFamilies.TryClassify(family, includeCommonAliases: true, out _, out _);
 }

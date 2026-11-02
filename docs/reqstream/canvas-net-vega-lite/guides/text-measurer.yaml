@@ -32,14 +32,15 @@ sections:
                   The TextMeasurer unit shall select the bold face for a weight of 600 or more or the word
                   bold and the italic face for italic or oblique, and shall find a named family in the
                   additional font directories of the caller, which it searches before any installed font,
-                  reading at most 4,096 font files, a bound applied while the directories are enumerated.
+                  scanning them recursively with the core font scanner under its default bounds (a bounded,
+                  deterministic scan that reads only the font headers).
                 justification: |
                   Weight and style are part of the font of every title and label, and callers who need a
                   corporate font must be able to supply it explicitly.
                 tests:
                   - TextMeasurer_Resolve_WeightAndStyleSelectTheFace
                   - TextMeasurer_Resolve_AdditionalDirectoryFontIsFoundByFamilyName
-                  - TextMeasurer_LoadDirectoryFonts_StopsAtTheBound
+                  - TextMeasurer_Resolve_AdditionalDirectoryScanIsRecursive
 
               - id: CanvasNetVegaLite-Guides-TextMeasurer-Measurement
                 title: >-

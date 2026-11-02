@@ -107,7 +107,7 @@ public class TextMeasurerTests
         var installed = SystemFontCatalog.Fonts.FirstOrDefault(f =>
             !string.IsNullOrWhiteSpace(f.FamilyName)
             && !TextMeasurer.IsMappedFamily(f.FamilyName)
-            && TextMeasurer.SplitFamilies(f.FamilyName).SequenceEqual([f.FamilyName])
+            && GenericFontFamilies.SplitFamilyList(f.FamilyName).SequenceEqual([f.FamilyName])
             && CanLoad(f.FilePath, f.FaceIndex));
         var bundledSans = SystemFontCatalog.LoadBundledFallback(false, false, false, false);
 
@@ -194,46 +194,35 @@ public class TextMeasurerTests
     }
 
     /// <summary>
-    ///     Validates that the bound on font files is applied while a directory is enumerated, and that files that are
-    ///     not fonts do not count against it.
+    ///     Validates that the additional directories are scanned by the core scanner: recursively, to any depth (the
+    ///     earlier scan stopped at a depth of 4), and with the files that are not fonts ignored.
     /// </summary>
     [Fact]
-    public void TextMeasurer_LoadDirectoryFonts_StopsAtTheBound()
+    public void TextMeasurer_Resolve_AdditionalDirectoryScanIsRecursive()
     {
-        // Arrange: five font files (and three files that are not fonts) in a directory and a subdirectory
-        var folder = Path.Combine(Path.GetTempPath(), "vegalite-bound-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(Path.Combine(folder, "sub"));
+        // Arrange: a font file seven directories deep, next to a file that is not a font
+        var folder = Path.Combine(Path.GetTempPath(), "vegalite-deep-" + Guid.NewGuid().ToString("N"));
+        var deep = Path.Combine(folder, "a", "b", "c", "d", "e", "f", "g");
+        Directory.CreateDirectory(deep);
         try
         {
             using (var resource = typeof(Surface).Assembly.GetManifestResourceStream("DemaConsulting.CanvasNet.Fonts.BundledFonts.NotoSans-Regular.ttf"))
             {
                 Assert.NotNull(resource);
-                var bytes = new byte[resource.Length];
-                resource.ReadExactly(bytes);
-                foreach (var name in new[] { "a.ttf", "b.TTF", "c.otf", Path.Combine("sub", "d.ttf"), Path.Combine("sub", "e.ttf") })
-                {
-                    File.WriteAllBytes(Path.Combine(folder, name), bytes);
-                }
+                using var file = File.Create(Path.Combine(deep, "NotoSans-Regular.ttf"));
+                resource.CopyTo(file);
             }
 
-            foreach (var name in new[] { "x.txt", "y.png", Path.Combine("sub", "z.json") })
-            {
-                File.WriteAllText(Path.Combine(folder, name), "not a font");
-            }
+            File.WriteAllText(Path.Combine(deep, "notes.txt"), "ignored");
+            var family = TrueTypeFont.Load(Path.Combine(deep, "NotoSans-Regular.ttf")).GetNameInfo().FamilyName;
+            Assert.NotNull(family);
 
             // Act
-            var all = TextMeasurer.LoadDirectoryFonts([folder], TextMeasurer.MaxDirectoryFonts);
-            var two = TextMeasurer.LoadDirectoryFonts([folder], 2);
-            var one = TextMeasurer.LoadDirectoryFonts([folder], 1);
-            var spread = TextMeasurer.LoadDirectoryFonts([Path.Combine(folder, "sub"), folder], 3);
+            var found = new TextMeasurer(new VegaLiteFontOptions { AdditionalDirectories = [folder] }).Resolve(family, null, null);
 
-            // Assert: the bound limits the font files read, over all directories, and the default is 4,096
-            Assert.Equal(4096, TextMeasurer.MaxDirectoryFonts);
-            Assert.Equal(5, all.Count);
-            Assert.Equal(2, two.Count);
-            Assert.Single(one);
-            Assert.Equal(3, spread.Count);
-            Assert.Empty(TextMeasurer.LoadDirectoryFonts([folder], 0));
+            // Assert
+            Assert.Equal(FontSource.AdditionalDirectory, found.Source);
+            Assert.Equal(family, found.Family);
         }
         finally
         {
@@ -363,11 +352,6 @@ public class TextMeasurerTests
         Assert.Equal(3, TextMeasurer.RoundHalfUp(2.5));
         Assert.Equal(12, TextMeasurer.LineHeight(10));
         Assert.Equal(15, TextMeasurer.LineHeight(10, 15));
-
-        // Assert: family lists honor quotes and commas inside them
-        Assert.Equal(["Helvetica Neue", "Arial", "sans-serif"], TextMeasurer.SplitFamilies("\"Helvetica Neue\", Arial ,  sans-serif"));
-        Assert.Equal(["A, B", "serif"], TextMeasurer.SplitFamilies("'A, B', serif"));
-        Assert.Empty(TextMeasurer.SplitFamilies(" , ,"));
     }
 
     /// <summary>
