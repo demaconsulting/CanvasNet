@@ -455,6 +455,43 @@ public class PptxTextLayoutTests
     }
 
     /// <summary>
+    ///     Proves a tab that itself overflows and so wraps to the next line is packed using its width
+    ///     at the new line's start (a full 914400-EMU interval from x=0), exactly as it is rendered,
+    ///     so the later wrap decisions agree with the rendered line breaks.
+    /// </summary>
+    /// <remarks>
+    ///     160 'A' (6350 EMU each = 1016000) then a tab, which would end at the 1828800 stop (&gt;
+    ///     1500000 available) and so wraps. On line 2 the tab renders from x=0 to 914400. Then 48 'A'
+    ///     (304800), a space (2540) and 48 'A': the second word reaches 914400 + 304800 + 2540 +
+    ///     304800 = 1526540 (&gt; 1500000) and must wrap. Packing with the stale width the tab had
+    ///     at the old position (812800) would give 1424940 and keep the second word on line 2,
+    ///     disagreeing with the rendered tab.
+    /// </remarks>
+    [Fact]
+    public void ResolveTextLayout_TabCausesWrap_PacksTabAtNewLineStartMatchingRender()
+    {
+        var textBody = BuildSingleRunTextBody(new string('A', 160) + "\t" + new string('A', 48) + " " + new string('A', 48));
+
+        var layout = Layout(textBody, 1_500_000f, 1_000_000f);
+
+        Assert.Equal(256, layout.Glyphs.Count);
+
+        // Line 1: the 160-letter word alone.
+        Assert.Equal(0f, layout.Glyphs[0].OriginXEmu, 2);
+        Assert.Equal(159 * 6350f, layout.Glyphs[159].OriginXEmu, 2);
+
+        // Line 2: the wrapped tab renders from x=0 to the first stop, so the next word starts at 914400.
+        Assert.Equal(914400f, layout.Glyphs[160].OriginXEmu, 2);
+        Assert.True(layout.Glyphs[160].OriginYEmu > layout.Glyphs[159].OriginYEmu);
+        Assert.Equal(layout.Glyphs[160].OriginYEmu, layout.Glyphs[207].OriginYEmu, 2);
+
+        // Line 3: the second word wrapped, as the rendered widths require.
+        Assert.Equal(0f, layout.Glyphs[208].OriginXEmu, 2);
+        Assert.True(layout.Glyphs[208].OriginYEmu > layout.Glyphs[207].OriginYEmu);
+        Assert.Equal(layout.Glyphs[208].OriginYEmu, layout.Glyphs[255].OriginYEmu, 2);
+    }
+
+    /// <summary>
     ///     Proves two adjacent tab characters each independently advance to their own next tab
     ///     stop, computed from the cursor position <i>after</i> the previous tab's own expansion
     ///     - not both from the pre-first-tab position - and that a tab landing exactly on an

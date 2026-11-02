@@ -3268,7 +3268,10 @@ Because a tab's width is position-dependent, it must be computed twice, from two
 positions, and the two computations must stay formula-identical: `PackTokensIntoLines`'s
 wrap/fit-decision loop computes a tab token's effective width as
 `GetNextTabStopEmu(currentWidth, DefaultTabStopEmu) - currentWidth`, read from the running line
-width the core `WordWrap` packer passes to its width callback at that point in the token stream -
+width the core `WordWrap` packer passes to its width callback at that point in the token stream
+(and, when that tab overflows and wraps, read again at width zero because the tab is rendered
+from the start of its new line, so the packed width and the later wrap decisions agree with
+`BuildLines`) -
 this is what makes the wrap decision
 correctly reflect the tab's true, expanded width rather than its near-zero glyph-measured width,
 so an early tab in a long line no longer silently under-counts the line's true occupied width and
@@ -3300,7 +3303,10 @@ position a `.notdef` glyph advance would produce),
 early tab, sized so the glyph-measured near-zero tab width would keep both words on one line but
 the true, tab-stop-expanded width correctly wraps the second word onto a new line, proving
 `PackTokensIntoLines` uses the dynamically-computed expanded width for its fit decision, not the
-static, unused `ResolvedToken.WidthEmu`), and
+static, unused `ResolvedToken.WidthEmu`),
+`ResolveTextLayout_TabCausesWrap_PacksTabAtNewLineStartMatchingRender` (a tab that overflows and
+wraps is packed at its width from the new line's start, so the following word wraps exactly as the
+rendered tab position requires), and
 `ResolveTextLayout_MultipleTabCharacters_EachAdvancesToItsOwnNextTabStop` (a run containing
 `"A\t\tB"` proves the second tab's expansion is computed from the cursor position after the first
 tab's own expansion - including correctly advancing by a full interval, never zero, when the

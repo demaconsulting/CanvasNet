@@ -2254,7 +2254,10 @@ sections:
               character expands by a different amount depending on how much text precedes it on
               the line - and the word-wrap fit decision must use this same expanded width (not the
               near-zero glyph-measured width) or an early tab in a long line would silently
-              under-count the line's true occupied width and mis-place the wrap point. Explicit
+              under-count the line's true occupied width and mis-place the wrap point. A tab that
+              itself overflows and wraps is rendered from the start of its new line (where it
+              expands a full interval), so the packer must count that width, not the one it had at
+              the old position, or later wrap decisions disagree with the rendered lines. Explicit
               <a:tabLst> tab-stop support remains out of scope: no slide in the investigated corpus
               (slide 9, its layout, or its master) declares <a:tabLst> anywhere, so
               default-interval-only expansion fully resolves the observed defect without requiring
@@ -2262,6 +2265,7 @@ sections:
             tests:
               - ResolveTextLayout_TabCharacter_ExpandsToNextDefaultTabStop
               - ResolveTextLayout_TabCharacter_WrapDecisionUsesExpandedWidthNotGlyphWidth
+              - ResolveTextLayout_TabCausesWrap_PacksTabAtNewLineStartMatchingRender
               - ResolveTextLayout_MultipleTabCharacters_EachAdvancesToItsOwnNextTabStop
 
           - id: CanvasNetPptx-PptxDocument-PictureSmoothResample

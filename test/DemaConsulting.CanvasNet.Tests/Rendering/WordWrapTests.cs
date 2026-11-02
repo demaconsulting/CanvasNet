@@ -173,6 +173,47 @@ public class WordWrapTests
         Assert.Equal("ab\tcd\t|e", Render(wraps));
     }
 
+    /// <summary>
+    ///     Proves a position-dependent whitespace token that overflows and so wraps is measured again
+    ///     at the start of the new line, and that width (not the old position's) drives later wraps.
+    /// </summary>
+    [Fact]
+    public void WordWrap_Pack_PositionDependentWhitespaceCausesWrap_IsRemeasuredOnNewLine()
+    {
+        // Arrange: a tab advances to the next multiple of 4 from its position; the line holds 10
+        var tokens = new[]
+        {
+            W("aaaaaaaaa", 9),
+            new Tok("\t", WordWrapTokenKind.Whitespace, 0),
+            W("bbbbb", 5),
+            S(),
+            W("c", 1),
+        };
+        var seen = new List<double>();
+
+        // Act: the tab at x=9 would be 3 wide (ending at 12 > 10), so it wraps; at x=0 it is 4 wide
+        var lines = WordWrap.Pack(
+            tokens,
+            10d,
+            static t => t.Kind,
+            (t, x) =>
+            {
+                if (t.Text != "\t")
+                {
+                    return t.Width;
+                }
+
+                seen.Add(x);
+                return (Math.Floor(x / 4) + 1) * 4 - x;
+            });
+
+        // Assert: the tab was measured at both positions. On the new line it is 4 wide, so
+        // tab(4) bbbbb(5) space(1) fits (10) but "c" would reach 11 and wraps; had the stale
+        // 3-wide width been kept, "c" would (wrongly) have fitted at exactly 10.
+        Assert.Equal([9d, 0d], seen);
+        Assert.Equal("aaaaaaaaa|\tbbbbb |c", Render(lines));
+    }
+
     /// <summary>Proves the single-precision overload packs like the double one for exactly representable widths.</summary>
     [Fact]
     public void WordWrap_Pack_FloatOverload_PacksLikeDoubleOverload()

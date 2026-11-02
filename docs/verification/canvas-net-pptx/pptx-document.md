@@ -987,6 +987,7 @@ provide those); it exists solely to produce an artifact a human reviewer can ope
 
 **Tests**: `ResolveTextLayout_TabCharacter_ExpandsToNextDefaultTabStop`,
 `ResolveTextLayout_TabCharacter_WrapDecisionUsesExpandedWidthNotGlyphWidth`,
+`ResolveTextLayout_TabCausesWrap_PacksTabAtNewLineStartMatchingRender`,
 `ResolveTextLayout_MultipleTabCharacters_EachAdvancesToItsOwnNextTabStop`
 
 Proves a literal U+0009 TAB run character expands the rendered cursor to the exact next
@@ -1000,7 +1001,12 @@ separated by an early tab, sized so the glyph-measured near-zero tab width would
 keep both words on one line (combined width 50800 EMU, comfortably under the chosen 920000 EMU
 available width) while the true, tab-stop-expanded width (bringing the running width to 939400
 EMU) correctly wraps the second word onto its own line - asserting the correct (wrapped) 2-line
-outcome with hand-computed glyph X/Y coordinates for both lines. Proves two adjacent tab
+outcome with hand-computed glyph X/Y coordinates for both lines. Proves a tab that itself
+overflows and wraps is packed at its width from the new line's start, as rendered: a 160-letter
+word, a tab that would end past the 1500000 EMU available width, then two 48-letter words
+separated by a space; the tab renders from `0` to `914400` on line 2, and the second word, which
+only the new-line tab width pushes past the available width (1526540 against 1500000, where the
+stale old-position width gives 1424940), is asserted to wrap onto a third line at `x = 0`. Proves two adjacent tab
 characters each independently advance to their own next tab stop, computed from the cursor
 position after the previous tab's own expansion (not both from the pre-first-tab position) - a
 run containing `"A\t\tB"` where the second tab starts exactly on an already-aligned tab-stop

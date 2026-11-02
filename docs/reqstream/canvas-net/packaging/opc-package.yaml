@@ -17,8 +17,11 @@ sections:
                   The OpcPackage type shall open a package from a readable stream by reading it into
                   memory, rejecting it with OpcFormatException as soon as more than
                   MaxPackageBytes bytes are available (a seekable stream longer than that is rejected
-                  from its length), never holding a buffer larger than MaxPackageBytes (so a package
-                  is not buffered into a doubling array of up to twice its size), and also rejecting a
+                  from its length), never holding a buffer larger than MaxPackageBytes (a seekable
+                  stream is read into a buffer sized to its length, so it is not buffered into a
+                  doubling array of up to twice its size; a non-seekable stream grows its buffer by
+                  doubling clamped to MaxPackageBytes, so the buffer never exceeds that bound), and
+                  also rejecting a
                   stream that is not a readable ZIP archive, without closing the caller's stream.
                 justification: |
                   A package stream may be huge, non-terminating, or not a package at all; counting the
