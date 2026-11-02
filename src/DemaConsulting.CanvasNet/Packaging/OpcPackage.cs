@@ -175,11 +175,19 @@ public sealed class OpcPackage : IDisposable
         }
 
         var buffered = new MemoryStream();
-        CopyBounded(
-            stream,
-            buffered,
-            MaxPackageBytes,
-            $"The package stream exceeds the maximum supported size of {MaxPackageBytes} bytes.");
+        try
+        {
+            CopyBounded(
+                stream,
+                buffered,
+                MaxPackageBytes,
+                $"The package stream exceeds the maximum supported size of {MaxPackageBytes} bytes.");
+        }
+        catch
+        {
+            buffered.Dispose();
+            throw;
+        }
 
         // Back the archive with the buffer already built (no second copy of up to 256 MiB). The
         // MemoryStream was created with its default constructor, so its buffer is always exposed.
