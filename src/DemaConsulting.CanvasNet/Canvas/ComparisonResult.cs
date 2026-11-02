@@ -5,7 +5,7 @@ namespace DemaConsulting.CanvasNet.Canvas;
 ///     The measures of how much two images of the same size differ, computed over every pixel.
 /// </summary>
 /// <param name="PixelCount">The number of pixels compared (width times height).</param>
-/// <param name="Identical"><see langword="true"/> when every channel of every pixel is equal (<paramref name="MaxChannelDifference"/> is 0).</param>
+/// <param name="Identical"><see langword="true"/> when the red, green, and blue channels of every pixel are equal (<paramref name="MaxChannelDifference"/> is 0); alpha is ignored.</param>
 /// <param name="Mae">The mean absolute error over all channels, 0 to 255.</param>
 /// <param name="Rmse">The root mean square error over all channels, 0 to 255.</param>
 /// <param name="PsnrDb">The peak signal-to-noise ratio in decibels, or <see langword="null"/> when the images are identical (infinite).</param>

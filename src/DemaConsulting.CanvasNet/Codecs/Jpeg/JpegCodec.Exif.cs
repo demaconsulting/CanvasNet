@@ -243,8 +243,12 @@ public static partial class JpegCodec
     /// <returns>The marker code, or <see langword="null"/> at the end of the data or when the budget is used up.</returns>
     private static byte? ReadMarker(Stream stream, ref int remaining)
     {
+        if (--remaining < 0)
+        {
+            return null;
+        }
+
         var next = stream.ReadByte();
-        remaining--;
         if (next != MarkerPrefix)
         {
             return null;
