@@ -14,10 +14,12 @@ sections:
             requirements:
               - id: CanvasNet-Packaging-OpcPackage-BoundedOpen
                 title: >-
-                  The OpcPackage type shall open a package from a readable stream by copying it into
-                  memory in chunks, rejecting it with OpcFormatException as soon as more than
-                  MaxPackageBytes bytes have been read, and also rejecting a stream that is not a
-                  readable ZIP archive, without closing the caller's stream.
+                  The OpcPackage type shall open a package from a readable stream by reading it into
+                  memory, rejecting it with OpcFormatException as soon as more than
+                  MaxPackageBytes bytes are available (a seekable stream longer than that is rejected
+                  from its length), never holding a buffer larger than MaxPackageBytes (so a package
+                  is not buffered into a doubling array of up to twice its size), and also rejecting a
+                  stream that is not a readable ZIP archive, without closing the caller's stream.
                 justification: |
                   A package stream may be huge, non-terminating, or not a package at all; counting the
                   bytes while copying bounds both memory and read time before any ZIP parsing, and
@@ -26,6 +28,9 @@ sections:
                   - OpcPackage_Open_MinimalValidPackage_OpensAndLeavesStreamOpen
                   - OpcPackage_Open_NonZipStream_ThrowsOpcFormatException
                   - OpcPackage_Open_NonTerminatingStream_ThrowsOpcFormatException
+                  - OpcPackage_Open_SeekableStreamOverBound_IsRejectedWithoutReading
+                  - OpcPackage_Open_SeekableStream_AllocatesNoMoreThanItsLength
+                  - OpcPackage_ReadBounded_NeverAllocatesBeyondTheBound
 
               - id: CanvasNet-Packaging-OpcPackage-RequiredParts
                 title: >-
@@ -122,9 +127,11 @@ sections:
               - id: CanvasNet-Packaging-OpcPackage-PartBytes
                 title: >-
                   The OpcPackage type shall return a part's decompressed content as a new array,
-                  counting the bytes while copying rather than trusting the entry's declared length,
-                  and shall reject a part larger than MaxPartBytes, or one that does not exist, with
-                  OpcFormatException.
+                  counting the bytes read rather than trusting the entry's declared length (which only
+                  pre-sizes the array, capped at 16 MiB, so a part up to that size is read without a
+                  copy, a larger one grows by clamped doubling, and a lying header cannot force a large
+                  allocation), and shall reject a part larger than MaxPartBytes, or one that
+                  does not exist, with OpcFormatException.
                 justification: |
                   The compressed-to-decompressed ratio of a part is attacker-controlled (a zip bomb);
                   bounding the bytes actually produced prevents a few kilobytes from exhausting
@@ -132,6 +139,8 @@ sections:
                 tests:
                   - OpcPackage_GetPartBytes_WellFormedPart_ReturnsExactBytes
                   - OpcPackage_GetPartBytes_OversizedDecompressedEntry_ThrowsOpcFormatException
+                  - OpcPackage_GetPartBytes_AllocatesNoMoreThanThePartLength
+                  - OpcPackage_GetPartBytes_EntryDeclaringHugeLength_AllocatesLittleAndReturnsItsBytes
 
               - id: CanvasNet-Packaging-OpcPackage-Validation
                 title: >-

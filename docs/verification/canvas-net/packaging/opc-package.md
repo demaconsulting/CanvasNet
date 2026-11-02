@@ -36,11 +36,21 @@ each requirement ID passes across every target framework in this repository's CI
 
 **Tests**: `OpcPackage_Open_MinimalValidPackage_OpensAndLeavesStreamOpen`,
 `OpcPackage_Open_NonZipStream_ThrowsOpcFormatException`,
-`OpcPackage_Open_NonTerminatingStream_ThrowsOpcFormatException`
+`OpcPackage_Open_NonTerminatingStream_ThrowsOpcFormatException`,
+`OpcPackage_Open_SeekableStreamOverBound_IsRejectedWithoutReading`,
+`OpcPackage_Open_SeekableStream_AllocatesNoMoreThanItsLength`,
+`OpcPackage_ReadBounded_NeverAllocatesBeyondTheBound`
 
 Opens a minimal valid package and asserts a package-level relationship resolves and the input stream
 is still readable; opens eight arbitrary bytes and asserts `OpcFormatException`; opens a stream that
-never ends and asserts `OpcFormatException` naming the package bound.
+never ends and asserts `OpcFormatException` naming the package bound. A non-allocating seekable
+stream that reports `MaxPackageBytes + 1` is rejected without a single byte read; a seekable zero
+stream of a length just above a power of two is read into memory measured with
+`GC.GetAllocatedBytesForCurrentThread` and allocates no more than its length plus a small constant
+(a doubling buffer allocated about two and a half times that). The internal bounded reader is driven
+with a bound that is not a power of two: an unknown, exact, too small and too large expected length
+all return arrays no larger than the bound at exactly the bound, and reject one byte over it after
+reading exactly that many bytes, as does an endless stream.
 
 ##### CanvasNet-Packaging-OpcPackage-RequiredParts: Required Parts Are Present and Valid
 
@@ -121,11 +131,16 @@ and a missing part, an ill-formed part and a part with a DTD each throw.
 ##### CanvasNet-Packaging-OpcPackage-PartBytes: Part Reads Are Bounded
 
 **Tests**: `OpcPackage_GetPartBytes_WellFormedPart_ReturnsExactBytes`,
-`OpcPackage_GetPartBytes_OversizedDecompressedEntry_ThrowsOpcFormatException`
+`OpcPackage_GetPartBytes_OversizedDecompressedEntry_ThrowsOpcFormatException`,
+`OpcPackage_GetPartBytes_AllocatesNoMoreThanThePartLength`,
+`OpcPackage_GetPartBytes_EntryDeclaringHugeLength_AllocatesLittleAndReturnsItsBytes`
 
 Reads a 256-byte part and asserts the exact bytes, with and without a leading slash, in distinct
 arrays, and a missing part throws; writes a part of `MaxPartBytes + 1` zero bytes (a tiny compressed
-entry) and asserts `OpcFormatException` whose message mentions a decompression bomb.
+entry) and asserts `OpcFormatException` whose message mentions a decompression bomb; reads a part
+just above a power of two and asserts the memory allocated stays at its length plus a small constant; patches the
+central directory of a five-byte part to declare 200 MiB and asserts the read returns the five bytes while allocating
+no more than the 16 MiB pre-size cap plus a small constant.
 
 ##### CanvasNet-Packaging-OpcPackage-Validation: Arguments and Disposal
 

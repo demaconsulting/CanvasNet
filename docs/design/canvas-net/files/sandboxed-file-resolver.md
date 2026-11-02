@@ -109,9 +109,17 @@ a cancellation or an argument error is a `SandboxException`.
   directory where the file is expected as `CannotRead` (not a missing file), then attempts to open the file read-only
   with `FileShare.ReadWrite | FileShare.Delete`. **The open attempt, not an existence probe, decides missing versus
   unreadable**: `File.Exists` answers `false` for an existing file the process cannot access, so gating on it would report
-  an inaccessible file as "not found". Only a `FileNotFoundException` or `DirectoryNotFoundException` from the open (a file
-  that is missing, or that vanished since the walk) makes the candidate missing and lets the search continue; any other
-  `IOException` or `UnauthorizedAccessException` of the open is `CannotRead` and ends the search.
+  an inaccessible file as "not found". Only a `FileNotFoundException` or `DirectoryNotFoundException` from the open call
+  itself (a file that is missing, or that vanished since the walk) makes the candidate missing and lets the search
+  continue; any other `IOException` or `UnauthorizedAccessException` of the open is `CannotRead` and ends the search.
+  Once the open succeeded the file exists, so a failure while reading or disposing it that is an `IOException` (including
+  one spelled `FileNotFoundException` or `DirectoryNotFoundException`), `UnauthorizedAccessException` or
+  `NotSupportedException` is `CannotRead`, never a missing candidate; other exception types are not mapped.
+- `ComponentExists` - the existence check of a directory component above the file during the link walk. It reads
+  `FileInfo.Attributes` rather than calling `File.Exists`/`Directory.Exists` (which answer `false` for _every_ failure):
+  only a component that is genuinely not there reads as missing and ends the candidate; a component that exists but
+  cannot be examined (access denied, a name too long or invalid for the file system, an unreachable share) is
+  `CannotRead` and ends the search, consistent with a final component that cannot be opened.
 - `ReadFromCallback` - calls the callback with the normalized logical path, reads the stream it returns, and disposes it
   exactly once, all inside one boundary: a failure of the callback, of the bounded read, or of the disposal - **any**
   exception other than a cancellation, including a `SandboxException` that the callback or its stream throws itself - is
