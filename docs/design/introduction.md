@@ -618,7 +618,9 @@ src/DemaConsulting.CanvasNet/
 │   ├── NameTable.cs                     — Parses the name table and resolves family/subfamily/full/PostScript name
 │   │                                       strings
 │   ├── StyleTable.cs                    — Derives bold/italic/fixed-pitch style metadata from OS/2/post/head.macStyle
-│   ├── SystemFontCatalog.cs             — OS font discovery, best-effort matching, bundled fallback
+│   ├── SystemFontCatalog.cs             — OS font discovery, best-effort matching, cached font load, bundled fallback
+│   ├── FontDirectoryScanner.cs          — Deterministic, bounded, link-safe header-only font directory scan
+│   ├── FontScanLimits.cs                — Bounds (directories, entries, font files, faces) of a font directory scan
 │   ├── BundledFonts/                    — Embedded Liberation Sans/Serif/Mono plus Noto Symbol/ZapfDingbats substitute
 │   │                                       .ttf files and OFL.txt license(s)
 │   └── NamespaceDoc.cs                  — Namespace-level XML documentation

@@ -218,14 +218,6 @@ public static partial class SvgCodec
         public Dictionary<(string Family, bool Bold, bool Italic), TrueTypeFont> ResolvedFontCache { get; } = [];
 
         /// <summary>
-        ///     Caches each installed font file loaded during this <c>Load</c> call (or
-        ///     <see langword="null"/> for one that failed to load), keyed by file path and face index,
-        ///     so a file is read at most once per render however many font-family/style keys resolve
-        ///     to it.
-        /// </summary>
-        public Dictionary<(string Path, int FaceIndex), TrueTypeFont?> InstalledFontCache { get; } = [];
-
-        /// <summary>
         ///     Caches each gradient element's own resolved (pre-alpha) color stops, keyed by the
         ///     gradient <see cref="XElement"/>'s reference identity (matching the existing
         ///     cycle-detection <see cref="HashSet{XElement}"/> idiom used by

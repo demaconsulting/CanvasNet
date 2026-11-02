@@ -408,15 +408,15 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
   point has no glyph in the run's font, `SelectGlyphFont` asks `ResolveGlyphFallbackFont`
   (preferred symbol families such as Segoe UI Symbol, Arial Unicode MS, Cambria Math, DejaVu
   Sans, then any catalog face, then the bundled Liberation faces) and uses the returned font for
-  both measurement and the placed glyph. Two process-lifetime static caches back the lookup (they
-  are never evicted and are shared by all documents): `FallbackResults`, keyed by (code point,
-  bold, italic), and `FallbackFontCache`, keyed by font file path and face index, so every result
-  that resolves to the same file/face shares one `TrueTypeFont` instance. Preferred-family fonts
-  are loaded through `FallbackFontCache`; the catalog-wide sweep loads each candidate transiently
-  so an uncovered code point cannot pin every installed font, and a sweep hit is promoted into
-  `FallbackFontCache` (the just-loaded instance is stored, or the already-cached one returned) so
-  results never hold private duplicate copies. `ResolveTextFont` uses the separate
-  `SystemFontCache` with the same path/face keying. When no font covers the code point,
+  both measurement and the placed glyph. A process-lifetime static cache (never evicted, shared by
+  all documents) backs the lookup: `FallbackResults`, keyed by (code point, bold, italic). Preferred-family
+  fonts are loaded through `SystemFontCatalog.Load`, whose own process-lifetime path/face cache
+  means every result that resolves to the same file/face shares one `TrueTypeFont` instance and a
+  vanished or damaged file is remembered as `null`; the catalog-wide sweep loads each candidate
+  transiently (not through that cache) so an uncovered code point cannot pin every installed font,
+  and a sweep hit is then obtained through `SystemFontCatalog.Load` (loaded again and cached) so
+  results never hold private duplicate copies. `ResolveTextFont` also uses `SystemFontCatalog.Load`,
+  and falls back to the bundled font when the matched file cannot be loaded. When no font covers the code point,
   `SelectGlyphFont` reports `vsdx-text-missing-glyph` through the unsupported-feature handler and
   keeps the run's own font. Tests inject their own resolver.
 
@@ -452,7 +452,7 @@ opts into the exception instead (see _Unsupported-feature reporting_ above).
   `FillPatternDeferral` above).
 - **`CanvasNet.Fonts`** — `TrueTypeFont`/`SystemFontCatalog` (resolving a `Section N="Character"`
   row's `Font` name hint and extracting glyph outlines for shape/connector text; matched system
-  fonts are shared through a process-lifetime path/face cache so one page does not re-parse the
+  fonts are shared through `SystemFontCatalog.Load`'s process-lifetime path/face cache so one page does not re-parse the
   same font file per text shape)
 - **`CanvasNet.Codecs`** — reserved for the deferred embedded-image/`Foreign`-shape capability;
   not exercised by this unit's in-scope feature set (see _CanvasNetVsdx System Design_'s Design

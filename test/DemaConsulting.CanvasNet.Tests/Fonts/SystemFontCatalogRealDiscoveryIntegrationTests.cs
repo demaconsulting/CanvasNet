@@ -26,7 +26,7 @@ public class SystemFontCatalogRealDiscoveryIntegrationTests
         // Assert: the scan completed (no exception), and every reported entry satisfies the
         // documented invariants (CanvasNet-Fonts-SystemFontCatalog-DirectoryScanDiscovery): the
         // path genuinely exists on disk, the family name is non-empty, and the path has one of
-        // the three supported font-file extensions.
+        // the four supported font-file extensions.
         Assert.NotNull(fonts);
         foreach (var font in fonts)
         {
@@ -36,8 +36,9 @@ public class SystemFontCatalogRealDiscoveryIntegrationTests
             Assert.True(
                 extension.Equals(".ttf", StringComparison.OrdinalIgnoreCase)
                 || extension.Equals(".ttc", StringComparison.OrdinalIgnoreCase)
-                || extension.Equals(".otf", StringComparison.OrdinalIgnoreCase),
-                $"Reported font path '{font.FilePath}' does not end in .ttf, .ttc, or .otf.");
+                || extension.Equals(".otf", StringComparison.OrdinalIgnoreCase)
+                || extension.Equals(".otc", StringComparison.OrdinalIgnoreCase),
+                $"Reported font path '{font.FilePath}' does not end in .ttf, .ttc, .otf, or .otc.");
         }
     }
 

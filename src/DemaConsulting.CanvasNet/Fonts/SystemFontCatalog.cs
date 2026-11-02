@@ -1,5 +1,7 @@
 // cspell:ignore Dejavu Nimbus Consolas ttcf rescanned Segoe LOCALAPPDATA Noto Zapf
+using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
+using System.Security;
 
 namespace DemaConsulting.CanvasNet.Fonts;
 
@@ -69,8 +71,13 @@ public readonly record struct SystemFontInfo(
 ///         (<see cref="BundledFontCache"/>) is guarded by a dedicated lock
 ///         (<see cref="BundledFontLock"/>) around both its lookup and its populate-on-miss path,
 ///         so concurrent requests for the same bundled style can never race on the cache
-///         dictionary or load/parse the same embedded font file twice. <see cref="FindBestMatch"/>
-///         only reads already-published, immutable data (<see cref="Fonts"/>'s own
+///         dictionary or load/parse the same embedded font file twice. <see cref="Load"/>'s
+///         process-lifetime cache is a <see cref="ConcurrentDictionary{TKey, TValue}"/> of
+///         <see cref="Lazy{T}"/> values constructed with
+///         <see cref="LazyThreadSafetyMode.ExecutionAndPublication"/>, so a face is read from disk at
+///         most once however many threads ask for it. <see cref="FindBestMatch"/> and
+///         <see cref="FindInFamily"/>
+///         only read already-published, immutable data (<see cref="Fonts"/>'s own
 ///         <see cref="IReadOnlyList{T}"/> and this class's read-only generic-family-name arrays)
 ///         and performs no mutation, so it requires no locking of its own.
 ///     </para>
@@ -136,6 +143,26 @@ public static class SystemFontCatalog
     ///     cached bundled style can never both load/parse that embedded font file.
     /// </summary>
     private static readonly object BundledFontLock = new();
+
+    /// <summary>
+    ///     The bounds of the scan behind <see cref="Fonts"/>: far more generous than
+    ///     <see cref="FontScanLimits"/>'s defaults, since this scan reads only the headers of the host
+    ///     operating system's own font directories and exists to keep a pathological tree from running
+    ///     without end, not to cut a normal installation short.
+    /// </summary>
+    private static readonly FontScanLimits CatalogScanLimits = new()
+    {
+        MaxDirectories = 100_000,
+        MaxEntries = 2_000_000,
+        MaxFontFiles = 50_000,
+        MaxFaces = 200_000,
+    };
+
+    /// <summary>
+    ///     Backs <see cref="Load"/>: every font loaded (or failed to load) so far, keyed by file path and
+    ///     face index, for the lifetime of the process.
+    /// </summary>
+    private static readonly ConcurrentDictionary<(string FilePath, int FaceIndex), Lazy<TrueTypeFont?>> LoadedFonts = new();
 
     /// <summary>
     ///     Gets every font (or, for a <c>.ttc</c> collection, every face) discovered by scanning
@@ -261,11 +288,8 @@ public static class SystemFontCatalog
         bool serif,
         bool fixedPitch)
     {
-        var exactMatch = BestStyleMatch(
-            candidates,
-            f => string.Equals(f.FamilyName, familyNameHint, StringComparison.OrdinalIgnoreCase),
-            bold,
-            italic);
+        // A null hint (tolerated, as before FindInFamily existed) simply has no exact family match
+        var exactMatch = familyNameHint is null ? null : FindInFamily(candidates, familyNameHint, bold, italic);
         if (exactMatch is not null)
         {
             return exactMatch;
@@ -283,11 +307,7 @@ public static class SystemFontCatalog
 
         foreach (var genericFamily in genericFamilies)
         {
-            var bucketMatch = BestStyleMatch(
-                candidates,
-                f => string.Equals(f.FamilyName, genericFamily, StringComparison.OrdinalIgnoreCase),
-                bold,
-                italic);
+            var bucketMatch = FindInFamily(candidates, genericFamily, bold, italic);
             if (bucketMatch is not null)
             {
                 return bucketMatch;
@@ -340,20 +360,31 @@ public static class SystemFontCatalog
     }
 
     /// <summary>
-    ///     Finds the best style match (minimizing mismatched bold/italic flag count, first
-    ///     encountered wins any tie) among every candidate satisfying <paramref name="familyFilter"/>.
+    ///     Finds the face of <paramref name="faces"/> whose family name equals <paramref name="family"/>
+    ///     (case-insensitively, exactly - no generic-family substitution) in the closest style.
     /// </summary>
-    private static SystemFontInfo? BestStyleMatch(
-        IReadOnlyList<SystemFontInfo> candidates,
-        Func<SystemFontInfo, bool> familyFilter,
-        bool bold,
-        bool italic)
+    /// <param name="faces">The faces to search, for example <see cref="Fonts"/> or the result of <see cref="FontDirectoryScanner.Scan"/>.</param>
+    /// <param name="family">The family name to match.</param>
+    /// <param name="bold">Whether a bold style is requested.</param>
+    /// <param name="italic">Whether an italic style is requested.</param>
+    /// <returns>
+    ///     The face with the fewest differing bold/italic flags (the first one in <paramref name="faces"/>
+    ///     wins a tie), or <see langword="null"/> when no face has the family.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="faces"/> or <paramref name="family"/> is <see langword="null"/>.</exception>
+    /// <remarks>
+    ///     Safe to call concurrently from any number of threads: it only reads <paramref name="faces"/>.
+    /// </remarks>
+    public static SystemFontInfo? FindInFamily(IReadOnlyList<SystemFontInfo> faces, string family, bool bold, bool italic)
     {
+        ArgumentNullException.ThrowIfNull(faces);
+        ArgumentNullException.ThrowIfNull(family);
+
         SystemFontInfo? best = null;
         var bestScore = int.MaxValue;
-        foreach (var candidate in candidates)
+        foreach (var candidate in faces)
         {
-            if (!familyFilter(candidate))
+            if (!string.Equals(candidate.FamilyName, family, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
@@ -370,10 +401,52 @@ public static class SystemFontCatalog
     }
 
     /// <summary>
+    ///     Loads the font a <see cref="SystemFontInfo"/> describes, remembering the outcome for the lifetime of
+    ///     the process: asking again for the same file and face returns the same instance (or the same failure)
+    ///     without reading the file again.
+    /// </summary>
+    /// <param name="info">The face, as found in <see cref="Fonts"/> or by <see cref="FontDirectoryScanner.Scan"/>.</param>
+    /// <returns>
+    ///     The loaded font, or <see langword="null"/> when the file has vanished, cannot be read, or is damaged
+    ///     (a face that headers-only scanning listed can still fail to load). A failure is cached too, so a
+    ///     font that cannot be loaded is not retried.
+    /// </returns>
+    /// <remarks>
+    ///     Safe to call concurrently from any number of threads: a face is loaded at most once, and a
+    ///     <see cref="TrueTypeFont"/> is immutable, so the returned instance may be shared freely. Every loaded
+    ///     font stays in memory for the lifetime of the process, so use this for the few faces a caller actually
+    ///     selects, not to examine every face of a catalog.
+    /// </remarks>
+    public static TrueTypeFont? Load(SystemFontInfo info) =>
+        LoadedFonts.GetOrAdd(
+            (info.FilePath, info.FaceIndex),
+            static key => new Lazy<TrueTypeFont?>(
+                () => LoadUncached(key.FilePath, key.FaceIndex),
+                LazyThreadSafetyMode.ExecutionAndPublication)).Value;
+
+    /// <summary>
+    ///     Loads a face from disk, reporting a file that is missing, unreadable or damaged as <see langword="null"/>.
+    /// </summary>
+    /// <param name="path">The font file.</param>
+    /// <param name="faceIndex">The face index.</param>
+    /// <returns>The font, or <see langword="null"/> when it cannot be loaded.</returns>
+    private static TrueTypeFont? LoadUncached(string path, int faceIndex)
+    {
+        try
+        {
+            return TrueTypeFont.Load(path, faceIndex);
+        }
+        catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException
+            or ArgumentException or NotSupportedException or OverflowException or SecurityException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
     ///     Builds <see cref="Fonts"/>'s backing catalog: scans every well-known font directory for
-    ///     this operating system, enumerating every well-formed face of every candidate
-    ///     <c>.ttf</c>/<c>.ttc</c>/<c>.otf</c> file found by reading only its header-level
-    ///     metadata (the font is not fully loaded).
+    ///     this operating system with <see cref="FontDirectoryScanner"/> (header-level metadata
+    ///     only; the fonts are not fully loaded).
     /// </summary>
     private static IReadOnlyList<SystemFontInfo> BuildCatalog() => BuildCatalogFromRoots(GetScanRoots());
 
@@ -382,94 +455,14 @@ public static class SystemFontCatalog
     ///     exposed separately from <see cref="BuildCatalog"/> so this scan/tolerance logic (a
     ///     missing root, an inaccessible subdirectory, or an unparseable candidate file are all
     ///     silently skipped) can be tested against controlled temporary directories, without
-    ///     depending on what happens to be installed on the machine running the tests.
+    ///     depending on what happens to be installed on the machine running the tests. Linked
+    ///     font files and linked roots are accepted (a system font directory commonly uses them);
+    ///     linked subdirectories are never followed.
     /// </summary>
     /// <param name="roots">The directory roots to scan.</param>
     /// <returns>Every well-formed font face discovered.</returns>
-    internal static IReadOnlyList<SystemFontInfo> BuildCatalogFromRoots(IEnumerable<string> roots)
-    {
-        var result = new List<SystemFontInfo>();
-        foreach (var root in roots)
-        {
-            foreach (var path in EnumerateFontFiles(root))
-            {
-                AddFacesForFile(path, result);
-            }
-        }
-
-        return result;
-    }
-
-    /// <summary>
-    ///     Reads every face of a single candidate font file, appending a <see cref="SystemFontInfo"/>
-    ///     for each well-formed face found, and silently skipping the whole file (or, for a
-    ///     <c>.ttc</c>, just the one corrupt face) when its headers fail to parse.
-    /// </summary>
-    /// <remarks>
-    ///     Only the font's headers (offset table, table directory, <c>head</c>, <c>name</c>,
-    ///     <c>OS/2</c>, <c>post</c>) are read, through a single <see cref="FileStream"/> per file,
-    ///     via <see cref="SfntHeaderReader"/>; the glyph data is never loaded. A face whose
-    ///     headers are valid but whose glyph data is corrupt is therefore listed (it would
-    ///     fail later, when actually loaded).
-    /// </remarks>
-    private static void AddFacesForFile(string path, List<SystemFontInfo> result)
-    {
-        try
-        {
-            using var stream = new FileStream(
-                path,
-                FileMode.Open,
-                FileAccess.Read,
-                FileShare.ReadWrite | FileShare.Delete,
-                bufferSize: 4096,
-                FileOptions.RandomAccess);
-
-            int faceCount;
-            try
-            {
-                faceCount = SfntHeaderReader.GetFaceCount(stream);
-            }
-            catch (Exception ex) when (IsSkippableFontError(ex))
-            {
-                return;
-            }
-
-            for (var faceIndex = 0; faceIndex < faceCount; faceIndex++)
-            {
-                SfntFaceInfo info;
-                try
-                {
-                    info = SfntHeaderReader.ReadFace(stream, faceIndex);
-                }
-                catch (Exception ex) when (IsSkippableFontError(ex))
-                {
-                    continue;
-                }
-
-                result.Add(new SystemFontInfo(
-                    info.FamilyName ?? Path.GetFileNameWithoutExtension(path),
-                    info.SubfamilyName ?? string.Empty,
-                    info.Bold,
-                    info.Italic,
-                    info.FixedPitch,
-                    Path.GetFullPath(path),
-                    faceIndex));
-            }
-        }
-        catch (Exception ex) when (IsSkippableFontError(ex))
-        {
-            // The file could not be opened (or vanished/was locked while scanning): skip it.
-        }
-    }
-
-    /// <summary>
-    ///     Reports whether <paramref name="ex"/> is a failure mode that merely means "this
-    ///     candidate font file is unusable" (malformed, truncated, inaccessible) and must not abort
-    ///     the scan.
-    /// </summary>
-    private static bool IsSkippableFontError(Exception ex) =>
-        ex is InvalidDataException or IOException or UnauthorizedAccessException
-            or ArgumentOutOfRangeException or OverflowException;
+    internal static IReadOnlyList<SystemFontInfo> BuildCatalogFromRoots(IEnumerable<string> roots) =>
+        FontDirectoryScanner.Scan(roots, CatalogScanLimits, trustLinkedFiles: true);
 
     /// <summary>
     ///     Reports this process's well-known font-directory scan roots for the current operating
@@ -516,102 +509,4 @@ public static class SystemFontCatalog
             yield return Path.Join(homeDirectory, ".fonts");
         }
     }
-
-    /// <summary>
-    ///     Recursively enumerates every <c>.ttf</c>/<c>.ttc</c>/<c>.otf</c> file (case-insensitive
-    ///     extension match) under <paramref name="root"/>, tolerating a missing root and any
-    ///     inaccessible subdirectory encountered along the way (both are silently skipped rather
-    ///     than aborting the whole scan). Symlinked or junction subdirectories (reparse points) are
-    ///     skipped entirely, and every other subdirectory's canonical path is tracked so a cycle
-    ///     (for example, a symlink pointing back at an ancestor) cannot cause an infinite scan.
-    /// </summary>
-    private static List<string> EnumerateFontFiles(string root)
-    {
-        var results = new List<string>();
-        if (string.IsNullOrEmpty(root) || !Directory.Exists(root))
-        {
-            return results;
-        }
-
-        // Tracks every directory's canonicalized path already queued or visited, so a symlink (or
-        // junction/reparse point) that cycles back to an ancestor - or to another already-visited
-        // branch - cannot make this scan revisit the same real directory indefinitely.
-        var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            NormalizeDirectoryPath(root),
-        };
-
-        var pending = new Stack<string>();
-        pending.Push(root);
-        while (pending.Count > 0)
-        {
-            var directory = pending.Pop();
-
-            string[] files;
-            string[] subdirectories;
-            try
-            {
-                files = Directory.GetFiles(directory);
-            }
-            catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
-            {
-                continue;
-            }
-
-            results.AddRange(files.Where(IsFontFile));
-
-            try
-            {
-                subdirectories = Directory.GetDirectories(directory);
-            }
-            catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
-            {
-                continue;
-            }
-
-            foreach (var subdirectory in subdirectories.Where(s => !IsReparsePoint(s) && visited.Add(NormalizeDirectoryPath(s))))
-            {
-                pending.Push(subdirectory);
-            }
-        }
-
-        return results;
-    }
-
-    private static bool IsFontFile(string file)
-    {
-        var extension = Path.GetExtension(file);
-        return string.Equals(extension, ".ttf", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(extension, ".ttc", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(extension, ".otf", StringComparison.OrdinalIgnoreCase);
-    }
-
-    /// <summary>
-    ///     Reports whether a subdirectory is a symlink/junction (or cannot be inspected), in which
-    ///     case it is skipped rather than followed.
-    /// </summary>
-    private static bool IsReparsePoint(string subdirectory)
-    {
-        try
-        {
-            // A symlinked or junction subdirectory can point anywhere - including back
-            // at an ancestor of this scan - so it is skipped entirely rather than
-            // followed, matching common font-discovery tooling's own treatment of
-            // reparse points.
-            return new DirectoryInfo(subdirectory).Attributes.HasFlag(FileAttributes.ReparsePoint);
-        }
-        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
-        {
-            return true;
-        }
-    }
-
-    /// <summary>
-    ///     Canonicalizes a directory path (resolving <c>.</c>/<c>..</c> segments and relative
-    ///     roots via <see cref="Path.GetFullPath(string)"/>, then trimming any trailing directory
-    ///     separator) so two different textual spellings of the same real directory compare equal
-    ///     in <see cref="EnumerateFontFiles"/>'s visited-directory set.
-    /// </summary>
-    private static string NormalizeDirectoryPath(string path) =>
-        Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 }

@@ -54,7 +54,7 @@ framework and every operating system in this repository's CI matrix.
 
 Runs `Fonts` and `FindBestMatch` against the real host filesystem's well-known font directories,
 asserting either that at least one real font was discovered and every discovered entry has a
-non-empty family name and a `.ttf`/`.ttc`/`.otf` file path, or that the catalog is gracefully
+non-empty family name and a `.ttf`/`.ttc`/`.otf`/`.otc` file path, or that the catalog is gracefully
 empty (never throwing) - and that a well-known platform font family resolves to a real, loadable
 font when it happens to be installed, without depending on any particular font actually being
 present on the CI runner.
@@ -71,12 +71,15 @@ per process.
 
 **Tests**: `SystemFontCatalog_Fonts_HeaderOnlyScan_MatchesFullLoadForSyntheticFacesAndCollections`,
 `SystemFontCatalog_Fonts_HeaderOnlyScan_MatchesFullLoadForBundledFonts`,
-`SfntHeaderReader_ReadFace_ReadsOnlyHeaderBytesOfLargeFont`
+`SfntHeaderReader_ReadFace_ReadsOnlyHeaderBytesOfLargeFont`,
+`SfntHeaderReader_ReadFace_HugeDeclaredNameTable_IsRejectedWithoutReadingIt`
 
 Asserts the catalog entries for synthetic single-face and `.ttc` fonts (with `name`/`OS/2`/`post`
-tables) and for every bundled font equal the metadata a full `TrueTypeFont.Load` reports, and that
+tables) and for every bundled font equal the metadata a full `TrueTypeFont.Load` reports, that
 reading one face of a font padded with a 1 MiB glyph table reads under 4 KiB through a byte-counting
-stream wrapper (no timing is asserted).
+stream wrapper (no timing is asserted), and that a face whose `name` table declares 512 MiB (a
+sparse in-bounds "file" served by a test stream) is rejected with `InvalidDataException` after reading
+under 4 KiB, never allocating the table.
 
 ##### CanvasNet-Fonts-SystemFontCatalog-ToleratesMissingOrUnparseable: Missing/Unparseable Inputs Are Skipped
 
@@ -110,12 +113,15 @@ minimizing mismatched bold/italic flags.
 
 **Tests**: `SystemFontCatalog_FindBestMatch_NoExactFamily_FallsBackToGenericSansBucket`,
 `SystemFontCatalog_FindBestMatch_NoExactFamily_FallsBackToGenericSerifBucket`,
-`SystemFontCatalog_FindBestMatch_NoExactFamily_FallsBackToGenericFixedPitchBucket`
+`SystemFontCatalog_FindBestMatch_NoExactFamily_FallsBackToGenericFixedPitchBucket`,
+`SystemFontCatalog_FindBestMatch_NullFamilyHint_FallsThroughToGenericBucket`
 
 Builds a synthetic candidate list with no exact match for the requested family, but containing
 one of each generic bucket's well-known family names, asserting `FindBestMatchCore` returns the
 sans/serif/fixed-pitch bucket entry respectively, selecting the fixed-pitch bucket over the serif
-bucket when both `serif` and `fixedPitch` are requested together.
+bucket when both `serif` and `fixedPitch` are requested together; and passes a `null` family hint,
+asserting it has no exact match and falls through to the generic bucket (or to `null` for an empty list)
+rather than throwing.
 
 ##### CanvasNet-Fonts-SystemFontCatalog-FindBestMatchNoMatch: No Match Returns Null Without Consulting the Bundled Fallback
 

@@ -238,7 +238,15 @@ sections:
               - CanvasNet-Fonts-SystemFontCatalog-FindBestMatchExactFamily
               - CanvasNet-Fonts-SystemFontCatalog-FindBestMatchGenericBucket
               - CanvasNet-Fonts-SystemFontCatalog-FindBestMatchNoMatch
+              - CanvasNet-Fonts-SystemFontCatalog-FindInFamily
+              - CanvasNet-Fonts-SystemFontCatalog-LoadCache
               - CanvasNet-Fonts-SystemFontCatalog-LoadBundledFallback
               - CanvasNet-Fonts-SystemFontCatalog-LoadBundledFallbackMissingResourceGuard
+              - CanvasNet-Fonts-FontDirectoryScanner-HeaderOnlyDiscovery
+              - CanvasNet-Fonts-FontDirectoryScanner-DeterministicOrder
+              - CanvasNet-Fonts-FontDirectoryScanner-BoundedScan
+              - CanvasNet-Fonts-FontDirectoryScanner-LinkPolicy
+              - CanvasNet-Fonts-FontDirectoryScanner-ToleratesUnusableInput
+              - CanvasNet-Fonts-FontDirectoryScanner-Cancellation
             tests:
               - SystemFontCatalog_RealFilesystem_ScanKnownOsDirectories_DiscoversFontsOrIsGracefullyEmpty

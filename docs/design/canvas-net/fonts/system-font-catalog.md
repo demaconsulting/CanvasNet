@@ -53,9 +53,17 @@ reference to a plain family-name hint and a set of style booleans before calling
 ##### Fonts
 
 A property returning `LazyFonts.Value`. Building the catalog scans every well-known font
-directory for the current operating system (see Dependencies/Platform Scan Roots below),
-recursively enumerating `.ttf`/`.ttc`/`.otf` candidate files (case-insensitive extension match)
-and reading every face of every candidate through the internal `SfntHeaderReader`. The reader
+directory for the current operating system (see Dependencies/Platform Scan Roots below) with
+`FontDirectoryScanner.Scan` (see _FontDirectoryScanner Unit Design_,
+`font-directory-scanner.md`), passing `trustLinkedFiles: true` (a system font directory commonly
+holds linked fonts and may itself be a link; linked subdirectories are still never followed) and
+generous `FontScanLimits` (100,000 directories, 2,000,000 entries, 50,000 font files, 200,000
+faces - the limits only keep a pathological tree from running without end). The scan is
+deterministic (alphabetical order, matching a case-insensitive file system's listing), so which of
+several equally good faces `FindBestMatch` returns no
+longer depends on the order the operating system lists files in. The scanner recursively
+enumerates `.ttf`/`.otf`/`.ttc`/`.otc` candidate files (case-insensitive extension match)
+and reads every face of every candidate through the internal `SfntHeaderReader`. The reader
 opens one `FileStream` per file and reads only the headers it needs (the 12-byte offset table,
 the table directory, the fixed prefix of `head`/`maxp`, the `name` table, and the leading bytes
 of `OS/2`/`post`; for a `.ttc`, the face offset table), never the glyph/outline/metrics data - a
@@ -65,13 +73,15 @@ requires `CFF`) plus presence-only checks for `head`/`maxp`/`hhea`/`hmtx` and `l
 `CFF`, a non-zero `head.unitsPerEm`, a `maxp` version consistent with the outline flavor, and (for
 glyf-flavored faces) a valid `head.indexToLocFormat` (matching `TrueTypeFont.Load`), and delegates
 to the same `NameTable`/`StyleTable` parsers `TrueTypeFont` uses, so a valid
-font yields identical metadata. Behavioral difference: a face with valid headers but corrupt
+font yields identical metadata. The `name` table is read whole, so a face whose `name` table
+declares more than 1 MiB (the largest among the bundled and the Windows fonts is about 26 KB) is
+treated as malformed and skipped: a declared length only has to lie within the file, so without
+the cap a crafted (or sparse) font could force a huge allocation. Behavioral difference: a face with valid headers but corrupt
 glyph data is now listed (it only fails when actually loaded), and a standalone Type 1 program
 with a `.ttf`/`.otf` extension is no longer catalogued. A
 missing or inaccessible directory, an unparseable candidate file, or a single corrupt face within
-an otherwise well-formed `.ttc` is silently skipped (catching `InvalidDataException`,
-`IOException`, `UnauthorizedAccessException`, `ArgumentOutOfRangeException` and
-`OverflowException` at the narrowest possible scope) rather than
+an otherwise well-formed `.ttc` is silently skipped (by the scanner, at the narrowest possible
+scope; see `font-directory-scanner.md`) rather than
 aborting the whole scan - an empty result is a valid, expected outcome (for example on a minimal
 container image with no fonts installed at all), never an error.
 
@@ -93,6 +103,30 @@ Implements a two-tier scoring algorithm over `Fonts`:
 Returns `null` when `Fonts` is empty, or genuinely has no exact family match and no
 generic-bucket match either. `FindBestMatch` never itself consults `LoadBundledFallback` -
 composing "system match, else bundled fallback" is left to the caller.
+
+##### FindInFamily(faces, family, bold, italic)
+
+The exact-family building block both tiers of `FindBestMatch` are made of, public so that a
+caller can ask "is this family available, in the closest style" without the generic-bucket
+substitution, and over any list of faces (for example the result of `FontDirectoryScanner.Scan`).
+Among the faces whose `FamilyName` case-insensitively equals `family`, the one with the fewest
+differing bold/italic flags wins and the first of equally good faces wins a tie; `null` when no
+face has the family. Throws `ArgumentNullException` for a `null` list or family (`FindBestMatch`
+itself stays tolerant of a `null` hint: it has no exact match and falls through to the generic tier).
+
+##### Load(info)
+
+Loads the font a `SystemFontInfo` describes through `TrueTypeFont.Load(FilePath, FaceIndex)`,
+remembering the outcome in a process-lifetime `ConcurrentDictionary` of `Lazy<TrueTypeFont?>`
+(`ExecutionAndPublication`) keyed by file path and face index: a face is read at most once however
+many threads ask, every caller receives the same immutable instance, and a failure is remembered
+too. A file that has vanished, cannot be read, or is damaged (a face the headers-only scan listed
+can still fail to load) yields `null` rather than an exception - catching `InvalidDataException`,
+`IOException`, `UnauthorizedAccessException`, `ArgumentException`, `NotSupportedException`,
+`OverflowException` and `SecurityException`. This replaces the per-consumer font caches that
+`PdfDocument`, `PptxDocument`, `VsdxDocument` and `SvgCodec` each kept; every loaded font stays in
+memory for the process lifetime, so a consumer uses it for the faces it selects, not to examine a
+whole catalog.
 
 ##### LoadBundledFallback(serif, fixedPitch, bold, italic)
 
@@ -139,9 +173,11 @@ build time as embedded resources of this assembly.
 
 #### Dependencies
 
-`SystemFontCatalog` depends on the internal `SfntHeaderReader` (header-only face count and
+`SystemFontCatalog` depends on `FontDirectoryScanner` (the directory scan behind `Fonts`), on the
+internal `SfntHeaderReader` (which the scanner uses for header-only face count and
 name/style metadata; it reuses `SfntContainer`'s byte readers and the `NameTable`/`StyleTable`
-parsers), on `TrueTypeFont` (`Load(Stream)` for the bundled fallback fonts) within the same `Fonts`
+parsers), on `TrueTypeFont` (`Load(Stream)` for the bundled fallback fonts and `Load(string, int)` for
+`Load(SystemFontInfo)`) within the same `Fonts`
 subsystem, and on
 `System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform` to select this process's
 well-known font-directory scan roots:
@@ -163,6 +199,9 @@ sourcing/licensing provenance).
 `SystemFontCatalog` is called by `DemaConsulting.CanvasNet.Pdf`'s `PdfDocument`
 (`PdfDocument.FontFallback.cs`'s `ResolveFallbackFont`) when resolving a `/Subtype /TrueType`
 simple font lacking an embedded `/FontFile2` stream; see _PdfDocument Unit Design_
-(`../../canvas-net-pdf/pdf-document.md`). The unit's public API is intentionally
+(`../../canvas-net-pdf/pdf-document.md`). `Load` is also what `PptxDocument` and `VsdxDocument`
+(text-font resolution and, for Visio, the per-code-point glyph fallback) and `SvgCodec`
+(installed-font lookup, which uses `FindInFamily` to match the family exactly) use to load a
+matched face. The unit's public API is intentionally
 format-agnostic and generic, so a future non-PDF document-format consumer could call it directly
 without any change to this unit.

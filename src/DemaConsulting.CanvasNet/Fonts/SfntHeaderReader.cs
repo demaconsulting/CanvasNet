@@ -58,6 +58,25 @@ internal static class SfntHeaderReader
     private const int MaxpPrefix = 6;
 
     /// <summary>
+    ///     The largest <c>name</c> table, in bytes, that is read: the table is read whole, so a declared length
+    ///     (which only has to lie within the file) must not decide how much is allocated. A real name table is a
+    ///     few tens of kilobytes at most (the largest among the bundled and the Windows fonts is about 26 KB), so
+    ///     1 MiB is far above any real font; a face that declares more is treated as malformed.
+    /// </summary>
+    private const int MaxNameTableBytes = 1024 * 1024;
+
+    /// <summary>
+    ///     Checks a declared <c>name</c> table length against <see cref="MaxNameTableBytes"/>.
+    /// </summary>
+    /// <param name="length">The declared length.</param>
+    /// <returns>The length, as an <see cref="int"/>.</returns>
+    /// <exception cref="InvalidDataException">Thrown when the length exceeds the bound.</exception>
+    private static int RequireNameTableLength(long length) =>
+        length <= MaxNameTableBytes
+            ? (int)length
+            : throw new InvalidDataException("The 'name' table is larger than any real font's.");
+
+    /// <summary>
     ///     Reports how many faces <paramref name="stream"/> holds: the <c>ttcf</c> face count, or
     ///     <c>1</c> for an ordinary (non-collection) file.
     /// </summary>
@@ -77,7 +96,7 @@ internal static class SfntHeaderReader
             return 1;
         }
 
-        return ReadFaceOffsets(stream, length).Length;
+        return (int)Math.Min(ReadFaceCount(stream, length), int.MaxValue);
     }
 
     /// <summary>
@@ -99,7 +118,7 @@ internal static class SfntHeaderReader
         var macStyle = ValidateHeadAndMaxp(stream, tables, isCff);
 
         var name = tables.TryGetValue("name", out var nameRange)
-            ? NameTable.Parse(ReadAt(stream, nameRange.Offset, checked((int)nameRange.Length)), 0, (int)nameRange.Length)
+            ? NameTable.Parse(ReadAt(stream, nameRange.Offset, RequireNameTableLength(nameRange.Length)), 0, (int)nameRange.Length)
             : NameTable.Empty;
 
         // OS/2 and post are packed (truncated to the bytes StyleTable reads) into one small buffer.
@@ -127,13 +146,7 @@ internal static class SfntHeaderReader
     {
         if (length >= 4 && SfntContainer.ReadUInt32(ReadAt(stream, 0, 4), 0) == TtcTag)
         {
-            var offsets = ReadFaceOffsets(stream, length);
-            if ((uint)faceIndex >= (uint)offsets.Length)
-            {
-                throw new InvalidDataException("Face index is outside the collection.");
-            }
-
-            return offsets[faceIndex];
+            return ReadFaceOffset(stream, length, faceIndex);
         }
 
         if (faceIndex != 0)
@@ -246,7 +259,12 @@ internal static class SfntHeaderReader
         return macStyle;
     }
 
-    private static long[] ReadFaceOffsets(Stream stream, long length)
+    /// <summary>
+    ///     Reads and validates the face count a <c>ttcf</c> header declares, without reading the face offset table:
+    ///     the count must be non-zero and the declared table must fit in the file, so a count that cannot be true
+    ///     is rejected before anything is sized or read from it.
+    /// </summary>
+    private static uint ReadFaceCount(Stream stream, long length)
     {
         if (length < TtcHeaderPrefixSize)
         {
@@ -265,20 +283,27 @@ internal static class SfntHeaderReader
             throw new InvalidDataException("Font data is too short to contain its declared 'ttcf' face offset table.");
         }
 
-        var table = ReadAt(stream, TtcHeaderPrefixSize, checked((int)numFonts * 4));
-        var offsets = new long[numFonts];
-        for (var i = 0; i < offsets.Length; i++)
-        {
-            var offset = SfntContainer.ReadUInt32(table, i * 4);
-            if (offset > length)
-            {
-                throw new InvalidDataException("A 'ttcf' face offset exceeds the font data bounds.");
-            }
+        return numFonts;
+    }
 
-            offsets[i] = offset;
+    /// <summary>
+    ///     Reads the offset of one face of a <c>ttcf</c> container (only that entry of the offset table).
+    /// </summary>
+    private static long ReadFaceOffset(Stream stream, long length, int faceIndex)
+    {
+        var numFonts = ReadFaceCount(stream, length);
+        if ((uint)faceIndex >= numFonts)
+        {
+            throw new InvalidDataException("Face index is outside the collection.");
         }
 
-        return offsets;
+        var offset = SfntContainer.ReadUInt32(ReadAt(stream, TtcHeaderPrefixSize + ((long)faceIndex * 4), 4), 0);
+        if (offset > length)
+        {
+            throw new InvalidDataException("A 'ttcf' face offset exceeds the font data bounds.");
+        }
+
+        return offset;
     }
 
     private static byte[] ReadAt(Stream stream, long position, int count)
