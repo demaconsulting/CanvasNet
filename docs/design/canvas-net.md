@@ -371,6 +371,17 @@ The system exposes the following public API to external consumers:
   bool trustLinkedFiles, CancellationToken cancellationToken)**:
   Deterministic, bounded, link-safe, header-only scan of directory trees returning a
   `SystemFontInfo` per well-formed face.
+- **GenericFontFamilies.TryClassify(string? familyName, bool includeCommonAliases, out bool serif,
+  out bool fixedPitch)** and **GenericFontFamilies.SplitFamilyList(string? cssFontFamily)**:
+  Classify a family name as a CSS generic keyword (optionally a well-known alias) of the sans,
+  serif or monospace design, and split a CSS `font-family` list honoring quotes. Never throw.
+- **FontResolver(FontResolverOptions? options, CancellationToken cancellationToken)** and
+  **FontResolver.Resolve(string? cssFamilyList, bool bold, bool italic, out string? failure)**:
+  Resolve a CSS family list to a `ResolvedFont` (font, family, `FontSource`, style) - generic
+  keywords to the bundled Liberation fonts, other families by exact name in the additional
+  directories, then optionally the installed fonts, then the bundled family names - never failing
+  (the bundled Liberation Sans is the last resort) and reporting through `failure` why a fallback
+  was used. Thread-safe.
 - **SystemFontCatalog.LoadBundledFallback(bool serif, bool fixedPitch, bool bold, bool italic)**:
   Returns a ready-to-query `TrueTypeFont` loaded from one of the library's twelve embedded
   Liberation Sans/Serif/Mono resources, selected by the requested style combination.
@@ -428,6 +439,9 @@ The system exposes the following public API to external consumers:
 | `SystemFontCatalog.FindInFamily(...)`        | Outbound         | Method / `SystemFontInfo?`     | Non-null faces and family     |
 | `SystemFontCatalog.Load(...)`                | Outbound         | Method / `TrueTypeFont?`       | None                          |
 | `FontDirectoryScanner.Scan(...)`             | Outbound         | Method / list return           | Non-null directory list       |
+| `GenericFontFamilies.TryClassify(...)`       | Outbound         | Method / `bool`, out flags     | None                          |
+| `GenericFontFamilies.SplitFamilyList(...)`   | Outbound         | Method / list return           | None                          |
+| `FontResolver.Resolve(...)`                  | Outbound         | Method / `ResolvedFont`        | None                          |
 | `SystemFontCatalog.LoadBundledFallback(...)` | Outbound         | Method / `TrueTypeFont`        | None                          |
 <!-- markdownlint-enable MD013 -->
 

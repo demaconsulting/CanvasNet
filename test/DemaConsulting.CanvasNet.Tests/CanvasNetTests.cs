@@ -1309,4 +1309,31 @@ public class CanvasNetTests
         Assert.NotEqual(0, glyphIndex);
         Assert.True(font.GlyphCount > 0);
     }
+
+    /// <summary>
+    ///     Proves that the public <see cref="FontResolver"/> resolves a CSS font-family list to a usable font
+    ///     deterministically with its default options (bundled fonts only): a generic keyword gives the bundled
+    ///     font of its design, an unknown family falls through to the next family of the list, and a list with
+    ///     no family that can be met gives the bundled Liberation Sans together with the reason.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_ResolveFontFamilyList_ReturnsBundledFontsAndFailureReason()
+    {
+        // Arrange: a resolver with the default options, which never consults the host's installed fonts
+        var resolver = new FontResolver();
+
+        // Act
+        var serif = resolver.Resolve("'No Such Family', serif", bold: true, italic: false, out var serifFailure);
+        var missing = resolver.Resolve("No Such Family", bold: false, italic: false, out var missingFailure);
+
+        // Assert: the generic keyword is met after the unknown family, with no failure
+        Assert.Equal((FontSource.Bundled, "Liberation Serif", true), (serif.Source, serif.Family, serif.Bold));
+        Assert.Null(serifFailure);
+        Assert.True(serif.Font.IsBold);
+        Assert.NotEqual(0, serif.Font.GetGlyphIndex('A'));
+
+        // Assert: nothing could be met, so the bundled sans answers and the reason is reported
+        Assert.Equal((FontSource.Bundled, "Liberation Sans"), (missing.Source, missing.Family));
+        Assert.Equal("no such font family was found", missingFailure);
+    }
 }

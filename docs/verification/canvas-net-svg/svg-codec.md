@@ -434,6 +434,7 @@ equivalence test against the algorithm this codec used before the method existed
 `SvgCodec_Load_TextGenericFamilies_SansSerifAndMonospaceRenderDifferently`,
 `SvgCodec_Load_TextGenericFamilyWithWeightAndStyle_RendersBundledStyleVariant`,
 `SvgCodec_Load_TextGenericSerifAndMonospaceBoldItalic_RendersBundledStyleVariants`,
+`SvgCodec_Load_TextBundledFamilyNameSystemFontsDisabled_RendersThatBundledFamily`,
 `SvgCodec_Load_TextUnknownFamilySystemFontsDisabled_RendersBundledLiberationSans`,
 `SvgCodec_Load_TextWithoutFontFamilyAttribute_RendersBundledLiberationSans`,
 `SvgCodec_Load_TextFamilyList_UsesFirstResolvableFamilyInOrder`,
@@ -457,7 +458,10 @@ installed fonts are disabled; a family list is walked in order, an unknown name 
 the first generic keyword deciding the font; two elements of one family in different weights each
 get their own variant in a single render; a family installed on the host (chosen from
 `SystemFontCatalog.Fonts`) renders with that installed font, degrading to the unknown-family
-expectation on a host where nothing installed differs from the bundled font; and `clipPath` text
+expectation on a host where nothing installed differs from the bundled font; the bundled family names
+`Liberation Sans`, `Liberation Serif` and `Liberation Mono` (any case, quoted, or after an unknown family) render the
+bundled Sans/Serif/Mono with installed fonts disabled, and a quoted family containing a comma is one family; and
+`clipPath` text
 children and filtered-group text bounds, which share the same resolution, render with the default
 font, and an oversized `clipPath` text run is rejected by the shared geometry work budget. The three
 previously "silently skipped" unit tests now assert ink: the no-dictionary case

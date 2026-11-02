@@ -79,7 +79,7 @@ is converted like `str()` (the text `12` equals the text `"12"`).
 `ScadTextGeometryTests.ScadTextGeometry_FontResolver_AdditionalDirectory_MatchesFamilyAndClosestStyle`,
 `ScadTextGeometryTests.ScadTextGeometry_FontResolver_AdditionalDirectories_AreSearchedInOrder`,
 `ScadTextGeometryTests.ScadTextGeometry_FontResolver_AdditionalDirectory_SkipsMissingAndUnparseableFiles`,
-`ScadTextGeometryTests.ScadTextGeometry_FontResolver_AdditionalDirectory_ScanRetainsNoParsedFaces`,
+`ScadTextGeometryTests.ScadTextGeometry_FontResolver_AdditionalDirectory_SelectedFacesAreLoadedAndShared`,
 `ScadTextGeometryTests.ScadTextGeometry_FontResolver_AdditionalDirectory_RemovedFileAfterScanFallsBackWithWarning`,
 `ScadRenderOptionsTests.ScadRenderOptions_FontResolution_DefaultsAndCopiesDirectories`,
 `ScadRenderSystemTests.ScadRenderSystem_Text_BundledFontMetricsAreStableWhenSystemFontsAreDisabled`
@@ -95,12 +95,15 @@ order and then ordinal path order wins a tie, and the result is the same on ever
 garbage `.ttf`, an empty `.otf`, and a font with another extension are skipped without a failure and without being
 offered (so the family of a damaged file is "not available" with a warning); that the directory list is copied and a
 later change of the
-caller's list has no effect; that scanning a directory of many faces retains no parsed font (the internal retained
-count is zero after a scan that selects nothing, and then equals the number of distinct faces selected, a repeated
-request adding nothing) and the selected faces render; that a face is loaded only when selected, so a font file
+caller's list has no effect; that scanning a directory of many faces and selecting some of them loads only the
+selected faces, which render and are the same font on a repeated request (that the scan itself reads headers only,
+and retains no font, is verified by the core `FontDirectoryScanner` unit tests); that a face is loaded only when
+selected, so a font file
 removed after the scan resolves to the bundled sans font with a warning; and, through the public options,
 that the directory reaches the geometry (the text
-differs from the bundled one). The system test pins literal font-unit metrics of Liberation Sans Regular.
+differs from the bundled one). The system test pins literal font-unit metrics of Liberation Sans Regular. The
+translation into the core `FontResolver` (the exact-family search order and the closest style) is verified here with
+the real resolver; its own unit tests cover the resolver itself.
 
 ##### CanvasNetScad-ScadGeometry-ScadTextGeometry-Size: Cap-Height Size
 
@@ -222,7 +225,7 @@ with a live context returns the exact ink height of the `H`.
 `ScadTextGeometryTests.ScadTextGeometry_FontResolver_AdditionalDirectory_CancellationIsPolled`,
 `ScadTextGeometryTests.ScadTextGeometry_FontResolver_AdditionalDirectory_ScanStopsAtResourceBound`,
 `ScadTextGeometryTests.ScadTextGeometry_FontResolver_AdditionalDirectory_InvalidPathsAreSkipped`,
-`ScadTextGeometryTests.ScadTextGeometry_FontResolver_AdditionalDirectory_ScanRetainsNoParsedFaces`
+`ScadTextGeometryTests.ScadTextGeometry_FontResolver_AdditionalDirectory_SelectedFacesAreLoadedAndShared`
 
 Asserts that a root that is a directory link (a symbolic link or a junction) contributes nothing while the real
 directory listed beside it is found (the test skips itself where the host cannot create links); that a font file that
@@ -230,10 +233,10 @@ is a symbolic link contributes nothing while a real copy beside it is found (ski
 be created); that a resolver
 with an already canceled token throws `OperationCanceledException` from its scan while a live token finds the font;
 that with explicit small bounds (one font file, one face, two directories, one entry) the scan keeps only what it
-reached first in ordinal order (the bold face rather than the italic one, or the bundled family when nothing was
+reached first in traversal order (the bold face rather than the italic one, or the bundled family when nothing was
 read) while the default bounds find the italic face; and that a path with a NUL character, an over-long path, a
 missing path, and a path that is a file are skipped without a failure and a valid directory listed after them is
-still scanned; and that scanning many faces retains no parsed font, only the selected faces being loaded and cached.
+still scanned; and that scanning many faces loads only the selected faces.
 
 ##### CanvasNetScad-ScadGeometry-ScadTextGeometry-Determinism: Reproducible Output
 

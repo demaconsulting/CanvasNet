@@ -1439,6 +1439,69 @@ var font = (wanted is { } face ? SystemFontCatalog.Load(face) : null)
     ?? SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold: true, italic: false);
 ```
 
+### FontResolver
+
+`FontResolver` turns a CSS `font-family` list, a bold flag and an italic flag into a loaded font,
+and never fails: the bundled Liberation Sans is the last resort. It is the policy behind the font
+fallback of the Svg, Vega-Lite and OpenSCAD libraries, available for your own text:
+
+```csharp
+public sealed class FontResolver
+{
+    public FontResolver(FontResolverOptions? options = null, CancellationToken cancellationToken = default);
+    public ResolvedFont Resolve(string? cssFamilyList, bool bold, bool italic, out string? failure);
+}
+
+public sealed record FontResolverOptions
+{
+    public IReadOnlyList<string> AdditionalDirectories { get; init; }  // default: none
+    public bool UseSystemFonts { get; init; }                          // default: false
+    public bool MapCommonAliasesToBundled { get; init; }               // default: false
+    public FontScanLimits ScanLimits { get; init; }                    // default: FontScanLimits defaults
+}
+
+public sealed record ResolvedFont(TrueTypeFont Font, string Family, FontSource Source, bool Bold, bool Italic);
+public enum FontSource { Bundled, AdditionalDirectory, System }
+
+public static class GenericFontFamilies
+{
+    public static bool TryClassify(string? familyName, bool includeCommonAliases, out bool serif, out bool fixedPitch);
+    public static IReadOnlyList<string> SplitFamilyList(string? cssFontFamily);
+}
+```
+
+The list is read from left to right and the first family that resolves wins. For each family: a CSS
+generic keyword (`sans-serif`, `serif`, `monospace`, `system-ui`, ..., with `cursive` and `fantasy`
+as sans-serif) resolves to the bundled Liberation Sans, Serif or Mono - and, with
+`MapCommonAliasesToBundled`, so does a well-known name such as `Arial`, `Times New Roman` or
+`Courier New`, before anything else is consulted, so those names give the same result on every
+machine; any other family is looked up by exact name (ignoring case) in `AdditionalDirectories`
+(scanned once with `FontDirectoryScanner` under `ScanLimits`, in the order given), then - only with
+`UseSystemFonts` - in the installed fonts, then among the three bundled family names (`Liberation
+Sans`, `Liberation Serif`, `Liberation Mono`). Within a source the face whose bold and italic flags
+differ least from the request wins, and a family that lacks the requested style is used as it is.
+A family found nowhere is skipped, and an empty or exhausted list resolves to the bundled Liberation
+Sans in the requested style. The generic substitution of `SystemFontCatalog.FindBestMatch` is not
+used, so the result depends only on what you configure.
+
+`failure` is `null` when a family of the list was met (or the list names no family); otherwise it
+is the reason the fallback was used: `no such font family was found`, or `the font file '<path>'
+could not be loaded` for a face that was found but has vanished or is damaged (its family is then
+spent: the later sources are not tried for it, but the next family of the list is). A font that is
+loaded stays in memory for the process lifetime (`SystemFontCatalog.Load`). The token given to the
+constructor cancels the scan of `AdditionalDirectories`, which runs once on the first lookup that
+needs it; a canceled scan makes `Resolve` throw `OperationCanceledException`.
+
+A resolver is thread-safe and remembers each request it has answered, so use one resolver per
+render or job rather than one for the life of a process that resolves untrusted family lists.
+
+```csharp
+// The fonts of a corporate directory first, then Liberation Serif, whatever the machine has installed
+var resolver = new FontResolver(new FontResolverOptions { AdditionalDirectories = [@"C:\MyFonts"] });
+var resolved = resolver.Resolve("\"My Brand Sans\", serif", bold: true, italic: false, out var failure);
+// resolved.Font is ready to use; failure is null because "serif" was met even if "My Brand Sans" was not
+```
+
 ### PathFiller
 
 The `PathFiller` static class fills a closed `Geometry.Path` with a solid color onto a `Surface`,

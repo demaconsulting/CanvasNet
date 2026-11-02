@@ -23,7 +23,11 @@ namespace DemaConsulting.CanvasNet.Fonts;
 ///     metrics, and has no notion of pixels, surfaces, or rasterization - callers combine its
 ///     output with their own point size and orientation before feeding it to
 ///     <see cref="DemaConsulting.CanvasNet.Drawing.PathFiller"/> or
-///     <see cref="DemaConsulting.CanvasNet.Drawing.PathStroker"/>.
+///     <see cref="DemaConsulting.CanvasNet.Drawing.PathStroker"/>. Font discovery and selection are
+///     provided by <see cref="SystemFontCatalog"/> (installed fonts, bundled Liberation fallback),
+///     <see cref="FontDirectoryScanner"/> (a deterministic, bounded scan of font directories) and
+///     <see cref="FontResolver"/> (a CSS <c>font-family</c> list to a loaded font, with
+///     <see cref="GenericFontFamilies"/> as its generic-family policy).
 /// </summary>
 internal static class NamespaceDoc
 {

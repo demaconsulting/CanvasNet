@@ -41,7 +41,7 @@ The subsystem's namespace documentation is in `Guides/NamespaceDoc.cs`. Its beha
 ### Interfaces
 
 **Exposed** (internal only): `new TextMeasurer(VegaLiteFontOptions?)` with `Resolve`, `MeasureWidth`, `Measure`,
-`Truncate`, `TextValue`, `GetBounds`, `GetMetrics`, and the static helpers `IsBold`, `IsItalic`, `SplitFamilies`,
+`Truncate`, `TextValue`, `GetBounds`, `GetMetrics`, and the static helpers `IsBold`, `IsItalic`,
 `SplitLines`, `LineHeight`, `BaselineOffset`, and `RoundHalfUp`; `new TitleBuilder(TextMeasurer).Build(SpecNode?,
 ResolvedConfig, bool)`, which returns a `TitleBlock` whose `Place` produces the positioned title group;
 `new AxisBuilder(TextMeasurer, ResolvedConfig, VegaLiteLimits?, string?, TimeCalendar?).Build(AxisRequest,`

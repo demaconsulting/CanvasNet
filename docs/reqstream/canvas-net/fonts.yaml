@@ -250,3 +250,28 @@ sections:
               - CanvasNet-Fonts-FontDirectoryScanner-Cancellation
             tests:
               - SystemFontCatalog_RealFilesystem_ScanKnownOsDirectories_DiscoversFontsOrIsGracefullyEmpty
+
+          - id: CanvasNet-Fonts-FontResolution
+            title: >-
+              The Fonts subsystem shall resolve a CSS font-family list, a bold flag and an italic
+              flag to a loaded font without ever failing (the bundled Liberation Sans being the
+              last resort): a CSS generic family keyword, and optionally a well-known family
+              name, maps to the bundled Liberation font of its design, any other family is looked
+              up by exact name in caller-supplied font directories, then optionally in the
+              installed fonts, then among the bundled family names, and the reason for a fallback
+              is reported (the FontResolver and GenericFontFamilies units).
+            justification: |
+              Every consumer that draws text from a CSS-style font specification (SVG, Vega-Lite,
+              OpenSCAD) needs the same fallback policy; keeping it in the Fonts subsystem next to
+              the scanner, the catalog and the bundled fonts avoids one divergent copy per
+              consumer.
+            children:
+              - CanvasNet-Fonts-GenericFontFamilies-Classification
+              - CanvasNet-Fonts-GenericFontFamilies-SplitFamilyList
+              - CanvasNet-Fonts-FontResolver-DefaultAndGeneric
+              - CanvasNet-Fonts-FontResolver-LookupOrder
+              - CanvasNet-Fonts-FontResolver-FailureReporting
+              - CanvasNet-Fonts-FontResolver-AdditionalDirectoryScan
+              - CanvasNet-Fonts-FontResolver-Options
+            tests:
+              - FontResolver_Resolve_NamedFamily_SearchesDirectoriesThenSystemThenBundledNames

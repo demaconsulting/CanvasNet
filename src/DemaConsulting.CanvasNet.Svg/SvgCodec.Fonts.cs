@@ -39,13 +39,15 @@ public static partial class SvgCodec
     ///         </item>
     ///         <item>
     ///             <description>
-    ///                 Otherwise, for each family in the <c>font-family</c> list, in order: a generic
-    ///                 family keyword maps to the bundled Liberation fonts (<c>sans-serif</c>,
-    ///                 <c>system-ui</c>, <c>ui-sans-serif</c>, <c>cursive</c> and <c>fantasy</c> to
-    ///                 Sans; <c>serif</c> and <c>ui-serif</c> to Serif; <c>monospace</c> and
-    ///                 <c>ui-monospace</c> to Mono); any other name is looked up as an installed font
+    ///                 Otherwise the core <see cref="FontResolver"/> resolves the <c>font-family</c> list:
+    ///                 for each family, in order, a generic family keyword maps to the bundled Liberation
+    ///                 fonts (<c>sans-serif</c>, <c>system-ui</c>, <c>ui-sans-serif</c>, <c>cursive</c> and
+    ///                 <c>fantasy</c> to Sans; <c>serif</c> and <c>ui-serif</c> to Serif; <c>monospace</c>
+    ///                 and <c>ui-monospace</c> to Mono); any other name is looked up as an installed font
     ///                 with an exact (case-insensitive) family-name match, when
-    ///                 <see cref="RenderContext.UseSystemFonts"/> is enabled.
+    ///                 <see cref="RenderContext.UseSystemFonts"/> is enabled; and a bundled family name
+    ///                 (<c>Liberation Sans</c>, <c>Liberation Serif</c>, <c>Liberation Mono</c>) that no
+    ///                 installed font has maps to that bundled font. Quoted names may contain commas.
     ///             </description>
     ///         </item>
     ///         <item>
@@ -54,9 +56,9 @@ public static partial class SvgCodec
     ///             </description>
     ///         </item>
     ///     </list>
-    ///     The default resolution is cached per render, keyed by the <c>font-family</c> text and the
-    ///     bold/italic axes, and a given installed font file is loaded at most once per process
-    ///     (<see cref="SystemFontCatalog.Load"/>).
+    ///     The default resolution is cached per render by the render context's resolver, keyed by the
+    ///     <c>font-family</c> text and the bold/italic axes, and a given installed font file is loaded at
+    ///     most once per process (<see cref="SystemFontCatalog.Load"/>).
     /// </remarks>
     private static TrueTypeFont ResolveFont(
         RenderContext context,
@@ -75,114 +77,6 @@ public static partial class SvgCodec
 
         var bold = requestedWeight >= BoldWeightThreshold;
         var italic = requestedStyle == SvgFontStyle.Italic;
-        var key = (fontFamily ?? string.Empty, bold, italic);
-        if (context.ResolvedFontCache.TryGetValue(key, out var cached))
-        {
-            return cached;
-        }
-
-        var resolved = ResolveDefaultFont(context, fontFamily, bold, italic);
-        context.ResolvedFontCache[key] = resolved;
-        return resolved;
+        return context.DefaultFonts.Resolve(fontFamily, bold, italic, out _).Font;
     }
-
-    /// <summary>
-    ///     Performs the uncached default-font resolution described on <see cref="ResolveFont"/>
-    ///     (everything after the caller-registered lookup).
-    /// </summary>
-    /// <param name="context">The per-document render context.</param>
-    /// <param name="fontFamily">The raw <c>font-family</c> value, or <see langword="null"/>.</param>
-    /// <param name="bold">Whether a bold face is requested.</param>
-    /// <param name="italic">Whether an italic face is requested.</param>
-    /// <returns>The resolved font.</returns>
-    private static TrueTypeFont ResolveDefaultFont(RenderContext context, string? fontFamily, bool bold, bool italic)
-    {
-        if (!string.IsNullOrWhiteSpace(fontFamily))
-        {
-            foreach (var candidate in fontFamily.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
-            {
-                var name = candidate.Trim('\'', '"').Trim();
-                if (name.Length == 0)
-                {
-                    continue;
-                }
-
-                if (TryGetGenericFamily(name, out var serif, out var fixedPitch))
-                {
-                    return SystemFontCatalog.LoadBundledFallback(serif, fixedPitch, bold, italic);
-                }
-
-                if (context.UseSystemFonts)
-                {
-                    var installed = TryLoadInstalledFont(name, bold, italic);
-                    if (installed != null)
-                    {
-                        return installed;
-                    }
-                }
-            }
-        }
-
-        return SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold, italic);
-    }
-
-    /// <summary>
-    ///     Maps a CSS generic font-family keyword onto the bundled Liberation family axes.
-    /// </summary>
-    /// <param name="name">The unquoted family name.</param>
-    /// <param name="serif"><see langword="true"/> when the keyword selects the serif family.</param>
-    /// <param name="fixedPitch"><see langword="true"/> when the keyword selects the monospace family.</param>
-    /// <returns><see langword="true"/> when <paramref name="name"/> is a recognized generic family keyword.</returns>
-    private static bool TryGetGenericFamily(string name, out bool serif, out bool fixedPitch)
-    {
-        serif = false;
-        fixedPitch = false;
-
-        if (name.Equals("sans-serif", StringComparison.OrdinalIgnoreCase)
-            || name.Equals("system-ui", StringComparison.OrdinalIgnoreCase)
-            || name.Equals("ui-sans-serif", StringComparison.OrdinalIgnoreCase)
-            || name.Equals("cursive", StringComparison.OrdinalIgnoreCase)
-            || name.Equals("fantasy", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        if (name.Equals("serif", StringComparison.OrdinalIgnoreCase)
-            || name.Equals("ui-serif", StringComparison.OrdinalIgnoreCase))
-        {
-            serif = true;
-            return true;
-        }
-
-        if (name.Equals("monospace", StringComparison.OrdinalIgnoreCase)
-            || name.Equals("ui-monospace", StringComparison.OrdinalIgnoreCase))
-        {
-            fixedPitch = true;
-            return true;
-        }
-
-        return false;
-    }
-
-    /// <summary>
-    ///     Loads an installed font whose family name exactly (case-insensitively) equals
-    ///     <paramref name="familyName"/>, choosing its closest bold/italic style.
-    /// </summary>
-    /// <param name="familyName">The unquoted family name.</param>
-    /// <param name="bold">Whether a bold face is requested.</param>
-    /// <param name="italic">Whether an italic face is requested.</param>
-    /// <returns>
-    ///     The loaded font, or <see langword="null"/> when no installed font has that family name or
-    ///     the matching font file cannot be loaded.
-    /// </returns>
-    /// <remarks>
-    ///     <see cref="SystemFontCatalog.FindInFamily"/> never substitutes a generic family, so the
-    ///     <c>font-family</c> list's next entry - and ultimately the bundled fallback - gets its turn
-    ///     when the requested family is not installed. The load (and a failed load) is cached
-    ///     process-wide by <see cref="SystemFontCatalog.Load"/>.
-    /// </remarks>
-    private static TrueTypeFont? TryLoadInstalledFont(string familyName, bool bold, bool italic) =>
-        SystemFontCatalog.FindInFamily(SystemFontCatalog.Fonts, familyName, bold, italic) is { } info
-            ? SystemFontCatalog.Load(info)
-            : null;
 }

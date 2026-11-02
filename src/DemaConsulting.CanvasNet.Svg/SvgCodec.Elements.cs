@@ -211,11 +211,17 @@ public static partial class SvgCodec
         public bool UseSystemFonts { get; init; } = true;
 
         /// <summary>
-        ///     Caches each default-resolved font (see <see cref="ResolveFont"/>), keyed by the
-        ///     <c>font-family</c> text and the bold/italic axes, for the lifetime of one <c>Load</c>
-        ///     call - the same "populated once, read many times" lifetime as <see cref="GradientStopCache"/>.
+        ///     Resolves each default font (see <see cref="ResolveFont"/>) for the lifetime of one
+        ///     <c>Load</c> call, caching it by the <c>font-family</c> text and the bold/italic axes - the
+        ///     same "populated once, read many times" lifetime as <see cref="GradientStopCache"/>. Created on
+        ///     first use from <see cref="UseSystemFonts"/>; one resolver per render, so the cache never
+        ///     outlives (or grows across) documents.
         /// </summary>
-        public Dictionary<(string Family, bool Bold, bool Italic), TrueTypeFont> ResolvedFontCache { get; } = [];
+        public FontResolver DefaultFonts =>
+            _defaultFonts ??= new FontResolver(new FontResolverOptions { UseSystemFonts = UseSystemFonts });
+
+        /// <summary>Backs <see cref="DefaultFonts"/>.</summary>
+        private FontResolver? _defaultFonts;
 
         /// <summary>
         ///     Caches each gradient element's own resolved (pre-alpha) color stops, keyed by the

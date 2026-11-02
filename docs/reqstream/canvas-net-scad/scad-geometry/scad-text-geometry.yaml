@@ -42,12 +42,12 @@ sections:
                 title: >-
                   The ScadTextGeometry unit shall use the bundled Liberation Sans Regular font when no font is
                   named, whatever fonts the host has, and shall resolve a font argument of the form Family or
-                  Family:style=Bold Italic (case-insensitive style words) by searching the additional
-                  directories (searched recursively, in the order given and in ordinal path order within a
-                  directory, skipping missing directories and font files that do not parse), then the
-                  installed fonts when enabled, then the bundled Liberation families and
-                  the generic names sans-serif, serif, and monospace, accepting only an exact family match
-                  (case aside, the closest bold and italic style, the first face winning a tie), and shall
+                  Family:style=Bold Italic (case-insensitive style words) through the core font resolver, by
+                  searching the additional directories (searched recursively, in the order given and in a
+                  deterministic order within a directory, skipping missing directories and font files that do
+                  not parse), then the installed fonts when enabled, then the bundled Liberation families and
+                  the generic names sans-serif, sans, serif, monospace, and mono, accepting only an exact family
+                  match (case aside, the closest bold and italic style, the first face winning a tie), and shall
                   fall back to the bundled sans font with one located warning when the
                   family is missing or its face cannot be loaded.
                 justification: |
@@ -61,7 +61,7 @@ sections:
                   - ScadTextGeometry_FontResolver_AdditionalDirectory_MatchesFamilyAndClosestStyle
                   - ScadTextGeometry_FontResolver_AdditionalDirectories_AreSearchedInOrder
                   - ScadTextGeometry_FontResolver_AdditionalDirectory_SkipsMissingAndUnparseableFiles
-                  - ScadTextGeometry_FontResolver_AdditionalDirectory_ScanRetainsNoParsedFaces
+                  - ScadTextGeometry_FontResolver_AdditionalDirectory_SelectedFacesAreLoadedAndShared
                   - ScadTextGeometry_FontResolver_AdditionalDirectory_RemovedFileAfterScanFallsBackWithWarning
                   - ScadRenderOptions_FontResolution_DefaultsAndCopiesDirectories
                   - ScadRenderSystem_Text_BundledFontMetricsAreStableWhenSystemFontsAreDisabled
@@ -203,21 +203,20 @@ sections:
 
               - id: CanvasNetScad-ScadGeometry-ScadTextGeometry-FontResolutionSafety
                 title: >-
-                  The ScadTextGeometry unit shall scan the additional font directories without following a
-                  reparse point (neither a root, a subdirectory, nor a font file), skip a malformed, over-long,
-                  missing, or
+                  The ScadTextGeometry unit shall scan the additional font directories (with the core font
+                  directory scanner) without following a reparse point (neither a root, a subdirectory, nor a
+                  font file), skip a malformed, over-long, missing, or
                   unreadable path without failing, stop at fixed bounds on directories, entries, font files,
-                  and faces (visiting subdirectories depth first in ordinal order and keeping what was found
-                  before the bound), retain only lightweight metadata per scanned face (never a parsed font,
-                  loading a face only when it is selected and caching only selected faces), and poll the
-                  cancellation token of the build before every directory, file, and face so that a canceled
+                  and faces (keeping what was found before the bound), read only the font headers of a
+                  scanned face (loading a face only when it is selected), and poll the
+                  cancellation token of the build so that a canceled
                   build stops the scan with an operation canceled exception.
                 justification: |
                   The additional directories are caller-supplied paths; scanning them must not loop through a
                   link, crash on a bad path, take unbounded time or memory on a hostile tree, or ignore a
                   cancellation.
                 tests:
-                  - ScadTextGeometry_FontResolver_AdditionalDirectory_ScanRetainsNoParsedFaces
+                  - ScadTextGeometry_FontResolver_AdditionalDirectory_SelectedFacesAreLoadedAndShared
                   - ScadTextGeometry_FontResolver_AdditionalDirectory_ReparsePointRootIsIgnored
                   - ScadTextGeometry_FontResolver_AdditionalDirectory_ReparsePointFileIsIgnored
                   - ScadTextGeometry_FontResolver_AdditionalDirectory_CancellationIsPolled

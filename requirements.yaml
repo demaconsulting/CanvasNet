@@ -39,6 +39,8 @@ includes:
   - docs/reqstream/canvas-net/fonts/true-type-font.yaml
   - docs/reqstream/canvas-net/fonts/system-font-catalog.yaml
   - docs/reqstream/canvas-net/fonts/font-directory-scanner.yaml
+  - docs/reqstream/canvas-net/fonts/generic-font-families.yaml
+  - docs/reqstream/canvas-net/fonts/font-resolver.yaml
   - docs/reqstream/canvas-net/files.yaml
   - docs/reqstream/canvas-net/files/sandboxed-file-resolver.yaml
   - docs/reqstream/canvas-net/rendering.yaml

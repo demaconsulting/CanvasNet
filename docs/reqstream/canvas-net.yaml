@@ -1645,6 +1645,23 @@ sections:
         tests:
           - CanvasNet_SystemIntegration_ResolveSystemFontFallback_ReturnsBundledFallbackFont
 
+      - id: CanvasNet-Lib-FontsFontResolution
+        title: >-
+          The library shall resolve a CSS font-family list, a bold flag and an italic flag to a
+          loaded font without failing, mapping generic family keywords to the bundled fonts,
+          looking other families up in caller-supplied font directories, optionally among the
+          installed fonts and then among the bundled family names, and reporting why the
+          bundled Liberation Sans was used when no listed family could be met.
+        tags: [system]
+        justification: |
+          Callers drawing text from a CSS-style font specification need one deterministic,
+          configurable fallback policy that never fails and that says why a requested font was
+          not used, instead of each re-implementing it.
+        children:
+          - CanvasNet-Fonts-FontResolution
+        tests:
+          - CanvasNet_SystemIntegration_ResolveFontFamilyList_ReturnsBundledFontsAndFailureReason
+
   - title: Rendering API
     requirements:
       - id: CanvasNet-Lib-RenderingTransformStack

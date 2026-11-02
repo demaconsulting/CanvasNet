@@ -164,3 +164,16 @@ throwing), and that a well-known platform font family (for example Arial on Wind
 Linux/macOS default) resolves to a real, loadable font when it happens to be installed. The full
 unit-level scoring algorithm, tolerance behavior, laziness/caching, and bundled-fallback
 resolution are verified by the `SystemFontCatalog` unit's own verification design.
+
+#### CanvasNet-Fonts-FontResolution: CSS Font-Family Lists Resolve To A Loaded Font
+
+**Test**: `FontResolver_Resolve_NamedFamily_SearchesDirectoriesThenSystemThenBundledNames`
+
+Resolves named families through a `FontResolver` composed of the real `FontDirectoryScanner`
+(over temporary directories holding copies of the bundled fonts), `SystemFontCatalog.FindInFamily`
+and `SystemFontCatalog.Load` (over an injected installed-face list), and the bundled fonts, and
+asserts the order of the sources and the style choice end to end. The unit-level behavior
+(generic keywords and aliases, failure reporting, scan bounds and cancellation, options and
+concurrency, family classification and list splitting) is verified by the `FontResolver` and
+`GenericFontFamilies` units' own verification designs (`fonts/font-resolver.md` and
+`fonts/generic-font-families.md`).
