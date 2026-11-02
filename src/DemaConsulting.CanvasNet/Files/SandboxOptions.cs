@@ -53,7 +53,9 @@ public sealed record SandboxOptions
     ///     Gets the largest number of distinct files that may be read by one resolver, or <see langword="null"/> (the
     ///     default) for no limit. Once that many files have been read, a candidate that is not yet known is refused with
     ///     <see cref="SandboxFailureKind.TooManyFiles"/> before it is opened or the callback is asked for it; a file that
-    ///     was already read is served from the cache and never counts again. A file that does not exist does not count.
+    ///     was already read is served from the cache and never counts again. A file that is too large counts (it was
+    ///     opened or requested) and is remembered, so asking again fails the same way without opening it again; a file that
+    ///     does not exist does not count.
     ///     Must not be negative.
     /// </summary>
     public int? MaxFiles { get; init; }

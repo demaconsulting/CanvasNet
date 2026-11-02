@@ -383,6 +383,71 @@ public class SandboxedFileResolverTests
     }
 
     /// <summary>
+    ///     Validates that in callback mode the callback sees each logical path at most once even when the same path is
+    ///     reached through two roots (the logical root and a search-path prefix), while each result keeps the root it was
+    ///     found under so that a path relative to it stays confined to that root.
+    /// </summary>
+    [Fact]
+    public void SandboxedFileResolver_Resolve_CallbackSeesALogicalPathOnceAcrossRoots()
+    {
+        // Arrange
+        var files = new SandboxVirtualFiles().With("lib/a.txt", "a").With("lib/deep/b.txt", "b");
+        var resolver = Create(new SandboxOptions { FileResolver = files.Resolve, SearchPaths = ["lib"] });
+
+        // Act: the same logical file through the logical root, then through the "lib" prefix
+        var viaRoot = resolver.Resolve("lib/a.txt");
+        var viaPrefix = resolver.Resolve("a.txt");
+
+        // Assert: one request for lib/a.txt (the other is the miss of "a.txt" under the logical root), each root kept
+        Assert.Equal(["lib/a.txt", "a.txt"], files.Requests);
+        Assert.Equal("a", Text(viaRoot));
+        Assert.Equal("a", Text(viaPrefix));
+        Assert.Equal(string.Empty, viaRoot!.Root);
+        Assert.Equal("lib", viaPrefix!.Root);
+
+        // Assert: a path relative to the prefix-rooted result is confined to "lib"
+        Assert.Throws<SandboxException>(() => resolver.Resolve("../x.txt", viaPrefix));
+        Assert.Null(resolver.Resolve("deep/missing.txt", viaRoot));
+    }
+
+    /// <summary>
+    ///     Validates that a file that is too large counts toward the file limit and is remembered: asking again fails
+    ///     with <c>TooLarge</c> without opening or requesting it again, and it cannot be used to open unlimited files.
+    /// </summary>
+    [Fact]
+    public void SandboxedFileResolver_Resolve_OversizedFileCountsAndIsRememberedWithMaxFiles()
+    {
+        // Arrange: a limit of one file and a size limit smaller than the files
+        var files = new SandboxVirtualFiles().With("big1.txt", "0123456789").With("big2.txt", "0123456789");
+        var resolver = Create(new SandboxOptions { FileResolver = files.Resolve, MaxFileBytes = 5, MaxFiles = 1 });
+        using var directory = new SandboxTempDirectory();
+        directory.Write("root/big1.txt", "0123456789");
+        directory.Write("root/big2.txt", "0123456789");
+        var opened = new List<string>();
+        var onDisk = new SandboxedFileResolver(
+            new SandboxOptions { BaseDirectory = directory.Combine("root"), MaxFileBytes = 5, MaxFiles = 1 },
+            Ct,
+            null,
+            path =>
+            {
+                opened.Add(path);
+                return new FileStream(path, FileMode.Open, FileAccess.Read);
+            });
+
+        // Act / Assert: callback mode - too large twice (requested once), then the next file is over the file limit
+        Assert.Equal(SandboxFailureKind.TooLarge, Assert.Throws<SandboxException>(() => resolver.Resolve("big1.txt")).Kind);
+        Assert.Equal(SandboxFailureKind.TooLarge, Assert.Throws<SandboxException>(() => resolver.Resolve("big1.txt")).Kind);
+        Assert.Equal(SandboxFailureKind.TooManyFiles, Assert.Throws<SandboxException>(() => resolver.Resolve("big2.txt")).Kind);
+        Assert.Equal(["big1.txt"], files.Requests);
+
+        // Act / Assert: file-system mode - the same, and the oversized file is opened once
+        Assert.Equal(SandboxFailureKind.TooLarge, Assert.Throws<SandboxException>(() => onDisk.Resolve("big1.txt")).Kind);
+        Assert.Equal(SandboxFailureKind.TooLarge, Assert.Throws<SandboxException>(() => onDisk.Resolve("big1.txt")).Kind);
+        Assert.Equal(SandboxFailureKind.TooManyFiles, Assert.Throws<SandboxException>(() => onDisk.Resolve("big2.txt")).Kind);
+        Assert.Equal([Path.GetFullPath(directory.Combine("root/big1.txt"))], opened);
+    }
+
+    /// <summary>
     ///     Validates that a file that is reported missing by the open itself (it vanished, or the existence probe could
     ///     not see it) is a missing candidate: the next root is tried, in base-directory-then-search-path order.
     /// </summary>

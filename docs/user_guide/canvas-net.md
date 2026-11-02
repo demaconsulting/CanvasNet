@@ -1868,11 +1868,13 @@ through a link; the files below it are not:
 - At most `MaxFileBytes` bytes are read; a longer file (or a stream that never ends) is `TooLarge`. The bytes
   come back in `SandboxedFile.Content`; decoding them is up to you.
 - Set `MaxFiles` to cap the number of **distinct files** one resolver reads. A file already read (also through
-  another spelling) never counts again and a file that does not exist does not count; once the cap is reached, a new
+  another spelling) never counts again and a file that does not exist does not count, while a file that is too large
+  does count (it was opened); once the cap is reached, a new
   file is refused with `TooManyFiles` **before it is opened or the callback is asked for it**.
 - With a `FileResolver` callback the file system is never touched: the callback receives the normalized logical
   path (first under the logical root, then under each valid `SearchPaths` entry used as a prefix), on the calling
-  thread, at most once per path, and returns a readable stream (disposed by the resolver) or `null`. A callback
+  thread, at most once per path (also when the path is reached through different search-path prefixes), and returns
+  a readable stream (disposed by the resolver) or `null`. A callback
   that throws, or whose stream fails, is `CannotRead` - even when what it throws is itself a `SandboxException`,
   which can never pass through with another kind; a cancellation passes through unchanged.
 
@@ -1885,7 +1887,7 @@ there is one) is the inner exception. An already canceled `CancellationToken` th
 `OperationCanceledException` before anything is read.
 
 Each distinct file is read **once per resolver** (per root it is reached through, so the link checks of every root
-always run), and a miss is remembered too, so a resolver serves one logical
+always run), and a miss or a too-large file is remembered too (it is not opened again), so a resolver serves one logical
 operation (one render, one document) and is then dropped. **An instance is not thread-safe**: use one per
 operation, or serialize access. `SandboxOptions` and the returned `SandboxedFile` are immutable and may be
 shared. Use `resolver.KeyComparer` to decide whether two `Key` values name the same file (it is ordinal for

@@ -167,15 +167,18 @@ sections:
               - id: CanvasNet-Files-SandboxedFileResolver-FileLimit
                 title: >-
                   The SandboxedFileResolver class shall, when a file limit is configured, read at most that
-                  many distinct files, counting a file when it is found and not when it is served again from
-                  the cache or does not exist, accepting exactly the limit, and refusing a new file beyond it
-                  with a SandboxException of kind TooManyFiles before the file is opened or the callback is
-                  asked for it.
+                  many distinct files, counting a file when it is found (a file that is too large included,
+                  which is remembered and not opened again) and not when it is served again from the cache or
+                  does not exist, accepting exactly the limit, and refusing a new file beyond it with a
+                  SandboxException of kind TooManyFiles before the file is opened or the callback is asked
+                  for it.
                 justification: |
                   The number of files bounds the work and the memory of a hostile input; refusing before the
-                  open keeps the extra file untouched.
+                  open keeps the extra file untouched, and counting oversized files stops them from being
+                  opened without limit.
                 tests:
                   - SandboxedFileResolver_Resolve_MaxFilesAtLimitAndOneOver
+                  - SandboxedFileResolver_Resolve_OversizedFileCountsAndIsRememberedWithMaxFiles
                   - SandboxedFileResolver_Resolve_MaxFilesOnFileSystemNeverOpensTheExtraFile
 
               - id: CanvasNet-Files-SandboxedFileResolver-Cache
@@ -186,7 +189,9 @@ sections:
                   through the same root, shall never answer a request through one root from the result of
                   another root (so the link checks of every root always run), and shall expose the key
                   comparer under which two file keys name the same file (ordinal for logical paths, the
-                  platform's path comparison for full paths).
+                  platform's path comparison for full paths); in callback mode the callback shall be asked
+                  for each logical path at most once whichever root it is reached through, while each result
+                  keeps the root it was found under.
                 justification: |
                   Repeated reads would multiply the cost of a hostile input and let a file change between
                   two reads of one operation; the link checks are relative to a root, so a file accepted
@@ -196,6 +201,7 @@ sections:
                   - SandboxedFileResolver_Resolve_CacheRequestsEachCandidateOncePerResolver
                   - SandboxedFileResolver_Resolve_FileSystemFilesAreCachedPerResolver
                   - SandboxedFileResolver_Resolve_FileCachedUnderLinkedSearchRootIsCheckedAgainForAnotherRoot
+                  - SandboxedFileResolver_Resolve_CallbackSeesALogicalPathOnceAcrossRoots
                   - SandboxedFileResolver_KeyComparer_FollowsModeAndPlatform
 
               - id: CanvasNet-Files-SandboxedFileResolver-Cancellation

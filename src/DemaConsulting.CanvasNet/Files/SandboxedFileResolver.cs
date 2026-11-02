@@ -23,10 +23,13 @@ namespace DemaConsulting.CanvasNet.Files;
 ///     <para>
 ///         <b>Caching.</b> Each distinct candidate (a file together with the root it is confined to) is looked up at
 ///         most once per instance (a miss is remembered too, so
-///         a callback sees each logical path at most once, and a file changed after its first read is not read again).
+///         a callback sees each logical path at most once - whichever root it is reached through - and a file changed
+///         after its first read is not read again).
 ///         The root is part of the identity because the link checks are relative to it: a file reached through one root
-///         never answers for another. An instance therefore serves one logical operation (one render, one document) and
-///         is then dropped. When <see cref="SandboxOptions.MaxFiles"/> is set, the distinct files read are counted and
+///         never answers for another (in callback mode there are no links, so only the callback's answer is shared
+///         and each result still carries the root it was found under). An instance therefore serves one logical operation (one render, one document) and
+///         is then dropped. When <see cref="SandboxOptions.MaxFiles"/> is set, the distinct files that exist are counted
+///         (a file that is too large included, which is remembered so it is never opened twice) and
 ///         a new file beyond the limit is refused before it is opened or requested.
 ///     </para>
 ///     <para>
@@ -66,6 +69,20 @@ public sealed partial class SandboxedFileResolver
 
     /// <summary>The resolved files by root and candidate key; <see langword="null"/> remembers a candidate that does not exist.</summary>
     private readonly Dictionary<string, SandboxedFile?> _files;
+
+    /// <summary>
+    ///     What was read for a candidate, so nothing is opened or requested twice: by root and key in file-system mode, but
+    ///     by logical key alone in callback mode (the callback must see each logical path at most once, whichever root it
+    ///     was reached through). <see langword="null"/> remembers a candidate that does not exist; an entry without bytes
+    ///     remembers a file that is too large.
+    /// </summary>
+    private readonly Dictionary<string, Content?> _contents;
+
+    /// <summary>
+    ///     The outcome of reading one candidate that exists.
+    /// </summary>
+    /// <param name="Bytes">The bytes, or <see langword="null"/> when the file is longer than the size limit.</param>
+    private sealed record Content(byte[]? Bytes);
 
     /// <summary>The keys of the distinct files read so far, counted against <see cref="SandboxOptions.MaxFiles"/>.</summary>
     private readonly HashSet<string> _readKeys;
@@ -109,6 +126,7 @@ public sealed partial class SandboxedFileResolver
         _openFile = openFile ?? DefaultOpenFile;
         KeyComparer = options.FileResolver is null ? PlatformKeyComparer : StringComparer.Ordinal;
         _files = new Dictionary<string, SandboxedFile?>(KeyComparer);
+        _contents = new Dictionary<string, Content?>(KeyComparer);
         _readKeys = new HashSet<string>(KeyComparer);
         _linkStates = new Dictionary<string, bool>(KeyComparer);
     }
@@ -199,22 +217,37 @@ public sealed partial class SandboxedFileResolver
             return cached;
         }
 
-        // The file limit is enforced before anything is looked up, so a file beyond it is never opened or requested;
-        // a file that was already read (through any root) does not count again
-        if (_options.MaxFiles is { } maxFiles && _readKeys.Count >= maxFiles && !_readKeys.Contains(candidate.Key))
+        // What was read is shared across roots only in callback mode, where there are no links to check and the callback
+        // must see each logical path once; the SandboxedFile built from it still carries the root it was found under
+        var contentKey = UsesResolver ? candidate.Key : cacheKey;
+        if (!_contents.TryGetValue(contentKey, out var content))
         {
-            throw new SandboxException(SandboxFailureKind.TooManyFiles, candidate.Key);
+            // The file limit is enforced before anything is looked up, so a file beyond it is never opened or requested;
+            // a file that was already read (through any root) does not count again
+            if (_options.MaxFiles is { } maxFiles && _readKeys.Count >= maxFiles && !_readKeys.Contains(candidate.Key))
+            {
+                throw new SandboxException(SandboxFailureKind.TooManyFiles, candidate.Key);
+            }
+
+            _cancellation.ThrowIfCancellationRequested();
+            content = ReadBytes(candidate);
+            _contents[contentKey] = content;
+
+            // A file counts once it exists, whatever the size outcome: a file that is too large was opened or requested
+            if (content is not null)
+            {
+                _readKeys.Add(candidate.Key);
+            }
         }
 
-        _cancellation.ThrowIfCancellationRequested();
-        var bytes = ReadBytes(candidate);
-        var file = bytes is null ? null : new SandboxedFile(candidate.Key, DirectoryOf(candidate.Key), candidate.Root, bytes);
+        // A file that is too large is remembered too, so asking again fails the same way without opening it again
+        if (content is { Bytes: null })
+        {
+            throw new SandboxException(SandboxFailureKind.TooLarge, candidate.Key);
+        }
+
+        var file = content is null ? null : new SandboxedFile(candidate.Key, DirectoryOf(candidate.Key), candidate.Root, content.Bytes);
         _files[cacheKey] = file;
-        if (file is not null)
-        {
-            _readKeys.Add(candidate.Key);
-        }
-
         return file;
     }
 
@@ -222,8 +255,8 @@ public sealed partial class SandboxedFileResolver
     ///     Reads the bytes of a candidate from the resolver callback or the file system.
     /// </summary>
     /// <param name="candidate">The candidate.</param>
-    /// <returns>The bytes, or <see langword="null"/> when the candidate does not exist.</returns>
-    private byte[]? ReadBytes(Candidate candidate)
+    /// <returns>What was read, or <see langword="null"/> when the candidate does not exist.</returns>
+    private Content? ReadBytes(Candidate candidate)
     {
         if (UsesResolver)
         {
@@ -266,7 +299,7 @@ public sealed partial class SandboxedFileResolver
             throw new SandboxException(SandboxFailureKind.CannotRead, candidate.Key, innerException: ex);
         }
 
-        return bytes ?? throw new SandboxException(SandboxFailureKind.TooLarge, candidate.Key);
+        return new Content(bytes);
     }
 
     /// <summary>
@@ -289,8 +322,8 @@ public sealed partial class SandboxedFileResolver
     ///     size failure is raised by this resolver outside that boundary.
     /// </remarks>
     /// <param name="candidate">The candidate.</param>
-    /// <returns>The bytes, or <see langword="null"/> when the callback has no such file.</returns>
-    private byte[]? ReadFromCallback(Candidate candidate)
+    /// <returns>What was read, or <see langword="null"/> when the callback has no such file.</returns>
+    private Content? ReadFromCallback(Candidate candidate)
     {
         byte[]? bytes;
         try
@@ -310,8 +343,8 @@ public sealed partial class SandboxedFileResolver
             throw new SandboxException(SandboxFailureKind.CannotRead, candidate.Key, innerException: ex);
         }
 
-        // The size failure is generated here, outside the callback boundary, so the callback can never forge it
-        return bytes ?? throw new SandboxException(SandboxFailureKind.TooLarge, candidate.Key);
+        // The size outcome is decided here, outside the callback boundary, so the callback can never forge it
+        return new Content(bytes);
     }
 
     /// <summary>

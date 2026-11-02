@@ -54,8 +54,10 @@ inner exception. The message is an English sentence that never contains a host d
 **`SandboxedFileResolver`** is created for one logical operation with the options and a cancellation token. It holds the
 cache of the files found by root and candidate key (a `null` remembers a candidate that does not exist; the root is part
 of the identity because the link checks run on the components below a candidate's own root, so a file reached through one
-root - for example a trusted search path that is itself a link - must never answer for another root), the keys of the
-distinct files read (for `MaxFiles`), the result of each link
+root - for example a trusted search path that is itself a link - must never answer for another root), a cache of what
+was read (by root and key in file-system mode, but by logical key alone in callback mode, so the callback sees each
+logical path once whichever root reaches it; a file that is too large is remembered there without bytes), the keys of
+the distinct files that exist (for `MaxFiles`), the result of each link
 probe by full path, and the roots, which are computed on first use. **It is not thread-safe**: its caches are
 unsynchronized and the callback is invoked on the calling thread; use one instance per operation or serialize access.
 The options and results are immutable and may be shared. An internal constructor accepts a link probe
@@ -76,7 +78,8 @@ is refused with `OutsideRoot`, while `..` that stays inside the root is fine.
 **Invariants**: a candidate (root plus key) is looked up at most once per instance (hit or miss); every component
 below a
 root is checked for a link before the file is opened, for every root the file is reached through; no more than
-`MaxFileBytes` bytes are read of any file; with `MaxFiles` set, no more than that many distinct files are read and
+`MaxFileBytes` bytes are read of any file; with `MaxFiles` set, no more than that many distinct files are opened or
+requested (a file that is too large included) and
 a new file beyond it is never opened or requested; every failure that is not
 a cancellation or an argument error is a `SandboxException`.
 
@@ -92,7 +95,11 @@ a cancellation or an argument error is a `SandboxException`.
 - `LoadCandidate` - answers from the cache (keyed by root and candidate key); otherwise, when `MaxFiles` is set and that
   many distinct files were already read, refuses a candidate whose key was not read before with `TooManyFiles` **before
   anything is opened or requested** (so a file beyond the limit is never touched, and a file already read through another
-  root does not count again); otherwise reads the bytes, remembers the result, and counts the file when it exists.
+  root does not count again); otherwise reads the bytes, remembers the outcome, and counts the file when it exists,
+  **whatever the size outcome** (an oversized file was opened or requested, so it consumes the limit). The outcome is
+  remembered per candidate in file-system mode and per logical key in callback mode (the callback is asked once per
+  path across roots; the returned `SandboxedFile` is still built per root with the root it was found under), and a file
+  that is too large is remembered too, so asking again throws `TooLarge` without opening or requesting it again.
 - `ReadBytes` - in callback mode delegates to `ReadFromCallback`; in file-system mode first runs the link walk (which
   stops a candidate whose directory is missing but leaves the final component to the open), treats an existing
   directory where the file is expected as `CannotRead` (not a missing file), then attempts to open the file read-only
@@ -107,7 +114,8 @@ a cancellation or an argument error is a `SandboxException`.
   `CannotRead` with the cause kept as the inner exception, so untrusted code can neither leak a raw exception nor forge
   another failure kind. The size failure is raised by the resolver outside that boundary.
 - `ReadBounded` - checks a size the stream reports, then reads in 8 KiB chunks and stops as soon as the running length
-  exceeds `MaxFileBytes` (returning no bytes, which the caller reports as `TooLarge`), so a stream that never ends stops
+  exceeds `MaxFileBytes` (returning no bytes, which `LoadCandidate` reports as `TooLarge`), so a stream that never ends
+  stops
   one chunk past the limit; the token is observed after every chunk. Failures of the stream are left to the caller.
 - `WalkRejectingLinks` and `ProbeLink` - walk the candidate top-down from the root, probing each existing component once
   (the first missing component above the file ends the walk and nothing below it is probed; the final component is always

@@ -201,27 +201,32 @@ chunk of 8 KiB was read.
 ##### CanvasNet-Files-SandboxedFileResolver-FileLimit: Distinct File Limit
 
 **Tests**: `SandboxedFileResolver_Resolve_MaxFilesAtLimitAndOneOver`,
-`SandboxedFileResolver_Resolve_MaxFilesOnFileSystemNeverOpensTheExtraFile`
+`SandboxedFileResolver_Resolve_MaxFilesOnFileSystemNeverOpensTheExtraFile`,
+`SandboxedFileResolver_Resolve_OversizedFileCountsAndIsRememberedWithMaxFiles`
 
 Asserts with a limit of two that two distinct files are read, that a file resolved again (also under another spelling)
 and a file that does not exist do not count, and that the first new file over the limit is `TooManyFiles` naming that
 file while the callback was never asked for it (the recorded requests stop at the last file before the limit). On the file
 system, with a limit of one and an injected opener, the second file is refused and never opened, while the first is still
-served from the cache.
+served from the cache. With a limit of one and files longer than the size limit, in callback and file-system mode, the
+oversized file is `TooLarge` and counts, so a second file is `TooManyFiles` and never requested or opened, and asking for
+the oversized file again is `TooLarge` again with no second request or open.
 
 ##### CanvasNet-Files-SandboxedFileResolver-Cache: Per-Instance Cache
 
 **Tests**: `SandboxedFileResolver_Resolve_CacheRequestsEachCandidateOncePerResolver`,
 `SandboxedFileResolver_Resolve_FileSystemFilesAreCachedPerResolver`,
 `SandboxedFileResolver_Resolve_FileCachedUnderLinkedSearchRootIsCheckedAgainForAnotherRoot`,
+`SandboxedFileResolver_Resolve_CallbackSeesALogicalPathOnceAcrossRoots`,
 `SandboxedFileResolver_KeyComparer_FollowsModeAndPlatform`
 
 Asserts that a file resolved twice is requested once and is the same object, that a miss is remembered (requested once per
 candidate), that a new resolver starts with an empty cache, that in file-system mode a file changed after its first
 read is not read again, also when it is asked for under another spelling, that a file first resolved through a trusted
 search path that is itself a link (injected probe) is **not** served from the cache when the same file is requested
-again relative to a file under the base directory - the link check of that root runs and refuses it as `ThroughLink` - and
-that the key comparer is ordinal for
+again relative to a file under the base directory - the link check of that root runs and refuses it as `ThroughLink` -
+that in callback mode `lib/a.txt` and then `a.txt` with search path `lib` ask the callback for `lib/a.txt` once while
+the two results carry their own roots (empty and `lib`), and that the key comparer is ordinal for
 logical paths and
 case-insensitive for full paths exactly on Windows and macOS.
 
