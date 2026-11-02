@@ -86,6 +86,7 @@ missing part and a part whose extension has no mapping and asserts `OpcFormatExc
 ##### CanvasNet-Packaging-OpcPackage-Relationships: Targets Resolve by the OPC Rules
 
 **Tests**: `OpcPackage_ResolveRelationship_RelativeAbsoluteAndDotTargets_ResolveToPartPaths`,
+`OpcPackage_ResolveRelationship_FragmentTargets_DropTheFragment`,
 `OpcPackage_ResolveRelationship_TargetEscapesPackageRoot_ThrowsOpcFormatException`,
 `OpcPackage_ResolveRelationship_UnknownIdOrExternalTarget_ThrowsOpcFormatException`,
 `OpcPackage_TryResolveRelationship_PartWithoutRelationships_ReturnsNull`,
@@ -95,7 +96,9 @@ missing part and a part whose extension has no mapping and asserts `OpcFormatExc
 `OpcPackage_ResolveRelationship_MalformedPartRelationships_ThrowsOnFirstUse`
 
 Resolves a `../layouts/layout1.xml` target from `doc/main.xml` (to `layouts/layout1.xml`), an
-absolute `/shared/absolute.xml` target, and a `./sub/../page.xml` target; asserts a `../../`
+absolute `/shared/absolute.xml` target, and a `./sub/../page.xml` target; resolves
+`../layouts/layout1.xml#bookmark` to `layouts/layout1.xml` and a fragment-only `#top` to the source
+part itself (`doc/main.xml`), through `ResolveRelationship` and `TryResolveRelationshipById`; asserts a `../../`
 target from one directory deep is rejected with a message saying it escapes the package root, an
 unknown identifier and an external target are rejected (the message says external), a part with no
 relationships part yields `null` from the `Try` forms, the type-suffix search resolves a non-external

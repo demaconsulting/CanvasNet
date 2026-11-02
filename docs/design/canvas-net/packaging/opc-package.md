@@ -72,7 +72,10 @@ beside it: `a/b.xml` has `a/_rels/b.xml.rels`; the empty source is the package r
 `_rels/.rels`; a part with no `.rels` part has none). A target starting with `/` is resolved from
 the package root, any other from the source part's directory, `.` segments are dropped and `..`
 segments pop the previous segment; a `..` with nothing to pop throws (the target would escape the
-package. An external relationship is never resolved: `ResolveRelationship` throws for it and the
+package). A URI fragment (everything from the first `#`) is dropped before resolving, so
+`x.xml#bookmark` names `x.xml` and a fragment-only target such as `#top` names the source part
+itself. Percent-encoding is not decoded: a target containing `%` escapes is looked up literally
+(unsupported). An external relationship is never resolved: `ResolveRelationship` throws for it and the
 by-type and by-id searches skip it. The by-type search returns a non-external relationship whose
 `Type` ends with the suffix (ordinal, case-sensitive); when several match, which one is returned is
 unspecified, so it is meant for navigations that are unique by type.

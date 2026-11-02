@@ -2422,7 +2422,9 @@ leading slash, and `ContainsPart` reports whether a part exists.
   the `Default` for its extension. It throws when the part does not exist or has no content type.
 - `ResolveRelationship(sourcePartPath, relationshipId)` returns the target part path of a relationship,
   resolved relative to the source part's directory (or from the package root when the target starts with
-  `/`), with `.` and `..` segments normalized. The source is the empty string for the package root. It
+  `/`), with `.` and `..` segments normalized and any URI fragment (from the first `#`) dropped, so a
+  fragment-only target names the source part itself; percent-encoding is not decoded. The source is
+  the empty string for the package root. It
   throws for an unknown identifier, for an external target (`TargetMode="External"`, never resolved), and
   for a target that would leave the package. `GetRelationshipType` returns a relationship's `Type`.
 - `ResolveRelationshipByType(sourcePartPath, typeSuffix)` finds a relationship whose `Type` ends with the
