@@ -123,6 +123,9 @@ nesting) and every method's full parameter and exception detail.
   solid fill instead (see Design Constraints below).
 - The `Fonts` subsystem's `TrueTypeFont`/`SystemFontCatalog` (resolving a `Section N="Character"`
   row's `Font` name hint and extracting glyph outlines for shape text)
+- The `Packaging` subsystem's `OpcPackage`/`OpcFormatException` (the OPC package layer: bounded
+  open, content types, relationship resolution, hardened XML part loading) and the `Rendering`
+  subsystem's `WordWrap` (the line packer behind text layout)
 - The `Codecs` subsystem (reserved for the deferred embedded-image/foreign-object capability
   described in the Design Constraints section below; not used by the initial, in-scope feature
   set, since no inspected sample exercises an embedded picture)
@@ -130,8 +133,9 @@ nesting) and every method's full parameter and exception detail.
 This is an ordinary, same-repository, system-to-system dependency: both `CanvasNet` and
 `CanvasNetVsdx` are produced by this repository, so it is neither an OTS Software Item nor a
 Shared Package. Beyond `CanvasNet`, `VsdxDocument` uses only the .NET base class library's
-`System.IO.Compression` (`ZipArchive`, for the OPC package layer) and `System.Xml.Linq`
-(`XDocument`/`XElement`, for VisioML parsing) namespaces, available on every one of
+`System.Xml.Linq`
+(`XDocument`/`XElement`, for VisioML parsing) namespace (the ZIP container is read through the core
+`OpcPackage`), available on every one of
 `CanvasNetVsdx`'s target frameworks with no new runtime NuGet dependency. `CanvasNetVsdx`
 introduces no new OTS Software Item beyond those already used to build and verify the `CanvasNet`
 system (BuildMark, FileAssert, Pandoc, ReqStream, ReviewMark, SarifMark, SonarMark, VersionMark,

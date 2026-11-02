@@ -10,7 +10,7 @@ This document provides the system-level design for CanvasNet.
 ## Architecture
 
 CanvasNet is a .NET library providing a canvas-based drawing and rendering API, following
-DEMA Consulting best practices. The system consists of six implemented subsystems:
+DEMA Consulting best practices. The system consists of seven implemented subsystems:
 
 - **Canvas subsystem** (namespace `DemaConsulting.CanvasNet.Canvas`, folder
   `src/DemaConsulting.CanvasNet/Canvas/`): the pixel-buffer primitives on which all other
@@ -81,8 +81,20 @@ DEMA Consulting best practices. The system consists of six implemented subsystem
   rendering primitives that compose `Canvas`, `Geometry`, `Drawing`, and `Fonts` — the
   transform-aware `Canvas` wrapper (Save/Restore/Translate/RotateDegrees), the `TextRenderer`
   (measure and draw TrueType text with alignment and kerning), and the `Shapes` extension
-  helpers (rectangles, rounded rectangles, circles). See _Rendering Subsystem Design_
+  helpers (rectangles, rounded rectangles, circles), and the `WordWrap` packer (a font- and
+  unit-independent greedy word-wrap line packer shared by the Pptx and Vsdx text layout engines).
+  See _Rendering Subsystem Design_
   (`rendering.md`).
+- **Packaging subsystem** (namespace `DemaConsulting.CanvasNet.Packaging`, folder
+  `src/DemaConsulting.CanvasNet/Packaging/`, flat — no further nesting): the hardened building
+  blocks for reading untrusted Open Packaging Conventions (OPC, ECMA-376 Part 2) packages and
+  untrusted XML — the `OpcPackage` unit (a read-only, size-bounded view of an OPC ZIP package: a
+  bounded open from a stream, content types, relationships, and part reads as XML or bytes, with
+  its `OpcFormatException`) and the `SafeXml` unit (XML loading with no DTD processing, no
+  external resolution, and a character bound). `Packaging` depends only on the .NET base class
+  library, and no other subsystem depends on it; the separately packaged `CanvasNetPptx`,
+  `CanvasNetVsdx`, and `CanvasNetSvg` systems use it. See _Packaging Subsystem Design_
+  (`packaging.md`).
 
 The `Codecs` subsystem depends on the `Canvas` subsystem's `Surface` unit (constructing surfaces
 and reading/writing rows via `Surface.GetRowSpanBytes`); the `Canvas` subsystem has no dependency
@@ -366,6 +378,20 @@ The system exposes the following public API to external consumers:
 - **SystemFontCatalog.LoadBundledFallback(bool serif, bool fixedPitch, bool bold, bool italic)**:
   Returns a ready-to-query `TrueTypeFont` loaded from one of the library's twelve embedded
   Liberation Sans/Serif/Mono resources, selected by the requested style combination.
+- **OpcPackage.Open(Stream stream)**: Opens an Open Packaging Conventions ZIP package from a
+  stream within a fixed size bound. The instance resolves content types (`ResolvePart`) and
+  relationships (`ResolveRelationship`, `GetRelationshipType`, `ResolveRelationshipByType`,
+  `TryResolveRelationshipByType`, `TryResolveRelationshipById`) and reads parts as XML
+  (`LoadPartXmlRoot`) or bytes (`GetPartBytes`), each within a fixed size bound. Throws
+  `OpcFormatException` for a malformed or oversized package or an unusable relationship.
+- **SafeXml.Load(Stream/string, int maxCharacters)** / **SafeXml.CreateReader(Stream, int)**: Loads
+  XML with DTD processing prohibited, no external resolver, and a character bound, as an
+  `XDocument` or a forward-only `XmlReader`; malformed, DTD-bearing, or oversized input throws
+  `XmlException`.
+- **WordWrap.Pack(IReadOnlyList<T> tokens, float/double availableWidth, Func<T, WordWrapTokenKind>
+  classify, Func<T, TNumber, TNumber> measure)**: Packs tokens into lines with a greedy word wrap
+  that never splits a word group, honors explicit line breaks, and lets a token's width depend on
+  the width already used on the line.
 
 <!-- markdownlint-disable MD013 -->
 | Interface                                    | Direction        | Format                         | Constraints                   |
@@ -421,6 +447,11 @@ The system exposes the following public API to external consumers:
 | `SystemFontCatalog.Load(...)`                | Outbound         | Method / `TrueTypeFont?`       | None                          |
 | `FontDirectoryScanner.Scan(...)`             | Outbound         | Method / list return           | Non-null directory list       |
 | `SystemFontCatalog.LoadBundledFallback(...)` | Outbound         | Method / `TrueTypeFont`        | None                          |
+| `OpcPackage.Open(...)`                       | Inbound/Outbound | Method / `OpcPackage`          | Readable stream; <= 256 MiB   |
+| `OpcPackage` part and relationship members   | Outbound         | Methods / paths, XML, bytes    | Non-null arguments            |
+| `SafeXml.Load(...)`                          | Inbound/Outbound | Method / `XDocument`           | Positive character bound      |
+| `SafeXml.CreateReader(...)`                  | Outbound         | Method / `XmlReader`           | Readable stream; bound > 0    |
+| `WordWrap.Pack(...)`                         | Inbound/Outbound | Method / list of lists         | Non-null args; width not NaN  |
 <!-- markdownlint-enable MD013 -->
 
 ## Dependencies

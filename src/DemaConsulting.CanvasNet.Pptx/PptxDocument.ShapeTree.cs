@@ -43,8 +43,8 @@ public sealed partial class PptxDocument
     ///     beyond any legitimate PowerPoint-authored group nesting (real decks rarely nest more
     ///     than a handful of groups deep; PowerPoint's own UI makes deeper nesting increasingly
     ///     impractical to construct by hand), while still leaving comfortable headroom below the
-    ///     default platform stack size - unlike the ZIP-entry-size (<see cref="MaxPartBytes"/>),
-    ///     XML-character-count (<see cref="MaxPartCharacters"/>), and chart cached-point-count
+    ///     default platform stack size - unlike the ZIP-entry-size (<see cref="Packaging.OpcPackage.MaxPartBytes"/>),
+    ///     XML-character-count (<see cref="Packaging.OpcPackage.MaxXmlPartCharacters"/>), and chart cached-point-count
     ///     (<c>OpenXmlChartParser.MaxCachedPointCount</c>) caps, group-shape nesting depth has no
     ///     bound of its own: a crafted <c>.pptx</c> easily fits thousands of nested
     ///     <c>&lt;p:grpSp&gt;</c> elements within the existing ~2,000,000-character XML-part cap,

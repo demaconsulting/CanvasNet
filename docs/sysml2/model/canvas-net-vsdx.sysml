@@ -14,5 +14,7 @@ package CanvasNet {
         dependency usesGeometry from CanvasNetVsdxSystem to Geometry;
         dependency usesDrawing from CanvasNetVsdxSystem to Drawing;
         dependency usesFonts from CanvasNetVsdxSystem to Fonts;
+        dependency usesPackaging from CanvasNetVsdxSystem to Packaging;
+        dependency usesRendering from CanvasNetVsdxSystem to Rendering;
     }
 }

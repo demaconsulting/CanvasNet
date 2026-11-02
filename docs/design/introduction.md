@@ -74,14 +74,20 @@ software items, specifically:
   font shipped as an embedded resource of this assembly
 - **Rendering (Subsystem)** — higher-level rendering primitives composing `Canvas`, `Geometry`,
   `Drawing`, and `Fonts`: the transform-aware `Canvas` wrapper, `TextRenderer` (measure and draw
-  TrueType text with alignment and kerning), and `Shapes` (rectangle, rounded rectangle, and
-  circle helpers)
+  TrueType text with alignment and kerning), `Shapes` (rectangle, rounded rectangle, and
+  circle helpers), and `WordWrap` (a font- and unit-independent greedy word-wrap line packer)
+- **Packaging (Subsystem)** — hardened building blocks for reading untrusted Open Packaging
+  Conventions (OPC) packages and untrusted XML, depending only on the .NET base class library: the
+  `OpcPackage` unit (a read-only, size-bounded view of an OPC ZIP package, such as a `.pptx` or
+  `.vsdx` file, with content-type and relationship resolution and bounded part reads, and its
+  `OpcFormatException`) and the `SafeXml` unit (XML loading with no DTD processing, no external
+  resolution, and a character bound)
 - **CanvasNetSvg (System)** — A separate, independently-distributed software system providing
   SVG (Scalable Vector Graphics) rasterization, containing a single unit, `SvgCodec`, which
   decodes/rasterizes a subset of SVG vector documents into a `CanvasNet.Canvas.Surface`.
   `CanvasNetSvg` depends on this `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`
   (including `SystemFontCatalog`, which resolves the font of SVG text when the caller registers
-  none), and `Codecs` subsystems — see _CanvasNetSvg System Design_ (`canvas-net-svg.md`)
+  none), `Codecs`, and `Packaging` subsystems — see _CanvasNetSvg System Design_ (`canvas-net-svg.md`)
 - **CanvasNetPdf (System)** — A separate, independently-distributed software system providing
   PDF page-rendering support, containing a single unit, `PdfDocument`, which parses a PDF
   document's structure (cross-references, trailer, page tree), optionally decrypting a document
@@ -124,7 +130,7 @@ software items, specifically:
   background fills; the remaining 24 are deferred) and picture fill are both implemented — see
   _CanvasNetPptx System Design_ (`canvas-net-pptx.md`) for the full supported/deferred boundary.
   `CanvasNetPptx` depends on the `CanvasNet` system's `Canvas`, `Geometry`,
-  `Drawing`, `Fonts`, and `Codecs` subsystems (for the `Rgba32` color type, path geometry/
+  `Drawing`, `Fonts`, `Codecs`, `Packaging`, and `Rendering` subsystems (for the `Rgba32` color type, path geometry/
   stroking, font/glyph resolution, and image decoding used to resolve and render shape/text/
   picture content), and on the `CanvasNetCharts` system (for parsing and rendering embedded
   `<p:graphicFrame>` charts — see `OpenXmlChartParser`/`ChartRenderer` below) — see
@@ -361,7 +367,7 @@ diagram or the prose below.
 
 ![Software Structure](SoftwareStructureView.svg)
 
-CanvasNet is organized into six subsystems under the system level: the `Canvas` subsystem
+CanvasNet is organized into seven subsystems under the system level: the `Canvas` subsystem
 (the `Surface` unit with its `SurfaceAdjustments` and `SurfaceTransforms` parts, and the `Rgba32` and `CssColor` units,
 namespace `DemaConsulting.CanvasNet.Canvas`), the `Codecs`
 subsystem (the `BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`, `GifCodec`, `Jpeg2000Codec`, and `ImageDecoder` units,
@@ -385,18 +391,22 @@ unit, added alongside `CanvasNetPdf`'s `/Pattern` color-space support, covering 
 `Type1StandardGlyphNames`/`HmtxHheaReader`/`KernTable`/`NameTable`/`StyleTable` helpers inline,
 and the `SystemFontCatalog` unit, added Phase 6 of
 the `CanvasNetPdf` roadmap, with no internal helpers of its own, namespace
-`DemaConsulting.CanvasNet.Fonts`, flat — no further nesting), and the `Rendering` subsystem (the
+`DemaConsulting.CanvasNet.Fonts`, flat — no further nesting), the `Rendering` subsystem (the
 transform-aware `Canvas` wrapper unit,
-the `TextRenderer` unit, covering the supporting `TextAlign` and `TextMetrics` types inline, and
-the `Shapes` extension-method unit, namespace `DemaConsulting.CanvasNet.Rendering`, flat — no
-further nesting). As additional functionality is added, further subsystems and nested
+the `TextRenderer` unit, covering the supporting `TextAlign` and `TextMetrics` types inline,
+the `Shapes` extension-method unit, and the `WordWrap` line-packer unit, covering the supporting
+`WordWrapTokenKind` enum inline, namespace `DemaConsulting.CanvasNet.Rendering`, flat — no
+further nesting), and the `Packaging` subsystem (the `OpcPackage` unit, covering its
+`OpcFormatException` inline, and the `SafeXml` unit, namespace
+`DemaConsulting.CanvasNet.Packaging`, flat — no further nesting; the `CanvasNetPptx`,
+`CanvasNetVsdx`, and `CanvasNetSvg` systems use it). As additional functionality is added, further subsystems and nested
 subsystems would organize related units and provide architectural boundaries with well-defined
 interfaces and responsibilities.
 
 A sibling top-level system, `CanvasNetSvg`, lives in this same repository alongside `CanvasNet`
 (rather than as one of its subsystems): its sole unit, `SvgCodec`, namespace
 `DemaConsulting.CanvasNet.Svg`, is distributed as its own separate NuGet package and depends on
-the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, and `Codecs` subsystems — see
+the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, `Codecs`, and `Packaging` subsystems — see
 the Folder Layout section below and _CanvasNetSvg System Design_ (`canvas-net-svg.md`).
 
 A second sibling top-level system, `CanvasNetPdf`, likewise lives in this same repository
@@ -412,7 +422,8 @@ System Design_ (`canvas-net-pdf.md`).
 A third sibling top-level system, `CanvasNetPptx`, likewise lives in this same repository
 alongside `CanvasNet`: its sole unit, `PptxDocument`, namespace `DemaConsulting.CanvasNet.Pptx`,
 is distributed as its own separate NuGet package and depends on the `CanvasNet` system's `Canvas`,
-`Geometry`, `Drawing`, `Fonts`, and `Codecs` subsystems, on `CanvasNetSvg` (for SVG pictures), and
+`Geometry`, `Drawing`, `Fonts`, `Codecs`, `Packaging`, and `Rendering` subsystems, on `CanvasNetSvg`
+(for SVG pictures), and
 on `CanvasNetCharts` (for chart graphic frames) (`Render` opens a `.pptx` package's OOXML
 structure, resolves the slide/layout/master/theme chain and placeholder property inheritance,
 resolves DrawingML shape geometry, paint, connectors, pictures, tables, and chart graphic frames,
@@ -423,7 +434,7 @@ document order) — see the Folder Layout section below and _CanvasNetPptx Syste
 A fourth sibling top-level system, `CanvasNetVsdx`, likewise lives in this same repository
 alongside `CanvasNet`: its sole unit, `VsdxDocument`, namespace `DemaConsulting.CanvasNet.Vsdx`,
 is distributed as its own separate NuGet package and depends on the `CanvasNet` system's
-`Canvas`, `Geometry`, `Drawing`, and `Fonts` subsystems (`Render` opens a `.vsdx` package's OPC
+`Canvas`, `Geometry`, `Drawing`, `Fonts`, `Packaging`, and `Rendering` subsystems (`Render` opens a `.vsdx` package's OPC
 structure, resolves the Master/MasterShape cell-and-geometry-row inheritance chain and the
 StyleSheet line/fill/text style chain, resolves shape/connector transforms and geometry rows to
 paintable paths — including Milestone 11's real `EllipticalArcTo`/`ArcTo`-to-Bezier conversion —
@@ -644,13 +655,21 @@ src/DemaConsulting.CanvasNet/
 │   ├── SvgArcConverter.cs         — SVG-style elliptical arc to cubic Bezier conversion
 │   ├── CornerRoundEffect.cs       — Replaces polyline corners with tangent circular arcs
 │   └── NamespaceDoc.cs            — Namespace-level XML documentation
-└── Rendering/
-    ├── Canvas.cs                   — Transform-aware Save/Restore/Translate/RotateDegrees wrapper
-    ├── TextAlign.cs                — Text horizontal-alignment enumeration
-    ├── TextMetrics.cs              — Measured width/ascent/descent result for a text run
-    ├── TextRenderer.cs             — Measures and draws TrueType text with alignment and kerning
-    ├── Shapes.cs                   — Fill/stroke extension helpers for rectangles, rounded
-    │                                 rectangles, and circles
+├── Rendering/
+│   ├── Canvas.cs                   — Transform-aware Save/Restore/Translate/RotateDegrees wrapper
+│   ├── TextAlign.cs                — Text horizontal-alignment enumeration
+│   ├── TextMetrics.cs              — Measured width/ascent/descent result for a text run
+│   ├── TextRenderer.cs             — Measures and draws TrueType text with alignment and kerning
+│   ├── Shapes.cs                   — Fill/stroke extension helpers for rectangles, rounded
+│   │                                 rectangles, and circles
+│   ├── WordWrap.cs                 — Greedy word-wrap line packer (single and double precision)
+│   │                                 and the WordWrapTokenKind enum
+│   └── NamespaceDoc.cs             — Namespace-level XML documentation
+└── Packaging/
+    ├── OpcPackage.cs               — Read-only, size-bounded OPC ZIP package: content types,
+    │                                 relationships, XML and byte part reads
+    ├── OpcFormatException.cs       — Exception thrown for a malformed or oversized package
+    ├── SafeXml.cs                  — Hardened, bounded XML loading (no DTD, no external resolver)
     └── NamespaceDoc.cs             — Namespace-level XML documentation
 ```
 
@@ -675,7 +694,7 @@ src/DemaConsulting.CanvasNet.Svg/
 └── NamespaceDoc.cs             — Namespace-level XML documentation
 ```
 
-This six-subsystem folder structure reflects the small number of subsystems in the system
+This seven-subsystem folder structure reflects the small number of subsystems in the system
 today. As the system grows with additional subsystems and units, the folder structure will
 expand further to mirror the software architecture. `Canvas/Surface.cs` also gained a
 `CompositeOverSpan` method used internally by `Drawing/PathFiller.cs`, and the `Drawing`

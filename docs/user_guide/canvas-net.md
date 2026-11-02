@@ -1,6 +1,6 @@
 # CanvasNet Core Library
 
-<!-- cspell:ignore otsu midtone midtones -->
+<!-- cspell:ignore otsu midtone midtones navigations -->
 
 ## Basic Usage
 
@@ -2350,3 +2350,122 @@ if (Rgba32.TryParse(userInput, out var color))
 
 Accepts `#RRGGBB` (alpha defaults to 255) and `#AARRGGBB`, case-insensitive. Rejects short
 forms, missing `#`, wrong length, and non-hex characters.
+
+#### WordWrap
+
+```csharp
+using DemaConsulting.CanvasNet.Rendering;
+
+// Tokens are whatever your layout produces; here a word or a space and its measured width.
+var tokens = new List<(string Text, WordWrapTokenKind Kind, float Width)>
+{
+    ("Hello", WordWrapTokenKind.Word, 5f), (" ", WordWrapTokenKind.Whitespace, 1f),
+    ("brave", WordWrapTokenKind.Word, 5f), (" ", WordWrapTokenKind.Whitespace, 1f),
+    ("world", WordWrapTokenKind.Word, 5f),
+};
+
+// Pack into lines of at most 11 units: the measure callback receives the width already used on the line.
+List<List<(string Text, WordWrapTokenKind Kind, float Width)>> lines =
+    WordWrap.Pack(tokens, 11f, static t => t.Kind, static (t, usedWidth) => t.Width);
+
+foreach (var line in lines)
+{
+    Console.WriteLine(string.Concat(line.Select(t => t.Text))); // "Hello brave" then " world"
+}
+```
+
+`WordWrap.Pack` is the greedy line packer the Pptx and Vsdx layout engines share. It knows nothing
+about text, fonts or units: you classify each token as `Word`, `Whitespace` or `LineBreak` and
+measure it in your own unit. Consecutive `Word` tokens form one group that is never split (a word
+split across two formatting runs stays whole), whitespace is the only place a line breaks, and a
+group wider than the line is placed whole on a line of its own. A line is closed only when it already
+holds a word and the next unit would exceed `availableWidth`, so whitespace left at a wrap point is
+carried onto the next line rather than leaving a blank one (as in the example). A `LineBreak` token ends the
+current line (even an empty one) and is never placed on a line; the final line is kept even when empty
+once there was any token, and no tokens give no lines. The measure callback receives the width already
+used on the current line, which lets a tab token's width depend on its position. There is a `float` and a
+`double` overload (each accumulates in its own type); the result is a new list of lines that you own, and
+the input list is only read. A `null` list or delegate throws `ArgumentNullException` and a `NaN`
+`availableWidth` throws `ArgumentOutOfRangeException`; a zero or negative width is allowed and positive
+infinity never wraps. The class is stateless, so concurrent calls are safe provided your delegates and list
+are.
+
+### Packaging (OPC packages and safe XML)
+
+The `Packaging` subsystem reads untrusted Open Packaging Conventions packages (the ZIP container
+behind `.pptx`, `.vsdx` and other Office Open XML files) and untrusted XML, with hardened settings.
+
+#### OpcPackage
+
+```csharp
+using DemaConsulting.CanvasNet.Packaging;
+
+using var stream = File.OpenRead("deck.pptx");
+using var package = OpcPackage.Open(stream);
+
+// Follow the package-level relationship (the empty string is the package root) to the main part.
+var mainPart = package.ResolveRelationshipByType(string.Empty, "/officeDocument"); // "ppt/presentation.xml"
+Console.WriteLine(package.ResolvePart(mainPart));      // the part's content type
+var root = package.LoadPartXmlRoot(mainPart);           // the part's root XElement
+byte[] image = package.GetPartBytes("ppt/media/image1.png");
+```
+
+`OpcPackage.Open` copies the stream into memory in chunks and rejects it with `OpcFormatException` as soon
+as it exceeds `OpcPackage.MaxPackageBytes` (256 MiB), so a huge or never-ending stream cannot exhaust
+memory; the stream is left open. It then reads `[Content_Types].xml` and `_rels/.rels`, which must exist
+and be well-formed (a wrong root, a missing required attribute, or a duplicate relationship identifier
+is rejected), and rejects two ZIP entries with the same name. Part names are compared exactly, including
+case (`doc/Page.xml` and `doc/page.xml` are two parts); a part path may be given with or without one
+leading slash, and `ContainsPart` reports whether a part exists.
+
+- `ResolvePart(partPath)` returns the part's content type: its `Override` entry if it has one, otherwise
+  the `Default` for its extension. It throws when the part does not exist or has no content type.
+- `ResolveRelationship(sourcePartPath, relationshipId)` returns the target part path of a relationship,
+  resolved relative to the source part's directory (or from the package root when the target starts with
+  `/`), with `.` and `..` segments normalized. The source is the empty string for the package root. It
+  throws for an unknown identifier, for an external target (`TargetMode="External"`, never resolved), and
+  for a target that would leave the package. `GetRelationshipType` returns a relationship's `Type`.
+- `ResolveRelationshipByType(sourcePartPath, typeSuffix)` finds a relationship whose `Type` ends with the
+  suffix (case-sensitive), for navigations that have no identifier; when several relationships match,
+  which one is returned is unspecified. `TryResolveRelationshipByType` and `TryResolveRelationshipById`
+  return `null` instead of throwing when there is no match. External relationships are skipped.
+- `LoadPartXmlRoot(partPath)` parses an XML part with `SafeXml` (no DTD, at most
+  `OpcPackage.MaxXmlPartCharacters`, 2,000,000, characters) and returns its root element.
+- `GetPartBytes(partPath)` returns a part's decompressed content as a new array. The bytes are counted
+  while copying, never taken from the entry's declared size, and a part that decompresses to more than
+  `OpcPackage.MaxPartBytes` (256 MiB) is rejected, so a "zip bomb" cannot allocate beyond the bound.
+
+Every package problem is reported as `OpcFormatException` (the message names the part or relationship
+concerned); a caller with its own exception type catches it and rethrows its own. A ZIP entry whose
+compressed data is corrupt surfaces as the `InvalidDataException` of the .NET ZIP classes when it is read.
+A `null` argument throws `ArgumentNullException`, an unreadable stream `ArgumentException`, and using an
+instance after `Dispose` throws `ObjectDisposedException`. The package does not limit the number of ZIP
+entries or check a compression ratio; every read is bounded by size instead. An `OpcPackage` instance is
+not thread-safe: use one per thread or synchronize externally.
+
+#### SafeXml
+
+```csharp
+using System.Xml;
+using System.Xml.Linq;
+using DemaConsulting.CanvasNet.Packaging;
+
+try
+{
+    XDocument document = SafeXml.Load(File.OpenRead("data.xml"), maxCharacters: 1_000_000);
+    Console.WriteLine(document.Root?.Name);
+}
+catch (XmlException ex)
+{
+    Console.WriteLine($"Rejected: {ex.Message}"); // malformed, declares a DTD, or too long
+}
+```
+
+`SafeXml.Load` parses a stream (left open) or a string into an `XDocument` with DTD processing prohibited,
+no external resolver, and at most `maxCharacters` characters, so an external-entity or entity-expansion
+document is refused instead of processed. `SafeXml.CreateReader` returns the same hardened, bounded
+forward-only `XmlReader` over a stream, for reading part of a document without building a tree (you dispose
+the reader). Malformed, DTD-bearing, or oversized input raises `XmlException` for you to translate. A `null`
+stream or string throws `ArgumentNullException`, a stream that cannot be read `ArgumentException`, and a
+`maxCharacters` of zero or less `ArgumentOutOfRangeException` (zero would otherwise mean "unlimited"). The
+class is stateless and safe for concurrent use; the documents and readers it returns are not thread-safe.

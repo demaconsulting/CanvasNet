@@ -13,6 +13,8 @@ convenience helpers to fill or stroke rectangles, rounded rectangles, and circle
 current transform, and renders TrueType text with alignment and kerning against a `TrueTypeFont`.
 At the identity transform, filled and stroked paths dispatched through the `Rendering.Canvas`
 produce output byte-identical to direct calls into `Drawing.PathFiller` / `Drawing.PathStroker`.
+It also provides `WordWrap`, a font- and unit-independent greedy line packer that the text layout
+engines of the Pptx and Vsdx packages share.
 
 ### Units
 
@@ -25,9 +27,12 @@ produce output byte-identical to direct calls into `Drawing.PathFiller` / `Drawi
 - **Shapes** — a stateless static class of `FillRect` / `StrokeRect` / `FillRoundRect` /
   `StrokeRoundRect` / `FillCircle` / `StrokeCircle` extension methods on `Rendering.Canvas`;
   see _Shapes Unit Design_ (`rendering/shapes.md`).
+- **WordWrap** — a stateless static class whose `Pack` methods pack a paragraph's tokens into
+  lines with a greedy word wrap that never splits a word group, independent of text, fonts and
+  units; see _WordWrap Unit Design_ (`rendering/word-wrap.md`).
 
 The subsystem-scoped enum `TextAlign` and value type `TextMetrics` are covered inline in the
-`TextRenderer` unit design.
+`TextRenderer` unit design, and the enum `WordWrapTokenKind` in the `WordWrap` unit design.
 
 ### Dependencies
 
@@ -38,6 +43,8 @@ The `Rendering` subsystem depends on:
   `RoundRectangle`, `Circle` factories) and `PathBuilder`.
 - `Drawing` — for `PathFiller`, `PathStroker`, and `StrokeStyle`.
 - `Fonts` — for `TrueTypeFont` and glyph outlines.
+
+(`WordWrap` uses none of these; it depends only on the base class library.)
 
 ### Callers
 

@@ -232,7 +232,7 @@ public sealed partial class VsdxDocument
     ///     package's relationship graph, optionally resolves <c>visio/masters/masters.xml</c> and
     ///     <c>visio/theme/theme1.xml</c> when present, and parses every declared
     ///     <c>&lt;Page&gt;</c> into <see cref="_pages"/>. Called once from the constructor,
-    ///     immediately after <see cref="InitializePackage"/>.
+    ///     immediately after the package has been opened.
     /// </summary>
     /// <remarks>
     ///     <c>masters.xml</c>/<c>theme1.xml</c> are resolved via

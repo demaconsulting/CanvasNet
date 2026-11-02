@@ -260,18 +260,18 @@ resolved fit transform).
 ### XML Parsing Hardening (XXE)
 
 Both `LoadRootElement` (backing `Load`'s full-document parse) and `LoadRootElementAttributesOnly`
-(backing `GetInfo`'s root-start-tag-only parse) construct their own `System.Xml.XmlReaderSettings`
-and explicitly set `DtdProcessing = DtdProcessing.Prohibit` and `XmlResolver = null` on each,
-in addition to the `MaxCharactersInDocument` budget each already enforces (see _GetInfo Fallback
-Policy_ and _Error Handling_ below). These two settings are already `XmlReaderSettings`'s
-effective defaults on .NET, so this does not change observed behavior for any input accepted
-today; the point is defense-in-depth documentation clarity against XML External Entity (XXE)
-injection, rather than closing a currently-exploitable gap. A reader that processed a `DOCTYPE`
+(backing `GetInfo`'s root-start-tag-only parse) obtain their XML reader from the core `Packaging`
+subsystem's `SafeXml` (`SafeXml.Load(stream, MaxDocumentCharacters)` and
+`SafeXml.CreateReader(stream, MaxDocumentCharacters)` respectively; see _SafeXml Unit Design_,
+`canvas-net/packaging/safe-xml.md`), which sets `DtdProcessing = DtdProcessing.Prohibit`,
+`XmlResolver = null` and the `MaxCharactersInDocument` budget each already enforced (see _GetInfo
+Fallback Policy_ and _Error Handling_ below), in one place, rather than in two settings
+constructions here. A reader that processed a `DOCTYPE`
 declaration, or resolved an external entity referenced from one, could otherwise be used to read
 arbitrary local files or trigger unexpected network requests merely by parsing a maliciously
-crafted SVG document; explicit settings on both `XmlReaderSettings` instances ensure this
-hardening cannot be silently lost by a future .NET default change or by an incomplete edit to only
-one of the two settings-construction sites. A `DOCTYPE`-bearing document - including one declaring
+crafted SVG document; sharing one hardened factory ensures this hardening cannot be silently lost
+by an incomplete edit to only one of two settings-construction sites. A `DOCTYPE`-bearing document -
+including one declaring
 an external or parameter entity - is rejected with `InvalidDataException` via both `Load` and
 `GetInfo`, exactly as any other malformed-XML input is (see _Error Handling_ below).
 
@@ -1608,7 +1608,8 @@ math itself is never reimplemented here), `Drawing` subsystem's `PathFiller`/`Pa
 (rasterizing the already-transformed, pixel-space paths this codec builds) and `Gradient`/
 `LinearGradient`/`RadialGradient`/`GradientStop`/`GradientSpread` (representing resolved gradient
 paint), `Fonts` subsystem's `TrueTypeFont` (font selection and metrics), and `Rendering` subsystem's
-`TextRenderer.CreateTextPath` (laying a text run out as one outline path). This is a cross-system
+`TextRenderer.CreateTextPath` (laying a text run out as one outline path), and `Packaging` subsystem's
+`SafeXml` (the hardened, bounded XML reader behind both document parses). This is a cross-system
 dependency: `SvgCodec` is the sole unit of the `CanvasNetSvg`
 system, referencing the separate `CanvasNet` system's public API — see the Dependencies section
 of _CanvasNetSvg System Design_ (`../canvas-net-svg.md`). Beyond these

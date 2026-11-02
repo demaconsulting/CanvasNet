@@ -252,34 +252,6 @@ public class VsdxDocumentTests
         Assert.Throws<InvalidDataException>(() => VsdxDocument.Open(stream));
     }
 
-    /// <summary>
-    ///     Proves an oversized <c>[Content_Types].xml</c> part (exceeding the bounded XML
-    ///     parser's character budget - an "XML bomb"/zip-bomb-style attack) throws
-    ///     <see cref="InvalidDataException"/> rather than exhausting memory while parsing.
-    /// </summary>
-    [Fact]
-    public void VsdxDocument_Open_OversizedContentTypesPart_ThrowsInvalidDataException()
-    {
-        // Arrange: pad with an oversized comment so the part exceeds the parser's character
-        // budget well before any genuine content-types declaration is reached.
-        var padding = new string('x', 2_100_000);
-        var oversizedContentTypesXml =
-            $"""
-            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-            <!--{padding}-->
-            <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-              <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml" />
-              <Default Extension="xml" ContentType="application/xml" />
-            </Types>
-            """;
-        using var stream = BuildPackage(
-            ("[Content_Types].xml", oversizedContentTypesXml),
-            ("_rels/.rels", DefaultPackageRelsXml));
-
-        // Act / Assert
-        Assert.Throws<InvalidDataException>(() => VsdxDocument.Open(stream));
-    }
-
     // --- CanvasNetVsdx-VsdxDocument-RelationshipResolution -----------------------------------
 
     /// <summary>

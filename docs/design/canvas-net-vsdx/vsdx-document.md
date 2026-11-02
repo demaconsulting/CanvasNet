@@ -21,8 +21,8 @@ unit's own delivery follows.
 
 ### Data Model
 
-- **`VsdxDocument`** (the public entry point) — holds the opened `ZipArchive`, the resolved
-  content-type/relationship part graph, the parsed `<StyleSheets>` model from
+- **`VsdxDocument`** (the public entry point) — holds the opened core `OpcPackage` (the read-only
+  ZIP archive and its content-type/relationship part graph), the parsed `<StyleSheets>` model from
   `visio/document.xml` (an earlier revision of this design also claimed a parsed `<Colors>`/
   `<FaceNames>` model here; Milestone 8 confirmed via repository-wide search that neither element
   is parsed anywhere in this package's source and corrected this passage accordingly), the page
@@ -87,8 +87,11 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
 ### Key Methods
 
 - **`Open(Stream stream)`** / **`Open(string path)`**: Validates the argument (`ArgumentNullException`
-  for null, `ArgumentException` for an empty/whitespace path), opens the ZIP as a read-only
-  `ZipArchive`, resolves `[Content_Types].xml` and the `_rels/.rels` → `visio/document.xml` →
+  for null, `ArgumentException` for an empty/whitespace path), opens the package with the core
+  `OpcPackage.Open` (bounded, hardened - see _OpcPackage Unit Design_,
+  `canvas-net/packaging/opc-package.md`; `VsdxDocument.Package.cs` is a thin adapter that
+  rethrows each `OpcFormatException` as `InvalidDataException` with the same message), resolves
+  the `_rels/.rels` → `visio/document.xml` →
   `masters.xml`/`pages.xml`/`theme1.xml` relationship chain, parses `visio/document.xml`'s
   `<StyleSheets>` and `visio/pages/pages.xml`'s page index (not `<Colors>`/`<FaceNames>` — see
   the Data Model section's own correction note above). Throws
@@ -450,6 +453,11 @@ opts into the exception instead (see _Unsupported-feature reporting_ above).
   approximation; this was never implemented, and no such type is referenced anywhere in this
   package's source — every non-solid `FillPattern` value degrades to solid fill instead (see
   `FillPatternDeferral` above).
+- **`CanvasNet.Packaging`** — `OpcPackage` (the OPC ZIP package layer: bounded open,
+  `[Content_Types].xml`, relationship resolution, hardened XML part loading through `SafeXml`) and
+  `OpcFormatException` (caught and rethrown as `InvalidDataException`)
+- **`CanvasNet.Rendering`** — `WordWrap` (the greedy, never-split-a-word-group line packer behind
+  `PackTokensIntoLines`)
 - **`CanvasNet.Fonts`** — `TrueTypeFont`/`SystemFontCatalog` (resolving a `Section N="Character"`
   row's `Font` name hint and extracting glyph outlines for shape/connector text; matched system
   fonts are shared through `SystemFontCatalog.Load`'s process-lifetime path/face cache so one page does not re-parse the

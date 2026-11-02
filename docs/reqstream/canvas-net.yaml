@@ -1654,3 +1654,55 @@ sections:
           - CanvasNet-Rendering-Shapes
         tests:
           - CanvasNet_SystemIntegration_FillRoundRectUnderTranslatedCanvas_MatchesDirectPlacement
+
+      - id: CanvasNet-Lib-RenderingWordWrap
+        title: >-
+          The library shall pack a paragraph's tokens into lines with a greedy word wrap that never
+          splits a word group, honors explicit line breaks, measures each token in the caller's own
+          unit, and lets a token's width depend on its position on the line.
+        tags: [system]
+        justification: |
+          Document layout engines wrap text by the same rule whatever the font and unit system; one
+          tested packer keeps their line breaks consistent and lets them share the code instead of
+          each carrying a copy.
+        children:
+          - CanvasNet-Rendering-WordWrap
+        tests:
+          - WordWrap_Pack_WordOverflowsLine_WrapsAtWhitespace
+          - WordWrap_Pack_MeasureReceivesCurrentLineWidth
+
+  - title: Packaging API
+    requirements:
+      - id: CanvasNet-Lib-PackagingOpcPackage
+        title: >-
+          The library shall open an Open Packaging Conventions (OPC) ZIP package, such as a .pptx or
+          .vsdx file, from a stream with bounded memory, resolve each part's content type and the
+          relationships between parts, and read a part as XML or as bytes, rejecting a malformed
+          package, an oversized package or part, and a relationship target that leaves the package.
+        tags: [system]
+        justification: |
+          Readers of Office-style document formats take untrusted files; one tested, bounded package
+          reader lets each of them open a package safely, and lets an application read any other OPC
+          based format, without keeping its own ZIP and relationship code.
+        children:
+          - CanvasNet-Packaging-OpcPackage
+        tests:
+          - OpcPackage_Open_MinimalValidPackage_OpensAndLeavesStreamOpen
+          - OpcPackage_ResolveRelationship_RelativeAbsoluteAndDotTargets_ResolveToPartPaths
+          - OpcPackage_GetPartBytes_OversizedDecompressedEntry_ThrowsOpcFormatException
+
+      - id: CanvasNet-Lib-PackagingSafeXml
+        title: >-
+          The library shall load XML from untrusted input without processing a document type
+          declaration or resolving any external resource, and shall reject input longer than a
+          caller-supplied number of characters.
+        tags: [system]
+        justification: |
+          A crafted XML document can read local files, make network requests, or expand to gigabytes
+          through entity declarations; every parser of untrusted XML in the library needs the same
+          hardened settings, applied in one place.
+        children:
+          - CanvasNet-Packaging-SafeXml
+        tests:
+          - SafeXml_Load_ExternalEntityDocumentType_ThrowsXmlException
+          - SafeXml_Load_DocumentLargerThanBound_ThrowsXmlException
