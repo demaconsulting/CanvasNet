@@ -199,12 +199,12 @@ internal static partial class ImageComparison
                 var left = i * (width + SideBySideGap);
                 if (panels[i].Width == width && panels[i].Height == height)
                 {
-                    CopyInto(sheet, panels[i], left);
+                    sheet.CopyFrom(panels[i], left, 0);
                     continue;
                 }
 
                 using var scaled = panels[i].Resize(width, height, ResamplingMode.Area);
-                CopyInto(sheet, scaled, left);
+                sheet.CopyFrom(scaled, left, 0);
             }
 
             return sheet;
@@ -226,20 +226,6 @@ internal static partial class ImageComparison
     private static byte Blend(byte first, byte second, int weight)
     {
         return (byte)(((first * (255 - weight)) + (second * weight) + 127) / 255);
-    }
-
-    /// <summary>
-    ///     Copies a surface into a sheet at a horizontal position, in the top rows.
-    /// </summary>
-    /// <param name="sheet">The destination.</param>
-    /// <param name="panel">The source; it must fit at the position.</param>
-    /// <param name="left">The x position of the panel's left edge.</param>
-    private static void CopyInto(Surface sheet, Surface panel, int left)
-    {
-        for (var y = 0; y < panel.Height; y++)
-        {
-            panel.GetRowSpan(y).CopyTo(sheet.GetRowSpan(y)[left..]);
-        }
     }
 
     /// <summary>

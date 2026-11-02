@@ -42,7 +42,7 @@ internal static partial class SourceLoader
             var background = options.Background ?? new Rgba32(255, 255, 255, 255);
             if (background.A > 0)
             {
-                surface = Replace(surface, SurfaceOperations.FlattenOver(surface, background));
+                surface = Replace(surface, surface.FlattenOver(background));
                 operations.Add(Operation("flatten", ("background", FormatColor(background))));
             }
 

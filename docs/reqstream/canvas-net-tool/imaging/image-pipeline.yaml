@@ -107,7 +107,7 @@ sections:
           grayscale, invert, threshold (a level from 0 to 255 or auto), levels (black, white, and an optional
           gamma, the black level below the white level), brightness (-255 to 255), contrast (-100 to 100), and
           auto-levels (with a clip of 0 to 20 percent, default 1), shall apply each to the pixels with the
-          ImageAdjustments unit, and shall report each with its parameters and size, including the level an
+          core Surface adjustments, and shall report each with its parameters and size, including the level an
           automatic threshold chose and the points auto-levels found (or that a flat image was left unchanged).
         justification: |
           Cleaning up a photograph is a chain of tone adjustments whose order matters; one pipeline applies them
@@ -138,8 +138,8 @@ sections:
 
       - id: CanvasNetTool-Imaging-ImagePipeline-Trim
         title: >-
-          The ImagePipeline class shall crop an image to the content inside its uniform border with the
-          ImageGeometry unit and a tolerance from 0 to 255 (default 8), reporting the tolerance, the box, whether
+          The ImagePipeline class shall crop an image to the content inside its uniform border with the core
+          Surface trim and a tolerance from 0 to 255 (default 8), reporting the tolerance, the box, whether
           anything was trimmed, and, for an image that is all background, that it is empty and was left unchanged.
         justification: |
           A photograph of a drawing is framed by paper or table; cropping to the content removes it, and an

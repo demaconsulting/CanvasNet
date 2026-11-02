@@ -172,6 +172,28 @@ both simpler and faster than iterating pixel by pixel for contiguous row data.
 
 - `ArgumentOutOfRangeException` — for any of the six invalid conditions listed above
 
+##### Clone()
+
+Returns a new, independent `Surface` with the same size and pixels, implemented as
+`Crop(0, 0, Width, Height)` so that the "work on a copy" step reads as its intent. Throws
+`ObjectDisposedException` on a disposed surface.
+
+##### CopyFrom(Surface source, int destX, int destY)
+
+Copies the pixels of `source` onto this surface with the source's top-left pixel landing at
+`(destX, destY)`. The copy is **opaque** (every source pixel, alpha included, replaces the
+destination pixel; there is no blending) and **clipped** to this surface (the part of `source`
+outside it is ignored; a source entirely outside changes nothing). The clipped range is computed
+with `long` arithmetic so extreme positions such as `int.MinValue` cannot overflow, and each
+clipped source row is transferred with one `Span<Rgba32>.CopyTo` call. A surface cannot be copied
+onto itself, because overlapping regions would make the result depend on the copy order.
+
+**Throws:**
+
+- `ArgumentNullException` — when `source` is `null`
+- `ArgumentException` — when `source` is this surface
+- `ObjectDisposedException` — when this surface or `source` has been disposed
+
 ##### Resize(int width, int height, ResamplingMode mode = Auto)
 
 Returns a new, independent `Surface` of size `width` by `height` resampled from this surface.
@@ -377,7 +399,7 @@ own, `Surface` deliberately declares no finalizer: forgetting to call `Dispose()
 (currently nonexistent) prompt release — it can never leak an unmanaged or pooled resource.
 
 After `Dispose()` has been called, every other public member that touches the pixel buffer
-(the indexer, `GetRowSpanBytes`, `GetRowSpan`, `Crop`, `PremultiplyAlpha`, `UnpremultiplyAlpha`,
+(the indexer, `GetRowSpanBytes`, `GetRowSpan`, `Crop`, `Clone`, `CopyFrom`, `PremultiplyAlpha`, `UnpremultiplyAlpha`,
 `Clear`, both `CompositeOver` overloads, and both public `CompositeOverSpan` overloads) throws
 `ObjectDisposedException` via an `ObjectDisposedException.ThrowIf(_disposed, this)` guard as the
 first statement in the member. The two `internal` workspace-reusing `CompositeOverSpan` overloads

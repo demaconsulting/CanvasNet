@@ -187,7 +187,7 @@ internal static class GridOverlay
         var sample = TextRenderer.MeasureText("0", font, LabelFontSize);
         var ascent = sample.Ascent;
         var boxHeight = (int)Math.Ceiling(sample.Ascent + sample.Descent) + 2;
-        var backing = ImageAdjustments.Luma(new Rgba32(color.R, color.G, color.B, 255)) < 128
+        var backing = Surface.Luma(new Rgba32(color.R, color.G, color.B, 255)) < 128
             ? new Rgba32(255, 255, 255, 255)
             : new Rgba32(0, 0, 0, 255);
         var textColor = new Rgba32(color.R, color.G, color.B, 255);

@@ -219,7 +219,7 @@ public class ImageAnalysisTests
         Assert.Equal(200, single.Min);
         Assert.Equal(200, single.Max);
         Assert.Equal(200, single.P1);
-        Assert.Equal(ImageAdjustments.OtsuFallback, single.Otsu);
+        Assert.Equal(127, single.Otsu);
         Assert.Equal(2, single.Histogram[12]);
     }
 

@@ -133,9 +133,45 @@ reviews:
       - "src/DemaConsulting.CanvasNet/Canvas/ResamplingMode.cs"   # public resampling filter enum
       - "src/DemaConsulting.CanvasNet/Canvas/NamespaceDoc.cs"     # Canvas namespace documentation
       - "test/DemaConsulting.CanvasNet.Tests/Canvas/SurfaceTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Canvas/SurfaceCopyTests.cs"  # clone and copy unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Canvas/SurfaceResamplerTests.cs"  # resampler unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Canvas/SurfaceResizeTests.cs"  # resize unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Canvas/SurfaceResizeCodecRoundTripTests.cs"  # round-trip tests
+
+  # CanvasNet-Canvas-SurfaceAdjustments Review (one per unit)
+  - id: CanvasNet-Canvas-SurfaceAdjustments
+    title: Review that CanvasNet Canvas SurfaceAdjustments Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+      - "docs/design/canvas-net/canvas.md"
+      - "docs/reqstream/canvas-net/canvas.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/canvas/surface-adjustments.yaml"   # unit requirements
+      - "docs/design/canvas-net/canvas/surface-adjustments.md"        # unit design
+      - "docs/verification/canvas-net/canvas/surface-adjustments.md"  # unit verification
+      - "docs/sysml2/model/canvas-net/canvas/surface-adjustments.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet/Canvas/Surface.Adjustments.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Tests/Canvas/SurfaceAdjustmentsTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/TestSupport/SurfaceAssert.cs"  # shared test helper
+
+  # CanvasNet-Canvas-SurfaceTransforms Review (one per unit)
+  - id: CanvasNet-Canvas-SurfaceTransforms
+    title: Review that CanvasNet Canvas SurfaceTransforms Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+      - "docs/design/canvas-net/canvas.md"
+      - "docs/reqstream/canvas-net/canvas.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/canvas/surface-transforms.yaml"   # unit requirements
+      - "docs/design/canvas-net/canvas/surface-transforms.md"        # unit design
+      - "docs/verification/canvas-net/canvas/surface-transforms.md"  # unit verification
+      - "docs/sysml2/model/canvas-net/canvas/surface-transforms.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet/Canvas/Surface.Transforms.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet/Canvas/FitMode.cs"             # public fit mode enum
+      - "test/DemaConsulting.CanvasNet.Tests/Canvas/SurfaceTransformsTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/TestSupport/SurfaceAssert.cs"  # shared test helper
 
   # CanvasNet-Canvas-Rgba32 Review (one per unit)
   - id: CanvasNet-Canvas-Rgba32
@@ -3131,10 +3167,8 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Tool/Imaging/SourceLoader*.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Tool/Imaging/SourceModels.cs"   # unit source (model types)
       - "src/DemaConsulting.CanvasNet.Tool/Imaging/ExifOrientation.cs"  # unit source
-      - "src/DemaConsulting.CanvasNet.Tool/Imaging/SurfaceOperations.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/SourceLoader*Tests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/ExifOrientationTests.cs"  # unit tests
-      - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/SurfaceOperationsTests.cs"  # unit tests
 
   # CanvasNetTool-Imaging-ImageWriter Review (one per unit)
   - id: CanvasNetTool-Imaging-ImageWriter
@@ -3200,22 +3234,6 @@ reviews:
       - "docs/sysml2/model/canvas-net-tool/imaging/contact-sheet.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.Tool/Imaging/ContactSheet.cs"   # unit source
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/ContactSheetTests.cs"  # unit tests
-
-  # CanvasNetTool-Imaging-ImageAdjustments Review (one per unit)
-  - id: CanvasNetTool-Imaging-ImageAdjustments
-    title: Review that CanvasNetTool Imaging ImageAdjustments Implementation is Correct
-    context:
-      - "docs/design/canvas-net-tool.md"
-      - "docs/reqstream/canvas-net-tool.yaml"
-      - "docs/design/canvas-net-tool/imaging.md"
-      - "docs/reqstream/canvas-net-tool/imaging.yaml"
-    paths:
-      - "docs/reqstream/canvas-net-tool/imaging/image-adjustments.yaml"   # unit requirements
-      - "docs/design/canvas-net-tool/imaging/image-adjustments.md"        # unit design
-      - "docs/verification/canvas-net-tool/imaging/image-adjustments.md"  # unit verification
-      - "docs/sysml2/model/canvas-net-tool/imaging/image-adjustments.sysml"  # unit SysML2 model
-      - "src/DemaConsulting.CanvasNet.Tool/Imaging/ImageAdjustments.cs"   # unit source
-      - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/ImageAdjustmentsTests.cs"  # unit tests
 
   # CanvasNetTool-Imaging-ImageGeometry Review (one per unit)
   - id: CanvasNetTool-Imaging-ImageGeometry

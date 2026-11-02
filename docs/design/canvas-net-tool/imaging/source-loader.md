@@ -13,7 +13,9 @@ reports a bad file as an expected error. The unit consists of the static class `
 `SourceLoader.cs`, `SourceLoader.Detect.cs`, `SourceLoader.Raster.cs`, `SourceLoader.Svg.cs`,
 `SourceLoader.Documents.cs`, `SourceLoader.Pdf.cs`, `SourceLoader.Pptx.cs`, `SourceLoader.Vsdx.cs`,
 `SourceLoader.Scad.cs`, and `SourceLoader.VegaLite.cs`),
-`ExifOrientation`, the pixel helpers `SurfaceOperations`, and the supporting types in `SourceModels.cs`.
+`ExifOrientation`, and the supporting types in `SourceModels.cs`. The pixel helpers that used to be part of this unit
+(`FlattenOver`, `HasTransparency`, `FitInside`, and `FitInto`, with the `FitMode` enum) are methods of the core
+`Surface` class (the `SurfaceTransforms` unit of the `Canvas` subsystem).
 
 #### Data Model
 
@@ -220,8 +222,9 @@ it fetches the source pixel the EXIF specification names (orientation 2 mirrors 
 degrees, 4 mirrors top to bottom, 5 transposes, 6 turns clockwise, 7 transverses, 8 turns counter-clockwise); for
 5 to 8 the width and height are swapped.
 
-**SurfaceOperations.FlattenOver(surface, background)** composites a surface over a solid color into a new surface;
-**SurfaceOperations.HasTransparency(surface)** says whether any pixel is not opaque (used by `ImageWriter`).
+**Surface.FlattenOver(background)** (core) composites a surface over a solid color into a new surface, and
+**Surface.HasTransparency()** (core) says whether any pixel is not opaque; the loader flattens with the first when a
+background was given, and `ImageWriter` uses both for JPEG output.
 
 **SourceKindExtensions.IsVector(kind)** is true for SVG, PDF, PPTX, VSDX, SCAD, and Vega-Lite, the kinds that are
 rendered at the
@@ -230,16 +233,11 @@ source into a box: for a vector kind a copy of the options with `Width` and `Hei
 cleared, so the source is rendered sharply at the box (a document page and a chart are fitted inside it and centered
 over the
 background, an SVG follows its own `preserveAspectRatio`, and a model fills it); for a raster kind the options
-unchanged, because the caller fits the decoded pixels with `SurfaceOperations.FitInto`. The loader keeps its own
-private fit and center helpers for documents; they use the same rounding rule as `SurfaceOperations.FitInside`.
-
-**SurfaceOperations.FitInside(width, height, boxWidth, boxHeight)** finds the largest size with the aspect ratio of an
-image that fits a box: the smaller of the two box ratios scales both sides (so a small image is enlarged), each side
-is rounded half away from zero and limited to 1 and the box. **SurfaceOperations.FitInto(source, boxWidth, boxHeight,
-mode, fill, filter)** returns a new surface of exactly the box: with `FitMode.Contain` the source is resampled to the
-`FitInside` size (an image that already has the box size is a plain copy) and centered on `fill` (the margin is
-`fill`; the image pixels are copied, not blended); with `FitMode.Stretch` the source is resampled to the box. The
-source is never modified or disposed.
+unchanged, because the caller fits the decoded pixels with the core `Surface.FitInto`. The loader keeps its own
+private fit and center helpers for documents; they use the same rounding rule as the core fit (`Surface.FitInto`
+contained: the smaller of the two box ratios scales both sides, so a small image is enlarged, and each side is rounded
+half away from zero and limited to 1 and the box; the algorithm is documented in *SurfaceTransforms Unit Design*,
+`canvas/surface-transforms.md`).
 
 #### Error Handling
 
@@ -314,5 +312,6 @@ loader has no case for - which cannot happen while every kind of `SourceKind` is
 
 - **RenderCommand** - probes, then loads, and reports the operations.
 - **DiscoveryCommands** - the `info` command probes.
-- **ImageWriter** - uses `SurfaceOperations` (flatten) for JPEG output.
-- **ContactSheet** and the comparison commands - use `BoxOptions` and `FitInto` to load images into one size.
+- **ImageWriter** - uses the core `Surface.FlattenOver` and `Surface.HasTransparency` for JPEG output.
+- **ContactSheet** and the comparison commands - use `BoxOptions` and the core `Surface.FitInto` to load images into
+  one size.

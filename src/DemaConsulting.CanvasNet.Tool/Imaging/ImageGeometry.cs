@@ -5,13 +5,13 @@ namespace DemaConsulting.CanvasNet.Tool.Imaging;
 
 /// <summary>
 ///     The geometry of a surface that the pipeline needs beyond right-angle moves: rotation by any angle with canvas
-///     expansion and a fill color, and the bounds of the content inside a uniform border (trim).
+///     expansion and a fill color.
 /// </summary>
 /// <remarks>
 ///     <para>
 ///         Angles are in degrees and positive means <b>clockwise</b> on screen; <c>(x, y)</c> has its origin at the top
-///         left with y down; surfaces hold straight (non-premultiplied) alpha. Rotation and trim never modify their
-///         input; each returns a new surface the caller owns.
+///         left with y down; surfaces hold straight (non-premultiplied) alpha. Rotation never modifies its input; it
+///         returns a new surface the caller owns.
 ///     </para>
 ///     <para>
 ///         Rows are processed in parallel with disjoint output and every pixel is computed from its own coordinates (no
@@ -20,9 +20,6 @@ namespace DemaConsulting.CanvasNet.Tool.Imaging;
 /// </remarks>
 internal static partial class ImageGeometry
 {
-    /// <summary>The largest trim tolerance.</summary>
-    public const int MaxTrimTolerance = 255;
-
     /// <summary>The tolerance in pixels that absorbs floating-point noise when the size of a rotated image is calculated.</summary>
     private const double SizeEpsilon = 1e-9;
 
@@ -141,199 +138,6 @@ internal static partial class ImageGeometry
             result.Dispose();
             throw;
         }
-    }
-
-    /// <summary>
-    ///     Finds the bounding box of the content inside a uniform border.
-    /// </summary>
-    /// <param name="surface">The surface; it is not modified.</param>
-    /// <param name="tolerance">The largest distance from the background color that is still background, 0 to 255.</param>
-    /// <returns>
-    ///     The inclusive bounding box of the foreground pixels, or <see langword="null"/> when there are none (the surface
-    ///     is all background). The <b>background color</b> is the most frequent color among the four corner pixels (top left,
-    ///     top right, bottom left, bottom right, exact RGBA equality), a tie going to the earliest in that order. The
-    ///     <b>distance</b> of a pixel from it is 0 when both have alpha 0 (every transparent pixel is the same), else the
-    ///     largest of the absolute differences of red, green, blue, and alpha; a pixel is background when its distance is
-    ///     at most the tolerance. The top and bottom are the first and last rows with a foreground pixel and the left and
-    ///     right the smallest and largest foreground columns over those rows (row scans with early exit).
-    /// </returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="surface"/> is <see langword="null"/>.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when the tolerance is not 0 to 255.</exception>
-    public static (int X, int Y, int Width, int Height)? FindTrimBounds(Surface surface, int tolerance)
-    {
-        ArgumentNullException.ThrowIfNull(surface);
-        ArgumentOutOfRangeException.ThrowIfNegative(tolerance);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(tolerance, MaxTrimTolerance);
-
-        var width = surface.Width;
-        var height = surface.Height;
-        var background = TrimBackground(surface);
-
-        var top = -1;
-        for (var y = 0; y < height && top < 0; y++)
-        {
-            if (FirstForeground(surface.GetRowSpan(y), background, tolerance) >= 0)
-            {
-                top = y;
-            }
-        }
-
-        if (top < 0)
-        {
-            return null;
-        }
-
-        var bottom = top;
-        for (var y = height - 1; y > top; y--)
-        {
-            if (FirstForeground(surface.GetRowSpan(y), background, tolerance) >= 0)
-            {
-                bottom = y;
-                break;
-            }
-        }
-
-        var left = width;
-        var right = -1;
-        for (var y = top; y <= bottom; y++)
-        {
-            var row = surface.GetRowSpan(y);
-
-            // Only a pixel left of the current left edge or right of the current right edge can extend the box.
-            var first = FirstForeground(row[..Math.Min(left, width)], background, tolerance);
-            if (first >= 0)
-            {
-                left = first;
-            }
-
-            var last = LastForeground(row, right + 1, background, tolerance);
-            if (last > right)
-            {
-                right = last;
-            }
-        }
-
-        return (left, top, right - left + 1, bottom - top + 1);
-    }
-
-    /// <summary>
-    ///     Crops a surface to the content inside a uniform border.
-    /// </summary>
-    /// <param name="surface">The surface; it is not modified or disposed.</param>
-    /// <param name="tolerance">The largest distance from the background color that is still background, 0 to 255.</param>
-    /// <returns>
-    ///     A new surface: the pixels of the box <see cref="FindTrimBounds"/> finds, or a copy of the whole surface when
-    ///     there is no foreground (the surface is all background) so that nothing is trimmed.
-    /// </returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="surface"/> is <see langword="null"/>.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when the tolerance is not 0 to 255.</exception>
-    public static Surface Trim(Surface surface, int tolerance)
-    {
-        var bounds = FindTrimBounds(surface, tolerance);
-        return bounds is { } box
-            ? surface.Crop(box.X, box.Y, box.Width, box.Height)
-            : surface.Crop(0, 0, surface.Width, surface.Height);
-    }
-
-    /// <summary>
-    ///     Chooses the background color of a trim from the four corner pixels.
-    /// </summary>
-    /// <param name="surface">The surface.</param>
-    /// <returns>The most frequent corner color; a tie goes to the earliest of top left, top right, bottom left, bottom right.</returns>
-    private static Rgba32 TrimBackground(Surface surface)
-    {
-        var right = surface.Width - 1;
-        var bottom = surface.Height - 1;
-        Span<Rgba32> corners =
-        [
-            surface[0, 0],
-            surface[right, 0],
-            surface[0, bottom],
-            surface[right, bottom]
-        ];
-
-        var best = corners[0];
-        var bestCount = 0;
-        for (var i = 0; i < corners.Length; i++)
-        {
-            var count = 0;
-            for (var j = 0; j < corners.Length; j++)
-            {
-                if (corners[j] == corners[i])
-                {
-                    count++;
-                }
-            }
-
-            if (count > bestCount)
-            {
-                best = corners[i];
-                bestCount = count;
-            }
-        }
-
-        return best;
-    }
-
-    /// <summary>
-    ///     Determines whether a pixel is foreground of a trim.
-    /// </summary>
-    /// <param name="pixel">The pixel.</param>
-    /// <param name="background">The background color.</param>
-    /// <param name="tolerance">The largest distance from the background that is still background.</param>
-    /// <returns><see langword="true"/> when the distance of the pixel from the background is greater than the tolerance.</returns>
-    private static bool IsForeground(Rgba32 pixel, Rgba32 background, int tolerance)
-    {
-        if (pixel.A == 0 && background.A == 0)
-        {
-            return false;
-        }
-
-        var distance = Math.Max(
-            Math.Max(Math.Abs(pixel.R - background.R), Math.Abs(pixel.G - background.G)),
-            Math.Max(Math.Abs(pixel.B - background.B), Math.Abs(pixel.A - background.A)));
-        return distance > tolerance;
-    }
-
-    /// <summary>
-    ///     Finds the first foreground pixel of a row.
-    /// </summary>
-    /// <param name="row">The pixels of the row, or a beginning of it.</param>
-    /// <param name="background">The background color.</param>
-    /// <param name="tolerance">The tolerance.</param>
-    /// <returns>The index of the first foreground pixel, or -1.</returns>
-    private static int FirstForeground(ReadOnlySpan<Rgba32> row, Rgba32 background, int tolerance)
-    {
-        for (var x = 0; x < row.Length; x++)
-        {
-            if (IsForeground(row[x], background, tolerance))
-            {
-                return x;
-            }
-        }
-
-        return -1;
-    }
-
-    /// <summary>
-    ///     Finds the last foreground pixel of a row at or after a column.
-    /// </summary>
-    /// <param name="row">The pixels of the row.</param>
-    /// <param name="start">The first column to consider.</param>
-    /// <param name="background">The background color.</param>
-    /// <param name="tolerance">The tolerance.</param>
-    /// <returns>The index of the last foreground pixel at or after <paramref name="start"/>, or -1.</returns>
-    private static int LastForeground(ReadOnlySpan<Rgba32> row, int start, Rgba32 background, int tolerance)
-    {
-        for (var x = row.Length - 1; x >= start; x--)
-        {
-            if (IsForeground(row[x], background, tolerance))
-            {
-                return x;
-            }
-        }
-
-        return -1;
     }
 
     /// <summary>

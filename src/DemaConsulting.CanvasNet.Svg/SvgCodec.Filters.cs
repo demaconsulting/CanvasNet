@@ -1561,38 +1561,6 @@ public static partial class SvgCodec
     }
 
     /// <summary>
-    ///     Copies <paramref name="source"/> into <paramref name="destination"/> at the supplied
-    ///     destination origin, clipping to the destination bounds.
-    /// </summary>
-    /// <param name="source">The surface to copy from.</param>
-    /// <param name="destination">The surface to copy into.</param>
-    /// <param name="destinationX">The destination X origin.</param>
-    /// <param name="destinationY">The destination Y origin.</param>
-    private static void CopySurfaceInto(Surface source, Surface destination, int destinationX, int destinationY)
-    {
-        for (var row = 0; row < source.Height; row++)
-        {
-            var destRow = destinationY + row;
-            if (destRow < 0 || destRow >= destination.Height)
-            {
-                continue;
-            }
-
-            var startX = Math.Max(0, -destinationX);
-            var endX = Math.Min(source.Width, destination.Width - destinationX);
-            if (endX <= startX)
-            {
-                continue;
-            }
-
-            var length = endX - startX;
-            var sourceRow = source.GetRowSpan(row).Slice(startX, length);
-            var destinationRow = destination.GetRowSpan(destRow).Slice(destinationX + startX, length);
-            sourceRow.CopyTo(destinationRow);
-        }
-    }
-
-    /// <summary>
     ///     Computes the union of two primitive subregions.
     /// </summary>
     /// <param name="first">The first subregion.</param>

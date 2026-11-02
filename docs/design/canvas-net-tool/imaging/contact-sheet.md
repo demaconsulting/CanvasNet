@@ -41,7 +41,7 @@ Cell `i` is in column `i % columns` and row `i / columns`, with the origin
 
 **ContactSheet(count, options)**: calculates the layout, allocates the sheet, and clears it to the background.
 
-**Add(image, label)**: fits the next image into its cell with `SurfaceOperations.FitInto` (`Contain`: scaled to fill the
+**Add(image, label)**: fits the next image into its cell with the core `Surface.FitInto` (`Contain`: scaled to fill the
 limiting side, enlarging a small image, centered on the background; `Stretch`: resampled to exactly the cell), flattens
 any transparency over the background (so the sheet is always opaque), copies the rows onto the sheet, and, when the sheet
 has labels and the label is not `null`, draws it. The image is not disposed. It returns the cell origin. Adding more
@@ -75,7 +75,8 @@ columns outside 0 to 64, a cell side below 16, negative spacing or padding, or a
 
 #### Dependencies
 
-- **SourceLoader** (the `SurfaceOperations` helpers) - `FitInto`, `FlattenOver`, `HasTransparency`, and `FitMode`.
+- **CanvasNet core library** - `Surface.FitInto` and `FitMode`, `Surface.FlattenOver`, `Surface.HasTransparency`, and
+  `Surface.CopyFrom` (the same `Surface` and `Rgba32` as everywhere else).
 - **ToolException** and **ErrorCodes** - the `size-limit` error.
 - **CanvasNet core library** - `Surface`, `Rgba32`, and `ResamplingMode`.
 - **CanvasNet rendering and fonts** - `Canvas`, `TextRenderer` (`MeasureText`, `TruncateToWidth`), `TextAlign`,

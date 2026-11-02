@@ -382,7 +382,7 @@ internal sealed partial class CompareCommand : ICommand
     /// <param name="box">The size to bring the input to, or <see langword="null"/> to keep its size.</param>
     /// <remarks>
     ///     A vector input is rendered at the box (see <see cref="SourceLoader.BoxOptions"/>); a raster input is fitted into
-    ///     it with <see cref="SurfaceOperations.FitInto"/> unless it already has that size.
+    ///     it with <see cref="Surface.FitInto"/> unless it already has that size.
     /// </remarks>
     private static void LoadSide(Settings settings, Side side, SourceOptions options, (int Width, int Height)? box)
     {
@@ -401,7 +401,7 @@ internal sealed partial class CompareCommand : ICommand
             side.Echo = loaded.Echo;
             if (box is { } size && (surface.Width != size.Width || surface.Height != size.Height))
             {
-                var fitted = SurfaceOperations.FitInto(surface, size.Width, size.Height, settings.Fit, settings.Background, settings.Filter);
+                var fitted = surface.FitInto(size.Width, size.Height, settings.Fit, settings.Background, settings.Filter);
                 surface.Dispose();
                 surface = fitted;
                 operations.Add(settings.Fit == FitMode.Contain

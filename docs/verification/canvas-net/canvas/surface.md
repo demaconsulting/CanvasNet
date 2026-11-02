@@ -16,7 +16,8 @@ premultiplication tests are computed independently of the implementation (via ha
 Porter-Duff results for compositing, and via scalar `double` arithmetic for
 premultiply/unpremultiply), not by re-deriving the formula under test.
 
-Unit tests reside in `SurfaceTests.cs` within the `DemaConsulting.CanvasNet.Tests` project.
+Unit tests reside in `SurfaceTests.cs` (and, for `Clone` and `CopyFrom`, `SurfaceCopyTests.cs`) within the
+`DemaConsulting.CanvasNet.Tests` project.
 
 #### Test Environment
 
@@ -178,6 +179,41 @@ Calls `Crop` with `x + width` exceeding the source `Width` and asserts
 
 Calls `Crop` with `y + height` exceeding the source `Height` and asserts
 `ArgumentOutOfRangeException` is thrown.
+
+##### CanvasNet-Canvas-Surface-Clone: Clone Returns an Independent Copy
+
+**Tests**: `Surface_Clone_ValidSurface_ReturnsIdenticalPixels`,
+`Surface_Clone_ModifyEither_DoesNotAffectTheOther`
+
+Clones a surface that has a distinct pixel at every coordinate and asserts the clone is a different
+instance with the same size and pixels; then changes the clone and the source in turn and asserts
+neither change reaches the other.
+
+##### CanvasNet-Canvas-Surface-CopyFrom: CopyFrom Replaces Pixels Without Blending
+
+**Tests**: `Surface_CopyFrom_InsideDestination_ReplacesPixelsWithoutBlending`,
+`Surface_CopyFrom_Source_IsNotModified`
+
+Copies a half-transparent source onto an opaque destination and asserts the covered pixels equal
+the source value exactly (no blend) while the pixels around the rectangle are untouched, and that
+the source is unchanged by the copy.
+
+##### CanvasNet-Canvas-Surface-CopyFromClipped: CopyFrom Clips to the Destination
+
+**Tests**: `Surface_CopyFrom_PartlyOutside_ClipsToDestination`,
+`Surface_CopyFrom_EntirelyOutside_LeavesDestinationUnchanged`
+
+Places the source so that it overlaps the destination partly on each side (negative and positive
+offsets) and asserts every destination pixel is either the matching source pixel or untouched;
+places it entirely outside, including at `int.MaxValue` and `int.MinValue`, and asserts nothing
+changes and no overflow occurs.
+
+##### CanvasNet-Canvas-Surface-CopyFromInvalid: CopyFrom Rejects Invalid Arguments
+
+**Test**: `Surface_CopyFrom_InvalidArguments_Throw`
+
+Asserts `ArgumentNullException` for a null source, `ArgumentException` for the surface itself, and
+`ObjectDisposedException` when either the source or the destination is disposed.
 
 ##### CanvasNet-Canvas-Surface-PremultiplyAlpha: PremultiplyAlpha Computes Expected Pixels and Round-Trips
 
@@ -367,6 +403,7 @@ workspace-reusing per-pixel-color overload matches the public overload's output 
 `Surface_GetRowSpanBytes_AfterDispose_ThrowsObjectDisposedException`,
 `Surface_GetRowSpan_AfterDispose_ThrowsObjectDisposedException`,
 `Surface_Crop_AfterDispose_ThrowsObjectDisposedException`,
+`Surface_Clone_AfterDispose_ThrowsObjectDisposedException`,
 `Surface_PremultiplyAlpha_AfterDispose_ThrowsObjectDisposedException`,
 `Surface_UnpremultiplyAlpha_AfterDispose_ThrowsObjectDisposedException`,
 `Surface_CompositeOverSurface_AfterDispose_ThrowsObjectDisposedException`,

@@ -9,7 +9,8 @@
 # resolution of a document, the view and variables of a model, the EXIF orientation of a JPEG, and the
 # background color, collects the notes about features the libraries cannot draw, and maps the library
 # exceptions that mean "bad input" to expected errors. The EXIF reader and the orientation transform
-# (ExifOrientation) and the small SurfaceOperations helpers are part of this unit.
+# (ExifOrientation) is part of this unit; the fit, flatten, and transparency helpers that used to be here are core
+# Surface methods.
 
 sections:
   - title: SourceLoader Unit Requirements
@@ -399,10 +400,9 @@ sections:
         title: >-
           The SourceLoader class shall provide the options that load a source into a box of a given size
           (a vector source is rendered natively at the box by setting its width and height and clearing
-          its scale, a raster source keeps its options), and the SurfaceOperations helpers shall find the
-          largest aspect-preserving size that fits a box (rounded to the nearest pixel, never below one
-          pixel nor above the box) and fit a raster surface into a box either by containing it, scaled to
-          the limiting side and centered on a fill color, or by stretching it to exactly the box.
+          its scale, a raster source keeps its options), and shall fit a raster surface into a box by
+          delegating to the core Surface fit (contained, scaled to the limiting side and centered on a fill
+          color, or stretched to exactly the box).
         justification: |
           Commands that put several images into one size (comparison, contact sheets) must render a
           vector source sharply at the final size instead of resampling pixels, and must fit a raster
@@ -412,12 +412,6 @@ sections:
           - SourceLoader_BoxOptions_RasterKinds_AreUnchanged
           - SourceLoader_BoxOptions_NullArguments_ThrowArgumentNullException
           - SourceLoader_Load_VectorWithBox_RendersNativelyAtBox
-          - SurfaceOperations_FitInside_RoundsAndClamps
-          - SurfaceOperations_FitInside_NonPositiveSize_ThrowsArgumentOutOfRange
-          - SurfaceOperations_FitInto_Contain_ScalesToLimitingSideAndCenters
-          - SurfaceOperations_FitInto_Stretch_ResamplesToExactBox
-          - SurfaceOperations_FitInto_SameSize_ReturnsEqualPixels
-          - SurfaceOperations_FitInto_InvalidArguments_Throw
 
       - id: CanvasNetTool-Imaging-SourceLoader-SizeLimit
         title: >-

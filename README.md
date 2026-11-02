@@ -33,6 +33,7 @@ load/crop/resize/save workflows.
 - 🖼️ **Pixel Buffer** - Mutable 32-bit RGBA surface with span access
 - ✂️ **Cropping** - Independent-copy crop for load/crop/save workflows
 - 📐 **Resizing** - `Resize`/`ResizeToFit` with Nearest, Bilinear, Bicubic, Lanczos3 and Area filters
+- 🪄 **Image Operations** - `Surface` flip, pad, trim, fit, copy, and in-place tone adjustments
 - 🌈 **Compositing** - Alpha premultiply and Porter-Duff "over" compositing
 - 🎨 **CSS Colors** - `CssColor` parses CSS color text (names, hex, `rgb()`, `hsl()`) into `Rgba32`
 - 📀 **BMP Codec** - Load/save 24-bit/32-bit uncompressed BMP files

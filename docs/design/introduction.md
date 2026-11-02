@@ -29,7 +29,8 @@ software items, specifically:
 
 - **CanvasNet (System)** — The complete .NET library system
 - **Canvas (Subsystem)** — Pixel-buffer primitives: the `Surface` unit (mutable, in-memory
-  32-bit RGBA pixel buffer with span-based row access), the `Rgba32` unit, and the `CssColor` unit
+  32-bit RGBA pixel buffer with span-based row access) with its `SurfaceAdjustments` (tone and color adjustments) and
+  `SurfaceTransforms` (flip, pad, trim, fit, and flatten) parts, the `Rgba32` unit, and the `CssColor` unit
   (the shared CSS color parser)
 - **Codecs (Subsystem)** — Image format codecs: `BmpCodec`, `PngCodec`, `TiffCodec`, and
   `JpegCodec`, each converting to and from a `Surface` pixel buffer; `GifCodec`, a decode-only
@@ -316,8 +317,9 @@ software items, specifically:
   models, and Vega-Lite charts, the `ImagePipeline` unit, which crops, resizes, fits, rotates by any angle, flips,
   pads, adjusts, deskews,
   trims, and grids pixels in the order the options
-  were written, the `ImageAdjustments`, `ImageGeometry`, `GridOverlay`, and `ImageAnalysis` units, which do the
-  tone, geometry, grid, and measurement work for it, the `ImageWriter`
+  were written, the `ImageGeometry`, `GridOverlay`, and `ImageAnalysis` units, which do the
+  rotation, grid, and measurement work for it (the flip, pad, trim, and tone arithmetic is the core library's
+  `Surface`), the `ImageWriter`
   unit, which writes PNG, JPEG, BMP, and TIFF files, the `ImageComparison` unit, which measures how much two images
   differ and draws the differences, and the `ContactSheet` unit, which composes images into a labeled sheet). It uses
   the other systems of this repository through private project references, so that their assemblies are bundled
@@ -360,7 +362,8 @@ diagram or the prose below.
 ![Software Structure](SoftwareStructureView.svg)
 
 CanvasNet is organized into six subsystems under the system level: the `Canvas` subsystem
-(the `Surface`, `Rgba32`, and `CssColor` units, namespace `DemaConsulting.CanvasNet.Canvas`), the `Codecs`
+(the `Surface` unit with its `SurfaceAdjustments` and `SurfaceTransforms` parts, and the `Rgba32` and `CssColor` units,
+namespace `DemaConsulting.CanvasNet.Canvas`), the `Codecs`
 subsystem (the `BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`, `GifCodec`, `Jpeg2000Codec`, and `ImageDecoder` units,
 namespace `DemaConsulting.CanvasNet.Codecs`, flat — no further nesting), the
 `Geometry` subsystem (the
@@ -506,8 +509,9 @@ grammar, the JSON result documents, the self-validation, and the safe path helpe
 `resize`, `rotate`, `flip`, `pad`, `compare`, `montage`, and `inspect`
 commands), and its `Imaging` subsystem (namespace
 `DemaConsulting.CanvasNet.Tool.Imaging`) holds the `SourceLoader`, `ImagePipeline`, `ImageWriter`, `ImageComparison`,
-`ContactSheet`, `ImageAdjustments`, `ImageGeometry`, `GridOverlay`, and `ImageAnalysis` units that turn files into
-pixels, transform pixels (tone, rotation by any angle, deskew, trim, and grid), turn pixels into files, compare two
+`ContactSheet`, `ImageGeometry`, `GridOverlay`, and `ImageAnalysis` units that turn files into
+pixels, transform pixels (rotation by any angle, deskew, and grid, over the core library's flip, pad, trim, and tone
+operations), turn pixels into files, compare two
 images, compose a contact sheet, and measure colors and pixels. It uses the `CanvasNet`, `CanvasNetSvg`,
 `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetRender3D`, `CanvasNetScad`, and `CanvasNetVegaLite` systems
 through their public API and bundles their assemblies in its package. No library system references the tool. See the
@@ -522,6 +526,11 @@ and descriptions as follows:
 src/DemaConsulting.CanvasNet/
 ├── Canvas/
 │   ├── Surface.cs               — Mutable, in-memory 32-bit RGBA pixel buffer
+│   ├── Surface.Adjustments.cs   — SurfaceAdjustments: luma, grayscale, invert, thresholds, levels, brightness,
+│   │                                contrast, and auto-levels (partial class of Surface)
+│   ├── Surface.Transforms.cs    — SurfaceTransforms: flip, pad, trim, fit into a box, flatten, and the
+│   │                                transparency test (partial class of Surface)
+│   ├── FitMode.cs               — Public enum of the box-fit modes of Surface.FitInto
 │   ├── ResamplingMode.cs        — Public enum of resampling filters for Resize/ResizeToFit
 │   ├── SurfaceResampler.cs      — Internal box-reduction prefilter and bilinear samplers
 │   ├── SurfaceResampler.Engine.cs — Internal separable resampling engine, device-window and
@@ -1318,11 +1327,9 @@ src/DemaConsulting.CanvasNet.Tool/
     ├── SourceLoader.Vsdx.cs       — SourceLoader: Visio drawings
     ├── SourceLoader.Scad.cs       — SourceLoader: OpenSCAD models drawn from a named view
     ├── ExifOrientation.cs         — SourceLoader: the EXIF orientation reader and transform
-    ├── SurfaceOperations.cs       — SourceLoader: flatten, transparency, and fit-into-a-box helpers
     ├── ImageOperations.cs         — ImagePipeline: the operation records (crop, resize, fit, rotate, flip, pad, photo)
     ├── ImagePipeline.cs           — ImagePipeline: parsing the ordered operations and applying them to a surface
-    ├── ImageAdjustments.cs        — ImageAdjustments: luma, grayscale, invert, threshold, Otsu, levels, and auto-levels
-    ├── ImageGeometry.cs           — ImageGeometry: rotation by any angle, the rotated size, and trim
+    ├── ImageGeometry.cs           — ImageGeometry: rotation by any angle and the rotated size
     ├── ImageGeometry.Deskew.cs    — ImageGeometry: skew estimation for deskew
     ├── GridOverlay.cs             — GridOverlay: the labeled coordinate grid, drawn with the bundled font
     ├── ImageAnalysis.cs           — ImageAnalysis: dominant colors, luma statistics, and pixel samples

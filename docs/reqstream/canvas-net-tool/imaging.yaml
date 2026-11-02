@@ -4,8 +4,8 @@
 #
 # PURPOSE:
 # - Define requirements for the CanvasNetTool Imaging subsystem
-# - The Imaging subsystem turns files into pixels (SourceLoader), transforms pixels (ImagePipeline), adjusts
-#   tone and color (ImageAdjustments), rotates and trims (ImageGeometry), draws a coordinate grid (GridOverlay),
+# - The Imaging subsystem turns files into pixels (SourceLoader), transforms pixels (ImagePipeline, over the core
+#   Surface flip, pad, trim, and tone adjustments), rotates (ImageGeometry), draws a coordinate grid (GridOverlay),
 #   measures colors (ImageAnalysis), compares
 #   two images and draws their differences (ImageComparison), composes a contact sheet (ContactSheet), and
 #   turns pixels into files (ImageWriter); it is free of command-line concerns apart from the parsing of
@@ -96,7 +96,6 @@ sections:
           - CanvasNetTool-Imaging-ImagePipeline-RotateAngle
           - CanvasNetTool-Imaging-ImagePipeline-Flip
           - CanvasNetTool-Imaging-ImagePipeline-Pad
-          - CanvasNetTool-Imaging-ImagePipeline-Adjustments
           - CanvasNetTool-Imaging-ImagePipeline-Deskew
           - CanvasNetTool-Imaging-ImagePipeline-Trim
           - CanvasNetTool-Imaging-ImagePipeline-Grid
@@ -155,44 +154,33 @@ sections:
       - id: CanvasNetTool-Imaging-Adjust
         title: >-
           The Imaging subsystem shall adjust the tone and color of pixels in place (grayscale, invert, a fixed or
-          automatic threshold, levels, brightness, contrast, and an auto-levels stretch), with exact, repeatable
-          results that do not depend on the number of cores.
+          automatic threshold, levels, brightness, contrast, and an auto-levels stretch) by delegating the
+          arithmetic to the core Surface adjustments, with exact, repeatable results that do not depend on the
+          number of cores.
         justification: |
-          A photograph of a sketch is cleaned up with the same few tone operations whatever its source; doing the
-          arithmetic in one unit, in integers wherever a number decides a pixel, makes the operations predictable,
-          reportable, and comparable between runs.
+          A photograph of a sketch is cleaned up with the same few tone operations whatever its source; the
+          arithmetic lives once, in integers wherever a number decides a pixel, in the core library, and the
+          pipeline makes the operations orderable and reportable.
         children:
-          - CanvasNetTool-Imaging-ImageAdjustments-Luma
-          - CanvasNetTool-Imaging-ImageAdjustments-Grayscale
-          - CanvasNetTool-Imaging-ImageAdjustments-Invert
-          - CanvasNetTool-Imaging-ImageAdjustments-Threshold
-          - CanvasNetTool-Imaging-ImageAdjustments-Otsu
-          - CanvasNetTool-Imaging-ImageAdjustments-Levels
-          - CanvasNetTool-Imaging-ImageAdjustments-BrightnessContrast
-          - CanvasNetTool-Imaging-ImageAdjustments-AutoLevels
-          - CanvasNetTool-Imaging-ImageAdjustments-Deterministic
-          - CanvasNetTool-Imaging-ImageAdjustments-Arguments
+          - CanvasNetTool-Imaging-ImagePipeline-Adjustments
         tests:
           - Imaging_Photo_LoadedSourceAdjustedDeskewedTrimmedAndWritten
 
       - id: CanvasNetTool-Imaging-Geometry
         title: >-
           The Imaging subsystem shall rotate pixels by any angle onto an expanded canvas with a chosen fill color
-          (nearest or bilinear sampling, refusing a canvas larger than the maximum image size), shall find the
-          bounds of the content inside a uniform border, and shall estimate the skew of the dominant
-          near-horizontal lines of an image, with exact, repeatable results that do not depend on the number of
-          cores.
+          (nearest or bilinear sampling, refusing a canvas larger than the maximum image size), and shall estimate
+          the skew of the dominant near-horizontal lines of an image, with exact, repeatable results that do not
+          depend on the number of cores.
         justification: |
-          A photograph of a sketch is rarely level or tightly framed; estimating its tilt, rotating by an arbitrary
-          angle without losing corners, and cropping to the content are the geometric steps that turn it into a
-          usable picture.
+          A photograph of a sketch is rarely level; estimating its tilt and rotating by an arbitrary angle without
+          losing corners are the geometric steps that turn it into a usable picture.
         children:
           - CanvasNetTool-Imaging-ImageGeometry-RotatedSize
           - CanvasNetTool-Imaging-ImageGeometry-RotateMapping
           - CanvasNetTool-Imaging-ImageGeometry-RotateFill
           - CanvasNetTool-Imaging-ImageGeometry-RotateFilter
           - CanvasNetTool-Imaging-ImageGeometry-RotateLimit
-          - CanvasNetTool-Imaging-ImageGeometry-Trim
           - CanvasNetTool-Imaging-ImageGeometry-SkewEstimate
           - CanvasNetTool-Imaging-ImageGeometry-SkewNoStructure
           - CanvasNetTool-Imaging-ImageGeometry-SkewDeterministic

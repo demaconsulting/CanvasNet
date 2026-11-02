@@ -1,0 +1,101 @@
+---
+# cspell:ignore premultiplied
+# Software Unit Requirements for SurfaceTransforms
+#
+# These requirements describe the design-level behavior of the SurfaceTransforms unit of the Canvas subsystem: the
+# whole-surface transformations of the Surface class that complement Crop and Resize (flip, half turn, pad, trim, fit
+# into a box, flatten over a color, and the transparency test). Each is a pure function that returns a new surface and
+# never modifies the surface it is called on. See docs/verification/canvas-net/canvas/surface-transforms.md for the
+# test-evidence mapping.
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Canvas Requirements
+        sections:
+          - title: SurfaceTransforms Requirements
+            requirements:
+              - id: CanvasNet-Canvas-SurfaceTransforms-Flip
+                title: >-
+                  The Surface class shall create a new surface that is the mirror image of the surface about its
+                  vertical axis (FlipHorizontal), about its horizontal axis (FlipVertical), or about both axes, a
+                  turn by 180 degrees (Rotate180), moving every pixel exactly and leaving the source unchanged.
+                justification: |
+                  Mirroring and half turns are exact pixel moves that need no resampling; providing them as pure
+                  functions lets callers correct a mirrored or upside-down image without writing the row loops
+                  themselves.
+                tests:
+                  - Surface_Flip_Pixels_MirrorAboutTheAxes
+                  - Surface_Flip_Twice_RestoresOriginalAndBothAxesEqualHalfTurn
+
+              - id: CanvasNet-Canvas-SurfaceTransforms-Pad
+                title: >-
+                  The Surface class shall create a new surface that surrounds the surface with a border of given
+                  widths and color, copying the source pixels opaquely at the offset of the left and top borders,
+                  and shall reject a negative border width, and a result larger than MaxDimension on a side, before
+                  anything is allocated.
+                justification: |
+                  A border is a common way to add margin to an image; checking the size first keeps an oversize
+                  request from allocating memory it cannot use.
+                tests:
+                  - Surface_Pad_Border_AddsColoredBorderAndCopiesPixels
+                  - Surface_Pad_TransparentColorOrNoBorder_LeavesBorderTransparentOrCopies
+                  - Surface_Pad_InvalidBorder_Throws
+
+              - id: CanvasNet-Canvas-SurfaceTransforms-Trim
+                title: >-
+                  The Surface class shall find the bounding box of the content inside a uniform border, taking the
+                  most frequent of the four corner colors (the earliest on a tie) as the background, treating all
+                  fully transparent pixels as equal and any other pixel as background when its largest channel
+                  difference from the background is at most a tolerance from 0 to 255, shall report no box, and
+                  trim nothing, when every pixel is background, and shall crop the surface to the box.
+                justification: |
+                  Scanned and photographed documents carry an empty margin; trimming it with a rule that is simple
+                  and documented gives a repeatable result, and an image with no content is left as it is rather
+                  than reduced to nothing.
+                tests:
+                  - Surface_FindTrimBounds_UniformBorder_ReturnsContentBox
+                  - Surface_FindTrimBounds_Tolerance_IgnoresNoiseBelowTolerance
+                  - Surface_FindTrimBounds_TransparentBorder_TreatsAllTransparentPixelsAsEqual
+                  - Surface_FindTrimBounds_CornerMajority_ChoosesMostFrequentCorner
+                  - Surface_FindTrimBounds_AllBackground_ReturnsNull
+                  - Surface_Trim_ContentTouchingEdges_ReturnsFullImage
+                  - Surface_Trim_InvalidTolerance_Throws
+
+              - id: CanvasNet-Canvas-SurfaceTransforms-FitInto
+                title: >-
+                  The Surface class shall fit a surface into a box of an exact size, either by scaling it by the
+                  smaller of the two box ratios (rounded half away from zero and limited to 1 and the box) and
+                  centering it on a fill color (Contain), or by resampling it to exactly the box (Stretch), and
+                  shall return an independent copy when the surface already has the size of the box.
+                justification: |
+                  Thumbnails, contact sheets, and side-by-side comparisons need every image in a cell of one size;
+                  one documented rounding rule gives the same size on every machine.
+                tests:
+                  - Surface_FitInside_RoundsAndClamps
+                  - Surface_FitInside_NonPositiveSize_ThrowsArgumentOutOfRange
+                  - Surface_FitInto_Contain_ScalesToLimitingSideAndCenters
+                  - Surface_FitInto_Stretch_ResamplesToExactBox
+                  - Surface_FitInto_SameSize_ReturnsEqualPixels
+                  - Surface_FitInto_InvalidArguments_Throw
+
+              - id: CanvasNet-Canvas-SurfaceTransforms-Flatten
+                title: >-
+                  The Surface class shall flatten a surface over a solid background color into a new surface, and
+                  shall report whether any pixel of a surface has an alpha below 255.
+                justification: |
+                  Formats without an alpha channel need the transparency removed over a chosen color, and callers
+                  need to know whether that is necessary at all.
+                tests:
+                  - Surface_FlattenOver_TranslucentPixels_CompositesOverBackground
+                  - Surface_HasTransparency_OpaqueAndTranslucentSurfaces_ReportsCorrectly
+
+              - id: CanvasNet-Canvas-SurfaceTransforms-Disposed
+                title: >-
+                  The Surface class shall reject a transformation of a disposed surface with
+                  ObjectDisposedException.
+                justification: |
+                  A disposed surface must not be read; failing fast with the documented exception makes the
+                  lifetime error visible.
+                tests:
+                  - Surface_Transforms_AfterDispose_ThrowObjectDisposedException

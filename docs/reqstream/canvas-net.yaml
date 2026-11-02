@@ -5,6 +5,7 @@
 # from the perspective of its consumers, without specifying implementation details.
 # cspell:ignore glyf sfnt cmap loca hmtx hhea maxp notdef
 # cspell:ignore codepoint codepoints subtable subtables subsetted renderable formedness
+# cspell:ignore otsu
 # cspell:ignore rasterizing letterboxing Dasharray xlink Pillarboxes
 
 sections:
@@ -284,6 +285,46 @@ sections:
           - CanvasNet-Canvas-CssColor
         tests:
           - CssColor_TryParse_FunctionForms_MatchExpectedPixels
+
+      - id: CanvasNet-Lib-SurfaceCopy
+        title: >-
+          The library shall create an independent copy of a Surface and copy the pixels of one Surface onto another
+          at a position, replacing the pixels underneath without blending and ignoring any part outside the
+          destination.
+        tags: [system]
+        justification: |
+          Callers work on a copy and place images, borders, and tiles into a larger surface; one public, tested
+          copy avoids every consumer keeping its own row loops.
+        children:
+          - CanvasNet-Canvas-SurfaceCopy
+        tests:
+          - Surface_CopyFrom_InsideDestination_ReplacesPixelsWithoutBlending
+
+      - id: CanvasNet-Lib-SurfaceAdjustments
+        title: >-
+          The library shall adjust the tone and color of a Surface in place: grayscale, invert, fixed and Otsu
+          thresholds, levels, brightness, contrast, and auto-levels, with a fixed-point luma over white.
+        tags: [system]
+        justification: |
+          Preparing photographs and scans for reading or printing needs repeatable tone adjustments; offering
+          them in the library lets applications use them without reimplementing the arithmetic.
+        children:
+          - CanvasNet-Canvas-SurfaceAdjustments
+        tests:
+          - Surface_AutoLevels_LowContrastImage_StretchesToFullRange
+
+      - id: CanvasNet-Lib-SurfaceTransforms
+        title: >-
+          The library shall flip, turn by 180 degrees, pad, trim, fit into a box, and flatten a Surface over a
+          color, each as a pure function that returns a new Surface.
+        tags: [system]
+        justification: |
+          Mirroring, margins, content cropping, box fitting, and transparency removal are the everyday operations
+          of image preparation; the library offers them so that applications need no pixel loops of their own.
+        children:
+          - CanvasNet-Canvas-SurfaceTransforms
+        tests:
+          - Surface_Pad_Border_AddsColoredBorderAndCopiesPixels
 
   - title: BMP Codec API
     requirements:

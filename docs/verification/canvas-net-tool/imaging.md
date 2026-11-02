@@ -5,10 +5,10 @@
 ### Verification Approach
 
 The `Imaging` subsystem is verified at two tiers. The unit tests of `SourceLoader`, `ImagePipeline`, `ImageWriter`,
-`ImageComparison`, `ContactSheet`, `ImageAdjustments`, `ImageGeometry`, `GridOverlay`, and `ImageAnalysis`
+`ImageComparison`, `ContactSheet`, `ImageGeometry`, `GridOverlay`, and `ImageAnalysis`
 (see _SourceLoader Unit Verification Design_, _ImagePipeline Unit Verification Design_, _ImageWriter Unit
 Verification Design_, _ImageComparison Unit Verification Design_, _ContactSheet Unit Verification Design_,
-_ImageAdjustments Unit Verification Design_, _ImageGeometry Unit Verification Design_, _GridOverlay Unit Verification
+_ImageGeometry Unit Verification Design_, _GridOverlay Unit Verification
 Design_, and _ImageAnalysis Unit Verification Design_
 under `imaging/`) verify the units in isolation. The subsystem tests in `ImagingSubsystemTests.cs`
 verify them working together, the way every

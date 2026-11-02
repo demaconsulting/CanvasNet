@@ -11,8 +11,9 @@ on solid images (the interior keeps the source color), on a linear gradient (bil
 function exactly, so rotating by 3 degrees and back differs only by rounding), on a hard edge (intermediate grays appear),
 and on fills of every kind (opaque, transparent, semi-transparent), where the expected edge pixels are recomputed from
 their own alpha with the premultiplied formula. The fast paths are checked by rendering the same random, partly
-translucent image at eight angles and three fills with and without them and requiring identical pixels. The trim bounds
-are checked on small surfaces whose content box is known. The skew estimation is checked on generated pictures of ruled
+translucent image at eight angles and three fills with and without them and requiring identical pixels. The trim of a
+uniform border moved to the core library and is verified there (see _SurfaceTransforms Unit Verification Design_,
+`canvas/surface-transforms.md`). The skew estimation is checked on generated pictures of ruled
 lines at known tilts (drawn with plain arithmetic, not with the rotation code under test), with a bright and dark ground,
 on a large picture that is analyzed on a reduced plane, and on blank and noise pictures that must not give a confident
 answer; the tie-break is checked directly on its helper. The unit needs no files and no mocking.
@@ -31,8 +32,6 @@ N/A - standard test environment; the tests use only in-memory surfaces.
   premultiplied space.
 - Nearest copies source pixels, bilinear blends, and the fast paths give the pixels of the generic sampler.
 - A result larger than 8192 pixels on a side is refused with `size-limit` before any pixel is allocated.
-- The trim box follows the corner-majority background, the tolerance, and the transparent-pixel rule; an image without
-  content has no box and is copied unchanged.
 - Invalid arguments are rejected.
 - The skew of ruled lines is estimated to within 0.15 degrees for tilts from -12 to 14.5 degrees, with the correct sign,
   on a large image, and under uneven lighting; a blank image is not estimated; random noise has a confidence below the
@@ -82,25 +81,8 @@ identical with and without the fast paths.
 would be 11586 by 11586 and is `size-limit` with a hint about `--fit`; a quarter turn of it is accepted; rotating an
 8192 by 3400 image by 45 degrees throws `size-limit` after allocating less than 1 MB.
 
-**ImageGeometry_FindTrimBounds_UniformBorder_ReturnsContentBox**: a 5 by 3 black block at (4, 2) in a white 20 by 10 image
-is the box (4, 2, 5, 3), and `Trim` returns exactly those pixels.
-
-**ImageGeometry_FindTrimBounds_Tolerance_IgnoresNoiseBelowTolerance**: noise at distance 5 and 7 from white is ignored at
-tolerances 8 and 7 and is content at 4 and 0.
-
-**ImageGeometry_FindTrimBounds_TransparentBorder_TreatsAllTransparentPixelsAsEqual**: transparent pixels of different
-colors at the four corners are all background, and an opaque and a translucent pixel are content.
-
-**ImageGeometry_FindTrimBounds_CornerMajority_ChoosesMostFrequentCorner**: with three white corners and one red the
-background is white and the red corner pixel is content; with two white and two black corners the top left wins.
-
-**ImageGeometry_FindTrimBounds_AllBackground_ReturnsNull**: a uniform image, an image whose only difference is within the
-tolerance, and a 1 by 1 image have no box, and `Trim` returns an equal copy that is a different object.
-
-**ImageGeometry_Trim_ContentTouchingEdges_ReturnsFullImage**: content pixels on all four edges give the whole image.
-
-**ImageGeometry_NullOrInvalidArguments_Throw**: null surfaces (for rotation, trim, and skew estimation), a NaN or infinite
-angle, a width or height of 0, and tolerances of -1 and 256 throw.
+**ImageGeometry_NullOrInvalidArguments_Throw**: null surfaces (for rotation and skew estimation), a NaN or infinite
+angle, and a width or height of 0 throw.
 
 **ImageGeometry_EstimateSkew_TiltedLines_FindsAngleWithinTolerance**: 400 by 300 pictures of eight ruled lines
 (`FixtureFactory.SketchPhoto`, drawn with plain arithmetic independent of the rotation code) tilted by -12, -3, 0, 2.5,

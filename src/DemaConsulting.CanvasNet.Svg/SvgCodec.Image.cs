@@ -501,10 +501,7 @@ public static partial class SvgCodec
         {
             if (window is not null)
             {
-                for (var row = 0; row < window.Height; row++)
-                {
-                    window.GetRowSpan(row).CopyTo(result.GetRowSpan(origin.Y + row).Slice(origin.X, window.Width));
-                }
+                result.CopyFrom(window, origin.X, origin.Y);
             }
         }
 

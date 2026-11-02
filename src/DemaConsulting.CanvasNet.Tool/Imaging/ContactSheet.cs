@@ -218,7 +218,7 @@ internal sealed class ContactSheet : IDisposable
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="image"/> is <see langword="null"/>.</exception>
     /// <exception cref="InvalidOperationException">Thrown when every cell is already filled, or the sheet was handed out with <see cref="Detach"/>.</exception>
     /// <remarks>
-    ///     The image is fitted with <see cref="SurfaceOperations.FitInto"/> (a contained image keeps its aspect ratio, is
+    ///     The image is fitted with <see cref="Surface.FitInto"/> (a contained image keeps its aspect ratio, is
     ///     scaled to fill the limiting side, and is centered; a stretched image fills the cell) and any transparency is
     ///     flattened over the background. The label is the text cut to the cell width with <see cref="FitLabel"/>, drawn
     ///     centered in the strip below the cell image in 14-pixel text, black on a light background and white on a dark one
@@ -236,21 +236,18 @@ internal sealed class ContactSheet : IDisposable
         var (x, y) = _layout.CellOrigin(_added);
         _added++;
 
-        var fitted = SurfaceOperations.FitInto(
-            image, _layout.CellWidth, _layout.CellHeight, _options.Fit, _options.Background, _options.Filter);
+        var fitted = image.FitInto(
+            _layout.CellWidth, _layout.CellHeight, _options.Fit, _options.Background, _options.Filter);
         try
         {
-            if (SurfaceOperations.HasTransparency(fitted))
+            if (fitted.HasTransparency())
             {
-                var flattened = SurfaceOperations.FlattenOver(fitted, _options.Background);
+                var flattened = fitted.FlattenOver(_options.Background);
                 fitted.Dispose();
                 fitted = flattened;
             }
 
-            for (var row = 0; row < fitted.Height; row++)
-            {
-                fitted.GetRowSpan(row).CopyTo(sheet.GetRowSpan(y + row)[x..]);
-            }
+            sheet.CopyFrom(fitted, x, y);
         }
         finally
         {

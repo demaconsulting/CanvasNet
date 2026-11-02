@@ -4,7 +4,7 @@
 
 #### Verification Approach
 
-`SourceLoader` (with `ExifOrientation` and `SurfaceOperations`) is verified with unit tests in
+`SourceLoader` (with `ExifOrientation`) is verified with unit tests in
 `SourceLoaderTests.cs`, `SourceLoaderVectorTests.cs` (the page-based sources), `SourceLoaderScadTests.cs` (the
 OpenSCAD models), `SourceLoaderVegaLiteTests.cs` (the Vega-Lite charts), and `ExifOrientationTests.cs`. The
 tests generate their inputs: rasters are written in memory
@@ -245,12 +245,9 @@ for each vector kind the box options carry the box and no scale and keep every o
 very same options come back; null arguments throw; an SVG loaded with the box options is exactly the box, and a 480x360
 slide loaded into a 300x300 box is 300x225 centered with bands of the background above and below.
 
-**SurfaceOperations_FitInside_RoundsAndClamps**, **SurfaceOperations_FitInside_NonPositiveSize_ThrowsArgumentOutOfRange**,
-**SurfaceOperations_FitInto_Contain_ScalesToLimitingSideAndCenters**, **SurfaceOperations_FitInto_Stretch_ResamplesToExactBox**,
-**SurfaceOperations_FitInto_SameSize_ReturnsEqualPixels**, and **SurfaceOperations_FitInto_InvalidArguments_Throw**: the
-fitted size follows the limiting side, enlarges a small image, rounds half away from zero, and never leaves 1 to the
-box; a contain fit centers the scaled image on the fill color and a stretch fills the box; an image that already has the
-box size is an equal, independent copy in both modes; a null source or an undefined mode throws.
+The fit of a raster into a box is the core `Surface.FitInto`, verified by its own tests (see _SurfaceTransforms Unit
+Verification Design_, `canvas/surface-transforms.md`); the loader's tests above check that the options it builds
+and the pixels it fits agree with it.
 
 **SourceLoader_Load_Background_IsWhatThePageIsRenderedOver**: a transparent background leaves an unpainted pixel
 transparent and black gives black, for each document; the `render` operation names the background.

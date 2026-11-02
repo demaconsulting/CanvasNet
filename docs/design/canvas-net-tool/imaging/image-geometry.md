@@ -7,17 +7,18 @@
 #### Purpose
 
 `ImageGeometry` holds the geometry of a surface that the pipeline needs beyond right-angle moves: rotation by any angle
-onto an expanded canvas with a fill color, the bounds of the content inside a uniform border (trim), and the estimation
-of the skew of a scanned or photographed page. Its single
+onto an expanded canvas with a fill color, and the estimation
+of the skew of a scanned or photographed page. (The bounds of the content inside a uniform border, trim, moved to the
+core `Surface.Trim` and `Surface.FindTrimBounds`.) Its single
 responsibility is that geometry; it knows nothing of files, command-line options, or how a surface was loaded, so the
 pipeline decides when and with what fill it runs. The unit is the static partial class `ImageGeometry`, in the files
-`ImageGeometry.cs` (rotation and trim) and `ImageGeometry.Deskew.cs` (skew estimation and the record `SkewEstimate`).
+`ImageGeometry.cs` (rotation) and `ImageGeometry.Deskew.cs` (skew estimation and the record `SkewEstimate`).
 
 #### Conventions
 
 Angles are in degrees and a positive angle turns **clockwise** on screen; `(x, y)` has its origin at the top left with
-y down; surfaces hold straight (non-premultiplied) `Rgba32` pixels. Rotation and trim never modify or dispose their input
-and each returns a new surface the caller owns. Rows are processed with `Parallel.For` and write only their own row, and
+y down; surfaces hold straight (non-premultiplied) `Rgba32` pixels. Rotation never modifies or disposes its input
+and returns a new surface the caller owns. Rows are processed with `Parallel.For` and write only their own row, and
 every pixel is calculated from its own coordinates (no incremental accumulation), so the result does not depend on the
 number of cores or on scheduling. Nothing allocates per pixel. Floating point is always `double`, with no fused
 multiply-add; `Math.Sin` and `Math.Cos` could differ in the last bit between platforms, which can only flip a rounding at
@@ -70,19 +71,6 @@ moves the pixels of 90, 180, and 270 degrees exactly and copies for 0, and uses 
 
 Rotating by an angle and then by its negative is not lossless; kernels beyond bilinear are not provided.
 
-**FindTrimBounds(surface, tolerance)**: the **background color** is the most frequent color among the four corner pixels
-(top left, top right, bottom left, bottom right, by exact RGBA equality), a tie going to the earliest in that order. The
-**distance** of a pixel `p` from the background `b` is `0` when both have alpha 0 (all transparent pixels are equal),
-otherwise `max(|dR|, |dG|, |dB|, |dA|)`; a pixel is **background** when its distance is at most the tolerance (0 to 255),
-otherwise foreground. The result is the inclusive bounding box of the foreground: `top` is the first row with a
-foreground pixel, `bottom` the last such row, and `left` and `right` the smallest and largest foreground columns over
-the rows `top` to `bottom` (row scans with early exit: only a pixel left of the current left edge or right of the current
-right edge is looked for, so the cost is `O(W * H)` at worst and one thread is enough). When there is no foreground
-pixel (an all-background image, or a 1 by 1 image) the result is `null`.
-
-**Trim(surface, tolerance)**: `surface.Crop` of the bounds, or a copy of the whole surface when `FindTrimBounds` is
-`null`, so nothing is trimmed from an image without content.
-
 **EstimateSkew(surface)** (in `ImageGeometry.Deskew.cs`, the same static partial class): finds the clockwise rotation
 `φ` of the dominant near-horizontal structure (text lines, table rules, sketch baselines, page edges) within **15
 degrees** either way; `φ` is positive when the lines descend to the right, so the image is levelled by rotating it by
@@ -90,7 +78,7 @@ degrees** either way; `φ` is positive when the lines descend to the right, so t
 the record `SkewEstimate(Degrees, Confidence, Estimated)`.
 
 1. **Analysis plane.** `f = ceil(max(W, H) / 1024)` (1 for an image of up to 1024 pixels). The plane is
-   `ceil(W / f)` by `ceil(H / f)`; each pixel is the integer mean `(sum + n / 2) / n` of `ImageAdjustments.Luma` over its
+   `ceil(W / f)` by `ceil(H / f)`; each pixel is the integer mean `(sum + n / 2) / n` of `Surface.Luma` over its
    (possibly partial, at the edges) `f` by `f` block, `n` being the number of pixels in it, so transparency is flattened
    over white. Rows are computed in parallel into disjoint output.
 2. **Dark marks** (immune to uneven lighting): from an integral image (`long`), a pixel of value `v` whose window of
@@ -151,9 +139,8 @@ angle that is not finite, a width or height below 1, or a tolerance outside 0 to
 #### Dependencies
 
 - **ToolException** and **ErrorCodes** - the `size-limit` error.
-- **ImageAdjustments** - `Luma`, for the analysis plane.
-- **CanvasNet core library** - `Surface` and `Rgba32`.
+- **CanvasNet core library** - `Surface`, `Rgba32`, and `Surface.Luma` (for the analysis plane).
 
 #### Callers
 
-- **ImagePipeline** - the rotate, deskew, and trim operations.
+- **ImagePipeline** - the rotate and deskew operations.

@@ -30,7 +30,8 @@ constituent software items, specifically:
 
 - **CanvasNet (System)** — The complete .NET library system
 - **Canvas (Subsystem)** — Pixel-buffer primitives: the `Surface` unit (mutable, in-memory
-  32-bit RGBA pixel buffer with span-based row access), the `Rgba32` unit, and the `CssColor` unit
+  32-bit RGBA pixel buffer with span-based row access) with its `SurfaceAdjustments` and `SurfaceTransforms` parts, the
+  `Rgba32` unit, and the `CssColor` unit
   (the shared CSS color parser)
 - **Codecs (Subsystem)** — Image format codecs: `BmpCodec`, `PngCodec`, `TiffCodec`,
   `JpegCodec`, `GifCodec`, `Jpeg2000Codec`, and `ImageDecoder`; the first four convert to and from a `Surface`
@@ -100,7 +101,7 @@ constituent software items, specifically:
   `ResultWriter`, `Validation`, and `PathHelpers`, a `Commands` subsystem with the `CommandRegistry`,
   `DiscoveryCommands`, `RenderCommand`, `CompareCommand`, `MontageCommand`, and `InspectCommand` units, and an
   `Imaging` subsystem with the `SourceLoader`, `ImagePipeline`, `ImageWriter`, `ImageComparison`, `ContactSheet`,
-  `ImageAdjustments`, `ImageGeometry`, `GridOverlay`, and `ImageAnalysis` units — see _CanvasNetTool System
+  `ImageGeometry`, `GridOverlay`, and `ImageAnalysis` units — see _CanvasNetTool System
   Verification_ (`canvas-net-tool.md`)
 
 The following OTS items are also covered:
