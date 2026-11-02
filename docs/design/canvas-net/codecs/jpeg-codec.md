@@ -353,7 +353,6 @@ Opens `path` as a read-only `FileStream` and delegates to `ReadExifOrientation(S
 
 #### Error Handling
 
-All argument validation happens at the start of each public method
 All argument validation happens at the start of each public method, before any image data is read
 or written. `Load` validates the marker stream incrementally, failing immediately for unsupported
 SOF markers, four-component frames, missing DHT/DQT/SOF/SOS segments, malformed entropy-coded

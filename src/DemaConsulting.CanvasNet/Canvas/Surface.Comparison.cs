@@ -215,6 +215,8 @@ public sealed partial class Surface
                     }
                 }
 
+                // A window is at most 8 by 8 pixels whatever the image size, so the sums are at most 64 * 255^2 and the
+                // products below at most about 2.7e8: they cannot overflow a long, and the image size does not matter.
                 var count = (long)windowWidth * windowHeight;
                 var luminance = (2.0 * sumA * sumB) + c1;
                 var contrast = (2.0 * ((count * sumAB) - (sumA * sumB))) + c2;
