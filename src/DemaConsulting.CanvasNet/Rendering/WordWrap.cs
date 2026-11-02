@@ -70,7 +70,9 @@ public static class WordWrap
     ///     Returns a token's width given the width already used on the current line when the token
     ///     is reached, so a token whose width depends on its position (a tab stop) can be measured
     ///     exactly; a token with a fixed width ignores the second argument. For a word token that
-    ///     width is the line's width before the word group it belongs to. It is never called for a
+    ///     width is the line's width before the word group it belongs to. A whitespace token that
+    ///     overflows the line and so wraps is measured a second time, at width zero, because it
+    ///     starts the new line there (and is kept at its start). It is never called for a
     ///     <see cref="WordWrapTokenKind.LineBreak"/> token.
     /// </param>
     /// <returns>
@@ -151,20 +153,29 @@ public static class WordWrap
         var pendingGroup = new List<T>();
         var pendingGroupWidth = TNumber.Zero;
 
-        // Places one wrap unit (a whole word group, or a single whitespace token) on the current
-        // line, first closing the line when it already holds a word and the unit would overflow it.
-        // A line holding only (stranded) whitespace is never closed on its own: the whitespace
-        // is carried forward onto the same line as whatever comes next.
-        void Place(IReadOnlyList<T> unit, TNumber unitWidth, bool unitIsWord)
+        // Closes the current line when it already holds a word and a unit of the given width would
+        // overflow it, reporting whether it did. A line holding only (stranded) whitespace is never
+        // closed on its own: the whitespace is carried forward onto the same line as whatever
+        // comes next.
+        bool CloseLineIfOverflow(TNumber unitWidth)
         {
-            if (currentLineHasWord && currentWidth + unitWidth > availableWidth)
+            if (!currentLineHasWord || currentWidth + unitWidth <= availableWidth)
             {
-                lines.Add(currentLine);
-                currentLine = [];
-                currentWidth = TNumber.Zero;
-                currentLineHasWord = false;
+                return false;
             }
 
+            lines.Add(currentLine);
+            currentLine = [];
+            currentWidth = TNumber.Zero;
+            currentLineHasWord = false;
+            return true;
+        }
+
+        // Places one wrap unit (a whole word group, or a single whitespace token) on the current
+        // line, first closing the line when it already holds a word and the unit would overflow it.
+        void Place(IReadOnlyList<T> unit, TNumber unitWidth, bool unitIsWord)
+        {
+            CloseLineIfOverflow(unitWidth);
             currentLine.AddRange(unit);
             currentWidth += unitWidth;
             currentLineHasWord |= unitIsWord;
@@ -202,7 +213,16 @@ public static class WordWrap
 
                     // Measured after the pending group is placed, so a position-dependent width
                     // (a tab stop) sees the true width of the line it is about to join.
-                    Place([token], measure(token, currentWidth), unitIsWord: false);
+                    // When the token overflows and so wraps, it starts the new line at width zero,
+                    // where a position-dependent width differs from the one just measured: it is
+                    // measured again there so the new line's width matches how it is rendered.
+                    var whitespaceWidth = measure(token, currentWidth);
+                    if (CloseLineIfOverflow(whitespaceWidth))
+                    {
+                        whitespaceWidth = measure(token, currentWidth);
+                    }
+
+                    Place([token], whitespaceWidth, unitIsWord: false);
                     break;
 
                 default:

@@ -35,7 +35,12 @@ pending word group with its width:
   the group's.
 - A `Whitespace` token first places the pending group, then is itself placed as a unit of width
   `measure(token, currentLineWidth)`, measured after the group so a width that depends on the
-  position (a tab stop) sees the true width of the line it joins.
+  position (a tab stop) sees the true width of the line it joins. When the unit overflows and the
+  line is closed, the token starts the new line at width zero, where a position-dependent width
+  differs from the one just measured, so it is measured again there and that width is the one
+  placed and counted. This keeps the packer in agreement with a renderer that recomputes the
+  token from the new line's start (a tab at the start of a line is kept, not dropped). When no wrap
+  happens `measure` is called once, as before.
 - A `LineBreak` token places the pending group, closes the current line (even an empty one), and
   starts a new line. It is never added to a line and `measure` is not called for it.
 - Placing a unit closes the current line first only when the line already holds a word and the

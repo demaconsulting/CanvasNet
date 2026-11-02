@@ -56,12 +56,18 @@ followed by a break and asserts the group stays on the preceding line.
 ##### CanvasNet-Rendering-WordWrap-Measure: Position-Dependent Widths and Both Precisions
 
 **Tests**: `WordWrap_Pack_MeasureReceivesCurrentLineWidth`,
+`WordWrap_Pack_PositionDependentWhitespaceCausesWrap_IsRemeasuredOnNewLine`,
 `WordWrap_Pack_FloatOverload_PacksLikeDoubleOverload`
 
 Packs words separated by tab-like tokens whose width is the distance to the next multiple of four,
 records the line widths the measure was given (2 then 6) and asserts everything fits on one line in
-nine units but wraps before the last word in 8.5; packs the same tokens with the single-precision and
-double-precision overloads and asserts equal lines.
+nine units but wraps before the last word in 8.5; packs a nine-wide word, a tab-like token that
+overflows at position 9 (three wide), a five-wide word, a space and a one-wide word into ten units,
+asserts the tab was measured at 9 and then again at 0 (four wide on the new line, kept at its
+start), and that the last word therefore wraps onto a third line (a line holding the nine-letter
+word, one holding the tab, the five-letter word and the space, then the one-letter word), which the stale three-wide
+width would not have done; packs the same tokens with the single-precision and double-precision
+overloads and asserts equal lines.
 
 ##### CanvasNet-Rendering-WordWrap-Validation: Arguments Are Validated
 

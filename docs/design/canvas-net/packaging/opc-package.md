@@ -48,7 +48,8 @@ once more than `MaxPackageBytes` bytes are available, so neither memory nor read
 unbounded for a huge or non-terminating stream, and never closes the caller's stream. A seekable
 stream reports its remaining length: more than `MaxPackageBytes` is rejected at once without reading,
 and otherwise the array is sized to exactly that length (so the buffer is not a doubling
-`MemoryStream` that could hold up to twice the package). Whatever the stream reports, the array is
+`MemoryStream` that could hold up to twice the package). A non-seekable stream reports no length, so
+the array starts at 80 KiB and grows by doubling clamped to `MaxPackageBytes`. Whatever the stream reports, the array is
 clamped to and never grows past `MaxPackageBytes`; the bytes actually read decide. The package is
 then opened over that array without a second copy. Opening reads `[Content_Types].xml` and
 `_rels/.rels`: both must exist, be well-formed XML within `MaxXmlPartCharacters`, and have the OPC

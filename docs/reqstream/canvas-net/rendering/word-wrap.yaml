@@ -49,14 +49,17 @@ sections:
               - id: CanvasNet-Rendering-WordWrap-Measure
                 title: >-
                   The WordWrap type shall take each token's width from a caller-supplied measure
-                  that receives the width already used on the current line, and shall provide
-                  single-precision and double-precision overloads that pack identically for widths
-                  both represent exactly.
+                  that receives the width already used on the current line, shall measure a
+                  whitespace token again at the start of the new line when it overflows and wraps,
+                  and shall provide single-precision and double-precision overloads that pack
+                  identically for widths both represent exactly.
                 justification: |
-                  A tab token's width depends on where it falls on the line, and a layout in single
-                  precision must get the sums it would compute itself.
+                  A tab token's width depends on where it falls on the line, a tab that wraps is
+                  rendered from the new line's start so its packed width must match, and a layout
+                  in single precision must get the sums it would compute itself.
                 tests:
                   - WordWrap_Pack_MeasureReceivesCurrentLineWidth
+                  - WordWrap_Pack_PositionDependentWhitespaceCausesWrap_IsRemeasuredOnNewLine
                   - WordWrap_Pack_FloatOverload_PacksLikeDoubleOverload
 
               - id: CanvasNet-Rendering-WordWrap-Validation
