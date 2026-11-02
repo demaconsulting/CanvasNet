@@ -15,7 +15,9 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///     </para>
 ///     <para>
 ///         <see cref="ReadExifOrientation(Stream)"/> never throws for malformed data: a file without a usable orientation
-///         simply has none. It reads only the marker segments in front of the image data and no more than 64 of them.
+///         simply has none. It reads only the marker segments in front of the image data, no more than 64 of them, and
+///         no more than <c>MaxProbeHeaderBytes</c> (1 MiB) in all, counting fill bytes and skipped segments, so a
+///         hostile stream cannot make it read without end.
 ///     </para>
 /// </remarks>
 public static partial class JpegCodec
@@ -71,9 +73,12 @@ public static partial class JpegCodec
             return null;
         }
 
+        // The budget of bytes that may be consumed after the signature: marker bytes (fill bytes included), segment
+        // lengths, and segment payloads, whether read or skipped; it bounds the I/O whatever the data holds
+        var remaining = MaxProbeHeaderBytes;
         for (var segment = 0; segment < MaxExifSegments; segment++)
         {
-            var marker = ReadMarker(stream);
+            var marker = ReadMarker(stream, ref remaining);
             if (marker is null or MarkerEoi or MarkerSos)
             {
                 return null;
@@ -85,17 +90,19 @@ public static partial class JpegCodec
                 continue;
             }
 
-            if (!TryFill(stream, pair))
+            remaining -= pair.Length;
+            if (remaining < 0 || !TryFill(stream, pair))
             {
                 return null;
             }
 
             var payloadLength = BinaryPrimitives.ReadUInt16BigEndian(pair) - 2;
-            if (payloadLength < 0)
+            if (payloadLength < 0 || payloadLength > remaining)
             {
                 return null;
             }
 
+            remaining -= payloadLength;
             if (marker != MarkerApp1 || payloadLength < ExifHeaderLength)
             {
                 if (!TrySkip(stream, payloadLength))
@@ -232,18 +239,25 @@ public static partial class JpegCodec
     ///     Reads the next marker: skips to the next <c>0xFF</c> byte and over any fill bytes.
     /// </summary>
     /// <param name="stream">The stream.</param>
-    /// <returns>The marker code, or <see langword="null"/> at the end of the data.</returns>
-    private static byte? ReadMarker(Stream stream)
+    /// <param name="remaining">The byte budget; every byte read, fill bytes included, is taken from it.</param>
+    /// <returns>The marker code, or <see langword="null"/> at the end of the data or when the budget is used up.</returns>
+    private static byte? ReadMarker(Stream stream, ref int remaining)
     {
         var next = stream.ReadByte();
+        remaining--;
         if (next != MarkerPrefix)
         {
             return null;
         }
 
-        // Any number of 0xFF fill bytes may precede the marker code
+        // Any number of 0xFF fill bytes may precede the marker code; the budget bounds the run
         do
         {
+            if (--remaining < 0)
+            {
+                return null;
+            }
+
             next = stream.ReadByte();
         }
         while (next == MarkerPrefix);

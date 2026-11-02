@@ -22,13 +22,15 @@ sections:
                   box of the rotated rectangle, with each side the ceiling of the width times the absolute cosine
                   plus the height times the absolute sine (and the width times the sine plus the height times the
                   cosine for the other side) less a tolerance of 1e-9 that absorbs floating-point noise, and at
-                  least 1, so that a right angle does not gain a pixel.
+                  least 1, so that a right angle does not gain a pixel, after reducing the angle modulo 360
+                  degrees so that a huge finite angle cannot overflow.
                 justification: |
                   A rotated photograph must not lose its corners, and an exact quarter turn must not grow a
                   spurious row; a documented formula lets a caller predict the size of the result.
                 tests:
                   - Surface_RotatedSize_RightAndObliqueAngles_ComputesCeilingOfBoundingBox
                   - Surface_RotatedSize_NearExactFit_DoesNotGainAPixel
+                  - Surface_Rotation_HugeFiniteAngle_EqualsReducedAngle
 
               - id: CanvasNet-Canvas-SurfaceGeometry-RotateMapping
                 title: >-

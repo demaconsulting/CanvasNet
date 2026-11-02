@@ -50,11 +50,13 @@ and no mocking.
 ##### CanvasNet-Canvas-SurfaceGeometry-RotatedSize: Canvas Size
 
 **Tests**: `Surface_RotatedSize_RightAndObliqueAngles_ComputesCeilingOfBoundingBox`,
-`Surface_RotatedSize_NearExactFit_DoesNotGainAPixel`
+`Surface_RotatedSize_NearExactFit_DoesNotGainAPixel`, `Surface_Rotation_HugeFiniteAngle_EqualsReducedAngle`
 
 100 by 50 is 100 by 50 at 0, 50 by 100 at 90 (and at -90, 270, and 450), 107 by 107 at 45, and 112 by 94 at 30; 160 by
 100 at 30 is 189 by 167; 1 by 1 at 45 is 2 by 2; an angle and the same angle plus or minus half a turn give the same
-size; an 8192 by 8192 image at 90 degrees stays 8192 by 8192.
+size; an 8192 by 8192 image at 90 degrees stays 8192 by 8192. `double.MaxValue` and `-double.MaxValue` give the size
+(at least 1 by 1) and, for a small random surface, the pixels of the angle reduced modulo 360; an angle of 360000 + 90
+degrees gives the size of 90.
 
 ##### CanvasNet-Canvas-SurfaceGeometry-RotateMapping: Direction and Center
 

@@ -46,7 +46,9 @@ and runtime version"; the skew estimate avoids even that by rounding the sine an
 
 #### Key Methods
 
-**RotatedSize(width, height, degrees)**: with `c = |cos θ|` and `s = |sin θ|` (`θ = degrees * π / 180`) the canvas is
+**RotatedSize(width, height, degrees)**: the angle is first reduced with `degrees % 360` (exact in IEEE arithmetic, so a
+huge finite angle cannot overflow when converted to radians, and an angle below 360 in magnitude is unchanged); then,
+with `c = |cos θ|` and `s = |sin θ|` (`θ = reduced * π / 180`) the canvas is
 
 ```text
 newW = max(1, ceil(W * c + H * s - 1e-9))
@@ -69,7 +71,8 @@ u =  dx * cos θ + dy * sin θ + W / 2.0
 v = -dx * sin θ + dy * cos θ + H / 2.0
 ```
 
-which is the inverse of a clockwise rotation about the center (a source point right of the center, `sx > 0, sy = 0`, lands
+which is the inverse of a clockwise rotation about the center (`θ` is the angle reduced modulo 360 as above; a source
+point right of the center, `sx > 0, sy = 0`, lands
 below the center of the result for `θ = 90°`; a test pins it). The canvas is disposed if a row fails.
 
 - **Nearest**: `x = floor(u)`, `y = floor(v)`; outside the image the result is the fill; no antialiasing.

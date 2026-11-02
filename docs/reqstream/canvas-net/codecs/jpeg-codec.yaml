@@ -372,7 +372,9 @@ sections:
                   first directory, in either byte order) from a JPEG stream or file by examining only the marker
                   segments in front of the image data (at most 64), returning no orientation instead of throwing for
                   data that is not a JPEG, has no EXIF segment, holds a value outside 1 to 8, or is truncated or
-                  malformed, skipping an APP1 segment that is not EXIF, and working on a stream that cannot seek.
+                  malformed, skipping an APP1 segment that is not EXIF, working on a stream that cannot seek, and
+                  consuming no more than 1 MiB in all (fill bytes and skipped segments included), so that no stream
+                  can make it read without end.
                 justification: |
                   Cameras record the rotation needed to view a photograph upright in metadata that Load ignores;
                   a reader that cannot be made to throw by a hostile or damaged file, and that reads only the
@@ -386,4 +388,5 @@ sections:
                   - JpegCodec_ReadExifOrientation_TruncatedAtEveryLength_NeverThrows
                   - JpegCodec_ReadExifOrientation_AfterOtherSegmentsInForwardOnlyStream_ReturnsOrientation
                   - JpegCodec_ReadExifOrientation_Path_ReadsFile
+                  - JpegCodec_ReadExifOrientation_EndlessFillBytes_ReturnsNullWithinBudget
                   - JpegCodec_ReadExifOrientation_NullArgument_ThrowsArgumentNullException

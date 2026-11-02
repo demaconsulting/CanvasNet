@@ -366,7 +366,8 @@ corresponding `Load` scenarios, plus JPEG-specific malformed-ordering cases `Loa
 `JpegCodec_ReadExifOrientation_ValueOutOfRange_ReturnsNull`,
 `JpegCodec_ReadExifOrientation_TruncatedAtEveryLength_NeverThrows`,
 `JpegCodec_ReadExifOrientation_AfterOtherSegmentsInForwardOnlyStream_ReturnsOrientation`,
-`JpegCodec_ReadExifOrientation_Path_ReadsFile`, `JpegCodec_ReadExifOrientation_NullArgument_ThrowsArgumentNullException`
+`JpegCodec_ReadExifOrientation_Path_ReadsFile`, `JpegCodec_ReadExifOrientation_EndlessFillBytes_ReturnsNullWithinBudget`,
+`JpegCodec_ReadExifOrientation_NullArgument_ThrowsArgumentNullException`
 (in `JpegCodecExifTests.cs`)
 
 A JPEG written by the codec (which writes no EXIF) has an EXIF segment injected right after its start-of-image marker by
@@ -374,14 +375,16 @@ a test-only helper that writes the TIFF structure by hand, in either byte order.
 byte orders; a JPEG without the segment, garbage, and an empty stream give `null`; the values 0, 9, and 255 give `null`;
 every prefix of the first 40 bytes is read without an exception and the whole segment is found; the segment is found
 after an APP0 and a non-EXIF APP1 segment in a stream that cannot seek; the path overload reads a file and propagates
-the `FileNotFoundException` of a missing one; a null stream and a null path throw `ArgumentNullException`.
+the `FileNotFoundException` of a missing one; a forward-only stream of a start-of-image marker followed by endless 0xFF
+fill bytes (generated without allocating) gives `null` after reading no more than the 1 MiB budget; a null stream and a
+null path throw `ArgumentNullException`.
 
 #### Acceptance Criteria
 
 A unit test run passes when all test methods above pass without error or unexpected exception; any
 unexpected exception type or wrong return/value relationship constitutes a failure. Across
-`JpegCodecTests.cs`, `JpegFixtureTests.cs`, and `JpegCodecExifTests.cs`, this totals 63 test methods (51 in
-`JpegCodecTests.cs`, 4 in `JpegFixtureTests.cs`, and 8 in `JpegCodecExifTests.cs`); several of these are `[Theory]`
+`JpegCodecTests.cs`, `JpegFixtureTests.cs`, and `JpegCodecExifTests.cs`, this totals 64 test methods (51 in
+`JpegCodecTests.cs`, 4 in `JpegFixtureTests.cs`, and 9 in `JpegCodecExifTests.cs`); several of these are `[Theory]`
 methods that
 additionally expand to multiple executed xUnit test cases, plus the system-level integration
 scenarios documented in `docs/verification/canvas-net.md`.
