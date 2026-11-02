@@ -88,9 +88,11 @@ sections:
                 title: >-
                   In file-system mode the SandboxedFileResolver class shall refuse a file that is, or that
                   lies beneath a directory that is, a symbolic link or junction below its root, whatever
-                  the link's target and including a dangling link, before the file is opened, naming the
+                  the link's target and including a dangling link (also as a directory in the middle of the
+                  path), before the file is opened, naming the
                   link relative to the root, shall judge a route that uses dot-dot segments on its
-                  normalized path, shall end the check at the first missing component, shall probe each
+                  normalized path, shall end the check at the first missing component that is not a link,
+                  shall probe each
                   component at most once, shall trust the root itself and everything above it, and shall
                   fail closed (refuse the file) when the link check cannot be completed.
                 justification: |
@@ -104,6 +106,8 @@ sections:
                   - SandboxedFileResolver_Resolve_LinkedRootAndAncestorsAreTrusted
                   - SandboxedFileResolver_Resolve_LinkAfterMissingComponentIsNotProbedAndFileIsMissing
                   - SandboxedFileResolver_Resolve_MissingFinalComponentIsProbedAndDanglingLinkIsRejected
+                  - SandboxedFileResolver_Resolve_DanglingIntermediateLinkIsRejectedNotMissing
+                  - SandboxedFileResolver_Resolve_DanglingConfiguredRootIsTrustedAndHasNoFiles
                   - SandboxedFileResolver_Resolve_EveryComponentProbedOnceAndCached
                   - SandboxedFileResolver_Resolve_DotDotRouteThroughLinkIsJudgedOnNormalizedPath
                   - SandboxedFileResolver_Resolve_ProbeFailureFailsClosed
@@ -167,7 +171,8 @@ sections:
               - id: CanvasNet-Files-SandboxedFileResolver-FileLimit
                 title: >-
                   The SandboxedFileResolver class shall, when a file limit is configured, read at most that
-                  many distinct files, counting a file when it is found (a file that is too large included,
+                  many distinct files, counting a file when it is found (a file that is too large or cannot
+                  be read included,
                   which is remembered and not opened again) and not when it is served again from the cache or
                   does not exist, accepting exactly the limit, and refusing a new file beyond it with a
                   SandboxException of kind TooManyFiles before the file is opened or the callback is asked
@@ -179,6 +184,7 @@ sections:
                 tests:
                   - SandboxedFileResolver_Resolve_MaxFilesAtLimitAndOneOver
                   - SandboxedFileResolver_Resolve_OversizedFileCountsAndIsRememberedWithMaxFiles
+                  - SandboxedFileResolver_Resolve_ReadFailureIsRememberedAndCountsWithMaxFiles
                   - SandboxedFileResolver_Resolve_MaxFilesOnFileSystemNeverOpensTheExtraFile
 
               - id: CanvasNet-Files-SandboxedFileResolver-Cache

@@ -448,6 +448,57 @@ public class SandboxedFileResolverTests
     }
 
     /// <summary>
+    ///     Validates that a file that was opened or requested and failed to read is remembered like a size failure: asking
+    ///     again fails with <c>CannotRead</c> without a new request or open, and it counts toward the file limit.
+    /// </summary>
+    [Fact]
+    public void SandboxedFileResolver_Resolve_ReadFailureIsRememberedAndCountsWithMaxFiles()
+    {
+        // Arrange: a callback that always fails, and an opener that always fails, each with a limit of one file
+        var requests = new List<string>();
+        var resolver = Create(new SandboxOptions
+        {
+            FileResolver = path =>
+            {
+                requests.Add(path);
+                throw new IOException("broken");
+            },
+            MaxFiles = 1,
+        });
+        using var directory = new SandboxTempDirectory();
+        directory.Write("root/a.txt", "a");
+        directory.Write("root/b.txt", "b");
+        var opened = new List<string>();
+        var onDisk = new SandboxedFileResolver(
+            new SandboxOptions { BaseDirectory = directory.Combine("root"), MaxFiles = 1 },
+            Ct,
+            null,
+            path =>
+            {
+                opened.Add(path);
+                throw new IOException("broken");
+            });
+
+        // Act / Assert: callback mode - CannotRead twice (requested once, cause kept), then the limit is reached
+        var first = Assert.Throws<SandboxException>(() => resolver.Resolve("a.txt"));
+        var again = Assert.Throws<SandboxException>(() => resolver.Resolve("a.txt"));
+        Assert.Equal(SandboxFailureKind.CannotRead, first.Kind);
+        Assert.Equal(SandboxFailureKind.CannotRead, again.Kind);
+        Assert.Equal("a.txt", again.Path);
+        Assert.IsType<IOException>(again.InnerException);
+        Assert.Equal(SandboxFailureKind.TooManyFiles, Assert.Throws<SandboxException>(() => resolver.Resolve("b.txt")).Kind);
+        Assert.Equal(["a.txt"], requests);
+
+        // Act / Assert: file-system mode - the same, and the failing file is opened once
+        Assert.Equal(SandboxFailureKind.CannotRead, Assert.Throws<SandboxException>(() => onDisk.Resolve("a.txt")).Kind);
+        var onDiskAgain = Assert.Throws<SandboxException>(() => onDisk.Resolve("a.txt"));
+        Assert.Equal(SandboxFailureKind.CannotRead, onDiskAgain.Kind);
+        Assert.IsType<IOException>(onDiskAgain.InnerException);
+        Assert.Equal(SandboxFailureKind.TooManyFiles, Assert.Throws<SandboxException>(() => onDisk.Resolve("b.txt")).Kind);
+        Assert.Equal([Path.GetFullPath(directory.Combine("root/a.txt"))], opened);
+    }
+
+    /// <summary>
     ///     Validates that a file that is reported missing by the open itself (it vanished, or the existence probe could
     ///     not see it) is a missing candidate: the next root is tried, in base-directory-then-search-path order.
     /// </summary>

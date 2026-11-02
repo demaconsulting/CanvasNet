@@ -56,7 +56,8 @@ cache of the files found by root and candidate key (a `null` remembers a candida
 of the identity because the link checks run on the components below a candidate's own root, so a file reached through one
 root - for example a trusted search path that is itself a link - must never answer for another root), a cache of what
 was read (by root and key in file-system mode, but by logical key alone in callback mode, so the callback sees each
-logical path once whichever root reaches it; a file that is too large is remembered there without bytes), the keys of
+logical path once whichever root reaches it; a file that is too large or could not be read is remembered there without
+bytes), the keys of
 the distinct files that exist (for `MaxFiles`), the result of each link
 probe by full path, and the roots, which are computed on first use. **It is not thread-safe**: its caches are
 unsynchronized and the callback is invoked on the calling thread; use one instance per operation or serialize access.
@@ -79,7 +80,7 @@ is refused with `OutsideRoot`, while `..` that stays inside the root is fine.
 below a
 root is checked for a link before the file is opened, for every root the file is reached through; no more than
 `MaxFileBytes` bytes are read of any file; with `MaxFiles` set, no more than that many distinct files are opened or
-requested (a file that is too large included) and
+requested (a file that is too large or could not be read included) and
 a new file beyond it is never opened or requested; every failure that is not
 a cancellation or an argument error is a `SandboxException`.
 
@@ -99,7 +100,10 @@ a cancellation or an argument error is a `SandboxException`.
   **whatever the size outcome** (an oversized file was opened or requested, so it consumes the limit). The outcome is
   remembered per candidate in file-system mode and per logical key in callback mode (the callback is asked once per
   path across roots; the returned `SandboxedFile` is still built per root with the root it was found under), and a file
-  that is too large is remembered too, so asking again throws `TooLarge` without opening or requesting it again.
+  that is too large is remembered too, so asking again throws `TooLarge` without opening or requesting it again. A
+  `CannotRead` failure of the read (a callback or stream that throws, an open that fails) is remembered the same way
+  and counts the same way: asking again throws an equivalent `CannotRead` (same path, same cause) without a new request
+  or open.
 - `ReadBytes` - in callback mode delegates to `ReadFromCallback`; in file-system mode first runs the link walk (which
   stops a candidate whose directory is missing but leaves the final component to the open), treats an existing
   directory where the file is expected as `CannotRead` (not a missing file), then attempts to open the file read-only
@@ -117,11 +121,15 @@ a cancellation or an argument error is a `SandboxException`.
   exceeds `MaxFileBytes` (returning no bytes, which `LoadCandidate` reports as `TooLarge`), so a stream that never ends
   stops
   one chunk past the limit; the token is observed after every chunk. Failures of the stream are left to the caller.
-- `WalkRejectingLinks` and `ProbeLink` - walk the candidate top-down from the root, probing each existing component once
-  (the first missing component above the file ends the walk and nothing below it is probed; the final component is always
-  probed, so a dangling link is refused as a link, while a file that is not a link is left to the open attempt); a
-  symbolic link or junction anywhere below the root is `ThroughLink`, whatever its target; the root and everything above
-  it are trusted; a probe that throws rejects the file (`LinkCheckFailed`, fail closed).
+- `WalkRejectingLinks` and `ProbeLink` - walk the candidate top-down from the root, probing each component once **before
+  its existence is judged** (an existence check says "missing" for a dangling link, so asking it first would let a
+  dangling directory link in the middle of the path look like a missing directory and the search fall through to another
+  root; a component that is not a link and does not exist ends the walk, and nothing below it is probed; the final
+  component is probed too, so a dangling link is refused as a link, while a file that is not a link is left to the open
+  attempt); a
+  symbolic link or junction anywhere below the root, dangling or not, is `ThroughLink`, whatever its target; the root
+  itself and everything above it are trusted (so a dangling configured root simply has no files); a probe that throws
+  rejects the file (`LinkCheckFailed`, fail closed).
 - `DefaultIsLink` - a component is a link when its `LinkTarget` is not null (symbolic links and junctions, for files and
   directories, existing or dangling); other reparse points that redirect nothing, such as the placeholders of a
   synchronized folder, are not rejected.

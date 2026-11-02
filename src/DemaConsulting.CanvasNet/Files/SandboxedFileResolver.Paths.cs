@@ -296,16 +296,12 @@ public sealed partial class SandboxedFileResolver
             current = Path.Join(current, segments[index]);
             if (!_linkStates.TryGetValue(current, out var isLink))
             {
-                // The first missing component above the file ends the walk: nothing below it can exist, so it is never
-                // probed. The final component is always probed, whatever an existence check says: the check reports
-                // "missing" for a dangling link and for an existing file it cannot access, and a dangling link must be
-                // refused rather than opened. A file that is truly missing is not a link; the open attempt (not the
-                // probe) then decides whether it is missing or unreadable
-                if (index < segments.Length - 1 && !File.Exists(current) && !Directory.Exists(current))
-                {
-                    return false;
-                }
-
+                // Every component is probed for a link BEFORE its existence is judged: an existence check reports
+                // "missing" for a dangling link (and for an existing component it cannot access), so asking it first
+                // would let a dangling link directory be mistaken for a missing one and the search fall through to
+                // another candidate. A component that is not a link and does not exist ends the walk: nothing below it
+                // can exist, so it is the last one probed. The final component is left to the open attempt, which
+                // decides whether a file that is not a link is missing or unreadable
                 isLink = ProbeLink(current, candidate);
                 _linkStates[current] = isLink;
             }
@@ -316,6 +312,11 @@ public sealed partial class SandboxedFileResolver
                     SandboxFailureKind.ThroughLink,
                     candidate.Key,
                     Path.GetRelativePath(candidate.Root, current).Replace('\\', '/'));
+            }
+
+            if (index < segments.Length - 1 && !File.Exists(current) && !Directory.Exists(current))
+            {
+                return false;
             }
         }
 

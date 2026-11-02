@@ -125,6 +125,8 @@ naming the configured directory. Changing the caller's search-path list after co
 `SandboxedFileResolverLinkTests.SandboxedFileResolver_Resolve_LinkedRootAndAncestorsAreTrusted`,
 `SandboxedFileResolverLinkTests.SandboxedFileResolver_Resolve_LinkAfterMissingComponentIsNotProbedAndFileIsMissing`,
 `SandboxedFileResolverLinkTests.SandboxedFileResolver_Resolve_MissingFinalComponentIsProbedAndDanglingLinkIsRejected`,
+`SandboxedFileResolverLinkTests.SandboxedFileResolver_Resolve_DanglingIntermediateLinkIsRejectedNotMissing`,
+`SandboxedFileResolverLinkTests.SandboxedFileResolver_Resolve_DanglingConfiguredRootIsTrustedAndHasNoFiles`,
 `SandboxedFileResolverLinkTests.SandboxedFileResolver_Resolve_EveryComponentProbedOnceAndCached`,
 `SandboxedFileResolverLinkTests.SandboxedFileResolver_Resolve_DotDotRouteThroughLinkIsJudgedOnNormalizedPath`,
 `SandboxedFileResolverLinkTests.SandboxedFileResolver_Resolve_ProbeFailureFailsClosed`
@@ -135,14 +137,18 @@ a different outcome), that `Detail` names the link relative to the root and the 
 directory, that the walk stops at the first link, that a file that is itself a link is rejected whatever its target
 while its neighbor is read, that
 a link below a search path root is rejected too, that the root and everything above it are trusted even when the probe
-reports them as links, that the first missing component ends the walk (the file is missing, nothing below is probed, no
-link is reported), that a missing final component is still probed (a dangling link is refused as a link, a plain missing
+reports them as links (a dangling configured root simply has no files and the next root is used), that the first
+missing component that is not a link ends the walk (the file is missing, nothing below it is probed, no
+link is reported), that a dangling link as an intermediate directory is refused as `ThroughLink` on the first root
+instead of letting the search fall through to a later root that has the file, that a missing final component is still
+probed (a dangling link is refused as a link, a plain missing
 file is missing, and both were probed), that each component is probed once however many files go through it, that a route
 through dot-dot is judged on the normalized path, that a probe that throws (access or I/O) rejects the file as
 `LinkCheckFailed` keeping the cause, and that callback mode never asks the probe.
 
 Additional evidence, not the only evidence and skipped only where the host cannot create links:
-`SandboxedFileResolver_Resolve_RealDanglingLinkIsRejectedOrCapabilitySkipped` and
+`SandboxedFileResolver_Resolve_RealDanglingLinkIsRejectedOrCapabilitySkipped`,
+`SandboxedFileResolver_Resolve_RealDanglingDirectoryLinkIsRejectedOrCapabilitySkipped` and
 `SandboxedFileResolver_Resolve_RealLinksAreRejectedOrCapabilitySkipped` create real links (a directory link, a directory
 link inside the root, a file link, a dangling file link, and on Windows a junction) and assert that each is rejected, that
 a base directory reached through a link is trusted, and that the real file beside them is read, which proves the default
@@ -202,7 +208,8 @@ chunk of 8 KiB was read.
 
 **Tests**: `SandboxedFileResolver_Resolve_MaxFilesAtLimitAndOneOver`,
 `SandboxedFileResolver_Resolve_MaxFilesOnFileSystemNeverOpensTheExtraFile`,
-`SandboxedFileResolver_Resolve_OversizedFileCountsAndIsRememberedWithMaxFiles`
+`SandboxedFileResolver_Resolve_OversizedFileCountsAndIsRememberedWithMaxFiles`,
+`SandboxedFileResolver_Resolve_ReadFailureIsRememberedAndCountsWithMaxFiles`
 
 Asserts with a limit of two that two distinct files are read, that a file resolved again (also under another spelling)
 and a file that does not exist do not count, and that the first new file over the limit is `TooManyFiles` naming that
@@ -210,7 +217,8 @@ file while the callback was never asked for it (the recorded requests stop at th
 system, with a limit of one and an injected opener, the second file is refused and never opened, while the first is still
 served from the cache. With a limit of one and files longer than the size limit, in callback and file-system mode, the
 oversized file is `TooLarge` and counts, so a second file is `TooManyFiles` and never requested or opened, and asking for
-the oversized file again is `TooLarge` again with no second request or open.
+the oversized file again is `TooLarge` again with no second request or open. A callback that throws and an opener that
+fails behave the same way: `CannotRead` is repeated for the same file without a second request or open, and counts.
 
 ##### CanvasNet-Files-SandboxedFileResolver-Cache: Per-Instance Cache
 

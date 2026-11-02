@@ -79,10 +79,12 @@ public sealed partial class SandboxedFileResolver
     private readonly Dictionary<string, Content?> _contents;
 
     /// <summary>
-    ///     The outcome of reading one candidate that exists.
+    ///     The outcome of reading one candidate that was opened or requested.
     /// </summary>
-    /// <param name="Bytes">The bytes, or <see langword="null"/> when the file is longer than the size limit.</param>
-    private sealed record Content(byte[]? Bytes);
+    /// <param name="Bytes">The bytes, or <see langword="null"/> when the file is too large or could not be read.</param>
+    /// <param name="Unreadable"><see langword="true"/> when reading failed (a <c>CannotRead</c> failure).</param>
+    /// <param name="Cause">The cause of the read failure, if any.</param>
+    private sealed record Content(byte[]? Bytes, bool Unreadable = false, Exception? Cause = null);
 
     /// <summary>The keys of the distinct files read so far, counted against <see cref="SandboxOptions.MaxFiles"/>.</summary>
     private readonly HashSet<string> _readKeys;
@@ -230,20 +232,32 @@ public sealed partial class SandboxedFileResolver
             }
 
             _cancellation.ThrowIfCancellationRequested();
-            content = ReadBytes(candidate);
+            try
+            {
+                content = ReadBytes(candidate);
+            }
+            catch (SandboxException ex) when (ex.Kind == SandboxFailureKind.CannotRead)
+            {
+                // The file was opened or requested and failed: remember it like a size failure, so it is not tried again
+                content = new Content(null, true, ex.InnerException);
+            }
+
             _contents[contentKey] = content;
 
-            // A file counts once it exists, whatever the size outcome: a file that is too large was opened or requested
+            // A file counts once it was opened or requested, whatever the outcome (a miss is the only thing that does not)
             if (content is not null)
             {
                 _readKeys.Add(candidate.Key);
             }
         }
 
-        // A file that is too large is remembered too, so asking again fails the same way without opening it again
+        // A file that is too large or could not be read is remembered too, so asking again fails the same way without
+        // opening or requesting it again
         if (content is { Bytes: null })
         {
-            throw new SandboxException(SandboxFailureKind.TooLarge, candidate.Key);
+            throw content.Unreadable
+                ? new SandboxException(SandboxFailureKind.CannotRead, candidate.Key, innerException: content.Cause)
+                : new SandboxException(SandboxFailureKind.TooLarge, candidate.Key);
         }
 
         var file = content is null ? null : new SandboxedFile(candidate.Key, DirectoryOf(candidate.Key), candidate.Root, content.Bytes);

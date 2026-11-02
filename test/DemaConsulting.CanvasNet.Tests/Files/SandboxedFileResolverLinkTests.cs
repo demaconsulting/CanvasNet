@@ -196,23 +196,75 @@ public class SandboxedFileResolverLinkTests
 
     /// <summary>
     ///     Validates that the first missing component ends the walk: the file is missing, nothing below it is probed and
-    ///     no link is reported even if the path below it would be one.
+    ///     no link is reported even if the path below it would be one. The missing component itself is probed (it could
+    ///     be a dangling link) and is not one.
     /// </summary>
     [Fact]
     public void SandboxedFileResolver_Resolve_LinkAfterMissingComponentIsNotProbedAndFileIsMissing()
     {
-        // Arrange
+        // Arrange: the path below the missing component is reported as a link, but it is never asked about
         using var directory = new SandboxTempDirectory();
         Directory.CreateDirectory(directory.Combine("root/dir"));
-        var probe = new FakeLinks().With(directory.Combine("root/dir/gone"), directory.Combine("root/dir/gone/x.txt"));
+        var probe = new FakeLinks().With(directory.Combine("root/dir/gone/x.txt"));
         var resolver = Create(directory.Combine("root"), probe);
 
         // Act
         var file = resolver.Resolve("dir/gone/x.txt");
 
-        // Assert: reported missing (not as a link), and only the existing directory was probed
+        // Assert: reported missing (not as a link), and nothing below the missing component was probed
         Assert.Null(file);
-        Assert.Equal([Path.GetFullPath(directory.Combine("root/dir"))], probe.Calls);
+        Assert.Equal(
+            [Path.GetFullPath(directory.Combine("root/dir")), Path.GetFullPath(directory.Combine("root/dir/gone"))],
+            probe.Calls);
+    }
+
+    /// <summary>
+    ///     Validates that a dangling link used as an INTERMEDIATE directory component (it does not exist as far as an
+    ///     existence check can tell) is a link failure, on every candidate root, and neither a missing file nor a reason
+    ///     to fall through to another root that has the file.
+    /// </summary>
+    [Fact]
+    public void SandboxedFileResolver_Resolve_DanglingIntermediateLinkIsRejectedNotMissing()
+    {
+        // Arrange: nothing exists at root/dir/dangling (the probe calls it a link); a second root has a real file
+        using var directory = new SandboxTempDirectory();
+        Directory.CreateDirectory(directory.Combine("base/dir"));
+        directory.Write("lib/dir/dangling/x.txt", "from lib");
+        var probe = new FakeLinks().With(directory.Combine("base/dir/dangling"));
+        var resolver = Create(directory.Combine("base"), probe, directory.Combine("lib"));
+
+        // Act
+        var ex = Assert.Throws<SandboxException>(() => resolver.Resolve("dir/dangling/x.txt"));
+
+        // Assert: refused as a link naming the component, before the second root is considered
+        Assert.Equal(SandboxFailureKind.ThroughLink, ex.Kind);
+        Assert.Equal("dir/dangling", ex.Detail);
+        Assert.Equal(
+            [Path.GetFullPath(directory.Combine("base/dir")), Path.GetFullPath(directory.Combine("base/dir/dangling"))],
+            probe.Calls);
+    }
+
+    /// <summary>
+    ///     Validates that a configured root that is itself a link, dangling or not, is trusted and never probed: nothing
+    ///     exists below a dangling root, so a file is simply missing there, and the next root is used.
+    /// </summary>
+    [Fact]
+    public void SandboxedFileResolver_Resolve_DanglingConfiguredRootIsTrustedAndHasNoFiles()
+    {
+        // Arrange: the base directory does not exist (and is reported as a link); the search path has the file
+        using var directory = new SandboxTempDirectory();
+        directory.Write("lib/a.txt", "from lib");
+        var probe = new FakeLinks().With(directory.Combine("dangling-root"));
+        var resolver = Create(directory.Combine("dangling-root"), probe, directory.Combine("lib"));
+
+        // Act
+        var file = resolver.Resolve("a.txt");
+        var missing = resolver.Resolve("b/c.txt");
+
+        // Assert: the root itself was never asked about; its (nonexistent) children were
+        Assert.Equal("from lib", Encoding.UTF8.GetString(file!.Content.Span));
+        Assert.Null(missing);
+        Assert.DoesNotContain(Path.GetFullPath(directory.Combine("dangling-root")), probe.Calls);
     }
 
     /// <summary>
@@ -320,6 +372,39 @@ public class SandboxedFileResolverLinkTests
         var viaCallback = new SandboxedFileResolver(new SandboxOptions { FileResolver = files.Resolve }, Ct, failing.IsLink, null);
         Assert.Equal("virtual", Encoding.UTF8.GetString(viaCallback.Resolve("a.txt")!.Content.Span));
         Assert.Empty(failing.Calls);
+    }
+
+    /// <summary>
+    ///     Validates with a real dangling directory link used as an intermediate component that it is rejected as a link
+    ///     rather than treated as missing. The test skips only when the host cannot create such a link.
+    /// </summary>
+    [Fact]
+    public void SandboxedFileResolver_Resolve_RealDanglingDirectoryLinkIsRejectedOrCapabilitySkipped()
+    {
+        // Arrange: a directory link whose target does not exist, and a second root holding the same relative path
+        using var directory = new SandboxTempDirectory();
+        Directory.CreateDirectory(directory.Combine("root"));
+        directory.Write("lib/dangling/x.txt", "from lib");
+        if (!SandboxLinkSupport.TryCreateDirectoryLink(directory.Combine("root/dangling"), directory.Combine("outside/nowhere"), out var reason))
+        {
+            Assert.Skip("Directory links to a missing target cannot be created in this environment: " + reason);
+        }
+
+        if (Directory.Exists(directory.Combine("root/dangling")))
+        {
+            Assert.Skip("The created link is not dangling in this environment.");
+        }
+
+        var resolver = new SandboxedFileResolver(
+            new SandboxOptions { BaseDirectory = directory.Combine("root"), SearchPaths = [directory.Combine("lib")] },
+            Ct);
+
+        // Act
+        var ex = Assert.Throws<SandboxException>(() => resolver.Resolve("dangling/x.txt"));
+
+        // Assert: a link failure, not a miss that falls through to the second root
+        Assert.Equal(SandboxFailureKind.ThroughLink, ex.Kind);
+        Assert.Equal("dangling", ex.Detail);
     }
 
     /// <summary>

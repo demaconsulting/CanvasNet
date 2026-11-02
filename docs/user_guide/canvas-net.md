@@ -1869,6 +1869,7 @@ through a link; the files below it are not:
   come back in `SandboxedFile.Content`; decoding them is up to you.
 - Set `MaxFiles` to cap the number of **distinct files** one resolver reads. A file already read (also through
   another spelling) never counts again and a file that does not exist does not count, while a file that is too large
+  or cannot be read does count (it was opened or requested);
   does count (it was opened); once the cap is reached, a new
   file is refused with `TooManyFiles` **before it is opened or the callback is asked for it**.
 - With a `FileResolver` callback the file system is never touched: the callback receives the normalized logical
