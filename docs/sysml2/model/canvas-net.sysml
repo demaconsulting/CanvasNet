@@ -22,5 +22,6 @@ package CanvasNet {
         part fonts : Fonts;
         part renderingSubsystem : Rendering;
         part files : Files;
+        part packaging : Packaging;
     }
 }

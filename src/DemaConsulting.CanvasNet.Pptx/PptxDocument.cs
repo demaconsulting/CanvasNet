@@ -1,5 +1,6 @@
 using System.Xml.Linq;
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Packaging;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
@@ -153,51 +154,36 @@ namespace DemaConsulting.CanvasNet.Pptx;
 public sealed partial class PptxDocument : IDisposable
 {
     /// <summary>
-    ///     The maximum number of bytes <see cref="Open(Stream)"/> will buffer from a caller-
-    ///     supplied stream before rejecting it with <see cref="System.IO.InvalidDataException"/>.
+    ///     Initializes a new instance of the <see cref="PptxDocument"/> class over an already
+    ///     opened OPC package and parses the presentation structure.
     /// </summary>
-    /// <remarks>
-    ///     <see cref="Open(Stream)"/> buffers its entire input into memory before any ZIP
-    ///     validation occurs (see this type's own remarks); without a bound, a very large, or
-    ///     deliberately non-terminating, caller-supplied stream could exhaust memory or buffer
-    ///     indefinitely before that validation ever runs. 268,435,456 bytes (256 MiB) mirrors the
-    ///     core <see cref="Canvas.Surface.MaxDimension"/>'s own documented "comfortably below
-    ///     <see cref="int.MaxValue"/>" byte-count precedent (<c>8192 * 32768 = 268,435,456</c>) -
-    ///     large enough for any realistic <c>.pptx</c> package (including one carrying embedded
-    ///     video/image media), while remaining small enough to keep worst-case memory use bounded
-    ///     to a small, practical amount for an attacker-controlled input.
-    /// </remarks>
-    private const long MaxPackageBytes = 268_435_456L;
-
-    /// <summary>
-    ///     Initializes a new instance of the <see cref="PptxDocument"/> class by parsing the
-    ///     supplied, already fully-buffered package bytes.
-    /// </summary>
-    /// <param name="buffer">
-    ///     The complete package bytes. Ownership transfers to this instance - the bytes back the
-    ///     non-writable <see cref="_stream"/> for the lifetime of this instance.
+    /// <param name="package">
+    ///     The opened package. Ownership transfers to this instance (it is disposed by
+    ///     <see cref="Dispose"/>, or by this constructor if parsing fails).
     /// </param>
     /// <exception cref="System.IO.InvalidDataException">
-    ///     Thrown when <paramref name="buffer"/> is not a readable ZIP archive, when the
-    ///     package is missing the required <c>[Content_Types].xml</c> or <c>_rels/.rels</c>
-    ///     parts, or when any required part's XML is malformed.
+    ///     Thrown when the package is missing the presentation part or the presentation is
+    ///     malformed - see <see cref="InitializePresentation"/>'s own remarks for the exact
+    ///     conditions.
     /// </exception>
-    private PptxDocument(byte[] buffer)
+    private PptxDocument(OpcPackage package)
     {
-        _stream = new MemoryStream(buffer, writable: false);
-        _archive = OpenZipArchive(_stream);
-        _entriesByPath = BuildEntryLookup(_archive);
-        _defaultContentTypes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        _overrideContentTypes = new Dictionary<string, string>(StringComparer.Ordinal);
-        _relationshipCache = new Dictionary<string, IReadOnlyDictionary<string, PackageRelationship>>(StringComparer.Ordinal);
+        _package = package;
         _themeCache = new Dictionary<string, PptxTheme>(StringComparer.Ordinal);
         _tableStylesCache = new Dictionary<string, IReadOnlyDictionary<string, XElement>>(StringComparer.Ordinal);
         _masterCache = new Dictionary<string, PptxMaster>(StringComparer.Ordinal);
         _layoutCache = new Dictionary<string, PptxLayout>(StringComparer.Ordinal);
         _slideCache = [];
 
-        InitializePackage();
-        InitializePresentation();
+        try
+        {
+            InitializePresentation();
+        }
+        catch
+        {
+            _package.Dispose();
+            throw;
+        }
     }
 
     /// <summary>
@@ -243,20 +229,24 @@ public sealed partial class PptxDocument : IDisposable
     ///     <c>ppt/presentation.xml</c> part itself), a required part's XML is malformed, or the
     ///     presentation declares no slide size (<c>&lt;p:sldSz&gt;</c>) or no slides
     ///     (<c>&lt;p:sldIdLst&gt;</c>) - or when <paramref name="stream"/> supplies more than
-    ///     <see cref="MaxPackageBytes"/> bytes (see <see cref="MaxPackageBytes"/>'s own remarks
-    ///     for the bound's rationale).
+    ///     <see cref="OpcPackage.MaxPackageBytes"/> bytes (see <see cref="OpcPackage"/>'s own
+    ///     remarks for the bound's rationale).
     /// </exception>
     public static PptxDocument Open(Stream stream)
     {
         ArgumentNullException.ThrowIfNull(stream);
 
-        using var buffered = new MemoryStream();
-        CopyBounded(
-            stream,
-            buffered,
-            MaxPackageBytes,
-            $"The package stream exceeds the maximum supported size of {MaxPackageBytes} bytes.");
-        return new PptxDocument(buffered.ToArray());
+        OpcPackage package;
+        try
+        {
+            package = OpcPackage.Open(stream);
+        }
+        catch (OpcFormatException ex)
+        {
+            throw new InvalidDataException(ex.Message, ex);
+        }
+
+        return new PptxDocument(package);
     }
 
     /// <summary>
@@ -291,49 +281,8 @@ public sealed partial class PptxDocument : IDisposable
     }
 
     /// <summary>
-    ///     Copies <paramref name="source"/> into <paramref name="destination"/>, reading in fixed-
-    ///     size chunks and rejecting the input the moment the running total exceeds
-    ///     <paramref name="maxBytes"/> - bounding both the worst-case memory this copy can consume
-    ///     and the worst-case time it can spend reading a deliberately large or non-terminating
-    ///     <paramref name="source"/>, rather than calling <see cref="Stream.CopyTo(Stream)"/>
-    ///     unconditionally and discovering the problem only after it has already exhausted memory.
-    ///     Shared by <see cref="Open(Stream)"/> (bounding the whole buffered package stream) and
-    ///     <see cref="GetPartBytes"/> (bounding a single part's decompressed byte size).
-    /// </summary>
-    /// <param name="source">The stream to copy from.</param>
-    /// <param name="destination">The stream to copy into.</param>
-    /// <param name="maxBytes">
-    ///     The maximum number of bytes that may be read from <paramref name="source"/> before this
-    ///     method throws.
-    /// </param>
-    /// <param name="exceededMessage">
-    ///     The message used to construct the <see cref="System.IO.InvalidDataException"/> thrown
-    ///     when <paramref name="maxBytes"/> is exceeded.
-    /// </param>
-    /// <exception cref="System.IO.InvalidDataException">
-    ///     Thrown once more than <paramref name="maxBytes"/> bytes have been read from
-    ///     <paramref name="source"/>.
-    /// </exception>
-    private static void CopyBounded(Stream source, MemoryStream destination, long maxBytes, string exceededMessage)
-    {
-        var buffer = new byte[81920];
-        var total = 0L;
-        int read;
-        while ((read = source.Read(buffer, 0, buffer.Length)) > 0)
-        {
-            total += read;
-            if (total > maxBytes)
-            {
-                throw new InvalidDataException(exceededMessage);
-            }
-
-            destination.Write(buffer, 0, read);
-        }
-    }
-
-    /// <summary>
-    ///     Releases the resources held by this <see cref="PptxDocument"/> (the underlying ZIP
-    ///     archive, its backing buffer, and every cached table-cell picture <see cref="Surface"/>
+    ///     Releases the resources held by this <see cref="PptxDocument"/> (the underlying OPC
+    ///     package and every cached table-cell picture <see cref="Surface"/>
     ///     this document decoded and owns - see <see cref="_ownedImageSurfaces"/>). Calling this
     ///     method more than once has no effect beyond the first call.
     /// </summary>
@@ -349,8 +298,7 @@ public sealed partial class PptxDocument : IDisposable
             surface.Dispose();
         }
 
-        _archive.Dispose();
-        _stream.Dispose();
+        _package.Dispose();
         _disposed = true;
     }
 }

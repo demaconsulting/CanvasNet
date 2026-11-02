@@ -45,7 +45,7 @@ public sealed partial class PptxDocument
     ///     Parses <c>ppt/presentation.xml</c> (located via the package root's <c>/officeDocument</c>
     ///     relationship): validates it is a presentation part, reads its declared slide size, and
     ///     resolves its ordered slide list. Called once from the constructor, immediately after
-    ///     <see cref="InitializePackage"/>.
+    ///     the package has been opened.
     /// </summary>
     /// <remarks>
     ///     Only the presentation part itself is validated eagerly. Each resolved slide part's own

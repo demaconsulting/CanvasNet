@@ -103,6 +103,8 @@ image, text, and CSS styling) and every method's full parameter and exception de
   used to resolve a `text` element's font when the caller registers none)
 - The `Codecs` subsystem's shared `ImageInfo` record struct (the return type of `GetInfo`) — see
   _Codecs Subsystem Design_ (`docs/design/canvas-net/codecs.md`)
+- The `Packaging` subsystem's `SafeXml` (the hardened, bounded XML reader behind both document
+  parses) — see _Packaging Subsystem Design_ (`docs/design/canvas-net/packaging.md`)
 
 **`CanvasNetSvg` must never reference `DemaConsulting.CanvasNet.Pptx`, `DemaConsulting.CanvasNet.Pdf`,
 `DemaConsulting.CanvasNet.Charts`, or a future `DemaConsulting.CanvasNet.Vsdx`.** This is a hard

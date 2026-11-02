@@ -94,12 +94,13 @@ leaking through uncaught.
 #### CanvasNetVsdx-VsdxDocument-ContentTypesValidation: Missing/Oversized Content-Types Part Throws
 
 **Tests**: `VsdxDocument_Open_MissingContentTypes_ThrowsInvalidDataException`,
-`VsdxDocument_Open_OversizedContentTypesPart_ThrowsInvalidDataException`
+`OpcPackage_Open_OversizedContentTypesPart_ThrowsOpcFormatException`
 
 Proves a package containing no `[Content_Types].xml` entry at all throws `InvalidDataException`
-from `Open`, and proves an attacker-controlled content-types part padded past the documented
-bounded character budget also throws `InvalidDataException` rather than risking unbounded memory
-use.
+from `Open`, and proves (in the core `OpcPackageTests`, where the package mechanics live; see
+`packaging/opc-package.md`) that an attacker-controlled content-types part padded past the
+documented bounded character budget is rejected rather than risking unbounded memory use;
+`VsdxDocument` surfaces that rejection as `InvalidDataException`.
 
 #### CanvasNetVsdx-VsdxDocument-RelationshipResolution: Document/Masters/Pages/Theme Resolved via r:id
 

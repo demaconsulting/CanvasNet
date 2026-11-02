@@ -2,6 +2,8 @@
 
 ![CanvasNetPptx Structure](CanvasNetPptxView.svg)
 
+<!-- cspell:ignore ordinally rethrowing -->
+
 <!-- cspell:ignore ooxml pptx navigations hlink srgb xfrm prst cust fmla scrgb patt misrender -->
 <!-- cspell:ignore bodyPr pPr rPr txBody txStyles lstStyle defRPr ctrTitle lIns tIns rIns bIns -->
 <!-- cspell:ignore algn marL lnSpc spcBef spcAft justLow lnSpcReduction fontScale noAutofit -->
@@ -18,9 +20,10 @@
 package.
 
 The `PptxDocument` class is the sole software unit of the `CanvasNetPptx` system. As of Phase 1a,
-its dependencies were limited to the .NET base class library's `System.IO.Compression.ZipArchive`
-(reading the `.pptx` ZIP container) and `System.Xml.Linq` (parsing `[Content_Types].xml` and each
-`.rels` relationships part) — no `CanvasNet` core-system type was used yet. As of Phase 1c, the
+its dependencies were limited to the .NET base class library's `System.Xml.Linq` and, through the
+core `Packaging` subsystem's `OpcPackage` (which wraps `System.IO.Compression.ZipArchive`), the
+reading of the `.pptx` ZIP container and of `[Content_Types].xml` and each `.rels` relationships
+part. As of Phase 1c, the
 unit additionally depends on several core `DemaConsulting.CanvasNet` types - `Geometry.Path`/
 `PathBuilder`, `Drawing.PathStroker`/`StrokeStyle`, and `Canvas.Rgba32`/`Gradient`/
 `LinearGradient` - reusing the already-tested core geometry/drawing machinery rather than
@@ -38,72 +41,76 @@ embedded image (see the _Images, Tables, and Shape Tree (Phase 1e)_ section belo
 ### Package Layer (Phase 1a)
 
 A `.pptx` file is an OOXML (Office Open XML) package: a ZIP archive whose parts are discovered by
-following a chain of relationships, starting from the package root. `PptxDocument.Package.cs`
-implements this generic package layer, independent of any presentation-specific semantics:
+following a chain of relationships, starting from the package root. The generic package layer,
+independent of any presentation-specific semantics, is implemented once, in the core `Packaging`
+subsystem's `OpcPackage` unit (see _OpcPackage Unit Design_, `canvas-net/packaging/opc-package.md`),
+which `PptxDocument` opens and owns. `PptxDocument.Package.cs` is now only a thin adapter over it:
+each of `ResolvePart`, `ResolveRelationship`, `GetRelationshipType`, `ResolveRelationshipByType`,
+`TryResolveRelationshipByType`, `LoadPartXmlRoot` and `GetPartBytes` calls the same-named
+`OpcPackage` member and rethrows any `OpcFormatException` as `InvalidDataException` carrying the
+same message (the core exception is the inner exception), so every package-layer failure remains
+uniformly `InvalidDataException` and every message is unchanged. What the core unit does, and so
+what `PptxDocument` relies on:
 
-- **Opening the ZIP archive**: the private constructor buffers the entire input stream into a
-  byte array, wraps it in a non-writable `MemoryStream`, and opens that stream as a read-only
-  `ZipArchive`. Any failure to do so - an unreadable or corrupt (non-ZIP) stream - is wrapped in
-  `InvalidDataException` (`ZipArchive`'s own constructor already throws this type for a corrupt
-  archive; other failure shapes, such as `IOException`/`ArgumentException`/`NotSupportedException`/
-  `EndOfStreamException`, are caught and re-thrown wrapped in the same type, so every
-  package-layer failure is uniformly `InvalidDataException`).
-- **`[Content_Types].xml` resolution**: parsed once, at construction time, into two lookups - a
-  case-insensitive `Default` extension-to-content-type map (for example `"xml"` ->
-  `"application/xml"`) and an exact-match `Override` part-path-to-content-type map (for example
-  `"ppt/presentation.xml"` -> `"application/vnd.openxmlformats-officedocument.presentationml.
-  presentation.main+xml"`). `ResolvePart(string partPath)` consults the override map first,
-  falling back to the default map keyed by the part's file extension, and throws
-  `InvalidDataException` when the package does not contain the requested part, or when neither
-  map resolves a content type for it.
+- **Opening the ZIP archive**: `OpcPackage.Open` buffers the input stream (bounded to 256 MiB),
+  wraps it in a non-writable `MemoryStream`, and opens that as a read-only `ZipArchive`; an
+  unreadable or corrupt (non-ZIP) stream, or two entries with an identical name, is rejected.
+  Part names are compared ordinally (case-sensitively).
+- **`[Content_Types].xml` resolution**: parsed once, at open time, into a case-insensitive
+  `Default` extension-to-content-type map (for example `"xml"` -> `"application/xml"`) and an
+  exact-match `Override` part-path-to-content-type map. `ResolvePart(string partPath)` consults the
+  override map first, falling back to the default map keyed by the part's file extension, and
+  throws when the package does not contain the requested part, or when neither map resolves a
+  content type for it.
 - **Relationship resolution**: the package-level relationships (`_rels/.rels`) are parsed eagerly
-  at construction time (so a malformed package-level relationships part fails fast at `Open()`
-  time), while every other part's own relationships (`{dir}/_rels/{partName}.rels`) are parsed
-  lazily, on first access, and cached. `ResolveRelationship(string sourcePartPath, string
-  relationshipId)` (the empty string for `sourcePartPath` denotes the package root) looks up the
-  given relationship ID within the source part's own relationships, then resolves its `Target`
-  attribute per OPC's relative-reference rules: a target beginning with `'/'` is resolved relative
-  to the package root; any other target is resolved relative to the source part's own directory,
-  with `"."`/`".."` segments in the combined path normalized away exactly like a familiar
-  filesystem path (so, for example, `ppt/slides/slide1.xml`'s relationship to
-  `"../slideLayouts/slideLayout1.xml"` resolves to `"ppt/slideLayouts/slideLayout1.xml"`, not
-  `"ppt/slides/slideLayouts/slideLayout1.xml"`). An unknown relationship ID, a relationship whose
-  `TargetMode` is `"External"` (not supported this phase), or a target that would traverse past
-  the package root (more `".."` segments than preceding directory segments) all throw
-  `InvalidDataException`.
+  at open time (so a malformed package-level relationships part fails fast at `Open()` time),
+  while every other part's own relationships (`{dir}/_rels/{partName}.rels`) are parsed lazily, on
+  first access, and cached. `ResolveRelationship(string sourcePartPath, string relationshipId)`
+  (the empty string for `sourcePartPath` denotes the package root) looks up the given relationship
+  ID within the source part's own relationships, then resolves its `Target` attribute per OPC's
+  relative-reference rules: a target beginning with `'/'` is resolved relative to the package
+  root; any other target is resolved relative to the source part's own directory, with
+  `"."`/`".."` segments normalized away (so, for example, `ppt/slides/slide1.xml`'s relationship
+  to `"../slideLayouts/slideLayout1.xml"` resolves to `"ppt/slideLayouts/slideLayout1.xml"`). An
+  unknown relationship ID, a relationship whose `TargetMode` is `"External"` (not supported), or
+  a target that would traverse past the package root all throw.
+- **Hardened XML and part reads**: every XML part is loaded through the core `SafeXml` (no DTD, no
+  external resolution, at most 2,000,000 characters) and a binary part (`GetPartBytes`) is bounded
+  to 256 MiB of decompressed content, counted while copying.
 
 **Phase 1a scope boundary**: no presentation-specific part (`ppt/presentation.xml`, a slide, a
 slide layout/master) is itself interpreted - `ResolvePart`/`ResolveRelationship` only resolve a
 part's content type and a relationship's target path, both of which are generic OPC package
-concepts. The `_entriesByPath`/`_defaultContentTypes`/`_overrideContentTypes`/
-`_relationshipCache` fields hold the entirety of this phase's parsed state.
+concepts. The `_package` field (the opened `OpcPackage`) holds the entirety of this phase's
+parsed state.
 
-**Phase 1b additions**: `PackageRelationship` gained a `Type` field (the relationship's own
-`Type` attribute, captured by `ParseRelationships` alongside the existing `Target`/`TargetMode`
-fields). Four OOXML navigations used by Phase 1b (package root -> `ppt/presentation.xml`, slide
--> layout, layout -> master, master -> theme) have no explicit `r:id` anywhere in the referencing
-part's own body XML - each is, by OOXML convention, simply "the referencing part's one
-relationship of a given `Type`". `ResolveRelationshipByType(string sourcePartPath, string
-relationshipTypeSuffix)` resolves such a relationship by an ordinal `EndsWith` match against each
-non-external relationship's `Type` URI (for example `"/officeDocument"`, `"/slideLayout"`,
-`"/slideMaster"`, `"/theme"`), throwing `InvalidDataException` when none match.
-`LoadPartXmlRoot(string partPath)` loads and parses a part's XML root element (checking the part
-exists first), reused by every Phase 1b parser (`InitializePresentation`/`GetTheme`/`GetMaster`/
-`GetLayout`/`GetSlide`) instead of each duplicating the same existence-check-then-parse logic.
+**Phase 1b additions**: the package gained the relationship `Type` (captured alongside each
+relationship's `Target`/`TargetMode`). Four OOXML navigations used by Phase 1b (package root ->
+`ppt/presentation.xml`, slide -> layout, layout -> master, master -> theme) have no explicit
+`r:id` anywhere in the referencing part's own body XML - each is, by OOXML convention, simply
+"the referencing part's one relationship of a given `Type`". `ResolveRelationshipByType(string
+sourcePartPath, string relationshipTypeSuffix)` resolves such a relationship by an ordinal
+`EndsWith` match against each non-external relationship's `Type` URI (for example
+`"/officeDocument"`, `"/slideLayout"`, `"/slideMaster"`, `"/theme"`), throwing
+`InvalidDataException` when none match. `LoadPartXmlRoot(string partPath)` loads and parses a
+part's XML root element (checking the part exists first), reused by every Phase 1b parser
+(`InitializePresentation`/`GetTheme`/`GetMaster`/`GetLayout`/`GetSlide`) instead of each
+duplicating the same existence-check-then-parse logic.
 
 ### Public API (Phase 1a)
 
 `PptxDocument.cs` implements the sealed, `IDisposable` public surface:
 
-- **`Open(Stream stream)`**: validates `stream` is non-null (`ArgumentNullException`), buffers it
-  fully into a byte array via `CopyTo` (so the caller's stream need not remain open or seekable
-  afterward, exactly like `PdfDocument.Open`'s own buffering pattern), and constructs a new
-  `PptxDocument` from the buffered bytes.
+- **`Open(Stream stream)`**: validates `stream` is non-null (`ArgumentNullException`), opens it
+  with `OpcPackage.Open` (which buffers it fully, bounded, so the caller's stream need not remain
+  open or seekable afterward, exactly like `PdfDocument.Open`'s own buffering pattern), rethrowing
+  an `OpcFormatException` as `InvalidDataException`, and constructs a new `PptxDocument` over the
+  opened package. If parsing the presentation then fails, the constructor disposes the package.
 - **`Open(string path)`**: validates `path` is non-null (`ArgumentNullException`) and not
   empty/whitespace-only (`ArgumentException`), then opens a `FileStream` and delegates to
   `Open(Stream)`.
 - **`Dispose()`**: idempotent (a `_disposed` flag guards a second call from re-disposing already-
-  released resources); disposes the underlying `ZipArchive` and its backing `MemoryStream`.
+  released resources); disposes the owned picture surfaces and the underlying `OpcPackage`.
 
 ### Presentation Parsing (Phase 1b)
 
@@ -701,7 +708,10 @@ plus the resolved total block height.
    `fontResolver`, memoized per layout call; `ResolveTextFont` additionally shares loaded system
    fonts across layouts through `SystemFontCatalog.Load`'s process-lifetime path/face cache (see `ResolveTextFont` below).
    (Phase 1b's own theme/master/layout caches remain per-document, not static.)
-   Tokens are packed greedily onto lines bounded by `widthEmu` less the body's horizontal insets;
+   Tokens are packed greedily onto lines bounded by `widthEmu` less the body's horizontal insets,
+   by the core `Rendering.WordWrap` packer (see _WordWrap Unit Design_,
+   `canvas-net/rendering/word-wrap.md`; this package supplies only each token's role - word,
+   whitespace, or explicit line break - and a tab token's position-dependent width);
    a single token that alone exceeds the available width is placed alone on its own (overflowing)
    line rather than looping indefinitely - a documented overflow policy, not a crash.
 4. **Line height** is computed from the _tallest_ run on that line:
@@ -822,7 +832,7 @@ resolves a `<p:pic>` shape's `<p:blipFill>/<a:blip>` into a decoded core `Surfac
 - **Relationship resolution**: `<a:blip>`'s `r:embed` attribute (an embedded-image relationship
   ID) is resolved via the existing `ResolveRelationship`/`GetPartBytes` package-layer primitives
   into the raw media part bytes. `GetPartBytes` bounds the part's decompressed size to
-  `MaxPartBytes` (256 MiB), rejecting an oversized/zip-bomb-shaped media part with
+  `OpcPackage.MaxPartBytes` (256 MiB), rejecting an oversized/zip-bomb-shaped media part with
   `InvalidDataException` rather than trusting its declared or compressed size. One with only
   `r:link` (an external, non-embedded image
   reference) throws `PptxUnsupportedFeatureException` (feature token `"pptx-image-link"`) - a
@@ -3256,8 +3266,9 @@ the line.
 Because a tab's width is position-dependent, it must be computed twice, from two different running
 positions, and the two computations must stay formula-identical: `PackTokensIntoLines`'s
 wrap/fit-decision loop computes a tab token's effective width as
-`GetNextTabStopEmu(currentWidth, DefaultTabStopEmu) - currentWidth`, read from its own running
-`currentWidth` position at that point in the token stream - this is what makes the wrap decision
+`GetNextTabStopEmu(currentWidth, DefaultTabStopEmu) - currentWidth`, read from the running line
+width the core `WordWrap` packer passes to its width callback at that point in the token stream -
+this is what makes the wrap decision
 correctly reflect the tab's true, expanded width rather than its near-zero glyph-measured width,
 so an early tab in a long line no longer silently under-counts the line's true occupied width and
 mis-places the wrap point. `BuildLines`'s own per-line rendering loop special-cases an `IsTab`

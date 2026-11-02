@@ -33,7 +33,7 @@ _CanvasNetPdf System Design_, `docs/design/canvas-net-pdf.md`).
 package: a ZIP archive whose parts (`[Content_Types].xml`, `_rels/.rels`, `ppt/presentation.xml`,
 each slide/layout/master XML part, and so on) are discovered by following a chain of
 relationships from the package root. **Phase 1a** implemented only this underlying package layer:
-`PptxDocument.Open` opens a `.pptx` file as a read-only `ZipArchive`, resolves
+`PptxDocument.Open` opens a `.pptx` file as a read-only `ZipArchive` (through the core `OpcPackage`), resolves
 `[Content_Types].xml`'s default extension-to-content-type mappings and part-specific overrides,
 and resolves package-level (`_rels/.rels`) and per-part (`{dir}/_rels/{partName}.rels`)
 relationships, including OPC's relative-target resolution rules (a `"../"` parent-directory
@@ -105,7 +105,7 @@ The system exposes the following public API to external consumers, all on the se
   in EMU.
 - **PptxDocument.GetSlideSizeInPixels(float dpi)** (Phase 1b): Converts `SlideSize` to pixels at
   the given resolution. Throws `ArgumentOutOfRangeException` for a non-positive/non-finite `dpi`.
-- **PptxDocument.Dispose()**: Idempotent; releases the underlying `ZipArchive` and its backing
+- **PptxDocument.Dispose()**: Idempotent; releases the underlying `OpcPackage` (the ZIP archive and its backing
   buffer. No other public member may be called afterward without throwing
   `ObjectDisposedException` (enforced, as of Phase 1b, by `SlideCount`/`SlideSize`/
   `GetSlideSizeInPixels`).
@@ -155,11 +155,12 @@ primitive - see `docs/design/canvas-net-pptx/pptx-document.md`'s "Chart Graphic 
 design section for the full integration. This dependency is strictly one-directional:
 `CanvasNetCharts` must never reference `CanvasNetPptx` (see `docs/design/canvas-net-charts.md`'s
 own Dependencies section), so `CanvasNetPptx` depends on `CanvasNetCharts` exactly as it already
-depends on the core `CanvasNet` system, never the reverse. The package layer itself still relies
-solely on the .NET base class library's `System.IO.Compression.ZipArchive` (reading
-the `.pptx` ZIP container) and `System.Xml.Linq.XDocument`/`XElement` (parsing
-`[Content_Types].xml`, each `.rels` part, and, as of Phase 1b, every presentation/theme/master/
-layout/slide part). The `ProjectReference` to `CanvasNet` now has corresponding `dependency`
+depends on the core `CanvasNet` system, never the reverse. The package layer itself relies on the
+core `CanvasNet` system's `Packaging` subsystem (`OpcPackage`, which wraps
+`System.IO.Compression.ZipArchive` to read the `.pptx` ZIP container, and `SafeXml`) and on
+`System.Xml.Linq.XDocument`/`XElement` (parsing, as of Phase 1b, every presentation/theme/master/
+layout/slide part); the line packer behind text layout is the core `Rendering` subsystem's
+`WordWrap`. The `ProjectReference` to `CanvasNet` now has corresponding `dependency`
 edges in this system's own SysML2 model (`docs/sysml2/model/canvas-net-pptx.sysml`):
 `dependency usesCanvas from CanvasNetPptxSystem to Canvas;` (added at Phase 1b, the phase that
 actually first uses a `Canvas` subsystem type) and, added at Phase 1c,
@@ -229,7 +230,8 @@ with incorrect geometry or paint - the same fail-closed-over-silent-approximatio
 1. **Input**: A `.pptx` package (stream or file path)
 2. **Validation**: `Open` rejects a null `stream`/`path` with `ArgumentNullException` and an
    empty/whitespace `path` with `ArgumentException`
-3. **Processing**: Fully buffers the input into memory, opens it as a read-only `ZipArchive`
+3. **Processing**: Fully buffers the input into memory (bounded) and opens it through the core
+   `OpcPackage` as a read-only `ZipArchive`
    (rejecting an unreadable/corrupt archive with `InvalidDataException`), parses
    `[Content_Types].xml` into its default extension and part-specific override content-type
    mappings, eagerly parses the package-level `_rels/.rels` relationships part (rejecting a

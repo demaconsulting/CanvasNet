@@ -1,4 +1,4 @@
-using System.IO.Compression;
+using DemaConsulting.CanvasNet.Packaging;
 
 namespace DemaConsulting.CanvasNet.Vsdx;
 
@@ -85,64 +85,34 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 /// </remarks>
 public sealed partial class VsdxDocument : IDisposable
 {
-    /// <summary>
-    ///     The maximum number of bytes <see cref="Open(Stream)"/> will buffer from a caller-
-    ///     supplied stream before rejecting it with <see cref="InvalidDataException"/>.
-    /// </summary>
-    /// <remarks>
-    ///     <see cref="Open(Stream)"/> buffers its entire input into memory before any ZIP
-    ///     validation occurs; without a bound, a very large, or deliberately non-terminating,
-    ///     caller-supplied stream could exhaust memory or buffer indefinitely before that
-    ///     validation ever runs. 268,435,456 bytes (256 MiB) mirrors
-    ///     <c>PptxDocument.MaxPackageBytes</c>'s own documented sizing rationale - large enough
-    ///     for any realistic <c>.vsdx</c> package, while remaining small enough to keep worst-case
-    ///     memory use bounded to a small, practical amount for an attacker-controlled input.
-    /// </remarks>
-    private const long MaxPackageBytes = 268_435_456L;
-
-    /// <summary>
-    ///     The non-writable, in-memory stream wrapping the package's buffered bytes that backs
-    ///     <see cref="_archive"/> for the lifetime of this instance.
-    /// </summary>
-    private readonly MemoryStream _stream;
-
-    /// <summary>The opened, read-only ZIP archive view of this package.</summary>
-    private readonly ZipArchive _archive;
-
-    /// <summary>
-    ///     Every part name present in the package, for existence checks, keyed case-sensitively
-    ///     per OPC's own ordinal part-name comparison rule.
-    /// </summary>
-    private readonly IReadOnlyDictionary<string, ZipArchiveEntry> _entriesByPath;
-
     /// <summary>Set once <see cref="Dispose"/> has been called.</summary>
     private bool _disposed;
 
     /// <summary>
-    ///     Initializes a new instance of the <see cref="VsdxDocument"/> class by parsing the
-    ///     supplied, already fully-buffered package bytes.
+    ///     Initializes a new instance of the <see cref="VsdxDocument"/> class over an already
+    ///     opened OPC package and parses the page index.
     /// </summary>
-    /// <param name="buffer">
-    ///     The complete package bytes. Ownership transfers to this instance - the bytes back the
-    ///     non-writable <see cref="_stream"/> for the lifetime of this instance.
+    /// <param name="package">
+    ///     The opened package. Ownership transfers to this instance (it is disposed by
+    ///     <see cref="Dispose"/>, or by this constructor if parsing fails).
     /// </param>
     /// <exception cref="InvalidDataException">
-    ///     Thrown when <paramref name="buffer"/> is not a readable ZIP archive, when the package
-    ///     is missing a required part, or when any required part is malformed - see
-    ///     <see cref="InitializePackage"/>/<see cref="InitializePages"/>'s own remarks for the
-    ///     exact conditions.
+    ///     Thrown when the package is missing a required part, or when any required part is
+    ///     malformed - see <see cref="InitializePages"/>'s own remarks for the exact conditions.
     /// </exception>
-    private VsdxDocument(byte[] buffer)
+    private VsdxDocument(OpcPackage package)
     {
-        _stream = new MemoryStream(buffer, writable: false);
-        _archive = OpenZipArchive(_stream);
-        _entriesByPath = BuildEntryLookup(_archive);
-        _defaultContentTypes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        _overrideContentTypes = new Dictionary<string, string>(StringComparer.Ordinal);
-        _relationshipCache = new Dictionary<string, IReadOnlyDictionary<string, PackageRelationship>>(StringComparer.Ordinal);
+        _package = package;
 
-        InitializePackage();
-        InitializePages();
+        try
+        {
+            InitializePages();
+        }
+        catch
+        {
+            _package.Dispose();
+            throw;
+        }
     }
 
     /// <summary>
@@ -159,15 +129,24 @@ public sealed partial class VsdxDocument : IDisposable
     ///     Thrown when the package cannot be parsed - because <paramref name="stream"/> is not a
     ///     readable ZIP/OPC archive, or the package is missing a required part or any required
     ///     part is malformed - or when <paramref name="stream"/> supplies more than
-    ///     <see cref="MaxPackageBytes"/> bytes (see <see cref="MaxPackageBytes"/>'s own remarks
-    ///     for the bound's rationale).
+    ///     <see cref="OpcPackage.MaxPackageBytes"/> bytes (see <see cref="OpcPackage"/>'s own
+    ///     remarks for the bound's rationale).
     /// </exception>
     public static VsdxDocument Open(Stream stream)
     {
         ArgumentNullException.ThrowIfNull(stream);
 
-        using var buffered = CopyBounded(stream);
-        return new VsdxDocument(buffered.ToArray());
+        OpcPackage package;
+        try
+        {
+            package = OpcPackage.Open(stream);
+        }
+        catch (OpcFormatException ex)
+        {
+            throw new InvalidDataException(ex.Message, ex);
+        }
+
+        return new VsdxDocument(package);
     }
 
     /// <summary>
@@ -199,54 +178,6 @@ public sealed partial class VsdxDocument : IDisposable
 
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read);
         return Open(stream);
-    }
-
-    /// <summary>
-    ///     Copies <paramref name="source"/> into a new, fully-buffered <see cref="MemoryStream"/>,
-    ///     reading in fixed-size chunks and rejecting the input the moment the running total
-    ///     exceeds <see cref="MaxPackageBytes"/> - bounding both the worst-case memory this copy
-    ///     can consume and the worst-case time it can spend reading a deliberately large or
-    ///     non-terminating <paramref name="source"/>, rather than calling
-    ///     <see cref="Stream.CopyTo(Stream)"/> unconditionally and discovering the problem only
-    ///     after it has already exhausted memory.
-    /// </summary>
-    /// <param name="source">The stream to copy from.</param>
-    /// <returns>
-    ///     A new, position-reset-to-zero <see cref="MemoryStream"/> containing every byte read
-    ///     from <paramref name="source"/>.
-    /// </returns>
-    /// <exception cref="InvalidDataException">
-    ///     Thrown once more than <see cref="MaxPackageBytes"/> bytes have been read from
-    ///     <paramref name="source"/>.
-    /// </exception>
-    private static MemoryStream CopyBounded(Stream source)
-    {
-        var destination = new MemoryStream();
-        try
-        {
-            var buffer = new byte[81920];
-            var total = 0L;
-            int read;
-            while ((read = source.Read(buffer, 0, buffer.Length)) > 0)
-            {
-                total += read;
-                if (total > MaxPackageBytes)
-                {
-                    throw new InvalidDataException(
-                        $"The package stream exceeds the maximum supported size of {MaxPackageBytes} bytes.");
-                }
-
-                destination.Write(buffer, 0, read);
-            }
-
-            destination.Position = 0;
-            return destination;
-        }
-        catch
-        {
-            destination.Dispose();
-            throw;
-        }
     }
 
     /// <summary>
@@ -287,8 +218,8 @@ public sealed partial class VsdxDocument : IDisposable
     }
 
     /// <summary>
-    ///     Releases the resources held by this <see cref="VsdxDocument"/> (the underlying ZIP
-    ///     archive and its backing buffer). Calling this method more than once has no effect
+    ///     Releases the resources held by this <see cref="VsdxDocument"/> (the underlying OPC
+    ///     package). Calling this method more than once has no effect
     ///     beyond the first call.
     /// </summary>
     public void Dispose()
@@ -298,8 +229,7 @@ public sealed partial class VsdxDocument : IDisposable
             return;
         }
 
-        _archive.Dispose();
-        _stream.Dispose();
+        _package.Dispose();
         _disposed = true;
     }
 }
