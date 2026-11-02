@@ -1,12 +1,16 @@
 using System.Text;
+using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.VegaLite.Data;
 
 namespace DemaConsulting.CanvasNet.VegaLite.Tests.Data;
 
 /// <summary>
-///     Unit tests for <see cref="DemaConsulting.CanvasNet.VegaLite.Data.DataFileResolver"/>: the search order, the path
-///     rules of the sandbox, resolver-callback mode, the per-call cache and the limits and strict decoding of reads. The
-///     link rule has its own class, <see cref="DataFileResolverLinkTests"/>.
+///     Unit tests for <see cref="DemaConsulting.CanvasNet.VegaLite.Data.DataFileResolver"/>: the search order, the
+///     translation of the core sandbox's refusals into located Vega-Lite errors, resolver-callback mode end to end, the
+///     per-call cache and the limits and strict decoding of reads. The sandbox mechanics (escape, link, dangling-link,
+///     control-character, open and bounded-read rules) are proven in the core test project for
+///     <c>SandboxedFileResolver</c>; the link wording over real links has its own class,
+///     <see cref="DataFileResolverLinkTests"/>.
 /// </summary>
 public class DataFileResolverTests
 {
@@ -226,113 +230,6 @@ public class DataFileResolverTests
     }
 
     /// <summary>
-    ///     Validates that an existing file whose open fails (an access or I/O failure) is a located read failure, never a
-    ///     missing file, and that no later root is tried. The opener is injected, so the test needs no file permission
-    ///     or lock and behaves the same on every platform.
-    /// </summary>
-    /// <param name="denied">Whether the open fails with an access failure (otherwise an I/O failure).</param>
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void DataFileResolver_Load_ExistingFileOpenFailureIsLocatedReadFailure(bool denied)
-    {
-        // Arrange: the file exists in the base directory and in the second root; the open of every file fails
-        using var directory = new DataTempDirectory();
-        directory.Write("base/a.csv", "from base");
-        directory.Write("two/a.csv", "from two");
-        var opened = new List<string>();
-        var resolver = new DataFileResolver(
-            new VegaLiteOpenOptions { BaseDirectory = directory.Combine("base"), DataPaths = [directory.Combine("two")] },
-            VegaLiteLimits.Default,
-            Ct,
-            openFile: path =>
-            {
-                opened.Add(path);
-                throw denied ? new UnauthorizedAccessException("denied") : new IOException("locked");
-            });
-
-        // Act
-        var ex = Assert.Throws<VegaLiteRenderException>(() => resolver.Load("a.csv", Where));
-
-        // Assert: unreadable rather than missing, located, without the host path, and the second root was never opened
-        Assert.Contains("'a.csv' cannot be read", ex.Message, StringComparison.Ordinal);
-        Assert.DoesNotContain("not found", ex.Message, StringComparison.Ordinal);
-        Assert.DoesNotContain(directory.Path, ex.Message, StringComparison.Ordinal);
-        Assert.Equal(Where, ex.Location);
-        Assert.Equal([Path.GetFullPath(directory.Combine("base/a.csv"))], opened);
-    }
-
-    /// <summary>
-    ///     Validates that a file that is reported missing by the open itself (it vanished, or the existence probe could
-    ///     not see it) is a missing candidate: the next root is tried, in base-directory-then-data-path order.
-    /// </summary>
-    [Fact]
-    public void DataFileResolver_Load_FileNotFoundFromOpenIsMissingAndTriesNextRoot()
-    {
-        // Arrange: the file exists everywhere, but the open of the first root's file reports "not found" (a race)
-        using var directory = new DataTempDirectory();
-        directory.Write("base/a.csv", "from base");
-        directory.Write("two/a.csv", "from two");
-        var opened = new List<string>();
-        var resolver = new DataFileResolver(
-            new VegaLiteOpenOptions { BaseDirectory = directory.Combine("base"), DataPaths = [directory.Combine("two")] },
-            VegaLiteLimits.Default,
-            Ct,
-            openFile: path =>
-            {
-                opened.Add(path);
-                return path == Path.GetFullPath(directory.Combine("base/a.csv"))
-                    ? throw new FileNotFoundException("gone")
-                    : new MemoryStream(Encoding.UTF8.GetBytes("from two"));
-            });
-        var onlyMissing = new DataFileResolver(
-            new VegaLiteOpenOptions { BaseDirectory = directory.Combine("base") },
-            VegaLiteLimits.Default,
-            Ct,
-            openFile: _ => throw new DirectoryNotFoundException("gone"));
-
-        // Act
-        var file = resolver.Load("a.csv", Where);
-        var missing = Assert.Throws<VegaLiteRenderException>(() => onlyMissing.Load("a.csv", Where));
-
-        // Assert: the next root supplied the file after the first was tried; with no other root it is "not found"
-        Assert.Equal("from two", file.Text);
-        Assert.Equal([Path.GetFullPath(directory.Combine("base/a.csv")), Path.GetFullPath(directory.Combine("two/a.csv"))], opened);
-        Assert.Contains("'a.csv' was not found", missing.Message, StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    ///     Validates that a final component that no existence probe can see is left to the open attempt: a real missing
-    ///     file is still "not found", and the open is attempted rather than skipped.
-    /// </summary>
-    [Fact]
-    public void DataFileResolver_Load_MissingFinalComponentIsDecidedByTheOpen()
-    {
-        // Arrange: an existing directory without the file; the opener records the attempt and delegates to the file system
-        using var directory = new DataTempDirectory();
-        Directory.CreateDirectory(directory.Combine("root/sub"));
-        var opened = new List<string>();
-        var resolver = new DataFileResolver(
-            new VegaLiteOpenOptions { BaseDirectory = directory.Combine("root") },
-            VegaLiteLimits.Default,
-            Ct,
-            openFile: path =>
-            {
-                opened.Add(path);
-                return new FileStream(path, FileMode.Open, FileAccess.Read);
-            });
-
-        // Act
-        var final = Assert.Throws<VegaLiteRenderException>(() => resolver.Load("sub/none.csv", Where));
-        var intermediate = Assert.Throws<VegaLiteRenderException>(() => resolver.Load("absent/none.csv", Where));
-
-        // Assert: both are "not found"; only the missing final component reached the open (a missing directory did not)
-        Assert.Contains("'sub/none.csv' was not found", final.Message, StringComparison.Ordinal);
-        Assert.Contains("'absent/none.csv' was not found", intermediate.Message, StringComparison.Ordinal);
-        Assert.Equal([Path.GetFullPath(directory.Combine("root/sub/none.csv"))], opened);
-    }
-
-    /// <summary>
     ///     Validates that each candidate is requested at most once per call: a file that is loaded again comes from the
     ///     cache and a miss is remembered too.
     /// </summary>
@@ -360,35 +257,79 @@ public class DataFileResolverTests
     }
 
     /// <summary>
-    ///     Validates that every file system component is probed once however often files below it are loaded (the cache
-    ///     also covers the file system mode).
+    ///     Validates that a real file is read once per call however often it is loaded (the cache also covers the
+    ///     file system mode): a change made after the first read is not seen by the second load.
     /// </summary>
     [Fact]
     public void DataFileResolver_Load_FileSystemFilesAreCachedPerCall()
     {
-        // Arrange: a probe that records its questions
+        // Arrange
         using var directory = new DataTempDirectory();
         directory.Write("root/d/a.csv", "a");
-        var asked = new List<string>();
-        var resolver = new DataFileResolver(
-            new VegaLiteOpenOptions { BaseDirectory = directory.Combine("root") },
-            VegaLiteLimits.Default,
-            Ct,
-            path =>
-            {
-                asked.Add(Path.GetRelativePath(directory.Combine("root"), path).Replace('\\', '/'));
-                return false;
-            });
+        var resolver = Create(new VegaLiteOpenOptions { BaseDirectory = directory.Combine("root") });
 
         // Act
         var first = resolver.Load("d/a.csv", Where);
         File.WriteAllText(directory.Combine("root/d/a.csv"), "changed after the first read");
-        var second = resolver.Load("d/a.csv", Where);
+        var second = resolver.Load("d/./a.csv", Where);
 
-        // Assert: the second load did not read the file again and did not ask the probe again
+        // Assert: the second load (another spelling of the same file) did not read the file again
         Assert.Equal("a", first.Text);
-        Assert.Equal("a", second.Text);
-        Assert.Equal(["d", "d/a.csv"], asked);
+        Assert.Same(first, second);
+    }
+
+    /// <summary>
+    ///     Validates that every kind of sandbox refusal becomes a located render exception with the Vega-Lite wording,
+    ///     naming the path as the specification wrote it and never a host directory.
+    /// </summary>
+    /// <param name="kind">The failure kind.</param>
+    /// <param name="expected">The text the message must contain.</param>
+    [Theory]
+    [InlineData(SandboxFailureKind.EmptyPath, "The data path 'p' is not allowed: the path is empty.")]
+    [InlineData(SandboxFailureKind.OutsideRoot, "The data path 'a/b.csv' is outside the allowed directories.")]
+    [InlineData(SandboxFailureKind.ThroughLink, "The data file 'a/b.csv' passes through a link ('a'); links are not followed inside the allowed directories.")]
+    [InlineData(SandboxFailureKind.LinkCheckFailed, "The data file 'a/b.csv' cannot be checked for links and is not read.")]
+    [InlineData(SandboxFailureKind.CannotRead, "The data file 'a/b.csv' cannot be read.")]
+    [InlineData(SandboxFailureKind.TooLarge, "The data file 'a/b.csv' is larger than the limit of 10 bytes (MaxDataBytes).")]
+    [InlineData(SandboxFailureKind.InvalidRoot, "A configured data directory (BaseDirectory or DataPaths) is not a valid path.")]
+    [InlineData(SandboxFailureKind.TooManyFiles, "The chart reads more than the limit of 3 data files (MaxDataFiles); the file 'a/b.csv' was not read.")]
+    public void DataFileResolver_Translate_EverySandboxKind_ProducesLocatedWording(SandboxFailureKind kind, string expected)
+    {
+        // Arrange: a sandbox exception as the core would raise it (the host path of a file failure must never be shown)
+        var resolver = Create(new VegaLiteOpenOptions(), new VegaLiteLimits { MaxDataBytes = 10, MaxDataFiles = 3 });
+        var isPathText = kind is SandboxFailureKind.EmptyPath;
+        var detail = kind == SandboxFailureKind.ThroughLink ? "a" : null;
+        if (isPathText)
+        {
+            detail = "the path is empty";
+        }
+
+        var ex = new SandboxException(kind, isPathText ? "p" : Path.GetFullPath("host/dir/a/b.csv"), detail);
+
+        // Act
+        var translated = resolver.Translate(ex, "a/b.csv", Where);
+
+        // Assert
+        Assert.Contains(expected, translated.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("host", translated.Message, StringComparison.Ordinal);
+        Assert.Equal(Where, translated.Location);
+    }
+
+    /// <summary>
+    ///     Validates that a base directory that is not a valid path is a located failure, not a raw exception.
+    /// </summary>
+    [Fact]
+    public void DataFileResolver_Load_InvalidConfiguredDirectoryIsLocatedFailure()
+    {
+        // Arrange: a NUL character is never valid in a path
+        var resolver = Create(new VegaLiteOpenOptions { BaseDirectory = "bad\0dir" });
+
+        // Act
+        var ex = Assert.Throws<VegaLiteRenderException>(() => resolver.Load("a.csv", Where));
+
+        // Assert
+        Assert.Contains("is not a valid path", ex.Message, StringComparison.Ordinal);
+        Assert.Equal(Where, ex.Location);
     }
 
     /// <summary>
@@ -412,6 +353,9 @@ public class DataFileResolverTests
         // Assert: the message names the limit in the form the Tool recognizes, and carries the location
         Assert.Contains("the limit of 2 data files (MaxDataFiles)", over.Message, StringComparison.Ordinal);
         Assert.Equal(Where, over.Location);
+
+        // Assert: the extra file was refused before it was read - the callback was never asked for it
+        Assert.DoesNotContain("c.csv", files.Requests);
     }
 
     /// <summary>

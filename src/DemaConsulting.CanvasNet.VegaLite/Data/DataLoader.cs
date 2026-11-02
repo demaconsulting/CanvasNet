@@ -109,7 +109,6 @@ internal sealed class DataLoader
     /// <param name="specDatasets">The top-level <c>datasets</c> object of the specification, or null.</param>
     /// <param name="callerDatasets">The named datasets supplied by the caller, or null.</param>
     /// <param name="cancellationToken">A token that stops the loading.</param>
-    /// <param name="isLink">The link probe handed to the file resolver; <see langword="null"/> uses the file system. A seam for tests.</param>
     /// <param name="calendar">The calendar that reads dates without an offset and <c>date:'%fmt'</c> formats; UTC when null.</param>
     public DataLoader(
         string? sourceName,
@@ -118,7 +117,6 @@ internal sealed class DataLoader
         SpecNode? specDatasets = null,
         IReadOnlyDictionary<string, IReadOnlyList<IReadOnlyDictionary<string, object?>>>? callerDatasets = null,
         CancellationToken cancellationToken = default,
-        Func<string, bool>? isLink = null,
         TimeCalendar? calendar = null)
     {
         _sourceName = sourceName;
@@ -127,7 +125,7 @@ internal sealed class DataLoader
         _specDatasets = specDatasets;
         _callerDatasets = callerDatasets;
         _calendar = calendar ?? TimeCalendar.Utc;
-        _resolver = new DataFileResolver(openOptions ?? new VegaLiteOpenOptions(), _limits, cancellationToken, isLink);
+        _resolver = new DataFileResolver(openOptions ?? new VegaLiteOpenOptions(), _limits, cancellationToken);
     }
 
     /// <summary>

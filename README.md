@@ -61,6 +61,7 @@ load/crop/resize/save workflows.
 - 🧱 **Tile Paint** - Fill a path by repeating a pre-rendered tile bitmap at a configurable pitch
 - 🔤 **TrueType/CFF Fonts** - Load fonts and collections, extract glyph outlines, query metadata
 - 🗂️ **System Font Discovery** - Match a family/style against installed fonts, with a bundled fallback
+- 🛡️ **Sandboxed File Resolver** - Resolve untrusted relative paths to files inside chosen directories, no escapes
 - 🎬 **Rendering** - Transform-aware canvas with text and shape drawing
 - ⚡ **Span-Based** - Fast, allocation-conscious pixel and row access
 - 🔄 **Multi-Target** - Supports .NET 8, 9, and 10

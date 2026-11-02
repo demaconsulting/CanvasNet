@@ -317,8 +317,13 @@ below 1 is rendered as a translucent surface (see *Transparency, Ghosts, and Hig
 
 `include` and `use` are resolved before evaluation and only through `ScadOpenOptions`: files under `BaseDirectory`
 or a `LibraryPaths` entry, or, when a `FileResolver` callback is supplied, only that callback with no file-system
-access at all. Absolute paths, drive letters, and `..` above the root are rejected with a
-`ScadEvaluationException`, and a symbolic link or junction below a root is never followed.
+access at all. Absolute paths, drive letters, colons, control characters, and `..` above the root are rejected with a
+`ScadEvaluationException`, and a symbolic link or junction below a root is never followed (a link that points nowhere
+is refused as a link, not reported as a missing file). A file that does not exist is only a warning
+(`Can't open include file`); a file that exists but cannot be read (a directory where a file is expected, a file
+that cannot be opened, or a `FileResolver` callback that throws) is a `ScadEvaluationException` too. The checks are
+those of the core library's public `SandboxedFileResolver`, which you can also use directly (see the core library user
+guide).
 
 **Security note.** The sandbox protects against path-based escapes in a *static* file tree. It is **not a
 security boundary against a concurrent local attacker** who has write access to the included folders: the

@@ -131,8 +131,10 @@ path, and bytes that are not UTF-8 are located failures in lenient and strict mo
 remote data that is reported and never opened; sequences and named datasets (the caller's over the specification's)
 draw the pixels of the same rows inline without any report; values that an explicit `parse` cannot read are delivered
 as one `vl-data-parse-failed` warning per field after the reports of the specification; every call reads its file again;
-and the data limits fail before the scene limit is reached. The links of the sandbox are proven at the unit tier with
-an injected link probe, and real links are additional evidence there.
+and the data limits fail before the scene limit is reached. The sandbox mechanics (links, open failures, bounded
+reads) are
+proven once at the core `SandboxedFileResolver` unit with an injected link probe and open seam; this system proves that
+each refusal reaches the caller as a located error, with real links as additional evidence at the unit tier.
 
 System tests reside in `VegaLiteSystemIntegrationTests.cs` (the single-concern scenarios, one per requirement
 topic), `VegaLiteChartIntegrationTests.cs` (the fixture-driven chart scenarios),

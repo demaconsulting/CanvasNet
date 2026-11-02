@@ -94,7 +94,8 @@ sections:
               - CanvasNetVegaLite-Data-DataFileResolver-ResolverCallback
             tests:
               - DataLoader_Load_MissingLocalFileIsHardFailure
-              - DataFileResolver_Load_LinkedDirectoryIsRejectedBeforeOpen
+              - DataFileResolver_Load_HostilePathTextIsRejectedWithoutAnyAccess
+              - DataFileResolver_Translate_EverySandboxKind_ProducesLocatedWording
               - CanvasNetVegaLite_SystemIntegration_Data_MissingOrBlockedFileThrowsRenderException
 
           - id: CanvasNetVegaLite-Data-Parsing
@@ -176,7 +177,7 @@ sections:
               - DataLoader_Load_MissingLocalFileIsHardFailure
               - DataLoader_Load_MissingNamedDataIsHardFailure
               - DataFileResolver_Load_ExistingDirectoryAtFilePathIsLocatedReadFailure
-              - DataFileResolver_Load_ExistingFileOpenFailureIsLocatedReadFailure
+              - DataFileResolver_Load_CallbackStreamReadFailureIsLocated
               - DataLoader_Load_JsonLoneSurrogateStringIsLocatedUnicodeFailure
               - DataFileResolver_Load_CallbackFailureIsLocatedReadFailure
               - CanvasNetVegaLite_SystemIntegration_Data_MissingOrBlockedFileThrowsRenderException

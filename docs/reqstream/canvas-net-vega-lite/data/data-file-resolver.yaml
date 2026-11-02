@@ -3,11 +3,14 @@
 #
 # These requirements describe the design-level behavior of the DataFileResolver unit of the Data subsystem
 # (internal namespace DemaConsulting.CanvasNet.VegaLite.Data): the resolver that finds and reads the local data
-# files that a chart names with a relative data url (DataFileResolver, DataFileResolver.Paths, and the DataFile
-# record). It is the only code of the system that touches the file system or calls the caller's file callback, and
-# it enforces a sandbox: a path may only name a file under the base directory or a data path (file-system mode) or
-# a logical path handed to the caller's callback (resolver mode), no symbolic link or junction below a root is
-# followed, reads are bounded and decoded as strict UTF-8, and nothing is ever fetched from the network. Each
+# files that a chart names with a relative data url (DataFileResolver and the DataFile record). It is the only
+# code of the system that touches the file system or calls the caller's file callback, and it does so only through
+# the core sandboxed file resolver: a path may only name a file under the base directory or a data path (file-system
+# mode) or a logical path handed to the caller's callback (resolver mode), no symbolic link or junction below a root
+# is followed, reads are bounded and decoded as strict UTF-8, and nothing is ever fetched from the network. The
+# sandbox mechanics are required and verified at the core unit (CanvasNet-Files-SandboxedFileResolver-*); the
+# requirements here cover what is specific to Vega-Lite (search order, wording and location of each refusal, the
+# file limit, strict decoding). Each
 # "tests" entry cites an existing test method in the DemaConsulting.CanvasNet.VegaLite.Tests project; see
 # docs/verification/canvas-net-vega-lite/data/data-file-resolver.md for the test-evidence mapping.
 
@@ -36,38 +39,36 @@ sections:
               - id: CanvasNetVegaLite-Data-DataFileResolver-Sandbox
                 title: >-
                   The DataFileResolver unit shall confine every file access to the base directory and the
-                  data paths: it shall reject, with a VegaLiteRenderException and before any file-system
-                  access or callback request, an empty or white-space path, an absolute or rooted path, a
-                  drive or UNC path, a path containing a colon or a control character, and a path whose
-                  dot-dot segments leave the root it is combined with, while allowing dot-dot segments that
-                  stay inside the root.
+                  data paths by delegating to the core sandboxed file resolver, and shall report each of its
+                  refusals as a VegaLiteRenderException located at the data url, before any file-system
+                  access or callback request: an empty or white-space path, an absolute or rooted path, a
+                  drive or UNC path, a path containing a colon or a control character, a path whose dot-dot
+                  segments leave the root it is combined with, and a configured directory that is not a
+                  valid path, each with Vega-Lite wording that names the path as the specification wrote it
+                  and never a host directory, while allowing dot-dot segments that stay inside the root.
                 justification: |
                   A specification may come from an untrusted source; a data path must never be a way to read
-                  arbitrary files of the host.
+                  arbitrary files of the host, and the author must be told which of the documented rules the
+                  path broke.
                 tests:
                   - DataFileResolver_Load_HostilePathTextIsRejectedWithoutAnyAccess
                   - DataFileResolver_Load_DotDotInsideRootNormalizesAndEscapeIsRejected
+                  - DataFileResolver_Translate_EverySandboxKind_ProducesLocatedWording
+                  - DataFileResolver_Load_InvalidConfiguredDirectoryIsLocatedFailure
 
               - id: CanvasNetVegaLite-Data-DataFileResolver-Links
                 title: >-
                   In file-system mode the DataFileResolver unit shall refuse a file that is, or that lies
                   beneath a directory that is, a symbolic link or junction below its root, whatever the
-                  link's target, before the file is opened, shall judge a route that uses dot-dot segments
-                  on its normalized path, shall end the check at the first missing component, shall trust the
-                  root itself and everything above it, and shall fail closed (reject the file) when the link
-                  probe cannot answer.
+                  link's target and including a dangling link, by delegating to the core sandboxed file
+                  resolver, and shall report the refusal (and a link check that cannot be completed) as a
+                  VegaLiteRenderException located at the data url that names the link relative to the root.
                 justification: |
                   A link inside an allowed directory can point anywhere on the host, so a link is refused
                   instead of followed; a check that cannot be completed must never fall back to reading the
-                  file.
+                  file; the author must be able to find the offending link.
                 tests:
-                  - DataFileResolver_Load_LinkedDirectoryIsRejectedBeforeOpen
-                  - DataFileResolver_Load_LinkedFileIsRejectedBeforeOpen
-                  - DataFileResolver_Load_LinkBelowDataPathIsRejected
-                  - DataFileResolver_Load_LinkedRootAndAncestorsAreTrusted
-                  - DataFileResolver_Load_LinkAfterMissingComponentIsNotProbedAndFileIsMissing
-                  - DataFileResolver_Load_DotDotRouteThroughLinkIsJudgedOnNormalizedPath
-                  - DataFileResolver_Load_ReparseProbeFailureFailsClosed
+                  - DataFileResolver_Translate_EverySandboxKind_ProducesLocatedWording
 
               - id: CanvasNetVegaLite-Data-DataFileResolver-ResolverCallback
                 title: >-
@@ -98,8 +99,8 @@ sections:
                   (an access or I/O failure, whatever an existence check reports), as a located "cannot be
                   read" failure that is never reported as missing and that ends the search, while a file
                   that the open itself reports as not found is missing and lets the search continue with
-                  the next root; it shall open files read-only with FileShare.ReadWrite and
-                  FileShare.Delete.
+                  the next root; the file opening itself (read-only with FileShare.ReadWrite and
+                  FileShare.Delete) is delegated to the core sandboxed file resolver.
                 justification: |
                   A local data file that cannot be used must never be mistaken for an empty dataset, an
                   implicit current directory would make a chart depend on the host's working directory,
@@ -110,16 +111,13 @@ sections:
                 tests:
                   - DataFileResolver_Load_MissingFileIsHardFailure
                   - DataFileResolver_Load_ExistingDirectoryAtFilePathIsLocatedReadFailure
-                  - DataFileResolver_Load_ExistingFileOpenFailureIsLocatedReadFailure
-                  - DataFileResolver_Load_FileNotFoundFromOpenIsMissingAndTriesNextRoot
-                  - DataFileResolver_Load_MissingFinalComponentIsDecidedByTheOpen
                   - DataFileResolver_Load_StreamWithoutFileSourceThrows
 
               - id: CanvasNetVegaLite-Data-DataFileResolver-Cache
                 title: >-
                   The DataFileResolver unit shall request each distinct candidate at most once per
-                  instance, remembering a miss as well as a hit, and shall probe each file-system component
-                  at most once, so that a chart that names a file repeatedly reads it once.
+                  instance, remembering a miss as well as a hit, and shall decode each distinct file once,
+                  so that a chart that names a file repeatedly (under any spelling) reads it once.
                 justification: |
                   Repeated reads would multiply the cost of a hostile chart and let a file change between two
                   reads of one call.
@@ -132,11 +130,13 @@ sections:
                   The DataFileResolver unit shall read at most the configured number of distinct data
                   files, counting a file when it is found and not when it is requested again or does not
                   exist, accepting exactly the limit, and failing with a VegaLiteRenderException that names
-                  the limit for the first file over it, which is not read.
+                  the limit for the first file over it, which is refused by the core sandboxed file resolver
+                  before it is opened or the resolver callback is asked for it.
                 justification: |
                   The number of files bounds the work and the memory of the data stage.
                 tests:
                   - DataFileResolver_Load_MaxDataFilesAtLimitAndOneOver
+                  - DataFileResolver_Translate_EverySandboxKind_ProducesLocatedWording
 
               - id: CanvasNetVegaLite-Data-DataFileResolver-ByteLimit
                 title: >-

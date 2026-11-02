@@ -1,4 +1,5 @@
 using System.Globalization;
+using DemaConsulting.CanvasNet.Files;
 using DemaConsulting.CanvasNet.Scad.Language;
 
 namespace DemaConsulting.CanvasNet.Scad.Evaluation;
@@ -25,13 +26,16 @@ namespace DemaConsulting.CanvasNet.Scad.Evaluation;
 ///         <see cref="ScadLimits.MaxInstances"/> expanded statements are errors.
 ///     </para>
 ///     <para>
-///         <b>Sandbox.</b> Environment variables (including <c>OPENSCADPATH</c>) are never consulted. For a path text
-///         the candidates are, in order, the directory of the including file and each library path; every candidate must
-///         stay inside the root it was derived from (the base directory or a library path), absolute paths, drive
-///         letters or colons, control characters and <c>..</c> above the root are errors, and a file that is, or lies
-///         beneath, a symbolic link or junction below its root is rejected whatever the link's target. With a <see cref="ScadOpenOptions.FileResolver"/> no file
-///         system access happens at all: candidates are normalized logical paths handed to the callback. See
-///         <c>ScadFileResolver.Paths</c> for the details.
+///         <b>Sandbox.</b> Environment variables (including <c>OPENSCADPATH</c>) are never consulted. The path rules are
+///         those of the core <c>SandboxedFileResolver</c>: for a path text the candidates are, in order, the directory of
+///         the including file and each library path; every candidate must stay inside the root it was derived from (the
+///         base directory or a library path), absolute paths, drive letters or colons, control characters (C0 and C1) and
+///         <c>..</c> above the root are errors, and a file that is, or lies beneath, a symbolic link or junction below
+///         its root is rejected whatever the link's target, a dangling link included. A directory where a file is
+///         expected, a file that cannot be opened and a resolver callback that throws are errors too (never a silently
+///         missing file); only a file that does not exist is a warning. With a <see cref="ScadOpenOptions.FileResolver"/>
+///         no file system access happens at all: candidates are normalized logical paths handed to the callback. See
+///         <c>ScadFileResolver.Paths</c> for the Scad-specific part (decoding, naming and wording).
 ///     </para>
 ///     <para>
 ///         Each distinct file is read and parsed once per instance (a miss is remembered too, so the resolver callback
@@ -53,7 +57,13 @@ internal sealed partial class ScadFileResolver
     /// <summary>The cancellation token polled between files.</summary>
     private readonly CancellationToken _cancellation;
 
-    /// <summary>The loaded libraries by file key; an entry is registered before the library is expanded so libraries may use each other.</summary>
+    /// <summary>The comparer under which two file keys name the same file (platform path comparison, or ordinal for logical paths).</summary>
+    private readonly StringComparer _keyComparer;
+
+    /// <summary>The loaded files by root and key; each distinct file is parsed once per root it is reached through.</summary>
+    private readonly Dictionary<string, LoadedFile> _files;
+
+    /// <summary>The loaded libraries by root and file key; an entry is registered before the library is expanded so libraries may use each other.</summary>
     private readonly Dictionary<string, ScadSourceUnit> _libraries;
 
     /// <summary>The libraries registered but not yet expanded.</summary>
@@ -72,17 +82,23 @@ internal sealed partial class ScadFileResolver
     /// <param name="limits">The resource limits.</param>
     /// <param name="sink">The sink that receives missing-file warnings.</param>
     /// <param name="cancellation">The cancellation token, polled between files.</param>
-    /// <param name="isLink">The probe that tells whether a full path is a symbolic link or junction; <see langword="null"/> uses the file system. A seam for tests.</param>
-    public ScadFileResolver(ScadOpenOptions options, ScadLimits limits, ScadEvaluationSink sink, CancellationToken cancellation, Func<string, bool>? isLink = null)
+    public ScadFileResolver(ScadOpenOptions options, ScadLimits limits, ScadEvaluationSink sink, CancellationToken cancellation)
     {
         _options = options;
         _limits = limits;
         _sink = sink;
         _cancellation = cancellation;
-        _isLink = isLink ?? DefaultIsLink;
-        _keyComparer = options.FileResolver is null ? PlatformKeyComparer : StringComparer.Ordinal;
-        _files = new Dictionary<string, LoadedFile?>(_keyComparer);
-        _linkStates = new Dictionary<string, bool>(_keyComparer);
+        _sandbox = new SandboxedFileResolver(
+            new SandboxOptions
+            {
+                BaseDirectory = options.BaseDirectory,
+                SearchPaths = options.LibraryPaths,
+                FileResolver = options.FileResolver,
+                MaxFileBytes = MaxSourceBytes,
+            },
+            cancellation);
+        _keyComparer = _sandbox.KeyComparer;
+        _files = new Dictionary<string, LoadedFile>(_keyComparer);
         _libraries = new Dictionary<string, ScadSourceUnit>(_keyComparer);
     }
 
@@ -103,14 +119,14 @@ internal sealed partial class ScadFileResolver
         // The main file is the first entry of the include stack so that a file that includes it again is a cycle
         var unit = new ScadSourceUnit(mainName);
         var stack = new List<StackEntry> { new(MainKey(mainName), mainName ?? "(document)") };
-        ExpandInto(unit, main.Statements, CreateMainContext(), 0, stack);
+        ExpandInto(unit, main.Statements, null, 0, stack);
 
         // Libraries are expanded from a work queue (not recursively), so a long chain of libraries cannot deepen the stack
         while (_pendingLibraries.Count > 0)
         {
             var (library, file) = _pendingLibraries.Dequeue();
             _cancellation.ThrowIfCancellationRequested();
-            ExpandInto(library, file.Program.Statements, file.Context, 0, [new StackEntry(file.Key, file.Display)]);
+            ExpandInto(library, file.Program.Statements, file.Source, 0, [new StackEntry(file.Key, file.Display)]);
         }
 
         return unit;
@@ -121,16 +137,16 @@ internal sealed partial class ScadFileResolver
     /// </summary>
     /// <param name="unit">The unit being filled.</param>
     /// <param name="statements">The statements of one file.</param>
-    /// <param name="context">The directory context of that file, or <see langword="null"/> when it has none.</param>
+    /// <param name="referrer">The sandbox file the statements came from, whose directory relative directives start in, or <see langword="null"/> for the main file.</param>
     /// <param name="depth">The include nesting depth of that file (zero for a main or library file).</param>
     /// <param name="stack">The chain of files being included, outermost first.</param>
-    private void ExpandInto(ScadSourceUnit unit, IReadOnlyList<ScadStatement> statements, FileContext? context, int depth, List<StackEntry> stack)
+    private void ExpandInto(ScadSourceUnit unit, IReadOnlyList<ScadStatement> statements, SandboxedFile? referrer, int depth, List<StackEntry> stack)
     {
         foreach (var statement in statements)
         {
             if (statement is ScadDirectiveStatement directive)
             {
-                HandleDirective(unit, directive, context, depth, stack);
+                HandleDirective(unit, directive, referrer, depth, stack);
             }
             else
             {
@@ -161,10 +177,10 @@ internal sealed partial class ScadFileResolver
     /// </summary>
     /// <param name="unit">The unit being filled.</param>
     /// <param name="directive">The directive.</param>
-    /// <param name="context">The directory context of the file that contains the directive.</param>
+    /// <param name="referrer">The sandbox file that contains the directive, or <see langword="null"/> for the main file.</param>
     /// <param name="depth">The include nesting depth of that file.</param>
     /// <param name="stack">The chain of files being included.</param>
-    private void HandleDirective(ScadSourceUnit unit, ScadDirectiveStatement directive, FileContext? context, int depth, List<StackEntry> stack)
+    private void HandleDirective(ScadSourceUnit unit, ScadDirectiveStatement directive, SandboxedFile? referrer, int depth, List<StackEntry> stack)
     {
         // Without any file source the directive cannot be honored at all, which is an error rather than a skipped file
         if (!HasFileSource)
@@ -174,7 +190,7 @@ internal sealed partial class ScadFileResolver
                 directive.Location);
         }
 
-        var file = Resolve(directive, context);
+        var file = Resolve(directive, referrer);
         if (file is null)
         {
             _sink.Warn($"Can't open include file '{directive.Path}'", directive.Location);
@@ -216,7 +232,7 @@ internal sealed partial class ScadFileResolver
 
         CountInclusion(location);
         stack.Add(new StackEntry(file.Key, file.Display));
-        ExpandInto(unit, file.Program.Statements, file.Context, depth + 1, stack);
+        ExpandInto(unit, file.Program.Statements, file.Source, depth + 1, stack);
         stack.RemoveAt(stack.Count - 1);
     }
 
@@ -229,11 +245,11 @@ internal sealed partial class ScadFileResolver
     private void AttachLibrary(ScadSourceUnit unit, LoadedFile file, ScadSourceLocation location)
     {
         // The cache entry is registered before the library is expanded, so mutually using libraries terminate
-        if (!_libraries.TryGetValue(file.Key, out var library))
+        if (!_libraries.TryGetValue(file.Identity, out var library))
         {
             CountInclusion(location);
             library = new ScadSourceUnit(file.Display);
-            _libraries.Add(file.Key, library);
+            _libraries.Add(file.Identity, library);
             _pendingLibraries.Enqueue((library, file));
         }
 
@@ -258,8 +274,7 @@ internal sealed partial class ScadFileResolver
     /// <summary>
     ///     Gets a value indicating whether at least one way of finding files is configured.
     /// </summary>
-    private bool HasFileSource =>
-        _options.FileResolver is not null || _options.BaseDirectory is not null || _options.LibraryPaths.Count > 0;
+    private bool HasFileSource => _sandbox.HasSource;
 
     /// <summary>
     ///     One entry of the chain of files currently being included.
@@ -269,18 +284,15 @@ internal sealed partial class ScadFileResolver
     private sealed record StackEntry(string? Key, string Display);
 
     /// <summary>
-    ///     The directory context of a file: where its relative directives start, and the root they may not leave.
-    /// </summary>
-    /// <param name="Directory">The directory of the file (a full path, or a logical path in resolver mode).</param>
-    /// <param name="Root">The root directory the file was found under.</param>
-    private sealed record FileContext(string Directory, string Root);
-
-    /// <summary>
     ///     A file that was found, read and parsed.
     /// </summary>
     /// <param name="Key">The identity of the file (its normalized path).</param>
     /// <param name="Display">The name used in source locations.</param>
     /// <param name="Program">The parsed program.</param>
-    /// <param name="Context">The directory context for the file's own directives.</param>
-    private sealed record LoadedFile(string Key, string Display, ScadProgram Program, FileContext Context);
+    /// <param name="Source">The sandbox file, whose directory and root are the context for the file's own directives.</param>
+    private sealed record LoadedFile(string Key, string Display, ScadProgram Program, SandboxedFile Source)
+    {
+        /// <summary>Gets the identity of the file together with the root that confines it, used by the caches.</summary>
+        public string Identity => Source.Root + '\0' + Key;
+    }
 }

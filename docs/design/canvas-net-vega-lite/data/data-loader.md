@@ -85,8 +85,8 @@ drive path, or a network path) is the empty table and is never given to the reso
 
 #### Key Methods
 
-- `DataLoader(sourceName, limits, openOptions, specDatasets, callerDatasets, cancellationToken, isLink, calendar)` - creates
-  the loader and its `DataFileResolver` (`isLink` is a test seam for the link probe; `calendar` is the `TimeCalendar`
+- `DataLoader(sourceName, limits, openOptions, specDatasets, callerDatasets, cancellationToken, calendar)` - creates
+  the loader and its `DataFileResolver` (`calendar` is the `TimeCalendar`
   of the date conversions, UTC when null).
 - `Load(SpecNode? data, IReadOnlySet<string>? implicitDateFields)` - returns `DataTable.Empty` unless `data` is an
   object; selects the source by precedence and

@@ -22,8 +22,9 @@ objects, and the date formatting and parsing (a deviation from the master plan, 
   also keeps the row budget of the call for the derived tables of the row transforms and loads the sources of a `lookup`;
   see _DataLoader Unit Design_ (`data/data-loader.md`)
 - **DataFileResolver** - the internal `DataFileResolver` and `DataFile` types: finds and reads local data files
-  inside the sandbox (or through the caller's callback), as strict bounded UTF-8, with a per-call cache and the file
-  limits; see _DataFileResolver Unit Design_ (`data/data-file-resolver.md`)
+  through the core `SandboxedFileResolver` (inside the sandbox, or through the caller's callback), and adds the search
+  order, strict UTF-8 decoding, the file limit and the Vega-Lite wording of every refusal; see
+  _DataFileResolver Unit Design_ (`data/data-file-resolver.md`)
 - **DelimitedTextParser** - the internal `DelimitedTextParser`, `ParseDirectives`, `ParseFailures`, and the option and
   result records: CSV, TSV, and DSV text into rows, the `format.parse` conversions, and the per-column inference; see
   _DelimitedTextParser Unit Design_ (`data/delimited-text-parser.md`)
@@ -104,9 +105,10 @@ lenient and strict mode alike, because an empty chart would hide a broken deploy
 supported (remote data, text values, GeoJSON and TopoJSON, no source) is an empty table that the feature catalog
 reports.
 
-**Sandbox.** The resolver confines every relative path to a root (the document folder, then each data path, in
-order, or the logical root of the caller's callback), refuses a symbolic link or junction below a root, reads at most
-`MaxDataBytes` bytes of at most `MaxDataFiles` distinct files, and decodes strict UTF-8; see _DataFileResolver Unit
+**Sandbox.** The resolver asks the core `SandboxedFileResolver` to confine every relative path to a root (the document
+folder, then each data path, in order, or the logical root of the caller's callback), to refuse a symbolic link or
+junction below a root (a dangling link included), and to read at most `MaxDataBytes` bytes; the resolver itself reads at
+most `MaxDataFiles` distinct files, decodes strict UTF-8 and words each refusal; see _DataFileResolver Unit
 Design_. With a callback, nothing touches the file system, and a callback that throws or returns a failing stream is the
 same located read failure.
 

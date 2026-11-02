@@ -25,6 +25,8 @@ public class ScadFileResolverSandboxTests
         "a\0b.scad",
         "a\u0001b.scad",
         "a\u007Fb.scad",
+        "a\u0085b.scad",
+        "a\u009Fb.scad",
         "a\nb.scad",
         "../x.scad",
         "..\\x.scad",
@@ -69,6 +71,29 @@ public class ScadFileResolverSandboxTests
 
         // Act / Assert
         Assert.Throws<ScadEvaluationException>(() => LoadDirectives(options, [path]));
+    }
+
+    /// <summary>
+    ///     Validates that a file found through one root is not reused for the same physical file found through another,
+    ///     overlapping root: the root confines the file's own relative includes, so a nested <c>..</c> include must be
+    ///     judged against the root the file was found under each time.
+    /// </summary>
+    [Fact]
+    public void ScadFileResolver_Load_SameFileThroughOverlappingRoots_IsConfinedByEachRoot()
+    {
+        // Arrange: lib/a.scad includes ../x.scad (fine under the base root, outside the library root lib)
+        using var directory = new ScadTempDirectory();
+        directory.Write("lib/a.scad", "include <../x.scad>\n");
+        directory.Write("x.scad", "x = 1;\n");
+        var options = new ScadOpenOptions { BaseDirectory = directory.Path, LibraryPaths = [directory.Combine("lib")] };
+
+        // Act: through the base root first (allowed), then the same file through the library root
+        var viaBase = Load("include <lib/a.scad>\n", options);
+        var ex = Assert.Throws<ScadEvaluationException>(() => Load("include <lib/a.scad>\ninclude <a.scad>\n", options));
+
+        // Assert: the second find is confined to the library root, so its nested include is refused
+        Assert.Equal(["x"], AssignmentNames(viaBase));
+        Assert.Contains("outside the allowed directories", ex.Message, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -178,17 +203,24 @@ public class ScadFileResolverSandboxTests
     }
 
     /// <summary>
-    ///     Validates that a resolver exception is not wrapped.
+    ///     Validates that a resolver exception is a located read failure (the callback is untrusted code), that its own
+    ///     message is not copied, and that a cancellation raised by the callback passes through unchanged.
     /// </summary>
     [Fact]
-    public void ScadFileResolver_Load_ResolverException_Propagates()
+    public void ScadFileResolver_Load_ResolverException_IsLocatedReadFailure()
     {
         // Arrange
-        var options = new ScadOpenOptions { FileResolver = _ => throw new IOException("boom") };
+        var throwing = new ScadOpenOptions { FileResolver = _ => throw new IOException("boom") };
+        var canceling = new ScadOpenOptions { FileResolver = _ => throw new OperationCanceledException() };
 
-        // Act / Assert
-        var ex = Assert.Throws<IOException>(() => LoadDirectives(options, ["a.scad"]));
-        Assert.Equal("boom", ex.Message);
+        // Act
+        var ex = Assert.Throws<ScadEvaluationException>(() => LoadDirectives(throwing, ["a.scad"]));
+
+        // Assert
+        Assert.Contains("Include file 'a.scad' cannot be read", ex.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("boom", ex.Message, StringComparison.Ordinal);
+        Assert.Equal(1, ex.Location.Line);
+        Assert.Throws<OperationCanceledException>(() => LoadDirectives(canceling, ["a.scad"]));
     }
 
     /// <summary>

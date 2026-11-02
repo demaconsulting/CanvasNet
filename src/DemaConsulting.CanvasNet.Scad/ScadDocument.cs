@@ -168,10 +168,26 @@ public sealed partial class ScadDocument
         new(ScadParser.Parse(source, effective.SourceName), effective);
 
     /// <summary>
+    ///     Decodes the bytes of an included file as text with the same bounded, UTF-8 rules as a stream.
+    /// </summary>
+    /// <remarks>
+    ///     Internal so that the file resolver decodes included files with exactly the same rules as
+    ///     <see cref="ReadBounded(Stream)"/>: UTF-8 with a detected byte-order mark, and the character limit enforced.
+    /// </remarks>
+    /// <param name="bytes">The bytes of the file.</param>
+    /// <returns>The text.</returns>
+    /// <exception cref="InvalidDataException">Thrown when the text is longer than the maximum source length.</exception>
+    internal static string DecodeBounded(ReadOnlyMemory<byte> bytes)
+    {
+        using var stream = new MemoryStream(bytes.ToArray(), writable: false);
+        return ReadBounded(stream);
+    }
+
+    /// <summary>
     ///     Reads a whole stream as text, stopping with an error once the size limit is exceeded.
     /// </summary>
     /// <remarks>
-    ///     Internal so that the file resolver reads included files with exactly the same bounded, UTF-8 rules.
+    ///     Internal so that stream, file and included-file reads share exactly the same bounded, UTF-8 rules.
     /// </remarks>
     /// <param name="stream">The stream to read; it is left open.</param>
     /// <returns>The text.</returns>

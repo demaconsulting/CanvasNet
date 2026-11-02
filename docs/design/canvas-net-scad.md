@@ -175,7 +175,10 @@ project references in
   subsystem (`TrueTypeFont` and `SystemFontCatalog`, including the bundled Liberation fonts) for the font files,
   glyph lookup, outlines, advances, and kerning, and the **`Geometry`** subsystem (`Path`) for the glyph outlines
   that a font returns. Only the `ScadTextGeometry` unit of the `ScadGeometry` subsystem uses `Fonts` and
-  `Geometry`; no core API and no `InternalsVisibleTo` entry was added for it
+  `Geometry`; no core API and no `InternalsVisibleTo` entry was added for it. The `ScadEvaluation` subsystem's
+  `ScadFileResolver` unit uses the **`Files`** subsystem (`SandboxedFileResolver`, `SandboxOptions`, `SandboxedFile`,
+  `SandboxException`) for all file access of `include` and `use`; it is public core API, so no `InternalsVisibleTo`
+  entry is needed for it either
 - `CanvasNetRender3D` (its own package, `DemaConsulting.CanvasNet.Render3D`), whose scene model
   (`Scene`, `SceneNode`, `GroupNode`, `MeshNode`, `CsgNode`, `Mesh`, `Matrix4x4D`, `Vector3D`), tessellators and
   extruders (`PrimitiveTessellator`, `PolygonTriangulator`, `PolygonRegion`, `Extruder`, `ConvexHull`,
@@ -186,9 +189,11 @@ project references in
 Both are consumed as public API only and are declared as the package dependencies of
 `DemaConsulting.CanvasNet.Scad` (the package therefore pulls in both packages on every target framework); the
 public API of `CanvasNetScad` exposes the Render3D types `Scene`, `Camera`, `CameraProjection`, and
-`SceneRenderOptions` and the core `Surface`. The `ScadLanguage` and `ScadEvaluation` subsystems use neither
-system, so parsing and evaluation behave independently of both. The dependencies are modeled in the SysML2 model
-as the `usesCanvas`, `usesFonts`, `usesGeometry`, and `usesRender3D` dependencies of the `CanvasNetScad` system
+`SceneRenderOptions` and the core `Surface`. The `ScadLanguage` subsystem uses neither
+system, and the `ScadEvaluation` subsystem uses only the core `Files` subsystem (for file access) and not Render3D, so
+parsing and evaluation behave independently of Render3D. The dependencies are modeled in the SysML2 model
+as the `usesCanvas`, `usesFiles`, `usesFonts`, `usesGeometry`, and `usesRender3D` dependencies of the `CanvasNetScad`
+system
 (the model records dependencies at the system level only, as for every other satellite system); the unit that
 needs `Fonts` and `Geometry`, `ScadTextGeometry`, says so in its own design, verification, and model
 documentation.
@@ -269,10 +274,15 @@ Design_, `canvas-net-scad/scad-evaluation.md`):
 - **File-access sandbox.** `include` and `use` are resolved before evaluation, on the calling thread, and only
   through the open options: files under the base directory or a library path, or, when a resolver callback is
   supplied, **only** that callback with no file-system access at all. Environment variables are never
-  consulted. Absolute paths, drive letters, colons, control characters, and `..` above the root are rejected
+  consulted. Absolute paths, drive letters, colons, control characters (including the C1 range), and `..` above the
+  root are rejected
   with an evaluation error (and, in resolver mode, never reach the callback); a file that is, or lies beneath, a
-  symbolic link or junction below its root is refused whatever the link's target (the root itself is trusted;
-  to use linked content, add the real directory as a library path). **The sandbox is not a security boundary
+  symbolic link or junction below its root is refused whatever the link's target, a dangling link included (the root
+  itself is trusted;
+  to use linked content, add the real directory as a library path); a file that exists but cannot be read (a directory
+  in place of a file, an open failure, a callback that throws) is an evaluation error, and only a file that does not
+  exist is a warning. All of this is done by the core `SandboxedFileResolver`, which `ScadFileResolver` wraps with the
+  OpenSCAD search order, limits, decoding and wording. **The sandbox is not a security boundary
   against a concurrent local attacker:** it protects against path-based escapes in static file trees, but the check
   and the open are separate operations, so an attacker with write access to the included folders can swap a
   component for a link or junction between them, or place a hard link (which cannot be detected) to a file outside

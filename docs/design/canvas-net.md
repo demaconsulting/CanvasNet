@@ -10,7 +10,7 @@ This document provides the system-level design for CanvasNet.
 ## Architecture
 
 CanvasNet is a .NET library providing a canvas-based drawing and rendering API, following
-DEMA Consulting best practices. The system consists of six implemented subsystems:
+DEMA Consulting best practices. The system consists of seven implemented subsystems:
 
 - **Canvas subsystem** (namespace `DemaConsulting.CanvasNet.Canvas`, folder
   `src/DemaConsulting.CanvasNet/Canvas/`): the pixel-buffer primitives on which all other
@@ -83,6 +83,14 @@ DEMA Consulting best practices. The system consists of six implemented subsystem
   (measure and draw TrueType text with alignment and kerning), and the `Shapes` extension
   helpers (rectangles, rounded rectangles, circles). See _Rendering Subsystem Design_
   (`rendering.md`).
+- **Files subsystem** (namespace `DemaConsulting.CanvasNet.Files`, folder
+  `src/DemaConsulting.CanvasNet/Files/`, flat — no further nesting): sandboxed file access
+  through the public `SandboxedFileResolver` unit (with its `SandboxOptions`, `SandboxedFile`,
+  `SandboxException`, and `SandboxFailureKind` types documented inline), which turns an untrusted
+  relative path into the bytes of a file inside caller-chosen directories or a caller-supplied
+  virtual file source, refusing escapes, hostile path text, and symbolic links or junctions. `Files`
+  depends on no other subsystem and no core subsystem depends on it; the satellite systems `CanvasNetVegaLite`
+  and `CanvasNetScad` depend on it through its public API. See _Files Subsystem Design_ (`files.md`).
 
 The `Codecs` subsystem depends on the `Canvas` subsystem's `Surface` unit (constructing surfaces
 and reading/writing rows via `Surface.GetRowSpanBytes`); the `Canvas` subsystem has no dependency

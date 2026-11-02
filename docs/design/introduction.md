@@ -76,6 +76,13 @@ software items, specifically:
   `Drawing`, and `Fonts`: the transform-aware `Canvas` wrapper, `TextRenderer` (measure and draw
   TrueType text with alignment and kerning), and `Shapes` (rectangle, rounded rectangle, and
   circle helpers)
+- **Files (Subsystem)** — Sandboxed file access, with no dependency on any other subsystem (and no core subsystem
+  depends on it): the
+  `SandboxedFileResolver` unit (the public resolver plus its `SandboxOptions`, `SandboxedFile`,
+  `SandboxException`, and `SandboxFailureKind` types) that turns an untrusted relative path into the bytes of
+  a file inside caller-chosen directories (or a caller-supplied virtual file source), refusing escapes,
+  hostile path text, and symbolic links or junctions, and used by `CanvasNetVegaLite` and `CanvasNetScad`
+  for every local file
 - **CanvasNetSvg (System)** — A separate, independently-distributed software system providing
   SVG (Scalable Vector Graphics) rasterization, containing a single unit, `SvgCodec`, which
   decodes/rasterizes a subset of SVG vector documents into a `CanvasNet.Canvas.Surface`.
@@ -224,7 +231,8 @@ software items, specifically:
   glyph regions). The 2D Minkowski sum and a few other constructs are deferred and reported as
   unsupported features — see _CanvasNetScad System Design_ (`canvas-net-scad.md`) for the full
   supported/deferred boundary and its Implementation Phase Plan. `CanvasNetScad` depends on the `CanvasNet`
-  system's `Canvas` subsystem (`Surface`, `Rgba32`, `CssColor`), and, for the `text` module, on its `Fonts` (`TrueTypeFont`,
+  system's `Canvas` subsystem (`Surface`, `Rgba32`, `CssColor`), its `Files` subsystem (`SandboxedFileResolver`, for
+  `include` and `use`), and, for the `text` module, on its `Fonts` (`TrueTypeFont`,
   `SystemFontCatalog`, and the bundled Liberation fonts) and `Geometry` (`Path`, the glyph outlines) subsystems,
   and on `CanvasNetRender3D` (the scene, tessellation, and rendering API), all through their public API, and must
   never reference `CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`,
@@ -294,7 +302,7 @@ software items, specifically:
   supported; remote data is never fetched)
   — see _CanvasNetVegaLite System Design_
   (`canvas-net-vega-lite.md`) for the full supported/deferred boundary and its Implementation Phase Plan.
-  `CanvasNetVegaLite` depends on the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, and `Rendering`
+  `CanvasNetVegaLite` depends on the `CanvasNet` system's `Canvas`, `Geometry`, `Drawing`, `Fonts`, `Files`, and `Rendering`
   subsystems through their public API, and must never reference `CanvasNetCharts`, `CanvasNetSvg`, `CanvasNetPdf`,
   `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetRender3D`, or `CanvasNetScad`
 - **CanvasNetTool (System)** — A separate software system, shipped as the `DemaConsulting.CanvasNet.Tool` dotnet
@@ -361,7 +369,7 @@ diagram or the prose below.
 
 ![Software Structure](SoftwareStructureView.svg)
 
-CanvasNet is organized into six subsystems under the system level: the `Canvas` subsystem
+CanvasNet is organized into seven subsystems under the system level: the `Canvas` subsystem
 (the `Surface` unit with its `SurfaceAdjustments` and `SurfaceTransforms` parts, and the `Rgba32` and `CssColor` units,
 namespace `DemaConsulting.CanvasNet.Canvas`), the `Codecs`
 subsystem (the `BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`, `GifCodec`, `Jpeg2000Codec`, and `ImageDecoder` units,
@@ -389,7 +397,10 @@ the `CanvasNetPdf` roadmap, with no internal helpers of its own, namespace
 transform-aware `Canvas` wrapper unit,
 the `TextRenderer` unit, covering the supporting `TextAlign` and `TextMetrics` types inline, and
 the `Shapes` extension-method unit, namespace `DemaConsulting.CanvasNet.Rendering`, flat — no
-further nesting). As additional functionality is added, further subsystems and nested
+further nesting), and the `Files` subsystem (the `SandboxedFileResolver` unit, covering the public
+`SandboxOptions`, `SandboxedFile`, `SandboxException`, and `SandboxFailureKind` types inline, namespace
+`DemaConsulting.CanvasNet.Files`, flat — no further nesting). As additional functionality is added, further
+subsystems and nested
 subsystems would organize related units and provide architectural boundaries with well-defined
 interfaces and responsibilities.
 
@@ -644,6 +655,14 @@ src/DemaConsulting.CanvasNet/
 │   ├── SvgArcConverter.cs         — SVG-style elliptical arc to cubic Bezier conversion
 │   ├── CornerRoundEffect.cs       — Replaces polyline corners with tangent circular arcs
 │   └── NamespaceDoc.cs            — Namespace-level XML documentation
+├── Files/
+│   ├── SandboxedFileResolver.cs       — Public sandboxed resolver: search order, bounded read, callback mode, cache
+│   ├── SandboxedFileResolver.Paths.cs — Path-text rules, root confinement, and the link walk
+│   ├── SandboxOptions.cs              — Public options: base directory, search paths, callback, byte limit
+│   ├── SandboxedFile.cs               — Public result: key, directory, root, and bytes of a resolved file
+│   ├── SandboxException.cs            — Public exception carrying the failure kind, path, and detail
+│   ├── SandboxFailureKind.cs          — Public enumeration of the reasons a path or file is refused
+│   └── NamespaceDoc.cs                — Namespace-level XML documentation
 └── Rendering/
     ├── Canvas.cs                   — Transform-aware Save/Restore/Translate/RotateDegrees wrapper
     ├── TextAlign.cs                — Text horizontal-alignment enumeration

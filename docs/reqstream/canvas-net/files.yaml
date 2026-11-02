@@ -1,0 +1,112 @@
+---
+# Software Subsystem Requirements for Files
+#
+# These requirements decompose the CanvasNet system's sandboxed file access into the Files subsystem's own
+# responsibility: resolving an untrusted relative path to the bytes of a file that lies inside caller-chosen
+# directories (or a caller-supplied virtual file source), refusing everything else, and reporting each refusal in
+# a form a caller can map to its own error type (the SandboxedFileResolver unit and its supporting types). Each
+# requirement here links down to the unit requirements that implement it.
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Files Requirements
+        requirements:
+          - id: CanvasNet-Files-Resolution
+            title: >-
+              The Files subsystem shall resolve a relative path against a base directory, additional search
+              paths, or the directory of a previously resolved file, taking the first file that exists,
+              treating every spelling of a path as one file, reading each distinct file once per resolver,
+              and reporting a path that names no file as no file rather than a failure.
+            justification: |
+              Hosts and libraries that read files named by untrusted text need one deterministic search
+              order and a clear distinction between "not there" and "refused".
+            children:
+              - CanvasNet-Files-SandboxedFileResolver-Resolution
+              - CanvasNet-Files-SandboxedFileResolver-MissingFiles
+              - CanvasNet-Files-SandboxedFileResolver-Cache
+            tests:
+              - SandboxedFileResolver_Resolve_RelativePathUsesBaseDirectoryThenSearchPaths
+              - SandboxedFileResolver_Resolve_MissingFileReturnsNullAndNoSourceHasNone
+              - SandboxedFileResolver_Resolve_CacheRequestsEachCandidateOncePerResolver
+
+          - id: CanvasNet-Files-Confinement
+            title: >-
+              The Files subsystem shall confine every file access to the configured directories: it shall
+              reject an empty, absolute, rooted, drive, UNC, colon, or control-character path and a path that
+              leaves the root it is derived from, before any file-system access or callback request, while
+              allowing dot-dot segments that stay inside the root.
+            justification: |
+              A path may come from an untrusted source and must never become a way to read arbitrary files of
+              the host.
+            children:
+              - CanvasNet-Files-SandboxedFileResolver-PathText
+              - CanvasNet-Files-SandboxedFileResolver-Confinement
+            tests:
+              - SandboxedFileResolver_Resolve_HostilePathTextIsRejectedWithoutAnyAccess
+              - SandboxedFileResolver_Resolve_DotDotInsideRootNormalizesAndEscapeIsRejected
+
+          - id: CanvasNet-Files-LinkRefusal
+            title: >-
+              The Files subsystem shall refuse a file that is, or lies beneath, a symbolic link or junction
+              below its root, whatever the link's target and including a dangling link, shall trust the root
+              itself, and shall fail closed whenever it cannot decide.
+            justification: |
+              A link inside an allowed directory can point anywhere on the host; refusing links is simpler
+              and safer than resolving them.
+            children:
+              - CanvasNet-Files-SandboxedFileResolver-Links
+            tests:
+              - SandboxedFileResolver_Resolve_LinkedDirectoryIsRejectedBeforeOpen
+              - SandboxedFileResolver_Resolve_MissingFinalComponentIsProbedAndDanglingLinkIsRejected
+              - SandboxedFileResolver_Resolve_ProbeFailureFailsClosed
+
+          - id: CanvasNet-Files-ResolverCallback
+            title: >-
+              The Files subsystem shall, when a file resolver callback is supplied, obtain files only from that
+              callback (never touching the file system), hand it only normalized logical paths, and turn every
+              failure of the callback or its stream into a sandbox failure while letting a cancellation pass
+              through.
+            justification: |
+              Hosts that serve files from memory, archives, or a database need complete control of file access,
+              and the callback is untrusted code whose failures must not leak as raw exceptions.
+            children:
+              - CanvasNet-Files-SandboxedFileResolver-ResolverCallback
+            tests:
+              - SandboxedFileResolver_Resolve_ResolverModeUsesNormalizedLogicalPathsWithoutFileSystem
+              - SandboxedFileResolver_Resolve_CallbackFailureIsCannotReadAndCancellationPassesThrough
+
+          - id: CanvasNet-Files-BoundedReading
+            title: >-
+              The Files subsystem shall read a file with shared access, never reporting an unreadable file as
+              missing, within a configured byte limit that also stops a stream that never ends and an optional
+              limit on the number of distinct files that refuses the file beyond it before it is opened, and
+              shall stop when the cancellation token is canceled.
+            justification: |
+              Files are untrusted input; an unbounded read would exhaust memory, so would an unbounded number of
+              files, an inaccessible file must not be mistaken for a missing one, and callers need to abandon
+              slow reads.
+            children:
+              - CanvasNet-Files-SandboxedFileResolver-Reading
+              - CanvasNet-Files-SandboxedFileResolver-SizeLimit
+              - CanvasNet-Files-SandboxedFileResolver-FileLimit
+              - CanvasNet-Files-SandboxedFileResolver-Cancellation
+            tests:
+              - SandboxedFileResolver_Resolve_ExistingFileOpenFailureIsCannotRead
+              - SandboxedFileResolver_Resolve_MaxFileBytesAtLimitAndOneOver
+              - SandboxedFileResolver_Resolve_MaxFilesAtLimitAndOneOver
+              - SandboxedFileResolver_Resolve_CanceledTokenStopsBeforeAnyRequest
+
+          - id: CanvasNet-Files-FailureReporting
+            title: >-
+              The Files subsystem shall report every refusal and read failure as a SandboxException that
+              carries a failure kind, the path concerned, and a kind-specific detail, never discloses a host
+              directory in its message, and shall reject invalid configuration immediately.
+            justification: |
+              Callers must be able to map a refusal to their own error type, wording, and location without
+              parsing text, and must be able to show it to the author of an untrusted path safely.
+            children:
+              - CanvasNet-Files-SandboxedFileResolver-Failures
+            tests:
+              - SandboxException_Constructor_EveryKind_KeepsFactsAndHidesHostPath
+              - SandboxedFileResolver_Constructor_InvalidArguments_Throw

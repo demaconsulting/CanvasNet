@@ -119,7 +119,8 @@ public sealed class VegaLiteLimits
     /// </summary>
     /// <remarks>
     ///     Counted per measure or render call: each distinct file that is found counts once however often the chart
-    ///     refers to it, a file that does not exist does not count, and the file that would exceed the limit is not read.
+    ///     refers to it, and a file that does not exist does not count. Once the limit is reached, a file that has not
+    ///     been read yet is refused before it is opened or the resolver callback is asked for it.
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is less than one.</exception>
     public int MaxDataFiles
