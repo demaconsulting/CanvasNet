@@ -29,8 +29,10 @@ software items, specifically:
 
 - **CanvasNet (System)** — The complete .NET library system
 - **Canvas (Subsystem)** — Pixel-buffer primitives: the `Surface` unit (mutable, in-memory
-  32-bit RGBA pixel buffer with span-based row access) with its `SurfaceAdjustments` (tone and color adjustments) and
-  `SurfaceTransforms` (flip, pad, trim, fit, and flatten) parts, the `Rgba32` unit, and the `CssColor` unit
+  32-bit RGBA pixel buffer with span-based row access) with its `SurfaceAdjustments` (tone and color adjustments),
+  `SurfaceTransforms` (flip, EXIF orientation, pad, trim, fit, and flatten), `SurfaceGeometry` (rotation by any angle
+  and skew estimation), `SurfaceComparison` (metrics, grid, and difference pictures), and `SurfaceAnalysis` (dominant
+  colors, luma statistics, and pixel samples) parts, the `Rgba32` unit, and the `CssColor` unit
   (the shared CSS color parser)
 - **Codecs (Subsystem)** — Image format codecs: `BmpCodec`, `PngCodec`, `TiffCodec`, and
   `JpegCodec`, each converting to and from a `Surface` pixel buffer; `GifCodec`, a decode-only
@@ -317,11 +319,12 @@ software items, specifically:
   models, and Vega-Lite charts, the `ImagePipeline` unit, which crops, resizes, fits, rotates by any angle, flips,
   pads, adjusts, deskews,
   trims, and grids pixels in the order the options
-  were written, the `ImageGeometry`, `GridOverlay`, and `ImageAnalysis` units, which do the
-  rotation, grid, and measurement work for it (the flip, pad, trim, and tone arithmetic is the core library's
+  were written, the `GridOverlay` unit, which does the
+  grid work for it (the flip, pad, trim, tone, rotation, skew, and analysis arithmetic is the core library's
   `Surface`), the `ImageWriter`
-  unit, which writes PNG, JPEG, BMP, and TIFF files, the `ImageComparison` unit, which measures how much two images
-  differ and draws the differences, and the `ContactSheet` unit, which composes images into a labeled sheet). It uses
+  unit, which writes PNG, JPEG, BMP, and TIFF files, the `ImageComparison` unit, which checks how two images
+  compare (measured by the core library's `Surface`) against thresholds, and the `ContactSheet` unit, which composes
+  images into a labeled sheet). It uses
   the other systems of this repository through private project references, so that their assemblies are bundled
   into the tool package — see _CanvasNetTool System Design_ (`canvas-net-tool.md`)
 
@@ -362,7 +365,8 @@ diagram or the prose below.
 ![Software Structure](SoftwareStructureView.svg)
 
 CanvasNet is organized into six subsystems under the system level: the `Canvas` subsystem
-(the `Surface` unit with its `SurfaceAdjustments` and `SurfaceTransforms` parts, and the `Rgba32` and `CssColor` units,
+(the `Surface` unit with its `SurfaceAdjustments`, `SurfaceTransforms`, `SurfaceGeometry`, `SurfaceComparison`, and
+`SurfaceAnalysis` parts, and the `Rgba32` and `CssColor` units,
 namespace `DemaConsulting.CanvasNet.Canvas`), the `Codecs`
 subsystem (the `BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`, `GifCodec`, `Jpeg2000Codec`, and `ImageDecoder` units,
 namespace `DemaConsulting.CanvasNet.Codecs`, flat — no further nesting), the
@@ -509,10 +513,10 @@ grammar, the JSON result documents, the self-validation, and the safe path helpe
 `resize`, `rotate`, `flip`, `pad`, `compare`, `montage`, and `inspect`
 commands), and its `Imaging` subsystem (namespace
 `DemaConsulting.CanvasNet.Tool.Imaging`) holds the `SourceLoader`, `ImagePipeline`, `ImageWriter`, `ImageComparison`,
-`ContactSheet`, `ImageGeometry`, `GridOverlay`, and `ImageAnalysis` units that turn files into
-pixels, transform pixels (rotation by any angle, deskew, and grid, over the core library's flip, pad, trim, and tone
-operations), turn pixels into files, compare two
-images, compose a contact sheet, and measure colors and pixels. It uses the `CanvasNet`, `CanvasNetSvg`,
+`ContactSheet`, and `GridOverlay` units that turn files into
+pixels, transform pixels (grid, and the ordered operations over the core library's flip, pad, trim, tone, rotation, and
+skew operations), turn pixels into files, check the comparison of two
+images against thresholds, and compose a contact sheet. It uses the `CanvasNet`, `CanvasNetSvg`,
 `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetRender3D`, `CanvasNetScad`, and `CanvasNetVegaLite` systems
 through their public API and bundles their assemblies in its package. No library system references the tool. See the
 Folder Layout section below and _CanvasNetTool System Design_ (`canvas-net-tool.md`).
@@ -528,8 +532,20 @@ src/DemaConsulting.CanvasNet/
 │   ├── Surface.cs               — Mutable, in-memory 32-bit RGBA pixel buffer
 │   ├── Surface.Adjustments.cs   — SurfaceAdjustments: luma, grayscale, invert, thresholds, levels, brightness,
 │   │                                contrast, and auto-levels (partial class of Surface)
-│   ├── Surface.Transforms.cs    — SurfaceTransforms: flip, pad, trim, fit into a box, flatten, and the
-│   │                                transparency test (partial class of Surface)
+│   ├── Surface.Transforms.cs    — SurfaceTransforms: flip, EXIF orientation, pad, trim, fit into a box, flatten,
+│   │                                and the transparency test (partial class of Surface)
+│   ├── Surface.Geometry.cs      — SurfaceGeometry: rotation by any angle and the rotated size (partial class of
+│   │                                Surface)
+│   ├── Surface.Skew.cs          — SurfaceGeometry: skew estimation (partial class of Surface)
+│   ├── SkewEstimate.cs          — Public record of the estimated skew, its thresholds, and its correction
+│   ├── Surface.Comparison.cs    — SurfaceComparison: metrics, structural similarity, and grid (partial class of
+│   │                                Surface)
+│   ├── Surface.ComparisonImages.cs — SurfaceComparison: the difference, overlay, and side-by-side pictures
+│   ├── ComparisonResult.cs      — Public comparison result records (metrics, cells, result)
+│   ├── DiffStyle.cs             — Public enum of the difference picture styles
+│   ├── Surface.Analysis.cs      — SurfaceAnalysis: dominant colors, luma statistics, and pixel samples (partial
+│   │                                class of Surface)
+│   ├── SurfaceStatistics.cs     — Public analysis result records (colors, luma, samples)
 │   ├── FitMode.cs               — Public enum of the box-fit modes of Surface.FitInto
 │   ├── ResamplingMode.cs        — Public enum of resampling filters for Resize/ResizeToFit
 │   ├── SurfaceResampler.cs      — Internal box-reduction prefilter and bilinear samplers
@@ -555,7 +571,7 @@ src/DemaConsulting.CanvasNet/
 │   │                                public API entry point, partial-class implementation
 │   │                                continues under `Jpeg/`
 │   ├── Jpeg/                     — `JpegCodec` partial-class implementation files (decoder,
-│   │                                scan decoding, encoder, Huffman, DCT)
+│   │                                scan decoding, encoder, Huffman, DCT, EXIF orientation)
 │   ├── GifCodec.cs               — Decode-only, first-frame-only GIF loader; public API entry
 │   │                                point, partial-class implementation continues under `Gif/`
 │   ├── Gif/                      — `GifCodec` partial-class implementation files (decode, LZW)
@@ -1326,15 +1342,10 @@ src/DemaConsulting.CanvasNet.Tool/
     ├── SourceLoader.Pptx.cs       — SourceLoader: PowerPoint presentations
     ├── SourceLoader.Vsdx.cs       — SourceLoader: Visio drawings
     ├── SourceLoader.Scad.cs       — SourceLoader: OpenSCAD models drawn from a named view
-    ├── ExifOrientation.cs         — SourceLoader: the EXIF orientation reader and transform
     ├── ImageOperations.cs         — ImagePipeline: the operation records (crop, resize, fit, rotate, flip, pad, photo)
     ├── ImagePipeline.cs           — ImagePipeline: parsing the ordered operations and applying them to a surface
-    ├── ImageGeometry.cs           — ImageGeometry: rotation by any angle and the rotated size
-    ├── ImageGeometry.Deskew.cs    — ImageGeometry: skew estimation for deskew
     ├── GridOverlay.cs             — GridOverlay: the labeled coordinate grid, drawn with the bundled font
-    ├── ImageAnalysis.cs           — ImageAnalysis: dominant colors, luma statistics, and pixel samples
-    ├── ImageComparison.cs         — ImageComparison: error metrics, structural similarity, grid, and thresholds
-    ├── ImageComparison.Images.cs  — ImageComparison: the difference, overlay, and side-by-side pictures
+    ├── ImageComparison.cs         — ImageComparison: the thresholds of a comparison and the defaults of its options
     ├── ContactSheet.cs            — ContactSheet: layout and composition of a contact sheet, with bundled-font labels
     └── ImageWriter.cs             — ImageWriter: PNG, JPEG, BMP, and TIFF output, atomic and with the overwrite policy
 ```

@@ -25,7 +25,9 @@ namespace DemaConsulting.CanvasNet.Tool.Commands;
 ///         the error <c>size-mismatch</c>.
 ///     </para>
 ///     <para>
-///         <see cref="ImageComparison"/> computes the metrics, the per-cell grid, and the pictures. The pictures are
+///         <see cref="Surface.Compare"/> computes the metrics and the per-cell grid and <see cref="Surface.CreateDiff"/>,
+///         <see cref="Surface.CreateOverlay"/>, and <see cref="Surface.CreateSideBySide"/> the pictures;
+///         <see cref="ImageComparison"/> checks the thresholds. The pictures are
 ///         encoded to temporary files first and moved into place only when every one was encoded, like the pages of
 ///         <c>render</c>. A threshold that is not met does not stop the result from being written: the command writes
 ///         the pictures and the result, and then fails with the expected error <c>threshold-failed</c> (exit code 1);
@@ -132,10 +134,10 @@ internal sealed partial class CompareCommand : ICommand
                 "Use a grid with at most one cell per pixel.");
         }
 
-        var result = ImageComparison.Compare(a.Surface!, b.Surface!, settings.Tolerance, settings.GridColumns, settings.GridRows);
+        var result = a.Surface!.Compare(b.Surface!, settings.Tolerance, settings.GridColumns, settings.GridRows);
         var checks = ImageComparison.Evaluate(result, settings.Thresholds);
 
-        var outputs = WriteOutputs(settings, requested, a.Surface!, b.Surface!);
+        var outputs = WriteOutputs(settings, requested, a.Surface, b.Surface!);
 
         var failed = checks.Where(check => !check.Passed).ToList();
         if (context.Json && failed.Count == 0)
@@ -484,14 +486,14 @@ internal sealed partial class CompareCommand : ICommand
         switch (kind)
         {
             case "diff":
-                return ImageComparison.CreateDiff(a, b, settings.DiffStyle, settings.Gain);
+                return a.CreateDiff(b, settings.DiffStyle, settings.Gain);
             case "overlay":
-                return ImageComparison.CreateOverlay(a, b, settings.OverlayWeight);
+                return a.CreateOverlay(b, settings.OverlayWeight);
             default:
                 // The third panel of a side-by-side picture is always the heat map
-                using (var heat = ImageComparison.CreateDiff(a, b, DiffStyle.Heat, settings.Gain))
+                using (var heat = a.CreateDiff(b, DiffStyle.Heat, settings.Gain))
                 {
-                    return ImageComparison.CreateSideBySide(a, b, heat);
+                    return a.CreateSideBySide(b, heat);
                 }
         }
     }

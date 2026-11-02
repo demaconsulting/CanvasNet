@@ -1,43 +1,16 @@
 // cspell:ignore deskew luma
-using DemaConsulting.CanvasNet.Canvas;
-
-namespace DemaConsulting.CanvasNet.Tool.Imaging;
+namespace DemaConsulting.CanvasNet.Canvas;
 
 /// <summary>
-///     The estimated skew of a surface.
+///     The skew estimation of <see cref="Surface"/>: the angle by which the dominant near-horizontal structure of a
+///     scanned or photographed page is tilted, so that <see cref="RotateArbitrary(double, Rgba32, bool)"/> can level it.
 /// </summary>
-/// <param name="Degrees">
-///     The skew in degrees, in hundredths of a degree from -15 to 15; positive means the dominant near-horizontal
-///     structure descends to the right (it is turned clockwise), so rotating the image by the negative of it, clockwise,
-///     levels it. 0 when <paramref name="Estimated"/> is <see langword="false"/>.
-/// </param>
-/// <param name="Confidence">
-///     How much better the best angle scores than a typical one, 0 (a flat profile: no line structure) to just below 1
-///     (a very strong line structure), rounded to 3 decimals; 0 when <paramref name="Estimated"/> is <see langword="false"/>.
-/// </param>
-/// <param name="Estimated"><see langword="false"/> when the image has too few dark marks to estimate anything.</param>
-internal readonly record struct SkewEstimate(double Degrees, double Confidence, bool Estimated);
-
-/// <summary>
-///     The skew estimation of <see cref="ImageGeometry"/>.
-/// </summary>
-internal static partial class ImageGeometry
+/// <remarks>
+///     The analysis works on a gray plane of at most 1024 pixels on a side, in exact integer arithmetic except for the
+///     sine and cosine, which are rounded to 2<sup>20</sup> fixed point once per angle. It never modifies the surface.
+/// </remarks>
+public sealed partial class Surface
 {
-    /// <summary>The smallest confidence at which the pipeline applies an estimated skew.</summary>
-    /// <remarks>
-    ///     Pinned with synthetic images (see the design of the unit): ruled and text-like line structure scores 0.73 to
-    ///     0.97, random strokes in every direction up to about 0.30, and random noise up to about 0.30 (only a very wide
-    ///     image, 2000 by 300, gets that high: the rectangle of the image itself favors horizontal profiles; a roughly
-    ///     square or 4:3 image gets 0.01 to 0.06).
-    /// </remarks>
-    public const double MinConfidence = 0.4;
-
-    /// <summary>The smallest skew in degrees that the pipeline corrects; a smaller estimate leaves the image unchanged.</summary>
-    public const double MinCorrectedSkew = 0.05;
-
-    /// <summary>The largest skew in degrees that is searched, in both directions.</summary>
-    public const double MaxSkewDegrees = 15.0;
-
     /// <summary>The largest side in pixels of the plane the skew is estimated on.</summary>
     private const int AnalysisSide = 1024;
 
@@ -63,14 +36,14 @@ internal static partial class ImageGeometry
     private const int BinShift = TrigBits;
 
     /// <summary>
-    ///     Estimates the skew of the dominant near-horizontal structure of a surface (text lines, table rules, sketch
+    ///     Estimates the skew of the dominant near-horizontal structure of this surface (text lines, table rules, sketch
     ///     baselines, page edges).
     /// </summary>
-    /// <param name="surface">The surface; it is not modified. Dark marks on a lighter ground are assumed (invert first for light marks on a dark ground).</param>
     /// <returns>
-    ///     The skew from -15 to 15 degrees, positive when the lines descend to the right, with a confidence. The
+    ///     The skew from -15 to 15 degrees, positive when the lines descend to the right, with a confidence; dark marks on
+    ///     a lighter ground are assumed (invert first for light marks on a dark ground). The
     ///     estimate is made on an <b>analysis plane</b>: with <c>f = ceil(max(W, H) / 1024)</c> each analysis pixel is the
-    ///     integer mean, <c>(sum + n / 2) / n</c>, of the <see cref="Surface.Luma"/> of its (possibly partial)
+    ///     integer mean, <c>(sum + n / 2) / n</c>, of the <see cref="Luma"/> of its (possibly partial)
     ///     <c>f</c> by <c>f</c> block, so transparency is flattened over white. A pixel of the plane is a <b>dark mark</b>
     ///     when <c>sum - v * count &gt;= 10 * count</c> for the window of radius 8 around it (clipped to the plane; at least
     ///     10 levels darker than the local mean, exact integers), which is immune to uneven lighting. With fewer than
@@ -83,12 +56,12 @@ internal static partial class ImageGeometry
     ///     best, then every 0.05), a higher score wins and equal scores prefer the smaller <c>|k|</c> and then the smaller
     ///     <c>k</c>. The confidence is <c>(best - median) / best</c> for the median of the 31 first-stage scores.
     /// </returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="surface"/> is <see langword="null"/>.</exception>
-    public static SkewEstimate EstimateSkew(Surface surface)
+    /// <exception cref="ObjectDisposedException">Thrown when this surface has been disposed.</exception>
+    public SkewEstimate EstimateSkew()
     {
-        ArgumentNullException.ThrowIfNull(surface);
+        ObjectDisposedException.ThrowIf(_disposed, this);
 
-        var (plane, width, height) = BuildAnalysisPlane(surface);
+        var (plane, width, height) = BuildAnalysisPlane(this);
         var (xs, ys, count) = FindDarkMarks(plane, width, height);
         if (count < Math.Max(MinForegroundCount, MinForegroundFraction * width * height))
         {

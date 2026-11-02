@@ -59,14 +59,14 @@ consists of six direct units and two subsystems:
   flattening, and the mapping of library exceptions to expected errors),
   `ImagePipeline` (the ordered crop, resize, fit, rotate by any angle, flip, pad, tone-adjustment, deskew, trim, and
   grid operations, which the `render` command, the verb commands `crop`, `resize`, `rotate`, `flip`, and `pad`, and
-  `inspect` share, delegating flip, pad, trim, and the tone adjustments to the core `Surface`),
-  `ImageGeometry` (rotation by any angle with canvas expansion and fill, and skew estimation),
-  `GridOverlay` (the labeled coordinate grid), `ImageAnalysis` (dominant colors, luma statistics, and pixel samples),
+  `inspect` share, delegating flip, pad, trim, rotation, skew estimation, and the tone adjustments to the core `Surface`),
+  `GridOverlay` (the labeled coordinate grid),
   `ImageWriter` (PNG, JPEG, BMP, and TIFF output, written atomically with the overwrite policy),
-  `ImageComparison` (the exact error metrics, the windowed structural similarity, the per-cell grid, the threshold
-  checks, and the difference, overlay, and side-by-side pictures of two images of the same size), and
+  `ImageComparison` (the threshold checks of a comparison and the defaults of its options; the exact error metrics, the
+  windowed structural similarity, the per-cell grid, and the difference, overlay, and side-by-side pictures of two images
+  of the same size are the core `Surface`'s), and
   `ContactSheet` (the layout and composition of a contact sheet, with labels drawn in the bundled font). It is a
-  subsystem because loading, transforming, analyzing, comparing, composing, and writing are separate responsibilities
+  subsystem because loading, transforming, comparing, composing, and writing are separate responsibilities
   that are reviewed and tested separately. See _Imaging Subsystem Design_ (`canvas-net-tool/imaging.md`).
 
 Dependencies inside the system are one-directional except for self-validation: `Program` calls `Context`,

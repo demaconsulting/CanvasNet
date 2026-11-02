@@ -846,7 +846,7 @@ public partial class CanvasNetToolTests
         using var stored = PngCodec.Load(directory.Combine("stored.png"));
         Assert.Equal((8, 12), (upright.Width, upright.Height));
         Assert.Equal((12, 8), (stored.Width, stored.Height));
-        using var expected = ExifOrientation.Apply(stored, 8);
+        using var expected = stored.ApplyExifOrientation(8);
         SurfaceAssert.Equal(expected, upright);
     }
 

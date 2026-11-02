@@ -470,16 +470,16 @@ public class ImagingSubsystemTests
         var options = SourceLoader.BoxOptions(svgInfo, new SourceOptions(), reference.Surface.Width, reference.Surface.Height);
         using var drawing = SourceLoader.Load(svgInfo, options);
 
-        var result = ImageComparison.Compare(reference.Surface, drawing.Surface, ImageComparison.DefaultTolerance, 2, 2);
+        var result = reference.Surface.Compare(drawing.Surface, ImageComparison.DefaultTolerance, 2, 2);
         string[] pictures = [directory.Combine($"diff-{tag}.png"), directory.Combine($"sbs-{tag}.png"), directory.Combine($"overlay-{tag}.png")];
-        using (var diff = ImageComparison.CreateDiff(reference.Surface, drawing.Surface, DiffStyle.Heat, ImageComparison.DefaultGain))
+        using (var diff = reference.Surface.CreateDiff(drawing.Surface, DiffStyle.Heat, ImageComparison.DefaultGain))
         {
             ImageWriter.Write(diff, pictures[0], raster, WriteOptions.Default);
-            using var sheet = ImageComparison.CreateSideBySide(reference.Surface, drawing.Surface, diff);
+            using var sheet = reference.Surface.CreateSideBySide(drawing.Surface, diff);
             ImageWriter.Write(sheet, pictures[1], raster, WriteOptions.Default);
         }
 
-        using (var overlay = ImageComparison.CreateOverlay(reference.Surface, drawing.Surface, ImageComparison.DefaultOverlayWeight))
+        using (var overlay = reference.Surface.CreateOverlay(drawing.Surface, ImageComparison.DefaultOverlayWeight))
         {
             ImageWriter.Write(overlay, pictures[2], raster, WriteOptions.Default);
         }
@@ -637,7 +637,7 @@ public class ImagingSubsystemTests
         // The written PNG is the transformed surface, and the straightened lines are level
         using var decoded = PngCodec.Load(output);
         SurfaceAssert.Equal(result, decoded);
-        Assert.InRange(ImageGeometry.EstimateSkew(decoded).Degrees, -0.4, 0.4);
+        Assert.InRange(decoded.EstimateSkew().Degrees, -0.4, 0.4);
     }
 
     /// <summary>

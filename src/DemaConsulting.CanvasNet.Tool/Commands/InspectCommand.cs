@@ -17,7 +17,7 @@ namespace DemaConsulting.CanvasNet.Tool.Commands;
 ///         orientation, a document page, a view of a model, a size, and a background all work), then runs the same image
 ///         pipeline (every operation of <c>render</c>, so <c>inspect colors photo.jpg --crop 100,100,50,50</c> answers
 ///         "what color is this region" and the coordinates of <c>inspect pixel</c> are those of the image after the
-///         pipeline), and finally analyzes the pixels with <see cref="ImageAnalysis"/>.
+///         pipeline), and finally analyzes the pixels with <see cref="Surface.Analyze"/> and <see cref="Surface.Sample"/>.
 ///     </para>
 ///     <para>
 ///         One registered command has two subcommands, because the registry is flat: the first positional argument is
@@ -141,7 +141,7 @@ internal sealed partial class InspectCommand : ICommand
         // over it, a drawing or a model is rendered onto it, and a rotation or a border is filled with it), so what is still
         // translucent here is analyzed over white: the reported background (a translucent one flattened over white) is then
         // exactly what a fully transparent pixel of the surface counts as, and no pixel is composited twice.
-        var statistics = ImageAnalysis.Analyze(surface, new Rgba32(255, 255, 255, 255), settings.Count);
+        var statistics = surface.Analyze(new Rgba32(255, 255, 255, 255), settings.Count);
 
         if (context.Json)
         {
@@ -191,7 +191,18 @@ internal sealed partial class InspectCommand : ICommand
     private static void RunPixel(Context context, Settings settings, LoadedSource loaded, Surface surface, IReadOnlyList<AppliedOperation> operations)
     {
         var (x, y) = settings.Point!.Value;
-        var sample = ImageAnalysis.Sample(surface, x, y, settings.Radius);
+
+        // A point outside the image is a usage error with its own code and hint, so it is checked here, before the
+        // library would refuse it with an ArgumentOutOfRangeException
+        if (x < 0 || y < 0 || x >= surface.Width || y >= surface.Height)
+        {
+            throw new ToolException(
+                ErrorCodes.UsageError,
+                $"The point {x},{y} is outside the {surface.Width}x{surface.Height} image.",
+                $"Use a point from 0,0 to {surface.Width - 1},{surface.Height - 1}.");
+        }
+
+        var sample = surface.Sample(x, y, settings.Radius);
         var pixel = sample.Pixel;
 
         if (context.Json)

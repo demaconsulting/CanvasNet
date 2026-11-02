@@ -146,7 +146,7 @@ internal static partial class SourceLoader
             // inside (the same rule as for an SVG), so that the page is never stretched
             var (boxWidth, boxHeight) = ComputeTargetSize(Info.Path, naturalWidth, naturalHeight, Options);
             var (width, height) = Options.Width != null && Options.Height != null
-                ? FitInside(naturalWidth, naturalHeight, boxWidth, boxHeight)
+                ? Surface.FitInside(naturalWidth, naturalHeight, boxWidth, boxHeight)
                 : (boxWidth, boxHeight);
 
             var operations = new List<AppliedOperation>
@@ -177,22 +177,6 @@ internal static partial class SourceLoader
                 surface.Dispose();
                 throw;
             }
-        }
-
-        /// <summary>
-        ///     Finds the largest size with the aspect ratio of a page that fits inside a box.
-        /// </summary>
-        /// <param name="width">The width of the page.</param>
-        /// <param name="height">The height of the page.</param>
-        /// <param name="boxWidth">The width of the box.</param>
-        /// <param name="boxHeight">The height of the box.</param>
-        /// <returns>The width and height of the fitted page, each at least 1 and at most the box.</returns>
-        private static (int Width, int Height) FitInside(int width, int height, int boxWidth, int boxHeight)
-        {
-            var factor = Math.Min((double)boxWidth / width, (double)boxHeight / height);
-            var fittedWidth = (int)Math.Clamp(Math.Round(width * factor, MidpointRounding.AwayFromZero), 1, boxWidth);
-            var fittedHeight = (int)Math.Clamp(Math.Round(height * factor, MidpointRounding.AwayFromZero), 1, boxHeight);
-            return (fittedWidth, fittedHeight);
         }
 
         /// <summary>

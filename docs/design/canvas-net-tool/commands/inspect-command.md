@@ -9,7 +9,8 @@
 `InspectCommand` is the `inspect` command with its two subcommands: `inspect colors` reports the dominant colors and the
 luma statistics of an image, `inspect pixel` reports the pixel at a point and, optionally, the pixels around it. Its
 single responsibility is to turn a command line into one pass of probe, load, transform, analyze, and report; the
-loading is `SourceLoader`, the transformation is `ImagePipeline`, and the measuring is `ImageAnalysis`. The command is
+loading is `SourceLoader`, the transformation is `ImagePipeline`, and the measuring is the core `Surface` (`Analyze` and
+`Sample`). The command is
 **read-only**: it writes no file, so it has no output option, no format, no overwrite policy, and no same-file check.
 The unit is the partial class `InspectCommand` in `InspectCommand.cs` (the run and the results) and
 `InspectCommand.Options.cs` (the option table and the reading of the settings). The command has no alias.
@@ -33,7 +34,7 @@ model, and the image pipeline with the photo tools), then `--count <N>` (the des
 `--radius <R>` (the description starts `pixel:`). An output option is therefore an unknown option.
 
 **Settings** (record): the subcommand, the input path, the `SourceOptions`, the `Operations` of the image pipeline, the
-count (default `ImageAnalysis.DefaultColors`, 8), the radius (default 0), and the point (`null` for `colors`).
+count (default `InspectCommand.DefaultColors`, 8), the radius (default 0), and the point (`null` for `colors`).
 
 #### Key Methods
 
@@ -60,7 +61,7 @@ model is rendered onto it, a rotation or a border is filled with it), so a pixel
 is none, and a translucent `--background` flattened over white (`(c * a + 255 * (255 - a) + 127) / 255` per channel;
 `--background transparent` is white).
 
-**inspect colors**: `ImageAnalysis.Analyze(surface, background, count)`. Text, two lines:
+**inspect colors**: `surface.Analyze(background, count)`. Text, two lines:
 
 ```text
 colors of napkin.jpg (4032x3024): #F2EFE6 71.23%, #2B2A2A 9.10%, #8A7F6B 4.00%
@@ -74,8 +75,9 @@ culture). JSON (one line, this key order): `schemaVersion`, `ok`, `command`, `su
 `pixels`), `background` (the color used), `colors` (an array of `hex`, `r`, `g`, `b`, `pixels`, `fraction`), `luma`
 (`mean`, `min`, `max`, `p1`, `p50`, `p99`, `otsu`, `histogram` with 16 counts), `diagnostics`, and `echo`.
 
-**inspect pixel**: `ImageAnalysis.Sample(surface, x, y, radius)`; a point outside the image is the `usage-error` of that
-method, naming the point and the image size. Text, one line, and a second line with a radius:
+**inspect pixel**: a point outside the image is the `usage-error` of the command, naming the point and the image size
+(checked before the core `Surface.Sample` would refuse it with an `ArgumentOutOfRangeException`), then
+`surface.Sample(x, y, radius)`. Text, one line, and a second line with a radius:
 
 ```text
 pixel 10,20 of napkin.jpg (4032x3024): #A1B2C3 rgb(161,178,195) alpha 255 luma 176
@@ -104,7 +106,8 @@ arguments throw `ArgumentNullException`. The registry records the command name o
 - **Context** - the `Json` flag and `WriteLine`.
 - **Program** - the tool version for the JSON result.
 - **RenderCommand** - the option table, `ReadSourceOptions`, `ScadOptionNames`, and `WriteField`.
-- **SourceLoader** and **ImagePipeline** and **ImageAnalysis** (Imaging) - loading, transforming, and measuring.
+- **SourceLoader** and **ImagePipeline** (Imaging) and the core **Surface** (`Analyze`, `Sample`) - loading,
+  transforming, and measuring.
 - **CommandRegistry** - the edit distance that suggests a subcommand.
 
 #### Callers

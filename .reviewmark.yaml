@@ -171,7 +171,67 @@ reviews:
       - "src/DemaConsulting.CanvasNet/Canvas/Surface.Transforms.cs"  # unit source
       - "src/DemaConsulting.CanvasNet/Canvas/FitMode.cs"             # public fit mode enum
       - "test/DemaConsulting.CanvasNet.Tests/Canvas/SurfaceTransformsTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Canvas/SurfaceExifOrientationTests.cs"  # EXIF orientation unit tests
       - "test/DemaConsulting.CanvasNet.Tests/TestSupport/SurfaceAssert.cs"  # shared test helper
+
+  # CanvasNet-Canvas-SurfaceGeometry Review (one per unit)
+  - id: CanvasNet-Canvas-SurfaceGeometry
+    title: Review that CanvasNet Canvas SurfaceGeometry Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+      - "docs/design/canvas-net/canvas.md"
+      - "docs/reqstream/canvas-net/canvas.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/canvas/surface-geometry.yaml"   # unit requirements
+      - "docs/design/canvas-net/canvas/surface-geometry.md"        # unit design
+      - "docs/verification/canvas-net/canvas/surface-geometry.md"  # unit verification
+      - "docs/sysml2/model/canvas-net/canvas/surface-geometry.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet/Canvas/Surface.Geometry.cs"  # unit source (rotation)
+      - "src/DemaConsulting.CanvasNet/Canvas/Surface.Skew.cs"      # unit source (skew estimation)
+      - "src/DemaConsulting.CanvasNet/Canvas/SkewEstimate.cs"      # public skew estimate record
+      - "test/DemaConsulting.CanvasNet.Tests/Canvas/SurfaceGeometryTests.cs"  # rotation unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/Canvas/SurfaceSkewTests.cs"      # skew unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/TestSupport/ImageFixtures.cs"    # shared test fixtures (sketch photo)
+      - "test/DemaConsulting.CanvasNet.Tests/TestSupport/SurfaceAssert.cs"    # shared test helper
+
+  # CanvasNet-Canvas-SurfaceComparison Review (one per unit)
+  - id: CanvasNet-Canvas-SurfaceComparison
+    title: Review that CanvasNet Canvas SurfaceComparison Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+      - "docs/design/canvas-net/canvas.md"
+      - "docs/reqstream/canvas-net/canvas.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/canvas/surface-comparison.yaml"   # unit requirements
+      - "docs/design/canvas-net/canvas/surface-comparison.md"        # unit design
+      - "docs/verification/canvas-net/canvas/surface-comparison.md"  # unit verification
+      - "docs/sysml2/model/canvas-net/canvas/surface-comparison.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet/Canvas/Surface.Comparison.cs"        # unit source (metrics and grid)
+      - "src/DemaConsulting.CanvasNet/Canvas/Surface.ComparisonImages.cs"  # unit source (pictures)
+      - "src/DemaConsulting.CanvasNet/Canvas/ComparisonResult.cs"          # public result records
+      - "src/DemaConsulting.CanvasNet/Canvas/DiffStyle.cs"                 # public difference style enum
+      - "test/DemaConsulting.CanvasNet.Tests/Canvas/SurfaceComparisonTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/TestSupport/ImageFixtures.cs"      # shared test fixtures
+      - "test/DemaConsulting.CanvasNet.Tests/TestSupport/SurfaceAssert.cs"      # shared test helper
+
+  # CanvasNet-Canvas-SurfaceAnalysis Review (one per unit)
+  - id: CanvasNet-Canvas-SurfaceAnalysis
+    title: Review that CanvasNet Canvas SurfaceAnalysis Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+      - "docs/design/canvas-net/canvas.md"
+      - "docs/reqstream/canvas-net/canvas.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/canvas/surface-analysis.yaml"   # unit requirements
+      - "docs/design/canvas-net/canvas/surface-analysis.md"        # unit design
+      - "docs/verification/canvas-net/canvas/surface-analysis.md"  # unit verification
+      - "docs/sysml2/model/canvas-net/canvas/surface-analysis.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet/Canvas/Surface.Analysis.cs"   # unit source
+      - "src/DemaConsulting.CanvasNet/Canvas/SurfaceStatistics.cs"  # public analysis result records
+      - "test/DemaConsulting.CanvasNet.Tests/Canvas/SurfaceAnalysisTests.cs"  # unit tests
 
   # CanvasNet-Canvas-Rgba32 Review (one per unit)
   - id: CanvasNet-Canvas-Rgba32
@@ -299,7 +359,8 @@ reviews:
       - "src/DemaConsulting.CanvasNet/Codecs/ImageInfo.cs"        # shared header-only probe result type
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/JpegCodecTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/Codecs/JpegFixtureTests.cs"  # fixture conformance tests
-
+      - "test/DemaConsulting.CanvasNet.Tests/Codecs/JpegCodecExifTests.cs"  # EXIF orientation reader tests
+      - "test/DemaConsulting.CanvasNet.Tests/TestSupport/ImageFixtures.cs"  # shared test fixtures (EXIF injection)
   # CanvasNet-Codecs-GifCodec Review (one per unit)
   - id: CanvasNet-Codecs-GifCodec
     title: Review that CanvasNet Codecs GifCodec Implementation is Correct
@@ -3166,9 +3227,7 @@ reviews:
       - "docs/sysml2/model/canvas-net-tool/imaging/source-loader.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.Tool/Imaging/SourceLoader*.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Tool/Imaging/SourceModels.cs"   # unit source (model types)
-      - "src/DemaConsulting.CanvasNet.Tool/Imaging/ExifOrientation.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/SourceLoader*Tests.cs"  # unit tests
-      - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/ExifOrientationTests.cs"  # unit tests
 
   # CanvasNetTool-Imaging-ImageWriter Review (one per unit)
   - id: CanvasNetTool-Imaging-ImageWriter
@@ -3235,22 +3294,6 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Tool/Imaging/ContactSheet.cs"   # unit source
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/ContactSheetTests.cs"  # unit tests
 
-  # CanvasNetTool-Imaging-ImageGeometry Review (one per unit)
-  - id: CanvasNetTool-Imaging-ImageGeometry
-    title: Review that CanvasNetTool Imaging ImageGeometry Implementation is Correct
-    context:
-      - "docs/design/canvas-net-tool.md"
-      - "docs/reqstream/canvas-net-tool.yaml"
-      - "docs/design/canvas-net-tool/imaging.md"
-      - "docs/reqstream/canvas-net-tool/imaging.yaml"
-    paths:
-      - "docs/reqstream/canvas-net-tool/imaging/image-geometry.yaml"   # unit requirements
-      - "docs/design/canvas-net-tool/imaging/image-geometry.md"        # unit design
-      - "docs/verification/canvas-net-tool/imaging/image-geometry.md"  # unit verification
-      - "docs/sysml2/model/canvas-net-tool/imaging/image-geometry.sysml"  # unit SysML2 model
-      - "src/DemaConsulting.CanvasNet.Tool/Imaging/ImageGeometry*.cs"  # unit source
-      - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/ImageGeometry*Tests.cs"  # unit tests
-
   # CanvasNetTool-Imaging-GridOverlay Review (one per unit)
   - id: CanvasNetTool-Imaging-GridOverlay
     title: Review that CanvasNetTool Imaging GridOverlay Implementation is Correct
@@ -3266,22 +3309,6 @@ reviews:
       - "docs/sysml2/model/canvas-net-tool/imaging/grid-overlay.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.Tool/Imaging/GridOverlay.cs"   # unit source
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/GridOverlayTests.cs"  # unit tests
-
-  # CanvasNetTool-Imaging-ImageAnalysis Review (one per unit)
-  - id: CanvasNetTool-Imaging-ImageAnalysis
-    title: Review that CanvasNetTool Imaging ImageAnalysis Implementation is Correct
-    context:
-      - "docs/design/canvas-net-tool.md"
-      - "docs/reqstream/canvas-net-tool.yaml"
-      - "docs/design/canvas-net-tool/imaging.md"
-      - "docs/reqstream/canvas-net-tool/imaging.yaml"
-    paths:
-      - "docs/reqstream/canvas-net-tool/imaging/image-analysis.yaml"   # unit requirements
-      - "docs/design/canvas-net-tool/imaging/image-analysis.md"        # unit design
-      - "docs/verification/canvas-net-tool/imaging/image-analysis.md"  # unit verification
-      - "docs/sysml2/model/canvas-net-tool/imaging/image-analysis.sysml"  # unit SysML2 model
-      - "src/DemaConsulting.CanvasNet.Tool/Imaging/ImageAnalysis.cs"   # unit source
-      - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/ImageAnalysisTests.cs"  # unit tests
 
   # OTS-BuildMark Review (one per OTS item)
   - id: OTS-BuildMark

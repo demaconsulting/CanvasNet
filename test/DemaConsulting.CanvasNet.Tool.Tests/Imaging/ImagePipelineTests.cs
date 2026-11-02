@@ -1238,14 +1238,14 @@ public class ImagePipelineTests
         var skew = Field<double>(step, "skewDegrees");
         Assert.InRange(skew, 4.8, 5.2);
         Assert.Equal(-skew, Field<double>(step, "rotateDegrees"));
-        Assert.True(Field<double>(step, "confidence") >= ImageGeometry.MinConfidence);
+        Assert.True(Field<double>(step, "confidence") >= SkewEstimate.MinConfidence);
         Assert.Equal("#FFFFFF", Field<string>(step, "fill"));
         Assert.Equal("bilinear", Field<string>(step, "filter"));
         Assert.True(result.Width > 400 && result.Height > 300);
         Assert.Equal((result.Width, result.Height), SizeOf(step));
 
         // The straightened image has (almost) no skew left
-        Assert.InRange(ImageGeometry.EstimateSkew(result).Degrees, -0.3, 0.3);
+        Assert.InRange(result.EstimateSkew().Degrees, -0.3, 0.3);
     }
 
     /// <summary>

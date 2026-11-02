@@ -37,7 +37,7 @@ internal sealed partial class CompareCommand
         new("--fit", [], true, "How a raster input is fitted to --resize-to: contain (default; keeps the aspect ratio, with margins) or stretch", "mode"),
         .. RenderCommand.SpecsFor(ImagePipeline.FilterOption),
         new("--tolerance", [], true, $"A pixel differs when a channel differs by more than this, 0-255 (default {ImageComparison.DefaultTolerance})", "0-255"),
-        new("--grid", [], true, $"Report the error of each cell of a grid, columns x rows, each 1-{ImageComparison.MaxGridSide} (default {ImageComparison.DefaultGridColumns}x{ImageComparison.DefaultGridRows})", "CxR"),
+        new("--grid", [], true, $"Report the error of each cell of a grid, columns x rows, each 1-{ComparisonResult.MaxGridSide} (default {ImageComparison.DefaultGridColumns}x{ImageComparison.DefaultGridRows})", "CxR"),
         new("--threshold", [], true, "Fail (exit code 1) unless a metric is within a limit: mae, rmse, max-diff, diff-ratio, or cell-rmse at most; psnr or ssim at least (repeatable)", "metric=value"),
         new("--diff", [], true, "Write a picture of the differences to this file", "file"),
         new("--diff-style", [], true, "How --diff draws a difference: heat (default) or abs; --side-by-side always uses heat", "style"),
@@ -259,12 +259,12 @@ internal sealed partial class CompareCommand
             throw new ToolException(
                 ErrorCodes.UsageError,
                 $"'{text}' is not a value of --grid.",
-                $"Write the columns and rows as CxR, each 1 to {ImageComparison.MaxGridSide}, for example 4x4.");
+                $"Write the columns and rows as CxR, each 1 to {ComparisonResult.MaxGridSide}, for example 4x4.");
         }
 
         return (
-            ArgumentReader.ParseInt(text[..separator], "--grid", 1, ImageComparison.MaxGridSide),
-            ArgumentReader.ParseInt(text[(separator + 1)..], "--grid", 1, ImageComparison.MaxGridSide));
+            ArgumentReader.ParseInt(text[..separator], "--grid", 1, ComparisonResult.MaxGridSide),
+            ArgumentReader.ParseInt(text[(separator + 1)..], "--grid", 1, ComparisonResult.MaxGridSide));
     }
 
     /// <summary>

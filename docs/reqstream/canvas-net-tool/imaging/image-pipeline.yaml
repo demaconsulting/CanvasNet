@@ -122,9 +122,10 @@ sections:
 
       - id: CanvasNetTool-Imaging-ImagePipeline-Deskew
         title: >-
-          The ImagePipeline class shall estimate the skew of an image with the ImageGeometry unit and, when the
-          skew was estimated, is at least 0.05 degrees, and has a confidence of at least 0.4, rotate the image by
-          the negative of the skew with the rotation rules above when the expanded canvas fits the maximum size,
+          The ImagePipeline class shall estimate the skew of an image with the core Surface skew estimate and, when
+          the skew was estimated, is at least 0.05 degrees, and has a confidence of at least 0.4 (the estimate is
+          correctable), rotate the image by the negative of the skew with the rotation rules above when the
+          expanded canvas fits the maximum size,
           and otherwise copy it unchanged without failing; in both cases it shall report the skew, the signed
           correction (0 when none), the confidence, whether it was applied, and a reason when a size limit caused
           the correction to be skipped.

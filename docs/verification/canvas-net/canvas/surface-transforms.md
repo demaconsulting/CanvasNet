@@ -1,19 +1,21 @@
 ### SurfaceTransforms Unit Verification Design
 
-<!-- cspell:ignore premultiplied -->
+<!-- cspell:ignore premultiplied transposed transversed -->
 
 The whole-surface transformations of the `Surface` class (the `SurfaceTransforms` unit of the `Canvas` subsystem) are
-verified by `test/DemaConsulting.CanvasNet.Tests/Canvas/SurfaceTransformsTests.cs`.
+verified by `test/DemaConsulting.CanvasNet.Tests/Canvas/SurfaceTransformsTests.cs` and, for the EXIF orientation,
+`test/DemaConsulting.CanvasNet.Tests/Canvas/SurfaceExifOrientationTests.cs`.
 
 #### Verification Approach
 
 `SurfaceTransforms` is verified with unit tests on small in-memory surfaces whose pixels are known exactly, so every
 expected value is a hand-derived number or a pixel of the source: a flip is checked by comparing every pixel with its
 mirrored source pixel, a pad by the corners and edges of the border and the copied block, a trim by hand-placed content
-blocks and noise at known distances from the background, and a fit by the size and the centered position of the image.
-The moved fit and trim tests keep the expected values of the command-line tool tests they came from; the flip, pad,
-flatten, transparency, and disposal tests are new. `FitInside` is reached from the test project through
-`InternalsVisibleTo`. The unit needs no files and no mocking.
+blocks and noise at known distances from the background, a fit by the size and the centered position of the image, and
+an EXIF orientation by the letters of a numbered image.
+The moved fit, trim, and orientation tests keep the expected values of the command-line tool tests they came from; the
+flip, pad, flatten, transparency, and disposal tests are new. `FitInside` is public and tested directly. The unit needs
+no files and no mocking.
 
 #### Test Environment
 
@@ -27,6 +29,7 @@ flatten, transparency, and disposal tests are new. `FitInside` is reached from t
 - All unit tests pass with zero failures on every target framework.
 - A flip or half turn puts every pixel at its mirrored position, twice restores the original, and leaves the source
   unchanged.
+- Each EXIF orientation 1 to 8 puts every pixel where the specification says, swapping the size for 5 to 8.
 - A pad has the documented size, border color, and copied block, and refuses a negative or oversize request.
 - A trim finds the content box under the corner-majority background, the tolerance, and the transparent-pixel rule,
   and an image without content is copied unchanged.
@@ -90,6 +93,18 @@ and a box of 0 or above 8192 throw.
 Red at alpha 128 flattened over white is (255, 127, 127, 255), a transparent pixel becomes the background, the source
 is unchanged, and the result has no transparency. A single pixel of alpha 254 makes a surface translucent; an opaque
 surface is not.
+
+##### CanvasNet-Canvas-SurfaceTransforms-ExifOrientation: EXIF Orientation
+
+**Tests**: `Surface_ApplyExifOrientation_Orientation_MapsPixels`,
+`Surface_ApplyExifOrientation_Pixels_AreExactCopiesIncludingAlpha`, `Surface_ApplyExifOrientation_InvalidArguments_Throw`
+(in `test/DemaConsulting.CanvasNet.Tests/Canvas/SurfaceExifOrientationTests.cs`)
+
+A 3 by 2 image whose six pixels are numbered `a` to `f` in reading order is turned by each orientation 1 to 8 and the
+letters of the result are compared with the table of the EXIF specification (for example orientation 6 gives
+`da/eb/fc`, a 2 by 3 image); the source is unchanged. Every moved pixel, alpha included, equals its source pixel;
+orientation 1 is an equal copy that is a different object, which changes nothing in the source when written to. An
+orientation of 0 or 9 throws `ArgumentOutOfRangeException` and a disposed surface throws `ObjectDisposedException`.
 
 ##### CanvasNet-Canvas-SurfaceTransforms-Disposed: Disposed Surface
 
