@@ -100,7 +100,7 @@ public sealed partial class VegaLiteDocument
     }
 
     /// <summary>
-    ///     Gets the views whose fields the table loaded for a node serves: the node, the layers below it that are visited and their merged encodings.
+    ///     Gets the views whose fields the table loaded for a node serves: the node, the layers below it that are visited and inherit its table, and their merged encodings.
     /// </summary>
     /// <param name="node">The node.</param>
     /// <param name="needed">The nodes that are visited.</param>
@@ -119,7 +119,8 @@ public sealed partial class VegaLiteDocument
                 views.Add(unit);
             }
 
-            foreach (var child in current.Children.Where(needed.Contains))
+            // A child with its own data loads its own table and collects its own fields
+            foreach (var child in current.Children.Where(c => needed.Contains(c) && c.Data is null))
             {
                 pending.Push(child);
             }

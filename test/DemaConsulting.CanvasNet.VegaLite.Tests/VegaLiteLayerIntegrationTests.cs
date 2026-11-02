@@ -172,6 +172,32 @@ public class VegaLiteLayerIntegrationTests
     }
 
     /// <summary>
+    ///     Validates that a layer with its own <c>data</c> collects its own temporal fields: the table of the root keeps the text of a field that a sibling layer with its
+    ///     own table reads as temporal, so the categories of the root layer stay the strings of the data.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Layer_OwnDataLayerTemporalFieldDoesNotAffectInheritedTable()
+    {
+        // Arrange: the root rows have a field k of "2024" and "2025" that the bars read as nominal; the second layer has its own rows and reads its own k as temporal
+        const string json = """
+            {
+              "data": { "values": [ { "k": "2024", "v": 3 }, { "k": "2025", "v": 5 } ] },
+              "layer": [
+                { "mark": "bar", "encoding": { "x": { "field": "k", "type": "nominal" }, "y": { "field": "v", "type": "quantitative" } } },
+                { "data": { "values": [ { "k": "2024-01-01", "v": 4 } ] }, "mark": "point",
+                  "encoding": { "y": { "field": "v", "type": "quantitative" }, "detail": { "field": "k", "type": "temporal" } } }
+              ]
+            }
+            """;
+
+        // Act
+        var scene = SceneOf(json);
+
+        // Assert: the axis labels of the categories are the raw text of the root rows
+        Assert.Equal(["2024", "2025"], Texts(scene, "axis-label").Where(t => t.StartsWith("20", StringComparison.Ordinal)));
+    }
+
+    /// <summary>
     ///     Validates that a line and its points share one pair of axes: the encoding of the top-level view is inherited by both layers, each layer has its own marks group,
     ///     and the layers draw in order (the points over the line).
     /// </summary>

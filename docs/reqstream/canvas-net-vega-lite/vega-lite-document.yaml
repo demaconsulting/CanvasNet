@@ -362,6 +362,7 @@ sections:
               - CanvasNetVegaLite_SystemIntegration_Layer_NestedLayersInheritTheEncodingOfEveryLevel
               - CanvasNetVegaLite_SystemIntegration_Layer_OwnDataReplacesTheInheritedDataAndSharesTheScale
               - CanvasNetVegaLite_SystemIntegration_Layer_NullDataInheritsTheParentsRowsAndOwnDataReplacesThem
+              - CanvasNetVegaLite_SystemIntegration_Layer_OwnDataLayerTemporalFieldDoesNotAffectInheritedTable
               - CanvasNetVegaLite_SystemIntegration_Layer_StepSizeUsesTheMergedDiscreteScale
               - CanvasNetVegaLite_SystemIntegration_Layer_MeasureMatchesRenderAndRenderIsDeterministic
               - CanvasNetVegaLite_SystemIntegration_Layer_UnsupportedLayerMarkIsReportedAndOthersAreDrawn
