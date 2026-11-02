@@ -234,7 +234,10 @@ bundled with the core package, whatever fonts the machine has, so a model withou
 everywhere. A named font is resolved by `ScadRenderOptions.FontResolution`: first the family is searched in the
 `AdditionalDirectories` (scanned recursively), then, when `UseSystemFonts` is `true` (the default), among the fonts
 installed on the machine, then among the bundled `Liberation Sans`, `Liberation Serif`, and `Liberation Mono`
-families (and the generic names `sans-serif`, `serif`, and `monospace`). Only an exact family name (case aside)
+families (and the generic names `sans-serif`, `serif`, and `monospace`). The generic names (`sans-serif`, `sans`,
+`serif`, `monospace`, `mono`, and the other CSS generic keywords) are the exception: they always resolve to the
+bundled fonts first, so a font family that is literally named `sans` or `serif` in your font directory (or installed)
+is never used - give such a font a different family name. Only an exact family name (case aside)
 matches, and the closest bold and italic style of that family is used. A family that is found nowhere, or whose
 font file cannot be loaded, gives one warning and the bundled sans font. **The result for a font that comes from
 the installed fonts depends on the machine**, and the installed fonts are searched before the bundled families, so

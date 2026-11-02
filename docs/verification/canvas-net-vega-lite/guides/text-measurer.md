@@ -3,9 +3,10 @@
 This document describes the unit-level verification strategy for the `TextMeasurer` unit in the
 `DemaConsulting.CanvasNet.VegaLite.Guides` namespace: the internal `TextMeasurer` class (`Resolve`, `MeasureWidth`,
 `Truncate`, `TextValue`, `Measure`, `GetBounds`, `GetMetrics`, and the static `BaselineOffset`, `LineHeight`,
-`RoundHalfUp`, `SplitLines`, `SplitFamilies`, `IsBold`, and `IsItalic`), and the `TextFont`, `ResolvedFont`,
-`FontSource`, `TextExtent`, and `FontMetrics` types of its file. The unit resolves CSS family lists to fonts (the
-bundled Liberation fonts by default, additional directories and installed fonts only on request), measures text with
+`RoundHalfUp`, `SplitLines`, `IsMappedFamily`, `IsBold`, and `IsItalic`), and the `TextFont`, `TextExtent`, and
+`FontMetrics` types of its file (the resolved face is the core `ResolvedFont`). The unit resolves CSS family lists to
+fonts through the core `FontResolver` (the bundled Liberation fonts by default, additional directories and installed fonts
+only on request), measures text with
 the advance widths of the resolved font, and applies the Vega text rules for truncation, line height, baselines, and
 bounds.
 
@@ -45,8 +46,8 @@ Unit tests reside in `TextMeasurerTests.cs` within the `DemaConsulting.CanvasNet
 - **Fonts**: The bundled Liberation fonts. The one test of the system-font opt-in picks an installed family that the
   measurer does not map itself and skips itself (`Assert.Skip`) on a machine that has none; the checks before the skip
   (a family that does not exist resolves to the bundled sans-serif font, with and without system fonts) always run
-- **Files**: The additional-directory test copies one bundled font resource (Noto Sans) into a per-test temporary
-  directory next to a file that is not a font and a text file, and deletes the directory afterwards
+- **Files**: The additional-directory tests copy one bundled font resource (Noto Sans) into a per-test temporary
+  directory next to files that are not fonts (one directory, and one seven levels deep), and delete the directory afterwards
 - **Isolation**: Each test creates its own measurer
 
 #### Acceptance Criteria
@@ -82,7 +83,7 @@ returns the same object.
 
 **Tests**: `TextMeasurerTests.TextMeasurer_Resolve_NamedFamilyNeedsSystemFontsOrDirectories`,
 `TextMeasurerTests.TextMeasurer_Resolve_AdditionalDirectoryFontIsFoundByFamilyName`,
-`TextMeasurerTests.TextMeasurer_LoadDirectoryFonts_StopsAtTheBound`
+`TextMeasurerTests.TextMeasurer_Resolve_AdditionalDirectoryScanIsRecursive`
 
 Asserts that a family that does not exist resolves to the bundled sans-serif; that, on a machine that has one, an
 installed family that the measurer does not map itself (the test asks `TextMeasurer.IsMappedFamily`, so a name such as
@@ -92,9 +93,10 @@ ignored by default and by an explicit `UseSystemFonts = false`, is loaded from t
 file in an additional directory is found by family name (case-insensitive, also from a list and with a requested weight
 the file does not have), with a missing directory, a broken file, and a text file ignored, that generic families never
 come from the directories, that without the option the family is not found, and that the directory font measures
-differently from the fallback, so the option really changes the layout; and that the bound on font files is applied while
-a directory is enumerated (five font files and three other files read with a bound of 4,096, 2, 1, and 0 give 5, 2, 1, and
-0 faces; the bound is shared over several directories; files that are not fonts do not count).
+differently from the fallback, so the option really changes the layout; and that a font file seven directories deep in an
+additional directory is found (the scan is the core scanner's: recursive without the earlier depth limit, with its
+bounds, determinism, and link policy verified by the `FontDirectoryScanner` unit tests and the resolution order by the
+`FontResolver` unit tests).
 
 ##### Measurement, Truncation, And Line Blocks
 
@@ -108,14 +110,13 @@ text is trimmed and truncated only when a limit is set; the block heights 34, 50
 are the font size high, no lines have no width); and that truncation is part of the measurement, so the widest line of
 a block is the limited one.
 
-##### Baselines, Line Height, Rounding, And Family Lists
+##### Baselines, Line Height, And Rounding
 
 **Tests**: `TextMeasurerTests.TextMeasurer_BaselineOffset_FollowsVegaConstants`
 
 Asserts the derived baseline offsets for 10 and 13 pixel fonts, the explicit line height variants, the half-way
-rounding, the line height of 12 for a 10 pixel font and 15 for an explicit 15, and that family lists honor quotes and
-commas inside them (`"Helvetica Neue", Arial ,  sans-serif` gives three families, `'A, B', serif` gives two, and
-commas alone give none).
+rounding, and the line height of 12 for a 10 pixel font and 15 for an explicit 15. (The splitting of family lists, which
+this unit used to own, is now `GenericFontFamilies.SplitFamilyList` and is verified by that unit.)
 
 ##### Text Bounds
 

@@ -11,10 +11,9 @@ in the `DemaConsulting.CanvasNet.Scad` namespace:
   validation, the layout of the glyphs, alignment, and the construction of the 2D shape
 - `ScadTextGeometry.Flattening.cs` — the reference height of a font, and the iterative flattening of glyph outlines
   into polygon contours
-- `ScadFontResolver.cs` — `ScadFontResolver`: parsing of the `font` argument and the deterministic resolution of a
-  font (owned by the build context, one per build, built with the cancellation token of the build), with
-  `ScadFontSpec`, `ScadResolvedFont`, `ScadFontSource`, `ScadFontScanLimits` (the bounds of the directory scan),
-  and `ScadFontFace` (one face found in an additional directory)
+- `ScadFontResolver.cs` — `ScadFontResolver`: parsing of the `font` argument and the translation of a request
+  into a call of the core `FontResolver` (owned by the build context, one per build, built with the cancellation
+  token of the build), with `ScadFontSpec` and `ScadResolvedFont` (whose source is the core `FontSource`)
 - `ScadFontResolutionOptions.cs` (namespace `DemaConsulting.CanvasNet.Scad`) — the public options type that
   `ScadRenderOptions.FontResolution` carries
 
@@ -44,13 +43,13 @@ parity with any other implementation's text metrics is claimed. The behavior is 
   alignment (−1 left, 0 center, 1 right), the vertical alignment (−1 bottom, 0 center, 1 top, 2 baseline), the
   `Direction` (`LeftToRight`, `RightToLeft`, `TopToBottom`, `BottomToTop`), and the `ScadFontSpec`.
 - **`ScadFontSpec`** — a family name (empty for the default font) and the requested bold and italic flags.
-- **`ScadResolvedFont`** — the `TrueTypeFont`, its `ScadFontSource` (`Bundled`, `AdditionalDirectory`, `System`),
+- **`ScadResolvedFont`** — the `TrueTypeFont`, its core `FontSource` (`Bundled`, `AdditionalDirectory`, `System`),
   and the warning to report, if any.
-- **`ScadFontResolver`** — per build: the resolutions already made, the selected fonts already loaded by file and
-  face index (only faces that were selected, so bounded by the distinct fonts the document uses), and the faces of
-  the additional directories (lightweight `ScadFontFace` metadata values, scanned at most once, reading each face
-  once for its metadata; no parsed font is retained by the scan, and a selected face is read once more when it is
-  loaded and then cached).
+- **`ScadFontResolver`** — per build: one core `FontResolver` built from `ScadFontResolutionOptions`
+  (`UseSystemFonts`, `AdditionalDirectories`, `MapCommonAliasesToBundled: false`), the cancellation token of the
+  build and the scan bounds (the core `FontScanLimits`, defaults unless a test passes others). The core resolver
+  keeps the resolutions already made, scans the additional directories at most once (header-only: no parsed font
+  is retained by the scan) and loads a face only when it is selected.
 - **`Placed`** — one glyph placed on the line: its flattened contours in model units, before alignment.
 - The result is an ordinary `ScadGeo`: a single `PolygonRegion` leaf, or a `ScadShape2DKind.Csg` union of leaves
   (one per glyph component) with the tight bounds of all vertices.
@@ -189,56 +188,54 @@ closed mesh per glyph component.
 
 `ParseSpec` splits the `font` argument at colons: the trimmed text before the first colon is the family; in the
 following `key=value` fields, `style` (any case) with the words `Bold`, `Italic`, and `Oblique` (any case, split at
-white space and commas) sets the flags; everything else is ignored. `Resolve` then follows a fixed order and never
-fails:
+white space and commas) sets the flags; everything else is ignored. `Resolve` spells the OpenSCAD family names `sans`
+and `mono` as the generic keywords `sans-serif` and `monospace` and hands the family and the flags to the core
+`FontResolver` (see _FontResolver Unit Design_), which follows a fixed order and never fails; the resolver here owns
+only the translation and the warning text:
 
-1. **No family** (no `font` argument, or an empty family): the bundled Liberation Sans in the requested style
-   (`SystemFontCatalog.LoadBundledFallback`), whatever fonts the host has, silently. This is what makes text
-   without a `font` reproducible.
-2. **The additional directories** (`ScadFontResolutionOptions.AdditionalDirectories`), scanned once per build, only
-   when a family is named, by the resolver itself with the public `TrueTypeFont` API: each directory in the order
-   given is searched recursively for `.ttf`, `.otf`, `.ttc`, and `.otc` files, in ordinal
-   order of the full path within a directory, so the result never depends on the order the file system lists
-   files in. Every face of every file is read with `TrueTypeFont.GetFaceCount` and `TrueTypeFont.Load(path,
-   faceIndex)`, but only its metadata (family, style flags, path, face index) is kept: the parsed font is released
-   at once, so the scan reads each face once for its metadata, retains no font, and its memory is bounded by the
-   face bound. A selected face is read one more time when it is loaded (an intentional trade of one extra read per
-   distinct font used for bounded memory) and then cached; only selected faces are cached for the rest of the
-   build, so the
-   fonts held are bounded by the distinct fonts the document uses; a file removed after the scan therefore falls
-   back to the bundled sans font with the warning. The family is taken from `GetNameInfo().FamilyName` (the file
-   name without extension when the font
-   has none) and the style from `IsBold` and `IsItalic`. A missing, malformed, or unreadable directory, a file that
-   does not parse, and a face that does not parse are skipped without a diagnostic. The scan is **safe and
-   bounded**: a reparse point is never followed, whether it is a root, a subdirectory, or a font file (a root that
-   is a link is not scanned, and a linked font file is not read); path, metadata, enumeration, and access failures
-   (`IOException` including too-long paths and
-   races with deletion, `UnauthorizedAccessException`, `ArgumentException`, `NotSupportedException`,
-   `SecurityException`) skip that path or directory only; subdirectories are visited depth first in ordinal
-   order; and `ScadFontScanLimits` (internal; defaults of 10,000 directories, 200,000 entries, 5,000 font files,
-   and 20,000 faces, all far above a real font collection) stops the scan at the first bound reached, keeping the
-   faces found before it (which is deterministic except for the entry bound inside one directory, where the order
-   is the file system's). The scan polls the cancellation token of the build (the resolver is constructed by
-   `ScadGeometryContext` with it) before each root, directory, entry, file, and face, so a canceled build stops
-   with `OperationCanceledException` instead of completing the scan.
-3. **The installed fonts** when `UseSystemFonts` is `true` (the default): `SystemFontCatalog.FindBestMatch`, which
-   scans the host's font directories at most once per process and only when a model asks for a font that step 2 did
-   not find. This lookup is **not cancellable** (`SystemFontCatalog` takes no cancellation token), and the first
-   lookup in the process builds the process-wide catalog, so that first call can take noticeable time even for a
-   build that is canceled meanwhile; later lookups, in any build, reuse the catalog.
-4. **The bundled families**: `Liberation Sans`, `Liberation Serif`, `Liberation Mono`, and the generic names
-   `sans-serif`/`sans`, `serif`, and `monospace`/`mono`, in the requested style.
-5. **Fallback**: the bundled sans font in the requested style, with the warning that the font is not available.
+1. **No family** (no `font` argument, or an empty family): the bundled Liberation Sans in the requested style,
+   whatever fonts the host has, silently. This is what makes text without a `font` reproducible.
+2. **The generic names** (`sans-serif`, `sans`, `serif`, `monospace`, `mono`, and the other CSS generic keywords):
+   the bundled Liberation font of that design, silently. They are matched **before** the additional directories and
+   the installed fonts (CSS reserves these names), so a font family literally named `sans`, `serif`, or the like in a
+   font directory is never used; this is a deliberate change from the earlier resolver, which searched the
+   directories first. The well-known names of other systems (`Arial`,
+   `Times New Roman`, ...) are **not** mapped (`MapCommonAliasesToBundled` is `false`): they are looked up like any
+   other family, and an unknown one is reported.
+3. **The additional directories** (`ScadFontResolutionOptions.AdditionalDirectories`), scanned once per build, only
+   when a family is named, by the core `FontDirectoryScanner`: each directory in the order given is searched
+   recursively for `.ttf`, `.otf`, `.ttc`, and `.otc` files (a directory's own font files, in alphabetical order,
+   before its subdirectories), reading only the font headers, so the result never depends on the order the file
+   system lists files in and no parsed font is retained by the scan. A selected face is loaded when it is selected
+   (a face of an additional directory is loaded when it is selected and kept by the resolver of the build only, so a
+   file removed after the scan falls back to the bundled
+   sans font with the warning. A missing, malformed, or unreadable directory, a file that does not parse, and a face
+   that does not parse are skipped without a diagnostic. The scan is **safe and bounded**: a link (reparse point)
+   is never followed, whether it is a root, a subdirectory, or a font file (a root that is a link is not scanned, and
+   a linked font file is not read); path, metadata, enumeration, and access failures skip that path or directory
+   only; and the default `FontScanLimits` (10,000 directories, 200,000 entries, 5,000 font files, and 20,000 faces,
+   all far above a real font collection) stop the scan at the first bound reached, keeping the faces found before
+   it. The scan polls the cancellation token of the build (the resolver is constructed by `ScadGeometryContext` with
+   it), so a canceled build stops with `OperationCanceledException` instead of completing the scan.
+4. **The installed fonts** when `UseSystemFonts` is `true` (the default): the exact family among
+   `SystemFontCatalog.Fonts`, which scans the host's font directories at most once per process and only when a
+   model asks for a font that step 3 did not find. This lookup is **not cancellable** (`SystemFontCatalog` takes no
+   cancellation token), and the first lookup in the process builds the process-wide catalog, so that first call can
+   take noticeable time even for a build that is canceled meanwhile; later lookups, in any build, reuse the catalog.
+5. **The bundled family names**: `Liberation Sans`, `Liberation Serif`, and `Liberation Mono`, in the requested style.
+6. **Fallback**: the bundled sans font in the requested style, with the warning that the font is not available.
 
-Steps 2 and 3 accept **only an exact family match** (ignoring case): for step 3 the answer of `FindBestMatch` is
-discarded when its family is not the requested one, because the generic-bucket substitution of the catalog would
-make the result depend on what the host has installed. The style is the closest match by the bold and italic flags
-(the number of differing flags is the score); the first face found wins a tie, so earlier directories and earlier
-paths win. A face that is found but cannot be loaded (`InvalidDataException`, `IOException`,
-`UnauthorizedAccessException`, `SecurityException`, and the like) resolves to the fallback with a warning that names
-the file; a face
-that failed to load is not tried again in the same build. Installed fonts vary from host to host, so a model that
-must render identically everywhere names no font, or sets `UseSystemFonts = false`.
+Steps 3 and 4 accept **only an exact family match** (ignoring case): the generic-bucket substitution of the
+catalog's `FindBestMatch` is not used, because it would make the result depend on what the host has installed. The
+style is the closest match by the bold and italic flags (the number of differing flags is the score); the first
+face found wins a tie, so earlier directories and earlier paths win. A face that is found but cannot be loaded
+resolves to the fallback with a warning that names the file (a family that was found spends its turn: the installed
+fonts and the bundled names are not tried for it). The warning text is this unit's own: `The font '<family>' is not
+available (<reason>); using the bundled Liberation Sans font`, where the reason (`no such font family was found`, or
+`the font file '<path>' could not be loaded`) is the `failure` the core resolver reports. Installed fonts vary from
+host to host, so a model that must render identically everywhere names no font, or sets `UseSystemFonts = false`.
+The family text is read as a CSS family list by the core resolver, so a comma-separated list is tried in order and
+quotes around a name are dropped.
 
 ##### ScadFontResolutionOptions
 
@@ -278,9 +275,10 @@ resolver), and `ScadFeatureIds`; on the evaluation subsystem for `ScadInstance` 
 `CanvasNetRender3D` for `PolygonRegion`, `Vector2D`, `CsgOperation`, and `BoundingBox3D`; and on the core
 `CanvasNet` system, through its public API only (no `InternalsVisibleTo` and no core API was added for it), for:
 
-- the **`Fonts` subsystem**: `TrueTypeFont` (`Load(path, faceIndex)`, `GetFaceCount`, `GetNameInfo`, `IsBold`,
-  `IsItalic`, `GetGlyphIndex`, `GetGlyphOutline`, `GetAdvanceWidth`, `GetKerning`, `UnitsPerEm`, `Ascender`) and
-  `SystemFontCatalog` (`FindBestMatch`, `LoadBundledFallback`); and
+- the **`Fonts` subsystem**: `FontResolver` and `FontResolverOptions` (the lookup of the font that a `font`
+  argument names, with its `ResolvedFont`, `FontSource` and failure reason), `FontScanLimits` (the scan bounds),
+  `TrueTypeFont` (`GetGlyphIndex`, `GetGlyphOutline`, `GetAdvanceWidth`, `GetKerning`, `UnitsPerEm`, `Ascender`,
+  `IsBold`, `IsItalic`) and `SystemFontCatalog` (`LoadBundledFallback`); and
 - the **`Geometry` subsystem**: `Path`, the outline that `GetGlyphOutline` returns and that the flattening reads.
 
 It uses no platform UI API and no native font library.

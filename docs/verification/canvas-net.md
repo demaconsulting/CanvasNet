@@ -437,9 +437,21 @@ genuine, well-formed, non-bold/non-italic/non-fixed-pitch font with real glyph d
 confirming the system's fallback-font path integrates end to end deterministically, even on a CI
 environment with zero discoverable OS fonts.
 
+### Integration: Resolve a Font-Family List Returns Bundled Fonts and the Failure Reason
+
+**Test**: `CanvasNet_SystemIntegration_ResolveFontFamilyList_ReturnsBundledFontsAndFailureReason`
+
+Exercises end-to-end system behavior for the `Fonts` subsystem's CSS font-family resolution: a
+`FontResolver` with its default options (bundled fonts only, so the result never depends on the
+host) resolves `'No Such Family', serif` in bold to the bundled Liberation Serif Bold with no
+failure (the unknown first family is skipped, the generic keyword met), and `No Such Family` alone
+to the bundled Liberation Sans with the failure `no such font family was found`. Asserts the
+source, family, style and glyph data of the font, confirming the resolver integrates with the
+bundled fonts end to end.
+
 ## Acceptance Criteria
 
-A system-level test run passes when all thirty-two scenarios above pass without error or
+A system-level test run passes when all thirty-three scenarios above pass without error or
 exception beyond those explicitly asserted. Any unexpected exception, wrong exception type, or
 wrong return value constitutes a failure.
 

@@ -36,7 +36,9 @@ public sealed class VegaLiteFontOptions
     ///     Gets extra directories that are scanned for fonts before the installed fonts; empty by default.
     /// </summary>
     /// <remarks>
-    ///     A directory that does not exist or cannot be read is skipped silently. The list is copied when it is set,
+    ///     A directory that does not exist or cannot be read is skipped silently. The directories are scanned (recursively,
+    ///     in a deterministic order, never following a link, within the default bounds of the core <c>FontScanLimits</c>)
+    ///     the first time a specification names a font family explicitly. The list is copied when it is set,
     ///     so the instance does not change when the caller's list does.
     /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown on initialization when the list is <see langword="null"/>.</exception>

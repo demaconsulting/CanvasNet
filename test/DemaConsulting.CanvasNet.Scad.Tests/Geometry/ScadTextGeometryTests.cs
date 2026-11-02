@@ -9,6 +9,9 @@ using DemaConsulting.CanvasNet.Tests.TestSupport;
 using static DemaConsulting.CanvasNet.Scad.Tests.Geometry.ScadGeometryTestSupport;
 using PathCommandType = DemaConsulting.CanvasNet.Geometry.PathCommandType;
 
+// The Scad resolver reports the core FontSource; the alias keeps the assertions' historic spelling
+using ScadFontSource = DemaConsulting.CanvasNet.Fonts.FontSource;
+
 namespace DemaConsulting.CanvasNet.Scad.Tests.Geometry;
 
 /// <summary>
@@ -946,15 +949,14 @@ public class ScadTextGeometryTests
         var italic = new ScadFontSpec("Liberation Serif", false, true);
         var filesOptions = new ScadFontResolutionOptions { UseSystemFonts = false, AdditionalDirectories = [files.Path] };
         var treeOptions = new ScadFontResolutionOptions { UseSystemFonts = false, AdditionalDirectories = [tree.Path] };
-        var generous = ScadFontScanLimits.Default;
 
         // Act
-        var unbounded = new ScadFontResolver(filesOptions, default, generous).Resolve(italic);
-        var oneFile = new ScadFontResolver(filesOptions, default, generous with { FontFiles = 1 }).Resolve(italic);
-        var oneFace = new ScadFontResolver(filesOptions, default, generous with { Faces = 1 }).Resolve(italic);
-        var fullTree = new ScadFontResolver(treeOptions, default, generous).Resolve(italic);
-        var twoDirectories = new ScadFontResolver(treeOptions, default, generous with { Directories = 2 }).Resolve(italic);
-        var fewEntries = new ScadFontResolver(treeOptions, default, generous with { Entries = 1 }).Resolve(italic);
+        var unbounded = new ScadFontResolver(filesOptions, default, null).Resolve(italic);
+        var oneFile = new ScadFontResolver(filesOptions, default, new FontScanLimits { MaxFontFiles = 1 }).Resolve(italic);
+        var oneFace = new ScadFontResolver(filesOptions, default, new FontScanLimits { MaxFaces = 1 }).Resolve(italic);
+        var fullTree = new ScadFontResolver(treeOptions, default, null).Resolve(italic);
+        var twoDirectories = new ScadFontResolver(treeOptions, default, new FontScanLimits { MaxDirectories = 2 }).Resolve(italic);
+        var fewEntries = new ScadFontResolver(treeOptions, default, new FontScanLimits { MaxEntries = 1 }).Resolve(italic);
 
         // Assert: the italic face is found when everything is read, and only the first in ordinal order otherwise
         Assert.True(unbounded.Font.IsItalic);
@@ -1000,11 +1002,12 @@ public class ScadTextGeometryTests
     }
 
     /// <summary>
-    ///     Validates that scanning the additional directories retains no parsed font (only lightweight face
-    ///     metadata), that a face is loaded only when it is selected, and that only selected faces are cached.
+    ///     Validates that a face is found by header and loaded only when it is selected: many fonts in a directory,
+    ///     one absent family (every face scanned, none selected, a warning), and selected faces that load, are shared
+    ///     between repeated requests and render correctly.
     /// </summary>
     [Fact]
-    public void ScadTextGeometry_FontResolver_AdditionalDirectory_ScanRetainsNoParsedFaces()
+    public void ScadTextGeometry_FontResolver_AdditionalDirectory_SelectedFacesAreLoadedAndShared()
     {
         // Arrange: many synthetic fonts of different families in one directory
         using var directory = new ScadTempDirectory();
@@ -1017,25 +1020,17 @@ public class ScadTextGeometryTests
         var options = new ScadFontResolutionOptions { UseSystemFonts = false, AdditionalDirectories = [directory.Path] };
         var resolver = new ScadFontResolver(options);
 
-        // Act: an absent family scans every face and selects none
+        // Act: an absent family scans every face and selects none; repeating a request yields the same font
         var absent = resolver.Resolve(new ScadFontSpec("Synthetic Absent", false, false));
-        var afterScan = resolver.RetainedParsedFaceCount;
-
-        // Selecting faces loads and caches exactly those; repeating a request adds nothing
         var third = resolver.Resolve(new ScadFontSpec("Synthetic Scan 03", false, false));
         var again = resolver.Resolve(new ScadFontSpec("Synthetic Scan 03", false, false));
-        var afterOne = resolver.RetainedParsedFaceCount;
         var last = resolver.Resolve(new ScadFontSpec("Synthetic Scan 24", false, false));
-        var afterTwo = resolver.RetainedParsedFaceCount;
 
-        // Assert: nothing is retained by the scan; the selected faces render correctly
+        // Assert: the selected faces render correctly
         Assert.NotNull(absent.Warning);
-        Assert.Equal(0, afterScan);
         Assert.Equal(ScadFontSource.AdditionalDirectory, third.Source);
         Assert.Null(third.Warning);
-        Assert.Same(third, again);
-        Assert.Equal(1, afterOne);
-        Assert.Equal(2, afterTwo);
+        Assert.Same(third.Font, again.Font);
         Assert.NotEqual(0, third.Font.GetGlyphIndex('H'));
         Assert.Equal(ScadFontSource.AdditionalDirectory, last.Source);
         Assert.NotEqual(0, last.Font.GetGlyphIndex('H'));
@@ -1043,7 +1038,7 @@ public class ScadTextGeometryTests
 
     /// <summary>
     ///     Validates that a face is loaded from its file when it is selected, so a font file that is removed after
-    ///     the scan resolves to the bundled sans font with a warning rather than being kept in memory.
+    ///     the scan resolves to the bundled sans font with a warning.
     /// </summary>
     [Fact]
     public void ScadTextGeometry_FontResolver_AdditionalDirectory_RemovedFileAfterScanFallsBackWithWarning()
@@ -1062,12 +1057,11 @@ public class ScadTextGeometryTests
         File.Delete(second);
         var resolvedSecond = resolver.Resolve(new ScadFontSpec("Synthetic Scan Second", false, false));
 
-        // Assert: the second face was not retained by the scan, so it cannot be loaded and the bundled font answers
+        // Assert: the second face was not loaded by the scan, so it cannot be loaded and the bundled font answers
         Assert.Equal(ScadFontSource.AdditionalDirectory, resolvedFirst.Source);
         Assert.Null(resolvedFirst.Warning);
         Assert.Equal(ScadFontSource.Bundled, resolvedSecond.Source);
         Assert.Contains("could not be loaded", resolvedSecond.Warning);
-        Assert.Equal(1, resolver.RetainedParsedFaceCount);
     }
 
     /// <summary>
