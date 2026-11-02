@@ -17,5 +17,7 @@ package CanvasNet {
         dependency usesCodecs from CanvasNetPptxSystem to Codecs;
         dependency usesCharts from CanvasNetPptxSystem to CanvasNetChartsSystem;
         dependency usesSvg from CanvasNetPptxSystem to CanvasNetSvgSystem;
+        dependency usesPackaging from CanvasNetPptxSystem to Packaging;
+        dependency usesRendering from CanvasNetPptxSystem to Rendering;
     }
 }

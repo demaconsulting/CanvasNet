@@ -3,7 +3,7 @@
 #
 # The Rendering subsystem provides higher-level rendering primitives that compose Canvas,
 # Geometry, Drawing, and Fonts into a transform-aware surface API (Canvas), text rendering
-# (TextRenderer), and convenience shape helpers (Shapes).
+# (TextRenderer), convenience shape helpers (Shapes), and a font-independent line packer (WordWrap).
 
 sections:
   - title: CanvasNet Requirements
@@ -85,3 +85,20 @@ sections:
               - CanvasNet-Rendering-Shapes-RoundRect
               - CanvasNet-Rendering-Shapes-Circle
               - CanvasNet-Rendering-Shapes-Validation
+
+          - id: CanvasNet-Rendering-WordWrap
+            title: >-
+              The Rendering subsystem shall pack a paragraph's tokens into lines with a greedy word
+              wrap that never splits a word group, keeps an oversized group whole on its own line,
+              honors explicit line breaks, lets the caller classify and measure each token (the
+              measure seeing the width already used on the line) in single or double precision, and
+              validates its arguments.
+            justification: |
+              Document layout engines wrap text by the same rule whatever their font and unit
+              system; one tested packer replaces the copies each carried and keeps their line
+              breaks consistent.
+            children:
+              - CanvasNet-Rendering-WordWrap-Packing
+              - CanvasNet-Rendering-WordWrap-LineBreaks
+              - CanvasNet-Rendering-WordWrap-Measure
+              - CanvasNet-Rendering-WordWrap-Validation

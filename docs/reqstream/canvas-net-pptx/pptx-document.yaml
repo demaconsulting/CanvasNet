@@ -83,10 +83,9 @@ sections:
               bomb") must not be allowed to exhaust memory while parsing.
             tests:
               - PptxDocument_Open_MissingContentTypes_ThrowsInvalidDataException
-              - PptxDocument_Open_OversizedContentTypesPart_ThrowsInvalidDataException
-              - PptxDocument_Open_ContentTypesWrongRoot_ThrowsInvalidDataException
-              - PptxDocument_Open_ContentTypesDefaultMissingRequiredAttribute_ThrowsInvalidDataException
-              - PptxDocument_Open_ContentTypesOverrideMissingRequiredAttribute_ThrowsInvalidDataException
+              - OpcPackage_Open_OversizedContentTypesPart_ThrowsOpcFormatException
+              - OpcPackage_Open_ContentTypesWrongRoot_ThrowsOpcFormatException
+              - OpcPackage_Open_ContentTypeEntryMissingAttribute_ThrowsOpcFormatException
 
           - id: CanvasNetPptx-PptxDocument-MediaPartSizeValidation
             title: >-
@@ -102,7 +101,7 @@ sections:
               decompressed size incrementally during the copy, rather than trusting any declared
               length, closes this gap without weakening support for any realistic media part.
             tests:
-              - PptxDocument_GetPartBytes_OversizedDecompressedEntry_ThrowsInvalidDataException
+              - OpcPackage_GetPartBytes_OversizedDecompressedEntry_ThrowsOpcFormatException
               - PptxDocument_GetPartBytes_WellFormedPart_ReturnsExactBytes
 
           - id: CanvasNetPptx-PptxDocument-PackageRelationshipsValidation
@@ -121,8 +120,8 @@ sections:
               package appear navigable when it is not.
             tests:
               - PptxDocument_Open_MissingPackageRelationships_ThrowsInvalidDataException
-              - PptxDocument_Open_PackageRelsWrongRoot_ThrowsInvalidDataException
-              - PptxDocument_Open_RelationshipMissingRequiredAttribute_ThrowsInvalidDataException
+              - OpcPackage_Open_RelationshipsWrongRoot_ThrowsOpcFormatException
+              - OpcPackage_Open_RelationshipMissingAttribute_ThrowsOpcFormatException
 
           - id: CanvasNetPptx-PptxDocument-CaseSensitivePartNames
             title: >-
@@ -137,9 +136,9 @@ sections:
               example "ppt/slides/Slide1.xml" and "ppt/slides/slide1.xml") or incorrectly accept
               a malformed reserved-name part that must instead be rejected as absent.
             tests:
-              - PptxDocument_ResolvePart_PartNamesDifferingOnlyByCase_ResolveAsDistinctParts
-              - PptxDocument_Open_WrongCaseContentTypesPartName_ThrowsInvalidDataException
-              - PptxDocument_Open_DuplicateEntryNames_ThrowsInvalidDataException
+              - OpcPackage_ResolvePart_NamesDifferingOnlyByCase_AreDistinctParts
+              - OpcPackage_Open_WrongCaseContentTypesPartName_ThrowsOpcFormatException
+              - OpcPackage_Open_DuplicateEntryNames_ThrowsOpcFormatException
 
           - id: CanvasNetPptx-PptxDocument-ContentTypeOverride
             title: >-
@@ -151,7 +150,7 @@ sections:
               a Default mapping for the same part; getting this precedence wrong would
               misidentify a part's real content type.
             tests:
-              - PptxDocument_ResolvePart_OverrideContentType_TakesPrecedenceOverDefaultExtension
+              - OpcPackage_ResolvePart_Override_TakesPrecedenceOverDefault
 
           - id: CanvasNetPptx-PptxDocument-ContentTypeDefault
             title: >-
@@ -163,7 +162,7 @@ sections:
               Most parts in a real .pptx package (nearly every slide, layout, and master) rely
               solely on the Default extension mapping rather than an individual Override entry.
             tests:
-              - PptxDocument_ResolvePart_NoOverride_ResolvesDefaultExtensionContentType
+              - OpcPackage_ResolvePart_NoOverride_UsesDefaultExtension
               - PptxDocument_ResolvePart_UnknownPart_ThrowsInvalidDataException
 
           - id: CanvasNetPptx-PptxDocument-RelationshipResolution
@@ -179,7 +178,7 @@ sections:
             tests:
               - PptxDocument_Open_WellFormedMinimalPackage_Succeeds
               - PptxDocument_ResolveRelationship_UnknownRelationshipId_ThrowsInvalidDataException
-              - PptxDocument_ResolveRelationship_ExternalTargetMode_ThrowsInvalidDataException
+              - OpcPackage_ResolveRelationship_UnknownIdOrExternalTarget_ThrowsOpcFormatException
 
           - id: CanvasNetPptx-PptxDocument-RelativeTargetTraversal
             title: >-
@@ -192,8 +191,8 @@ sections:
               referencing its layout) using a relative, parent-traversing Target value; incorrect
               resolution would misidentify the target part entirely.
             tests:
-              - PptxDocument_ResolveRelationship_RelativeTargetWithParentTraversal_ResolvesCorrectTarget
-              - PptxDocument_ResolveRelationship_TargetEscapesPackageRoot_ThrowsInvalidDataException
+              - OpcPackage_ResolveRelationship_RelativeAbsoluteAndDotTargets_ResolveToPartPaths
+              - OpcPackage_ResolveRelationship_TargetEscapesPackageRoot_ThrowsOpcFormatException
 
           - id: CanvasNetPptx-PptxDocument-Dispose
             title: >-

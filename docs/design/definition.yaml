@@ -46,6 +46,10 @@ input-files:
   - docs/design/canvas-net/rendering/shapes.md
   - docs/design/canvas-net/files.md
   - docs/design/canvas-net/files/sandboxed-file-resolver.md
+  - docs/design/canvas-net/rendering/word-wrap.md
+  - docs/design/canvas-net/packaging.md
+  - docs/design/canvas-net/packaging/opc-package.md
+  - docs/design/canvas-net/packaging/safe-xml.md
   - docs/design/canvas-net-svg.md
   - docs/design/canvas-net-svg/svg-codec.md
   - docs/design/canvas-net-pdf.md

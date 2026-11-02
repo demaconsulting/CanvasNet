@@ -73,7 +73,7 @@ sections:
               resolution step attempts to interpret any part's content.
             tests:
               - VsdxDocument_Open_MissingContentTypes_ThrowsInvalidDataException
-              - VsdxDocument_Open_OversizedContentTypesPart_ThrowsInvalidDataException
+              - OpcPackage_Open_OversizedContentTypesPart_ThrowsOpcFormatException
 
           - id: CanvasNetVsdx-VsdxDocument-RelationshipResolution
             title: >-

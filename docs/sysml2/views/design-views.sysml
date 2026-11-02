@@ -151,4 +151,8 @@ package CanvasNet {
     view FilesView {
         expose Files;
     }
+
+    view PackagingView {
+        expose Packaging;
+    }
 }

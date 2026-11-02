@@ -1,15 +1,15 @@
 ## Rendering Subsystem Verification Design
 
 This document describes the subsystem-level verification strategy for the `Rendering` subsystem
-(the `Canvas`, `TextRenderer`, and `Shapes` units).
+(the `Canvas`, `TextRenderer`, `Shapes`, and `WordWrap` units).
 
 ### Verification Approach
 
 The `Rendering` subsystem is verified through unit tests under
-`test/DemaConsulting.CanvasNet.Tests/Rendering/`: `CanvasTests`, `TextRendererTests`, and
-`ShapesTests`. No dedicated subsystem test file exists; subsystem-level requirements reuse the
-unit tests, particularly the byte-identical no-transform regression in `CanvasTests` that
-establishes composition with `Drawing.PathFiller` and `Drawing.PathStroker`.
+`test/DemaConsulting.CanvasNet.Tests/Rendering/`: `CanvasTests`, `TextRendererTests`,
+`ShapesTests`, and `WordWrapTests`. No dedicated subsystem test file exists; subsystem-level
+requirements reuse the unit tests, particularly the byte-identical no-transform regression in
+`CanvasTests` that establishes composition with `Drawing.PathFiller` and `Drawing.PathStroker`.
 
 ### Test Environment
 
@@ -29,19 +29,21 @@ establishes composition with `Drawing.PathFiller` and `Drawing.PathStroker`.
   covered in `TextRendererTests`.
 - **Shapes**: fill and stroke output, radius clamping in `FillRoundRect`, and Canvas
   current-transform propagation are covered in `ShapesTests`.
+- **WordWrap**: greedy packing without splitting a word group, line breaks, position-dependent
+  widths, both precisions, and argument validation are covered in `WordWrapTests`.
 
 ### Acceptance Criteria
 
 The `Rendering` subsystem's verification passes when every requirement-tagged test named in the
-`Canvas`, `Shapes`, and `TextRenderer` unit verification designs (`rendering/canvas.md`,
-`rendering/shapes.md`, `rendering/text-renderer.md`) passes without error or unexpected exception,
-on every target framework in this repository's CI matrix.
+`Canvas`, `Shapes`, `TextRenderer`, and `WordWrap` unit verification designs (`rendering/canvas.md`,
+`rendering/shapes.md`, `rendering/text-renderer.md`, `rendering/word-wrap.md`) passes without error
+or unexpected exception, on every target framework in this repository's CI matrix.
 
 ### Test Scenarios
 
 This subsystem has no dedicated subsystem-level test scenarios of its own beyond the unit-level
 scenarios it is composed from; subsystem-level requirements reuse the `Canvas`, `TextRenderer`,
-and `Shapes` unit tests directly:
+`Shapes`, and `WordWrap` unit tests directly:
 
 - **Canvas** — transform-stack semantics (Save/Restore/RotateDegrees/Translate), transform-
   independent `Clear`, byte-identical no-transform output against direct `Drawing.PathFiller`/
@@ -53,9 +55,12 @@ and `Shapes` unit tests directly:
 - **Shapes** — `Rect`/`RoundRect`/`Circle` fill and stroke helpers, radius clamping, and
   `Canvas` current-transform propagation; see `rendering/shapes.md` for the complete
   named-scenario list
+- **WordWrap** — greedy packing that never splits a word group, explicit line breaks,
+  position-dependent token widths in single and double precision, and argument validation; see
+  `rendering/word-wrap.md` for the complete named-scenario list
 
 ### Traceability
 
-Every requirement in `docs/reqstream/canvas-net/rendering.yaml` and in the three unit
-requirement documents `rendering/canvas.yaml`, `rendering/text-renderer.yaml`, and
-`rendering/shapes.yaml` links to one or more of these tests.
+Every requirement in `docs/reqstream/canvas-net/rendering.yaml` and in the four unit
+requirement documents `rendering/canvas.yaml`, `rendering/text-renderer.yaml`,
+`rendering/shapes.yaml`, and `rendering/word-wrap.yaml` links to one or more of these tests.

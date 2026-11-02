@@ -1,0 +1,63 @@
+---
+# Software Unit Requirements for SafeXml
+#
+# These requirements describe the design-level behavior of the SafeXml unit.
+# cspell:ignore XXE
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Packaging Requirements
+        sections:
+          - title: SafeXml Requirements
+            requirements:
+              - id: CanvasNet-Packaging-SafeXml-Hardened
+                title: >-
+                  The SafeXml type shall load XML from a stream or a string into an XDocument with DTD
+                  processing prohibited and no external resolver, so a document that declares a DTD
+                  (an external entity or an entity-expansion attack) fails with XmlException instead
+                  of being processed, while ordinary built-in entities and character references
+                  still load.
+                justification: |
+                  A DTD is the vehicle for external-entity reads and entity-expansion bombs; refusing
+                  it removes both attacks from every caller, and legitimate documents never need one.
+                tests:
+                  - SafeXml_Load_WellFormedStreamAndString_ReturnDocument
+                  - SafeXml_Load_ExternalEntityDocumentType_ThrowsXmlException
+                  - SafeXml_Load_EntityExpansionDocument_ThrowsXmlException
+                  - SafeXml_Load_BuiltInEntitiesAndCharacterReferences_Load
+
+              - id: CanvasNet-Packaging-SafeXml-Bounded
+                title: >-
+                  The SafeXml type shall reject with XmlException a document longer than the
+                  caller-supplied maximum number of characters, and malformed XML, before the
+                  document tree is built.
+                justification: |
+                  An unbounded document can exhaust memory while it is materialized; a character
+                  bound enforced by the reader stops it early.
+                tests:
+                  - SafeXml_Load_DocumentLargerThanBound_ThrowsXmlException
+                  - SafeXml_Load_MalformedXml_ThrowsXmlException
+
+              - id: CanvasNet-Packaging-SafeXml-Reader
+                title: >-
+                  The SafeXml type shall create a forward-only XmlReader over a stream with the same
+                  hardened settings and character bound, leaving the stream open.
+                justification: |
+                  A caller that reads only part of a document (a root start tag) must not have to give
+                  up the protections the tree loader applies.
+                tests:
+                  - SafeXml_CreateReader_RootStartTag_IsBoundedAndRefusesDocumentType
+
+              - id: CanvasNet-Packaging-SafeXml-Validation
+                title: >-
+                  The SafeXml type shall reject a null stream or string with ArgumentNullException, a
+                  stream that cannot be read with ArgumentException, and a maximum character count of
+                  zero or less with ArgumentOutOfRangeException, each naming the parameter, before
+                  reading.
+                justification: |
+                  A maximum of zero would mean "unlimited" to the underlying reader and silently
+                  disable the bound, so it must be rejected; other mistakes are reported precisely.
+                tests:
+                  - SafeXml_Load_NonPositiveBound_ThrowsArgumentOutOfRangeException
+                  - SafeXml_Load_NullOrUnreadableInput_ThrowsWithParameterName

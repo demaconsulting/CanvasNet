@@ -1,0 +1,71 @@
+---
+# Software Unit Requirements for WordWrap
+#
+# These requirements describe the design-level behavior of the WordWrap unit (including its
+# WordWrapTokenKind enum).
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Rendering Requirements
+        sections:
+          - title: WordWrap Requirements
+            requirements:
+              - id: CanvasNet-Rendering-WordWrap-Packing
+                title: >-
+                  The WordWrap type shall pack tokens greedily into lines, treating whitespace as the
+                  only wrap point, keeping consecutive word tokens together as one group that is
+                  never split, closing a line only when it already holds a word and the next unit
+                  would exceed the available width, carrying whitespace left at a wrap point onto
+                  the next line, placing a unit wider than the line whole on a line of its own, and
+                  returning no lines for no tokens.
+                justification: |
+                  This is the wrap rule the Pptx and Vsdx layout engines share; a word split across
+                  formatting runs must not break mid-word, and an overflowing word must not loop or
+                  be cut.
+                tests:
+                  - WordWrap_Pack_TokensFit_ReturnsOneLine
+                  - WordWrap_Pack_WordOverflowsLine_WrapsAtWhitespace
+                  - WordWrap_Pack_AdjacentWordTokens_AreNeverSplit
+                  - WordWrap_Pack_GroupWiderThanLine_IsPlacedWholeOnItsOwnLine
+                  - WordWrap_Pack_NoTokens_ReturnsNoLines
+                  - WordWrap_Pack_OnlyWhitespace_StaysOnOneLine
+                  - WordWrap_Pack_ZeroNegativeAndInfiniteWidth_BehaveAsDocumented
+                  - WordWrap_Pack_Result_IsIndependentOfInput
+
+              - id: CanvasNet-Rendering-WordWrap-LineBreaks
+                title: >-
+                  The WordWrap type shall treat a line-break token as the end of the current line
+                  (even an empty one) after placing any pending word group, never place the break
+                  token on a line, and keep the final line, even when empty, once there was any
+                  token.
+                justification: |
+                  An explicit break forces a new line whatever the width, and a trailing break
+                  still produces the blank line it implies.
+                tests:
+                  - WordWrap_Pack_LineBreaks_EndLinesAndAreNeverPlaced
+                  - WordWrap_Pack_LineBreakAfterWordGroup_KeepsGroupOnThePrecedingLine
+
+              - id: CanvasNet-Rendering-WordWrap-Measure
+                title: >-
+                  The WordWrap type shall take each token's width from a caller-supplied measure
+                  that receives the width already used on the current line, and shall provide
+                  single-precision and double-precision overloads that pack identically for widths
+                  both represent exactly.
+                justification: |
+                  A tab token's width depends on where it falls on the line, and a layout in single
+                  precision must get the sums it would compute itself.
+                tests:
+                  - WordWrap_Pack_MeasureReceivesCurrentLineWidth
+                  - WordWrap_Pack_FloatOverload_PacksLikeDoubleOverload
+
+              - id: CanvasNet-Rendering-WordWrap-Validation
+                title: >-
+                  The WordWrap type shall reject a null token list, classifier or measure with
+                  ArgumentNullException, and a NaN available width with ArgumentOutOfRangeException,
+                  each naming the parameter, before packing.
+                justification: |
+                  A public API must report a caller's mistakes precisely, and a NaN width would make
+                  every comparison false and silently disable wrapping.
+                tests:
+                  - WordWrap_Pack_InvalidArguments_ThrowWithParameterName

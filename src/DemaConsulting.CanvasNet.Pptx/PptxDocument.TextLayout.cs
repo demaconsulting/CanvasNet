@@ -1,6 +1,7 @@
 using System.Text;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Fonts;
+using DemaConsulting.CanvasNet.Rendering;
 
 namespace DemaConsulting.CanvasNet.Pptx;
 
@@ -1131,99 +1132,35 @@ public sealed partial class PptxDocument
     ///     run boundary - it wraps only where whitespace actually separates the runs' combined
     ///     text. A word group that alone exceeds <paramref name="availableWidthEmu"/> is still
     ///     placed whole on its own (overflowing) line, per the same documented overflow policy as
-    ///     any other oversized token.
+    ///     any other oversized token. The packing itself is the core
+    ///     <see cref="WordWrap"/> helper's; this method only supplies the DrawingML token
+    ///     classification and the position-dependent tab width. A paragraph with no tokens at all
+    ///     (no runs, no breaks) intentionally yields no lines - <see cref="BuildLines"/> supplies
+    ///     its own single blank line for that case.
     /// </summary>
-    private static List<List<ResolvedToken>> PackTokensIntoLines(IReadOnlyList<ResolvedToken> tokens, float availableWidthEmu)
+    private static List<List<ResolvedToken>> PackTokensIntoLines(IReadOnlyList<ResolvedToken> tokens, float availableWidthEmu) =>
+        WordWrap.Pack(
+            tokens,
+            availableWidthEmu,
+            ClassifyToken,
+            // A tab token's effective width depends on its own position in the line (Phase 2
+            // Follow-Up: Default Tab-Stop Expansion): it is computed from the running line width
+            // at this point, rather than the token's static (unused, 0) WidthEmu, so an early
+            // tab's expanded width is correctly accounted for when deciding where word-wrap
+            // breaks occur.
+            static (token, currentWidth) => token.IsTab
+                ? GetNextTabStopEmu(currentWidth, DefaultTabStopEmu) - currentWidth
+                : token.WidthEmu);
+
+    /// <summary>Maps a DrawingML token to the role <see cref="WordWrap"/> packs it by.</summary>
+    private static WordWrapTokenKind ClassifyToken(ResolvedToken token)
     {
-        var lines = new List<List<ResolvedToken>>();
-        var currentLine = new List<ResolvedToken>();
-        var currentWidth = 0f;
-        var sawAnyToken = false;
-
-        var pendingGroup = new List<ResolvedToken>();
-        var pendingGroupWidth = 0f;
-
-        void FlushPendingGroup()
+        if (token.IsLineBreak)
         {
-            if (pendingGroup.Count == 0)
-            {
-                return;
-            }
-
-            Pack(pendingGroup, pendingGroupWidth);
-            pendingGroup.Clear();
-            pendingGroupWidth = 0f;
+            return WordWrapTokenKind.LineBreak;
         }
 
-        void Pack(IReadOnlyList<ResolvedToken> unit, float unitWidth)
-        {
-            // Only a currentLine already carrying at least one visible (non-whitespace) token
-            // counts as "has content" for the wrap decision - a currentLine consisting solely of
-            // a stranded whitespace token (for example the space between two words, where the
-            // following word itself would overflow) must not be flushed as its own, visually
-            // blank, line. Instead the whitespace is carried forward and merged onto the same
-            // line as whatever comes next, matching standard word-processor wrap behavior (the
-            // trailing space before a wrapped word is swallowed at the wrap point).
-            var currentLineHasVisibleContent = currentLine.Any(static t => !t.IsWhitespace);
-            if (currentLineHasVisibleContent && currentWidth + unitWidth > availableWidthEmu)
-            {
-                lines.Add(currentLine);
-                currentLine = [];
-                currentWidth = 0f;
-            }
-
-            currentLine.AddRange(unit);
-            currentWidth += unitWidth;
-        }
-
-        foreach (var token in tokens)
-        {
-            sawAnyToken = true;
-
-            if (token.IsLineBreak)
-            {
-                FlushPendingGroup();
-                lines.Add(currentLine);
-                currentLine = [];
-                currentWidth = 0f;
-                continue;
-            }
-
-            if (token.IsWhitespace)
-            {
-                FlushPendingGroup();
-
-                // A tab token's effective width for the wrap/fit decision depends on its own
-                // position in the line (Phase 2 Follow-Up: Default Tab-Stop Expansion) - compute
-                // it dynamically from the running currentWidth at this point, rather than using
-                // the token's static (unused, 0) WidthEmu, so an early tab's expanded width is
-                // correctly accounted for when deciding where word-wrap breaks occur.
-                var width = token.IsTab
-                    ? GetNextTabStopEmu(currentWidth, DefaultTabStopEmu) - currentWidth
-                    : token.WidthEmu;
-                Pack([token], width);
-                continue;
-            }
-
-            // Non-whitespace: accumulate into the pending word group rather than packing
-            // immediately, so a word split across run boundaries is never wrapped mid-word.
-            pendingGroup.Add(token);
-            pendingGroupWidth += token.WidthEmu;
-        }
-
-        FlushPendingGroup();
-
-        // The final (or only) line is always kept, even if empty - a trailing <a:br/> or a
-        // paragraph consisting solely of break(s) still produces the trailing blank line(s) the
-        // explicit break boundary implies. A paragraph with no tokens at all (no runs, no
-        // breaks) intentionally yields no lines here - BuildLines supplies its own single blank
-        // line for that case.
-        if (sawAnyToken)
-        {
-            lines.Add(currentLine);
-        }
-
-        return lines;
+        return token.IsWhitespace ? WordWrapTokenKind.Whitespace : WordWrapTokenKind.Word;
     }
 
     /// <summary>

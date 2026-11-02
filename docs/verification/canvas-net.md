@@ -306,6 +306,16 @@ at the equivalent absolute coordinates on an untransformed `Rendering.Canvas`. A
 surfaces are painted identically, pixel for pixel, confirming the `Rendering` subsystem's shape
 helpers correctly compose with its transform stack all the way down to pixel output.
 
+### Integration: Word Wrap of Measured Text Fits Without Splitting Words
+
+**Test**: `CanvasNet_SystemIntegration_WordWrapMeasuredText_LinesFitWithoutSplittingWords`
+
+Exercises end-to-end system behavior across the `Rendering` and `Fonts` subsystems: loads the bundled
+Liberation Sans fallback font, splits a sentence into word and space tokens whose widths come from
+`TextRenderer.MeasureText`, and packs them with `WordWrap.Pack` into a width a little wider than the
+first four words. Asserts the result has several lines, joining the lines gives the original sentence,
+each line (without trailing space) measures within the width, and the words appear in order, unsplit.
+
 ### Integration: Draw and Measure Text via Canvas Renders and Measures Expected Result
 
 **Test**: `CanvasNet_SystemIntegration_DrawAndMeasureTextViaCanvas_RendersAndMeasuresExpectedResult`
