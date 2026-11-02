@@ -132,12 +132,15 @@ and a missing part, an ill-formed part and a part with a DTD each throw.
 
 **Tests**: `OpcPackage_GetPartBytes_WellFormedPart_ReturnsExactBytes`,
 `OpcPackage_GetPartBytes_OversizedDecompressedEntry_ThrowsOpcFormatException`,
-`OpcPackage_GetPartBytes_AllocatesNoMoreThanThePartLength`
+`OpcPackage_GetPartBytes_AllocatesNoMoreThanThePartLength`,
+`OpcPackage_GetPartBytes_EntryDeclaringHugeLength_AllocatesLittleAndReturnsItsBytes`
 
 Reads a 256-byte part and asserts the exact bytes, with and without a leading slash, in distinct
 arrays, and a missing part throws; writes a part of `MaxPartBytes + 1` zero bytes (a tiny compressed
 entry) and asserts `OpcFormatException` whose message mentions a decompression bomb; reads a part
-just above a power of two and asserts the memory allocated stays at its length plus a small constant.
+just above a power of two and asserts the memory allocated stays at its length plus a small constant; patches the
+central directory of a five-byte part to declare 200 MiB and asserts the read returns the five bytes while allocating
+no more than the 16 MiB pre-size cap plus a small constant.
 
 ##### CanvasNet-Packaging-OpcPackage-Validation: Arguments and Disposal
 

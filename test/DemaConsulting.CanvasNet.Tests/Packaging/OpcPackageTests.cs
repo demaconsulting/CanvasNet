@@ -811,6 +811,61 @@ public class OpcPackageTests
         Assert.Contains("decompression bomb", exception.Message);
     }
 
+    /// <summary>
+    ///     Proves a ZIP entry that declares a huge length but holds a few bytes does not force a large allocation: the
+    ///     declared length is untrusted and pre-sizes the buffer only up to a small cap, and the bytes actually read are
+    ///     what is returned.
+    /// </summary>
+    [Fact]
+    public void OpcPackage_GetPartBytes_EntryDeclaringHugeLength_AllocatesLittleAndReturnsItsBytes()
+    {
+        // Arrange: a small part whose central-directory entry is patched to declare 200 MiB uncompressed
+        byte[] expected = [1, 2, 3, 4, 5];
+        var built = new MemoryStream();
+        using (var archive = new ZipArchive(built, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            foreach (var (name, content) in new[] { ("[Content_Types].xml", ContentTypesXml), ("_rels/.rels", PackageRelsXml) })
+            {
+                using var writer = new StreamWriter(archive.CreateEntry(name).Open(), new UTF8Encoding(false));
+                writer.Write(content);
+            }
+
+            using var entryStream = archive.CreateEntry("media/lie.bin").Open();
+            entryStream.Write(expected, 0, expected.Length);
+        }
+
+        var zip = built.ToArray();
+        PatchDeclaredLength(zip, "media/lie.bin", 200u * 1024 * 1024);
+        using var package = OpcPackage.Open(new MemoryStream(zip));
+
+        // Act
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        var bytes = package.GetPartBytes("media/lie.bin");
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        // Assert: the 16 MiB pre-size cap plus a small constant, nowhere near the declared 200 MiB
+        Assert.Equal(expected, bytes);
+        Assert.True(allocated < (17L * 1024 * 1024), $"Allocated {allocated} bytes for a declared length of 200 MiB.");
+    }
+
+    /// <summary>Rewrites the uncompressed size the central directory declares for the named entry.</summary>
+    private static void PatchDeclaredLength(byte[] zip, string entryName, uint declared)
+    {
+        var name = Encoding.UTF8.GetBytes(entryName);
+        for (var i = 0; i + 46 + name.Length <= zip.Length; i++)
+        {
+            // Central directory header signature, then the entry name 46 bytes in
+            if (zip[i] == 0x50 && zip[i + 1] == 0x4B && zip[i + 2] == 0x01 && zip[i + 3] == 0x02
+                && zip.AsSpan(i + 46, name.Length).SequenceEqual(name))
+            {
+                BitConverter.GetBytes(declared).CopyTo(zip, i + 24);
+                return;
+            }
+        }
+
+        throw new InvalidOperationException($"No central directory entry named '{entryName}'.");
+    }
+
     /// <summary>Proves part existence is tested by exact name, with or without the leading slash.</summary>
     [Fact]
     public void OpcPackage_ContainsPart_ExactAndDifferentCaseNames_ReportsExistence()

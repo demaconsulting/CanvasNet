@@ -128,8 +128,9 @@ sections:
                 title: >-
                   The OpcPackage type shall return a part's decompressed content as a new array,
                   counting the bytes read rather than trusting the entry's declared length (which only
-                  pre-sizes the array, clamped to MaxPartBytes, so a part is not read into a doubling
-                  buffer plus a copy), and shall reject a part larger than MaxPartBytes, or one that
+                  pre-sizes the array, capped at 16 MiB, so a part up to that size is read without a
+                  copy, a larger one grows by clamped doubling, and a lying header cannot force a large
+                  allocation), and shall reject a part larger than MaxPartBytes, or one that
                   does not exist, with OpcFormatException.
                 justification: |
                   The compressed-to-decompressed ratio of a part is attacker-controlled (a zip bomb);
@@ -139,6 +140,7 @@ sections:
                   - OpcPackage_GetPartBytes_WellFormedPart_ReturnsExactBytes
                   - OpcPackage_GetPartBytes_OversizedDecompressedEntry_ThrowsOpcFormatException
                   - OpcPackage_GetPartBytes_AllocatesNoMoreThanThePartLength
+                  - OpcPackage_GetPartBytes_EntryDeclaringHugeLength_AllocatesLittleAndReturnsItsBytes
 
               - id: CanvasNet-Packaging-OpcPackage-Validation
                 title: >-

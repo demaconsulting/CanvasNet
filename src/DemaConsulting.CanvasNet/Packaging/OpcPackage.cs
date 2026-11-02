@@ -25,7 +25,7 @@ namespace DemaConsulting.CanvasNet.Packaging;
 ///         <b>Hardening.</b> The package is treated as untrusted. The input is rejected once it
 ///         exceeds <see cref="MaxPackageBytes"/> bytes; a single part is rejected once its
 ///         decompressed content exceeds <see cref="MaxPartBytes"/> bytes (the size is counted while
-///         copying, never taken from the ZIP entry's declared length); an XML part is parsed with
+///         reading; the ZIP entry's declared length is untrusted and only pre-sizes a small buffer); an XML part is parsed with
 ///         <see cref="SafeXml"/> (no DTD, no external resolution) and rejected once it exceeds
 ///         <see cref="MaxXmlPartCharacters"/> characters; two ZIP entries with an identical name are
 ///         rejected; and a relationship target that would climb above the package root is rejected.
@@ -78,6 +78,13 @@ public sealed class OpcPackage : IDisposable
 
     /// <summary>The size, in bytes, of the chunks the bounded copy reads.</summary>
     private const int CopyChunkBytes = 81920;
+
+    /// <summary>
+    ///     The most a ZIP entry's declared length may pre-size the buffer of <see cref="GetPartBytes"/>: the declared length
+    ///     is attacker-controlled, so a tiny package must not be able to force a large allocation per call. A part beyond
+    ///     it is read by clamped doubling instead.
+    /// </summary>
+    private const int MaxPartPreSizeBytes = 16 * 1024 * 1024;
 
     /// <summary>The XML namespace used by <c>[Content_Types].xml</c>.</summary>
     private static readonly XNamespace ContentTypesNamespace =
@@ -464,8 +471,8 @@ public sealed class OpcPackage : IDisposable
     /// <exception cref="ObjectDisposedException">Thrown when this package has been disposed.</exception>
     /// <exception cref="OpcFormatException">
     ///     Thrown when the package has no such part, or its decompressed content exceeds
-    ///     <see cref="MaxPartBytes"/> bytes. The size is counted while copying and never taken from
-    ///     the entry's declared length, so a deceptive header cannot defeat the bound.
+    ///     <see cref="MaxPartBytes"/> bytes. The size is counted while reading; the entry's declared length is
+    ///     untrusted, so it only pre-sizes the buffer (up to a small cap) and never decides the bound.
     /// </exception>
     public byte[] GetPartBytes(string partPath)
     {
@@ -479,11 +486,12 @@ public sealed class OpcPackage : IDisposable
 
         using var entryStream = entry.Open();
 
-        // The declared length only sizes the array (clamped to the bound), so an honest part is read into one exactly
-        // sized array with no copy; a deceptive header cannot defeat the bound, because the bytes actually read decide
+        // The declared length is untrusted: it only pre-sizes the array, and only up to MaxPartPreSizeBytes, so an honest
+        // part of that size or less is read into one exactly sized array with no copy while a lying header cannot force a
+        // large allocation; the bytes actually read decide, and a larger part grows by clamped doubling
         var segment = ReadBounded(
             entryStream,
-            entry.Length,
+            Math.Min(entry.Length, MaxPartPreSizeBytes),
             MaxPartBytes,
             $"The part '{partPath}' exceeds the maximum supported decompressed size of {MaxPartBytes} bytes (the compressed ZIP entry may be a decompression bomb).");
         if (segment.Count == segment.Array!.Length)
@@ -516,8 +524,8 @@ public sealed class OpcPackage : IDisposable
     ///     non-terminating source.
     /// </summary>
     /// <remarks>
-    ///     The array is pre-sized from <paramref name="expectedLength"/> (clamped to the bound, so an untrustworthy
-    ///     length cannot allocate beyond it) and, when more data arrives, grown by doubling but never past
+    ///     The array is pre-sized from <paramref name="expectedLength"/> (clamped to the bound, so an overlong
+    ///     length cannot allocate beyond it; a caller whose length is untrusted passes a smaller hint) and, when more data arrives, grown by doubling but never past
     ///     <paramref name="maxBytes"/>. A full array is probed with a single byte rather than grown, so end of stream
     ///     is detected without allocating, and the capacity never exceeds <paramref name="maxBytes"/> (a
     ///     <see cref="MemoryStream"/> would double beyond it).

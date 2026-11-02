@@ -88,10 +88,11 @@ unspecified, so it is meant for navigations that are unique by type.
 
 `LoadPartXmlRoot` loads the part with `SafeXml.Load(stream, MaxXmlPartCharacters)` and returns the
 root element; an `XmlException` (not well-formed, a DTD, too long) becomes an `OpcFormatException`
-naming the part. `GetPartBytes` reads the part into one array, counting what it actually reads
-rather than trusting the entry's declared length (which only pre-sizes the array, clamped to
-`MaxPartBytes`, so an honest part is read into an exactly sized array with no second copy and a lying
-header cannot allocate beyond the bound), and throws `OpcFormatException` once more than
+naming the part. `GetPartBytes` reads the part into one array, counting what it actually reads.
+The entry's declared length is untrusted: it only pre-sizes the array, and only up to a private cap
+(`MaxPartPreSizeBytes`, 16 MiB), so a tiny package cannot force a large allocation per call. A part
+within the cap is read into an exactly sized array with no second copy; a larger part grows by doubling
+clamped to `MaxPartBytes`. It throws `OpcFormatException` once more than
 `MaxPartBytes` bytes are available, so a "zip bomb" part cannot allocate beyond the bound. Both
 methods share the internal `ReadBounded`, which never lets the array exceed the bound (growth is by
 doubling clamped to it and a full array is probed with one byte instead of grown).
