@@ -327,7 +327,11 @@ start-of-scan (`MarkerEoi`, `MarkerSos`): a marker without a length (TEM and the
 `0xE1`) that starts with `Exif\0\0` is read and parsed as TIFF: the byte-order mark `II` or `MM`, the magic number 42, and
 the first directory, in which the orientation is the entry with tag `0x0112` of type SHORT and count 1 (the value is in
 the first two bytes of its value field). An APP1 segment that is not EXIF (for example XMP) is skipped. The value is
-returned only when it is 1 to 8. Only forward reads and, when the stream can seek, a seek over a skipped segment are used,
+returned only when it is 1 to 8. The whole read is bounded by a **byte budget** of `MaxProbeHeaderBytes` (1 MiB) taken
+after the signature: every marker byte (a run of `0xFF` fill bytes included), every segment length, and every segment
+payload, whether read or skipped, is counted for seekable and forward-only streams alike, and the method returns `null`
+when it is used up, so a stream of fill bytes or of huge segments cannot make it read without end. Only forward reads
+and, when the stream can seek, a seek over a skipped segment are used,
 so the stream may be forward-only; the stream is not disposed.
 
 **Returns:** the orientation 1 to 8, or `null` when the data is not a JPEG, has no EXIF segment, has no or an invalid

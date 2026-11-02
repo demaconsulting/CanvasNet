@@ -391,6 +391,30 @@ public class SurfaceGeometryTests
     }
 
     /// <summary>
+    ///     Verifies that a huge finite angle is reduced modulo 360 degrees, so it gives the size and pixels of the
+    ///     reduced angle rather than an overflowed one.
+    /// </summary>
+    [Fact]
+    public void Surface_Rotation_HugeFiniteAngle_EqualsReducedAngle()
+    {
+        foreach (var huge in new[] { double.MaxValue, -double.MaxValue })
+        {
+            var reduced = huge % 360.0;
+            var size = Surface.RotatedSize(100, 50, huge);
+
+            Assert.Equal(Surface.RotatedSize(100, 50, reduced), size);
+            Assert.True(size.Width >= 1 && size.Height >= 1);
+
+            using var source = RandomSurface(13, 9);
+            using var fromHuge = source.RotateArbitrary(huge, White, nearest: false);
+            using var fromReduced = source.RotateArbitrary(reduced, White, nearest: false);
+            SurfaceAssert.Equal(fromReduced, fromHuge);
+        }
+
+        Assert.Equal(Surface.RotatedSize(100, 50, 90), Surface.RotatedSize(100, 50, 360.0 * 1000 + 90));
+    }
+
+    /// <summary>
     ///     Verifies that invalid arguments are rejected.
     /// </summary>
     [Fact]

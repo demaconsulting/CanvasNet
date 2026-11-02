@@ -163,6 +163,23 @@ public class JpegCodecExifTests
     }
 
     /// <summary>
+    ///     Test that a stream of fill bytes without end is abandoned within the byte budget.
+    /// </summary>
+    [Fact]
+    public void JpegCodec_ReadExifOrientation_EndlessFillBytes_ReturnsNullWithinBudget()
+    {
+        // Arrange: SOI followed by 0xFF forever, generated without allocating
+        using var stream = new EndlessFillStream();
+
+        // Act
+        var result = JpegCodec.ReadExifOrientation(stream);
+
+        // Assert: no orientation, and no more than the 1 MiB budget (plus the signature) was read
+        Assert.Null(result);
+        Assert.InRange(stream.BytesRead, 1, (1 << 20) + 8);
+    }
+
+    /// <summary>
     ///     Test that a null stream or path is rejected.
     /// </summary>
     [Fact]
@@ -171,6 +188,84 @@ public class JpegCodecExifTests
         // Arrange / Act / Assert: a null stream and a null path are rejected
         Assert.Throws<ArgumentNullException>(() => JpegCodec.ReadExifOrientation((Stream)null!));
         Assert.Throws<ArgumentNullException>(() => JpegCodec.ReadExifOrientation((string)null!));
+    }
+
+    /// <summary>
+    ///     A forward-only stream that holds a JPEG start-of-image marker and then an endless run of 0xFF bytes.
+    /// </summary>
+    private sealed class EndlessFillStream : Stream
+    {
+        /// <summary>The number of bytes handed out so far.</summary>
+        private long _position;
+
+        /// <summary>Gets the number of bytes read from the stream.</summary>
+        public long BytesRead => _position;
+
+        /// <inheritdoc />
+        public override bool CanRead => true;
+
+        /// <inheritdoc />
+        public override bool CanSeek => false;
+
+        /// <inheritdoc />
+        public override bool CanWrite => false;
+
+        /// <inheritdoc />
+        public override long Length => throw new NotSupportedException();
+
+        /// <inheritdoc />
+        public override long Position
+        {
+            get => _position;
+            set => throw new NotSupportedException();
+        }
+
+        /// <inheritdoc />
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            return Read(buffer.AsSpan(offset, count));
+        }
+
+        /// <inheritdoc />
+        public override int Read(Span<byte> buffer)
+        {
+            for (var i = 0; i < buffer.Length; i++)
+            {
+                buffer[i] = _position + i == 1 ? (byte)0xD8 : (byte)0xFF;
+            }
+
+            _position += buffer.Length;
+            return buffer.Length;
+        }
+
+        /// <inheritdoc />
+        public override int ReadByte()
+        {
+            return _position++ == 1 ? 0xD8 : 0xFF;
+        }
+
+        /// <inheritdoc />
+        public override void Flush()
+        {
+        }
+
+        /// <inheritdoc />
+        public override long Seek(long offset, SeekOrigin origin)
+        {
+            throw new NotSupportedException();
+        }
+
+        /// <inheritdoc />
+        public override void SetLength(long value)
+        {
+            throw new NotSupportedException();
+        }
+
+        /// <inheritdoc />
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            throw new NotSupportedException();
+        }
     }
 
     /// <summary>

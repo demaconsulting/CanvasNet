@@ -27,7 +27,7 @@ public sealed partial class Surface
     /// </summary>
     /// <param name="width">The width of the image, 1 to <see cref="MaxDimension"/>.</param>
     /// <param name="height">The height of the image, 1 to <see cref="MaxDimension"/>.</param>
-    /// <param name="degrees">The rotation in degrees, any finite number (clockwise).</param>
+    /// <param name="degrees">The rotation in degrees, any finite number (clockwise); it is reduced modulo 360 first, so a huge angle is the same as its remainder.</param>
     /// <returns>
     ///     The width and height of the bounding box of the rotated rectangle: with <c>c = |cos θ|</c> and
     ///     <c>s = |sin θ|</c> they are <c>max(1, ceil(W c + H s - 1e-9))</c> and <c>max(1, ceil(W s + H c - 1e-9))</c>; the
@@ -48,7 +48,7 @@ public sealed partial class Surface
             throw new ArgumentOutOfRangeException(nameof(degrees), degrees, "The angle must be a finite number.");
         }
 
-        var theta = degrees * Math.PI / 180.0;
+        var theta = (degrees % 360.0) * Math.PI / 180.0;
         var c = Math.Abs(Math.Cos(theta));
         var s = Math.Abs(Math.Sin(theta));
         var newWidth = Math.Max(1.0, Math.Ceiling((width * c) + (height * s) - SizeEpsilon));
@@ -105,7 +105,7 @@ public sealed partial class Surface
         }
 
         var source = this;
-        var theta = degrees * Math.PI / 180.0;
+        var theta = (degrees % 360.0) * Math.PI / 180.0;
         var cos = Math.Cos(theta);
         var sin = Math.Sin(theta);
         var halfNewWidth = newWidth / 2.0;
