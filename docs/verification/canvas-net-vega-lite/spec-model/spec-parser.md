@@ -8,6 +8,8 @@ expressions and the validation of transforms and parameters in `SpecParser.Trans
 aggregating transforms and of the aggregate, bin, stack, sort, and impute properties of an encoding in
 `SpecParser.Aggregates.cs`,
 the validation of the time constructs and the compilation of the time predicates in `SpecParser.Time.cs`,
+the validation of `resolve` and of the composite mark properties and the rule for which views are drawn
+(`IsDrawnView`, `FindUndrawnComposition`, in `SpecParser.Layers.cs` and `SpecParser.Transforms.cs`),
 and `ParseSchemaMajorVersion`), the `PredicateSource` class that writes a predicate as expression source (the plain
 comparisons and, since Phase 8, the time predicates), and the types of the sibling files that carry its result —
 `SpecNode`, `SpecNodeKind`,
@@ -42,7 +44,9 @@ properties) within the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the
 `SpecModel` folder, together with `SpecParserConditionTests.cs` (the conditions of a channel), `PredicateSourceTests.cs`
 (the predicates written as expressions), `SpecParserTimeTests.cs` (the validation of the time constructs),
 `PredicateSourceTimeTests.cs` (the time predicates written as expressions), `SpecParserMarkTests.cs` (the properties of
-the path, text, and arc marks), `SpecParserImputeTests.cs` (the `impute` object of an encoding), and
+the path, text, and arc marks), `SpecParserImputeTests.cs` (the `impute` object of an encoding),
+`SpecParserResolveTests.cs` (the `resolve` and composite
+mark rules of `SpecParser.Layers.cs` and the rule for which views are drawn, Phase 10), and
 `ChannelDefinitionsTests.cs`; the
 large-inline-data test is in `VegaLiteDocumentSpecModelTests.cs` in the same folder, and the test of the marks that
 evaluate the conditions of a `size` channel is in `MarkChannelGatingTests.cs` in the `Scales` folder. The time
@@ -562,3 +566,51 @@ number, a `valid` test, a `maxbins` unit, and an expression text; `ReadUnit` giv
 `yearmonth` and null for no unit and for a binned unit. The text is the same under the invariant, `tr-TR`, and `de-DE`
 cultures (an upper-case `FRIDAY` and `SEPTEMBER` are matched without the culture, Friday is the 6th, and 1.5 and 0.5
 keep their point), and a null node is an `ArgumentNullException` for `IsTimeAware` and `ReadUnit`.
+
+##### The Resolve Of A View Is Validated
+
+**Tests**: `SpecParserResolveTests.SpecParser_Parse_ValidResolveIsAccepted`,
+`SpecParserResolveTests.SpecParser_Parse_MalformedResolveReportsThePointer`,
+`SpecParserResolveTests.SpecParser_Parse_UnknownResolveKindIsAWarning`,
+`SpecParserResolveTests.SpecParser_IsResolveChannel_FollowsTheVegaLiteMaps`
+
+Asserts that a well-formed `resolve` (a `scale`, an `axis`, and a `legend` object with the values `shared` and
+`independent`, for channels of each kind) is accepted without a warning; that a `resolve` that is not an object, a kind
+that
+is not an object, a channel that the kind does not accept (an axis of `color`, a legend of `x`), and a mode that is neither
+`shared` nor `independent` are each a `VegaLiteSpecException` at the offending value; that an unknown kind is a
+`vl-unknown-property` warning and not an error; and, as a theory, which channels each kind accepts (the position,
+offset, and
+non-position channels of a scale; `x` and `y` of an axis; the non-position channels of a legend).
+
+##### The Properties Of The Composite Marks Are Validated
+
+**Tests**: `SpecParserResolveTests.SpecParser_Parse_ValidCompositeMarkIsAccepted`,
+`SpecParserResolveTests.SpecParser_Parse_MalformedCompositeMarkReportsThePointer`,
+`SpecParserResolveTests.SpecParser_Parse_CompositeRulesDoNotApplyToPrimitiveMarks`
+
+Asserts that the parts `box`, `median`, `rule`, `ticks`, `outliers`, `band`, and `borders` may be a boolean or an
+object, that
+the extent of a boxplot is a number (not negative) or `min-max` and that of an errorbar or errorband is `ci`, `iqr`,
+`stderr`, or
+`stdev`, and that the center is `mean` or `median`; that a property of the wrong type or an extent that the mark does
+not know is
+a `VegaLiteSpecException` at the offending value; and that the composite rules are not applied to a primitive mark.
+
+##### Which Views Are Drawn
+
+**Tests**: `SpecParserResolveTests.SpecParser_IsDrawnView_LayersAreDrawnCompositionsAreNot`,
+`SpecParserResolveTests.SpecParser_IsDrawnView_ViewOfAnotherTreeIsNotDrawn`,
+`SpecParserResolveTests.SpecParser_FindUndrawnComposition_NamesTheNearestComposition`,
+`SpecParserResolveTests.SpecParser_Parse_ExpressionsOfLayersAreCompiledButNotThoseOfConcatenations`
+
+Asserts that a single view, a layered view, and its layers at any depth are drawn, that a view inside a concatenation,
+facet, or
+repeat is not, even inside a layer or with a layer around it, and that a view that is not below the root is not drawn;
+that the
+composition that keeps a view from being drawn is found on the view itself or on the nearest ancestor that has one; and
+that the
+expressions of the layers of a drawn layered view (the transform of a layer and of the layered view, a condition of a layer's
+encoding, and a `size` condition of the layered view's own encoding) are compiled when the document is opened while
+those of a
+concatenated view still are not.

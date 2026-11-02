@@ -26,8 +26,10 @@ construct (the value; for an unknown property or a duplicate key, the key), and 
 `UnsupportedFeature` (a recognized construct that is not rendered, delivered as a `VegaLiteUnsupportedFeature`).
 
 **The supported sets** are private read-only sets in the class and define the boundary: the supported marks (bar, rect,
-point, circle, square, rule, tick, line, area, trail, text, arc), the supported channels (x, y, color, fill, stroke, size,
-opacity, shape, strokeWidth, strokeDash, fillOpacity, strokeOpacity, angle, text, theta, radius, theta2, radius2; `order`
+point, circle, square, rule, tick, line, area, trail, text, arc, and, since phase 10, boxplot, errorbar, errorband), the
+supported channels (x, y, color, fill, stroke, size,
+opacity, shape, strokeWidth, strokeDash, fillOpacity, strokeOpacity, angle, text, theta, radius, theta2, radius2, and, since
+phase 10, xError, xError2, yError, yError2; `order`
 and `detail` are accepted by every mark and are not in the set), the marks that
 draw a range between a position channel and its secondary channel (bar, rect, rule, area), the channels on which `bin` is
 applied (x, y, `text`, and every channel that has a scale), the ignored
@@ -119,8 +121,9 @@ adds are:
 **Phase 9 (line, area, trail, text, and arc) identifiers.** The marks `line`, `area`, `trail`, `text`, and `arc` are
 drawn, so the identifiers `vl-mark-line`, `vl-mark-area`, `vl-mark-trail`, `vl-mark-text`, and `vl-mark-arc` are retired
 (the supported mark set of the catalog and `MarkBuilder.SupportedMarks` change in the same commit), and so are
-`vl-channel-detail` and `vl-channel-order`: both channels are accepted by every mark. `vl-mark-image`, `vl-mark-geoshape`,
-and the composite marks `vl-mark-boxplot`, `vl-mark-errorbar`, and `vl-mark-errorband` stay; **`geoshape` is now the
+`vl-channel-detail` and `vl-channel-order`: both channels are accepted by every mark. `vl-mark-image` and
+`vl-mark-geoshape` stay (the composite marks `vl-mark-boxplot`, `vl-mark-errorbar`, and `vl-mark-errorband` stayed in
+phase 9 and are retired in phase 10, see below); **`geoshape` is now the
 sentinel "unsupported mark"** of the tests and examples (and `encoding.longitude`, which reports `vl-channel-geo`, is the
 sentinel unsupported channel), where `arc` and `theta` were before. The identifiers that change are:
 
@@ -166,16 +169,52 @@ sentinel unsupported channel), where `arc` and `theta` were before. The identifi
 The identifier `vl-scale-polar-discrete` that the plan kept as a fallback was **not added**: the discrete polar scales
 (a band scale for an arc and a point scale for a text mark) are implemented.
 
+**Phase 10 (layers and composite marks) identifiers.** The `layer` composition and the composite marks are drawn, so
+**`vl-composition-layer`** and **`vl-mark-boxplot`**, **`vl-mark-errorbar`**, and **`vl-mark-errorband`** are retired
+(they were reported until phase 9 and are no longer produced); the identifiers are not reused. The
+sentinel "unsupported nested view" of the tests and examples is now `hconcat`. The identifiers that change or are new are:
+
+- `vl-transform-<name>` keeps its identifier for a transform of a view that is not drawn (a view inside a `concat`,
+  `hconcat`, `vconcat`, `facet`, or `repeat`, found by `SpecParser.IsDrawnView`) but has a **reworded message**:
+  `The '<name>' transform is not applied: the view is a '<composition>' composition, which is not supported yet.`,
+  where the composition is the nearest one (`SpecParser.FindUndrawnComposition`, so a layer inside a `concat` names
+  the `concat`). The transforms of a later phase in a drawn view (`regression`, `loess`, `density`, `quantile`, `extent`)
+  keep "is not supported yet". A top-level `transform` of a layered view, and the transforms of its layers, are **not
+  reported**: they are computed (this was the false report that a layered chart with a top-level `calculate` produced).
+- `vl-layer-property-ignored` (warning) - a `width`, `height`, `autosize`, `padding`, `background`, `config`, `datasets`,
+  or `title` of a view inside a layered view (a layer or a nested layered view), located at the property: only the
+  top-level view decides it.
+- `vl-layer-scale-conflict` (warning) - **produced by the renderer** (the scale resolver and the document), not by the
+  catalog, because it needs the scales: layers whose scales of a shared channel cannot be merged.
+- `vl-composite-grouping` - a channel of a `boxplot`, `errorbar`, or `errorband` that groups the rows (every channel but
+  the measure axis, the second ends and error channels, and the tooltip) that has an enabled `bin`, a `timeUnit`, or an
+  `aggregate`: the rows are grouped by the raw field. The orientation is decided by `SpecNormalizer.TryOrientation`;
+  nothing is reported when it cannot be decided (the render fails with a specification error).
+- `vl-channel-xerror`, `vl-channel-xerror2`, `vl-channel-yerror`, and `vl-channel-yerror2` - an error channel on a mark
+  other than `errorbar` and `errorband`, which use them; the channel is ignored. The `x2` and `y2` channels are accepted
+  on
+  those two marks as the ends of the range, and `size` on an `errorbar` reports `vl-channel-size` (Vega-Lite drops it).
+  `shape`, `angle`, and `strokeDash` are accepted on a `boxplot` (its outliers are points). The channel-drawn rule
+  (`ScaleResolver.ChannelIsDrawn`) sees an `errorbar` as a `rule`, an `errorband` as an `area` or a `rect`, and a
+  `boxplot` as a `point` for these channels.
+
 #### Key Methods
 
 - `Visit(SpecTree tree)` - requires a non-null tree, runs a private `Walker`, and returns the reports sorted by line and
-  then column with a stable sort, so reports at one position keep the order in which they were found. It visits the
-  `$schema` value and then every view of `tree.EnumerateViews()`.
+  then column with a stable sort, so reports at one position keep the order in which they were found, after removing the
+  duplicates (the same identifier, location, message, and kind, so an inherited channel that several layers reach is
+  reported once). It visits the
+  `$schema` value and then every view of `tree.EnumerateViews()`; the encoding of a view that is drawn through `layer` is
+  not visited on its own but as the **merged encoding of each layer** (from `SpecNormalizer.Layers` with generous
+  limits; the nodes keep their original pointers) with that layer's mark, so a channel is judged by the mark that
+  draws it.
 - The walker's `VisitSchema` warns `vl-schema-version` for a major version other than 5 and 6 or a URL that names no
   Vega-Lite version.
 - `VisitView` dispatches each property of a view: `data`, `mark`, `encoding`, `transform`, `params`, the legacy
   `selection` (`vl-param-selection`), `projection` (`vl-projection`), `autosize`, and the composition properties
-  (`vl-composition-<name>`); and, for the properties in the expression scopes, looks for `{"expr": ...}` values
+  (`vl-composition-<name>` for `concat`, `hconcat`, `vconcat`, `facet`, and `repeat`; `layer` is drawn and not reported);
+  for a view inside a layered view it warns `vl-layer-property-ignored` for the properties that only the top-level view
+  decides; and, for the properties in the expression scopes, looks for `{"expr": ...}` values
   (`vl-expr-ref`).
 - `VisitData` chooses the source by precedence (inline `values`, then `url`, then `sequence`, then `name`, then the
   geographic generators), not by key order. An empty `values` array or a `data` object without a source warns
@@ -188,7 +227,8 @@ The identifier `vl-scale-polar-discrete` that the plan kept as a fallback was **
   `format.property` are supported and are not reported. The retired identifiers `vl-data-file`, `vl-data-named`,
   `vl-data-sequence`, `vl-data-parse`, `vl-data-parse-date-format`, `vl-data-format-<type>`, and `vl-data-property` are
   no longer produced.
-- `VisitMark` reports `vl-mark-<type>` for every mark type outside the supported set and, for a supported mark, visits the
+- `VisitMark` reports `vl-mark-<type>` for every mark type outside the supported set (`image` and `geoshape`; the
+  composite marks are supported) and, for a supported mark, visits the
   `shape` name, the `invalid` and `interpolate` properties of the mark or of the configuration (`MarkSetting`;
   `VisitMarkInvalid`: `vl-mark-invalid-show` for `show` and null, the warning
   `vl-mark-invalid-domains` for `filter` and `break-paths-filter-domains`; `VisitMarkInterpolate`: the `interpolate: "bundle"`
@@ -277,13 +317,14 @@ The identifier `vl-scale-polar-discrete` that the plan kept as a fallback was **
   are accepted for a temporal field) and for a temporal field on a `shape` or `strokeDash` channel without a scale type;
   `VisitFormat` no longer reports a `format.parse` entry. The static `IsEvaluatedFormatType(formatType)` tells the
   format types that are evaluated (`number`, `time`, `utc`); the axis and legend `formatType` rules use it.
-- `VisitTransforms(transforms, drawn)` reports the entries as `vl-transform-<name>` only for what is **not computed**:
-  the transforms of later phases (`density`, `extent`, `loess`, `quantile`, `regression`) and every
+- `VisitTransforms(transforms, drawn, view)` reports the entries as `vl-transform-<name>` only for what is **not computed**:
+  the transforms of later phases (`density`, `extent`, `loess`, `quantile`, `regression`; "is not supported yet") and every
   transform of a
-  view that is not drawn (a nested view of a composition, aggregating transforms and `timeunit` included). For the
+  view that is not drawn (a view inside a `concat`, `hconcat`, `vconcat`, `facet`, or `repeat`, aggregating transforms and
+  `timeunit` included; the message names the nearest composition, see _Phase 10 identifiers_). For the
   computed transforms
   of
-  the drawn view (`calculate`, `filter`, `fold`, `flatten`, `sample`,
+  a drawn view (the single view, a layered view, and its layers: `calculate`, `filter`, `fold`, `flatten`, `sample`,
   `pivot`, `lookup`, `aggregate`, `joinaggregate`, `window`, `bin`, `stack`, `impute`, `timeUnit`) it reports only their
   unsupported
   parts: `ReportConstructs` turns the constructs that the compiled
@@ -325,8 +366,11 @@ applied here: the document records the reports in a sink, which throws at the fi
 #### Dependencies
 
 - **`SpecTree`**, **`SpecNode`**, and **`SpecParser`** - the tree and the parser's helpers (`ParseSchemaMajorVersion`,
-  `IsChannelName`, `FindTransformOperation`, `IsSupportedTransform`, `IsDrawnView`, `IsViewSignal`, `FindParameter`), in
+  `IsChannelName`, `FindTransformOperation`, `IsSupportedTransform`, `IsDrawnView`, `FindUndrawnComposition`,
+  `IsViewSignal`, `FindParameter`), in
   the `SpecParser` unit, and the compiled expressions of the tree (`SpecExpressions`)
+- **`SpecNormalizer`** - the layer tree (`Layers`) whose merged unit views the catalog visits for each layer, and
+  `TryOrientation` that decides which channel of a composite mark groups the rows (see _SpecNormalizer Unit Design_)
 - **`CompiledExpression`** and **`ExpressionConstruct`** - the constructs that the parser collected, from the
   `ExpressionParser` unit of the `Expressions` subsystem
 - **`SpecParser.IsSupportedSort`** - the rule for a supported encoding `sort` (in the `SpecParser` unit, over the shared
@@ -349,6 +393,7 @@ applied here: the document records the reports in a sink, which throws at the fi
 
 `VegaLiteDocument` calls `Visit` once when a document is created and merges the result with the parse warnings; the
 pipeline delivers the reports through the sink. The tests in
-`test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/FeatureCatalogTests.cs` call `Visit` and `IsSchemeBearingUrl`
+`test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/FeatureCatalogTests.cs` (and `FeatureCatalogLayerTests.cs` and
+`FeatureCatalogCompositeTests.cs`) call `Visit` and `IsSchemeBearingUrl`
 directly through `InternalsVisibleTo`; the test `FeatureCatalog_Visit_OrderChannelIsAcceptedForEveryMark` pins that `order`
 is accepted by every mark.

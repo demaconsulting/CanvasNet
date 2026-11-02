@@ -107,8 +107,8 @@ sections:
               scales, building the
               axes, marks, and title,
               sizing the canvas around them with the view layout, and painting the resulting scene,
-              while a composition or a view with an unsupported mark shall draw only its title and
-              background without producing misleading axes.
+              while a concatenation, facet, or repeat, or a view with an unsupported mark, shall draw only its
+              title and background without producing misleading axes.
             justification: |
               The pipeline order determines the geometry of every chart, and an unsupported construct
               must not produce a chart that looks complete but is not.
@@ -187,7 +187,9 @@ sections:
               instance, validation that every limit is positive and not above its ceiling, and shall enforce the limits
               (the scene-item limit counts every item of the scene, groups included, before the item is created, so a
               limit of N allows exactly N items; the data limits of rows, fields, files, and bytes apply per call and
-              before any scene item is charged) and observe the cancellation token so that an exceeded limit fails
+              before any scene item is charged; the limits of the number of views and of the nesting depth of layers
+              apply to the views of the specification before any data is read) and observe the cancellation token so
+              that an exceeded limit fails
               closed with a located exception and a canceled token stops Measure and both Render overloads with an
               unwrapped OperationCanceledException.
             justification: |
@@ -209,6 +211,7 @@ sections:
               - CanvasNetVegaLite_SystemIntegration_Limits_BudgetForkIsAdoptedOnlyWhenKept
               - CanvasNetVegaLite_SystemIntegration_Data_LimitsFailBeforeSceneBudget
               - CanvasNetVegaLite_SystemIntegration_Cancellation_Honored
+              - CanvasNetVegaLite_SystemIntegration_Layer_ViewAndDepthLimitsAreEnforced
 
           - id: CanvasNetVegaLite-VegaLiteDocument-Determinism
             title: >-
@@ -331,3 +334,77 @@ sections:
             tests:
               - CanvasNetVegaLite_SystemIntegration_Data_RemoteUrlIsReportedNotFetched
               - DataLoader_Load_RemoteUrlReportsVlDataRemoteUrl
+
+          - id: CanvasNetVegaLite-VegaLiteDocument-LayerPipeline
+            title: >-
+              The VegaLiteDocument unit shall draw the layers of a layered view (to any depth within the
+              limits) by loading the data where the nearest data of a view is, running the transform of each
+              view in the written order on the table that it inherits before the views below it read it (a
+              top-level transform therefore applies once and is seen by every layer, and a layer's own data
+              replaces the inherited table), planning the implicit bin, aggregate, and stack of each layer from
+              its own table, resolving the scales over all the layers, sizing the view from the combined discrete
+              scale (the step through layers), building one group of marks for each layer in layer order between
+              the axes behind and in front of the marks, and giving the same size to Measure and Render; shall
+              report a layer with a mark that is not drawn without drawing it and draw the others; shall draw
+              only the background and title for a layered view with no layer or with a composition that is not
+              drawn; and shall not report the transform of a layered view as not applied.
+            justification: |
+              Layered charts are the most common composition; the data, transform, and encoding of a layer come
+              from the views above it, and a top-level transform that is reported as unsupported and not applied
+              would draw a wrong chart.
+            tests:
+              - CanvasNetVegaLite_SystemIntegration_Layer_TopLevelCalculateIsAppliedAndNotReported
+              - CanvasNetVegaLite_SystemIntegration_Layer_TransformsApplyTopLevelFirstThenPerLayer
+              - CanvasNetVegaLite_SystemIntegration_Layer_LineAndPointShareOneAxisPair
+              - CanvasNetVegaLite_SystemIntegration_Layer_BarsWithMeanRuleShareTheYScale
+              - CanvasNetVegaLite_SystemIntegration_Layer_TextLabelsSitOnTheBars
+              - CanvasNetVegaLite_SystemIntegration_Layer_NestedLayersInheritTheEncodingOfEveryLevel
+              - CanvasNetVegaLite_SystemIntegration_Layer_OwnDataReplacesTheInheritedDataAndSharesTheScale
+              - CanvasNetVegaLite_SystemIntegration_Layer_StepSizeUsesTheMergedDiscreteScale
+              - CanvasNetVegaLite_SystemIntegration_Layer_MeasureMatchesRenderAndRenderIsDeterministic
+              - CanvasNetVegaLite_SystemIntegration_Layer_UnsupportedLayerMarkIsReportedAndOthersAreDrawn
+              - CanvasNetVegaLite_SystemIntegration_Layer_TransformInAConcatenationIsReportedAsNotApplied
+              - CanvasNetVegaLite_SystemIntegration_Layer_EmptyLayerListDrawsOnlyTheBackground
+              - CanvasNetVegaLite_SystemIntegration_Layer_VariableParameterInALayerIsStillReported
+
+          - id: CanvasNetVegaLite-VegaLiteDocument-LayerGuides
+            title: >-
+              The VegaLiteDocument unit shall plan the axes and legends of a layered view so that layers that
+              share a position scale and an axis have one axis (the titles joined), independent scales or axes
+              give one axis for each, the second on the opposite side and with no grid unless the axis object
+              says otherwise, layers that share a legend have one legend and the others one each, a scale that
+              cannot be shared is reported as a warning and still drawn, and a property that only the top-level
+              view decides (a size, padding, background, config, datasets, title) is ignored in a layer with a
+              warning.
+            justification: |
+              The resolve of a layered view decides how many axes and legends the chart has; the guides are how
+              the reader tells the layers apart.
+            tests:
+              - CanvasNetVegaLite_SystemIntegration_Layer_IndependentYScalesDrawTwoAxes
+              - CanvasNetVegaLite_SystemIntegration_Layer_IndependentAxesOfASharedScaleBothShowTheSameTicks
+              - CanvasNetVegaLite_SystemIntegration_Layer_SharedColorFieldGivesOneLegend
+              - CanvasNetVegaLite_SystemIntegration_Layer_ColorFieldsOfDifferentNamesJoinTheLegendTitle
+              - CanvasNetVegaLite_SystemIntegration_Layer_IndependentLegendsGiveOneLegendPerLayer
+              - CanvasNetVegaLite_SystemIntegration_Layer_ScaleConflictWarnsAndStillDraws
+              - CanvasNetVegaLite_SystemIntegration_Layer_PropertiesOfTheTopLevelViewAreIgnoredInALayer
+
+          - id: CanvasNetVegaLite-VegaLiteDocument-CompositeMarkPipeline
+            title: >-
+              The VegaLiteDocument unit shall draw a boxplot, errorbar, or errorband by expanding it to its
+              layers before the data is read, computing the quartiles, fences, whiskers, means, and extents
+              from the rows that the transforms of the views above it left, drawing the parts as the layers of a
+              layered view that share the scale of the measure, honoring the limit of the number of views, and
+              giving the same size to Measure and Render, with the same bytes on every render.
+            justification: |
+              The composite marks are charts of statistics; they must be computed from the transformed data
+              and be drawn deterministically by the same pipeline as the layers.
+            tests:
+              - CanvasNetVegaLite_CompositeMark_BoxPlot_VerticalTukeyIsDrawnFromTheQuartiles
+              - CanvasNetVegaLite_CompositeMark_BoxPlot_TopLevelTransformAppliesFirst
+              - CanvasNetVegaLite_CompositeMark_BoxPlot_LayersShareTheMeasureScale
+              - CanvasNetVegaLite_CompositeMark_BoxPlot_ExpandedViewsAreLimitedByMaxViews
+              - CanvasNetVegaLite_CompositeMark_BoxPlot_MeasureMatchesRenderAndIsDeterministic
+              - CanvasNetVegaLite_CompositeMark_ErrorBar_DefaultIsARuleOfTheMeanAndStandardError
+              - CanvasNetVegaLite_CompositeMark_ErrorBar_LayersOverABar
+              - CanvasNetVegaLite_CompositeMark_ErrorBar_ExpandedViewsAreLimitedByMaxViews
+              - CanvasNetVegaLite_CompositeMark_ErrorBand_TwoDimensionalBandIsAnAreaWithLineBorders

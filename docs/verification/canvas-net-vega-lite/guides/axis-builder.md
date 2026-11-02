@@ -305,3 +305,14 @@ of 4096 pieces`; that a canceled token throws `OperationCanceledException` and t
 builds with a live token; that the multi-format labels, `%A %B %I %p` (`Monday January 12 AM`), and the number labels
 are identical under the Turkish and German cultures and the invariant culture; and that building the same axis twice
 in a US-like zone gives the same instants, positions, labels, and item count.
+
+##### Default Orient And Grid Of A Layered View
+
+**Test**: `AxisBuilderTests.AxisBuilder_Build_DefaultOrientAndGridApplyOnlyWhenTheAxisSaysNothing`
+
+Builds the quantitative `y` axis of one specification three ways and asserts that with no defaults (the single-view
+path) it is
+on the left with a grid; that with the defaults of a second independent axis (`right`, no grid) it is on the right, has
+no grid
+group, stands at the right edge of the data rectangle, and its bounds reach outwards from that edge; and that an axis whose
+`axis` object names `orient: "left"` and `grid: true` keeps both whatever the defaults say.

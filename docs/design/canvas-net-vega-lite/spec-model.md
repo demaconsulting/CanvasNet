@@ -9,10 +9,11 @@ The `SpecModel` subsystem (namespace `DemaConsulting.CanvasNet.VegaLite.SpecMode
 it turns Vega-Lite JSON into an immutable tree with exact locations, lists the constructs that are recognized but not
 supported, and resolves the effective configuration. It contains no data, no pixels, and no file or network access. It
 is **internal**: the tree, the reports, and the configuration types are visible only to the `VegaLiteDocument` unit,
-the other subsystems, and, through `InternalsVisibleTo`, the test assembly. It contains three units:
+the other subsystems, and, through `InternalsVisibleTo`, the test assembly. It contains four units:
 
 - **SpecParser** - the internal partial `SpecParser` (`SpecParser.cs`, `SpecParser.Validation.cs`,
-  `SpecParser.Transforms.cs`, `SpecParser.Aggregates.cs`, and `SpecParser.Time.cs`, with `ParameterGraph`), the tree
+  `SpecParser.Transforms.cs`, `SpecParser.Aggregates.cs`, `SpecParser.Time.cs`, and `SpecParser.Layers.cs`, with
+  `ParameterGraph`), the tree
   types `SpecNode`,
   `SpecNodeKind`, `NodePosition`, and
   `SpecTree` (`SpecNode.cs`), `SpecExpressions` (`SpecExpressions.cs`), and `SpecMetadata` and `SpecMarkEntry`
@@ -22,6 +23,11 @@ the other subsystems, and, through `InternalsVisibleTo`, the test assembly. It c
   _FeatureCatalog Unit Design_ (`spec-model/feature-catalog.md`)
 - **ConfigResolver** - the internal static `ConfigResolver`, `ResolvedConfig`, `ConfigNode`, and `ConfigNodeKind`; see
   _ConfigResolver Unit Design_ (`spec-model/config-resolver.md`)
+- **SpecNormalizer** - the internal static partial `SpecNormalizer` (`SpecNormalizer.cs`,
+  `SpecNormalizer.Composite.cs`, `SpecNormalizer.BoxPlot.cs`, and `SpecNormalizer.ErrorBar.cs`), the tree types
+  `LayerTree`, `LayerNode`, `LayerResolve`, and `ResolveMode`, `ExpandedLayers`, and the `CompositeBuilder` and
+  `CompositeAxis` helpers: it turns the views of a specification into the tree of layers that are drawn and expands the
+  composite marks into layers; see _SpecNormalizer Unit Design_ (`spec-model/spec-normalizer.md`)
 
 The subsystem's namespace documentation is in `SpecModel/NamespaceDoc.cs`. Its behavior is specified by the
 `CanvasNetVegaLite-SpecModel-*` requirements in `docs/reqstream/canvas-net-vega-lite/spec-model.yaml`.
@@ -31,12 +37,15 @@ The subsystem's namespace documentation is in `SpecModel/NamespaceDoc.cs`. Its b
 **Exposed** (internal only): `SpecParser.Parse(string, string?, VegaLiteLimits?)` and
 `SpecParser.Parse(byte[], string?, VegaLiteLimits?)`, which return a `SpecTree`; the helpers
 `SpecParser.ParseSchemaMajorVersion`, `SpecParser.IsChannelName`, `SpecParser.FindTransformOperation`,
-`SpecParser.EscapePointerSegment`, and the helpers `SpecParser.IsSupportedTransform`, `IsDrawnView`, `IsViewSignal`,
+`SpecParser.EscapePointerSegment`, and the helpers `SpecParser.IsSupportedTransform`, `IsDrawnView`,
+`FindUndrawnComposition`, `IsResolveChannel`, `IsViewSignal`,
 `IsParameterDeclared`, `FindParameter`, `IsSupportedSort`, `TryParseSortShorthand`, and `IsSortChannel`;
 `SpecTree.Expressions` (the compiled expressions) and `ParameterGraph.Sort`;
 `SpecMetadata.Read(SpecTree)`; `FeatureCatalog.Visit(SpecTree)` and
-`FeatureCatalog.IsSchemeBearingUrl(string)`; and `ConfigResolver.Resolve(SpecTree, string?)`,
-`ConfigResolver.Resolve(SpecNode?, string?)`, and `ConfigResolver.Defaults`, which return a `ResolvedConfig`.
+`FeatureCatalog.IsSchemeBearingUrl(string)`; `ConfigResolver.Resolve(SpecTree, string?)`,
+`ConfigResolver.Resolve(SpecNode?, string?)`, and `ConfigResolver.Defaults`, which return a `ResolvedConfig`; and
+`SpecNormalizer.Layers(SpecTree, VegaLiteLimits?)` (a `LayerTree`), `SpecNormalizer.Expand(SpecTree, ResolvedConfig,
+VegaLiteLimits?)` (an `ExpandedLayers`), and `SpecNormalizer.TryOrientation`.
 
 **Consumed**: the public `VegaLiteLimits`, `VegaLiteLocation`, and `VegaLiteSpecException` types of the
 `VegaLiteDocument` unit (limits to enforce, the location of every node and report, and the error type of a malformed
@@ -51,10 +60,10 @@ subsystem (so that the catalog decides the stack of a view exactly as the plan d
 about a binned dimension of a stacked path mark, and the channels that a mark does not draw). The .NET base class
 library supplies `System.Text.Json`, `System.Text`, and `System.Globalization`.
 
-**Consumers**: `VegaLiteDocument` (parse, metadata, reports, and configuration), the `Data` subsystem (`DataLoader`
+**Consumers**: `VegaLiteDocument` (parse, metadata, reports, configuration, and the layer tree), the `Data` subsystem (`DataLoader`
 reads `SpecNode`), the `Transforms` subsystem (`RowTransforms` and `ParameterEnvironment` read the tree, its compiled
-expressions, and the transform and parameter helpers), the `Scales` subsystem (`ScaleResolver` reads `SpecNode` and
-`ResolvedConfig`), the `Guides`
+expressions, and the transform and parameter helpers), the `Scales` subsystem (`ScaleResolver` reads `SpecNode`,
+`LayerNode`, and `ResolvedConfig`), the `Guides`
 subsystem (`TitleBuilder` and `AxisBuilder`), the `Layout` subsystem (`ViewLayout`), and the `Marks` subsystem
 (`MarkBuilder`), all of which read the tree and the resolved configuration.
 
@@ -92,10 +101,23 @@ increasing precedence, and exposes typed accessors and the precedence chains of 
 `ResolvedConfig`. Defaults that Vega-Lite computes by rule rather than by configuration (a scale's `zero` and `nice`,
 for example) are not in the tree; the stage that applies the rule owns it.
 
-**Limits fail closed.** The parser enforces `MaxSourceLength`, `MaxJsonDepth`, and `MaxStringLength`; nothing in the
+**Views are reduced to unit views before anything is drawn.** `SpecNormalizer` turns the views of a specification into a
+`LayerTree` whose leaves are the unit views that are drawn. A specification without `layer` is one leaf, the root itself,
+so a single view takes the path it always took. A layer's unit view is a non-adopting overlay of the layer's `mark`, the
+`encoding` merged from the layered views above it, and the `width` and `height` of the top-level view; the nodes of the
+specification are never copied or modified, so every pointer, line, and column stays that of the text the author wrote.
+A composite mark (`boxplot`, `errorbar`, `errorband`) is expanded, by `SpecNormalizer.Expand`, into a layered view of the
+primitive views Vega-Lite normalizes it to; the nodes the expansion writes are located at the composite's `mark`, and the
+expressions it writes are compiled into a derived tree. `concat`, `hconcat`, `vconcat`, `facet`, and `repeat` are recorded
+as compositions that are not drawn yet and are not entered.
+
+**Limits fail closed.** The parser enforces `MaxSourceLength`, `MaxJsonDepth`, and `MaxStringLength`; the normalizer
+enforces `MaxViews` and `MaxCompositionDepth` with an explicit stack, as a located `VegaLiteRenderException`; nothing in
+the
 subsystem recurses in proportion to the input (the reader, the validator, the catalog walker, and the configuration
 merge use explicit stacks or bounded depth), and no code opens a file or uses the network.
 
-**Provenance.** The default values of `ConfigResolver` are ported with attribution (see _Third-Party Provenance And
+**Provenance.** The default values of `ConfigResolver` and the composite mark expansion are ported with attribution (see
+_Third-Party Provenance And
 Attribution_ in _CanvasNetVegaLite System Design_); the parser and the catalog are original code, and the sets of known
 property names were taken from the published Vega-Lite 6 JSON schema (names and enumerations only).

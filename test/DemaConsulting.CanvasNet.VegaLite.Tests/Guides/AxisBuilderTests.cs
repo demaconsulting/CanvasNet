@@ -603,4 +603,39 @@ public class AxisBuilderTests
         source.Cancel();
         Assert.Throws<OperationCanceledException>(() => new AxisBuilder(new TextMeasurer(), parts.Config, null, parts.Tree.SourceName).Build(request, source.Token));
     }
+
+    /// <summary>
+    ///     Builds the y axis of the linear specification with a default orient and grid, the way a layered view asks for its second axis.
+    /// </summary>
+    /// <param name="spec">The specification text.</param>
+    /// <param name="defaultOrient">The default side, or null.</param>
+    /// <param name="defaultGrid">The default grid switch, or null.</param>
+    /// <returns>The axis.</returns>
+    private static AxisResult? AxisWithDefaults(string spec, string? defaultOrient, bool? defaultGrid)
+    {
+        var parts = ChartTestHelpers.Parts(spec);
+        var scale = parts.Scales["y"]!;
+        var request = new AxisRequest("y", parts.Tree.Root["encoding"]?["y"], scale, scale.CreateModel(200), 300, 200, parts.Scales.MarkType, null, defaultOrient, defaultGrid);
+        return new AxisBuilder(new TextMeasurer(), parts.Config, null, parts.Tree.SourceName).Build(request);
+    }
+
+    /// <summary>
+    ///     Validates the defaults that a layered view gives its second independent axis: the opposite side and no grid, both overridden by what the <c>axis</c> object says
+    ///     and neither changing an axis that asks for nothing.
+    /// </summary>
+    [Fact]
+    public void AxisBuilder_Build_DefaultOrientAndGridApplyOnlyWhenTheAxisSaysNothing()
+    {
+        // Act: no defaults (a quantitative y axis is on the left with a grid), the opposite side without a grid, and an axis that names its side and grid itself
+        var usual = AxisWithDefaults(LinearSpec, null, null)!;
+        var second = AxisWithDefaults(LinearSpec, "right", false)!;
+        var named = AxisWithDefaults(LinearSpec.Replace("\"y\": { \"field\": \"w\", \"type\": \"quantitative\" }", "\"y\": { \"field\": \"w\", \"type\": \"quantitative\", \"axis\": { \"orient\": \"left\", \"grid\": true } }", StringComparison.Ordinal), "right", false)!;
+
+        // Assert
+        Assert.Equal(("left", true), (usual.Orient, usual.Grid is not null));
+        Assert.Equal(("right", false), (second.Orient, second.Grid is not null));
+        Assert.Equal(("left", true), (named.Orient, named.Grid is not null));
+        Assert.True(second.Group.X > 0, "the axis of the right side stands at the right edge of the data rectangle");
+        Assert.True(second.Bounds.X1 >= 299 && second.Bounds.X2 > 300, "the right axis reaches outwards from the right edge");
+    }
 }

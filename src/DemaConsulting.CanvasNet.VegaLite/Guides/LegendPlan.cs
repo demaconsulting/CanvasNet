@@ -374,6 +374,17 @@ internal sealed class LegendSpec
 }
 
 /// <summary>
+///     One layer of a layered view as the legend planning sees it.
+/// </summary>
+/// <param name="View">The unit view of the layer (its <c>mark</c> and merged <c>encoding</c> are read).</param>
+/// <param name="Scales">The scales of the layer (those that its marks use).</param>
+/// <param name="Scope">
+///     Tells, for a channel, which legend the layer's channel belongs to: layers with the same scope text share the channel's legend, layers with different scopes have legends of their own.
+///     Null puts every channel of the layer in one scope.
+/// </param>
+internal sealed record LegendLayer(SpecNode View, ResolvedScales Scales, Func<string, string>? Scope = null);
+
+/// <summary>
 ///     Decides which legends a view has: for each channel with a legend, its kind and orient, and which channels share a legend.
 /// </summary>
 /// <remarks>
@@ -394,6 +405,10 @@ internal sealed class LegendSpec
 ///         the same explicit <c>scale.domain</c> and <c>sort</c>) share one legend, unless both give an <c>orient</c> and the two differ. The
 ///         first channel in the order above is the canonical one: its scale decides the entries. The properties of the <c>legend</c> objects
 ///         merge with the explicit one first and the first channel winning; the titles of the channels join as <c>a, b</c>.
+///     </para>
+///     <para>
+///         <b>Layers.</b> The legends of a layered view are planned over all its layers (<see cref="Create(IReadOnlyList{LegendLayer}, ResolvedConfig, string?)"/>): the layers that share the legend of
+///         a channel contribute one member, the other rules are the same.
 ///     </para>
 ///     <para>
 ///         The class is stateless and safe for concurrent use.
@@ -418,39 +433,124 @@ internal static class LegendPlan
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(scales);
         ArgumentNullException.ThrowIfNull(config);
-        if (config.GetBool("legend.disable") == true || view["encoding"] is not { IsObject: true } encoding)
+        return Create([new LegendLayer(view, scales)], config, sourceName);
+    }
+
+    /// <summary>
+    ///     Plans the legends of the layers of a layered view.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         For each channel, the layers that share a legend (the same <see cref="LegendLayer.Scope"/> for the channel) contribute one member: the first layer that has a legend for the
+    ///         channel decides its scale, definition, <c>legend</c> object and the mark facts of the symbols, and the titles of the other layers' fields join its title as <c>a, b</c>
+    ///         (Vega-Lite merges the legends of layers; the merged symbols follow the first layer, a documented deviation). Layers in different scopes (an independent legend or
+    ///         scale) have legends of their own. The members then merge into legends exactly as those of one view do, but only within a scope.
+    ///     </para>
+    ///     <para>A single layer with the default scope plans exactly what <see cref="Create(SpecNode, ResolvedScales, ResolvedConfig, string?)"/> plans for its view.</para>
+    /// </remarks>
+    /// <param name="layers">The layers in order.</param>
+    /// <param name="config">The effective configuration.</param>
+    /// <param name="sourceName">The source name for the locations of failures, or null.</param>
+    /// <returns>The legends in the order of their first channel; empty when no channel has a legend.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when an argument other than <paramref name="sourceName"/> is null.</exception>
+    public static IReadOnlyList<LegendSpec> Create(IReadOnlyList<LegendLayer> layers, ResolvedConfig config, string? sourceName)
+    {
+        ArgumentNullException.ThrowIfNull(layers);
+        ArgumentNullException.ThrowIfNull(config);
+        if (config.GetBool("legend.disable") == true)
         {
             return [];
         }
 
-        var mark = LegendMarkFacts.Create(view, config);
-        var groups = new List<(string Key, List<LegendMember> Members)>();
+        var facts = new Dictionary<int, LegendMarkFacts>();
+        var groups = new List<(string Key, List<LegendMember> Members, int Layer)>();
         foreach (var channel in ChannelOrder)
         {
-            if (!TryCreateMember(channel, encoding, scales, out var member))
+            foreach (var (member, layer) in CreateMembers(channel, layers))
             {
-                continue;
-            }
-
-            var key = Key(member);
-            var home = groups.FindIndex(g => g.Key == key && !OrientsConflict(g.Members, member));
-            if (home >= 0)
-            {
-                groups[home].Members.Add(member);
-            }
-            else
-            {
-                groups.Add((key, [member]));
+                var key = Key(member) + "#" + (layers[layer].Scope?.Invoke(channel) ?? string.Empty);
+                var home = groups.FindIndex(g => g.Key == key && !OrientsConflict(g.Members, member));
+                if (home >= 0)
+                {
+                    groups[home].Members.Add(member);
+                }
+                else
+                {
+                    groups.Add((key, [member], layer));
+                }
             }
         }
 
         var result = new List<LegendSpec>(groups.Count);
-        foreach (var (_, members) in groups)
+        foreach (var (_, members, layer) in groups)
         {
+            if (!facts.TryGetValue(layer, out var mark))
+            {
+                mark = LegendMarkFacts.Create(layers[layer].View, config);
+                facts[layer] = mark;
+            }
+
             result.Add(Build(members, mark, config, sourceName));
         }
 
         return result;
+    }
+
+    /// <summary>
+    ///     Creates the members of a channel: one for each scope that has a layer with a legend for it.
+    /// </summary>
+    /// <param name="channel">The channel.</param>
+    /// <param name="layers">The layers.</param>
+    /// <returns>The members with the index of the layer each came from, in layer order.</returns>
+    private static List<(LegendMember Member, int Layer)> CreateMembers(string channel, IReadOnlyList<LegendLayer> layers)
+    {
+        var found = new List<(string Scope, LegendMember Member, int Layer, List<ResolvedScale> Scales)>();
+        for (var i = 0; i < layers.Count; i++)
+        {
+            if (layers[i].View["encoding"] is not { IsObject: true } encoding || !TryCreateMember(channel, encoding, layers[i].Scales, out var member))
+            {
+                continue;
+            }
+
+            var scope = layers[i].Scope?.Invoke(channel) ?? string.Empty;
+            var home = found.FindIndex(f => f.Scope == scope);
+            if (home >= 0)
+            {
+                found[home].Scales.Add(member.Scale);
+            }
+            else
+            {
+                found.Add((scope, member, i, [member.Scale]));
+            }
+        }
+
+        var result = new List<(LegendMember, int)>(found.Count);
+        foreach (var (_, member, layer, scales) in found)
+        {
+            result.Add((scales.Count > 1 ? member with { Scale = member.Scale with { Title = JoinTitles(scales) } } : member, layer));
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    ///     Joins the titles of the scales of layers that share a legend: each distinct title (or field, for a scale without a title) once, in layer order, separated by a comma.
+    /// </summary>
+    /// <param name="scales">The scales.</param>
+    /// <returns>The joined title.</returns>
+    private static string JoinTitles(List<ResolvedScale> scales)
+    {
+        var parts = new List<string>();
+        foreach (var scale in scales)
+        {
+            var part = scale.Title is { Length: > 0 } title ? title : scale.FieldPath;
+            if (!string.IsNullOrEmpty(part) && !parts.Contains(part, StringComparer.Ordinal))
+            {
+                parts.Add(part);
+            }
+        }
+
+        return string.Join(", ", parts);
     }
 
     /// <summary>

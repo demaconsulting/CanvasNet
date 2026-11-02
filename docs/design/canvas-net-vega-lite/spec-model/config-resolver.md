@@ -49,8 +49,11 @@ maximum extent 200, band position 0.5, domain, grid, label, and tick defaults, t
 (tick offset -0.5), the legend, projection, and range defaults (`range.category` is the scheme `tableau10`). The
 Vega-Lite tree provides the background (white), padding (5), view size (continuous width and height 300, step 20), the
 mark colors, the bar, rect, and tick configuration, the scale configuration (band paddings, minimum band size, font,
-opacity, size, and stroke-width ranges, `zero`), the legend gradient lengths, and the header, facet, and concat
-spacing. The Vega mark-type keys (`rect`, `symbol`, and so on) are kept out of the merged tree, because Vega-Lite uses
+opacity, size, and stroke-width ranges, `zero`), the legend gradient lengths, the header, facet, and concat
+spacing, and (since phase 10) the configuration of the composite marks: `boxplot` (size 14, extent 1.5, the `box`, `rule`,
+and `outliers` parts as empty objects, a `median` with the color white, and `ticks` null, that is off), `errorbar` (center
+`mean`, the rule on, the ticks off), and `errorband` (a band with the opacity 0.3 and no borders). The Vega mark-type
+keys (`rect`, `symbol`, and so on) are kept out of the merged tree, because Vega-Lite uses
 the same names for its own mark configuration; they are consulted only as the last link of `ResolveMarkProperty`.
 Defaults that Vega-Lite computes by rule (a scale's `nice` and a continuous padding) are not in the tree.
 

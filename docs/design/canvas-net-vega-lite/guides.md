@@ -87,6 +87,14 @@ step, because with the `bounds` frame it is centered over everything the view co
 are measured. The axes are built against a data rectangle that can itself depend on the axes (a `"container"` size),
 so the pipeline iterates the two until the rectangle is stable.
 
+**Layers share guides by planning, not by the builders.** A layered view has one data rectangle; which axes and legends
+it
+has is decided before the builders run (`VegaLiteDocument.Layers.cs`; see _VegaLiteDocument Unit Design_): the layers that
+share a position scale and an axis give one `AxisRequest` (the second axis of an independent channel carries a
+`DefaultOrient` of the opposite side and `DefaultGrid` false), and `LegendPlan` plans the legends over all the layers. The
+builders themselves are unchanged apart from those two optional request properties and the multi-layer `Create` of
+`LegendPlan`.
+
 **Precedence mirrors Vega-Lite.** A guide property is looked up in the guide's own definition, then the Vega-Lite-only
 configuration, then the Vega configuration (by orientation, band scale, and axis), then the guide styles, with a few
 Vega-Lite rules that apply only when no configuration names the property (for example the default grid, the label angle

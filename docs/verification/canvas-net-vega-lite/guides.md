@@ -194,3 +194,12 @@ documented above as machine-dependent is not a failure.
   ASCII digits under `tr-TR` and `de-DE` and the same on every call; the per-call formatter that the text mark uses
   (`CreateBounded`) gives the label when it fits the limit of the call (`Mar 05, 2024` is 12 characters, so the limit 12
   gives it and 11 gives none) and no label, never an exception, when it does not.
+- **Axes And Legends Of A Layered View**:
+  `AxisBuilderTests.AxisBuilder_Build_DefaultOrientAndGridApplyOnlyWhenTheAxisSaysNothing`,
+  `LegendPlanLayerTests.LegendPlan_Create_SameFieldInTwoLayersIsOneLegend`,
+  `LegendPlanLayerTests.LegendPlan_Create_TitlesOfDifferentFieldsJoin`,
+  `LegendPlanLayerTests.LegendPlan_Create_LayersInDifferentScopesKeepTheirOwnLegends` — builds the axis that a layered
+  view gives the second independent axis of a channel (the opposite side, no grid) and an axis that names its side and
+  grid itself, and plans the legends of the layers: one legend for the layers that share a color, the titles of
+  different fields joined, and one legend for each layer in different scopes; the way the document plans the axes and
+  scopes from `resolve` is verified at the system tier.

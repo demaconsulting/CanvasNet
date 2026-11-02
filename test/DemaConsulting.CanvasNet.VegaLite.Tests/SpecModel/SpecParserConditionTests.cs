@@ -79,7 +79,7 @@ public class SpecParserConditionTests
         const string json = """
             { "params": [ { "name": "sel", "select": "interval" } ],
               "data": { "values": [ { "q": 1 } ] },
-              "layer": [
+              "hconcat": [
                 { "mark": "point", "encoding": {
                     "x": { "field": "q", "type": "quantitative", "condition": { "test": { "field": "q", "gt": 1 }, "value": 3 } },
                     "color": { "condition": [ { "param": "sel", "value": "red" }, { "test": { "param": "sel" }, "value": "blue" } ] } } },
@@ -88,8 +88,8 @@ public class SpecParserConditionTests
 
         // Act
         var tree = SpecParser.Parse(json);
-        var first = tree.Root["layer"]!.Items[0]["encoding"]!;
-        var second = tree.Root["layer"]!.Items[1]["encoding"]!;
+        var first = tree.Root["hconcat"]!.Items[0]["encoding"]!;
+        var second = tree.Root["hconcat"]!.Items[1]["encoding"]!;
         var conditions = first["color"]!["condition"]!.Items;
 
         // Assert: the predicate objects of the position channel, of the selection and of the view that is not drawn are not written as expressions

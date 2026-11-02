@@ -9,7 +9,9 @@ The `ViewLayout` unit is the only software unit in the `Layout` subsystem. It is
 
 #### Purpose
 
-`ViewLayout` lays out a single view: the size of the data rectangle, the padding, the room the guides and the title need,
+`ViewLayout` lays out a single view, or a layered view as one view (the layers share the data rectangle, the axes, and the
+title; the unit is unchanged by layers, which differ only in the `ViewSizeHints` they are given): the size of the data
+rectangle, the padding, the room the guides and the title need,
 the size of the canvas that holds them, and the scene around the content that the builders produced. It exists so that the
 view-layout rules of Vega and Vega-Lite (default size, step sizing, padding, `autosize`, title bands, view background and
 border) are defined once and can be tested by analytic numbers without drawing anything.
@@ -26,7 +28,8 @@ The unit's behavior is specified by the `CanvasNetVegaLite-Layout-ViewLayout-*` 
 - **`ViewStyle`** - the fill, stroke, stroke width, opacities, dash, and corner radius of the plot area (CSS color strings
   or null).
 - **`ViewSizeHints`** `(DiscreteWidth, DiscreteHeight, ContainerWidth, ContainerHeight)` - the sizes that the scale stage
-  (from the step of a discrete scale) and the host (the container size) provide.
+  (from the step of a discrete scale; for a layered view the step times the **combined** categories of the layers, from
+  the merged scale) and the host (the container size) provide.
 - **`ViewLayoutRequest`** - the data rectangle size, padding, autosize, `ContainsPadding`, `ViewStyle`, the canvas
   `Background`, an optional `Clip` to the data rectangle, and the container sizes. It is produced by `Resolve` or built
   directly by tests.

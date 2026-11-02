@@ -18,8 +18,10 @@ and, through `InternalsVisibleTo`, to the test assembly. It contains two units:
 
 The subsystem's namespace documentation is in `Marks/NamespaceDoc.cs`. Its behavior is specified by the
 `CanvasNetVegaLite-Marks-*` requirements in `docs/reqstream/canvas-net-vega-lite/marks.yaml`. Marks other than the twelve
-(`image`, `geoshape`, and the composite marks `boxplot`, `errorbar`, and `errorband`) are not drawn and are reported by
-the `FeatureCatalog` as `vl-mark-<type>`.
+(`image` and `geoshape`) are not drawn and are reported by
+the `FeatureCatalog` as `vl-mark-<type>`; the composite marks `boxplot`, `errorbar`, and `errorband` are expanded into the
+primitive marks by the `SpecNormalizer` before the builder sees them, and the builder is called once for each layer of a
+layered view (one `marks` group for each layer).
 
 ### Interfaces
 

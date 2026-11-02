@@ -81,6 +81,25 @@ internal static class TemporalFields
     }
 
     /// <summary>
+    ///     Collects the canonical names of the fields that are read as dates in several views: the union over the views.
+    /// </summary>
+    /// <remarks>The layers of a layered view read one table, so the fields that any of them reads as dates are parsed as dates when the table is loaded.</remarks>
+    /// <param name="views">The view objects.</param>
+    /// <returns>The canonical field names; empty when no view has a temporal field.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="views"/> is null.</exception>
+    public static IReadOnlySet<string> CollectAll(IEnumerable<SpecNode> views)
+    {
+        ArgumentNullException.ThrowIfNull(views);
+        var fields = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var view in views)
+        {
+            fields.UnionWith(Collect(view));
+        }
+
+        return fields;
+    }
+
+    /// <summary>
     ///     Adds the fields that the transforms of a view read as dates: the <c>field</c> of a <c>timeUnit</c> transform and the fields of the filter predicates that
     ///     have a time unit or compare with a date-time object.
     /// </summary>

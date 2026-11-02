@@ -9,8 +9,10 @@
 # CanvasNetVegaLite is an independent software system distributed as its own NuGet package. It reads a
 # Vega-Lite specification and renders a static, deterministic chart onto a CanvasNet Surface using only
 # managed code and the public CanvasNet APIs: there is no JavaScript runtime, no network access, and no
-# dependency on any Vega or d3 package. It supports a deliberately small, documented subset - a single view
-# whose data is inline, a local CSV, TSV, DSV, or JSON file read from a sandbox, a named dataset, or a generated
+# dependency on any Vega or d3 package. It supports a deliberately small, documented subset - a single view or the
+# layers of a layered view (with the composite marks boxplot, errorbar, and errorband) whose data is inline, a local
+# CSV, TSV, DSV, or JSON
+# file read from a sandbox, a named dataset, or a generated
 # sequence, the transforms calculate, filter, fold, flatten, sample, pivot, lookup, aggregate, joinaggregate,
 # window, bin, timeUnit, stack, and impute with a closed subset of the Vega expression language (including
 # the date and time functions) and static variable
@@ -181,10 +183,12 @@ sections:
       - id: CanvasNetVegaLite-SupportedSubset
         title: >-
           The library shall support exactly the documented subset of Vega-Lite - the marks bar, rect,
-          point, circle, square, rule, tick, line, area, trail, text, and arc, the x, y, theta, radius, text,
+          point, circle, square, rule, tick, line, area, trail, text, and arc and the composite marks boxplot,
+          errorbar, and errorband, the layer composition with its resolve, the x, y, theta, radius, text,
           order, detail, color, fill, stroke, size, opacity, fillOpacity,
           strokeOpacity, strokeWidth, strokeDash, shape, and angle channels (and the x2, y2, theta2, and
-          radius2 ranges of the marks that draw them) with field, value, and datum forms, quantitative,
+          radius2 ranges of the marks that draw them, and the xError, xError2, yError, and yError2 channels
+          of the error marks) with field, value, and datum forms, quantitative,
           nominal, ordinal, and
           temporal types, and the documented scale types (linear, log, pow, sqrt, symlog, time, utc,
           sequential, band, point,
@@ -202,9 +206,11 @@ sections:
           - CanvasNetVegaLite-Marks-ArcMarks
           - CanvasNetVegaLite-Scales-Types
           - CanvasNetVegaLite-Scales-Domains
+          - CanvasNetVegaLite-SpecModel-Normalize
         tests:
           - CanvasNetVegaLite_SystemIntegration_Render_InlineBarHasExpectedSamplePixels
           - CanvasNetVegaLite_SystemIntegration_Render_PointRuleTickHaveExpectedSamplePixels
+          - CanvasNetVegaLite_SystemIntegration_Layer_LineAndPointShareOneAxisPair
           - FeatureCatalog_Visit_SupportedSpecificationHasNoReports
 
       - id: CanvasNetVegaLite-InlineData
@@ -366,7 +372,8 @@ sections:
           the construct, once per feature and location, and shall never skip such a construct silently,
           while not reporting a construct that it draws (the aggregate, bin of x and y, stack, and impute of
           an encoding, the aggregating transforms, the secondary channels of bars, rects, rules, and areas,
-          and the marks line, area, trail, text, and arc).
+          the marks line, area, trail, text, and arc, the layer composition, and the marks boxplot, errorbar,
+          and errorband) and naming the composition that holds a view whose transform it does not apply.
         tags: [system]
         justification: |
           Unsupported features are a different problem from mistakes and must be distinguishable from
@@ -377,6 +384,7 @@ sections:
           - CanvasNetVegaLite_SystemIntegration_Unsupported_MarkIsReportedWithPointer
           - CanvasNetVegaLite_SystemIntegration_Unsupported_MarkAndTransformCarryPointerLineColumn
           - CanvasNetVegaLite_SystemIntegration_Aggregation_OnlyTheUnsupportedPartIsReported
+          - CanvasNetVegaLite_SystemIntegration_Layer_TransformInAConcatenationIsReportedAsNotApplied
 
       - id: CanvasNetVegaLite-StrictMode
         title: >-
@@ -397,7 +405,8 @@ sections:
       - id: CanvasNetVegaLite-LimitsCancellation
         title: >-
           The library shall bound every resource a specification can consume - source length, JSON
-          nesting, data rows, fields, files, and bytes, scale domain size, ticks, scene items, and
+          nesting, data rows, fields, files, and bytes, scale domain size, ticks, scene items, views,
+          the nesting depth of layers, and
           reports - and shall fail closed with a located exception when a limit is exceeded, accepting
           exactly the limit, and shall observe a cancellation token before and during measuring and
           rendering by stopping with an unwrapped OperationCanceledException.
@@ -408,6 +417,7 @@ sections:
         children:
           - CanvasNetVegaLite-VegaLiteDocument-Limits
           - CanvasNetVegaLite-SpecModel-Limits
+          - CanvasNetVegaLite-SpecModel-SpecNormalizer-Limits
           - CanvasNetVegaLite-Data-Limits
           - CanvasNetVegaLite-Marks-Limits
         tests:
@@ -415,6 +425,7 @@ sections:
           - CanvasNetVegaLite_SystemIntegration_Limits_ChartFailuresCarryLocations
           - CanvasNetVegaLite_SystemIntegration_Data_LimitsFailBeforeSceneBudget
           - CanvasNetVegaLite_SystemIntegration_Cancellation_Honored
+          - CanvasNetVegaLite_SystemIntegration_Layer_ViewAndDepthLimitsAreEnforced
 
       - id: CanvasNetVegaLite-Determinism
         title: >-
@@ -1467,3 +1478,150 @@ sections:
         tests:
           - CanvasNetVegaLite_SystemIntegration_Unsupported_GeoshapeImageAndSpecialInvalidModesAreReported
           - CanvasNetVegaLite_SystemIntegration_PathMarks_SupportedSubsetDeliversNoDiagnosticsInStrictMode
+
+      - id: CanvasNetVegaLite-Layers
+        title: >-
+          The library shall draw a layered view - the layer property, to any depth within the limits - as
+          Vega-Lite does: the layers are drawn over one another in layer order on one view, each inheriting the
+          data (a layer's own data replacing it), the transform (the transform of the layered view applying
+          first), the encoding (the channels of a layer replacing the inherited channel), and the size of the
+          view above it, so that a layered chart and its layers give exactly the marks of the same layers drawn
+          alone.
+        tags: [system]
+        justification: |
+          Layering is the way to put a rule on bars, points on a line, and labels on a chart; a layered chart
+          that is reported as unsupported would be an empty chart.
+        children:
+          - CanvasNetVegaLite-SpecModel-Normalize
+          - CanvasNetVegaLite-VegaLiteDocument-LayerPipeline
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Layer_LineAndPointShareOneAxisPair
+          - CanvasNetVegaLite_SystemIntegration_Layer_BarsWithMeanRuleShareTheYScale
+          - CanvasNetVegaLite_SystemIntegration_Layer_NestedLayersInheritTheEncodingOfEveryLevel
+          - CanvasNetVegaLite_SystemIntegration_Layer_OwnDataReplacesTheInheritedDataAndSharesTheScale
+          - CanvasNetVegaLite_SystemIntegration_Layer_MeasureMatchesRenderAndRenderIsDeterministic
+
+      - id: CanvasNetVegaLite-LayerTransforms
+        title: >-
+          The library shall apply the transform of a layered view to the data before its layers read it, and
+          then the transform of each layer, and shall not report a transform of a drawn layered view as unsupported
+          or not applied, while reporting, with the name of the composition, a transform of a view inside a
+          concatenation, facet, or repeat that it does not apply.
+        tags: [system]
+        justification: |
+          A calculated field of a layered chart is what the layers draw; reporting the transform as unsupported and
+          not applying it would draw the wrong chart and mislead the author about the cause.
+        children:
+          - CanvasNetVegaLite-VegaLiteDocument-LayerPipeline
+          - CanvasNetVegaLite-SpecModel-FeatureCatalog-TransformsAndCompositions
+          - CanvasNetVegaLite-SpecModel-FeatureCatalog-LayerReports
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Layer_TopLevelCalculateIsAppliedAndNotReported
+          - CanvasNetVegaLite_SystemIntegration_Layer_TransformsApplyTopLevelFirstThenPerLayer
+          - CanvasNetVegaLite_SystemIntegration_Layer_TransformInAConcatenationIsReportedAsNotApplied
+
+      - id: CanvasNetVegaLite-LayerResolve
+        title: >-
+          The library shall share one scale for each channel across the layers by default (the domain the union
+          of the layers' domains, the band scale preferred to the point scale, the titles joined) and shall
+          follow the resolve of a layered view - independent scales, axes, and legends for the channels it
+          names, in nested layered views too - warning and keeping the layers' own scales when the scales
+          cannot be shared.
+        tags: [system]
+        justification: |
+          Layers line up only when they share a scale, and a chart with two measures needs to be able to keep
+          the scales apart.
+        children:
+          - CanvasNetVegaLite-Scales-LayerScales
+          - CanvasNetVegaLite-SpecModel-LayerValidation
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Layer_IndependentYScalesDrawTwoAxes
+          - CanvasNetVegaLite_SystemIntegration_Layer_ScaleConflictWarnsAndStillDraws
+          - CanvasNetVegaLite_SystemIntegration_Layer_BarsWithMeanRuleShareTheYScale
+
+      - id: CanvasNetVegaLite-LayerGuides
+        title: >-
+          The library shall draw the guides of a layered view as Vega-Lite does: one axis for the layers that
+          share a position scale and an axis (the titles joined), one axis for each of the others, the second on
+          the opposite side and only the first with a grid, one legend for the layers that share a legend (the
+          titles of their fields joined) and one for each of the others, and shall ignore, with a warning, the
+          size, padding, background, config, datasets, and title of a layer.
+        tags: [system]
+        justification: |
+          The guides tell the reader what each layer shows; duplicated, overlapping, or missing guides make a
+          layered chart unreadable.
+        children:
+          - CanvasNetVegaLite-Guides-LayerGuides
+          - CanvasNetVegaLite-VegaLiteDocument-LayerGuides
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Layer_IndependentYScalesDrawTwoAxes
+          - CanvasNetVegaLite_SystemIntegration_Layer_IndependentAxesOfASharedScaleBothShowTheSameTicks
+          - CanvasNetVegaLite_SystemIntegration_Layer_SharedColorFieldGivesOneLegend
+          - CanvasNetVegaLite_SystemIntegration_Layer_ColorFieldsOfDifferentNamesJoinTheLegendTitle
+          - CanvasNetVegaLite_SystemIntegration_Layer_IndependentLegendsGiveOneLegendPerLayer
+          - CanvasNetVegaLite_SystemIntegration_Layer_PropertiesOfTheTopLevelViewAreIgnoredInALayer
+
+      - id: CanvasNetVegaLite-LayerStepSizing
+        title: >-
+          The library shall size a layered view that has a discrete position scale from the combined categories
+          of the layers, so that a step (the default step, or a width or height given as a step) is applied to the
+          union of the categories and the layers' marks are centered on the same bands.
+        tags: [system]
+        justification: |
+          A chart whose layers have different categories must be as wide as all of them need, and the layers
+          must line up on the bands.
+        children:
+          - CanvasNetVegaLite-Scales-ScaleResolver-SharedScales
+          - CanvasNetVegaLite-Layout-ViewLayout-Sizes
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Layer_StepSizeUsesTheMergedDiscreteScale
+          - CanvasNetVegaLite_SystemIntegration_Layer_OwnDataReplacesTheInheritedDataAndSharesTheScale
+
+      - id: CanvasNetVegaLite-CompositeMarks
+        title: >-
+          The library shall draw the composite marks as Vega-Lite does: a boxplot (the Tukey form with outliers,
+          or the min-max form, with the median, whiskers, and optional end ticks), an errorbar (the rule and
+          ticks of the mean or median with the stderr, stdev, ci, or iqr extent, or of a pre-aggregated range or
+          error), and an errorband (a band with optional borders, a rect for one dimension and an area for two),
+          computed from the data that the transforms left, oriented along the continuous channel, grouped by
+          the other channels, with the defaults, configuration, and part properties of Vega-Lite, and fail
+          with a located specification error when the orientation or the channels cannot be decided.
+        tags: [system]
+        justification: |
+          Box plots and error bars are the standard figures for the spread of data; the numbers they show must be
+          the statistics that the author asked for.
+        children:
+          - CanvasNetVegaLite-SpecModel-SpecNormalizer-BoxPlot
+          - CanvasNetVegaLite-SpecModel-SpecNormalizer-ErrorBar
+          - CanvasNetVegaLite-SpecModel-SpecNormalizer-ErrorBand
+          - CanvasNetVegaLite-SpecModel-SpecNormalizer-CompositeErrors
+          - CanvasNetVegaLite-SpecModel-ConfigResolver-CompositeMarkDefaults
+          - CanvasNetVegaLite-VegaLiteDocument-CompositeMarkPipeline
+        tests:
+          - CanvasNetVegaLite_CompositeMark_BoxPlot_VerticalTukeyIsDrawnFromTheQuartiles
+          - CanvasNetVegaLite_CompositeMark_BoxPlot_HorizontalTukeyRunsAlongX
+          - CanvasNetVegaLite_CompositeMark_BoxPlot_MinMaxWhiskersReachTheExtremes
+          - CanvasNetVegaLite_CompositeMark_BoxPlot_NoContinuousChannelIsASpecificationError
+          - CanvasNetVegaLite_CompositeMark_ErrorBar_DefaultIsARuleOfTheMeanAndStandardError
+          - CanvasNetVegaLite_CompositeMark_ErrorBar_StandardDeviationExtent
+          - CanvasNetVegaLite_CompositeMark_ErrorBar_InterquartileRange
+          - CanvasNetVegaLite_CompositeMark_ErrorBar_RangeAndErrorChannelsAreNotAggregated
+          - CanvasNetVegaLite_CompositeMark_ErrorBar_InvalidEncodingIsASpecificationError
+          - CanvasNetVegaLite_CompositeMark_ErrorBand_OneDimensionalBandIsAThirtyPercentRect
+          - CanvasNetVegaLite_CompositeMark_ErrorBand_TwoDimensionalBandIsAnAreaWithLineBorders
+
+      - id: CanvasNetVegaLite-CompositeMarkReports
+        title: >-
+          The library shall not report the composite marks or their channels as unsupported, shall report, with a
+          stable identifier at the channel, a bin, time unit, or aggregate of a channel that groups the rows of a
+          composite mark (which it does not apply), and shall report the error channels of a mark that does not
+          use them.
+        tags: [system]
+        justification: |
+          A supported composite mark must not make every chart noisy, but the parts of it that the renderer does
+          not apply must be named, never skipped silently.
+        children:
+          - CanvasNetVegaLite-SpecModel-FeatureCatalog-CompositeMarks
+        tests:
+          - CanvasNetVegaLite_CompositeMark_BoxPlot_ReportsOnlyUnsupportedGrouping
+          - CanvasNetVegaLite_CompositeMark_ErrorBar_ReportsOnlyWhatItDoesNotUse

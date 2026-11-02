@@ -2198,6 +2198,8 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteTemporalScaleTests.cs"  # temporal scale render tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteLineAreaIntegrationTests.cs"  # line, area, trail tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteArcTextIntegrationTests.cs"  # arc and text tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteLayerIntegrationTests.cs"  # layer tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteCompositeMarkIntegrationTests.cs"  # composite mark tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteTestHelpers.cs"  # shared test helpers
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataTestSupport.cs"  # shared data test helpers
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/TimeTestSupport.cs"  # shared time test helpers (zones)
@@ -2252,6 +2254,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.VegaLite/NamespaceDoc.cs"       # unit source
       - "src/DemaConsulting.CanvasNet.VegaLite/VegaLiteDocument.cs"   # unit source
       - "src/DemaConsulting.CanvasNet.VegaLite/VegaLiteDocument.Render.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.VegaLite/VegaLiteDocument.Layers.cs"  # unit source (layers)
       - "src/DemaConsulting.CanvasNet.VegaLite/VegaLiteOpenOptions.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.VegaLite/VegaLiteRenderOptions.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.VegaLite/VegaLiteFontOptions.cs"  # unit source
@@ -2314,6 +2317,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecParserTimeTests.cs"  # unit tests (time units)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecParserMarkTests.cs"  # unit tests (mark rules)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecParserImputeTests.cs"  # unit tests (impute object)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecParserResolveTests.cs"  # unit tests (layers)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/PredicateSourceTests.cs"  # unit tests (predicates)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/PredicateSourceTimeTests.cs"  # unit tests (time)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/ChannelDefinitionsTests.cs"  # unit tests (definitions)
@@ -2334,6 +2338,8 @@ reviews:
       - "src/DemaConsulting.CanvasNet.VegaLite/SpecModel/FeatureCatalog.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/FeatureCatalogTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/FeatureCatalogTimeTests.cs"  # unit tests (time ids)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/FeatureCatalogLayerTests.cs"  # unit tests (layers)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/FeatureCatalogCompositeTests.cs"  # unit tests (marks)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/MarkChannelGatingTests.cs"  # unit tests (gating)
 
   # CanvasNetVegaLite-SpecModel-ConfigResolver Review (one per unit)
@@ -2351,6 +2357,25 @@ reviews:
       - "docs/sysml2/model/canvas-net-vega-lite/spec-model/config-resolver.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.VegaLite/SpecModel/ConfigResolver.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/ConfigResolverTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/FeatureCatalogCompositeTests.cs"  # unit tests (config)
+
+  # CanvasNetVegaLite-SpecModel-SpecNormalizer Review (one per unit)
+  - id: CanvasNetVegaLite-SpecModel-SpecNormalizer
+    title: Review that CanvasNetVegaLite SpecModel SpecNormalizer Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/spec-model.md"
+      - "docs/reqstream/canvas-net-vega-lite/spec-model.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/spec-model/spec-normalizer.yaml"  # unit requirements
+      - "docs/design/canvas-net-vega-lite/spec-model/spec-normalizer.md"  # unit design
+      - "docs/verification/canvas-net-vega-lite/spec-model/spec-normalizer.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/spec-model/spec-normalizer.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/SpecModel/SpecNormalizer*.cs"  # unit source (layers and composite marks)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecNormalizerTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecNormalizerBoxPlotTests.cs"  # unit tests (box plot)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecNormalizerErrorBarTests.cs"  # unit tests (errors)
 
   # CanvasNetVegaLite-Data Review (one per subsystem)
   - id: CanvasNetVegaLite-Data
@@ -2649,6 +2674,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/TimeTestPipeline.cs"  # unit test support
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/TimeUnitTransformTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/TemporalFieldsTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecNormalizerTests.cs"  # unit tests (CollectAll)
 
   # CanvasNetVegaLite-Scales Review (one per subsystem)
   - id: CanvasNetVegaLite-Scales
@@ -2700,6 +2726,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverBinTests.cs"  # unit tests (binned channels)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverTimeTests.cs"  # unit tests (temporal fields)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverPolarTests.cs"  # unit tests (polar scales)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverLayerTests.cs"  # unit tests (layered scales)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/MarkChannelGatingTests.cs"  # unit tests (channel gating)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/RowTransformsTests.cs"  # unit tests (sort by field)
 
@@ -2873,6 +2900,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.VegaLite/Guides/LegendBuilder.Grid.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.VegaLite/Guides/LegendBuilder.Time.cs"  # unit source (temporal legends)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendPlanTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendPlanLayerTests.cs"  # unit tests (layers)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendBuilderTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendBuilderTimeTests.cs"  # unit tests (temporal legends)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendPlanConditionTests.cs"  # unit tests (conditions)

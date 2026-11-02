@@ -104,3 +104,21 @@ Asserts that the `font` shorthand fills the font of the text and guide styles be
 everything but an explicit font for guide titles keeps the explicit one), and that the typed getters
 (`GetNumber`, `GetString`, `GetBool`) read values by dotted path and return null on a kind mismatch or a missing path,
 and the object and array getters return the nodes or nothing.
+
+##### Composite Mark Defaults
+
+**Tests**: `FeatureCatalogCompositeTests.ConfigResolver_Resolve_CarriesTheBoxPlotDefaults`,
+`FeatureCatalogCompositeTests.ConfigResolver_Resolve_CarriesTheErrorBarAndErrorBandDefaults`
+
+These two tests are in `FeatureCatalogCompositeTests.cs` (the folder of the unit tests of the catalog) and call the resolver
+directly. Asserts that the merged configuration of a specification without `config` has the box plot defaults of
+Vega-Lite (a
+size of 14, an extent of 1.5, the `box`, `rule`, and `outliers` parts as empty objects, a median with the color `white`,
+and
+`ticks` null), the error bar defaults (the center `mean`, the rule on, the ticks off), and the error band defaults (a
+band with the
+opacity 0.3 and no borders), and that the specification's own configuration overrides exactly what it names (a box plot
+with
+`ticks: true` and a median stroke width of 2 keeps the white median color; an error bar with `ticks: true` keeps its
+rule; an
+error band opacity of 0.5 replaces the 0.3).

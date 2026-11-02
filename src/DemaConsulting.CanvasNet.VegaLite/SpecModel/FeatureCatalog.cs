@@ -57,7 +57,9 @@ internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation
 ///         <item><term><c>vl-data-remote-url</c></term><description>the <c>data</c> object, when <c>url</c> has a scheme (<c>http</c>, <c>https</c>, <c>ftp</c>, <c>file</c>, <c>data</c>, <c>javascript</c>, a drive letter) or is an absolute path (Unix <c>/etc/hosts</c>, Windows rooted), a network path or a UNC path; never fetched, never given to a file resolver, and the dataset is empty. A relative local path is supported and not reported (a local file that cannot be read is an error of the render, not a report).</description></item>
 ///         <item><term><c>vl-data-values-text</c></term><description>inline <c>values</c> (or a top-level dataset that a <c>data.name</c> refers to) given as a text instead of an array of rows.</description></item>
 ///         <item><term><c>vl-data-geo</c></term><description><c>sphere</c>, <c>graticule</c>, a topojson format, or inline <c>values</c> (or a referenced top-level dataset) given as an object.</description></item>
-///         <item><term><c>vl-mark-&lt;type&gt;</c></term><description>the <c>mark</c>, for every mark type except bar, rect, point, circle, square, rule, tick, line, area, trail, text and arc.</description></item>
+///         <item><term><c>vl-mark-&lt;type&gt;</c></term><description>the <c>mark</c>, for every mark type except bar, rect, point, circle, square, rule, tick, line, area, trail, text, arc, boxplot, errorbar and errorband (<c>vl-mark-boxplot</c>, <c>vl-mark-errorbar</c> and <c>vl-mark-errorband</c> were retired in Phase 10 and are never produced).</description></item>
+///         <item><term><c>vl-composite-grouping</c></term><description>a channel of a <c>boxplot</c>, <c>errorbar</c> or <c>errorband</c> that groups the rows (every channel but the measure axis, the second ends and errors, and the tooltip) and has a <c>bin</c>, a <c>timeUnit</c> or an <c>aggregate</c>: the rows are grouped by the raw field (a bin or a time unit is not applied) and a channel that aggregates is left out of the layers.</description></item>
+///         <item><term><c>vl-channel-xerror</c>, <c>-xerror2</c>, <c>-yerror</c>, <c>-yerror2</c></term><description>an error channel on a mark other than <c>errorbar</c> and <c>errorband</c>, which use them (the channels are ignored). The <c>x2</c> and <c>y2</c> channels of those two marks are the ends of the range and are not reported; the <c>size</c> channel of an <c>errorbar</c> reports <c>vl-channel-size</c> (Vega-Lite drops it).</description></item>
 ///         <item><term><c>vl-mark-invalid-show</c>, <c>vl-mark-invalid-domains</c> (warning), <c>vl-mark-interpolate-bundle-area</c>, <c>vl-mark-interpolate-unknown</c></term><description>the <c>invalid</c> of a mark: <c>show</c> and null report <c>vl-mark-invalid-show</c> (the default mode applies), and <c>filter</c> and <c>break-paths-filter-domains</c> warn that the scale domains of this renderer still include the invalid rows; the <c>interpolate: "bundle"</c> of an <c>area</c>, which d3-shape cannot draw (the area uses the linear interpolation); and an <c>interpolate</c> name of a line or area that is not one of Vega-Lite's 15 (the parser rejects it in a mark definition, so it can only come from the configuration; the line is drawn with the linear interpolation). The value is read as the mark builder reads it: from the mark definition, else from the <c>config.style</c> entries of the mark, <c>config.&lt;mark&gt;</c> or <c>config.mark</c> of the specification; a value from the configuration is reported at the configuration (once, however many marks use it).</description></item>
 ///         <item><term><c>vl-channel-&lt;name&gt;</c></term><description>an encoding channel other than x, y, color, fill, stroke, size, opacity, shape, strokeWidth, strokeDash, fillOpacity, strokeOpacity, angle, text, theta, radius, theta2, radius2, order and detail; <c>shape</c> is drawn by a point, <c>text</c> by a text mark, <c>angle</c> by a point, circle, square or text, <c>theta</c> and <c>radius</c> by an arc or text mark, <c>theta2</c> and <c>radius2</c> by an arc mark, <c>strokeDash</c> by every mark but a rect, area, trail, text and arc and <c>size</c> by every mark but a rect, an area and an arc, and the channel is reported (and ignored) for any other mark; <c>tooltip</c>, <c>href</c>, <c>description</c> and <c>key</c> are accepted and ignored without a report; <c>longitude</c>, <c>latitude</c>, <c>longitude2</c> and <c>latitude2</c> report <c>vl-channel-geo</c>. <c>x2</c> and <c>y2</c> are accepted (the range of a bar, rect, rule or area) when the mark is one of those and the channel they extend (<c>x</c> or <c>y</c>) is present, and report <c>vl-channel-x2</c> / <c>vl-channel-y2</c> otherwise. <c>order</c> (the order of a stack, of the points of a path, or the drawing order of the marks) and <c>detail</c> (it groups the points of a path) are accepted by every mark.</description></item>
 ///         <item><term><c>vl-type-geojson</c></term><description>the <c>type</c> of a supported channel.</description></item>
@@ -86,9 +88,11 @@ internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation
 ///         <item><term><c>vl-format-type-custom</c></term><description><c>axis.formatType</c>, <c>legend.formatType</c> and the <c>formatType</c> of a <c>text</c> channel other than <c>number</c>, <c>time</c> and <c>utc</c> (a custom format type is not evaluated; the default format is used).</description></item>
 ///         <item><term><c>vl-expr-ref</c>, <c>vl-expr-label</c></term><description>an <c>{"expr": ...}</c> value that the renderer does not evaluate (anywhere in a view's title, size, padding, background, view, in a mark property other than the row-bound paint properties, or in an encoding other than the <c>value</c> of a color, fill, stroke, opacity or symbol size channel), and <c>axis.labelExpr</c> and <c>legend.labelExpr</c>. The row-bound sites are evaluated and are reported only for what their expression cannot do.</description></item>
 ///         <item><term><c>vl-expr-function-&lt;name&gt;</c>, <c>vl-expr-view-state</c>, <c>vl-expr-construct-&lt;name&gt;</c></term><description>the expression text of a supported site (a calculate, a filter, a variable parameter or a row-bound expression reference): a call of a function outside the whitelist (the number format and color functions among them), a use of view state (<c>signal</c>, <c>event</c>, <c>item</c>, <c>width</c>, <c>height</c>), or a deferred operator (bitwise, shift, <c>in</c>). The construct evaluates to null; the position is that of the expression text and the message names the offset inside it.</description></item>
-///         <item><term><c>vl-transform-&lt;name&gt;</c></term><description>every entry of <c>transform</c> that the renderer does not compute: the transforms of later phases (<c>density</c>, <c>extent</c>, <c>loess</c>, <c>quantile</c>, <c>regression</c>), and any transform of a nested view of a composition, which is not drawn (including <c>aggregate</c>, <c>joinaggregate</c>, <c>window</c>, <c>bin</c>, <c>stack</c>, <c>impute</c> and <c>timeunit</c>). <c>calculate</c>, <c>filter</c>, <c>fold</c>, <c>flatten</c>, <c>sample</c>, <c>pivot</c>, <c>lookup</c>, <c>aggregate</c>, <c>joinaggregate</c>, <c>window</c>, <c>bin</c>, <c>stack</c>, <c>impute</c> and <c>timeUnit</c> of the drawn view are computed and not reported.</description></item>
+///         <item><term><c>vl-transform-&lt;name&gt;</c></term><description>every entry of <c>transform</c> that the renderer does not compute: the transforms of later phases (<c>density</c>, <c>extent</c>, <c>loess</c>, <c>quantile</c>, <c>regression</c>; "not supported yet"), and any transform of a view that is not drawn because it is inside a <c>concat</c>, <c>hconcat</c>, <c>vconcat</c>, <c>facet</c> or <c>repeat</c> (the message reads "The '&lt;name&gt;' transform is not applied: the view is a '&lt;composition&gt;' composition, which is not supported yet."). <c>calculate</c>, <c>filter</c>, <c>fold</c>, <c>flatten</c>, <c>sample</c>, <c>pivot</c>, <c>lookup</c>, <c>aggregate</c>, <c>joinaggregate</c>, <c>window</c>, <c>bin</c>, <c>stack</c>, <c>impute</c> and <c>timeUnit</c> of a drawn view (the single view, a layered view and its layers) are computed and not reported.</description></item>
 ///         <item><term><c>vl-transform-filter-param</c>, <c>-pivot-op</c>, <c>-lookup-param</c>, <c>-bin-extent-param</c></term><description>the parts of a computed transform that are not supported: a filter predicate on a selection parameter (every row passes), a pivot <c>op</c> other than sum and count (sum is used), a lookup in the data of a parameter (not applied) and a <c>bin</c> whose <c>extent</c> is a parameter (the extent of the data is used).</description></item>
-///         <item><term><c>vl-composition-layer</c>, <c>-concat</c>, <c>-hconcat</c>, <c>-vconcat</c>, <c>-facet</c>, <c>-repeat</c></term><description>that property; the views nested in it are examined too.</description></item>
+///         <item><term><c>vl-composition-concat</c>, <c>-hconcat</c>, <c>-vconcat</c>, <c>-facet</c>, <c>-repeat</c></term><description>that property; the views nested in it are examined too. The <c>layer</c> composition is drawn and not reported (<c>vl-composition-layer</c> was retired in Phase 10 and is never produced).</description></item>
+///         <item><term><c>vl-layer-property-ignored</c> (warning)</term><description>a <c>width</c>, <c>height</c>, <c>autosize</c>, <c>padding</c>, <c>background</c>, <c>config</c>, <c>datasets</c> or <c>title</c> of a view inside a layered view (a layer or a nested layered view): only the top-level view decides them.</description></item>
+///         <item><term><c>vl-layer-scale-conflict</c> (warning)</term><description>produced by the renderer, not by the catalog: layers whose scales of a channel cannot be merged (a continuous with a discrete scale, a linear with a logarithmic or a time scale) keep scales of their own; reported at the channel of the layer that was left out.</description></item>
 ///         <item><term><c>vl-param-variable</c>, <c>vl-param-selection</c></term><description>every selection parameter (it has <c>select</c>) and the legacy top-level <c>selection</c> report <c>vl-param-selection</c>; a variable parameter of a nested view reports <c>vl-param-variable</c>. The variable parameters of the root view are computed and are not reported. <c>bind</c> is ignored.</description></item>
 ///         <item><term><c>vl-projection</c></term><description>the <c>projection</c> of a view.</description></item>
 ///         <item><term><c>vl-layout-autosize-&lt;type&gt;</c></term><description><c>autosize</c> types other than pad and none (fit, fit-x, fit-y).</description></item>
@@ -103,7 +107,7 @@ internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation
 internal static class FeatureCatalog
 {
     /// <summary>The mark types that the renderer draws; any other mark type is reported.</summary>
-    private static readonly HashSet<string> SupportedMarks = ["bar", "rect", "point", "circle", "square", "rule", "tick", "line", "area", "trail", "text", "arc"];
+    private static readonly HashSet<string> SupportedMarks = ["bar", "rect", "point", "circle", "square", "rule", "tick", "line", "area", "trail", "text", "arc", "boxplot", "errorbar", "errorband"];
 
     /// <summary>The channels that the renderer draws; any other channel is reported unless it is ignored.</summary>
     private static readonly HashSet<string> SupportedChannels =
@@ -151,8 +155,11 @@ internal static class FeatureCatalog
     /// <summary>The properties of a view in which an <c>{"expr": ...}</c> value is looked for.</summary>
     private static readonly HashSet<string> ExpressionScopes = ["title", "width", "height", "padding", "background", "view", "mark", "encoding"];
 
-    /// <summary>The composition properties, each reported as <c>vl-composition-&lt;name&gt;</c>.</summary>
-    private static readonly HashSet<string> CompositionProperties = ["layer", "concat", "hconcat", "vconcat", "facet", "repeat"];
+    /// <summary>The composition properties that are not drawn yet, each reported as <c>vl-composition-&lt;name&gt;</c> (<c>layer</c> is drawn and is not reported).</summary>
+    private static readonly HashSet<string> CompositionProperties = ["concat", "hconcat", "vconcat", "facet", "repeat"];
+
+    /// <summary>The properties of a view in a layered view that only the top-level view decides: a layer's own value is ignored (<c>vl-layer-property-ignored</c>).</summary>
+    private static readonly string[] LayerIgnoredProperties = ["width", "height", "autosize", "padding", "background", "config", "datasets", "title"];
 
     /// <summary>
     ///     Lists the recognized-but-unsupported constructs of a specification.
@@ -166,8 +173,11 @@ internal static class FeatureCatalog
         var walker = new Walker(tree);
         walker.Run();
 
-        // LINQ's ordering is stable, so reports at one position keep the order in which they were found
-        return walker.Reports.OrderBy(r => r.Location.Line).ThenBy(r => r.Location.Column).ToList().AsReadOnly();
+        // LINQ's ordering is stable, so reports at one position keep the order in which they were found; a finding that several layers share (a channel of the encoding that
+        // the layers inherit) is reported once
+        return walker.Reports
+            .DistinctBy(r => (r.Id, r.Location.Line, r.Location.Column, r.Message, r.Kind))
+            .OrderBy(r => r.Location.Line).ThenBy(r => r.Location.Column).ToList().AsReadOnly();
     }
 
     /// <summary>
@@ -274,6 +284,32 @@ internal static class FeatureCatalog
             {
                 VisitView(view);
             }
+
+            // The encoding of a layered view and of each layer is merged into the encoding of every layer below it, which is what the layer's mark draws: it is visited with
+            // the mark of that layer (a channel that several layers inherit is found once for each, and reported once)
+            foreach (var unit in LayerUnits().Where(u => !ReferenceEquals(u.Unit, u.Source)).Select(u => u.Unit!))
+            {
+                if (unit["encoding"] is { } encoding)
+                {
+                    VisitEncoding(unit, encoding);
+                }
+            }
+        }
+
+        /// <summary>
+        ///     Lists the layers of the specification (the unit views inside layered views) in document order.
+        /// </summary>
+        /// <returns>The layers; empty when the specification has none or its layers are nested more deeply than the largest limit allows (the render fails then).</returns>
+        private List<LayerNode> LayerUnits()
+        {
+            try
+            {
+                return [.. SpecNormalizer.Layers(_tree, new VegaLiteLimits { MaxViews = int.MaxValue, MaxCompositionDepth = 64 }).Units];
+            }
+            catch (VegaLiteRenderException)
+            {
+                return [];
+            }
         }
 
         /// <summary>
@@ -305,6 +341,16 @@ internal static class FeatureCatalog
         /// <param name="view">The view object.</param>
         private void VisitView(SpecNode view)
         {
+            var drawn = SpecParser.IsDrawnView(_tree.Root, view);
+            var isRoot = ReferenceEquals(view, _tree.Root);
+
+            // The encoding of a view that is drawn through layers is visited with the layer it is merged into
+            var layered = drawn && (view["layer"] is not null || !isRoot);
+            if (drawn && !isRoot)
+            {
+                VisitLayerProperties(view);
+            }
+
             foreach (var property in view.Properties)
             {
                 var name = property.Name!;
@@ -317,13 +363,17 @@ internal static class FeatureCatalog
                         VisitMark(property);
                         break;
                     case "encoding":
-                        VisitEncoding(view, property);
+                        if (!layered)
+                        {
+                            VisitEncoding(view, property);
+                        }
+
                         break;
                     case "transform":
-                        VisitTransforms(property, SpecParser.IsDrawnView(_tree.Root, view));
+                        VisitTransforms(property, drawn, view);
                         break;
                     case "params":
-                        VisitParams(property, ReferenceEquals(view, _tree.Root));
+                        VisitParams(property, isRoot);
                         break;
                     case "selection":
                         Unsupported("vl-param-selection", "Selections are not supported yet; the static default state is not applied.", property);
@@ -346,6 +396,21 @@ internal static class FeatureCatalog
                 if (ExpressionScopes.Contains(name))
                 {
                     VisitExpressions(property);
+                }
+            }
+        }
+
+        /// <summary>
+        ///     Warns about the properties of a view in a layered view that only the top-level view decides.
+        /// </summary>
+        /// <param name="view">The view that is a layer or a layered view inside a layered view.</param>
+        private void VisitLayerProperties(SpecNode view)
+        {
+            foreach (var name in LayerIgnoredProperties)
+            {
+                if (view[name] is { } property)
+                {
+                    Warn("vl-layer-property-ignored", $"The '{name}' of a view inside a layer is ignored; set it on the top-level view.", property);
                 }
             }
         }
@@ -634,6 +699,19 @@ internal static class FeatureCatalog
             // The order channel orders a stack that the plan will make, which is decided with the orientation that the scales infer
             var stackDecision = new Lazy<StackDecision?>(() => StackRules.Decide(markType, ScaleResolver.InferOrient(markType, mark?["orient"]?.AsString(), encoding), encoding));
             _stack = stackDecision;
+            var is2D = markType == "errorband" && encoding["x"] is { IsNull: false } && encoding["y"] is { IsNull: false };
+            var drawnAs = markType switch
+            {
+                "boxplot" => "point",
+                "errorbar" => "rule",
+                "errorband" => is2D ? "area" : "rect",
+                _ => markType,
+            };
+            if (markType is "boxplot" or "errorbar" or "errorband")
+            {
+                VisitCompositeGrouping(markType, mark, encoding);
+            }
+
             foreach (var channel in encoding.Properties)
             {
                 var name = channel.Name!;
@@ -648,15 +726,32 @@ internal static class FeatureCatalog
                 }
                 else if (name is "x2" or "y2")
                 {
-                    // A range is drawn by a bar, a rect, a rule or an area that has the position channel it extends
-                    if (RangedMarks.Contains(markType) && encoding[name[..1]] is { IsObject: true })
+                    // A range is drawn by a bar, a rect, a rule or an area that has the position channel it extends; an errorbar and an errorband take it as the end of the range
+                    if ((RangedMarks.Contains(markType) || markType is "errorbar" or "errorband") && encoding[name[..1]] is { IsObject: true })
                     {
                         VisitSecondaryDefinition(name, channel);
                     }
                     else
                     {
-                        Unsupported(Id("channel", name), $"The '{name}' channel is only supported for a bar, rect, rule or area mark that has the '{name[..1]}' channel.", channel);
+                        Unsupported(Id("channel", name), $"The '{name}' channel is only supported for a bar, rect, rule, area, errorbar or errorband mark that has the '{name[..1]}' channel.", channel);
                     }
+                }
+                else if (name is "xError" or "xError2" or "yError" or "yError2")
+                {
+                    // The errors of the range of an errorbar or errorband
+                    if (markType is "errorbar" or "errorband")
+                    {
+                        VisitSecondaryDefinition(name, channel);
+                    }
+                    else
+                    {
+                        Unsupported(Id("channel", name), $"The '{name}' channel is only supported for an errorbar or errorband mark; it is ignored.", channel);
+                    }
+                }
+                else if (name == "size" && markType == "errorbar")
+                {
+                    // Vega-Lite drops the size channel from the parts of an errorbar; the mark's own size and thickness give the sizes
+                    Unsupported(Id("channel", name), "The 'size' channel is not drawn by the 'errorbar' mark; it is ignored (use the 'size' and 'thickness' of the mark).", channel);
                 }
                 else if (name is "order" or "detail")
                 {
@@ -671,10 +766,10 @@ internal static class FeatureCatalog
                         Unsupported(Id("channel", name), $"The '{name}' channel is not supported yet.", channel);
                     }
                 }
-                else if ((name is "shape" or "angle" or "strokeDash" or "text" or "theta" or "radius" or "theta2" or "radius2" || (name == "size" && markType is "area" or "arc")) && !ScaleResolver.ChannelIsDrawn(name, markType))
+                else if ((name is "shape" or "angle" or "strokeDash" or "text" or "theta" or "radius" or "theta2" or "radius2" || (name == "size" && markType is "area" or "arc")) && !ScaleResolver.ChannelIsDrawn(name, drawnAs))
                 {
                     // The channel is supported, but the mark does not draw it (a shape needs a point, an angle a symbol or text, a dash a mark with a stroke line, a size a mark that has one, a text a text mark,
-                    // an angle (theta) or radius a text or arc mark and their second ends an arc mark)
+                    // an angle (theta) or radius a text or arc mark and their second ends an arc mark); the outliers of a boxplot are points
                     Unsupported(Id("channel", name), $"The '{name}' channel is not drawn by the '{markType}' mark; it is ignored.", channel);
                 }
                 else if (channel.IsObject)
@@ -684,6 +779,34 @@ internal static class FeatureCatalog
             }
 
             VisitStackImpute(markType, encoding, stackDecision.Value);
+        }
+
+        /// <summary>
+        ///     Reports the channels of a composite mark that group its rows and have a <c>bin</c>, a <c>timeUnit</c> or an <c>aggregate</c>, which the expansion does not apply.
+        /// </summary>
+        /// <param name="type">The composite mark type: <c>boxplot</c>, <c>errorbar</c> or <c>errorband</c>.</param>
+        /// <param name="mark">The mark of the view: a string or a mark definition.</param>
+        /// <param name="encoding">The encoding object.</param>
+        private void VisitCompositeGrouping(string type, SpecNode? mark, SpecNode encoding)
+        {
+            var definition = mark is { IsObject: true } ? mark : null;
+            if (!SpecNormalizer.TryOrientation(type, definition, encoding, out var orient, out _))
+            {
+                return;
+            }
+
+            var measure = orient == "vertical" ? "y" : "x";
+            foreach (var channel in encoding.Properties.Where(c => c.IsObject && c.Name != measure && c.Name is not ("x2" or "y2" or "xError" or "xError2" or "yError" or "yError2" or "tooltip")))
+            {
+                if (channel["aggregate"] is { IsNull: false })
+                {
+                    Unsupported("vl-composite-grouping", $"The '{channel.Name}' channel of the {type} has an aggregate, which a grouping channel cannot have; the channel is left out.", channel);
+                }
+                else if ((channel["bin"] is { } bin && IsEnabled(bin)) || channel["timeUnit"] is { IsNull: false })
+                {
+                    Unsupported("vl-composite-grouping", $"The bin or time unit of the '{channel.Name}' channel of the {type} is not applied: the rows are grouped by the field as it is.", channel);
+                }
+            }
         }
 
         /// <summary>
@@ -1366,13 +1489,14 @@ internal static class FeatureCatalog
         ///     The transforms the renderer computes (calculate, filter, fold, flatten, sample, pivot, lookup, aggregate, joinaggregate,
         ///     window, bin, stack, impute, timeUnit) are reported only for the parts they do not support: expression constructs, a
         ///     binned time unit, the time unit of a predicate (see <c>vl-predicate-timeunit-part</c>), selection parameters, a pivot operation other than sum and count, a lookup
-        ///     in the data of a parameter, and a bin extent that is a parameter. A transform of a view that is not drawn (a nested
-        ///     view of a composition) is never applied and is reported as <c>vl-transform-&lt;name&gt;</c>, like every transform of a
-        ///     later phase.
+        ///     in the data of a parameter, and a bin extent that is a parameter. A transform of a view that is not drawn (a view inside a
+        ///     concatenation, a facet or a repeat) is never applied and is reported as <c>vl-transform-&lt;name&gt;</c> with a message that names the composition; a transform of a
+        ///     later phase is reported as not supported yet.
         /// </remarks>
         /// <param name="transforms">The array.</param>
-        /// <param name="drawn">Whether the view that owns the transforms is the view the renderer draws.</param>
-        private void VisitTransforms(SpecNode transforms, bool drawn)
+        /// <param name="drawn">Whether the view that owns the transforms is drawn by the renderer (the single view, a layered view or a layer).</param>
+        /// <param name="view">The view that owns the transforms.</param>
+        private void VisitTransforms(SpecNode transforms, bool drawn, SpecNode view)
         {
             foreach (var entry in transforms.Items)
             {
@@ -1383,7 +1507,14 @@ internal static class FeatureCatalog
                 }
 
                 var name = operation.Name!;
-                if (!drawn || !SpecParser.IsSupportedTransform(name))
+                if (!drawn)
+                {
+                    var composition = SpecParser.FindUndrawnComposition(view) ?? "composition";
+                    Unsupported(Id("transform", name), $"The '{name}' transform is not applied: the view is a '{composition}' composition, which is not supported yet.", entry);
+                    continue;
+                }
+
+                if (!SpecParser.IsSupportedTransform(name))
                 {
                     Unsupported(Id("transform", name), $"The '{name}' transform is not supported yet.", entry);
                     continue;

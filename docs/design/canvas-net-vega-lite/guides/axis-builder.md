@@ -11,7 +11,8 @@ the `TimeLabels` unit (see _Time Labels Design_).
 
 #### Purpose
 
-`AxisBuilder` builds the axis guide of a position scale of a single view: the grid lines, the tick marks, the tick labels,
+`AxisBuilder` builds the axis guide of a position scale of a view (the single view, or one axis of a layered view): the
+grid lines, the tick marks, the tick labels,
 the domain line, and the title, as scene groups positioned at the edge of the data rectangle, and measures how far they
 reach beyond it. It exists so that the axis properties, their defaults, configuration precedence, geometry, and
 the label-overlap removal of Vega-Lite and Vega are defined in one place, and so that the layout can size the canvas around
@@ -23,10 +24,15 @@ The unit's behavior is specified by the `CanvasNetVegaLite-Guides-AxisBuilder-*`
 #### Data Model
 
 - **`AxisRequest`** `(string Channel, SpecNode? ChannelDef, ResolvedScale Scale, ScaleModel Model, double DataWidth, double
-  DataHeight, string? MarkType)` - what the builder needs: the channel (`x` or `y`), its definition in the encoding (whose
+  DataHeight, string? MarkType, SceneBudget? Budget, string? DefaultOrient, bool? DefaultGrid)` - what the builder
+  needs: the channel (`x` or `y`), its definition in the encoding (whose
   `axis`, `title`, `field`, `aggregate`, and `bin` are read), its resolved scale and the model for the final data rectangle,
   the size of
   that rectangle, and the mark type (a `rect` mark with a discrete channel draws its axis in front of the mark).
+  Since phase 10, `DefaultOrient` is the side that a layered view gives the axis when the `axis` object names none (the
+  second independent axis of a channel is on the opposite side) and `DefaultGrid` whether the axis has a grid when the
+  `axis` object says nothing (only the first independent axis has one); both are null for a single view, which keeps the
+  usual rules.
 - **`AxisTick`** `(DataValue Value, double Position, string Label)` - one tick: the domain value (a date for a time
   tick, or a plain number for an instant outside the years a date can hold), its position along the
   axis (rounded like the tick mark), and its label text before truncation.
@@ -85,7 +91,10 @@ the top, left, and right axes; bounds follow Vega (a stroked rule grows by half 
 #### Key Methods
 
 - `Build(AxisRequest request, CancellationToken token)` - returns null when the channel's `axis` is null or false;
-  otherwise resolves the settings and the orientation, builds the ticks (`BuildTicks`), creates the grid rules, tick rules,
+  otherwise resolves the settings and the orientation (an explicit `axis.orient`, else the request's `DefaultOrient`, else
+  the configuration's orient, else bottom for `x` and left for `y`; the grid likewise: an explicit `axis.grid`, else
+  `DefaultGrid`, else the configuration, else the Vega-Lite rule), builds the ticks (`BuildTicks`), creates the grid
+  rules, tick rules,
   labels, and domain rule, computes the bounds of ticks and labels, resolves the title, and finishes the groups with the
   extent clamping and title placement. The token is polled per tick.
 - Ticks (`BuildTicks`): a time or UTC scale takes the time ticks described below; a linear scale (and, with a
@@ -190,7 +199,8 @@ host clock, zone, or culture.
 
 #### Callers
 
-`VegaLiteDocument` builds the axes of the x and y channels in every layout pass and passes the results to
+`VegaLiteDocument` builds the axes of the x and y channels in every layout pass (one axis for each `AxisPlan` of a layered
+view, see _VegaLiteDocument Unit Design_) and passes the results to
 `ViewLayout` (through `GetExtents`) and into the scene content (grids first, then the axes behind the marks, then the axes
 in front). The tests in `test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/AxisBuilderTests.cs` and
 `AxisBuilderTimeTests.cs` call the builder directly

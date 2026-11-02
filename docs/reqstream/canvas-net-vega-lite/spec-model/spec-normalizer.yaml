@@ -1,0 +1,192 @@
+---
+# Software Unit Requirements for SpecNormalizer
+#
+# These requirements describe the design-level behavior of the SpecNormalizer unit of the SpecModel subsystem
+# (internal namespace DemaConsulting.CanvasNet.VegaLite.SpecModel): the view tree of a specification - one unit
+# view for a single view, the layers of a layered view with the data, transform, encoding, size, and resolve that
+# they inherit - and the expansion of the composite marks boxplot, errorbar, and errorband into the primitive layers
+# that Vega-Lite normalizes them to. The normalization rules are facts about Vega-Lite behavior, implemented as own
+# C# code; the files of the composite marks are attributed in
+# src/DemaConsulting.CanvasNet.VegaLite/third-party/README.md (BSD-3-Clause). See
+# docs/verification/canvas-net-vega-lite/spec-model/spec-normalizer.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: SpecModel Requirements
+        sections:
+          - title: SpecNormalizer Requirements
+            requirements:
+              - id: CanvasNetVegaLite-SpecModel-SpecNormalizer-LayerTree
+                title: >-
+                  The SpecNormalizer unit shall turn a specification into a tree of views whose leaves are
+                  the unit views that are drawn: a specification without a composition shall be exactly one
+                  unit, the top-level view itself; the objects of a layer array, in document order, shall be
+                  the layers of that view (unit views or layered views, to any depth); a view that holds a
+                  concat, hconcat, vconcat, facet, or repeat shall be recorded as a composition that is not
+                  drawn yet and shall not be entered; and a null specification shall be refused with an
+                  ArgumentNullException.
+                justification: |
+                  Every later stage draws the unit views of the tree, and a single view must keep the path it
+                  always took, so the tree must be exact about what is drawn and what is not.
+                tests:
+                  - SpecNormalizer_Layers_SingleViewIsTheRootItself
+                  - SpecNormalizer_Layers_LayersAreUnitsInDocumentOrder
+                  - SpecNormalizer_Layers_ConcatenationIsUndrawn
+                  - SpecNormalizer_Layers_FacetAndRepeatAreUndrawn
+                  - SpecNormalizer_Layers_ConcatenationInsideLayerIsUndrawn
+                  - SpecNormalizer_Layers_NullTreeThrows
+
+              - id: CanvasNetVegaLite-SpecModel-SpecNormalizer-Inheritance
+                title: >-
+                  The SpecNormalizer unit shall give each layer the properties it inherits as Vega-Lite does:
+                  the encoding merged from the layered views above it with the channels of an inner view
+                  replacing the outer channel in place and new channels added after the existing ones, at
+                  every nesting level; the width and height of the top-level view (those of a layer are
+                  ignored); and the data and transform of each view as that view's own, so that the data and
+                  the transform of an outer view are inherited by the layers below it; and shall leave every
+                  node of the specification with its own location, parent, and properties.
+                justification: |
+                  A layer that does not see the encoding, data, and transform of the view above it draws a
+                  different chart than Vega-Lite, and a diagnostic about an inherited channel must still point
+                  at the text that the author wrote.
+                tests:
+                  - SpecNormalizer_Layers_EncodingIsMergedInPlace
+                  - SpecNormalizer_Layers_NestedLayersMergeEveryLevel
+                  - SpecNormalizer_Layers_UnitTakesSizeOfTopLevelView
+                  - SpecNormalizer_Layers_DataAndTransformAreEachViewsOwn
+                  - SpecNode_Overlay_KeepsOriginIdentityAndChildrenParents
+                  - SpecNode_Overlay_ManyPropertiesAreFoundByName
+                  - SpecNode_Overlay_NullArgumentsThrow
+
+              - id: CanvasNetVegaLite-SpecModel-SpecNormalizer-Resolve
+                title: >-
+                  The SpecNormalizer unit shall read the resolve of a layered view so that a channel that
+                  resolve does not name has a shared scale, and the axis or legend of a channel follows its
+                  scale unless it is named, and an independent scale gives an independent axis and legend.
+                justification: |
+                  The resolve property decides whether layers share or keep apart their scales, axes, and
+                  legends, and the default must be Vega-Lite's.
+                tests:
+                  - LayerResolve_Read_FollowsScaleForGuides
+
+              - id: CanvasNetVegaLite-SpecModel-SpecNormalizer-Limits
+                title: >-
+                  The SpecNormalizer unit shall fail closed with a VegaLiteRenderException located at the
+                  offending view when the layers are nested deeper than the composition-depth limit or when
+                  the views (the layers and the views that a composite mark expands to included) are more than
+                  the view limit, shall accept exactly the limit, and shall count the views of an expansion
+                  against the view limit but not against the composition depth.
+                justification: |
+                  A hostile specification must not be able to build an unbounded tree of views, and a limit
+                  that counts the wrong thing would either reject valid charts or let a composite mark hide
+                  its cost.
+                tests:
+                  - SpecNormalizer_Layers_DepthLimitIsEnforced
+                  - SpecNormalizer_Layers_ViewLimitIsEnforced
+                  - SpecNormalizer_Expand_ExpandedViewsCountAgainstMaxViewsNotTheDepth
+                  - SpecNormalizer_Expand_ErrorBarViewsAreCounted
+
+              - id: CanvasNetVegaLite-SpecModel-SpecNormalizer-Expansion
+                title: >-
+                  The SpecNormalizer unit shall expand a unit view whose mark is boxplot, errorbar, or
+                  errorband into a layered view of the primitive layers it stands for (with the encoding of the
+                  views above it merged into them, and the expressions that the expansion writes compiled and
+                  held apart from the parsed specification), shall leave every other view unchanged, and shall
+                  refuse a null specification or configuration with an ArgumentNullException.
+                justification: |
+                  The composite marks are drawn by the same stages as the primitive marks, so the expansion
+                  must produce exactly the views that Vega-Lite normalizes them to, and must not touch a view
+                  that is not a composite mark.
+                tests:
+                  - SpecNormalizer_Expand_OtherMarksAreUnchangedAndArgumentsChecked
+                  - SpecNormalizer_Expand_ExpressionsAreInTheDerivedTreeOnly
+                  - SpecExpressions_With_AddsEntriesToACopy
+                  - SpecNormalizer_Expand_BoxPlotLayerMergesTheEncodingOfItsParents
+                  - SpecNormalizer_Expand_ErrorBarInALayerInheritsTheEncoding
+
+              - id: CanvasNetVegaLite-SpecModel-SpecNormalizer-BoxPlot
+                title: >-
+                  The SpecNormalizer unit shall expand a boxplot as Vega-Lite does: the Tukey form (an extent
+                  that is a multiple of the interquartile range, 1.5 by default) as the outlier points, the
+                  whiskers (rules, and optional end ticks) over the values inside the fences, and the box with
+                  its median tick computed from the quartiles, and the min-max form as the whiskers from the
+                  minimum to the maximum; shall orient the box along the continuous channel, group by the other
+                  channels, apply the defaults of the parts (box, median, outliers, and rule on, ticks off, size
+                  14, white median) from the mark and the configuration in their order of precedence, switch each
+                  part off by its property, give the median the box color of a flat box, and default the title of
+                  the measure to its field.
+                justification: |
+                  A box plot is an agreed statistical figure; the quartiles, fences, and defaults must be exactly
+                  those that readers of Vega-Lite charts expect.
+                tests:
+                  - SpecNormalizer_Expand_TukeyBoxPlotIsOutlierWhiskerAndBoxViews
+                  - SpecNormalizer_Expand_TukeyTransformsFollowVegaLite
+                  - SpecNormalizer_Expand_MinMaxIsOneAggregateView
+                  - SpecNormalizer_Expand_ExtentComesFromTheMarkThenTheConfiguration
+                  - SpecNormalizer_Expand_PartsDrawTheComputedFields
+                  - SpecNormalizer_Expand_PartMarksHaveTheDefaults
+                  - SpecNormalizer_Expand_MedianColorFallsBackToTheBoxColorOnAFlatBox
+                  - SpecNormalizer_Expand_PartsCanBeSwitched
+                  - SpecNormalizer_Expand_EndTicksAndSizes
+                  - SpecNormalizer_Expand_PartPropertiesOverrideInOrder
+                  - SpecNormalizer_Expand_OrientFollowsTheContinuousChannel
+                  - SpecNormalizer_Expand_HorizontalBoxPlotUsesXAndX2
+                  - SpecNormalizer_Expand_TitleOfTheMeasureDefaultsToTheField
+                  - SpecNormalizer_Expand_SharedChannelsFollowVegaLite
+                  - SpecNormalizer_Expand_GroupingChannelsDropBinTimeUnitAndAggregate
+                  - SpecNormalizer_Expand_SingleBoxHasNoGroupBy
+
+              - id: CanvasNetVegaLite-SpecModel-SpecNormalizer-ErrorBar
+                title: >-
+                  The SpecNormalizer unit shall expand an errorbar as Vega-Lite does: from raw observations as
+                  the center (the mean by default, the median for the iqr extent) with the extent stderr
+                  (the default), stdev, ci, or iqr; from a pre-aggregated range (x2 or y2) or error
+                  (xError, yError, and the second error) channels without aggregating; as a rule between the
+                  lower and upper ends with optional ticks at both ends (drawn before the rule), honoring the
+                  thickness and size and the part properties of the mark and of the configuration; and shall
+                  decide the orientation from the channels (a range or error channel decides, an explicit
+                  orient decides only for raw observations) and refuse an invalid combination of channels with
+                  a located specification exception.
+                justification: |
+                  An error bar is only meaningful when its center, extent, and ends are computed exactly as the
+                  author of the specification expects from Vega-Lite.
+                tests:
+                  - SpecNormalizer_Expand_ErrorBarDefaultIsTheRuleOfTheMeanAndStandardError
+                  - SpecNormalizer_Expand_ErrorBarExtentAndCenterChooseTheAggregates
+                  - SpecNormalizer_Expand_ConfiguredCenterApplies
+                  - SpecNormalizer_Expand_RangeChannelsAreCopiedWithoutAggregate
+                  - SpecNormalizer_Expand_ErrorChannelsAreAddedToTheValue
+                  - SpecNormalizer_Expand_ErrorBarTicksComeBeforeTheRule
+                  - SpecNormalizer_Expand_ErrorBarPartsFollowMarkAndConfiguration
+                  - SpecNormalizer_Expand_ErrorBarSharesTheOtherChannels
+                  - SpecNormalizer_TryOrientation_DecidesFromTheChannels
+                  - SpecNormalizer_Expand_ExplicitOrientDecidesObservationsOnly
+
+              - id: CanvasNetVegaLite-SpecModel-SpecNormalizer-ErrorBand
+                title: >-
+                  The SpecNormalizer unit shall expand an errorband as Vega-Lite does: a band between the lower
+                  and upper ends (an area with an optional interpolation and line borders when both x and y are
+                  encoded, a rect with rule borders otherwise) with the default band opacity and the borders
+                  and band switchable by the mark and the configuration, computing the ends as the errorbar
+                  does.
+                justification: |
+                  An error band shows the uncertainty of a series; its shape and defaults decide whether it
+                  reads as in Vega-Lite.
+                tests:
+                  - SpecNormalizer_Expand_ErrorBandOneDimensionalIsARectWithRuleBorders
+                  - SpecNormalizer_Expand_ErrorBandTwoDimensionalIsAnAreaWithLineBorders
+                  - SpecNormalizer_Expand_ErrorBandPartsAndConfiguration
+
+              - id: CanvasNetVegaLite-SpecModel-SpecNormalizer-CompositeErrors
+                title: >-
+                  The SpecNormalizer unit shall fail with a VegaLiteSpecException located at the mark of a
+                  composite mark whose orientation cannot be decided, which has no continuous channel, whose
+                  measure is not a field, or whose range or error channels cannot be combined, and shall not
+                  report such a composite mark as unsupported.
+                justification: |
+                  A composite mark that cannot be expanded is a mistake in the specification, and the author
+                  must be told where.
+                tests:
+                  - SpecNormalizer_Expand_UndecidableBoxPlotIsASpecificationError
+                  - SpecNormalizer_Expand_ErrorChannelWithoutFieldIsASpecificationError

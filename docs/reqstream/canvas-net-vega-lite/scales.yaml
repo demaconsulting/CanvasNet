@@ -4,7 +4,8 @@
 # These requirements decompose the CanvasNetVegaLite system's scaling responsibility into the Scales subsystem
 # (internal namespace DemaConsulting.CanvasNet.VegaLite.Scales): the immutable scale mappings (ScaleModel), the
 # Vega-Lite inference of scales from the encoding and the data (ScaleResolver, including the time and UTC scales of
-# Phase 8), the ports of the d3-array and d3-time tick algorithms (Ticks) and of the d3-format number formatter
+# Phase 8 and the shared and independent scales of layered views of Phase 10), the ports of the d3-array and d3-time
+# tick algorithms (Ticks) and of the d3-format number formatter
 # (NumberFormat), the catalog of Vega color schemes
 # (ColorSchemes), and the color interpolation (ColorInterpolator). Ticks, NumberFormat, and ColorInterpolator
 # are own C# ports of ISC-licensed d3 algorithms, and the colors of the schemes are published palette data;
@@ -375,3 +376,23 @@ sections:
               - NumberFormat_Format_QuantitativeLabelsMatchHandDerivedExpectedVector
               - NumberFormat_TickFormat_ChoosesThePrecisionFromTheTickStep
               - NumberFormat_Format_IgnoresTheCurrentCulture
+
+          - id: CanvasNetVegaLite-Scales-LayerScales
+            title: >-
+              The Scales subsystem shall resolve the scales of the layers of a layered view so that layers
+              that share a channel are placed by one scale over the combined domain (the band scale
+              preferred to the point scale, the step applied to the combined categories, the titles joined),
+              layers whose resolve makes a scale independent keep scales of their own, and layers whose scales
+              cannot be merged keep their own and are reported.
+            justification: |
+              The layers of a chart are drawn on one pair of axes; they line up only when they are placed by the
+              same scales, and a chart that needs separate scales must be able to say so.
+            children:
+              - CanvasNetVegaLite-Scales-ScaleResolver-SharedScales
+              - CanvasNetVegaLite-Scales-ScaleResolver-IndependentScales
+              - CanvasNetVegaLite-Scales-ScaleResolver-ScaleConflict
+            tests:
+              - ScaleResolver_ResolveLayers_SharedContinuousDomainIsTheUnion
+              - ScaleResolver_ResolveLayers_BandBeatsPointAndSizesTheView
+              - ScaleResolver_ResolveLayers_IndependentScaleStaysPerLayer
+              - ScaleResolver_ResolveLayers_IncompatibleScalesKeepTheirOwnAndAreReported

@@ -143,3 +143,14 @@ sections:
                   - TemporalFields_Collect_TimeUnitTransformFields
                   - TemporalFields_Collect_FilterPredicatesWithTimeUnitsAndDatetimeObjects
                   - TemporalFields_Collect_ConditionTests
+
+              - id: CanvasNetVegaLite-Transforms-TimeUnitTransform-TemporalFieldsOfViews
+                title: >-
+                  The TimeUnitTransform unit shall collect the fields that are implicitly parsed as dates for
+                  several views at once (the views a loaded table serves, such as the layers of a layered view)
+                  as the union of the fields of each view, each field once.
+                justification: |
+                  A table that several layers read is loaded once; every date field that any of them needs must
+                  be parsed when it is loaded.
+                tests:
+                  - TemporalFields_CollectAll_IsTheUnionOverTheViews

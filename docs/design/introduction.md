@@ -252,12 +252,15 @@ software items, specifically:
   `Parse`/`Open`/`Measure`/`Render` API with `VegaLiteOpenOptions`, `VegaLiteRenderOptions`, `VegaLiteLimits`,
   `VegaLiteFontOptions`, `VegaLiteLocation`, `VegaLiteDiagnostic`, `VegaLiteUnsupportedFeature`, `VegaLiteSize`,
   `VegaLiteDataReference`, `VegaLiteSpecException`, `VegaLiteRenderException`, and
-  `VegaLiteUnsupportedFeatureException`), and nine internal subsystems. The `SpecModel` subsystem has three units:
+  `VegaLiteUnsupportedFeatureException`), and nine internal subsystems. The `SpecModel` subsystem has four units:
   `SpecParser` (UTF-8 JSON into an immutable tree with JSON pointers and line and column under size and depth
   limits, structural validation, the compilation of expressions, and duplicate and unknown key warnings),
   `FeatureCatalog` (the stable `vl-*` reports
-  of every recognized-but-unsupported construct), and `ConfigResolver` (the Vega and Vega-Lite default configuration
-  merged with the configuration of the specification and of the caller). The `Data` subsystem has six units:
+  of every recognized-but-unsupported construct), `ConfigResolver` (the Vega and Vega-Lite default configuration
+  merged with the configuration of the specification and of the caller), and `SpecNormalizer` (the layer tree of a
+  specification, the inheritance and `resolve` of layers, and the expansion of the composite marks `boxplot`,
+  `errorbar`, and `errorband` into layers, under the `MaxViews` and `MaxCompositionDepth` limits). The `Data`
+  subsystem has six units:
   `DataTable` (typed values and tables), `DataLoader` (the source of a view - inline rows, a local file, a named
   dataset, or a sequence - under data limits), `DataFileResolver` (sandboxed, bounded, strict-UTF-8 reading of local
   data files, or through the caller's callback), `DelimitedTextParser` (CSV, TSV, and DSV, the `parse`
@@ -503,7 +506,8 @@ and is distributed as its own NuGet package. It is a static renderer for the pub
 that parses, describes, measures, and renders charts, derived with attribution from Vega, Vega-Lite, and d3 (the
 licenses ship in the package): its direct unit, `VegaLiteDocument` (namespace `DemaConsulting.CanvasNet.VegaLite`), is
 the public API, its internal `SpecModel` subsystem (namespace `DemaConsulting.CanvasNet.VegaLite.SpecModel`) holds the
-`SpecParser`, `FeatureCatalog`, and `ConfigResolver` units, its internal `Data` subsystem holds the `DataTable`,
+`SpecParser`, `FeatureCatalog`, `ConfigResolver`, and `SpecNormalizer` units, its internal `Data` subsystem holds the
+`DataTable`,
 `DataLoader`, `DataFileResolver`, `DelimitedTextParser`, `TimeCalendar`, and `TimeFormat` units, its internal
 `Expressions` subsystem holds the
 `ExpressionParser`, `ExpressionEvaluator`, and `ExpressionFunctions` units, its internal `Transforms` subsystem holds the
@@ -1193,6 +1197,7 @@ src/DemaConsulting.CanvasNet.VegaLite/
 ├── NamespaceDoc.cs                — VegaLiteDocument: namespace-level XML documentation
 ├── VegaLiteDocument.cs            — VegaLiteDocument: Parse/Open entry points and descriptive properties
 ├── VegaLiteDocument.Render.cs     — VegaLiteDocument: Measure, Render, and the pipeline
+├── VegaLiteDocument.Layers.cs     — VegaLiteDocument: the layers of a view (data walk, axes, legends, and marks per layer)
 ├── VegaLiteOpenOptions.cs         — VegaLiteDocument: immutable, validated open options
 ├── VegaLiteRenderOptions.cs       — VegaLiteDocument: immutable, validated render options
 ├── VegaLiteFontOptions.cs         — VegaLiteDocument: font resolution options
@@ -1215,13 +1220,18 @@ src/DemaConsulting.CanvasNet.VegaLite/
 │   ├── SpecParser.Transforms.cs   — SpecParser: expression compilation, parameter, transform, and predicate validation
 │   ├── SpecParser.Aggregates.cs   — SpecParser: aggregating transform and aggregate, bin, stack, and sort validation
 │   ├── SpecParser.Time.cs         — SpecParser: time unit, date-time object, tick interval, and timeUnit transform validation
+│   ├── SpecParser.Layers.cs       — SpecParser: resolve, composite mark properties, and which views are drawn
 │   ├── SpecExpressions.cs         — SpecParser: the compiled expressions of a specification
 │   ├── SpecNode.cs                — SpecParser: SpecNode, SpecNodeKind, NodePosition, and SpecTree
 │   ├── SpecMetadata.cs            — SpecParser: descriptive metadata of a specification
 │   ├── ChannelDefinitions.cs      — SpecParser: which object of a channel definition carries the field, and its conditions
 │   ├── PredicateSource.cs         — SpecParser: a predicate of a condition written as expression source text
 │   ├── FeatureCatalog.cs          — FeatureCatalog: stable vl- reports of unsupported constructs
-│   └── ConfigResolver.cs          — ConfigResolver: defaults, configuration merge, precedence chains
+│   ├── ConfigResolver.cs          — ConfigResolver: defaults, configuration merge, precedence chains
+│   ├── SpecNormalizer.cs          — SpecNormalizer: layer tree, inheritance, resolve, limits
+│   ├── SpecNormalizer.Composite.cs — SpecNormalizer: Expand and the composite-mark expansion into layers
+│   ├── SpecNormalizer.BoxPlot.cs  — SpecNormalizer: the boxplot expansion
+│   └── SpecNormalizer.ErrorBar.cs — SpecNormalizer: the errorbar and errorband expansion
 ├── Data/                          — Data subsystem (internal)
 │   ├── NamespaceDoc.cs            — Data: namespace-level XML documentation
 │   ├── DataTable.cs               — DataTable: DataValue, JsNumber, FieldPath, and DataTable
@@ -1294,6 +1304,7 @@ src/DemaConsulting.CanvasNet.VegaLite/
 │   ├── ScaleResolver.Color.cs     — ScaleResolver: the colors of color, fill, and stroke scales and quantile domains
 │   ├── ScaleResolver.Range.cs     — ScaleResolver: the ranges of the non-position channels and named ranges
 │   ├── ScaleResolver.Time.cs      — ScaleResolver: temporal domains, bounds, nice, and the time-unit scales
+│   ├── ScaleResolver.Layers.cs    — ScaleResolver: the scales shared by the layers of a view (merge, conflicts, resolve)
 │   ├── Ticks.cs                   — Ticks: d3-array ticks, nice, and Vega tick counts
 │   ├── Ticks.Time.cs              — Ticks: d3-time ticks, tick intervals, and nice for time scales
 │   ├── NumberFormat.cs            — NumberFormat: d3-format number formatting and tickFormat

@@ -13,6 +13,24 @@ namespace DemaConsulting.CanvasNet.VegaLite.Scales;
 internal readonly record struct RangeEnd(double Value, bool IsExtent);
 
 /// <summary>
+///     How the categories of a discrete scale are ordered, which decides how the categories of the scales of several layers are combined.
+/// </summary>
+internal enum DomainOrder
+{
+    /// <summary>The categories are sorted ascending (the default sort).</summary>
+    Ascending,
+
+    /// <summary>The categories are sorted descending.</summary>
+    Descending,
+
+    /// <summary>The categories keep the order of their first appearance in the data (<c>sort: null</c>).</summary>
+    DataOrder,
+
+    /// <summary>The categories are in an order the scale defines (an explicit domain, a sort array, a sort by a field or an encoding channel, the bins of a field).</summary>
+    Custom,
+}
+
+/// <summary>
 ///     A scale as Vega-Lite defines it for one encoding channel, before the size of the data rectangle is known.
 /// </summary>
 /// <remarks>
@@ -24,11 +42,19 @@ internal readonly record struct RangeEnd(double Value, bool IsExtent);
 ///         by <see cref="CreateModel"/> once the layout knows it.
 ///     </para>
 ///     <para>
-///         The class is immutable and safe for concurrent use.
+///         The type is an immutable record, so the scales of the layers of a layered view can be derived from one shared scale with <c>with</c>
+///         (see <c>ScaleResolver.ResolveLayers</c>). It is safe for concurrent use. Equality is by value of the properties, so two scales that hold the same list
+///         object are equal; the renderer never compares scales.
 ///     </para>
 /// </remarks>
-internal sealed class ResolvedScale
+internal sealed record ResolvedScale
 {
+    /// <summary>Gets a value indicating whether the specification gives the domain (<c>scale.domain</c>); an explicit domain of one layer wins when the layers share a scale.</summary>
+    public bool HasExplicitDomain { get; init; }
+
+    /// <summary>Gets the order of the categories of a discrete scale; <see cref="DomainOrder.Ascending"/> for the others.</summary>
+    public DomainOrder DomainOrder { get; init; }
+
     /// <summary>Gets the channel: <c>x</c>, <c>y</c>, <c>theta</c>, <c>radius</c>, <c>color</c>, <c>fill</c>, <c>stroke</c>, <c>size</c>, <c>opacity</c>, <c>shape</c>, <c>strokeWidth</c>, <c>strokeDash</c>, <c>fillOpacity</c>, <c>strokeOpacity</c> or <c>angle</c>.</summary>
     public string Channel { get; init; } = string.Empty;
 
@@ -613,22 +639,43 @@ internal static partial class ScaleResolver
         ArgumentNullException.ThrowIfNull(config);
 
         // The mark decides the scale kinds, the zero rule, the paddings and the size range
+        var context = CreateContext(view, plan, data, config, sourceName, limits, cancellationToken);
+        return new ResolvedScales(plan.MarkType, plan.Orient, context is null ? [] : ResolveChannels(context), plan);
+    }
+
+    /// <summary>
+    ///     Creates the facts that the scales of one view share.
+    /// </summary>
+    /// <param name="view">The view object (its <c>encoding</c>, <c>width</c> and <c>height</c> are read).</param>
+    /// <param name="plan">The plan of the encoding.</param>
+    /// <param name="data">The tables of the implicit pipeline.</param>
+    /// <param name="config">The effective configuration.</param>
+    /// <param name="sourceName">The source name used in the locations of errors, or null.</param>
+    /// <param name="limits">The limits to enforce; the defaults when null.</param>
+    /// <param name="cancellationToken">A token that stops the resolution.</param>
+    /// <returns>The facts; null when the view has no mark or no encoding (it has no scales).</returns>
+    private static Context? CreateContext(
+        SpecNode view,
+        EncodingPlan plan,
+        EncodingData data,
+        ResolvedConfig config,
+        string? sourceName,
+        VegaLiteLimits? limits,
+        CancellationToken cancellationToken)
+    {
         var markType = plan.MarkType;
-        var encoding = view["encoding"] is { IsObject: true } e ? e : null;
-        var orient = plan.Orient;
-        var scales = new Dictionary<string, ResolvedScale>(StringComparer.Ordinal);
-        if (markType.Length == 0 || encoding is null)
+        if (markType.Length == 0 || view["encoding"] is not { IsObject: true } encoding)
         {
-            return new ResolvedScales(markType, orient, scales, plan);
+            return null;
         }
 
-        var context = new Context
+        return new Context
         {
             Plan = plan,
             Data = data,
             Config = config,
             MarkType = markType,
-            Orient = orient,
+            Orient = plan.Orient,
             Encoding = encoding,
             SourceName = sourceName,
             Limits = limits ?? VegaLiteLimits.Default,
@@ -637,16 +684,25 @@ internal static partial class ScaleResolver
             HeightStep = StepOf(view["height"], config, "height"),
             MinStep = Math.Min(MinStepOf(view["width"], config, "width"), MinStepOf(view["height"], config, "height")),
         };
+    }
 
+    /// <summary>
+    ///     Resolves the scale of every channel of a view.
+    /// </summary>
+    /// <param name="context">The facts of the view.</param>
+    /// <returns>The scales by channel.</returns>
+    private static Dictionary<string, ResolvedScale> ResolveChannels(Context context)
+    {
+        var scales = new Dictionary<string, ResolvedScale>(StringComparer.Ordinal);
         foreach (var channel in Channels)
         {
-            if (encoding[channel] is { IsObject: true } definition && ResolveChannel(channel, definition, context) is { } scale)
+            if (context.Encoding?[channel] is { IsObject: true } definition && ResolveChannel(channel, definition, context) is { } scale)
             {
                 scales[channel] = scale;
             }
         }
 
-        return new ResolvedScales(markType, orient, scales, plan);
+        return scales;
     }
 
     /// <summary>
@@ -1311,6 +1367,13 @@ internal static partial class ScaleResolver
             }
         }
 
+        // A scale that the layers of a layered view share takes their combined domain instead of its own
+        if (context.Shared is { Categories: null } shared && shared.Channel == input.Channel)
+        {
+            (start, end) = (shared.Start, shared.End);
+            entries = shared.Entries is null ? null : [.. shared.Entries];
+        }
+
         // A color scale is sequential with two domain entries and diverging with three; a longer domain would be piecewise
         if (group == ChannelGroup.Color && kind == ScaleKind.Sequential)
         {
@@ -1368,6 +1431,7 @@ internal static partial class ScaleResolver
             DomainStart = start,
             DomainEnd = end,
             Domain = entries,
+            HasExplicitDomain = domainNode is not null,
             NiceCount = niceCount,
             NiceInterval = timeNice is { Interval: not null } ? timeNice : null,
             PaddingPixels = isPosition ? ContinuousPadding(input, context) : 0,
@@ -1497,6 +1561,8 @@ internal static partial class ScaleResolver
             DataType = input.Type,
             Location = input.Location,
             DiscreteDomain = domain,
+            HasExplicitDomain = input.ScaleDef?["domain"] is { IsArray: true },
+            DomainOrder = OrderOf(input, context),
             PaddingInner = inner,
             PaddingOuter = outer,
             Align = Math.Clamp(input.ScaleDef?["align"]?.AsNumber() ?? 0.5, 0, 1),
@@ -1818,6 +1884,12 @@ internal static partial class ScaleResolver
     /// <exception cref="VegaLiteRenderException">Thrown when the domain exceeds the limit.</exception>
     private static List<DataValue> DiscreteDomain(CommonInputs input, Context context)
     {
+        // The layers of a layered view that share the scale have already combined their categories
+        if (context.Shared is { Categories: not null } shared && shared.Channel == input.Channel)
+        {
+            return [.. shared.Categories];
+        }
+
         // An explicit domain is used as it is
         var domain = new List<DataValue>();
         var seen = new HashSet<DataValue>();
@@ -1915,8 +1987,11 @@ internal static partial class ScaleResolver
     }
 
     /// <summary>The facts about the view that every channel needs.</summary>
-    private sealed class Context
+    private sealed record Context
     {
+        /// <summary>Gets the domain that the layers of a layered view share for the channel being resolved, or null.</summary>
+        public SharedDomain? Shared { get; init; }
+
         /// <summary>Gets the plan of the encoding.</summary>
         public required EncodingPlan Plan { get; init; }
 

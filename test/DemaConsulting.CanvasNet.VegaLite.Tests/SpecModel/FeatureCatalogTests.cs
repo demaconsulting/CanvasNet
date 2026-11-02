@@ -49,7 +49,7 @@ public class FeatureCatalogTests
                 "latitude": { "field": "lat", "type": "quantitative" },
                 "tooltip": { "field": "c" }
               },
-              "layer": [ { "mark": "geoshape" } ]
+              "hconcat": [ { "mark": "geoshape" } ]
             }
             """;
 
@@ -74,8 +74,8 @@ public class FeatureCatalogTests
                 ("vl-guide-encode", "/encoding/color/legend/encode"),
                 ("vl-channel-geo", "/encoding/longitude"),
                 ("vl-channel-geo", "/encoding/latitude"),
-                ("vl-composition-layer", "/layer"),
-                ("vl-mark-geoshape", "/layer/0/mark"),
+                ("vl-composition-hconcat", "/hconcat"),
+                ("vl-mark-geoshape", "/hconcat/0/mark"),
             ],
             reports.Select(r => (r.Id, r.Location.Pointer)));
 
@@ -154,8 +154,8 @@ public class FeatureCatalogTests
         Assert.All(remoteReports, r => Assert.Equal(FeatureReportKind.UnsupportedFeature, r.Kind));
         Assert.Contains("never fetched", remoteReports[0].Message, StringComparison.Ordinal);
 
-        // Assert: local relative urls are supported and report nothing (only the composition itself is reported besides the remote urls)
-        Assert.All(reports, r => Assert.True(r.Id is "vl-data-remote-url" or "vl-composition-layer", r.Id));
+        // Assert: local relative urls are supported and report nothing (the layer composition itself is drawn and not reported)
+        Assert.All(reports, r => Assert.Equal("vl-data-remote-url", r.Id));
     }
 
     /// <summary>
@@ -180,7 +180,7 @@ public class FeatureCatalogTests
             """;
 
         // Act
-        var reports = FeatureCatalog.Visit(SpecParser.Parse(json)).Where(r => r.Id != "vl-composition-layer").ToList();
+        var reports = FeatureCatalog.Visit(SpecParser.Parse(json));
 
         // Assert
         Assert.Empty(reports);
@@ -267,9 +267,9 @@ public class FeatureCatalogTests
     [InlineData("text", true)]
     [InlineData("trail", true)]
     [InlineData("geoshape", false)]
-    [InlineData("boxplot", false)]
-    [InlineData("errorbar", false)]
-    [InlineData("errorband", false)]
+    [InlineData("boxplot", true)]
+    [InlineData("errorbar", true)]
+    [InlineData("errorband", true)]
     public void FeatureCatalog_Visit_UnsupportedMarkReportsMarkId(string type, bool supported)
     {
         // Arrange: the same mark written as a string and as a mark definition object, in two layers
@@ -419,7 +419,7 @@ public class FeatureCatalogTests
             """;
 
         // Act
-        var reports = FeatureCatalog.Visit(SpecParser.Parse(json)).Where(r => r.Id != "vl-composition-layer").ToList();
+        var reports = FeatureCatalog.Visit(SpecParser.Parse(json));
 
         // Assert
         Assert.Equal(
@@ -992,7 +992,7 @@ public class FeatureCatalogTests
 
         // Assert
         Assert.Equal(
-            [("vl-channel-shape", "/encoding/shape"), ("vl-composition-layer", "/layer"), ("vl-mark-geoshape", "/layer/0/mark"), ("vl-mark-image", "/mark")],
+            [("vl-channel-shape", "/encoding/shape"), ("vl-mark-geoshape", "/layer/0/mark"), ("vl-mark-image", "/mark")],
             ids);
     }
 
@@ -1166,7 +1166,7 @@ public class FeatureCatalogTests
         // Arrange
         const string nested = """
             {
-              "layer": [
+              "hconcat": [
                 { "mark": "point", "transform": [
                   { "aggregate": [ { "op": "count", "as": "n" } ] },
                   { "joinaggregate": [ { "op": "sum", "field": "v", "as": "t" } ] },
@@ -1192,13 +1192,13 @@ public class FeatureCatalogTests
         // Assert
         Assert.Equal(
             [
-                ("vl-composition-layer", "/layer"),
-                ("vl-transform-aggregate", "/layer/0/transform/0"),
-                ("vl-transform-joinaggregate", "/layer/0/transform/1"),
-                ("vl-transform-window", "/layer/0/transform/2"),
-                ("vl-transform-bin", "/layer/0/transform/3"),
-                ("vl-transform-stack", "/layer/0/transform/4"),
-                ("vl-transform-impute", "/layer/0/transform/5"),
+                ("vl-composition-hconcat", "/hconcat"),
+                ("vl-transform-aggregate", "/hconcat/0/transform/0"),
+                ("vl-transform-joinaggregate", "/hconcat/0/transform/1"),
+                ("vl-transform-window", "/hconcat/0/transform/2"),
+                ("vl-transform-bin", "/hconcat/0/transform/3"),
+                ("vl-transform-stack", "/hconcat/0/transform/4"),
+                ("vl-transform-impute", "/hconcat/0/transform/5"),
             ],
             nestedIds);
         Assert.Equal([("vl-transform-bin-extent-param", "/transform/0/bin/extent")], drawnIds);
@@ -1299,7 +1299,7 @@ public class FeatureCatalogTests
         const string json = """
             {
               "params": [ { "name": "r", "value": 2 } ],
-              "layer": [
+              "hconcat": [
                 { "params": [ { "name": "v", "value": 1 } ], "transform": [ { "calculate": "1", "as": "x" }, { "lookup": "k", "from": { "param": "r" } } ], "mark": "point" }
               ]
             }
@@ -1311,10 +1311,10 @@ public class FeatureCatalogTests
         // Assert
         Assert.Equal(
             [
-                ("vl-composition-layer", "/layer"),
-                ("vl-param-variable", "/layer/0/params/0"),
-                ("vl-transform-calculate", "/layer/0/transform/0"),
-                ("vl-transform-lookup", "/layer/0/transform/1"),
+                ("vl-composition-hconcat", "/hconcat"),
+                ("vl-param-variable", "/hconcat/0/params/0"),
+                ("vl-transform-calculate", "/hconcat/0/transform/0"),
+                ("vl-transform-lookup", "/hconcat/0/transform/1"),
             ],
             ids);
     }
@@ -1641,11 +1641,15 @@ public class FeatureCatalogTests
             Assert.Empty(Visit("{ \"mark\": \"" + type + "\" }"));
         }
 
-        // Assert: the marks that stay unsupported are reported at the mark (also with the properties of a path mark)
-        foreach (var type in new[] { "geoshape", "image", "boxplot", "errorbar", "errorband" })
+        // Assert: the marks that stay unsupported are reported at the mark (also with the properties of a path mark); the composite marks are drawn (Phase 10) and their ids are retired
+        foreach (var type in new[] { "geoshape", "image" })
         {
             Assert.Equal([("vl-mark-" + type, "/mark")], Visit("{ \"mark\": { \"type\": \"" + type + "\", \"invalid\": \"show\", \"interpolate\": \"bundle\" } }"));
         }
+
+        Assert.DoesNotContain(Visit("{ \"mark\": \"boxplot\" }"), r => r.Id == "vl-mark-boxplot");
+        Assert.DoesNotContain(Visit("{ \"mark\": \"errorbar\" }"), r => r.Id == "vl-mark-errorbar");
+        Assert.DoesNotContain(Visit("{ \"mark\": \"errorband\" }"), r => r.Id == "vl-mark-errorband");
     }
 
     /// <summary>

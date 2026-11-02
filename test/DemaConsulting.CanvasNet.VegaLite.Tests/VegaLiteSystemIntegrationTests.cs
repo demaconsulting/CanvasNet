@@ -350,8 +350,8 @@ public class VegaLiteSystemIntegrationTests
     [Fact]
     public void CanvasNetVegaLite_SystemIntegration_Cancellation_Honored()
     {
-        // Arrange: a document that would report events if the work ran
-        var document = VegaLiteDocument.Parse(SampleSpec);
+        // Arrange: a document that would report events if the work ran (schema version 4 gives a warning)
+        var document = VegaLiteDocument.Parse(SampleSpec.Replace("/v5.json", "/v4.json", StringComparison.Ordinal));
         var events = 0;
         var options = new VegaLiteRenderOptions { WarningHandler = _ => events++, UnsupportedFeatureHandler = _ => events++ };
         using var canceled = new CancellationTokenSource();
@@ -363,11 +363,12 @@ public class VegaLiteSystemIntegrationTests
         Assert.Throws<OperationCanceledException>(() => document.Render(100, 100, options, canceled.Token));
         Assert.Equal(0, events);
 
-        // Assert: the same calls work with a token that is not canceled
+        // Assert: the same calls work with a token that is not canceled (the layers are drawn, so the size is that of the chart, not of an empty view)
         using var live = new CancellationTokenSource();
         using var surface = document.Render(options, live.Token);
         Assert.False(live.IsCancellationRequested);
-        Assert.Equal(310, surface.Width);
+        Assert.Equal(document.Measure(cancellationToken: Ct).Width, surface.Width);
+        Assert.NotEqual(310, surface.Width);
         Assert.True(events > 0);
     }
 
@@ -537,7 +538,7 @@ public class VegaLiteSystemIntegrationTests
     public void CanvasNetVegaLite_SystemIntegration_Unsupported_MarkIsReportedWithPointer()
     {
         // Arrange: schema version 4 gives a warning first; a layer of two views follows, the second with an unsupported mark
-        // (bar is drawn, so only the geoshape mark and the composition itself are reported)
+        // (bar is drawn, so only the geoshape mark is reported: the layer composition itself is drawn)
         var document = VegaLiteDocument.Parse(
             "{\"$schema\":\"https://vega.github.io/schema/vega-lite/v4.json\",\"layer\":[{\"mark\":\"bar\"},{\"mark\":{\"type\":\"geoshape\"}}]}");
         var log = new List<string>();
@@ -560,7 +561,7 @@ public class VegaLiteSystemIntegrationTests
         using var surface = document.Render(options, Ct);
 
         // Assert
-        Assert.Equal(["W vl-schema-version", "U vl-composition-layer /layer", "U vl-mark-geoshape /layer/1/mark"], log);
+        Assert.Equal(["W vl-schema-version", "U vl-mark-geoshape /layer/1/mark"], log);
         Assert.Equal([Environment.CurrentManagedThreadId], threads);
     }
 
@@ -710,9 +711,9 @@ public class VegaLiteSystemIntegrationTests
         // Act
         using var surface = document.Render(new VegaLiteRenderOptions { UnsupportedFeatureHandler = features.Add, WarningHandler = warnings.Add }, Ct);
 
-        // Assert: every scheme-bearing url is reported (and none reaches the resolver); the composition itself is reported too
+        // Assert: every scheme-bearing url is reported (and none reaches the resolver); the layer composition itself is drawn and not reported
         var remote = features.Where(f => f.Feature == "vl-data-remote-url").ToList();
-        Assert.Equal(["vl-composition-layer", "vl-data-remote-url", "vl-data-remote-url"], features.Select(f => f.Feature));
+        Assert.Equal(["vl-data-remote-url", "vl-data-remote-url"], features.Select(f => f.Feature));
         Assert.Equal(["/layer/0/data", "/layer/1/data"], remote.Select(f => f.Location.Pointer));
         var warning = Assert.Single(warnings);
         Assert.StartsWith("vl-data-empty:", warning.Message, StringComparison.Ordinal);
@@ -722,7 +723,7 @@ public class VegaLiteSystemIntegrationTests
         // Assert: strict mode turns the first remote url into an exception, still without any request
         var strict = Assert.Throws<VegaLiteUnsupportedFeatureException>(
             () => document.Render(new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true }, Ct));
-        Assert.Equal("vl-composition-layer", strict.Feature);
+        Assert.Equal("vl-data-remote-url", strict.Feature);
         var single = VegaLiteDocument.Parse("{\"data\":{\"url\":\"https://example.org/a.csv\"},\"mark\":\"point\"}", open);
         var remoteStrict = Assert.Throws<VegaLiteUnsupportedFeatureException>(
             () => single.Render(new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true }, Ct));

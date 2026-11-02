@@ -168,7 +168,7 @@ public class SourceLoaderVegaLiteTests
             """
             {
               "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
-              "title": "Facts",
+              "title": "Facts", "datasets": { "limits": [ { "v": 4 } ] },
               "width": 100,
               "height": 50,
               "params": [ { "name": "cutoff", "value": 3 } ],

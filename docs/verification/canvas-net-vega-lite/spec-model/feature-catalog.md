@@ -25,7 +25,9 @@ schema version, every URL shape); this document lists each test method once. The
 `FeatureCatalogTests` parses a specification and returns the reports as `(identifier, pointer)` pairs; the Phase 8
 class `FeatureCatalogTimeTests` has its own `Visit` and `VisitView` helpers of the same kind.
 
-Unit tests reside in `FeatureCatalogTests.cs` and `FeatureCatalogTimeTests.cs` within the
+Unit tests reside in `FeatureCatalogTests.cs`, `FeatureCatalogTimeTests.cs`, `FeatureCatalogLayerTests.cs` (the layer
+scenarios of Phase 10), and `FeatureCatalogCompositeTests.cs` (the composite mark scenarios of Phase 10, with the two
+configuration-default tests of the composite marks) within the
 `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `SpecModel` folder; the test of the channels that a mark does
 not draw is in `MarkChannelGatingTests.cs` in the `Scales` folder, which owns the support table that the catalog
 follows. Time is supported since Phase 8, so the
@@ -86,9 +88,9 @@ unit (supported, so it is silent), a `y` with aggregate, bin, stack, sort, and c
 so it is silent), a log scale on a nominal field with a scheme
 (which
 cannot use the type, so it is the warning `vl-scale-type-ignored`), a legend with
-`encode`, a `longitude` and a `latitude` channel, and a layer with a `geoshape` yields exactly seventeen reports whose
+`encode`, a `longitude` and a `latitude` channel, and an `hconcat` with a `geoshape` yields exactly seventeen reports whose
 `(identifier, pointer)` list is asserted in document order (for example `vl-encoding-condition` at
-`/encoding/y/condition` and `vl-mark-geoshape` at `/layer/0/mark`; the custom date format at `/data/format/parse/d`,
+`/encoding/y/condition` and `vl-mark-geoshape` at `/hconcat/0/mark`; the custom date format at `/data/format/parse/d`,
 the temporal type and time unit of `x` (`vl-type-temporal` and `vl-encoding-timeunit` of the earlier phases, now
 retired), the local
 file, the plain `number`, the variable parameter of the root view, the expression strings of the `calculate` and
@@ -111,8 +113,10 @@ and that the location of a mark report is the value of the `mark` property, with
 `MarkChannelGatingTests.FeatureCatalog_Visit_ReportsChannelsThatTheMarkDoesNotDraw`
 
 Asserts, as a theory over seventeen mark types, that `bar`, `rect`, `point`, `circle`, `square`, `rule`, `tick`, `arc`,
-`area`, `line`, `text`, and `trail` are silent (written as a string and as a definition, in two layers) and that
-`image`, `geoshape`, `boxplot`, `errorbar`, and `errorband` each report `vl-mark-<type>` at the mark; that on a `point`
+`area`, `line`, `text`, `trail`, `boxplot`, `errorbar`, and `errorband` are silent (written as a string and as a definition,
+in two layers; the composite marks are drawn since Phase 10 and `vl-mark-boxplot`, `vl-mark-errorbar`, and
+`vl-mark-errorband` are asserted absent) and that
+`image` and `geoshape` each report `vl-mark-<type>` at the mark; that on a `point`
 mark every channel except `x`, `y`, `theta`, `radius`, `theta2`, `radius2`, `text`, `color`, `fill`, `stroke`, `size`,
 `opacity`, `shape`, `strokeWidth`, `strokeDash`, `fillOpacity`, `strokeOpacity`, and `angle` reports
 `vl-channel-<name>` (the test shows `x2`, `text`, `row`, and `xOffset`, while the geographic `longitude` and `latitude2`
@@ -303,8 +307,8 @@ a binned color, a size sorted by the `encoding` `y`, an `x2` range, and an `orde
 `vl-encoding-bin-extent-param` at `/encoding/x/bin/extent` (the binned color is supported and silent; the `x2`
 draws a range, the `order` orders the stack, and the aggregate, the stack, and the sort are computed); and that every
 aggregating transform of a nested view, which is not drawn, is still reported by name (`vl-transform-aggregate`,
-`-joinaggregate`, `-window`, `-bin`, `-stack`, and `-impute` at `/layer/0/transform/0` to `/5`, after
-`vl-composition-layer`), while for the drawn view only the bin extent that is a parameter is reported
+`-joinaggregate`, `-window`, `-bin`, `-stack`, and `-impute` at `/hconcat/0/transform/0` to `/5`, after
+`vl-composition-hconcat` at `/hconcat`), while for the drawn view only the bin extent that is a parameter is reported
 (`vl-transform-bin-extent-param` at `/transform/0/bin/extent`) and an extent given as numbers is silent.
 
 ##### Unsupported Parts Of Supported Transforms Are Reported
@@ -328,9 +332,11 @@ the transform applies `maxbins`.
 
 **Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_NestedViewTransformsAndVariableParametersAreReported`
 
-Asserts that, in a layer, the variable parameter of a nested view reports `vl-param-variable` and every transform of the
-nested view (a `calculate` and a `lookup`) reports `vl-transform-<name>`, because only the root view is drawn, while the
-variable parameter of the root reports nothing.
+Asserts that, in a view of an `hconcat` (the sentinel of a nested view that is not drawn since Phase 10, when `layer` became
+drawn), the variable parameter of a nested view reports `vl-param-variable` and every transform of the
+nested view (a `calculate` and a `lookup`) reports `vl-transform-<name>`, because only the root view and the layers are
+drawn,
+while the variable parameter of the root reports nothing.
 
 ##### Expression References Are Reported Only At Deferred Sites
 
@@ -400,7 +406,9 @@ unit, a filter with a unit, a filter with a date-time object, and a condition wi
 at all (so none of `vl-type-temporal`, `vl-encoding-timeunit`, `vl-transform-timeunit` for a drawn view,
 `vl-transform-filter-timeunit`, `vl-transform-filter-datetime`, `vl-encoding-condition-test`, `vl-data-parse-date-format`,
 `vl-scale-time`, and `vl-scale-utc`); and a `timeUnit` transform in a nested view of a composition, which is not drawn,
-is still reported by the generic rule as `vl-transform-timeunit` at `/layer/0/transform/0`.
+is still reported by the generic rule as `vl-transform-timeunit` at `/hconcat/0/transform/0` (the nested view is inside
+an
+`hconcat` since Phase 10).
 
 ##### Time Unit Reports: Binned And Maxbins
 
@@ -477,9 +485,10 @@ use the format type `myFormat` for its report, because `time` is evaluated now.
 
 Asserts that a `line`, an `area`, and a `trail`, written with every property that the mark builder reads
 (`interpolate`, `tension`, `invalid` of `break-paths-show-path-domains`, `order: false`, a stroke dash and its offset, the
-cap, the join, the miter limit, a `point` object, and `line: true`) and bare, produce no report, while `geoshape`,
-`image`, `boxplot`, `errorbar`, and `errorband` are reported once, as `vl-mark-<type>` at `/mark` (and nothing for the
-`invalid` and `interpolate` that they carry). As a table of eighteen mark and channel pairs, with the encoding of a
+cap, the join, the miter limit, a `point` object, and `line: true`) and bare, produce no report, while `geoshape` and
+`image` are reported once, as `vl-mark-<type>` at `/mark` (and nothing for the
+`invalid` and `interpolate` that they carry; the composite marks, which Phase 9 still reported, are drawn since Phase
+10). As a table of eighteen mark and channel pairs, with the encoding of a
 quantitative `x` and a `y` without a stack, it asserts that an `area` with a `y2` or an `x2` is silent while a `line`
 with a `y2` is `vl-channel-y2` and a `trail` with an `x2` is `vl-channel-x2`; that a `size` is `vl-channel-size` on an
 `area` and silent on a `line` and a `trail`; that a `strokeDash` is silent on a `line` and `vl-channel-strokedash` on an
@@ -540,3 +549,72 @@ and `radius` silently but reports `vl-channel-theta2` and `vl-channel-radius2` (
 its slice, and is `vl-encoding-bandposition` at `/encoding/theta/bandPosition` for a text mark whose `theta` has
 `stack: false` and for the `theta` of an arc; and that an explicit `stack: true` on a `radius` with a `sqrt` scale is
 `vl-encoding-stack-nonlinear` at `/encoding/radius/stack`, as a stack on a `sqrt` `y` is.
+
+##### Layers Are Drawn, Their Transforms Are Not Reported, And Undrawn Views Say Why
+
+**Tests**: `FeatureCatalogLayerTests.FeatureCatalog_Visit_TopLevelTransformOfLayerSpecIsNotReported`,
+`FeatureCatalogLayerTests.FeatureCatalog_Visit_LayerCompositionIsNeverReported`,
+`FeatureCatalogLayerTests.FeatureCatalog_Visit_LayerTransformsReportOnlyTheirUnsupportedParts`,
+`FeatureCatalogLayerTests.FeatureCatalog_Visit_TransformOfLaterPhaseInLayerIsNotSupportedYet`,
+`FeatureCatalogLayerTests.FeatureCatalog_Visit_TransformOfConcatViewMessageNamesComposition`,
+`FeatureCatalogLayerTests.FeatureCatalog_Visit_TransformOfLayerInsideConcatNamesTheConcatenation`
+
+The regression of the reported defect: a layered specification with a top-level `calculate` produces no report at all (in
+particular no `vl-transform-calculate`), and neither the `layer` property, a nested layered view, nor a layered view with
+`geoshape` is reported as a composition, so `vl-composition-layer` is never produced. Asserts that the transforms of a layered
+view and of its layers are visited as drawn, so that only their unsupported parts are reported (a call of `format`, outside
+the function table, in the top-level `calculate` and in the `calculate` of a layer: `vl-expr-function-format` at
+`/transform/0/calculate` and `/layer/0/transform/0/calculate`), and that a transform of a later phase in a layer
+(`regression`) keeps the identifier `vl-transform-regression` and
+its message "is not supported yet". As a theory over `concat`, `hconcat`, `vconcat`, `facet`, and `repeat`, asserts that
+a
+transform of a view inside the composition keeps the identifier `vl-transform-<name>` and has the message "The '<name>'
+transform is not applied: the view is a '<composition>' composition, which is not supported yet." with the exact name of
+the
+composition; and that a layered view inside a concatenation is not drawn, so the transforms of the layered view and of its
+layers name the concatenation, while the layers of a drawn view are not reported.
+
+##### Inherited Encodings Are Visited Per Layer, And Ignored Layer Properties Warn
+
+**Tests**: `FeatureCatalogLayerTests.FeatureCatalog_Visit_InheritedEncodingIsVisitedPerLayerAndReportedOnce`,
+`FeatureCatalogLayerTests.FeatureCatalog_Visit_LayerPropertiesOfTheTopLevelViewAreWarnedAboutInALayer`
+
+Asserts that the encoding of a layered view is judged with the mark of each layer it is merged into: a top-level `shape`
+channel
+that no `bar` draws is reported once, at `/encoding/shape`, although two bar layers inherit it, and a top-level `x2`
+that the
+`point` layer cannot draw is `vl-channel-x2` at `/encoding/x2` (the `point` draws the shape), each at the location where
+the
+construct is written; and that a view inside a layered view that sets a
+`title`, `width`, `height`, `background`, `padding`, `autosize`, `config`, or `datasets` gets one warning
+`vl-layer-property-ignored` at each property, in that order, while the same properties on the top-level view are silent.
+
+##### Composite Marks Are Drawn, And The Grouping And Error Channels Are Gated
+
+**Tests**: `FeatureCatalogCompositeTests.FeatureCatalog_Visit_BoxPlotIsSupportedWithItsChannels`,
+`FeatureCatalogCompositeTests.FeatureCatalog_Visit_BinOrTimeUnitOfAGroupingChannelIsReported`,
+`FeatureCatalogCompositeTests.FeatureCatalog_Visit_AggregateOfAGroupingChannelIsReportedButNotTheMeasure`,
+`FeatureCatalogCompositeTests.FeatureCatalog_Visit_GroupingReportFollowsTheOrientationAndLayers`,
+`FeatureCatalogCompositeTests.FeatureCatalog_Visit_UndecidableBoxPlotAndRetiredIdentifier`,
+`FeatureCatalogCompositeTests.FeatureCatalog_Visit_ErrorBarAndErrorBandAreSupportedWithTheirChannels`,
+`FeatureCatalogCompositeTests.FeatureCatalog_Visit_ErrorChannelsOfOtherMarksAreReported`,
+`FeatureCatalogCompositeTests.FeatureCatalog_Visit_ErrorBarReportsTheChannelsItDoesNotDraw`,
+`FeatureCatalogCompositeTests.FeatureCatalog_Visit_ErrorBarGroupingIsReportedAtTheGroupingChannel`
+
+Asserts that a plain `boxplot`, `errorbar`, and `errorband` (also with the range `x2` and `y2` and the errors `xError` and
+`yError2` that the error marks use, and the `shape` and `size` channels that the outliers and the box draw) produce no
+report and that the retired identifiers are never produced; that a `bin`, a `timeUnit`, and an `aggregate` on a channel
+that
+groups the rows are `vl-composite-grouping` at that channel, while the measure, the secondary channels, and the tooltip
+are not
+grouping channels (a bin of the measure is not reported by this rule); that the measure is the continuous channel of the
+orientation (for a horizontal box plot `y` groups the rows), that the report is made for a composite mark inside layers
+(at the
+channel of the layer, once for an inherited channel) and not for the other marks, and that an orientation that cannot be
+decided adds no report (the render fails with a specification error instead); that, for an error mark, the orientation comes
+from the range or error channels when they are given; that the error channels are reported on a mark that does not use them
+(`vl-channel-xerror`, `-xerror2`, `-yerror`, and `-yerror2`, once at each channel) while `x2` and `y2` are still
+reported for a
+mark that has no range; and that the `size` channel of an `errorbar` is reported as not drawn (Vega-Lite drops it), as
+are a
+`shape` or an `angle`, while the stroke dash of the rule is drawn.

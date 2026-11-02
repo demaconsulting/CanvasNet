@@ -122,6 +122,29 @@ created, that a canceled token stops every one of the marks, and that repeated, 
 renders are identical. The units under them are verified in the _CurveBuilder_ and _ArcGeometry_ Unit Verification Designs
 and in the _MarkBuilder_ and _ScenePainter_ Unit Verification Designs.
 
+The layer and composite mark scenarios assert on what the system draws from `layer`, `resolve`, and the marks `boxplot`,
+`errorbar`, and `errorband`, with every number derived by hand from the scale formulas and the layout (a 300 pixel data
+rectangle in the continuous direction and a step of 20 pixels for each category): the layers draw in order, each in its
+own
+group of marks, over the data, the transform, and the encoding they inherit (a top-level `calculate` is applied once, is
+not
+reported, and is what the layers show; a layer's own data replaces the inherited table), and share one scale by default
+(the
+union of the domains, the band scale preferred to the point scale, the step applied to the combined categories), with one
+axis pair, or two axes (the second on the opposite side and with no grid) and one legend for each layer when `resolve` says
+independent; a scale that cannot be shared is warned about; a box plot of the values 1 to 10 and 30 has the quartiles
+3.5, 6,
+and 8.5, the whiskers 1 and 10, and the outlier 30 at the pixels 265, 290, 215, 200, and 0 of a 300 pixel measure over 0
+to 30;
+an error bar is a rule from the mean minus to the mean plus the standard error (or the standard deviation, the
+quartiles, or
+the given range or errors), and an error band a rect or an area between the same ends; and the limits of the views and
+of the
+nesting, the specification errors of an undecidable composite mark, the identifiers that are reported and the ones that
+are
+retired, and `Measure` equal to `Render` are asserted. The units under them are verified in the _SpecNormalizer_,
+_ScaleResolver_, _LegendBuilder_, and _FeatureCatalog_ Unit Verification Designs.
+
 The data scenarios assert on what the system reads and how it fails: a specification opened from a file reads its
 relative data file from its own folder, and the base directory, a data path, and a resolver callback find the same
 file for a specification that has no folder, each giving the pixels of the chart whose rows are written inline; a
@@ -140,8 +163,9 @@ System tests reside in `VegaLiteSystemIntegrationTests.cs` (the single-concern s
 topic), `VegaLiteChartIntegrationTests.cs` (the fixture-driven chart scenarios),
 `VegaLiteAggregationIntegrationTests.cs` (the aggregation, binning, stacking, and window scenarios), and
 `VegaLiteTimeIntegrationTests.cs` (the time scenarios), `VegaLiteLineAreaIntegrationTests.cs` (the line, area, trail,
-curve, overlay, invalid data, impute, draw order, and limit scenarios), and `VegaLiteArcTextIntegrationTests.cs` (the arc,
-text, unsupported, and determinism scenarios of the path marks) within the
+curve, overlay, invalid data, impute, draw order, and limit scenarios), `VegaLiteArcTextIntegrationTests.cs` (the arc,
+text, unsupported, and determinism scenarios of the path marks), `VegaLiteLayerIntegrationTests.cs` (the layer scenarios),
+and `VegaLiteCompositeMarkIntegrationTests.cs` (the box plot, error bar, and error band scenarios) within the
 `DemaConsulting.CanvasNet.VegaLite.Tests` project; the shared helpers (a pixel snapshot, uniform-color and
 region checks, ink bounds, and a data-reference projection) are in `VegaLiteTestHelpers.cs`, and the data helpers
 (temporary directories and virtual file sets) in `Data/DataTestSupport.cs`. The fixtures in
@@ -328,8 +352,9 @@ Vega-Lite defaults, then the specification's `config`, then `VegaLiteRenderOptio
 `CanvasNetVegaLite_SystemIntegration_Unsupported_MarkAndTransformCarryPointerLineColumn`
 
 Renders a document with a schema version 4 declaration (a warning first) and a layer of two views, the second with
-an unsupported mark, and asserts the exact ordered list of reports (`vl-schema-version`, `vl-composition-layer`,
-`vl-mark-geoshape`), that each is delivered once, in document order, to the right handler, on the calling thread
+an unsupported mark, and asserts the exact ordered list of reports (`vl-schema-version`, then `vl-mark-geoshape` at
+`/layer/1/mark`; the layer composition itself is drawn and no longer reported), that each is delivered once, in document
+order, to the right handler, on the calling thread
 (the recorded managed thread identifiers all equal the caller's), and that a supported `bar` mark in the same
 document is silent. Renders `unsupported.vl.json` (a `regression` transform, a `geoshape` mark, and a `bandPosition`) and
 asserts exactly one report per construct, in document order, with its stable identifier, JSON pointer, and one-based
@@ -356,10 +381,11 @@ reported does not hide it, that after a successful render a failing handler prop
 
 Parses a layered specification whose views have an `https` URL, a `file` URL, and empty inline data, with a
 `FileResolver` callback that records every name it is asked for. Asserts that each scheme-bearing URL is reported as
-`vl-data-remote-url` at the pointer of its `data` object (`/layer/0/data` and `/layer/1/data`), that the composition
-itself is also reported (`vl-composition-layer`), that the empty inline data warns with `vl-data-empty` at
+`vl-data-remote-url` at the pointer of its `data` object (`/layer/0/data` and `/layer/1/data`), that the layer composition
+itself is drawn and not reported, that the empty inline data warns with `vl-data-empty` at
 `/layer/2/data`, that rendering still succeeds in lenient mode with empty datasets, that strict mode throws for the
-first report (and for a single view with remote data, `vl-data-remote-url` at `/data`), and that the callback was never
+first report (`vl-data-remote-url`; and for a single view with remote data, `vl-data-remote-url` at `/data`), and that
+the callback was never
 asked for anything. The classification of every other scheme-bearing form (UNC, drive-letter, and
 protocol-relative paths) is verified at the unit tier in the _FeatureCatalog Unit Verification Design_.
 
@@ -839,8 +865,9 @@ found before the failure (a `bandPosition` report in the test) are still deliver
 **Test**: `CanvasNetVegaLite_SystemIntegration_Cancellation_Honored`
 
 Asserts that a canceled token makes `Measure`, `Render`, and `Render(width, height)` throw
-`OperationCanceledException` (never wrapped) and deliver no event, and that the same calls succeed, with events
-delivered, with a token that is not canceled.
+`OperationCanceledException` (never wrapped) and deliver no event (the specification declares schema version 4, so that
+rendering it delivers a `vl-schema-version` warning), and that the same calls succeed, with events
+delivered, with a token that is not canceled, the rendered surface having the measured size of the layered chart.
 
 ### Determinism And Concurrency: Repeated And Concurrent Renders Are Byte-Identical
 
@@ -1290,6 +1317,260 @@ Builds the scene and renders a text mark of one label with the font sizes 1e300 
 scene (the labels with a font size above the magnitude bound are not built; the label of 1e-300 is built and the
 painter draws nothing for a size that is zero as a single); and that the same chart with the font size 14 and the
 limit 100 has its label `Hello` of size 14.
+
+### Layers: A Top-Level Calculate Is Applied And Not Reported
+
+**Test**: `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_TopLevelCalculateIsAppliedAndNotReported`
+
+The regression of the reported defect: a layered specification whose top-level `transform` has a `calculate` and whose
+layers draw the calculated field. Renders it in strict mode and asserts that nothing at all is reported (in particular no
+`vl-transform-calculate`, which the renderer gave for any transform of a layered view), that strict mode does not throw,
+and that the bars are 150, 300, and 225 pixels high on the axis 0 to 80 (the calculated values 40, 80, and 60, not the
+original ones), with the axis labels 0 to 80.
+
+### Layers: Transforms Apply Top-Level First, Then Per Layer
+
+**Test**: `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_TransformsApplyTopLevelFirstThenPerLayer`
+
+Asserts that a top-level `calculate` (`w = 10 v`: 40, 80, 60) applies before the transform of each layer: the bar layer's
+`filter` keeps the rows with `w` above 50 (two bars, 300 and 225 pixels high on the domain 0 to 80), and the rule
+layer's mean
+of `w` over all the rows (60) is a rule at 75 pixels that the bars' filter does not affect.
+
+### Layers: Line And Point Share One Axis Pair
+
+**Test**: `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_LineAndPointShareOneAxisPair`
+
+Renders a line and its points that inherit the encoding of the top-level view and asserts one x axis and one y axis (titled
+with the fields), a `marks` group for each layer (the line first, then the points), the same domain 0 to 4 for both, and
+the
+point positions derived by hand (x = 75 per unit, y = 300 - 75 per unit).
+
+### Layers: Bars With A Mean Rule Share The Y Scale
+
+**Test**: `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_BarsWithMeanRuleShareTheYScale`
+
+Renders three bars with a `rule` layer at the aggregate mean and asserts that the bars rise to 150, 300, and 225 pixels,
+that
+the rule is at 75 pixels (6 of 8 of the height from the bottom) and as wide as the three categories (60 pixels), and
+that the
+y axis title joins the two measures (`v, Mean of v`).
+
+### Layers: Text Labels Sit On The Bars
+
+**Test**: `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_TextLabelsSitOnTheBars`
+
+Asserts that a `text` layer that inherits the encoding puts each label at the center of its band and at the top of its bar.
+
+### Layers: Independent Scales And Axes
+
+**Tests**: `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_IndependentYScalesDrawTwoAxes`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_IndependentAxesOfASharedScaleBothShowTheSameTicks`
+
+With `resolve.scale.y` independent, asserts that each layer is placed by its own domain (the bar of 8 and the point of 1,000
+both reach the top), that there is one x axis and two y axes (the second on the right, with its ticks pointing
+outwards), and
+that only the first y axis has a grid. With only `resolve.axis.y` independent, asserts that the scale is shared (the
+point sits
+on the top of its bar), that there are three axis domains (one x axis, two y axes 60 pixels apart), and that both y axes
+show the same labels.
+
+### Layers: Nested Layers And Data Inheritance
+
+**Tests**: `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_NestedLayersInheritTheEncodingOfEveryLevel`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_OwnDataReplacesTheInheritedDataAndSharesTheScale`
+
+Asserts that a layer inside a layered view inside a layered view inherits the encoding of both (three `marks` groups, the
+points at the top center of the bars, the rule at 112.5 pixels on the shared 0 to 8 scale), and that a layer with its own
+`data` replaces the inherited table while the scale is still shared: the union of the domains is 0 to 10, so the bar of
+4 is 120
+pixels high and the point of 10 is at the top, centered on the category A.
+
+### Layers: A Step Applies To The Combined Categories
+
+**Test**: `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_StepSizeUsesTheMergedDiscreteScale`
+
+Asserts that the category A and B of one layer and C of another with the width `{"step": 30}` give a 90 pixel wide x axis
+with the labels A, B, and C and bars centered at 15, 45, and 75 pixels.
+
+### Layers: Legends
+
+**Tests**: `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_SharedColorFieldGivesOneLegend`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_ColorFieldsOfDifferentNamesJoinTheLegendTitle`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_IndependentLegendsGiveOneLegendPerLayer`
+
+Asserts that two layers that color by the same field have one legend with three entries and one title, that layers that
+color by differently named fields over one shared color scale have one legend titled `a, b` with the entries `A` and
+`B`, and
+that `resolve.legend` independent gives two legends, one for each layer.
+
+### Layers: Conflicts And Ignored Properties Are Warned About
+
+**Tests**: `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_ScaleConflictWarnsAndStillDraws`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_PropertiesOfTheTopLevelViewAreIgnoredInALayer`
+
+Asserts that a bar layer with a nominal x and a line layer with a quantitative x (a band and a linear scale that cannot
+be
+merged) give exactly one warning, `vl-layer-scale-conflict`, no unsupported report, and still draw the three bars and
+the line,
+and that a layer that asks for a `width` of 500 gives the warning `vl-layer-property-ignored` (and no unsupported report)
+while the default step of 20 pixels for each of the three categories decides the 60 pixel wide axis.
+
+### Layers: What Is Not Drawn Is Reported
+
+**Tests**: `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_UnsupportedLayerMarkIsReportedAndOthersAreDrawn`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_TransformInAConcatenationIsReportedAsNotApplied`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_VariableParameterInALayerIsStillReported`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_EmptyLayerListDrawsOnlyTheBackground`
+
+Asserts that a layer with an unsupported mark (`geoshape`) is reported with `vl-mark-geoshape` while the other layer is
+drawn
+(its three bars are in the scene),
+that a transform of a view inside an `hconcat` keeps the identifier `vl-transform-<name>` and has a message that names the
+concatenation and says that the transform is not applied, that a variable parameter declared in a layer is still reported
+(`vl-param-variable`) while the layer is drawn, and that a layered view with an empty `layer` array draws exactly what a
+view without a mark does (the same pixels and size).
+
+### Layers: Views And Nesting Are Limited
+
+**Test**: `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_ViewAndDepthLimitsAreEnforced`
+
+Asserts that a specification with more views than `MaxViews` and one with `layer` nested deeper than
+`MaxCompositionDepth` fail
+with a located `VegaLiteRenderException` that names the limit (at the offending layer, `/layer/0/layer` for the depth),
+and
+that exactly the limit is accepted.
+
+### Layers: Measure Equals Render And Renders Are Deterministic
+
+**Test**: `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_MeasureMatchesRenderAndRenderIsDeterministic`
+
+Asserts that `Measure` equals the size of the surface that `Render` returns for a bar and point layer over one data set
+with a
+color channel (so with a legend), and that a second render is byte-identical.
+
+### Composite Marks: The Box Plot Is Drawn From Its Quartiles
+
+**Tests**: `VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_BoxPlot_VerticalTukeyIsDrawnFromTheQuartiles`,
+`VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_BoxPlot_HorizontalTukeyRunsAlongX`,
+`VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_BoxPlot_MinMaxWhiskersReachTheExtremes`,
+`VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_BoxPlot_WideExtentLeavesNoOutliers`,
+`VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_BoxPlot_NarrowExtentKeepsTheValuesInsideTheFences`
+
+The data are two groups: A of the eleven values 1 to 10 and 30 (quartiles 3.5, 6, and 8.5 by the linear interpolation of
+the
+quartiles, fences at -4 and 16 for the extent 1.5, whiskers 1 and 10, and 30 an outlier) and B of 11 to 15 (quartiles
+12, 13, and
+14, whiskers 11 and 15), over the domain 0 to 30 (10 pixels for each unit) with a band of 20 pixels for each group.
+Asserts the
+layers in drawing order (the outliers, the two whisker rules, the boxes, the medians) and, for the vertical plot, the lower
+whiskers 290 to 265 (A) and 190 to 180 (B), the upper whiskers 215 to 200 and 160 to 150, boxes 14 wide and centered in
+their
+band, one-pixel white median ticks across the box at 6 and 13, and the axis titles of the group and of the measure; for
+the
+horizontal plot, the same numbers along `x` with vertical ticks; for the min-max extent, four layers with no outlier
+layer and
+whiskers 1 to 30 and 11 to 15; for an extent of 6, no outlier and a whisker to 30; and for an extent of 0.5, the fences
+1 and 11
+(30 is an outlier, B has none).
+
+### Composite Marks: Box Plot Parts, Colors, And Configuration
+
+**Tests**: `VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_BoxPlot_EndTicksAreBlackAndOutliersCanBeSwitchedOff`,
+`VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_BoxPlot_ColorChannelColorsBoxesAndOutliersAndMakesALegend`,
+`VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_BoxPlot_FlatBoxMedianTakesTheBoxColor`,
+`VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_BoxPlot_MarkColorAndPartPropertiesApply`,
+`VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_BoxPlot_ConfigurationSetsSizeAndMedianColor`
+
+Asserts that the end ticks, when switched on, are black, opaque, and a pixel thick at both ends of the whiskers, drawn between
+the rules and the box, and that with the outliers off the domain is 0 to 16; that a `color` channel colors the boxes and
+the
+outliers by group (the median stays white and the whiskers black) and makes one legend of the groups; that the median of
+a box
+without height takes the color of the box; that the color of the mark colors every part but the median and a part's own
+properties
+override it; and that `config.boxplot` sets the size (a box 8 wide, centered in the band of 20) and the median color.
+
+### Composite Marks: Box Plots Over Transformed Data And In Layers
+
+**Tests**: `VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_BoxPlot_TopLevelTransformAppliesFirst`,
+`VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_BoxPlot_LayersShareTheMeasureScale`,
+`VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_BoxPlot_ReportsOnlyUnsupportedGrouping`,
+`VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_BoxPlot_ExpandedViewsAreLimitedByMaxViews`,
+`VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_BoxPlot_NoContinuousChannelIsASpecificationError`,
+`VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_BoxPlot_MeasureMatchesRenderAndIsDeterministic`
+
+Asserts that a top-level filter applies before the box plot (with the outlier removed the domain is 0 to 16, A has the quartiles
+3.25 and 7.75, and its box is 84.375 pixels high from y = 154.6875), that a box plot layered with a mean rule shares the
+measure
+scale and the axis title joins both titles, that nothing is reported for the supported box plot in strict mode while a
+`bin`, a
+`timeUnit`, or an `aggregate` on the grouping channel gives `vl-composite-grouping` and the chart is still drawn (and
+`vl-mark-boxplot` is never produced), that the nine views of a box plot count against `MaxViews` at the mark, that a box
+plot
+with no continuous channel is a specification error at the mark, and that `Measure` equals `Render` and the render is
+deterministic.
+
+### Composite Marks: Error Bars
+
+**Tests**: `VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_ErrorBar_DefaultIsARuleOfTheMeanAndStandardError`,
+`VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_ErrorBar_StandardDeviationExtent`,
+`VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_ErrorBar_InterquartileRange`,
+`VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_ErrorBar_ConfidenceIntervalSurroundsTheMeanAndIsDeterministic`,
+`VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_ErrorBar_HorizontalRunsAlongX`,
+`VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_ErrorBar_TicksHaveTheGivenSizeAndThickness`,
+`VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_ErrorBar_PartsFollowMarkAndConfiguration`,
+`VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_ErrorBar_ColorAndPartProperties`
+
+Computes the mean, the standard error, and the sample standard deviation of the two groups by hand and asserts that the
+default error bar is one layer of two rules at the mean minus and plus the standard error (the ticks are off), centered
+on the
+bands and titled with the field; that the `stdev` extent reaches the sample standard deviation; that `iqr` runs from the
+first to
+the third quartile (also when only the median center is given); that `ci` surrounds the mean and is the same on every render;
+that the horizontal form runs along `x` with vertical ticks drawn before the rule; that the ticks have the given size and
+thickness (8 by 3) and are centered on the ends of the rule; that each part can be switched off by the mark or the
+configuration; and that the colors of the mark, of a part, and of a channel reach the rule while the `size` channel is not
+drawn.
+
+### Composite Marks: Pre-Aggregated Ranges And Errors
+
+**Tests**: `VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_ErrorBar_RangeAndErrorChannelsAreNotAggregated`,
+`VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_ErrorBar_HorizontalRangeAndErrorChannels`,
+`VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_ErrorBar_InvalidEncodingIsASpecificationError`
+
+Asserts, as theories over the rows of two groups, that a range given by `y2`, by `yError`, and by `yError2` is drawn
+from the
+rows without aggregating (10 pixels for each unit of the 300 pixel range), likewise along `x`, and that both ends and errors,
+`x2` with `y2`, an error without its value, a measure that is not quantitative, and a range channel that is not a field
+are
+specification errors located at the mark.
+
+### Composite Marks: Error Bands
+
+**Tests**: `VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_ErrorBand_OneDimensionalBandIsAThirtyPercentRect`,
+`VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_ErrorBand_BordersAreRulesAtBothEnds`,
+`VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_ErrorBand_TwoDimensionalBandIsAnAreaWithLineBorders`,
+`VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_ErrorBand_ConfigurationSetsOpacityAndBorders`
+
+Asserts that a band over only the measure is one rect over the whole width, from the lower to the upper end of all the
+rows, 30
+percent opaque and without borders; that the borders, when on, are a rule at each end drawn after the band and that a mark
+opacity replaces the 30 percent; that a band with `x` and `y` is an area (a move, five lines, and a close for three
+points) with
+two lines of three points for the borders; and that the configuration sets the opacity and the borders.
+
+### Composite Marks: Error Bars In Layers, Reports, And Limits
+
+**Tests**: `VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_ErrorBar_LayersOverABar`,
+`VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_ErrorBar_ReportsOnlyWhatItDoesNotUse`,
+`VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_ErrorBar_ExpandedViewsAreLimitedByMaxViews`
+
+Asserts that an error bar over a bar shares the measure scale (the bars end at 10 and 20 and the rules reach 13 and 25),
+that no
+report is given for the channels that the error marks use, `vl-channel-xerror` for a mark that does not use them, and no
+retired
+mark identifiers, and that the three views of an error bar count against `MaxViews` at the mark.
 
 ### Platform: Every System Scenario Runs On Every Target
 

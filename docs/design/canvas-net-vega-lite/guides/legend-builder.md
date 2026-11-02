@@ -50,6 +50,16 @@ Scene roles: `legend` (group) containing `legend-entry` (group) and `legend-titl
 
 #### Key Methods
 
+- `LegendPlan.Create(layers, config, sourceName)` (phase 10, over `LegendLayer(View, Scales, Scope)`; the single-view
+  overload `Create(view, scales, config, sourceName)` is a call with one layer) - the same planning over the layers of
+  a layered view. For each channel, the layers that have the same **scope** for it (the function `Scope(channel)` that
+  `VegaLiteDocument` builds from the layers' `resolve` of the legend and their scale groups, so layers whose legend or
+  scale is independent are in different scopes) contribute one member: that of the first layer that has a legend for the
+  channel, planned with that layer's own scale (the merged one for a shared channel); the titles of the fields that the
+  other layers of the scope describe are joined with a comma (`a, b`), an explicit legend or channel title of the
+  first layer winning. Members of different layers and scopes then merge exactly as members of one view do (equal key and
+  scope), and the `LegendMarkFacts` of a legend are those of the layer that its first member comes from. A merged
+  legend takes the properties of the first layer that has the channel (Vega-Lite merges the properties of all the layers).
 - `LegendPlan.Create(view, scales, config, sourceName)` - for each channel in the order color, size, shape, fill,
   stroke, strokeDash, strokeWidth, opacity that has a scale and a field or datum (and whose `legend` and `scale` are not
   null, with `config.legend.disable` unset) creates a member; members whose domains are the same (a key from the
@@ -172,7 +182,8 @@ the `Expressions` subsystem; the scene types and `SceneBudget` of the `Scenegrap
 #### Callers
 
 `VegaLiteDocument` and `LegendLayout` of the `Layout` subsystem (which also calls `LegendBuilder.GridLayout`). The
-tests in `test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendPlanTests.cs`, `LegendBuilderTests.cs`,
+tests in `test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendPlanTests.cs`, `LegendPlanLayerTests.cs` (the legends
+of layered views), `LegendBuilderTests.cs`,
 `LegendBuilderTimeTests.cs`, and `LegendBuilderPathMarkTests.cs` (the symbols of the line, rule, trail, area, arc, and text
 marks) call the
 unit directly through `InternalsVisibleTo`.
@@ -207,3 +218,9 @@ Vega-Lite. The symbols of another legend (for example a size legend) look like t
 that `LegendPlan` reads from a channel that no field drives: the fill, stroke, or shape is the value of the first
 condition on a test (Vega-Lite's `getFirstConditionValue`), else the value of the channel, and the opacity is the largest
 of the value of the channel and the values of its conditions, so the symbols are as visible as the most visible mark.
+
+The legend of a **layered view** (phase 10) takes the symbol facts, the properties (`legend` object), and the explicit
+title of the first layer that has the channel; Vega-Lite merges the symbol encodings and the properties of all the layers,
+so a legend whose layers disagree on them (for example a bar layer and a point layer that both color by one field) shows
+the
+symbols of the first layer only.

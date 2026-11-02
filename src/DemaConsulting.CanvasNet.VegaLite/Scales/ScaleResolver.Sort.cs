@@ -129,6 +129,35 @@ internal static partial class ScaleResolver
     }
 
     /// <summary>
+    ///     Determines how <see cref="SortDomain"/> orders the categories of a channel, which decides how the categories of the layers of a layered view are combined.
+    /// </summary>
+    /// <param name="input">The channel facts.</param>
+    /// <param name="context">The view facts.</param>
+    /// <returns>Ascending or descending for the sort of the values themselves, the order of the data for <c>sort: null</c>, otherwise custom.</returns>
+    private static DomainOrder OrderOf(CommonInputs input, Context context)
+    {
+        if (input.ScaleDef?["domain"] is { IsArray: true })
+        {
+            return DomainOrder.Custom;
+        }
+
+        var sort = input.Definition["sort"];
+        if (sort is { IsNull: true })
+        {
+            return DomainOrder.DataOrder;
+        }
+
+        if (sort is { IsArray: true }
+            || (input.Plan is { Bin: BinKind.Binning, BinPlan.RangeName: not null } && input.FieldPath is not null)
+            || ReadCategorySort(sort, context) is not null)
+        {
+            return DomainOrder.Custom;
+        }
+
+        return IsDescending(sort) ? DomainOrder.Descending : DomainOrder.Ascending;
+    }
+
+    /// <summary>
     ///     Determines whether a <c>sort</c> asks for the descending order of the values themselves.
     /// </summary>
     /// <param name="sort">The <c>sort</c> value, or null.</param>

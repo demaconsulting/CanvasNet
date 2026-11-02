@@ -109,14 +109,117 @@ internal sealed class SpecNode
         }
 
         // Objects with many properties get a name index so that lookups stay constant-time
-        if (kind == SpecNodeKind.Object && _children.Length > IndexThreshold)
+        _index = kind == SpecNodeKind.Object ? BuildIndex(_children) : null;
+    }
+
+    /// <summary>
+    ///     Initializes an overlay: an object that stands for another object but lists other property values.
+    /// </summary>
+    /// <param name="origin">The object the overlay stands for; its name, index, position, parent and pointer are the overlay's own.</param>
+    /// <param name="properties">The property values of the overlay; they stay children of their own parents (they are not adopted).</param>
+    private SpecNode(SpecNode origin, SpecNode[] properties)
+    {
+        Kind = SpecNodeKind.Object;
+        Name = origin.Name;
+        Index = origin.Index;
+        Line = origin.Line;
+        Column = origin.Column;
+        KeyLine = origin.KeyLine;
+        KeyColumn = origin.KeyColumn;
+        _children = properties.Length > 0 ? properties : NoChildren;
+        _parent = origin._parent;
+        _pointer = origin.Pointer;
+        _index = BuildIndex(_children);
+    }
+
+    /// <summary>
+    ///     Initializes a synthetic node: a value that the renderer writes itself (an expansion of a composite mark) but that reads like part of the
+    ///     specification and is located at the construct it stands for.
+    /// </summary>
+    /// <param name="origin">The node whose position and pointer every diagnostic about the synthetic value shows.</param>
+    /// <param name="kind">The kind of value.</param>
+    /// <param name="name">The property name, or null.</param>
+    /// <param name="text">The text of a string node.</param>
+    /// <param name="number">The value of a number node.</param>
+    /// <param name="flag">The value of a boolean node.</param>
+    /// <param name="children">The property values or elements; they are not adopted (they may be nodes of the specification).</param>
+    private SpecNode(SpecNode origin, SpecNodeKind kind, string? name, string? text, double number, bool flag, SpecNode[] children)
+    {
+        Kind = kind;
+        Name = name;
+        Index = -1;
+        Line = origin.Line;
+        Column = origin.Column;
+        KeyLine = origin.KeyLine;
+        KeyColumn = origin.KeyColumn;
+        StringValue = text;
+        NumberValue = number;
+        BoolValue = flag;
+        _children = children.Length > 0 ? children : NoChildren;
+        _parent = origin._parent;
+        _pointer = origin.Pointer;
+        _index = kind == SpecNodeKind.Object ? BuildIndex(_children) : null;
+    }
+
+    /// <summary>
+    ///     Creates a synthetic value: a node that does not come from the text of the specification but stands for a construct of it.
+    /// </summary>
+    /// <remarks>
+    ///     The node has the position and the pointer of <paramref name="origin"/> (as an overlay), so a diagnostic about it points at that construct.
+    ///     The children are not adopted, so a synthetic object or array may list nodes of the specification next to new ones.
+    /// </remarks>
+    /// <param name="origin">The node the value stands for.</param>
+    /// <param name="kind">The kind of value.</param>
+    /// <param name="name">The property name when the node is a property value, otherwise null.</param>
+    /// <param name="text">The text of a string node.</param>
+    /// <param name="number">The value of a number node.</param>
+    /// <param name="flag">The value of a boolean node.</param>
+    /// <param name="children">The property values (an object) or the elements (an array).</param>
+    /// <returns>The node.</returns>
+    public static SpecNode Synthetic(SpecNode origin, SpecNodeKind kind, string? name, string? text = null, double number = 0, bool flag = false, IEnumerable<SpecNode>? children = null)
+    {
+        ArgumentNullException.ThrowIfNull(origin);
+        return new SpecNode(origin, kind, name, text, number, flag, children is null ? [] : [.. children]);
+    }
+
+    /// <summary>
+    ///     Creates an overlay of an object: a node that reads like <paramref name="origin"/> (same pointer, position, name and parent) but whose
+    ///     properties are the given values.
+    /// </summary>
+    /// <remarks>
+    ///     The overlay does not adopt the values, so every value keeps its own parent and pointer and a diagnostic about a value still points at
+    ///     the text that wrote it. This is how an inherited encoding or a layer that takes the size of the layered view is presented to the
+    ///     stages that read a view as one object (<c>view["mark"]</c>, <c>view["encoding"]</c>).
+    /// </remarks>
+    /// <param name="origin">The object the overlay stands for.</param>
+    /// <param name="properties">The property values (each with its own <see cref="Name"/>), in the order they are listed.</param>
+    /// <returns>The overlay.</returns>
+    public static SpecNode Overlay(SpecNode origin, IEnumerable<SpecNode> properties)
+    {
+        ArgumentNullException.ThrowIfNull(origin);
+        ArgumentNullException.ThrowIfNull(properties);
+        return new SpecNode(origin, [.. properties]);
+    }
+
+    /// <summary>
+    ///     Builds the name index of an object with many properties.
+    /// </summary>
+    /// <param name="children">The property values.</param>
+    /// <returns>The index, or null when a linear search is cheaper.</returns>
+    private static Dictionary<string, SpecNode>? BuildIndex(SpecNode[] children)
+    {
+        if (children.Length <= IndexThreshold)
         {
-            _index = new Dictionary<string, SpecNode>(_children.Length, StringComparer.Ordinal);
-            foreach (var child in _children)
-            {
-                _index[child.Name!] = child;
-            }
+            return null;
         }
+
+        var index = new Dictionary<string, SpecNode>(children.Length, StringComparer.Ordinal);
+        foreach (var child in children)
+        {
+            index[child.Name!] = child;
+        }
+
+        return index;
     }
 
     /// <summary>Gets the kind of JSON value.</summary>

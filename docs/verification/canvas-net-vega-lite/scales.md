@@ -141,3 +141,16 @@ the five unit verification documents passes without error or unexpected exceptio
   `AxisBuilderTimeTests.AxisBuilder_Time_Culture_Invariant` — a tick result over `MaxTicks` throws before it is
   allocated and the axis reports it located at the channel, and the ticks and the English labels are identical under
   the Turkish and German cultures.
+- **Layered Scales Share A Domain By The Union, Keep Apart By `resolve`, And Report What Cannot Be Merged**:
+  `ScaleResolverLayerTests.ScaleResolver_ResolveLayers_SingleLayerIsTheSingleViewResult`,
+  `ScaleResolverLayerTests.ScaleResolver_ResolveLayers_SharedContinuousDomainIsTheUnion`,
+  `ScaleResolverLayerTests.ScaleResolver_ResolveLayers_DiscreteDomainIsTheSortedUnion`,
+  `ScaleResolverLayerTests.ScaleResolver_ResolveLayers_BandBeatsPointAndSizesTheView`,
+  `ScaleResolverLayerTests.ScaleResolver_ResolveLayers_IndependentScaleStaysPerLayer`,
+  `ScaleResolverLayerTests.ScaleResolver_ResolveLayers_IncompatibleScalesKeepTheirOwnAndAreReported` — resolves layered
+  specifications through the real normalizer, plan, and data stage and asserts that one layer is the single-view result,
+  that a continuous channel shared by two layers has the union of their domains (each after its own zero rule), that the
+  categories are combined (the band scale preferred to the point scale, the step applied to the combined categories), that
+  `resolve` keeps the scales of a channel apart, and that scales that cannot be merged keep their own and give
+  the warning; the scale models of the layers built from the shared scale place a value at the same pixel (the
+  numbers are derived by hand from the sample data in the unit verification).

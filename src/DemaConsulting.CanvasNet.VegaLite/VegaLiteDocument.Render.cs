@@ -23,8 +23,8 @@ namespace DemaConsulting.CanvasNet.VegaLite;
 ///     encoding's own bin, aggregate and stack run on the result (Vega-Lite's implicit stage, see <see cref="EncodingTransforms"/>), the scales are resolved over the
 ///     Raw and Main tables that stage produced,
 ///     the axes, the legends, the marks and the title are built, the view
-///     layout sizes the canvas around them and places everything in a scene, and the painter draws the scene. A composition
-///     (layer, concat, facet, repeat) is not drawn yet: only its title and background are. The private pipeline
+///     layout sizes the canvas around them and places everything in a scene, and the painter draws the scene. A layered view (<c>layer</c>) is drawn layer by layer over the data and
+///     transforms it inherits (see <c>VegaLiteDocument.Layers.cs</c>); a composition that is not drawn yet (concat, facet, repeat) draws only its title and background. The private pipeline
 ///     methods at the end of this file are the seam that later stages extend; the public methods, their validation order and
 ///     their event delivery are the stable contract. The findings of the data stage (parse failures, then the warnings of a
 ///     lookup source and of the transforms) are delivered after the reports of the specification.
@@ -274,8 +274,8 @@ public sealed partial class VegaLiteDocument
     ///     step of a discrete scale, the canvas from the padding, <c>autosize</c> and the room the axes and the title need, and
     ///     the title and background from the specification and the configuration; the caller's background replaces the other
     ///     two. The configuration is resolved here, so a configuration the options cannot hold (not a JSON object) fails the
-    ///     call like any other option error. Only a single view with a mark has data, scales, axes and marks; compositions are
-    ///     not drawn yet.
+    ///     call like any other option error. Only a view with a mark, or the layers of a layered view, have data, scales, axes and marks; compositions that are
+    ///     not drawn yet (concat, facet, repeat) are not drawn.
     /// </remarks>
     /// <param name="options">The effective options.</param>
     /// <param name="cancellationToken">The token that stops the work.</param>
@@ -292,73 +292,44 @@ public sealed partial class VegaLiteDocument
         var measurer = new TextMeasurer(options.EffectiveFonts);
         var root = _tree.Root;
 
-        // A composition has no single title position; layers share one. Only single views have a data rectangle drawn so far
-        var isComposition = new[] { "concat", "hconcat", "vconcat", "facet", "repeat" }.Any(name => root[name] is not null);
-        DataTable? table = null;
-        EncodingPlan? plan = null;
-        EncodingData? data = null;
-        IReadOnlyList<FeatureReport> dataWarnings = [];
-        RowExpressions? expressions = null;
-        var markNode = root["mark"];
-        var markType = markNode is { IsObject: true } ? markNode["type"]?.AsString() : markNode?.AsString();
-        var drawsData = !isComposition && root["layer"] is null && MarkBuilder.IsSupported(markType);
-        if (drawsData)
+        // A composition has no single title position; layers share one. Only views with a mark have a data rectangle drawn: a single view, or the layers of a layered view
+        // A composite mark (a boxplot) is a layered view of the layers it stands for; the expansion's own expressions are read from the derived tree
+        var expanded = SpecNormalizer.Expand(_tree, config, options.Limits);
+        var layerTree = expanded.Layers;
+        var isComposition = layerTree.Root.UndrawnComposition is not null;
+        IReadOnlyList<LayerNode> drawn = layerTree.HasUndrawn ? [] : [.. layerTree.Units.Where(u => MarkBuilder.IsSupported(MarkTypeOf(u.Unit!)))];
+        DataStage? stage = null;
+        if (drawn.Count > 0)
         {
-            // The data is read first, before any scene item is charged and before any scale exists: one loader (so one file
-            // cache, one file count and one row budget) serves this call, from the sandbox that the effective open options
-            // define, so a data failure never depends on what a later stage would have done
-            var calendar = TimeCalendar.Create(options.TimeZone);
-            var loader = new DataLoader(_tree.SourceName, options.Limits, Options, root["datasets"], options.Datasets, cancellationToken, calendar: calendar);
-            table = loader.Load(root["data"], TemporalFields.Collect(root));
-
-            // Recorded as soon as the data is loaded, so a later failure of the build can still deliver them
-            var reported = loader.Warnings.Count;
-            dataWarningSink?.AddRange(loader.Warnings);
-
-            // The parameters are evaluated once, then the row transforms run in the order of the specification, on the
-            // loaded rows and before any scale exists; they share the loader (row budget, sandbox) and the evaluator (steps)
-            var parameters = new Dictionary<string, DataValue>(StringComparer.Ordinal);
-            var evaluator = new ExpressionEvaluator(options.Limits, cancellationToken, parameters, calendar);
-            expressions = new RowExpressions(_tree.Expressions, evaluator);
-            var transformWarnings = new List<FeatureReport>();
-            try
-            {
-                ParameterEnvironment.Populate(_tree, options.Parameters, parameters, evaluator);
-                var transformContext = new TransformContext(_tree, loader, evaluator, parameters, options.Limits, cancellationToken, transformWarnings);
-                table = RowTransforms.Apply(table, root["transform"], transformContext);
-
-                // Then the encoding's own bin, aggregate and stack, in Vega-Lite's order, on the rows the transforms left
-                plan = EncodingPlan.Create(root, config);
-                data = EncodingTransforms.Apply(plan, table, transformContext);
-            }
-            finally
-            {
-                // Findings of a lookup source come before those of the transforms; on a failure they are still delivered
-                dataWarningSink?.AddRange(loader.Warnings.Skip(reported));
-                dataWarningSink?.AddRange(transformWarnings);
-            }
-
-            dataWarnings = [.. loader.Warnings, .. transformWarnings];
+            stage = RunDataStage(layerTree, expanded.Tree, drawn, config, options, cancellationToken, dataWarningSink);
         }
 
         // Every scene item is charged to one budget before it is created: first the root and view groups that every chart
-        // has, then the title, the axes and the legends (per pass), the marks group and the marks
+        // has, then the title, the axes and the legends (per pass), the marks groups and the marks
         var budget = new SceneBudget(options.Limits.MaxSceneItems);
         budget.Add(2, root.GetLocation(_tree.SourceName));
-        var scales = data is null || plan is null ? null : ScaleResolver.Resolve(root, plan, data, config, _tree.SourceName, options.Limits, cancellationToken);
+        LayeredScales? scales = null;
+        if (stage is not null)
+        {
+            scales = ScaleResolver.ResolveLayers([.. stage.Layers.Select(l => new LayerScaleInput(l.Node, l.Plan, l.Data))], config, _tree.SourceName, options.Limits, cancellationToken);
+            dataWarningSink?.AddRange(scales.Warnings);
+        }
 
-        var hints = new ViewSizeHints(scales?.DiscreteWidth, scales?.DiscreteHeight, options.ContainerWidth, options.ContainerHeight);
+        var hints = new ViewSizeHints(scales?.Merged.DiscreteWidth, scales?.Merged.DiscreteHeight, options.ContainerWidth, options.ContainerHeight);
         var background = options.Background is { } caller ? CssColor.ToCss(caller) : null;
         var request = ViewLayout.Resolve(root, config, hints, background);
         var title = new TitleBuilder(measurer).Build(root["title"], config, unitOrLayer: !isComposition, budget, _tree.SourceName);
-        if (data is null || plan is null || scales is null)
+        if (stage is null || scales is null)
         {
             var layout = ViewLayout.Compute(request, default, title);
             return new ChartPlan(layout.Measure.NaturalSize, layout.Scene, measurer);
         }
 
-        return BuildChart(new ChartInputs(request, title, scales, plan, data, config, measurer, options.Limits, budget, expressions), cancellationToken) with { DataWarnings = dataWarnings };
+        var layers = stage.Layers.Select((l, i) => new LayerChart(l.Node, l.Plan, l.Data, scales.PerLayer[i])).ToList();
+        IReadOnlyList<FeatureReport> dataWarnings = [.. stage.Warnings, .. scales.Warnings];
+        return BuildChart(new ChartInputs(request, title, layers, scales, config, measurer, options.Limits, budget, stage.Expressions), cancellationToken) with { DataWarnings = dataWarnings };
     }
+
 
     /// <summary>
     ///     Builds the axes, the legends and the marks of a single view and lays the chart out around them.
@@ -378,8 +349,9 @@ public sealed partial class VegaLiteDocument
     {
         var sourceName = _tree.SourceName;
         var budget = inputs.Budget;
-        var axisBuilder = new AxisBuilder(inputs.Measurer, inputs.Config, inputs.Limits, sourceName, inputs.Data.Evaluation.Calendar);
-        var legendSpecs = LegendPlan.Create(_tree.Root, inputs.Scales, inputs.Config, sourceName);
+        var axisBuilder = new AxisBuilder(inputs.Measurer, inputs.Config, inputs.Limits, sourceName, inputs.Layers[0].Data.Evaluation.Calendar);
+        var legendSpecs = LegendPlan.Create(LegendLayers(inputs.Layers, inputs.Scales), inputs.Config, sourceName);
+        var axisPlans = PlanAxes(inputs.Layers, inputs.Scales);
         var legendBuilder = new LegendBuilder(inputs.Measurer, inputs.Limits, sourceName);
         var measure = ViewLayout.Measure(inputs.Request, default, inputs.Title);
         var axes = new List<AxisResult>();
@@ -389,7 +361,7 @@ public sealed partial class VegaLiteDocument
         {
             // Each pass builds the axes and the legends afresh, so each is charged to a fork; only the pass that is kept is adopted
             passBudget = budget.Fork();
-            axes = BuildAxes(inputs, axisBuilder, measure.DataWidth, measure.DataHeight, passBudget, cancellationToken);
+            axes = BuildAxes(axisPlans, axisBuilder, measure.DataWidth, measure.DataHeight, passBudget, cancellationToken);
             legends = BuildLegends(legendSpecs, legendBuilder, inputs, axes, measure.DataWidth, measure.DataHeight, passBudget, cancellationToken);
 
             // The legends join the axes in what the data rectangle needs around it, before the title is laid out
@@ -410,10 +382,13 @@ public sealed partial class VegaLiteDocument
         content.AddRange(axes.Where(a => a.Grid is not null).Select(a => (SceneItem)a.Grid!));
         content.AddRange(axes.Where(a => !a.InFront).Select(a => a.Group));
 
-        // The marks group and each mark are charged by the mark builder before they are created
-        var marks = new MarkBuilder(inputs.Config, inputs.Limits, budget, sourceName, inputs.Expressions)
-            .Build(_tree.Root, inputs.Data.Main, inputs.Scales, measure.DataWidth, measure.DataHeight, cancellationToken);
-        content.Add(marks);
+        // The marks group of each layer and each mark are charged by the mark builder before they are created; the layers are drawn in order, the last one on top
+        var markBuilder = new MarkBuilder(inputs.Config, inputs.Limits, budget, sourceName, inputs.Expressions);
+        foreach (var layer in inputs.Layers)
+        {
+            content.Add(markBuilder.Build(layer.Unit, layer.Data.Main, layer.Scales, measure.DataWidth, measure.DataHeight, cancellationToken));
+        }
+
         content.AddRange(axes.Where(a => a.InFront).Select(a => a.Group));
         content.AddRange(legends.Groups);
         return new ChartPlan(measure.NaturalSize, ViewLayout.Build(inputs.Request, measure, content), inputs.Measurer);
@@ -450,27 +425,22 @@ public sealed partial class VegaLiteDocument
     }
 
     /// <summary>
-    ///     Builds the axes of the position channels that have a scale, x first.
+    ///     Builds the axes of the plan for a data rectangle.
     /// </summary>
-    /// <param name="inputs">What the stages need.</param>
+    /// <param name="plans">The planned axes: one for each position channel that has a scale (x first), more for a layered view with independent axes.</param>
     /// <param name="builder">The axis builder.</param>
     /// <param name="width">The width of the data rectangle.</param>
     /// <param name="height">The height of the data rectangle.</param>
     /// <param name="budget">The budget of scene items the axes of the pass are charged to.</param>
     /// <param name="cancellationToken">The token that stops the work.</param>
     /// <returns>The axes; empty when no position channel has a scale or all axes are switched off.</returns>
-    private List<AxisResult> BuildAxes(ChartInputs inputs, AxisBuilder builder, double width, double height, SceneBudget budget, CancellationToken cancellationToken)
+    private static List<AxisResult> BuildAxes(IReadOnlyList<AxisPlan> plans, AxisBuilder builder, double width, double height, SceneBudget budget, CancellationToken cancellationToken)
     {
-        var axes = new List<AxisResult>(2);
-        foreach (var channel in new[] { "x", "y" })
+        var axes = new List<AxisResult>(plans.Count);
+        foreach (var plan in plans)
         {
-            if (inputs.Scales[channel] is not { } scale || _tree.Root["encoding"]?[channel] is not { IsObject: true } definition)
-            {
-                continue;
-            }
-
-            var model = scale.CreateModel(channel == "x" ? width : height);
-            if (builder.Build(new AxisRequest(channel, definition, scale, model, width, height, inputs.Scales.MarkType, budget), cancellationToken) is { } axis)
+            var model = plan.Scale.CreateModel(plan.Channel == "x" ? width : height);
+            if (builder.Build(new AxisRequest(plan.Channel, plan.Definition, plan.Scale, model, width, height, plan.MarkType, budget, plan.DefaultOrient, plan.DefaultGrid), cancellationToken) is { } axis)
             {
                 axes.Add(axis);
             }
@@ -599,9 +569,8 @@ public sealed partial class VegaLiteDocument
     /// </summary>
     /// <param name="Request">The layout request of the view.</param>
     /// <param name="Title">The built title, or null.</param>
-    /// <param name="Scales">The resolved scales.</param>
-    /// <param name="Plan">The plan of the encoding (field names, titles, bins, stack).</param>
-    /// <param name="Data">The Raw and Main tables of the implicit pipeline and the bins; the marks draw the Main table.</param>
+    /// <param name="Layers">The layers that are drawn, with their scales and tables; a single view is one layer.</param>
+    /// <param name="Scales">The scales of the layers and of the whole view.</param>
     /// <param name="Config">The effective configuration.</param>
     /// <param name="Measurer">The text measurer.</param>
     /// <param name="Limits">The limits.</param>
@@ -610,9 +579,8 @@ public sealed partial class VegaLiteDocument
     private sealed record ChartInputs(
         ViewLayoutRequest Request,
         TitleBlock? Title,
-        ResolvedScales Scales,
-        EncodingPlan Plan,
-        EncodingData Data,
+        IReadOnlyList<LayerChart> Layers,
+        LayeredScales Scales,
         ResolvedConfig Config,
         TextMeasurer Measurer,
         VegaLiteLimits Limits,
