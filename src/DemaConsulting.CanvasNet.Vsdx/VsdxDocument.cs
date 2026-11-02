@@ -125,6 +125,7 @@ public sealed partial class VsdxDocument : IDisposable
     /// </param>
     /// <returns>A new <see cref="VsdxDocument"/> instance representing the parsed package.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="stream"/> is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="stream"/> is not readable.</exception>
     /// <exception cref="InvalidDataException">
     ///     Thrown when the package cannot be parsed - because <paramref name="stream"/> is not a
     ///     readable ZIP/OPC archive, or the package is missing a required part or any required

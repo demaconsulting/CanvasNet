@@ -223,6 +223,7 @@ public sealed partial class PptxDocument : IDisposable
     /// </param>
     /// <returns>A new <see cref="PptxDocument"/> instance representing the parsed package.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="stream"/> is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="stream"/> is not readable.</exception>
     /// <exception cref="System.IO.InvalidDataException">
     ///     Thrown when the package cannot be parsed - because it is not a valid ZIP/OPC archive,
     ///     is missing a required part (<c>[Content_Types].xml</c>, <c>_rels/.rels</c>, or the

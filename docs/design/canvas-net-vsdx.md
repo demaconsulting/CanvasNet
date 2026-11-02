@@ -178,7 +178,8 @@ so this risk control is inherently contained within it (IEC 62304 §5.3.3).
 **Package open path:**
 
 1. **Input**: A `.vsdx` package (stream or file path)
-2. **Validation**: `Open` rejects a null `stream`/`path` with `ArgumentNullException`, an empty/
+2. **Validation**: `Open` rejects a null `stream`/`path` with `ArgumentNullException`, a `stream`
+   that cannot be read or an empty/
    whitespace `path` with `ArgumentException`, and an unreadable/corrupt ZIP or a package missing
    a required part with `InvalidDataException`
 3. **Processing**: Resolves `[Content_Types].xml` and the `_rels/.rels` → `visio/document.xml` →

@@ -101,7 +101,8 @@ duplicating the same existence-check-then-parse logic.
 
 `PptxDocument.cs` implements the sealed, `IDisposable` public surface:
 
-- **`Open(Stream stream)`**: validates `stream` is non-null (`ArgumentNullException`), opens it
+- **`Open(Stream stream)`**: validates `stream` is non-null (`ArgumentNullException`) and readable
+  (`ArgumentException`), opens it
   with `OpcPackage.Open` (which buffers it fully, bounded, so the caller's stream need not remain
   open or seekable afterward, exactly like `PdfDocument.Open`'s own buffering pattern), rethrowing
   an `OpcFormatException` as `InvalidDataException`, and constructs a new `PptxDocument` over the

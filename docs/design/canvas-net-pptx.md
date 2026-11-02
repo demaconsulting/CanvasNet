@@ -228,8 +228,8 @@ with incorrect geometry or paint - the same fail-closed-over-silent-approximatio
 **`.pptx` open/parse path:**
 
 1. **Input**: A `.pptx` package (stream or file path)
-2. **Validation**: `Open` rejects a null `stream`/`path` with `ArgumentNullException` and an
-   empty/whitespace `path` with `ArgumentException`
+2. **Validation**: `Open` rejects a null `stream`/`path` with `ArgumentNullException`, a `stream`
+   that cannot be read, or an empty/whitespace `path`, with `ArgumentException`
 3. **Processing**: Fully buffers the input into memory (bounded) and opens it through the core
    `OpcPackage` as a read-only `ZipArchive`
    (rejecting an unreadable/corrupt archive with `InvalidDataException`), parses

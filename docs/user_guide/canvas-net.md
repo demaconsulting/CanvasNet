@@ -2839,7 +2839,8 @@ using DemaConsulting.CanvasNet.Packaging;
 
 try
 {
-    XDocument document = SafeXml.Load(File.OpenRead("data.xml"), maxCharacters: 1_000_000);
+    using var xmlStream = File.OpenRead("data.xml");
+    XDocument document = SafeXml.Load(xmlStream, maxCharacters: 1_000_000);
     Console.WriteLine(document.Root?.Name);
 }
 catch (XmlException ex)

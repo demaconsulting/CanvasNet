@@ -87,7 +87,7 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
 ### Key Methods
 
 - **`Open(Stream stream)`** / **`Open(string path)`**: Validates the argument (`ArgumentNullException`
-  for null, `ArgumentException` for an empty/whitespace path), opens the package with the core
+  for null, `ArgumentException` for an unreadable stream or an empty/whitespace path), opens the package with the core
   `OpcPackage.Open` (bounded, hardened - see _OpcPackage Unit Design_,
   `canvas-net/packaging/opc-package.md`; `VsdxDocument.Package.cs` is a thin adapter that
   rethrows each `OpcFormatException` as `InvalidDataException` with the same message), resolves
@@ -426,7 +426,7 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
 ### Error Handling
 
 `ArgumentNullException` and `ArgumentException` are thrown synchronously from `Open` for a
-programming-error argument (null stream/path, empty/whitespace path) — these are never caught or
+programming-error argument (null stream/path, unreadable stream, empty/whitespace path) — these are never caught or
 converted internally. `ArgumentOutOfRangeException` is thrown synchronously from `GetPageSize`/
 `Render` for an out-of-range `pageIndex` or a non-positive/over-`Surface.MaxDimension` pixel size.
 `InvalidDataException` is thrown for malformed package/XML structure that prevents correct

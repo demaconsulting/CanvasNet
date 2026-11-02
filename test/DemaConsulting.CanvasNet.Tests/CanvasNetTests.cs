@@ -1336,4 +1336,38 @@ public class CanvasNetTests
         Assert.Equal((FontSource.Bundled, "Liberation Sans"), (missing.Source, missing.Family));
         Assert.Equal("no such font family was found", missingFailure);
     }
+
+    /// <summary>
+    ///     Proves that text measured through the public <see cref="TextRenderer.MeasureText"/> API
+    ///     can be word-wrapped through the public <see cref="WordWrap"/> API: every line fits the
+    ///     requested width, no word is split, and joining the lines gives back the original text.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_WordWrapMeasuredText_LinesFitWithoutSplittingWords()
+    {
+        // Arrange: split a sentence into word and whitespace tokens measured with the bundled font
+        var font = SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold: false, italic: false);
+        const string sentence = "The quick brown fox jumps over the lazy dog";
+        const float size = 16f;
+        var tokens = System.Text.RegularExpressions.Regex.Split(sentence, "( )")
+            .Select(text => (Text: text, Width: TextRenderer.MeasureText(text, font, size).Width))
+            .ToList();
+        var maxWidth = TextRenderer.MeasureText("The quick brown fox", font, size).Width + 1f;
+
+        // Act
+        var lines = WordWrap.Pack(
+            tokens,
+            maxWidth,
+            static t => t.Text == " " ? WordWrapTokenKind.Whitespace : WordWrapTokenKind.Word,
+            static (t, _) => t.Width);
+
+        // Assert: several lines, each (ignoring a carried leading space) within the width, words intact
+        var lineTexts = lines.Select(line => string.Concat(line.Select(t => t.Text))).ToList();
+        Assert.True(lineTexts.Count > 1);
+        Assert.Equal(sentence, string.Concat(lineTexts));
+        Assert.All(lineTexts, text => Assert.True(TextRenderer.MeasureText(text.TrimEnd(), font, size).Width <= maxWidth + 0.01f));
+        Assert.Equal(
+            sentence.Split(' '),
+            lineTexts.SelectMany(text => text.Split(' ', StringSplitOptions.RemoveEmptyEntries)).ToArray());
+    }
 }

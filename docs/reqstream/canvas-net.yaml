@@ -1788,8 +1788,7 @@ sections:
         children:
           - CanvasNet-Rendering-WordWrap
         tests:
-          - WordWrap_Pack_WordOverflowsLine_WrapsAtWhitespace
-          - WordWrap_Pack_MeasureReceivesCurrentLineWidth
+          - CanvasNet_SystemIntegration_WordWrapMeasuredText_LinesFitWithoutSplittingWords
 
   - title: Packaging API
     requirements:

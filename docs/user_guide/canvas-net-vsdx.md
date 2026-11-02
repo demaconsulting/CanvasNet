@@ -71,6 +71,7 @@ Reads the entirety of an open, readable stream into an in-memory buffer and pars
 **Exceptions:**
 
 - `ArgumentNullException`: Thrown when `stream` is null.
+- `ArgumentException`: Thrown when `stream` cannot be read.
 - `InvalidDataException`: Thrown when the stream does not contain a valid, supported `.vsdx`
   package (not a readable ZIP archive, missing a required part, or a malformed part), or when
   `stream` supplies more than the package layer's maximum supported package size.

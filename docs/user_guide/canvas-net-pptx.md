@@ -38,7 +38,8 @@ Console.WriteLine($"{width}x{height}"); // Output: the pixel size of the surface
 
 - `PptxDocument.Open(Stream stream)` / `PptxDocument.Open(string path)`: Opens and parses a
   presentation. Throws `ArgumentNullException` for a null argument, `ArgumentException` for an empty
-  path, and `InvalidDataException` when the package is not a readable ZIP archive, is missing a
+  path or a stream that cannot be read, and `InvalidDataException` when the package is not a readable
+  ZIP archive, is missing a
   required part, is malformed, or is not a navigable presentation (a slide size and at least one slide
   are required).
 - `PptxDocument.SlideCount`: The number of slides declared by the presentation.
