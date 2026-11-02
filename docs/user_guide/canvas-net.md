@@ -488,7 +488,8 @@ public enum DiffStyle { Heat, Abs }
   `CreateOverlay` blends the two surfaces, `weightOfOther` (0 to 1) being the weight of `other`: 0 gives
   the colors of this surface and 1 the colors of `other`, and the result is opaque.
   `CreateSideBySide` places this surface, `other`, and the `difference` picture left to right, separated
-  by gaps of `Surface.SideBySideGap` (8) pixels of gray `#808080`; when the sheet would be wider than
+  by gaps of `Surface.SideBySideGap` (8) pixels of gray `#808080`, copying the panels as they are (a
+  translucent input stays translucent); when the sheet would be wider than
   `Surface.MaxDimension` the three panels are scaled down first.
 - Surfaces of different sizes throw `ArgumentException` (naming both sizes), a null surface
   `ArgumentNullException`, an argument out of range `ArgumentOutOfRangeException`, and a disposed

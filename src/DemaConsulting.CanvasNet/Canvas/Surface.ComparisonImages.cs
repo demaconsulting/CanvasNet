@@ -5,9 +5,10 @@ namespace DemaConsulting.CanvasNet.Canvas;
 ///     The picture creators of the comparison of <see cref="Surface"/>: difference, overlay, and side-by-side images.
 /// </summary>
 /// <remarks>
-///     All pictures are opaque (the alpha of the inputs is ignored) and are computed with integer arithmetic (after the
-///     amplification and the overlay weight are rounded once), so the same inputs give the same pixels on every run.
-///     Neither input is modified or disposed.
+///     The difference and overlay pictures are opaque (the alpha of the inputs is ignored); the side-by-side sheet copies
+///     its panels as they are (<see cref="CopyFrom"/>), so a translucent input stays translucent there. All are computed
+///     with integer arithmetic (after the amplification and the overlay weight are rounded once), so the same inputs give
+///     the same pixels on every run. Neither input is modified or disposed.
 /// </remarks>
 public sealed partial class Surface
 {
@@ -170,7 +171,8 @@ public sealed partial class Surface
     /// <exception cref="ArgumentException">Thrown when the surfaces have different sizes.</exception>
     /// <exception cref="ObjectDisposedException">Thrown when any of the surfaces has been disposed.</exception>
     /// <remarks>
-    ///     The sheet is <c>3 W + 2 gap</c> wide and <c>H</c> high; the panels are copied opaquely. When that is wider or
+    ///     The sheet is <c>3 W + 2 gap</c> wide and <c>H</c> high; the panels are copied as they are, alpha included (a
+    ///     translucent input stays translucent). When that is wider or
     ///     higher than <see cref="MaxDimension"/>, the three panels are first scaled down uniformly with the area filter to
     ///     <c>floor(W s)</c> by <c>floor(H s)</c> pixels, where <c>s</c> is the largest factor that makes the sheet fit.
     /// </remarks>

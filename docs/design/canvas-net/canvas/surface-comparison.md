@@ -41,8 +41,9 @@ through `InternalsVisibleTo`.
 
 The comparison is defined on opaque RGB; alpha is ignored. Every sum is accumulated exactly in integers; the only
 floating-point steps are single divisions, `sqrt`, and `log10` at the end, so the same inputs give the same numbers on
-every run. The pictures are opaque and computed with integer arithmetic after the gain and the overlay weight are rounded
-once. Neither surface is modified or disposed. A surface must not be changed by another thread while it is compared.
+every run. The difference and overlay pictures are opaque, and every picture is computed with integer arithmetic after
+the gain and the overlay weight are rounded once. Neither surface is modified or disposed. A surface must not be changed
+by another thread while it is compared.
 
 #### Key Methods
 
@@ -96,7 +97,8 @@ color channel is `(a * (255 - bw) + b * bw + 127) / 255` in integer arithmetic, 
 surface and weight 1 the colors of the other exactly. The result is opaque (alpha 255).
 
 **CreateSideBySide(other, difference)**: this surface, `other`, and `difference` left to right, separated by gaps of 8
-pixels filled `#808080`; there are no labels, so the order is the contract. The panels are copied opaquely. The sheet is
+pixels filled `#808080`; there are no labels, so the order is the contract. The panels are copied as they are
+(`CopyFrom`), alpha included, so a translucent input stays translucent. The sheet is
 `3 W + 16` wide and `H` high. When `3 W + 16` or `H` is larger than `MaxDimension`, the three panels are first resampled
 with the `Area` filter to `floor(W s)` by `floor(H s)`, where `s` is the smaller of `(8192 - 16) / (3 W)` and
 `8192 / H` (each side at least 1), so that the sheet fits.
