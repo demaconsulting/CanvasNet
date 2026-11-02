@@ -40,6 +40,8 @@ public class OpcPackageTests
           <Relationship Id="rId2" Type="http://example.com/relationships/absolute" Target="/shared/absolute.xml" />
           <Relationship Id="rId3" Type="http://example.com/relationships/external" Target="https://example.com/x" TargetMode="External" />
           <Relationship Id="rId4" Type="http://example.com/relationships/dotted" Target="./sub/../page.xml" />
+          <Relationship Id="rId5" Type="http://example.com/relationships/fragment" Target="../layouts/layout1.xml#bookmark" />
+          <Relationship Id="rId6" Type="http://example.com/relationships/self" Target="#top" />
         </Relationships>
         """;
 
@@ -457,6 +459,20 @@ public class OpcPackageTests
         Assert.Equal("layouts/layout1.xml", package.ResolveRelationship("doc/main.xml", "rId1"));
         Assert.Equal("shared/absolute.xml", package.ResolveRelationship("doc/main.xml", "rId2"));
         Assert.Equal("doc/page.xml", package.ResolveRelationship("/doc/main.xml", "rId4"));
+    }
+
+    /// <summary>Proves a URI fragment is dropped from a target, and a fragment-only target names the source part itself.</summary>
+    [Fact]
+    public void OpcPackage_ResolveRelationship_FragmentTargets_DropTheFragment()
+    {
+        // Arrange
+        using var stream = BuildValidPackage();
+        using var package = OpcPackage.Open(stream);
+
+        // Act / Assert
+        Assert.Equal("layouts/layout1.xml", package.ResolveRelationship("doc/main.xml", "rId5"));
+        Assert.Equal("doc/main.xml", package.ResolveRelationship("doc/main.xml", "rId6"));
+        Assert.Equal("layouts/layout1.xml", package.TryResolveRelationshipById("doc/main.xml", "rId5"));
     }
 
     /// <summary>Proves a target that climbs above the package root is rejected, not clamped.</summary>

@@ -83,7 +83,8 @@ sections:
                 title: >-
                   The OpcPackage type shall resolve a relationship's target relative to its source
                   part's directory (or from the package root for a target starting with a slash),
-                  dropping "." segments and applying ".." segments, shall reject with
+                  dropping "." segments and applying ".." segments and dropping any URI fragment
+                  (so a fragment-only target names the source part), shall reject with
                   OpcFormatException a target with a ".." that would leave the package, an unknown
                   relationship, and an external target, shall report a relationship's type, shall
                   resolve by type suffix or by identifier (the non-throwing forms returning null),
@@ -95,6 +96,7 @@ sections:
                   package from steering a reader out of it.
                 tests:
                   - OpcPackage_ResolveRelationship_RelativeAbsoluteAndDotTargets_ResolveToPartPaths
+                  - OpcPackage_ResolveRelationship_FragmentTargets_DropTheFragment
                   - OpcPackage_ResolveRelationship_TargetEscapesPackageRoot_ThrowsOpcFormatException
                   - OpcPackage_ResolveRelationship_UnknownIdOrExternalTarget_ThrowsOpcFormatException
                   - OpcPackage_TryResolveRelationship_PartWithoutRelationships_ReturnsNull

@@ -754,7 +754,9 @@ public sealed class OpcPackage : IDisposable
     /// <summary>
     ///     Resolves <paramref name="target"/> against <paramref name="normalizedBasePartPath"/>'s
     ///     directory, or against the package root when it begins with <c>'/'</c>, normalizing
-    ///     <c>"."</c> and <c>".."</c> segments away.
+    ///     <c>"."</c> and <c>".."</c> segments away. A URI fragment (everything from the first
+    ///     <c>'#'</c>) is dropped first, so a fragment-only target names the source part itself.
+    ///     Percent-encoding is not decoded.
     /// </summary>
     /// <param name="normalizedBasePartPath">The source part path with no leading slash.</param>
     /// <param name="target">The relationship's raw <c>Target</c> value.</param>
@@ -762,6 +764,16 @@ public sealed class OpcPackage : IDisposable
     /// <exception cref="OpcFormatException">The target has more <c>".."</c> segments than preceding directories.</exception>
     private static string ResolveRelativeTarget(string normalizedBasePartPath, string target)
     {
+        var fragment = target.IndexOf('#');
+        if (fragment >= 0)
+        {
+            target = target[..fragment];
+            if (target.Length == 0)
+            {
+                return normalizedBasePartPath;
+            }
+        }
+
         if (target.StartsWith('/'))
         {
             return NormalizeSegments(target[1..]);
