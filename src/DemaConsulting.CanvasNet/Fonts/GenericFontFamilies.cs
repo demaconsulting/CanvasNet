@@ -9,9 +9,11 @@ namespace DemaConsulting.CanvasNet.Fonts;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         <b>Classification.</b> The CSS generic keywords - <c>sans-serif</c>, <c>system-ui</c>, <c>ui-sans-serif</c>,
+///         <b>Classification.</b> These CSS generic keywords - <c>sans-serif</c>, <c>system-ui</c>, <c>ui-sans-serif</c>,
 ///         <c>cursive</c> and <c>fantasy</c> (all sans-serif), <c>serif</c> and <c>ui-serif</c> (serif),
-///         <c>monospace</c> and <c>ui-monospace</c> (monospace) - are always recognized. A caller that wants
+///         <c>monospace</c> and <c>ui-monospace</c> (monospace) - are always recognized; other CSS generic names
+///         (<c>ui-rounded</c>, <c>math</c>, <c>emoji</c>, <c>fangsong</c>) are not, and are treated as ordinary family
+///         names. A caller that wants
 ///         well-known family names to resolve the same way on every machine can also ask for the <i>common
 ///         aliases</i>: names such as <c>Arial</c>, <c>Helvetica</c> and <c>Segoe UI</c> (sans-serif), <c>Times New
 ///         Roman</c> and <c>Georgia</c> (serif), <c>Courier New</c> and <c>Consolas</c> (monospace), and the three

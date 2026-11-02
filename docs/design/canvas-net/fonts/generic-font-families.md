@@ -14,7 +14,9 @@ way.
 Several libraries each carried their own copy of "which family names mean sans-serif, serif or
 monospace" and of "split a CSS font-family list": the Svg codec, the Vega-Lite text measurer and
 the OpenSCAD font resolver all differed slightly. `GenericFontFamilies` states the policy once:
-the CSS generic keywords are always recognized, and the well-known aliases (`Arial`,
+the supported CSS generic keywords (`sans-serif`, `serif`, `monospace`, `system-ui`, the `ui-`
+sans-serif, serif and monospace variants, `cursive` and `fantasy`; not `ui-rounded`, `math`,
+`emoji` or `fangsong`) are always recognized, and the well-known aliases (`Arial`,
 `Times New Roman`, `Courier New`, ...) only when the caller asks for them, because mapping them
 to the bundled fonts is a determinism decision (the same result on every machine) and not every
 caller wants it.

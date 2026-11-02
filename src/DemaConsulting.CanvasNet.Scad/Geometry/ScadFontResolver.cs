@@ -33,10 +33,12 @@ internal readonly record struct ScadFontSpec(string Family, bool Bold, bool Ital
 ///     </para>
 ///     <para>
 ///         <b>Order.</b> No font argument (or one with no family) is the bundled Liberation Sans Regular (or the
-///         requested style of it) whatever the host has, which keeps default text reproducible. A named family is
-///         looked up in the additional directories, then (when enabled) the installed fonts, and then among the
-///         bundled families (<c>Liberation Sans</c>, <c>Liberation Serif</c>, <c>Liberation Mono</c> and the generic
-///         names <c>sans-serif</c>, <c>serif</c> and <c>monospace</c>, with <c>sans</c> and <c>mono</c>). Only an exact
+///         requested style of it) whatever the host has, which keeps default text reproducible. A generic name
+///         (<c>sans-serif</c>, <c>serif</c>, <c>monospace</c> and the other keywords of
+///         <see cref="GenericFontFamilies"/>, with <c>sans</c> and <c>mono</c>) always resolves to its bundled Liberation
+///         family first. Any other named family is looked up in the additional directories, then (when enabled) the
+///         installed fonts, and then among the bundled families (<c>Liberation Sans</c>, <c>Liberation Serif</c>,
+///         <c>Liberation Mono</c>). Only an exact
 ///         family match counts (ignoring case): the generic substitution of the catalog is deliberately not used,
 ///         because it would make the result depend on what the host has installed, and the common aliases of other
 ///         systems (<c>Arial</c>, <c>Times New Roman</c>, ...) are not mapped, so an unknown name is reported. Within
