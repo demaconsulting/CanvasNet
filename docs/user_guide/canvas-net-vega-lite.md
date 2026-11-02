@@ -1549,7 +1549,7 @@ top-level view.
 <!-- markdownlint-disable MD013 -->
 | Property | Rule |
 | -------- | ---- |
-| `data` | A layer without `data` reads the table of its nearest ancestor (the data of a table is read and counted once, however many layers share it); a layer with its own `data` replaces it for itself and for its own layers |
+| `data` | A layer without `data` (or with `"data": null`, which Vega-Lite treats like an absent one in a layer) reads the table of its nearest ancestor (the data of a table is read and counted once, however many layers share it); a layer with its own `data` replaces it for itself and for its own layers; a top-level `"data": null` is an empty table |
 | `transform` | The `transform` of the top-level view runs first, on the table of the data, then the `transform` of each layer on the result, so a top-level `calculate`, `filter`, or `aggregate` applies to every layer, and a layer can then reshape the rows for itself only. A nested layered view chains the same way |
 | `encoding` | A channel of a parent is inherited by its layers. A layer that writes the same channel replaces the inherited one (in the position the parent gave it), and a channel that only the layer writes is added; each layer is checked against its own mark, so an inherited `x2` or `shape` is reported only for the layers whose mark cannot draw it |
 | `width`, `height` | Only the top-level values count; they give the size of the plot, and a `{"step": n}` is applied to the merged discrete scale of the layers (the number of categories of the union times the step) |
@@ -1563,8 +1563,11 @@ not supported (`image`, `geoshape`) is reported (`vl-mark-<type>`) and left out,
 **Shared scales and axes.** By default every channel that two or more layers use has **one scale**: the continuous
 domain is the union of the domains of the layers (after each layer's own `zero` rule), the domain of a
 discrete scale is the union of the categories in the order of the layers (sorted when every layer sorts them the same
-way), and when a band scale and a point scale meet, the band scale wins. The first explicit `scale.domain` (or the first
-domain of a quantize, quantile, or threshold scale) is used for all the layers. The axis of a position channel is also
+way), and when a band scale and a point scale meet, the band scale wins. Explicit `scale.domain`s win over the domains
+derived from the data and are merged, as Vega-Lite does: a continuous scale takes the extent of the union of the
+explicit domains of the layers (equal domains count once, so a piecewise domain that every layer gives is kept), and a
+discrete scale takes their categories once each in order of first appearance. The first domain of a quantize, quantile,
+or threshold scale is used for all the layers. The axis of a position channel is also
 one axis. Its title is the merge of the titles of the layers, as in Vega-Lite: a **written** title (the `title` of a
 channel definition, or an `axis.title`) wins over a title **derived** from the field (`crates`, `Mean of crates`), so
 a `bar` with `"title": "Crates"` and a `rule` of the mean of `crates` gives the axis the title `Crates`. Derived titles
@@ -1576,9 +1579,11 @@ channel definition that switches the axis off (`"axis": null`) removes it. Layer
 continuous scale with a discrete one, a linear scale with a log, pow, or time scale, or different discretizing scales)
 keep a scale of their own for the channel, and the warning `vl-layer-scale-conflict` names the layer that was left out.
 
-A legend that several layers share is one legend: it is made from the first layer that has the channel, its title
-merges the titles of the layers in the same way (a written `legend.title` or `title` wins over the titles derived from
-the fields, which join as `a, b`), and its symbols are those of the first layer's mark.
+A legend that several layers share is one legend: its properties are those of the `legend` objects of all the layers (a
+property that one layer gives wins over the silence of the others, and when several give it differently the first layer
+wins), its title merges the titles of the layers in the same way (a written `legend.title` or `title` wins over the
+titles derived from the fields, which join as `a, b`), and its symbols are those of the first layer's mark. Layers
+that give different `legend.orient` values cannot share a legend, as in Vega-Lite: each has a legend of its own.
 
 **`resolve`.** A layered view (the top-level one, or a nested one for its own layers) can give each channel a mode,
 `"shared"` or `"independent"`, for the scale, the axis, and the legend:
@@ -1683,8 +1688,8 @@ marks (as `rule` marks for a one-dimensional band).
 - **Log messages** of Vega-Lite that only warn (a `center` of `median` with an extent other than `iqr`, a `center` or
   `extent` next to a range or errors, an `interpolate` on a one-dimensional band, an aggregate on the measure that the
   composite mark replaces) are not reproduced.
-- **Shared legends** keep the first layer's definition (Vega-Lite merges the properties of the legends of the layers) and
-  its symbol, and an explicit `scale.domain` in several layers uses the first one (Vega-Lite concatenates them).
+- **Shared legends** show the symbols of the first layer's mark (Vega-Lite also merges the symbol encodings of the
+  layers).
 - **A layer-level `config`, `width`, `height`, `title`** and the other properties of the table above are ignored with a
   warning, as the top-level view decides them.
 - **The `extent` of an `errorbar` or `errorband`** accepts only `ci`, `iqr`, `stderr`, and `stdev` (Vega-Lite's schema);

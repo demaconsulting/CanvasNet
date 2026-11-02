@@ -224,6 +224,62 @@ public class ScaleResolverLayerTests
     }
 
     /// <summary>
+    ///     Validates Vega-Lite's merge of explicit domains (<c>mergeValuesWithExplicit</c> with <c>domainsTieBreaker</c>): explicit domains that differ are all kept and
+    ///     Vega takes the extent of their union for a continuous scale; equal explicit domains count once (a piecewise one stays piecewise); an implicit domain is ignored
+    ///     next to an explicit one.
+    /// </summary>
+    [Fact]
+    public void ScaleResolver_ResolveLayers_ExplicitContinuousDomainsAreMerged()
+    {
+        // Arrange
+        static string Layer(string domain) =>
+            $$"""{ "mark": "point", "encoding": { "x": { "field": "k", "type": "nominal" }, "y": { "field": "q", "type": "quantitative", "scale": { "domain": {{domain}} } } } }""";
+        const string Implicit = """{ "mark": "point", "encoding": { "x": { "field": "k", "type": "nominal" }, "y": { "field": "r", "type": "quantitative" } } }""";
+
+        // Act
+        var differing = Resolve(Spec(string.Empty, Layer("[0, 100]"), Implicit, Layer("[50, 200]")));
+        var reversed = Resolve(Spec(string.Empty, Layer("[100, 0]"), Layer("[20, 250]")));
+        var equal = Resolve(Spec(string.Empty, Layer("[0, 100]"), Layer("[0, 100]")));
+        var piecewise = Resolve(Spec(string.Empty, Layer("[0, 50, 100]"), Layer("[0, 50, 100]")));
+
+        // Assert: the extent of the union, for every layer, whichever layers have no explicit domain
+        foreach (var scale in new[] { differing.PerLayer[0]["y"]!, differing.PerLayer[1]["y"]!, differing.PerLayer[2]["y"]!, differing.Merged["y"]! })
+        {
+            Assert.Equal((0.0, 200.0), (scale.DomainStart, scale.DomainEnd));
+            Assert.Null(scale.Domain);
+        }
+
+        // Assert: a reversed domain does not matter next to another one (the extent is taken)
+        Assert.Equal((0.0, 250.0), (reversed.Merged["y"]!.DomainStart, reversed.Merged["y"]!.DomainEnd));
+
+        // Assert: equal domains are one domain; a piecewise one is kept
+        Assert.Equal((0.0, 100.0), (equal.Merged["y"]!.DomainStart, equal.Merged["y"]!.DomainEnd));
+        Assert.Equal([0.0, 50.0, 100.0], piecewise.Merged["y"]!.Domain);
+        Assert.Equal([0.0, 50.0, 100.0], piecewise.PerLayer[1]["y"]!.Domain);
+    }
+
+    /// <summary>
+    ///     Validates that explicit discrete domains of several layers are merged in order of first appearance, and that the categories of a layer without an explicit domain
+    ///     are ignored next to them.
+    /// </summary>
+    [Fact]
+    public void ScaleResolver_ResolveLayers_ExplicitDiscreteDomainsAreMerged()
+    {
+        // Arrange / Act
+        var result = Resolve(Spec(
+            string.Empty,
+            """{ "mark": "point", "encoding": { "x": { "field": "q", "type": "quantitative" }, "color": { "field": "k", "type": "nominal" } } }""",
+            """{ "mark": "point", "encoding": { "x": { "field": "q", "type": "quantitative" }, "color": { "field": "k", "type": "nominal", "scale": { "domain": ["c", "b", "z"] } } } }""",
+            """{ "mark": "point", "encoding": { "x": { "field": "q", "type": "quantitative" }, "color": { "field": "k", "type": "nominal", "scale": { "domain": ["b", "a", "c", "y"] } } } }"""));
+
+        // Assert: c, b, z from the first explicit domain, then the new categories of the second (a, y)
+        var expected = new[] { S("c"), S("b"), S("z"), S("a"), S("y") };
+        Assert.Equal(expected, result.Merged["color"]!.DiscreteDomain);
+        Assert.Equal(expected, result.PerLayer[0]["color"]!.DiscreteDomain);
+        Assert.Equal(expected, result.PerLayer[2]["color"]!.DiscreteDomain);
+    }
+
+    /// <summary>
     ///     Validates the precedence of the scale kinds: a band scale of a bar beats the point scale of a line whichever comes first, so both layers share the
     ///     band scale (with the bar's padding and the step), and the combined categories size the view.
     /// </summary>

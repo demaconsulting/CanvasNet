@@ -1394,13 +1394,17 @@ show the same labels.
 ### Layers: Nested Layers And Data Inheritance
 
 **Tests**: `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_NestedLayersInheritTheEncodingOfEveryLevel`,
-`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_OwnDataReplacesTheInheritedDataAndSharesTheScale`
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_OwnDataReplacesTheInheritedDataAndSharesTheScale`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_NullDataInheritsTheParentsRowsAndOwnDataReplacesThem`
 
 Asserts that a layer inside a layered view inside a layered view inherits the encoding of both (three `marks` groups, the
 points at the top center of the bars, the rule at 112.5 pixels on the shared 0 to 8 scale), and that a layer with its own
 `data` replaces the inherited table while the scale is still shared: the union of the domains is 0 to 10, so the bar of
 4 is 120
-pixels high and the point of 10 is at the top, centered on the category A.
+pixels high and the point of 10 is at the top, centered on the category A. A rule of a constant (`datum`) in a layer
+with no `data`, and in one with `"data": null`, is drawn once for each of the three inherited rows (Vega-Lite's
+`parseRoot` treats a `null` of a child view as absent), for each of the two rows of the layer's own data, and not at
+all for a top-level `"data": null`, which is an empty table.
 
 ### Layers: A Step Applies To The Combined Categories
 
@@ -1413,12 +1417,15 @@ with the labels A, B, and C and bars centered at 15, 45, and 75 pixels.
 
 **Tests**: `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_SharedColorFieldGivesOneLegend`,
 `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_ColorFieldsOfDifferentNamesJoinTheLegendTitle`,
-`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_IndependentLegendsGiveOneLegendPerLayer`
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_IndependentLegendsGiveOneLegendPerLayer`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_LegendPropertiesOfEveryLayerCountAndOrientConflictSplitsTheLegend`
 
 Asserts that two layers that color by the same field have one legend with three entries and one title, that layers that
 color by differently named fields over one shared color scale have one legend titled `a, b` with the entries `A` and
-`B`, and
-that `resolve.legend` independent gives two legends, one for each layer.
+`B`,
+that `resolve.legend` independent gives two legends, one for each layer, that `legend.values` given only by the second
+layer limits the entries of the one shared legend to `A` and `C`, and that layers with explicit orients `left` and
+`right` give two legends while two layers with the same orient give one.
 
 ### Layers: Conflicts And Ignored Properties Are Warned About
 

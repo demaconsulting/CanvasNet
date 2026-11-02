@@ -281,6 +281,8 @@ the labels are the same under the Turkish, German, and invariant cultures and fo
 `LegendPlanLayerTests.LegendPlan_GuideTitle_WrittenTitlesJoinWhenDifferent`,
 `LegendPlanLayerTests.LegendPlan_Create_ChannelOfALaterLayerUsesThatLayersMark`,
 `LegendPlanLayerTests.LegendPlan_Create_ChannelsOfDifferentLayersWithTheSameDomainMerge`,
+`LegendPlanLayerTests.LegendPlan_Create_PropertiesOfALaterLayerAreKeptWhenTheFirstIsSilent`,
+`LegendPlanLayerTests.LegendPlan_Create_ExplicitOrientConflictMakesTheLegendsIndependent`,
 `LegendPlanLayerTests.LegendPlan_Create_LayersInDifferentScopesKeepTheirOwnLegends`,
 `LegendPlanLayerTests.LegendPlan_Create_SingleLayerMatchesTheViewOverloadAndDisableIsHonored`
 
@@ -298,6 +300,14 @@ by one
 field) share one legend, as channels of one view do; that layers in different scopes have a legend each, in layer order,
 and
 that a scope can differ by channel (a legend for each layer's color and one for the shared size, in the order of the first
-channel); and that a single layer plans exactly what the view overload plans for the same view and that the legends can
+channel); that the legend properties of every layer count as Vega-Lite's `mergeLegendComponent` merges them (the orient
+and values that only the second layer gives are those of the one legend, with the mark of the first layer; of two layers
+that give the number of columns differently the first wins; a `gradient` type and a `symbol` type that differ give
+symbols while a `gradient` type and a silent layer give a gradient); that layers that give different explicit orients
+are
+not merged (a legend for each layer, each with the mark of its layer, also when the layer before them is silent),
+while an
+explicit orient with a silent layer, or the same orient twice, is one legend; and that a single layer plans exactly what
+the view overload plans for the same view and that the legends can
 still
 be switched off.

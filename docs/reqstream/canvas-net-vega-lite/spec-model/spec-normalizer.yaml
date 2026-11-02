@@ -44,7 +44,8 @@ sections:
                   replacing the outer channel in place and new channels added after the existing ones, at
                   every nesting level; the width and height of the top-level view (those of a layer are
                   ignored); and the data and transform of each view as that view's own, so that the data and
-                  the transform of an outer view are inherited by the layers below it; and shall leave every
+                  the transform of an outer view are inherited by the layers below it (a layer whose data is
+                  absent or an explicit null inherits, as Vega-Lite's parseRoot does); and shall leave every
                   node of the specification with its own location, parent, and properties.
                 justification: |
                   A layer that does not see the encoding, data, and transform of the view above it draws a
@@ -55,6 +56,7 @@ sections:
                   - SpecNormalizer_Layers_NestedLayersMergeEveryLevel
                   - SpecNormalizer_Layers_UnitTakesSizeOfTopLevelView
                   - SpecNormalizer_Layers_DataAndTransformAreEachViewsOwn
+                  - SpecNormalizer_Layers_NullDataOfALayerInheritsLikeAbsentData
                   - SpecNode_Overlay_KeepsOriginIdentityAndChildrenParents
                   - SpecNode_Overlay_ManyPropertiesAreFoundByName
                   - SpecNode_Overlay_NullArgumentsThrow

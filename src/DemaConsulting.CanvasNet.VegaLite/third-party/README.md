@@ -362,7 +362,8 @@ Where this package deliberately differs from the upstream behavior: the tooltip 
 the bin, the time unit and the aggregate of a channel that groups the rows of a composite mark are not applied (they are
 reported); the shorthand aggregates `boxplot`, `errorbar` and `errorband` of the measure are not accepted; the warnings
 that Vega-Lite only logs for a composite mark are not reproduced; the first explicit domain of the layers wins where
-Vega-Lite unions them; a merged legend takes the symbol facts and the properties of the first layer that has the channel;
+Vega-Lite unions them; a merged legend takes the symbol facts of the first layer that has the channel (Vega-Lite merges
+the symbol encodings);
 the `orient` of the configuration of an axis is not an explicit orient for the placement of independent axes; and the
 number of views, their nesting and the scene items are bounded by the render limits.
 

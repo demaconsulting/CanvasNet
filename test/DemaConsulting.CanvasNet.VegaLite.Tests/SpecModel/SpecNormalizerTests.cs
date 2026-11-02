@@ -169,6 +169,29 @@ public class SpecNormalizerTests
     }
 
     /// <summary>
+    ///     Validates that a layer whose <c>data</c> is absent or an explicit <c>null</c> has no data of its own and so inherits the data above it, as in
+    ///     Vega-Lite's <c>parseRoot</c> (<c>model.data || !model.parent</c> creates a source; <c>null</c> is falsy for a child view), while a layer with a data object has it.
+    /// </summary>
+    [Fact]
+    public void SpecNormalizer_Layers_NullDataOfALayerInheritsLikeAbsentData()
+    {
+        // Arrange / Act
+        var (tree, layers) = Normalize(
+            """
+            { "data": { "values": [ { "a": 1 } ] },
+              "layer": [
+                { "mark": "bar" },
+                { "data": null, "mark": "rule" },
+                { "data": { "values": [ { "a": 2 } ] }, "mark": "point" } ] }
+            """);
+
+        // Assert
+        Assert.Null(layers.Units[0].Data);
+        Assert.Null(layers.Units[1].Data);
+        Assert.Same(tree.Root["layer"]!.Items[2]["data"], layers.Units[2].Data);
+    }
+
+    /// <summary>
     ///     Validates that a composition that is not drawn yet becomes an undrawn node with its name, and that nothing below it is a unit view.
     /// </summary>
     [Theory]

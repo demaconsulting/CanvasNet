@@ -49,7 +49,7 @@ internal enum DomainOrder
 /// </remarks>
 internal sealed record ResolvedScale
 {
-    /// <summary>Gets a value indicating whether the specification gives the domain (<c>scale.domain</c>); an explicit domain of one layer wins when the layers share a scale.</summary>
+    /// <summary>Gets a value indicating whether the specification gives the domain (<c>scale.domain</c>); when the layers share a scale, the explicit domains win over the implicit ones and are merged (Vega-Lite's merge of explicit domains).</summary>
     public bool HasExplicitDomain { get; init; }
 
     /// <summary>Gets the order of the categories of a discrete scale; <see cref="DomainOrder.Ascending"/> for the others.</summary>

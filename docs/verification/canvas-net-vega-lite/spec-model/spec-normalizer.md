@@ -81,7 +81,8 @@ undrawn while its siblings are still units, so the specification reports the com
 **Tests**: `SpecNormalizerTests.SpecNormalizer_Layers_EncodingIsMergedInPlace`,
 `SpecNormalizerTests.SpecNormalizer_Layers_NestedLayersMergeEveryLevel`,
 `SpecNormalizerTests.SpecNormalizer_Layers_UnitTakesSizeOfTopLevelView`,
-`SpecNormalizerTests.SpecNormalizer_Layers_DataAndTransformAreEachViewsOwn`
+`SpecNormalizerTests.SpecNormalizer_Layers_DataAndTransformAreEachViewsOwn`,
+`SpecNormalizerTests.SpecNormalizer_Layers_NullDataOfALayerInheritsLikeAbsentData`
 
 Asserts that a layer reads the encoding of the layered views above it with the parent channels in place, the layer's channel
 replacing the parent's in place and new channels after them, that the outermost encoding comes first through every nesting
@@ -89,7 +90,8 @@ level, and that every value is the original node with its own pointer; that a la
 top-level view and ignores its own while the merged view keeps the pointer and position of the layer; and that the
 `data` and
 the `transform` of a view are its own (the document applies the layered view's transform first) and that a layer without
-them has none.
+them has none; and that a layer whose `data` is an explicit `null` has no data of its own either and so inherits, as
+Vega-Lite's `parseRoot` does (`model.data || !model.parent`; only the top-level `null` gives an empty source).
 
 ##### Node Overlays
 

@@ -198,8 +198,11 @@ documented above as machine-dependent is not a failure.
   `AxisBuilderTests.AxisBuilder_Build_DefaultOrientAndGridApplyOnlyWhenTheAxisSaysNothing`,
   `LegendPlanLayerTests.LegendPlan_Create_SameFieldInTwoLayersIsOneLegend`,
   `LegendPlanLayerTests.LegendPlan_Create_TitlesOfDifferentFieldsJoin`,
-  `LegendPlanLayerTests.LegendPlan_Create_LayersInDifferentScopesKeepTheirOwnLegends` — builds the axis that a layered
+  `LegendPlanLayerTests.LegendPlan_Create_LayersInDifferentScopesKeepTheirOwnLegends`,
+  `LegendPlanLayerTests.LegendPlan_Create_PropertiesOfALaterLayerAreKeptWhenTheFirstIsSilent`,
+  `LegendPlanLayerTests.LegendPlan_Create_ExplicitOrientConflictMakesTheLegendsIndependent` — builds the axis that a layered
   view gives the second independent axis of a channel (the opposite side, no grid) and an axis that names its side and
   grid itself, and plans the legends of the layers: one legend for the layers that share a color, the titles of
-  different fields joined, and one legend for each layer in different scopes; the way the document plans the axes and
+  different fields joined, the legend properties of every layer merged, a legend for each layer when their explicit
+  orients differ, and one legend for each layer in different scopes; the way the document plans the axes and
   scopes from `resolve` is verified at the system tier.

@@ -138,6 +138,40 @@ public class VegaLiteLayerIntegrationTests
     }
 
     /// <summary>
+    ///     Validates Vega-Lite's reading of <c>data</c> in a layer: a layer with a data object reads its own rows, while a layer whose <c>data</c> is absent or an explicit
+    ///     <c>null</c> reads the rows of the view above it (<c>parseRoot</c> creates a source only for <c>model.data || !model.parent</c>), so the rule of a constant
+    ///     (<c>datum</c>) is drawn once for each inherited row, and a top-level <c>null</c> gives an empty table (no marks).
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Layer_NullDataInheritsTheParentsRowsAndOwnDataReplacesThem()
+    {
+        // Arrange: three rows above; the rules of the second layer have no data, a null data, and two rows of their own
+        string Spec(string ruleData) => $$"""
+            {
+              {{CategoryData}},
+              "layer": [
+                { "mark": "bar", "encoding": { "x": { "field": "a", "type": "nominal" }, "y": { "field": "v", "type": "quantitative" } } },
+                { {{ruleData}} "mark": "rule", "encoding": { "y": { "datum": 6 } } }
+              ]
+            }
+            """;
+
+        // Act
+        var absent = Items<SceneRule>(SceneOf(Spec(string.Empty)), "mark-rule");
+        var explicitNull = Items<SceneRule>(SceneOf(Spec("\"data\": null,")), "mark-rule");
+        var own = Items<SceneRule>(SceneOf(Spec("\"data\": { \"values\": [ { \"z\": 1 }, { \"z\": 2 } ] },")), "mark-rule");
+        var emptyRoot = Items<SceneRule>(
+            SceneOf("""{ "data": null, "mark": "rule", "encoding": { "y": { "datum": 6 } } }"""),
+            "mark-rule");
+
+        // Assert: three rules for the inherited rows, in both cases; two for the layer's own rows; none for an empty top-level table
+        Assert.Equal(3, absent.Count);
+        Assert.Equal(3, explicitNull.Count);
+        Assert.Equal(2, own.Count);
+        Assert.Empty(emptyRoot);
+    }
+
+    /// <summary>
     ///     Validates that a line and its points share one pair of axes: the encoding of the top-level view is inherited by both layers, each layer has its own marks group,
     ///     and the layers draw in order (the points over the line).
     /// </summary>
@@ -612,6 +646,37 @@ public class VegaLiteLayerIntegrationTests
         // Assert
         Assert.Equal(2, scene.FindAll("legend").Count());
         Assert.Equal(["a", "a"], Texts(scene, "legend-title"));
+    }
+
+    /// <summary>
+    ///     Validates that the legend properties of every layer count in a shared legend (Vega-Lite's <c>mergeLegendComponent</c>): the <c>values</c> that only the second layer gives
+    ///     limit the entries of the one legend, and layers that give different orients explicitly are not merged but draw a legend each.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Layer_LegendPropertiesOfEveryLayerCountAndOrientConflictSplitsTheLegend()
+    {
+        // Arrange: the first layer is silent about the legend; the second gives values, or an orient that the first (when it has one) contradicts
+        string Spec(string first, string second) => $$"""
+            {
+              {{CategoryData}},
+              "encoding": { "x": { "field": "a", "type": "nominal" }, "y": { "field": "v", "type": "quantitative" } },
+              "layer": [
+                { "mark": "bar", "encoding": { "color": { "field": "a", "type": "nominal"{{first}} } } },
+                { "mark": "point", "encoding": { "color": { "field": "a", "type": "nominal"{{second}} } } }
+              ]
+            }
+            """;
+
+        // Act
+        var values = SceneOf(Spec(string.Empty, ", \"legend\": { \"values\": [\"A\", \"C\"] }"));
+        var conflict = SceneOf(Spec(", \"legend\": { \"orient\": \"left\" }", ", \"legend\": { \"orient\": \"right\" }"));
+        var agree = SceneOf(Spec(", \"legend\": { \"orient\": \"left\" }", ", \"legend\": { \"orient\": \"left\" }"));
+
+        // Assert
+        Assert.Single(values.FindAll("legend"));
+        Assert.Equal(["A", "C"], Texts(values, "legend-label"));
+        Assert.Equal(2, conflict.FindAll("legend").Count());
+        Assert.Single(agree.FindAll("legend"));
     }
 
     /// <summary>

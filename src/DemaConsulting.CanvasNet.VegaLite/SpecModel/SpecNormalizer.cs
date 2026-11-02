@@ -154,7 +154,12 @@ internal sealed class LayerNode
     /// <summary>Gets the number of layered views above this view (zero for the root).</summary>
     public int Depth { get; }
 
-    /// <summary>Gets the <c>data</c> object of this view itself (the data it replaces the inherited data with), or null when it inherits.</summary>
+    /// <summary>
+    ///     Gets the <c>data</c> object of this view itself (the data it replaces the inherited data with), or null when it inherits. An explicit
+    ///     <c>"data": null</c> in a layer inherits too: Vega-Lite's <c>parseRoot</c> only creates a source when <c>model.data || !model.parent</c> holds, so
+    ///     for a child view <c>null</c> is as good as absent and only the top-level view's <c>null</c> gives the empty source (the table of an absent or
+    ///     <c>null</c> top-level <c>data</c> is empty).
+    /// </summary>
     public SpecNode? Data => Source["data"] is { IsObject: true } data ? data : null;
 
     /// <summary>Gets the <c>transform</c> array of this view itself, or null. A layered view's transforms apply to the data before those of each layer.</summary>

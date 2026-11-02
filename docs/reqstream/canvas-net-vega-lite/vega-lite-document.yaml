@@ -341,7 +341,8 @@ sections:
               limits) by loading the data where the nearest data of a view is, running the transform of each
               view in the written order on the table that it inherits before the views below it read it (a
               top-level transform therefore applies once and is seen by every layer, and a layer's own data
-              replaces the inherited table), planning the implicit bin, aggregate, and stack of each layer from
+              replaces the inherited table, and a layer whose data is absent or an explicit null inherits it),
+              planning the implicit bin, aggregate, and stack of each layer from
               its own table, resolving the scales over all the layers, sizing the view from the combined discrete
               scale (the step through layers), building one group of marks for each layer in layer order between
               the axes behind and in front of the marks, and giving the same size to Measure and Render; shall
@@ -360,6 +361,7 @@ sections:
               - CanvasNetVegaLite_SystemIntegration_Layer_TextLabelsSitOnTheBars
               - CanvasNetVegaLite_SystemIntegration_Layer_NestedLayersInheritTheEncodingOfEveryLevel
               - CanvasNetVegaLite_SystemIntegration_Layer_OwnDataReplacesTheInheritedDataAndSharesTheScale
+              - CanvasNetVegaLite_SystemIntegration_Layer_NullDataInheritsTheParentsRowsAndOwnDataReplacesThem
               - CanvasNetVegaLite_SystemIntegration_Layer_StepSizeUsesTheMergedDiscreteScale
               - CanvasNetVegaLite_SystemIntegration_Layer_MeasureMatchesRenderAndRenderIsDeterministic
               - CanvasNetVegaLite_SystemIntegration_Layer_UnsupportedLayerMarkIsReportedAndOthersAreDrawn
@@ -386,6 +388,7 @@ sections:
               - CanvasNetVegaLite_SystemIntegration_Layer_SharedColorFieldGivesOneLegend
               - CanvasNetVegaLite_SystemIntegration_Layer_ColorFieldsOfDifferentNamesJoinTheLegendTitle
               - CanvasNetVegaLite_SystemIntegration_Layer_IndependentLegendsGiveOneLegendPerLayer
+              - CanvasNetVegaLite_SystemIntegration_Layer_LegendPropertiesOfEveryLayerCountAndOrientConflictSplitsTheLegend
               - CanvasNetVegaLite_SystemIntegration_Layer_ScaleConflictWarnsAndStillDraws
               - CanvasNetVegaLite_SystemIntegration_Layer_PropertiesOfTheTopLevelViewAreIgnoredInALayer
               - CanvasNetVegaLite_SystemIntegration_Layer_WrittenAxisTitleWinsOverDerivedAndOthersJoin

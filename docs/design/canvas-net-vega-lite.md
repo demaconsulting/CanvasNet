@@ -1258,8 +1258,11 @@ The following decisions differ from, or are stricter than, the Vega-Lite referen
     of the highest precedence (band, then point, then the rest), the domain is the union of the layers' domains (continuous:
     from the smallest start to the largest end, each after the layer's own zero rule; discrete: every category once in layer
     order, sorted when all the layers sort the same way), and the owner's scale is built again over that domain so that
-    everything that depends on the domain agrees. Where Vega-Lite unions several explicit domains, this renderer takes the
-    **first** explicit domain; the legend of a merged channel takes the symbol facts and the properties of the **first**
+    everything that depends on the domain agrees. Explicit domains follow Vega-Lite's `mergeValuesWithExplicit` with
+    `domainsTieBreaker`: an explicit domain beats an implicit one (which is ignored), equal explicit domains count once,
+    and different ones are all kept, which Vega unions (continuous: the extent of all the values; discrete: every
+    category once in order of first appearance). The legend of a merged channel takes the symbol facts and the
+    properties of the **first**
     layer that has it (Vega-Lite merges them); the layer scales that cannot be merged keep their own with the warning
     `vl-layer-scale-conflict`. `resolve` can make a scale, an axis, or a legend independent, in nested layered views too.
 62. **Guides of layers (P10-D3)**: the layers that share a position scale and an axis have one axis, whose title merges

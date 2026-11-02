@@ -33,6 +33,15 @@ internal sealed record LegendMember(string Channel, ResolvedScale Scale, ScaleMo
 {
     /// <summary>Gets the title the layers that share this member's legend agree on (see <see cref="GuideTitle.Merge"/>), or null when only one layer contributes.</summary>
     public GuideTitle? MergedTitle { get; init; }
+
+    /// <summary>Gets the <c>legend</c> objects of all the layers that share this member's legend in layer order (the first one is <see cref="Legend"/>), or null when only one layer contributes.</summary>
+    public IReadOnlyList<SpecNode>? LayerLegends { get; init; }
+
+    /// <summary>Gets the <c>legend</c> objects that give this member's properties, in layer order: those of all the layers that share the legend, else the one of the channel definition.</summary>
+    public IReadOnlyList<SpecNode> LegendObjects => LayerLegends ?? (Legend is null ? [] : [Legend]);
+
+    /// <summary>Gets the orient that a <c>legend</c> object gave explicitly (the first one in layer order), or null.</summary>
+    public string? ExplicitOrient => LegendObjects.Select(l => l["orient"]?.AsString()).FirstOrDefault(o => o is not null);
 }
 
 /// <summary>
@@ -321,8 +330,9 @@ internal sealed class LegendMarkFacts
 }
 
 /// <summary>
-///     Looks up legend properties in the order Vega-Lite and Vega define: the <c>legend</c> object of the channel (the first
-///     member of a merged legend that has the property), then <c>config.legend</c> with the Vega-Lite and Vega defaults.
+///     Looks up legend properties in the order Vega-Lite and Vega define: the <c>legend</c> objects of the channels and layers that share the legend (Vega-Lite's
+///     <c>mergeValuesWithExplicit</c>: a property that only one of them gives wins, and when several give it differently the first wins, layers before channels),
+///     then <c>config.legend</c> with the Vega-Lite and Vega defaults.
 /// </summary>
 internal sealed class LegendSettings
 {
@@ -372,6 +382,13 @@ internal sealed class LegendSettings
     /// <param name="name">The property.</param>
     /// <returns>The node, or null.</returns>
     public SpecNode? ExplicitNode(string name) => _legends.Select(l => l[name]).FirstOrDefault(n => n is not null);
+
+    /// <summary>
+    ///     Reads the distinct text values that the <c>legend</c> objects give a property, in order (Vega-Lite's conflict check of a property that is given explicitly more than once).
+    /// </summary>
+    /// <param name="name">The property.</param>
+    /// <returns>The distinct texts; empty when no legend object gives the property as text.</returns>
+    public IReadOnlyList<string> ExplicitTexts(string name) => [.. _legends.Select(l => l[name]?.AsString()).OfType<string>().Distinct()];
 
     /// <summary>
     ///     Reads a property with the full precedence: the legend object, then <c>config.legend</c>.
@@ -541,9 +558,12 @@ internal static class LegendPlan
     /// <remarks>
     ///     <para>
     ///         For each channel, the layers that share a legend (the same <see cref="LegendLayer.Scope"/> for the channel) contribute one member: the first layer that has a legend for the
-    ///         channel decides its scale, definition, <c>legend</c> object and the mark facts of the symbols, and the titles of all the layers merge as <see cref="GuideTitle"/> says: a written
-    ///         title of any layer wins over the titles derived from fields, the derived titles join as <c>a, b</c>, and different written titles join too
-    ///         (Vega-Lite merges the legends of layers; the merged symbols follow the first layer, a documented deviation). Layers in different scopes (an independent legend or
+    ///         channel decides its scale, definition and the mark facts of the symbols; the titles of all the layers merge as <see cref="GuideTitle"/> says (a written
+    ///         title of any layer wins over the titles derived from fields, the derived titles join as <c>a, b</c>, and different written titles join too); and the <c>legend</c> objects of
+    ///         all the layers give the properties as Vega-Lite's <c>mergeLegendComponent</c> merges them (a property that one layer gives wins over the silence of the others, and when
+    ///         several give it differently the first layer wins; explicit <c>type</c>s that differ give symbols). Layers that give different <c>orient</c>s explicitly cannot be merged, as
+    ///         in Vega-Lite: the channel's legend is then independent, a legend for each layer. The merged symbols follow the first layer's mark (a documented approximation of
+    ///         Vega-Lite's merge of the symbol encodings). Layers in different scopes (an independent legend or
     ///         scale) have legends of their own. The members then merge into legends exactly as those of one view do, but only within a scope.
     ///     </para>
     ///     <para>A single layer with the default scope plans exactly what <see cref="Create(SpecNode, ResolvedScales, ResolvedConfig, string?)"/> plans for its view.</para>
@@ -569,7 +589,7 @@ internal static class LegendPlan
             foreach (var (member, layer) in CreateMembers(channel, layers))
             {
                 var key = Key(member) + "#" + (layers[layer].Scope?.Invoke(channel) ?? string.Empty);
-                var home = groups.FindIndex(g => g.Key == key && !OrientsConflict(g.Members, member));
+                var home = groups.FindIndex(g => g.Key == key && !OrientsConflict(g.Members, member) && g.Members.All(m => m.Channel != member.Channel));
                 if (home >= 0)
                 {
                     groups[home].Members.Add(member);
@@ -604,7 +624,7 @@ internal static class LegendPlan
     /// <returns>The members with the index of the layer each came from, in layer order.</returns>
     private static List<(LegendMember Member, int Layer)> CreateMembers(string channel, IReadOnlyList<LegendLayer> layers)
     {
-        var found = new List<(string Scope, LegendMember Member, int Layer, GuideTitle Title, int Count)>();
+        var found = new List<(string Scope, List<(LegendMember Member, int Layer)> Layers)>();
         for (var i = 0; i < layers.Count; i++)
         {
             if (layers[i].View["encoding"] is not { IsObject: true } encoding || !TryCreateMember(channel, encoding, layers[i].Scales, out var member))
@@ -616,23 +636,47 @@ internal static class LegendPlan
             var home = found.FindIndex(f => f.Scope == scope);
             if (home >= 0)
             {
-                var (_, first, layer, title, count) = found[home];
-                found[home] = (scope, first, layer, GuideTitle.Merge(title, TitleOf(member)), count + 1);
+                found[home].Layers.Add((member, i));
             }
             else
             {
-                found.Add((scope, member, i, TitleOf(member), 1));
+                found.Add((scope, [(member, i)]));
             }
         }
 
         var result = new List<(LegendMember, int)>(found.Count);
-        foreach (var (_, member, layer, title, count) in found)
+        foreach (var (_, contributions) in found)
         {
-            result.Add((count > 1 ? member with { MergedTitle = title } : member, layer));
+            if (contributions.Count == 1)
+            {
+                result.Add(contributions[0]);
+            }
+            else if (contributions.Select(c => c.Member.ExplicitOrient).Where(o => o is not null).Distinct().Count() > 1)
+            {
+                // Vega-Lite's mergeLegendComponent cannot merge legends that give different orients explicitly: the channel's legend becomes independent, a legend for each layer
+                result.AddRange(contributions);
+            }
+            else
+            {
+                result.Add((MergeLayers(contributions), contributions[0].Layer));
+            }
         }
 
         return result;
     }
+
+    /// <summary>
+    ///     Merges the members of the layers that share the legend of a channel: the first layer's member carries the titles of all the layers (<see cref="GuideTitle.Merge"/>) and their
+    ///     <c>legend</c> objects, so that a property of any of them counts (the first layer that gives it wins).
+    /// </summary>
+    /// <param name="contributions">The members with their layers, in layer order.</param>
+    /// <returns>The merged member.</returns>
+    private static LegendMember MergeLayers(List<(LegendMember Member, int Layer)> contributions) =>
+        contributions[0].Member with
+        {
+            MergedTitle = contributions.Select(c => TitleOf(c.Member)).Aggregate(GuideTitle.Merge),
+            LayerLegends = [.. contributions.SelectMany(c => c.Member.LegendObjects)],
+        };
 
     /// <summary>
     ///     Gets the title that a member gives its legend: the written title of the <c>legend</c> object or of the channel definition, else the one derived from the field (the title of the
@@ -777,13 +821,13 @@ internal static class LegendPlan
     /// <returns><see langword="true"/> when the two must not be merged.</returns>
     private static bool OrientsConflict(List<LegendMember> members, LegendMember member)
     {
-        var candidate = member.Legend?["orient"]?.AsString();
+        var candidate = member.ExplicitOrient;
         if (candidate is null)
         {
             return false;
         }
 
-        var existing = members.Select(m => m.Legend?["orient"]?.AsString()).FirstOrDefault(o => o is not null);
+        var existing = members.Select(m => m.ExplicitOrient).FirstOrDefault(o => o is not null);
         return existing is not null && existing != candidate;
     }
 
@@ -797,7 +841,7 @@ internal static class LegendPlan
     /// <returns>The legend.</returns>
     private static LegendSpec Build(List<LegendMember> members, LegendMarkFacts mark, ResolvedConfig config, string? sourceName)
     {
-        var settings = new LegendSettings(config, [.. members.Where(m => m.Legend is not null).Select(m => m.Legend!)]);
+        var settings = new LegendSettings(config, [.. members.SelectMany(m => m.LegendObjects)]);
         var kind = ResolveKind(members, settings);
         var explicitOrient = settings.Explicit("orient")?.AsString();
         var orient = explicitOrient ?? settings.Text("orient") ?? "right";
@@ -825,7 +869,14 @@ internal static class LegendPlan
     private static LegendKind ResolveKind(List<LegendMember> members, LegendSettings settings)
     {
         var kinds = members.Select(GradientFor).Distinct().ToList();
-        var explicitType = settings.Explicit("type")?.AsString();
+        var explicitTypes = settings.ExplicitTexts("type");
+        if (explicitTypes.Count > 1)
+        {
+            // Vega-Lite: two explicit types that differ merge to the symbol type (there are only two, and symbols are preferred)
+            return LegendKind.Symbol;
+        }
+
+        var explicitType = explicitTypes.FirstOrDefault();
         if (explicitType == "symbol")
         {
             return LegendKind.Symbol;

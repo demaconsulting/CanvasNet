@@ -440,9 +440,14 @@ parameter) resolve no scale.
   with the owner's (`CanMerge`: a discrete with a continuous scale, a different continuous kind or transform such as
   linear with log or time, different discretizing kinds) keeps its own scale and the group yields a
   `vl-layer-scale-conflict` warning located at its channel definition; the **shared domain** is combined
-  (`CombineDomains`): for a continuous scale the minimum of the starts and the maximum of the ends (each layer's domain
-  already follows its own zero rule), or the first explicit (or piecewise) domain; for a discrete scale every category
-  once in layer order, sorted when every layer sorts ascending or descending (or in the first explicit domain), failing
+  (`CombineDomains`): when any layer has an explicit domain, those decide (Vega-Lite's `mergeValuesWithExplicit`: an
+  explicit domain beats an implicit one, which is ignored; equal explicit domains count once, so a piecewise domain
+  that all give is kept; different ones are merged by Vega into a union, here the minimum and the maximum of all their
+  values), otherwise the
+  minimum of the starts and the maximum of the ends (each layer's domain already follows its own zero rule), or the first
+  piecewise domain; for a discrete scale the explicit domains' categories once each in order of first appearance, or
+  else every category
+  once in layer order, sorted when every layer sorts ascending or descending, failing
   with a `VegaLiteRenderException` above `MaxScaleDomainSize`; the discretizing kinds (quantize, quantile, threshold, and
   bin-ordinal) keep the owner's scale. The owner is then **re-resolved** with `Context.Shared` set to the combined domain
   (the hooks are in `BuildContinuous`, which replaces the domain after the zero rule and the explicit bounds and before

@@ -516,10 +516,12 @@ sections:
                 title: >-
                   The ScaleResolver unit shall resolve the scales of the layers of a layered view so that a channel
                   that two or more layers carry, and that resolve leaves shared (the default), has one scale
-                  whose continuous domain is the union of the domains of the layers (each after its own zero rule,
-                  an explicit domain of the first layer that has one winning), whose discrete domain is the
-                  union of the categories in layer order (sorted when every layer sorts the same way, an explicit
-                  domain winning, and failing closed above the scale-domain limit), whose kind is the band scale
+                  whose continuous domain is the union of the domains of the layers (each after its own zero rule;
+                  explicit domains winning over implicit ones and, when they differ, all merged as Vega-Lite does
+                  (the extent of all their values)), whose discrete domain is the
+                  union of the categories in layer order (sorted when every layer sorts the same way, the explicit
+                  domains winning and merged in order of first appearance, and failing closed above the
+                  scale-domain limit), whose kind is the band scale
                   rather than the point scale when the layers differ, whose step sizes the combined categories,
                   whose title joins the distinct titles of the layers (a, b), and whose discretizing kinds are those
                   of the first layer; shall give each layer that scale bound to the layer's own field, so that the
@@ -538,6 +540,8 @@ sections:
                   - ScaleResolver_ResolveLayers_DiscreteOrderFollowsTheLayersSorts
                   - ScaleResolver_ResolveLayers_ExplicitDiscreteDomainWins
                   - ScaleResolver_ResolveLayers_ExplicitContinuousDomainWins
+                  - ScaleResolver_ResolveLayers_ExplicitContinuousDomainsAreMerged
+                  - ScaleResolver_ResolveLayers_ExplicitDiscreteDomainsAreMerged
                   - ScaleResolver_ResolveLayers_BandBeatsPointAndSizesTheView
                   - ScaleResolver_ResolveLayers_StepAppliesToTheCombinedCategories
                   - ScaleResolver_ResolveLayers_DiscretizingScaleIsTheFirstLayersOwn

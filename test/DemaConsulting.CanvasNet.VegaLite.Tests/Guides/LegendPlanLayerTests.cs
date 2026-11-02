@@ -8,8 +8,8 @@ namespace DemaConsulting.CanvasNet.VegaLite.Tests.Guides;
 
 /// <summary>
 ///     Unit tests of <see cref="LegendPlan"/> for the layers of a layered view: the legend of a channel that several layers share is planned once (the first layer decides the
-///     scale, the properties and the facts of the symbols, the titles of the fields join), layers in different scopes keep legends of their own, and a single layer plans exactly what the
-///     view overload plans.
+///     scale and the facts of the symbols, the legend properties of all the layers merge as Vega-Lite's <c>mergeLegendComponent</c> does, the titles of the fields join), layers that give
+///     different orients or are in different scopes keep legends of their own, and a single layer plans exactly what the view overload plans.
 /// </summary>
 public class LegendPlanLayerTests
 {
@@ -228,8 +228,69 @@ public class LegendPlanLayerTests
     }
 
     /// <summary>
-    ///     Reads a written title from a JSON value.
+    ///     Validates Vega-Lite's merge of the properties of the legends of layers: a property that a later layer gives wins over the silence of the first layer, and when several
+    ///     layers give a property differently the first layer's value wins, while two explicit types that differ give symbols (<c>mergeLegendComponent</c>).
     /// </summary>
+    [Fact]
+    public void LegendPlan_Create_PropertiesOfALaterLayerAreKeptWhenTheFirstIsSilent()
+    {
+        // Arrange / Act: the first layer is silent, the second gives the orient and the values; two layers give the number of columns differently; two layers give different types
+        var later = Plan([
+            """{ "mark": "bar", "encoding": { "color": { "field": "a", "type": "nominal" } } }""",
+            """{ "mark": "point", "encoding": { "color": { "field": "a", "type": "nominal", "legend": { "orient": "bottom", "values": ["A", "B"] } } } }""",
+        ]);
+        var columns = Plan([
+            """{ "mark": "bar", "encoding": { "color": { "field": "a", "type": "nominal" } } }""",
+            """{ "mark": "point", "encoding": { "color": { "field": "a", "type": "nominal", "legend": { "columns": 2 } } } }""",
+            """{ "mark": "tick", "encoding": { "color": { "field": "a", "type": "nominal", "legend": { "columns": 3 } } } }""",
+        ]);
+        string Continuous(string type) => $$"""{ "mark": "point", "encoding": { "color": { "field": "v", "type": "quantitative", "legend": { "type": "{{type}}" } } } }""";
+        var gradient = Plan([Continuous("gradient"), """{ "mark": "bar", "encoding": { "color": { "field": "v", "type": "quantitative" } } }"""]);
+        var different = Plan([Continuous("gradient"), Continuous("symbol")]);
+
+        // Assert: the orient and values of the later layer, with the mark of the first layer; the first layer's columns; symbols for different types
+        var legend = Assert.Single(later);
+        Assert.Equal("bottom", legend.Orient);
+        Assert.True(legend.ExplicitOrient);
+        Assert.False(legend.Vertical);
+        Assert.Equal(2, legend.Settings.ExplicitNode("values")?.Items.Count);
+        Assert.Equal("bar", legend.Mark.MarkType);
+        Assert.Equal(2, Assert.Single(columns).Settings.Number("columns"));
+        Assert.Equal(LegendKind.Gradient, Assert.Single(gradient).Kind);
+        Assert.Equal(LegendKind.Symbol, Assert.Single(different).Kind);
+    }
+
+    /// <summary>
+    ///     Validates that layers that give different <c>orient</c>s explicitly are not merged (Vega-Lite makes the legend of the channel independent: a legend for each layer, each with
+    ///     the mark of its layer), while an explicit orient with a silent layer or the same orient in both layers is one legend.
+    /// </summary>
+    [Fact]
+    public void LegendPlan_Create_ExplicitOrientConflictMakesTheLegendsIndependent()
+    {
+        // Arrange
+        string Layer(string mark, string orient)
+        {
+            var legend = orient.Length == 0 ? string.Empty : ", \"legend\": { \"orient\": \"" + orient + "\" }";
+            return "{ \"mark\": \"" + mark + "\", \"encoding\": { \"color\": { \"field\": \"a\", \"type\": \"nominal\"" + legend + " } } }";
+        }
+
+        // Act
+        var conflict = Plan([Layer("bar", "left"), Layer("point", "right")]);
+        var conflictAfterSilent = Plan([Layer("bar", string.Empty), Layer("point", "left"), Layer("tick", "right")]);
+        var silent = Plan([Layer("bar", string.Empty), Layer("point", "left")]);
+        var same = Plan([Layer("bar", "left"), Layer("point", "left")]);
+
+        // Assert
+        Assert.Equal(["left", "right"], conflict.Select(l => l.Orient));
+        Assert.Equal(["bar", "point"], conflict.Select(l => l.Mark.MarkType));
+        Assert.Equal(["a", "a"], conflict.Select(l => l.Title![0]));
+        Assert.Equal(["right", "left", "right"], conflictAfterSilent.Select(l => l.Orient));
+        Assert.Equal(["bar", "point", "tick"], conflictAfterSilent.Select(l => l.Mark.MarkType));
+        Assert.Equal("left", Assert.Single(silent).Orient);
+        Assert.Equal("left", Assert.Single(same).Orient);
+    }
+
+
     /// <param name="json">The JSON text of the title value.</param>
     /// <returns>The written title.</returns>
     private static GuideTitle Written(string json) => GuideTitle.FromWritten(SpecParser.Parse("{\"t\": " + json + "}").Root["t"]!);

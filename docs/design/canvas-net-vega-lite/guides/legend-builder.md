@@ -60,14 +60,22 @@ Scene roles: `legend` (group) containing `legend-entry` (group) and `legend-titl
   overload `Create(view, scales, config, sourceName)` is a call with one layer) - the same planning over the layers of
   a layered view. For each channel, the layers that have the same **scope** for it (the function `Scope(channel)` that
   `VegaLiteDocument` builds from the layers' `resolve` of the legend and their scale groups, so layers whose legend or
-  scale is independent are in different scopes) contribute one member: that of the first layer that has a legend for the
-  channel, planned with that layer's own scale (the merged one for a shared channel); the titles of all the layers of
+  scale is independent are in different scopes) contribute one member: the first layer that has a legend for the
+  channel decides its scale (the merged one for a shared channel), definition and the mark facts; the titles of all the
+  layers of
   the scope merge as `GuideTitle.Merge` does (Vega-Lite's `mergeValuesWithExplicit` with `mergeTitleComponent`): a written
   legend or channel title of any layer wins over the titles derived from fields, derived titles join with a comma
-  (`a, b`), different written titles join too, equal ones are one. Members of different layers and scopes then merge
-  exactly as members of one view do (equal key and
-  scope), and the `LegendMarkFacts` of a legend are those of the layer that its first member comes from. A merged
-  legend takes the properties of the first layer that has the channel (Vega-Lite merges the properties of all the layers).
+  (`a, b`), different written titles join too, equal ones are one. The `legend` objects of all the layers give the
+  properties as `mergeLegendComponent` merges them (`LegendMember.LayerLegends`, read by `LegendSettings` in layer
+  order, then
+  channel order): a property that one layer gives wins over the silence of the others, and when several give it
+  differently the first one wins (Vega-Lite's default tie-breaker, with a warning there); explicit `type`s that
+  differ give a symbol legend (`ExplicitTexts`). Layers that give different explicit `orient`s cannot be merged
+  (Vega-Lite's `mergeLegendComponent` returns undefined and the channel's legend becomes independent): each of them is
+  a member of its own, with the mark facts of its layer. Members of different layers and scopes then merge
+  exactly as members of one view do (equal key and scope, no two members of a channel in one legend), and the
+  `LegendMarkFacts` of a legend are those of the layer that its first member comes from (Vega-Lite also merges the
+  symbol encodings of the layers, `symbolType` preferring circle; not reproduced).
 - `LegendPlan.Create(view, scales, config, sourceName)` - for each channel in the order color, size, shape, fill,
   stroke, strokeDash, strokeWidth, opacity that has a scale and a field or datum (and whose `legend` and `scale` are not
   null, with `config.legend.disable` unset) creates a member; members whose domains are the same (a key from the
@@ -230,8 +238,8 @@ that `LegendPlan` reads from a channel that no field drives: the fill, stroke, o
 condition on a test (Vega-Lite's `getFirstConditionValue`), else the value of the channel, and the opacity is the largest
 of the value of the channel and the values of its conditions, so the symbols are as visible as the most visible mark.
 
-The legend of a **layered view** (phase 10) takes the symbol facts, the properties (`legend` object), and the explicit
-title of the first layer that has the channel; Vega-Lite merges the symbol encodings and the properties of all the layers,
-so a legend whose layers disagree on them (for example a bar layer and a point layer that both color by one field) shows
-the
-symbols of the first layer only.
+The legend of a **layered view** (phase 10) takes the symbol facts of the first layer that has the channel, and the
+properties (`legend` objects) and titles of all the layers as Vega-Lite's `mergeLegendComponent` merges them (see
+`LegendPlan.Create(layers, ...)`); Vega-Lite also merges the symbol encodings of the layers, so a legend whose layers
+disagree on them (for example a bar layer and a point layer that both color by one field) shows the symbols of the first
+layer only.

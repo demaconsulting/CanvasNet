@@ -390,8 +390,23 @@ internal static partial class ScaleResolver
             return new SharedDomain(channel, 0, 0, null, CombineCategories(owner, scales, limits));
         }
 
-        // An explicit domain, or a domain with more than two entries, is not combined: the first layer that has one decides
-        var deciding = scales.FirstOrDefault(s => s.HasExplicitDomain) ?? scales.FirstOrDefault(s => s.Domain is not null);
+        // Vega-Lite's mergeValuesWithExplicit: explicit domains win over implicit ones, which are then ignored; explicit domains that differ are all kept,
+        // and Vega takes the extent of the union of their values (a piecewise domain is not kept). An explicit domain that equals another one counts once.
+        var explicitScales = scales.Where(s => s.HasExplicitDomain).ToList();
+        if (explicitScales.Count > 0)
+        {
+            var first = explicitScales[0];
+            if (explicitScales.All(s => SameDomain(first, s)))
+            {
+                return new SharedDomain(channel, first.DomainStart, first.DomainEnd, first.Domain?.ToArray(), null);
+            }
+
+            var values = explicitScales.SelectMany(s => s.Domain ?? [s.DomainStart, s.DomainEnd]).ToList();
+            return new SharedDomain(channel, values.Min(), values.Max(), null, null);
+        }
+
+        // An implicit domain of more than two entries (a diverging color scale, for one) is not combined: the first layer that has one decides
+        var deciding = scales.FirstOrDefault(s => s.Domain is not null);
         if (deciding is not null)
         {
             return new SharedDomain(channel, deciding.DomainStart, deciding.DomainEnd, deciding.Domain?.ToArray(), null);
@@ -401,19 +416,29 @@ internal static partial class ScaleResolver
     }
 
     /// <summary>
+    ///     Tells whether two continuous scales have the same domain (Vega-Lite's <c>deepEqual</c> of the domains).
+    /// </summary>
+    /// <param name="a">The first scale.</param>
+    /// <param name="b">The second scale.</param>
+    /// <returns><see langword="true"/> when the domains hold the same numbers in the same order.</returns>
+    private static bool SameDomain(ResolvedScale a, ResolvedScale b) =>
+        (a.Domain ?? [a.DomainStart, a.DomainEnd]).SequenceEqual(b.Domain ?? [b.DomainStart, b.DomainEnd]);
+
+    /// <summary>
     ///     Combines the categories of discrete scales.
     /// </summary>
     /// <param name="owner">The owner's scale (the location of a limit error).</param>
     /// <param name="scales">The scales of the members, in layer order.</param>
     /// <param name="limits">The limits.</param>
-    /// <returns>The categories: those of the first explicit domain; otherwise every category once in layer order, sorted when every layer sorts the same way.</returns>
+    /// <returns>The categories: when any layer gives an explicit domain, the union of the explicit domains (every category once, in order of first appearance; implicit domains are ignored, as in Vega-Lite); otherwise every category once in layer order, sorted when every layer sorts the same way.</returns>
     /// <exception cref="VegaLiteRenderException">Thrown when the combined categories exceed <see cref="VegaLiteLimits.MaxScaleDomainSize"/>.</exception>
     private static List<DataValue> CombineCategories(ResolvedScale owner, List<ResolvedScale> scales, VegaLiteLimits limits)
     {
         List<DataValue> categories;
-        if (scales.FirstOrDefault(s => s.HasExplicitDomain) is { } explicitScale)
+        if (scales.Any(s => s.HasExplicitDomain))
         {
-            categories = [.. explicitScale.DiscreteDomain];
+            var seenExplicit = new HashSet<DataValue>();
+            categories = [.. scales.Where(s => s.HasExplicitDomain).SelectMany(s => s.DiscreteDomain).Where(seenExplicit.Add)];
         }
         else
         {

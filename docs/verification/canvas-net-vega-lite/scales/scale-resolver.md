@@ -699,6 +699,7 @@ layers, and a layer without a unit view are refused.
 **Tests**: `ScaleResolverLayerTests.ScaleResolver_ResolveLayers_SharedContinuousDomainIsTheUnion`,
 `ScaleResolverLayerTests.ScaleResolver_ResolveLayers_UnionIncludesTheZeroOfALayer`,
 `ScaleResolverLayerTests.ScaleResolver_ResolveLayers_ExplicitContinuousDomainWins`,
+`ScaleResolverLayerTests.ScaleResolver_ResolveLayers_ExplicitContinuousDomainsAreMerged`,
 `ScaleResolverLayerTests.ScaleResolver_ResolveLayers_DiscretizingScaleIsTheFirstLayersOwn`
 
 With the sample data (`q` 3, 7, 12, 5 and `r` 10, 20, 35, 15), asserts that two layers whose `q` spans 3 to 12 and `r`
@@ -706,8 +707,13 @@ spans 10 to
 35 without the zero rule share one scale for the view over the union 3 to 35, titled `q, r`, that both layers map with that
 domain but read their own field and keep their own title, that the zero rule of a layer applies before the union (a bar
 whose
-domain is 0 to 12 and a rule whose domain is 10 to 35 give 0 to 35), that the explicit domain of one layer decides the shared
-domain wherever the layer is, and that a discretizing scale is not combined (the first layer's domain and intervals are
+domain is 0 to 12 and a rule whose domain is 10 to 35 give 0 to 35), that the explicit domain of one layer decides the
+shared domain, that an explicit domain wins over the implicit ones wherever the layer is, that explicit domains that
+differ
+are merged into a union (0 to 100 and 50 to 200 give 0 to 200 for all three layers, the implicit layer between them
+included; a
+reversed 100 to 0 with 20 to 250 gives 0 to 250), that equal explicit domains count once (a piecewise 0, 50, 100 that two
+layers give stays piecewise), and that a discretizing scale is not combined (the first layer's domain and intervals are
 used
 by all the layers that share it, though the second layer's own data reaches 100).
 
@@ -716,6 +722,7 @@ by all the layers that share it, though the second layer's own data reaches 100)
 **Tests**: `ScaleResolverLayerTests.ScaleResolver_ResolveLayers_DiscreteDomainIsTheSortedUnion`,
 `ScaleResolverLayerTests.ScaleResolver_ResolveLayers_DiscreteOrderFollowsTheLayersSorts`,
 `ScaleResolverLayerTests.ScaleResolver_ResolveLayers_ExplicitDiscreteDomainWins`,
+`ScaleResolverLayerTests.ScaleResolver_ResolveLayers_ExplicitDiscreteDomainsAreMerged`,
 `ScaleResolverLayerTests.ScaleResolver_ResolveLayers_BandBeatsPointAndSizesTheView`,
 `ScaleResolverLayerTests.ScaleResolver_ResolveLayers_StepAppliesToTheCombinedCategories`,
 `ScaleResolverLayerTests.ScaleResolver_ResolveLayers_CombinedCategoriesAreLimited`
@@ -724,7 +731,9 @@ Asserts that the categories are combined without repeats and sorted when every l
 the
 second layer's own data joins, every layer sees the combined categories, and an ordinal color scale is built for the combined
 domain); that the order is descending when every layer sorts descending and the first appearance (b, a, c, then the new
-category) when the layers disagree; that the explicit domain of the first layer that has one is the shared domain; that
+category) when the layers disagree; that the explicit domain of the first layer that has one is the shared domain, that
+the explicit domains of several layers are merged in order of first appearance (`c, b, z` and `b, a, c, y` give
+`c, b, z, a, y`, a layer without one being ignored); that
 a band
 scale of a bar beats the point scale of a line whichever comes first, so both layers share the band scale with the bar's
 padding, and the default step of 20 pixels sizes the view for all four categories; that an explicit step sizes the union

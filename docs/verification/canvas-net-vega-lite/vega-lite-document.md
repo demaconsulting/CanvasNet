@@ -313,6 +313,7 @@ mattering), and the calendar and data details by the _TimeCalendar_ and _DataLoa
 `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_TextLabelsSitOnTheBars`,
 `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_NestedLayersInheritTheEncodingOfEveryLevel`,
 `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_OwnDataReplacesTheInheritedDataAndSharesTheScale`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_NullDataInheritsTheParentsRowsAndOwnDataReplacesThem`,
 `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_StepSizeUsesTheMergedDiscreteScale`,
 `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_MeasureMatchesRenderAndRenderIsDeterministic`,
 `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_UnsupportedLayerMarkIsReportedAndOthersAreDrawn`,
@@ -324,6 +325,7 @@ mattering), and the calendar and data details by the _TimeCalendar_ and _DataLoa
 `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_SharedColorFieldGivesOneLegend`,
 `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_ColorFieldsOfDifferentNamesJoinTheLegendTitle`,
 `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_IndependentLegendsGiveOneLegendPerLayer`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_LegendPropertiesOfEveryLayerCountAndOrientConflictSplitsTheLegend`,
 `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_ScaleConflictWarnsAndStillDraws`,
 `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_WrittenAxisTitleWinsOverDerivedAndOthersJoin`,
 `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_BarsWithWrittenTitlesAndMeanRuleKeepTheWrittenTitles`,
@@ -353,7 +355,8 @@ pair of
 axes whose titles merge (a written title wins over a derived one, as in Vega-Lite; the others join), or over two axes
 (the second on the opposite side and with no grid) and one legend for each
 layer when
-`resolve` says independent; that a step sizes the union of the categories; that a layer with an unsupported mark is reported
+`resolve` says independent, and a shared legend that takes the properties of every layer (and splits when the explicit
+orients differ); that a step sizes the union of the categories; that a layer with an unsupported mark is reported
 and the others are drawn, that a variable parameter declared in a layer and a transform inside a concatenation are reported,
 and that a layered view with no layer draws only the background; that the limits of the views and of the nesting fail
 with a

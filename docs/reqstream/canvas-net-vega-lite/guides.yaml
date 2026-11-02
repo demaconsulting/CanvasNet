@@ -213,3 +213,5 @@ sections:
               - LegendPlan_Create_SameFieldInTwoLayersIsOneLegend
               - LegendPlan_Create_WrittenTitleOfAnyLayerWinsOverDerivedTitles
               - LegendPlan_Create_LayersInDifferentScopesKeepTheirOwnLegends
+              - LegendPlan_Create_PropertiesOfALaterLayerAreKeptWhenTheFirstIsSilent
+              - LegendPlan_Create_ExplicitOrientConflictMakesTheLegendsIndependent
