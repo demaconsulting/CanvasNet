@@ -63,7 +63,7 @@ internal static class ChannelDefinitions
     ///         <c>scale.type</c> (<c>quantitative</c> for a numeric or discretizing scale, <c>temporal</c> for <c>time</c> and <c>utc</c>); and <c>nominal</c> otherwise.
     ///         The channel does not matter beyond the first three rules, so a field on <c>x</c> or <c>y</c> without a type is nominal.
     ///         A secondary channel (<c>x2</c>, <c>y2</c>, <c>theta2</c>, <c>radius2</c>) takes the type of its main channel. A datum takes its type from its value: a number is
-    ///         quantitative, a text or a boolean nominal, a date-time object temporal.
+    ///         quantitative, a date-time object temporal, and anything else (a text, a boolean, another object) nominal.
     ///     </para>
     ///     <para>The method reads the specification tree only and is constant work.</para>
     /// </remarks>
@@ -102,13 +102,14 @@ internal static class ChannelDefinitions
     /// <returns>The inferred type.</returns>
     private static string InferType(SpecNode definition, string channel)
     {
-        // A datum has the type of its value, whatever the channel
+        // A datum has the type of its value, whatever the channel (Vega-Lite's initDatumDef): a number is quantitative, a
+        // date-time object temporal, and anything else (a text, a boolean, another object) nominal
         if (definition["datum"] is { } datum && definition["field"] is null)
         {
             return datum.Kind switch
             {
                 SpecNodeKind.Number => "quantitative",
-                SpecNodeKind.Object => "temporal",
+                SpecNodeKind.Object when SpecParser.IsDateTimeShaped(datum) => "temporal",
                 _ => "nominal",
             };
         }

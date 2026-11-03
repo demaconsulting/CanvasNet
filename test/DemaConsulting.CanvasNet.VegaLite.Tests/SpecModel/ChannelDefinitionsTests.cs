@@ -186,6 +186,12 @@ public class ChannelDefinitionsTests
         Assert.Equal("nominal", ChannelDefinitions.TypeOf(number["color"]!, "color"));
         Assert.Equal("quantitative", ChannelDefinitions.TypeOf(number["shape"]!, "shape"));
 
+        // Assert: only a date-time object is temporal; another object (an expression reference) is not
+        var objects = SpecParser.Parse("""{ "data": { "values": [] }, "mark": "rule", "encoding": { "x": { "datum": { "year": 2024, "month": 3 } }, "y": { "datum": { "expr": "1 + 1" } } } }""")
+            .Root["encoding"]!;
+        Assert.Equal("temporal", ChannelDefinitions.TypeOf(objects["x"]!, "x"));
+        Assert.Equal("nominal", ChannelDefinitions.TypeOf(objects["y"]!, "y"));
+
         // Assert: a map position is quantitative
         Assert.Equal("quantitative", ChannelDefinitions.TypeOf(number["x"]!, "latitude"));
         Assert.Equal("quantitative", ChannelDefinitions.TypeOf(dated["y2"]!, "longitude"));
