@@ -1622,6 +1622,7 @@ sections:
           - CanvasNetVegaLite_SystemIntegration_Autosize_FitWithStepWarns
           - CanvasNetVegaLite_SystemIntegration_Autosize_FitIsNotReportedAnymore
           - CanvasNetVegaLite_SystemIntegration_Autosize_MeasureFitEqualsRender
+          - CanvasNetVegaLite_SystemIntegration_Autosize_FitThatDoesNotSettleDrawsAxesForTheFinalRectangle
           - CanvasNetVegaLite_SystemIntegration_Autosize_CompositionIgnoresFitAndContainerWithWarning
           - CanvasNetVegaLite_SystemIntegration_Render_ContainerWidthFillsTheContainer
 
@@ -1687,6 +1688,7 @@ sections:
           - CanvasNetVegaLite_SystemIntegration_Repeat_DataIsLoadedOnceForAllCopies
           - CanvasNetVegaLite_SystemIntegration_Repeat_ProductLimit
           - CanvasNetVegaLite_SystemIntegration_Repeat_UnknownRefWarnsAndDropsChannel
+          - CanvasNetVegaLite_SystemIntegration_Repeat_FacetWithUnknownRefIsDropped
           - CanvasNetVegaLite_SystemIntegration_Repeat_ColumnsWithRowColumnWarns
           - CanvasNetVegaLite_SystemIntegration_Repeat_ColorLegendIsDrawnOnce
 

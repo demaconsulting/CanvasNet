@@ -1825,8 +1825,9 @@ copy:
 
 A reference may stand for the `field` or the `datum` of a channel, the field of a `sort`, and the `field` of a condition.
 A reference that the enclosing repeat does not define is warned about (`vl-repeat-ref-unresolved`) and the channel is
-dropped, as in Vega-Lite. The copies are normalized before anything is read, so the product of the lists is checked
-against `MaxViews` first. A repeat draws **no header**: the repeated field is the title of each axis. The `spec` of a
+dropped, as in Vega-Lite (a `facet` that is left with no field is dropped and its `spec` is drawn without a
+facet). The copies are normalized before anything is read, so the product of the lists is checked against `MaxViews`
+first. A repeat draws **no header**: the repeated field is the title of each axis. The `spec` of a
 layer repeat gives the size of the layered chart, and the `spec` of any other repeat is the chart of each copy.
 
 **Sizes, order, and cost.** Every cell is built and measured before it is placed, so a composition costs what its charts

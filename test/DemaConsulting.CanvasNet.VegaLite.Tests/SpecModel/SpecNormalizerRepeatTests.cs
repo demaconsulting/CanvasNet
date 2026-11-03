@@ -183,6 +183,27 @@ public class SpecNormalizerRepeatTests
     }
 
     /// <summary>
+    ///     Validates that a facet whose only field is a repeat reference with no value is dropped, with the warning at the reference: the <c>spec</c> is the view (a layer of one), not a facet.
+    /// </summary>
+    [Fact]
+    public void SpecNormalizer_Layers_FacetWithUnresolvedRepeatFieldIsDropped()
+    {
+        // Arrange / Act: a repeat of values has no "row" value
+        var (_, layers) = Normalize(
+            """
+            { "repeat": [ "a", "b" ], "spec": { "facet": { "field": { "repeat": "row" }, "type": "nominal" },
+              "spec": { "mark": "point", "encoding": { "x": { "field": "v", "type": "quantitative" } } } } }
+            """);
+
+        // Assert: no facet in the tree; the unit view stands in a layer of one; one warning at the reference
+        Assert.All(layers.Units, u => Assert.NotEqual(ViewKind.Facet, u.Parent!.Kind));
+        Assert.Equal(2, layers.Units.Count);
+        var warning = Assert.Single(layers.Warnings);
+        Assert.Equal("vl-repeat-ref-unresolved", warning.Id);
+        Assert.Equal("/spec/facet/field", warning.Location.Pointer);
+    }
+
+    /// <summary>
     ///     Validates that an unresolved reference in a <c>sort</c> drops only the sort, and one in a condition drops only that condition.
     /// </summary>
     [Fact]

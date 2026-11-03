@@ -266,7 +266,8 @@ sections:
                   repeats around the view give (a string located at the reference, an inner repeat overriding an
                   outer one), also in the facet fields of a faceted view, and shall drop what a reference with no
                   value belongs to (the channel, the sort, or the condition) with one vl-repeat-ref-unresolved
-                  warning at the reference.
+                  warning at the reference; a facet whose every field is such a reference is dropped, and its
+                  spec is the view.
                 justification: |
                   The references are how the copies of a repeat differ, and an unresolved one must not draw a
                   channel with a field that does not exist.
@@ -274,6 +275,7 @@ sections:
                   - SpecNormalizer_Layers_ArrayRepeatMakesConcatWithColumns
                   - SpecNormalizer_Layers_RepeatReplacesRefInFieldSortFieldDatumAndCondition
                   - SpecNormalizer_Layers_MissingRepeatValueDropsChannelWithWarning
+                  - SpecNormalizer_Layers_FacetWithUnresolvedRepeatFieldIsDropped
                   - SpecNormalizer_Layers_MissingRepeatValueInSortOrConditionDropsOnlyThat
                   - SpecNormalizer_Layers_RepeatOfFacetedUnitFacetsByTheRepeatedField
 

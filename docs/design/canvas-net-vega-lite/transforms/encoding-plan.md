@@ -262,7 +262,9 @@ its facet fields; the document asks this part for the cells once the table of th
   `sort`, **and for `sort: null`** (a facet has no data order: unlike a scale it sorts); `"descending"` reverses it (a null
   last); a **sort array** puts the listed values first in the order of the array (the first position of a value counts)
   and then every value the array does not list in order of first appearance - nothing is dropped (Vega-Lite's
-  `sort_index` is the position in the array or its length for an unlisted value); a sort by an aggregate (`{field, op}`)
+  `sort_index` is the position in the array or its length for an unlisted value; a date-time object of the array of a
+  temporal field is the date it names in the
+  active calendar and matches the date values of the rows); a sort by an aggregate (`{field, op}`)
   is not supported and the ascending order of the field is used (the feature catalog reports `vl-facet-sort`). A `bin`,
   `timeUnit` or `aggregate` of the definition is not applied: the raw value of the field is the value of the cell
   (reported as `vl-facet-field-transform`). A sort array longer than `MaxScaleDomainSize` is a located

@@ -464,6 +464,7 @@ sections:
               - CanvasNetVegaLite_SystemIntegration_Autosize_FitWithStepWarns
               - CanvasNetVegaLite_SystemIntegration_Autosize_FitIsNotReportedAnymore
               - CanvasNetVegaLite_SystemIntegration_Autosize_MeasureFitEqualsRender
+              - CanvasNetVegaLite_SystemIntegration_Autosize_FitThatDoesNotSettleDrawsAxesForTheFinalRectangle
               - CanvasNetVegaLite_SystemIntegration_Autosize_CompositionIgnoresFitAndContainerWithWarning
               - VegaLiteDocument_Refactor_SceneIsUnchangedForSingleAndLayeredViews
 

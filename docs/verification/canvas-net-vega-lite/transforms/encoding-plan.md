@@ -519,6 +519,7 @@ Verification Design_.
 
 **Tests**: `EncodingTransformsFacetTests.EncodingTransforms_FacetDomain_DistinctValuesAreSortedAscendingByDefault`,
 `EncodingTransformsFacetTests.EncodingTransforms_FacetDomain_DescendingNullAndArraySort`,
+`EncodingTransformsFacetTests.EncodingTransforms_FacetDomain_SortArrayOfDateTimeObjectsOrdersTemporalValues`,
 `EncodingTransformsFacetTests.EncodingTransforms_FacetDomain_SortByAggregateUsesAscendingOrder`,
 `EncodingTransformsFacetTests.EncodingTransforms_FacetDomain_NullValuesFormTheirOwnFirstCell`,
 `EncodingTransformsFacetTests.EncodingTransforms_Facet_CrossProductIncludesEmptyCombinations`,
@@ -539,7 +540,9 @@ are 9, 10, 100 (by value, not the text order 10, 100, 9); that `sort: "descendin
 and then the unlisted values b, null, and d in the order they appear in the data, none dropped (`q`, which no row has, adds
 nothing); that a sort by the mean of `v` in descending order (`{field, op, order}`) is not supported and the ascending
 order of the field is used; that a missing value and a null are one null cell, first, holding the rows with v = 2 and 3,
-and that a field no row has is one cell of nulls with all six rows.
+and that a field no row has is one cell of nulls with all six rows; that the sort array of a temporal field (rows of
+2022, 2020, 2021, and 2019) that lists the date-time objects 2021 (UTC) and 2022 gives the cells 2021, 2022, 2020,
+2019.
 For the facet by `r` and `c` asserts the 2 x 5 grid in
 row-major order (indexes 0 to 9, row indexes 0 x 5 then 1 x 5, column indexes 0 to 4 twice), the row counts of the cells
 `0, 1, 0, 1, 1, 1, 1, 1, 0, 0` (the combinations the data has no row for are cells with no rows: (x, null), (x, b),

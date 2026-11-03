@@ -339,7 +339,8 @@ sections:
                   null or missing value a cell of its own, an array or object compared by its text, numbers by
                   value), ordered as Vega-Lite orders the cells of a facet - ascending with a null first by default
                   and for sort null, descending for sort descending, the values of a sort array first in the
-                  order of the array and then the unlisted values in order of first appearance (none dropped), and
+                  order of the array (a date-time object of a temporal field matching a date) and then the
+                  unlisted values in order of first appearance (none dropped), and
                   ascending for a sort by an aggregate, which the unit does not support - shall make the grid of
                   every combination of a row value and a column value in row-major order (one column for a
                   facet without a column field, one row for one without a row field, the combinations that no
@@ -352,6 +353,7 @@ sections:
                 tests:
                   - EncodingTransforms_FacetDomain_DistinctValuesAreSortedAscendingByDefault
                   - EncodingTransforms_FacetDomain_DescendingNullAndArraySort
+                  - EncodingTransforms_FacetDomain_SortArrayOfDateTimeObjectsOrdersTemporalValues
                   - EncodingTransforms_FacetDomain_SortByAggregateUsesAscendingOrder
                   - EncodingTransforms_FacetDomain_NullValuesFormTheirOwnFirstCell
                   - EncodingTransforms_Facet_CrossProductIncludesEmptyCombinations

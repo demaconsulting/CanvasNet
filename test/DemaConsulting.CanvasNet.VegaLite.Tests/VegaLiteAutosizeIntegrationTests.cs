@@ -334,6 +334,34 @@ public class VegaLiteAutosizeIntegrationTests
     }
 
     /// <summary>
+    ///     Validates that the axes of a fitted view match its final data rectangle when the fit does not settle in the passes the layout is iterated for: the width of the labels of the
+    ///     y axis depends on the ticks, which depend on the height, which depends on the labels. For these container heights (found by search, with the data up to 12345) the guides built for
+    ///     the previous rectangle were drawn, so the y axis was 5 pixels too long (361 instead of 356) or 1 pixel too long (17 instead of 16).
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Autosize_FitThatDoesNotSettleDrawsAxesForTheFinalRectangle()
+    {
+        // Arrange
+        const string json = """
+            { "data": { "values": [ { "a": 1, "v": 0 }, { "a": 5, "v": 12345 } ] }, "width": "container", "height": "container", "autosize": "fit",
+              "mark": "point", "encoding": { "x": { "field": "a", "type": "quantitative" }, "y": { "field": "v", "type": "quantitative" } } }
+            """;
+
+        foreach (var height in new[] { 403, 60 })
+        {
+            // Act
+            var scene = SceneOf(json, new VegaLiteRenderOptions { ContainerWidth = 300, ContainerHeight = height });
+            var plot = Plot(scene);
+            var domains = scene.FindAll("axis-domain").Select(e => (SceneRule)e.Item).ToList();
+
+            // Assert: the two axes span the data rectangle exactly
+            Assert.Equal(2, domains.Count);
+            Assert.Contains(domains, r => Math.Abs(r.X2 - r.X - plot.Width) < 1e-9);
+            Assert.Contains(domains, r => Math.Abs(r.Y2 - r.Y - plot.Height) < 1e-9 || Math.Abs(r.Y - r.Y2 - plot.Height) < 1e-9);
+        }
+    }
+
+    /// <summary>
     ///     Validates that measuring and rendering agree on the size of a fitted view and of a container view.
     /// </summary>
     [Fact]

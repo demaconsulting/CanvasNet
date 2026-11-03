@@ -359,7 +359,7 @@ internal sealed partial class EncodingTransforms
             for (var i = 0; i < listed.Items.Count; i++)
             {
                 _context.Tick(i);
-                if (ListedValue(listed.Items[i]) is { } value)
+                if (ListedValue(listed.Items[i], _context.Evaluator.Context.Calendar) is { } value)
                 {
                     index.TryAdd(value, i);
                 }
@@ -377,10 +377,19 @@ internal sealed partial class EncodingTransforms
     /// <summary>
     ///     Reads a value of a sort array.
     /// </summary>
+    /// <remarks>A date-time object is the date it names in the active calendar (the time zone of the render, or UTC when it says <c>utc</c>), as Vega-Lite's <c>valueExpr</c> makes it.</remarks>
     /// <param name="item">The item of the array.</param>
-    /// <returns>The value; null for an item that is not a string, a number, a boolean or <c>null</c> (it matches no value).</returns>
-    private static DataValue? ListedValue(SpecNode item)
+    /// <param name="calendar">The active calendar.</param>
+    /// <returns>The value; null for an item that is not a string, a number, a boolean, <c>null</c> or a date-time object (it matches no value).</returns>
+    private static DataValue? ListedValue(SpecNode item, TimeCalendar calendar)
     {
+        if (item.IsObject)
+        {
+            return DateTimeObject.TryRead(item, out var date, out _, out _) && date.ToMilliseconds(calendar) is var ms && TimeCalendar.IsValid(ms)
+                ? DataValue.FromDate(ms)
+                : null;
+        }
+
         if (item.IsString)
         {
             return DataValue.FromString(item.StringValue);

@@ -149,6 +149,15 @@ internal static partial class SpecNormalizer
             definition = new FacetDefinition(row, column, null);
         }
 
+        if (definition.Row is null && definition.Column is null && definition.Wrap is null)
+        {
+            // Every field was a repeat reference without a value (reported at the reference): there is nothing to facet by, so the facet is dropped and the spec is the view, as a layer of one
+            node.MakeLayer(LayerResolve.Default);
+            node.SetChartRoot(ChartOf(node));
+            AddChildren(state, node, [spec], depth, false);
+            return;
+        }
+
         var columns = FacetColumns(state, view, null, definition);
         node.MakeFacet("facet", LayerResolve.Read(view["resolve"], ViewKind.Facet), ReadLayout(state, view, null, "facet", CompositionAlign.All, columns), definition);
         state.Compositions.Add(node);

@@ -377,6 +377,39 @@ public class EncodingTransformsFacetTests
     }
 
     /// <summary>
+    ///     Validates that a sort array of a temporal facet field lists dates as date-time objects (a local one in the active calendar, and a UTC one): they match the dates of the
+    ///     rows, so the listed dates come first in the order of the array, and the dates it does not list follow in the order they first appear.
+    /// </summary>
+    [Fact]
+    public void EncodingTransforms_FacetDomain_SortArrayOfDateTimeObjectsOrdersTemporalValues()
+    {
+        // Arrange: the rows hold 2022, 2020, 2021 and 2019; the array lists 2021 and then 2022 (the dates of 2020 and 2019 are not listed)
+        const string json = """
+            {"data":{"values":[{"t":"2022-01-01"},{"t":"2020-01-01"},{"t":"2021-01-01"},{"t":"2019-01-01"}],"format":{"parse":{"t":"date:'%Y-%m-%d'"}}},
+             "facet":{"column":{"field":"t","type":"temporal","sort":[{"year":2021,"month":"jan","date":1,"utc":true},{"year":2022,"month":1,"date":1}]}},
+             "spec":{"mark":"point","encoding":{"x":{"field":"t","type":"temporal"}}}}
+            """;
+        var (table, context, _, tree) = AggregateTestSupport.Prepare(json);
+        var facet = SpecNormalizer.Layers(tree).Root.Facet!;
+
+        // Act
+        var columns = EncodingTransforms.FacetDomain(facet, table, context).Columns;
+
+        // Assert: 2021, 2022, then 2020 and 2019 in the order they appear
+        Assert.Equal(4, columns.Count);
+        Assert.Equal(
+            [Utc(2021), Utc(2022), Utc(2020), Utc(2019)],
+            columns);
+    }
+
+    /// <summary>
+    ///     Gets the date value of the first of January of a year, in UTC.
+    /// </summary>
+    /// <param name="year">The year.</param>
+    /// <returns>The date.</returns>
+    private static DataValue Utc(int year) => DataValue.FromDate(TimeCalendar.Utc.FromParts(year, 0, 1, 0, 0, 0, 0));
+
+    /// <summary>
     ///     Validates that a table without rows has no cell and is not an error.
     /// </summary>
     [Fact]

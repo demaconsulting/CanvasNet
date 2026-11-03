@@ -158,7 +158,9 @@ object of the mark definition), `Orient` and `TryOrient`, `ContinuousAxis`, `Pos
   node and the `data` of the `spec` is the copies' own. **References**: in the merged encoding of a unit (and in the facet
   fields of a faceted view) a `{"repeat": name}` in a channel's `field` or `datum`, the `field` of a `sort`, and the
   `field` or `datum` of a condition is replaced by a string node located at the reference; a reference with no value is
-  reported once as `vl-repeat-ref-unresolved` and drops the channel (or the `sort`, or the condition). A chart with no
+  reported once as `vl-repeat-ref-unresolved` and drops the channel (or the `sort`, or the condition); a `facet` whose
+  every field is such a reference is dropped: the node
+  becomes a layer of one over the `spec` (the chart is drawn without a facet, at the size of the `spec`). A chart with no
   reference keeps its encoding node, so a copy with nothing to replace is the `spec` object itself.
 - `Expand(SpecTree tree, ResolvedConfig config, VegaLiteLimits? limits)` - the same walk with an expander: a unit
   view whose mark is `boxplot`, `errorbar`, or `errorband` becomes a layered node (`IsLayer`, `IsExpansion`) whose

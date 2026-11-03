@@ -198,7 +198,9 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   pipeline happens here, on the calling thread. `BuildChart` iterates the guides of the **cell** (`BuildCellGuides`: the
   axes, then the legends) and the layout at most three passes (each pass builds the axes and the legends again for the
   data rectangle, the legends are placed by `LegendLayout` against the axes and their reach joins the extents of the
-  axes before the title is laid out), then builds the content of the cell once (`BuildCell`, passing the guides of the
+  axes before the title is laid out; when the third pass still changed the data rectangle the guides are built once
+  more for the final one, so they never belong to an earlier rectangle), then builds the content of the cell once
+  (`BuildCell`, passing the guides of the
   pass it kept: grids, back axes, marks, front axes, then the legends) and assembles the scene (the content, then the
   title). `PrepareChartOrReport` wraps it so that a `VegaLiteSpecException` or `VegaLiteRenderException` still delivers
   the document's reports before it is rethrown (in strict mode the first unsupported feature wins). **Fit and container

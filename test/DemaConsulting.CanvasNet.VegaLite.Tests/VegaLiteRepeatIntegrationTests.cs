@@ -296,6 +296,52 @@ public class VegaLiteRepeatIntegrationTests
     }
 
     /// <summary>
+    ///     Validates that a facet whose field is a repeat reference with no value is dropped and the <c>spec</c> alone is drawn, with the warning delivered once, and no error.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Repeat_FacetWithUnknownRefIsDropped()
+    {
+        // Arrange: a repeat of values has no "row" value, so the facet has no field
+        var json = $$"""
+            {
+              {{Data}},
+              "repeat": [ "a", "b" ],
+              "spec": { "facet": { "field": { "repeat": "row" }, "type": "nominal" },
+                        "spec": { "width": 100, "height": 80, "mark": "point",
+                                  "encoding": { "x": { "field": { "repeat": "repeat" }, "type": "quantitative", "axis": null }, "y": { "field": "d", "type": "quantitative", "axis": null } } } }
+            }
+            """;
+
+        // Act
+        var (warnings, unsupported) = Report(json);
+        var cells = Cells(SceneOf(json));
+
+        // Assert: one warning, and two charts side by side, as for a repeat without a facet
+        Assert.Single(warnings, w => w.StartsWith("vl-repeat-ref-unresolved:", StringComparison.Ordinal));
+        Assert.Empty(unsupported);
+        Assert.Equal([(6.0, 6.0), (128.0, 6.0)], cells);
+
+        // Arrange: the same facet at the root, where no repeat gives a value; it is the chart of its spec, of the size of the spec
+        var root = $$"""
+            {
+              {{Data}},
+              "facet": { "field": { "repeat": "row" }, "type": "nominal" },
+              "spec": { "width": 100, "height": 80, "mark": "point",
+                        "encoding": { "x": { "field": "a", "type": "quantitative", "axis": null }, "y": { "field": "d", "type": "quantitative", "axis": null } } }
+            }
+            """;
+
+        // Act
+        var (rootWarnings, _) = Report(root);
+        var scene = SceneOf(root);
+
+        // Assert
+        Assert.Single(rootWarnings, w => w.StartsWith("vl-repeat-ref-unresolved:", StringComparison.Ordinal));
+        var plot = (SceneGroup)scene.FindAll("view").First().Item;
+        Assert.Equal((100.0, 80.0), (plot.Width, plot.Height));
+    }
+
+    /// <summary>
     ///     Validates that <c>columns</c> next to a repeat of rows and columns is ignored with a warning, delivered once.
     /// </summary>
     [Fact]

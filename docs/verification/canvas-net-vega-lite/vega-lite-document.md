@@ -378,6 +378,7 @@ _SpecNormalizer_, _ScaleResolver_, _AxisBuilder_, and _LegendBuilder_ unit desig
 `VegaLiteAutosizeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Autosize_FitWithStepWarns`,
 `VegaLiteAutosizeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Autosize_FitIsNotReportedAnymore`,
 `VegaLiteAutosizeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Autosize_MeasureFitEqualsRender`,
+`VegaLiteAutosizeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Autosize_FitThatDoesNotSettleDrawsAxesForTheFinalRectangle`,
 `VegaLiteAutosizeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Autosize_CompositionIgnoresFitAndContainerWithWarning`
 
 A single or layered view with `autosize` `fit`, `fit-x`, or `fit-y`, or a `"container"` width or height (Vega-Lite's
@@ -388,7 +389,10 @@ fit and rounds the reach of each side up to whole pixels, so the canvas is the s
 numbers of every scenario are listed in the _CanvasNetVegaLite System Verification Design_ (the autosize scenario) and in
 the _ViewLayout_ and _LegendLayout_ unit designs; the scenarios also verify that a step size drops the fit with the
 warning `vl-layout-fit-step` (delivered after the data stage's own reports), that `Measure` equals `Render`, and that a
-composition ignores a fit and a container size with `vl-composition-property-ignored`.
+composition ignores a fit and a container size with `vl-composition-property-ignored`. A fit that does not settle in the
+three passes (the width of the y axis labels
+of a chart with data up to 12345 changes with the height that it leaves, for container heights of 403 and 60) has
+its guides built once more for the final rectangle, so the axes span exactly the data rectangle.
 
 #### Cells: The Scene Of A Single Or Layered View Is Unchanged By The Extraction
 
@@ -460,6 +464,7 @@ deliberate change of the output is captured again by running the test with the e
 `VegaLiteRepeatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Repeat_DataIsLoadedOnceForAllCopies`,
 `VegaLiteRepeatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Repeat_ProductLimit`,
 `VegaLiteRepeatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Repeat_UnknownRefWarnsAndDropsChannel`,
+`VegaLiteRepeatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Repeat_FacetWithUnknownRefIsDropped`,
 `VegaLiteRepeatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Repeat_ColumnsWithRowColumnWarns`,
 `VegaLiteRepeatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Repeat_ColorLegendIsDrawnOnce`
 
@@ -495,7 +500,8 @@ one y axis titled `a, b`) that takes the size of its `spec` (cells of 160 by 70 
 references give the field and the axis title, the data of the repeated `spec` is read once (a limit of five rows is
 enough for four copies), the product of the rows and the columns is checked against `MaxViews` before any copy is made
 (40 by 40 is refused), a reference that the repeat does not define is the warning `vl-repeat-ref-unresolved` (delivered
-once, the channel is dropped), `columns` next to rows and columns is the warning `vl-composition-columns-ignored` (once,
+once, the channel is dropped; a facet whose field is such a reference is dropped, and its `spec` is drawn without a
+facet, at the size of the `spec`), `columns` next to rows and columns is the warning `vl-composition-columns-ignored` (once,
 and the grid stays two columns wide), and the color scale of the copies is shared, with one legend beside the grid. A
 `"container"` width and a `fit` autosize of a concatenation are the warning `vl-composition-property-ignored` and the
 canvas is the content plus the padding. The limits of the views, the nesting, and the scene items are enforced with a

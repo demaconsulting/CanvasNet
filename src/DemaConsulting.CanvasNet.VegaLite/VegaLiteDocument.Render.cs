@@ -349,16 +349,16 @@ public sealed partial class VegaLiteDocument
     }
 
     /// <summary>
-    ///     Gets the view that decides the size of a chart: the view itself, or, for a repeat of layers, the view with the <c>width</c>, <c>height</c> and <c>view</c> of its <c>spec</c> where it has none.
+    ///     Gets the view that decides the size of a chart: the view itself, or, for a repeat of layers or a facet that was dropped (its fields were unresolved repeat references), the view with the <c>width</c>, <c>height</c> and <c>view</c> of its <c>spec</c> where it has none.
     /// </summary>
     /// <remarks>
-    ///     Vega-Lite sizes a layered view that has no size of its own from its layers, and the layers of a repeat of layers are copies of the <c>spec</c>.
+    ///     Vega-Lite sizes a layered view that has no size of its own from its layers, and the layers of a repeat of layers (or the only layer of a dropped facet) are copies of the <c>spec</c>.
     /// </remarks>
     /// <param name="view">The view of the chart.</param>
     /// <returns>The view, or an overlay of it that adds the size of the repeated <c>spec</c>.</returns>
     private static SpecNode SizeSource(SpecNode view)
     {
-        if (view["repeat"] is { IsObject: true } && view["spec"] is { IsObject: true } spec)
+        if ((view["repeat"] is { IsObject: true } || view["facet"] is { IsObject: true }) && view["spec"] is { IsObject: true } spec)
         {
             var missing = SpecNormalizer.SizeOf(spec).Where(p => view[p.Name!] is null).ToList();
             if (missing.Count > 0)
@@ -410,7 +410,7 @@ public sealed partial class VegaLiteDocument
     /// <remarks>
     ///     The axes and the legends need the size of the data rectangle (tick counts, positions, the length of a gradient) and the data
     ///     rectangle can depend on them (a <c>"container"</c> size leaves the room the axes and the legends do not need), so they are
-    ///     iterated with the layout until the rectangle does not change; for a fixed size the first pass is final. The legends are placed
+    ///     iterated with the layout until the rectangle does not change (at most three passes; when the last pass still changed the rectangle, the guides are built once more for the final one); for a fixed size the first pass is final. The legends are placed
     ///     outside the axes and add their reach to that of the axes before the title is laid out, so a legend outside the data rectangle
     ///     makes the canvas larger. The marks are built once, for the final rectangle. The
     ///     axes come first in the view group, so that they are drawn behind the marks (Vega-Lite's default axis z-index), and the legends last.
@@ -429,11 +429,13 @@ public sealed partial class VegaLiteDocument
         var measure = ViewLayout.Measure(inputs.Request, default, inputs.Title);
         var guides = new CellGuides([], new LegendPlacement([], SceneBounds.Empty));
         var passBudget = budget;
+        var (builtWidth, builtHeight) = (double.NaN, double.NaN);
         for (var pass = 0; pass < 3; pass++)
         {
             // Each pass builds the axes and the legends afresh, so each is charged to a fork; only the pass that is kept is adopted
             passBudget = budget.Fork();
             guides = BuildCellGuides(cell, measure.DataWidth, measure.DataHeight, passBudget, cancellationToken);
+            (builtWidth, builtHeight) = (measure.DataWidth, measure.DataHeight);
 
             // The legends join the axes in what the data rectangle needs around it, before the title is laid out
             var extents = LegendLayout.Combine(AxisBuilder.GetExtents(guides.Axes, measure.DataWidth, measure.DataHeight), guides.Legends, measure.DataWidth, measure.DataHeight, inputs.Request.IsFit);
@@ -444,6 +446,13 @@ public sealed partial class VegaLiteDocument
             {
                 break;
             }
+        }
+
+        // A fit that did not settle in the passes allowed: the last pass measured a rectangle other than the one its guides were built for, so build them once more for the final rectangle
+        if (Math.Abs(builtWidth - measure.DataWidth) >= 1e-9 || Math.Abs(builtHeight - measure.DataHeight) >= 1e-9)
+        {
+            passBudget = budget.Fork();
+            guides = BuildCellGuides(cell, measure.DataWidth, measure.DataHeight, passBudget, cancellationToken);
         }
 
         budget.Adopt(passBudget);

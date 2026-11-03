@@ -197,6 +197,7 @@ itself with its pointer; and that an empty list has no views.
 
 **Tests**: `SpecNormalizerRepeatTests.SpecNormalizer_Layers_RepeatReplacesRefInFieldSortFieldDatumAndCondition`,
 `SpecNormalizerRepeatTests.SpecNormalizer_Layers_MissingRepeatValueDropsChannelWithWarning`,
+`SpecNormalizerRepeatTests.SpecNormalizer_Layers_FacetWithUnresolvedRepeatFieldIsDropped`,
 `SpecNormalizerRepeatTests.SpecNormalizer_Layers_MissingRepeatValueInSortOrConditionDropsOnlyThat`,
 `SpecNormalizerRepeatTests.SpecNormalizer_Layers_RepeatOfFacetedUnitFacetsByTheRepeatedField`
 
@@ -204,7 +205,9 @@ Asserts that a reference in a field, a sort field, a datum, and a condition fiel
 string located at the reference while the rest of each definition is kept; that a reference with no value drops the
 channel and is warned about once at the reference even when two copies have it; that an unresolved reference in a sort
 drops only the sort and one in a condition drops only that condition (two warnings, at the two references); and that the
-facet field of a faceted unit view in a repeat is replaced (`a`, `b`).
+facet field of a faceted unit view in a repeat is replaced (`a`, `b`); and that a
+`facet` whose only field is a reference with no value is dropped (its `spec` is a unit view in a layer of one, in
+each of the two copies) with one warning at `/spec/facet/field`.
 
 ##### Node Overlays
 
