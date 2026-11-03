@@ -368,10 +368,11 @@ internal sealed partial class CommandRegistry
     {
         var names = _commands.SelectMany(c => c.Aliases.Prepend(c.Name))
             .Concat(HelpTopics.All.SelectMany(t => t.Aliases.Prepend(t.Name)))
-            .Append(TopicsSubject);
+            .Append(TopicsSubject)
+            .Append(HelpCommandName);
         var suggestion = ClosestName(subject, names);
 
-        var valid = string.Join(", ", _commands.Select(c => c.Name).Concat(HelpTopics.TopicNames).Append(TopicsSubject));
+        var valid = string.Join(", ", _commands.Select(c => c.Name).Concat(HelpTopics.TopicNames).Append(TopicsSubject).Append(HelpCommandName));
         var hint = $"Valid subjects: {valid}. Run 'canvasnet help topics' for descriptions.";
         if (suggestion != null)
         {

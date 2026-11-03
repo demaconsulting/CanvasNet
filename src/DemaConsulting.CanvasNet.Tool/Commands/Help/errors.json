@@ -10,6 +10,7 @@
       "items": [
         { "text": "The exit code is 0 for success and 1 for every failure. The finer distinction is the stable error code." },
         { "text": "Standard error carries 'Error: <code>: <message>' and, when there is advice, a 'Hint: <advice>' line. There is no stack trace for an expected failure." },
+        { "text": "Exception: a malformed global option (such as --depth abc) or a --log file that cannot be opened fails before the command line is fully read; it prints 'Error: <message>' with no code and no JSON document, and the exit code is still 1." },
         { "text": "With --json (and without --silent) the failure is also written to standard output as a JSON failure document with error.code, error.message, and error.hint; see 'canvasnet help json'." },
         { "text": "'Unexpected error: <message>' is a defect of the tool, not a mistake of the user: no JSON document is written and the exit code is the runtime's own non-zero code. Please report it." },
         { "text": "A usage-error names the closest valid command or option ('Did you mean ...?') when there is one." }

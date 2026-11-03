@@ -742,7 +742,7 @@ public class CommandRegistryTests
         Assert.Equal("help", exception.Command);
         Assert.Contains("Did you mean 'scad'?", exception.Hint);
         Assert.Contains("Valid subjects: render, scad, vega-lite,", exception.Hint);
-        Assert.Contains("topics", exception.Hint);
+        Assert.Contains("topics, help.", exception.Hint);
     }
 
     /// <summary>
