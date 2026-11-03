@@ -11,8 +11,8 @@
 # stack, sort, and impute of an encoding in SpecParser.Aggregates.cs, the validation of the time units, the datetime
 # objects, the tick and nice intervals, the timeUnit transform, and the time predicates in SpecParser.Time.cs
 # (with the predicate-to-expression translation of PredicateSource.cs), the validation of resolve and of the
-# composite mark properties in SpecParser.Layers.cs (and the rule for which views are drawn through layers in
-# SpecParser.Transforms.cs), and the
+# composite mark properties and of the compositions (facet, repeat, columns, spacing, align, center, header, and the
+# repeat references) in SpecParser.Layers.cs, and the
 # SpecMetadata reader. See
 # docs/verification/canvas-net-vega-lite/spec-model/spec-parser.md for the test-evidence mapping.
 
@@ -113,7 +113,7 @@ sections:
                 title: >-
                   The SpecParser unit shall compile, when the specification is parsed, the text of every
                   expression that the renderer evaluates - the expression of a calculate transform, a filter
-                  given as text, and the expr reference of a mark property or channel value of the drawn view
+                  given as text, and the expr reference of a mark property or channel value of a view
                   - with the expression parser, expose the compiled expressions by the string node that holds
                   them (SpecExpressions), throw a VegaLiteSpecException located at that string (the pointer,
                   line, and column of the value, and the offset inside the text in the message) for a syntax
@@ -391,7 +391,7 @@ sections:
                   The SpecParser unit shall validate the condition of a channel definition (an object or an
                   array of objects, each with a test or a param and the properties of a value or a field
                   definition) with a located error at the offending value, shall compile the test of a
-                  condition on a drawn channel once, an expression text as written and a predicate object
+                  condition once, an expression text as written and a predicate object
                   (equal, lt, lte, gt, gte, range, oneOf, valid, and, or, not, a variable parameter) as the
                   expression that means the same, shall compile the value expression of a condition, and shall
                   leave out what no expression can say (a selection, a time unit, a date object).
@@ -481,20 +481,59 @@ sections:
                   - SpecParser_Parse_MalformedCompositeMarkReportsThePointer
                   - SpecParser_Parse_CompositeRulesDoNotApplyToPrimitiveMarks
 
-              - id: CanvasNetVegaLite-SpecModel-SpecParser-DrawnViews
+              - id: CanvasNetVegaLite-SpecModel-SpecParser-ComposedViewExpressions
                 title: >-
-                  The SpecParser unit shall decide that a view is drawn when it is the root or is reached from the
-                  root through layer arrays only (with none of concat, hconcat, vconcat, facet, repeat, or spec on
-                  the view or above it), shall name the nearest composition that is not drawn that holds a view,
-                  shall compile the expressions of the views that are drawn (the conditions of the encoding of a
-                  layer and of the layered view above it, the expression values of the marks) and not those of a
-                  concatenation, and shall not treat a view of another tree as drawn.
+                  The SpecParser unit shall compile the expressions of every view alike (the conditions of the
+                  encoding of a layer and of the layered view above it, the expression values of the marks, and
+                  those of the views of a concatenation, a facet, and a repeat) so that no view of a composition is
+                  left unchecked, as the renderer draws every view of the specification.
                 justification: |
-                  Which views are drawn decides which expressions are compiled and which constructs are reported
-                  as not applied, so the rule must be one definition shared by the parser, the catalog, and the
-                  renderer.
+                  A view of a composition is drawn like any view, so a mistake in its expressions must be found
+                  when the specification is opened, with its location.
                 tests:
-                  - SpecParser_IsDrawnView_LayersAreDrawnCompositionsAreNot
-                  - SpecParser_IsDrawnView_ViewOfAnotherTreeIsNotDrawn
-                  - SpecParser_FindUndrawnComposition_NamesTheNearestComposition
-                  - SpecParser_Parse_ExpressionsOfLayersAreCompiledButNotThoseOfConcatenations
+                  - SpecParser_Parse_ExpressionsOfComposedViewsAreCompiled
+                  - SpecParser_Parse_ConditionsThatAreNotEvaluatedAreNotCompiled
+
+              - id: CanvasNetVegaLite-SpecModel-SpecParser-CompositionValidation
+                title: >-
+                  The SpecParser unit shall validate the properties of the compositions with a located error at the
+                  offending value: a facet and a repeat need a spec object; a facet is a field definition or an object
+                  of a row and a column field definition (each with a field that is a name or a repeat reference);
+                  a repeat is an array of strings or an object of row, column, and layer arrays of strings (an unknown
+                  key being a warning); the spec of a facet and a view of a layer are never a concatenation, a facet, or
+                  a repeat; columns is a non-negative integer; spacing is a number or an object of numbers for row and
+                  column; align is all, each, or none, or an object of them; center is a boolean or an object of
+                  booleans;
+                  and the header of a facet field or a faceting channel has the property shapes of Vega-Lite (an unknown
+                  one being a warning); these layout properties and the header on any other channel are unknown
+                  properties (a warning).
+                justification: |
+                  The composition properties arrive as untrusted JSON and decide how many views are made and how
+                  they are
+                  laid out; each must be checked once, with the location of the mistake, before the normalizer relies on
+                  its type.
+                tests:
+                  - SpecParser_Parse_FacetWithoutSpecIsError
+                  - SpecParser_Parse_FacetMappingWithoutFieldIsError
+                  - SpecParser_Parse_RepeatWithoutSpecIsError
+                  - SpecParser_Parse_RepeatArrayOfNonStringsIsError
+                  - SpecParser_Parse_RepeatObjectWithUnknownKeyWarns
+                  - SpecParser_Parse_ColumnsMustBeNonNegativeInteger
+                  - SpecParser_Parse_ColumnsAcceptsWholeNumbers
+                  - SpecParser_Parse_SpacingAcceptsNumberAndRowColumnObject
+                  - SpecParser_Parse_AlignCenterShapes
+                  - SpecParser_Parse_HeaderPropertyShapes
+                  - SpecParser_Parse_ResolveOnConcatAcceptsXAndOffsetChannels
+                  - SpecParser_Parse_FacetWithFieldDefinitionAndLayoutIsAccepted
+                  - SpecParser_Parse_FacetSpecAndLayerChildCannotBeCompositions
+
+              - id: CanvasNetVegaLite-SpecModel-SpecParser-RepeatReferences
+                title: >-
+                  The SpecParser unit shall accept a {"repeat": ...} reference as the field or datum of a channel, the
+                  field of a sort, the field or datum of a condition, and a facet field, and shall refuse with a located
+                  error a reference that names anything but row, column, repeat, or layer.
+                justification: |
+                  The references are replaced by the repeated values, so a name that no repeat can give must be refused
+                  where it is written.
+                tests:
+                  - SpecParser_Parse_RepeatRefIsAcceptedAsField

@@ -258,11 +258,11 @@ internal sealed record SceneGroup : SceneItem
         Y = y;
     }
 
-    /// <summary>Gets the x position of the group's origin in its parent.</summary>
-    public double X { get; }
+    /// <summary>Gets the x position of the group's origin in its parent; a <c>with</c> expression moves a built group (the composition layout does).</summary>
+    public double X { get; init; }
 
-    /// <summary>Gets the y position of the group's origin in its parent.</summary>
-    public double Y { get; }
+    /// <summary>Gets the y position of the group's origin in its parent; a <c>with</c> expression moves a built group (the composition layout does).</summary>
+    public double Y { get; init; }
 
     /// <summary>Gets the width of the group's box (the background rectangle); 0 by default.</summary>
     public double Width { get; init; }

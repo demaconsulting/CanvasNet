@@ -282,3 +282,24 @@ sections:
                   - LegendPlan_Create_ExplicitOrientConflictMakesTheLegendsIndependent
                   - LegendPlan_Create_LayersInDifferentScopesKeepTheirOwnLegends
                   - LegendPlan_Create_SingleLayerMatchesTheViewOverloadAndDisableIsHonored
+
+              - id: CanvasNetVegaLite-Guides-LegendBuilder-LegendOwners
+                title: >-
+                  The LegendBuilder unit shall give each legend the view that owns it - the highest view above the
+                  layers of the legend whose resolve shares the legend of the channel, so that the children of a
+                  concatenation that share a legend are one legend of the concatenation and a legend that a view
+                  makes independent stays with the view below - list the owners in channel and layer order, plan
+                  the legends of one owner only when asked (a view whose channels have different owners is
+                  planned once for each owner), never merge the layers of different owners, and plan layers
+                  without views as before.
+                justification: |
+                  A legend that composed charts share is drawn once beside the whole composition, and one that
+                  they do not share stays in its chart; the owner says where it goes.
+                tests:
+                  - LegendPlan_Create_OwnersAreTheHighestSharingAncestor
+                  - LegendPlan_Create_IndependentLegendStaysWithTheLeaf
+                  - LegendPlan_Create_ChannelFilterPlansEachOwnerOnce
+                  - LegendPlan_Create_MergedLegendUnionsMembersAcrossConcatChildren
+                  - LegendPlan_Create_NestedIndependentConcatKeepsItsChildrenLegends
+                  - LegendPlan_Create_LayerWithoutNodeHasNoOwner
+                  - LegendPlan_Owners_ChecksItsArguments

@@ -45,7 +45,8 @@ container-sized chart is laid out again for the container width; and a caller co
 specification's own configuration.
 
 The safety scenarios assert on what the system does with hostile or unsupported input: constructs that cannot be
-drawn yet (marks, channels, the transforms and expression constructs of later phases, compositions, remote data) are
+drawn yet (marks, channels, the transforms and expression constructs of later phases, the parts of a facet field, remote
+data) are
 reported once each, in document order, on the calling thread, with their stable identifier and location, while the
 supported part of the chart is still drawn; strict mode stops at the first unsupported feature after delivering it;
 remote data is reported and never fetched or resolved; every resource limit fails closed with a located exception;
@@ -201,7 +202,7 @@ documented in `Fixtures/README.md` beside them.
   of the render options is UTC, the time scenarios build their zones from `TimeZoneInfo.CreateCustomTimeZone` (a fixed
   +05:30 zone, a zone with the United States daylight saving rule, and a zone with a zero offset) and never read the
   host's zone, and number and date formatting use fixed English names, separators, and the Unicode minus sign (the
-  culture scenarios render under `tr-TR` and `de-DE`)
+  culture scenarios render under `tr-TR` and `de-DE`, and the composition scenario also under `fr-FR` and `ar-SA`)
 - **Threads**: The determinism scenario renders one document from sixteen concurrent tasks and compares each
   result with a single-threaded baseline, and the transforms scenario does the same from twelve tasks; the
   handler-thread scenario records the managed thread on which each handler ran and compares it with the caller's
@@ -1442,17 +1443,18 @@ while the default step of 20 pixels for each of the three categories decides the
 ### Layers: What Is Not Drawn Is Reported
 
 **Tests**: `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_UnsupportedLayerMarkIsReportedAndOthersAreDrawn`,
-`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_TransformInAConcatenationIsReportedAsNotApplied`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_TransformInAConcatenationAndInAFacetIsApplied`,
 `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_VariableParameterInALayerIsStillReported`,
 `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_EmptyLayerListDrawsOnlyTheBackground`
 
 Asserts that a layer with an unsupported mark (`geoshape`) is reported with `vl-mark-geoshape` while the other layer is
 drawn
 (its three bars are in the scene),
-that a transform of a view inside an `hconcat` keeps the identifier `vl-transform-<name>` and has a message that names the
-concatenation and says that the transform is not applied, that a variable parameter declared in a layer is still reported
-(`vl-param-variable`) while the layer is drawn, and that a layered view with an empty `layer` array draws exactly what a
-view without a mark does (the same pixels and size).
+that a transform of a view inside an `hconcat` and inside a `facet` is applied and nothing is reported (a concatenation
+and a facet are drawn since Phase 11), while a transform of a later phase (`regression`) in a layer of a facet keeps its
+ordinary message, that a variable parameter declared in a layer is still reported (`vl-param-variable`) while the layer
+is drawn, and that a layered view with an empty `layer` array draws exactly what a view without a mark does (the same
+pixels and size).
 
 ### Layers: Views And Nesting Are Limited
 
@@ -1595,6 +1597,141 @@ that no
 report is given for the channels that the error marks use, `vl-channel-xerror` for a mark that does not use them, and no
 retired
 mark identifiers, and that the three views of an error bar count against `MaxViews` at the mark.
+
+### Autosize: Fit, Fit-X, Fit-Y, And Container Sizes
+
+**Tests**: `VegaLiteAutosizeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Autosize_FitSurfaceHasTheGivenSize`,
+`VegaLiteAutosizeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Autosize_FitXLayerView`,
+`VegaLiteAutosizeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Autosize_FitCountsLegendsAcrossTheirSideOnly`,
+`VegaLiteAutosizeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Autosize_ContainerUsesOptionsContainerSize`,
+`VegaLiteAutosizeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Autosize_FitWithStepWarns`,
+`VegaLiteAutosizeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Autosize_FitIsNotReportedAnymore`,
+`VegaLiteAutosizeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Autosize_MeasureFitEqualsRender`,
+`VegaLiteAutosizeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Autosize_FitThatDoesNotSettleDrawsAxesForTheFinalRectangle`,
+`VegaLiteAutosizeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Autosize_CompositionIgnoresFitAndContainerWithWarning`,
+`VegaLiteChartIntegrationTests.CanvasNetVegaLite_SystemIntegration_Render_ContainerWidthFillsTheContainer`
+
+Asserts, with the numbers derived by hand, that a bare 300 by 200 chart with `autosize: {"type": "fit", "contains":
+"padding"}` is a canvas of exactly 300 by 200 with the data rectangle 290 by 190 at (5, 5); that a chart of 400 by 250
+with `fit`, a title, two axes and a color legend is a canvas of 410 by 260 (the padding added to the size for
+`contains: content`) with the data rectangle at whole pixels and the room on its right and below it a whole number of
+pixels that sums to the size, while the same chart without the fit needs more canvas for its guides; that `fit-x` of a
+layered chart (bars and a rule) is 370 wide with the data rectangle 150 high as without it and a canvas that grows by the
+x axis; that a legend of twelve entries beside a plot of 60 pixels does not make a fitted canvas taller than 70 (the
+padded canvas is more than 100 high), and a legend of twelve entries above a plot of 60 pixels does not make a `fit-x`
+canvas wider than 70; that `"container"` sizes are the container size of the options (500 by 300 and 800 by 450) in the
+canvas, the 17 pixel title and the axes inside it, that a `"container"` width alone leaves the 300 pixel default height
+growing around its guides, and that an explicit `pad` lets the guides grow around a data rectangle of the container size;
+that a fit with a step width (explicit, or no width on a discrete scale) is the warning `vl-layout-fit-step` once, with
+the step width and a fitted height (a canvas 160 high), that steps in both directions leave a padded view with a warning
+naming both, and that a fit nothing drops is silent; that no autosize type is reported as unsupported, in strict mode
+either; that `Measure` equals `Render` for fits and container sizes; and that a `fit-x` or a `"container"` size of a
+concatenation, and the `"container"` width of its child, are the warning `vl-composition-property-ignored` with the size
+of the padded composition (the child has the 300 pixel default width).
+
+### Compositions: Concatenations Are Laid Out Cell By Cell
+
+**Tests**: `VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_HConcat_SecondChartStartsAfterFirstBoundsPlusSpacing`,
+`VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_VConcat_ChartsStackWithTwentyPixelsBetween`,
+`VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Concat_ColumnsWrapsAndAlignsEach`,
+`VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Concat_SpacingColumnAndRowObject`,
+`VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Concat_SharedColorLegendIsMergedAtTheRoot`,
+`VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Concat_ChildTitleStaysInsideItsCellAndCompositionTitleIsAnchoredAtTheStart`,
+`VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Concat_TopLevelDataAndTransformAreInherited`,
+`VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Concat_ContainerWidthIsIgnoredWithWarning`,
+`VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Concat_AxisSharedResolveWarns`,
+`VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Concat_MeasureEqualsRenderSize`,
+`VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Concat_StrictModeHasNothingToReport`
+
+Asserts, with the positions derived by hand (the next cell of a row of 100 by 80 charts with the one pixel `#ddd`
+border is at `ceil(100.5) + 20 + ceil(0.5)` = 122 pixels, and the canvas is 234 by 92 pixels for two charts, 112 by 194
+for two stacked), that `hconcat` and `vconcat` draw their charts side by side and one above the other, that `columns`
+wraps and `spacing` can differ for columns and rows, that the legend of a color that the charts share is drawn once, from
+the union of their domains, at `ceil(222.5) + 18` = 241 pixels from the origin and at its top, that the title of a
+chart stays in its cell and centered over its data rectangle while the title of the concatenation is anchored at the
+start and drawn last, that the data and the transform of the concatenation are inherited by its charts, that a
+`"container"` width is ignored with the warning `vl-composition-property-ignored` and a `resolve.axis` of `shared` is
+the warning `vl-concat-axis-shared` (each delivered once, and the axes stay independent), that `Measure` equals
+`Render`, and that strict mode has nothing to throw for. The remaining scenarios of the concatenation (bounds, center,
+resolve of scales and legends, nesting, the second axis of a layered chart, the limits, determinism under concurrency)
+are listed in the _VegaLiteDocument_ unit verification.
+
+### Compositions: Repeats Expand Into Concatenations And Layers
+
+**Tests**: `VegaLiteRepeatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Repeat_ArrayRepeatsFieldAsConcatWithColumns`,
+`VegaLiteRepeatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Repeat_RowColumnMatrixIsRowMajor`,
+`VegaLiteRepeatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Repeat_RowOnlyIsOneColumnAndColumnOnlyIsOneRow`,
+`VegaLiteRepeatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Repeat_LayerRepeatDrawsLayers`,
+`VegaLiteRepeatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Repeat_LayerRepeatTakesTheSizeOfTheSpec`,
+`VegaLiteRepeatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Repeat_RefDrivesAxisTitles`,
+`VegaLiteRepeatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Repeat_DataIsLoadedOnceForAllCopies`,
+`VegaLiteRepeatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Repeat_ProductLimit`,
+`VegaLiteRepeatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Repeat_UnknownRefWarnsAndDropsChannel`,
+`VegaLiteRepeatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Repeat_FacetWithUnknownRefIsDropped`,
+`VegaLiteRepeatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Repeat_ColumnsWithRowColumnWarns`,
+`VegaLiteRepeatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Repeat_ColorLegendIsDrawnOnce`
+
+Asserts that a repeat of three fields in two columns wraps its third copy to the second row (102 pixels below the first,
+the copies 122 pixels apart), that rows and columns are the row-major product (the axis titles of the four cells are the
+column and row fields `c a`, `d a`, `c b`, `d b`), that a row only is one column and a column only one row, that a repeat
+of layers is one layered chart with one y axis titled with both fields and the size of its `spec`, that a repeated
+field gives the axis title, that the data of the repeated `spec` is read once for all the copies (a limit of five rows
+is enough for four copies), that a product above `MaxViews` fails before any copy is made, that a reference with no value
+and `columns` with rows and columns are the warnings `vl-repeat-ref-unresolved` (the channel is dropped, with one warning
+however many copies there are) and `vl-composition-columns-ignored`, delivered once, and that the copies share one color
+legend.
+
+### Compositions: Facets Draw One Cell For Each Value With Headers And Shared Axes
+
+**Tests**: `VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_ColumnChannelDrawsOneCellPerValueWithHeaderLabels`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_RowAndColumnCrossProductDrawsEmptyCells`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_WrapFacetUsesColumnsAndCellLabelTitles`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_SharedXAxisIsOnceUnderEachColumnAndSharedYAxisOncePerRow`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_IndependentYScaleGivesEachRowItsDomain`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_SharedLegendIsOutsideTheGrid`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_CellLimitIsEnforcedBeforeAllocation`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_ColumnsIsIgnoredForAColumnFieldWithWarning`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_NotDrawnPartsAreReported`
+
+Asserts, with the positions derived by hand (a cell of 100 by 80 pixels with its one pixel border is followed at
+`ceil(100.5) + 20 + ceil(0.5)` = 122 pixels, a header label lies 10 + 10 pixels above its cell, and a title 10 pixels
+outside the headers), that a `column` channel draws one cell for each value of the field with its label in a column header
+and the title of the field above the headers, that a `row` and `column` mapping draws the product of the values with
+the empty combinations as empty cells, that a wrapped field uses `columns` and titles each cell with its label, that the
+x axis shared by the cells is drawn once in the footer of each column and the y axis once in the header of each row
+(the cells keep only their grid lines), that an independent scale gives each row its own domain, that the legend that
+the cells share is drawn once beside the grid, that a facet of more cells than `MaxViews` allows fails before any cell
+is made and is located at the facet field, that a `columns` next to a `row` and `column` mapping is the warning
+`vl-composition-columns-ignored`, and that a `bin` of the facet field, a sort by an aggregate, and a header
+side, label expression, and format type that are not drawn are reported with `vl-facet-field-transform`,
+`vl-facet-sort`, `vl-header-orient`, `vl-expr-label`, and `vl-format-type-custom` while the cells are drawn. The
+remaining scenarios of the facet (the order and the null cell, the header properties, the sides, the aggregate and the
+stack of a cell, the layered body, the unit view with facet channels, the size of independent step scales, the limits,
+cancellation, and determinism under concurrency) are listed in the _VegaLiteDocument_ unit verification.
+
+### Compositions: Limits, Strict Mode, Cancellation, And Determinism Hold For Every Kind
+
+**Tests**: `VegaLiteCompositionSystemTests.CanvasNetVegaLite_SystemIntegration_Composition_RepeatDeterministicConcurrentAndMeasureEqualsRenderSize`,
+`VegaLiteCompositionSystemTests.CanvasNetVegaLite_SystemIntegration_Composition_NestedCompositionsAreDeterministicAndMeasureEqualsRender`,
+`VegaLiteCompositionSystemTests.CanvasNetVegaLite_SystemIntegration_Composition_CultureDoesNotChangeTheScenesOrThePixels`,
+`VegaLiteCompositionSystemTests.CanvasNetVegaLite_SystemIntegration_Composition_StrictModeOnAFullSpec_NoUnsupportedFeature`,
+`VegaLiteCompositionSystemTests.CanvasNetVegaLite_SystemIntegration_Composition_StrictModeThrowsAtTheFirstRemainingUnsupportedFeature`,
+`VegaLiteCompositionSystemTests.CanvasNetVegaLite_SystemIntegration_Composition_CancellationIsHonored`,
+`VegaLiteCompositionSystemTests.CanvasNetVegaLite_SystemIntegration_Composition_ViewLimitIsEnforcedForEveryKind`,
+`VegaLiteCompositionSystemTests.CanvasNetVegaLite_SystemIntegration_Composition_DepthLimitIsEnforcedForFacetAndRepeat`
+
+Asserts that the same repeat rendered six times at once gives six byte-identical surfaces and that `Measure` equals the
+size of the surface (also for a vertical concatenation that nests a horizontal one, a facet with a header, and a repeat);
+that the output of a concatenation, a facet, a repeat, a fit, and a container size is the same, in scene and in pixels,
+under the invariant, `de-DE`, `tr-TR`, `fr-FR`, and `ar-SA` cultures;
+that strict mode has nothing to throw for, and nothing is delivered, on that nested specification with a top-level
+`filter`; that strict mode throws with the identifier and the pointer of the construct for a `regression` transform and
+a `geoshape` mark in a child, a `bin` of a facet field, a facet sort by an aggregate, and a header side that is not
+drawn (`vl-transform-regression`, `vl-mark-geoshape`, `vl-facet-field-transform`, `vl-facet-sort`, `vl-header-orient`);
+that a canceled token stops measuring and rendering of a concatenation, a facet, and a repeat with an unwrapped
+`OperationCanceledException`; that a limit of one view fewer than a three-child concatenation, a two-cell facet, and a
+three-copy repeat has fails with an error that names `MaxViews` and the exact number of views is accepted; and that a
+facet and a repeat of a layered chart (two levels) fail with `MaxCompositionDepth` of 1 and pass with 2.
 
 ### Platform: Every System Scenario Runs On Every Target
 

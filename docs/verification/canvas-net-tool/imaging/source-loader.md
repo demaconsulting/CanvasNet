@@ -136,6 +136,10 @@ four channels with alpha, one page, and no module, function, or directive, and t
 and `rule`,
 the data references `inline` (2 rows) and `name`, the parameter, the title, and schema version 5.
 
+**SourceLoader_Probe_VegaLiteFacet_ReportsTheMeasuredSizeAndTheMarkOfItsCells**: a bar chart faceted into one column for
+each value of a field (two cells) is probed; the size equals the library's own `Measure` and the chart facts list the
+mark `bar` of its cells.
+
 **SourceLoader_Probe_VegaLiteLargerThanMaximum_IsSizeLimit**: a chart whose data rectangle is 9000 pixels wide is a
 `size-limit` error on one line with a hint, not an unexpected exception.
 
@@ -158,6 +162,12 @@ corner is white, the bars have the default mark color `#4c78a8` at the points th
 5-pixel padding and the 100-pixel bands, no pixel read back from the library), the pixel above the shorter bar and the gap
 between the bars are white; a scale of 2 doubles the size; a background replaces the white and is reported.
 
+**SourceLoader_Load_VegaLiteComposition_DrawsEveryCellAtTheProbedSizeWithoutDiagnostics**: an `hconcat` of two 200x100
+bar charts (more than 400 pixels wide with the axes of both) and a bar chart faceted into two columns (more than 200
+pixels wide) are probed and loaded (also with strict mode): the picture has the probed size, there is no diagnostic
+(strict mode has nothing to refuse), and bars in the default mark color are drawn in the left half and in the right half
+of the picture, so every cell was drawn.
+
 **SourceLoader_Load_VegaLite_MapsDiagnosticsAndStrictErrors**: a chart with an unknown property and a `geoshape` mark
 with a `longitude` channel returns the
 `vega-lite-warning` note and the `vl-mark-geoshape` and `vl-channel-geo` unsupported notes, each on one line with the
@@ -174,6 +184,11 @@ scene-item limit of 2, and one that is not a limit, are mapped: a limit is `budg
 exception as
 its cause, anything else is a `vega-lite-error` ("Vega-Lite render error: ...") without a hint; this pins the texts of the
 library that the mapping recognizes.
+
+**SourceLoader_Load_VegaLite_MapsCompositionLimitFailuresToBudgetExceeded**: a real failure of the library for an
+`hconcat` of two charts and for a facet of two cells, each with a view limit of 1 (whose message names
+`the limit (MaxViews)`), is `budget-exceeded` with a hint and the exception as its cause; this pins the second text form
+that the mapping recognizes.
 
 **SourceLoader_Probe_VegaLiteLocalDataIsMeasuredFromSpecFolder**: a chart whose rows are in `bars.csv` in a sub folder beside
 its specification (the current directory being another folder) is probed and loaded from its path; it has the same natural

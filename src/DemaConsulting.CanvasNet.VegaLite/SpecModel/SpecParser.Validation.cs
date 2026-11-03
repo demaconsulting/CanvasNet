@@ -68,6 +68,9 @@ internal sealed partial class SpecParser
         + "format formatType header impute legend param rescale scale sort spacing stack test timeUnit title "
         + "type value");
 
+    /// <summary>The properties of the field definition of a <c>row</c>, <c>column</c> or <c>facet</c> that lay out its cells: another channel definition does not have them.</summary>
+    private static readonly HashSet<string> FacetOnlyKeys = Set("align bounds center columns header spacing");
+
     /// <summary>The channels whose definition may be an array of definitions (or, for tooltip, null).</summary>
     private static readonly HashSet<string> ArrayChannels = Set("detail order tooltip");
 
@@ -125,7 +128,8 @@ internal sealed partial class SpecParser
     private static readonly Dictionary<string, Rule> ChannelDefRules = Rules(
         "field: SO", "type: S=" + string.Join('|', FieldTypes), "aggregate: SOZ", "bin: BOSZ", "timeUnit: SOZ",
         "scale: OZ", "axis: OZ", "legend: OZ", "sort: SAOZ", "title: STZE", "format: SO", "formatType: S",
-        "condition: OA", "stack: SBZ", "impute: OZ", "bandPosition: NE", "header: OZ");
+        "condition: OA", "stack: SBZ", "impute: OZ", "bandPosition: NE", "header: OZ",
+        "align: SO", "center: BO", "columns: N", "spacing: NO", "bounds: S=full|flush");
 
     /// <summary>The rules for the properties of a condition of a channel definition: a test (or a parameter), a value or the properties of a field definition.</summary>
     private static readonly Dictionary<string, Rule> ConditionRules = Rules(
@@ -200,7 +204,7 @@ internal sealed partial class SpecParser
     private static readonly Dictionary<string, Rule> ViewRules = Rules(
         "description: S", "name: S", "usermeta: O", "background: SE", "bounds: S=full|flush", "config: O",
         "projection: O", "view: O", "selection: O", "resolve: O", "facet: O", "spec: O", "repeat: AO",
-        "align: SO", "center: BO", "columns: NO", "spacing: NO");
+        "align: SO", "center: BO", "columns: N", "spacing: NO");
 
     /// <summary>
     ///     Determines whether a name is an encoding channel of Vega-Lite.
@@ -315,12 +319,31 @@ internal sealed partial class SpecParser
                 ValidateTransforms(property);
                 break;
             case "layer" or "concat" or "hconcat" or "vconcat":
-                return ValidateViewList(property);
+                var views = ValidateViewList(property);
+                if (name == "layer")
+                {
+                    ValidateLayerChildren(views);
+                }
+
+                return views;
             case "resolve":
                 ValidateResolve(property);
                 break;
+            case "facet":
+                Check(property, ViewRules["facet"], name);
+                ValidateFacet(property);
+                break;
+            case "repeat":
+                Check(property, ViewRules["repeat"], name);
+                ValidateRepeat(property);
+                break;
+            case "columns" or "spacing" or "align" or "center":
+                Check(property, ViewRules[name], name);
+                ValidateLayoutProperty(property);
+                break;
             case "spec":
                 Check(property, ViewRules["spec"], name);
+                ValidateFacetSpec(property);
                 return [property];
             default:
                 Check(property, ViewRules[name], name);
@@ -680,7 +703,7 @@ internal sealed partial class SpecParser
                     throw Error(item, $"Each definition of the '{name}' channel must be an object.");
                 }
 
-                ValidateChannelDefinition(item);
+                ValidateChannelDefinition(item, facetChannel: false);
             }
 
             return;
@@ -691,15 +714,16 @@ internal sealed partial class SpecParser
             throw Error(channel, $"The '{name}' channel must be an object.");
         }
 
-        ValidateChannelDefinition(channel);
+        ValidateChannelDefinition(channel, name is "row" or "column" or "facet");
     }
 
     /// <summary>
     ///     Validates the properties of one channel definition object, including its scale, axis and legend.
     /// </summary>
     /// <param name="definition">The channel definition object.</param>
+    /// <param name="facetChannel">Whether it is the field definition of a <c>row</c>, <c>column</c> or <c>facet</c>, the only one with the properties that lay out the cells (<see cref="FacetOnlyKeys"/>); on another channel they are reported as unknown, as any property that is not Vega-Lite's.</param>
     /// <exception cref="VegaLiteSpecException">Thrown for a wrong type or value.</exception>
-    private void ValidateChannelDefinition(SpecNode definition)
+    private void ValidateChannelDefinition(SpecNode definition, bool facetChannel)
     {
         CheckObject(definition, ChannelDefRules);
         ValidateAggregationProperties(definition);
@@ -707,7 +731,7 @@ internal sealed partial class SpecParser
         {
             ValidateEncodingImpute(impute);
         }
-        foreach (var property in definition.Properties.Where(p => !ChannelDefKeys.Contains(p.Name!)))
+        foreach (var property in definition.Properties.Where(p => !ChannelDefKeys.Contains(p.Name!) || (!facetChannel && FacetOnlyKeys.Contains(p.Name!))))
         {
             WarnUnknown(property, "a channel definition");
         }
@@ -718,6 +742,19 @@ internal sealed partial class SpecParser
         }
 
         ValidateDatum(definition);
+        ValidateRepeatReferences(definition);
+        foreach (var name in LayoutProperties.Where(_ => facetChannel))
+        {
+            if (definition[name] is { } layoutProperty)
+            {
+                ValidateLayoutProperty(layoutProperty);
+            }
+        }
+
+        if (facetChannel && definition["header"] is { IsObject: true } header)
+        {
+            ValidateHeader(header);
+        }
         if (definition["scale"] is { IsObject: true } scale)
         {
             CheckObject(scale, ScaleRules);

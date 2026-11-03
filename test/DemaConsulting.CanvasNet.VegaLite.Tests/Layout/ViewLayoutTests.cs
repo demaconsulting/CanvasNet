@@ -133,9 +133,10 @@ public class ViewLayoutTests
         Assert.Equal((100.0, 80.0, 90.0, 70.0), (contained.Measure.Width, contained.Measure.Height, contained.Measure.DataWidth, contained.Measure.DataHeight));
         Assert.Equal((60.0, 60.0), (configured.Measure.Width, configured.Measure.Height));
 
-        // Assert: the types the layout does not support are laid out as pad (the feature catalog reports them)
+        // Assert: fit makes the width and height the size of the whole view: the 17 pixel title is taken out of the 100 pixels, the canvas is the size plus the padding
         var fit = Layout("{\"autosize\":\"fit\",\"width\":100,\"height\":100,\"title\":\"X\"}");
-        Assert.Equal((110.0, 127.0), (fit.Measure.Width, fit.Measure.Height));
+        Assert.Equal((110.0, 110.0), (fit.Measure.Width, fit.Measure.Height));
+        Assert.Equal((100.0, 83.0), (fit.Measure.DataWidth, fit.Measure.DataHeight));
     }
 
     /// <summary>

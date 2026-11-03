@@ -70,7 +70,7 @@ public class SpecParserConditionTests
 
     /// <summary>
     ///     Validates that the conditions that are never evaluated are not compiled: a condition on a parameter, a predicate that no expression
-    ///     can say, a channel that takes no condition, and a view that is not drawn.
+    ///     can say, and a channel that takes no condition.
     /// </summary>
     [Fact]
     public void SpecParser_Parse_ConditionsThatAreNotEvaluatedAreNotCompiled()
@@ -92,10 +92,10 @@ public class SpecParserConditionTests
         var second = tree.Root["hconcat"]!.Items[1]["encoding"]!;
         var conditions = first["color"]!["condition"]!.Items;
 
-        // Assert: the predicate objects of the position channel, of the selection and of the view that is not drawn are not written as expressions
+        // Assert: the predicate objects of the position channel and of the selection are not written as expressions; those of a view in a concatenation are, like any view's
         Assert.Null(tree.Expressions.Get(first["x"]!["condition"]!["test"]));
         Assert.Null(tree.Expressions.Get(conditions[1]["test"]));
-        Assert.Null(tree.Expressions.Get(second["color"]!["condition"]!["test"]));
+        Assert.NotNull(tree.Expressions.Get(second["color"]!["condition"]!["test"]));
     }
 
     /// <summary>

@@ -19,6 +19,14 @@ public class TemporalFieldsTests
         [.. TemporalFields.Collect(SpecParser.Parse("{\"data\":{\"values\":[]},\"mark\":\"point\",\"encoding\":" + encodingJson + "}").Root).OrderBy(f => f, StringComparer.Ordinal)];
 
     /// <summary>
+    ///     Parses a channel definition by putting it on the <c>x</c> channel of a view.
+    /// </summary>
+    /// <param name="json">The JSON of the definition.</param>
+    /// <returns>The definition node.</returns>
+    private static SpecNode Definition(string json) =>
+        SpecParser.Parse("{\"data\":{\"values\":[]},\"mark\":\"point\",\"encoding\":{\"x\":" + json + "}}").Root["encoding"]!["x"]!;
+
+    /// <summary>
     ///     Validates that a view without an encoding or without a temporal field has none.
     /// </summary>
     [Fact]
@@ -135,4 +143,46 @@ public class TemporalFieldsTests
         Assert.Equal(
             ["q"],
             Collect("""{ "color": { "condition": { "test": { "field": "q", "timeUnit": "month", "equal": 3 }, "value": "red" }, "value": "gray" } }"""));
+
+    /// <summary>
+    ///     Validates that the temporal fields of a facet are read as dates: the type, a time unit or the format type of the row, column or wrapped field definition decide, a nominal field does
+    ///     not, and a definition without a string field (a repeat reference that was not replaced) adds nothing.
+    /// </summary>
+    [Fact]
+    public void TemporalFields_CollectFacet_RowColumnAndWrapFieldsAreJudgedLikeEncodings()
+    {
+        // Arrange
+        var mapping = new FacetDefinition(
+            Definition("""{ "field": "r", "type": "temporal" }"""),
+            Definition("""{ "field": "c", "type": "ordinal", "timeUnit": "month" }"""),
+            null);
+        var wrap = new FacetDefinition(null, null, Definition("""{ "field": "w", "type": "nominal", "formatType": "time" }"""));
+        var nominal = new FacetDefinition(null, null, Definition("""{ "field": "n", "type": "nominal" }"""));
+        var reference = new FacetDefinition(null, null, Definition("""{ "field": { "repeat": "row" }, "type": "temporal" }"""));
+
+        // Act / Assert
+        Assert.Equal(["c", "r"], TemporalFields.CollectFacet(mapping).OrderBy(f => f, StringComparer.Ordinal));
+        Assert.Equal(["w"], TemporalFields.CollectFacet(wrap));
+        Assert.Empty(TemporalFields.CollectFacet(nominal));
+        Assert.Empty(TemporalFields.CollectFacet(reference));
+        Assert.Throws<ArgumentNullException>(() => TemporalFields.CollectFacet(null!));
+    }
+
+    /// <summary>
+    ///     Validates that the fields of the views and of the facets are united.
+    /// </summary>
+    [Fact]
+    public void TemporalFields_CollectAll_UnitesTheViewsAndTheFacets()
+    {
+        // Arrange
+        var view = SpecParser.Parse("""{ "data": { "values": [] }, "mark": "point", "encoding": { "x": { "field": "t", "type": "temporal" } } }""").Root;
+        var facet = new FacetDefinition(null, null, Definition("""{ "field": "d", "type": "temporal" }"""));
+
+        // Act
+        var fields = TemporalFields.CollectAll([view], [facet]);
+
+        // Assert
+        Assert.Equal(["d", "t"], fields.OrderBy(f => f, StringComparer.Ordinal));
+        Assert.Throws<ArgumentNullException>(() => TemporalFields.CollectAll([view], null!));
+    }
 }

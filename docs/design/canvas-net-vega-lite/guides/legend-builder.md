@@ -76,6 +76,19 @@ Scene roles: `legend` (group) containing `legend-entry` (group) and `legend-titl
   exactly as members of one view do (equal key and scope, no two members of a channel in one legend), and the
   `LegendMarkFacts` of a legend are those of the layer that its first member comes from (Vega-Lite also merges the
   symbol encodings of the layers, `symbolType` preferring circle; not reproduced).
+- `LegendPlan.Create(layers, config, sourceName, owner)` and `LegendPlan.Owners(layers)` (phase 11) - a `LegendLayer`
+  may carry the `LayerNode` it comes from (`Node`). `LegendLayer.OwnerOf(channel)` then climbs from that node while the
+  parent's `resolve.legend` of the channel is shared (`LayerResolve.Legend`, which already makes the legend independent
+  when the scale is) and returns the highest such view: the **owner**. The children of a concatenation share the legends
+  of `color`, `size`, `shape` and the other non-position channels by default, so one legend is owned by the
+  concatenation and drawn beside it; a legend that a view makes independent is owned by the view below (the unit, a
+  layer's chart). Two layers never share a legend when their owners differ (the owner is part of the scope key next to
+  the scope text of the caller), so a leaf that has a channel owned by the concatenation and another owned by itself is
+  two legends. `LegendSpec.Owner` is the owner of the first member's channel. `Owners` lists the distinct owners of the
+  channels that have a legend, channel order first and layer order second, so the caller plans each owner once:
+  `Create(..., owner)` considers a layer's channel only when its owner is that view and returns that view's legends.
+  Without an owner argument all legends are planned, and layers without a node have no owner (the plan is exactly that
+  of phase 10).
 - `LegendPlan.Create(view, scales, config, sourceName)` - for each channel in the order color, size, shape, fill,
   stroke, strokeDash, strokeWidth, opacity that has a scale and a field or datum (and whose `legend` and `scale` are not
   null, with `config.legend.disable` unset) creates a member; members whose domains are the same (a key from the

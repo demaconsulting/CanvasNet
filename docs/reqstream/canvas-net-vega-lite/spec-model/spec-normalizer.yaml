@@ -3,8 +3,10 @@
 #
 # These requirements describe the design-level behavior of the SpecNormalizer unit of the SpecModel subsystem
 # (internal namespace DemaConsulting.CanvasNet.VegaLite.SpecModel): the view tree of a specification - one unit
-# view for a single view, the layers of a layered view with the data, transform, encoding, size, and resolve that
-# they inherit - and the expansion of the composite marks boxplot, errorbar, and errorband into the primitive layers
+# view for a single view, the layers of a layered view, the children of a concatenation, the facets (also those
+# that a row, column, or facet encoding channel makes), and the copies of a repeat, with the data, transform,
+# encoding, size, and resolve that they inherit and the layout settings of the compositions - and the expansion
+# of the composite marks boxplot, errorbar, and errorband into the primitive layers
 # that Vega-Lite normalizes them to. The normalization rules are facts about Vega-Lite behavior, implemented as own
 # C# code; the files of the composite marks are attributed in
 # src/DemaConsulting.CanvasNet.VegaLite/third-party/README.md (BSD-3-Clause). See
@@ -22,29 +24,33 @@ sections:
                   The SpecNormalizer unit shall turn a specification into a tree of views whose leaves are
                   the unit views that are drawn: a specification without a composition shall be exactly one
                   unit, the top-level view itself; the objects of a layer array, in document order, shall be
-                  the layers of that view (unit views or layered views, to any depth); a view that holds a
-                  concat, hconcat, vconcat, facet, or repeat shall be recorded as a composition that is not
-                  drawn yet and shall not be entered; and a null specification shall be refused with an
-                  ArgumentNullException.
+                  the layers of that view (unit views or layered views, to any depth); every concat,
+                  hconcat, vconcat, facet, and repeat shall be a node of its own kind that holds its views, so
+                  that nothing of a specification is left out of the tree; a unit view that has no
+                  encoding to merge and no repeated value to replace shall be the view object itself;
+                  and a null specification shall be refused with an ArgumentNullException.
                 justification: |
                   Every later stage draws the unit views of the tree, and a single view must keep the path it
-                  always took, so the tree must be exact about what is drawn and what is not.
+                  always took, so the tree must be exact about what is drawn.
                 tests:
                   - SpecNormalizer_Layers_SingleViewIsTheRootItself
                   - SpecNormalizer_Layers_LayersAreUnitsInDocumentOrder
-                  - SpecNormalizer_Layers_ConcatenationIsUndrawn
-                  - SpecNormalizer_Layers_FacetAndRepeatAreUndrawn
-                  - SpecNormalizer_Layers_ConcatenationInsideLayerIsUndrawn
+                  - SpecNormalizer_Layers_HConcatBuildsConcatNodeWithChildrenInOrder
+                  - SpecNormalizer_Layers_FacetFieldDefIsWrapFacet
+                  - SpecNormalizer_Layers_LayersInFacetSpecShareTheChart
                   - SpecNormalizer_Layers_NullTreeThrows
 
               - id: CanvasNetVegaLite-SpecModel-SpecNormalizer-Inheritance
                 title: >-
                   The SpecNormalizer unit shall give each layer the properties it inherits as Vega-Lite does:
-                  the encoding merged from the layered views above it with the channels of an inner view
+                  the encoding merged from the layered views above it in its chart with the channels of an inner view
                   replacing the outer channel in place and new channels added after the existing ones, at
-                  every nesting level; the width and height of the top-level view (those of a layer are
-                  ignored); and the data and transform of each view as that view's own, so that the data and
-                  the transform of an outer view are inherited by the layers below it (a layer whose data is
+                  every nesting level (a concatenation or a facet hands no encoding down); the width and height of
+                  its chart, the top-level view of a layered view or the child of a concatenation or facet
+                  (those of a layer are ignored); and the data and transform of each view as that view's own, so that
+                  the
+                  data and
+                  the transform of an outer view are inherited by the views below it (a layer whose data is
                   absent or an explicit null inherits, as Vega-Lite's parseRoot does); and shall leave every
                   node of the specification with its own location, parent, and properties.
                 justification: |
@@ -55,6 +61,8 @@ sections:
                   - SpecNormalizer_Layers_EncodingIsMergedInPlace
                   - SpecNormalizer_Layers_NestedLayersMergeEveryLevel
                   - SpecNormalizer_Layers_UnitTakesSizeOfTopLevelView
+                  - SpecNormalizer_Layers_ChartRootSizeComesFromTheChartNotTheTreeRoot
+                  - SpecNormalizer_Layers_ConcatHandsNoEncodingDown
                   - SpecNormalizer_Layers_DataAndTransformAreEachViewsOwn
                   - SpecNormalizer_Layers_NullDataOfALayerInheritsLikeAbsentData
                   - SpecNode_Overlay_KeepsOriginIdentityAndChildrenParents
@@ -72,6 +80,24 @@ sections:
                 tests:
                   - LayerResolve_Read_FollowsScaleForGuides
 
+              - id: CanvasNetVegaLite-SpecModel-SpecNormalizer-ResolveDefaults
+                title: >-
+                  The SpecNormalizer unit shall give a concatenation and a facet the resolve defaults of
+                  Vega-Lite: the scales of the position channels (x, y, xOffset, yOffset), theta, and radius
+                  of the children of a concatenation are independent and every other scale is shared, the scales
+                  of a facet are shared except theta, an explicit mode wins, the axes of the children of a
+                  concatenation are always independent (an explicit shared axis shall be reported as the warning
+                  vl-concat-axis-shared at the entry), and for a facet an independent scale makes its axis
+                  independent.
+                justification: |
+                  The defaults decide which scales, axes, and legends the cells of a composition share, and a
+                  composition that shares what Vega-Lite keeps apart (or the reverse) is a different chart.
+                tests:
+                  - SpecNormalizer_Layers_ConcatDefaultsPositionScalesIndependentAndOthersShared
+                  - SpecNormalizer_Layers_ConcatAxisIsAlwaysIndependent
+                  - SpecNormalizer_Layers_ExplicitSharedConcatAxisIsReported
+                  - SpecNormalizer_Layers_FacetDefaultsSharedExceptTheta
+
               - id: CanvasNetVegaLite-SpecModel-SpecNormalizer-Limits
                 title: >-
                   The SpecNormalizer unit shall fail closed with a VegaLiteRenderException located at the
@@ -88,6 +114,173 @@ sections:
                   - SpecNormalizer_Layers_ViewLimitIsEnforced
                   - SpecNormalizer_Expand_ExpandedViewsCountAgainstMaxViewsNotTheDepth
                   - SpecNormalizer_Expand_ErrorBarViewsAreCounted
+
+              - id: CanvasNetVegaLite-SpecModel-SpecNormalizer-CompositionLimits
+                title: >-
+                  The SpecNormalizer unit shall count every nesting level of layers, concatenations, facets,
+                  and repeats against the composition-depth limit and every view of a concatenation, the body
+                  of a facet (a faceted unit view being a facet and its body), and every copy of a repeat
+                  against the view limit, shall accept exactly the limit, and shall check the number of copies
+                  of a repeat (the product of its rows, columns, and layers) against the view limit before any
+                  copy is made, so that a repeat of a million copies is refused without making them.
+                justification: |
+                  A repeat is the cheapest way to ask for a huge number of views, so its product must be refused
+                  before it is expanded, and the depth of a composition must be bounded as the depth of layers is.
+                tests:
+                  - SpecNormalizer_Layers_NestedCompositionsCountTowardsMaxCompositionDepth
+                  - SpecNormalizer_Layers_ConcatChildrenCountTowardsMaxViews
+                  - SpecNormalizer_Layers_ChildListIsCheckedBeforeTheChildrenAreMade
+                  - SpecNormalizer_Layers_FacetedUnitCountsFacetAndBody
+                  - SpecNormalizer_Layers_RepeatProductIsCheckedBeforeExpansion
+                  - SpecNormalizer_ExceedsViews_ProductThatWrapsIsRefused
+                  - SpecNormalizer_Layers_RepeatOfLayersCountsViewsByCell
+                  - SpecNormalizer_Layers_NestedRepeatCountsLevelsAndInnerValueWins
+
+              - id: CanvasNetVegaLite-SpecModel-SpecNormalizer-Concat
+                title: >-
+                  The SpecNormalizer unit shall make a concat, hconcat, or vconcat a concatenation node whose
+                  children are the views of the array in document order (the leaves keep their own chart:
+                  size, view, and title), whose columns are one for a vconcat, none (one row) for an hconcat,
+                  and the columns of the view or the configuration for a concat, and shall make a composite
+                  mark inside a concatenation an expansion whose layers belong to the chart of the composite
+                  mark.
+                justification: |
+                  Each child of a concatenation is its own chart, so the tree must tell which chart a layer
+                  belongs to and how the children wrap.
+                tests:
+                  - SpecNormalizer_Layers_HConcatBuildsConcatNodeWithChildrenInOrder
+                  - SpecNormalizer_Layers_VConcatHasOneColumn
+                  - SpecNormalizer_Layers_CompositeMarkInsideConcatIsExpanded
+
+              - id: CanvasNetVegaLite-SpecModel-SpecNormalizer-CompositionSettings
+                title: >-
+                  The SpecNormalizer unit shall read the layout of a concatenation or a facet as Vega-Lite's
+                  extractCompositionLayout does: the spacing (20 unless the configuration says otherwise; a number
+                  for both directions or an object whose missing entry is the configured spacing), the alignment
+                  (each for a concatenation, all for a facet and a repeat; one value or one per direction), the
+                  centering, and the bounds (full, or flush), the columns, and the properties that a facet
+                  channel definition writes over those of the view.
+                justification: |
+                  The settings are what the layout of the cells reads, so a default or a precedence that differs
+                  from Vega-Lite's moves every cell.
+                tests:
+                  - SpecNormalizer_Layers_ConcatReadsColumnsSpacingAlignCenterBounds
+                  - SpecNormalizer_Layers_ConcatSpacingObjectFallsBackToConfig
+                  - SpecNormalizer_Layers_FacetChannelIsWrapWithItsOwnLayout
+                  - SpecNormalizer_Layers_DefaultConfigGivesSpacingTwenty
+
+              - id: CanvasNetVegaLite-SpecModel-SpecNormalizer-Facet
+                title: >-
+                  The SpecNormalizer unit shall make a facet with a spec a facet node over that spec (a unit
+                  view or a layered view; anything else a specification error at the spec), faceted by one
+                  field (wrapped, with its columns) or by a row and a column field (the columns of the view
+                  then ignored with the warning vl-composition-columns-ignored at the columns).
+                justification: |
+                  The cells of a facet come from the faceting fields, and a wrapped facet and a row-and-column
+                  facet lay out differently.
+                tests:
+                  - SpecNormalizer_Layers_FacetFieldDefIsWrapFacet
+                  - SpecNormalizer_Layers_FacetRowColumnMappingKeepsColumnsOnlyForWrap
+                  - SpecNormalizer_Layers_FacetSpecThatIsACompositionIsSpecError
+                  - SpecNormalizer_Layers_LayerChildThatIsACompositionIsSpecError
+
+              - id: CanvasNetVegaLite-SpecModel-SpecNormalizer-FacetChannels
+                title: >-
+                  The SpecNormalizer unit shall make a unit view with a row, column, or facet encoding channel
+                  (the root or a child of a concatenation; not a unit view in a layer or in the spec of a facet,
+                  which keeps the channel) a facet node over a synthetic chart that has the mark, the size, and
+                  the encoding without those channels, while the data, the transform, and the title stay with the
+                  facet; a row or column channel shall win over a facet channel.
+                justification: |
+                  Vega-Lite normalizes a faceted unit view to a facet operator, and the faceted chart must not
+                  apply the data or the transform of the facet a second time.
+                tests:
+                  - SpecNormalizer_Layers_UnitWithRowColumnChannelsBecomesFacetWithBody
+                  - SpecNormalizer_Layers_FacetBodyDoesNotReapplyDataTransformOrTitle
+                  - SpecNormalizer_Layers_RowWinsOverFacetChannel
+                  - SpecNormalizer_Layers_LayerChildWithRowChannelIsNotFaceted
+                  - SpecNormalizer_Layers_UnitInConcatIsFacetedButNotInFacetSpec
+
+              - id: CanvasNetVegaLite-SpecModel-SpecNormalizer-FacetCells
+                title: >-
+                  The SpecNormalizer unit shall, for the view tree of one call, replace the template of a facet
+                  by one copy of it for each cell that the data gives (the copies sharing the view and unit
+                  objects of the template, being their own charts, having the facet as their parent, the same
+                  resolve, and the cell - its index, row and column index, and values - on every node, a layered
+                  template with its layers copied below it), refresh the units, the compositions, and the number of
+                  views in document order, count the views of one cell and the views outside the cells so that the
+                  limit on the number of views can be checked before any cell is made, allow a facet without
+                  cells, and refuse a facet that has its cells already and a view that is not a facet.
+                justification: |
+                  The cells of a facet depend on the data, so the tree is completed once the data is known, and every
+                  later stage must see each cell as a view of its own without a copy of the specification.
+                tests:
+                  - LayerTree_InstantiateFacet_ReplacesTheTemplateWithOneCopyPerCell
+                  - LayerTree_InstantiateFacet_LayeredBodyCopiesEachLayerAndMapsChartRoots
+                  - LayerTree_InstantiateFacet_FacetedUnitCopiesTheSyntheticBody
+                  - LayerTree_FacetViews_CountsTheViewsOfOneCellAndTheOthers
+                  - LayerTree_InstantiateFacet_RefusesTwiceAndNonFacetsAndAllowsNoCells
+
+              - id: CanvasNetVegaLite-SpecModel-SpecNormalizer-DataSites
+                title: >-
+                  The SpecNormalizer unit shall group the views of the tree by the data object they declare
+                  (by identity, so the copies of a repeated view and the cells of a facet are one group, and the
+                  root without data is a group of its own), listing for each group the views that declare it, the
+                  view objects and unit views of all the views that read its table (the declaring views and
+                  those below them up to the next data) and the facets among them, restricted to the views that
+                  the data stage visits, so that a table is loaded once for all the views that use it.
+                justification: |
+                  A repeat of a view that has its own data, or the cells of a facet, must not load the same file
+                  once for each copy, and the fields that any of the views reads as dates must be known when the
+                  table is loaded.
+                tests:
+                  - LayerTree_DataSites_CopiesOfARepeatShareOneSite
+                  - LayerTree_DataSites_FacetCellsShareTheRootSiteAndItsFacetFieldsAreCollected
+                  - LayerTree_DataSites_ViewWithOwnDataIsItsOwnSiteAndNeededFiltersViews
+
+              - id: CanvasNetVegaLite-SpecModel-SpecNormalizer-Repeat
+                title: >-
+                  The SpecNormalizer unit shall expand a repeat without reading data into a concatenation of one
+                  copy of its spec for each value of an array (the columns of the view), for each pair of the
+                  row-major product of the rows and columns (the columns of the column list, one for a row only,
+                  the columns of the view dropped with the warning vl-composition-columns-ignored), or into a
+                  layered view of one copy for each layer value, and a repeat of rows or columns with layers
+                  into a concatenation whose every cell is a layered view of the layers, each copy knowing the
+                  values it repeats; the data of the repeat shall stay on the concatenation and the data of
+                  the spec shall be the copies' own.
+                justification: |
+                  A repeat is a shorthand for a family of views, and the family must be exactly Vega-Lite's, in
+                  row-major order, with the data it is given.
+                tests:
+                  - SpecNormalizer_Layers_ArrayRepeatMakesConcatWithColumns
+                  - SpecNormalizer_Layers_RowColumnRepeatIsRowMajorCrossProduct
+                  - SpecNormalizer_Layers_RowOnlyRepeatHasOneColumn
+                  - SpecNormalizer_Layers_LayerRepeatMakesLayerNode
+                  - SpecNormalizer_Layers_RowAndLayerRepeatNestsLayers
+                  - SpecNormalizer_Layers_RepeatColumnsWithMappingIsIgnoredWithWarning
+                  - SpecNormalizer_Layers_RepeatDataStaysOnTheConcatAndChildDataWins
+                  - SpecNormalizer_Layers_RepeatCopiesKeepOriginalPointers
+                  - SpecNormalizer_Layers_EmptyRepeatHasNoViews
+
+              - id: CanvasNetVegaLite-SpecModel-SpecNormalizer-RepeaterRefs
+                title: >-
+                  The SpecNormalizer unit shall replace a {"repeat": ...} reference in the field or datum of a
+                  channel, the field of a sort, and the field or datum of a condition by the value that the
+                  repeats around the view give (a string located at the reference, an inner repeat overriding an
+                  outer one), also in the facet fields of a faceted view, and shall drop what a reference with no
+                  value belongs to (the channel, the sort, or the condition) with one vl-repeat-ref-unresolved
+                  warning at the reference; a facet whose every field is such a reference is dropped, and its
+                  spec is the view.
+                justification: |
+                  The references are how the copies of a repeat differ, and an unresolved one must not draw a
+                  channel with a field that does not exist.
+                tests:
+                  - SpecNormalizer_Layers_ArrayRepeatMakesConcatWithColumns
+                  - SpecNormalizer_Layers_RepeatReplacesRefInFieldSortFieldDatumAndCondition
+                  - SpecNormalizer_Layers_MissingRepeatValueDropsChannelWithWarning
+                  - SpecNormalizer_Layers_FacetWithUnresolvedRepeatFieldIsDropped
+                  - SpecNormalizer_Layers_MissingRepeatValueInSortOrConditionDropsOnlyThat
+                  - SpecNormalizer_Layers_RepeatOfFacetedUnitFacetsByTheRepeatedField
 
               - id: CanvasNetVegaLite-SpecModel-SpecNormalizer-Expansion
                 title: >-

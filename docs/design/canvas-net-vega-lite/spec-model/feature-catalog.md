@@ -85,8 +85,8 @@ catalog never produces them).
 
 **Phase 8 (time) identifiers.** Time is supported, so the identifiers that said it was not are retired and absent from the
 result: `vl-type-temporal` (a temporal field is read and gets a time scale), `vl-encoding-timeunit` (a time unit in an
-encoding is computed), `vl-transform-timeunit` (for a drawn view; the transform is computed, and a `timeUnit` transform
-of a view that is not drawn is still reported by the generic `vl-transform-<name>` rule),
+encoding is computed), `vl-transform-timeunit` (the transform is computed, in any view: the single view, a layer, and the
+views of a concatenation, a facet or a repeat),
 `vl-transform-filter-timeunit` and `vl-transform-filter-datetime` (time and date-time predicates are evaluated),
 `vl-encoding-condition-test`, `vl-data-parse-date-format` (a custom date format of `format.parse` is applied), and
 `vl-scale-time` and `vl-scale-utc` (`time` and `utc` join the supported scale types). The identifiers that the phase
@@ -174,12 +174,12 @@ The identifier `vl-scale-polar-discrete` that the plan kept as a fallback was **
 (they were reported until phase 9 and are no longer produced); the identifiers are not reused. The
 sentinel "unsupported nested view" of the tests and examples is now `hconcat`. The identifiers that change or are new are:
 
-- `vl-transform-<name>` keeps its identifier for a transform of a view that is not drawn (a view inside a `concat`,
-  `hconcat`, `vconcat`, `facet`, or `repeat`, found by `SpecParser.IsDrawnView`) but has a **reworded message**:
-  `The '<name>' transform is not applied: the view is a '<composition>' composition, which is not supported yet.`,
-  where the composition is the nearest one (`SpecParser.FindUndrawnComposition`, so a layer inside a `concat` names
-  the `concat`). The transforms of a later phase in a drawn view (`regression`, `loess`, `density`, `quantile`, `extent`)
-  keep "is not supported yet". A top-level `transform` of a layered view, and the transforms of its layers, are **not
+- `vl-transform-<name>` had a **reworded message** in Phase 10 for a transform of a view that was not drawn:
+  `The '<name>' transform is not applied: the view is a '<composition>' composition, which is not supported yet.` That
+  wording was **retired in Phase 11** (it was only produced for a view inside a facet, which is drawn now; the catalog's
+  own `IsDrawnView` and `FindUndrawnComposition` rules are deleted): every transform of every view is applied, and the
+  transforms of a later phase (`regression`, `loess`, `density`, `quantile`, `extent`) keep "is not supported yet". A top-level
+  `transform` of a layered view, and the transforms of its layers, are **not
   reported**: they are computed (this was the false report that a layered chart with a top-level `calculate` produced).
 - `vl-layer-property-ignored` (warning) - a `width`, `height`, `autosize`, `padding`, `background`, `config`, `datasets`,
   or `title` of a view inside a layered view (a layer or a nested layered view), located at the property: only the
@@ -198,6 +198,52 @@ sentinel "unsupported nested view" of the tests and examples is now `hconcat`. T
   (`ScaleResolver.ChannelIsDrawn`) sees an `errorbar` as a `rule`, an `errorband` as an `area` or a `rect`, and a
   `boxplot` as a `point` for these channels.
 
+**Phase 11 (concatenation, repeat and facet) identifiers.** `concat`, `hconcat`, `vconcat`, `repeat`, and `facet` are
+drawn, so **`vl-composition-concat`**, **`vl-composition-hconcat`**, **`vl-composition-vconcat`**,
+**`vl-composition-repeat`**, and **`vl-composition-facet`** are retired (they were reported until phase 10, and the last
+until the facet was drawn; they are no longer produced); the identifiers are not reused. The sentinel "unsupported
+nested view" of the tests is a `geoshape` mark or a `projection`. A unit view with a `row`, `column`, or `facet` channel
+is a facet; the catalog reports the channel (`vl-channel-<name>`) only where Vega-Lite cannot facet the unit (a layer, a
+layered view whose encoding holds the channel, the `spec` of a facet). The identifiers that change or are new are:
+
+- `vl-transform-<name>` keeps only its "not supported yet" message (the transforms of later phases): the retired text
+  "not applied: the view is a '`<composition>`' composition" is never produced, because the transforms of the views of every
+  composition (a concatenation, a facet, a repeat) are computed, like those of a layer.
+- `vl-channel-row`, `vl-channel-column`, `vl-channel-facet` are narrowed to a unit view that cannot be faceted (see above)
+  and reworded: "The '`<name>`' channel only facets a unit view that is not a layer or the spec of a facet; it is
+  ignored here (use the facet operator)." The channels of a unit view that is faceted (the root, a child of a
+  concatenation, a copy of a repeat) are drawn: `VisitEncoding` hands their field definitions to
+  `VisitFacetFieldDefinition`, which is also what visits the `facet` property (`VisitFacet`: a field definition, or an
+  object with `row` and `column`).
+- `vl-facet-field-transform` - a `bin`, `timeUnit` or `aggregate` of a facet field, at that property; the raw value of the
+  field is the value of the cell. `vl-facet-sort` - a `sort` that is an object (a field and an operation) of a facet field;
+  the cells are in ascending order of the field. `vl-header-orient` - a `header.labelOrient` or `header.titleOrient` on
+  a side that the header does not draw on (`HeaderSettings.IsHonoredOrient`: a row honors `left` and `right`, a column
+  `top` and `bottom`, the label of a wrapped facet any side and its title `top` and `bottom`); the default side is used.
+  `header.labelExpr` reports the existing `vl-expr-label`, a custom `header.formatType` the existing
+  `vl-format-type-custom`, and an `{"expr": ...}` in a facet property `vl-expr-ref` (`facet` joins the expression
+  scopes).
+- `vl-composition-property-ignored` (warning) - a `width`, `height`, or `autosize` other than `pad` of a concatenation,
+  a facet, or a repeat of rows or columns, the `"container"` size of a view inside one, and the `padding`, `background`,
+  `config`, `datasets`, or `autosize` of a view inside one, located at the property (the `type` of an `autosize` object).
+  Vega-Lite drops these properties; the composition is drawn padded (this covers `fit`, `fit-x`, `fit-y`, a
+  `"container"` width or height, and `none`, as `normalizeAutoSize` and the fit rules of Vega-Lite do for a view that
+  is not a unit or a layer). The report of an `autosize` type of a composition as `vl-layout-autosize-<type>` is
+  replaced by this warning.
+- `vl-layout-autosize-fit`, `-fit-x`, and `-fit-y` (the family `vl-layout-autosize-<type>`) are **retired** in Phase 11
+  and never produced: `fit`, `fit-x`, and `fit-y` are drawn for a single and a layered view (`ViewLayout`).
+  `vl-layout-fit-step` (warning) is **produced by the renderer's layout**, not by the catalog, because it needs the
+  scales: a fit that a step size drops (an explicit `{"step": n}` or no size on a discrete scale; Vega-Lite's
+  `droppingFit`), located at the `autosize` (else at the size, else at the view), with the dimension and the resulting
+  autosize in the message. Ids are never reused.
+- `vl-concat-axis-shared`, `vl-composition-columns-ignored`, and `vl-repeat-ref-unresolved` (warnings) - **produced by the
+  renderer** from the view tree (`LayerTree.Warnings`, forwarded from the one tree that is drawn, so each is delivered
+  once), not by the catalog: a `resolve.axis.x` or `y` set to `shared` on a concatenation (the children keep their own
+  axes, as Vega-Lite does), `columns` next to a `row` or `column` mapping of a facet or repeat (ignored), and a
+  `{"repeat": ...}` reference that the enclosing repeat does not define (the channel is dropped).
+- `vl-layer-scale-conflict` now says "view" instead of "layer" in its message: it is also produced for the children
+  of a concatenation that share a channel.
+
 #### Key Methods
 
 - `Visit(SpecTree tree)` - requires a non-null tree, runs a private `Walker`, and returns the reports sorted by line and
@@ -207,15 +253,22 @@ sentinel "unsupported nested view" of the tests and examples is now `hconcat`. T
   `$schema` value and then every view of `tree.EnumerateViews()`; the encoding of a view that is drawn through `layer` is
   not visited on its own but as the **merged encoding of each layer** (from `SpecNormalizer.Layers` with generous
   limits; the nodes keep their original pointers) with that layer's mark, so a channel is judged by the mark that
-  draws it.
+  draws it. Since Phase 11 the units of every composition are in that list too (a concatenation, a facet's template once,
+  and a repeat), and a unit view that is a child of a concatenation or the `spec` of a repeat or a facet is visited on
+  its own as well, so that a repeated view is judged with the repeated field in place (the reports that the copies share
+  are made once, at the template).
 - The walker's `VisitSchema` warns `vl-schema-version` for a major version other than 5 and 6 or a URL that names no
   Vega-Lite version.
 - `VisitView` dispatches each property of a view: `data`, `mark`, `encoding`, `transform`, `params`, the legacy
-  `selection` (`vl-param-selection`), `projection` (`vl-projection`), `autosize`, and the composition properties
-  (`vl-composition-<name>` for `concat`, `hconcat`, `vconcat`, `facet`, and `repeat`; `layer` is drawn and not reported);
+  `selection` (`vl-param-selection`), `projection` (`vl-projection`), and the composition property
+  `facet` (`VisitFacet`; `layer`, `concat`, `hconcat`, `vconcat`, `repeat`, and `facet` are drawn and not reported);
   for a view inside a layered view it warns `vl-layer-property-ignored` for the properties that only the top-level view
-  decides; and, for the properties in the expression scopes, looks for `{"expr": ...}` values
-  (`vl-expr-ref`).
+  decides; `VisitCompositionProperties` warns `vl-composition-property-ignored` for the `width`, `height`, and an
+  `autosize` other than `pad` of a concatenation, a facet, or a repeat of rows or columns (a repeat of layers is a layered
+  view), and, for a view inside one, for a `"container"` size and for its `padding`, `background`, `config`, `datasets`,
+  and `autosize`; and, for the properties in the expression scopes, looks for `{"expr": ...}` values
+  (`vl-expr-ref`). The warnings `vl-concat-axis-shared`, `vl-composition-columns-ignored`, and `vl-repeat-ref-unresolved`
+  are produced by the renderer from the view tree (`LayerTree.Warnings`), not by the catalog.
 - `VisitData` chooses the source by precedence (inline `values`, then `url`, then `sequence`, then `name`, then the
   geographic generators), not by key order. An empty `values` array or a `data` object without a source warns
   `vl-data-empty`; a `url` is classified with `IsSchemeBearingUrl` and only remote data is reported
@@ -319,15 +372,11 @@ sentinel "unsupported nested view" of the tests and examples is now `hconcat`. T
   format types that are evaluated (`number`, `time`, `utc`); the axis and legend `formatType` rules use it.
 - `VisitTransforms(transforms, drawn, view)` reports the entries as `vl-transform-<name>` only for what is **not computed**:
   the transforms of later phases (`density`, `extent`, `loess`, `quantile`, `regression`; "is not supported yet") and every
-  transform of a
-  view that is not drawn (a view inside a `concat`, `hconcat`, `vconcat`, `facet`, or `repeat`, aggregating transforms and
-  `timeunit` included; the message names the nearest composition, see _Phase 10 identifiers_). For the
-  computed transforms
-  of
-  a drawn view (the single view, a layered view, and its layers: `calculate`, `filter`, `fold`, `flatten`, `sample`,
-  `pivot`, `lookup`, `aggregate`, `joinaggregate`, `window`, `bin`, `stack`, `impute`, `timeUnit`) it reports only their
-  unsupported
-  parts: `ReportConstructs` turns the constructs that the compiled
+  transform of a view that is not drawn (none since phase 11: every composition is drawn, so the "not applied" message
+  is retired, see _Phase 10 identifiers_). For the computed transforms of a drawn view (the single view, a layered view
+  and its layers, and the views of a `concat`, `hconcat`, `vconcat`, `facet`, or `repeat`: `calculate`, `filter`,
+  `fold`, `flatten`, `sample`, `pivot`, `lookup`, `aggregate`, `joinaggregate`, `window`, `bin`, `stack`, `impute`,
+  `timeUnit`) it reports only their unsupported parts: `ReportConstructs` turns the constructs that the compiled
   expression collected into `vl-expr-function-<name>`, `vl-expr-view-state`, and `vl-expr-construct-<name>` reports (and
   an undeclared view signal into `vl-expr-view-state`), sorted by their offset and located at the expression string,
   with `(at expression offset N)` in the message; `VisitPredicate` walks a filter with an explicit stack (so composition
@@ -341,7 +390,8 @@ sentinel "unsupported nested view" of the tests and examples is now `hconcat`. T
 `vl-transform-bin-extent-param` (the extent of the data is used). - `VisitParams(parameters, isRoot)` reports every
   selection parameter as `vl-param-selection` and, for a variable parameter, `vl-param-variable` when the view is not
   the root; a variable parameter of the root view is computed, so only the constructs of its `expr` are reported.
-`VisitAutosize` reports `vl-layout-autosize-<type>` for fit modes. - The `{"expr": ...}` scan (`VisitExpressions`, with
+`VisitAutosize` was removed in Phase 11: no autosize type is reported (see `vl-layout-fit-step` above).
+  The `{"expr": ...}` scan (`VisitExpressions`, with
   an explicit stack) reports as `vl-expr-ref` every expression reference that the parser did **not** compile (a title,
   size, padding, background, view, any other mark property, any other encoding value); a reference that was compiled
   (the paint properties of the mark and the `value` of the paint channels of the drawn view) is reported only for its
@@ -366,10 +416,12 @@ applied here: the document records the reports in a sink, which throws at the fi
 #### Dependencies
 
 - **`SpecTree`**, **`SpecNode`**, and **`SpecParser`** - the tree and the parser's helpers (`ParseSchemaMajorVersion`,
-  `IsChannelName`, `FindTransformOperation`, `IsSupportedTransform`, `IsDrawnView`, `FindUndrawnComposition`,
+  `IsChannelName`, `FindTransformOperation`, `IsSupportedTransform`,
   `IsViewSignal`, `FindParameter`), in
   the `SpecParser` unit, and the compiled expressions of the tree (`SpecExpressions`)
-- **`SpecNormalizer`** - the layer tree (`Layers`) whose merged unit views the catalog visits for each layer, and
+- **`SpecNormalizer`** - the view tree (`Layers`, with a bounded view limit) whose merged unit views the catalog
+  visits for
+  each layer that is not inside a facet, and
   `TryOrientation` that decides which channel of a composite mark groups the rows (see _SpecNormalizer Unit Design_)
 - **`CompiledExpression`** and **`ExpressionConstruct`** - the constructs that the parser collected, from the
   `ExpressionParser` unit of the `Expressions` subsystem

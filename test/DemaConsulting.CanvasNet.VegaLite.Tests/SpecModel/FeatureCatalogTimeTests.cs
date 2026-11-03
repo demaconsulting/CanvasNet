@@ -244,16 +244,20 @@ public class FeatureCatalogTimeTests
     }
 
     /// <summary>
-    ///     Validates that the <c>timeUnit</c> transform of a nested view of a composition is reported by the generic transform identifier (the view is not drawn), and that
-    ///     the removed identifiers are gone: no report in this specification has one of them.
+    ///     Validates that the <c>timeUnit</c> transform of a nested view of a concatenation and of a view in a facet is applied (nothing is reported), and that the removed identifiers
+    ///     are gone: no report in this specification has one of them.
     /// </summary>
     [Fact]
-    public void FeatureCatalog_Visit_NestedTimeUnitTransformIsReportedAndRemovedIdsAreGone()
+    public void FeatureCatalog_Visit_NestedTimeUnitTransformIsAppliedInConcatAndFacetAndRemovedIdsAreGone()
     {
         // Act
-        var reports = Visit(
+        var concat = Visit(
             """
             { "hconcat": [ { "transform": [ { "timeUnit": "month", "field": "d", "as": "m" } ], "mark": "point" } ] }
+            """);
+        var reports = Visit(
+            """
+            { "facet": { "field": "f", "type": "nominal" }, "spec": { "transform": [ { "timeUnit": "month", "field": "d", "as": "m" } ], "mark": "point" } }
             """);
         var everything = Visit(
             """
@@ -265,7 +269,8 @@ public class FeatureCatalogTimeTests
             """);
 
         // Assert
-        Assert.Contains(("vl-transform-timeunit", "/hconcat/0/transform/0"), reports);
+        Assert.Empty(concat);
+        Assert.Empty(reports);
         Assert.Empty(everything);
     }
 

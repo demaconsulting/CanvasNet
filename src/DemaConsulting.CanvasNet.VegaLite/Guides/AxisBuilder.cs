@@ -22,7 +22,16 @@ namespace DemaConsulting.CanvasNet.VegaLite.Guides;
 /// <param name="Budget">The scene budget the axis charges before it creates each item, or null for a budget of its own from <see cref="VegaLiteLimits.MaxSceneItems"/>.</param>
 /// <param name="DefaultOrient">The side the axis takes when neither the <c>axis</c> object names one (the second axis of a layered view with independent axes is on the opposite side), or null for the usual side; it overrides the configuration's orient.</param>
 /// <param name="DefaultGrid">Whether the axis has a grid when neither the <c>axis</c> object says (a layered view keeps the grid of its first independent axis only), or null for the usual rule; it overrides the configuration's grid.</param>
-internal sealed record AxisRequest(string Channel, SpecNode? ChannelDef, ResolvedScale Scale, ScaleModel Model, double DataWidth, double DataHeight, string? MarkType = null, SceneBudget? Budget = null, string? DefaultOrient = null, bool? DefaultGrid = null);
+/// <param name="InHeader">
+///     Whether the axis lives in the header or footer of a facet instead of next to its data rectangle (Vega-Lite's <c>mergeChildAxis</c> moves the axis that the cells of a facet share
+///     there): its group is then positioned at the origin of the header group, whose own size is zero across the axis, so a <c>bottom</c> axis is at y 0 and a <c>right</c> axis at x 0
+///     instead of at the far edge of the data rectangle, and <see cref="AxisResult.Bounds"/> are in the coordinates of that header group. The grid stays with the data rectangle.
+/// </param>
+/// <param name="KeepInHeader">
+///     For an axis built <see cref="InHeader"/>: whether the facet takes the main part of the axis (ticks, labels, domain and title) for the side it is on (<c>top</c>, <c>bottom</c>, <c>left</c> or <c>right</c>);
+///     null keeps every side. Only one cell of each row and column supplies the header, so the other cells build the grid only, and the items of what is not kept are neither created nor charged to the budget.
+/// </param>
+internal sealed record AxisRequest(string Channel, SpecNode? ChannelDef, ResolvedScale Scale, ScaleModel Model, double DataWidth, double DataHeight, string? MarkType = null, SceneBudget? Budget = null, string? DefaultOrient = null, bool? DefaultGrid = null, bool InHeader = false, Func<string, bool>? KeepInHeader = null);
 
 /// <summary>
 ///     One tick of an axis: the domain value, where it is on the axis and the label that names it.
@@ -39,14 +48,15 @@ internal sealed record AxisTick(DataValue Value, double Position, string Label);
 ///     Like Vega-Lite, which compiles the grid of an axis to an axis of its own, the grid is a separate group: the grids of all axes
 ///     are drawn first (behind everything), then the other parts of the axes, so a domain line is never covered by a grid line.
 /// </remarks>
-/// <param name="Group">The group (role <c>axis</c>), positioned in the coordinates of the data rectangle; its children are the ticks, labels, domain and title in drawing order.</param>
-/// <param name="Grid">The group of the grid lines (role <c>axis-grid-group</c>) at the same position, or null when the axis has no grid.</param>
-/// <param name="Bounds">The bounding box of the axis (ticks, labels, domain extent and title) in the coordinates of the data rectangle; the grid is not part of it.</param>
+/// <param name="Group">The group (role <c>axis</c>), positioned in the coordinates of the data rectangle (of the header group for an axis built <see cref="AxisRequest.InHeader"/>); its children are the ticks, labels, domain and title in drawing order.</param>
+/// <param name="Grid">The group of the grid lines (role <c>axis-grid-group</c>), always in the coordinates of the data rectangle at the place the axis has next to it, or null when the axis has no grid.</param>
+/// <param name="Bounds">The bounding box of the axis (ticks, labels, domain extent and title) in the coordinates of the data rectangle (of the header group for an axis built <see cref="AxisRequest.InHeader"/>); the grid is not part of it.</param>
 /// <param name="Orient">The side of the data rectangle the axis is on: <c>top</c>, <c>bottom</c>, <c>left</c> or <c>right</c>.</param>
 /// <param name="Ticks">The ticks, including those whose labels were dropped because they overlap.</param>
 /// <param name="ItemCount">The number of scene items in the groups, the groups themselves excluded.</param>
 /// <param name="InFront">Whether the axis is drawn in front of the marks (<c>zindex</c> above 0) instead of behind them.</param>
-internal sealed record AxisResult(SceneGroup Group, SceneGroup? Grid, SceneBounds Bounds, string Orient, IReadOnlyList<AxisTick> Ticks, int ItemCount, bool InFront);
+/// <param name="InHeader">Whether the axis was built for the header or footer of a facet (<see cref="AxisRequest.InHeader"/>).</param>
+internal sealed record AxisResult(SceneGroup Group, SceneGroup? Grid, SceneBounds Bounds, string Orient, IReadOnlyList<AxisTick> Ticks, int ItemCount, bool InFront, bool InHeader = false);
 
 /// <summary>
 ///     Builds the axis guide of a position scale: grid lines, tick marks, tick labels, the domain line and the title, and
@@ -72,6 +82,12 @@ internal sealed record AxisResult(SceneGroup Group, SceneGroup? Grid, SceneBound
 ///         use the unrounded position. Ticks stand <c>tickSize</c> out from the data rectangle, labels <c>tickSize + labelPadding</c>,
 ///         the extent is the ticks and labels clamped to <c>minExtent</c> and <c>maxExtent</c>, and the title sits
 ///         <c>titlePadding</c> beyond it. Bounds follow Vega: a stroked rule grows by half its width, text by its measured box.
+///     </para>
+///     <para>
+///         <b>Header axes.</b> The cells of a facet share their axes: Vega-Lite moves the main part of such an axis (ticks, labels, domain and title) into the header or footer of the
+///         facet (<c>mergeChildAxis</c>) and leaves the grid in the cells. A request with <see cref="AxisRequest.InHeader"/> builds that: the axis group is placed at the origin of
+///         the header group (a header is as wide as a cell for an axis along x and as high as a cell for an axis along y, and has no size across), the extents and bounds are
+///         measured from there, and the grid group is returned where the cell needs it.
 ///     </para>
 ///     <para>
 ///         <b>Ticks.</b> A continuous scale uses the ported d3 tick algorithm with Vega-Lite's count (a tick for every 40
@@ -198,8 +214,14 @@ internal sealed class AxisBuilder
 
         // Every scene item is charged before it is created: the axis group, then the grid group and rules, the tick
         // rules, the labels, the domain line and the title (the grid group exists only when there is a tick)
+        // An axis of a facet header that the facet does not take keeps its grid only: its group is an empty one that is dropped, so it is not charged either
+        var keepMain = !request.InHeader || request.KeepInHeader is null || request.KeepInHeader(orient);
         var budget = request.Budget ?? new SceneBudget(_maxSceneItems);
-        budget.Add(1, location);
+        if (keepMain)
+        {
+            budget.Add(1, location);
+        }
+
         var gridRules = new List<SceneItem>();
         if (layout.ShowGrid && ticks.Count > 0)
         {
@@ -208,11 +230,11 @@ internal sealed class AxisBuilder
         }
 
         var children = new List<SceneItem>();
-        var tickRules = layout.ShowTicks ? TickRules(layout, budget, location) : [];
+        var tickRules = keepMain && layout.ShowTicks ? TickRules(layout, budget, location) : [];
         children.AddRange(tickRules);
-        var labels = layout.ShowLabels ? Labels(layout, budget, location, cancellationToken) : [];
+        var labels = keepMain && layout.ShowLabels ? Labels(layout, budget, location, cancellationToken) : [];
         children.AddRange(labels);
-        if (layout.ShowDomain)
+        if (keepMain && layout.ShowDomain)
         {
             budget.Add(1, location);
             children.Add(DomainRule(layout));
@@ -230,7 +252,7 @@ internal sealed class AxisBuilder
             bounds = bounds.Union(_measurer.GetBounds((SceneText)label));
         }
 
-        var title = ResolveTitle(request, axis, settings);
+        var title = keepMain ? ResolveTitle(request, axis, settings) : null;
         return Finish(layout, new AxisParts(gridRules, children), bounds, title, ticks, budget, location);
     }
 
@@ -297,9 +319,23 @@ internal sealed class AxisBuilder
             "right" => (layout.Request.DataWidth + offset, 0.0),
             _ => (0.0, layout.Request.DataHeight + offset),
         };
-        var group = new SceneGroup("axis", originX + Translate, originY + Translate) { Children = children };
         var grid = parts.Grid.Count > 0 ? new SceneGroup("axis-grid-group", originX + Translate, originY + Translate) { Children = parts.Grid } : null;
-        return new AxisResult(group, grid, bounds.Translate(originX, originY), layout.Orient, ticks, itemCount, layout.InFront);
+
+        // An axis in the header or footer of a facet is a child of a group that has no size across the axis (Vega-Lite gives the header the size of the cell along the axis only), so the
+        // far sides sit at 0 instead of at the far edge of the data rectangle; the grid stays where it was, in the cell
+        if (layout.Request.InHeader)
+        {
+            (originX, originY) = layout.Orient switch
+            {
+                "top" => (0.0, -offset),
+                "left" => (-offset, 0.0),
+                "right" => (offset, 0.0),
+                _ => (0.0, offset),
+            };
+        }
+
+        var group = new SceneGroup("axis", originX + Translate, originY + Translate) { Children = children };
+        return new AxisResult(group, grid, bounds.Translate(originX, originY), layout.Orient, ticks, itemCount, layout.InFront, layout.Request.InHeader);
     }
 
     /// <summary>

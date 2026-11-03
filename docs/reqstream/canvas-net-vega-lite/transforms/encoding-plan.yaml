@@ -331,3 +331,55 @@ sections:
                   - EncodingTransforms_Apply_ImputeRespectsTheRowAndCellLimits
                   - EncodingTransforms_Apply_ImputePollsCancellation
                   - EncodingTransforms_Apply_ImputeBoundsSeriesTimesKeys
+
+              - id: CanvasNetVegaLite-Transforms-EncodingPlan-FacetPartition
+                title: >-
+                  The EncodingPlan unit shall compute the cells of a facet from the rows of its table: the
+                  distinct values of the row, column, or wrapped field (a value that repeats being one cell, a
+                  null or missing value a cell of its own, an array or object compared by its text, numbers by
+                  value), ordered as Vega-Lite orders the cells of a facet - ascending with a null first by default
+                  and for sort null, descending for sort descending, the values of a sort array first in the
+                  order of the array (a date-time object of a temporal field matching a date) and then the
+                  unlisted values in order of first appearance (none dropped), and
+                  ascending for a sort by an aggregate, which the unit does not support - shall make the grid of
+                  every combination of a row value and a column value in row-major order (one column for a
+                  facet without a column field, one row for one without a row field, the combinations that no
+                  row has as cells without rows) or, for a wrapped facet, one cell for each value, and shall build
+                  for each cell a table of its rows in their original order with the fields of the facet's table
+                  (one shared table for all the cells without rows), none for a table without rows.
+                justification: |
+                  The cells of a faceted chart, their order, and their rows are what the reader compares; they
+                  must be the cells Vega-Lite makes, and a cell that no row reaches must still exist.
+                tests:
+                  - EncodingTransforms_FacetDomain_DistinctValuesAreSortedAscendingByDefault
+                  - EncodingTransforms_FacetDomain_DescendingNullAndArraySort
+                  - EncodingTransforms_FacetDomain_SortArrayOfDateTimeObjectsOrdersTemporalValues
+                  - EncodingTransforms_FacetDomain_SortByAggregateUsesAscendingOrder
+                  - EncodingTransforms_FacetDomain_NullValuesFormTheirOwnFirstCell
+                  - EncodingTransforms_Facet_CrossProductIncludesEmptyCombinations
+                  - EncodingTransforms_Facet_RowOnlyHasOneColumnAndColumnOnlyOneRow
+                  - EncodingTransforms_Facet_WrapCellsAreTheDistinctList
+                  - EncodingTransforms_Facet_PartitionKeepsRowOrderAndFields
+                  - EncodingTransforms_Facet_EmptyTableHasNoCells
+
+              - id: CanvasNetVegaLite-Transforms-EncodingPlan-FacetLimits
+                title: >-
+                  The EncodingPlan unit shall check the number of cells of a facet, computed as a long from the
+                  sizes of the domains and compared with the limit on the number of views together with the
+                  views one cell holds and the other views, before the rows of any cell are counted or
+                  allocated, and without overflow; shall count the rows of the cells once in the shared row
+                  budget; shall refuse a sort array longer than the scale-domain limit; shall charge its work to
+                  the evaluation-step budget; and shall observe the cancellation token, failing with a
+                  VegaLiteRenderException located at the facet field when a limit is exceeded.
+                justification: |
+                  A facet by two fields with many values is a product of the two; its size must be checked
+                  before it is spent, and a caller must be able to abandon it.
+                tests:
+                  - EncodingTransforms_Facet_CellCountIsLimitedByMaxViews
+                  - EncodingTransforms_CheckFacetViews_DoesNotOverflow
+                  - EncodingTransforms_CheckFacetViews_ProductThatWrapsIsRefused
+                  - EncodingTransforms_Facet_PartitionChargesDerivedRowsOnce
+                  - EncodingTransforms_Facet_RowsOfTheCellsAreLimitedByMaxDataRows
+                  - EncodingTransforms_FacetDomain_SortArrayIsLimited
+                  - EncodingTransforms_Facet_CancellationIsHonored
+                  - EncodingTransforms_Facet_ChecksItsArguments

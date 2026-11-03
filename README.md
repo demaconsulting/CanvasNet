@@ -158,7 +158,8 @@ A Vega-Lite chart is read from a file named `.vl.json` or `.vl`, or from a `.jso
 schema, and is drawn at the size its specification lays out (`--scale`, `--width`, `--height`, and `--size` change it),
 for example `canvasnet render chart.vl.json -o chart.png --json`. It is a `chart` in the `kind` column of
 `canvasnet formats`, and `canvasnet info chart.vl.json` reports its laid-out size, marks, data sources, parameters,
-title, and schema version without drawing it. The library implements a defined subset of the language (one view with
+title, and schema version without drawing it. The library implements a defined subset of the language (single, layered,
+concatenated, faceted, and repeated views with
 inline, local-file, named, or generated data; the row, aggregating, binning, and stacking transforms with a subset of the
 expression language and static parameters; bar, rect, point, circle, square, rule, tick, line, area, trail, text, and arc
 marks; position, color,

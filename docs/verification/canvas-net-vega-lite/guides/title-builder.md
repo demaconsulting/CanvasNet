@@ -37,8 +37,34 @@ The unit's collaborators are real, so no mocking or stubbing is used; the intern
 assembly's `InternalsVisibleTo` access. The title's interaction with the layout is verified in the _ViewLayout Unit
 Verification Design_ and at the document level.
 
-Unit tests reside in `TitleBuilderTests.cs` within the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the
-`Guides` folder.
+The header part is verified the same way (a facet specification is parsed with the real `SpecParser` to get the `header`
+of a field definition, the configuration is resolved with the real `ConfigResolver`) with these derived numbers:
+
+- Label: the `guide-label` style, 10 pixel regular black sans-serif, top baseline, centered, orient `top`, `frame:
+  group`, offset 10; its extent is the measured width of the text by 10. Over a column header 120 wide with no height it
+  is at (60, 0 - 10 - 10) = (60, -20) (the label of a wrapped facet in Vega-Lite's output is at y -20).
+- Title: the `guide-title` style, 11 pixel bold; the title of a row is on the left, rotated by -90, its box 11 wide.
+  Built as a group of its own with no size it is at x = -21 (box -21 to -10) for a row and y = -21 for a column (the
+  `column-title` of Vega-Lite's output is at y -21).
+- Row label beside a cell 80 high: its 10 wide box ends at -10, centered on y = 40 (padding 4: ends at -4). With
+  `labelAngle: 0` it is right aligned with a middle baseline at the group origin, so its box still ends at -10 whatever
+  the width of the text.
+- Angles, by hand from the Vega-Lite rules: a column label is `center`/`bottom` at 0, `right`/`bottom` at 45,
+  `right`/`middle` at 90, `left`/`middle` at 270 and `left`/`bottom` at 315; a row label is `right`/`middle` at 0 and
+  45, `center`/`top` at 90, `left`/`middle` at 180 and `center`/`bottom` at 270; a title angle of -90 is 270 for the
+  choice (`left`/`middle`) but the text keeps -90.
+- Footer with a shared x axis 300 wide (built in the header) and a label below it: the label group is at x = 150 and y =
+  (the bottom of the axis's bounds) + 10; a row header with a shared y axis has its label 10 left of the axis's bounds,
+  centered on y = 100 for a cell 200 high.
+- Precedence: the header over `config.headerRow` over `config.header` (label sizes 16, 14, 12), `headerColumn` and
+  `headerFacet` for the other channels, and `config.title` over the style (a 20 pixel `config.title` applies to the
+  label, a `labelFontSize` of 12 beats it).
+- Labels of cells: `.1f` of 3.14159 is `3.1`, `.2f` of 2.5 is `2.50`, `,d` of 12345 is `12,345`; the date 2020-03-05
+  (from the .NET calendar) is `2020-03-05` with `%Y-%m-%d`, `Mar 05, 2020` by default, `Mar 2020` for the unit
+  `yearmonth` and `March` for `formatType: time` with `%B`.
+
+Unit tests reside in `TitleBuilderTests.cs`, `TitleBuilderHeaderTests.cs` and `HeaderSettingsTests.cs` within the
+`DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `Guides` folder.
 
 #### Test Environment
 
@@ -97,3 +123,74 @@ Asserts that no title, a `null`, empty, or blank title, an empty array, an empty
 build nothing; that a composition anchors its title at the start and frames it by the bounds, left aligned; that an
 invalid orient, anchor, or frame from the configuration falls back to `top`, `middle`, and `bounds`; and that null
 arguments are rejected.
+
+##### Header Settings Resolve Over The Channel And General Configuration
+
+**Tests**: `HeaderSettingsTests.HeaderSettings_Read_HeaderOverRowColumnConfigOverHeaderConfig`,
+`HeaderSettings_Read_DefaultsAreTitleAndLabelPaddingTen`, `HeaderSettings_Read_HeaderNullHidesLabelsAndTitle`,
+`HeaderSettings_Read_LabelsFlagAndDefaultTitleFollowVegaLiteLookup`, `HeaderSettings_Read_ChecksItsArguments`
+
+Asserts the order of lookup (header of the field definition, then `headerRow`/`headerColumn`/`headerFacet`, then
+`config.header`) for the label font size 16, 14, 13, 9, 12 and the padding 7, 3; the defaults (paddings 10, labels on,
+the default title included, no orient, anchor or band); that `header: null` hides everything; that the `labels` flag
+ignores the configuration of the channel and that a `null` or `false` title of a channel's configuration excludes the
+default title; and the argument checks.
+
+##### Orient And Anchor Select The Header, The Footer And The Band
+
+**Tests**: `HeaderSettingsTests.HeaderSettings_HeaderChannelOf_OrientDecidesTheKindOfHeader`,
+`HeaderSettings_Read_OrientAndAnchorGiveFootersEndTitleAndBand`,
+`HeaderSettings_IsHonoredOrient_AlongTheChannelOnlyAndReadCanIgnoreTheOthers`
+
+Asserts `getHeaderChannel` for ten channel and orient pairs, the footers and end titles of `bottom` and `right`, the
+rejection of an orient that is not a side, and the title band (column start 0 and end 1, row start 1 and end 0, a row
+title oriented to the top following the column rule); and which sides the renderer honors (a row's `left` and `right`, a
+column's `top` and `bottom`, a wrapped facet's label on any side and its title on the `top` and `bottom`) and that, read
+with `honoredOrientsOnly`, the other sides read as not given while the default read keeps every side.
+
+##### Labels Of Cells
+
+**Tests**: `HeaderSettingsTests.HeaderSettings_CreateLabelFormatter_FormatsNumbersAndText`,
+`HeaderSettings_CreateLabelFormatter_FormatsDatesWithFormatUnitAndDefault`,
+`HeaderSettings_CreateLabelFormatter_RejectsBadFormatsAndLongLabels`
+
+Asserts the number, time, unit and default formats with the values derived above, that a nominal value is its text and a
+null is empty, that a value that is no date stays its text under a time format, that a format that is not a d3 specifier
+is a spec error, and that a label past the limit is a render error.
+
+##### Label And Title Blocks
+
+**Tests**: `TitleBuilderHeaderTests.TitleBuilder_BuildHeaderBlock_LabelUsesGuideLabelStyleSizeTen`,
+`TitleBuilder_BuildHeaderBlock_TitleUsesGuideTitleBoldElevenAndRowIsRotated`,
+`TitleBuilder_BuildHeaderBlock_LabelFrameIsGroupCenteredOverCellWidth`,
+`TitleBuilder_BuildHeaderBlock_LabelOffsetIsLabelPadding`, `TitleBuilder_BuildHeaderBlock_LabelPropertiesApply`,
+`TitleBuilder_BuildHeaderBlock_OrientsAndAnchorsPlaceTheBlock`,
+`TitleBuilder_BuildHeaderBlock_HeaderOverTitleConfigOverStyle`,
+`TitleBuilder_BuildHeaderBlock_LabelsFalseAndTitleNullGiveNothing`
+
+Asserts the styles, sizes, sides, anchors, frames and offsets of the label and the title, their extents and placements
+derived above, the properties of the header (font, size, weight, style, color, limit, line height, anchor, padding,
+explicit alignment and baseline), the bottom and right sides, the order header over `config.title` over style, and that
+empty text and null arguments build nothing or fail.
+
+##### Angles Choose Alignment And Baseline
+
+**Tests**: `TitleBuilderHeaderTests.TitleBuilder_BuildHeaderBlock_LabelAngleChoosesAlignmentAndBaseline`,
+`TitleBuilder_BuildHeaderBlock_UprightRowLabelEndsAtTheOffset`,
+`TitleBuilder_BuildHeaderBlock_TitleAngleIsNormalizedForTheAlignmentOnly`
+
+Asserts the ten angle cases derived above, that an upright row label ends at the padding from the cell and is centered
+on it, and that the angle of a title is normalized for the choice only.
+
+##### Header Groups
+
+**Tests**: `TitleBuilderHeaderTests.TitleBuilder_BuildHeader_ColumnLabelGroupHasCellWidthAndTextBounds`,
+`TitleBuilder_BuildHeader_ChannelTitlesSitTenPixelsFromTheOrigin`,
+`TitleBuilder_BuildHeader_FooterHoldsAxisAndLabelBelowIt`,
+`TitleBuilder_BuildHeader_RowHeaderHoldsAxisAndLabelLeftOfIt`,
+`TitleBuilder_BuildHeader_AxisOnlyHeaderHasTheAxisBounds`,
+`TitleBuilder_BuildHeader_ChargesTheBudgetBeforeCreatingItems`
+
+Asserts the group size, role and children, the bounds of the text (and of the axis and the text), the label positions
+relative to the shared axes derived above, a header of axes only, and that the scene budget is charged for the group,
+the title group and the text before they are created (a budget of 2 fails for the group, 3 succeeds).

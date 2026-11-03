@@ -229,6 +229,28 @@ sections:
               - EncodingTransforms_Apply_StackedPathMarkImputesMissingKeysWithZero
               - CanvasNetVegaLite_SystemIntegration_Aggregation_OnlyTheUnsupportedPartIsReported
 
+          - id: CanvasNetVegaLite-Transforms-FacetPartition
+            title: >-
+              The Transforms subsystem shall split the rows of a facet into its cells: the ordered distinct
+              values of the row, column, or wrapped field (ascending with a null first by default and for a
+              null sort, descending, or an array first and then the unlisted values in order of appearance),
+              the grid of every combination of a row value and a column value (the combinations without rows
+              as empty cells) or the list of the values of a wrapped facet, and one table of the rows of each
+              cell in their original order with the fields of the facet's table, bounding the number of cells by
+              the limit on the number of views (computed without overflow, before anything is allocated), the
+              rows by the shared row budget (counted once), and the work by the step budget and the
+              cancellation token.
+            justification: |
+              A faceted chart draws one view of the rows of each value of its facet fields; the cells, their
+              order, and their rows must be exact, deterministic, and bounded before they are made.
+            children:
+              - CanvasNetVegaLite-Transforms-EncodingPlan-FacetPartition
+              - CanvasNetVegaLite-Transforms-EncodingPlan-FacetLimits
+            tests:
+              - EncodingTransforms_FacetDomain_DescendingNullAndArraySort
+              - EncodingTransforms_Facet_CrossProductIncludesEmptyCombinations
+              - EncodingTransforms_Facet_CellCountIsLimitedByMaxViews
+
           - id: CanvasNetVegaLite-Transforms-Limits
             title: >-
               The Transforms subsystem shall bound the rows, fields, cells, string lengths, bins, and
@@ -247,6 +269,7 @@ sections:
               - CanvasNetVegaLite-Transforms-EncodingPlan-Limits
               - CanvasNetVegaLite-Transforms-EncodingPlan-Cancellation
               - CanvasNetVegaLite-Transforms-EncodingPlan-ImputeLimits
+              - CanvasNetVegaLite-Transforms-EncodingPlan-FacetLimits
               - CanvasNetVegaLite-Transforms-TimeUnitTransform-Limits
             tests:
               - RowTransforms_Apply_FoldOutputIsBoundedByTheRowLimit
@@ -300,6 +323,7 @@ sections:
               - CanvasNetVegaLite-Transforms-TimeUnitTransform-Invalid
               - CanvasNetVegaLite-Transforms-TimeUnitTransform-TemporalFields
               - CanvasNetVegaLite-Transforms-TimeUnitTransform-TemporalFieldsOfViews
+              - CanvasNetVegaLite-Transforms-TimeUnitTransform-TemporalFieldsOfFacets
               - CanvasNetVegaLite-Transforms-EncodingPlan-TimeUnits
             tests:
               - TimeUnitTransform_YearMonth_StartAndEnd

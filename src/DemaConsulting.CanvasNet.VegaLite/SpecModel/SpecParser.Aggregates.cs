@@ -855,7 +855,7 @@ internal sealed partial class SpecParser
             return;
         }
 
-        if (sort["field"] is { } field)
+        if (sort["field"] is { } field && !IsRepeatReference(field))
         {
             RequireFieldPath(field, "The 'field' of a sort must be a valid field name.");
         }

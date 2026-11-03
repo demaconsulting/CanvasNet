@@ -17,8 +17,10 @@ synthetic boxes, without text or fonts. The unit's behavior is specified by the
 
 #### Data Model
 
-- **`LegendPlacement`** `(Groups, Bounds)` - the legend groups in the order of the legends that were given, positioned in
-  the coordinates of the view, and the union of their bounds (empty when there are none).
+- **`LegendPlacement`** `(Groups, Bounds, FitBounds)` - the legend groups in the order of the legends that were given,
+  positioned in the coordinates of the view, the union of their bounds (empty when there are none), and what they
+  add to a fitted view (the horizontal extent of the left and right legends and the vertical extent of the top
+  and bottom ones; null stands for the union).
 - The input is the list of `LegendResult` records of the `LegendBuilder` (orient, requested offset, `legendX` and
   `legendY`, the size of the box, and the bounds, which include the border), the `ResolvedConfig` (for
   `config.legend.layout`), the data rectangle united with the left and right axes (`horizontal`) and with the top and bottom
@@ -44,6 +46,11 @@ synthetic boxes, without text or fonts. The unit's behavior is specified by the
     object, then the default.
 - `Combine(axes, legends, width, height)` - joins the extents of the axes with the bounds of the legends by the larger
   reach on each side.
+- `Combine(axes, LegendPlacement legends, width, height, bool fit)` - the same for a placement; for a view that is fitted
+  (`autosize` `fit`, `fit-x`, `fit-y`) it uses `FitBounds` instead of the union: Vega's rule that "for autosize fit,
+  incorporate the orthogonal dimension only", so a `left` or `right` legend counts by its horizontal extent, a `top` or
+  `bottom` legend by its vertical extent, and the inner orients and `none` not at all (a legend taller than the plot beside
+  it must not take room from the plot).
 
 #### Error Handling and Limits
 

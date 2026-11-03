@@ -211,7 +211,7 @@ clock, the environment, a random source, or the current culture.
   plan, and the scale resolver share, so that validation, reports, and execution agree on what an operation is.
 
 **Charging matrix.** Every row loop calls `TransformContext.Tick(row)` (cancellation every 1,024 rows) and
-charges the `WorkMeter`; every limit message contains `the limit of` or `VegaLiteLimits.` (or names
+charges the `WorkMeter`; every limit message contains `the limit of`, `the limit (Max...)`, or `VegaLiteLimits.` (or names
 `MaxDataRows`) so that the tool classifies it as a budget failure.
 
 <!-- markdownlint-disable MD013 -->

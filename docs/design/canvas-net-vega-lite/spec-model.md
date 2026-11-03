@@ -23,10 +23,12 @@ the other subsystems, and, through `InternalsVisibleTo`, the test assembly. It c
   _FeatureCatalog Unit Design_ (`spec-model/feature-catalog.md`)
 - **ConfigResolver** - the internal static `ConfigResolver`, `ResolvedConfig`, `ConfigNode`, and `ConfigNodeKind`; see
   _ConfigResolver Unit Design_ (`spec-model/config-resolver.md`)
-- **SpecNormalizer** - the internal static partial `SpecNormalizer` (`SpecNormalizer.cs`,
-  `SpecNormalizer.Composite.cs`, `SpecNormalizer.BoxPlot.cs`, and `SpecNormalizer.ErrorBar.cs`), the tree types
-  `LayerTree`, `LayerNode`, `LayerResolve`, and `ResolveMode`, `ExpandedLayers`, and the `CompositeBuilder` and
-  `CompositeAxis` helpers: it turns the views of a specification into the tree of layers that are drawn and expands the
+- **SpecNormalizer** - the internal static partial `SpecNormalizer` (`SpecNormalizer.cs`, `SpecNormalizer.Composition.cs`,
+  `SpecNormalizer.Repeat.cs`, `SpecNormalizer.Composite.cs`, `SpecNormalizer.BoxPlot.cs`, and `SpecNormalizer.ErrorBar.cs`),
+  the tree types `LayerTree`, `LayerNode`, `LayerResolve`, `ResolveMode`, `ViewKind`, `CompositionSettings`,
+  `CompositionAlign`, `FacetDefinition`, and `RepeaterValues`, `ExpandedLayers`, and the `CompositeBuilder` and
+  `CompositeAxis` helpers: it turns the views of a specification into the tree of views (layers, concatenations, facets,
+  and the copies of repeats) whose leaves are drawn and expands the
   composite marks into layers; see _SpecNormalizer Unit Design_ (`spec-model/spec-normalizer.md`)
 
 The subsystem's namespace documentation is in `SpecModel/NamespaceDoc.cs`. Its behavior is specified by the
@@ -37,14 +39,13 @@ The subsystem's namespace documentation is in `SpecModel/NamespaceDoc.cs`. Its b
 **Exposed** (internal only): `SpecParser.Parse(string, string?, VegaLiteLimits?)` and
 `SpecParser.Parse(byte[], string?, VegaLiteLimits?)`, which return a `SpecTree`; the helpers
 `SpecParser.ParseSchemaMajorVersion`, `SpecParser.IsChannelName`, `SpecParser.FindTransformOperation`,
-`SpecParser.EscapePointerSegment`, and the helpers `SpecParser.IsSupportedTransform`, `IsDrawnView`,
-`FindUndrawnComposition`, `IsResolveChannel`, `IsViewSignal`,
+`SpecParser.EscapePointerSegment`, and the helpers `SpecParser.IsSupportedTransform`, `IsResolveChannel`, `IsViewSignal`,
 `IsParameterDeclared`, `FindParameter`, `IsSupportedSort`, `TryParseSortShorthand`, and `IsSortChannel`;
 `SpecTree.Expressions` (the compiled expressions) and `ParameterGraph.Sort`;
 `SpecMetadata.Read(SpecTree)`; `FeatureCatalog.Visit(SpecTree)` and
 `FeatureCatalog.IsSchemeBearingUrl(string)`; `ConfigResolver.Resolve(SpecTree, string?)`,
 `ConfigResolver.Resolve(SpecNode?, string?)`, and `ConfigResolver.Defaults`, which return a `ResolvedConfig`; and
-`SpecNormalizer.Layers(SpecTree, VegaLiteLimits?)` (a `LayerTree`), `SpecNormalizer.Expand(SpecTree, ResolvedConfig,
+`SpecNormalizer.Layers(SpecTree, VegaLiteLimits?, ResolvedConfig?)` (a `LayerTree`), `SpecNormalizer.Expand(SpecTree, ResolvedConfig,
 VegaLiteLimits?)` (an `ExpandedLayers`), and `SpecNormalizer.TryOrientation`.
 
 **Consumed**: the public `VegaLiteLimits`, `VegaLiteLocation`, and `VegaLiteSpecException` types of the
@@ -108,8 +109,9 @@ so a single view takes the path it always took. A layer's unit view is a non-ado
 specification are never copied or modified, so every pointer, line, and column stays that of the text the author wrote.
 A composite mark (`boxplot`, `errorbar`, `errorband`) is expanded, by `SpecNormalizer.Expand`, into a layered view of the
 primitive views Vega-Lite normalizes it to; the nodes the expansion writes are located at the composite's `mark`, and the
-expressions it writes are compiled into a derived tree. `concat`, `hconcat`, `vconcat`, `facet`, and `repeat` are recorded
-as compositions that are not drawn yet and are not entered.
+expressions it writes are compiled into a derived tree. `concat`, `hconcat`, `vconcat`, `repeat`, and `facet` are drawn
+(Phase 11): the concatenations and the copies of a repeat are nodes of the tree whose charts are the leaves; a `facet` is
+a node too, whose cells (a copy of its template for each value of its fields) the data stage makes.
 
 **Limits fail closed.** The parser enforces `MaxSourceLength`, `MaxJsonDepth`, and `MaxStringLength`; the normalizer
 enforces `MaxViews` and `MaxCompositionDepth` with an explicit stack, as a located `VegaLiteRenderException`; nothing in

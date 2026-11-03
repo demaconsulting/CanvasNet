@@ -100,14 +100,26 @@ internal sealed class TableLayout
     /// <exception cref="VegaLiteRenderException">Thrown when the table would have more than <see cref="MaxCells"/> cells.</exception>
     public DataValue[] Allocate(long rows)
     {
-        if (rows * Fields.Length > MaxCells)
+        Check(rows);
+        return new DataValue[rows * Fields.Length];
+    }
+
+    /// <summary>
+    ///     Checks the size of a table with a number of rows, before anything is allocated.
+    /// </summary>
+    /// <remarks>
+    ///     The comparison is a division, so the product of the rows and the fields is never formed.
+    /// </remarks>
+    /// <param name="rows">The number of rows.</param>
+    /// <exception cref="VegaLiteRenderException">Thrown when the table would have more than <see cref="MaxCells"/> cells.</exception>
+    public void Check(long rows)
+    {
+        if (Fields.Length > 0 && rows > MaxCells / Fields.Length)
         {
             throw new VegaLiteRenderException(
                 $"The transform produces a table of {rows} rows with {Fields.Length} fields, more than the {MaxCells} cells that a derived table may have.",
                 _location);
         }
-
-        return new DataValue[rows * Fields.Length];
     }
 
     /// <summary>

@@ -36,7 +36,7 @@ public class SpecNormalizerTests
         Assert.Same(layers.Root, unit);
         Assert.Same(tree.Root, unit.Unit);
         Assert.False(unit.IsLayer);
-        Assert.False(layers.HasUndrawn);
+        Assert.False(layers.HasComposition);
         Assert.Equal(1, layers.ViewCount);
     }
 
@@ -192,55 +192,6 @@ public class SpecNormalizerTests
     }
 
     /// <summary>
-    ///     Validates that a composition that is not drawn yet becomes an undrawn node with its name, and that nothing below it is a unit view.
-    /// </summary>
-    [Theory]
-    [InlineData("concat")]
-    [InlineData("hconcat")]
-    [InlineData("vconcat")]
-    public void SpecNormalizer_Layers_ConcatenationIsUndrawn(string composition)
-    {
-        // Arrange / Act
-        var (_, layers) = Normalize($$"""{ "{{composition}}": [ { "layer": [ { "mark": "bar" } ] } ] }""");
-
-        // Assert
-        Assert.True(layers.HasUndrawn);
-        Assert.Empty(layers.Units);
-        Assert.Equal(composition, Assert.Single(layers.Undrawn).UndrawnComposition);
-        Assert.Equal(1, layers.ViewCount);
-    }
-
-    /// <summary>
-    ///     Validates that a facet and a repeat are undrawn too.
-    /// </summary>
-    [Fact]
-    public void SpecNormalizer_Layers_FacetAndRepeatAreUndrawn()
-    {
-        // Arrange / Act
-        var (_, facet) = Normalize("""{ "facet": { "field": "a" }, "spec": { "mark": "bar" } }""");
-        var (_, repeat) = Normalize("""{ "repeat": [ "a", "b" ], "spec": { "mark": "bar" } }""");
-
-        // Assert
-        Assert.Equal("facet", Assert.Single(facet.Undrawn).UndrawnComposition);
-        Assert.Equal("repeat", Assert.Single(repeat.Undrawn).UndrawnComposition);
-    }
-
-    /// <summary>
-    ///     Validates that a layer that is itself a concatenation is undrawn while its siblings are still units, so the whole specification reports the composition.
-    /// </summary>
-    [Fact]
-    public void SpecNormalizer_Layers_ConcatenationInsideLayerIsUndrawn()
-    {
-        // Arrange / Act
-        var (_, layers) = Normalize("""{ "layer": [ { "mark": "bar" }, { "hconcat": [ { "mark": "point" } ] } ] }""");
-
-        // Assert
-        Assert.Equal(["/layer/0"], layers.Units.Select(u => u.Unit!.Pointer));
-        Assert.Equal("/layer/1", Assert.Single(layers.Undrawn).Source.Pointer);
-        Assert.True(layers.HasUndrawn);
-    }
-
-    /// <summary>
     ///     Validates the <c>resolve</c> of a layered view: everything is shared by default, an independent scale makes its guides independent, and
     ///     an explicit guide mode applies to a shared scale.
     /// </summary>
@@ -308,7 +259,7 @@ public class SpecNormalizerTests
         // Assert
         Assert.Equal(3, accepted.Units.Count);
         Assert.Contains("MaxViews", ex.Message, StringComparison.Ordinal);
-        Assert.StartsWith("/layer/", ex.Location.Pointer, StringComparison.Ordinal);
+        Assert.Equal("/layer", ex.Location.Pointer);
     }
 
     /// <summary>

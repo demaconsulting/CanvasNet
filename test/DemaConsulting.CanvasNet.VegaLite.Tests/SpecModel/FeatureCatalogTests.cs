@@ -48,8 +48,7 @@ public class FeatureCatalogTests
                 "longitude": { "field": "lon", "type": "quantitative" },
                 "latitude": { "field": "lat", "type": "quantitative" },
                 "tooltip": { "field": "c" }
-              },
-              "hconcat": [ { "mark": "geoshape" } ]
+              }
             }
             """;
 
@@ -61,11 +60,8 @@ public class FeatureCatalogTests
             [
                 ("vl-schema-version", "/$schema"),
                 ("vl-expr-ref", "/title/text"),
-                ("vl-layout-autosize-fit", "/autosize"),
                 ("vl-param-selection", "/params/1"),
                 ("vl-projection", "/projection"),
-                ("vl-transform-calculate", "/transform/0"),
-                ("vl-transform-filter", "/transform/1"),
                 ("vl-transform-regression", "/transform/2"),
                 ("vl-mark-geoshape", "/mark"),
                 ("vl-encoding-sort-ignored", "/encoding/y/sort"),
@@ -74,8 +70,6 @@ public class FeatureCatalogTests
                 ("vl-guide-encode", "/encoding/color/legend/encode"),
                 ("vl-channel-geo", "/encoding/longitude"),
                 ("vl-channel-geo", "/encoding/latitude"),
-                ("vl-composition-hconcat", "/hconcat"),
-                ("vl-mark-geoshape", "/hconcat/0/mark"),
             ],
             reports.Select(r => (r.Id, r.Location.Pointer)));
 
@@ -320,7 +314,7 @@ public class FeatureCatalogTests
               "color": {"value":"red"}, "fill": {"value":"red"}, "stroke": {"value":"red"}, "size": {"value":3}, "opacity": {"value":1},
               "tooltip": {"value":"t"}, "href": {"value":"h"}, "description": {"value":"d"}, "key": {"field":"a"},
               "x2": {"field":"a"}, "shape": {"field":"a","type":"nominal","legend":null}, "strokeWidth": {"value":2}, "text": {"field":"a"},
-              "detail": [ {"field":"a"} ], "order": {"field":"a"}, "row": {"field":"a"}, "xOffset": {"field":"a"},
+              "detail": [ {"field":"a"} ], "order": {"field":"a"}, "xOffset": {"field":"a"},
               "longitude": {"field":"a"}, "latitude2": {"field":"a"},
               "strokeDash": {"value":[1,1]}, "fillOpacity": {"value":0.5}, "strokeOpacity": {"value":0.5}, "angle": {"value":45}
             } }
@@ -329,12 +323,11 @@ public class FeatureCatalogTests
         // Act
         var ids = Visit(json);
 
-        // Assert: shape, strokeWidth, strokeDash, fillOpacity, strokeOpacity and angle are drawn by a point mark
+        // Assert: shape, strokeWidth, strokeDash, fillOpacity, strokeOpacity and angle are drawn by a point mark (a row channel would facet the view, which is drawn and not reported)
         Assert.Equal(
             [
                 ("vl-channel-x2", "/encoding/x2"),
                 ("vl-channel-text", "/encoding/text"),
-                ("vl-channel-row", "/encoding/row"),
                 ("vl-channel-xoffset", "/encoding/xOffset"),
                 ("vl-channel-geo", "/encoding/longitude"),
                 ("vl-channel-geo", "/encoding/latitude2"),
@@ -924,10 +917,10 @@ public class FeatureCatalogTests
     }
 
     /// <summary>
-    ///     Validates that every composition is reported and that the views nested in it are examined too, at any depth.
+    ///     Validates that a concatenation, a facet and a repeat are all drawn and not reported, and that the views nested in any of them are examined too, at any depth.
     /// </summary>
     [Fact]
-    public void FeatureCatalog_Visit_CompositionsAreReportedAndNestedViewsExamined()
+    public void FeatureCatalog_Visit_ConcatFacetAndRepeatAreDrawnAndNestedViewsExamined()
     {
         // Arrange
         const string json = """
@@ -941,41 +934,37 @@ public class FeatureCatalogTests
         // Act
         var ids = Visit(json);
 
-        // Assert
+        // Assert: the facet is not reported (its identifier vl-composition-facet is retired), the views inside it are
         Assert.Equal(
             [
-                ("vl-composition-hconcat", "/hconcat"),
                 ("vl-mark-geoshape", "/hconcat/0/mark"),
-                ("vl-composition-vconcat", "/hconcat/1/vconcat"),
                 ("vl-mark-image", "/hconcat/1/vconcat/0/mark"),
-                ("vl-composition-concat", "/concat"),
-                ("vl-composition-facet", "/facet"),
                 ("vl-mark-geoshape", "/spec/mark"),
-                ("vl-composition-repeat", "/repeat"),
                 ("vl-projection", "/projection"),
             ],
             ids);
     }
 
     /// <summary>
-    ///     Validates that the autosize types other than pad and none are reported at the type.
+    ///     Validates that no autosize type is reported any more: <c>fit</c>, <c>fit-x</c> and <c>fit-y</c> are drawn (the family <c>vl-layout-autosize-&lt;type&gt;</c> is retired).
     /// </summary>
     /// <param name="json">The specification text.</param>
-    /// <param name="expected">The expected identifier, or null for none.</param>
     [Theory]
-    [InlineData("{\"autosize\":\"pad\"}", null)]
-    [InlineData("{\"autosize\":\"none\"}", null)]
-    [InlineData("{\"autosize\":{\"type\":\"pad\",\"resize\":true}}", null)]
-    [InlineData("{\"autosize\":\"fit\"}", "vl-layout-autosize-fit")]
-    [InlineData("{\"autosize\":\"fit-x\"}", "vl-layout-autosize-fit-x")]
-    [InlineData("{\"autosize\":{\"type\":\"fit-y\"}}", "vl-layout-autosize-fit-y")]
-    public void FeatureCatalog_Visit_AutosizeFitModesAreReported(string json, string? expected)
+    [InlineData("{\"autosize\":\"pad\"}")]
+    [InlineData("{\"autosize\":\"none\"}")]
+    [InlineData("{\"autosize\":{\"type\":\"pad\",\"resize\":true}}")]
+    [InlineData("{\"autosize\":\"fit\"}")]
+    [InlineData("{\"autosize\":\"fit-x\"}")]
+    [InlineData("{\"autosize\":{\"type\":\"fit-y\",\"contains\":\"padding\"}}")]
+    [InlineData("{\"width\":\"container\",\"autosize\":{\"type\":\"fit\"}}")]
+    public void FeatureCatalog_Visit_AutosizeTypesAreNotReported(string json)
     {
         // Arrange / Act
-        var ids = Visit(json).Select(r => r.Id).ToList();
+        var reports = Visit(json);
 
-        // Assert
-        Assert.Equal(expected is null ? [] : new List<string> { expected }, ids);
+        // Assert: nothing at all, and in particular none of the retired family
+        Assert.DoesNotContain(reports, r => r.Id.StartsWith("vl-layout-autosize", StringComparison.Ordinal));
+        Assert.Empty(reports);
     }
 
     /// <summary>
@@ -1157,27 +1146,24 @@ public class FeatureCatalogTests
     }
 
     /// <summary>
-    ///     Validates that every aggregating transform of a nested view (which is not drawn) is reported, and that a bin extent that is a
-    ///     parameter is reported for the drawn view only.
+    ///     Validates that the aggregating transforms of a view in a concatenation or a facet are applied (only a bin extent that is a parameter is reported, as for a drawn view).
     /// </summary>
     [Fact]
-    public void FeatureCatalog_Visit_NestedViewAggregatingTransformsAreStillReported()
+    public void FeatureCatalog_Visit_NestedViewAggregatingTransformsAreAppliedInConcatAndFacet()
     {
         // Arrange
-        const string nested = """
-            {
-              "hconcat": [
-                { "mark": "point", "transform": [
-                  { "aggregate": [ { "op": "count", "as": "n" } ] },
-                  { "joinaggregate": [ { "op": "sum", "field": "v", "as": "t" } ] },
-                  { "window": [ { "op": "rank", "as": "r" } ] },
-                  { "bin": { "extent": { "param": "e" } }, "field": "x", "as": "b" },
-                  { "stack": "v" },
-                  { "impute": "v", "key": "k" }
-                ] }
-              ]
-            }
+        const string transforms = """
+            "transform": [
+              { "aggregate": [ { "op": "count", "as": "n" } ] },
+              { "joinaggregate": [ { "op": "sum", "field": "v", "as": "t" } ] },
+              { "window": [ { "op": "rank", "as": "r" } ] },
+              { "bin": { "extent": { "param": "e" } }, "field": "x", "as": "b" },
+              { "stack": "v" },
+              { "impute": "v", "key": "k" }
+            ]
             """;
+        var concat = "{ \"hconcat\": [ { \"mark\": \"point\", " + transforms + " } ] }";
+        var facet = "{ \"facet\": { \"field\": \"f\", \"type\": \"nominal\" }, \"spec\": { \"mark\": \"point\", " + transforms + " } }";
         const string drawn = """
             { "mark": "point", "transform": [
               { "bin": { "extent": { "param": "e" } }, "field": "x", "as": "b" },
@@ -1186,21 +1172,13 @@ public class FeatureCatalogTests
             """;
 
         // Act
-        var nestedIds = Visit(nested);
+        var concatIds = Visit(concat);
+        var facetIds = Visit(facet);
         var drawnIds = Visit(drawn);
 
-        // Assert
-        Assert.Equal(
-            [
-                ("vl-composition-hconcat", "/hconcat"),
-                ("vl-transform-aggregate", "/hconcat/0/transform/0"),
-                ("vl-transform-joinaggregate", "/hconcat/0/transform/1"),
-                ("vl-transform-window", "/hconcat/0/transform/2"),
-                ("vl-transform-bin", "/hconcat/0/transform/3"),
-                ("vl-transform-stack", "/hconcat/0/transform/4"),
-                ("vl-transform-impute", "/hconcat/0/transform/5"),
-            ],
-            nestedIds);
+        // Assert: the same single report for a concatenation, a facet and a single view
+        Assert.Equal([("vl-transform-bin-extent-param", "/hconcat/0/transform/3/bin/extent")], concatIds);
+        Assert.Equal([("vl-transform-bin-extent-param", "/spec/transform/3/bin/extent")], facetIds);
         Assert.Equal([("vl-transform-bin-extent-param", "/transform/0/bin/extent")], drawnIds);
     }
 
@@ -1289,11 +1267,11 @@ public class FeatureCatalogTests
     }
 
     /// <summary>
-    ///     Validates that the transforms and the variable parameters of a nested view are reported (the view is not drawn),
-    ///     while the variable parameters of the root are not.
+    ///     Validates that the transforms of a view in a concatenation or a facet are applied while its variable parameters are reported (Phase 12), and that the variable parameters of
+    ///     the root are not reported.
     /// </summary>
     [Fact]
-    public void FeatureCatalog_Visit_NestedViewTransformsAndVariableParametersAreReported()
+    public void FeatureCatalog_Visit_NestedViewTransformsAreAppliedAndVariableParametersAreReported()
     {
         // Arrange
         const string json = """
@@ -1304,19 +1282,31 @@ public class FeatureCatalogTests
               ]
             }
             """;
+        const string facet = """
+            {
+              "params": [ { "name": "r", "value": 2 } ],
+              "facet": { "field": "f", "type": "nominal" },
+              "spec": { "params": [ { "name": "v", "value": 1 } ], "transform": [ { "calculate": "1", "as": "x" }, { "lookup": "k", "from": { "param": "r" } } ], "mark": "point" }
+            }
+            """;
 
         // Act
         var ids = Visit(json);
+        var facetIds = Visit(facet);
 
         // Assert
         Assert.Equal(
             [
-                ("vl-composition-hconcat", "/hconcat"),
                 ("vl-param-variable", "/hconcat/0/params/0"),
-                ("vl-transform-calculate", "/hconcat/0/transform/0"),
-                ("vl-transform-lookup", "/hconcat/0/transform/1"),
+                ("vl-transform-lookup-param", "/hconcat/0/transform/1/from/param"),
             ],
             ids);
+        Assert.Equal(
+            [
+                ("vl-param-variable", "/spec/params/0"),
+                ("vl-transform-lookup-param", "/spec/transform/1/from/param"),
+            ],
+            facetIds);
     }
 
     /// <summary>

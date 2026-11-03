@@ -1,8 +1,9 @@
 ### SpecNormalizer Unit Verification Design
 
 This document describes the unit-level verification strategy for the `SpecNormalizer` unit in the
-`DemaConsulting.CanvasNet.VegaLite.SpecModel` namespace: the layer tree of a specification (`SpecNormalizer.Layers`,
-`LayerTree`, `LayerNode`, `LayerResolve`), the expansion of the composite marks `boxplot`, `errorbar`, and `errorband`
+`DemaConsulting.CanvasNet.VegaLite.SpecModel` namespace: the view tree of a specification (`SpecNormalizer.Layers`,
+`LayerTree`, `LayerNode`, `LayerResolve`: layers, concatenations, facets, and the copies of repeats), the expansion of the
+composite marks `boxplot`, `errorbar`, and `errorband`
 into layers (`SpecNormalizer.Expand`, `ExpandedLayers`, `CompositeBuilder`, `SpecNormalizer.TryOrientation`), and the node
 factories and the expression extension that they use (`SpecNode.Overlay`, `SpecExpressions.With`). The unit applies the
 inheritance and normalization rules of Vega-Lite and bounds the number and the nesting of the views.
@@ -11,7 +12,7 @@ inheritance and normalization rules of Vega-Lite and bounds the number and the n
 
 The unit is verified by parsing small, original specifications, building the layer tree or the expansion, and asserting
 on the structure it returns: the unit views and their order, the merged encoding of each layer, the mark types of the
-layers that are drawn, the transform entries of each view (their operations, fields, and the text of their
+layers and compositions that are drawn, the transform entries of each view (their operations, fields, and the text of their
 expressions), and the properties of the marks of the parts. No mock or stub is needed: the unit reads only the parsed tree
 (`SpecParser`), the resolved configuration (`ConfigResolver`), and the expression compiler (`ExpressionParser`), all of
 which
@@ -36,7 +37,9 @@ ends, and errors), the one- and two-dimensional error band, the part switches in
 the
 orientation rules, with the specification errors of the combinations that cannot be decided.
 
-Unit tests reside in `SpecNormalizerTests.cs`, `SpecNormalizerBoxPlotTests.cs`, and `SpecNormalizerErrorBarTests.cs`
+Unit tests reside in `SpecNormalizerTests.cs`, `SpecNormalizerCompositionTests.cs`, `SpecNormalizerRepeatTests.cs`,
+`SpecNormalizerFacetCellTests.cs`,
+`SpecNormalizerBoxPlotTests.cs`, and `SpecNormalizerErrorBarTests.cs`
 within the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `SpecModel` folder; the internal types are reached
 through the test assembly's `InternalsVisibleTo` access.
 
@@ -62,18 +65,17 @@ specification error constitutes a failure.
 
 **Tests**: `SpecNormalizerTests.SpecNormalizer_Layers_SingleViewIsTheRootItself`,
 `SpecNormalizerTests.SpecNormalizer_Layers_LayersAreUnitsInDocumentOrder`,
-`SpecNormalizerTests.SpecNormalizer_Layers_ConcatenationIsUndrawn`,
-`SpecNormalizerTests.SpecNormalizer_Layers_FacetAndRepeatAreUndrawn`,
-`SpecNormalizerTests.SpecNormalizer_Layers_ConcatenationInsideLayerIsUndrawn`,
+`SpecNormalizerCompositionTests.SpecNormalizer_Layers_HConcatBuildsConcatNodeWithChildrenInOrder`,
+`SpecNormalizerCompositionTests.SpecNormalizer_Layers_FacetFieldDefIsWrapFacet`,
+`SpecNormalizerCompositionTests.SpecNormalizer_Layers_LayersInFacetSpecShareTheChart`,
 `SpecNormalizerTests.SpecNormalizer_Layers_NullTreeThrows`
 
 Asserts that a specification without a composition is one unit view that is the root object itself (so a single view takes
 its usual path); that the layers are the unit views in document order, layers of layers included, with the parent links
 and
-the depths that follow the nesting; that `concat`, `hconcat`, `vconcat`, `facet`, and `repeat` become undrawn nodes that
-carry
-the name of the composition, are not entered, and have no unit view below them; that a layer that is a concatenation is
-undrawn while its siblings are still units, so the specification reports the composition; and that a null tree throws
+the depths that follow the nesting; that an `hconcat` is a concatenation node whose children are its views in order, the
+leaves being the view objects themselves with their own chart; that a `facet` is a node over its `spec` with the wrap
+definition of its field; that the layers of the `spec` of a facet share one chart; and that a null tree throws
 `ArgumentNullException`.
 
 ##### Inheritance: Encoding, Size, Data, And Transform
@@ -81,17 +83,131 @@ undrawn while its siblings are still units, so the specification reports the com
 **Tests**: `SpecNormalizerTests.SpecNormalizer_Layers_EncodingIsMergedInPlace`,
 `SpecNormalizerTests.SpecNormalizer_Layers_NestedLayersMergeEveryLevel`,
 `SpecNormalizerTests.SpecNormalizer_Layers_UnitTakesSizeOfTopLevelView`,
+`SpecNormalizerCompositionTests.SpecNormalizer_Layers_ChartRootSizeComesFromTheChartNotTheTreeRoot`,
+`SpecNormalizerCompositionTests.SpecNormalizer_Layers_ConcatHandsNoEncodingDown`,
 `SpecNormalizerTests.SpecNormalizer_Layers_DataAndTransformAreEachViewsOwn`,
 `SpecNormalizerTests.SpecNormalizer_Layers_NullDataOfALayerInheritsLikeAbsentData`
 
 Asserts that a layer reads the encoding of the layered views above it with the parent channels in place, the layer's channel
 replacing the parent's in place and new channels after them, that the outermost encoding comes first through every nesting
 level, and that every value is the original node with its own pointer; that a layer takes the `width` and `height` of the
-top-level view and ignores its own while the merged view keeps the pointer and position of the layer; and that the
+top-level view and ignores its own while the merged view keeps the pointer and position of the layer, and that in a
+concatenation the size comes from the chart (the child of the concatenation), not from the root of the tree; that a
+concatenation hands no encoding down; and that the
 `data` and
 the `transform` of a view are its own (the document applies the layered view's transform first) and that a layer without
 them has none; and that a layer whose `data` is an explicit `null` has no data of its own either and so inherits, as
 Vega-Lite's `parseRoot` does (`model.data || !model.parent`; only the top-level `null` gives an empty source).
+
+##### Concatenations And Their Layout Settings
+
+**Tests**: `SpecNormalizerCompositionTests.SpecNormalizer_Layers_HConcatBuildsConcatNodeWithChildrenInOrder`,
+`SpecNormalizerCompositionTests.SpecNormalizer_Layers_VConcatHasOneColumn`,
+`SpecNormalizerCompositionTests.SpecNormalizer_Layers_ConcatReadsColumnsSpacingAlignCenterBounds`,
+`SpecNormalizerCompositionTests.SpecNormalizer_Layers_ConcatSpacingObjectFallsBackToConfig`,
+`SpecNormalizerCompositionTests.SpecNormalizer_Layers_FacetChannelIsWrapWithItsOwnLayout`,
+`SpecNormalizerCompositionTests.SpecNormalizer_Layers_DefaultConfigGivesSpacingTwenty`,
+`SpecNormalizerCompositionTests.SpecNormalizer_Layers_CompositeMarkInsideConcatIsExpanded`
+
+Asserts, with the numbers written into the specifications, that an `hconcat` has no columns, a `vconcat` one (whatever
+`columns` says) and a `concat` the `columns` of the view; that the spacing is 20 for both directions by default, a number
+for both, an object whose missing entry is the configured spacing (12 in the test), with the alignment each for a
+concatenation, no centering and full bounds by default; that a view's `columns`, `spacing` object (5 and 7),
+`align` object, `center` object, and `bounds: "flush"` are read as written; that the `columns` and `spacing` of the
+`config` apply and that `hconcat` ignores the configured columns; that a `facet` channel's own `columns` (4), `align`
+(none) and `spacing` win over the view and the configuration (9 and 11); and that a composite mark in a concatenation is
+expanded into layers that belong to its chart.
+
+##### Facets And Faceted Unit Views
+
+**Tests**: `SpecNormalizerCompositionTests.SpecNormalizer_Layers_FacetFieldDefIsWrapFacet`,
+`SpecNormalizerCompositionTests.SpecNormalizer_Layers_FacetRowColumnMappingKeepsColumnsOnlyForWrap`,
+`SpecNormalizerCompositionTests.SpecNormalizer_Layers_FacetSpecThatIsACompositionIsSpecError`,
+`SpecNormalizerCompositionTests.SpecNormalizer_Layers_LayerChildThatIsACompositionIsSpecError`,
+`SpecNormalizerCompositionTests.SpecNormalizer_Layers_UnitWithRowColumnChannelsBecomesFacetWithBody`,
+`SpecNormalizerCompositionTests.SpecNormalizer_Layers_FacetBodyDoesNotReapplyDataTransformOrTitle`,
+`SpecNormalizerCompositionTests.SpecNormalizer_Layers_RowWinsOverFacetChannel`,
+`SpecNormalizerCompositionTests.SpecNormalizer_Layers_LayerChildWithRowChannelIsNotFaceted`,
+`SpecNormalizerCompositionTests.SpecNormalizer_Layers_UnitInConcatIsFacetedButNotInFacetSpec`
+
+Asserts that a facet of a `row` and a `column` has no wrap columns and drops the `columns` of the view with one
+warning at
+that property; that a composition as the `spec` of a facet or as a view of a `layer` is a specification error located at
+it; that a unit view with `row` and `column` channels is a facet over the same view object and one synthetic body whose
+unit has the mark, the width (100), and only the `x` channel (the same node as the original), with the facet and its
+body counting two views; that the data, the transform, and the title belong to the facet and the body reads none; that
+`row` wins over `facet`; and that a unit view in a `layer` or in the `spec` of a facet keeps its `row` or `column` channel
+while a unit view that is a child of a concatenation is faceted.
+
+##### Facet Cells And Data Sites
+
+**Tests**: `SpecNormalizerFacetCellTests.LayerTree_InstantiateFacet_ReplacesTheTemplateWithOneCopyPerCell`,
+`SpecNormalizerFacetCellTests.LayerTree_InstantiateFacet_LayeredBodyCopiesEachLayerAndMapsChartRoots`,
+`SpecNormalizerFacetCellTests.LayerTree_InstantiateFacet_FacetedUnitCopiesTheSyntheticBody`,
+`SpecNormalizerFacetCellTests.LayerTree_FacetViews_CountsTheViewsOfOneCellAndTheOthers`,
+`SpecNormalizerFacetCellTests.LayerTree_InstantiateFacet_RefusesTwiceAndNonFacetsAndAllowsNoCells`,
+`SpecNormalizerFacetCellTests.LayerTree_DataSites_CopiesOfARepeatShareOneSite`,
+`SpecNormalizerFacetCellTests.LayerTree_DataSites_FacetCellsShareTheRootSiteAndItsFacetFieldsAreCollected`,
+`SpecNormalizerFacetCellTests.LayerTree_DataSites_ViewWithOwnDataIsItsOwnSiteAndNeededFiltersViews`
+
+Asserts, with the counts written into the specifications, that a facet whose template is one view (a facet and a body
+are two views) has three copies after three cells (four views), that the copies are the units in order with the cell
+(index 0 to 2, and the cell value) on each, have the facet as parent, share the `Source` and `Unit` objects of the template,
+are their own charts and leave the template without a cell; that a template that is a layered view with two layers
+(four views with the facet, three per cell) has seven views after two cells, the units `0, 0, 1, 1` by cell,
+all at depth 2,
+each leaf a child of the copy of the layered view of its cell, which is its chart (none an original), and the
+resolve of the layered view kept; that the synthetic body of a unit view with a `column` channel is copied as a body
+(no own
+data or transform; the same unit); that for a concatenation of a facet and a bar
+(four views) one cell holds 1 view and 3
+are outside, before and after two cells (five views), and that a facet without cells holds none (0 and 1); that
+a facet with no cell has no child and no unit, is still a composition, refuses a second instantiation
+(`InvalidOperationException`), and that a concatenation is refused (`ArgumentException`).
+For the sites it asserts that the
+three copies of a repeated view with its own data are one site (after the site of the root without data) whose views, read
+as date fields, give `a`, `b`, `c`; that the cells of a facet by a temporal field `d` are views of the root's site, whose
+facet is listed once whether or not the cells exist and gives the date field `d`;
+and that a child with its own data is a
+site of its own (with the views of its layers), that the root's site holds the root and the first child, and that a view
+outside the needed set leaves its site out.
+
+##### Repeats
+
+**Tests**: `SpecNormalizerRepeatTests.SpecNormalizer_Layers_ArrayRepeatMakesConcatWithColumns`,
+`SpecNormalizerRepeatTests.SpecNormalizer_Layers_RowColumnRepeatIsRowMajorCrossProduct`,
+`SpecNormalizerRepeatTests.SpecNormalizer_Layers_RowOnlyRepeatHasOneColumn`,
+`SpecNormalizerRepeatTests.SpecNormalizer_Layers_LayerRepeatMakesLayerNode`,
+`SpecNormalizerRepeatTests.SpecNormalizer_Layers_RowAndLayerRepeatNestsLayers`,
+`SpecNormalizerRepeatTests.SpecNormalizer_Layers_RepeatColumnsWithMappingIsIgnoredWithWarning`,
+`SpecNormalizerRepeatTests.SpecNormalizer_Layers_RepeatDataStaysOnTheConcatAndChildDataWins`,
+`SpecNormalizerRepeatTests.SpecNormalizer_Layers_RepeatCopiesKeepOriginalPointers`,
+`SpecNormalizerRepeatTests.SpecNormalizer_Layers_EmptyRepeatHasNoViews`
+
+Asserts that a repeat over three values is a concatenation of three copies (four views) with the columns of the view and
+the value of each copy; that rows `r1`, `r2` and columns `c1`, `c2`, `c3` give six copies in the order `r1/c1`, `r1/c2`,
+`r1/c3`, `r2/c1`, `r2/c2`, `r2/c3` with three columns; that a row-only repeat has one column and a column-only repeat as
+many columns as values; that a repeat of layers is a layered node (not a composition) of copies sharing its chart, and
+that rows and layers (2 and 2) make a concatenation of two layered cells with four units (seven views, depth 2); that the
+`columns` of the view next to rows or columns is dropped with a warning at it; that the data of the repeat stays on the
+concatenation and the data of the `spec` is the copies' own; that a copy with nothing to replace is the `spec` object
+itself with its pointer; and that an empty list has no views.
+
+##### Repeat References
+
+**Tests**: `SpecNormalizerRepeatTests.SpecNormalizer_Layers_RepeatReplacesRefInFieldSortFieldDatumAndCondition`,
+`SpecNormalizerRepeatTests.SpecNormalizer_Layers_MissingRepeatValueDropsChannelWithWarning`,
+`SpecNormalizerRepeatTests.SpecNormalizer_Layers_FacetWithUnresolvedRepeatFieldIsDropped`,
+`SpecNormalizerRepeatTests.SpecNormalizer_Layers_MissingRepeatValueInSortOrConditionDropsOnlyThat`,
+`SpecNormalizerRepeatTests.SpecNormalizer_Layers_RepeatOfFacetedUnitFacetsByTheRepeatedField`
+
+Asserts that a reference in a field, a sort field, a datum, and a condition field becomes the repeated value (`q`) as a
+string located at the reference while the rest of each definition is kept; that a reference with no value drops the
+channel and is warned about once at the reference even when two copies have it; that an unresolved reference in a sort
+drops only the sort and one in a condition drops only that condition (two warnings, at the two references); and that the
+facet field of a faceted unit view in a repeat is replaced (`a`, `b`); and that a
+`facet` whose only field is a reference with no value is dropped (its `spec` is a unit view in a layer of one, in
+each of the two copies) with one warning at `/spec/facet/field`.
 
 ##### Node Overlays
 
@@ -107,27 +223,56 @@ still searched by name, and that null arguments throw.
 
 ##### Resolve
 
-**Test**: `SpecNormalizerTests.LayerResolve_Read_FollowsScaleForGuides`
+**Tests**: `SpecNormalizerTests.LayerResolve_Read_FollowsScaleForGuides`,
+`SpecNormalizerCompositionTests.SpecNormalizer_Layers_ConcatDefaultsPositionScalesIndependentAndOthersShared`,
+`SpecNormalizerCompositionTests.SpecNormalizer_Layers_ConcatAxisIsAlwaysIndependent`,
+`SpecNormalizerCompositionTests.SpecNormalizer_Layers_ExplicitSharedConcatAxisIsReported`,
+`SpecNormalizerCompositionTests.SpecNormalizer_Layers_FacetDefaultsSharedExceptTheta`
 
 Asserts that everything is shared when a view has no `resolve`, that an independent scale makes the axis and the legend
 of its
 channel independent, that an explicit guide mode applies to a shared scale, and that the modes of a channel that is not
 named
-are the default.
+are the default; that the scales of `x`, `y`, `xOffset`, `yOffset`, `theta`, and `radius` of a concatenation are
+independent and `color`, `size`, `shape`, `opacity`, and `stroke` shared (with their legends), an explicit mode winning;
+that the axes of a concatenation are independent whatever `resolve` says, with a warning at an explicit `shared` axis (one
+for `x`, none for an `independent` entry); and that a facet shares everything except `theta`.
 
 ##### Limits
 
 **Tests**: `SpecNormalizerTests.SpecNormalizer_Layers_DepthLimitIsEnforced`,
 `SpecNormalizerTests.SpecNormalizer_Layers_ViewLimitIsEnforced`,
 `SpecNormalizerBoxPlotTests.SpecNormalizer_Expand_ExpandedViewsCountAgainstMaxViewsNotTheDepth`,
-`SpecNormalizerErrorBarTests.SpecNormalizer_Expand_ErrorBarViewsAreCounted`
+`SpecNormalizerErrorBarTests.SpecNormalizer_Expand_ErrorBarViewsAreCounted`,
+`SpecNormalizerCompositionTests.SpecNormalizer_Layers_NestedCompositionsCountTowardsMaxCompositionDepth`,
+`SpecNormalizerCompositionTests.SpecNormalizer_Layers_ConcatChildrenCountTowardsMaxViews`,
+`SpecNormalizerCompositionTests.SpecNormalizer_Layers_ChildListIsCheckedBeforeTheChildrenAreMade`,
+`SpecNormalizerCompositionTests.SpecNormalizer_Layers_FacetedUnitCountsFacetAndBody`,
+`SpecNormalizerRepeatTests.SpecNormalizer_Layers_RepeatProductIsCheckedBeforeExpansion`,
+`SpecNormalizerRepeatTests.SpecNormalizer_ExceedsViews_ProductThatWrapsIsRefused`,
+`SpecNormalizerRepeatTests.SpecNormalizer_Layers_RepeatOfLayersCountsViewsByCell`,
+`SpecNormalizerRepeatTests.SpecNormalizer_Layers_NestedRepeatCountsLevelsAndInnerValueWins`
 
 Asserts that nesting deeper than `MaxCompositionDepth` and more views than `MaxViews` are located
 `VegaLiteRenderException`s and that exactly the limit is accepted; that the views of a box plot expansion count as views
 (nine
 for a default box plot: the composite, two groups, the whisker view, and five unit views) and not as nesting levels; and
 that
-the views of an error bar count (three: the composite, its view, and the rule; five with the ticks).
+the views of an error bar count (three: the composite, its view, and the rule; five with the ticks); that a `vconcat`
+of an
+`hconcat` is two levels (a limit of one is refused at the inner `hconcat`, a limit of two accepted), and a `facet`
+over a
+`layer` two (refused at the `layer`); that the root and three children of a concatenation are four views (a limit of
+three is refused at the list, `/hconcat`); that the children of a concatenation or a layer are counted before any is
+made (2,000 children against a limit of five are refused at the list, and the queued sibling of a layer counts); that a
+faceted
+unit view is two views (a limit of one is refused at the view itself); and that the check of copies is a division (2^62
+copies of four views are refused where the wrapped product would be accepted); that a repeat of three rows and four
+columns
+is 13 views (a limit of twelve is refused at the `repeat`), that a repeat of a thousand rows and a thousand columns is
+refused with the number one million in the message without making the copies, that the layers of every cell count (two
+rows and three layers are nine views, a limit of eight is refused), and that a repeat in a repeat is two levels, the inner
+value overriding the outer.
 
 ##### Expansion: Derived Tree, Unchanged Views, And Arguments
 

@@ -130,6 +130,8 @@ sections:
               - CanvasNetVegaLite-SpecModel-FeatureCatalog-SortDiagnostics
               - CanvasNetVegaLite-SpecModel-FeatureCatalog-TimeIds
               - CanvasNetVegaLite-SpecModel-FeatureCatalog-LayerReports
+              - CanvasNetVegaLite-SpecModel-FeatureCatalog-CompositionReports
+              - CanvasNetVegaLite-SpecModel-FeatureCatalog-FacetReports
               - CanvasNetVegaLite-SpecModel-FeatureCatalog-CompositeMarks
             tests:
               - FeatureCatalog_Visit_RecognizedUnsupportedPropertiesReturnsStableIds
@@ -150,39 +152,55 @@ sections:
           - id: CanvasNetVegaLite-SpecModel-LayerValidation
             title: >-
               The SpecModel subsystem shall validate the resolve of a view (its scale, axis, and legend
-              objects, their channels, and the values shared and independent) and the properties of the
+              objects, their channels, and the values shared and independent), the properties of the
               composite marks (the extent, the center, and the parts box, median, rule, ticks, outliers,
-              band, and borders), failing with a located specification exception at the first wrong value
-              and warning about an unknown resolve kind, and shall decide which views are drawn (the root and
-              the layers reached through layer arrays only) and which composition holds a view that is not.
+              band, and borders), and the properties of the compositions (facet, repeat, columns, spacing, align,
+              center, header, and the repeat references), failing with a located specification exception at the
+              first wrong value and warning about an unknown key, and shall check the expressions of every view
+              of a composition like those of any view.
             justification: |
-              A mistake in the resolve of layers or in a composite mark must be found when the specification
-              is opened, with its location, and the rule for which views are drawn must be one definition that
-              the validation, the report, and the renderer share.
+              A mistake in the resolve of layers, in a composite mark, or in a composition must be found when the
+              specification is opened, with its location, and every view that is drawn must be checked.
             children:
               - CanvasNetVegaLite-SpecModel-SpecParser-ResolveAndCompositeValidation
-              - CanvasNetVegaLite-SpecModel-SpecParser-DrawnViews
+              - CanvasNetVegaLite-SpecModel-SpecParser-ComposedViewExpressions
+              - CanvasNetVegaLite-SpecModel-SpecParser-CompositionValidation
+              - CanvasNetVegaLite-SpecModel-SpecParser-RepeatReferences
             tests:
               - SpecParser_Parse_ValidResolveIsAccepted
               - SpecParser_Parse_MalformedResolveReportsThePointer
               - SpecParser_Parse_MalformedCompositeMarkReportsThePointer
-              - SpecParser_IsDrawnView_LayersAreDrawnCompositionsAreNot
+              - SpecParser_Parse_ExpressionsOfComposedViewsAreCompiled
+              - SpecParser_Parse_FacetWithoutSpecIsError
+              - SpecParser_Parse_RepeatRefIsAcceptedAsField
 
           - id: CanvasNetVegaLite-SpecModel-Normalize
             title: >-
               The SpecModel subsystem shall describe the views of a specification as a tree of the unit
-              views that are drawn - the layers of a layered view with the encoding, size, data, transform,
-              and resolve that they inherit - shall expand the composite marks boxplot, errorbar, and
-              errorband into the primitive layers that Vega-Lite normalizes them to, and shall fail closed
-              at the limits of the nesting depth and of the number of views.
+              views that are drawn - the layers of a layered view, the children of a concatenation, the facets
+              (including those a faceting channel makes), and the copies of a repeat, with the encoding, size,
+              data, transform, resolve, and layout settings that they have or inherit - shall expand the
+              composite marks boxplot, errorbar, and errorband into the primitive layers that Vega-Lite
+              normalizes them to, and shall fail closed at the limits of the nesting depth and of the number of
+              views.
             justification: |
-              The renderer draws primitive unit views; every layered and composite chart is first reduced to
-              them, so the reduction must be exact and bounded.
+              The renderer draws primitive unit views; every layered, composed, and composite chart is first
+              reduced to them, so the reduction must be exact and bounded.
             children:
               - CanvasNetVegaLite-SpecModel-SpecNormalizer-LayerTree
               - CanvasNetVegaLite-SpecModel-SpecNormalizer-Inheritance
               - CanvasNetVegaLite-SpecModel-SpecNormalizer-Resolve
+              - CanvasNetVegaLite-SpecModel-SpecNormalizer-ResolveDefaults
               - CanvasNetVegaLite-SpecModel-SpecNormalizer-Limits
+              - CanvasNetVegaLite-SpecModel-SpecNormalizer-CompositionLimits
+              - CanvasNetVegaLite-SpecModel-SpecNormalizer-Concat
+              - CanvasNetVegaLite-SpecModel-SpecNormalizer-CompositionSettings
+              - CanvasNetVegaLite-SpecModel-SpecNormalizer-Facet
+              - CanvasNetVegaLite-SpecModel-SpecNormalizer-FacetChannels
+              - CanvasNetVegaLite-SpecModel-SpecNormalizer-FacetCells
+              - CanvasNetVegaLite-SpecModel-SpecNormalizer-DataSites
+              - CanvasNetVegaLite-SpecModel-SpecNormalizer-Repeat
+              - CanvasNetVegaLite-SpecModel-SpecNormalizer-RepeaterRefs
               - CanvasNetVegaLite-SpecModel-SpecNormalizer-Expansion
               - CanvasNetVegaLite-SpecModel-SpecNormalizer-BoxPlot
               - CanvasNetVegaLite-SpecModel-SpecNormalizer-ErrorBar
@@ -192,6 +210,9 @@ sections:
               - SpecNormalizer_Layers_LayersAreUnitsInDocumentOrder
               - SpecNormalizer_Layers_EncodingIsMergedInPlace
               - SpecNormalizer_Layers_DepthLimitIsEnforced
+              - SpecNormalizer_Layers_HConcatBuildsConcatNodeWithChildrenInOrder
+              - SpecNormalizer_Layers_UnitWithRowColumnChannelsBecomesFacetWithBody
+              - SpecNormalizer_Layers_ArrayRepeatMakesConcatWithColumns
               - SpecNormalizer_Expand_TukeyBoxPlotIsOutlierWhiskerAndBoxViews
               - SpecNormalizer_Expand_ErrorBarDefaultIsTheRuleOfTheMeanAndStandardError
               - SpecNormalizer_Expand_ErrorBandTwoDimensionalIsAnAreaWithLineBorders

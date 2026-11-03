@@ -2200,6 +2200,11 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteArcTextIntegrationTests.cs"  # arc and text tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteLayerIntegrationTests.cs"  # layer tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteCompositeMarkIntegrationTests.cs"  # composite mark tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteConcatIntegrationTests.cs"  # concatenation tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteRepeatIntegrationTests.cs"  # repeat tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteFacetIntegrationTests.cs"  # facet tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteCompositionSystemTests.cs"  # composition system tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteAutosizeIntegrationTests.cs"  # autosize fit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteTestHelpers.cs"  # shared test helpers
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataTestSupport.cs"  # shared data test helpers
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/TimeTestSupport.cs"  # shared time test helpers (zones)
@@ -2255,6 +2260,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.VegaLite/VegaLiteDocument.cs"   # unit source
       - "src/DemaConsulting.CanvasNet.VegaLite/VegaLiteDocument.Render.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.VegaLite/VegaLiteDocument.Layers.cs"  # unit source (layers)
+      - "src/DemaConsulting.CanvasNet.VegaLite/VegaLiteDocument.Composition.cs"  # unit source (cells of a composition)
       - "src/DemaConsulting.CanvasNet.VegaLite/VegaLiteOpenOptions.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.VegaLite/VegaLiteRenderOptions.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.VegaLite/VegaLiteFontOptions.cs"  # unit source
@@ -2270,6 +2276,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.VegaLite/VegaLiteUnsupportedFeatureException.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.VegaLite/VegaLiteReportSink.cs"  # unit source (internal report sink)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteDocumentLayoutTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteRefactorSnapshotTests.cs"  # unit tests (scene snapshots)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/VegaLiteDocumentSpecModelTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteOpenOptionsTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteRenderOptionsTests.cs"  # unit tests
@@ -2318,6 +2325,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecParserMarkTests.cs"  # unit tests (mark rules)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecParserImputeTests.cs"  # unit tests (impute object)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecParserResolveTests.cs"  # unit tests (layers)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecParserCompositionTests.cs"  # unit tests (views)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/PredicateSourceTests.cs"  # unit tests (predicates)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/PredicateSourceTimeTests.cs"  # unit tests (time)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/ChannelDefinitionsTests.cs"  # unit tests (definitions)
@@ -2339,6 +2347,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/FeatureCatalogTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/FeatureCatalogTimeTests.cs"  # unit tests (time ids)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/FeatureCatalogLayerTests.cs"  # unit tests (layers)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/FeatureCatalogCompositionTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/FeatureCatalogCompositeTests.cs"  # unit tests (marks)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/MarkChannelGatingTests.cs"  # unit tests (gating)
 
@@ -2372,8 +2381,11 @@ reviews:
       - "docs/design/canvas-net-vega-lite/spec-model/spec-normalizer.md"  # unit design
       - "docs/verification/canvas-net-vega-lite/spec-model/spec-normalizer.md"  # unit verification
       - "docs/sysml2/model/canvas-net-vega-lite/spec-model/spec-normalizer.sysml"  # unit SysML2 model
-      - "src/DemaConsulting.CanvasNet.VegaLite/SpecModel/SpecNormalizer*.cs"  # unit source (layers and composite marks)
+      - "src/DemaConsulting.CanvasNet.VegaLite/SpecModel/SpecNormalizer*.cs"  # unit source (view tree, composite marks)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecNormalizerTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecNormalizerCompositionTests.cs"  # unit tests (views)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecNormalizerRepeatTests.cs"  # unit tests (repeat)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecNormalizerFacetCellTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecNormalizerBoxPlotTests.cs"  # unit tests (box plot)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/SpecNormalizerErrorBarTests.cs"  # unit tests (errors)
 
@@ -2648,8 +2660,10 @@ reviews:
       - "docs/sysml2/model/canvas-net-vega-lite/transforms/encoding-plan.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.VegaLite/Transforms/EncodingPlan.cs"  # unit source (spec-only plan)
       - "src/DemaConsulting.CanvasNet.VegaLite/Transforms/EncodingTransforms.cs"  # unit source (implicit pipeline)
+      - "src/DemaConsulting.CanvasNet.VegaLite/Transforms/EncodingTransforms.Facet.cs"  # unit source (facet cells)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/EncodingPlanTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/EncodingTransformsTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/EncodingTransformsFacetTests.cs"  # unit tests (facets)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/EncodingPlanTimeTests.cs"  # unit tests (time)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/EncodingTransformsTimeTests.cs"  # unit tests (time)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/EncodingPlanPolarTests.cs"  # unit tests (polar stack)
@@ -2727,6 +2741,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverTimeTests.cs"  # unit tests (temporal fields)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverPolarTests.cs"  # unit tests (polar scales)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverLayerTests.cs"  # unit tests (layered scales)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverCompositionTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/MarkChannelGatingTests.cs"  # unit tests (channel gating)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/RowTransformsTests.cs"  # unit tests (sort by field)
 
@@ -2844,7 +2859,12 @@ reviews:
       - "docs/verification/canvas-net-vega-lite/guides/title-builder.md"  # unit verification
       - "docs/sysml2/model/canvas-net-vega-lite/guides/title-builder.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.VegaLite/Guides/TitleBuilder.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.VegaLite/Guides/TitleBuilder.Header.cs"  # unit source (facet headers)
+      - "src/DemaConsulting.CanvasNet.VegaLite/Guides/HeaderSettings.cs"  # unit source (header properties)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/TitleBuilderTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/TitleBuilderHeaderTests.cs"  # unit tests (facet headers)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/HeaderSettingsTests.cs"  # unit tests (header properties)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/ChartTestHelpers.cs"  # shared test support
 
   # CanvasNetVegaLite-Guides-AxisBuilder Review (one per unit)
   - id: CanvasNetVegaLite-Guides-AxisBuilder
@@ -2862,6 +2882,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.VegaLite/Guides/AxisBuilder.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/AxisBuilderTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/AxisBuilderTimeTests.cs"  # unit tests (time axes)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/AxisBuilderHeaderTests.cs"  # unit tests (header axes)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/ChartTestHelpers.cs"  # shared test support
 
   # CanvasNetVegaLite-Guides-LabelOverlap Review (one per unit)
@@ -2901,6 +2922,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.VegaLite/Guides/LegendBuilder.Time.cs"  # unit source (temporal legends)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendPlanTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendPlanLayerTests.cs"  # unit tests (layers)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendPlanCompositionTests.cs"  # unit tests (owners)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendBuilderTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendBuilderTimeTests.cs"  # unit tests (temporal legends)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendPlanConditionTests.cs"  # unit tests (conditions)
@@ -2951,6 +2973,8 @@ reviews:
       - "docs/sysml2/model/canvas-net-vega-lite/layout/view-layout.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.VegaLite/Layout/ViewLayout.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Layout/ViewLayoutTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Layout/ViewLayoutCompositionTests.cs"  # unit tests (composition)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Layout/ViewLayoutFitTests.cs"  # unit tests (fit)
 
   # CanvasNetVegaLite-Layout-LegendLayout Review (one per unit)
   - id: CanvasNetVegaLite-Layout-LegendLayout
@@ -2967,6 +2991,22 @@ reviews:
       - "docs/sysml2/model/canvas-net-vega-lite/layout/legend-layout.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.VegaLite/Layout/LegendLayout.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Layout/LegendLayoutTests.cs"  # unit tests
+
+  # CanvasNetVegaLite-Layout-CompositionLayout Review (one per unit)
+  - id: CanvasNetVegaLite-Layout-CompositionLayout
+    title: Review that CanvasNetVegaLite Layout CompositionLayout Implementation is Correct
+    context:
+      - "docs/design/canvas-net-vega-lite.md"
+      - "docs/reqstream/canvas-net-vega-lite.yaml"
+      - "docs/design/canvas-net-vega-lite/layout.md"
+      - "docs/reqstream/canvas-net-vega-lite/layout.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-vega-lite/layout/composition-layout.yaml"  # unit requirements
+      - "docs/design/canvas-net-vega-lite/layout/composition-layout.md"      # unit design
+      - "docs/verification/canvas-net-vega-lite/layout/composition-layout.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-vega-lite/layout/composition-layout.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.VegaLite/Layout/CompositionLayout*.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Layout/CompositionLayoutTests.cs"  # unit tests
 
   # CanvasNetVegaLite-Marks Review (one per subsystem)
   - id: CanvasNetVegaLite-Marks

@@ -10,7 +10,11 @@ namespace DemaConsulting.CanvasNet.VegaLite.Layout;
 /// </summary>
 /// <param name="Groups">The legend groups in the order of the legends that were given, positioned in the coordinates of the view.</param>
 /// <param name="Bounds">The union of the bounds of all legends in the coordinates of the view (empty when there is none).</param>
-internal sealed record LegendPlacement(IReadOnlyList<SceneGroup> Groups, SceneBounds Bounds);
+/// <param name="FitBounds">
+///     What the legends add to the bounds of a view that is fitted (Vega's rule for <c>autosize: fit</c>, <c>fit-x</c>, <c>fit-y</c>): a <c>left</c> or <c>right</c> legend only its horizontal extent, a <c>top</c> or <c>bottom</c> legend only its
+///     vertical extent, any other legend nothing; null for the union of all of them (<paramref name="Bounds"/>).
+/// </param>
+internal sealed record LegendPlacement(IReadOnlyList<SceneGroup> Groups, SceneBounds Bounds, SceneBounds? FitBounds = null);
 
 /// <summary>
 ///     Places the legends of a view next to its data rectangle and its axes, and tells how far they reach.
@@ -32,7 +36,9 @@ internal sealed record LegendPlacement(IReadOnlyList<SceneGroup> Groups, SceneBo
 ///     <para>
 ///         <b>Extents.</b> The union of the legend bounds joins the bounds of the view with those of the axes before the title is laid out,
 ///         so a legend outside the data rectangle makes the canvas larger (with <c>autosize: pad</c>) and is cut off or overflows
-///         otherwise, which <see cref="ViewLayout"/> decides. The properties of <c>config.legend.layout</c> are read with Vega's lookup:
+///         otherwise, which <see cref="ViewLayout"/> decides. For a view that is fitted (<c>autosize</c> <c>fit</c>, <c>fit-x</c>, <c>fit-y</c>) Vega counts a legend only across its side
+///         (<see cref="LegendPlacement.FitBounds"/>, <see cref="Combine(ViewExtents, LegendPlacement, double, double, bool)"/>): a <c>left</c> or <c>right</c> legend by its horizontal extent, a <c>top</c> or <c>bottom</c> legend
+///         by its vertical extent, so that a legend longer than the plot beside it does not take room from the plot. The properties of <c>config.legend.layout</c> are read with Vega's lookup:
 ///         the object of the orient, then the layout object, then the default.
 ///     </para>
 ///     <para>
@@ -94,6 +100,22 @@ internal static class LegendLayout
     }
 
     /// <summary>
+    ///     Combines the reach of the axes with the bounds of the legends of a view that is fitted: only the extent of a legend across its side counts.
+    /// </summary>
+    /// <param name="axes">How far the axes reach beyond the data rectangle.</param>
+    /// <param name="legends">The placed legends.</param>
+    /// <param name="dataWidth">The width of the data rectangle.</param>
+    /// <param name="dataHeight">The height of the data rectangle.</param>
+    /// <param name="fit">Whether the view is fitted (<c>fit</c>, <c>fit-x</c> or <c>fit-y</c>): Vega then counts a legend only across its side, so a legend that is taller than the plot beside it does not leave less room for the plot.</param>
+    /// <returns>The larger reach on each side.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="legends"/> is null.</exception>
+    public static ViewExtents Combine(ViewExtents axes, LegendPlacement legends, double dataWidth, double dataHeight, bool fit)
+    {
+        ArgumentNullException.ThrowIfNull(legends);
+        return Combine(axes, fit ? legends.FitBounds ?? legends.Bounds : legends.Bounds, dataWidth, dataHeight);
+    }
+
+    /// <summary>
     ///     Places the legends of a view.
     /// </summary>
     /// <param name="legends">The built legends.</param>
@@ -110,6 +132,7 @@ internal static class LegendLayout
         ArgumentNullException.ThrowIfNull(config);
         var groups = new SceneGroup?[legends.Count];
         var bounds = SceneBounds.Empty;
+        var fitBounds = SceneBounds.Empty;
         var layout = config.Root.Get("legend.layout");
 
         // A legend without an orient is placed by its own position
@@ -137,11 +160,20 @@ internal static class LegendLayout
             {
                 var legend = legends[indexes[k]];
                 groups[indexes[k]] = legend.CreateGroup(grid.Dx[k], grid.Dy[k]);
-                bounds = bounds.Union(legend.Bounds.Translate(grid.Dx[k], grid.Dy[k]));
+                var placed = legend.Bounds.Translate(grid.Dx[k], grid.Dy[k]);
+                bounds = bounds.Union(placed);
+
+                // A fitted view counts a legend across its side only; the inner orients and the orient none count nothing
+                fitBounds = orient switch
+                {
+                    "left" or "right" => fitBounds.Union(new SceneBounds(placed.X1, 0, placed.X2, 0)),
+                    "top" or "bottom" => fitBounds.Union(new SceneBounds(0, placed.Y1, 0, placed.Y2)),
+                    _ => fitBounds,
+                };
             }
         }
 
-        return new LegendPlacement([.. groups.Select(g => g!)], bounds);
+        return new LegendPlacement([.. groups.Select(g => g!)], bounds, fitBounds);
     }
 
     /// <summary>

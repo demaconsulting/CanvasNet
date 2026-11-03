@@ -6,8 +6,9 @@
 # (TextMeasurer), the title and subtitle block (TitleBuilder), the axis guide with its grid, ticks, labels,
 # domain line, and title (AxisBuilder), the shared rules for the labels of time guides (TimeLabels), the removal of
 # overlapping labels (LabelOverlap), and the legend guides
-# (LegendBuilder). Guides produce scene items and the extents they need; the layout places
-# them. Each requirement here links down to the unit requirements that implement it. See
+# (LegendBuilder), including the header guides of composed views (the header properties and blocks of a facet, the
+# axis built in a header, and the owner of a shared legend). Guides produce scene items and the extents they need;
+# the layout places them. Each requirement here links down to the unit requirements that implement it. See
 # docs/verification/canvas-net-vega-lite/guides.md for the test-evidence mapping.
 
 sections:
@@ -215,3 +216,27 @@ sections:
               - LegendPlan_Create_LayersInDifferentScopesKeepTheirOwnLegends
               - LegendPlan_Create_PropertiesOfALaterLayerAreKeptWhenTheFirstIsSilent
               - LegendPlan_Create_ExplicitOrientConflictMakesTheLegendsIndependent
+
+          - id: CanvasNetVegaLite-Guides-CompositionGuides
+            title: >-
+              The Guides subsystem shall build the guides that the views of a composition need: the label of a facet
+              cell and the title of a facet channel in the styles and with the header properties of Vega-Lite (resolved
+              over the header configuration of the channel and config.header), the header or footer group that holds
+              the label and the axis that the cells share, that shared axis itself in the coordinates of its header,
+              and the owner of each legend so that a legend that composed views share is planned once for the view that
+              owns it.
+            justification: |
+              Faceted and concatenated charts draw their axes, labels, and legends once for the cells that share
+              them; the guides must be buildable in the header's coordinates and the legends must be planned by owner
+              before the pipeline composes them.
+            children:
+              - CanvasNetVegaLite-Guides-TitleBuilder-HeaderSettings
+              - CanvasNetVegaLite-Guides-TitleBuilder-HeaderBlocks
+              - CanvasNetVegaLite-Guides-AxisBuilder-HeaderAxes
+              - CanvasNetVegaLite-Guides-LegendBuilder-LegendOwners
+            tests:
+              - HeaderSettings_Read_HeaderOverRowColumnConfigOverHeaderConfig
+              - TitleBuilder_BuildHeaderBlock_LabelUsesGuideLabelStyleSizeTen
+              - TitleBuilder_BuildHeader_FooterHoldsAxisAndLabelBelowIt
+              - AxisBuilder_Build_InHeaderPlacesBottomAxisAtOriginAndKeepsExtents
+              - LegendPlan_Create_OwnersAreTheHighestSharingAncestor

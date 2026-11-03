@@ -95,6 +95,17 @@ share a position scale and an axis give one `AxisRequest` (the second axis of an
 builders themselves are unchanged apart from those two optional request properties and the multi-layer `Create` of
 `LegendPlan`.
 
+**Composed views add header guides, not new builders.** The cells of a facet share their axes: Vega-Lite moves the main
+part of a shared axis into the header or footer of the facet and leaves the grid in the cells. `AxisRequest.InHeader`
+builds that axis in the coordinates of its header (the grid group stays where the cell draws it), `HeaderSettings`
+resolves the `header` properties of a facet channel over `config.headerRow`/`headerColumn`/`headerFacet` and
+`config.header`, and the header part of `TitleBuilder` (`BuildHeaderBlock`, `BuildHeader`) builds the label of a cell
+and the title of a channel in the `guide-label` and `guide-title` styles and the header group that holds them with the
+shared axes, sized for `CompositionLayout`. The legend that composed views share is planned once for the view that owns
+it (`LegendLayer.Node`, `LegendLayer.OwnerOf`, `LegendSpec.Owner`, `LegendPlan.Owners`, and the owner argument of
+`LegendPlan.Create`). Nothing here depends on the pipeline; the facet and concatenation work packages compose these
+pieces.
+
 **Precedence mirrors Vega-Lite.** A guide property is looked up in the guide's own definition, then the Vega-Lite-only
 configuration, then the Vega configuration (by orientation, band scale, and axis), then the guide styles, with a few
 Vega-Lite rules that apply only when no configuration names the property (for example the default grid, the label angle

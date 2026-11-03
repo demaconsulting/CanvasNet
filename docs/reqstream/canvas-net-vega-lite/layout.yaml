@@ -5,7 +5,9 @@
 # (internal namespace DemaConsulting.CanvasNet.VegaLite.Layout): the single-view layout (ViewLayout) that sizes
 # the data rectangle, the canvas, and the padding around the guides and the title, and assembles the scene with
 # its view background and border, and the legend layout (LegendLayout) that places the legends around the data
-# rectangle and adds their room to the canvas. Each requirement here links down to the unit requirements that
+# rectangle and adds their room to the canvas, and the composition layout (CompositionLayout and the composition
+# helpers of ViewLayout) that places the charts of a concatenation or a facet in a grid with the headers, footers,
+# and titles of a facet. Each requirement here links down to the unit requirements that
 # implement it.
 # See docs/verification/canvas-net-vega-lite/layout.md for the test-evidence mapping.
 
@@ -19,8 +21,9 @@ sections:
               The Layout subsystem shall compute the data rectangle and the natural size of a single
               view from the specification's width and height, the configuration (300 by 300 in Vega-Lite
               version 6), the step of a discrete scale, a container size, the padding, the autosize mode
-              (pad or none), the extents of the guides, and the title block, growing the canvas by whole
-              pixels where the guides or a wide title stick out.
+              (pad, none, fit, fit-x, or fit-y), the extents of the guides, and the title block, growing the
+              canvas by whole pixels where the guides or a wide title stick out (and, for a fit, giving them
+              room inside the size that is fitted).
             justification: |
               The natural size of a chart decides the size of every rendering and the answer of Measure,
               so it must follow one documented rule.
@@ -28,9 +31,11 @@ sections:
               - CanvasNetVegaLite-Layout-ViewLayout-Sizes
               - CanvasNetVegaLite-Layout-ViewLayout-DataRectangle
               - CanvasNetVegaLite-Layout-ViewLayout-GuideExtents
+              - CanvasNetVegaLite-Layout-ViewLayout-Fit
             tests:
               - ViewLayout_Compute_PaddingTitleAndAutosizeProduceExpectedDataRectangle
               - ViewLayout_Compute_GuideExtentsGrowTheCanvas
+              - ViewLayout_Measure_FitFillsWidthAndHeightIncludingGuides
               - CanvasNetVegaLite_SystemIntegration_Render_EmptyTitleViewHasDocumentedSizeAndColors
 
           - id: CanvasNetVegaLite-Layout-ViewAppearance
@@ -55,7 +60,8 @@ sections:
               their orient (right by default, left, top, bottom, the four corners inside the data rectangle, or
               their own position), stack the legends of one side with the documented margin, honor the legend
               layout configuration, and grow the canvas by the room the legends need outside the data
-              rectangle, or leave the canvas as it is when the autosize is none.
+              rectangle (for a fitted view, only the room across the side of each legend), or leave the canvas
+              as it is when the autosize is none.
             justification: |
               A legend outside the data rectangle changes the size of the chart, so its placement and its
               extent belong to the one layout rule that sizes the canvas.
@@ -64,7 +70,30 @@ sections:
               - CanvasNetVegaLite-Layout-LegendLayout-Stacking
               - CanvasNetVegaLite-Layout-LegendLayout-Configuration
               - CanvasNetVegaLite-Layout-LegendLayout-Extents
+              - CanvasNetVegaLite-Layout-LegendLayout-FitExtents
             tests:
               - CanvasNetVegaLite_SystemIntegration_Legend_SymbolLegendsStackRightOfTheDataRectangle
               - CanvasNetVegaLite_SystemIntegration_Legend_OrientsPlaceTheLegendAroundTheDataRectangle
               - CanvasNetVegaLite_SystemIntegration_Legend_ConfigurationAndAutosizeNone
+
+          - id: CanvasNetVegaLite-Layout-Composition
+            title: >-
+              The Layout subsystem shall lay out the charts of a concatenation or a facet: size each chart for
+              itself, compute the bounds of each cell, give the root of the composition no data rectangle of its
+              own, and place the cells in a grid (columns, spacing, alignment, centering, full or flush bounds)
+              with the row and column headers, footers, and titles of a facet around it, as Vega does.
+            justification: |
+              Composed charts must be spaced and framed by one documented rule, and the pure placement of boxes
+              is what a composed rendering is built on and can be checked by hand.
+            children:
+              - CanvasNetVegaLite-Layout-ViewLayout-ResolveSize
+              - CanvasNetVegaLite-Layout-ViewLayout-CellBounds
+              - CanvasNetVegaLite-Layout-ViewLayout-CompositionRoot
+              - CanvasNetVegaLite-Layout-CompositionLayout-Grid
+              - CanvasNetVegaLite-Layout-CompositionLayout-Headers
+              - CanvasNetVegaLite-Layout-CompositionLayout-Titles
+              - CanvasNetVegaLite-Layout-CompositionLayout-Bounds
+            tests:
+              - CompositionLayout_Place_HConcatBoxesAreSpacedByTwentyPlusRoundedMargins
+              - CompositionLayout_Place_ColumnFootersGoBelowTheLastRowIncludingEmptyColumns
+              - ViewLayout_CellBounds_UnionsDataRectGuidesAndTitle

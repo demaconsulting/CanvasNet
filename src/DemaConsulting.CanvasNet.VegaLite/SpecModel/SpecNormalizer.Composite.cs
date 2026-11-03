@@ -502,7 +502,7 @@ internal static partial class SpecNormalizer
         ArgumentNullException.ThrowIfNull(config);
         var effective = limits ?? VegaLiteLimits.Default;
         var expressions = new List<(SpecNode Node, CompiledExpression Expression)>();
-        var layers = Build(tree, effective, unit => ExpandComposite(tree, config, effective, unit, expressions));
+        var layers = Build(tree, effective, unit => ExpandComposite(tree, config, effective, unit, expressions), config);
         var derived = expressions.Count == 0 ? tree : new SpecTree(tree.Root, tree.SourceName, tree.Warnings, tree.Expressions.With(expressions));
         return new ExpandedLayers(layers, derived);
     }

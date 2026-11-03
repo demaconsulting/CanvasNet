@@ -8,8 +8,8 @@ expressions and the validation of transforms and parameters in `SpecParser.Trans
 aggregating transforms and of the aggregate, bin, stack, sort, and impute properties of an encoding in
 `SpecParser.Aggregates.cs`,
 the validation of the time constructs and the compilation of the time predicates in `SpecParser.Time.cs`,
-the validation of `resolve` and of the composite mark properties and the rule for which views are drawn
-(`IsDrawnView`, `FindUndrawnComposition`, in `SpecParser.Layers.cs` and `SpecParser.Transforms.cs`),
+the validation of `resolve`, of the composite mark properties, and of the properties of the compositions (`facet`, `repeat`,
+`columns`, `spacing`, `align`, `center`, `header`, and the repeat references) in `SpecParser.Layers.cs`,
 and `ParseSchemaMajorVersion`), the `PredicateSource` class that writes a predicate as expression source (the plain
 comparisons and, since Phase 8, the time predicates), and the types of the sibling files that carry its result —
 `SpecNode`, `SpecNodeKind`,
@@ -46,7 +46,8 @@ properties) within the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the
 `PredicateSourceTimeTests.cs` (the time predicates written as expressions), `SpecParserMarkTests.cs` (the properties of
 the path, text, and arc marks), `SpecParserImputeTests.cs` (the `impute` object of an encoding),
 `SpecParserResolveTests.cs` (the `resolve` and composite
-mark rules of `SpecParser.Layers.cs` and the rule for which views are drawn, Phase 10), and
+mark rules of `SpecParser.Layers.cs` and the compilation of the expressions of every view, Phase 10 and 11),
+`SpecParserCompositionTests.cs` (the composition rules of `SpecParser.Layers.cs`, Phase 11), and
 `ChannelDefinitionsTests.cs`; the
 large-inline-data test is in `VegaLiteDocumentSpecModelTests.cs` in the same folder, and the test of the marks that
 evaluate the conditions of a `size` channel is in `MarkChannelGatingTests.cs` in the `Scales` folder. The time
@@ -597,20 +598,59 @@ the extent of a boxplot is a number (not negative) or `min-max` and that of an e
 not know is
 a `VegaLiteSpecException` at the offending value; and that the composite rules are not applied to a primitive mark.
 
-##### Which Views Are Drawn
+##### The Expressions Of Every View Are Compiled
 
-**Tests**: `SpecParserResolveTests.SpecParser_IsDrawnView_LayersAreDrawnCompositionsAreNot`,
-`SpecParserResolveTests.SpecParser_IsDrawnView_ViewOfAnotherTreeIsNotDrawn`,
-`SpecParserResolveTests.SpecParser_FindUndrawnComposition_NamesTheNearestComposition`,
-`SpecParserResolveTests.SpecParser_Parse_ExpressionsOfLayersAreCompiledButNotThoseOfConcatenations`
+**Tests**: `SpecParserResolveTests.SpecParser_Parse_ExpressionsOfComposedViewsAreCompiled`,
+`SpecParserConditionTests.SpecParser_Parse_ConditionsThatAreNotEvaluatedAreNotCompiled`
 
-Asserts that a single view, a layered view, and its layers at any depth are drawn, that a view inside a concatenation,
-facet, or
-repeat is not, even inside a layer or with a layer around it, and that a view that is not below the root is not drawn;
-that the
-composition that keeps a view from being drawn is found on the view itself or on the nearest ancestor that has one; and
-that the
-expressions of the layers of a drawn layered view (the transform of a layer and of the layered view, a condition of a layer's
-encoding, and a `size` condition of the layered view's own encoding) are compiled when the document is opened while
-those of a
-concatenated view still are not.
+Asserts that the expressions of the views of a layered view (the transform of a layer and of the layered view, a
+condition of a layer's encoding, and a `size` condition of the layered view's own encoding) and those of the view of a
+concatenation (a condition of its encoding) are all compiled when the document is opened, and that the predicates that no
+expression can say (a position channel's condition, a selection) are still not compiled.
+
+##### The Properties Of The Compositions Are Validated
+
+**Tests**: `SpecParserCompositionTests.SpecParser_Parse_FacetWithoutSpecIsError`,
+`SpecParserCompositionTests.SpecParser_Parse_FacetMappingWithoutFieldIsError`,
+`SpecParserCompositionTests.SpecParser_Parse_RepeatWithoutSpecIsError`,
+`SpecParserCompositionTests.SpecParser_Parse_RepeatArrayOfNonStringsIsError`,
+`SpecParserCompositionTests.SpecParser_Parse_RepeatObjectWithUnknownKeyWarns`,
+`SpecParserCompositionTests.SpecParser_Parse_FacetLayoutPropertiesOnOtherChannelsWarn`,
+`SpecParserCompositionTests.SpecParser_Parse_ColumnsMustBeNonNegativeInteger`,
+`SpecParserCompositionTests.SpecParser_Parse_ColumnsAcceptsWholeNumbers`,
+`SpecParserCompositionTests.SpecParser_Parse_SpacingAcceptsNumberAndRowColumnObject`,
+`SpecParserCompositionTests.SpecParser_Parse_AlignCenterShapes`,
+`SpecParserCompositionTests.SpecParser_Parse_HeaderPropertyShapes`,
+`SpecParserCompositionTests.SpecParser_Parse_ResolveOnConcatAcceptsXAndOffsetChannels`,
+`SpecParserCompositionTests.SpecParser_Parse_FacetWithFieldDefinitionAndLayoutIsAccepted`,
+`SpecParserCompositionTests.SpecParser_Parse_FacetSpecAndLayerChildCannotBeCompositions`
+
+Asserts, with the pointer of each error, that a `facet` and a `repeat` without a `spec` are errors at the `facet` and the
+`repeat`; that a facet mapping entry with no `field`, an empty `facet`, and a `column` that is not an object are
+errors at
+the entry, the `facet`, and the `column`; that a `repeat` with a number, a non-string value (`/repeat/1`,
+`/repeat/row/0`), or a `column` that is not an array is an error while an unknown key (`/repeat/diagonal`) is a
+`vl-unknown-property` warning; that `columns` of `-1`, `1.5`, `"2"`, and `{}` are errors on a view and on a `facet` channel
+definition (`/encoding/facet/columns`) and `0`, `1`, `12` are accepted; that `spacing` is a number or an object of numbers
+(an unknown key a warning, a text or a non-numeric entry an error at `/spacing` and `/spacing/row`); that `align` is `all`,
+`each`, `none` or an object of them and `center` a boolean or an object of booleans, with the errors at the value or the
+entry and a warning for an extra key; that a header with the properties `title`, `labelAngle`, `labelPadding`, `labels`,
+`labelOrient`, `titleFontSize`, `labelAnchor`, and `format` is accepted, `null` is accepted, an unknown key warns and a
+wrong `labelAngle` (`"x"`), `labelOrient` (`"middle"`), or `labels` (`1`) is an error at that member; that`header`,
+`columns`, `spacing`, `align`, `center`, and `bounds` on an `x` channel, a `detail` definition, and a condition are
+`vl-unknown-property` warnings at the key while `row`, `column`, `facet` and the facet operator accept them; that a
+`resolve`
+of a
+concatenation naming `x`, `xOffset`, and `color` scales and the `x` axis is accepted without a warning; that a
+facet field definition is validated like a channel (its `sort`, and the views of its `spec`); and that the `spec` of a
+facet or a view of a `layer` that is a `facet`, `repeat`, or other composition is an error at that view while the `spec`
+of a `repeat` may be a concatenation.
+
+##### The Repeat References Are Validated
+
+**Test**: `SpecParserCompositionTests.SpecParser_Parse_RepeatRefIsAcceptedAsField`
+
+Asserts that a `{"repeat": ...}` reference naming `row`, `column`, `repeat`, or `layer` is accepted without a warning as
+the `field` or `datum` of a channel, the `field` of a `sort`, the `field` of a condition, and a facet's `row` field, and
+that a reference naming anything else, or whose `repeat` is not a string, is an error at the `repeat` member of the
+channel field, the datum, the sort field, and the condition field.

@@ -190,7 +190,7 @@ public class ScaleResolverLayerTests
     }
 
     /// <summary>
-    ///     Validates that the explicit domain of the first layer that has one is used for the shared discrete scale.
+    ///     Validates that an explicit discrete domain beats the implicit categories of the other layers: the shared discrete scale has the explicit categories only.
     /// </summary>
     [Fact]
     public void ScaleResolver_ResolveLayers_ExplicitDiscreteDomainWins()

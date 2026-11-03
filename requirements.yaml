@@ -150,6 +150,7 @@ includes:
   - docs/reqstream/canvas-net-vega-lite/layout.yaml
   - docs/reqstream/canvas-net-vega-lite/layout/view-layout.yaml
   - docs/reqstream/canvas-net-vega-lite/layout/legend-layout.yaml
+  - docs/reqstream/canvas-net-vega-lite/layout/composition-layout.yaml
   - docs/reqstream/canvas-net-vega-lite/marks.yaml
   - docs/reqstream/canvas-net-vega-lite/marks/mark-builder.yaml
   - docs/reqstream/canvas-net-vega-lite/marks/curve-builder.yaml

@@ -1,26 +1,29 @@
 ## Layout Subsystem Verification Design
 
 This document describes the subsystem-level verification strategy for the `Layout` subsystem (internal namespace
-`DemaConsulting.CanvasNet.VegaLite.Layout`). In this release the subsystem contains two units: `ViewLayout`, which
+`DemaConsulting.CanvasNet.VegaLite.Layout`). In this release the subsystem contains three units: `ViewLayout`, which
 computes the data rectangle, padding, autosize, title and guide placement, background, and view border geometry of a
 single view (a layered view is laid out as one view, with the discrete step hints of its combined scales; the unit
-itself is unchanged) and assembles the scene, and `LegendLayout`, which places the legends around the data rectangle
-and adds their room to the canvas (the layout of the other compositions in later releases adds units to this
-subsystem).
+itself is unchanged) and assembles the scene, and `LegendLayout`, which places the legends around the data rectangle and
+adds their room to the canvas, and `CompositionLayout`, which places the cells of a concatenation or a facet in a grid
+with the headers, footers, and titles of a facet (pure boxes at unit level; the `Composer` of the document pipeline
+calls it, and `ViewLayout` also has the helpers `ResolveSize`, `CellBounds`, and the composition root of `Resolve` for
+it).
 
 ### Verification Approach
 
-The `Layout` subsystem has two units, and their unit verification (see the _ViewLayout_ and _LegendLayout Unit
-Verification Design_ documents under `layout/`) is complete for the subsystem's own behavior. The units do not call each
-other: `LegendLayout.Combine` produces the `ViewExtents` record that `ViewLayout.Measure` consumes, and the document
-pipeline connects them, so the subsystem-level scenarios verify that connection, with the units working with their
-neighbors across the pipeline, in the way the document uses them: the data rectangle size is resolved from the
-specification, the configuration, and the hints from
-the scale stage (the discrete step sizes), the guide extents come from the real `AxisBuilder` and the title from the
-real `TitleBuilder`, and the resulting scene is painted by the real `ScenePainter`. The scenarios assert the agreement of
-the three stages: the canvas size that `Measure` reports is the size of the surface that `Render` produces, the title and
-the axes leave ink in the bands the layout reserves for them, and a size that depends on the data (discrete bands) or on
-a container is stable under the layout's iteration.
+The `Layout` subsystem has three units, and their unit verification (see the _ViewLayout_, _LegendLayout_, and
+_CompositionLayout Unit Verification Design_ documents under `layout/`) is complete for the subsystem's own behavior.
+The first two units do not call each other (`CompositionLayout` uses only the grid layout of the `Guides` subsystem and
+is verified with pure boxes, its document-level scenarios belonging to the concatenation and facet work packages):
+`LegendLayout.Combine` produces the `ViewExtents` record that `ViewLayout.Measure` consumes, and the document pipeline
+connects them, so the subsystem-level scenarios verify that connection, with the units working with their neighbors
+across the pipeline, in the way the document uses them: the data rectangle size is resolved from the specification, the
+configuration, and the hints from the scale stage (the discrete step sizes), the guide extents come from the real
+`AxisBuilder` and the title from the real `TitleBuilder`, and the resulting scene is painted by the real `ScenePainter`.
+The scenarios assert the agreement of the three stages: the canvas size that `Measure` reports is the size of the
+surface that `Render` produces, the title and the axes leave ink in the bands the layout reserves for them, and a size
+that depends on the data (discrete bands) or on a container is stable under the layout's iteration.
 
 No mocking or stubbing is used. The subsystem is internal, so its tests reach it through the test assembly's
 `InternalsVisibleTo` access.

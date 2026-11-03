@@ -1,5 +1,6 @@
 // Portions derived from Vega-Lite (BSD-3-Clause): compile/scale/domain.ts (mergeDomains), compile/scale/parse.ts and compile/resolve.ts; see third-party/README.md
 using DemaConsulting.CanvasNet.VegaLite.Data;
+using DemaConsulting.CanvasNet.VegaLite.Layout;
 using DemaConsulting.CanvasNet.VegaLite.SpecModel;
 using DemaConsulting.CanvasNet.VegaLite.Transforms;
 
@@ -58,8 +59,90 @@ internal sealed class LayeredScales
     /// </summary>
     public IReadOnlyDictionary<string, IReadOnlyList<IReadOnlyList<int>>> Groups { get; }
 
-    /// <summary>Gets the <c>vl-layer-scale-conflict</c> warnings: the layers whose scale could not be merged and kept their own.</summary>
+    /// <summary>Gets the <c>vl-layer-scale-conflict</c> warnings: the views whose scale could not be merged and kept their own.</summary>
     public IReadOnlyList<FeatureReport> Warnings { get; }
+
+    /// <summary>
+    ///     Gets the sizes that the scales give one chart of a composition: the extent of its discrete x and y scales when they are sized by a step.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         <see cref="Merged"/> is the answer for a tree that is one chart. A concatenation, a facet or a repeat has one chart for each child or cell, and each sizes itself: its
+    ///         layers must all use <b>one</b> scale of the channel (one group of <see cref="Groups"/>), whose natural extent (step times the categories of the combined
+    ///         domain, so the cells of a facet that share a step scale all have the width of all the categories) is the hint; a chart whose layers use several scales of the channel, a
+    ///         chart that does not carry the channel and a scale that is not sized by a step have none, exactly as <see cref="Merged"/> has no scale for such a channel.
+    ///     </para>
+    ///     <para>The container sizes are not known here; the caller adds them.</para>
+    /// </remarks>
+    /// <param name="leaves">The indexes (into <see cref="PerLayer"/>) of the layers of the chart.</param>
+    /// <returns>The discrete width and height; null in a dimension that is not sized by a step.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="leaves"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when an index is not a layer.</exception>
+    public ViewSizeHints HintsFor(IReadOnlyList<int> leaves)
+    {
+        ArgumentNullException.ThrowIfNull(leaves);
+        foreach (var leaf in leaves)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(leaf);
+            ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(leaf, PerLayer.Count);
+        }
+
+        return new ViewSizeHints(ExtentOf("x", leaves), ExtentOf("y", leaves));
+    }
+
+    /// <summary>
+    ///     Finds the extent of the scale of a channel that the layers of one chart share.
+    /// </summary>
+    /// <param name="channel">The channel.</param>
+    /// <param name="leaves">The layers of the chart.</param>
+    /// <returns>The natural extent of the scale; null when the layers use none, several, or one that no step sizes.</returns>
+    private double? ExtentOf(string channel, IReadOnlyList<int> leaves)
+    {
+        if (!Groups.TryGetValue(channel, out var groups))
+        {
+            return null;
+        }
+
+        var group = -1;
+        ResolvedScale? first = null;
+        foreach (var leaf in leaves)
+        {
+            if (PerLayer[leaf][channel] is not { } scale)
+            {
+                continue;
+            }
+
+            var index = IndexOfGroup(groups, leaf);
+            if (group >= 0 && index != group)
+            {
+                return null;
+            }
+
+            group = index;
+            first ??= scale;
+        }
+
+        return first?.NaturalExtent;
+    }
+
+    /// <summary>
+    ///     Finds the group of layers that a layer is in.
+    /// </summary>
+    /// <param name="groups">The groups of one channel.</param>
+    /// <param name="leaf">The layer.</param>
+    /// <returns>The index of the group; -1 when no group has the layer.</returns>
+    private static int IndexOfGroup(IReadOnlyList<IReadOnlyList<int>> groups, int leaf)
+    {
+        for (var i = 0; i < groups.Count; i++)
+        {
+            if (groups[i].Contains(leaf))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
 }
 
 /// <content>
@@ -67,7 +150,10 @@ internal sealed class LayeredScales
 /// </content>
 /// <remarks>
 ///     <para>
-///         The rule is Vega-Lite's (<c>resolve.scale</c>, default shared). Every layer's scales are resolved on their own first. For each channel, the layers whose scales are shared (see
+///         The rule is Vega-Lite's (<c>resolve.scale</c>, default shared). The unit views need not be layers of one chart: a concatenation, a facet and a repeat are just more
+///         leaves, grouped by the same rule with the defaults of their kind (<see cref="LayerResolve"/>: the children of a concatenation keep the position scales independent and
+///         share the others, the cells of a facet share everything but <c>theta</c>), and <see cref="LayeredScales.HintsFor"/> gives the step sizes of one chart. Every layer's scales
+///         are resolved on their own first. For each channel, the layers whose scales are shared (see
 ///         <see cref="LayerResolve.Scale"/> and <see cref="LayerNode"/>: a layer shares with the others below the highest layered view above it that does not make the channel independent)
 ///         are merged:
 ///     </para>
@@ -79,9 +165,11 @@ internal sealed class LayeredScales
 ///         </description></item>
 ///         <item><description>
 ///             The <b>domain</b> is combined: for continuous scales the smallest start and the largest end of the layers' domains (after each layer's zero rule); for discrete scales
-///             the categories in layer order without repeats, sorted ascending or descending when every layer sorts that way. An explicit <c>scale.domain</c> of a layer, and the
-///             domain of a diverging, quantile, quantize, threshold or bin-ordinal scale, is not combined: the first layer that has one decides (Vega-Lite concatenates explicit domains,
-///             a documented deviation).
+///             the categories in layer order without repeats, sorted ascending or descending when every layer sorts that way. Explicit <c>scale.domain</c>s are combined too, as Vega-Lite's
+///             <c>mergeValuesWithExplicit</c> does: when any layer has one, the implicit domains of the others are ignored; a continuous scale takes the extent of the union of the
+///             explicit values (equal explicit domains count once, so a piecewise domain that all of them give is kept), a discrete scale every explicit category once in order of first
+///             appearance. Only the domain of a quantile, quantize, threshold or bin-ordinal scale, and an implicit domain of more than two entries (a diverging scale), is not
+///             combined: the first layer that has one decides.
 ///         </description></item>
 ///         <item><description>
 ///             The owner's scale is resolved <b>again</b> with the combined domain, so everything that depends on the domain (the size of an ordinal range, the extent of a step) is
@@ -287,7 +375,7 @@ internal static partial class ScaleResolver
                 var own = maps[i][channel];
                 warnings.Add(new FeatureReport(
                     "vl-layer-scale-conflict",
-                    $"The {channel} scale of this layer is a {own.Kind} scale and cannot be shared with the {ownerScale.Kind} scale of another layer; the layer keeps its own scale.",
+                    $"The {channel} scale of this view is a {own.Kind} scale and cannot be shared with the {ownerScale.Kind} scale of another view; the view keeps its own scale.",
                     own.Location,
                     FeatureReportKind.Warning));
             }

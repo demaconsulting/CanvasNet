@@ -4,8 +4,7 @@ namespace DemaConsulting.CanvasNet.VegaLite.Tests.SpecModel;
 
 /// <summary>
 ///     Unit tests of the rules that layers and composite marks add to <see cref="SpecParser"/>: the validation of <c>resolve</c> and of the properties of
-///     <c>boxplot</c>, <c>errorbar</c> and <c>errorband</c>, and the rule that decides which views are drawn (<see cref="SpecParser.IsDrawnView"/>,
-///     <see cref="SpecParser.FindUndrawnComposition"/>).
+///     <c>boxplot</c>, <c>errorbar</c> and <c>errorband</c>, and the compilation of the expressions of the views of a composition.
 /// </summary>
 public class SpecParserResolveTests
 {
@@ -140,76 +139,11 @@ public class SpecParserResolveTests
     }
 
     /// <summary>
-    ///     Validates which views are drawn: a single view, a layered view and its layers (at any depth) are; a view in a concatenation, facet or repeat is not,
-    ///     even inside a layer or with a layer around it.
+    ///     Validates that the expressions of the views of a layered view and of a concatenation are compiled alike (the transform of a layer and of the layered view, a condition
+    ///     of a layer's encoding and a size condition of the layered view's own encoding, and the condition of a concatenated view), so a view of a composition is validated as any view.
     /// </summary>
     [Fact]
-    public void SpecParser_IsDrawnView_LayersAreDrawnCompositionsAreNot()
-    {
-        // Arrange
-        var single = SpecParser.Parse("""{ "mark": "bar" }""");
-        var layered = SpecParser.Parse("""{ "layer": [ { "layer": [ { "mark": "bar" } ] }, { "mark": "line" } ] }""");
-        var concat = SpecParser.Parse("""{ "hconcat": [ { "layer": [ { "mark": "bar" } ] } ] }""");
-        var inLayer = SpecParser.Parse("""{ "layer": [ { "mark": "bar" }, { "vconcat": [ { "mark": "point" } ] } ] }""");
-        var facet = SpecParser.Parse("""{ "facet": { "field": "a" }, "spec": { "mark": "bar" } }""");
-
-        // Act / Assert
-        Assert.True(SpecParser.IsDrawnView(single.Root, single.Root));
-        Assert.All(layered.EnumerateViews(), v => Assert.True(SpecParser.IsDrawnView(layered.Root, v), v.Pointer));
-        Assert.All(concat.EnumerateViews(), v => Assert.False(SpecParser.IsDrawnView(concat.Root, v), v.Pointer));
-        var inLayerViews = inLayer.EnumerateViews().ToDictionary(v => v.Pointer);
-        Assert.True(SpecParser.IsDrawnView(inLayer.Root, inLayerViews["/layer/0"]));
-        Assert.False(SpecParser.IsDrawnView(inLayer.Root, inLayerViews["/layer/1"]));
-        Assert.False(SpecParser.IsDrawnView(inLayer.Root, inLayerViews["/layer/1/vconcat/0"]));
-        Assert.All(facet.EnumerateViews(), v => Assert.False(SpecParser.IsDrawnView(facet.Root, v), v.Pointer));
-    }
-
-    /// <summary>
-    ///     Validates that a view that is not below the root is not drawn.
-    /// </summary>
-    [Fact]
-    public void SpecParser_IsDrawnView_ViewOfAnotherTreeIsNotDrawn()
-    {
-        // Arrange
-        var first = SpecParser.Parse("""{ "mark": "bar" }""");
-        var second = SpecParser.Parse("""{ "layer": [ { "mark": "bar" } ] }""");
-
-        // Act / Assert
-        Assert.False(SpecParser.IsDrawnView(first.Root, second.Root["layer"]!.Items[0]));
-    }
-
-    /// <summary>
-    ///     Validates that the composition that makes a view undrawn is found on the view itself or on the nearest ancestor that has one.
-    /// </summary>
-    [Fact]
-    public void SpecParser_FindUndrawnComposition_NamesTheNearestComposition()
-    {
-        // Arrange
-        var nested = SpecParser.Parse(
-            """
-            { "vconcat": [ { "layer": [ { "mark": "bar" }, { "hconcat": [ { "mark": "point" } ] } ] } ] }
-            """);
-        var repeat = SpecParser.Parse("""{ "repeat": [ "a" ], "spec": { "layer": [ { "mark": "bar" } ] } }""");
-        var drawn = SpecParser.Parse("""{ "layer": [ { "mark": "bar" } ] }""");
-        var views = nested.EnumerateViews().ToDictionary(v => v.Pointer);
-
-        // Act / Assert
-        Assert.Equal("vconcat", SpecParser.FindUndrawnComposition(nested.Root));
-        Assert.Equal("vconcat", SpecParser.FindUndrawnComposition(views["/vconcat/0"]));
-        Assert.Equal("vconcat", SpecParser.FindUndrawnComposition(views["/vconcat/0/layer/0"]));
-        Assert.Equal("hconcat", SpecParser.FindUndrawnComposition(views["/vconcat/0/layer/1"]));
-        Assert.Equal("hconcat", SpecParser.FindUndrawnComposition(views["/vconcat/0/layer/1/hconcat/0"]));
-        Assert.Equal("repeat", SpecParser.FindUndrawnComposition(repeat.Root["spec"]!["layer"]!.Items[0]));
-        Assert.Null(SpecParser.FindUndrawnComposition(drawn.Root));
-        Assert.Null(SpecParser.FindUndrawnComposition(drawn.Root["layer"]!.Items[0]));
-    }
-
-    /// <summary>
-    ///     Validates that the expressions of the layers of a drawn layered view are compiled (the transform of a layer and of the layered view, a condition
-    ///     of a layer's encoding and a size condition of the layered view's own encoding), while those of a concatenated view still are not.
-    /// </summary>
-    [Fact]
-    public void SpecParser_Parse_ExpressionsOfLayersAreCompiledButNotThoseOfConcatenations()
+    public void SpecParser_Parse_ExpressionsOfComposedViewsAreCompiled()
     {
         // Arrange / Act
         var layered = SpecParser.Parse(
@@ -225,6 +159,6 @@ public class SpecParserResolveTests
         // Assert
         Assert.NotNull(layered.Expressions.Get(layered.Root["encoding"]!["size"]!["condition"]!["test"]));
         Assert.NotNull(layered.Expressions.Get(layered.Root["layer"]!.Items[0]["encoding"]!["color"]!["condition"]!["test"]));
-        Assert.Null(concat.Expressions.Get(concat.Root["hconcat"]!.Items[0]["encoding"]!["color"]!["condition"]!["test"]));
+        Assert.NotNull(concat.Expressions.Get(concat.Root["hconcat"]!.Items[0]["encoding"]!["color"]!["condition"]!["test"]));
     }
 }

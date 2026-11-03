@@ -117,7 +117,7 @@ and exposed read-only, so one instance can be shared between threads and calls.
 | `Scale` | 1 | The factor by which the natural size is multiplied (text included, so a larger scale gives a larger, equally sharp image); finite, greater than zero. The scaled size must lie within 1 and `Surface.MaxDimension` |
 | `Background` | `null` | An `Rgba32` that replaces the background of the specification and of the configuration; `null` uses them (white when neither defines one). `new Rgba32(0, 0, 0, 0)` gives a transparent picture |
 | `Config` | `null` | A Vega-Lite configuration as JSON object text, merged over the built-in defaults and the `config` of the specification (the caller wins). This is how a host applies a theme without editing the specification |
-| `ContainerWidth`, `ContainerHeight` | 400, 300 | The size in pixels of a chart whose `width` or `height` is `"container"` |
+| `ContainerWidth`, `ContainerHeight` | 400, 300 | The size in pixels of a chart whose `width` or `height` is `"container"`, which is fitted to that size (see *Vega-Lite Autosize and Container Sizes*) |
 | `Fonts` | `null` | A `VegaLiteFontOptions`: `UseSystemFonts` (default `false`) and `AdditionalDirectories` (default empty; copied and validated when set). See *Time Zone, Fonts, and Determinism* |
 | `TimeZone` | `null` (UTC) | The only time zone the chart ever uses: a date-time without an offset in the data, a custom `date:` parse format, the local time units, the local date functions of expressions, and the ticks and labels of time scales are read in it. `null` is UTC, never the zone of the machine; the `utc` time units, scales, and functions always use UTC. See *Vega-Lite Time and Time Zones* |
 | `Parameters` | `null` | Caller-supplied values that **replace the definition** of the named parameters of the specification, validated and copied when set (see *Vega-Lite Parameters*). A name that the document does not declare (`ParameterNames`) is an `ArgumentException` when the chart is measured or rendered. Values are `null`, `bool`, `string`, finite numbers, `DateTime`, or `DateTimeOffset` |
@@ -135,10 +135,13 @@ limits have an upper ceiling too), and the defaults are `MaxSourceLength` 4,194,
 `MaxExpressionLength` 4,096, `MaxExpressionDepth` 64, `MaxEvaluationSteps` 50,000,000, `MaxStringLength` 1,048,576, and
 `MaxDiagnostics` 1,000 (the first report beyond it becomes a single `vl-diagnostics-suppressed` warning). `MaxViews`
 and `MaxCompositionDepth` are checked when the views of a specification are normalized, before any data is read:
-`MaxViews` counts the top-level view, every layer (nested ones too), and the views that a composite mark stands for (a
-default `boxplot` is 9 views, a default `errorbar` 3; see *Vega-Lite Layers and Composite Marks*), and
-`MaxCompositionDepth` the levels of `layer` inside `layer` (the top-level `layer` is level 1; the views of a composite
-mark are not levels). Exceeding either is a `VegaLiteRenderException` located at the offending view or `layer`. The data,
+`MaxViews` counts the top-level view, every layer (nested ones too), every child of a concatenation, every copy of a
+repeat (checked before the copies are made), every cell of a facet (checked before the cells are made: the number of cells
+times the views of one cell), and the views that a composite mark stands for (a default `boxplot` is 9 views, a default
+`errorbar` 3; see *Vega-Lite Layers and Composite Marks* and *Vega-Lite Composition*), and `MaxCompositionDepth` the
+levels of `layer`, `concat`, `hconcat`, `vconcat`, `facet`, and `repeat` inside one another (the outermost one is level
+1, a `vconcat` of an `hconcat` of charts is 2; a chart itself and the views of a composite mark are not levels).
+Exceeding either is a `VegaLiteRenderException` located at the offending view, `layer`, `repeat`, or facet field. The data,
 scale, tick, and scene limits are checked **before** the memory is allocated, so a hostile specification fails with a
 located `VegaLiteRenderException` instead of exhausting memory. `MaxSceneItems` counts every item of the scene, groups
 included (the root and view groups, the title and its texts, each axis with its grid, ticks, labels, domain and title,
@@ -301,10 +304,10 @@ without it. A key that Vega-Lite does not define for a view, mark, encoding, or 
 | Area | Supported |
 | ---- | --------- |
 | Schema | A `$schema` of Vega-Lite version 5 or 6, interpreted with the **version 6 defaults** (not the version 5 defaults, for example a view is 300 by 300 pixels by default); no `$schema` at all |
-| Views | A single view, or a `layer` of views (layers may be nested, up to `MaxCompositionDepth` levels, and carry a `resolve` of the scales, axes, and legends); see *Vega-Lite Layers and Composite Marks*. `concat`, `hconcat`, `vconcat`, `facet`, and `repeat` are reported, and only the title, the background, and the empty view are drawn |
+| Views | A single view, a `layer` of views (layers may be nested and carry a `resolve` of the scales, axes, and legends; see *Vega-Lite Layers and Composite Marks*), and the compositions `concat`, `hconcat`, `vconcat` (with `columns`, `spacing`, `align`, `center`, and `bounds`), `facet` (a `row` and `column` mapping, or one field with `columns`, over a `spec` that is a unit or a layered view; the `row`, `column`, and `facet` channels of a unit view), and `repeat` (a list, a `row` and `column` mapping, a `layer` list, and `{"repeat": ...}` field references), nested within `MaxCompositionDepth` levels and `MaxViews` views, with a `resolve` of the scales, axes, and legends of each composition; see *Vega-Lite Composition* |
 | Data | Inline `data.values` (an array of objects, one row per object with nested values flattened to path fields such as `a.b`, or of primitives, one row `{"data": value}`); a relative local `data.url` read as JSON, CSV, TSV, or DSV; `format.type`, `delimiter`, `property`, and `parse` (see *Vega-Lite Data*); named data (`data.name`, from the caller's `Datasets` or the top-level `datasets`); and `data.sequence`. Remote URLs, geographic data, and `values` given as text are not read |
 | Marks | `bar`, `rect`, `point`, `circle`, `square`, `rule`, `tick`, `line`, `area`, `trail`, `text`, and `arc`, given as a string or as a definition object with `type`; see *Vega-Lite Line, Area, Text, and Arc Marks*. The composite marks `boxplot`, `errorbar`, and `errorband`, which are drawn as layers of those marks; see *Vega-Lite Layers and Composite Marks* |
-| Channels | `x`, `y`, `theta`, `radius`, `color`, `fill`, `stroke`, `size`, `opacity`, `fillOpacity`, `strokeOpacity`, `strokeWidth`, `strokeDash`, `shape`, `angle`, and `text`, each as a `field`, a literal `value`, or a literal `datum` where the channel permits it (`shape` is drawn by a `point` mark, `angle` by a `point`, `circle`, `square`, or `text`, `text` by a `text` mark, `theta` and `radius` by an `arc` or `text` mark, `size` by every mark but a `rect`, `area`, and `arc`, and `strokeDash` by every mark but a `rect`, `area`, `trail`, `text`, and `arc`; see *Vega-Lite Legends, Color Schemes, and Scales*). `x2` and `y2` give the end of a range on a `bar`, `rect`, `rule`, or `area` (and the ends of the range of an `errorbar` or `errorband`), `xError`, `xError2`, `yError`, and `yError2` give the errors of an `errorbar` or `errorband` (they are reported on any other mark), `theta2` and `radius2` the end of the span of an `arc`, and `order` orders the layers of a stack, the points of a path, or the drawing order of the marks. `detail` groups the points of a path. `tooltip`, `href`, `description`, and `key` are accepted and ignored without a report, because they have no meaning in a still picture |
+| Channels | `x`, `y`, `theta`, `radius`, `color`, `fill`, `stroke`, `size`, `opacity`, `fillOpacity`, `strokeOpacity`, `strokeWidth`, `strokeDash`, `shape`, `angle`, and `text`, each as a `field`, a literal `value`, or a literal `datum` where the channel permits it (`shape` is drawn by a `point` mark, `angle` by a `point`, `circle`, `square`, or `text`, `text` by a `text` mark, `theta` and `radius` by an `arc` or `text` mark, `size` by every mark but a `rect`, `area`, and `arc`, and `strokeDash` by every mark but a `rect`, `area`, `trail`, `text`, and `arc`; see *Vega-Lite Legends, Color Schemes, and Scales*). `x2` and `y2` give the end of a range on a `bar`, `rect`, `rule`, or `area` (and the ends of the range of an `errorbar` or `errorband`), `xError`, `xError2`, `yError`, and `yError2` give the errors of an `errorbar` or `errorband` (they are reported on any other mark), `theta2` and `radius2` the end of the span of an `arc`, and `order` orders the layers of a stack, the points of a path, or the drawing order of the marks. `detail` groups the points of a path. `tooltip`, `href`, `description`, and `key` are accepted and ignored without a report, because they have no meaning in a still picture. `row`, `column`, and `facet` on a unit view facet it, as the `facet` operator does (see *Vega-Lite Composition*); inside a layer or the `spec` of a facet they are reported |
 | Field types | `quantitative`, `temporal`, `nominal`, and `ordinal` (`geojson` is reported) |
 | Encoding properties | `field`, `type`, `value`, `datum`, `title`, `scale`, `axis`, `legend` (an object of legend properties, or `null`), `aggregate` (all 24 operations, including `count` without a field), `bin` (on `x` and `y`: `true`, the bin parameters, or `"binned"`; on `color`, `fill`, `stroke`, `size`, the opacities, `strokeWidth`, `strokeDash`, `shape`, and `angle`: `true` or the bin parameters, with 6 bins by default, 4 for `strokeDash`, and 10 for `angle`), `timeUnit` (the 40 Vega-Lite time units, their `utc` forms, and the object form; see *Vega-Lite Time and Time Zones*), `stack` (`zero`, `center`, `normalize`, `true`, `false`, or `null`; also on `theta` and `radius`), `impute` (on `x` and `y`: an object of `keyvals`, `method`, `value`, and `frame`, or `null` to switch off the implicit impute of a stacked path mark), and `sort` (ascending, descending, `null`, an array of values, a channel such as `"-y"`, or an object that sorts by an aggregate of a field), and `condition` on the `color`, `fill`, `stroke`, `opacity`, `fillOpacity`, `strokeOpacity`, `strokeWidth`, `strokeDash`, `size`, `shape`, and `angle` channels (a `test` that is an expression or a predicate; the first condition that holds gives the mark its `value` or the scale of its field; see *Vega-Lite Conditional Encodings*); see *Vega-Lite Aggregation, Binning, and Stacking* |
 | Scales | The types linear, log, pow, sqrt, symlog, sequential, time, utc, band, point, ordinal, quantile, quantize, threshold, and bin-ordinal, as Vega-Lite accepts them for a channel and a field type (a scale type that the channel or the field cannot use is replaced by the default one with the warning `vl-scale-type-ignored`); a diverging color scale is a sequential one with a `domainMid`. A temporal field gets a `time` scale (a `utc` scale for a `utc` time unit), see *Vega-Lite Time and Time Zones*. The polar channels `theta` and `radius` have the ranges 0 to a full turn and 0 to half of the smaller side of the view, see *Vega-Lite Line, Area, Text, and Arc Marks*. A binned quantitative color gets the bin-ordinal scale (one color per bin, and a legend of the ranges of the bins). A log scale takes `base`, a pow scale `exponent`, and a symlog scale `constant`; a log scale has no zero, is rounded out to powers of its base, and refuses a domain that includes zero or crosses it with a located error, where a symlog scale takes such data. The properties are `type`, `domain`, `domainMid`, `domainMin`, `domainMax`, `range` (a list, or the name of an entry of `config.range`), `rangeMin`, `rangeMax`, `scheme`, `interpolate`, `zero`, `nice` (also a time interval for a time scale), `padding`, `reverse`, `paddingInner`, `paddingOuter`, `align`, `round`, `clamp`, `base`, `exponent`, and `constant`; see *Vega-Lite Legends, Color Schemes, and Scales*. A quantitative `domain` and `range` of more than two entries map piecewise exactly as in d3-scale (`min(domain length, range length)` entries are used, and `zero`, `nice` and padding change only the first and last entry), while a band or point scale uses the first two entries of its `range` |
@@ -313,11 +316,11 @@ without it. A key that Vega-Lite does not define for a view, mark, encoding, or 
 | Color schemes | The 68 color schemes of Vega by name (`scale.scheme` and `config.range`, lower or upper case), a list of colors, or `{"name", "count", "extent"}`, with `interpolate` (`rgb`, `hsl`, `hsl-long`, `lab`, `hcl`, `hcl-long`, and an sRGB `gamma`) for a list of colors; an unknown scheme name is an error. `cubehelix` interpolation is reported |
 | Shapes | The symbol names `circle`, `square`, `cross`, `diamond`, `triangle-up`, `triangle-down`, `triangle-right`, `triangle-left`, `stroke`, `arrow`, `wedge`, and `triangle` for the `shape` channel, a `shape` property, and `legend.symbolType`; a custom SVG path is reported and a circle is drawn |
 | Titles | `text` (a string or an array of lines), `subtitle`, `anchor`, `orient`, `offset`, `frame`, the font, color, and alignment properties, `limit`, `angle`, `dx`, and `dy` |
-| Layout | `width` and `height` as numbers, `{"step": n}`, or `"container"`; `padding` as a number or an object; `autosize` of `pad` or `none`; `background`; the `view` configuration (size, fill, and stroke). Of a layered view only the top-level `width`, `height`, `padding`, `autosize`, and `background` count, and a `step` is applied to the merged discrete scale of the layers (the union of their categories times the step) |
-| Configuration | The Vega-Lite 6 and Vega defaults, the `config` of the specification, and `VegaLiteRenderOptions.Config`, merged in that order; the `style` mechanism; the `boxplot`, `errorbar`, and `errorband` entries of the composite marks (see *Vega-Lite Layers and Composite Marks*). Only the top-level `config` counts in a layered view |
+| Layout | `width` and `height` as numbers, `{"step": n}`, or `"container"`; `padding` as a number or an object; `autosize` of `pad`, `none`, `fit`, `fit-x`, and `fit-y` (with `contains`), also implied by a `"container"` size, for a single or a layered view (see *Vega-Lite Autosize and Container Sizes*); `background`; the `view` configuration (size, fill, and stroke). Of a layered view only the top-level `width`, `height`, `padding`, `autosize`, and `background` count, and a `step` is applied to the merged discrete scale of the layers (the union of their categories times the step). A composition is laid out as a grid with `spacing` (20 pixels by default), `columns`, `align`, `center`, and `bounds`, and takes the size of the views inside it (see *Vega-Lite Composition*) |
+| Configuration | The Vega-Lite 6 and Vega defaults, the `config` of the specification, and `VegaLiteRenderOptions.Config`, merged in that order; the `style` mechanism; the `boxplot`, `errorbar`, and `errorband` entries of the composite marks (see *Vega-Lite Layers and Composite Marks*); the `concat` and `facet` entries (`spacing`, `columns`) and the `header`, `headerRow`, `headerColumn`, and `headerFacet` entries of the facet headers (see *Vega-Lite Composition*). Only the top-level `config` counts in a layered view or a composition |
 | Expressions | A subset of the Vega expression language with 99 functions (math, string, array, type, regular expression, and date and time), in the `calculate` and `filter` transforms, the `expr` of a parameter, and the `{"expr": ...}` color, fill, stroke, opacity, stroke width, and size values of a mark that are evaluated for every row; see *Vega-Lite Expressions* |
-| Parameters | Static **variable** parameters of the single or top-level view (`value` or `expr`, with a caller override through `VegaLiteRenderOptions.Parameters`), read by expressions and by the `param` filter predicate; see *Vega-Lite Parameters*. Selections and bindings have no meaning in a still picture. A variable parameter declared inside a layer is reported (`vl-param-variable`) |
-| Transforms | `calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot`, `lookup`, `timeUnit`, `aggregate`, `joinaggregate`, `window`, `bin`, `stack`, and `impute`, run in the order of the specification on the rows before the scales are built, where the `transform` of a layered view is applied first and then the `transform` of each layer (see *Vega-Lite Layers and Composite Marks*); see *Vega-Lite Transforms*, *Vega-Lite Time and Time Zones*, and *Vega-Lite Aggregation, Binning, and Stacking* |
+| Parameters | Static **variable** parameters of the single or top-level view (`value` or `expr`, with a caller override through `VegaLiteRenderOptions.Parameters`), read by expressions and by the `param` filter predicate; see *Vega-Lite Parameters*. Selections and bindings have no meaning in a still picture. A variable parameter declared inside a layer or a composition is reported (`vl-param-variable`) |
+| Transforms | `calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot`, `lookup`, `timeUnit`, `aggregate`, `joinaggregate`, `window`, `bin`, `stack`, and `impute`, run in the order of the specification on the rows before the scales are built, where the `transform` of a layered view or a composition is applied first and then the `transform` of each layer or child (see *Vega-Lite Layers and Composite Marks* and *Vega-Lite Composition*); see *Vega-Lite Transforms*, *Vega-Lite Time and Time Zones*, and *Vega-Lite Aggregation, Binning, and Stacking* |
 | Time | Temporal fields with implicit date parsing, the `parse` directives `date`, `date:'...'`, and `utc:'...'`, the time units, date-time objects, time and UTC scales with calendar ticks and `nice` intervals, date labels on axes and legends, the date and time expression functions, and the render option `TimeZone`; see *Vega-Lite Time and Time Zones* |
 | Other transforms | **None** (`regression`, `loess`, `density`, `quantile`, and `extent` are reported; see the identifiers below) |
 <!-- markdownlint-enable MD013 -->
@@ -546,10 +549,10 @@ The `transform` array of the view is run **in the order of the text**, once per 
 that the data source gave and **before** the scales are built, so every scale, axis, and mark sees the transformed rows.
 Each transform is applied to the whole table that the previous one produced. An entry that names a transform that is
 not supported (`regression`, `loess`, `density`, `quantile`, `extent`) is reported (`vl-transform-<name>`)
-and **skipped**; the later transforms still run on the rows without it, so the chart is only approximate. A transform of
-a view that is not drawn (a view inside a `concat`, `hconcat`, `vconcat`, `facet`, or `repeat`) is reported
-and never applied. The `transform` of a layered view runs on the rows first, and then the `transform` of each layer (see
-*Vega-Lite Layers and Composite Marks*). The aggregating transforms
+and **skipped**; the later transforms still run on the rows without it, so the chart is only approximate. The
+`transform` of
+a layered view, a concatenation, a facet, or a repeat runs on the rows first, and then the `transform` of each layer or
+child (see *Vega-Lite Layers and Composite Marks* and *Vega-Lite Composition*). The aggregating transforms
 (`aggregate`, `joinaggregate`, `window`, `bin`, `stack`, and `impute`) are described in *Vega-Lite Aggregation,
 Binning, and Stacking*, and the `timeUnit` transform in *Vega-Lite Time and Time Zones*.
 
@@ -1610,7 +1613,7 @@ that give different `legend.orient` values cannot share a legend, as in Vega-Lit
 - A channel that `resolve` does not name is shared. The value of `resolve` must be an object, its `scale`, `axis`, and
   `legend` objects must map channels to `"shared"` or `"independent"`, and a channel that the kind cannot take is a
   `VegaLiteSpecException` located at the entry (an unknown key of `resolve` itself is the warning
-  `vl-unknown-property`). `resolve` on a `concat`, `facet`, or `repeat` is not used, because those views are not drawn.
+  `vl-unknown-property`). The `resolve` of a `concat`, `facet`, or `repeat` is described in *Vega-Lite Composition*.
 
 **Composite marks.** `boxplot`, `errorbar`, and `errorband` are **composite marks**: Vega-Lite stands for each by a few
 layers of primitive marks, and so does this package (a view that uses one is expanded into the layers when the chart is
@@ -1702,6 +1705,186 @@ Limits and determinism are those of the other marks: the work of every layer is 
 items to `MaxSceneItems`, the rows to `MaxDataRows`, and the same chart always gives the same picture. Example 43 draws
 a layered chart, a box plot, and an error band.
 
+### Vega-Lite Composition
+
+A view can hold other views and lay them out as a grid: **`hconcat`**, **`vconcat`**, and **`concat`** place a list of
+views side by side, one above the other, or in rows of `columns`; **`facet`** draws one copy of a view for each value of
+a field (the `row`, `column`, and `facet` channels of a unit view do the same); and **`repeat`** draws one copy for each
+value of a list of fields, with a field that the copy names by a reference. A child is a unit view, a layered view, or
+another composition, nested up to `MaxCompositionDepth` levels and `MaxViews` views in all (the `spec` of a facet is a
+unit or a layered view only; a composition in it, or a composition as a `layer`, is a `VegaLiteSpecException`). Examples
+44 to 46 draw a concatenation, a facet, and a repeat.
+
+**What a child inherits.** The `data` and the `transform` of a composition are those of its children, as for layers: a
+child without `data` reads the table of its nearest ancestor (read and counted once), a child with its own `data` reads
+that, and the `transform` of the composition runs first and the `transform` of a child after it. Each child keeps its own
+title, axes, legends (unless they are shared, see below), `view` background, and size, and is built as a chart of its own.
+
+<!-- markdownlint-disable MD013 -->
+| Property | Rule |
+| -------- | ---- |
+| `width`, `height` | Of a **child chart**: its own size (a number, a `{"step": n}`, or the default of 300 and the step of 20 for a discrete scale). Of a **composition**, and `"container"` anywhere in it: ignored, because a composition has the size of the views inside it (`vl-composition-property-ignored`) |
+| `autosize` | A composition is always `pad`: a `fit`, `fit-x`, `fit-y`, or `none` is warned about and ignored (`vl-composition-property-ignored`); the same warning for the `autosize` of a nested view |
+| `padding`, `background`, `config`, `datasets`, `params` | Only the top-level values count. A nested view that writes `padding`, `background`, `config`, `datasets`, or `autosize` is warned about (`vl-composition-property-ignored`) and the value is not used; a variable parameter inside a composition is reported (`vl-param-variable`). The `view` property of a child chart counts for that chart |
+| `title` | The title of a composition is placed at the **start** of the whole grid (above it by default, `anchor` and `orient` apply to the grid); the `title` of a child sits inside its own cell, above its chart |
+<!-- markdownlint-enable MD013 -->
+
+**The grid.** The cells are placed in rows of `columns` (an `hconcat` is one row, a `vconcat` one column, and a `concat`
+without `columns` and without `config.concat.columns` one row). A cell is as large as everything that belongs to its
+chart: the data rectangle with its axes, its legends, its title, and half the stroke of its border. A column starts
+after the widest cell of the column before it plus the spacing, a row after the tallest cell of the row above it:
+
+- `spacing` is the space between the cells, **20 pixels** by default (`config.concat.spacing`, `config.facet.spacing`);
+  a number sets both directions and `{"row": 10, "column": 40}` each.
+- `align` is `"each"` (a column is as wide as the widest cell of that column; the default of a concatenation),
+  `"all"` (every column is as wide as the widest cell of the grid; the default of a facet and a repeat), or `"none"`
+  (each cell follows the one before it); `{"row": ..., "column": ...}` gives the two directions separately.
+- `center` (`true`, or `{"row": ..., "column": ...}`) centers a smaller cell in its column or row, as Vega does: it only
+  moves the cells that start a column or a row.
+- `bounds` is `"full"` (the default: a cell counts with its axes and legends) or `"flush"` (a cell counts with its width
+  and height only, so the axes and the legends stick out of the cell and the neighbors' axes may overlap them).
+
+**Shared and independent scales, axes, and legends.** A composition's `resolve` (the same shape as for layers, see
+*Vega-Lite Layers and Composite Marks*) gives each channel a mode. The defaults are Vega-Lite's:
+
+<!-- markdownlint-disable MD013 -->
+| Composition | Scales | Axes | Legends |
+| ----------- | ------ | ---- | ------- |
+| `concat`, `hconcat`, `vconcat`, `repeat` | The position channels (`x`, `y`, `xOffset`, `yOffset`, `theta`, `radius`) are **independent**: every chart has its own. Every other channel (`color`, `size`, `shape`, the opacities, ...) is **shared**: the domain is the union of the domains of the charts | Never shared: every chart draws its own axes (`resolve.axis.x: "shared"` is warned about, `vl-concat-axis-shared`, and ignored) | A legend of a shared channel is **one legend**, merged at the highest composition that shares it and placed beside the whole grid (right by default; `legend.orient` moves it); an independent channel keeps a legend in each chart |
+| `facet` | Shared (`theta` independent): all the cells use the union of their domains | Shared axes are drawn **once**, on the outer edge: the y axis at the left of every row, the x axis under every column, and the cells keep only their grid lines; an independent scale draws its axis in each cell | As above |
+<!-- markdownlint-enable MD013 -->
+
+A shared scale over several charts is built as for layers (the union of the domains; explicit domains merged; a conflict
+that cannot be merged is the warning `vl-layer-scale-conflict`). A `resolve.scale.x: "shared"` of a concatenation gives
+the charts one x domain but each chart still draws its own axis. A discrete `{"step": n}` size over a shared scale
+is the step times the union of the categories of all the charts or cells, so every cell has the same size; an
+independent scale sizes each cell by its own categories and then the columns (or rows) are not aligned unless `align`
+says so.
+
+**`facet`.** A facet draws the view of its `spec` once for each cell:
+
+```json
+"facet": { "row": { "field": "region", "type": "nominal" }, "column": { "field": "quarter", "type": "nominal" } },
+"spec": { "mark": "bar", "encoding": { ... } }
+```
+
+- With a **`row` and `column` mapping** the cells are the product of the values of the two fields, row by row; a
+  combination without rows is an **empty cell** (its frame and grid lines are drawn without marks). With only one of
+  them the
+  cells are one column or one row. With **one field** (`"facet": {"field": "g", "type": "nominal"}`, wrapped) the cells
+  wrap after `columns` cells (one row without `columns`) and each cell has its label as its title. A `columns` next to a
+  `row` and `column` mapping is ignored with the warning `vl-composition-columns-ignored`.
+- A facet field is a field definition: `field`, `type`, `title`, `sort`, and `header`. The cells are in **ascending**
+  order of the field by default; `"sort": "descending"` reverses it, and `"sort": null` is the default order again, as in
+  Vega-Lite. A `sort` array puts the listed values first in that order and the other values after them in order of first
+  appearance (no value is dropped). A missing or `null` value is a cell of its own, labeled `null` (first when ascending,
+  last when descending).
+- The rows that a cell draws are the rows of its value: every transform of the encoding (an `aggregate`, a `stack`, a
+  `bin`) runs on the rows of the cell, and a shared scale is the union of the cells (see the deviations). A `spec` with
+  a `data` of its own is not partitioned: every cell draws that table.
+- A **unit view with a `row`, `column`, or `facet` channel** is the same as a facet over that view without those channels
+  (its `mark`, `width`, `height`, and the rest of its encoding stay in the cell, and its `title` is the title of the
+  whole). The channels are reported (`vl-channel-row`, `-column`, `-facet`) only where Vega-Lite cannot facet either: on
+  a layer, on a layered view, or in the `spec` of a facet.
+
+**Headers.** The values of a `row` or `column` field label the rows and columns, and the field names title them, as in
+Vega-Lite: a **row header** is at the left of its row (the label, rotated, next to the shared y axis, and the title of
+all the rows beyond them) and a **column header** above its column (the label with the title above all the labels). The
+labels are 10 pixels and the titles bold 11 pixels (`config.header.labelFontSize` and `titleFontSize` change them). The
+`header` object of the field definition sets (a property of the field definition wins over `config.headerRow`,
+`config.headerColumn`, or `config.headerFacet` of its channel, and that over `config.header`):
+
+- `title` (a text, an array of lines, or `null` for none), `labels` (`false` hides the labels), `format` and `formatType`
+  (`number`, `time`, or `utc`) of the label text, and `"header": null` to hide the labels and the title;
+- the label properties `labelAlign`, `labelAnchor`, `labelAngle`, `labelBaseline`, `labelColor`, `labelFont`,
+  `labelFontSize`, `labelFontStyle`, `labelFontWeight`, `labelLimit`, `labelLineHeight`, and `labelPadding`, and the
+  title properties of the same names (`titleAlign` and so on);
+- `labelOrient` and `titleOrient`: the labels of a row may be at the `right` (the **footer** of the row; the shared y
+  axis stays at the left) and those of a column at the `bottom` (the footer of the column, below the cells), and a title
+  may follow them to that side; another side is reported (`vl-header-orient`) and the default side is used. The
+  `orient` shortcut of `header` is not read, as in Vega-Lite.
+
+A wrapped facet has no row or column headers: the label of a cell is a title above the cell (`header.labelOrient` and
+the other label properties style it; `labels: false` removes it and the cell keeps its chart's own title), and the title
+of the field is one title above the whole grid. `labelExpr` is reported (`vl-expr-label`) and a custom `formatType`
+(`vl-format-type-custom`); a `bin`, `timeUnit`, or `aggregate` on the facet field is not applied and the raw value is the
+cell (`vl-facet-field-transform`), and a `sort` by `{"field": ..., "op": ...}` orders the cells by the field itself
+(`vl-facet-sort`).
+
+**`repeat`.** A repeat draws its `spec` once for each value of a list, and a reference `{"repeat": "row"}`,
+`{"repeat": "column"}`, `{"repeat": "repeat"}`, or `{"repeat": "layer"}` in the spec is replaced by the value of the
+copy:
+
+- `"repeat": ["a", "b", "c"]` is a concatenation of three copies in rows of `columns` (one row by default; the reference
+  is `"repeat"`);
+- `"repeat": {"row": [...], "column": [...]}` is the matrix of the two lists, row by row (the references are `"row"` and
+  `"column"`; `columns` is ignored with `vl-composition-columns-ignored`, and with only one of the lists the cells are
+  one column or one row);
+- `"repeat": {"layer": ["a", "b"]}` is one **layered** chart with a layer for each value (the reference is `"layer"`),
+  and `row` or `column` together with `layer` repeats such a layered chart in every cell.
+
+A reference may stand for the `field` or the `datum` of a channel, the field of a `sort`, and the `field` of a condition.
+A reference that the enclosing repeat does not define is warned about (`vl-repeat-ref-unresolved`) and the channel is
+dropped, as in Vega-Lite (a `facet` that is left with no field is dropped and its `spec` is drawn without a
+facet). The copies are normalized before anything is read, so the product of the lists is checked against `MaxViews`
+first. A repeat draws **no header**: the repeated field is the title of each axis. The `spec` of a
+layer repeat gives the size of the layered chart, and the `spec` of any other repeat is the chart of each copy.
+
+**Sizes, order, and cost.** Every cell is built and measured before it is placed, so a composition costs what its charts
+cost: the work and the items are charged to the same limits (`MaxSceneItems` counts every header, footer, title, cell,
+and legend before it is created), the cells and headers are checked for cancellation, and `Measure` gives exactly the
+size of the surface that `Render` draws. The groups of the scene are in the order of Vega-Lite (the row and column
+titles, the row headers and footers, the column headers and footers, and then the cells).
+
+**Deviations from Vega-Lite.** The package differs in these documented ways:
+
+- **The overflow of a mark is not part of the bounds** of a cell: a point or a bar at the edge of the domain, or the
+  stroke of a mark, can stick out of the cell, and the next cell may start a few pixels nearer than in a browser (the
+  same rule as for the single view; only the axes, legends, title, and the border count).
+- **A shared scale of a facet** is the union of the domains of the cells **after** their own transforms (Vega-Lite takes
+  it from the data before an aggregate of the cell). A category sort of the shared scale by an aggregate over the cells
+  keeps the order of first appearance.
+- **A `spec` with its own `data`** is not partitioned by the facet (Vega-Lite's rule too); every cell draws that table,
+  and the cells are those of the table of the facet.
+- **The sizes of the text** (labels, titles) come from the bundled fonts, not from Vega's text estimator, so a facet
+  header or a legend can differ from a browser's by a few pixels (see *Time Zone, Fonts, and Determinism*).
+- **A facet field transform and a sort by an aggregate** are reported and not applied (see above), and the `header`
+  properties `labelExpr`, a custom `formatType`, and the sides that the header does not draw on are reported.
+- **A composition ignores more than Vega-Lite does**: Vega-Lite drops only `fit` of a composition and keeps `fit-x` and
+  `fit-y`; here every `autosize` but `pad`, and every `width`, `height`, and `"container"` of a composition, is warned
+  about and a composition is always padded.
+- **`headerBand` and `footerBand`** of the layout are not used (every cell here has a size, so a header is at the origin
+  of its cell); a legend that is owned by a composition is laid out against a 0 by 0 data rectangle, so a gradient
+  legend has its minimum length of 64 pixels there, as in Vega.
+- **A layer of a layered chart** that writes a `width` or `height` is still ignored with `vl-layer-property-ignored`
+  (Phase 10), while the `spec` of a **layer repeat** gives the size of the repeated chart, as in Vega-Lite.
+
+### Vega-Lite Autosize and Container Sizes
+
+For a **single or layered view** the `autosize` types are `pad` (the default: the size is the data rectangle and the
+padding, axes, legends, and title are added to it), `none` (the size is the data rectangle plus the padding, and the
+guides may stick out), and the fitting types `fit`, `fit-x`, and `fit-y`, which keep the **whole chart** at the size
+that `width` and `height` give: the data rectangle becomes what is left after the axes, legends, and title, so a fitted
+chart has a known canvas whatever its labels need. `fit` fits both directions, `fit-x` only the width and `fit-y` only
+the height (the other direction is `pad`). `autosize` is a type name or an object `{"type": ..., "contains": ...}`:
+with `"contains": "padding"` the size includes the padding (a 400 by 300 chart is a 400 by 300 picture), and with
+`"contains": "content"`, the default of a written `autosize`, the padding is added to the size (a 400 by 300 chart is
+410 by 310 with the default padding of 5). A title that overflows the fitted view is accommodated by the data rectangle
+(it is iterated at most three times), and a legend counts only across its side (a legend on the right takes away width
+and none of the height).
+
+`"width": "container"` and `"height": "container"` fit that direction to the **container size** of the render options
+(`ContainerWidth` and `ContainerHeight`, 400 by 300 by default): they mean `fit-x`, `fit-y`, or `fit` with `contains:
+padding`, unless the specification or `config.autosize` writes an `autosize` of its own (the built-in `pad` default does
+not count, a written one does). So a container chart fills the container exactly, title and legend included. An explicit
+`pad` or `none` with a container size makes the container size the data rectangle.
+
+A fit does not apply to a dimension that a **step** sizes (`{"step": n}`, or a discrete scale without a size): the
+dimension is dropped from the fit with the warning `vl-layout-fit-step`, `fit` becomes `fit-y` or `fit-x`, and both
+dimensions stepped make the view `pad`; `fit-x` with a step width becomes `fit-y`, as in Vega-Lite. The `resize` of an
+`autosize` object is ignored (the picture is static). A composition ignores `autosize` and `container`, as described in
+*Vega-Lite Composition*.
+
 ### Time Zone, Fonts, and Determinism
 
 Rendering is **deterministic**: two renders of one document with the same options are byte-identical, for every
@@ -1756,13 +1939,17 @@ thread, after the work finished and before the method returns or throws.
 | `vl-data-parse-failed` | Warning | The `data` object, at render time: values that an explicit `format.parse` conversion (or the implicit date parse of a temporal field) could not read (one warning per field and type; those values are `null`) |
 | `vl-data-values-text` | Unsupported | `data/values` given as a string, or a top-level dataset that `data.name` refers to given as a string |
 | `vl-data-geo` | Unsupported | `sphere`, `graticule`, a topojson format, or `values` (or a referenced dataset) given as an object |
-| `vl-mark-<type>` | Unsupported | `mark`, for every type except bar, rect, point, circle, square, rule, tick, line, area, trail, text, arc, boxplot, errorbar, and errorband (`image` and `geoshape`); the view or layer is drawn without marks and without axes |
+| `vl-mark-<type>` | Unsupported | `mark`, for every type except bar, rect, point, circle, square, rule, tick, line, area, trail, text, arc, boxplot, errorbar, and errorband (`image` and `geoshape`); the view, layer, or chart is drawn without marks and without axes |
 | `vl-mark-invalid-show` | Unsupported | An `invalid` of `show` or `null` in a mark definition, or in `config.<mark>`, `config.mark`, or the `config.style` of the mark (reported at the value, in the configuration when it is written there; invalid values are not drawn at a fallback position; the default mode applies) |
 | `vl-mark-invalid-domains` | Warning | An `invalid` of `filter` or `break-paths-filter-domains`, in the mark definition or the configuration: the scale domains of this renderer always include the rows of invalid values |
 | `vl-mark-interpolate-bundle-area` | Unsupported | An `interpolate` of `bundle` on an `area`, in the mark definition or the configuration, which has no outline in d3-shape (the area is drawn with `linear`) |
 | `vl-mark-interpolate-unknown` | Unsupported | An `interpolate` of a `line` or `area` that is not one of the 15 names of Vega-Lite; only the configuration can give one (a mark definition with such a name is an error); the line is drawn with `linear` |
 | `vl-channel-<name>` | Unsupported | A channel other than x, y, theta, radius, theta2, radius2, color, fill, stroke, size, opacity, shape, strokeWidth, strokeDash, fillOpacity, strokeOpacity, angle, text, order, and detail (tooltip, href, description, and key are ignored); `shape` is drawn by a point mark, `angle` by a point, circle, square, or text, `text` by a text mark, `theta` and `radius` by an arc or text mark, `theta2` and `radius2` by an arc, `size` by every mark but a rect, area, and arc, and `strokeDash` by every mark but a rect, area, trail, text, and arc, and the channel is reported and ignored on any other mark (a `boxplot` draws `shape`, `angle`, and `strokeDash` with its outliers, and an `errorbar` draws `strokeDash` with its rule). `x2` and `y2` are supported on a bar, rect, rule, or area that has the `x` or `y` they extend, and on an errorbar or errorband, and are reported (`vl-channel-x2`, `vl-channel-y2`) on any other mark or without it. `xError`, `xError2`, `yError`, and `yError2` are supported on an errorbar or errorband and are reported (`vl-channel-xerror`, `vl-channel-xerror2`, `vl-channel-yerror`, `vl-channel-yerror2`) on any other mark; the `size` channel of an errorbar is reported (`vl-channel-size`). `order` and `detail` are accepted by every mark |
 | `vl-channel-geo` | Unsupported | `longitude`, `latitude`, `longitude2`, `latitude2` |
+| `vl-channel-row`, `-column`, `-facet` | Unsupported | A `row`, `column`, or `facet` channel of a view that cannot be faceted: a layer of a layered view, a layered view whose encoding has the channel, or the `spec` of a `facet` (the channel is ignored; use the `facet` operator). The channels of a unit view that is faceted are drawn and are not reported |
+| `vl-facet-field-transform` | Unsupported | A `bin`, `timeUnit`, or `aggregate` of a facet field (the `facet` operator, or the `row`, `column`, and `facet` channels): the raw value of the field is the cell |
+| `vl-facet-sort` | Unsupported | A facet `sort` by `{"field": ..., "op": ...}`: the cells are in ascending order of the facet field |
+| `vl-header-orient` | Unsupported | A `header.labelOrient` or `titleOrient` on a side that the header does not draw on (a row draws at the `left` and `right`, a column at the `top` and `bottom`, the label of a wrapped facet on any side and its title `top` and `bottom`): the default side is used |
 | `vl-type-geojson` | Unsupported | The `type` of a channel |
 | `vl-shape-path` | Unsupported | A shape that is not a symbol name (a custom SVG path): the `shape` of a mark, the `value` of a `shape` channel, or an entry of its `scale.range`; a circle is drawn |
 | `vl-scale-interpolate-cubehelix` | Unsupported | A `scale.interpolate` of `cubehelix` or `cubehelix-long`; RGB interpolation is used |
@@ -1788,20 +1975,23 @@ thread, after the work finished and before the method returns or throws.
 | `vl-guide-legend-titleorient`, `vl-guide-legend-clipheight` | Unsupported | A `legend.titleOrient` other than `top` (the title stays above the entries), a `legend.clipHeight` (the entries are not clipped) |
 | `vl-guide-axis-<name>` | Unsupported | `labelBound`, `tickBand`, `tickExtra`, `position`, `translate`, `bandPosition`, `titleX`, `titleY` of an axis |
 | `vl-guide-axis-tickcount-interval` | Warning | A time interval (`"week"` or `{"interval": "week", "step": 2}`) as the `tickCount` of an axis or legend whose scale is not a time scale; the default tick count is used |
-| `vl-format-type-custom` | Unsupported | An `axis.formatType`, `legend.formatType`, or the `formatType` of a `text` channel other than `number`, `time`, and `utc` (a custom format type is not evaluated; the default format is used) |
-| `vl-expr-ref` | Unsupported | An `{"expr": ...}` value where the renderer does not evaluate one: a title, padding, background, `view`, a mark property other than color, fill, stroke, opacity, stroke width, and the size of a point, circle, square, line, trail, or text, an encoding `value` other than that of color, fill, stroke, opacity, or the size of such a mark, and every such value in a view that is not drawn; and an expression inside a `point` or `line` overlay object. The value is not used |
-| `vl-expr-label` | Unsupported | `axis.labelExpr`, `legend.labelExpr` |
+| `vl-format-type-custom` | Unsupported | An `axis.formatType`, `legend.formatType`, `header.formatType`, or the `formatType` of a `text` channel other than `number`, `time`, and `utc` (a custom format type is not evaluated; the default format is used) |
+| `vl-expr-ref` | Unsupported | An `{"expr": ...}` value where the renderer does not evaluate one: a title, padding, background, `view`, a mark property other than color, fill, stroke, opacity, stroke width, and the size of a point, circle, square, line, trail, or text, an encoding `value` other than that of color, fill, stroke, opacity, or the size of such a mark, and a facet field definition or `header`; and an expression inside a `point` or `line` overlay object. The value is not used |
+| `vl-expr-label` | Unsupported | `axis.labelExpr`, `legend.labelExpr`, `header.labelExpr` |
 | `vl-expr-function-<name>` | Unsupported | The string value of an expression that calls a function outside the 99 supported ones, once per call, with `<name>` lower-cased (`vl-expr-function-now` for `now`, `vl-expr-function-geoarea` for `geoArea`; the message names the function **as written**). The call evaluates to null |
 | `vl-expr-view-state` | Unsupported | The string value of an expression that uses `signal`, `event`, or `item`, or the name `width`, `height`, `padding`, `autosize`, `background`, or `cursor` without declaring a parameter of that name. It evaluates to null |
 | `vl-expr-construct-<name>` | Unsupported | The string value of an expression that uses an operator that is parsed but not run: `bitwise-or`, `bitwise-xor`, `bitwise-and`, `bitwise-not` (the unary `~`), `shift-left`, `shift-right`, `shift-right-unsigned`, or `in`. It evaluates to null |
 | `vl-expr-runtime` | Warning | The string value of a `calculate` expression whose result is a regular expression for some rows; null is stored (one warning per transform, with the number of rows and the first row index) |
-| `vl-transform-<name>` | Unsupported | An entry of `transform` for `regression`, `loess`, `density`, `quantile`, or `extent` (the entry is skipped), and **every** entry of a view that is not drawn (a view inside a `concat`, `hconcat`, `vconcat`, `facet`, or `repeat`, whatever the transform, `timeunit` included; the message reads "The '<name>' transform is not applied: the view is a '<composition>' composition, which is not supported yet", with the nearest composition). The transforms of a layered view and of its layers are applied and are not reported for being in a layer |
+| `vl-transform-<name>` | Unsupported | An entry of `transform` for `regression`, `loess`, `density`, `quantile`, or `extent` (the entry is skipped). The transforms of a layered view, of its layers, and of the views of a `concat`, `hconcat`, `vconcat`, `facet`, or `repeat` are applied and are not reported for being there |
 | `vl-transform-bin-extent-param` | Unsupported | A `bin` transform whose `extent` is a `{"param": ...}` object; the extent of the data is used |
 | `vl-transform-filter-param` | Unsupported | A `param` of a filter that names a selection parameter, or a `selection` predicate; every row passes |
 | `vl-transform-pivot-op` | Unsupported | A pivot `op` other than `sum` or `count`; `sum` is used |
 | `vl-transform-lookup-param` | Unsupported | A lookup whose `from` is a `param` (the data of a selection); the transform is skipped |
 | `vl-transform-runtime` | Warning | A pivot that skipped rows whose pivot value is null, cut its columns at `limit`, or let a pivot value replace a group field of the same name |
-| `vl-composition-concat`, `-hconcat`, `-vconcat`, `-facet`, `-repeat` | Unsupported | That property; the nested views are examined too (`layer` is supported and is not reported) |
+| `vl-composition-property-ignored` | Warning | A `width`, `height` (`"container"` included), or `autosize` other than `pad` of a `concat`, `hconcat`, `vconcat`, `facet`, or `repeat` of rows or columns (only the views inside have a size, and a composition is laid out as `pad`), the `"container"` size of a view inside one, and the `padding`, `background`, `config`, `datasets`, or `autosize` of a view inside one; only the top-level view decides them and the value is not used |
+| `vl-concat-axis-shared` | Warning | A `resolve.axis.x` or `y` of `shared` on a `concat`, `hconcat`, `vconcat`, or `repeat`: the charts keep their own axes, as in Vega-Lite |
+| `vl-composition-columns-ignored` | Warning | A `columns` next to a `row` and `column` mapping of a `facet` or a `repeat` (the cells follow the fields or lists) |
+| `vl-repeat-ref-unresolved` | Warning | A `{"repeat": ...}` reference that the enclosing repeat does not define; the channel is dropped, as in Vega-Lite |
 | `vl-layer-property-ignored` | Warning | A `width`, `height`, `autosize`, `padding`, `background`, `config`, `datasets`, or `title` of a view inside a layered view (a layer, or a nested layered view); only the top-level view decides them and the value is not used |
 | `vl-layer-scale-conflict` | Warning | Layers whose scales of one channel cannot be shared (a continuous scale with a discrete one, a linear scale with a log, pow, or time scale, or different discretizing scales), reported at the channel of the layer that is left out; that layer keeps a scale of its own |
 | `vl-composite-grouping` | Unsupported | A grouping channel of a `boxplot`, `errorbar`, or `errorband` (every channel but the measure, its second end or errors, and the tooltip) that has a `bin`, a `timeUnit`, or an `aggregate`: the rows are grouped by the field as it is, and a channel that aggregates is left out |
@@ -1809,7 +1999,7 @@ thread, after the work finished and before the method returns or throws.
 | `vl-param-selection` | Unsupported | Every selection parameter (an entry of `params` with `select`) and the legacy top-level `selection`; nothing is selected |
 | `vl-param-variable` | Unsupported | A variable parameter of a nested view (a view inside a layer or a composition); the variable parameters of the single or top-level view are supported |
 | `vl-projection` | Unsupported | `projection` |
-| `vl-layout-autosize-<type>` | Unsupported | `autosize` types other than pad and none (laid out as `pad`) |
+| `vl-layout-fit-step` | Warning | An `autosize` of `fit`, `fit-x`, or `fit-y` (also the one that a `"container"` size implies) whose width or height is sized by a step (`{"step": n}`, or no size on a discrete scale): the fit is dropped for that dimension, as in Vega-Lite (reported at the `autosize`, else the size property, else the view) |
 | `vl-duplicate-key` | Warning | The later of two equal keys of one object (the last value wins) |
 | `vl-unknown-property` | Warning | A key that Vega-Lite does not define for a view, mark definition, encoding, channel definition, or sort object |
 | `vl-diagnostics-suppressed` | Warning | The first report beyond `MaxDiagnostics` |
@@ -1847,8 +2037,9 @@ The identifiers `vl-type-temporal`, `vl-encoding-timeunit`, `vl-transform-filter
 `vl-scale-utc`, and the `vl-expr-function-<name>` of the date and time functions (for example
 `vl-expr-function-datetime` and `vl-expr-function-timeformat`) were reported by earlier releases and are no longer
 produced, because temporal fields, time units, date predicates, custom date parse formats, time and UTC scales, and the
-date and time functions are now supported (see *Vega-Lite Time and Time Zones*); `vl-transform-timeunit` is now
-produced only for a view that is not drawn, `vl-encoding-bandposition` only for a field without a `timeUnit`, and
+date and time functions are now supported (see *Vega-Lite Time and Time Zones*); `vl-transform-timeunit` was produced
+only for a view that was not drawn and is no longer produced at all (every view is drawn), `vl-encoding-bandposition`
+only for a field without a `timeUnit`, and
 `vl-format-type-custom` only for a format type other than `number`, `time`, and `utc`. A build that matched one of them
 should stop doing so.
 The identifiers `vl-mark-line`, `vl-mark-area`, `vl-mark-trail`, `vl-mark-text`, `vl-mark-arc`, `vl-channel-order`, and
@@ -1862,12 +2053,24 @@ The identifiers `vl-composition-layer`, `vl-mark-boxplot`, `vl-mark-errorbar`, a
 earlier releases and are no longer produced, because layers and the composite marks are now supported (see *Vega-Lite
 Layers and Composite Marks*); the identifiers are retired and will not be reused. A `transform` of a layered view and of
 its layers is now applied and is not reported, and `vl-transform-<name>` is produced only for the transforms that are
-not supported and for the views that are not drawn (with a message that names the composition). The identifiers
+not supported. The identifiers
 `vl-layer-property-ignored`, `vl-layer-scale-conflict`, `vl-composite-grouping`, `vl-channel-xerror`, `-xerror2`,
 `-yerror`, and `-yerror2` are new. A build that matched one of the retired identifiers should stop doing so.
+The identifiers `vl-composition-concat`, `-hconcat`, `-vconcat`, `-facet`, and `-repeat` (the whole family
+`vl-composition-<name>` of the unsupported compositions) and `vl-layout-autosize-fit`, `-fit-x`, and `-fit-y` (the family
+`vl-layout-autosize-<type>`) were reported by earlier releases and are no longer produced, because the compositions and
+the `fit` autosize types are now supported (see *Vega-Lite Composition* and *Vega-Lite Autosize and Container Sizes*);
+they are retired and will not be reused. The message of `vl-transform-<name>` that read "the transform is not applied:
+the view is a composition" is retired with them, because the views of every composition are drawn and their transforms
+applied, and `vl-channel-row`, `-column`, and `-facet` are now produced only for a view that cannot be faceted. The
+identifiers `vl-composition-property-ignored`, `vl-concat-axis-shared`, `vl-composition-columns-ignored`,
+`vl-repeat-ref-unresolved`, `vl-layout-fit-step`, `vl-facet-field-transform`, `vl-facet-sort`, and `vl-header-orient`
+are new (`vl-composition-property-ignored` is not one of the retired `vl-composition-<name>` identifiers: it names a
+property that is ignored in a drawn composition). A build that matched one of the retired identifiers should stop
+doing so.
 Planned later releases add, among other things, the other transforms (`regression`, `loess`, `density`, `quantile`,
-`extent`), the formatting and color functions of the expression language, expressions in more places, `image`,
-composition (`concat`, `hconcat`, `vconcat`, `facet`, and `repeat`), and selections; until then the constructs are
+`extent`), the formatting and color functions of the expression language, expressions in more places, `image`, and
+selections; until then the constructs are
 reported with the identifiers above. Geographic constructs (`projection`, `geoshape`, `longitude` and `latitude`,
 topojson) are not planned and remain reported.
 
@@ -1885,7 +2088,11 @@ file, test, example, data set, or documentation text of the upstream projects wa
   floor, the end, the bin choice for `maxbins`, the label specifiers, the multi-format of the axis labels, and the field
   names and titles), the date-time objects, the time predicates, and the geometry of time unit bands; the rules of the
   line, area, trail, text, and arc marks (the grouping and sorting of paths, the overlays, the invalid-data modes, the
-  implicit impute of a stack, the polar stack and scales, the text formats, and the trail, arc, and text shapes); and
+  implicit impute of a stack, the polar stack and scales, the text formats, and the trail, arc, and text shapes); the
+  compositions of Phase 11 (the grid layout of concatenations, facets, and repeats with its spacing, columns,
+  alignment, centering, and bounds, the order of the cells of a facet and the properties and placement of its headers,
+  the defaults of `resolve` of each composition, the expansion of a `repeat` and its field references, the facet
+  channels of a unit view, and the `fit` autosize and the container sizes); and
   the palette table of the 68 color schemes, the color interpolation rules, and the rules that give a scheme its number
   of colors.
 - **d3-array**, **d3-format**, **d3-scale**, **d3-scale-chromatic**, **d3-interpolate**, **d3-color**, **d3-time**,
@@ -2922,4 +3129,300 @@ catch (VegaLiteUnsupportedFeatureException ex)
 {
     Console.WriteLine($"{ex.Feature} {ex.Location.Pointer}"); // Output: vl-composite-grouping /encoding/x
 }
+```
+
+### Example 44: Concatenated Charts with a Shared Legend
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.VegaLite;
+
+// Strict mode refuses an approximate chart: every composition below that is drawn with it is drawn completely
+var strict = new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true };
+
+// 1. Two charts side by side. The data is the composition's, so both charts read it. The color channel is shared, so
+//    the stalls have one legend, beside the whole grid; the position scales are independent, so each chart has its
+//    own axes; the second chart has a title of its own, inside its cell, and the composition's title is at the start
+var stalls = VegaLiteDocument.Parse("""
+    {
+      "title": "Crates sold per stall and month",
+      "data": { "values": [
+        { "stall": "Apples", "month": 1, "crates": 28 }, { "stall": "Apples", "month": 2, "crates": 35 },
+        { "stall": "Apples", "month": 3, "crates": 31 }, { "stall": "Pears", "month": 1, "crates": 55 },
+        { "stall": "Pears", "month": 2, "crates": 48 }, { "stall": "Pears", "month": 3, "crates": 62 },
+        { "stall": "Plums", "month": 1, "crates": 43 }, { "stall": "Plums", "month": 2, "crates": 51 },
+        { "stall": "Plums", "month": 3, "crates": 40 }
+      ] },
+      "hconcat": [
+        {
+          "width": 160,
+          "height": 160,
+          "mark": "bar",
+          "encoding": {
+            "x": { "field": "stall", "type": "nominal" },
+            "y": { "field": "crates", "type": "quantitative", "aggregate": "sum" },
+            "color": { "field": "stall", "type": "nominal" }
+          }
+        },
+        {
+          "width": 160,
+          "height": 160,
+          "title": "By month",
+          "mark": { "type": "line", "point": true },
+          "encoding": {
+            "x": { "field": "month", "type": "ordinal" },
+            "y": { "field": "crates", "type": "quantitative" },
+            "color": { "field": "stall", "type": "nominal" }
+          }
+        }
+      ]
+    }
+    """);
+var size = stalls.Measure();
+Console.WriteLine($"{size.Width}x{size.Height}"); // Output: 491x259
+using var picture = stalls.Render(strict);
+PngCodec.Save(picture, "stalls-concat.png");
+
+// 2. Four charts in two columns, 40 pixels between the columns and 10 between the rows (a concat without columns is
+//    one row, an hconcat is always one row and a vconcat one column)
+var grid = VegaLiteDocument.Parse("""
+    {
+      "data": { "values": [
+        { "stall": "Apples", "crates": 28 }, { "stall": "Pears", "crates": 55 }, { "stall": "Plums", "crates": 43 }
+      ] },
+      "columns": 2,
+      "spacing": { "row": 10, "column": 40 },
+      "concat": [
+        { "width": 100, "height": 80, "mark": "bar",
+          "encoding": {
+            "x": { "field": "stall", "type": "nominal" },
+            "y": { "field": "crates", "type": "quantitative" } } },
+        { "width": 100, "height": 80, "mark": "area",
+          "encoding": {
+            "x": { "field": "crates", "type": "quantitative" },
+            "y": { "field": "crates", "type": "quantitative" } } },
+        { "width": 100, "height": 80, "mark": "tick",
+          "encoding": { "x": { "field": "crates", "type": "quantitative" } } },
+        { "width": 100, "height": 80, "mark": "point",
+          "encoding": {
+            "x": { "field": "crates", "type": "quantitative" },
+            "y": { "field": "stall", "type": "nominal" } } }
+      ]
+    }
+    """);
+var gridSize = grid.Measure();
+Console.WriteLine($"{gridSize.Width}x{gridSize.Height}"); // Output: 340x269
+
+// 3. The width of a composition and shared axes of a concatenation are not supported by Vega-Lite either: both are
+//    warned about, and the charts keep their own size and axes
+var ignored = VegaLiteDocument.Parse("""
+    {
+      "data": { "values": [ { "a": "x", "b": 1 }, { "a": "y", "b": 2 } ] },
+      "width": 300,
+      "resolve": { "axis": { "x": "shared" } },
+      "hconcat": [
+        {
+          "mark": "bar",
+          "encoding": {
+            "x": { "field": "a", "type": "nominal" },
+            "y": { "field": "b", "type": "quantitative" }
+          }
+        },
+        {
+          "mark": "point",
+          "encoding": {
+            "x": { "field": "b", "type": "quantitative" },
+            "y": { "field": "b", "type": "quantitative" }
+          }
+        }
+      ]
+    }
+    """);
+var warnings = new List<VegaLiteDiagnostic>();
+using var ignoredPicture = ignored.Render(new VegaLiteRenderOptions { WarningHandler = warnings.Add });
+Console.WriteLine(warnings.Count);                                                      // Output: 2
+Console.WriteLine(warnings[0].Message.StartsWith("vl-composition-property-ignored:"));  // Output: True
+Console.WriteLine(warnings[1].Message.StartsWith("vl-concat-axis-shared:"));            // Output: True
+```
+
+### Example 45: Faceted Charts with Headers
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.VegaLite;
+
+var strict = new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true };
+
+// 1. One cell for each region (a row) and quarter (a column). The cells share their scales, so the y axis is drawn
+//    once at the left of each row and the x axis once under each column; the row header is titled "Region" with bold
+//    labels, and the column header has labels but no title
+var regions = VegaLiteDocument.Parse("""
+    {
+      "data": { "values": [
+        { "region": "North", "quarter": "Q1", "stall": "Apples", "crates": 28 },
+        { "region": "North", "quarter": "Q1", "stall": "Pears", "crates": 55 },
+        { "region": "North", "quarter": "Q2", "stall": "Apples", "crates": 35 },
+        { "region": "North", "quarter": "Q2", "stall": "Pears", "crates": 48 },
+        { "region": "South", "quarter": "Q1", "stall": "Apples", "crates": 31 },
+        { "region": "South", "quarter": "Q1", "stall": "Pears", "crates": 22 },
+        { "region": "South", "quarter": "Q2", "stall": "Apples", "crates": 40 },
+        { "region": "South", "quarter": "Q2", "stall": "Pears", "crates": 37 }
+      ] },
+      "facet": {
+        "row": { "field": "region", "type": "nominal", "header": { "title": "Region", "labelFontWeight": "bold" } },
+        "column": { "field": "quarter", "type": "nominal", "header": { "title": null } }
+      },
+      "spec": {
+        "width": 120,
+        "height": 80,
+        "mark": "bar",
+        "encoding": {
+          "x": { "field": "stall", "type": "nominal", "title": null },
+          "y": { "field": "crates", "type": "quantitative" },
+          "color": { "field": "stall", "type": "nominal" }
+        }
+      }
+    }
+    """);
+var size = regions.Measure();
+Console.WriteLine($"{size.Width}x{size.Height}"); // Output: 424x252
+using var picture = regions.Render(strict);
+PngCodec.Save(picture, "regions-facet.png");
+
+// 2. A facet of one field wraps after `columns` cells, and each cell is titled with its value. The `facet` channel of a
+//    unit view is the same as the facet operator over that view; the cells are in descending order of the field
+var wrapped = VegaLiteDocument.Parse("""
+    {
+      "data": { "values": [
+        { "region": "North", "stall": "Apples", "crates": 28 }, { "region": "North", "stall": "Pears", "crates": 55 },
+        { "region": "South", "stall": "Apples", "crates": 31 }, { "region": "South", "stall": "Pears", "crates": 22 },
+        { "region": "East", "stall": "Apples", "crates": 40 }, { "region": "East", "stall": "Pears", "crates": 37 }
+      ] },
+      "width": 100,
+      "height": 80,
+      "mark": "bar",
+      "encoding": {
+        "facet": { "field": "region", "type": "nominal", "sort": "descending", "columns": 2 },
+        "x": { "field": "stall", "type": "nominal" },
+        "y": { "field": "crates", "type": "quantitative" }
+      }
+    }
+    """);
+var wrappedSize = wrapped.Measure();
+Console.WriteLine($"{wrappedSize.Width}x{wrappedSize.Height}"); // Output: 268x308
+
+// 3. Binning the facet field is not supported: the raw value of the field is the cell, the feature is reported at the
+//    property, and strict mode refuses it
+var binned = VegaLiteDocument.Parse("""
+    {
+      "data": { "values": [ { "g": 1, "v": 1 }, { "g": 2, "v": 3 }, { "g": 3, "v": 2 } ] },
+      "facet": { "field": "g", "type": "quantitative", "bin": true },
+      "columns": 2,
+      "spec": {
+        "mark": "bar",
+        "encoding": {
+          "x": { "field": "g", "type": "ordinal" },
+          "y": { "field": "v", "type": "quantitative" }
+        }
+      }
+    }
+    """);
+try
+{
+    using var binnedPicture = binned.Render(strict);
+}
+catch (VegaLiteUnsupportedFeatureException ex)
+{
+    Console.WriteLine($"{ex.Feature} {ex.Location.Pointer}"); // Output: vl-facet-field-transform /facet/bin
+}
+```
+
+### Example 46: Repeated Charts
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.VegaLite;
+
+var strict = new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true };
+
+// 1. A matrix of scatter plots: the row list gives the y field and the column list the x field of each chart, row by
+//    row. The color legend is shared, so there is one for the whole matrix, and there are no headers: the field of each
+//    axis is its title
+var matrix = VegaLiteDocument.Parse("""
+    {
+      "data": { "values": [
+        { "price": 3.1, "weight": 12, "crates": 28, "stall": "Apples" },
+        { "price": 4.2, "weight": 18, "crates": 55, "stall": "Pears" },
+        { "price": 2.8, "weight": 9, "crates": 43, "stall": "Plums" },
+        { "price": 5.5, "weight": 21, "crates": 91, "stall": "Cherries" },
+        { "price": 3.9, "weight": 15, "crates": 62, "stall": "Apples" },
+        { "price": 4.8, "weight": 11, "crates": 37, "stall": "Pears" }
+      ] },
+      "repeat": {
+        "row": ["price", "weight"],
+        "column": ["weight", "crates"]
+      },
+      "spec": {
+        "width": 100,
+        "height": 100,
+        "mark": "point",
+        "encoding": {
+          "x": { "field": { "repeat": "column" }, "type": "quantitative" },
+          "y": { "field": { "repeat": "row" }, "type": "quantitative" },
+          "color": { "field": "stall", "type": "nominal" }
+        }
+      }
+    }
+    """);
+var size = matrix.Measure();
+Console.WriteLine($"{size.Width}x{size.Height}"); // Output: 372x298
+using var picture = matrix.Render(strict);
+PngCodec.Save(picture, "stalls-matrix.png");
+
+// 2. A repeat of layers is one chart with a line for each field; the `datum` of the color channel names the line in the
+//    legend. The size of the repeated chart is the size of the `spec`
+var layers = VegaLiteDocument.Parse("""
+    {
+      "data": { "values": [
+        { "month": 1, "crates": 28, "revenue": 90 }, { "month": 2, "crates": 35, "revenue": 120 },
+        { "month": 3, "crates": 31, "revenue": 100 }
+      ] },
+      "repeat": { "layer": ["crates", "revenue"] },
+      "spec": {
+        "width": 240,
+        "height": 120,
+        "mark": "line",
+        "encoding": {
+          "x": { "field": "month", "type": "ordinal" },
+          "y": { "field": { "repeat": "layer" }, "type": "quantitative", "title": "Value" },
+          "color": { "datum": { "repeat": "layer" }, "type": "nominal", "title": "Measure" }
+        }
+      }
+    }
+    """);
+var layersSize = layers.Measure();
+Console.WriteLine($"{layersSize.Width}x{layersSize.Height}"); // Output: 360x158
+
+// 3. A reference that the repeat does not define (there is no "layer" list here) is warned about and the channel that
+//    holds it is dropped, as in Vega-Lite
+var unresolved = VegaLiteDocument.Parse("""
+    {
+      "data": { "values": [ { "p": 1, "q": 2 }, { "p": 2, "q": 5 } ] },
+      "repeat": { "row": ["p", "q"] },
+      "spec": {
+        "mark": "point",
+        "encoding": {
+          "x": { "field": { "repeat": "row" }, "type": "quantitative" },
+          "y": { "field": { "repeat": "layer" }, "type": "quantitative" }
+        }
+      }
+    }
+    """);
+var warnings = new List<VegaLiteDiagnostic>();
+using var unresolvedPicture = unresolved.Render(new VegaLiteRenderOptions { WarningHandler = warnings.Add });
+Console.WriteLine(warnings.Count);                                                      // Output: 1
+Console.WriteLine(warnings[0].Message.StartsWith("vl-repeat-ref-unresolved:"));         // Output: True
 ```

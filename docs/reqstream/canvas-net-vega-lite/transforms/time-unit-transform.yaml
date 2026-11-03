@@ -147,10 +147,24 @@ sections:
               - id: CanvasNetVegaLite-Transforms-TimeUnitTransform-TemporalFieldsOfViews
                 title: >-
                   The TimeUnitTransform unit shall collect the fields that are implicitly parsed as dates for
-                  several views at once (the views a loaded table serves, such as the layers of a layered view)
-                  as the union of the fields of each view, each field once.
+                  several views at once (the views a loaded table serves, such as the layers of a layered view,
+                  the children of a concatenation, and the copies of a repeat), and for the facets among
+                  them, as the union of the fields of each view and each facet field, each field once.
                 justification: |
                   A table that several layers read is loaded once; every date field that any of them needs must
                   be parsed when it is loaded.
                 tests:
                   - TemporalFields_CollectAll_IsTheUnionOverTheViews
+                  - TemporalFields_CollectAll_UnitesTheViewsAndTheFacets
+
+              - id: CanvasNetVegaLite-Transforms-TimeUnitTransform-TemporalFieldsOfFacets
+                title: >-
+                  The TimeUnitTransform unit shall collect the fields of the row, column, and wrapped field
+                  definitions of a facet that are implicitly parsed as dates - those of type temporal, with a
+                  timeUnit, or with the time format type, by the rules of an encoding definition - and
+                  nothing for a nominal field or for a field that is not a name (a repeat reference).
+                justification: |
+                  The cells of a facet are the distinct values of its field; a date field must be parsed as a
+                  date for the cells, their order, and their labels to be dates rather than texts.
+                tests:
+                  - TemporalFields_CollectFacet_RowColumnAndWrapFieldsAreJudgedLikeEncodings

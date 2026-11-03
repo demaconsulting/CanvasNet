@@ -1,3 +1,4 @@
+// cspell:ignore STZE
 namespace DemaConsulting.CanvasNet.VegaLite.SpecModel;
 
 /// <content>
@@ -25,6 +26,27 @@ internal sealed partial class SpecParser
     /// <summary>The rules for the properties of a composite mark definition (<c>boxplot</c>, <c>errorbar</c>, <c>errorband</c>).</summary>
     private static readonly Dictionary<string, Rule> CompositeMarkRules = Rules(
         "extent: NS", "center: SE=mean|median", "box: BO", "median: BO", "rule: BO", "ticks: BO", "outliers: BO", "band: BO", "borders: BO");
+
+    /// <summary>The properties that lay out the cells of a concatenation or a facet, on a view or on a <c>facet</c> channel definition.</summary>
+    private static readonly string[] LayoutProperties = ["columns", "spacing", "align", "center"];
+
+    /// <summary>The properties that make a view a concatenation, a facet or a repeat.</summary>
+    private static readonly string[] CompositionKeys = ["concat", "hconcat", "vconcat", "facet", "repeat"];
+
+    /// <summary>The names a <c>{"repeat": ...}</c> reference may have.</summary>
+    private static readonly string[] RepeatReferenceNames = ["row", "column", "repeat", "layer"];
+
+    /// <summary>The properties of a channel definition or a condition that may be a <c>{"repeat": ...}</c> reference.</summary>
+    private static readonly string[] ReferenceProperties = ["field", "datum"];
+
+    /// <summary>The rules for the properties of a <c>header</c> of a faceting channel definition (Vega-Lite's <c>Header</c>).</summary>
+    private static readonly Dictionary<string, Rule> HeaderRules = Rules(
+        "format: SO", "formatType: S", "labelAlign: SE", "labelAnchor: SE=start|middle|end", "labelAngle: NE", "labelBaseline: SE",
+        "labelColor: SZE", "labelExpr: S", "labelFont: SE", "labelFontSize: NE", "labelFontStyle: SE", "labelFontWeight: SNE", "labelLimit: NE",
+        "labelLineHeight: NE", "labelOrient: S=left|right|top|bottom", "labelPadding: NE", "labels: B", "orient: S=left|right|top|bottom",
+        "title: STZE", "titleAlign: SE", "titleAnchor: SE=start|middle|end", "titleAngle: NE", "titleBaseline: SE", "titleColor: SZE",
+        "titleFont: SE", "titleFontSize: NE", "titleFontStyle: SE", "titleFontWeight: SNE", "titleLimit: NE", "titleLineHeight: NE",
+        "titleOrient: S=left|right|top|bottom", "titlePadding: NE");
 
     /// <summary>The extent names an <c>errorbar</c> or <c>errorband</c> accepts.</summary>
     private static readonly string[] ErrorExtentNames = ["ci", "iqr", "stderr", "stdev"];
@@ -122,4 +144,267 @@ internal sealed partial class SpecParser
             throw Error(extent, $"The 'extent' of an {type} must be one of 'ci', 'iqr', 'stderr' or 'stdev'.");
         }
     }
+
+    /// <summary>
+    ///     Validates the views of a <c>layer</c>: each is a unit view or a layered view, never a concatenation, a facet or a repeat (Vega-Lite's schema).
+    /// </summary>
+    /// <param name="views">The views of the <c>layer</c> array.</param>
+    /// <exception cref="VegaLiteSpecException">Thrown, at the view, when a layer is a composition.</exception>
+    private void ValidateLayerChildren(List<SpecNode> views)
+    {
+        foreach (var view in views)
+        {
+            if (CompositionKeys.FirstOrDefault(key => view[key] is not null) is { } key)
+            {
+                throw Error(view, $"A view in a 'layer' cannot be a '{key}' composition; only unit and layered views can be layered.");
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Validates the <c>spec</c> of a facet: a unit view or a layered view, never a concatenation, a facet or a repeat.
+    /// </summary>
+    /// <param name="spec">The <c>spec</c> value.</param>
+    /// <exception cref="VegaLiteSpecException">Thrown, at the <c>spec</c>, when it is a composition and the view it is in is a facet.</exception>
+    private void ValidateFacetSpec(SpecNode spec)
+    {
+        if (spec.Parent?["facet"] is null)
+        {
+            return;
+        }
+
+        if (CompositionKeys.FirstOrDefault(key => spec[key] is not null) is { } key)
+        {
+            throw Error(spec, $"The 'spec' of a facet cannot be a '{key}' composition; it must be a unit view or a layered view.");
+        }
+    }
+
+    /// <summary>
+    ///     Validates the <c>facet</c> of a view: one field definition (a wrapped facet), or an object with a <c>row</c> and a <c>column</c> field definition.
+    /// </summary>
+    /// <param name="facet">The <c>facet</c> object (its kind is already checked).</param>
+    /// <exception cref="VegaLiteSpecException">Thrown, at the offending value, when the view has no <c>spec</c> or a field definition has no <c>field</c>.</exception>
+    private void ValidateFacet(SpecNode facet)
+    {
+        if (facet.Parent?["spec"] is not { IsObject: true })
+        {
+            throw Error(facet, "A facet needs a 'spec' view.");
+        }
+
+        if (facet["field"] is not null)
+        {
+            ValidateFacetField(facet);
+            return;
+        }
+
+        var any = false;
+        foreach (var entry in facet.Properties)
+        {
+            if (entry.Name is "row" or "column")
+            {
+                ValidateFacetField(entry);
+                any = true;
+            }
+            else
+            {
+                WarnUnknown(entry, "a facet");
+            }
+        }
+
+        if (!any)
+        {
+            throw Error(facet, "A facet needs a 'field', or a 'row' or a 'column' field definition.");
+        }
+    }
+
+    /// <summary>
+    ///     Validates one field definition of a facet: an object with a <c>field</c> that is a name or a <c>{"repeat": ...}</c> reference, and the properties of a channel definition.
+    /// </summary>
+    /// <param name="definition">The field definition.</param>
+    /// <exception cref="VegaLiteSpecException">Thrown, at the offending value, when it is not an object, has no <c>field</c>, or a property has a wrong value.</exception>
+    private void ValidateFacetField(SpecNode definition)
+    {
+        if (!definition.IsObject)
+        {
+            throw Error(definition, $"The '{definition.Name}' of a facet must be a field definition object.");
+        }
+
+        if (definition["field"] is not { } field || !(field.IsString || IsRepeatReference(field)))
+        {
+            throw Error(definition, $"The '{definition.Name}' field definition of a facet needs a 'field'.");
+        }
+
+        ValidateChannelDefinition(definition, facetChannel: true);
+    }
+
+    /// <summary>
+    ///     Validates the <c>repeat</c> of a view: an array of field names, or an object with <c>row</c>, <c>column</c> and <c>layer</c> arrays of field names.
+    /// </summary>
+    /// <param name="repeat">The <c>repeat</c> value (its kind is already checked).</param>
+    /// <exception cref="VegaLiteSpecException">Thrown, at the offending value, when the view has no <c>spec</c> or a value is not a string.</exception>
+    private void ValidateRepeat(SpecNode repeat)
+    {
+        if (repeat.Parent?["spec"] is not { IsObject: true })
+        {
+            throw Error(repeat, "A repeat needs a 'spec' view.");
+        }
+
+        if (repeat.IsArray)
+        {
+            CheckStringItems(repeat, "The values of a 'repeat' must be strings.");
+            return;
+        }
+
+        foreach (var entry in repeat.Properties)
+        {
+            if (entry.Name is not ("row" or "column" or "layer"))
+            {
+                WarnUnknown(entry, "a repeat");
+                continue;
+            }
+
+            if (!entry.IsArray)
+            {
+                throw Error(entry, $"The 'repeat.{entry.Name}' must be an array of field names.");
+            }
+
+            CheckStringItems(entry, $"The values of 'repeat.{entry.Name}' must be strings.");
+        }
+    }
+
+    /// <summary>
+    ///     Validates what the rules cannot express of a layout property of a concatenation or a facet: <c>columns</c> is a non-negative integer, and <c>spacing</c>,
+    ///     <c>align</c> and <c>center</c> are one value or an object that gives the row and the column separately.
+    /// </summary>
+    /// <param name="property">The property value, whose kind is already checked.</param>
+    /// <exception cref="VegaLiteSpecException">Thrown, at the offending value, for a value that is not allowed.</exception>
+    private void ValidateLayoutProperty(SpecNode property)
+    {
+        switch (property.Name)
+        {
+            case "columns":
+                if (property.NumberValue < 0 || !double.IsInteger(property.NumberValue))
+                {
+                    throw Error(property, "The 'columns' must be a non-negative integer.");
+                }
+
+                break;
+            case "spacing" when property.IsObject:
+                ValidateRowColumn(property, "spacing", n => n.IsNumber, "a number");
+                break;
+            case "align" when property.IsString:
+                if (property.StringValue is not ("all" or "each" or "none"))
+                {
+                    throw Error(property, "The 'align' must be 'all', 'each' or 'none'.");
+                }
+
+                break;
+            case "align" when property.IsObject:
+                ValidateRowColumn(property, "align", n => n.IsString && n.StringValue is "all" or "each" or "none", "'all', 'each' or 'none'");
+                break;
+            case "center" when property.IsObject:
+                ValidateRowColumn(property, "center", n => n.IsBoolean, "a boolean");
+                break;
+            default:
+                break;
+        }
+    }
+
+    /// <summary>
+    ///     Validates an object that gives a value for the <c>row</c> and for the <c>column</c>.
+    /// </summary>
+    /// <param name="value">The object.</param>
+    /// <param name="name">The name of the property.</param>
+    /// <param name="isValid">Tells whether an entry has an allowed value.</param>
+    /// <param name="expected">The description of the allowed values for the message.</param>
+    /// <exception cref="VegaLiteSpecException">Thrown, at the entry, when its value is not allowed.</exception>
+    private void ValidateRowColumn(SpecNode value, string name, Func<SpecNode, bool> isValid, string expected)
+    {
+        foreach (var entry in value.Properties)
+        {
+            if (entry.Name is not ("row" or "column"))
+            {
+                WarnUnknown(entry, $"a {name} object");
+            }
+            else if (!isValid(entry))
+            {
+                throw Error(entry, $"The '{name}.{entry.Name}' must be {expected}.");
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Validates the <c>header</c> of a faceting channel definition (or of a facet field definition).
+    /// </summary>
+    /// <param name="header">The header object.</param>
+    /// <exception cref="VegaLiteSpecException">Thrown, at the offending value, for a property of the wrong type or value.</exception>
+    private void ValidateHeader(SpecNode header)
+    {
+        CheckObject(header, HeaderRules);
+        foreach (var property in header.Properties.Where(p => !HeaderRules.ContainsKey(p.Name!)))
+        {
+            WarnUnknown(property, "a header");
+        }
+    }
+
+    /// <summary>
+    ///     Validates the <c>{"repeat": ...}</c> references of a channel definition: in its <c>field</c>, <c>datum</c> and <c>sort.field</c>, and in the
+    ///     <c>field</c> and <c>datum</c> of its conditions, the reference names <c>row</c>, <c>column</c>, <c>repeat</c> or <c>layer</c>.
+    /// </summary>
+    /// <param name="definition">The channel definition object.</param>
+    /// <exception cref="VegaLiteSpecException">Thrown, at the reference, when it names anything else.</exception>
+    private void ValidateRepeatReferences(SpecNode definition)
+    {
+        ValidateReferencesOf(definition);
+        if (definition["sort"] is { IsObject: true } sort && sort["field"] is { } sortField)
+        {
+            ValidateReference(sortField);
+        }
+
+        if (definition["condition"] is { } condition)
+        {
+            foreach (var item in condition.IsArray ? condition.Items : [condition])
+            {
+                if (item.IsObject)
+                {
+                    ValidateReferencesOf(item);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Validates the references in the <c>field</c> and the <c>datum</c> of an object.
+    /// </summary>
+    /// <param name="definition">The object.</param>
+    private void ValidateReferencesOf(SpecNode definition)
+    {
+        foreach (var name in ReferenceProperties)
+        {
+            if (definition[name] is { } value)
+            {
+                ValidateReference(value);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Validates a value that may be a <c>{"repeat": ...}</c> reference: an object with a <c>repeat</c> key must name <c>row</c>, <c>column</c>, <c>repeat</c> or <c>layer</c>.
+    /// </summary>
+    /// <param name="value">The value.</param>
+    /// <exception cref="VegaLiteSpecException">Thrown, at the <c>repeat</c> value, when it names anything else.</exception>
+    private void ValidateReference(SpecNode value)
+    {
+        if (value.IsObject && value["repeat"] is { } name && (!name.IsString || Array.IndexOf(RepeatReferenceNames, name.StringValue) < 0))
+        {
+            throw Error(name, "The 'repeat' of a reference must be 'row', 'column', 'repeat' or 'layer'.");
+        }
+    }
+
+    /// <summary>
+    ///     Determines whether a value is a <c>{"repeat": ...}</c> reference.
+    /// </summary>
+    /// <param name="node">The value.</param>
+    /// <returns><see langword="true"/> for an object with a string <c>repeat</c>.</returns>
+    private static bool IsRepeatReference(SpecNode node) => node.IsObject && node["repeat"] is { IsString: true };
 }

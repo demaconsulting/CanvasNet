@@ -23,25 +23,25 @@ The unit's behavior is specified by the `CanvasNetVegaLite-Guides-AxisBuilder-*`
 
 #### Data Model
 
-- **`AxisRequest`** `(string Channel, SpecNode? ChannelDef, ResolvedScale Scale, ScaleModel Model, double DataWidth, double
-  DataHeight, string? MarkType, SceneBudget? Budget, string? DefaultOrient, bool? DefaultGrid)` - what the builder
-  needs: the channel (`x` or `y`), its definition in the encoding (whose
-  `axis`, `title`, `field`, `aggregate`, and `bin` are read), its resolved scale and the model for the final data rectangle,
-  the size of
-  that rectangle, and the mark type (a `rect` mark with a discrete channel draws its axis in front of the mark).
-  Since phase 10, `DefaultOrient` is the side that a layered view gives the axis when the `axis` object names none (the
-  second independent axis of a channel is on the opposite side) and `DefaultGrid` whether the axis has a grid when the
-  `axis` object says nothing (only the first independent axis has one); both are null for a single view, which keeps the
-  usual rules.
+- **`AxisRequest`** `(string Channel, SpecNode? ChannelDef, ResolvedScale Scale, ScaleModel Model, double DataWidth,
+  double DataHeight, string? MarkType, SceneBudget? Budget, string? DefaultOrient, bool? DefaultGrid, bool InHeader)` -
+  what the builder needs: the channel (`x` or `y`), its definition in the encoding (whose `axis`, `title`, `field`,
+  `aggregate`, and `bin` are read), its resolved scale and the model for the final data rectangle, the size of that
+  rectangle, and the mark type (a `rect` mark with a discrete channel draws its axis in front of the mark). Since phase
+  10, `DefaultOrient` is the side that a layered view gives the axis when the `axis` object names none (the second
+  independent axis of a channel is on the opposite side) and `DefaultGrid` whether the axis has a grid when the `axis`
+  object says nothing (only the first independent axis has one); both are null for a single view, which keeps the usual
+  rules. Since phase 11, `InHeader` (false by default) builds the axis that the cells of a facet share for the header or
+  footer that holds it (see _Header axes_ below).
 - **`AxisTick`** `(DataValue Value, double Position, string Label)` - one tick: the domain value (a date for a time
   tick, or a plain number for an instant outside the years a date can hold), its position along the
   axis (rounded like the tick mark), and its label text before truncation.
-- **`AxisResult`** `(SceneGroup Group, SceneGroup? Grid, SceneBounds Bounds, string Orient, IReadOnlyList<AxisTick> Ticks,
-  int ItemCount, bool InFront)` - the axis group (role `axis`, with ticks, labels, domain, and title as children, in drawing
-  order), the separate grid group (role `axis-grid-group`, at the same position, or null), the bounds of the axis in the
-  data rectangle's coordinates (the grid is not part of them), the side, the ticks (including those whose labels were
-  dropped because they overlap), the number of scene items for the budget, and whether the axis is drawn in front of the
-  marks (`zindex` above 0).
+- **`AxisResult`** `(SceneGroup Group, SceneGroup? Grid, SceneBounds Bounds, string Orient, IReadOnlyList<AxisTick>
+  Ticks, int ItemCount, bool InFront, bool InHeader)` - the axis group (role `axis`, with ticks, labels, domain, and
+  title as children, in drawing order), the separate grid group (role `axis-grid-group`, at the same position, or null),
+  the bounds of the axis in the data rectangle's coordinates (the grid is not part of them), the side, the ticks
+  (including those whose labels were dropped because they overlap), the number of scene items for the budget, whether
+  the axis is drawn in front of the marks (`zindex` above 0), and whether it was built for a header (`InHeader`).
 - **`AxisBuilder`** holds the `TextMeasurer`, the `ResolvedConfig`, the `MaxTicks` and `MaxSceneItems` limits, and the
   source name. `AxisRequest` may carry the `SceneBudget` of the chart; the builder then charges the axis group, the grid
   group, each grid line, tick rule, the remaining labels, the domain line and the title text before it creates them (an
@@ -97,6 +97,16 @@ the top, left, and right axes; bounds follow Vega (a stroked rule grows by half 
   rules, tick rules,
   labels, and domain rule, computes the bounds of ticks and labels, resolves the title, and finishes the groups with the
   extent clamping and title placement. The token is polled per tick.
+- **Header axes** (`InHeader`): Vega-Lite's `mergeChildAxis` moves the main part of an axis that the cells of a facet
+  share (ticks, labels, domain, title) into the header or footer of the facet and leaves the grid in the cells (`bottom`
+  and `right` axes go to footers, `top` and `left` to headers). The header group has the size of a cell along the header
+  and none across it, so with `InHeader` the axis group's origin is `(0, 0)` shifted by the axis `offset` on its own
+  side (`top`: y = -offset, `left`: x = -offset, `bottom`: y = offset, `right`: x = offset) instead of at the far edge
+  of the data rectangle (`DataWidth` and `DataHeight` still give the extent along the axis), plus the half pixel of
+  Vega's translate; the ticks, labels, domain, title, item count and extent are those of the axis next to the data
+  rectangle, and `AxisResult.Bounds` are in the coordinates of the header group (the same bounds moved by the data
+  height or width). The grid group is built where the cell draws it, at the origin that the axis would have next to the
+  data rectangle. Nothing changes for a request with `InHeader` false.
 - Ticks (`BuildTicks`): a time or UTC scale takes the time ticks described below; a linear scale (and, with a
   `formatType` of `time`, `utc`, or `number`, the labels follow that type) uses `Ticks.ModelTicks` (the d3 ticks of the
   domain, or the log ticks for a log
@@ -199,9 +209,9 @@ host clock, zone, or culture.
 
 #### Callers
 
-`VegaLiteDocument` builds the axes of the x and y channels in every layout pass (one axis for each `AxisPlan` of a layered
-view, see _VegaLiteDocument Unit Design_) and passes the results to
-`ViewLayout` (through `GetExtents`) and into the scene content (grids first, then the axes behind the marks, then the axes
-in front). The tests in `test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/AxisBuilderTests.cs` and
-`AxisBuilderTimeTests.cs` call the builder directly
-through `InternalsVisibleTo`.
+`VegaLiteDocument` builds the axes of the x and y channels in every layout pass (one axis for each `AxisPlan` of a
+layered view, see _VegaLiteDocument Unit Design_) and passes the results to `ViewLayout` (through `GetExtents`) and into
+the scene content (grids first, then the axes behind the marks, then the axes in front). The facet pipeline (a later
+work package) builds the axes that the cells share `InHeader` and gives them to `TitleBuilder.BuildHeader`. The tests in
+`test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/AxisBuilderTests.cs`, `AxisBuilderTimeTests.cs` and
+`AxisBuilderHeaderTests.cs` call the builder directly through `InternalsVisibleTo`.

@@ -514,11 +514,13 @@ sections:
 
               - id: CanvasNetVegaLite-Scales-ScaleResolver-SharedScales
                 title: >-
-                  The ScaleResolver unit shall resolve the scales of the layers of a layered view so that a channel
+                  The ScaleResolver unit shall resolve the scales of the layers of a layered view, and of the
+                  views of a composition (the children of a concatenation, the cells of a facet) that share a
+                  channel, so that a channel
                   that two or more layers carry, and that resolve leaves shared (the default), has one scale
                   whose continuous domain is the union of the domains of the layers (each after its own zero rule;
                   explicit domains winning over implicit ones and, when they differ, all merged as Vega-Lite does
-                  (the extent of all their values)), whose discrete domain is the
+                  (the extent of all their values; equal explicit domains counted once)), whose discrete domain is the
                   union of the categories in layer order (sorted when every layer sorts the same way, the explicit
                   domains winning and merged in order of first appearance, and failing closed above the
                   scale-domain limit), whose kind is the band scale
@@ -542,6 +544,7 @@ sections:
                   - ScaleResolver_ResolveLayers_ExplicitContinuousDomainWins
                   - ScaleResolver_ResolveLayers_ExplicitContinuousDomainsAreMerged
                   - ScaleResolver_ResolveLayers_ExplicitDiscreteDomainsAreMerged
+                  - ScaleResolver_ResolveLayers_ExplicitDomainsOfConcatChildrenAreCombined
                   - ScaleResolver_ResolveLayers_BandBeatsPointAndSizesTheView
                   - ScaleResolver_ResolveLayers_StepAppliesToTheCombinedCategories
                   - ScaleResolver_ResolveLayers_DiscretizingScaleIsTheFirstLayersOwn
@@ -567,10 +570,40 @@ sections:
                 title: >-
                   The ScaleResolver unit shall, when the scales of a shared channel cannot be merged (a continuous
                   with a discrete scale, a linear with a logarithmic, power, or time scale, or different
-                  discretizing kinds), keep the scale of each incompatible layer as its own, and warn
-                  (vl-layer-scale-conflict) at the channel of the layer that was left out.
+                  discretizing kinds), keep the scale of each incompatible view (layer, child, or cell) as its
+                  own, and warn (vl-layer-scale-conflict, with a message that names the view) at the channel of
+                  the view that was left out.
                 justification: |
                   A merged scale that silently mixed incompatible kinds would place marks wrongly; the author
-                  must be told that the layers could not share the scale.
+                  must be told that the views could not share the scale.
                 tests:
                   - ScaleResolver_ResolveLayers_IncompatibleScalesKeepTheirOwnAndAreReported
+                  - ScaleResolver_ResolveLayers_ConflictMessageNamesTheView
+
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-CompositionScales
+                title: >-
+                  The ScaleResolver unit shall resolve the scales across the unit views of a composition by the
+                  same grouping as for layers, with the defaults of the kind of the view: the children of a
+                  concatenation keep the x, y, xOffset, yOffset, theta, and radius scales independent (no scale of
+                  the whole view, each child its own domain) and share the others (one scale over the union of
+                  the domains, bound to each child's field) unless resolve says otherwise; the cells of a facet
+                  share every scale except theta, one scale over the union of the cells' domains, unless resolve
+                  makes it independent and then each cell has the domain of its own rows; and shall give the size
+                  hints of one chart (LayeredScales.HintsFor): the natural extent - the step times the bandspace of the
+                  categories - of the discrete x and y scale that all the layers of the chart use, so that a
+                  shared step scale of a facet sizes every cell for the union of the categories of all the cells,
+                  an independent one sizes each cell for its own, and a chart whose layers use several scales
+                  of the channel, no scale of it, or a scale that no step sizes has none.
+                justification: |
+                  Concatenated charts keep their own axes but share a color legend, the cells of a facet are
+                  compared on common scales, and each chart of a composition must be sized by its own scale.
+                tests:
+                  - ScaleResolver_ResolveLayers_ConcatChildrenKeepIndependentPositionScales
+                  - ScaleResolver_ResolveLayers_ConcatChildrenShareColorAndUnionItsDomain
+                  - ScaleResolver_ResolveLayers_ConcatChildrenResolveSharedXMergesDomains
+                  - ScaleResolver_ResolveLayers_FacetCellsShareAllScalesByDefault
+                  - ScaleResolver_ResolveLayers_FacetIndependentScaleGivesEachCellItsOwn
+                  - ScaleResolver_ResolveLayers_FacetThetaIsIndependentByDefault
+                  - ScaleResolver_ResolveLayers_HintsForGivesTheStepExtentOfTheChartsOwnGroup
+                  - ScaleResolver_ResolveLayers_SharedStepAppliesToTheUnionOfAllCellCategories
+                  - ScaleResolver_ResolveLayers_HintsForChecksItsArguments

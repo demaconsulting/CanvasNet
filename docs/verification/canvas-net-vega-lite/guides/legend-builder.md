@@ -51,7 +51,8 @@ specifications for the sizes, opacities, and widths that the scale maps (the sca
 the `ScaleModel` and `ScaleResolver` units). No mocking is used. The internal types are reached through the test
 assembly's `InternalsVisibleTo` access. Unit tests reside in `LegendPlanTests.cs`, `LegendPlanLayerTests.cs` (the
 legends of
-the layers of a layered view, Phase 10), and `LegendBuilderTests.cs` within
+the layers of a layered view, Phase 10), `LegendPlanCompositionTests.cs` (the owners of the legends of the views of a
+composition, Phase 11), and `LegendBuilderTests.cs` within
 the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `Guides` folder; the legend symbols of the line, area,
 trail, arc, and text marks are in `LegendBuilderPathMarkTests.cs` (which reads the first legend through the shared
 `ChartTestHelpers.Legend` helper); the legends of temporal fields (the time
@@ -311,3 +312,18 @@ explicit orient with a silent layer, or the same orient twice, is one legend; an
 the view overload plans for the same view and that the legends can
 still
 be switched off.
+
+##### Legend Owners Of Composed Views
+
+**Tests**: `LegendPlanCompositionTests.LegendPlan_Create_OwnersAreTheHighestSharingAncestor`,
+`LegendPlanCompositionTests.LegendPlan_Create_IndependentLegendStaysWithTheLeaf`,
+`LegendPlanCompositionTests.LegendPlan_Create_ChannelFilterPlansEachOwnerOnce`,
+`LegendPlanCompositionTests.LegendPlan_Create_MergedLegendUnionsMembersAcrossConcatChildren`,
+`LegendPlanCompositionTests.LegendPlan_Create_NestedIndependentConcatKeepsItsChildrenLegends`,
+`LegendPlanCompositionTests.LegendPlan_Create_LayerWithoutNodeHasNoOwner`,
+`LegendPlanCompositionTests.LegendPlan_Owners_ChecksItsArguments`
+
+Asserts that a legend that the children of a concatenation share is owned by the highest ancestor that shares it; that
+an independent legend stays with the leaf that makes it independent, also inside a nested concatenation; that a legend
+that is merged across the children of a concatenation holds the union of their members; that the channel filter plans
+each owner once; that a layer without a node has no owner; and that `Owners` rejects null arguments.

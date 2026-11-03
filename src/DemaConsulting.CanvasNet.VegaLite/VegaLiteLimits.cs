@@ -171,11 +171,12 @@ public sealed class VegaLiteLimits
     }
 
     /// <summary>
-    ///     Gets the maximum number of views one specification may have (the root view, its layers, and the views that a composite mark such as
-    ///     <c>boxplot</c> stands for; the cells of a concatenation, facet or repeat will count when they are drawn); 1,000 by default.
+    ///     Gets the maximum number of views one specification may have (the root view, its layers, the children of a concatenation, the body of a facet, the copies a
+    ///     <c>repeat</c> makes, and the views that a composite mark such as <c>boxplot</c> stands for); 1,000 by default.
     /// </summary>
     /// <remarks>
     ///     Enforced when the views of a specification are normalized, before any data is read: exceeding it is a <see cref="VegaLiteRenderException"/> located at the offending view.
+    ///     The copies of a <c>repeat</c> are counted before any of them is made. The cells a facet makes from the values of its data are counted when they are made.
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is less than one.</exception>
     public int MaxViews
@@ -185,12 +186,11 @@ public sealed class VegaLiteLimits
     }
 
     /// <summary>
-    ///     Gets the maximum nesting depth of view compositions (layers inside layers; concatenations and facets will count when they are drawn);
-    ///     16 by default.
+    ///     Gets the maximum nesting depth of view compositions (layers, concatenations, facets and repeats inside each other); 16 by default.
     /// </summary>
     /// <remarks>
-    ///     Enforced when the views of a specification are normalized: the root layered view is level one, and exceeding the limit is a
-    ///     <see cref="VegaLiteRenderException"/> located at the offending <c>layer</c>. The views a composite mark expands to are not nesting levels.
+    ///     Enforced when the views of a specification are normalized: the root layered view, concatenation, facet or repeat is level one, and exceeding the limit is a
+    ///     <see cref="VegaLiteRenderException"/> located at the offending <c>layer</c>, concatenation, <c>facet</c> or <c>repeat</c>. The views a composite mark expands to are not nesting levels.
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is outside 1 to 64.</exception>
     public int MaxCompositionDepth
