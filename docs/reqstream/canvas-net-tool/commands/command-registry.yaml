@@ -122,5 +122,6 @@ sections:
           machine-readable form as every result, without a banner or color codes.
         tests:
           - CommandRegistry_RenderHelp_Json_Command_HasOptions
+          - CommandRegistry_RenderHelp_Json_UsageUsesLineFeedsOnly
           - CommandRegistry_RenderHelp_Json_Index_ListsCommandsAndTopics
           - CommandRegistry_RenderHelp_TopicAlias_EqualsCanonical

@@ -32,7 +32,7 @@
       "title": "Render options",
       "items": [
         { "term": "--page <N>", "text": "The page to draw, counted from 1 (default 1); a page beyond the last is page-out-of-range." },
-        { "term": "--all-pages", "text": "Draw every page; the output must contain {page} or be a directory." },
+        { "term": "--all-pages", "text": "Draw every page; for a document of more than one page the output must contain {page} or be a directory." },
         { "term": "--dpi <D>", "text": "Resolution in dots per inch (default 96, above 0 and at most {{maxDpi}}). A 72 by 48 point page is 96 by 64 pixels at 96 dpi." },
         { "term": "--scale <factor>", "text": "Multiply the natural size by a factor; --width, --height, and --size also size the page." },
         { "term": "--background <color>", "text": "The color the page is flattened over (white by default)." },

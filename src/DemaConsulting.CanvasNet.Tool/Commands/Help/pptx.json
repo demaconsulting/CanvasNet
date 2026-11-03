@@ -32,7 +32,7 @@
       "title": "Render options",
       "items": [
         { "term": "--page <N>", "text": "The slide to draw, counted from 1 (default 1)." },
-        { "term": "--all-pages", "text": "Draw every slide; the output must contain {page} or be a directory." },
+        { "term": "--all-pages", "text": "Draw every slide; for a deck of more than one slide the output must contain {page} or be a directory." },
         { "term": "--dpi <D>", "text": "Resolution in dots per inch (default 96, above 0 and at most {{maxDpi}})." },
         { "term": "--background <color>", "text": "The color the slide is cleared to first (white by default); a declared slide background is painted over it." },
         { "term": "--strict", "text": "Fail with unsupported-feature when an EMF or WMF picture would be skipped." }

@@ -590,6 +590,26 @@ public class CommandRegistryTests
     }
 
     /// <summary>
+    ///     Test that the usage of every real command in JSON help uses only line feeds, so the document is the same on every
+    ///     platform.
+    /// </summary>
+    [Fact]
+    public void CommandRegistry_RenderHelp_Json_UsageUsesLineFeedsOnly()
+    {
+        // Arrange
+        var registry = CommandRegistry.CreateDefault();
+
+        // Act / Assert: no command's usage carries a carriage return
+        foreach (var name in new[] { "render", "info", "compare", "montage", "inspect" })
+        {
+            using var document = System.Text.Json.JsonDocument.Parse(registry.RenderHelp(name, json: true));
+            var usage = document.RootElement.GetProperty("usage").GetString()!;
+            Assert.DoesNotContain('\r', usage);
+            Assert.Contains('\n', usage);
+        }
+    }
+
+    /// <summary>
     ///     Test that the index as JSON lists the commands and the topics.
     /// </summary>
     [Fact]

@@ -265,7 +265,7 @@ internal sealed partial class CommandRegistry
             writer.WriteString("topic", command.Name);
             HelpTopics.WriteStrings(writer, "aliases", command.Aliases);
             writer.WriteString("summary", command.Summary);
-            writer.WriteString("usage", command.Usage);
+            writer.WriteString("usage", command.Usage.ReplaceLineEndings("\n"));
             WriteOptions(writer, "options", command.Options);
             WriteOptions(writer, "globalOptions", GlobalOptions);
         });

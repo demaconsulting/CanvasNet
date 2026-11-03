@@ -20,7 +20,7 @@
       "items": [
         { "term": "tool", "text": "{name, version} of the tool." },
         { "term": "input", "text": "{path, format, natural: {width, height}}, and for a document pageCount and page." },
-        { "term": "operations", "text": "Every step that was applied, in order; each has an op key (render, resize, fit, flatten, crop, rotate, flip, pad, and the photo operations) and its own fields. With --all-pages every operation also carries its page. The verbs are crop, resize, rotate, flip, and pad." },
+        { "term": "operations", "text": "Every step that was applied, in order; each has an op key (render, auto-orient, resize, fit, flatten, crop, rotate, flip, pad, and the photo operations) and its own fields. With --all-pages every operation also carries its page. The verbs are crop, resize, rotate, flip, and pad." },
         { "term": "outputs", "text": "One entry per file written: {path, format, width, height, bytes} and page for a document." },
         { "term": "diagnostics", "text": "The features that were left out of the picture; see the diagnostics section below." },
         { "term": "echo", "text": "The text an OpenSCAD model printed with echo." }
