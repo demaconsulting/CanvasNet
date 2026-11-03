@@ -511,6 +511,7 @@ sections:
               - CanvasNetVegaLite_SystemIntegration_Facet_SpacingAndFlushBoundsApply
               - CanvasNetVegaLite_SystemIntegration_Facet_CellLimitIsEnforcedBeforeAllocation
               - CanvasNetVegaLite_SystemIntegration_Facet_SceneItemLimitIsEnforced
+              - CanvasNetVegaLite_SystemIntegration_Facet_SharedAxesAreChargedOncePerHeader
               - CanvasNetVegaLite_SystemIntegration_Facet_Cancellation
               - CanvasNetVegaLite_SystemIntegration_Facet_DeterministicConcurrentAndMeasureEqualsRenderSize
               - CanvasNetVegaLite_SystemIntegration_Facet_EmptyDataDrawsNoCellsAndUnsupportedMarkDrawsEmptyCells

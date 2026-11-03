@@ -540,6 +540,7 @@ when several threads render one document.
 `VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_NotDrawnPartsAreReported`,
 `VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_StrictModeHasNothingToReport`,
 `VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_SceneItemLimitIsEnforced`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_SharedAxesAreChargedOncePerHeader`,
 `VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_Cancellation`,
 `VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_DeterministicConcurrentAndMeasureEqualsRenderSize`,
 `VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_EmptyDataDrawsNoCellsAndUnsupportedMarkDrawsEmptyCells`
@@ -581,6 +582,8 @@ field is ignored with `vl-composition-columns-ignored`, `spacing` of 40 puts the
 checked from the number of cells before any is made (six cells and the facet are seven views; refused at six, located at
 the `row` field), a facet with unsupported parts reports `vl-facet-field-transform`, `vl-facet-sort`,
 `vl-header-orient`, `vl-expr-label` and `vl-format-type-custom` and draws the rest, strict mode has nothing to throw for
-a facet that uses only what is drawn, the scene item limit and a canceled token stop the work, `Measure` equals
+a facet that uses only what is drawn, the scene item limit (charged once for each header, so a 5 by 5 grid renders under
+exactly the limit of its own scene's item count, and one less fails) and a canceled token stop the work, `Measure`
+equals
 `Render`, the render is deterministic also from several threads, a facet of no rows draws no cell and a facet of an
 unsupported mark draws its empty cells and reports the mark once.

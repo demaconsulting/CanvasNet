@@ -95,6 +95,7 @@ internal static partial class SpecNormalizer
             _ => ReadColumns(view["columns"], state.Config.GetNumber("concat.columns")),
         };
         FinishConcat(state, node, name, ReadLayout(state, view, null, "concat", CompositionAlign.Each, columns));
+        ReserveViews(state, items.Items.Count, items);
         AddChildren(state, node, items.Items.Where(i => i.IsObject).ToList(), depth, node.IsSynthetic);
     }
 

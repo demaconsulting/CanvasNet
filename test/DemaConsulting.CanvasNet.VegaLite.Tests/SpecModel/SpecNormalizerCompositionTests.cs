@@ -480,7 +480,34 @@ public class SpecNormalizerCompositionTests
         // Assert
         Assert.Equal(3, accepted.Units.Count);
         Assert.Contains("MaxViews", ex.Message, StringComparison.Ordinal);
-        Assert.StartsWith("/hconcat/", ex.Location.Pointer, StringComparison.Ordinal);
+        Assert.Equal("/hconcat", ex.Location.Pointer);
+    }
+
+    /// <summary>
+    ///     Validates that the children of a concatenation or of a layered view are counted against <see cref="VegaLiteLimits.MaxViews"/> before any is made: the error is located at
+    ///     the list (the view that holds them), not at the first child over the limit, which would only have been reached after every child was created and queued. The views queued
+    ///     already (the siblings that follow) count too.
+    /// </summary>
+    [Fact]
+    public void SpecNormalizer_Layers_ChildListIsCheckedBeforeTheChildrenAreMade()
+    {
+        // Arrange: 2,000 children against a limit of 5
+        var children = string.Join(", ", Enumerable.Repeat("{ \"mark\": \"bar\" }", 2000));
+        var limits = new VegaLiteLimits { MaxViews = 5 };
+
+        // Act
+        var concat = Assert.Throws<VegaLiteRenderException>(() => Normalize("{ \"vconcat\": [ " + children + " ] }", limits));
+        var layer = Assert.Throws<VegaLiteRenderException>(() => Normalize("{ \"layer\": [ " + children + " ] }", limits));
+        var nested = Assert.Throws<VegaLiteRenderException>(
+            () => Normalize("{ \"hconcat\": [ { \"mark\": \"bar\" }, { \"layer\": [ { \"mark\": \"bar\" }, { \"mark\": \"line\" }, { \"mark\": \"point\" } ] }, { \"mark\": \"bar\" } ] }", limits));
+
+        // Assert
+        Assert.Contains("MaxViews", concat.Message, StringComparison.Ordinal);
+        Assert.Equal("/vconcat", concat.Location.Pointer);
+        Assert.Equal("/layer", layer.Location.Pointer);
+
+        // Assert: the root, three charts and the layer are five; its three layers are three too many, counting the sibling that is queued after it
+        Assert.Equal("/hconcat/1/layer", nested.Location.Pointer);
     }
 
     /// <summary>

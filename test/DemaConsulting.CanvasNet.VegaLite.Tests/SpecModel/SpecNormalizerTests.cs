@@ -259,7 +259,7 @@ public class SpecNormalizerTests
         // Assert
         Assert.Equal(3, accepted.Units.Count);
         Assert.Contains("MaxViews", ex.Message, StringComparison.Ordinal);
-        Assert.StartsWith("/layer/", ex.Location.Pointer, StringComparison.Ordinal);
+        Assert.Equal("/layer", ex.Location.Pointer);
     }
 
     /// <summary>

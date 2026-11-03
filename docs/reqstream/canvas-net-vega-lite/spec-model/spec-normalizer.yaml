@@ -129,6 +129,7 @@ sections:
                 tests:
                   - SpecNormalizer_Layers_NestedCompositionsCountTowardsMaxCompositionDepth
                   - SpecNormalizer_Layers_ConcatChildrenCountTowardsMaxViews
+                  - SpecNormalizer_Layers_ChildListIsCheckedBeforeTheChildrenAreMade
                   - SpecNormalizer_Layers_FacetedUnitCountsFacetAndBody
                   - SpecNormalizer_Layers_RepeatProductIsCheckedBeforeExpansion
                   - SpecNormalizer_Layers_NestedRepeatCountsLevelsAndInnerValueWins

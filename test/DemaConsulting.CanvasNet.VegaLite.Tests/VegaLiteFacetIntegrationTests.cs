@@ -826,6 +826,27 @@ public class VegaLiteFacetIntegrationTests
     }
 
     /// <summary>
+    ///     Validates that the shared axes of a facet are charged to the scene item limit only for the cells that supply a header (the first column and the first row), the other cells
+    ///     charging their grids only: a 5 by 5 grid whose scene has exactly the items that the limit allows renders, where charging the full axes of all 25 cells would have failed.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Facet_SharedAxesAreChargedOncePerHeader()
+    {
+        // Arrange: 25 rows of values, each its own row and column
+        var values = string.Join(", ", Enumerable.Range(0, 25).Select(i => $"{{ \"a\": \"A\", \"v\": {i}, \"r\": \"r{i / 5}\", \"c\": \"c{i % 5}\" }}"));
+        var json = "{ \"data\": { \"values\": [ " + values + " ] }, \"width\": 60, \"height\": 40, \"mark\": \"bar\", \"encoding\": { \"x\": { \"field\": \"a\", \"type\": \"nominal\" }, "
+            + "\"y\": { \"field\": \"v\", \"type\": \"quantitative\" }, \"row\": { \"field\": \"r\", \"type\": \"nominal\" }, \"column\": { \"field\": \"c\", \"type\": \"nominal\" } } }";
+        var items = SceneOf(json).CountItems();
+
+        // Act
+        var (warnings, _) = Report(json, new VegaLiteLimits { MaxSceneItems = items });
+
+        // Assert: the scene is what the limit allows
+        Assert.Empty(warnings);
+        Assert.Throws<VegaLiteRenderException>(() => Report(json, new VegaLiteLimits { MaxSceneItems = items - 1 }));
+    }
+
+    /// <summary>
     ///     Validates that a canceled token stops the work of a facet.
     /// </summary>
     [Fact]

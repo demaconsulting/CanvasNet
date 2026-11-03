@@ -51,6 +51,7 @@ public sealed partial class VegaLiteDocument
     /// <param name="AxisBuilder">The axis builder of the cell.</param>
     /// <param name="LegendBuilder">The legend builder of the cell.</param>
     /// <param name="HeaderAxisPlans">The axes that the cell shares with the other cells of its facet: they are drawn in the headers and footers of the facet, and the cell keeps only their grids; null for none.</param>
+    /// <param name="KeepHeaderAxis">Whether the facet takes the main part of a shared axis from this cell for a side (<see cref="AxisRequest.KeepInHeader"/>); null for every side.</param>
     private sealed record CellInputs(
         IReadOnlyList<LayerChart> Layers,
         IReadOnlyList<AxisPlan> AxisPlans,
@@ -61,7 +62,8 @@ public sealed partial class VegaLiteDocument
         RowExpressions? Expressions,
         AxisBuilder AxisBuilder,
         LegendBuilder LegendBuilder,
-        IReadOnlyList<AxisPlan>? HeaderAxisPlans = null);
+        IReadOnlyList<AxisPlan>? HeaderAxisPlans = null,
+        Func<string, bool>? KeepHeaderAxis = null);
 
     /// <summary>
     ///     The guides of a cell for one data rectangle.
@@ -92,6 +94,7 @@ public sealed partial class VegaLiteDocument
     /// <param name="sourceName">The name of the specification; null for none.</param>
     /// <param name="expressions">The compiled expressions of the call; null when there are none.</param>
     /// <param name="headerAxisPlans">The axes that the cell shares with its facet (drawn in the headers; the cell keeps their grids); null for none.</param>
+    /// <param name="keepHeaderAxis">Whether the facet takes the main part of a shared axis from this cell for a side; null for every side.</param>
     /// <returns>The inputs; the calendar of the axes is that of the first layer.</returns>
     private static CellInputs CreateCell(
         IReadOnlyList<LayerChart> layers,
@@ -102,7 +105,8 @@ public sealed partial class VegaLiteDocument
         VegaLiteLimits limits,
         string? sourceName,
         RowExpressions? expressions,
-        IReadOnlyList<AxisPlan>? headerAxisPlans = null) =>
+        IReadOnlyList<AxisPlan>? headerAxisPlans = null,
+        Func<string, bool>? keepHeaderAxis = null) =>
         new(
             layers,
             axisPlans,
@@ -113,7 +117,8 @@ public sealed partial class VegaLiteDocument
             expressions,
             new AxisBuilder(measurer, config, limits, sourceName, layers[0].Data.Evaluation.Calendar),
             new LegendBuilder(measurer, limits, sourceName),
-            headerAxisPlans);
+            headerAxisPlans,
+            keepHeaderAxis);
 
     /// <summary>
     ///     Builds the guides of a cell for a data rectangle: its axes, then its legends placed outside the axes.
@@ -131,7 +136,7 @@ public sealed partial class VegaLiteDocument
     private static CellGuides BuildCellGuides(CellInputs cell, double width, double height, SceneBudget budget, CancellationToken cancellationToken)
     {
         var axes = BuildAxes(cell.AxisPlans, cell.AxisBuilder, width, height, budget, cancellationToken);
-        var headerAxes = cell.HeaderAxisPlans is { Count: > 0 } shared ? BuildAxes(shared, cell.AxisBuilder, width, height, budget, cancellationToken, inHeader: true) : null;
+        var headerAxes = cell.HeaderAxisPlans is { Count: > 0 } shared ? BuildAxes(shared, cell.AxisBuilder, width, height, budget, cancellationToken, inHeader: true, cell.KeepHeaderAxis) : null;
         var (horizontal, vertical) = LegendLayout.AxisBounds(axes, width, height);
         var legends = BuildLegends(cell.LegendSpecs, cell.LegendBuilder, cell.Config, horizontal, vertical, width, height, budget, cancellationToken);
         return new CellGuides(axes, legends, headerAxes);
@@ -226,14 +231,15 @@ public sealed partial class VegaLiteDocument
     /// <param name="budget">The budget of scene items the axes are charged to.</param>
     /// <param name="cancellationToken">The token that stops the work.</param>
     /// <param name="inHeader">Whether the axes are built for the headers and footers of a facet (<see cref="AxisRequest.InHeader"/>).</param>
+    /// <param name="keepInHeader">For axes built for the headers: whether the facet takes the main part of the axis of a side (<see cref="AxisRequest.KeepInHeader"/>).</param>
     /// <returns>The axes; empty when no position channel has a scale or all axes are switched off.</returns>
-    private static List<AxisResult> BuildAxes(IReadOnlyList<AxisPlan> plans, AxisBuilder builder, double width, double height, SceneBudget budget, CancellationToken cancellationToken, bool inHeader = false)
+    private static List<AxisResult> BuildAxes(IReadOnlyList<AxisPlan> plans, AxisBuilder builder, double width, double height, SceneBudget budget, CancellationToken cancellationToken, bool inHeader = false, Func<string, bool>? keepInHeader = null)
     {
         var axes = new List<AxisResult>(plans.Count);
         foreach (var plan in plans)
         {
             var model = plan.Scale.CreateModel(plan.Channel == "x" ? width : height);
-            if (builder.Build(new AxisRequest(plan.Channel, plan.Definition, plan.Scale, model, width, height, plan.MarkType, budget, plan.DefaultOrient, plan.DefaultGrid, inHeader), cancellationToken) is { } axis)
+            if (builder.Build(new AxisRequest(plan.Channel, plan.Definition, plan.Scale, model, width, height, plan.MarkType, budget, plan.DefaultOrient, plan.DefaultGrid, inHeader, keepInHeader), cancellationToken) is { } axis)
             {
                 axes.Add(axis);
             }
@@ -484,6 +490,31 @@ public sealed partial class VegaLiteDocument
         }
 
         /// <summary>
+        ///     Tells which sides of the shared axes of a facet are taken from a cell: the facet draws the left and right axes in the header of a row, which is that of the cell in the first column,
+        ///     and the top and bottom axes in the header of a column, which is that of the cell in the first row (<see cref="FacetHeaders"/>).
+        /// </summary>
+        /// <param name="chart">The chart of the cell.</param>
+        /// <param name="facet">The facet.</param>
+        /// <returns>The predicate on the side of an axis.</returns>
+        private static Func<string, bool> HeaderSides(LayerNode chart, LayerNode facet)
+        {
+            var cell = chart.Cell!;
+            bool firstRow;
+            bool firstColumn;
+            if (facet.Facet!.IsWrap)
+            {
+                var columns = facet.Layout!.Columns is > 0 ? facet.Layout.Columns.Value : Math.Max(1, facet.Children.Count);
+                (firstRow, firstColumn) = (cell.Index < columns, cell.Index % columns == 0);
+            }
+            else
+            {
+                (firstRow, firstColumn) = (cell.RowIndex == 0, cell.ColumnIndex == 0);
+            }
+
+            return side => side is "left" or "right" ? firstColumn : firstRow;
+        }
+
+        /// <summary>
         ///     Builds the cell of a chart.
         /// </summary>
         /// <param name="chart">The chart: a unit view, a layered view or a composite mark.</param>
@@ -515,7 +546,8 @@ public sealed partial class VegaLiteDocument
                     _limits,
                     _sourceName,
                     _expressions,
-                    facet is null ? null : _axesOfChart.GetValueOrDefault(facet));
+                    facet is null ? null : _axesOfChart.GetValueOrDefault(facet),
+                    facet is null ? null : HeaderSides(chart, facet));
                 var guides = BuildCellGuides(cell, size.Width, size.Height, _budget, _cancellationToken);
                 if (guides.HeaderAxes is { } headerAxes)
                 {

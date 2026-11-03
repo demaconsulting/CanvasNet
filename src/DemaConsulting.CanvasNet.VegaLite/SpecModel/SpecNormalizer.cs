@@ -953,6 +953,7 @@ internal static partial class SpecNormalizer
         var depth = EnterContainer(state, node, layers, $"The layers are nested more than {state.Limits.MaxCompositionDepth} levels deep, the limit (MaxCompositionDepth).");
         node.MakeLayer(LayerResolve.Read(node.Source["resolve"]));
         node.SetChartRoot(ChartOf(node));
+        ReserveViews(state, layers.Items.Count, layers);
         AddChildren(state, node, layers.Items.Where(i => i.IsObject).ToList(), depth, node.IsSynthetic);
     }
 
@@ -1006,6 +1007,23 @@ internal static partial class SpecNormalizer
         node.Parent is null || node.Parent.IsComposition ? node : node.Parent.ChartRoot!;
 
     /// <summary>
+    ///     Checks, before any of them is made, that the views a view is about to hold fit in the limit with the views counted so far and the ones queued.
+    /// </summary>
+    /// <param name="state">The state of the walk.</param>
+    /// <param name="views">The number of views to add.</param>
+    /// <param name="location">The node the error is located at: the view that holds them.</param>
+    /// <exception cref="VegaLiteRenderException">Thrown when the views would be more than <see cref="VegaLiteLimits.MaxViews"/>.</exception>
+    private static void ReserveViews(BuildState state, long views, SpecNode location)
+    {
+        if (state.Count + state.Pending.Count + views > state.Limits.MaxViews)
+        {
+            throw new VegaLiteRenderException(
+                $"The specification has more than {state.Limits.MaxViews} views, the limit (MaxViews).",
+                state.Tree.Locate(location));
+        }
+    }
+
+    /// <summary>
     ///     Adds the views a view holds as children and queues them.
     /// </summary>
     /// <param name="state">The state of the walk.</param>
@@ -1015,6 +1033,7 @@ internal static partial class SpecNormalizer
     /// <param name="synthetic">Whether the children were written by an expansion.</param>
     private static void AddChildren(BuildState state, LayerNode node, IReadOnlyList<SpecNode> views, int depth, bool synthetic)
     {
+        ReserveViews(state, views.Count, node.Source);
         foreach (var item in views)
         {
             var child = new LayerNode(item, node, depth);

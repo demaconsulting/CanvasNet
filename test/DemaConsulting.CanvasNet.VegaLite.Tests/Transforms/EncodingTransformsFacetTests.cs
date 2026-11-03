@@ -360,6 +360,22 @@ public class EncodingTransformsFacetTests
     }
 
     /// <summary>
+    ///     Validates that a number of views per cell that would wrap the product with the cells is still refused: 2 cells of 2^62 views are 2^63, which wraps to a negative number
+    ///     that a product compared with the limit would accept.
+    /// </summary>
+    [Fact]
+    public void EncodingTransforms_CheckFacetViews_ProductThatWrapsIsRefused()
+    {
+        // Arrange
+        var setup = Prepare(Wrap);
+
+        // Act / Assert: 2 * 2^62 wraps to long.MinValue; also the largest per-cell count with one cell and no cells at all
+        Assert.Throws<VegaLiteRenderException>(() => EncodingTransforms.CheckFacetViews(2, 1L << 62, 0, setup.Facet.Wrap!, setup.Context));
+        Assert.Throws<VegaLiteRenderException>(() => EncodingTransforms.CheckFacetViews(1, long.MaxValue, 1, setup.Facet.Wrap!, setup.Context));
+        EncodingTransforms.CheckFacetViews(0, long.MaxValue, 0, setup.Facet.Wrap!, setup.Context);
+    }
+
+    /// <summary>
     ///     Validates that a sort array longer than the limit on the categories of a scale is refused, located at the array.
     /// </summary>
     [Fact]

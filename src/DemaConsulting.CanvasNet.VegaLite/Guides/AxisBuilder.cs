@@ -27,7 +27,11 @@ namespace DemaConsulting.CanvasNet.VegaLite.Guides;
 ///     there): its group is then positioned at the origin of the header group, whose own size is zero across the axis, so a <c>bottom</c> axis is at y 0 and a <c>right</c> axis at x 0
 ///     instead of at the far edge of the data rectangle, and <see cref="AxisResult.Bounds"/> are in the coordinates of that header group. The grid stays with the data rectangle.
 /// </param>
-internal sealed record AxisRequest(string Channel, SpecNode? ChannelDef, ResolvedScale Scale, ScaleModel Model, double DataWidth, double DataHeight, string? MarkType = null, SceneBudget? Budget = null, string? DefaultOrient = null, bool? DefaultGrid = null, bool InHeader = false);
+/// <param name="KeepInHeader">
+///     For an axis built <see cref="InHeader"/>: whether the facet takes the main part of the axis (ticks, labels, domain and title) for the side it is on (<c>top</c>, <c>bottom</c>, <c>left</c> or <c>right</c>);
+///     null keeps every side. Only one cell of each row and column supplies the header, so the other cells build the grid only, and the items of what is not kept are neither created nor charged to the budget.
+/// </param>
+internal sealed record AxisRequest(string Channel, SpecNode? ChannelDef, ResolvedScale Scale, ScaleModel Model, double DataWidth, double DataHeight, string? MarkType = null, SceneBudget? Budget = null, string? DefaultOrient = null, bool? DefaultGrid = null, bool InHeader = false, Func<string, bool>? KeepInHeader = null);
 
 /// <summary>
 ///     One tick of an axis: the domain value, where it is on the axis and the label that names it.
@@ -210,8 +214,14 @@ internal sealed class AxisBuilder
 
         // Every scene item is charged before it is created: the axis group, then the grid group and rules, the tick
         // rules, the labels, the domain line and the title (the grid group exists only when there is a tick)
+        // An axis of a facet header that the facet does not take keeps its grid only: its group is an empty one that is dropped, so it is not charged either
+        var keepMain = !request.InHeader || request.KeepInHeader is null || request.KeepInHeader(orient);
         var budget = request.Budget ?? new SceneBudget(_maxSceneItems);
-        budget.Add(1, location);
+        if (keepMain)
+        {
+            budget.Add(1, location);
+        }
+
         var gridRules = new List<SceneItem>();
         if (layout.ShowGrid && ticks.Count > 0)
         {
@@ -220,11 +230,11 @@ internal sealed class AxisBuilder
         }
 
         var children = new List<SceneItem>();
-        var tickRules = layout.ShowTicks ? TickRules(layout, budget, location) : [];
+        var tickRules = keepMain && layout.ShowTicks ? TickRules(layout, budget, location) : [];
         children.AddRange(tickRules);
-        var labels = layout.ShowLabels ? Labels(layout, budget, location, cancellationToken) : [];
+        var labels = keepMain && layout.ShowLabels ? Labels(layout, budget, location, cancellationToken) : [];
         children.AddRange(labels);
-        if (layout.ShowDomain)
+        if (keepMain && layout.ShowDomain)
         {
             budget.Add(1, location);
             children.Add(DomainRule(layout));
@@ -242,7 +252,7 @@ internal sealed class AxisBuilder
             bounds = bounds.Union(_measurer.GetBounds((SceneText)label));
         }
 
-        var title = ResolveTitle(request, axis, settings);
+        var title = keepMain ? ResolveTitle(request, axis, settings) : null;
         return Finish(layout, new AxisParts(gridRules, children), bounds, title, ticks, budget, location);
     }
 

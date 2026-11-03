@@ -89,7 +89,7 @@ internal sealed partial class EncodingTransforms
     ///     Checks that a facet with a number of cells keeps the specification within <see cref="VegaLiteLimits.MaxViews"/>.
     /// </summary>
     /// <remarks>
-    ///     The count is computed in <see cref="long"/> from the number of cells and never overflows: more cells than the limit fail before the multiplication.
+    ///     The comparison is a division, so no product of the cells and the views of a cell is formed and it cannot wrap: more cells than the limit fail first.
     /// </remarks>
     /// <param name="cells">The number of cells.</param>
     /// <param name="viewsPerCell">The number of views one cell holds (its chart and the layers of the chart).</param>
@@ -102,10 +102,14 @@ internal sealed partial class EncodingTransforms
         ArgumentNullException.ThrowIfNull(location);
         ArgumentNullException.ThrowIfNull(context);
         var max = context.Limits.MaxViews;
-        if (cells > max || (cells * Math.Max(1, viewsPerCell)) + viewsOutside > max)
+        var perCell = Math.Max(1, viewsPerCell);
+        var outside = Math.Max(0, viewsOutside);
+
+        // cells * perCell + outside > max, without the product: it could wrap for a large number of views in a cell
+        if (cells > max || outside > max || (cells > 0 && perCell > (max - outside) / cells))
         {
             throw new VegaLiteRenderException(
-                $"The facet has {cells} cells of {Math.Max(1, viewsPerCell)} views each, which with the other {viewsOutside} views are more than {max} views, the limit (MaxViews).",
+                $"The facet has {cells} cells of {perCell} views each, which with the other {outside} views are more than {max} views, the limit (MaxViews).",
                 context.Locate(location));
         }
     }

@@ -558,6 +558,7 @@ has no cell and no error.
 
 **Tests**: `EncodingTransformsFacetTests.EncodingTransforms_Facet_CellCountIsLimitedByMaxViews`,
 `EncodingTransformsFacetTests.EncodingTransforms_CheckFacetViews_DoesNotOverflow`,
+`EncodingTransformsFacetTests.EncodingTransforms_CheckFacetViews_ProductThatWrapsIsRefused`,
 `EncodingTransformsFacetTests.EncodingTransforms_Facet_PartitionChargesDerivedRowsOnce`,
 `EncodingTransformsFacetTests.EncodingTransforms_Facet_RowsOfTheCellsAreLimitedByMaxDataRows`,
 `EncodingTransformsFacetTests.EncodingTransforms_FacetDomain_SortArrayIsLimited`,
@@ -570,7 +571,8 @@ is counted** (the loader's row count is the same as before the call); that the b
 (2 rows x 3 columns = 6 cells
 of 2 views each and 1 view outside are 13 views: a limit of 13 passes, 12 fails);
 that a cell count of `long.MaxValue / 2`
-with `int.MaxValue` views per cell fails instead of overflowing, that 1,000 cells with 1 view and none outside pass the
+with `int.MaxValue` views per cell fails instead of overflowing (and so do 2 cells of 2^62 views, whose product wraps to
+a negative number), that 1,000 cells with 1 view and none outside pass the
 limit of 1,000 and that one more outside view does not; that the six rows of a 2 x 5 facet are counted in the row budget
 **once** (6 loaded, 12 after the ten cells, not 6 for each cell) and that six loaded rows and six more fail with a
 located `MaxDataRows` error under a limit of 10; that a sort array of three values under a `MaxScaleDomainSize` of 2

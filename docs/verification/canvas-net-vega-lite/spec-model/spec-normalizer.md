@@ -246,6 +246,7 @@ for `x`, none for an `independent` entry); and that a facet shares everything ex
 `SpecNormalizerErrorBarTests.SpecNormalizer_Expand_ErrorBarViewsAreCounted`,
 `SpecNormalizerCompositionTests.SpecNormalizer_Layers_NestedCompositionsCountTowardsMaxCompositionDepth`,
 `SpecNormalizerCompositionTests.SpecNormalizer_Layers_ConcatChildrenCountTowardsMaxViews`,
+`SpecNormalizerCompositionTests.SpecNormalizer_Layers_ChildListIsCheckedBeforeTheChildrenAreMade`,
 `SpecNormalizerCompositionTests.SpecNormalizer_Layers_FacetedUnitCountsFacetAndBody`,
 `SpecNormalizerRepeatTests.SpecNormalizer_Layers_RepeatProductIsCheckedBeforeExpansion`,
 `SpecNormalizerRepeatTests.SpecNormalizer_Layers_NestedRepeatCountsLevelsAndInnerValueWins`
@@ -259,7 +260,10 @@ the views of an error bar count (three: the composite, its view, and the rule; f
 of an
 `hconcat` is two levels (a limit of one is refused at the inner `hconcat`, a limit of two accepted), and a `facet`
 over a
-`layer` two (refused at the `layer`); that the root and three children of a concatenation are four views; that a faceted
+`layer` two (refused at the `layer`); that the root and three children of a concatenation are four views (a limit of
+three is refused at the list, `/hconcat`); that the children of a concatenation or a layer are counted before any is
+made (2,000 children against a limit of five are refused at the list, and the queued sibling of a layer counts); that a
+faceted
 unit view is two views (a limit of one is refused at the view itself); and that a repeat of three rows and four columns
 is 13 views (a limit of twelve is refused at the `repeat`), that a repeat of a thousand rows and a thousand columns is
 refused with the number one million in the message without making the copies, that the layers of every cell count (two

@@ -291,7 +291,10 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   `AxisRequest.InHeader` (`CellInputs.HeaderAxisPlans`, `CellGuides.HeaderAxes`): the cell keeps their grids and does
   not reach into the room of the axes, the axis groups are taken from the first cell of each column (the x axes: top
   into the column header, bottom into the column footer) and of each row (the y axes: left into the row header, right
-  into the row footer). The headers and footers are built by `TitleBuilder.BuildHeader` (one for each row and column,
+  into the row footer; a cell builds, and is charged to the scene item limit for, the main part of the axes of the sides
+  that it supplies only (`AxisRequest.KeepInHeader`: the first column for left and right, the first row for top and
+  bottom) and its grids otherwise). The headers and footers are built by `TitleBuilder.BuildHeader` (one for each row
+  and column,
   with the label of its value and the shared axes;
   `HeaderSettings.Read(config, header, channel, honoredOrientsOnly: true)` reads the header properties, so a side that
   the renderer does not draw is read as not given and the default side is used), the row and column titles by

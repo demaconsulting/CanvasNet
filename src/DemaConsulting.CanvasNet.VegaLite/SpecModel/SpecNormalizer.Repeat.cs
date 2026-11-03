@@ -209,7 +209,7 @@ internal static partial class SpecNormalizer
     /// <exception cref="VegaLiteRenderException">Thrown when the views so far and the copies are more than <see cref="VegaLiteLimits.MaxViews"/>.</exception>
     private static void CheckCopies(BuildState state, SpecNode repeat, long copies)
     {
-        if (state.Count + copies > state.Limits.MaxViews)
+        if (state.Count + state.Pending.Count + copies > state.Limits.MaxViews)
         {
             throw new VegaLiteRenderException(
                 $"The repeat makes {copies} views, so the specification would have more than {state.Limits.MaxViews} views, the limit (MaxViews).",

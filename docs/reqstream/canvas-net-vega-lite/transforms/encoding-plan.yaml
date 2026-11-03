@@ -377,6 +377,7 @@ sections:
                 tests:
                   - EncodingTransforms_Facet_CellCountIsLimitedByMaxViews
                   - EncodingTransforms_CheckFacetViews_DoesNotOverflow
+                  - EncodingTransforms_CheckFacetViews_ProductThatWrapsIsRefused
                   - EncodingTransforms_Facet_PartitionChargesDerivedRowsOnce
                   - EncodingTransforms_Facet_RowsOfTheCellsAreLimitedByMaxDataRows
                   - EncodingTransforms_FacetDomain_SortArrayIsLimited
