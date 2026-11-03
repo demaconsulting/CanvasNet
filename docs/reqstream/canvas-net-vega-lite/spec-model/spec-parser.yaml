@@ -414,6 +414,32 @@ sections:
                   - ChannelDefinitions_Values_ListsTheConstantsOfAChannelThatNoFieldDrives
                   - SpecParser_Parse_EvaluatesSizeConditionsOfMarksThatUseASize
 
+              - id: CanvasNetVegaLite-SpecModel-SpecParser-DefaultFieldType
+                title: >-
+                  The SpecParser unit shall give a field definition without a type the type that Vega-Lite
+                  infers (its defaultType) through one shared rule, so that the scales, legends, labels,
+                  stacks, bins, time parsing, text, facet headers, and composite marks agree: quantitative on
+                  latitude and longitude; nominal on row, column, facet, shape, and strokeDash; ordinal on
+                  order and for a sort array; temporal for a timeUnit; quantitative for a bin or an aggregate
+                  other than argmin and argmax; the type of an explicit scale type; and nominal otherwise. A
+                  secondary channel shall have the type of its main channel, a datum the type of its value,
+                  and a missing type shall be neither reported nor refused in strict mode.
+                justification: |
+                  Vega-Lite 5 made the type optional, so a specification without it is valid; reading it as
+                  quantitative drew a text channel over strings as NaN and a color field as a gradient.
+                tests:
+                  - ChannelDefinitions_TypeOf_InfersTheMissingTypeLikeVegaLite
+                  - ChannelDefinitions_TypeOf_DatumLatitudeAndSecondaryChannels
+                  - CanvasNetVegaLite_DefaultType_TextOverStringsShowsTheStrings
+                  - CanvasNetVegaLite_DefaultType_TextFollowsTheInferredType
+                  - CanvasNetVegaLite_DefaultType_ColorWithoutTypeIsNominal
+                  - CanvasNetVegaLite_DefaultType_ShapeWithoutTypeIsNominal
+                  - CanvasNetVegaLite_DefaultType_PositionsWithoutTypeFollowDefaultType
+                  - CanvasNetVegaLite_DefaultType_TimeUnitWithoutTypeIsTemporal
+                  - CanvasNetVegaLite_DefaultType_BinWithoutTypeIsQuantitative
+                  - CanvasNetVegaLite_DefaultType_CountingAggregatesWithoutTypeAreQuantitative
+                  - CanvasNetVegaLite_DefaultType_SecondaryChannelFollowsItsMainChannel
+                  - CanvasNetVegaLite_DefaultType_StackedBarWithoutTypes
               - id: CanvasNetVegaLite-SpecModel-SpecParser-PathMarkRules
                 title: >-
                   The SpecParser unit shall validate the properties of the line, area, and trail marks with a

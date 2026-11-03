@@ -363,7 +363,19 @@ an error; a duplicate key keeps the last value at the position of the first occu
   `ChannelDefinitions` is the shared, pure helper that tells the conditional channels, lists the conditions, and finds
   the **field definition** of a channel (its own definition when it names a field, a datum, or an aggregate, else the
   first condition on a test that does, as Vega-Lite's `getFieldOrDatumDef`) and the constant values a legend shows
-  (the first condition value, then the channel's own value).
+  (the first condition value, then the channel's own value). It also owns the **effective type** of a field definition,
+  `TypeOf(definition, channel, encoding)` (Vega-Lite's `initFieldDef` and `defaultType`): the written `type`;
+  else, for a
+  secondary channel (`MainChannelOf`: `x2`, `y2`, `theta2`, `radius2`, `latitude2`, `longitude2`), the type of its main
+  channel in the encoding; else the inferred one: a datum has the type of its value; `latitude` and `longitude` are
+  quantitative; `row`, `column`, `facet`, `shape`, and `strokeDash` nominal; `order` ordinal; then a `sort` array gives
+  ordinal, a `timeUnit` temporal, a `bin` or an `aggregate` (except `argmin` and `argmax`, which keep the type of the
+  field) quantitative, a `scale.type` of the numeric or discretizing kind (`linear`, `log`, `pow`, `sqrt`, `symlog`,
+  `identity`, `sequential`, `quantile`, `quantize`, `threshold`) quantitative and `time` or `utc` temporal; everything
+  else, a plain field on `x`, `y`, `color`, or `text` included, is nominal. A missing type is valid Vega-Lite, so
+  nothing is reported for it, in strict mode too. Every stage that needs the type of a definition without one calls
+  this method (the scale resolver, the encoding plan, the stack rules, the temporal-field collection, the text mark,
+  the facet headers, the composite marks, the guide time-format check, and the feature catalog), so that they agree.
 - `PredicateSource.TryBuild(predicate, out source)` writes the predicates of Vega-Lite as expression text with the
   meaning that `isValid`, strict equality, and the comparison operators give: `equal` as `===`, `lt`, `lte`, `gt`, and
   `gte` as the comparisons, `range` as an inclusive pair (the endpoints in ascending order when both are numbers, a null

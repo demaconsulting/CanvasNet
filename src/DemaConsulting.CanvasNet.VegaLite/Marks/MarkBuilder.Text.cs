@@ -473,16 +473,7 @@ internal sealed partial class MarkBuilder
             }
 
             var unit = plan?.TimeUnit?.Spec;
-            var type = definition["type"]?.AsString();
-            if (type is null && unit is not null)
-            {
-                type = "temporal";
-            }
-            else if (type is null && kind == TextSourceKind.Field)
-            {
-                type = "quantitative";
-            }
-            var formatLocation = (definition["format"] ?? definition).GetLocation(_owner._sourceName);
+            var type = ChannelDefinitions.TypeOf(definition, "text"); var formatLocation = (definition["format"] ?? definition).GetLocation(_owner._sourceName);
             if (formatType is "time" or "utc" || (formatType is null && (type == "temporal" || unit is not null)))
             {
                 var utc = unit is { Utc: true } || definition["scale"]?["type"]?.AsString() == "utc";

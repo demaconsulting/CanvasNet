@@ -207,9 +207,9 @@ public class StackRulesTests
         Assert.False(StackRules.IsFieldDef(encoding["size"]));
         Assert.False(StackRules.IsFieldDef(null));
 
-        // Assert: a missing type is quantitative
-        Assert.Equal("quantitative", StackRules.TypeOf(encoding["x"]!));
-        Assert.Equal("ordinal", StackRules.TypeOf(encoding["y"]!));
+        // Assert: a missing type is inferred as Vega-Lite does (a plain field is nominal), a written type is kept
+        Assert.Equal("nominal", ChannelDefinitions.TypeOf(encoding["x"]!, "x"));
+        Assert.Equal("ordinal", ChannelDefinitions.TypeOf(encoding["y"]!, "y"));
 
         // Assert: absent, null and false are off, everything else is on
         Assert.False(StackRules.IsEnabled(null));

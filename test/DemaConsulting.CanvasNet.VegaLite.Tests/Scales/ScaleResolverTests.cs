@@ -144,9 +144,9 @@ public class ScaleResolverTests
         Assert.Equal("__count", counted["opacity"]!.FieldPath);
         Assert.Equal("Count of Records", counted["opacity"]!.Title);
 
-        // Assert: a field without a type is read as quantitative, a datum takes the type of its value
+        // Assert: a field without a type is inferred as Vega-Lite does (nominal), a datum takes the type of its value
         var missingType = Resolve(Spec("point", """{ "x": {"field":"q"}, "y": {"datum": "label"} }"""));
-        Assert.Equal("quantitative", missingType["x"]!.DataType);
+        Assert.Equal("nominal", missingType["x"]!.DataType);
         Assert.Equal("nominal", missingType["y"]!.DataType);
         Assert.Null(missingType["y"]!.FieldPath);
 

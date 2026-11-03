@@ -266,7 +266,9 @@ null or false, or one without fields, keeps the order of the data. The step budg
   (`TimeLabels.CreateBounded`: the `format`, else the specifier of the time unit, else `config.timeFormat`; the calendar
   is UTC for a `utc` unit, scale type, or format type, else the calendar of the chart); a **binned** field (the encoding
   plans a `bin` on `text`) shows `start – end` (an en dash between spaces) through the number format, or `null` when the
-  start is not a number; a quantitative field and any field with a `format` give a **d3 number format** (the `format`,
+  start is not a number; a quantitative field (written, or inferred when the `text` definition has no type: an
+  `aggregate` or a `bin` is quantitative, a plain string field nominal, so its text is the string) and any
+  field with a `format` give a **d3 number format** (the `format`,
   else `config.numberFormat`, else the empty specifier) of the JavaScript number of the value, so that a null is `0`;
   every other value is its JavaScript text (a null is `null`, and an array is one line for each element, a null element
   being an empty line). A time format applied to a value that is neither a date nor a finite number shows its

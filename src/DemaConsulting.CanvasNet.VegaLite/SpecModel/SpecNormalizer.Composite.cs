@@ -228,24 +228,13 @@ internal sealed class CompositeBuilder
     }
 
     /// <summary>
-    ///     Reads the type of a channel definition, as Vega-Lite infers it.
+    ///     Reads the type of a channel definition, as Vega-Lite infers it (<see cref="ChannelDefinitions.TypeOf"/>; a composite mark infers the types of its encoding first).
     /// </summary>
     /// <param name="definition">The channel definition, or null.</param>
-    /// <returns>The type: the written one, <c>temporal</c> for a time unit, otherwise <c>quantitative</c>; null when there is no definition.</returns>
-    public static string? TypeOf(SpecNode? definition)
-    {
-        if (definition is not { IsObject: true })
-        {
-            return null;
-        }
-
-        if (definition["type"]?.AsString() is { } type)
-        {
-            return type;
-        }
-
-        return definition["timeUnit"] is { IsNull: false } ? "temporal" : "quantitative";
-    }
+    /// <param name="channel">The channel name.</param>
+    /// <returns>The written type or the inferred one; null when there is no definition.</returns>
+    public static string? TypeOf(SpecNode? definition, string channel) =>
+        definition is { IsObject: true } ? ChannelDefinitions.TypeOf(definition, channel) : null;
 
     /// <summary>
     ///     Decides the orientation of a composite mark: the explicit <c>orient</c>, else the position channel that is not the measure.
@@ -281,8 +270,8 @@ internal sealed class CompositeBuilder
 
         var x = encoding?["x"] is { IsObject: true } xd ? xd : null;
         var y = encoding?["y"] is { IsObject: true } yd ? yd : null;
-        var xContinuous = IsContinuous(x);
-        var yContinuous = IsContinuous(y);
+        var xContinuous = IsContinuous(x, "x");
+        var yContinuous = IsContinuous(y, "y");
         if (xContinuous && yContinuous)
         {
             var xAggregate = x!["aggregate"]?.AsString();
@@ -302,7 +291,7 @@ internal sealed class CompositeBuilder
             }
             else
             {
-                orient = TypeOf(y) == "temporal" && TypeOf(x) != "temporal" ? "horizontal" : "vertical";
+                orient = TypeOf(y, "y") == "temporal" && TypeOf(x, "x") != "temporal" ? "horizontal" : "vertical";
             }
 
             return true;
@@ -333,7 +322,7 @@ internal sealed class CompositeBuilder
             throw Error($"The '{channel}' channel of a {orient} {Type} must be a field.");
         }
 
-        return new CompositeAxis(channel, channel + "2", definition, field.StringValue!, AliasOf(field.StringValue!), TypeOf(definition)!);
+        return new CompositeAxis(channel, channel + "2", definition, field.StringValue!, AliasOf(field.StringValue!), TypeOf(definition, channel)!);
     }
 
     /// <summary>
@@ -351,11 +340,12 @@ internal sealed class CompositeBuilder
     ///     Tells whether a channel definition is continuous: a field of the type quantitative or temporal, or a datum.
     /// </summary>
     /// <param name="definition">The channel definition, or null.</param>
+    /// <param name="channel">The channel name.</param>
     /// <returns><see langword="true"/> for a continuous definition.</returns>
-    public static bool IsContinuous(SpecNode? definition) =>
+    public static bool IsContinuous(SpecNode? definition, string channel) =>
         definition is { IsObject: true }
         && (definition["datum"] is not null
-            || ((definition["field"] is not null || definition["aggregate"] is { IsNull: false }) && TypeOf(definition) is "quantitative" or "temporal"));
+            || ((definition["field"] is not null || definition["aggregate"] is { IsNull: false }) && TypeOf(definition, channel) is "quantitative" or "temporal"));
 
     /// <summary>
     ///     Creates a position channel definition of the continuous axis for a field that the expansion computes.

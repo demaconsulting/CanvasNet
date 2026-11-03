@@ -777,8 +777,8 @@ internal static partial class ScaleResolver
             }
         }
 
-        var xIsMeasure = IsUnbinnedQuantitative(x);
-        var yIsMeasure = IsUnbinnedQuantitative(y);
+        var xIsMeasure = IsUnbinnedQuantitative(x, "x");
+        var yIsMeasure = IsUnbinnedQuantitative(y, "y");
         if (specified is "horizontal" or "vertical")
         {
             return specified;
@@ -802,8 +802,8 @@ internal static partial class ScaleResolver
         // Without a measure the time axis is the dimension: x: T, y: N is vertical and x: N, y: T is horizontal
         if (markType is "line" or "area" or "tick")
         {
-            var xIsTemporal = IsTemporalDefinition(x);
-            var yIsTemporal = IsTemporalDefinition(y);
+            var xIsTemporal = IsTemporalDefinition(x, "x");
+            var yIsTemporal = IsTemporalDefinition(y, "y");
             if (xIsTemporal && !yIsTemporal)
             {
                 return "vertical";
@@ -826,22 +826,24 @@ internal static partial class ScaleResolver
     private static bool IsAlreadyBinned(SpecNode? definition) => definition?["bin"]?.AsString() == "binned";
 
     /// <summary>
-    ///     Tells whether a channel definition is typed as a temporal field or datum.
+    ///     Tells whether a channel definition is typed as a temporal field or datum (the written type, or the one Vega-Lite infers: a time unit makes a field temporal).
     /// </summary>
     /// <param name="definition">The channel definition, or null.</param>
-    /// <returns><see langword="true"/> when its <c>type</c> is <c>temporal</c>.</returns>
-    private static bool IsTemporalDefinition(SpecNode? definition) =>
-        definition is not null && (definition["field"] is not null || definition["datum"] is not null) && definition["type"]?.AsString() == "temporal";
+    /// <param name="channel">The channel name.</param>
+    /// <returns><see langword="true"/> when its type is <c>temporal</c>.</returns>
+    private static bool IsTemporalDefinition(SpecNode? definition, string channel) =>
+        definition is not null && (definition["field"] is not null || definition["datum"] is not null) && ChannelDefinitions.TypeOf(definition, channel) == "temporal";
 
     /// <summary>
     ///     Tells whether a channel definition is an unbinned quantitative field or datum.
     /// </summary>
     /// <param name="definition">The channel definition, or null.</param>
+    /// <param name="channel">The channel name.</param>
     /// <returns><see langword="true"/> for a measure.</returns>
-    private static bool IsUnbinnedQuantitative(SpecNode? definition) =>
+    private static bool IsUnbinnedQuantitative(SpecNode? definition, string channel) =>
         definition is not null
         && (definition["field"] is not null || definition["datum"] is not null || definition["aggregate"]?.AsString() == "count")
-        && ReadType(definition, definition["datum"]) == "quantitative"
+        && ChannelDefinitions.TypeOf(definition, channel) == "quantitative"
         && !IsEnabled(definition["bin"]);
 
     /// <summary>
@@ -859,26 +861,14 @@ internal static partial class ScaleResolver
     private static bool IsEnabled(SpecNode? node) => node is { IsNull: false } && !(node.IsBoolean && !node.BoolValue);
 
     /// <summary>
-    ///     Reads the type of a channel definition, defaulting like Vega-Lite does.
+    ///     Reads the type of a channel definition, defaulting like Vega-Lite does (<see cref="ChannelDefinitions.TypeOf"/>).
     /// </summary>
     /// <param name="definition">The channel definition.</param>
-    /// <param name="datum">The datum of the definition, or null.</param>
+    /// <param name="channel">The channel name.</param>
+    /// <param name="encoding">The encoding of the view (a secondary channel takes the type of its main channel), or null.</param>
     /// <returns>The type text (<c>quantitative</c>, <c>nominal</c>, <c>ordinal</c>, <c>temporal</c>, <c>geojson</c>).</returns>
-    private static string ReadType(SpecNode definition, SpecNode? datum)
-    {
-        if (definition["type"]?.AsString() is { } type)
-        {
-            return type;
-        }
-
-        // Vega-Lite infers a datum's type from its value and assumes a quantitative field when no type is given
-        return datum switch
-        {
-            { IsNumber: true } => "quantitative",
-            { IsString: true } or { IsBoolean: true } => "nominal",
-            _ => "quantitative",
-        };
-    }
+    private static string ReadType(SpecNode definition, string channel, SpecNode? encoding) =>
+        ChannelDefinitions.TypeOf(definition, channel, encoding);
 
     /// <summary>
     ///     Gets the step that sizes a discrete position scale: the specification's <c>{step}</c> or the configured one.
@@ -956,7 +946,7 @@ internal static partial class ScaleResolver
             return null;
         }
 
-        var type = ReadType(definition, datum);
+        var type = ReadType(definition, channel, context.Encoding);
         if (type is not ("quantitative" or "temporal" or "nominal" or "ordinal"))
         {
             return null;

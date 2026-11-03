@@ -144,13 +144,6 @@ internal static class StackRules
         definition is { IsObject: true } && (definition["field"] is { IsString: true } || definition["aggregate"]?.AsString() == "count");
 
     /// <summary>
-    ///     Reads the type of a field definition the way Vega-Lite defaults it (a field without a type is quantitative).
-    /// </summary>
-    /// <param name="definition">The definition.</param>
-    /// <returns>The type text.</returns>
-    public static string TypeOf(SpecNode definition) => definition["type"]?.AsString() ?? "quantitative";
-
-    /// <summary>
     ///     Determines whether a switch property is on: anything except absent, null and false.
     /// </summary>
     /// <param name="node">The value, or null when absent.</param>
@@ -193,7 +186,7 @@ internal static class StackRules
         var cartesianBarOrArea = first == "x" && markType is "bar" or "area";
         if (IsFieldDef(x) && IsFieldDef(y))
         {
-            if (IsUnbinnedQuantitative(x) && IsUnbinnedQuantitative(y))
+            if (IsUnbinnedQuantitative(x, first, encoding) && IsUnbinnedQuantitative(y, second, encoding))
             {
                 if (IsStackSet(x["stack"]))
                 {
@@ -216,20 +209,20 @@ internal static class StackRules
                 return cartesianBarOrArea ? orient switch { "vertical" => second, "horizontal" => first, _ => null } : null;
             }
 
-            if (IsUnbinnedQuantitative(x))
+            if (IsUnbinnedQuantitative(x, first, encoding))
             {
                 return first;
             }
 
-            return IsUnbinnedQuantitative(y) ? second : null;
+            return IsUnbinnedQuantitative(y, second, encoding) ? second : null;
         }
 
-        if (IsUnbinnedQuantitative(x))
+        if (IsUnbinnedQuantitative(x, first, encoding))
         {
             return cartesianBarOrArea && orient == "vertical" ? null : first;
         }
 
-        if (IsUnbinnedQuantitative(y))
+        if (IsUnbinnedQuantitative(y, second, encoding))
         {
             return cartesianBarOrArea && orient == "horizontal" ? null : second;
         }
@@ -270,9 +263,11 @@ internal static class StackRules
     ///     Determines whether a definition is an unbinned quantitative field.
     /// </summary>
     /// <param name="definition">The definition, or null.</param>
-    /// <returns><see langword="true"/> for a measure that is not binned.</returns>
-    private static bool IsUnbinnedQuantitative([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] SpecNode? definition) =>
-        IsFieldDef(definition) && TypeOf(definition) == "quantitative" && !IsEnabled(definition["bin"]);
+    /// <param name="channel">The channel the definition is on.</param>
+    /// <param name="encoding">The encoding object.</param>
+    /// <returns><see langword="true"/> for a measure that is not binned; a field without a <c>type</c> is one when Vega-Lite infers it quantitative (an aggregate, for example).</returns>
+    private static bool IsUnbinnedQuantitative([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] SpecNode? definition, string channel, SpecNode encoding) =>
+        IsFieldDef(definition) && ChannelDefinitions.TypeOf(definition, channel, encoding) == "quantitative" && !IsEnabled(definition["bin"]);
 
     /// <summary>
     ///     Determines whether any channel of an encoding aggregates.
