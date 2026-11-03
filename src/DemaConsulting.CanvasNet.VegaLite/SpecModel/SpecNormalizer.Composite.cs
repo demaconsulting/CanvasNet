@@ -337,15 +337,17 @@ internal sealed class CompositeBuilder
     }
 
     /// <summary>
-    ///     Tells whether a channel definition is continuous: a field of the type quantitative or temporal, or a datum.
+    ///     Tells whether a channel definition is continuous: a field of the type quantitative or temporal, or a numeric datum
+    ///     (Vega-Lite's <c>isContinuousFieldOrDatumDef</c>; a string or date-time datum is not continuous).
     /// </summary>
     /// <param name="definition">The channel definition, or null.</param>
     /// <param name="channel">The channel name.</param>
     /// <returns><see langword="true"/> for a continuous definition.</returns>
     public static bool IsContinuous(SpecNode? definition, string channel) =>
         definition is { IsObject: true }
-        && (definition["datum"] is not null
-            || ((definition["field"] is not null || definition["aggregate"] is { IsNull: false }) && TypeOf(definition, channel) is "quantitative" or "temporal"));
+        && (definition["datum"] is { } datum
+            ? datum.IsNumber
+            : (definition["field"] is not null || definition["aggregate"] is { IsNull: false }) && TypeOf(definition, channel) is "quantitative" or "temporal");
 
     /// <summary>
     ///     Creates a position channel definition of the continuous axis for a field that the expansion computes.

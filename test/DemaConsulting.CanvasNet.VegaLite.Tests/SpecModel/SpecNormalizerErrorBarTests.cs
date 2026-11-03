@@ -357,6 +357,8 @@ public class SpecNormalizerErrorBarTests
     [InlineData("errorbar", """{ "x": { "field": "a", "type": "quantitative" }, "x2": { "field": "b" }, "y": { "field": "g", "type": "nominal" } }""", "horizontal")]
     [InlineData("errorbar", """{ "y": { "field": "a", "type": "quantitative" }, "y2": { "field": "b" }, "x": { "field": "a", "type": "quantitative" } }""", "vertical")]
     [InlineData("errorbar", """{ "x": { "field": "a", "type": "quantitative" }, "xError": { "field": "b" }, "y": { "field": "g", "type": "nominal" } }""", "horizontal")]
+    [InlineData("errorband", """{ "x": { "datum": "all" }, "y": { "field": "t", "type": "temporal" } }""", "vertical")]
+    [InlineData("errorbar", """{ "x": { "datum": 5 }, "y": { "field": "g", "type": "nominal" } }""", "horizontal")]
     [InlineData("errorbar", """{ "x": { "field": "g", "type": "nominal" }, "y": { "field": "g", "type": "nominal" } }""", null)]
     [InlineData("errorbar", """{ "x": { "field": "g", "type": "nominal" } }""", null)]
     [InlineData("errorbar", """{ "x": { "field": "a", "type": "quantitative" }, "x2": { "field": "b" }, "y2": { "field": "b" } }""", null)]
