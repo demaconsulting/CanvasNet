@@ -342,7 +342,9 @@ internal sealed partial class CommandRegistry
         }
 
         // Commands and the index have usage text, not examples; anything else is an unknown subject
-        if (Find(subject) != null || string.Equals(subject, TopicsSubject, StringComparison.OrdinalIgnoreCase))
+        if (Find(subject) != null
+            || string.Equals(subject, TopicsSubject, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(subject, HelpCommandName, StringComparison.OrdinalIgnoreCase))
         {
             throw new ToolException(
                 ErrorCodes.UsageError,

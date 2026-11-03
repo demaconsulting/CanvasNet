@@ -705,6 +705,7 @@ public class CommandRegistryTests
         Assert.Equal(ErrorCodes.UsageError, RunHelpFailing(registry, "render", "--example", "x").Code);
         Assert.Contains("has no examples", RunHelpFailing(registry, "render", "--examples").Message);
         Assert.Equal(ErrorCodes.UsageError, RunHelpFailing(registry, "topics", "--examples").Code);
+        Assert.Contains("has no examples", RunHelpFailing(registry, "help", "--examples").Message);
     }
 
     /// <summary>

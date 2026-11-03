@@ -61,6 +61,7 @@
         { "term": "scad-hull-mixed-dimensions", "text": "A hull has both 2D and 3D children." },
         { "term": "scad-minkowski-nonconvex", "text": "A minkowski has a child that is not convex." },
         { "term": "scad-minkowski-2d", "text": "A minkowski of 2D children." },
+        { "term": "scad-minkowski-mixed-dimensions", "text": "A minkowski has both 2D and 3D children." },
         { "term": "scad-modifier-highlight", "text": "# on a 2D shape that is not extruded: drawn normally, without highlight." },
         { "term": "scad-modifier-background", "text": "% on a 2D shape that is not extruded: omitted." },
         { "term": "scad-multmatrix-projective", "text": "multmatrix with a bottom row other than [0, 0, 0, 1]: omitted." },
