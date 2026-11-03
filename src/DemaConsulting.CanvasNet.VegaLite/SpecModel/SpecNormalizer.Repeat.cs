@@ -106,7 +106,7 @@ internal static partial class SpecNormalizer
         CheckCopies(state, repeat, cells);
         if (layers is not null)
         {
-            CheckCopies(state, repeat, cells * (1 + layers.Count));
+            CheckCopies(state, repeat, cells, 1 + (long)layers.Count);
         }
 
         // The columns are those of the repeat: a row only has one, and 'columns' is dropped
@@ -205,14 +205,17 @@ internal static partial class SpecNormalizer
     /// </summary>
     /// <param name="state">The state of the walk.</param>
     /// <param name="repeat">The <c>repeat</c> the error is located at.</param>
-    /// <param name="copies">The number of views the repeat would add.</param>
+    /// <param name="copies">The number of copies the repeat would add.</param>
+    /// <param name="viewsPerCopy">The number of views each copy holds.</param>
     /// <exception cref="VegaLiteRenderException">Thrown when the views so far and the copies are more than <see cref="VegaLiteLimits.MaxViews"/>.</exception>
-    private static void CheckCopies(BuildState state, SpecNode repeat, long copies)
+    private static void CheckCopies(BuildState state, SpecNode repeat, long copies, long viewsPerCopy = 1)
     {
-        if (state.Count + state.Pending.Count + copies > state.Limits.MaxViews)
+        if (ExceedsViews(state.Count + state.Pending.Count, copies, viewsPerCopy, state.Limits.MaxViews))
         {
             throw new VegaLiteRenderException(
-                $"The repeat makes {copies} views, so the specification would have more than {state.Limits.MaxViews} views, the limit (MaxViews).",
+                viewsPerCopy == 1
+                    ? $"The repeat makes {copies} views, so the specification would have more than {state.Limits.MaxViews} views, the limit (MaxViews)."
+                    : $"The repeat makes {copies} cells of {viewsPerCopy} views each, so the specification would have more than {state.Limits.MaxViews} views, the limit (MaxViews).",
                 state.Tree.Locate(repeat));
         }
     }

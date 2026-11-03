@@ -615,6 +615,7 @@ expression can say (a position channel's condition, a selection) are still not c
 `SpecParserCompositionTests.SpecParser_Parse_RepeatWithoutSpecIsError`,
 `SpecParserCompositionTests.SpecParser_Parse_RepeatArrayOfNonStringsIsError`,
 `SpecParserCompositionTests.SpecParser_Parse_RepeatObjectWithUnknownKeyWarns`,
+`SpecParserCompositionTests.SpecParser_Parse_FacetLayoutPropertiesOnOtherChannelsWarn`,
 `SpecParserCompositionTests.SpecParser_Parse_ColumnsMustBeNonNegativeInteger`,
 `SpecParserCompositionTests.SpecParser_Parse_ColumnsAcceptsWholeNumbers`,
 `SpecParserCompositionTests.SpecParser_Parse_SpacingAcceptsNumberAndRowColumnObject`,
@@ -635,7 +636,10 @@ definition (`/encoding/facet/columns`) and `0`, `1`, `12` are accepted; that `sp
 `each`, `none` or an object of them and `center` a boolean or an object of booleans, with the errors at the value or the
 entry and a warning for an extra key; that a header with the properties `title`, `labelAngle`, `labelPadding`, `labels`,
 `labelOrient`, `titleFontSize`, `labelAnchor`, and `format` is accepted, `null` is accepted, an unknown key warns and a
-wrong `labelAngle` (`"x"`), `labelOrient` (`"middle"`), or `labels` (`1`) is an error at that member; that a `resolve`
+wrong `labelAngle` (`"x"`), `labelOrient` (`"middle"`), or `labels` (`1`) is an error at that member; that`header`,
+`columns`, `spacing`, `align`, `center`, and `bounds` on an `x` channel, a `detail` definition, and a condition are
+`vl-unknown-property` warnings at the key while `row`, `column`, `facet` and the facet operator accept them; that a
+`resolve`
 of a
 concatenation naming `x`, `xOffset`, and `color` scales and the `x` axis is accepted without a warning; that a
 facet field definition is validated like a channel (its `sort`, and the views of its `spec`); and that the `spec` of a

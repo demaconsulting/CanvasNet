@@ -234,7 +234,7 @@ internal sealed partial class SpecParser
             throw Error(definition, $"The '{definition.Name}' field definition of a facet needs a 'field'.");
         }
 
-        ValidateChannelDefinition(definition);
+        ValidateChannelDefinition(definition, facetChannel: true);
     }
 
     /// <summary>

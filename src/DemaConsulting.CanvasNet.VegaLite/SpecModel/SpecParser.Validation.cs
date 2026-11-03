@@ -68,6 +68,9 @@ internal sealed partial class SpecParser
         + "format formatType header impute legend param rescale scale sort spacing stack test timeUnit title "
         + "type value");
 
+    /// <summary>The properties of the field definition of a <c>row</c>, <c>column</c> or <c>facet</c> that lay out its cells: another channel definition does not have them.</summary>
+    private static readonly HashSet<string> FacetOnlyKeys = Set("align bounds center columns header spacing");
+
     /// <summary>The channels whose definition may be an array of definitions (or, for tooltip, null).</summary>
     private static readonly HashSet<string> ArrayChannels = Set("detail order tooltip");
 
@@ -700,7 +703,7 @@ internal sealed partial class SpecParser
                     throw Error(item, $"Each definition of the '{name}' channel must be an object.");
                 }
 
-                ValidateChannelDefinition(item);
+                ValidateChannelDefinition(item, facetChannel: false);
             }
 
             return;
@@ -711,15 +714,16 @@ internal sealed partial class SpecParser
             throw Error(channel, $"The '{name}' channel must be an object.");
         }
 
-        ValidateChannelDefinition(channel);
+        ValidateChannelDefinition(channel, name is "row" or "column" or "facet");
     }
 
     /// <summary>
     ///     Validates the properties of one channel definition object, including its scale, axis and legend.
     /// </summary>
     /// <param name="definition">The channel definition object.</param>
+    /// <param name="facetChannel">Whether it is the field definition of a <c>row</c>, <c>column</c> or <c>facet</c>, the only one with the properties that lay out the cells (<see cref="FacetOnlyKeys"/>); on another channel they are reported as unknown, as any property that is not Vega-Lite's.</param>
     /// <exception cref="VegaLiteSpecException">Thrown for a wrong type or value.</exception>
-    private void ValidateChannelDefinition(SpecNode definition)
+    private void ValidateChannelDefinition(SpecNode definition, bool facetChannel)
     {
         CheckObject(definition, ChannelDefRules);
         ValidateAggregationProperties(definition);
@@ -727,7 +731,7 @@ internal sealed partial class SpecParser
         {
             ValidateEncodingImpute(impute);
         }
-        foreach (var property in definition.Properties.Where(p => !ChannelDefKeys.Contains(p.Name!)))
+        foreach (var property in definition.Properties.Where(p => !ChannelDefKeys.Contains(p.Name!) || (!facetChannel && FacetOnlyKeys.Contains(p.Name!))))
         {
             WarnUnknown(property, "a channel definition");
         }
@@ -739,7 +743,7 @@ internal sealed partial class SpecParser
 
         ValidateDatum(definition);
         ValidateRepeatReferences(definition);
-        foreach (var name in LayoutProperties)
+        foreach (var name in LayoutProperties.Where(_ => facetChannel))
         {
             if (definition[name] is { } layoutProperty)
             {
@@ -747,7 +751,7 @@ internal sealed partial class SpecParser
             }
         }
 
-        if (definition["header"] is { IsObject: true } header)
+        if (facetChannel && definition["header"] is { IsObject: true } header)
         {
             ValidateHeader(header);
         }

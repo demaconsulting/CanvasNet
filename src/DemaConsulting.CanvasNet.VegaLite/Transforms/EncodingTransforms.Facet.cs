@@ -157,6 +157,9 @@ internal sealed partial class EncodingTransforms
 
         // The rows of the cells are new tables: counted once, before anything is allocated
         _context.Loader.ReserveDerivedRows(table.RowCount, "The rows of the facet cells", _context.Locate(anchor));
+
+        // Every row is copied once into the table of its cell: the cells copied are bounded as those of the other derived tables are, before any is allocated
+        new TableLayout(table, [], keepInput: true, _context.Limits, _context.Locate(anchor)).Check(table.RowCount);
         var count = (int)cellCount;
         var sizes = new int[count];
         var cellOf = new int[table.RowCount];

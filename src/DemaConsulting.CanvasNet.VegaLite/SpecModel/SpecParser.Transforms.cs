@@ -174,7 +174,7 @@ internal sealed partial class SpecParser
 
             CheckObject(item, ConditionRules);
             ValidateAggregationProperties(item);
-            foreach (var property in item.Properties.Where(p => !ChannelDefKeys.Contains(p.Name!)))
+            foreach (var property in item.Properties.Where(p => !ChannelDefKeys.Contains(p.Name!) || FacetOnlyKeys.Contains(p.Name!)))
             {
                 WarnUnknown(property, "a condition");
             }

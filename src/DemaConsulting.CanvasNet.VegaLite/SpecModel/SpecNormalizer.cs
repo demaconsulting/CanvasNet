@@ -1007,6 +1007,23 @@ internal static partial class SpecNormalizer
         node.Parent is null || node.Parent.IsComposition ? node : node.Parent.ChartRoot!;
 
     /// <summary>
+    ///     Determines whether a number of copies of a number of views each, added to the views already counted, are more than the limit.
+    /// </summary>
+    /// <remarks>
+    ///     The comparison is a division, so no product of the (specification controlled) counts is formed and it cannot wrap.
+    /// </remarks>
+    /// <param name="used">The views counted or queued so far.</param>
+    /// <param name="copies">The number of copies; not negative.</param>
+    /// <param name="viewsPerCopy">The number of views in each copy; at least one.</param>
+    /// <param name="max">The limit.</param>
+    /// <returns><see langword="true"/> when <c>used + copies * viewsPerCopy</c> is more than <paramref name="max"/>.</returns>
+    internal static bool ExceedsViews(long used, long copies, long viewsPerCopy, long max)
+    {
+        var room = max - used;
+        return copies > room || (copies > 0 && viewsPerCopy > room / copies);
+    }
+
+    /// <summary>
     ///     Checks, before any of them is made, that the views a view is about to hold fit in the limit with the views counted so far and the ones queued.
     /// </summary>
     /// <param name="state">The state of the walk.</param>
@@ -1015,7 +1032,7 @@ internal static partial class SpecNormalizer
     /// <exception cref="VegaLiteRenderException">Thrown when the views would be more than <see cref="VegaLiteLimits.MaxViews"/>.</exception>
     private static void ReserveViews(BuildState state, long views, SpecNode location)
     {
-        if (state.Count + state.Pending.Count + views > state.Limits.MaxViews)
+        if (ExceedsViews(state.Count + state.Pending.Count, views, 1, state.Limits.MaxViews))
         {
             throw new VegaLiteRenderException(
                 $"The specification has more than {state.Limits.MaxViews} views, the limit (MaxViews).",

@@ -90,6 +90,38 @@ public class SpecParserCompositionTests
     }
 
     /// <summary>
+    ///     Validates that the properties that lay out the cells of a facet (<c>header</c>, <c>columns</c>, <c>spacing</c>, <c>align</c>, <c>center</c> and <c>bounds</c>) are reported as unknown
+    ///     (<c>vl-unknown-property</c>, at the key, as for any property that is not Vega-Lite's) on a channel that does not facet, in an array channel and in a condition, and are
+    ///     accepted without a warning on <c>row</c>, <c>column</c> and <c>facet</c> channels and on the field definitions of the <c>facet</c> operator.
+    /// </summary>
+    [Fact]
+    public void SpecParser_Parse_FacetLayoutPropertiesOnOtherChannelsWarn()
+    {
+        // Arrange: each of the six properties on x, one in a detail definition and one in a condition
+        const string Properties = "\"header\": { \"labels\": false }, \"columns\": 2, \"spacing\": 5, \"align\": \"all\", \"center\": true, \"bounds\": \"flush\"";
+        var x = "{ \"mark\": \"point\", \"encoding\": { \"x\": { \"field\": \"a\", \"type\": \"quantitative\", " + Properties + " }, "
+            + "\"detail\": [ { \"field\": \"b\", \"spacing\": 5 } ], "
+            + "\"color\": { \"condition\": { \"test\": \"datum.a > 1\", \"value\": \"red\", \"header\": { } }, \"value\": \"gray\" } } }";
+        var facetChannels = "{ \"mark\": \"point\", \"encoding\": { \"x\": { \"field\": \"a\", \"type\": \"quantitative\" }, "
+            + "\"row\": { \"field\": \"r\", \"type\": \"nominal\", \"header\": { \"labels\": false }, \"spacing\": 5, \"align\": \"all\", \"center\": true, \"bounds\": \"flush\" }, "
+            + "\"facet\": { \"field\": \"f\", \"type\": \"nominal\", " + Properties + " } } }";
+        var facetOperator = "{ \"facet\": { \"field\": \"f\", \"type\": \"nominal\", " + Properties + " }, \"spec\": " + Bar + " }";
+
+        // Act
+        var other = SpecParser.Parse(x);
+        var facets = SpecParser.Parse(facetChannels);
+        var op = SpecParser.Parse(facetOperator);
+
+        // Assert
+        Assert.All(other.Warnings, w => Assert.Equal("vl-unknown-property", w.Id));
+        Assert.Equal(
+            ["/encoding/x/header", "/encoding/x/columns", "/encoding/x/spacing", "/encoding/x/align", "/encoding/x/center", "/encoding/x/bounds", "/encoding/detail/0/spacing", "/encoding/color/condition/header"],
+            other.Warnings.Select(w => w.Location.Pointer));
+        Assert.Empty(facets.Warnings);
+        Assert.Empty(op.Warnings);
+    }
+
+    /// <summary>
     ///     Validates that <c>columns</c> must be a non-negative integer, on a view and on a <c>facet</c> channel definition.
     /// </summary>
     /// <param name="columns">The JSON text of the value.</param>

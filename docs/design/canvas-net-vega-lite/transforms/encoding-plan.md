@@ -274,10 +274,13 @@ its facet fields; the document asks this part for the cells once the table of th
   a wrapped facet has one cell for each value (`RowCount` 1, `ColumnCount` the number of values; the `columns` of the
   layout wrap them later), the others have a cell for **every combination** of a row value and a column value, row-major
   (a missing row or column field is one row or column, so a facet by `row` only has one column), including the
-  combinations that no row has. The number of cells is a `long` product of the sizes of the domains and is checked
+  combinations that no row has. The number of cells is a `long` product of the sizes of the domains (two `int` sizes, so
+  it cannot wrap) and is checked
   by `CheckFacetViews` **before any row is counted and before any table is allocated**. The rows of the cells are then
   counted once in the shared row budget (`ReserveDerivedRows`; the table of the facet stays counted, because the views
-  that read it may still need it), one pass assigns every row to its cell, and one table is built for each cell with the
+  that read it may still need it) and the cells copied against `TableLayout.MaxCells` (`TableLayout.Check`, a division,
+  as for
+  every derived table), one pass assigns every row to its cell, and one table is built for each cell with the
   fields of the facet's table and its rows in their original order. The cells without rows share **one** empty table
   with the same fields (a table without fields for an empty table, which has no cells at all). Each `FacetCellData`
   holds the `FacetCellInfo` (the index, the row and column index, the row, column, and wrap value) and its table;

@@ -505,7 +505,8 @@ sections:
                   column; align is all, each, or none, or an object of them; center is a boolean or an object of
                   booleans;
                   and the header of a facet field or a faceting channel has the property shapes of Vega-Lite (an unknown
-                  one being a warning).
+                  one being a warning); these layout properties and the header on any other channel are unknown
+                  properties (a warning).
                 justification: |
                   The composition properties arrive as untrusted JSON and decide how many views are made and how
                   they are

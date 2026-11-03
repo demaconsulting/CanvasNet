@@ -249,6 +249,8 @@ for `x`, none for an `independent` entry); and that a facet shares everything ex
 `SpecNormalizerCompositionTests.SpecNormalizer_Layers_ChildListIsCheckedBeforeTheChildrenAreMade`,
 `SpecNormalizerCompositionTests.SpecNormalizer_Layers_FacetedUnitCountsFacetAndBody`,
 `SpecNormalizerRepeatTests.SpecNormalizer_Layers_RepeatProductIsCheckedBeforeExpansion`,
+`SpecNormalizerRepeatTests.SpecNormalizer_ExceedsViews_ProductThatWrapsIsRefused`,
+`SpecNormalizerRepeatTests.SpecNormalizer_Layers_RepeatOfLayersCountsViewsByCell`,
 `SpecNormalizerRepeatTests.SpecNormalizer_Layers_NestedRepeatCountsLevelsAndInnerValueWins`
 
 Asserts that nesting deeper than `MaxCompositionDepth` and more views than `MaxViews` are located
@@ -264,7 +266,9 @@ over a
 three is refused at the list, `/hconcat`); that the children of a concatenation or a layer are counted before any is
 made (2,000 children against a limit of five are refused at the list, and the queued sibling of a layer counts); that a
 faceted
-unit view is two views (a limit of one is refused at the view itself); and that a repeat of three rows and four columns
+unit view is two views (a limit of one is refused at the view itself); and that the check of copies is a division (2^62
+copies of four views are refused where the wrapped product would be accepted); that a repeat of three rows and four
+columns
 is 13 views (a limit of twelve is refused at the `repeat`), that a repeat of a thousand rows and a thousand columns is
 refused with the number one million in the message without making the copies, that the layers of every cell count (two
 rows and three layers are nine views, a limit of eight is refused), and that a repeat in a repeat is two levels, the inner

@@ -183,6 +183,39 @@ public class SpecNormalizerRepeatTests
     }
 
     /// <summary>
+    ///     Validates that the check of the views of copies is a division that cannot wrap: 2^62 cells of four views each are 2^64 views, which a product would wrap to zero and accept.
+    /// </summary>
+    [Fact]
+    public void SpecNormalizer_ExceedsViews_ProductThatWrapsIsRefused()
+    {
+        // Act / Assert: the wrapped product, the exact boundary, one over, no copies and a count that is over already
+        Assert.True(SpecNormalizer.ExceedsViews(0, 1L << 62, 4, 100));
+        Assert.True(SpecNormalizer.ExceedsViews(0, long.MaxValue, long.MaxValue, 100));
+        Assert.False(SpecNormalizer.ExceedsViews(10, 3, 30, 100));
+        Assert.True(SpecNormalizer.ExceedsViews(10, 3, 31, 100));
+        Assert.False(SpecNormalizer.ExceedsViews(5, 0, long.MaxValue, 5));
+        Assert.True(SpecNormalizer.ExceedsViews(7, 0, 1, 5));
+    }
+
+    /// <summary>
+    ///     Validates that the views of the layers of a repeat of rows and columns are counted by cell: two rows and three layers are nine views, and eight is refused with the cells in the message.
+    /// </summary>
+    [Fact]
+    public void SpecNormalizer_Layers_RepeatOfLayersCountsViewsByCell()
+    {
+        // Arrange
+        const string Json = """{ "repeat": { "row": [ "a", "b" ], "layer": [ "x", "y", "z" ] }, "spec": { "mark": "point", "encoding": { "x": { "field": { "repeat": "layer" } } } } }""";
+
+        // Act
+        var (_, accepted) = Normalize(Json, new VegaLiteLimits { MaxViews = 9 });
+        var ex = Assert.Throws<VegaLiteRenderException>(() => Normalize(Json, new VegaLiteLimits { MaxViews = 8 }));
+
+        // Assert
+        Assert.Equal(9, accepted.ViewCount);
+        Assert.Contains("2 cells of 4 views each", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Validates that a facet whose only field is a repeat reference with no value is dropped, with the warning at the reference: the <c>spec</c> is the view (a layer of one), not a facet.
     /// </summary>
     [Fact]

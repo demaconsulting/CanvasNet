@@ -132,6 +132,8 @@ sections:
                   - SpecNormalizer_Layers_ChildListIsCheckedBeforeTheChildrenAreMade
                   - SpecNormalizer_Layers_FacetedUnitCountsFacetAndBody
                   - SpecNormalizer_Layers_RepeatProductIsCheckedBeforeExpansion
+                  - SpecNormalizer_ExceedsViews_ProductThatWrapsIsRefused
+                  - SpecNormalizer_Layers_RepeatOfLayersCountsViewsByCell
                   - SpecNormalizer_Layers_NestedRepeatCountsLevelsAndInnerValueWins
 
               - id: CanvasNetVegaLite-SpecModel-SpecNormalizer-Concat

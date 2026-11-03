@@ -1203,6 +1203,11 @@ public class RowTransformsTests
         var cells = Assert.Throws<VegaLiteRenderException>(() => layout.Allocate(TableLayout.MaxCells));
         Assert.Contains("cells", cells.Message, StringComparison.Ordinal);
         Assert.Equal(["a", "b"], layout.Fields);
+
+        // Assert: the check is a division: it refuses a number of rows whose product with the fields would wrap, and accepts exactly the bound
+        Assert.Throws<VegaLiteRenderException>(() => layout.Check(long.MaxValue));
+        Assert.Throws<VegaLiteRenderException>(() => layout.Check((TableLayout.MaxCells / 2) + 1));
+        layout.Check(TableLayout.MaxCells / 2);
     }
 
     /// <summary>
