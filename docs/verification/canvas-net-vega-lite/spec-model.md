@@ -13,7 +13,8 @@ each unit in isolation, including its internal types. The subsystem-level scenar
 together: the parser's immutable tree, with its JSON pointers and one-based line and column positions, is the input
 of the feature catalog (which reports the recognized-but-unsupported constructs at those locations), of the
 configuration resolver (which merges the specification's `config` with the Vega-Lite defaults and the caller's
-configuration), and of the normalizer (which reduces the views to the layers that are drawn and expands the composite marks,
+configuration), and of the normalizer (which reduces the views, layers and compositions, to the tree of unit views that
+are drawn and expands the composite marks,
 over the original nodes). The units' tests already run the real parser to build their input, and the document-level
 tests in
 `VegaLiteDocumentSpecModelTests.cs` verify the subsystem's contract through the public `VegaLiteDocument`: that the
@@ -77,10 +78,10 @@ scenario in the four unit verification documents passes without error or unexpec
   the tree without visiting the rows again.
 - **Hostile Input Fails Closed Across The Subsystem**:
   `SpecParserTests.SpecParser_Parse_DepthAndSourceLimitsFailClosed`,
-  `FeatureCatalogTests.FeatureCatalog_Visit_CompositionsAreReportedAndNestedViewsExamined` — hostile nesting and an
-  oversized source fail in the parser with a typed exception before the catalog or the resolver run, and for a
-  specification that parses, the catalog reports every composition and examines the views nested in it, with their
-  full pointers.
+  `FeatureCatalogTests.FeatureCatalog_Visit_ConcatFacetAndRepeatAreDrawnAndNestedViewsExamined` — hostile
+  nesting and an oversized source fail in the parser with a typed exception before the catalog or the resolver run, and
+  for a specification that parses, the catalog reports nothing for a concatenation, a facet or a repeat (all are drawn)
+  and examines the views nested in every composition, with their full pointers.
 - **Expressions, Transforms, And Parameters Fail Fast At Open, Unsupported Parts Are Reported**:
   `SpecParserTests.SpecParser_Parse_ExpressionErrorsCarryTheLocationOfTheTextAndTheOffset`,
   `SpecParserTests.SpecParser_Parse_CompilesTheExpressionsOfSupportedSitesOnly`,
@@ -88,7 +89,7 @@ scenario in the four unit verification documents passes without error or unexpec
   `FeatureCatalogTests.FeatureCatalog_Visit_SupportedPhase5TransformsAndParametersAreNotReported`,
   `FeatureCatalogTests.FeatureCatalog_Visit_UnsupportedExpressionConstructsAreReportedAtTheExpression`,
   `FeatureCatalogTests.FeatureCatalog_Visit_UnsupportedPartsOfSupportedTransformsAreReported`,
-  `FeatureCatalogTests.FeatureCatalog_Visit_NestedViewTransformsAndVariableParametersAreReported`,
+  `FeatureCatalogTests.FeatureCatalog_Visit_NestedViewTransformsAreAppliedAndVariableParametersAreReported`,
   `FeatureCatalogTests.FeatureCatalog_Visit_TransformsExpressionsAndParametersAreReported`,
   `FeatureCatalogTests.FeatureCatalog_Visit_ExpressionReferencesAreReportedOnlyAtDeferredSites`,
   `VegaLiteDocumentSpecModelTests.VegaLiteDocument_Render_DeliversParseWarningsAndCatalogReportsInDocumentOrder` — the
@@ -107,7 +108,7 @@ scenario in the four unit verification documents passes without error or unexpec
   `SpecParserAggregatesTests.SpecParser_Parse_EncodingAggregateBinStackSortShapesArePinned`,
   `SpecParserAggregatesTests.SpecParser_Parse_ValidAggregatingTransformsAreAccepted`,
   `FeatureCatalogTests.FeatureCatalog_Visit_Phase6FeaturesAreNotReportedAndRemainingPartsAre`,
-  `FeatureCatalogTests.FeatureCatalog_Visit_NestedViewAggregatingTransformsAreStillReported`,
+  `FeatureCatalogTests.FeatureCatalog_Visit_NestedViewAggregatingTransformsAreAppliedInConcatAndFacet`,
   `FeatureCatalogTests.FeatureCatalog_Visit_OrderChannelIsAcceptedForEveryMark`,
   `FeatureCatalogTests.FeatureCatalog_Visit_SecondaryPositionChannelsAreAcceptedForRanges`,
   `FeatureCatalogTests.FeatureCatalog_Visit_StackOnANonLinearScaleIsReported`,
@@ -169,30 +170,36 @@ scenario in the four unit verification documents passes without error or unexpec
   `vl-transform-filter-timeunit`, `vl-transform-filter-datetime`, `vl-encoding-condition-test`,
   `vl-data-parse-date-format`, `vl-scale-time`, and `vl-scale-utc`) are never produced, and the end-to-end render of a
   time chart through the public API is verified at the system tier.
-- **Layers Are Reduced To Unit Views, Validated At Open, And Reported By What Is Not Drawn**:
+- **Layers And Compositions Are Reduced To Unit Views, Validated At Open, And Reported By What Is Not Drawn**:
   `SpecNormalizerTests.SpecNormalizer_Layers_LayersAreUnitsInDocumentOrder`,
   `SpecNormalizerTests.SpecNormalizer_Layers_EncodingIsMergedInPlace`,
-  `SpecNormalizerTests.SpecNormalizer_Layers_ConcatenationInsideLayerIsUndrawn`,
+  `SpecNormalizerCompositionTests.SpecNormalizer_Layers_HConcatBuildsConcatNodeWithChildrenInOrder`,
+  `SpecNormalizerCompositionTests.SpecNormalizer_Layers_UnitWithRowColumnChannelsBecomesFacetWithBody`,
+  `SpecNormalizerRepeatTests.SpecNormalizer_Layers_ArrayRepeatMakesConcatWithColumns`,
   `SpecParserResolveTests.SpecParser_Parse_ValidResolveIsAccepted`,
   `SpecParserResolveTests.SpecParser_Parse_MalformedResolveReportsThePointer`,
-  `SpecParserResolveTests.SpecParser_IsDrawnView_LayersAreDrawnCompositionsAreNot`,
-  `SpecParserResolveTests.SpecParser_Parse_ExpressionsOfLayersAreCompiledButNotThoseOfConcatenations`,
+  `SpecParserResolveTests.SpecParser_Parse_ExpressionsOfComposedViewsAreCompiled`,
+  `SpecParserCompositionTests.SpecParser_Parse_FacetWithoutSpecIsError`,
+  `SpecParserCompositionTests.SpecParser_Parse_RepeatRefIsAcceptedAsField`,
   `FeatureCatalogLayerTests.FeatureCatalog_Visit_TopLevelTransformOfLayerSpecIsNotReported`,
-  `FeatureCatalogLayerTests.FeatureCatalog_Visit_TransformOfConcatViewMessageNamesComposition`,
+  `FeatureCatalogLayerTests.FeatureCatalog_Visit_TransformOfComposedViewIsAppliedAndNotReported`,
+  `FeatureCatalogLayerTests.FeatureCatalog_Visit_TransformOfFacetViewIsAppliedAndNotReported`,
   `FeatureCatalogLayerTests.FeatureCatalog_Visit_InheritedEncodingIsVisitedPerLayerAndReportedOnce`,
-  `FeatureCatalogLayerTests.FeatureCatalog_Visit_LayerPropertiesOfTheTopLevelViewAreWarnedAboutInALayer` — the parser
-  validates the `resolve` of a view when the document is opened (a located `VegaLiteSpecException` at the offending
-  member) and decides with one rule, `IsDrawnView`, that the root and the layers reached through `layer` arrays are
-  drawn and
-  that a concatenation, facet, or repeat is not (so that the expressions of a layer are compiled and those of a
-  concatenation are not); the normalizer, which reads the same tree, reduces the views to the unit views in document
-  order with the encoding that each inherits and records an undrawn composition wherever it is, even inside a layer; and
-  the
-  catalog, which reads the same tree and the same layer tree, no longer reports a `layer` or the transform of a layered
-  view,
-  reports the transform of a view inside a concatenation with the name of the composition, visits the encoding that a layer
-  inherits once for each layer with that layer's mark (reporting a construct once, at the place where it is written), and
-  warns about the properties that a layer ignores.
+  `FeatureCatalogLayerTests.FeatureCatalog_Visit_LayerPropertiesOfTheTopLevelViewAreWarnedAboutInALayer`,
+  `FeatureCatalogCompositionTests.FeatureCatalog_Visit_CompositionPropertiesIgnoredAreWarnedAbout` — the parser
+  validates the `resolve` of a view, and the properties of the compositions (a `facet` and `repeat` need a `spec`, the
+  shapes of `columns`, `spacing`, `align`, `center`, and `header`, the repeat references), when the document is opened (a
+  located `VegaLiteSpecException` at the offending member), and compiles the expressions of every view, those of a
+  concatenation, facet, or repeat included; the normalizer, which reads the same tree, reduces the views to the tree of
+  unit views in document order with the encoding that each inherits, makes a concatenation, a facet (also from the
+  `row`, `column`, and `facet` channels of a unit view), and the copies of a `repeat` nodes of the tree with their layout
+  settings and resolve defaults, and bounds their number; the catalog, which reads the same tree and the same layer tree,
+  no longer reports a `layer`, a `concat`, `hconcat`, `vconcat`, a `facet`, or a `repeat`, or the transform of a view
+  that the renderer draws (every view), reports a `row`, `column`, or `facet` channel only where the unit cannot be
+  faceted and the parts of a facet that are not drawn (`vl-facet-field-transform`, `vl-facet-sort`, `vl-header-orient`),
+  visits the encoding that a layer or the chart of a concatenation inherits once for each layer with that layer's mark
+  (reporting a construct once, at the place where it is written), and warns about the properties that a layer or a
+  composition ignores.
 - **Composite Marks Are Expanded And Reported By What The Expansion Does Not Apply**:
   `SpecParserResolveTests.SpecParser_Parse_ValidCompositeMarkIsAccepted`,
   `SpecParserResolveTests.SpecParser_Parse_MalformedCompositeMarkReportsThePointer`,

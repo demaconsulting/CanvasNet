@@ -81,16 +81,17 @@ at all.
 `FeatureCatalogTests.FeatureCatalog_Visit_MarkReportCarriesLineAndColumn`
 
 Asserts that one original specification that deliberately uses a version 4 schema, an expression title, autosize
-`fit`, a variable and a selection parameter, a projection, file data with a `csv` format and a `parse` map that holds a
-custom date format and a plain `number`, three transforms (`calculate`, `filter`, `regression`) in a root view that is a
-composition (so it is not drawn and its transforms are reported by name), a `geoshape` mark, a temporal `x` with a time
+`fit` (silent since Phase 11), a variable and a selection parameter, a projection, file data with a `csv` format and a
+`parse` map that holds a
+custom date format and a plain `number`, three transforms (`calculate`, `filter`, `regression`; only `regression` is
+reported, since Phase 11 the other two are computed for the drawn root view), a `geoshape` mark, a temporal `x` with a time
 unit (supported, so it is silent), a `y` with aggregate, bin, stack, sort, and condition, a color with `bin` (supported,
 so it is silent), a log scale on a nominal field with a scheme
 (which
 cannot use the type, so it is the warning `vl-scale-type-ignored`), a legend with
-`encode`, a `longitude` and a `latitude` channel, and an `hconcat` with a `geoshape` yields exactly seventeen reports whose
+`encode`, a `longitude` and a `latitude` channel yields exactly thirteen reports whose
 `(identifier, pointer)` list is asserted in document order (for example `vl-encoding-condition` at
-`/encoding/y/condition` and `vl-mark-geoshape` at `/hconcat/0/mark`; the custom date format at `/data/format/parse/d`,
+`/encoding/y/condition` and `vl-mark-geoshape` at `/mark`; the custom date format at `/data/format/parse/d`,
 the temporal type and time unit of `x` (`vl-type-temporal` and `vl-encoding-timeunit` of the earlier phases, now
 retired), the local
 file, the plain `number`, the variable parameter of the root view, the expression strings of the `calculate` and
@@ -241,8 +242,8 @@ and a legend object on a position channel produce no report.
 ##### Transforms, Expressions, Parameters, Compositions, And Autosize
 
 **Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_TransformsExpressionsAndParametersAreReported`,
-`FeatureCatalogTests.FeatureCatalog_Visit_CompositionsAreReportedAndNestedViewsExamined`,
-`FeatureCatalogTests.FeatureCatalog_Visit_AutosizeFitModesAreReported`
+`FeatureCatalogTests.FeatureCatalog_Visit_ConcatFacetAndRepeatAreDrawnAndNestedViewsExamined`,
+`FeatureCatalogTests.FeatureCatalog_Visit_AutosizeTypesAreNotReported`
 
 Asserts, on a view that is drawn, that expression references in properties that are not evaluated (a `width` that is an
 expression) report `vl-expr-ref` while the row-bound color expression of an encoding value is silent, that the
@@ -251,10 +252,11 @@ silent, that a `filter` on a field predicate is silent and so is the `timeUnit` 
 Phase 8, so the former `vl-transform-timeunit` is not produced for it; the `joinaggregate` of the same list is computed
 and silent), and that an expression reference in a
 mark `size` of a bar is reported at that property; that a specification with `hconcat`, a nested `vconcat`, `concat`,
-`facet`, `spec`, `repeat`, `resolve`, and `projection` reports the compositions and the projection and also examines the
-views nested at any depth (`/hconcat/0/mark`, `/hconcat/1/vconcat/0/mark`, `/spec/mark`); and that, as a theory,
-autosize `pad` and `none` (also in object form) are silent while `fit`, `fit-x`, and `fit-y` report
-`vl-layout-autosize-<type>` at the type.
+`facet`, `spec`, `repeat`, `resolve`, and `projection` reports only the `projection` (a `facet`, a concatenation and a repeat
+are drawn, so `vl-composition-facet`, `-hconcat`, `-vconcat`, `-concat`, and `-repeat` are never produced) and also
+examines the views nested at any depth (`/hconcat/0/mark`, `/hconcat/1/vconcat/0/mark`, `/spec/mark`); and that, as a
+theory, no autosize type is reported (`pad`, `none`, `fit`, `fit-x`, `fit-y`, also in object form and with a container
+`width`): the family `vl-layout-autosize-<type>` is retired in Phase 11 and never produced.
 
 ##### Supported Phase 5 Transforms, Parameters, And Expressions Are Silent
 
@@ -300,16 +302,16 @@ transform at index 6 (computed since Phase 8; the former `vl-transform-timeunit`
 ##### Phase 6 Features Are Silent And The Remaining Parts Are Reported
 
 **Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_Phase6FeaturesAreNotReportedAndRemainingPartsAre`,
-`FeatureCatalogTests.FeatureCatalog_Visit_NestedViewAggregatingTransformsAreStillReported`
+`FeatureCatalogTests.FeatureCatalog_Visit_NestedViewAggregatingTransformsAreAppliedInConcatAndFacet`
 
 Asserts that a bar with a binned `x` whose bin extent is a parameter, an aggregated and normalized `y` on a linear scale,
 a binned color, a size sorted by the `encoding` `y`, an `x2` range, and an `order` field reports only
 `vl-encoding-bin-extent-param` at `/encoding/x/bin/extent` (the binned color is supported and silent; the `x2`
-draws a range, the `order` orders the stack, and the aggregate, the stack, and the sort are computed); and that every
-aggregating transform of a nested view, which is not drawn, is still reported by name (`vl-transform-aggregate`,
-`-joinaggregate`, `-window`, `-bin`, `-stack`, and `-impute` at `/hconcat/0/transform/0` to `/5`, after
-`vl-composition-hconcat` at `/hconcat`), while for the drawn view only the bin extent that is a parameter is reported
-(`vl-transform-bin-extent-param` at `/transform/0/bin/extent`) and an extent given as numbers is silent.
+draws a range, the `order` orders the stack, and the aggregate, the stack, and the sort are computed); and that the
+aggregating transforms of a view in an `hconcat` and in a `facet` are computed since Phase 11 (only the bin extent that
+is a parameter is reported, `vl-transform-bin-extent-param` at `/hconcat/0/transform/3/bin/extent` and at
+`/spec/transform/3/bin/extent`, as for a drawn view at `/transform/0/bin/extent`, where an extent given as numbers is
+silent).
 
 ##### Unsupported Parts Of Supported Transforms Are Reported
 
@@ -328,15 +330,15 @@ filter with a binned object unit (`/transform/11/filter/timeUnit`) and at a `tim
 `binnedyearmonth` (`/transform/12/timeUnit`), while the `timeUnit` transform with `{"maxbins": 10}` is silent because
 the transform applies `maxbins`.
 
-##### Nested Views Report Their Transforms And Variable Parameters
+##### Nested Views Apply Their Transforms And Report Their Variable Parameters
 
-**Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_NestedViewTransformsAndVariableParametersAreReported`
+**Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_NestedViewTransformsAreAppliedAndVariableParametersAreReported`
 
-Asserts that, in a view of an `hconcat` (the sentinel of a nested view that is not drawn since Phase 10, when `layer` became
-drawn), the variable parameter of a nested view reports `vl-param-variable` and every transform of the
-nested view (a `calculate` and a `lookup`) reports `vl-transform-<name>`, because only the root view and the layers are
-drawn,
-while the variable parameter of the root reports nothing.
+Asserts that, in a view of an `hconcat` and in the `spec` of a `facet` (both drawn since Phase 11), the variable
+parameter of a nested view reports `vl-param-variable` (parameters of nested views are Phase 12) and the transforms of
+the nested view are computed, so a `calculate` is silent and a `lookup` reports only the part that is not supported
+(`vl-transform-lookup-param` at the `param` of its `from`, at `/hconcat/0/transform/1/from/param` and at
+`/spec/transform/1/from/param`); and that the variable parameter of the root reports nothing.
 
 ##### Expression References Are Reported Only At Deferred Sites
 
@@ -394,7 +396,7 @@ is retired), and a `geojson` field is `vl-type-geojson` at its `type`.
 ##### Time Is Supported: Temporal Fields, Units, Scales, And Predicates Report Nothing
 
 **Tests**: `FeatureCatalogTimeTests.FeatureCatalog_Visit_TemporalFieldsAndTimeUnitsAreSupported`,
-`FeatureCatalogTimeTests.FeatureCatalog_Visit_NestedTimeUnitTransformIsReportedAndRemovedIdsAreGone`
+`FeatureCatalogTimeTests.FeatureCatalog_Visit_NestedTimeUnitTransformIsAppliedInConcatAndFacetAndRemovedIdsAreGone`
 
 Asserts that one original specification that uses the whole supported time subset produces no reports at all, so strict
 mode accepts it: two `timeUnit` transforms (`yearmonth`, and an object unit with a step and `utc`), a filter with a
@@ -405,10 +407,8 @@ that time was not supported are retired and must not appear: a second specificat
 unit, a filter with a unit, a filter with a date-time object, and a condition with a unit predicate produces no report
 at all (so none of `vl-type-temporal`, `vl-encoding-timeunit`, `vl-transform-timeunit` for a drawn view,
 `vl-transform-filter-timeunit`, `vl-transform-filter-datetime`, `vl-encoding-condition-test`, `vl-data-parse-date-format`,
-`vl-scale-time`, and `vl-scale-utc`); and a `timeUnit` transform in a nested view of a composition, which is not drawn,
-is still reported by the generic rule as `vl-transform-timeunit` at `/hconcat/0/transform/0` (the nested view is inside
-an
-`hconcat` since Phase 10).
+`vl-scale-time`, and `vl-scale-utc`); and a `timeUnit` transform in a nested view of an `hconcat` and in the `spec` of a
+`facet` is applied and silent since Phase 11.
 
 ##### Time Unit Reports: Binned And Maxbins
 
@@ -550,14 +550,15 @@ its slice, and is `vl-encoding-bandposition` at `/encoding/theta/bandPosition` f
 `stack: false` and for the `theta` of an arc; and that an explicit `stack: true` on a `radius` with a `sqrt` scale is
 `vl-encoding-stack-nonlinear` at `/encoding/radius/stack`, as a stack on a `sqrt` `y` is.
 
-##### Layers Are Drawn, Their Transforms Are Not Reported, And Undrawn Views Say Why
+##### Layers, Concatenations And Facets Are Drawn And Their Transforms Are Not Reported
 
 **Tests**: `FeatureCatalogLayerTests.FeatureCatalog_Visit_TopLevelTransformOfLayerSpecIsNotReported`,
 `FeatureCatalogLayerTests.FeatureCatalog_Visit_LayerCompositionIsNeverReported`,
 `FeatureCatalogLayerTests.FeatureCatalog_Visit_LayerTransformsReportOnlyTheirUnsupportedParts`,
 `FeatureCatalogLayerTests.FeatureCatalog_Visit_TransformOfLaterPhaseInLayerIsNotSupportedYet`,
-`FeatureCatalogLayerTests.FeatureCatalog_Visit_TransformOfConcatViewMessageNamesComposition`,
-`FeatureCatalogLayerTests.FeatureCatalog_Visit_TransformOfLayerInsideConcatNamesTheConcatenation`
+`FeatureCatalogLayerTests.FeatureCatalog_Visit_TransformOfComposedViewIsAppliedAndNotReported`,
+`FeatureCatalogLayerTests.FeatureCatalog_Visit_TransformOfFacetViewIsAppliedAndNotReported`,
+`FeatureCatalogLayerTests.FeatureCatalog_Visit_TransformOfLayerInsideConcatAndFacetIsApplied`
 
 The regression of the reported defect: a layered specification with a top-level `calculate` produces no report at all (in
 particular no `vl-transform-calculate`), and neither the `layer` property, a nested layered view, nor a layered view with
@@ -566,13 +567,53 @@ view and of its layers are visited as drawn, so that only their unsupported part
 the function table, in the top-level `calculate` and in the `calculate` of a layer: `vl-expr-function-format` at
 `/transform/0/calculate` and `/layer/0/transform/0/calculate`), and that a transform of a later phase in a layer
 (`regression`) keeps the identifier `vl-transform-regression` and
-its message "is not supported yet". As a theory over `concat`, `hconcat`, `vconcat`, `facet`, and `repeat`, asserts that
-a
-transform of a view inside the composition keeps the identifier `vl-transform-<name>` and has the message "The '<name>'
-transform is not applied: the view is a '<composition>' composition, which is not supported yet." with the exact name of
-the
-composition; and that a layered view inside a concatenation is not drawn, so the transforms of the layered view and of its
-layers name the concatenation, while the layers of a drawn view are not reported.
+its message "is not supported yet". As a theory over `concat`, `hconcat`, `vconcat`, and `repeat`, asserts that
+a transform of a view inside the composition is applied and nothing is reported (Phase 11 draws them; the earlier
+message that said the transform was not applied is retired); that a transform of a view inside a `facet` is applied as
+well and nothing is reported, while a transform of a later phase (`loess`) in the facet keeps the identifier
+`vl-transform-loess` and the message "The 'loess' transform is not supported yet." (the retired text "The '<name>'
+transform is not applied: the view is a 'facet' composition, which is not supported yet." is never produced); and that a
+layered view inside a concatenation or a facet is drawn, so that nothing is reported for the transforms of the layered
+view and of its layers, while a `regression` in a layer of a facet is `vl-transform-regression` with its ordinary
+message.
+
+##### Compositions Warn About The Properties They Ignore
+
+**Tests**: `FeatureCatalogCompositionTests.FeatureCatalog_Visit_ConcatAndRepeatAreNotReported`,
+`FeatureCatalogCompositionTests.FeatureCatalog_Visit_FacetAndFacetedUnitViewAreNotReported`,
+`FeatureCatalogCompositionTests.FeatureCatalog_Visit_RowColumnChannelInLayerOrFacetSpecStillReported`,
+`FeatureCatalogCompositionTests.FeatureCatalog_Visit_FacetFieldTransformIsReported`,
+`FeatureCatalogCompositionTests.FeatureCatalog_Visit_FacetSortByAggregateIsReported`,
+`FeatureCatalogCompositionTests.FeatureCatalog_Visit_HeaderOrientExprAndFormatTypeAreReported`,
+`FeatureCatalogCompositionTests.FeatureCatalog_Visit_CompositionPropertiesIgnoredAreWarnedAbout`,
+`FeatureCatalogCompositionTests.FeatureCatalog_Visit_NestedViewPropertiesIgnoredAreWarnedAbout`,
+`FeatureCatalogCompositionTests.FeatureCatalog_Visit_ConcatChildEncodingIsVisitedOnce`,
+`FeatureCatalogCompositionTests.FeatureCatalog_Visit_RepeatedUnitEncodingIsVisitedPerCopy`,
+`FeatureCatalogCompositionTests.FeatureCatalog_Visit_TreeWarningsAreLeftToTheRenderer`
+
+Asserts that `concat`, `hconcat`, `vconcat`, and a repeat of values, of rows and columns, and of layers produce no
+report; that a `facet` (a field, or `row` and `column`), and a unit view with a `row`, `column`, or `facet` channel
+(which is a facet), are drawn and produce no report, also with a `sort` that is descending or an array, a `header` with
+an angle and a title of null, and a transform on the view (`vl-composition-facet` is retired); that the faceting
+channels of a unit that cannot be faceted (a layer, a channel that a layered view passes to its layers, and the `spec`
+of a facet) are still `vl-channel-row`, `-column`, and `-facet` at the channel, with a message that says the channel
+only facets a unit view that is not a layer or the spec of a facet; that a `bin`, a `timeUnit` and an `aggregate` of a
+facet field are `vl-facet-field-transform` at that property, in the operator and in the channel of a unit view (and
+`bin: false`, `timeUnit: null` and `aggregate: null` report nothing); that a `sort` that is an object is `vl-facet-sort`
+at the sort while `null`, `descending` and an array are silent; that `header.labelExpr` is `vl-expr-label`, a custom
+`header.formatType` is `vl-format-type-custom` and a `labelOrient` or `titleOrient` that the channel does not honor (a
+row's label on top, a column's title on the left, a wrapped facet's title on the right) is `vl-header-orient`, while a
+row's title on the right, a column's label at the bottom and a wrapped facet's label on the left are honored and silent;
+that the warning `vl-composition-property-ignored` is produced at the `width`, the `height` and an `autosize` other than
+`pad` (at the `type` of an object) of a concatenation or a repeat of rows or columns, and not for `pad` or for the
+`width` of a repeat of layers (a layered view); that it is produced at the `"container"` width of a view inside a
+concatenation and at its `padding`, `background`, `config`, `datasets` and `autosize` (and at the `padding` of the
+`spec` of a repeat), but not for the `height` that is a number; that the unit view that is a child of a concatenation is
+visited once (a `longitude` channel is `vl-channel-geo` once, at its place) and so is the channel that a layered child
+passes to its layers; that the four copies of a repeat of two rows and two columns report the `labelBound` of the
+template's axis once; and that the three warnings that the renderer produces from the view tree
+(`vl-concat-axis-shared`, `vl-composition-columns-ignored`, and `vl-repeat-ref-unresolved`) are never produced by the
+catalog, so that each is delivered once.
 
 ##### Inherited Encodings Are Visited Per Layer, And Ignored Layer Properties Warn
 

@@ -1,0 +1,96 @@
+---
+# Software Unit Requirements for CompositionLayout
+#
+# These requirements describe the design-level behavior of the CompositionLayout unit of the Layout subsystem
+# (internal namespace DemaConsulting.CanvasNet.VegaLite.Layout): the placement of the cells of a concatenation or
+# a facet in a grid (columns, spacing, alignment, centering, full or flush bounds) and of the headers, footers, and
+# titles of a facet around it, a port of the grid layout and the trellis layout of Vega's view layout, attributed in
+# src/DemaConsulting.CanvasNet.VegaLite/third-party/README.md. The unit works on pure boxes: the groups of the cells
+# and headers with the bounds of their content, so that every position follows from the boxes by hand. See
+# docs/verification/canvas-net-vega-lite/layout/composition-layout.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Layout Requirements
+        sections:
+          - title: CompositionLayout Requirements
+            requirements:
+              - id: CanvasNetVegaLite-Layout-CompositionLayout-Grid
+                title: >-
+                  The CompositionLayout unit shall place the cells of a composition in a grid in the order given,
+                  with the number of columns (wrapping after that many, one row when there is none), the spacing
+                  between the columns and between the rows, each column starting after the cell edges rounded up
+                  and the room a cell needs before its origin, aligned for each direction so that each track fits
+                  its own largest cell (each), every track fits the largest cell of the grid (all), or the cells
+                  follow each other (none), centering the smaller cells in their track when asked, and treating a
+                  cell that is missing or has no content as an empty cell that keeps its track.
+                justification: |
+                  The grid is the layout of every concatenation and facet, and it must be the one rule that
+                  Vega-Lite applies so that composed charts are spaced alike.
+                tests:
+                  - CompositionLayout_Place_HConcatBoxesAreSpacedByTwentyPlusRoundedMargins
+                  - CompositionLayout_Place_VConcatColumnsOneStacksCells
+                  - CompositionLayout_Place_WrapColumnsTwoPlacesThirdCellInSecondRow
+                  - CompositionLayout_Place_SpacingRowAndColumnDiffer
+                  - CompositionLayout_Place_AlignEachSizesRowsAndColumnsIndividually
+                  - CompositionLayout_Place_AlignAllUsesTheLargestCell
+                  - CompositionLayout_Place_AlignNoneFlowsCells
+                  - CompositionLayout_Place_CenterCentersSmallCellsInTheirTracks
+                  - CompositionLayout_Place_EmptyCellsKeepTheirTracks
+                  - CompositionLayout_Place_CellWithEmptyBoundsIsAPointAndDoesNotCountForMargins
+                  - CompositionLayout_Place_ZeroColumnsIsOneRow
+
+              - id: CanvasNetVegaLite-Layout-CompositionLayout-Headers
+                title: >-
+                  The CompositionLayout unit shall place the row headers left of the first column and the row
+                  footers right of the last column, at the vertical position of their row, and the column headers
+                  above the first row and the column footers below the last row, at the horizontal position of
+                  their column (the nearest earlier cell of the column or row for a cell that is missing, and zero
+                  when there is none), at the edge of the cells rounded outwards to whole pixels plus the offset of
+                  the header or footer, and shall ignore the headers beyond the number of rows or columns.
+                justification: |
+                  The axes and labels of a facet are drawn once per row or column outside the cells, and their
+                  distance from the cells decides the look of the whole chart.
+                tests:
+                  - CompositionLayout_Place_RowHeadersGoLeftOfTheFirstColumn
+                  - CompositionLayout_Place_ColumnFootersGoBelowTheLastRowIncludingEmptyColumns
+                  - CompositionLayout_Place_HeadersAreOffsetByTheirOffset
+                  - CompositionLayout_Place_MoreHeadersThanRowsAreIgnored
+                  - CompositionLayout_Place_HeaderWithoutAnyCellToAlignToIsAtZero
+
+              - id: CanvasNetVegaLite-Layout-CompositionLayout-Titles
+                title: >-
+                  The CompositionLayout unit shall place the title of the rows at its offset left of the row
+                  headers (right of the row footers when it is at the end) and the title of the columns at its
+                  offset above the column headers (below the column footers when it is at the end), each centered
+                  along the cells by its band (0 at the start, 0.5 in the middle by default, 1 at the end) with the
+                  position rounded half up, also when there are no headers or no cells.
+                justification: |
+                  The channel titles of a facet name the rows and columns and must sit beside the headers they
+                  title, centered on the grid.
+                tests:
+                  - CompositionLayout_Place_RowTitleSitsHeaderEdgeMinusOffsetAndIsCenteredByBand
+                  - CompositionLayout_Place_ColumnTitleAtEndUsesFooterEdgePlusOffset
+                  - CompositionLayout_Place_TitleBandZeroAndOneAnchorStartAndEnd
+                  - CompositionLayout_Place_RowTitleAtEndUsesTheFooterEdge
+                  - CompositionLayout_Place_NoCellsStillPlacesTitlesAtTheOrigin
+
+              - id: CanvasNetVegaLite-Layout-CompositionLayout-Bounds
+                title: >-
+                  The CompositionLayout unit shall lay out the width and height of the cell groups only, and
+                  align the headers to them, when the bounds are flush, shall return the placed groups as copies
+                  in the drawing order of Vega-Lite (the titles, the headers and footers of the rows and of the
+                  columns, then the cells) without changing its input, and the union of the full bounds of the
+                  cells, headers, footers, and titles, which is empty when nothing is placed.
+                justification: |
+                  The caller sizes the canvas and places the legends and the title of the composition from the
+                  bounds, and draws the groups in the order that keeps the headers behind the cells.
+                tests:
+                  - CompositionLayout_Place_FlushBoundsUseWidthAndHeightOnly
+                  - CompositionLayout_Place_FlushHeadersAlignToTheGroupBoxes
+                  - CompositionLayout_Place_ResultBoundsUnionCellsHeadersFootersTitles
+                  - CompositionLayout_Place_ItemsAreInVegaZOrder
+                  - CompositionLayout_Place_DoesNotChangeTheInputGroups
+                  - CompositionLayout_Place_NoCellsGiveEmptyBounds
+                  - CompositionLayout_Place_NullArgumentsThrow

@@ -257,6 +257,85 @@ public class SourceLoaderVegaLiteTests
     }
 
     /// <summary>
+    ///     Test that a composition is drawn as a chart: the size that probing reports is the size of the drawn picture,
+    ///     both charts of an <c>hconcat</c> and both cells of a facet draw their bars, and nothing is reported (so strict
+    ///     mode has nothing to refuse).
+    /// </summary>
+    /// <param name="fixture">The text of the chart.</param>
+    /// <param name="minimumWidth">The least width of the picture in pixels.</param>
+    [Theory]
+    [InlineData(FixtureFactory.TwoChartHConcat, 400)]
+    [InlineData(FixtureFactory.TwoColumnFacetChart, 200)]
+    public void SourceLoader_Load_VegaLiteComposition_DrawsEveryCellAtTheProbedSizeWithoutDiagnostics(string fixture, int minimumWidth)
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var path = FixtureFactory.WriteText(directory.Path, "composition.vl.json", fixture);
+
+        // Act
+        var info = SourceLoader.Probe(path);
+        using var loaded = SourceLoader.Load(path, new SourceOptions());
+        using var strict = SourceLoader.Load(path, new SourceOptions { Strict = true });
+
+        // Assert: the probe and the picture agree, the picture holds the cells side by side, and nothing is noted
+        var surface = loaded.Surface;
+        Assert.Equal((info.Width, info.Height), (surface.Width, surface.Height));
+        Assert.Equal((surface.Width, surface.Height), (strict.Surface.Width, strict.Surface.Height));
+        Assert.True(surface.Width > minimumWidth);
+        Assert.Empty(loaded.Diagnostics);
+        Assert.Empty(strict.Diagnostics);
+
+        // Assert: each half of the picture draws bars in the default color (every cell has bars)
+        const uint opaqueBar = FixtureFactory.BarColor | 0xFF000000;
+        var half = surface.Width / 2;
+        var left = 0;
+        var right = 0;
+        for (var y = 0; y < surface.Height; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                if (Rgb(surface, x, y) != opaqueBar)
+                {
+                    continue;
+                }
+
+                if (x < half)
+                {
+                    left++;
+                }
+                else
+                {
+                    right++;
+                }
+            }
+        }
+
+        Assert.True(left > 0, "no bar in the left half");
+        Assert.True(right > 0, "no bar in the right half");
+    }
+
+    /// <summary>
+    ///     Test that a composition is measured from the library: the probe of a faceted chart is the size of the
+    ///     library's own measure, and the chart facts name the mark of its cells.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Probe_VegaLiteFacet_ReportsTheMeasuredSizeAndTheMarkOfItsCells()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var path = FixtureFactory.WriteText(directory.Path, "facet.vl.json", FixtureFactory.TwoColumnFacetChart);
+
+        // Act
+        var info = SourceLoader.Probe(path);
+
+        // Assert
+        var size = VegaLiteDocument.Open(path).Measure(cancellationToken: TestContext.Current.CancellationToken);
+        Assert.Equal(SourceKind.VegaLite, info.Format);
+        Assert.Equal((size.Width, size.Height), (info.Width, info.Height));
+        Assert.Equal(["bar"], info.Chart!.Marks);
+    }
+
+    /// <summary>
     ///     Test that the library's warnings and unsupported features are diagnostics, that strict mode turns the
     ///     unsupported feature into an error, and that the failures of the library are mapped to the stable codes.
     /// </summary>
@@ -339,6 +418,30 @@ public class SourceLoaderVegaLiteTests
         Assert.Equal(ErrorCodes.VegaLiteError, mappedOther.Code);
         Assert.Equal("Vega-Lite render error: Data file 'x.csv' is missing.", mappedOther.Message);
         Assert.Null(mappedOther.Hint);
+    }
+
+    /// <summary>
+    ///     Test that the limits of the views of a composition, which the library names as <c>the limit (MaxViews)</c>, are
+    ///     <c>budget-exceeded</c> as well: this pins the second text form that the mapping recognizes.
+    /// </summary>
+    [Theory]
+    [InlineData(FixtureFactory.TwoChartHConcat)]
+    [InlineData(FixtureFactory.TwoColumnFacetChart)]
+    public void SourceLoader_Load_VegaLite_MapsCompositionLimitFailuresToBudgetExceeded(string fixture)
+    {
+        // Arrange: a composition of more views than the limit allows
+        var document = VegaLiteDocument.Parse(fixture);
+        var inner = Assert.Throws<VegaLiteRenderException>(
+            () => document.Render(new VegaLiteRenderOptions { Limits = new VegaLiteLimits { MaxViews = 1 } }, TestContext.Current.CancellationToken));
+
+        // Act
+        var mapped = SourceLoader.MapVegaLiteRender(inner);
+
+        // Assert: a budget error with a hint and the library's exception as the cause
+        Assert.Equal(ErrorCodes.BudgetExceeded, mapped.Code);
+        Assert.Contains("exceeds a limit", mapped.Message);
+        Assert.NotNull(mapped.Hint);
+        Assert.Same(inner, mapped.InnerException);
     }
 
     /// <summary>

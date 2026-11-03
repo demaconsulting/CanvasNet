@@ -22,6 +22,10 @@ namespace DemaConsulting.CanvasNet.VegaLite.Transforms;
 ///         A field that a transform derives (an <c>as</c>) is not read from the data, so it is not collected.
 ///     </para>
 ///     <para>
+///         <b>Facet.</b> The field of the <c>row</c>, <c>column</c> or wrapped field definition of a facet is a date field by the same rules as a field of the encoding
+///         (<see cref="CollectFacet"/>): the cells of the facet are the distinct values of the parsed field.
+///     </para>
+///     <para>
 ///         <b>Cost.</b> One pass over the encoding of the specification; nothing is proportional to the data.
 ///     </para>
 /// </remarks>
@@ -94,6 +98,48 @@ internal static class TemporalFields
         foreach (var view in views)
         {
             fields.UnionWith(Collect(view));
+        }
+
+        return fields;
+    }
+
+    /// <summary>
+    ///     Collects the canonical names of the fields that are read as dates in several views and in the facets among them: the union over the views and the facet fields.
+    /// </summary>
+    /// <remarks>
+    ///     The cells of a facet read one table that is split by the facet fields, so a facet field that is temporal is parsed as dates when the table is loaded, like a field of the encoding.
+    ///     A facet field is taken from the facet definition (which has the repeat references replaced), not from the view object.
+    /// </remarks>
+    /// <param name="views">The view objects.</param>
+    /// <param name="facets">The facets of the views.</param>
+    /// <returns>The canonical field names; empty when nothing is read as a date.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
+    public static IReadOnlySet<string> CollectAll(IEnumerable<SpecNode> views, IEnumerable<FacetDefinition> facets)
+    {
+        ArgumentNullException.ThrowIfNull(facets);
+        var fields = new HashSet<string>(CollectAll(views), StringComparer.Ordinal);
+        foreach (var facet in facets)
+        {
+            fields.UnionWith(CollectFacet(facet));
+        }
+
+        return fields;
+    }
+
+    /// <summary>
+    ///     Collects the canonical names of the facet fields that are read as dates: those of the <c>row</c>, <c>column</c> or wrapped field definitions that have the type
+    ///     <c>temporal</c>, a <c>timeUnit</c> or the format type <c>time</c>.
+    /// </summary>
+    /// <param name="facet">The facet definition.</param>
+    /// <returns>The canonical field names; empty when no facet field is temporal.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="facet"/> is null.</exception>
+    public static IReadOnlySet<string> CollectFacet(FacetDefinition facet)
+    {
+        ArgumentNullException.ThrowIfNull(facet);
+        var fields = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var definition in new[] { facet.Row, facet.Column, facet.Wrap }.Where(d => d is { IsObject: true }))
+        {
+            AddDefinition(fields, definition!, null);
         }
 
         return fields;

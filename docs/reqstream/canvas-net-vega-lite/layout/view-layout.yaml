@@ -4,7 +4,8 @@
 # These requirements describe the design-level behavior of the ViewLayout unit of the Layout subsystem
 # (internal namespace DemaConsulting.CanvasNet.VegaLite.Layout): the Vega-Lite view size and padding defaults,
 # the two-phase layout (measure the bounds, the title placement, and the canvas; then build the scene), the
-# autosize modes pad and none, and the view background and border. The default size and the layout follow
+# autosize modes pad, none, fit, fit-x, and fit-y (and the container sizes that imply a fit), and the view
+# background and border. The default size and the layout follow
 # Vega-Lite and Vega behavior, attributed in src/DemaConsulting.CanvasNet.VegaLite/third-party/README.md. See
 # docs/verification/canvas-net-vega-lite/layout/view-layout.md for the test-evidence mapping.
 
@@ -32,7 +33,7 @@ sections:
                   The ViewLayout unit shall place the data rectangle inside the padding and the title and
                   size the canvas around it for the autosize modes pad (the canvas grows to hold
                   everything) and none (the canvas is the size given, whatever sticks out), including a
-                  container size that contains the padding.
+                  size that contains the padding.
                 justification: |
                   The data rectangle is the frame of reference for all geometry of a chart.
                 tests:
@@ -70,3 +71,71 @@ sections:
                   order.
                 tests:
                   - ViewLayout_Build_ContentTitleClipAndRoundingFollowTheMeasure
+
+              - id: CanvasNetVegaLite-Layout-ViewLayout-ResolveSize
+                title: >-
+                  The ViewLayout unit shall resolve the size of the data rectangle of a chart that sizes itself, as
+                  a chart in a concatenation or a facet does, from a number, else the discrete size of the scale
+                  stage (a step size or no size), else the continuous size of the chart's own view over the
+                  configuration, and shall read a container size as if the size were missing.
+                justification: |
+                  A composition has no size of its own; every chart in it sizes itself, and a container size has no
+                  meaning there.
+                tests:
+                  - ViewLayout_ResolveSize_NumberStepDefaultAndContinuousFallback
+                  - ViewLayout_ResolveSize_ContainerIsIgnoredInAComposition
+                  - ViewLayout_ResolveSize_ChartViewAndConfigSetTheContinuousSize
+                  - ViewLayout_ResolveSize_NullConfigThrows
+
+              - id: CanvasNetVegaLite-Layout-ViewLayout-CellBounds
+                title: >-
+                  The ViewLayout unit shall compute the bounds of one cell of a composition in the coordinates of
+                  the cell as the union of its data rectangle, the reach of its guides, its title placed against
+                  them, expanded on each side by the half stroke width of its border (as Vega expands the bounds of a
+                  stroked group), with negative sizes and reaches counting as zero.
+                justification: |
+                  The composition layout spaces the cells by their bounds, so the guides, the title, and the border
+                  of a cell must be part of them.
+                tests:
+                  - ViewLayout_CellBounds_UnionsDataRectGuidesAndTitle
+                  - ViewLayout_CellBounds_StrokeReachesHalfItsWidthOutside
+                  - ViewLayout_CellBounds_NegativeSizesAndReachesCountAsZero
+
+              - id: CanvasNetVegaLite-Layout-ViewLayout-Fit
+                title: >-
+                  The ViewLayout unit shall resolve the autosize of a single or layered view as Vega-Lite does
+                  (pad, then the fit that a container width or height implies with contains padding, then the
+                  configuration if it sets an autosize, then the specification, property by property; a fit
+                  dropped for a dimension that a step sizes, leaving the fit of the other dimension or pad), and
+                  for fit, fit-x, and fit-y shall make the width and height the size of the whole view (the
+                  container size of the host for a container size): the data rectangle is the size less the reach of
+                  the guides and the title on each side rounded up to whole pixels, and less the padding when
+                  contains is padding, never negative, with the canvas that size (plus the padding for contains
+                  content) and a dimension that is not fitted growing as for pad.
+                justification: |
+                  A chart that must fill a container or a page cell has to hold its axes, legends, and title inside
+                  the size it is given, and the size has to come out the same way Vega-Lite computes it.
+                tests:
+                  - ViewLayout_Measure_FitFillsWidthAndHeightIncludingGuides
+                  - ViewLayout_Measure_FitXOnlyFitsWidth
+                  - ViewLayout_Measure_FitYOnlyFitsHeight
+                  - ViewLayout_Measure_FitLeavesRoomForTheTitle
+                  - ViewLayout_Measure_ContainsPaddingSubtractsPaddingFromTheFitSize
+                  - ViewLayout_Measure_FitUsesCeiledGuideExtents
+                  - ViewLayout_Measure_FitOfAClippedViewLeavesNoRoomForGuides
+                  - ViewLayout_Measure_FitSmallerThanTheGuidesClampsTheDataRectangleToZero
+                  - ViewLayout_Resolve_StepDimensionDropsFit
+                  - ViewLayout_Resolve_ContainerWidthImpliesFitXContainsPadding
+                  - ViewLayout_Resolve_SpecAutosizeOverridesContainerDefault
+
+              - id: CanvasNetVegaLite-Layout-ViewLayout-CompositionRoot
+                title: >-
+                  The ViewLayout unit shall resolve the request of the root of a composition with a data rectangle
+                  of size zero, no container, no plot style, and the autosize pad, reading only the padding and the
+                  background, so that the canvas is the bounds of the content plus the padding.
+                justification: |
+                  The root of a concatenation or a facet is only a frame around its cells, and must not draw a plot
+                  area or take a size of its own.
+                tests:
+                  - ViewLayout_Resolve_CompositionRootHasZeroSizeAndNoViewStyle
+                  - ViewLayout_Resolve_CompositionRootCanvasIsContentPlusPadding

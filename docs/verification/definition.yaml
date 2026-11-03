@@ -138,6 +138,7 @@ input-files:
   - docs/verification/canvas-net-vega-lite/layout.md
   - docs/verification/canvas-net-vega-lite/layout/view-layout.md
   - docs/verification/canvas-net-vega-lite/layout/legend-layout.md
+  - docs/verification/canvas-net-vega-lite/layout/composition-layout.md
   - docs/verification/canvas-net-vega-lite/marks.md
   - docs/verification/canvas-net-vega-lite/marks/mark-builder.md
   - docs/verification/canvas-net-vega-lite/marks/curve-builder.md

@@ -125,7 +125,8 @@ internal sealed partial class SpecParser
     private static readonly Dictionary<string, Rule> ChannelDefRules = Rules(
         "field: SO", "type: S=" + string.Join('|', FieldTypes), "aggregate: SOZ", "bin: BOSZ", "timeUnit: SOZ",
         "scale: OZ", "axis: OZ", "legend: OZ", "sort: SAOZ", "title: STZE", "format: SO", "formatType: S",
-        "condition: OA", "stack: SBZ", "impute: OZ", "bandPosition: NE", "header: OZ");
+        "condition: OA", "stack: SBZ", "impute: OZ", "bandPosition: NE", "header: OZ",
+        "align: SO", "center: BO", "columns: N", "spacing: NO", "bounds: S=full|flush");
 
     /// <summary>The rules for the properties of a condition of a channel definition: a test (or a parameter), a value or the properties of a field definition.</summary>
     private static readonly Dictionary<string, Rule> ConditionRules = Rules(
@@ -200,7 +201,7 @@ internal sealed partial class SpecParser
     private static readonly Dictionary<string, Rule> ViewRules = Rules(
         "description: S", "name: S", "usermeta: O", "background: SE", "bounds: S=full|flush", "config: O",
         "projection: O", "view: O", "selection: O", "resolve: O", "facet: O", "spec: O", "repeat: AO",
-        "align: SO", "center: BO", "columns: NO", "spacing: NO");
+        "align: SO", "center: BO", "columns: N", "spacing: NO");
 
     /// <summary>
     ///     Determines whether a name is an encoding channel of Vega-Lite.
@@ -315,12 +316,31 @@ internal sealed partial class SpecParser
                 ValidateTransforms(property);
                 break;
             case "layer" or "concat" or "hconcat" or "vconcat":
-                return ValidateViewList(property);
+                var views = ValidateViewList(property);
+                if (name == "layer")
+                {
+                    ValidateLayerChildren(views);
+                }
+
+                return views;
             case "resolve":
                 ValidateResolve(property);
                 break;
+            case "facet":
+                Check(property, ViewRules["facet"], name);
+                ValidateFacet(property);
+                break;
+            case "repeat":
+                Check(property, ViewRules["repeat"], name);
+                ValidateRepeat(property);
+                break;
+            case "columns" or "spacing" or "align" or "center":
+                Check(property, ViewRules[name], name);
+                ValidateLayoutProperty(property);
+                break;
             case "spec":
                 Check(property, ViewRules["spec"], name);
+                ValidateFacetSpec(property);
                 return [property];
             default:
                 Check(property, ViewRules[name], name);
@@ -718,6 +738,19 @@ internal sealed partial class SpecParser
         }
 
         ValidateDatum(definition);
+        ValidateRepeatReferences(definition);
+        foreach (var name in LayoutProperties)
+        {
+            if (definition[name] is { } layoutProperty)
+            {
+                ValidateLayoutProperty(layoutProperty);
+            }
+        }
+
+        if (definition["header"] is { IsObject: true } header)
+        {
+            ValidateHeader(header);
+        }
         if (definition["scale"] is { IsObject: true } scale)
         {
             CheckObject(scale, ScaleRules);

@@ -66,7 +66,16 @@ public sealed partial class VegaLiteDocument
     /// <param name="MarkType">The mark type of the layer that the definition comes from.</param>
     /// <param name="DefaultOrient">The side when the axis names none, or null for the usual side.</param>
     /// <param name="DefaultGrid">Whether the axis has a grid when it says nothing, or null for the usual rule.</param>
-    private sealed record AxisPlan(string Channel, SpecNode Definition, ResolvedScale Scale, string? MarkType, string? DefaultOrient, bool? DefaultGrid);
+    /// <param name="Members">The indexes (in the list of layers the axes were planned for) of the layers that share the axis.</param>
+    /// <param name="Owner">The highest view that shares the axis with its layers (the view that owns it; a layer for an axis of its own).</param>
+    private sealed record AxisPlan(string Channel, SpecNode Definition, ResolvedScale Scale, string? MarkType, string? DefaultOrient, bool? DefaultGrid, IReadOnlyList<int> Members, LayerNode Owner);
+
+    /// <summary>
+    ///     A group of layers that share one axis.
+    /// </summary>
+    /// <param name="Members">The indexes of the layers.</param>
+    /// <param name="Owner">The highest view that shares the axis, or the layer itself for an axis of its own.</param>
+    private sealed record AxisGroup(List<int> Members, LayerNode Owner);
 
     /// <summary>
     ///     Reads the mark type of a unit view.
@@ -100,41 +109,14 @@ public sealed partial class VegaLiteDocument
     }
 
     /// <summary>
-    ///     Gets the views whose fields the table loaded for a node serves: the node, the layers below it that are visited and inherit its table, and their merged encodings.
-    /// </summary>
-    /// <param name="node">The node.</param>
-    /// <param name="needed">The nodes that are visited.</param>
-    /// <returns>The views.</returns>
-    private static List<SpecNode> ViewsOf(LayerNode node, HashSet<LayerNode> needed)
-    {
-        var views = new List<SpecNode>();
-        var pending = new Stack<LayerNode>();
-        pending.Push(node);
-        while (pending.Count > 0)
-        {
-            var current = pending.Pop();
-            views.Add(current.Source);
-            if (current.Unit is { } unit && !ReferenceEquals(unit, current.Source))
-            {
-                views.Add(unit);
-            }
-
-            // A child with its own data loads its own table and collects its own fields
-            foreach (var child in current.Children.Where(c => needed.Contains(c) && c.Data is null))
-            {
-                pending.Push(child);
-            }
-        }
-
-        return views;
-    }
-
-    /// <summary>
-    ///     Loads the data and runs the transforms down the layer tree, and the implicit pipeline of each layer that is drawn.
+    ///     Loads the data and runs the transforms down the view tree, and the implicit pipeline of each unit view that is drawn.
     /// </summary>
     /// <remarks>
-    ///     The data is loaded where the nearest <c>data</c> is (the table is shared, never copied, by the layers that inherit it); a view's <c>transform</c> runs before the views
-    ///     below it read the table. One loader (file cache, file count, row budget), one evaluator (steps) and one set of parameters serve the whole call.
+    ///     The walk is generic over the nodes of the tree (a unit view, a layered view, and the concatenations and facets of a composition). The data is loaded where the nearest
+    ///     <c>data</c> is, once for each <c>data</c> object of the specification (<see cref="LayerTree.DataSites"/>: the copies of a repeated view and the cells of a facet read one
+    ///     table, which is shared, never copied, by the views that inherit it) with the fields that every view that reads it needs as dates
+    ///     (<see cref="TemporalFields.CollectAll(IEnumerable{SpecNode}, IEnumerable{FacetDefinition})"/>); a view's <c>transform</c> runs before the views below it read the table.
+    ///     One loader (file cache, file count, row budget), one evaluator (steps) and one set of parameters serve the whole call.
     /// </remarks>
     /// <param name="tree">The layer tree.</param>
     /// <param name="specification">The specification tree whose expressions the run evaluates: the parsed one, with the expressions of the composite marks' expansion.</param>
@@ -150,10 +132,20 @@ public sealed partial class VegaLiteDocument
         // cache, one file count and one row budget) serves this call, from the sandbox that the effective open options
         // say, under the limits of the render options
         var root = _tree.Root;
-        var needed = NodesToVisit(drawn);
+
+        // A facet is instantiated by this walk, whether or not a view below it is drawn (its cells are drawn empty then), so it is visited too
+        var needed = NodesToVisit(drawn.Concat(tree.Compositions.Where(c => c.Kind == ViewKind.Facet)));
         var calendar = TimeCalendar.Create(options.TimeZone);
         var loader = new DataLoader(_tree.SourceName, options.Limits, Options, root["datasets"], options.Datasets, cancellationToken, calendar: calendar);
-        var rootTable = loader.Load(root["data"], TemporalFields.CollectAll(ViewsOf(tree.Root, needed)));
+        var sites = tree.DataSites(needed);
+        var siteOfData = new Dictionary<SpecNode, DataSite>(ReferenceEqualityComparer.Instance);
+        foreach (var candidate in sites.Where(s => s.Data is not null))
+        {
+            siteOfData[candidate.Data!] = candidate;
+        }
+        var rootSite = sites[0];
+        var rootTable = loader.Load(root["data"], TemporalFields.CollectAll(rootSite.Views, rootSite.Facets));
+        var loaded = new Dictionary<SpecNode, DataTable>(ReferenceEqualityComparer.Instance);
 
         // Recorded as soon as the data is loaded, so a later failure of the build can still deliver them
         var reported = loader.Warnings.Count;
@@ -179,9 +171,20 @@ public sealed partial class VegaLiteDocument
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var (node, inherited) = pending.Pop();
-                var table = !ReferenceEquals(node, tree.Root) && node.Data is { } data
-                    ? loader.Load(data, TemporalFields.CollectAll(ViewsOf(node, needed)))
-                    : inherited;
+                var table = inherited;
+                if (!ReferenceEquals(node, tree.Root) && node.Data is { } data)
+                {
+                    // A table is loaded once for each data object, however many views (copies of a repeat, cells of a facet) declare it
+                    if (!loaded.TryGetValue(data, out var own))
+                    {
+                        var site = siteOfData[data];
+                        own = loader.Load(data, TemporalFields.CollectAll(site.Views, site.Facets));
+                        loaded[data] = own;
+                    }
+
+                    table = own;
+                }
+
                 table = RowTransforms.Apply(table, node.Transform, transformContext);
                 if (units.Contains(node))
                 {
@@ -190,11 +193,19 @@ public sealed partial class VegaLiteDocument
                     layers.Add(new LayerData(node, plan, EncodingTransforms.Apply(plan, table, transformContext)));
                 }
 
+                // A facet splits its rows into the cells and replaces its template by a copy for each cell; the copies are walked like any view, with the rows of their cell
+                IReadOnlyList<FacetCellData>? cellTables = null;
+                if (node.Kind == ViewKind.Facet && !node.HasCells)
+                {
+                    cellTables = InstantiateFacet(tree, node, table, transformContext, needed, units);
+                }
+
                 for (var i = node.Children.Count - 1; i >= 0; i--)
                 {
                     if (needed.Contains(node.Children[i]))
                     {
-                        pending.Push((node.Children[i], table));
+                        var child = node.Children[i];
+                        pending.Push((child, cellTables is null ? table : cellTables[child.Cell!.Index].Table));
                     }
                 }
             }
@@ -210,8 +221,55 @@ public sealed partial class VegaLiteDocument
     }
 
     /// <summary>
+    ///     Splits the rows of a facet into its cells and gives the facet a copy of its template for each cell.
+    /// </summary>
+    /// <remarks>
+    ///     The cells are those of the rows of the facet's own table (after its own transforms), also when the view below the facet has data of its own: that data is then read in
+    ///     every cell and is not partitioned (Vega-Lite's rule). The copies of the units that are drawn join the units that the walk builds a layer for, and the views above them join
+    ///     the views it visits.
+    /// </remarks>
+    /// <param name="tree">The layer tree, which belongs to this call.</param>
+    /// <param name="facet">The facet.</param>
+    /// <param name="table">The rows of the facet.</param>
+    /// <param name="context">The context of the transforms (row budget, limits, token).</param>
+    /// <param name="needed">The views that the walk visits; receives the views of the cells that are drawn.</param>
+    /// <param name="units">The units that the walk builds a layer for; receives the units of the cells that are drawn.</param>
+    /// <returns>The cells with their rows, in the order of the facet's children.</returns>
+    private static IReadOnlyList<FacetCellData> InstantiateFacet(LayerTree tree, LayerNode facet, DataTable table, TransformContext context, HashSet<LayerNode> needed, HashSet<LayerNode> units)
+    {
+        var (perCell, outside) = tree.FacetViews(facet);
+        var partition = EncodingTransforms.Facet(facet.Facet!, table, perCell, outside, context);
+        tree.InstantiateFacet(facet, partition.Infos);
+
+        // The copies of the units that are drawn: a walk below the facet (the tree is small enough: the number of views was checked against MaxViews)
+        var below = new Stack<LayerNode>(facet.Children);
+        var drawnCopies = new List<LayerNode>();
+        while (below.Count > 0)
+        {
+            var node = below.Pop();
+            if (node.IsUnit && MarkBuilder.IsSupported(MarkTypeOf(node.Unit!)))
+            {
+                drawnCopies.Add(node);
+                units.Add(node);
+            }
+
+            foreach (var child in node.Children)
+            {
+                below.Push(child);
+            }
+        }
+
+        needed.UnionWith(NodesToVisit(drawnCopies));
+        return partition.Cells;
+    }
+
+    /// <summary>
     ///     Plans the axes of the position channels: one axis for the layers that share a scale and an axis, one for each of the others.
     /// </summary>
+    /// <remarks>
+    ///     The layers are those of the whole tree (every chart of a composition); the second axis of a channel, its side and its grid are decided chart by chart (the charts of a
+    ///     concatenation each have their own first axis), so the plan of a single or layered view is the plan of its one chart.
+    /// </remarks>
     /// <param name="layers">The layers with their scales.</param>
     /// <param name="scales">The scales of the layers and of the whole view.</param>
     /// <returns>The axes in the order x, then y, and in layer order within a channel.</returns>
@@ -229,12 +287,17 @@ public sealed partial class VegaLiteDocument
             }
 
             var channelPlans = new List<AxisPlan>();
-            foreach (var members in GroupAxes(layers, scales, channel, carriers))
+            foreach (var group in GroupAxes(layers, scales, channel, carriers))
             {
-                channelPlans.Add(PlanAxis(layers, channel, members));
+                channelPlans.Add(PlanAxis(layers, channel, group));
             }
 
-            plans.AddRange(channelPlans.Count > 1 ? SeparateAxes(channel, channelPlans) : channelPlans);
+            // The second axis of a channel is one of the same chart: the charts of a concatenation each have their own axes, so the axes are separated chart by chart
+            foreach (var chart in channelPlans.GroupBy(p => p.Owner.ChartRoot ?? p.Owner, ReferenceEqualityComparer.Instance))
+            {
+                var ofChart = chart.ToList();
+                plans.AddRange(ofChart.Count > 1 ? SeparateAxes(channel, ofChart) : ofChart);
+            }
         }
 
         return plans;
@@ -251,12 +314,12 @@ public sealed partial class VegaLiteDocument
     /// <param name="scales">The scales of the layers and of the whole view.</param>
     /// <param name="channel">The channel.</param>
     /// <param name="carriers">The indexes of the layers that carry the channel.</param>
-    /// <returns>The groups of layer indexes, in order of their first layer.</returns>
-    private static List<List<int>> GroupAxes(IReadOnlyList<LayerChart> layers, LayeredScales scales, string channel, List<int> carriers)
+    /// <returns>The groups of layer indexes and their owners, in order of their first layer.</returns>
+    private static List<AxisGroup> GroupAxes(IReadOnlyList<LayerChart> layers, LayeredScales scales, string channel, List<int> carriers)
     {
         var scaleGroups = scales.Groups.TryGetValue(channel, out var found) ? found : [];
-        var byKey = new Dictionary<(int Scale, LayerNode Top), List<int>>();
-        var order = new List<List<int>>();
+        var byKey = new Dictionary<(int Scale, LayerNode Top), AxisGroup>();
+        var order = new List<AxisGroup>();
         foreach (var index in carriers)
         {
             var top = layers[index].Node;
@@ -268,22 +331,22 @@ public sealed partial class VegaLiteDocument
             var scaleGroup = scaleGroups.ToList().FindIndex(g => g.Contains(index));
             if (!byKey.TryGetValue((scaleGroup, top), out var group))
             {
-                group = [];
+                group = new AxisGroup([], top);
                 byKey[(scaleGroup, top)] = group;
                 order.Add(group);
             }
 
-            group.Add(index);
+            group.Members.Add(index);
         }
 
         // Axes that name different sides cannot be merged into one
-        var result = new List<List<int>>(order.Count);
+        var result = new List<AxisGroup>(order.Count);
         foreach (var group in order)
         {
-            var orients = group.Select(i => layers[i].Unit["encoding"]![channel]!["axis"]?["orient"]?.AsString()).Where(o => o is not null).Distinct().Count();
+            var orients = group.Members.Select(i => layers[i].Unit["encoding"]![channel]!["axis"]?["orient"]?.AsString()).Where(o => o is not null).Distinct().Count();
             if (orients > 1)
             {
-                result.AddRange(group.Select(i => new List<int> { i }));
+                result.AddRange(group.Members.Select(i => new AxisGroup([i], layers[i].Node)));
             }
             else
             {
@@ -304,10 +367,11 @@ public sealed partial class VegaLiteDocument
     /// </remarks>
     /// <param name="layers">The layers.</param>
     /// <param name="channel">The channel.</param>
-    /// <param name="members">The layers that share the axis.</param>
+    /// <param name="group">The layers that share the axis, and the view that owns it.</param>
     /// <returns>The plan.</returns>
-    private static AxisPlan PlanAxis(IReadOnlyList<LayerChart> layers, string channel, List<int> members)
+    private static AxisPlan PlanAxis(IReadOnlyList<LayerChart> layers, string channel, AxisGroup group)
     {
+        var members = group.Members;
         var definitions = members.Select(i => (Index: i, Node: layers[i].Unit["encoding"]![channel]!)).ToList();
         var pick = definitions.FindIndex(d => d.Node["axis"] is { IsNull: true } or { IsBoolean: true, BoolValue: false });
         if (pick < 0)
@@ -341,7 +405,7 @@ public sealed partial class VegaLiteDocument
             }
         }
 
-        return new AxisPlan(channel, definition, scale, layers[chosen.Index].Scales.MarkType, null, null);
+        return new AxisPlan(channel, definition, scale, layers[chosen.Index].Scales.MarkType, null, null, members, group.Owner);
     }
 
     /// <summary>
@@ -438,6 +502,7 @@ public sealed partial class VegaLiteDocument
 
     /// <summary>
     ///     Gives each layer the scope of its legends: layers share the legend of a channel when they share its scale and no layered view above them makes the legend independent.
+    ///     The layer's node is passed on, so that <see cref="LegendPlan.Owners"/> and <see cref="LegendLayer.OwnerOf"/> know the view that owns each legend (the highest view that shares it).
     /// </summary>
     /// <param name="layers">The layers with their scales.</param>
     /// <param name="scales">The scales of the layers and of the whole view.</param>
@@ -468,7 +533,8 @@ public sealed partial class VegaLiteDocument
 
                     var scaleGroup = scales.Groups.TryGetValue(channel, out var groups) ? groups.ToList().FindIndex(g => g.Contains(index)) : -1;
                     return string.Create(CultureInfo.InvariantCulture, $"{id}:{scaleGroup}");
-                }));
+                },
+                layers[i].Node));
         }
 
         return result;

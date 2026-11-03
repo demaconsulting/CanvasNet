@@ -15,7 +15,12 @@
 # reports of the invalid modes and the bundle area, and narrowed the channel reports to the marks that do not draw
 # the channel). Phase 10 removed the reports of the layer composition and of the marks boxplot, errorbar, and
 # errorband, reworded the report of a transform of a view that is not drawn, and added the reports of the properties
-# a layer ignores, of the grouping channels of a composite mark, and of the error channels of the other marks). See
+# a layer ignores, of the grouping channels of a composite mark, and of the error channels of the other marks). Phase 11
+# removed the reports of the concat, hconcat, vconcat, repeat, and facet compositions and of the transform of a view
+# that is not drawn (every composition is drawn), narrowed the row, column, and facet channel reports to a unit view
+# that cannot be faceted, retired the report of the autosize types fit, fit-x, and fit-y (they are drawn), and added the
+# warnings about the properties that a composition ignores and the reports of the parts of a facet that are not drawn
+# (vl-facet-field-transform, vl-facet-sort, vl-header-orient). See
 # docs/verification/canvas-net-vega-lite/spec-model/feature-catalog.md for the test-evidence mapping.
 
 sections:
@@ -218,19 +223,19 @@ sections:
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-TransformsAndCompositions
                 title: >-
                   The FeatureCatalog unit shall report each transform of a later phase (regression,
-                  loess, density, quantile, and extent) as vl-transform-name, every transform and every
-                  variable parameter of a view that is not drawn (inside a concat, hconcat, vconcat, facet,
-                  or repeat; the aggregating transforms and the
-                  timeUnit transform included, with a message that names the composition that holds the view
-                  and says that the transform is not applied),
+                  loess, density, quantile, and extent) as vl-transform-name ("not supported yet"), every
+                  variable parameter of a nested view (also in a concat, hconcat, vconcat, facet, or repeat),
                   each selection parameter (vl-param-selection), the conditions on a parameter
-                  (vl-encoding-condition-param), each projection, composition (concat, hconcat,
-                  vconcat, facet, repeat), and autosize fit mode, shall examine the nested views of a
-                  composition, shall report each construct once at its own location, and shall not report
-                  the layer composition or the transforms calculate, filter, fold, flatten, sample, pivot,
-                  lookup, aggregate,
-                  joinaggregate, window, bin, timeUnit, stack, and impute or the variable parameters of a
-                  drawn view (the single view, a layered view, and its layers).
+                  (vl-encoding-condition-param), each projection, shall examine the
+                  nested views of a composition, shall report each construct once at its own location, and
+                  shall not report the layer, concat, hconcat, vconcat, facet, and repeat compositions (the
+                  stable identifiers vl-composition-concat, -hconcat, -vconcat, -repeat, and -facet are retired),
+                  an autosize of fit, fit-x, or fit-y (the family vl-layout-autosize-type is retired and never
+                  reused),
+                  or the transforms calculate, filter, fold, flatten, sample, pivot, lookup, aggregate,
+                  joinaggregate, window, bin, timeUnit, stack, and impute of any view (the single view, a
+                  layered view and its layers, and the views of a concatenation, a facet, or a repeat), and shall
+                  never say that a transform is not applied because of a composition.
                 justification: |
                   A construct that changes what a chart means and that the renderer does not implement must be
                   reported rather than skipped, and one that it implements must not make every chart noisy.
@@ -238,16 +243,63 @@ sections:
                   - FeatureCatalog_Visit_TransformsExpressionsAndParametersAreReported
                   - FeatureCatalog_Visit_SupportedPhase5TransformsAndParametersAreNotReported
                   - FeatureCatalog_Visit_LaterPhaseTransformsConditionsAndSelectionsStayReported
-                  - FeatureCatalog_Visit_NestedViewTransformsAndVariableParametersAreReported
-                  - FeatureCatalog_Visit_NestedViewAggregatingTransformsAreStillReported
+                  - FeatureCatalog_Visit_NestedViewTransformsAreAppliedAndVariableParametersAreReported
+                  - FeatureCatalog_Visit_NestedViewAggregatingTransformsAreAppliedInConcatAndFacet
                   - FeatureCatalog_Visit_Phase6FeaturesAreNotReportedAndRemainingPartsAre
-                  - FeatureCatalog_Visit_CompositionsAreReportedAndNestedViewsExamined
-                  - FeatureCatalog_Visit_AutosizeFitModesAreReported
+                  - FeatureCatalog_Visit_ConcatFacetAndRepeatAreDrawnAndNestedViewsExamined
+                  - FeatureCatalog_Visit_ConcatAndRepeatAreNotReported
+                  - FeatureCatalog_Visit_AutosizeTypesAreNotReported
                   - FeatureCatalog_Visit_TopLevelTransformOfLayerSpecIsNotReported
-                  - FeatureCatalog_Visit_TransformOfConcatViewMessageNamesComposition
-                  - FeatureCatalog_Visit_TransformOfLayerInsideConcatNamesTheConcatenation
+                  - FeatureCatalog_Visit_TransformOfComposedViewIsAppliedAndNotReported
+                  - FeatureCatalog_Visit_TransformOfFacetViewIsAppliedAndNotReported
+                  - FeatureCatalog_Visit_TransformOfLayerInsideConcatAndFacetIsApplied
                   - FeatureCatalog_Visit_TransformOfLaterPhaseInLayerIsNotSupportedYet
                   - FeatureCatalog_Visit_LayerTransformsReportOnlyTheirUnsupportedParts
+
+              - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-FacetReports
+                title: >-
+                  The FeatureCatalog unit shall not report a facet or a unit view with a row, column, or facet
+                  channel (the stable identifier vl-composition-facet is retired), shall report a row, column, or
+                  facet channel only of a unit view that cannot be faceted (a layer, a layered view whose encoding
+                  holds it, or the spec of a facet) as vl-channel-row, vl-channel-column, or vl-channel-facet, and
+                  shall report, at the property, a bin, time unit, or aggregate of a facet field
+                  (vl-facet-field-transform), a facet sort that is an object (vl-facet-sort), a header labelOrient
+                  or titleOrient on a side that the header does not draw (vl-header-orient), a header labelExpr
+                  (vl-expr-label), a custom header formatType (vl-format-type-custom), and an expression in a facet
+                  (vl-expr-ref).
+                justification: |
+                  A facet whose field is binned, sorted by an aggregate, or whose header is placed on a side that
+                  is not drawn would otherwise look as if the author's setting took effect; the catalog is the single
+                  place that names it.
+                tests:
+                  - FeatureCatalog_Visit_FacetAndFacetedUnitViewAreNotReported
+                  - FeatureCatalog_Visit_RowColumnChannelInLayerOrFacetSpecStillReported
+                  - FeatureCatalog_Visit_FacetFieldTransformIsReported
+                  - FeatureCatalog_Visit_FacetSortByAggregateIsReported
+                  - FeatureCatalog_Visit_HeaderOrientExprAndFormatTypeAreReported
+
+              - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-CompositionReports
+                title: >-
+                  The FeatureCatalog unit shall warn (vl-composition-property-ignored, at the property) about a
+                  width, height, or autosize other than pad of a concatenation, a facet, or a repeat of rows,
+                  columns, or values, about a container size of a view inside one, and about a padding, background,
+                  config, datasets, or autosize of a view inside one (a fit autosize or a container size of a
+                  composition is thus warned about and not drawn; the vl-layout-fit-step warning for a fit that a step
+                  size drops comes from the layout, as the scales decide it); shall visit the merged encoding of every
+                  chart of a concatenation or a repeat once, as the renderer draws it; and shall document the
+                  warnings that the renderer produces from the view tree (vl-concat-axis-shared,
+                  vl-composition-columns-ignored, vl-repeat-ref-unresolved) as identifiers that the catalog itself
+                  never produces, so that each is delivered once.
+                justification: |
+                  Vega-Lite drops these properties of a composition with a warning, so a chart that sets them
+                  would otherwise look as if they took effect; the catalog is the single place that names a
+                  construct the renderer does not honor.
+                tests:
+                  - FeatureCatalog_Visit_CompositionPropertiesIgnoredAreWarnedAbout
+                  - FeatureCatalog_Visit_NestedViewPropertiesIgnoredAreWarnedAbout
+                  - FeatureCatalog_Visit_RepeatedUnitEncodingIsVisitedPerCopy
+                  - FeatureCatalog_Visit_ConcatChildEncodingIsVisitedOnce
+                  - FeatureCatalog_Visit_TreeWarningsAreLeftToTheRenderer
 
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-LayerReports
                 title: >-
@@ -412,6 +464,6 @@ sections:
                   - FeatureCatalog_Visit_TimeAndUtcScaleTypesFollowVegaLite
                   - FeatureCatalog_Visit_ZeroOnATimeScaleIsAWarning
                   - FeatureCatalog_Visit_WeekAndDayOfYearPartsOfPredicatesAreWarnings
-                  - FeatureCatalog_Visit_NestedTimeUnitTransformIsReportedAndRemovedIdsAreGone
+                  - FeatureCatalog_Visit_NestedTimeUnitTransformIsAppliedInConcatAndFacetAndRemovedIdsAreGone
                   - FeatureCatalog_Visit_TimeIdsAreDeliveredAndStrictModeThrows
                   - FeatureCatalog_Visit_FormatTypesNumberTimeAndUtcAreEvaluated

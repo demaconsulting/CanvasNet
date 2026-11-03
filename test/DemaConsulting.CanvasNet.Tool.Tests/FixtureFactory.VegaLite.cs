@@ -59,4 +59,63 @@ internal static partial class FixtureFactory
           }
         }
         """;
+
+    /// <summary>
+    ///     Two charts of <see cref="TwoBarChart"/>'s kind side by side (an <c>hconcat</c> that shares the data): each has
+    ///     a data rectangle of 200 by 100 pixels and its own axes, so the picture is more than 400 pixels wide, and both
+    ///     draw bars in <see cref="BarColor"/>.
+    /// </summary>
+    public const string TwoChartHConcat =
+        """
+        {
+          "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+          "data": { "values": [ { "k": "a", "v": 3 }, { "k": "b", "v": 5 } ] },
+          "hconcat": [
+            {
+              "width": 200,
+              "height": 100,
+              "mark": "bar",
+              "encoding": {
+                "x": { "field": "k", "type": "nominal" },
+                "y": { "field": "v", "type": "quantitative" }
+              }
+            },
+            {
+              "width": 200,
+              "height": 100,
+              "mark": "bar",
+              "encoding": {
+                "x": { "field": "k", "type": "nominal" },
+                "y": { "field": "v", "type": "quantitative" }
+              }
+            }
+          ]
+        }
+        """;
+
+    /// <summary>
+    ///     A bar chart faceted into one column for each value of <c>g</c> (<c>u</c> and <c>v</c>): two cells with a data
+    ///     rectangle of 100 by 100 pixels, a header label above each, and the shared y axis once at the left; both cells
+    ///     draw bars in <see cref="BarColor"/>.
+    /// </summary>
+    public const string TwoColumnFacetChart =
+        """
+        {
+          "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+          "data": { "values": [
+            { "g": "u", "k": "a", "v": 3 }, { "g": "u", "k": "b", "v": 5 },
+            { "g": "v", "k": "a", "v": 5 }, { "g": "v", "k": "b", "v": 3 }
+          ] },
+          "facet": { "column": { "field": "g", "type": "nominal" } },
+          "spec": {
+            "width": 100,
+            "height": 100,
+            "mark": "bar",
+            "encoding": {
+              "x": { "field": "k", "type": "nominal" },
+              "y": { "field": "v", "type": "quantitative" }
+            }
+          }
+        }
+        """;
 }

@@ -236,24 +236,23 @@ to the baseline constitutes a failure.
   `FeatureCatalogTests.FeatureCatalog_Visit_SupportedPhase5TransformsAndParametersAreNotReported`,
   `FeatureCatalogTests.FeatureCatalog_Visit_LaterPhaseTransformsConditionsAndSelectionsStayReported`,
   `FeatureCatalogTests.FeatureCatalog_Visit_Phase6FeaturesAreNotReportedAndRemainingPartsAre`,
-  `FeatureCatalogTests.FeatureCatalog_Visit_NestedViewAggregatingTransformsAreStillReported`,
+  `FeatureCatalogTests.FeatureCatalog_Visit_NestedViewAggregatingTransformsAreAppliedInConcatAndFacet`,
   `FeatureCatalogTests.FeatureCatalog_Visit_UnsupportedPartsOfSupportedTransformsAreReported`,
-  `FeatureCatalogTests.FeatureCatalog_Visit_NestedViewTransformsAndVariableParametersAreReported`,
+  `FeatureCatalogTests.FeatureCatalog_Visit_NestedViewTransformsAreAppliedAndVariableParametersAreReported`,
   `FeatureCatalogTimeTests.FeatureCatalog_Visit_TemporalFieldsAndTimeUnitsAreSupported`,
   `FeatureCatalogTimeTests.FeatureCatalog_Visit_BinnedTimeUnitIsReportedAtTheValue`,
   `FeatureCatalogTimeTests.FeatureCatalog_Visit_MaxBinsTimeUnitIsReportedInPredicatesOnly`,
   `FeatureCatalogTimeTests.FeatureCatalog_Visit_WeekAndDayOfYearPartsOfPredicatesAreWarnings`,
-  `FeatureCatalogTimeTests.FeatureCatalog_Visit_NestedTimeUnitTransformIsReportedAndRemovedIdsAreGone`,
+  `FeatureCatalogTimeTests.FeatureCatalog_Visit_NestedTimeUnitTransformIsAppliedInConcatAndFacetAndRemovedIdsAreGone`,
   `RowTransformsTests.RowTransforms_Apply_TransformsOfLaterPhasesAreSkipped`,
   `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Aggregation_OnlyTheUnsupportedPartIsReported`,
   `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_StrictModeReportsBinnedTimeUnitAndRectBandPosition`,
   `VegaLiteChartIntegrationTests.CanvasNetVegaLite_SystemIntegration_Deferred_FeaturesAreStillReported` — the six grouped
   transforms and the `timeUnit` transform of the drawn view are computed and not reported, while the transforms of
-  later phases (`regression`, `loess`, `density`, `quantile`, and `extent`), every transform of a nested view (the
-  `timeUnit` transform of a nested view included), the selection parameters, the conditions on a channel that takes
-  none, and the parts of the supported transforms that are not computed (a selection in a filter, a pivot operation
-  other than `sum` and `count`, a lookup in a parameter, a bin extent that is a parameter, the `week` and `dayofyear`
-  parts and the `maxbins` form of a time unit in a filter predicate, and a binned time unit) are reported once each in
-  document order, are skipped by the executor, and the chart is still drawn; a binned time unit next to the aggregate of
-  the fixture is the one report, `vl-timeunit-binned` at `/encoding/x/timeUnit`, which strict mode turns into an
-  exception.
+  later phases (`regression`, `loess`, `density`, `quantile`, and `extent`), the variable parameters of a nested view,
+  the selection parameters, the conditions on a channel that takes none, and the parts of the supported transforms that
+  are not computed (a selection in a filter, a pivot operation other than `sum` and `count`, a lookup in a parameter, a
+  bin extent that is a parameter, the `week` and `dayofyear` parts and the `maxbins` form of a time unit in a filter
+  predicate, and a binned time unit) are reported once each in document order, are skipped by the executor, and the
+  chart is still drawn; a binned time unit next to the aggregate of the fixture is the one report, `vl-timeunit-binned`
+  at `/encoding/x/timeUnit`, which strict mode turns into an exception.

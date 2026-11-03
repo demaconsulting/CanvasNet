@@ -32,12 +32,6 @@ internal sealed partial class SpecParser
     /// <summary>The parameter names that Vega-Lite reserves.</summary>
     private static readonly HashSet<string> ReservedParameterNames = Set("datum event item parent");
 
-    /// <summary>The composition properties that this renderer does not draw yet; a view that has one, or sits inside one, is not drawn (<c>layer</c> is drawn).</summary>
-    private static readonly string[] UndrawnCompositionKeys = ["concat", "hconcat", "vconcat", "facet", "repeat", "spec"];
-
-    /// <summary>The composition properties that name an undrawn composition in a diagnostic, in the order they are looked for.</summary>
-    private static readonly string[] UndrawnCompositionNames = ["concat", "hconcat", "vconcat", "facet", "repeat"];
-
     /// <summary>The mark properties whose <c>{"expr": ...}</c> value is evaluated for every row.</summary>
     private static readonly string[] ExpressionMarkProperties = ["color", "fill", "stroke", "opacity", "strokeWidth", "size"];
 
@@ -72,64 +66,6 @@ internal sealed partial class SpecParser
     public static bool IsSupportedTransform(string name) =>
         name is "calculate" or "filter" or "fold" or "flatten" or "sample" or "pivot" or "lookup"
             or "aggregate" or "joinaggregate" or "window" or "bin" or "stack" or "impute" or "timeUnit";
-
-    /// <summary>
-    ///     Determines whether a view is drawn by the renderer: the root, or a view reached from the root through <c>layer</c> arrays only, with no
-    ///     composition that is not drawn yet (<c>concat</c>, <c>hconcat</c>, <c>vconcat</c>, <c>facet</c>, <c>repeat</c>) on it or on the way.
-    /// </summary>
-    /// <remarks>
-    ///     The view that holds the <c>layer</c> itself counts as drawn (its <c>transform</c>, its <c>encoding</c> and its <c>data</c> are inherited by
-    ///     the layers); a view inside a concatenation, facet or repeat does not.
-    /// </remarks>
-    /// <param name="root">The root object.</param>
-    /// <param name="view">The view.</param>
-    /// <returns><see langword="true"/> for a view that the renderer draws, or that holds layers it draws.</returns>
-    public static bool IsDrawnView(SpecNode root, SpecNode view)
-    {
-        for (var node = view; ;)
-        {
-            if (UndrawnCompositionKeys.Any(key => node[key] is not null))
-            {
-                return false;
-            }
-
-            if (ReferenceEquals(node, root))
-            {
-                return true;
-            }
-
-            // A layer is an element of the "layer" array of the view that holds it
-            if (node.Parent is not { IsArray: true, Name: "layer", Parent: { } owner })
-            {
-                return false;
-            }
-
-            node = owner;
-        }
-    }
-
-    /// <summary>
-    ///     Finds the composition that makes a view undrawn: the nearest one on the view itself or on an ancestor.
-    /// </summary>
-    /// <param name="view">The view.</param>
-    /// <returns><c>concat</c>, <c>hconcat</c>, <c>vconcat</c>, <c>facet</c> or <c>repeat</c>; null when no composition that is not drawn yet is on the view or above it.</returns>
-    public static string? FindUndrawnComposition(SpecNode view)
-    {
-        for (SpecNode? node = view; node is not null; node = node.Parent)
-        {
-            if (!node.IsObject)
-            {
-                continue;
-            }
-
-            if (UndrawnCompositionNames.FirstOrDefault(name => node[name] is not null) is { } found)
-            {
-                return found;
-            }
-        }
-
-        return null;
-    }
 
     /// <summary>
     ///     Determines whether a parameter of that name is declared in the view that contains a node or in an ancestor view.
@@ -298,7 +234,7 @@ internal sealed partial class SpecParser
     }
 
     /// <summary>
-    ///     Tells whether the conditions of a channel definition are evaluated: the channel is one that accepts a condition and belongs to the drawn view
+    ///     Tells whether the conditions of a channel definition are evaluated: the channel is one that accepts a condition
     ///     (and a size only on a mark that uses it: the symbol marks, bar, rect, tick, rule, and the line, trail and text marks, whose size is the stroke width,
     ///     the width of the trail and the font size).
     /// </summary>
@@ -309,8 +245,7 @@ internal sealed partial class SpecParser
         if (_root is null
             || definition.Name is not { } channel
             || !ChannelDefinitions.CanCondition(channel)
-            || definition.Parent?.Parent is not { } view
-            || !IsDrawnView(_root, view))
+            || definition.Parent?.Parent is not { } view)
         {
             return false;
         }
@@ -768,7 +703,7 @@ internal sealed partial class SpecParser
     /// <exception cref="VegaLiteSpecException">Thrown for an expression error.</exception>
     private void CompileMarkExpressions(SpecNode mark, string markType)
     {
-        if (_root is null || mark.Parent is not { } view || !IsDrawnView(_root, view))
+        if (_root is null || mark.Parent is null)
         {
             return;
         }
@@ -793,7 +728,6 @@ internal sealed partial class SpecParser
             || definition.Name is not { } channel
             || !ExpressionChannels.Contains(channel)
             || definition.Parent?.Parent is not { } view
-            || !IsDrawnView(_root, view)
             || definition["value"] is not { IsObject: true } reference
             || reference["expr"] is not { IsString: true } text)
         {

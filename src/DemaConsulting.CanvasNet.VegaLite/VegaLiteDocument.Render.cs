@@ -24,7 +24,8 @@ namespace DemaConsulting.CanvasNet.VegaLite;
 ///     Raw and Main tables that stage produced,
 ///     the axes, the legends, the marks and the title are built, the view
 ///     layout sizes the canvas around them and places everything in a scene, and the painter draws the scene. A layered view (<c>layer</c>) is drawn layer by layer over the data and
-///     transforms it inherits (see <c>VegaLiteDocument.Layers.cs</c>); a composition that is not drawn yet (concat, facet, repeat) draws only its title and background. The private pipeline
+///     transforms it inherits (see <c>VegaLiteDocument.Layers.cs</c>); a concatenation, a repeat or a facet is drawn chart by chart and laid out in a grid (see <c>VegaLiteDocument.Composition.cs</c>;
+///     a facet splits its rows into cells first). The private pipeline
 ///     methods at the end of this file are the seam that later stages extend; the public methods, their validation order and
 ///     their event delivery are the stable contract. The findings of the data stage (parse failures, then the warnings of a
 ///     lookup source and of the transforms) are delivered after the reports of the specification.
@@ -274,8 +275,8 @@ public sealed partial class VegaLiteDocument
     ///     step of a discrete scale, the canvas from the padding, <c>autosize</c> and the room the axes and the title need, and
     ///     the title and background from the specification and the configuration; the caller's background replaces the other
     ///     two. The configuration is resolved here, so a configuration the options cannot hold (not a JSON object) fails the
-    ///     call like any other option error. Only a view with a mark, or the layers of a layered view, have data, scales, axes and marks; compositions that are
-    ///     not drawn yet (concat, facet, repeat) are not drawn.
+    ///     call like any other option error. Only a view with a mark, or the layers of a layered view, or the charts of a concatenation, a facet or a repeat, have data, scales, axes and marks.
+    ///     A tree whose root is a concatenation or a facet is drawn by <see cref="BuildComposition"/>; a single or layered view goes through <see cref="BuildChart"/>.
     /// </remarks>
     /// <param name="options">The effective options.</param>
     /// <param name="cancellationToken">The token that stops the work.</param>
@@ -296,10 +297,16 @@ public sealed partial class VegaLiteDocument
         // A composite mark (a boxplot) is a layered view of the layers it stands for; the expansion's own expressions are read from the derived tree
         var expanded = SpecNormalizer.Expand(_tree, config, options.Limits);
         var layerTree = expanded.Layers;
-        var isComposition = layerTree.Root.UndrawnComposition is not null;
-        IReadOnlyList<LayerNode> drawn = layerTree.HasUndrawn ? [] : [.. layerTree.Units.Where(u => MarkBuilder.IsSupported(MarkTypeOf(u.Unit!)))];
+        var isComposition = layerTree.Root.IsComposition;
+
+        // The findings of the view tree (a repeated value that is not defined, columns that a layout ignores, a shared axis of a concatenation) come from the one tree that is drawn
+        List<FeatureReport> treeWarnings = [.. layerTree.Warnings];
+        dataWarningSink?.AddRange(treeWarnings);
+
+        // The charts of a concatenation, a facet, a repeat and the layers are drawn; a facet is instantiated by the data stage even when no mark below it is drawn
+        IReadOnlyList<LayerNode> drawn = [.. layerTree.Units.Where(u => MarkBuilder.IsSupported(MarkTypeOf(u.Unit!)))];
         DataStage? stage = null;
-        if (drawn.Count > 0)
+        if (drawn.Count > 0 || layerTree.Compositions.Any(c => c.Kind == ViewKind.Facet))
         {
             stage = RunDataStage(layerTree, expanded.Tree, drawn, config, options, cancellationToken, dataWarningSink);
         }
@@ -309,16 +316,27 @@ public sealed partial class VegaLiteDocument
         var budget = new SceneBudget(options.Limits.MaxSceneItems);
         budget.Add(2, root.GetLocation(_tree.SourceName));
         LayeredScales? scales = null;
-        if (stage is not null)
+        if (stage is not null && stage.Layers.Count > 0)
         {
             scales = ScaleResolver.ResolveLayers([.. stage.Layers.Select(l => new LayerScaleInput(l.Node, l.Plan, l.Data))], config, _tree.SourceName, options.Limits, cancellationToken);
             dataWarningSink?.AddRange(scales.Warnings);
         }
 
-        var hints = new ViewSizeHints(scales?.Merged.DiscreteWidth, scales?.Merged.DiscreteHeight, options.ContainerWidth, options.ContainerHeight);
         var background = options.Background is { } caller ? CssColor.ToCss(caller) : null;
-        var request = ViewLayout.Resolve(root, config, hints, background);
-        var title = new TitleBuilder(measurer).Build(root["title"], config, unitOrLayer: !isComposition, budget, _tree.SourceName);
+        if (isComposition)
+        {
+            var composed = stage is null || scales is null ? [] : stage.Layers.Select((l, i) => new LayerChart(l.Node, l.Plan, l.Data, scales.PerLayer[i])).ToList();
+            IReadOnlyList<FeatureReport> composedWarnings = [.. treeWarnings, .. stage?.Warnings ?? [], .. scales?.Warnings ?? []];
+            return BuildComposition(layerTree.Root, composed, scales, config, measurer, options.Limits, budget, stage?.Expressions, background, cancellationToken) with { DataWarnings = composedWarnings };
+        }
+
+        var hints = new ViewSizeHints(scales?.Merged.DiscreteWidth, scales?.Merged.DiscreteHeight, options.ContainerWidth, options.ContainerHeight);
+        var request = ViewLayout.Resolve(SizeSource(root), config, hints, background);
+
+        // A fit that a step size drops is the layout's finding, delivered with the data stage's after the reports of the specification
+        var layoutWarnings = FitDroppedWarning(request, root, _tree);
+        dataWarningSink?.AddRange(layoutWarnings);
+        var title = new TitleBuilder(measurer).Build(root["title"], config, unitOrLayer: true, budget, _tree.SourceName);
         if (stage is null || scales is null)
         {
             var layout = ViewLayout.Compute(request, default, title);
@@ -326,13 +344,68 @@ public sealed partial class VegaLiteDocument
         }
 
         var layers = stage.Layers.Select((l, i) => new LayerChart(l.Node, l.Plan, l.Data, scales.PerLayer[i])).ToList();
-        IReadOnlyList<FeatureReport> dataWarnings = [.. stage.Warnings, .. scales.Warnings];
+        IReadOnlyList<FeatureReport> dataWarnings = [.. treeWarnings, .. stage.Warnings, .. scales.Warnings, .. layoutWarnings];
         return BuildChart(new ChartInputs(request, title, layers, scales, config, measurer, options.Limits, budget, stage.Expressions), cancellationToken) with { DataWarnings = dataWarnings };
     }
 
+    /// <summary>
+    ///     Gets the view that decides the size of a chart: the view itself, or, for a repeat of layers, the view with the <c>width</c>, <c>height</c> and <c>view</c> of its <c>spec</c> where it has none.
+    /// </summary>
+    /// <remarks>
+    ///     Vega-Lite sizes a layered view that has no size of its own from its layers, and the layers of a repeat of layers are copies of the <c>spec</c>.
+    /// </remarks>
+    /// <param name="view">The view of the chart.</param>
+    /// <returns>The view, or an overlay of it that adds the size of the repeated <c>spec</c>.</returns>
+    private static SpecNode SizeSource(SpecNode view)
+    {
+        if (view["repeat"] is { IsObject: true } && view["spec"] is { IsObject: true } spec)
+        {
+            var missing = SpecNormalizer.SizeOf(spec).Where(p => view[p.Name!] is null).ToList();
+            if (missing.Count > 0)
+            {
+                return SpecNode.Overlay(view, [.. view.Properties, .. missing]);
+            }
+        }
+
+        return view;
+    }
 
     /// <summary>
-    ///     Builds the axes, the legends and the marks of a single view and lays the chart out around them.
+    ///     Gets the warning for an <c>autosize</c> fit that a step size dropped (Vega-Lite's <c>droppingFit</c>), if the layout dropped one.
+    /// </summary>
+    /// <remarks>
+    ///     A dimension is sized by a step when its size is a <c>{"step": n}</c>, or missing on a discrete scale (the step of the configuration then applies). Only a drop that changes the
+    ///     autosize is reported.
+    /// </remarks>
+    /// <param name="request">The layout request of the view.</param>
+    /// <param name="root">The root of the specification.</param>
+    /// <param name="tree">The specification tree, which locates the report.</param>
+    /// <returns>The warning, or an empty list.</returns>
+    private static IReadOnlyList<FeatureReport> FitDroppedWarning(ViewLayoutRequest request, SpecNode root, SpecTree tree)
+    {
+        if (request.DroppedFit is not { } dropped)
+        {
+            return [];
+        }
+
+        var dimension = dropped switch
+        {
+            "x" => "width",
+            "y" => "height",
+            _ => "width and height",
+        };
+        var result = request.Autosize switch
+        {
+            AutosizeType.FitX => "fit-x",
+            AutosizeType.FitY => "fit-y",
+            _ => "pad",
+        };
+        var at = root["autosize"] ?? (dropped == "y" ? root["height"] : root["width"]) ?? root;
+        return [new FeatureReport("vl-layout-fit-step", $"The autosize fit does not apply to the {dimension}: a step (a discrete scale) sizes it; the view is laid out as '{result}'.", tree.Locate(at), FeatureReportKind.Warning)];
+    }
+
+    /// <summary>
+    ///     Builds the axes, the legends and the marks of a single or layered view and lays the chart out around them.
     /// </summary>
     /// <remarks>
     ///     The axes and the legends need the size of the data rectangle (tick counts, positions, the length of a gradient) and the data
@@ -341,31 +414,29 @@ public sealed partial class VegaLiteDocument
     ///     outside the axes and add their reach to that of the axes before the title is laid out, so a legend outside the data rectangle
     ///     makes the canvas larger. The marks are built once, for the final rectangle. The
     ///     axes come first in the view group, so that they are drawn behind the marks (Vega-Lite's default axis z-index), and the legends last.
+    ///     The guides and the marks of the view are one cell (<see cref="CellInputs"/>, <see cref="BuildCellGuides"/>, <see cref="BuildCell"/>); the iteration with the layout is what only
+    ///     the view that is the whole chart needs, a cell of a composition has a size that does not depend on its guides.
     /// </remarks>
     /// <param name="inputs">What the stages need.</param>
     /// <param name="cancellationToken">The token that stops the work.</param>
     /// <returns>The plan.</returns>
     private ChartPlan BuildChart(ChartInputs inputs, CancellationToken cancellationToken)
     {
-        var sourceName = _tree.SourceName;
         var budget = inputs.Budget;
-        var axisBuilder = new AxisBuilder(inputs.Measurer, inputs.Config, inputs.Limits, sourceName, inputs.Layers[0].Data.Evaluation.Calendar);
-        var legendSpecs = LegendPlan.Create(LegendLayers(inputs.Layers, inputs.Scales), inputs.Config, sourceName);
+        var legendSpecs = LegendPlan.Create(LegendLayers(inputs.Layers, inputs.Scales), inputs.Config, _tree.SourceName);
         var axisPlans = PlanAxes(inputs.Layers, inputs.Scales);
-        var legendBuilder = new LegendBuilder(inputs.Measurer, inputs.Limits, sourceName);
+        var cell = CreateCell(inputs.Layers, axisPlans, legendSpecs, inputs.Config, inputs.Measurer, inputs.Limits, _tree.SourceName, inputs.Expressions);
         var measure = ViewLayout.Measure(inputs.Request, default, inputs.Title);
-        var axes = new List<AxisResult>();
-        var legends = new LegendPlacement([], SceneBounds.Empty);
+        var guides = new CellGuides([], new LegendPlacement([], SceneBounds.Empty));
         var passBudget = budget;
         for (var pass = 0; pass < 3; pass++)
         {
             // Each pass builds the axes and the legends afresh, so each is charged to a fork; only the pass that is kept is adopted
             passBudget = budget.Fork();
-            axes = BuildAxes(axisPlans, axisBuilder, measure.DataWidth, measure.DataHeight, passBudget, cancellationToken);
-            legends = BuildLegends(legendSpecs, legendBuilder, inputs, axes, measure.DataWidth, measure.DataHeight, passBudget, cancellationToken);
+            guides = BuildCellGuides(cell, measure.DataWidth, measure.DataHeight, passBudget, cancellationToken);
 
             // The legends join the axes in what the data rectangle needs around it, before the title is laid out
-            var extents = LegendLayout.Combine(AxisBuilder.GetExtents(axes, measure.DataWidth, measure.DataHeight), legends.Bounds, measure.DataWidth, measure.DataHeight);
+            var extents = LegendLayout.Combine(AxisBuilder.GetExtents(guides.Axes, measure.DataWidth, measure.DataHeight), guides.Legends, measure.DataWidth, measure.DataHeight, inputs.Request.IsFit);
             var next = ViewLayout.Measure(inputs.Request, extents, inputs.Title);
             var stable = Math.Abs(next.DataWidth - measure.DataWidth) < 1e-9 && Math.Abs(next.DataHeight - measure.DataHeight) < 1e-9;
             measure = next;
@@ -376,77 +447,10 @@ public sealed partial class VegaLiteDocument
         }
 
         budget.Adopt(passBudget);
-        var content = new List<SceneItem>(axes.Count * 2 + legends.Groups.Count + 1);
 
-        // Vega-Lite draws the grids first, then the axes that are behind the marks, the marks, the axes in front of them, and last the legends
-        content.AddRange(axes.Where(a => a.Grid is not null).Select(a => (SceneItem)a.Grid!));
-        content.AddRange(axes.Where(a => !a.InFront).Select(a => a.Group));
-
-        // The marks group of each layer and each mark are charged by the mark builder before they are created; the layers are drawn in order, the last one on top
-        var markBuilder = new MarkBuilder(inputs.Config, inputs.Limits, budget, sourceName, inputs.Expressions);
-        foreach (var layer in inputs.Layers)
-        {
-            content.Add(markBuilder.Build(layer.Unit, layer.Data.Main, layer.Scales, measure.DataWidth, measure.DataHeight, cancellationToken));
-        }
-
-        content.AddRange(axes.Where(a => a.InFront).Select(a => a.Group));
-        content.AddRange(legends.Groups);
+        // The guides of the pass that was kept, and the marks for the final rectangle
+        var content = BuildCell(cell, measure.DataWidth, measure.DataHeight, budget, cancellationToken, guides);
         return new ChartPlan(measure.NaturalSize, ViewLayout.Build(inputs.Request, measure, content), inputs.Measurer);
-    }
-
-    /// <summary>
-    ///     Builds the legends of the view for a data rectangle and places them next to the data rectangle and the axes.
-    /// </summary>
-    /// <param name="specs">The planned legends.</param>
-    /// <param name="builder">The legend builder.</param>
-    /// <param name="inputs">What the stages need.</param>
-    /// <param name="axes">The axes of the pass (the legends are placed outside them).</param>
-    /// <param name="width">The width of the data rectangle.</param>
-    /// <param name="height">The height of the data rectangle.</param>
-    /// <param name="budget">The budget of scene items the legends of the pass are charged to.</param>
-    /// <param name="cancellationToken">The token that stops the work.</param>
-    /// <returns>The placed legends; empty when the view has none.</returns>
-    private static LegendPlacement BuildLegends(IReadOnlyList<LegendSpec> specs, LegendBuilder builder, ChartInputs inputs, IReadOnlyList<AxisResult> axes, double width, double height, SceneBudget budget, CancellationToken cancellationToken)
-    {
-        if (specs.Count == 0)
-        {
-            return new LegendPlacement([], SceneBounds.Empty);
-        }
-
-        var built = new List<LegendResult>(specs.Count);
-        foreach (var spec in specs)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            built.Add(builder.Build(spec, width, height, budget, cancellationToken));
-        }
-
-        var (horizontal, vertical) = LegendLayout.AxisBounds(axes, width, height);
-        return LegendLayout.Place(built, inputs.Config, horizontal, vertical, width, height);
-    }
-
-    /// <summary>
-    ///     Builds the axes of the plan for a data rectangle.
-    /// </summary>
-    /// <param name="plans">The planned axes: one for each position channel that has a scale (x first), more for a layered view with independent axes.</param>
-    /// <param name="builder">The axis builder.</param>
-    /// <param name="width">The width of the data rectangle.</param>
-    /// <param name="height">The height of the data rectangle.</param>
-    /// <param name="budget">The budget of scene items the axes of the pass are charged to.</param>
-    /// <param name="cancellationToken">The token that stops the work.</param>
-    /// <returns>The axes; empty when no position channel has a scale or all axes are switched off.</returns>
-    private static List<AxisResult> BuildAxes(IReadOnlyList<AxisPlan> plans, AxisBuilder builder, double width, double height, SceneBudget budget, CancellationToken cancellationToken)
-    {
-        var axes = new List<AxisResult>(plans.Count);
-        foreach (var plan in plans)
-        {
-            var model = plan.Scale.CreateModel(plan.Channel == "x" ? width : height);
-            if (builder.Build(new AxisRequest(plan.Channel, plan.Definition, plan.Scale, model, width, height, plan.MarkType, budget, plan.DefaultOrient, plan.DefaultGrid), cancellationToken) is { } axis)
-            {
-                axes.Add(axis);
-            }
-        }
-
-        return axes;
     }
 
     /// <summary>

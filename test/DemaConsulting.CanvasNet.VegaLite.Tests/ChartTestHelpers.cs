@@ -74,13 +74,14 @@ internal static class ChartTestHelpers
     /// <param name="callerConfig">The caller's configuration text, or null.</param>
     /// <param name="limits">The limits, or null for the defaults.</param>
     /// <param name="zone">The time zone of the chart, or null for UTC.</param>
+    /// <param name="inHeader">Whether the axis is built for the header or footer of a facet (<see cref="AxisRequest.InHeader"/>).</param>
     /// <returns>The axis, or <see langword="null"/> when the axis is switched off.</returns>
-    public static AxisResult? Axis(string json, string channel, double width, double height, string? callerConfig = null, VegaLiteLimits? limits = null, TimeZoneInfo? zone = null)
+    public static AxisResult? Axis(string json, string channel, double width, double height, string? callerConfig = null, VegaLiteLimits? limits = null, TimeZoneInfo? zone = null, bool inHeader = false)
     {
         var parts = Parts(json, callerConfig, null, zone);
         var scale = parts.Scales[channel] ?? throw new InvalidOperationException("The test specification has no scale for " + channel);
         var model = scale.CreateModel(channel == "x" ? width : height);
-        var request = new AxisRequest(channel, parts.Tree.Root["encoding"]?[channel], scale, model, width, height, parts.Scales.MarkType);
+        var request = new AxisRequest(channel, parts.Tree.Root["encoding"]?[channel], scale, model, width, height, parts.Scales.MarkType, InHeader: inHeader);
         return new AxisBuilder(new TextMeasurer(), parts.Config, limits, parts.Tree.SourceName, parts.Data.Evaluation.Calendar).Build(request);
     }
 

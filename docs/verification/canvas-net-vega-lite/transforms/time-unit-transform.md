@@ -229,6 +229,17 @@ are collected together as the union of the fields of each view, each field once,
 has
 every date field parsed that any of them needs.
 
+##### Implicit Date Fields Of Facets
+
+**Tests**: `TemporalFieldsTests.TemporalFields_CollectFacet_RowColumnAndWrapFieldsAreJudgedLikeEncodings`,
+`TemporalFieldsTests.TemporalFields_CollectAll_UnitesTheViewsAndTheFacets`
+
+Asserts that the `row`, `column`, and wrapped field definitions of a facet are judged like an encoding definition: a
+`temporal` row field `r` and an ordinal column field `c` with a `timeUnit` are date fields, a wrapped field with the format
+type `time` (`w`) is, a nominal field (`n`) and a field that is a repeat reference rather than a name are not; that a null
+facet is refused; and that `CollectAll(views, facets)` is the union of the fields of the views (`t`) and of the facets
+(`d`), each once, with a null list of facets refused.
+
 ##### Time Units In The Encoding Are Named, Titled, And Planned
 
 **Tests**: `EncodingPlanTimeTests.EncodingPlan_Create_NamesATimeUnitFieldAndItsEnd`,

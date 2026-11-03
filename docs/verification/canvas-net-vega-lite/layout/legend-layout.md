@@ -81,3 +81,14 @@ anchors `middle` and `end`.
 
 Asserts the two union boxes of `AxisBounds`, the positions beyond the axes, the larger reach on each side, the unchanged
 extents without a legend, and the empty placement.
+
+##### Fitted Views Count A Legend Across Its Side Only
+
+**Tests**: `LegendLayoutTests.LegendLayout_Combine_FitLegendCountsOrthogonalExtentOnly`
+
+Asserts, for a right legend of 50 by 150 beside a 200 by 100 plot, a top legend of 300 by 20, an inner top-left legend
+and a legend at its own position, that the union bounds are (0, -38, 300, 150) and the fit bounds (0, -38, 268, 0)
+(the horizontal extent of the right legend and the vertical extent of the top legend; the others count nothing), that
+a view that is not fitted reaches 100 to the right, 38 above and 50 below while a fitted one reaches 68 to the right,
+38 above and nothing below, that the larger reach of the axes still wins, that a placement without separate fit
+bounds counts the whole bounds in both modes, and that an empty placement adds nothing.

@@ -206,3 +206,23 @@ documented above as machine-dependent is not a failure.
   different fields joined, the legend properties of every layer merged, a legend for each layer when their explicit
   orients differ, and one legend for each layer in different scopes; the way the document plans the axes and
   scopes from `resolve` is verified at the system tier.
+- **Guides Of The Views Of A Composition**:
+  `HeaderSettingsTests.HeaderSettings_Read_HeaderOverRowColumnConfigOverHeaderConfig`,
+  `TitleBuilderHeaderTests.TitleBuilder_BuildHeaderBlock_LabelUsesGuideLabelStyleSizeTen`,
+  `TitleBuilderHeaderTests.TitleBuilder_BuildHeader_FooterHoldsAxisAndLabelBelowIt`,
+  `AxisBuilderHeaderTests.AxisBuilder_Build_InHeaderPlacesBottomAxisAtOriginAndKeepsExtents`,
+  `AxisBuilderHeaderTests.AxisBuilder_Build_InHeaderStillReturnsTheGrid`,
+  `LegendPlanCompositionTests.LegendPlan_Create_OwnersAreTheHighestSharingAncestor`,
+  `LegendPlanCompositionTests.LegendPlan_Create_IndependentLegendStaysWithTheLeaf`,
+  `LegendPlanCompositionTests.LegendPlan_Create_ChannelFilterPlansEachOwnerOnce`,
+  `LegendPlanCompositionTests.LegendPlan_Create_MergedLegendUnionsMembersAcrossConcatChildren`,
+  `LegendPlanCompositionTests.LegendPlan_Create_NestedIndependentConcatKeepsItsChildrenLegends`,
+  `LegendPlanCompositionTests.LegendPlan_Create_LayerWithoutNodeHasNoOwner`,
+  `LegendPlanCompositionTests.LegendPlan_Owners_ChecksItsArguments` — resolves the header properties of a
+  facet channel over the header configuration, builds a label and a footer that holds a shared x axis and its label (the
+  axis built in the header at the footer's origin, the label 10 pixels below it, bounds of both), keeps the grid of a
+  header axis where the cell draws it, and plans the legend that the children of a concatenation share once, owned by
+  the concatenation, and a child that has legends of two owners once for each, keeps an independent legend with the
+  chart that makes it independent (also inside a nested concatenation), unions the members of a legend merged across
+  the children of a concatenation, gives a layer without a node no owner, and rejects null arguments; the way the
+  document composes them is verified at the system tier.

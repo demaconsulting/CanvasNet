@@ -373,7 +373,9 @@ sections:
           while not reporting a construct that it draws (the aggregate, bin of x and y, stack, and impute of
           an encoding, the aggregating transforms, the secondary channels of bars, rects, rules, and areas,
           the marks line, area, trail, text, and arc, the layer composition, and the marks boxplot, errorbar,
-          and errorband) and naming the composition that holds a view whose transform it does not apply.
+          and errorband, the concatenation, repeat, and facet compositions) and never saying that a transform
+          is not applied because of a composition (every composition is drawn, so its views' transforms are
+          applied).
         tags: [system]
         justification: |
           Unsupported features are a different problem from mistakes and must be distinguishable from
@@ -384,7 +386,7 @@ sections:
           - CanvasNetVegaLite_SystemIntegration_Unsupported_MarkIsReportedWithPointer
           - CanvasNetVegaLite_SystemIntegration_Unsupported_MarkAndTransformCarryPointerLineColumn
           - CanvasNetVegaLite_SystemIntegration_Aggregation_OnlyTheUnsupportedPartIsReported
-          - CanvasNetVegaLite_SystemIntegration_Layer_TransformInAConcatenationIsReportedAsNotApplied
+          - CanvasNetVegaLite_SystemIntegration_Layer_TransformInAConcatenationAndInAFacetIsApplied
 
       - id: CanvasNetVegaLite-StrictMode
         title: >-
@@ -400,6 +402,8 @@ sections:
           - CanvasNetVegaLite-VegaLiteDocument-UnsupportedStrictness
         tests:
           - CanvasNetVegaLite_SystemIntegration_Strict_ThrowsAtFirstUnsupportedFeature
+          - CanvasNetVegaLite_SystemIntegration_Composition_StrictModeOnAFullSpec_NoUnsupportedFeature
+          - CanvasNetVegaLite_SystemIntegration_Composition_StrictModeThrowsAtTheFirstRemainingUnsupportedFeature
           - VegaLiteDocument_Render_StrictModeIgnoresWarningsAndThrowsAtTheFirstUnsupportedFeature
 
       - id: CanvasNetVegaLite-LimitsCancellation
@@ -426,6 +430,9 @@ sections:
           - CanvasNetVegaLite_SystemIntegration_Data_LimitsFailBeforeSceneBudget
           - CanvasNetVegaLite_SystemIntegration_Cancellation_Honored
           - CanvasNetVegaLite_SystemIntegration_Layer_ViewAndDepthLimitsAreEnforced
+          - CanvasNetVegaLite_SystemIntegration_Composition_CancellationIsHonored
+          - CanvasNetVegaLite_SystemIntegration_Composition_ViewLimitIsEnforcedForEveryKind
+          - CanvasNetVegaLite_SystemIntegration_Composition_DepthLimitIsEnforcedForFacetAndRepeat
 
       - id: CanvasNetVegaLite-Determinism
         title: >-
@@ -440,6 +447,9 @@ sections:
           - CanvasNetVegaLite-VegaLiteDocument-Determinism
         tests:
           - CanvasNetVegaLite_SystemIntegration_Determinism_RepeatedAndConcurrentRendersAreByteIdentical
+          - CanvasNetVegaLite_SystemIntegration_Composition_RepeatDeterministicConcurrentAndMeasureEqualsRenderSize
+          - CanvasNetVegaLite_SystemIntegration_Composition_NestedCompositionsAreDeterministicAndMeasureEqualsRender
+          - CanvasNetVegaLite_SystemIntegration_Composition_CultureDoesNotChangeTheScenesOrThePixels
           - VegaLiteDocument_Render_TitledViewIsDeterministicAcrossThreadsAndFontOptions
 
       - id: CanvasNetVegaLite-BundledFonts
@@ -1505,8 +1515,8 @@ sections:
         title: >-
           The library shall apply the transform of a layered view to the data before its layers read it, and
           then the transform of each layer, and shall not report a transform of a drawn layered view as unsupported
-          or not applied, while reporting, with the name of the composition, a transform of a view inside a
-          concatenation, facet, or repeat that it does not apply.
+          or not applied, nor that of a view inside a concatenation, facet, or repeat (all are drawn, so every
+          transform is applied; only the transforms of later phases are reported as not supported yet).
         tags: [system]
         justification: |
           A calculated field of a layered chart is what the layers draw; reporting the transform as unsupported and
@@ -1518,7 +1528,7 @@ sections:
         tests:
           - CanvasNetVegaLite_SystemIntegration_Layer_TopLevelCalculateIsAppliedAndNotReported
           - CanvasNetVegaLite_SystemIntegration_Layer_TransformsApplyTopLevelFirstThenPerLayer
-          - CanvasNetVegaLite_SystemIntegration_Layer_TransformInAConcatenationIsReportedAsNotApplied
+          - CanvasNetVegaLite_SystemIntegration_Layer_TransformInAConcatenationAndInAFacetIsApplied
 
       - id: CanvasNetVegaLite-LayerResolve
         title: >-
@@ -1533,6 +1543,7 @@ sections:
           the scales apart.
         children:
           - CanvasNetVegaLite-Scales-LayerScales
+          - CanvasNetVegaLite-Scales-CompositionScales
           - CanvasNetVegaLite-SpecModel-LayerValidation
         tests:
           - CanvasNetVegaLite_SystemIntegration_Layer_IndependentYScalesDrawTwoAxes
@@ -1582,6 +1593,206 @@ sections:
         tests:
           - CanvasNetVegaLite_SystemIntegration_Layer_StepSizeUsesTheMergedDiscreteScale
           - CanvasNetVegaLite_SystemIntegration_Layer_OwnDataReplacesTheInheritedDataAndSharesTheScale
+
+      - id: CanvasNetVegaLite-Autosize
+        title: >-
+          The library shall honor the autosize of a single or layered view as Vega-Lite does: pad and none, and
+          fit, fit-x, and fit-y (also with contains padding), which make the width and height (or the
+          container size of the render options for a container width or height, which implies the fit with
+          contains padding) the size of the whole view, so that the canvas has exactly that size with the axes,
+          legends (counted across their side only), title, and padding inside it; shall drop the fit of a
+          dimension that a step size decides with a warning (vl-layout-fit-step); shall not report any autosize
+          type as unsupported (the identifiers vl-layout-autosize-fit, -fit-x, and -fit-y are retired); and shall
+          warn (vl-composition-property-ignored) about a fit or a container size of a composition, which is
+          drawn padded.
+        tags: [system]
+        justification: |
+          Charts that fill a page cell, a slide placeholder, or a web container are the common way to embed a
+          chart, and Measure and Render have to agree on the size for the host to lay out around it.
+        children:
+          - CanvasNetVegaLite-VegaLiteDocument-FitPipeline
+          - CanvasNetVegaLite-Layout-ViewGeometry
+          - CanvasNetVegaLite-Layout-LegendPlacement
+          - CanvasNetVegaLite-SpecModel-FeatureCatalog-CompositionReports
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Autosize_FitSurfaceHasTheGivenSize
+          - CanvasNetVegaLite_SystemIntegration_Autosize_FitXLayerView
+          - CanvasNetVegaLite_SystemIntegration_Autosize_FitCountsLegendsAcrossTheirSideOnly
+          - CanvasNetVegaLite_SystemIntegration_Autosize_ContainerUsesOptionsContainerSize
+          - CanvasNetVegaLite_SystemIntegration_Autosize_FitWithStepWarns
+          - CanvasNetVegaLite_SystemIntegration_Autosize_FitIsNotReportedAnymore
+          - CanvasNetVegaLite_SystemIntegration_Autosize_MeasureFitEqualsRender
+          - CanvasNetVegaLite_SystemIntegration_Autosize_CompositionIgnoresFitAndContainerWithWarning
+          - CanvasNetVegaLite_SystemIntegration_Render_ContainerWidthFillsTheContainer
+
+      - id: CanvasNetVegaLite-Concat
+        title: >-
+          The library shall draw a concatenation - concat, hconcat, and vconcat, nested to any depth within the
+          limits - as Vega-Lite does: each child chart sized, titled, and guided for itself and laid out in a grid
+          by the spacing (20 pixels by default, or a column and row pair), columns, align, center, and bounds of
+          the concatenation, with the legends that the children share (every channel but the positions, by
+          default) drawn once beside the grid from the union of the domains, the title of the concatenation
+          anchored at the start, and the data and transform that the children inherit applied once; and shall warn,
+          drawing the composition padded, for a size, a fit autosize, or a container size that Vega-Lite ignores
+          in a composition, and for an axis that is resolved as shared (the axes of a concatenation stay
+          independent).
+        tags: [system]
+        justification: |
+          Side-by-side and stacked charts are the basic way to compare measures; a concatenation that is
+          reported as unsupported would be an empty chart, and the spacing and the legend placement are what
+          the reader sees first.
+        children:
+          - CanvasNetVegaLite-VegaLiteDocument-CompositionPipeline
+          - CanvasNetVegaLite-CompositionLayout
+          - CanvasNetVegaLite-SpecModel-SpecNormalizer-Concat
+          - CanvasNetVegaLite-SpecModel-SpecNormalizer-CompositionSettings
+          - CanvasNetVegaLite-SpecModel-FeatureCatalog-CompositionReports
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_HConcat_TwoChartsAreLaidOutWithTheirOwnAxes
+          - CanvasNetVegaLite_SystemIntegration_HConcat_SecondChartStartsAfterFirstBoundsPlusSpacing
+          - CanvasNetVegaLite_SystemIntegration_VConcat_ChartsStackWithTwentyPixelsBetween
+          - CanvasNetVegaLite_SystemIntegration_Concat_ColumnsWrapsAndAlignsEach
+          - CanvasNetVegaLite_SystemIntegration_Concat_SpacingColumnAndRowObject
+          - CanvasNetVegaLite_SystemIntegration_Concat_SharedColorLegendIsMergedAtTheRoot
+          - CanvasNetVegaLite_SystemIntegration_Concat_ChildTitleStaysInsideItsCellAndCompositionTitleIsAnchoredAtTheStart
+          - CanvasNetVegaLite_SystemIntegration_Concat_TopLevelDataAndTransformAreInherited
+          - CanvasNetVegaLite_SystemIntegration_Concat_ContainerWidthIsIgnoredWithWarning
+          - CanvasNetVegaLite_SystemIntegration_Concat_AxisSharedResolveWarns
+          - CanvasNetVegaLite_SystemIntegration_Concat_MeasureEqualsRenderSize
+          - CanvasNetVegaLite_SystemIntegration_Concat_StrictModeHasNothingToReport
+
+      - id: CanvasNetVegaLite-Repeat
+        title: >-
+          The library shall draw a repeat as Vega-Lite does: a list of fields, rows and columns (the row-major
+          cross product), or layers expanded into copies of the spec with every {"repeat": ...} reference replaced
+          by the repeated value (a reference that the repeat does not define dropping the channel with a
+          warning), laid out as a concatenation (a layered chart for a repeat of layers), reading the data of the
+          spec once for all the copies, ignoring columns next to rows and columns with a warning, and refusing a
+          product of more copies than the limit on views before any copy is made.
+        tags: [system]
+        justification: |
+          A scatter-plot matrix or a small multiple of fields is a repeat; the copies must be cheap, ordered
+          the way the author wrote the rows and columns, and bounded.
+        children:
+          - CanvasNetVegaLite-SpecModel-SpecNormalizer-Repeat
+          - CanvasNetVegaLite-SpecModel-SpecNormalizer-RepeaterRefs
+          - CanvasNetVegaLite-VegaLiteDocument-CompositionPipeline
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Repeat_ArrayRepeatsFieldAsConcatWithColumns
+          - CanvasNetVegaLite_SystemIntegration_Repeat_RowColumnMatrixIsRowMajor
+          - CanvasNetVegaLite_SystemIntegration_Repeat_RowOnlyIsOneColumnAndColumnOnlyIsOneRow
+          - CanvasNetVegaLite_SystemIntegration_Repeat_LayerRepeatDrawsLayers
+          - CanvasNetVegaLite_SystemIntegration_Repeat_LayerRepeatTakesTheSizeOfTheSpec
+          - CanvasNetVegaLite_SystemIntegration_Repeat_RefDrivesAxisTitles
+          - CanvasNetVegaLite_SystemIntegration_Repeat_DataIsLoadedOnceForAllCopies
+          - CanvasNetVegaLite_SystemIntegration_Repeat_ProductLimit
+          - CanvasNetVegaLite_SystemIntegration_Repeat_UnknownRefWarnsAndDropsChannel
+          - CanvasNetVegaLite_SystemIntegration_Repeat_ColumnsWithRowColumnWarns
+          - CanvasNetVegaLite_SystemIntegration_Repeat_ColorLegendIsDrawnOnce
+
+      - id: CanvasNetVegaLite-CompositionResolve
+        title: >-
+          The library shall resolve the scales, axes, and legends of composed views as Vega-Lite does: in a
+          concatenation the position channels (x, y, the offsets, theta, and radius) have independent scales
+          and every other channel a shared scale (so the legend of a shared color is one legend owned by the
+          view that shares it, and the domain is the union of the children's), the axes of a concatenation are
+          always independent, and a resolve of the concatenation (scale, axis, or legend of a channel) overrides
+          the default, an independent legend staying in the chart or in the nested concatenation that owns it.
+        tags: [system]
+        justification: |
+          What the charts of a composition share decides whether their marks can be compared; the defaults
+          are Vega-Lite's, and a resolve is the author's way to change them.
+        children:
+          - CanvasNetVegaLite-Scales-CompositionScales
+          - CanvasNetVegaLite-SpecModel-SpecNormalizer-ResolveDefaults
+          - CanvasNetVegaLite-CompositionGuides
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Concat_SharedColorLegendIsMergedAtTheRoot
+          - CanvasNetVegaLite_SystemIntegration_Concat_ResolveColorIndependentKeepsLegendsInTheCharts
+          - CanvasNetVegaLite_SystemIntegration_Concat_ResolveScaleXSharedUnionsDomainsButKeepsAxes
+          - CanvasNetVegaLite_SystemIntegration_Concat_LegendOwnedByNestedConcatIsPlacedBesideIt
+          - CanvasNetVegaLite_SystemIntegration_Concat_SecondAxisIsSeparatedPerChart
+
+      - id: CanvasNetVegaLite-Facet
+        title: >-
+          The library shall draw a facet as Vega-Lite does - the facet operator (one field wrapped by columns, or
+          a row and a column mapping) over a unit or layered spec, and the row, column, and facet channels of a
+          unit view - as one cell for each distinct value of the field (wrapped) or for every combination of a
+          row value and a column value (the combinations without rows as empty cells), ordered ascending by
+          default, descending, or as a list gives, each with the rows of its value (the aggregate, bin, and stack
+          of the cell run on them; a view with data of its own is not partitioned), with the cells laid out in a grid
+          with the labels of the values and the titles of the fields in the headers (the labels of a wrapped facet
+          as the titles of the cells), the axes that the cells share once in the outer headers and footers (the
+          grids staying in the cells, an independent axis in its cell), the legends that the cells share once beside
+          the grid, the layout (columns, spacing, align, center, bounds) of the facet, and the resolve of its
+          scales, axes, and legends; and shall report, without drawing them, a bin, time unit, or aggregate of a
+          facet field, a sort by an aggregate, and a header side that is not drawn, the number of cells bounded by
+          the limits on the number of views and of rows and by the cancellation token.
+        tags: [system]
+        justification: |
+          A faceted chart draws one view of the rows of each value; the cells and their order are what the
+          reader compares, the headers and the shared axes are what make the grid readable as one chart, and a
+          facet of two fields with many values must fail closed before it is made.
+        children:
+          - CanvasNetVegaLite-Transforms-FacetPartition
+          - CanvasNetVegaLite-SpecModel-SpecNormalizer-FacetCells
+          - CanvasNetVegaLite-SpecModel-SpecNormalizer-DataSites
+          - CanvasNetVegaLite-VegaLiteDocument-FacetPipeline
+          - CanvasNetVegaLite-VegaLiteDocument-FacetHeaders
+          - CanvasNetVegaLite-SpecModel-FeatureCatalog-FacetReports
+          - CanvasNetVegaLite-CompositionGuides
+          - CanvasNetVegaLite-CompositionLayout
+        tests:
+          - EncodingTransforms_FacetDomain_DescendingNullAndArraySort
+          - EncodingTransforms_Facet_CrossProductIncludesEmptyCombinations
+          - EncodingTransforms_Facet_CellCountIsLimitedByMaxViews
+          - LayerTree_InstantiateFacet_ReplacesTheTemplateWithOneCopyPerCell
+          - CanvasNetVegaLite_SystemIntegration_Facet_ColumnChannelDrawsOneCellPerValueWithHeaderLabels
+          - CanvasNetVegaLite_SystemIntegration_Facet_RowAndColumnCrossProductDrawsEmptyCells
+          - CanvasNetVegaLite_SystemIntegration_Facet_WrapFacetUsesColumnsAndCellLabelTitles
+          - CanvasNetVegaLite_SystemIntegration_Facet_SharedXAxisIsOnceUnderEachColumnAndSharedYAxisOncePerRow
+          - CanvasNetVegaLite_SystemIntegration_Facet_IndependentYScaleGivesEachRowItsDomain
+          - CanvasNetVegaLite_SystemIntegration_Facet_SharedLegendIsOutsideTheGrid
+          - CanvasNetVegaLite_SystemIntegration_Facet_CellLimitIsEnforcedBeforeAllocation
+          - CanvasNetVegaLite_SystemIntegration_Facet_NotDrawnPartsAreReported
+
+      - id: CanvasNetVegaLite-CompositionLayout
+        title: >-
+          The library shall lay out the charts of a concatenation, a facet, or a repeat in a grid as Vega-Lite
+          does: every chart sized for itself, the cells spaced by the spacing of the composition in the number
+          of columns it gives, aligned each, all, or none, optionally centered, measured by their full bounds
+          (axes and legends included) or flush, with the row and column headers, footers, and titles of a facet
+          outside the cells, and the canvas holding all of it.
+        tags: [system]
+        justification: |
+          The spacing and alignment of composed charts are what a reader sees first, and they must follow the
+          one rule of Vega-Lite rather than be tuned by eye.
+        children:
+          - CanvasNetVegaLite-Layout-Composition
+        tests:
+          - CompositionLayout_Place_HConcatBoxesAreSpacedByTwentyPlusRoundedMargins
+          - CompositionLayout_Place_AlignAllUsesTheLargestCell
+          - CompositionLayout_Place_FlushBoundsUseWidthAndHeightOnly
+          - CompositionLayout_Place_ColumnFootersGoBelowTheLastRowIncludingEmptyColumns
+          - ViewLayout_Resolve_CompositionRootCanvasIsContentPlusPadding
+
+      - id: CanvasNetVegaLite-CompositionGuides
+        title: >-
+          The library shall build the guides of the headers of a facet and the shared guides of composed views as
+          Vega-Lite does: the labels of the cells and the titles of the channels in the header styles with the
+          header properties, the axes that the cells share in the headers and footers (the grid staying in the
+          cells), and the legends that composed views share owned by the view that shares them.
+        tags: [system]
+        justification: |
+          The headers, shared axes, and shared legends are what make a faceted or concatenated chart readable as one
+          chart; they follow Vega-Lite's rules rather than being tuned by eye.
+        children:
+          - CanvasNetVegaLite-Guides-CompositionGuides
+        tests:
+          - HeaderSettings_Read_HeaderOverRowColumnConfigOverHeaderConfig
+          - TitleBuilder_BuildHeader_FooterHoldsAxisAndLabelBelowIt
+          - AxisBuilder_Build_InHeaderStillReturnsTheGrid
+          - LegendPlan_Create_ChannelFilterPlansEachOwnerOnce
 
       - id: CanvasNetVegaLite-CompositeMarks
         title: >-

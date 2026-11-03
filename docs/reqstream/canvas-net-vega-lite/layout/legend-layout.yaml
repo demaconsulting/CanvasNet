@@ -70,3 +70,17 @@ sections:
                   - LegendLayout_Place_LegendsStartAfterTheAxes
                   - LegendLayout_Combine_TakesTheLargerReachOfEachSide
                   - LegendLayout_Place_NoLegendsGivesAnEmptyPlacement
+
+              - id: CanvasNetVegaLite-Layout-LegendLayout-FitExtents
+                title: >-
+                  The LegendLayout unit shall, for a view that is fitted (fit, fit-x, or fit-y), count a left or
+                  right legend only by its horizontal extent and a top or bottom legend only by its vertical
+                  extent when it joins the legends with the extents of the axes, and the inner orients and the
+                  orient none not at all, as Vega does, so that a legend longer than the plot beside it takes no
+                  room from the plot.
+                justification: |
+                  Without the rule a tall legend beside a short fitted chart would shrink the plot to nothing
+                  although the legend may stick out above and below it.
+                tests:
+                  - LegendLayout_Combine_FitLegendCountsOrthogonalExtentOnly
+                  - CanvasNetVegaLite_SystemIntegration_Autosize_FitCountsLegendsAcrossTheirSideOnly

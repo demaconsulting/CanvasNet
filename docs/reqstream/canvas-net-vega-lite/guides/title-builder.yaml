@@ -39,3 +39,63 @@ sections:
                 tests:
                   - TitleBuilder_Build_PropertiesLinesConfigurationAndLimit
                   - TitleBuilder_Build_EmptyTitlesAndCompositions
+
+              - id: CanvasNetVegaLite-Guides-TitleBuilder-HeaderSettings
+                title: >-
+                  The TitleBuilder unit shall resolve the header properties of a facet channel from the header of
+                  the field definition, then the header configuration of the channel (headerRow, headerColumn,
+                  or headerFacet), then config.header, with the Vega-Lite defaults (label and title padding 10,
+                  labels on), the labels flag, the title that the configuration excludes, the kind of header and
+                  the side that a label or title orient selects (reading the sides that the renderer does not
+                  draw as not given on request, so that the default side is used), and the title band of the title
+                  anchor, and shall
+                  turn the value of a cell into its label with the number format, the time format, the format of
+                  the time unit, or its text, failing with a located exception for an invalid format or a label
+                  past the limit.
+                justification: |
+                  The header of a facet is configured at three levels and the labels of its cells must read as
+                  Vega-Lite writes them; one resolution keeps the rows, columns, and wrapped cells consistent.
+                tests:
+                  - HeaderSettings_Read_HeaderOverRowColumnConfigOverHeaderConfig
+                  - HeaderSettings_Read_DefaultsAreTitleAndLabelPaddingTen
+                  - HeaderSettings_Read_HeaderNullHidesLabelsAndTitle
+                  - HeaderSettings_Read_LabelsFlagAndDefaultTitleFollowVegaLiteLookup
+                  - HeaderSettings_HeaderChannelOf_OrientDecidesTheKindOfHeader
+                  - HeaderSettings_Read_OrientAndAnchorGiveFootersEndTitleAndBand
+                  - HeaderSettings_IsHonoredOrient_AlongTheChannelOnlyAndReadCanIgnoreTheOthers
+                  - HeaderSettings_Read_ChecksItsArguments
+                  - HeaderSettings_CreateLabelFormatter_FormatsNumbersAndText
+                  - HeaderSettings_CreateLabelFormatter_FormatsDatesWithFormatUnitAndDefault
+                  - HeaderSettings_CreateLabelFormatter_RejectsBadFormatsAndLongLabels
+
+              - id: CanvasNetVegaLite-Guides-TitleBuilder-HeaderBlocks
+                title: >-
+                  The TitleBuilder unit shall build the label of a facet cell and the title of a facet channel as
+                  text blocks in the guide-label (10 pixel) and guide-title (11 pixel bold) styles with the
+                  label and title properties of the header (font, color, limit, line height, padding, anchor,
+                  angle, alignment, baseline, orient), choose the alignment and baseline that the angle implies as
+                  Vega-Lite does, place the block against the size of its header and the axes it holds, and
+                  build the header or footer group that holds the shared axes and the block with the bounds of
+                  both, charging the scene budget before creating anything and building nothing for empty text.
+                justification: |
+                  The headers of a facet are drawn by the same title rules as the other titles, but with their own
+                  styles and angles; the shared axes that Vega-Lite moves into them must be placed with the label
+                  so that the layout can size and position the header as one group.
+                tests:
+                  - TitleBuilder_BuildHeaderBlock_LabelUsesGuideLabelStyleSizeTen
+                  - TitleBuilder_BuildHeaderBlock_TitleUsesGuideTitleBoldElevenAndRowIsRotated
+                  - TitleBuilder_BuildHeaderBlock_LabelFrameIsGroupCenteredOverCellWidth
+                  - TitleBuilder_BuildHeaderBlock_LabelOffsetIsLabelPadding
+                  - TitleBuilder_BuildHeaderBlock_LabelPropertiesApply
+                  - TitleBuilder_BuildHeaderBlock_LabelAngleChoosesAlignmentAndBaseline
+                  - TitleBuilder_BuildHeaderBlock_UprightRowLabelEndsAtTheOffset
+                  - TitleBuilder_BuildHeaderBlock_TitleAngleIsNormalizedForTheAlignmentOnly
+                  - TitleBuilder_BuildHeaderBlock_OrientsAndAnchorsPlaceTheBlock
+                  - TitleBuilder_BuildHeaderBlock_LabelsFalseAndTitleNullGiveNothing
+                  - TitleBuilder_BuildHeaderBlock_HeaderOverTitleConfigOverStyle
+                  - TitleBuilder_BuildHeader_ChargesTheBudgetBeforeCreatingItems
+                  - TitleBuilder_BuildHeader_ColumnLabelGroupHasCellWidthAndTextBounds
+                  - TitleBuilder_BuildHeader_ChannelTitlesSitTenPixelsFromTheOrigin
+                  - TitleBuilder_BuildHeader_FooterHoldsAxisAndLabelBelowIt
+                  - TitleBuilder_BuildHeader_RowHeaderHoldsAxisAndLabelLeftOfIt
+                  - TitleBuilder_BuildHeader_AxisOnlyHeaderHasTheAxisBounds

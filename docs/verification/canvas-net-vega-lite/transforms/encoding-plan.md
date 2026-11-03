@@ -128,7 +128,7 @@ derivation in the test comments:
 Unit tests reside in `EncodingPlanTests.cs` (the plan), `EncodingTransformsTests.cs` (the execution), `EncodingPlanPolarTests.cs`
 (the polar stack and the secondary polar channels), `EncodingPlanPathTests.cs` (the path grouping fields, the order fields,
 and the plan of the encoding impute and of the stack impute), `EncodingTransformsImputeTests.cs` (the imputes of the
-execution and their limits) and, for the time
+execution and their limits), `EncodingTransformsFacetTests.cs` (the cells of a facet, Phase 11) and, for the time
 units, `EncodingPlanTimeTests.cs` (the plan) and `EncodingTransformsTimeTests.cs` (the execution; its helpers are in
 `TimeTestPipeline.cs`) within the
 `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `Transforms` folder; the parser rules of the `impute` object
@@ -514,3 +514,62 @@ UTC, at 05:00Z in the US-like zone, and ends at 04:00Z on March 11 there, as der
 10,000 rows under a budget of 100 evaluation steps fails with a located `VegaLiteRenderException` at
 `/encoding/x/timeUnit` that names `MaxEvaluationSteps`. The unit stage itself is verified in _Time Unit Transform
 Verification Design_.
+
+##### Facet Cells: Domain, Order, Grid, And Partition
+
+**Tests**: `EncodingTransformsFacetTests.EncodingTransforms_FacetDomain_DistinctValuesAreSortedAscendingByDefault`,
+`EncodingTransformsFacetTests.EncodingTransforms_FacetDomain_DescendingNullAndArraySort`,
+`EncodingTransformsFacetTests.EncodingTransforms_FacetDomain_SortByAggregateUsesAscendingOrder`,
+`EncodingTransformsFacetTests.EncodingTransforms_FacetDomain_NullValuesFormTheirOwnFirstCell`,
+`EncodingTransformsFacetTests.EncodingTransforms_Facet_CrossProductIncludesEmptyCombinations`,
+`EncodingTransformsFacetTests.EncodingTransforms_Facet_RowOnlyHasOneColumnAndColumnOnlyOneRow`,
+`EncodingTransformsFacetTests.EncodingTransforms_Facet_WrapCellsAreTheDistinctList`,
+`EncodingTransformsFacetTests.EncodingTransforms_Facet_PartitionKeepsRowOrderAndFields`,
+`EncodingTransformsFacetTests.EncodingTransforms_Facet_EmptyTableHasNoCells`
+
+The rows are `c` = b, a, null, z, a, d with `r` = y, x, y, x, y, x and `v` = 1 to 6
+(so `c` has the five distinct values b,
+a,
+null, z, d in order of first appearance and a repeats). The expected values were observed once on Vega-Lite 6 / Vega 6
+(the order of the cells of a facet) and are written as literals; the code is never compared with a pasted output.
+Asserts that the distinct values are ascending with the null first (`null, a, b, d, z`) and that the numbers
+10, 9, 100, 9
+are 9, 10, 100 (by value, not the text order 10, 100, 9); that `sort: "descending"` gives `z, d, b, a, null`, that
+**`sort: null` is still ascending** (not the data order), and that the array `["z", "a", "q"]` puts z and a first as listed
+and then the unlisted values b, null, and d in the order they appear in the data, none dropped (`q`, which no row has, adds
+nothing); that a sort by the mean of `v` in descending order (`{field, op, order}`) is not supported and the ascending
+order of the field is used; that a missing value and a null are one null cell, first, holding the rows with v = 2 and 3,
+and that a field no row has is one cell of nulls with all six rows.
+For the facet by `r` and `c` asserts the 2 x 5 grid in
+row-major order (indexes 0 to 9, row indexes 0 x 5 then 1 x 5, column indexes 0 to 4 twice), the row counts of the cells
+`0, 1, 0, 1, 1, 1, 1, 1, 0, 0` (the combinations the data has no row for are cells with no rows: (x, null), (x, b),
+(y, d), (y, z)) with the v of each non-empty cell by hand ((x, a) = 2, (x, d) = 6, (x, z) = 4, (y, null) = 3, (y, a) = 5,
+(y, b) = 1), and the values of the cell (y, b); that a facet by `r` only has two rows and one column (x with v 2, 4, 6 and
+y with 1, 3, 5, in the order of the rows) and one by `c` only five columns in one row; that a wrapped facet has the five
+values as cells with no row or column index (-1) and the row counts 1, 2, 1, 1, 1; that every cell table has the fields
+`c`, `r`, `v` and the rows in their original order (the cell `a` of the wrapped facet is `a|x|2`, `a|y|5`), that the cells
+together hold the six rows once and that the four cells without rows are one shared table; and that a table without rows
+has no cell and no error.
+
+##### Facet Cells: Limits, Budget, And Cancellation
+
+**Tests**: `EncodingTransformsFacetTests.EncodingTransforms_Facet_CellCountIsLimitedByMaxViews`,
+`EncodingTransformsFacetTests.EncodingTransforms_CheckFacetViews_DoesNotOverflow`,
+`EncodingTransformsFacetTests.EncodingTransforms_Facet_PartitionChargesDerivedRowsOnce`,
+`EncodingTransformsFacetTests.EncodingTransforms_Facet_RowsOfTheCellsAreLimitedByMaxDataRows`,
+`EncodingTransformsFacetTests.EncodingTransforms_FacetDomain_SortArrayIsLimited`,
+`EncodingTransformsFacetTests.EncodingTransforms_Facet_CancellationIsHonored`,
+`EncodingTransformsFacetTests.EncodingTransforms_Facet_ChecksItsArguments`
+
+Asserts that 1,000 rows with 1,000 different row values and 1,000 different column values make 1,000,000 cells, which fail
+with a `VegaLiteRenderException` that names `1000000 cells` and `MaxViews`, located at `/facet/row`, **before any row
+is counted** (the loader's row count is the same as before the call); that the boundary is exact
+(2 rows x 3 columns = 6 cells
+of 2 views each and 1 view outside are 13 views: a limit of 13 passes, 12 fails);
+that a cell count of `long.MaxValue / 2`
+with `int.MaxValue` views per cell fails instead of overflowing, that 1,000 cells with 1 view and none outside pass the
+limit of 1,000 and that one more outside view does not; that the six rows of a 2 x 5 facet are counted in the row budget
+**once** (6 loaded, 12 after the ten cells, not 6 for each cell) and that six loaded rows and six more fail with a
+located `MaxDataRows` error under a limit of 10; that a sort array of three values under a `MaxScaleDomainSize` of 2
+fails located at `/facet/column/sort`; that a canceled token raises an `OperationCanceledException` from both entry points;
+and that a null argument and a facet without any field are refused.

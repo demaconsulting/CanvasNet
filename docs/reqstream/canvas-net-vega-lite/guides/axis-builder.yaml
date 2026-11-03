@@ -197,3 +197,21 @@ sections:
                   or grid must still decide.
                 tests:
                   - AxisBuilder_Build_DefaultOrientAndGridApplyOnlyWhenTheAxisSaysNothing
+
+              - id: CanvasNetVegaLite-Guides-AxisBuilder-HeaderAxes
+                title: >-
+                  The AxisBuilder unit shall, for a request that names a header, build the axis that the cells of
+                  a facet share as the group of a header or footer: the same ticks, labels, domain, and title as
+                  next to the data rectangle, with the group at the origin of the header (the axes on the far
+                  sides at the offset from it instead of at the far edge of the data rectangle), the extent and
+                  bounds in the coordinates of the header, and the grid still built where the cell draws it, and
+                  shall build a request that names no header exactly as before.
+                justification: |
+                  Vega-Lite moves the axis that the cells of a facet share into the header or footer once per row
+                  or column and leaves the grid in each cell; the layout needs the axis group and its extent in
+                  the header's coordinates.
+                tests:
+                  - AxisBuilder_Build_InHeaderPlacesBottomAxisAtOriginAndKeepsExtents
+                  - AxisBuilder_Build_InHeaderRowAxisKeepsHeight
+                  - AxisBuilder_Build_InHeaderStillReturnsTheGrid
+                  - AxisBuilder_Build_InHeaderKeepsTheOffsetFromTheHeaderOrigin

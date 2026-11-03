@@ -24,7 +24,9 @@ used is a `VegaLiteRenderException`, and a remote URL is reported and never fetc
 
 The unit covers the files `VegaLiteDocument.cs` (the entry points and the descriptive properties),
 `VegaLiteDocument.Render.cs` (`Measure`, `Render`, and the pipeline), `VegaLiteDocument.Layers.cs` (the layers of a view:
-the data walk, the axis planning, and the legend scopes), the options `VegaLiteOpenOptions.cs`,
+the data walk, the axis planning, and the legend scopes), `VegaLiteDocument.Composition.cs` (the cell: the guides and
+the marks of one unit or layered view, built independently of the view that holds it, and the `Composer` that draws a
+concatenation, a repeat or a facet from its cells), the options `VegaLiteOpenOptions.cs`,
 `VegaLiteRenderOptions.cs`, `VegaLiteFontOptions.cs`, and `VegaLiteLimits.cs`, the value types `VegaLiteLocation.cs`,
 `VegaLiteSize.cs`, `VegaLiteDataReference.cs`, and `VegaLiteDataKind.cs`, the records `VegaLiteDiagnostic.cs` and
 `VegaLiteUnsupportedFeature.cs`, the exceptions `VegaLiteSpecException.cs`, `VegaLiteRenderException.cs`, and
@@ -97,7 +99,11 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   `MaxEvaluationSteps`. Phase 10 (layers and composite marks) activates the two composition limits: `MaxViews` bounds the
   views of the specification (the layers, and the views that a composite mark expands to) and `MaxCompositionDepth` the
   nesting of `layer`, both enforced by `SpecNormalizer` before any data is read; the data, the tables of the
-  expansion, and the marks of the layers are charged to the existing limits.
+  expansion, and the marks of the layers are charged to the existing limits. Phase 11 (concatenation and repeat) counts
+  the children of a concatenation and the copies of a repeat in `MaxViews` and every nesting level of a composition in
+  `MaxCompositionDepth`, in the same place and before any data is read (the copies of a repeat are counted before any is
+  made); the cell, the scope group, the title, the axes, the legends and the marks of a composition are charged to
+  `MaxSceneItems` before they are created.
 - **`VegaLiteLocation`** (`readonly record struct (string? File, string Pointer, int Line, int Column)`) - a position
   in the specification. A column counts UTF-16 code units, a tab counts as one column, and a line ends at `\n`.
   `default` (line zero, empty pointer) means "unknown"; `IsKnown` is true when a line or a pointer is present.
@@ -153,86 +159,148 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
 - `PrepareChart(options, token)` - the layout described in the system design (configuration, measurer, the layer tree,
   data, scales, view request, title, and either the empty layout or `BuildChart`). It first expands the views
   (`SpecNormalizer.Expand`: the layers of a layered view, the composite marks replaced by their layers, `MaxViews` and
-  `MaxCompositionDepth` enforced, so a limit failure is delivered with the reports like any other); the chart is drawn when
-  the tree has no composition that is not drawn (`concat`, `hconcat`, `vconcat`, `facet`, `repeat`) and has a layer with
-  a
-  supported mark. For a view that is drawn (a single view is one layer, the root itself; see the next bullet) it
-  first creates the **calendar** of the call once, `TimeCalendar.Create(options.TimeZone)` (null gives the UTC
-  singleton), then creates one `DataLoader` for the call (passing the effective open options, the top-level `datasets`
-  node, the
-  caller's `Datasets`, the limits, the token, and the calendar), loads the data **before** the scene budget is created
-  and before the
-  scales are resolved, passing `TemporalFields.Collect(root)` (for a layered view `TemporalFields.CollectAll` over the views
-  that the table serves; the canonical names of the fields that the encoding,
-  the `timeUnit` transforms, and the filter and condition predicates use as dates) so that the loader date-parses them
-  implicitly in the calendar unless `format.parse` names them (or is null), and then, on the same loader: creates one
-  `ExpressionEvaluator` for the call (the limits, the
-  token, the dictionary of parameter values, and the **same calendar**, which reaches every expression function
-  through `ExpressionFunctionContext.Calendar`), calls `ParameterEnvironment.Populate` (the static parameters, with the
-  caller's `Parameters`), and calls `RowTransforms.Apply` over the loaded table with a `TransformContext` (which also
-  runs the aggregating transforms, the `timeUnit` transform, and the time-aware predicates); it then creates the
-  `EncodingPlan` of the view (`EncodingPlan.Create`, a pure function
-  of the specification and the configuration) and runs `EncodingTransforms.Apply` on the same context, which performs the
-  implicit bin, **time unit**, aggregate, and stack of the encoding in Vega-Lite's order and returns the `EncodingData`
-  (the **Raw** and
-  **Main** tables, the bins, and the resolved time units). The scales are resolved from the plan and the data (a sort by
-  an aggregate and an
+  `MaxCompositionDepth` enforced, so a limit failure is delivered with the reports like any other), and forwards the
+  warnings of that one tree (`LayerTree.Warnings`: `vl-concat-axis-shared`, `vl-composition-columns-ignored`,
+  `vl-repeat-ref-unresolved`) with the findings of the data stage, so each is delivered once; the chart is drawn: a tree
+  whose root is a unit or a layered view goes through `BuildChart` (the single view that iterates its guides with the
+  layout),
+  a tree whose root is a concatenation or a facet through
+  `BuildComposition`, and the layers that are drawn are those with a supported mark (a facet is instantiated by the data
+  stage first, so the layers of its cells are drawn). For a view that is drawn (a single view is one layer, the root
+  itself; see the next bullet) it first creates the **calendar** of the call once,
+  `TimeCalendar.Create(options.TimeZone)` (null gives the UTC singleton), then creates one `DataLoader` for the call
+  (passing the effective open options, the top-level `datasets` node, the caller's `Datasets`, the limits, the token,
+  and the calendar), loads the data **before** the scene budget is created and before the scales are resolved, passing
+  `TemporalFields.Collect(root)` (for a layered view `TemporalFields.CollectAll` over the views that the table serves;
+  the canonical names of the fields that the encoding, the `timeUnit` transforms, and the filter and condition
+  predicates use as dates) so that the loader date-parses them implicitly in the calendar unless `format.parse` names
+  them (or is null), and then, on the same loader: creates one `ExpressionEvaluator` for the call (the limits, the
+  token, the dictionary of parameter values, and the **same calendar**, which reaches every expression function through
+  `ExpressionFunctionContext.Calendar`), calls `ParameterEnvironment.Populate` (the static parameters, with the caller's
+  `Parameters`), and calls `RowTransforms.Apply` over the loaded table with a `TransformContext` (which also runs the
+  aggregating transforms, the `timeUnit` transform, and the time-aware predicates); it then creates the `EncodingPlan`
+  of the view (`EncodingPlan.Create`, a pure function of the specification and the configuration) and runs
+  `EncodingTransforms.Apply` on the same context, which performs the implicit bin, **time unit**, aggregate, and stack
+  of the encoding in Vega-Lite's order and returns the `EncodingData` (the **Raw** and **Main** tables, the bins, and
+  the resolved time units). The scales are resolved from the plan and the data (a sort by an aggregate and an
   `unaggregated` domain read Raw, everything else Main; the resolver reads the calendar from the evaluation facts of the
   `EncodingData`, so its signature did not change), and the marks draw Main, so the field names, the titles, and the
   tables agree by construction; the axes and legends read the calendar and the time unit from each `ResolvedScale`
   (`BuildChart` also gives the `AxisBuilder` the calendar of the chart, `EncodingData.Evaluation.Calendar`, for the
-  labels of a field that is not temporal but has `formatType: "time"`), and
-  the legend builder passes the calendar of its canonical scale to its own `ExpressionFunctionContext`; the
-  `RowExpressions` (the compiled
-  expressions and the evaluator) go to
-  `MarkBuilder`. `ApplyStandalone` (the entry the tests use for the implicit pipeline alone) passes `TimeCalendar.Utc`
-  explicitly. The findings of the data stage are kept in the plan in this order: the loader's warnings
-  (`vl-data-parse-failed`), the warnings of a lookup source (the loader's warnings that arose while the transforms ran),
-  and then the transform warnings (`vl-expr-runtime`, `vl-transform-runtime`); they are recorded
-  in the report sink as soon as
-  they exist (a `finally` block around the parameters and transforms), so a later failure still delivers them, and the
-  `BuildPlan` step records them after the reports of the specification. The only I/O of the pipeline
-  happens here, on the calling thread.
-  `BuildChart` iterates the axes, the legends, and the
-  layout at most three passes (each pass builds the axes and the legends again for the data rectangle, the legends are
-  placed by `LegendLayout` against the axes and their reach joins the extents of the axes before the title is laid out),
-  then builds the marks once and assembles the scene (grids, back axes, marks, front axes, then the legends, then the
-  title). `PrepareChartOrReport` wraps it so
-  that a `VegaLiteSpecException` or `VegaLiteRenderException` still delivers the document's reports before it is
-  rethrown (in strict mode the first unsupported feature wins).
+  labels of a field that is not temporal but has `formatType: "time"`), and the legend builder passes the calendar of
+  its canonical scale to its own `ExpressionFunctionContext`; the `RowExpressions` (the compiled expressions and the
+  evaluator) go to `MarkBuilder`. `ApplyStandalone` (the entry the tests use for the implicit pipeline alone) passes
+  `TimeCalendar.Utc` explicitly. The findings of the data stage are kept in the plan in this order: the loader's
+  warnings (`vl-data-parse-failed`), the warnings of a lookup source (the loader's warnings that arose while the
+  transforms ran), and then the transform warnings (`vl-expr-runtime`, `vl-transform-runtime`); they are recorded in the
+  report sink as soon as they exist (a `finally` block around the parameters and transforms), so a later failure still
+  delivers them, and the `BuildPlan` step records them after the reports of the specification. The only I/O of the
+  pipeline happens here, on the calling thread. `BuildChart` iterates the guides of the **cell** (`BuildCellGuides`: the
+  axes, then the legends) and the layout at most three passes (each pass builds the axes and the legends again for the
+  data rectangle, the legends are placed by `LegendLayout` against the axes and their reach joins the extents of the
+  axes before the title is laid out), then builds the content of the cell once (`BuildCell`, passing the guides of the
+  pass it kept: grids, back axes, marks, front axes, then the legends) and assembles the scene (the content, then the
+  title). `PrepareChartOrReport` wraps it so that a `VegaLiteSpecException` or `VegaLiteRenderException` still delivers
+  the document's reports before it is rethrown (in strict mode the first unsupported feature wins). **Fit and container
+  sizes** (Phase 11): the loop above is the one that a `"container"` size always needed, and it also serves
+  `autosize` `fit`, `fit-x`, and `fit-y` (the data rectangle depends on the reach of the axes, the legends, and the
+  title, which depend on the data rectangle): `LegendLayout.Combine` is called with the request's `IsFit`, so for a
+  fit only the extent of a legend across its side counts, and `ViewLayout.Measure` makes the canvas the fitted size.
+  After `ViewLayout.Resolve`, `FitDroppedWarning` turns the `DroppedFit` of the request (a step size that dropped the
+  fit of a dimension) into the warning `vl-layout-fit-step`, added to the data warnings after those of the scales
+  (and to the sink for a failing call in the same order). A composition takes none of this: `BuildComposition` always
+  pads, and the catalog warns (`vl-composition-property-ignored`).
 - **Layers** (phase 10, `VegaLiteDocument.Layers.cs`). A view without `layer` is one layer, the view itself, and takes
   exactly the steps above. For a layered view, `RunDataStage` walks the layer tree depth first in document order (an
   explicit stack), visiting only the nodes on the way to a layer that is drawn: the **table of a node** is the table of
   the
-  nearest `data` above it (the root's data is always loaded; a layer's own `data` is loaded with the temporal fields of
-  its
-  subtree and replaces the inherited table; a table is shared by the layers that inherit it, never copied), then the
+  nearest `data` above it (the root's data is always loaded; a view's own `data` is loaded, once for each `data` object
+  of the specification, with the temporal fields of every view that reads that table, `LayerTree.DataSites` and
+  `TemporalFields.CollectAll(views, facets)`, and replaces the inherited table; a table is shared by the views that
+  inherit it or declare the same `data` object, never copied), then the
   node's own `transform` array runs on it (`RowTransforms.Apply`) **before** the nodes below read the table, so a
-  top-level `calculate` runs once and is seen by every layer; a layer then plans and runs its implicit bin, aggregate, and
-  stack (`EncodingPlan.Create` over the layer's merged unit view and `EncodingTransforms.Apply`). One loader, one
-  evaluator, one parameter set, and one `TransformContext` serve the whole call, and the findings keep the order
-  (loader, then transforms); the composite marks' expansion supplies its derived specification tree to the data stage, so
-  the expressions it wrote are evaluated like those of the specification. `ScaleResolver.ResolveLayers` then resolves the
-  scales over all the layers; the discrete size hints come from the **merged** scales (the combined categories times the
-  step),
-  and a `vl-layer-scale-conflict` warning is delivered after the data warnings. `BuildChart` builds the legends with
-  `LegendPlan.Create(LegendLayers(...))` (a `LegendLayer` for each layer, its scope function from the `resolve` of the legend
-  and the scale groups, so independent legends and scales give one legend for each) and the axes from `PlanAxes`:
+  top-level `calculate` runs once and is seen by every layer; a **facet** then splits that table into its cells
+  (`EncodingTransforms.Facet` with the view counts of `LayerTree.FacetViews`, then `LayerTree.InstantiateFacet`: the
+  template below the facet is replaced by a copy for each cell) and the walk goes on into the copies, each with the rows
+  of its cell as the inherited table (a copy whose view has `data` of its own reads that data instead: it is not
+  partitioned; the cells are those of the facet's own table); a facet is visited and instantiated also when no mark
+  below it is drawn (its cells are drawn empty), and the copies of the units that are drawn join the nodes that the walk
+  builds a layer for; a layer then plans and runs its implicit bin, aggregate, and stack (`EncodingPlan.Create` over the
+  layer's merged unit view and `EncodingTransforms.Apply`). One loader, one evaluator, one parameter set, and one
+  `TransformContext` serve the whole call, and the findings keep the order (loader, then transforms); the composite
+  marks' expansion supplies its derived specification tree to the data stage, so the expressions it wrote are evaluated
+  like those of the specification. `ScaleResolver.ResolveLayers` then resolves the scales over all the layers; the
+  discrete size hints come from the **merged** scales (the combined categories times the step), and a
+  `vl-layer-scale-conflict` warning is delivered after the data warnings. `BuildChart` builds the legends with
+  `LegendPlan.Create(LegendLayers(...))` (a `LegendLayer` for each layer, its scope function from the `resolve` of the
+  legend and the scale groups, so independent legends and scales give one legend for each) and the axes from `PlanAxes`:
   for each position channel the layers are grouped by (scale group, highest ancestor not making the axis independent,
-  explicit `axis.orient`), each group is one `AxisPlan` (the scale of its first member; the title merges the titles of the
-  members with `GuideTitle.Merge`, as Vega-Lite's `mergeAxisComponent` does: a written title - `axis.title`, else the
-  `title` of the channel definition - wins over one derived from the field, derived titles and different written titles
-  join as `a, b`; a written result is set as the `title` of the chosen definition with its `axis.title` removed, a derived
-  one is the title of the scale; and the definition that decides the axis properties:
-  the first that switches the axis off, else the first with an `axis` object, else the first with a field or aggregate);
-  several axes of one channel follow Vega-Lite's `parseLayerAxes` (`SeparateAxes`: a second axis moves to the opposite side
-  when more axes are on its side than on the other, counting the side before the move; only the first axis keeps its grid;
-  an explicit `axis.orient` or `axis.grid` wins). The marks are built once for each drawn layer into its own `marks` group,
-  in layer order, between the axes behind and in front of the marks; each `MarkBuilder` call reads the layer's own
-  scales and
+  explicit `axis.orient`), each group is one `AxisPlan` (the scale of its first member; the title merges the titles of
+  the members with `GuideTitle.Merge`, as Vega-Lite's `mergeAxisComponent` does: a written title - `axis.title`, else
+  the `title` of the channel definition - wins over one derived from the field, derived titles and different written
+  titles join as `a, b`; a written result is set as the `title` of the chosen definition with its `axis.title` removed,
+  a derived one is the title of the scale; and the definition that decides the axis properties: the first that switches
+  the axis off, else the first with an `axis` object, else the first with a field or aggregate); several axes of one
+  channel follow Vega-Lite's `parseLayerAxes` (`SeparateAxes`: a second axis moves to the opposite side when more axes
+  are on its side than on the other, counting the side before the move; only the first axis keeps its grid; an explicit
+  `axis.orient` or `axis.grid` wins). The marks are built once for each drawn layer into its own `marks` group, in layer
+  order, between the axes behind and in front of the marks; each `MarkBuilder` call reads the layer's own scales and
   table. A layer with a mark that is not drawn (`geoshape`, `image`) is reported by the catalog and not drawn; the other
-  layers are. A layered view with no layer, or with a composition that is not drawn, draws its title and background
-  only.
+  layers are. A layered view with no layer draws its title and background only.
+- **Cells** (phase 11, `VegaLiteDocument.Composition.cs`). A cell is the guides and the marks of one unit or layered view
+  for a data rectangle of a given size, built independently of the view that holds it. `CreateCell` gathers a cell's
+  inputs (its layers, the axes planned for them, the legends planned for them, and the axis and legend builders);
+  `BuildCellGuides` builds the axes (`BuildAxes`) and places the legends outside them (`BuildLegends`); `BuildCell` builds
+  the content in Vega-Lite's order (grids, back axes, one marks group for each layer, front axes, legends) from guides
+  that the caller passes or, for a cell of a composition whose size is fixed, builds them for the same rectangle.
+  `PlanAxes` plans over all the layers of the tree and records, for each `AxisPlan`, the layers that share the axis
+  (`Members`) and the view that owns it (`Owner`: the highest view that shares it, so that a composition keeps the axes
+  that its cell owns and moves those that a facet shares to its headers); the second axis of a channel (`SeparateAxes`)
+  is decided chart by chart (the group of plans of one `ChartRoot`), so a chart next to a layered chart keeps its first
+  axis on the usual side. `LegendLayers` passes each layer's node so that
+  `LegendPlan.Owners` knows the owner of each legend, and `BuildLegends` places legends against any bounds (a chart's
+  axes, or the grid of a concatenation or facet that owns them). The refactoring left the output of a single or layered
+  view unchanged (the scenes of 12 specifications are pinned by `VegaLiteRefactorSnapshotTests`, captured before the
+  change).
+- **Compositions** (phase 11, `BuildComposition` and the `Composer` of `VegaLiteDocument.Composition.cs`). The root of a
+  concatenation (a `concat`, `hconcat`, `vconcat`, or the concatenations that a `repeat` of values, rows or columns
+  normalizes to) has no data rectangle: `ViewLayout.Resolve(..., composition: true)` reads only the padding and the
+  background, and the canvas is the bounds of the content plus the padding (`ViewLayout.Measure` with the content bounds
+  as the guides of a root of size zero). The `Composer` is built from the drawn layers with their scales and plans the
+  guides of the whole tree once: the axes (`PlanAxes`, each given to the chart that owns it) and, for each owner in
+  `LegendPlan.Owners`, the legends of that owner over the layers below it (a chart's own legends go to its cell, those of
+  a concatenation to the concatenation). It then builds the views of the tree **bottom up with an explicit stack**
+  (children before parents, so the nesting cannot overflow the call stack): a **chart** (a unit or layered view that is
+  a child of a concatenation or the root) resolves its own size (`ViewLayout.ResolveSize` with the step hints of its own
+  scales, `LayeredScales.HintsFor`), builds its guides and marks as a cell (`BuildCellGuides`, `BuildCell`), places its
+  title inside the cell (`ViewLayout.CellBounds`, which also expands the bounds of everything in the cell by the half of
+  the stroke of the cell's border, as Vega does for a stroked group) and makes a group of the role `view` with the style
+  of its `view`; a chart whose marks are not supported is an empty cell of the default size. A **concatenation** places
+  the cells of its children with `CompositionLayout.Place` (its `columns`, `spacing`, `align`, `center`, `bounds`), adds
+  the legends that it owns with `BuildLegends` against the bounds of the grid (a data rectangle of zero by zero, so a
+  right legend is at `ceil(x2) + offset` from the top) and its title (`unitOrLayer: false`: anchored at the start, over
+  everything it holds), and makes a group of the role `scope`. A **facet** (the `facet` operator, or a unit view with a
+  `row`, `column` or `facet` channel) places the charts of its cells (`ComposeFacet`; one cell for each value of a
+  wrapped field, or for each row value and column value, row major) with `CompositionLayout.Place` and the
+  `CompositionHeaders` it builds, then adds its legends and its title as a concatenation does. The **cells** are built
+  by the same `ComposeChart`: the title of the cell is the label of its value in a wrapped facet
+  (`TitleBuilder.BuildHeaderBlock`, which replaces the title of the chart; the body of a faceted unit view has no title
+  of its own), and the axes that the cells share (the plans whose owner is the facet) are built for every cell with
+  `AxisRequest.InHeader` (`CellInputs.HeaderAxisPlans`, `CellGuides.HeaderAxes`): the cell keeps their grids and does
+  not reach into the room of the axes, the axis groups are taken from the first cell of each column (the x axes: top
+  into the column header, bottom into the column footer) and of each row (the y axes: left into the row header, right
+  into the row footer). The headers and footers are built by `TitleBuilder.BuildHeader` (one for each row and column,
+  with the label of its value and the shared axes;
+  `HeaderSettings.Read(config, header, channel, honoredOrientsOnly: true)` reads the header properties, so a side that
+  the renderer does not draw is read as not given and the default side is used), the row and column titles by
+  `BuildHeader` with the `title` part (the title of the header, else that of the field definition, else the field name;
+  `null` switches it off) and ten pixels outside the headers for a `row` and `column` facet (Vega-Lite's layout offset;
+  none for a wrapped facet, whose title is at the edge of the cells); a null value is labeled `null`. The layout of a
+  facet is `bounds: full`, the `columns` of the `column` field (one for a `row` facet, the `columns` of a wrapped
+  facet), and `align: all`, or `none` when the scale of the direction without a facet field is independent (the `align`
+  of the specification wins). Every group, title, axis, legend and mark is charged to the scene budget before it is
+  created, and the token is polled for each view. The shared axes are built for every cell (their grids are needed
+  there), so the budget counts the axes of the cells whose headers are not drawn too.
 - **Time zone and calendar** (the pipeline step "calendar", Phase 8). `VegaLiteRenderOptions.TimeZone` is the **only**
   zone the renderer ever uses: no code of the pipeline reads `TimeZoneInfo.Local`, the host clock, or the host culture,
   so a render depends only on the specification, the data, and the options. The XML documentation of the property reads

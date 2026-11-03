@@ -96,6 +96,20 @@ entry for a channel only when the channel resolves to exactly one group; a chann
 could not be merged, has none, and `Groups` lists its groups so that the document can build a guide for each. For one
 layer `ResolveLayers` is the single-view `Resolve` and `Merged` is that very result.
 
+**Scales across the views of a composition** (phase 11, `ScaleResolver.Layers.cs`). `ResolveLayers` takes any list of
+unit views, so the children of a concatenation, the cells of a facet and the copies of a repeat are just more leaves:
+the grouping (`GroupLayers`) reads the `Resolve` of the parents, and a concatenation, a facet and a layered view have
+the defaults of their kind (`LayerResolve`: the children of a concatenation keep the `x`, `y`, `xOffset`, `yOffset`,
+`theta` and `radius` scales independent and share the others, so a color legend is merged; the cells of a facet share
+everything but `theta`). A group is merged as above (union of the domains, owner by precedence, titles joined,
+`vl-layer-scale-conflict`, whose message says "view" because the unit may be a layer, a child or a cell). **`HintsFor(leaves)`**
+gives the `ViewSizeHints` of one chart (the layer indexes of the chart): for `x` and `y`, when every leaf of the chart that
+carries the channel is in **one** group of `Groups`, the `NaturalExtent` of that scale (the step times the bandspace of
+its categories, so the cells of a facet that share a step scale are all as wide as the union of the categories of all
+cells, and independent scales size each cell for its own categories); a chart whose layers are in several groups, that
+has no scale of the channel, or whose scale is not sized by a step has none. `Merged` stays the answer for a tree that
+is one chart. The container sizes are not known to the resolver; the caller adds them.
+
 **Inference rules** (Vega-Lite 6 behavior, ported with attribution):
 
 - **Type.** `ChooseKind` is Vega-Lite's `defaultType` with its `channelSupportScaleType` and `scaleTypeSupportDataType`
@@ -444,8 +458,9 @@ parameter) resolve no scale.
   explicit domain beats an implicit one, which is ignored; equal explicit domains count once, so a piecewise domain
   that all give is kept; different ones are merged by Vega into a union, here the minimum and the maximum of all their
   values), otherwise the
-  minimum of the starts and the maximum of the ends (each layer's domain already follows its own zero rule), or the first
-  piecewise domain; for a discrete scale the explicit domains' categories once each in order of first appearance, or
+  minimum of the starts and the maximum of the ends (each layer's domain already follows its own zero rule), or, for an
+  implicit domain of more than two entries (a diverging scale), the domain of the first layer that has one; for a
+  discrete scale the explicit domains' categories once each in order of first appearance, or
   else every category
   once in layer order, sorted when every layer sorts ascending or descending, failing
   with a `VegaLiteRenderException` above `MaxScaleDomainSize`; the discretizing kinds (quantize, quantile, threshold, and

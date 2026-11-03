@@ -161,9 +161,9 @@ internal static partial class SourceLoader
     ///     value, and so on).
     /// </returns>
     /// <remarks>
-    ///     The library names every limit it enforces in the message, either as <c>the limit of N</c> or with the name of
-    ///     the limit (<c>VegaLiteLimits.MaxSceneItems</c>); a test pins the texts, because the library gives no other
-    ///     way to tell a limit from another failure.
+    ///     The library names every limit it enforces in the message, either as <c>the limit of N</c>, as
+    ///     <c>the limit (MaxViews)</c>, or with the name of the limit (<c>VegaLiteLimits.MaxSceneItems</c>); a test pins
+    ///     the texts, because the library gives no other way to tell a limit from another failure.
     /// </remarks>
     internal static ToolException MapVegaLiteRender(VegaLiteRenderException exception)
     {
@@ -188,6 +188,7 @@ internal static partial class SourceLoader
     private static bool IsVegaLiteLimit(string message)
     {
         return message.Contains("the limit of ", StringComparison.Ordinal)
+               || message.Contains("the limit (Max", StringComparison.Ordinal)
                || message.Contains("VegaLiteLimits.", StringComparison.Ordinal);
     }
 

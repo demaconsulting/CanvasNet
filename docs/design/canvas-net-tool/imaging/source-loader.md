@@ -266,7 +266,7 @@ reports a limit and otherwise to `vega-lite-error` ("Vega-Lite render error: ...
 parser are deliberately `vega-lite-error`, as the nesting limit of the SCAD parser is a `scad-error`: only the limits
 applied while the chart is laid out or drawn (data rows, data files, data bytes, ticks, scene items, and so on) are
 `budget-exceeded`. The
-library names every limit in the message, either as "the limit of N" or with the
+library names every limit in the message, either as "the limit of N", as "the limit (MaxViews)", or with the
 name of the limit ("VegaLiteLimits.MaxSceneItems"), which `MapVegaLiteRender` recognizes; the library gives no other way
 to tell a limit from another failure, so a test pins the texts by provoking real limit failures with small limits.
 A chart longer than the library reads is an `InvalidDataException`, so `corrupt-input`, as for a model. An

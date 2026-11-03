@@ -307,6 +307,7 @@ sections:
           sizes and decide whether data must be supplied, and keeps the information commands cheap.
         tests:
           - SourceLoader_Probe_VegaLite_ReportsChartFacts
+          - SourceLoader_Probe_VegaLiteFacet_ReportsTheMeasuredSizeAndTheMarkOfItsCells
           - SourceLoader_Probe_VegaLiteLargerThanMaximum_IsSizeLimit
           - SourceLoader_Probe_EachKind_ReportsHeaderFacts
 
@@ -326,6 +327,7 @@ sections:
           complete one.
         tests:
           - SourceLoader_Load_VegaLite_RendersInlineChartWithExpectedPixels
+          - SourceLoader_Load_VegaLiteComposition_DrawsEveryCellAtTheProbedSizeWithoutDiagnostics
           - SourceLoader_Load_VegaLite_MapsDiagnosticsAndStrictErrors
           - Imaging_Convert_InputKindToOutputFormat_WritesTheSourcePixels
 
@@ -357,8 +359,8 @@ sections:
           vega-lite-error error that names the file, line, and column on one line (this includes a
           specification nested deeper than, or with a string longer than, the limit of the parser, as a SCAD
           nesting limit is a scad-error, and any argument failure of the library while the chart is measured or
-          drawn), a chart that exceeds a limit of the library while it is laid out or drawn (data rows, ticks,
-          scene items, and so on) as budget-exceeded, a specification file longer than the limit of the library
+          drawn), a chart that exceeds a limit of the library while it is laid out or drawn (data rows, views,
+          ticks, scene items, and so on) as budget-exceeded, a specification file longer than the limit of the library
           as corrupt-input (as an overlong SCAD model is), a chart that lays out larger than the maximum image
           size as size-limit and nothing else as size-limit, an unsupported feature in strict mode as an
           unsupported-feature error that names the feature, and shall give a picture or an expected error, never
@@ -371,6 +373,7 @@ sections:
         tests:
           - SourceLoader_Load_VegaLite_MapsDiagnosticsAndStrictErrors
           - SourceLoader_Load_VegaLite_MapsLimitFailuresToBudgetExceeded
+          - SourceLoader_Load_VegaLite_MapsCompositionLimitFailuresToBudgetExceeded
           - SourceLoader_Probe_VegaLiteSourceBeyondLimit_IsCorruptInput
           - SourceLoader_Probe_VegaLiteParserLimits_AreSpecificationErrors
           - SourceLoader_RenderAndMeasureChart_MapArgumentFailures

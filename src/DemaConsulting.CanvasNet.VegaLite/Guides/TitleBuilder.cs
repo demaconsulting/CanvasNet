@@ -61,6 +61,13 @@ internal sealed class TitleBlock
     public SceneBounds Extent { get; }
 
     /// <summary>
+    ///     Gets a value indicating whether <see cref="Place"/> puts the title on its side by the edge of its <see cref="Extent"/> (as Vega does, by the bounds of the title) instead
+    ///     of by the size of the extent, which assumes a text whose box starts at the group origin; it is set for the blocks of facet headers, whose alignment and baseline
+    ///     move the box (a right aligned label of a row header ends at the origin).
+    /// </summary>
+    public bool PlacesByExtent { get; init; }
+
+    /// <summary>
     ///     Places the title next to the view (Vega's title layout).
     /// </summary>
     /// <remarks>
@@ -110,13 +117,21 @@ internal sealed class TitleBlock
             _ => (start + end) / 2,
         };
 
-        var (x, y) = Orient switch
-        {
-            "left" => (viewBounds.X1 - Extent.Width - Offset, position),
-            "right" => (viewBounds.X2 + Extent.Width + Offset, position),
-            "bottom" => (position, viewBounds.Y2 + Offset),
-            _ => (position, viewBounds.Y1 - Extent.Height - Offset),
-        };
+        var (x, y) = PlacesByExtent
+            ? Orient switch
+            {
+                "left" => (viewBounds.X1 - Offset - Extent.X2, position),
+                "right" => (viewBounds.X2 + Offset - Extent.X1, position),
+                "bottom" => (position, viewBounds.Y2 + Offset - Extent.Y1),
+                _ => (position, viewBounds.Y1 - Offset - Extent.Y2),
+            }
+            : Orient switch
+            {
+                "left" => (viewBounds.X1 - Extent.Width - Offset, position),
+                "right" => (viewBounds.X2 + Extent.Width + Offset, position),
+                "bottom" => (position, viewBounds.Y2 + Offset),
+                _ => (position, viewBounds.Y1 - Extent.Height - Offset),
+            };
 
         var group = new SceneGroup("title", x, y) { Children = _children };
         return (group, Extent.Translate(x, y));
@@ -151,7 +166,7 @@ internal sealed class TitleBlock
 ///         safe for concurrent use.
 ///     </para>
 /// </remarks>
-internal sealed class TitleBuilder
+internal sealed partial class TitleBuilder
 {
     /// <summary>The text measurer.</summary>
     private readonly TextMeasurer _measurer;

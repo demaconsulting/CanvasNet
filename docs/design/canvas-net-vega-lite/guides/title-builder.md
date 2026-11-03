@@ -2,9 +2,12 @@
 
 ![Guides Structure](VegaLiteGuidesView.svg)
 
-The `TitleBuilder` unit is the second unit in the `Guides` subsystem. It is one source file, `TitleBuilder.cs`, in
-the `DemaConsulting.CanvasNet.VegaLite.Guides` namespace, and defines two `internal` types: `TitleBuilder` (sealed class)
-and `TitleBlock` (sealed class). The file carries the provenance header comment for the Vega title rules it ports.
+The `TitleBuilder` unit is the second unit in the `Guides` subsystem. It is three source files in the
+`DemaConsulting.CanvasNet.VegaLite.Guides` namespace: `TitleBuilder.cs` (the title of a chart), `TitleBuilder.Header.cs`
+(the same partial class, for the labels and titles of the headers of a facet) and `HeaderSettings.cs` (the header
+properties of a facet channel). They define the `internal` types `TitleBuilder` (sealed partial class), `TitleBlock`
+(sealed class), `HeaderSettings` (sealed class), `HeaderLabelFormat` (record) and `HeaderPart` (enum). The files carry
+the provenance header comment for the Vega and Vega-Lite rules they port.
 
 #### Purpose
 
@@ -20,10 +23,30 @@ The unit's behavior is specified by the `CanvasNetVegaLite-Guides-TitleBuilder-*
 #### Data Model
 
 **`TitleBlock`** (sealed class, immutable) holds the resolved `Orient` (`top`, `bottom`, `left`, or `right`), `Anchor`
-(`start`, `middle`, or `end`), `Frame` (`group`, the data rectangle, or `bounds`, everything the view contains), `Offset`
-(the distance between the title and the content), the `Children` (the title text item with role `title-text` and an
-optional subtitle text item with role `title-subtitle`, in drawing order, in the coordinates of the title group), and the
-`Extent` (the bounding box of the text in the group's coordinates, which is the room the title needs).
+(`start`, `middle`, or `end`), `Frame` (`group`, the data rectangle, or `bounds`, everything the view contains),
+`Offset` (the distance between the title and the content), the `Children` (the title text item with role `title-text`
+and an optional subtitle text item with role `title-subtitle`, in drawing order, in the coordinates of the title group),
+and the `Extent` (the bounding box of the text in the group's coordinates, which is the room the title needs).
+`PlacesByExtent` (set for the blocks of facet headers) makes `Place` put the block on its side by the edges of its
+extent, as Vega does by the bounds of the title, instead of by the size of the extent, which suits a text whose box
+starts at the group's origin.
+
+**`HeaderSettings`** (sealed class, immutable) is Vega-Lite's `header` of a facet channel resolved over the header
+configuration: `Get(property)` is the first of the header of the field definition, `config.headerRow`/`headerColumn`/
+`headerFacet` (by the channel) and `config.header` that defines it (`getHeaderProperty`; a null counts as defined), with
+`Text` and `Number` readers. It adds `Hidden` (`header: null`), `ShowLabels` (the `labels` of the header, else of
+`config.header`, else on), `IncludeDefaultTitle` (false when the configuration of the channel says `title: null` or
+`false`), the `LabelOrient`/`TitleOrient`, the kind of header they select (`LabelHeaderChannel`, `TitleHeaderChannel`,
+`HeaderChannelOf` = `getHeaderChannel`), `LabelsInFooter`, `TitleAtEnd` and `TitleBand` (the `LAYOUT_TITLE_BAND` of
+`titleAnchor`: column start 0 and end 1, row start 1 and end 0). `CreateLabelFormatter(HeaderLabelFormat)` returns the
+function from the value of a cell to its label: `formatType` `number` or a quantitative field with a text `format` is a
+d3 number format; `time`/`utc` or a temporal field (type or time unit) is the d3 time `format`, else the specifier of
+the time unit, else `config.timeFormat` (through `TimeLabels`); anything else is the text of the value (null is empty).
+A custom `formatType` is treated as absent, and the `orient` shortcut is not read (Vega-Lite's compiler does not read it
+either). `Read(config, header, channel, honoredOrientsOnly)` reads a side that `IsHonoredOrient` does not honor (a row's
+`top` or `bottom`, a column's `left` or `right`, a wrapped facet's title on the `left` or `right`) as not given when the
+flag is set, which is how the facet pipeline draws the default side for what the feature catalog reports as
+`vl-header-orient`. **`HeaderPart`** says whether a block is a `Label` or the `Title` of the channel.
 
 **`TitleBuilder`** (sealed class, stateless, thread-safe) holds the `TextMeasurer`.
 
@@ -58,23 +81,53 @@ assigns it) and `bounds` otherwise; the title of a composition anchors at `start
 
 **Preconditions and postconditions**: the configuration is non-null; the result is immutable.
 
+**Header blocks** (`TitleBuilder.Header.cs`):
+
+- `BuildHeaderBlock(lines, HeaderSettings, HeaderPart, budget, location)` - builds the label of a cell (`guide-label`
+  style, 10 pixel, `frame: group`, `labelPadding` offset) or the title of the channel (`guide-title`, 11 pixel bold,
+  frame `bounds`, `titlePadding` offset) as a `TitleBlock` with `PlacesByExtent`. The side is the header's
+  `labelOrient`/`titleOrient`, else `left` for the `row` channel and `top` for the others (the rotation then follows the
+  side: -90 for left, 90 for right); the anchor, angle, alignment, baseline, limit, font, color and line height are the
+  `label*`/`title*` properties of the header, then `config.title` (a Vega title applies it to these titles too), then
+  the style. When the header gives an angle the alignment and baseline are those that fit it (Vega-Lite's
+  `defaultHeaderGuideAlign` and `defaultHeaderGuideBaseline`: for a row, `labelAngle: 0` is right aligned and vertically
+  centered; the angle of a title is normalized into [0, 360) for that choice only), and `start`/`end` anchors align
+  left/right; an explicit `labelAlign` or `labelBaseline` wins. It returns null for no text, charges the scene budget
+  for the title group and its text first, and measures with the `TextMeasurer`.
+- `BuildHeader(role, lines, HeaderSettings, HeaderPart, width, height, axes, budget, location)` - builds the group of
+  one header, footer or title (a `HeaderGroup` of the `Layout` subsystem) at the origin: the size of the cell along the
+  header and none across (`width`, `height`), the axes that Vega-Lite moved into it (built `InHeader`, already in its
+  coordinates) and the block placed by `TitleBlock.Place` against that rectangle united with the axes' bounds, so a
+  label sits `labelPadding` beyond the axis. The bounds are the union of the axes and the text (the group's rectangle is
+  not part of them: it has no fill or stroke). It returns null when there is neither text nor an axis; the group is
+  charged as one more item.
+
 #### Error Handling
 
-A missing, null, or empty title is not an error: `Build` returns null and no title is drawn. Invalid orient, anchor, or
-frame values from the configuration fall back to defaults (the specification's own values were already validated by
-`SpecParser`). A null configuration or measurer is `ArgumentNullException`, which is not converted. An expression-valued
-title (`{"expr": ...}`) is not interpreted: the feature catalog reports `vl-expr-ref` and no title text is built for it.
-The unit performs no I/O.
+A missing, null, or empty title is not an error: `Build` returns null and no title is drawn; likewise a header block
+without text. Invalid orient, anchor, or frame values from the configuration fall back to defaults (the specification's
+own values were already validated by `SpecParser`). A null configuration or measurer is `ArgumentNullException`, which
+is not converted. An expression-valued title (`{"expr": ...}`) is not interpreted: the feature catalog reports
+`vl-expr-ref` and no title text is built for it. A `format` that is not a d3 specifier is a `VegaLiteSpecException`
+located at the header's `format`; a label longer than `VegaLiteLimits.MaxStringLength` is a `VegaLiteRenderException`
+located at the facet field. The unit performs no I/O.
 
 #### Dependencies
 
 - **`TextMeasurer`** - font resolution and measurement, in the `TextMeasurer` unit
 - **`SpecNode`** and **`ResolvedConfig`** - the tree and the configuration of the `SpecModel` subsystem
-- **`SceneGroup`**, **`SceneText`**, **`SceneItem`**, and **`SceneBounds`** - the scene types of the `SceneModel` unit
+- **`SceneGroup`**, **`SceneText`**, **`SceneItem`**, **`SceneBudget`**, and **`SceneBounds`** - the scene types of the
+  `SceneModel` unit
+- **`TimeLabels`**, **`NumberFormat`**, **`DataValue`** and **`TimeUnitSpec`** - the label formats of the cells of a
+  facet
+- **`AxisResult`** (the `AxisBuilder` unit) and **`HeaderGroup`** (the `CompositionLayout` unit) - what a header group
+  holds and returns
 - **.NET base class library** - `System.Collections.Generic`
 
 #### Callers
 
 `VegaLiteDocument` builds the title once per render and passes the `TitleBlock` to `ViewLayout`, which measures with its
-extent and calls `Place`. The tests in `test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/TitleBuilderTests.cs` call
-`Build` and `Place` directly through `InternalsVisibleTo`.
+extent and calls `Place`. The facet pipeline (`Composer.ComposeFacet` of `VegaLiteDocument.Composition.cs`) reads
+`HeaderSettings` of each facet channel, builds the labels and titles with `BuildHeader`/`BuildHeaderBlock` and gives the
+groups to `CompositionLayout`. The tests in `test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/TitleBuilderTests.cs`,
+`TitleBuilderHeaderTests.cs` and `HeaderSettingsTests.cs` call the unit directly through `InternalsVisibleTo`.

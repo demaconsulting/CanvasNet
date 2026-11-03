@@ -396,3 +396,21 @@ sections:
               - ScaleResolver_ResolveLayers_BandBeatsPointAndSizesTheView
               - ScaleResolver_ResolveLayers_IndependentScaleStaysPerLayer
               - ScaleResolver_ResolveLayers_IncompatibleScalesKeepTheirOwnAndAreReported
+
+          - id: CanvasNetVegaLite-Scales-CompositionScales
+            title: >-
+              The Scales subsystem shall resolve the scales across the views of a composition with the defaults
+              of Vega-Lite - the children of a concatenation keep their position scales and share the others,
+              the cells of a facet share every scale except theta, resolve deciding otherwise - combine the
+              explicit domains of the views that share a scale, and give each chart of a composition the step
+              size of the scale that all its layers use.
+            justification: |
+              Concatenated and faceted charts are compared and read together; whether their scales, axes, and
+              legends are shared decides what the reader can compare, and every chart must be sized by its own
+              scale.
+            children:
+              - CanvasNetVegaLite-Scales-ScaleResolver-CompositionScales
+            tests:
+              - ScaleResolver_ResolveLayers_ConcatChildrenKeepIndependentPositionScales
+              - ScaleResolver_ResolveLayers_FacetCellsShareAllScalesByDefault
+              - ScaleResolver_ResolveLayers_HintsForGivesTheStepExtentOfTheChartsOwnGroup

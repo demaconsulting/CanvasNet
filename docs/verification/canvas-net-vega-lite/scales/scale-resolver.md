@@ -77,7 +77,9 @@ Unit tests reside in `ScaleResolverTests.cs` (the scale kinds, domains, ranges, 
 `ScaleResolverPlanTests.cs` (the plan-driven fields, domains, titles, and sorts), `ScaleResolverTimeTests.cs` (the
 scales of temporal fields and of fields with a time unit), `ScaleResolverPolarTests.cs` (the polar scales and the
 orientation of the line, area, trail, and arc marks), `ScaleResolverLayerTests.cs` (the scales of the layers of a layered
-view, Phase 10), and `MarkChannelGatingTests.cs` (the table of the marks that draw
+view, Phase 10), `ScaleResolverCompositionTests.cs` (the scales across the children of a concatenation and
+the cells of a facet,
+and the size of one chart, Phase 11), and `MarkChannelGatingTests.cs` (the table of the marks that draw
 each channel) within the
 `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `Scales` folder; the sorts over rows made by a calculate
 transform are in `RowTransformsTests.cs`, in the `Transforms` folder.
@@ -731,7 +733,8 @@ Asserts that the categories are combined without repeats and sorted when every l
 the
 second layer's own data joins, every layer sees the combined categories, and an ordinal color scale is built for the combined
 domain); that the order is descending when every layer sorts descending and the first appearance (b, a, c, then the new
-category) when the layers disagree; that the explicit domain of the first layer that has one is the shared domain, that
+category) when the layers disagree; that an explicit discrete domain decides the shared domain (the implicit categories
+of the other layers are ignored), that
 the explicit domains of several layers are merged in order of first appearance (`c, b, z` and `b, a, c, y` give
 `c, b, z, a, y`, a layer without one being ignored); that
 a band
@@ -746,7 +749,8 @@ together, a limit of five, fail with `MaxScaleDomainSize`).
 
 **Tests**: `ScaleResolverLayerTests.ScaleResolver_ResolveLayers_IndependentScaleStaysPerLayer`,
 `ScaleResolverLayerTests.ScaleResolver_ResolveLayers_NestedResolveDecidesWhichLayersShare`,
-`ScaleResolverLayerTests.ScaleResolver_ResolveLayers_IncompatibleScalesKeepTheirOwnAndAreReported`
+`ScaleResolverLayerTests.ScaleResolver_ResolveLayers_IncompatibleScalesKeepTheirOwnAndAreReported`,
+`ScaleResolverCompositionTests.ScaleResolver_ResolveLayers_ConflictMessageNamesTheView`
 
 Asserts that `resolve.scale` independent keeps one scale for each layer, with no merged scale and no merged domain,
 while the
@@ -757,4 +761,43 @@ a scale are reported); and that layers whose scales cannot be merged (a linear a
 a
 discrete one) keep their own scale and give the warning `vl-layer-scale-conflict`, located at the channel of the layer
 that was
-left out.
+left out; and that the message of the warning names the view ("this view", "another view"; it never says "layer"), which
+may be a child of a concatenation.
+
+##### Composition Scales: Concatenated Children And Faceted Cells
+
+**Tests**: `ScaleResolverCompositionTests.ScaleResolver_ResolveLayers_ConcatChildrenKeepIndependentPositionScales`,
+`ScaleResolverCompositionTests.ScaleResolver_ResolveLayers_ConcatChildrenShareColorAndUnionItsDomain`,
+`ScaleResolverCompositionTests.ScaleResolver_ResolveLayers_ConcatChildrenResolveSharedXMergesDomains`,
+`ScaleResolverCompositionTests.ScaleResolver_ResolveLayers_ExplicitDomainsOfConcatChildrenAreCombined`,
+`ScaleResolverCompositionTests.ScaleResolver_ResolveLayers_FacetCellsShareAllScalesByDefault`,
+`ScaleResolverCompositionTests.ScaleResolver_ResolveLayers_FacetIndependentScaleGivesEachCellItsOwn`,
+`ScaleResolverCompositionTests.ScaleResolver_ResolveLayers_FacetThetaIsIndependentByDefault`
+
+With the sample data (`q` 3, 7, 12, 5 and `r` 10, 20, 35, 15; the bars' domain starts at zero), asserts that two
+concatenated bars of `q` and `r` keep independent `x` and `y` scales (every child is its own group, there is no scale of
+the whole view, the `y` domains are 0 to 12 and 0 to 35); that the `color` of two children is one ordinal scale over the
+union of their categories (`a`, `b`, `c` and the `d` of the second child's own data) while `x` stays apart; that
+`resolve.scale.y: "shared"` on the concatenation merges the `y` domains into 0 to 35 titled `q, r` and keeps `x` apart;
+and
+that the explicit domains of three children are combined as those of layers are (`[0, 100]` and `[50, 200]` give 0 to 200
+for all three children, the one without a domain included; the categories `c, b, z` and `b, a, y` of the explicit
+domains give `c, b, z, a, y`, the implicit categories of the middle child ignored).
+With a facet by `g` whose cell p has the rows
+(`a`, 2) and (`b`, 4) and cell q the row (`c`, 10), asserts that both cells share the `x` scale over `a`, `b`, `c` and the
+`y` domain 0 to 10; that `resolve.scale.y: "independent"` gives cell p the domain 0 to 4 and cell q 0 to 10 while `x`
+stays shared; and that the `theta` scale of an arc is independent in a facet (one group per cell) while `color` is shared.
+
+##### Composition Scales: The Size Of One Chart
+
+**Tests**: `ScaleResolverCompositionTests.ScaleResolver_ResolveLayers_HintsForGivesTheStepExtentOfTheChartsOwnGroup`,
+`ScaleResolverCompositionTests.ScaleResolver_ResolveLayers_SharedStepAppliesToTheUnionOfAllCellCategories`,
+`ScaleResolverCompositionTests.ScaleResolver_ResolveLayers_HintsForChecksItsArguments`
+
+Asserts, with the default step of 20 pixels and the bar's paddings (inner 0.1, outer 0.05, so `bandspace(n)` is
+`n - 0.1 + 0.1 = n` steps), that the first of two concatenated charts, which reads `a`, `b`, `c`, has the discrete width
+60 and the second, whose own data has `d`, `a`, has 40, that neither has a discrete height (its `y` is quantitative), that
+the two charts together (two scales of `x`), no chart, and a chart that has no scale of the channel have none and that no
+container size is given; that the two cells of a facet that share a step scale are both 60 wide (the union `a`, `b`, `c`),
+and that with independent `x` scales cell p is 40 wide (`a`, `b`) and cell q 20 wide (`c`); and that an index that is
+not a layer, or a null list, is refused.

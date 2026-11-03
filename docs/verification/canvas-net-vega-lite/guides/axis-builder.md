@@ -316,3 +316,18 @@ on the left with a grid; that with the defaults of a second independent axis (`r
 no grid
 group, stands at the right edge of the data rectangle, and its bounds reach outwards from that edge; and that an axis whose
 `axis` object names `orient: "left"` and `grid: true` keeps both whatever the defaults say.
+
+##### Axes In The Headers And Footers Of A Facet
+
+**Tests**: `AxisBuilderHeaderTests.AxisBuilder_Build_InHeaderPlacesBottomAxisAtOriginAndKeepsExtents`,
+`AxisBuilder_Build_InHeaderRowAxisKeepsHeight`, `AxisBuilder_Build_InHeaderStillReturnsTheGrid`,
+`AxisBuilder_Build_InHeaderKeepsTheOffsetFromTheHeaderOrigin`
+
+Builds the linear axes of a 300 by 200 data rectangle next to it and for a header (`InHeader`) and asserts, by hand,
+that the bottom axis group is at (0.5, 200.5) next to the rectangle and at (0.5, 0.5) in a footer, with the same 11
+ticks, labels, item count and 5 pixel tick rules, the domain spanning the 300 pixels, and bounds that are the bounds
+next to the rectangle moved up by 200; that a left axis with an offset of 4 is at x = -3.5 either way, a right axis with
+an offset of 4 at x = 304.5 next to the rectangle and at 4.5 in a footer with bounds moved left by 300 and the height
+200 unchanged; that the grid group is still built at (0.5, 200.5) with 11 lines of length 200 (30 pixels apart, 3 pixels
+per unit) and the axis group holds no grid line; and that a top axis with an offset of 4 is at y = -3.5 and a bottom
+axis at 4.5 in a header, where it would be at 204.5 next to the rectangle.

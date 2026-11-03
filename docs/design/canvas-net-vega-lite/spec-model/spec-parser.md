@@ -17,8 +17,9 @@ The `SpecParser` unit is the first software unit in the `SpecModel` subsystem. I
 - `SpecParser.Time.cs` - the fifth part of `SpecParser`: the validation of the time constructs (time units, date-time
   objects, the interval forms of `tickCount` and `nice`, the `timeUnit` transform, and the time values of predicates) and
   the compilation of the time predicates
-- `SpecParser.Layers.cs` - the sixth part of `SpecParser`: the validation of the `resolve` of a view and of the properties
-  of the composite marks (`boxplot`, `errorbar`, `errorband`), and `IsResolveChannel`
+- `SpecParser.Layers.cs` - the sixth part of `SpecParser`: the validation of the `resolve` of a view, of the properties
+  of the composite marks (`boxplot`, `errorbar`, `errorband`), and of the compositions (`facet`, `repeat`, `columns`,
+  `spacing`, `align`, `center`, `header`, and the `{"repeat": ...}` references), and `IsResolveChannel`
 - `SpecExpressions.cs` - `SpecExpressions`: the compiled expressions of a tree, by the string node that holds the text
 - `SpecNode.cs` - `SpecNode`, `SpecNodeKind`, `NodePosition`, and `SpecTree`: the immutable tree
 - `SpecMetadata.cs` - `SpecMetadata` and `SpecMarkEntry`: the descriptive facts read from a tree
@@ -109,7 +110,7 @@ be what its author meant, and well-formed constructs that the renderer does not 
   `point`, `circle`, `square`, `line`, `trail`, and `text` marks, whose size is the symbol area, the stroke width of a
   line, the width of a trail, and the font size of a text) of the mark definition and the constant `value` of the
   `color`, `fill`, `stroke`,
-  `opacity`, and `size` channels (the `size` of the same marks), **of the drawn view only**, are compiled with
+  `opacity`, and `size` channels (the `size` of the same marks), of every view, are compiled with
   `ExpressionParser.Parse` (limits from
   `VegaLiteLimits`, location of the string value) and kept in `SpecTree.Expressions`. Any other expression is not compiled.
 - **References.** An identifier of a compiled expression that is not a function or a constant
@@ -278,14 +279,28 @@ phase 10 reads.
   `ci`, `iqr`, `stderr`, and `stdev`; the `center` is `mean` or `median`; and the parts `box`, `median`, `rule`, `ticks`,
   `outliers`, `band`, and `borders` are a boolean or an object. `center` is among the known mark keys. These rules do not
   apply to the primitive marks.
-- **Which views are drawn.** `IsDrawnView(root, view)` is true for the root and for a view reached from the root through
-  `layer` arrays only, with none of `concat`, `hconcat`, `vconcat`, `facet`, `repeat`, or `spec` on the view or above it;
-  `FindUndrawnComposition(view)` returns the nearest of `concat`, `hconcat`, `vconcat`, `facet`, and `repeat` on the
-  view or
-  an ancestor. The expressions of the views that are drawn are compiled when the document is opened: the conditions of the
-  encoding of a layer and of the layered view above it (a `size` condition of a layered view is compiled, the mark of the
-  layer deciding later whether it is evaluated), the `{"expr": ...}` values of the marks, and the transforms; a
-  concatenation is not compiled.
+- **Compositions** (Phase 11, in `SpecParser.Layers.cs`). A `facet` is a field definition (an object with a `field`) or
+  an object of a `row` and a `column` field definition; each field definition is an object whose `field` is a name or a
+  `{"repeat": ...}` reference and is validated like a channel definition (so its `sort`, `header`, and layout properties
+  are). A `facet` and a `repeat` need a `spec` object (an error located at the `facet` or `repeat`); the `spec` of a
+  `facet` and a view of a `layer` must not hold `concat`, `hconcat`, `vconcat`, `facet`, or `repeat` (an error at that
+  view), while the `spec` of a `repeat` may. A `repeat` is an array of strings or an object of `row`, `column`, and `layer`
+  arrays of strings (another key is a `vl-unknown-property` warning). `columns` is a non-negative integer; `spacing` a
+  number or an object of numbers for `row` and `column`; `align` `all`, `each`, or `none`, or an object of them;
+  `center` a
+  boolean or an object of booleans (the layout properties are checked on a view and on a faceting channel definition, and
+  an unknown key of an object is a warning). The `header` of a channel definition or facet field is an object whose
+  properties (`title`, `format`, `labels`, `labelAngle`, `labelPadding`, `labelOrient`, `titleFontSize`, ...) have the
+  shapes of Vega-Lite's `Header`; an unknown key is a warning and `null` is accepted. A `{"repeat": name}` reference
+  in the
+  `field` or `datum` of a channel, the `field` of a `sort`, or the `field` or `datum` of a condition must name `row`,
+  `column`, `repeat`, or `layer`.
+- **Expressions of every view.** The expressions of every view are compiled when the document is opened: the
+  conditions of
+  the encoding of a layer and of the layered view above it (a `size` condition of a layered view is compiled, the mark of
+  the layer deciding later whether it is evaluated), the `{"expr": ...}` values of the marks, and the transforms, in a
+  concatenation, facet, or repeat as in any view. (Until Phase 11 only the root and its layers were compiled; the rule
+  `IsDrawnView` that decided it is gone.)
 
 **Limits and invariants.** The `MaxJsonDepth` bound is both the reader's depth option and the size of the frame array;
 a string longer than `MaxStringLength` and a number outside the double range are errors; a root that is not an object is
@@ -325,8 +340,8 @@ an error; a duplicate key keeps the last value at the position of the first occu
   `CheckTimeFormat`, `ValidateDatum`,
   `ValidatePredicateTime`, `CompileTimePredicate`, and `ValidateTimeUnitTransform` (`SpecParser.Time.cs`) apply the
   time rules. The static helpers `IsSupportedTransform(name)` (true for the six aggregating transforms and for
-  `timeUnit` too), `IsTimeInterval(name)`, `IsDateTimeShaped(node)` (also used by the catalog), `IsDrawnView(root, view)`,
-  `FindUndrawnComposition(view)`, `IsResolveChannel(kind, channel)`,
+  `timeUnit` too), `IsTimeInterval(name)`, `IsDateTimeShaped(node)` (also used by the catalog),
+  `IsResolveChannel(kind, channel)`,
   `IsViewSignal(name)`,
   `IsParameterDeclared(node, name)`, and `FindParameter(node, name)` are shared with the catalog and the transforms so that
   validation, reports, and execution agree on what is supported; the parameter index of a `params` array is built once per
@@ -337,7 +352,7 @@ an error; a duplicate key keeps the last value at the position of the first occu
   `condition` of a channel definition: an object, or an array of objects, each with a `test` or a `param` (an object
   that has neither is an error at the condition) and the properties of a value or a field definition (the scale, axis,
   and legend of a field condition are validated like those of a channel). A `test` is checked by `ValidatePredicate`
-  (an expression text is compiled there, as in a filter). On a channel that accepts a condition of the drawn view
+  (an expression text is compiled there, as in a filter). On a channel that accepts a condition
   (`ChannelDefinitions.CanCondition`, the `IsConditionSite` check) a predicate **object** is also written as expression
   source by `PredicateSource.TryBuild` and compiled once under the key of the predicate node, so the marks evaluate
   it with the expression engine under the step budget; a predicate that no expression can say (a selection, a parameter

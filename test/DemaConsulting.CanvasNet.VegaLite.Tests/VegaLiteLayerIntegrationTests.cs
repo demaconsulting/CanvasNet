@@ -783,26 +783,40 @@ public class VegaLiteLayerIntegrationTests
     }
 
     /// <summary>
-    ///     Validates that the transform of a view in a concatenation, which is still not drawn, is reported with a message that names the concatenation.
+    ///     Validates that the transform of a view in a concatenation and that of a view in a facet are applied and not reported, and that a transform of a later phase in a layer of a
+    ///     facet is reported as not supported yet (the retired text that named the composition is never produced).
     /// </summary>
     [Fact]
-    public void CanvasNetVegaLite_SystemIntegration_Layer_TransformInAConcatenationIsReportedAsNotApplied()
+    public void CanvasNetVegaLite_SystemIntegration_Layer_TransformInAConcatenationAndInAFacetIsApplied()
     {
-        // Arrange: the layered view is inside an hconcat, which is not drawn
-        const string json = """
+        // Arrange: the layered view is inside an hconcat and inside a facet, which are both drawn
+        const string concat = """
             {
               "hconcat": [ { "transform": [ { "calculate": "datum.v * 10", "as": "w" } ], "layer": [ { "mark": "bar" } ] } ]
             }
             """;
+        const string facet = """
+            {
+              "facet": { "field": "f", "type": "nominal" },
+              "spec": { "transform": [ { "calculate": "datum.v * 10", "as": "w" } ], "layer": [ { "mark": "bar" } ] }
+            }
+            """;
+        const string later = """
+            {
+              "facet": { "field": "f", "type": "nominal" },
+              "spec": { "layer": [ { "mark": "bar", "transform": [ { "regression": "v", "on": "x" } ] } ] }
+            }
+            """;
 
         // Act
-        var (_, unsupported) = Report(json);
+        var (_, drawn) = Report(concat);
+        var (_, applied) = Report(facet);
+        var (_, laterUnsupported) = Report(later);
 
-        // Assert: the identifier is unchanged and the message names the composition
-        Assert.Contains(
-            "vl-transform-calculate: The 'calculate' transform is not applied: the view is a 'hconcat' composition, which is not supported yet.",
-            unsupported);
-        Assert.DoesNotContain(unsupported, u => u.Contains("vl-composition-layer", StringComparison.Ordinal));
+        // Assert: nothing is unsupported for the concatenation and the facet; the regression keeps its ordinary message
+        Assert.Empty(drawn);
+        Assert.Empty(applied);
+        Assert.Equal(["vl-transform-regression: The 'regression' transform is not supported yet."], laterUnsupported);
     }
 
     /// <summary>

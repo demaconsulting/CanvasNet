@@ -2,14 +2,17 @@
 
 ![Transforms Structure](VegaLiteTransformsView.svg)
 
-The `EncodingPlan` unit is the third software unit in the `Transforms` subsystem. It comprises two source files
+The `EncodingPlan` unit is the third software unit in the `Transforms` subsystem. It comprises three source files
 in the `DemaConsulting.CanvasNet.VegaLite.Transforms` namespace, all `internal`:
 
 - `EncodingPlan.cs` - `EncodingPlan` (sealed class: the pure plan of a view) and its records `ChannelPlan`,
   `BinPlan`, `TimeUnitPlan`, `AggregatePlan`, `ArgField`, `StackPlan`, `ImputePlan`, and `StackImputePlan`, and the
   enumeration `BinKind`
-- `EncodingTransforms.cs` - `EncodingTransforms` (sealed class: the execution of a plan on a table) and
+- `EncodingTransforms.cs` - `EncodingTransforms` (sealed partial class: the execution of a plan on a table) and
   `EncodingData` (the Raw and Main tables and the bins)
+- `EncodingTransforms.Facet.cs` - the facet part of `EncodingTransforms` (phase 11): the ordered values of the fields of
+  a facet, the grid of cells and the partition of the rows into one table per cell, with the records `FacetDomains`,
+  `FacetCellData`, and `FacetPartition`
 
 #### Purpose
 
@@ -247,6 +250,42 @@ is read from the clock, the environment, or the current culture.
   have only a view and a table;
   used by the convenience entry of `ScaleResolver` and by tests.
 
+**Facet cells** (phase 11, `EncodingTransforms.Facet.cs`). A faceted view draws one chart of the rows of each value of
+its facet fields; the document asks this part for the cells once the table of the facet is known.
+
+- `EncodingTransforms.FacetDomain(facet, table, context)` (static) - for each of the `row`, `column`, and wrapped field
+  definitions of the `FacetDefinition` (which the `SpecNormalizer` built, with the repeat references replaced) reads the
+  field of every row through a `FieldReader` (an array or an object is compared by its text) and collects the distinct
+  values in order of first appearance (`SameValueZero`: a null or missing value is one value, a number by value, a
+  repeat of a value one cell), then orders them by a **stable sort** as Vega-Lite's facet sort does. The rules were observed
+  on Vega-Lite 6: ascending by `DataValue.Compare` (a null first; numbers by value, not as text) is the order without a
+  `sort`, **and for `sort: null`** (a facet has no data order: unlike a scale it sorts); `"descending"` reverses it (a null
+  last); a **sort array** puts the listed values first in the order of the array (the first position of a value counts)
+  and then every value the array does not list in order of first appearance - nothing is dropped (Vega-Lite's
+  `sort_index` is the position in the array or its length for an unlisted value); a sort by an aggregate (`{field, op}`)
+  is not supported and the ascending order of the field is used (the feature catalog reports `vl-facet-sort`). A `bin`,
+  `timeUnit` or `aggregate` of the definition is not applied: the raw value of the field is the value of the cell
+  (reported as `vl-facet-field-transform`). A sort array longer than `MaxScaleDomainSize` is a located
+  `VegaLiteRenderException`; an item that is not a string, a number, a boolean, or `null` matches no value.
+- `EncodingTransforms.Facet(facet, table, viewsPerCell, viewsOutside, context)` (static) - computes the domains,
+  then the grid:
+  a wrapped facet has one cell for each value (`RowCount` 1, `ColumnCount` the number of values; the `columns` of the
+  layout wrap them later), the others have a cell for **every combination** of a row value and a column value, row-major
+  (a missing row or column field is one row or column, so a facet by `row` only has one column), including the
+  combinations that no row has. The number of cells is a `long` product of the sizes of the domains and is checked
+  by `CheckFacetViews` **before any row is counted and before any table is allocated**. The rows of the cells are then
+  counted once in the shared row budget (`ReserveDerivedRows`; the table of the facet stays counted, because the views
+  that read it may still need it), one pass assigns every row to its cell, and one table is built for each cell with the
+  fields of the facet's table and its rows in their original order. The cells without rows share **one** empty table
+  with the same fields (a table without fields for an empty table, which has no cells at all). Each `FacetCellData`
+  holds the `FacetCellInfo` (the index, the row and column index, the row, column, and wrap value) and its table;
+  `FacetPartition.Infos` is what `LayerTree.InstantiateFacet` takes to make the cell views.
+- `EncodingTransforms.CheckFacetViews(cells, viewsPerCell, viewsOutside, location, context)` (static) - fails with a located
+  `VegaLiteRenderException` when `cells * viewsPerCell + viewsOutside` is more than `VegaLiteLimits.MaxViews`. More cells
+  than the limit fail first, so the multiplication cannot overflow.
+- Work and cancellation: every row costs one unit of the step budget in each pass and the cancellation token is polled
+  every 1,024 rows; an `ExpressionRuntimeException` is converted to a located `VegaLiteRenderException`.
+
 **Row accounting.** The bin stage and the time unit stage replace their input by a table of the same size, with the
 added fields (no change in the row count). The aggregate
 reserves one row per group as the group appears (the input stays counted, so the peak of the input and the
@@ -276,6 +315,10 @@ definition (also for the impute that precedes a stack) - with the limit named in
 does; an `ExpressionRuntimeException`
 of the engines is converted with the same message. A canceled token is an `OperationCanceledException`, never
 wrapped. A null argument is an `ArgumentNullException`. The unit performs no I/O and produces no warning.
+The facet part fails,
+located at the first facet field definition, when the cells (with the views of one cell and the other views) would be more
+than `MaxViews`, when the rows of the cells exceed the row limit, or when a sort array is longer than
+`MaxScaleDomainSize` (located at the array); a facet definition without a field is an `ArgumentException`.
 
 **Differences from Vega-Lite**: `bin: "binned"` is read on `x` and `y` only (a bin of the other channels is
 computed from the data), and a `bin` on `theta` or `radius` is not planned; a count is titled by `countTitle` in every
@@ -324,5 +367,8 @@ directly for the rows of an overlay, which group as a line). `FeatureCatalog` do
 in
 `test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/EncodingPlanTests.cs`, `EncodingPlanTimeTests.cs`,
 `EncodingPlanPolarTests.cs`, `EncodingPlanPathTests.cs`, `EncodingTransformsTests.cs`, `EncodingTransformsTimeTests.cs`,
-and `EncodingTransformsImputeTests.cs`
-call the unit directly through `InternalsVisibleTo`.
+`EncodingTransformsImputeTests.cs`, and `EncodingTransformsFacetTests.cs`
+call the unit directly through `InternalsVisibleTo`. The facet part is called by the generalized data stage of
+`VegaLiteDocument` for every `Facet` node of the view tree (phase 11, after the facet's own `data` and `transform`):
+it asks `LayerTree.FacetViews` for the numbers of views, calls `Facet`, instantiates the cells with
+`LayerTree.InstantiateFacet`, and runs the implicit pipeline of each cell on the table of its cell.

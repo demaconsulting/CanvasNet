@@ -475,6 +475,13 @@ internal sealed class LegendSpec
     /// <summary>Gets the location of the first channel definition, for failures.</summary>
     public VegaLiteLocation Location { get; init; }
 
+    /// <summary>
+    ///     Gets the view that owns the legend: the highest view above (or the one of) the layers of the legend whose <c>resolve</c> shares the legend of the channel
+    ///     (<see cref="LegendLayer.OwnerOf"/>). A legend that is shared by the children of a concatenation or the cells of a facet is owned by that composition and is drawn
+    ///     beside it; null when the layers were given without their views.
+    /// </summary>
+    public LayerNode? Owner { get; init; }
+
     /// <summary>Gets the canonical member.</summary>
     public LegendMember Canonical => Members[0];
 
@@ -498,7 +505,35 @@ internal sealed class LegendSpec
 ///     Tells, for a channel, which legend the layer's channel belongs to: layers with the same scope text share the channel's legend, layers with different scopes have legends of their own.
 ///     Null puts every channel of the layer in one scope.
 /// </param>
-internal sealed record LegendLayer(SpecNode View, ResolvedScales Scales, Func<string, string>? Scope = null);
+/// <param name="Node">
+///     The view of the layer in the view tree, or null. With it the layer also belongs to the legends of the views that share the legend of a channel with it (<see cref="OwnerOf"/>), and
+///     two layers whose owners differ never share a legend, whatever <paramref name="Scope"/> says.
+/// </param>
+internal sealed record LegendLayer(SpecNode View, ResolvedScales Scales, Func<string, string>? Scope = null, LayerNode? Node = null)
+{
+    /// <summary>
+    ///     Gets the view that owns the legend of a channel for this layer: Vega-Lite's <c>resolve.legend</c> rule, the highest ancestor whose children share the legend of the channel.
+    /// </summary>
+    /// <remarks>
+    ///     The legend of a channel is shared with the parent view while that view's <c>resolve</c> says <c>shared</c> for it (an independent scale makes the legend independent as well,
+    ///     <c>parseGuideResolve</c>); the default of a concatenation shares the legends of <c>color</c>, <c>size</c>, <c>shape</c> and the other non-position channels, so they are owned by the
+    ///     concatenation, while a legend that a view makes independent stays with that view.
+    /// </remarks>
+    /// <param name="channel">The channel.</param>
+    /// <returns>The owning view; null when the layer has no <see cref="Node"/>.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="channel"/> is null.</exception>
+    public LayerNode? OwnerOf(string channel)
+    {
+        ArgumentNullException.ThrowIfNull(channel);
+        var top = Node;
+        while (top?.Parent is { } parent && parent.Resolve.Legend(channel) == ResolveMode.Shared)
+        {
+            top = parent;
+        }
+
+        return top;
+    }
+}
 
 /// <summary>
 ///     Decides which legends a view has: for each channel with a legend, its kind and orient, and which channels share a legend.
@@ -523,8 +558,14 @@ internal sealed record LegendLayer(SpecNode View, ResolvedScales Scales, Func<st
 ///         merge with the explicit one first and the first channel winning; the titles of the channels merge as <see cref="GuideTitle"/> says (a written title wins over a derived one, the others join as <c>a, b</c>).
 ///     </para>
 ///     <para>
-///         <b>Layers.</b> The legends of a layered view are planned over all its layers (<see cref="Create(IReadOnlyList{LegendLayer}, ResolvedConfig, string?)"/>): the layers that share the legend of
+///         <b>Layers.</b> The legends of a layered view are planned over all its layers (<see cref="Create(IReadOnlyList{LegendLayer}, ResolvedConfig, string?, LayerNode?)"/>): the layers that share the legend of
 ///         a channel contribute one member, the other rules are the same.
+///     </para>
+///     <para>
+///         <b>Owners.</b> The layers of a composition are the units of its children. A layer that knows its view (<see cref="LegendLayer.Node"/>) belongs to the legend of a channel of
+///         the highest view above it that shares that legend (<see cref="LegendLayer.OwnerOf"/>), so the children of a concatenation that share the legend of <c>color</c> contribute to one
+///         legend that the concatenation owns, and a legend that a view makes independent is owned by the view below. <see cref="Owners"/> lists the owners and a plan with an owner
+///         plans the legends of that owner only, so a leaf whose channels have different owners is planned once for each. Layers of different owners never share a legend.
 ///     </para>
 ///     <para>
 ///         The class is stateless and safe for concurrent use.
@@ -571,9 +612,13 @@ internal static class LegendPlan
     /// <param name="layers">The layers in order.</param>
     /// <param name="config">The effective configuration.</param>
     /// <param name="sourceName">The source name for the locations of failures, or null.</param>
+    /// <param name="owner">
+    ///     The view whose legends to plan, or null for all of them: only the channels of the layers whose <see cref="LegendLayer.OwnerOf"/> is this view are planned, so a leaf that has
+    ///     channels of different owners is planned once for each owner (see <see cref="Owners"/>), and the layers of different owners never share a legend.
+    /// </param>
     /// <returns>The legends in the order of their first channel; empty when no channel has a legend.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when an argument other than <paramref name="sourceName"/> is null.</exception>
-    public static IReadOnlyList<LegendSpec> Create(IReadOnlyList<LegendLayer> layers, ResolvedConfig config, string? sourceName)
+    /// <exception cref="ArgumentNullException">Thrown when an argument other than <paramref name="sourceName"/> or <paramref name="owner"/> is null.</exception>
+    public static IReadOnlyList<LegendSpec> Create(IReadOnlyList<LegendLayer> layers, ResolvedConfig config, string? sourceName, LayerNode? owner = null)
     {
         ArgumentNullException.ThrowIfNull(layers);
         ArgumentNullException.ThrowIfNull(config);
@@ -583,12 +628,13 @@ internal static class LegendPlan
         }
 
         var facts = new Dictionary<int, LegendMarkFacts>();
+        var ids = new Dictionary<LayerNode, int>();
         var groups = new List<(string Key, List<LegendMember> Members, int Layer)>();
         foreach (var channel in ChannelOrder)
         {
-            foreach (var (member, layer) in CreateMembers(channel, layers))
+            foreach (var (member, layer) in CreateMembers(channel, layers, owner, ids))
             {
-                var key = Key(member) + "#" + (layers[layer].Scope?.Invoke(channel) ?? string.Empty);
+                var key = Key(member) + "#" + ScopeOf(layers[layer], channel, ids);
                 var home = groups.FindIndex(g => g.Key == key && !OrientsConflict(g.Members, member) && g.Members.All(m => m.Channel != member.Channel));
                 if (home >= 0)
                 {
@@ -610,10 +656,65 @@ internal static class LegendPlan
                 facts[layer] = mark;
             }
 
-            result.Add(Build(members, mark, config, sourceName));
+            result.Add(Build(members, mark, config, sourceName, layers[layer].OwnerOf(members[0].Channel)));
         }
 
         return result;
+    }
+
+    /// <summary>
+    ///     Gets the views that own at least one legend of the layers, in the order the legends are planned: the channel order, then the layer order.
+    /// </summary>
+    /// <remarks>
+    ///     A channel counts when a layer has a legend for it (the rules of <see cref="Create(IReadOnlyList{LegendLayer}, ResolvedConfig, string?, LayerNode?)"/>: a field or datum with a
+    ///     scale and no <c>legend: null</c>), whatever <c>config.legend.disable</c> says. The caller plans each owner once with <c>owner</c> set to it.
+    /// </remarks>
+    /// <param name="layers">The layers in order.</param>
+    /// <returns>The distinct owners; empty when no layer has a view node or a legend.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="layers"/> is null.</exception>
+    public static IReadOnlyList<LayerNode> Owners(IReadOnlyList<LegendLayer> layers)
+    {
+        ArgumentNullException.ThrowIfNull(layers);
+        var owners = new List<LayerNode>();
+        foreach (var channel in ChannelOrder)
+        {
+            foreach (var layer in layers)
+            {
+                if (layer.OwnerOf(channel) is { } owner
+                    && layer.View["encoding"] is { IsObject: true } encoding
+                    && TryCreateMember(channel, encoding, layer.Scales, out _)
+                    && !owners.Contains(owner))
+                {
+                    owners.Add(owner);
+                }
+            }
+        }
+
+        return owners;
+    }
+
+    /// <summary>
+    ///     Gets the text that tells which legend of a channel a layer's channel belongs to: the scope of the layer and the view that owns the legend.
+    /// </summary>
+    /// <param name="layer">The layer.</param>
+    /// <param name="channel">The channel.</param>
+    /// <param name="ids">The numbers of the owners met so far in this plan.</param>
+    /// <returns>The text; layers with the same text share the legend.</returns>
+    private static string ScopeOf(LegendLayer layer, string channel, Dictionary<LayerNode, int> ids)
+    {
+        var scope = layer.Scope?.Invoke(channel) ?? string.Empty;
+        if (layer.OwnerOf(channel) is not { } owner)
+        {
+            return scope;
+        }
+
+        if (!ids.TryGetValue(owner, out var id))
+        {
+            id = ids.Count;
+            ids[owner] = id;
+        }
+
+        return scope + "@" + id.ToString(CultureInfo.InvariantCulture);
     }
 
     /// <summary>
@@ -621,18 +722,25 @@ internal static class LegendPlan
     /// </summary>
     /// <param name="channel">The channel.</param>
     /// <param name="layers">The layers.</param>
+    /// <param name="owner">The view whose legends are planned, or null for all.</param>
+    /// <param name="ids">The numbers of the owners met so far in this plan.</param>
     /// <returns>The members with the index of the layer each came from, in layer order.</returns>
-    private static List<(LegendMember Member, int Layer)> CreateMembers(string channel, IReadOnlyList<LegendLayer> layers)
+    private static List<(LegendMember Member, int Layer)> CreateMembers(string channel, IReadOnlyList<LegendLayer> layers, LayerNode? owner, Dictionary<LayerNode, int> ids)
     {
         var found = new List<(string Scope, List<(LegendMember Member, int Layer)> Layers)>();
         for (var i = 0; i < layers.Count; i++)
         {
+            if (owner is not null && !ReferenceEquals(layers[i].OwnerOf(channel), owner))
+            {
+                continue;
+            }
+
             if (layers[i].View["encoding"] is not { IsObject: true } encoding || !TryCreateMember(channel, encoding, layers[i].Scales, out var member))
             {
                 continue;
             }
 
-            var scope = layers[i].Scope?.Invoke(channel) ?? string.Empty;
+            var scope = ScopeOf(layers[i], channel, ids);
             var home = found.FindIndex(f => f.Scope == scope);
             if (home >= 0)
             {
@@ -838,8 +946,9 @@ internal static class LegendPlan
     /// <param name="mark">The facts of the mark.</param>
     /// <param name="config">The configuration.</param>
     /// <param name="sourceName">The source name.</param>
+    /// <param name="owner">The view that owns the legend, or null.</param>
     /// <returns>The legend.</returns>
-    private static LegendSpec Build(List<LegendMember> members, LegendMarkFacts mark, ResolvedConfig config, string? sourceName)
+    private static LegendSpec Build(List<LegendMember> members, LegendMarkFacts mark, ResolvedConfig config, string? sourceName, LayerNode? owner)
     {
         var settings = new LegendSettings(config, [.. members.SelectMany(m => m.LegendObjects)]);
         var kind = ResolveKind(members, settings);
@@ -857,6 +966,7 @@ internal static class LegendPlan
             Title = ResolveTitle(members),
             Mark = mark,
             Location = members[0].Definition.GetLocation(sourceName),
+            Owner = owner,
         };
     }
 

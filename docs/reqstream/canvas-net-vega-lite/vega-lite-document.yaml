@@ -347,7 +347,7 @@ sections:
               scale (the step through layers), building one group of marks for each layer in layer order between
               the axes behind and in front of the marks, and giving the same size to Measure and Render; shall
               report a layer with a mark that is not drawn without drawing it and draw the others; shall draw
-              only the background and title for a layered view with no layer or with a composition that is not
+              only the background and title for a layered view with no layer or with a facet that is not
               drawn; and shall not report the transform of a layered view as not applied.
             justification: |
               Layered charts are the most common composition; the data, transform, and encoding of a layer come
@@ -366,7 +366,7 @@ sections:
               - CanvasNetVegaLite_SystemIntegration_Layer_StepSizeUsesTheMergedDiscreteScale
               - CanvasNetVegaLite_SystemIntegration_Layer_MeasureMatchesRenderAndRenderIsDeterministic
               - CanvasNetVegaLite_SystemIntegration_Layer_UnsupportedLayerMarkIsReportedAndOthersAreDrawn
-              - CanvasNetVegaLite_SystemIntegration_Layer_TransformInAConcatenationIsReportedAsNotApplied
+              - CanvasNetVegaLite_SystemIntegration_Layer_TransformInAConcatenationAndInAFacetIsApplied
               - CanvasNetVegaLite_SystemIntegration_Layer_EmptyLayerListDrawsOnlyTheBackground
               - CanvasNetVegaLite_SystemIntegration_Layer_VariableParameterInALayerIsStillReported
 
@@ -396,6 +396,150 @@ sections:
               - CanvasNetVegaLite_SystemIntegration_Layer_BarsWithWrittenTitlesAndMeanRuleKeepTheWrittenTitles
               - CanvasNetVegaLite_SystemIntegration_Layer_ErrorBandWithWrittenTitlesAndMeanLineKeepTheWrittenTitles
               - CanvasNetVegaLite_SystemIntegration_Layer_ErrorBandWithoutTitlesWritesItsFieldAsTheTitle
+
+          - id: CanvasNetVegaLite-VegaLiteDocument-CompositionPipeline
+            title: >-
+              The VegaLiteDocument unit shall draw a concatenation (concat, hconcat, vconcat) and a repeat chart by
+              chart: each unit or layered child sized for itself (its width and height, else the step of its own
+              scales, else the continuous size) with its own axes, marks, legends, and title inside a cell whose
+              bounds include the half of the stroke of its border; the cells placed in a grid with the columns,
+              spacing, align, center, and bounds of the composition; the legends that the children share (the
+              default for every channel but the positions) built once, from the union of their domains, and placed
+              beside the grid of the view that owns them (a nested concatenation that owns one places it beside
+              itself); the title of the concatenation anchored at the start over everything it holds; the second
+              axis of a layered chart decided within that chart; the data loaded once for every data object that
+              copies of a repeat share; the property of a composition that Vega-Lite ignores (a size, a fit
+              autosize, a container) a warning and the canvas the content plus the padding; every group and
+              guide charged to the scene budget before it is created, the limits of the views and of the nesting
+              enforced, and the same size for Measure and Render.
+            justification: |
+              Composed charts are how a reader compares measures side by side; the grid, the shared legend, and
+              the independent axes must follow Vega-Lite so that a chart looks as its author expects.
+            tests:
+              - CanvasNetVegaLite_SystemIntegration_HConcat_TwoChartsAreLaidOutWithTheirOwnAxes
+              - CanvasNetVegaLite_SystemIntegration_HConcat_SecondChartStartsAfterFirstBoundsPlusSpacing
+              - CanvasNetVegaLite_SystemIntegration_VConcat_ChartsStackWithTwentyPixelsBetween
+              - CanvasNetVegaLite_SystemIntegration_Concat_ColumnsWrapsAndAlignsEach
+              - CanvasNetVegaLite_SystemIntegration_Concat_SpacingColumnAndRowObject
+              - CanvasNetVegaLite_SystemIntegration_Concat_BoundsFlushIgnoresAxes
+              - CanvasNetVegaLite_SystemIntegration_Concat_CenterCentersChildren
+              - CanvasNetVegaLite_SystemIntegration_Concat_ChildrenWithOwnDataAndTransforms
+              - CanvasNetVegaLite_SystemIntegration_Concat_TopLevelDataAndTransformAreInherited
+              - CanvasNetVegaLite_SystemIntegration_Concat_ChildTitleStaysInsideItsCellAndCompositionTitleIsAnchoredAtTheStart
+              - CanvasNetVegaLite_SystemIntegration_Concat_NestedVConcatOfHConcat
+              - CanvasNetVegaLite_SystemIntegration_Concat_LayerChildRenders
+              - CanvasNetVegaLite_SystemIntegration_Concat_CompositeMarkChildRenders
+              - CanvasNetVegaLite_SystemIntegration_Concat_SecondAxisIsSeparatedPerChart
+              - CanvasNetVegaLite_SystemIntegration_Concat_MeasureEqualsRenderSize
+              - CanvasNetVegaLite_SystemIntegration_Concat_DeterministicAndConcurrent
+              - CanvasNetVegaLite_SystemIntegration_Concat_ViewCountLimitIsEnforced
+              - CanvasNetVegaLite_SystemIntegration_Concat_DepthLimitIsEnforced
+              - CanvasNetVegaLite_SystemIntegration_Concat_SceneItemLimitIsEnforced
+              - CanvasNetVegaLite_SystemIntegration_Concat_StrictModeHasNothingToReport
+              - CanvasNetVegaLite_SystemIntegration_Concat_TransformsAreNotReported
+              - CanvasNetVegaLite_SystemIntegration_Concat_ContainerWidthIsIgnoredWithWarning
+              - CanvasNetVegaLite_SystemIntegration_Concat_AutosizeFitIsPadWithWarning
+              - CanvasNetVegaLite_SystemIntegration_Concat_UnsupportedMarkChildIsReportedAndTheRestDrawn
+              - CanvasNetVegaLite_SystemIntegration_Concat_FacetChildIsDrawnWithTheOtherCharts
+              - CanvasNetVegaLite_SystemIntegration_Repeat_DataIsLoadedOnceForAllCopies
+              - CanvasNetVegaLite_SystemIntegration_Repeat_ProductLimit
+
+          - id: CanvasNetVegaLite-VegaLiteDocument-FitPipeline
+            title: >-
+              The VegaLiteDocument unit shall draw a single or layered view whose autosize is fit, fit-x, or fit-y,
+              or whose width or height is container, into the size that is given (the container size of the render
+              options for a container), iterating the axes and legends with the layout until the data rectangle is
+              stable, counting a legend only across its side for a fit, and so that Measure reports exactly the size
+              Render returns; and shall warn (vl-layout-fit-step, at the autosize or the size) when a step size (an
+              explicit step, or no size on a discrete scale) drops the fit of its dimension, drawing the view as the
+              layout resolved it, without reporting the fit as unsupported.
+            justification: |
+              A chart that has to fill a page cell, an image, or a web container must come out exactly that size
+              with its axes, legends, and title inside it, and one that cannot honor the fit must say so.
+            tests:
+              - CanvasNetVegaLite_SystemIntegration_Autosize_FitSurfaceHasTheGivenSize
+              - CanvasNetVegaLite_SystemIntegration_Autosize_FitXLayerView
+              - CanvasNetVegaLite_SystemIntegration_Autosize_FitCountsLegendsAcrossTheirSideOnly
+              - CanvasNetVegaLite_SystemIntegration_Autosize_ContainerUsesOptionsContainerSize
+              - CanvasNetVegaLite_SystemIntegration_Autosize_FitWithStepWarns
+              - CanvasNetVegaLite_SystemIntegration_Autosize_FitIsNotReportedAnymore
+              - CanvasNetVegaLite_SystemIntegration_Autosize_MeasureFitEqualsRender
+              - CanvasNetVegaLite_SystemIntegration_Autosize_CompositionIgnoresFitAndContainerWithWarning
+              - VegaLiteDocument_Refactor_SceneIsUnchangedForSingleAndLayeredViews
+
+          - id: CanvasNetVegaLite-VegaLiteDocument-FacetPipeline
+            title: >-
+              The VegaLiteDocument unit shall draw a facet (the facet operator, or a unit view with a row, column,
+              or facet channel) from the cells that the data stage makes: the rows of the facet's own table split
+              by the distinct values of its fields and the template below it copied for each cell (a view with data
+              of its own reads that data in every cell and is not partitioned; a facet is instantiated even when no
+              mark below it is drawn, the cells then empty), the aggregate, bin, and stack of each cell run on the
+              rows of the cell, the scales of the cells shared as the union of their domains (a step size from the
+              union of the categories, independent scales sizing each cell by its own); the cells placed in a
+              grid with the headers, footers, and titles of the row, column, and facet fields (the label of a value
+              in the header of its row or column, in the title of its cell for a wrapped facet, the title of the
+              field ten pixels outside the headers, the default sides along the channel and the sides that the
+              header gives), the axes that the cells share drawn once in the outer headers and footers with
+              the grids kept in the cells, an independent axis kept in its cell, the legends that the cells share
+              built once beside the grid; the layout columns of the column field (one for a row facet, the columns of
+              a wrapped facet), aligned all (none for an independent scale of the direction without a field)
+              unless the facet says otherwise; the number of cells limited by the limit on views before any is made,
+              every group charged to the scene budget before it is created, and the same size for Measure and
+              Render.
+            justification: |
+              A faceted chart is a grid of small multiples; the cells, the headers, the shared axes, and the
+              legend must follow Vega-Lite so that the reader compares the cells as its author intends, and the
+              number of cells must fail closed.
+            tests:
+              - CanvasNetVegaLite_SystemIntegration_Facet_ColumnChannelDrawsOneCellPerValueWithHeaderLabels
+              - CanvasNetVegaLite_SystemIntegration_Facet_RowAndColumnCrossProductDrawsEmptyCells
+              - CanvasNetVegaLite_SystemIntegration_Facet_WrapFacetUsesColumnsAndCellLabelTitles
+              - CanvasNetVegaLite_SystemIntegration_Facet_WrapWithoutColumnsIsOneRowAndRowAloneIsOneColumn
+              - CanvasNetVegaLite_SystemIntegration_Facet_SharedXAxisIsOnceUnderEachColumnAndSharedYAxisOncePerRow
+              - CanvasNetVegaLite_SystemIntegration_Facet_IndependentAxisStaysInTheCells
+              - CanvasNetVegaLite_SystemIntegration_Facet_IndependentYScaleGivesEachRowItsDomain
+              - CanvasNetVegaLite_SystemIntegration_Facet_SharedScaleUsesTheUnionOfAllCellsAndStepWidthTheirCategories
+              - CanvasNetVegaLite_SystemIntegration_Facet_IndependentStepSizesCellsByOwnCategoriesAndAlignFollowsTheScale
+              - CanvasNetVegaLite_SystemIntegration_Facet_AggregateRunsPerCell
+              - CanvasNetVegaLite_SystemIntegration_Facet_StackRunsPerCell
+              - CanvasNetVegaLite_SystemIntegration_Facet_SharedLegendIsOutsideTheGrid
+              - CanvasNetVegaLite_SystemIntegration_Facet_LayerSpecBody
+              - CanvasNetVegaLite_SystemIntegration_Facet_UnitSpecWithFacetEncodingEqualsFacetOperator
+              - CanvasNetVegaLite_SystemIntegration_Facet_OwnDataInBodyIsNotPartitioned
+              - CanvasNetVegaLite_SystemIntegration_Facet_ColumnsIsIgnoredForAColumnFieldWithWarning
+              - CanvasNetVegaLite_SystemIntegration_Facet_SpacingAndFlushBoundsApply
+              - CanvasNetVegaLite_SystemIntegration_Facet_CellLimitIsEnforcedBeforeAllocation
+              - CanvasNetVegaLite_SystemIntegration_Facet_SceneItemLimitIsEnforced
+              - CanvasNetVegaLite_SystemIntegration_Facet_Cancellation
+              - CanvasNetVegaLite_SystemIntegration_Facet_DeterministicConcurrentAndMeasureEqualsRenderSize
+              - CanvasNetVegaLite_SystemIntegration_Facet_EmptyDataDrawsNoCellsAndUnsupportedMarkDrawsEmptyCells
+
+          - id: CanvasNetVegaLite-VegaLiteDocument-FacetHeaders
+            title: >-
+              The VegaLiteDocument unit shall draw the headers of a facet as Vega-Lite does: the cells ordered ascending
+              by default (also for a null sort), descending, or by a list of values first and the other values in the
+              order they first appear, a null value its own cell labeled null; the labels of the values in the 10 pixel
+              label style and the title of the field in the 11 pixel bold title style with the field name (or the title
+              of the field definition, or of the header) as the text, the properties of the header applied (font, size,
+              color, angle, padding, anchor, format), the title, the labels, or the whole header switched off by null,
+              false, or null; the labels and the title of a column on the bottom, and of a row on the right, in footers
+              and beside them, and the sides that the header does not draw (the top of a row, the left of a column, the
+              title of a wrapped facet on a side) drawn on the default side.
+            justification: |
+              The labels and titles are what name the cells; the order and the format are what the reader reads
+              the cells by, and an undrawn side must not silently place the text somewhere unexpected.
+            tests:
+              - CanvasNetVegaLite_SystemIntegration_Facet_SortDescendingArrayAndNull
+              - CanvasNetVegaLite_SystemIntegration_Facet_NullValueIsItsOwnCell
+              - CanvasNetVegaLite_SystemIntegration_Facet_HeaderPropertiesChangeLabelAndTitleStyle
+              - CanvasNetVegaLite_SystemIntegration_Facet_HeaderDefaultsAreTenAndElevenBoldWithTheFieldNameAsTitle
+              - CanvasNetVegaLite_SystemIntegration_Facet_HeaderTitleNullAndLabelsFalseHideTheirText
+              - CanvasNetVegaLite_SystemIntegration_Facet_HeaderNullHidesLabelsAndTitle
+              - CanvasNetVegaLite_SystemIntegration_Facet_HeaderLabelsUseTheFormat
+              - CanvasNetVegaLite_SystemIntegration_Facet_ColumnLabelsAndTitleAtTheBottomAreFootersAndTitleBelow
+              - CanvasNetVegaLite_SystemIntegration_Facet_RowLabelsAndTitleAtTheRightAreFootersAndTitleBeside
+              - CanvasNetVegaLite_SystemIntegration_Facet_NotDrawnPartsAreReported
+              - CanvasNetVegaLite_SystemIntegration_Facet_StrictModeHasNothingToReport
 
           - id: CanvasNetVegaLite-VegaLiteDocument-CompositeMarkPipeline
             title: >-

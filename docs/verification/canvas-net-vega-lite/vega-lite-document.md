@@ -318,7 +318,7 @@ mattering), and the calendar and data details by the _TimeCalendar_ and _DataLoa
 `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_StepSizeUsesTheMergedDiscreteScale`,
 `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_MeasureMatchesRenderAndRenderIsDeterministic`,
 `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_UnsupportedLayerMarkIsReportedAndOthersAreDrawn`,
-`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_TransformInAConcatenationIsReportedAsNotApplied`,
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_TransformInAConcatenationAndInAFacetIsApplied`,
 `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_EmptyLayerListDrawsOnlyTheBackground`,
 `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_VariableParameterInALayerIsStillReported`,
 `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_IndependentYScalesDrawTwoAxes`,
@@ -358,7 +358,8 @@ axes whose titles merge (a written title wins over a derived one, as in Vega-Lit
 layer when
 `resolve` says independent, and a shared legend that takes the properties of every layer (and splits when the explicit
 orients differ); that a step sizes the union of the categories; that a layer with an unsupported mark is reported
-and the others are drawn, that a variable parameter declared in a layer and a transform inside a concatenation are reported,
+and the others are drawn, that a variable parameter declared in a layer is reported and a transform inside a
+concatenation is applied and not reported,
 and that a layered view with no layer draws only the background; that the limits of the views and of the nesting fail
 with a
 located error at the exact boundary; that a composite mark is computed from the rows that the transforms of the views
@@ -367,3 +368,213 @@ left, draws its parts as layers that share the scale of the measure, and counts 
 `Measure` equals `Render` and the render is deterministic. The numbers of every scenario are listed in the _CanvasNetVegaLite
 System Verification Design_ (the layer and composite mark scenarios); the structure that they rely on is verified in the
 _SpecNormalizer_, _ScaleResolver_, _AxisBuilder_, and _LegendBuilder_ unit designs.
+
+#### Fit: A Fitted View Is The Size It Is Given
+
+**Tests**: `VegaLiteAutosizeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Autosize_FitSurfaceHasTheGivenSize`,
+`VegaLiteAutosizeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Autosize_FitXLayerView`,
+`VegaLiteAutosizeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Autosize_FitCountsLegendsAcrossTheirSideOnly`,
+`VegaLiteAutosizeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Autosize_ContainerUsesOptionsContainerSize`,
+`VegaLiteAutosizeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Autosize_FitWithStepWarns`,
+`VegaLiteAutosizeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Autosize_FitIsNotReportedAnymore`,
+`VegaLiteAutosizeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Autosize_MeasureFitEqualsRender`,
+`VegaLiteAutosizeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Autosize_CompositionIgnoresFitAndContainerWithWarning`
+
+A single or layered view with `autosize` `fit`, `fit-x`, or `fit-y`, or a `"container"` width or height (Vega-Lite's
+fit to the container with `contains: padding`), goes through the iteration of the guides with the layout that a
+`"container"` size already used (up to three passes until the data rectangle is stable; the extents of the legends are
+combined with those of the axes counting only the legends' extent across their side). The layout takes the title into the
+fit and rounds the reach of each side up to whole pixels, so the canvas is the size, whatever the guides need. The
+numbers of every scenario are listed in the _CanvasNetVegaLite System Verification Design_ (the autosize scenario) and in
+the _ViewLayout_ and _LegendLayout_ unit designs; the scenarios also verify that a step size drops the fit with the
+warning `vl-layout-fit-step` (delivered after the data stage's own reports), that `Measure` equals `Render`, and that a
+composition ignores a fit and a container size with `vl-composition-property-ignored`.
+
+#### Cells: The Scene Of A Single Or Layered View Is Unchanged By The Extraction
+
+**Tests**: `VegaLiteRefactorSnapshotTests.VegaLiteDocument_Refactor_SceneIsUnchangedForSingleAndLayeredViews`,
+`VegaLiteRefactorSnapshotTests.VegaLiteDocument_Refactor_SnapshotIsDeterministic`
+
+The pipeline of a single or layered view was refactored for compositions (Phase 11): the data walk loads a table once
+for each `data` object, and the guides and the marks of the view are built as a cell (`CreateCell`, `BuildCellGuides`,
+`BuildCell`), which a composition builds on its own. The stages are internal, so the refactoring is verified by the
+whole scene, with no tolerance. The test lays out 12 specifications (original, with made-up data) without painting and
+writes the scene as text: the canvas, then every item in drawing order with its depth, its offset, and every property,
+numbers in the round-trip format of the invariant culture. The text must equal the snapshot in
+`Fixtures/SceneSnapshots/<case>.scene.txt`. The snapshots were captured from the Phase 10 pipeline before the
+extraction and again, to be sure that the earlier Phase 11 work packages had not changed them, from a clean checkout
+of the Phase 10 commit; the two captures were byte-identical, and every case passed after the refactoring on every
+target framework. The one snapshot that Phase 11 changed deliberately is `single-container-fit`: when `autosize: fit`
+was implemented (work package 8) the container chart came to follow Vega's `viewSizeLayout` (the reach of the guides
+rounded up to whole pixels, the legend counted across its side only), so its canvas is exactly the container, 420 by
+252, where it had been 421.3 by 252.8 (the old path took the raw guide extents from the container and padded the
+rest); the other eleven snapshots are unchanged. The cases are single views (a bar chart with a title and a written
+axis title, filled points with a
+color and a size legend and a null value, a line with points over a temporal axis, stacked bars of a sum, a
+histogram), a view that fits a container (which exercises the three-pass iteration of the guides with the layout), and
+layered views (a bar with a rule of a mean over a top-level `calculate`, a line and points that share a color legend,
+two independent y scales with two axes, a layer with its own data and independent legends, a boxplot that expands to
+layers, and nested layers with text labels and a dashed rule). The second test renders one specification twice and
+checks that the texts are equal, so that a difference to a snapshot is a change of the pipeline and not of the run. A
+deliberate change of the output is captured again by running the test with the environment variable
+`CANVASNET_SCENE_SNAPSHOT_DIR` set to the snapshot folder (see the fixtures README).
+
+#### Compositions: Concatenation And Repeat Are Drawn Cell By Cell
+
+**Tests**: `VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_HConcat_TwoChartsAreLaidOutWithTheirOwnAxes`,
+`VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_HConcat_SecondChartStartsAfterFirstBoundsPlusSpacing`,
+`VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_VConcat_ChartsStackWithTwentyPixelsBetween`,
+`VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Concat_ColumnsWrapsAndAlignsEach`,
+`VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Concat_SpacingColumnAndRowObject`,
+`VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Concat_BoundsFlushIgnoresAxes`,
+`VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Concat_CenterCentersChildren`,
+`VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Concat_SharedColorLegendIsMergedAtTheRoot`,
+`VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Concat_ResolveColorIndependentKeepsLegendsInTheCharts`,
+`VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Concat_ResolveScaleXSharedUnionsDomainsButKeepsAxes`,
+`VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Concat_ChildrenWithOwnDataAndTransforms`,
+`VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Concat_TopLevelDataAndTransformAreInherited`,
+`VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Concat_ChildTitleStaysInsideItsCellAndCompositionTitleIsAnchoredAtTheStart`,
+`VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Concat_NestedVConcatOfHConcat`,
+`VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Concat_LayerChildRenders`,
+`VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Concat_CompositeMarkChildRenders`,
+`VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Concat_LegendOwnedByNestedConcatIsPlacedBesideIt`,
+`VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Concat_SecondAxisIsSeparatedPerChart`,
+`VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Concat_MeasureEqualsRenderSize`,
+`VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Concat_DeterministicAndConcurrent`,
+`VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Concat_ViewCountLimitIsEnforced`,
+`VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Concat_DepthLimitIsEnforced`,
+`VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Concat_SceneItemLimitIsEnforced`,
+`VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Concat_StrictModeHasNothingToReport`,
+`VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Concat_TransformsAreNotReported`,
+`VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Concat_ContainerWidthIsIgnoredWithWarning`,
+`VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Concat_AutosizeFitIsPadWithWarning`,
+`VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Concat_AxisSharedResolveWarns`,
+`VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Concat_UnsupportedMarkChildIsReportedAndTheRestDrawn`,
+`VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Concat_FacetChildIsDrawnWithTheOtherCharts`,
+`VegaLiteRepeatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Repeat_ArrayRepeatsFieldAsConcatWithColumns`,
+`VegaLiteRepeatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Repeat_RowColumnMatrixIsRowMajor`,
+`VegaLiteRepeatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Repeat_RowOnlyIsOneColumnAndColumnOnlyIsOneRow`,
+`VegaLiteRepeatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Repeat_LayerRepeatDrawsLayers`,
+`VegaLiteRepeatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Repeat_LayerRepeatTakesTheSizeOfTheSpec`,
+`VegaLiteRepeatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Repeat_RefDrivesAxisTitles`,
+`VegaLiteRepeatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Repeat_DataIsLoadedOnceForAllCopies`,
+`VegaLiteRepeatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Repeat_ProductLimit`,
+`VegaLiteRepeatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Repeat_UnknownRefWarnsAndDropsChannel`,
+`VegaLiteRepeatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Repeat_ColumnsWithRowColumnWarns`,
+`VegaLiteRepeatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Repeat_ColorLegendIsDrawnOnce`
+
+The drawing of a concatenation and a repeat (Phase 11) is verified through the public API with the positions derived by
+hand from the layout rules, because its stages (the view tree, the scales across the charts, the guides, the grid) are
+internal and meaningful only together; the grid arithmetic itself is verified on fixed boxes in the _CompositionLayout_
+design. The charts without axes have as bounds their data rectangle and the half pixel of the one pixel `#ddd` border
+(Vega unions the bounds of a stroked group), so the second chart of a row of two 100 by 80 charts is at
+`ceil(100.5) + 20 + ceil(0.5)` = 122 pixels from the first and the canvas is `1 + ceil(222.5) + 10` = 234 by
+`1 + ceil(80.5) + 10` = 92 pixels; a `vconcat` stacks the charts 102 pixels apart; `columns` wraps (a third chart is
+in the second row, 102 pixels down and back at the first column), `spacing` is a number or a `column` and `row` object
+(`101 + 40 + 1` and `81 + 10 + 1`), `bounds: "flush"` places the data rectangles exactly 100 + 20 apart whatever the
+axes, and `center` moves a 60 pixel wide chart 20 pixels right of a 100 pixel wide one in a column. The charts of a
+concatenation keep their own axes (an `hconcat` of two charts with axes draws four axes and the titles `a`, `v`, `w`,
+`v`; `resolve.axis` set to `shared` is the warning `vl-concat-axis-shared`, delivered once, and the axes stay), the second
+axis of a layered chart goes to the opposite side only within that chart (the chart next to it keeps its axis at the
+left), `resolve.scale.x` set to `shared` gives both charts the domain of the union (the label `100` on both axes) while
+`resolve.scale.color` set to `independent` keeps a legend in each chart (between the charts) and the default shares the
+color scale, so a color that the charts share is one legend with the entries of the union of their domains at
+`ceil(222.5) + 18` = 241 pixels from the origin of the concatenation and at its top; when a nested concatenation owns the
+legend (an outer `resolve.legend.color` of `independent`) it is beside that concatenation and the next chart starts below
+it. A chart's title stays in its cell and is centered over its data rectangle, and the title of the concatenation is
+anchored at the start and drawn after the cells. A chart or a concatenation with data and transforms of its own, and the
+data and transform of the concatenation that its charts inherit (`w = 10 v` makes bars 40, 80 and 60 pixels high), a
+layered chart (one pair of axes, three marks groups) and a composite mark as a chart, a chart with an unsupported mark
+(reported, and an empty cell of the default 300 by 300 size) and a facet as a child (its two cells are 122 pixels apart
+and the next chart is `ceil(222.5) + 20 + ceil(0.5)` = 244 pixels from the first cell) are drawn with the other charts.
+A repeat is a concatenation of copies of its `spec`: the values `[a, b, c]` with `columns` of 2 wrap like a `concat`,
+rows and columns are the row-major cross product (the axis titles of the four cells are `c a`, `d a`, `c b`, `d b`), a
+repeat of rows only is a column and of columns only a row, a repeat of layers is one layered chart (two marks groups,
+one y axis titled `a, b`) that takes the size of its `spec` (cells of 160 by 70 pixels for a `width` of 160 and a
+`height` of 70, whether with rows or alone, since Vega-Lite sizes a layered view from its layers), the `{"repeat": ...}`
+references give the field and the axis title, the data of the repeated `spec` is read once (a limit of five rows is
+enough for four copies), the product of the rows and the columns is checked against `MaxViews` before any copy is made
+(40 by 40 is refused), a reference that the repeat does not define is the warning `vl-repeat-ref-unresolved` (delivered
+once, the channel is dropped), `columns` next to rows and columns is the warning `vl-composition-columns-ignored` (once,
+and the grid stays two columns wide), and the color scale of the copies is shared, with one legend beside the grid. A
+`"container"` width and a `fit` autosize of a concatenation are the warning `vl-composition-property-ignored` and the
+canvas is the content plus the padding. The limits of the views, the nesting, and the scene items are enforced with a
+located error, strict mode has nothing to throw for, `Measure` equals `Render`, and the render is deterministic also
+when several threads render one document.
+
+#### Compositions: Facets Are Drawn Cell By Cell With Headers, Footers, And Shared Axes
+
+**Tests**: `VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_ColumnChannelDrawsOneCellPerValueWithHeaderLabels`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_RowAndColumnCrossProductDrawsEmptyCells`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_WrapFacetUsesColumnsAndCellLabelTitles`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_WrapWithoutColumnsIsOneRowAndRowAloneIsOneColumn`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_SharedXAxisIsOnceUnderEachColumnAndSharedYAxisOncePerRow`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_IndependentAxisStaysInTheCells`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_IndependentYScaleGivesEachRowItsDomain`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_SharedScaleUsesTheUnionOfAllCellsAndStepWidthTheirCategories`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_IndependentStepSizesCellsByOwnCategoriesAndAlignFollowsTheScale`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_AggregateRunsPerCell`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_StackRunsPerCell`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_SortDescendingArrayAndNull`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_NullValueIsItsOwnCell`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_HeaderPropertiesChangeLabelAndTitleStyle`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_HeaderDefaultsAreTenAndElevenBoldWithTheFieldNameAsTitle`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_HeaderTitleNullAndLabelsFalseHideTheirText`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_HeaderNullHidesLabelsAndTitle`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_HeaderLabelsUseTheFormat`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_SharedLegendIsOutsideTheGrid`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_LayerSpecBody`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_UnitSpecWithFacetEncodingEqualsFacetOperator`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_OwnDataInBodyIsNotPartitioned`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_ColumnsIsIgnoredForAColumnFieldWithWarning`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_SpacingAndFlushBoundsApply`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_ColumnLabelsAndTitleAtTheBottomAreFootersAndTitleBelow`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_RowLabelsAndTitleAtTheRightAreFootersAndTitleBeside`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_CellLimitIsEnforcedBeforeAllocation`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_NotDrawnPartsAreReported`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_StrictModeHasNothingToReport`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_SceneItemLimitIsEnforced`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_Cancellation`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_DeterministicConcurrentAndMeasureEqualsRenderSize`,
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_EmptyDataDrawsNoCellsAndUnsupportedMarkDrawsEmptyCells`
+
+The drawing of a facet (Phase 11) is verified through the public API with the positions derived by hand from the layout
+rules and checked, for their structure, against the Vega-Lite 6 compiler and Vega 6 run outside the repository (the text
+widths of that run are estimates, so no number that depends on text is taken from it): the cells of a bare 100 by 80
+chart are 122 pixels apart in a row and 102 pixels in a column (`101 + 20 + 1` and `81 + 20 + 1`), a header lies at
+`floor(-0.5)` = -1 from the first cell with its label 20 pixels further out (the label's offset of 10 and its height of
+10), the title of the field is 10 pixels outside the headers (so 31 from the cell; the title of a `row` field is rotated
+by -90 degrees and centered at `round(-0.5 + 183 / 2)` = 91 from the top, the title of a `column` field at
+`round(-0.5 + 223 / 2)` = 111), the shared x axis is in a footer at `ceil(182.5)` = 183 below the first of two rows, and
+a legend that the cells share is at `ceil(222.5) + 18` = 241 from the origin. A `row` and `column` mapping has the cross
+product of the values, row-major, with empty cells for the combinations without data (the three rows give three bars in
+four cells); a wrapped facet with `columns: 2` over three values puts the third cell in the second row at
+`ceil(80.5) + 20 + ceil(20.5)` = 122 pixels (the labels of the cells are their titles, 20 above them, so the title of
+the field has no extra offset: it is at `floor(-20.5)` = -21), and without `columns` is one row. The axes that the cells
+share are once under each column (the footer) and once left of each row (the header), each cell keeping the grid of the
+y axis only and no axis; an independent y scale keeps the axes in the cells (one in each) and a row facet of an
+independent scale gives each row its own domain (the bars are 80, 80 and 60 pixels high instead of 40, 80 and 60 on the
+shared 0 to 8), while a shared band scale is the union of the categories of all cells (every cell with a step of 20 is
+60 pixels wide and the bar of the cell that has only B is in the middle band at 21) and an independent step scale sizes
+each cell by its own categories (40, 20 and 60 pixels; the cells are not aligned, `ceil(40.5) + 20 + 1` = 62 and 42
+pixels apart, and an explicit `align: all` makes the columns 82 pixels apart). An aggregate and a stack run on the rows
+of each cell (a mean of 3 and of 10 gives bars of 24 and 80 pixels on the shared 0 to 10; the segments of 1, 2 and 4 are
+20, 40 and 80 pixels and the last starts at the bottom). The order of the cells is ascending by default and for
+`sort: null` (as Vega-Lite orders them), descending, or an array first and then the values it does not list in the order
+they first appear; a null value is its own cell, labeled `null`. The header properties change the text (`labelFontSize`,
+`labelColor`, `titleFontSize`, a `title` of the header that wins over the title of the field definition), the defaults
+are a 10 pixel label and an 11 pixel bold title with the field name, `title: null`, `labels: false` and `header: null`
+switch the text off (without labels and axes there is no header group), and the labels are formatted by the `format` of
+the header (a number as `1.0` and `2.5`, a date as `2020` and `2021`). A `labelOrient` of `bottom` puts the labels of a
+column into footers at `ceil(80.5)` = 81 and a `titleOrient` of `bottom` the title below at 81 + 20 + 10 = 111; on a
+row, `right` puts the labels into footers at `ceil(100.5)` = 101 and the title at 101 + 20 + 10 = 131 turned by 90
+degrees. The `spec` of a facet can be layered, a unit view with a `facet` channel is the same drawing as the operator, a
+view with data of its own is not partitioned (each of two cells draws all three rows), `columns` next to a `column`
+field is ignored with `vl-composition-columns-ignored`, `spacing` of 40 puts the columns `101 + 40 + 1` = 142 apart, and
+`bounds: "flush"` lays out the data rectangles (120 apart whatever the axes). The limit on the number of views is
+checked from the number of cells before any is made (six cells and the facet are seven views; refused at six, located at
+the `row` field), a facet with unsupported parts reports `vl-facet-field-transform`, `vl-facet-sort`,
+`vl-header-orient`, `vl-expr-label` and `vl-format-type-custom` and draws the rest, strict mode has nothing to throw for
+a facet that uses only what is drawn, the scene item limit and a canceled token stop the work, `Measure` equals
+`Render`, the render is deterministic also from several threads, a facet of no rows draws no cell and a facet of an
+unsupported mark draws its empty cells and reports the mark once.

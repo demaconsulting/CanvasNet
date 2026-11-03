@@ -91,7 +91,7 @@ internal sealed class EncodingData
 ///         that asked for it. Everything is deterministic: first-seen group order, stable sorts, invariant culture.
 ///     </para>
 /// </remarks>
-internal sealed class EncodingTransforms
+internal sealed partial class EncodingTransforms
 {
     /// <summary>What the run shares.</summary>
     private readonly TransformContext _context;

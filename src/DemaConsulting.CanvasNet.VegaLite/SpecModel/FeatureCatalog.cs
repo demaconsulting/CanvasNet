@@ -85,17 +85,20 @@ internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation
 ///         <item><term><c>vl-guide-legend-titleorient</c>, <c>vl-guide-legend-clipheight</c></term><description>the <c>titleOrient</c> of a legend when it is not <c>top</c> (the title is drawn above the entries) and its <c>clipHeight</c>; legends themselves are drawn and are not reported.</description></item>
 ///         <item><term><c>vl-guide-encode</c></term><description><c>axis.encode</c> and <c>legend.encode</c>.</description></item>
 ///         <item><term><c>vl-guide-axis-&lt;name&gt;</c></term><description>an axis property from the list of unsupported axis properties (<c>labelBound</c>, <c>tickBand</c>, <c>tickExtra</c>, <c>position</c>, <c>translate</c>, <c>bandPosition</c>, <c>titleX</c>, <c>titleY</c>).</description></item>
-///         <item><term><c>vl-format-type-custom</c></term><description><c>axis.formatType</c>, <c>legend.formatType</c> and the <c>formatType</c> of a <c>text</c> channel other than <c>number</c>, <c>time</c> and <c>utc</c> (a custom format type is not evaluated; the default format is used).</description></item>
-///         <item><term><c>vl-expr-ref</c>, <c>vl-expr-label</c></term><description>an <c>{"expr": ...}</c> value that the renderer does not evaluate (anywhere in a view's title, size, padding, background, view, in a mark property other than the row-bound paint properties, or in an encoding other than the <c>value</c> of a color, fill, stroke, opacity or symbol size channel), and <c>axis.labelExpr</c> and <c>legend.labelExpr</c>. The row-bound sites are evaluated and are reported only for what their expression cannot do.</description></item>
+///         <item><term><c>vl-format-type-custom</c></term><description><c>axis.formatType</c>, <c>legend.formatType</c>, the <c>header.formatType</c> of a facet field and the <c>formatType</c> of a <c>text</c> channel other than <c>number</c>, <c>time</c> and <c>utc</c> (a custom format type is not evaluated; the default format is used).</description></item>
+///         <item><term><c>vl-expr-ref</c>, <c>vl-expr-label</c></term><description>an <c>{"expr": ...}</c> value that the renderer does not evaluate (anywhere in a view's title, size, padding, background, view, in a facet's field definitions and headers, in a mark property other than the row-bound paint properties, or in an encoding other than the <c>value</c> of a color, fill, stroke, opacity or symbol size channel), and <c>axis.labelExpr</c>, <c>legend.labelExpr</c> and <c>header.labelExpr</c>. The row-bound sites are evaluated and are reported only for what their expression cannot do.</description></item>
 ///         <item><term><c>vl-expr-function-&lt;name&gt;</c>, <c>vl-expr-view-state</c>, <c>vl-expr-construct-&lt;name&gt;</c></term><description>the expression text of a supported site (a calculate, a filter, a variable parameter or a row-bound expression reference): a call of a function outside the whitelist (the number format and color functions among them), a use of view state (<c>signal</c>, <c>event</c>, <c>item</c>, <c>width</c>, <c>height</c>), or a deferred operator (bitwise, shift, <c>in</c>). The construct evaluates to null; the position is that of the expression text and the message names the offset inside it.</description></item>
-///         <item><term><c>vl-transform-&lt;name&gt;</c></term><description>every entry of <c>transform</c> that the renderer does not compute: the transforms of later phases (<c>density</c>, <c>extent</c>, <c>loess</c>, <c>quantile</c>, <c>regression</c>; "not supported yet"), and any transform of a view that is not drawn because it is inside a <c>concat</c>, <c>hconcat</c>, <c>vconcat</c>, <c>facet</c> or <c>repeat</c> (the message reads "The '&lt;name&gt;' transform is not applied: the view is a '&lt;composition&gt;' composition, which is not supported yet."). <c>calculate</c>, <c>filter</c>, <c>fold</c>, <c>flatten</c>, <c>sample</c>, <c>pivot</c>, <c>lookup</c>, <c>aggregate</c>, <c>joinaggregate</c>, <c>window</c>, <c>bin</c>, <c>stack</c>, <c>impute</c> and <c>timeUnit</c> of a drawn view (the single view, a layered view and its layers) are computed and not reported.</description></item>
+///         <item><term><c>vl-transform-&lt;name&gt;</c></term><description>every entry of <c>transform</c> that the renderer does not compute: the transforms of later phases (<c>density</c>, <c>extent</c>, <c>loess</c>, <c>quantile</c>, <c>regression</c>; "not supported yet"). <c>calculate</c>, <c>filter</c>, <c>fold</c>, <c>flatten</c>, <c>sample</c>, <c>pivot</c>, <c>lookup</c>, <c>aggregate</c>, <c>joinaggregate</c>, <c>window</c>, <c>bin</c>, <c>stack</c>, <c>impute</c> and <c>timeUnit</c> of any view (the single view, a layered view and its layers, and the views of a <c>concat</c>, <c>hconcat</c>, <c>vconcat</c>, <c>facet</c> or <c>repeat</c>) are computed and not reported. The Phase 10 message "The '&lt;name&gt;' transform is not applied: the view is a '&lt;composition&gt;' composition, which is not supported yet." was retired in Phase 11: every composition is drawn, so no transform is left unapplied by one.</description></item>
 ///         <item><term><c>vl-transform-filter-param</c>, <c>-pivot-op</c>, <c>-lookup-param</c>, <c>-bin-extent-param</c></term><description>the parts of a computed transform that are not supported: a filter predicate on a selection parameter (every row passes), a pivot <c>op</c> other than sum and count (sum is used), a lookup in the data of a parameter (not applied) and a <c>bin</c> whose <c>extent</c> is a parameter (the extent of the data is used).</description></item>
-///         <item><term><c>vl-composition-concat</c>, <c>-hconcat</c>, <c>-vconcat</c>, <c>-facet</c>, <c>-repeat</c></term><description>that property; the views nested in it are examined too. The <c>layer</c> composition is drawn and not reported (<c>vl-composition-layer</c> was retired in Phase 10 and is never produced).</description></item>
+///         <item><term><c>vl-composition-property-ignored</c> (warning)</term><description>a <c>width</c>, <c>height</c> or <c>autosize</c> (other than <c>pad</c>) of a concatenation, a facet or a repeat of rows or columns (only the views inside have a size), the <c>"container"</c> size of a view inside one, and the <c>padding</c>, <c>background</c>, <c>config</c>, <c>datasets</c> or <c>autosize</c> of a view inside one: Vega-Lite ignores them and only the top-level view decides them. The composition is drawn padded (<c>autosize: pad</c>). A <c>concat</c>, <c>hconcat</c>, <c>vconcat</c>, <c>repeat</c> and <c>facet</c> are drawn and not reported: <c>vl-composition-concat</c>, <c>-hconcat</c>, <c>-vconcat</c>, <c>-repeat</c> and <c>-facet</c> were retired in Phase 11 and are never produced (<c>vl-composition-layer</c> was retired in Phase 10); the views nested in a composition are examined too.</description></item>
+///         <item><term><c>vl-channel-row</c>, <c>-column</c>, <c>-facet</c></term><description>a <c>row</c>, <c>column</c> or <c>facet</c> channel of a unit view that cannot be faceted: a layer of a layered view, a layered view whose encoding holds the channel, or the <c>spec</c> of a <c>facet</c> (Vega-Lite facets only a unit view that is the root, a child of a concatenation or a copy of a repeat; the channel is ignored there, use the <c>facet</c> operator). The channels of a unit view that is faceted are drawn and not reported.</description></item>
+///         <item><term><c>vl-facet-field-transform</c>, <c>vl-facet-sort</c>, <c>vl-header-orient</c></term><description>the parts of the definition of a facet field (a <c>facet</c> operator's field or <c>row</c> and <c>column</c> fields, or the <c>row</c>, <c>column</c> and <c>facet</c> channel of a unit view) that are not drawn: a <c>bin</c>, <c>timeUnit</c> or <c>aggregate</c> of the field is not applied (the raw value of the field is the cell; <c>vl-facet-field-transform</c>, at the property); a <c>sort</c> by a field and an operation (an object) orders the cells by the facet field in ascending order (<c>vl-facet-sort</c>); a <c>header.labelOrient</c> or <c>header.titleOrient</c> on a side that the header does not draw on (the default side is used; <c>vl-header-orient</c>): a row honors <c>left</c> and <c>right</c>, a column <c>top</c> and <c>bottom</c>, the label of a wrapped facet (the title of its cells) any side and its title <c>top</c> and <c>bottom</c>. <c>header.labelExpr</c> reports <c>vl-expr-label</c> and a custom <c>header.formatType</c> <c>vl-format-type-custom</c>.</description></item>
+///         <item><term><c>vl-concat-axis-shared</c>, <c>vl-composition-columns-ignored</c>, <c>vl-repeat-ref-unresolved</c> (warnings)</term><description>produced by the renderer from the view tree, not by the catalog (so each is reported once, from the tree that is drawn): <c>resolve.axis.x</c> or <c>y</c> set to <c>shared</c> on a concatenation (the children keep their own axes, as Vega-Lite does), <c>columns</c> together with a <c>row</c> or <c>column</c> mapping of a facet or repeat (ignored), and a <c>{"repeat": ...}</c> reference that the enclosing repeat does not define (the channel is dropped).</description></item>
 ///         <item><term><c>vl-layer-property-ignored</c> (warning)</term><description>a <c>width</c>, <c>height</c>, <c>autosize</c>, <c>padding</c>, <c>background</c>, <c>config</c>, <c>datasets</c> or <c>title</c> of a view inside a layered view (a layer or a nested layered view): only the top-level view decides them.</description></item>
-///         <item><term><c>vl-layer-scale-conflict</c> (warning)</term><description>produced by the renderer, not by the catalog: layers whose scales of a channel cannot be merged (a continuous with a discrete scale, a linear with a logarithmic or a time scale) keep scales of their own; reported at the channel of the layer that was left out.</description></item>
+///         <item><term><c>vl-layer-scale-conflict</c> (warning)</term><description>produced by the renderer, not by the catalog: views (the layers of a layered view, the children of a concatenation) whose scales of a shared channel cannot be merged (a continuous with a discrete scale, a linear with a logarithmic or a time scale) keep scales of their own; reported at the channel of the view that was left out.</description></item>
 ///         <item><term><c>vl-param-variable</c>, <c>vl-param-selection</c></term><description>every selection parameter (it has <c>select</c>) and the legacy top-level <c>selection</c> report <c>vl-param-selection</c>; a variable parameter of a nested view reports <c>vl-param-variable</c>. The variable parameters of the root view are computed and are not reported. <c>bind</c> is ignored.</description></item>
 ///         <item><term><c>vl-projection</c></term><description>the <c>projection</c> of a view.</description></item>
-///         <item><term><c>vl-layout-autosize-&lt;type&gt;</c></term><description><c>autosize</c> types other than pad and none (fit, fit-x, fit-y).</description></item>
+///         <item><term><c>vl-layout-fit-step</c> (warning)</term><description>produced by the renderer's layout, not by the catalog (it needs the scales): an <c>autosize</c> of <c>fit</c>, <c>fit-x</c> or <c>fit-y</c> (also the one that <c>"container"</c> implies) whose width or height is sized by a step, a <c>{"step": n}</c> or a missing size on a discrete scale; Vega-Lite drops the fit for that dimension (<c>fit</c> becomes <c>fit-y</c> or <c>fit-x</c>, or <c>pad</c> for both; <c>fit-x</c> with a step width becomes <c>fit-y</c>, as Vega-Lite does) and so does the renderer. <c>fit</c>, <c>fit-x</c> and <c>fit-y</c> are drawn for a single and a layered view and are not reported: <c>vl-layout-autosize-fit</c>, <c>-fit-x</c> and <c>-fit-y</c> (the family <c>vl-layout-autosize-&lt;type&gt;</c>) were retired in Phase 11 and are never produced. A fit or a <c>"container"</c> size of a composition is reported as <c>vl-composition-property-ignored</c>.</description></item>
 ///     </list>
 ///     <para>
 ///         The warnings <c>vl-duplicate-key</c>, <c>vl-unknown-property</c> and <c>vl-encoding-sort-mixed-types</c> are produced by <see cref="SpecParser"/>
@@ -153,11 +156,16 @@ internal static class FeatureCatalog
     ];
 
     /// <summary>The properties of a view in which an <c>{"expr": ...}</c> value is looked for.</summary>
-    private static readonly HashSet<string> ExpressionScopes = ["title", "width", "height", "padding", "background", "view", "mark", "encoding"];
+    private static readonly HashSet<string> ExpressionScopes = ["title", "width", "height", "padding", "background", "view", "mark", "encoding", "facet"];
 
-    /// <summary>The composition properties that are not drawn yet, each reported as <c>vl-composition-&lt;name&gt;</c> (<c>layer</c> is drawn and is not reported).</summary>
-    private static readonly HashSet<string> CompositionProperties = ["concat", "hconcat", "vconcat", "facet", "repeat"];
+    /// <summary>The properties of a view inside a concatenation, a facet or a repeat that only the top-level view decides: a nested view's own value is ignored (<c>vl-composition-property-ignored</c>).</summary>
+    private static readonly string[] NestedIgnoredProperties = ["padding", "background", "config", "datasets", "autosize"];
 
+    /// <summary>The properties that name a concatenation in a view.</summary>
+    private static readonly string[] ConcatProperties = ["concat", "hconcat", "vconcat"];
+
+    /// <summary>The faceting channels of an encoding: a unit view that has one is a facet unless it is a layer or the <c>spec</c> of a facet.</summary>
+    private static readonly string[] FacetChannels = ["row", "column", "facet"];
     /// <summary>The properties of a view in a layered view that only the top-level view decides: a layer's own value is ignored (<c>vl-layer-property-ignored</c>).</summary>
     private static readonly string[] LayerIgnoredProperties = ["width", "height", "autosize", "padding", "background", "config", "datasets", "title"];
 
@@ -297,14 +305,61 @@ internal static class FeatureCatalog
         }
 
         /// <summary>
-        ///     Lists the layers of the specification (the unit views inside layered views) in document order.
+        ///     Determines whether a view is a unit view that Vega-Lite facets because it has a <c>row</c>, <c>column</c> or <c>facet</c> channel: not a layer, not a layered view and not the
+        ///     <c>spec</c> of a facet (the root, a child of a concatenation and a copy of a repeat are).
+        /// </summary>
+        /// <param name="view">The view object.</param>
+        /// <returns><see langword="true"/> for a faceted unit view.</returns>
+        private static bool IsFacetedUnit(SpecNode view) =>
+            view["layer"] is null
+            && view["encoding"] is { IsObject: true } encoding
+            && FacetChannels.Any(channel => encoding[channel] is { IsObject: true })
+            && !IsLayerElement(view)
+            && !IsFacetSpec(view);
+
+        /// <summary>
+        ///     Determines whether a view is the <c>spec</c> of a facet.
+        /// </summary>
+        /// <param name="view">The view object.</param>
+        /// <returns><see langword="true"/> for the <c>spec</c> of a view that has a <c>facet</c>.</returns>
+        private static bool IsFacetSpec(SpecNode view) => view is { Name: "spec", Parent: { IsObject: true } owner } && owner["facet"] is not null;
+
+        /// <summary>
+        ///     Determines whether a view is an element of the <c>layer</c> array of another view.
+        /// </summary>
+        /// <param name="view">The view object.</param>
+        /// <returns><see langword="true"/> for a layer.</returns>
+        private static bool IsLayerElement(SpecNode view) => view.Parent is { IsArray: true, Name: "layer" };
+
+        /// <summary>
+        ///     Determines whether a view is a concatenation, a facet, or a repeat of rows, columns or values (a repeat of <c>layer</c> values only is a layered view).
+        /// </summary>
+        /// <param name="view">The view object.</param>
+        /// <returns><see langword="true"/> for a composition.</returns>
+        private static bool IsComposition(SpecNode view) =>
+            ConcatProperties.Any(name => view[name] is not null)
+            || view["facet"] is not null
+            || view["repeat"] is { } repeat && (repeat.IsArray || repeat["row"] is not null || repeat["column"] is not null);
+
+        /// <summary>
+        ///     Determines whether a view is a child of a concatenation or the <c>spec</c> of a facet or of a repeat of rows, columns or values.
+        /// </summary>
+        /// <param name="view">The view object.</param>
+        /// <returns><see langword="true"/> for a view that a composition holds.</returns>
+        private static bool IsInComposition(SpecNode view) =>
+            view.Parent is { IsArray: true, Name: "concat" or "hconcat" or "vconcat" }
+            || view is { Name: "spec", Parent: { IsObject: true } owner } && (owner["facet"] is not null || IsComposition(owner));
+
+        /// <summary>
+        ///     Lists the layers of the specification (the unit views inside layered views, concatenations, facets and repeats; a facet's template once) in document order.
         /// </summary>
         /// <returns>The layers; empty when the specification has none or its layers are nested more deeply than the largest limit allows (the render fails then).</returns>
         private List<LayerNode> LayerUnits()
         {
             try
             {
-                return [.. SpecNormalizer.Layers(_tree, new VegaLiteLimits { MaxViews = int.MaxValue, MaxCompositionDepth = 64 }).Units];
+                // Bounded, so that a repeat is not expanded without limit here before the document enforces its own MaxViews
+                return [.. SpecNormalizer.Layers(_tree, new VegaLiteLimits { MaxViews = 100_000, MaxCompositionDepth = 64 }).Units];
             }
             catch (VegaLiteRenderException)
             {
@@ -341,15 +396,17 @@ internal static class FeatureCatalog
         /// <param name="view">The view object.</param>
         private void VisitView(SpecNode view)
         {
-            var drawn = SpecParser.IsDrawnView(_tree.Root, view);
             var isRoot = ReferenceEquals(view, _tree.Root);
+            var composition = IsComposition(view);
 
             // The encoding of a view that is drawn through layers is visited with the layer it is merged into
-            var layered = drawn && (view["layer"] is not null || !isRoot);
-            if (drawn && !isRoot)
+            var layered = view["layer"] is not null || IsLayerElement(view);
+            if (IsLayerElement(view))
             {
                 VisitLayerProperties(view);
             }
+
+            VisitCompositionProperties(view, composition);
 
             foreach (var property in view.Properties)
             {
@@ -370,7 +427,7 @@ internal static class FeatureCatalog
 
                         break;
                     case "transform":
-                        VisitTransforms(property, drawn, view);
+                        VisitTransforms(property);
                         break;
                     case "params":
                         VisitParams(property, isRoot);
@@ -381,21 +438,67 @@ internal static class FeatureCatalog
                     case "projection":
                         Unsupported("vl-projection", "Map projections are not supported.", property);
                         break;
-                    case "autosize":
-                        VisitAutosize(property);
+                    case "facet":
+                        VisitFacet(property);
                         break;
                     default:
-                        if (CompositionProperties.Contains(name))
-                        {
-                            Unsupported(Id("composition", name), $"The '{name}' composition is not supported yet.", property);
-                        }
-
                         break;
                 }
 
                 if (ExpressionScopes.Contains(name))
                 {
                     VisitExpressions(property);
+                }
+            }
+        }
+
+        /// <summary>
+        ///     Warns about the properties that Vega-Lite ignores in a composition and in the views it holds.
+        /// </summary>
+        /// <remarks>
+        ///     A concatenation, a facet and a repeat have no size, no autosize and no data rectangle of their own: the views inside have them (a <c>width</c> or <c>height</c> of the composition, and an
+        ///     <c>autosize</c> other than <c>pad</c>, are ignored and the composition is drawn padded). A view inside one has its own size, but not a <c>"container"</c> size, a padding, a background, a
+        ///     configuration, datasets or an autosize: only the top-level view decides those.
+        /// </remarks>
+        /// <param name="view">The view.</param>
+        /// <param name="composition">Whether the view is a concatenation, a facet or a repeat.</param>
+        private void VisitCompositionProperties(SpecNode view, bool composition)
+        {
+            var nested = IsInComposition(view);
+            if (composition)
+            {
+                foreach (var name in new[] { "width", "height" })
+                {
+                    if (view[name] is { } size)
+                    {
+                        Warn("vl-composition-property-ignored", $"The '{name}' of a composition is ignored; the views inside have their own size.", size);
+                    }
+                }
+
+                if (!nested && view["autosize"] is { } autosize && (autosize.IsObject ? autosize["type"] : autosize) is { IsString: true } type && type.StringValue != "pad")
+                {
+                    Warn("vl-composition-property-ignored", $"The autosize type '{type.StringValue}' of a composition is ignored; a composition is padded.", type);
+                }
+            }
+            else if (nested)
+            {
+                foreach (var name in new[] { "width", "height" })
+                {
+                    if (view[name] is { IsString: true } size && size.StringValue == "container")
+                    {
+                        Warn("vl-composition-property-ignored", $"The \"container\" {name} of a view inside a composition is ignored; the view has its default size.", size);
+                    }
+                }
+            }
+
+            if (nested)
+            {
+                foreach (var name in NestedIgnoredProperties)
+                {
+                    if (view[name] is { } property)
+                    {
+                        Warn("vl-composition-property-ignored", $"The '{name}' of a view inside a composition is ignored; set it on the top-level view.", property);
+                    }
                 }
             }
         }
@@ -717,6 +820,21 @@ internal static class FeatureCatalog
                 var name = channel.Name!;
                 if (IgnoredChannels.Contains(name))
                 {
+                    continue;
+                }
+
+                if (FacetChannels.Contains(name))
+                {
+                    // A unit view that is faceted: the field definition decides its cells and their headers; anywhere else (a layer, the spec of a facet) the channel facets nothing
+                    if (IsFacetedUnit(view))
+                    {
+                        VisitFacetFieldDefinition(name, channel);
+                    }
+                    else
+                    {
+                        Unsupported(Id("channel", name), $"The '{name}' channel only facets a unit view that is not a layer or the spec of a facet; it is ignored here (use the facet operator).", channel);
+                    }
+
                     continue;
                 }
 
@@ -1404,6 +1522,93 @@ internal static class FeatureCatalog
         }
 
         /// <summary>
+        ///     Visits the <c>facet</c> of a facet view: one field definition (a wrapped facet), or an object with the <c>row</c> and <c>column</c> field definitions.
+        /// </summary>
+        /// <param name="facet">The <c>facet</c> value.</param>
+        private void VisitFacet(SpecNode facet)
+        {
+            if (!facet.IsObject)
+            {
+                return;
+            }
+
+            if (facet["field"] is not null)
+            {
+                VisitFacetFieldDefinition("facet", facet);
+                return;
+            }
+
+            foreach (var channel in new[] { "row", "column" })
+            {
+                if (facet[channel] is { IsObject: true } definition)
+                {
+                    VisitFacetFieldDefinition(channel, definition);
+                }
+            }
+        }
+
+        /// <summary>
+        ///     Reports the parts of the definition of a facet field that the renderer does not draw.
+        /// </summary>
+        /// <remarks>
+        ///     The facet itself is drawn: the distinct values of the field are its cells. A <c>bin</c>, <c>timeUnit</c> or <c>aggregate</c> of the field is not applied (the raw value is the
+        ///     cell), a <c>sort</c> by a field and operation orders the cells by the field itself, and the <c>header</c> reports the same constructs as an axis does (<c>labelExpr</c>, a custom
+        ///     <c>formatType</c>) and the sides that the header does not draw on (<c>labelOrient</c> and <c>titleOrient</c>; see <see cref="Guides.HeaderSettings.IsHonoredOrient"/>).
+        /// </remarks>
+        /// <param name="channel">The facet channel: <c>row</c>, <c>column</c> or <c>facet</c>.</param>
+        /// <param name="definition">The field definition.</param>
+        private void VisitFacetFieldDefinition(string channel, SpecNode definition)
+        {
+            if (definition["bin"] is { } bin && IsEnabled(bin))
+            {
+                Unsupported("vl-facet-field-transform", "The bin of a facet field is not applied; the value of the field is the value of the cell.", bin);
+            }
+
+            if (definition["timeUnit"] is { IsNull: false } timeUnit)
+            {
+                Unsupported("vl-facet-field-transform", "The time unit of a facet field is not applied; the value of the field is the value of the cell.", timeUnit);
+            }
+
+            if (definition["aggregate"] is { IsNull: false } aggregate)
+            {
+                Unsupported("vl-facet-field-transform", "The aggregate of a facet field is not applied; the value of the field is the value of the cell.", aggregate);
+            }
+
+            if (definition["sort"] is { IsObject: true } sort)
+            {
+                Unsupported("vl-facet-sort", "A facet sort by a field and an operation is not supported; the cells are in ascending order of the facet field.", sort);
+            }
+
+            if (definition["header"] is not { IsObject: true } header)
+            {
+                return;
+            }
+
+            foreach (var property in header.Properties)
+            {
+                switch (property.Name)
+                {
+                    case "labelExpr":
+                        Unsupported("vl-expr-label", "Label expressions (header.labelExpr) are not supported yet.", property);
+                        break;
+                    case "formatType" when !IsEvaluatedFormatType(property.AsString()):
+                        Unsupported("vl-format-type-custom", "Custom format types (header.formatType) are not supported; the format type must be number, time or utc.", property);
+                        break;
+                    case "labelOrient":
+                    case "titleOrient":
+                        if (property.AsString() is { } side && side is "top" or "bottom" or "left" or "right" && !Guides.HeaderSettings.IsHonoredOrient(channel, property.Name, side))
+                        {
+                            Unsupported("vl-header-orient", $"The {property.Name} '{side}' is not supported for the '{channel}' channel; the default side is used.", property);
+                        }
+
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
+
+        /// <summary>
         ///     Visits an axis definition.
         /// </summary>
         /// <param name="axis">The axis object.</param>
@@ -1489,14 +1694,11 @@ internal static class FeatureCatalog
         ///     The transforms the renderer computes (calculate, filter, fold, flatten, sample, pivot, lookup, aggregate, joinaggregate,
         ///     window, bin, stack, impute, timeUnit) are reported only for the parts they do not support: expression constructs, a
         ///     binned time unit, the time unit of a predicate (see <c>vl-predicate-timeunit-part</c>), selection parameters, a pivot operation other than sum and count, a lookup
-        ///     in the data of a parameter, and a bin extent that is a parameter. A transform of a view that is not drawn (a view inside a
-        ///     concatenation, a facet or a repeat) is never applied and is reported as <c>vl-transform-&lt;name&gt;</c> with a message that names the composition; a transform of a
-        ///     later phase is reported as not supported yet.
+        ///     in the data of a parameter, and a bin extent that is a parameter. Every view is drawn (a view in a concatenation, a facet or a repeat too), so its transforms are applied; a transform of
+        ///     a later phase is reported as not supported yet.
         /// </remarks>
         /// <param name="transforms">The array.</param>
-        /// <param name="drawn">Whether the view that owns the transforms is drawn by the renderer (the single view, a layered view or a layer).</param>
-        /// <param name="view">The view that owns the transforms.</param>
-        private void VisitTransforms(SpecNode transforms, bool drawn, SpecNode view)
+        private void VisitTransforms(SpecNode transforms)
         {
             foreach (var entry in transforms.Items)
             {
@@ -1507,13 +1709,6 @@ internal static class FeatureCatalog
                 }
 
                 var name = operation.Name!;
-                if (!drawn)
-                {
-                    var composition = SpecParser.FindUndrawnComposition(view) ?? "composition";
-                    Unsupported(Id("transform", name), $"The '{name}' transform is not applied: the view is a '{composition}' composition, which is not supported yet.", entry);
-                    continue;
-                }
-
                 if (!SpecParser.IsSupportedTransform(name))
                 {
                     Unsupported(Id("transform", name), $"The '{name}' transform is not supported yet.", entry);
@@ -1704,19 +1899,6 @@ internal static class FeatureCatalog
                 {
                     ReportConstructs(expression);
                 }
-            }
-        }
-
-        /// <summary>
-        ///     Visits an <c>autosize</c> value.
-        /// </summary>
-        /// <param name="autosize">The value (a type name or an object with a <c>type</c>).</param>
-        private void VisitAutosize(SpecNode autosize)
-        {
-            var type = autosize.IsObject ? autosize["type"] : autosize;
-            if (type is { IsString: true } && type.StringValue is not ("pad" or "none"))
-            {
-                Unsupported(Id("layout-autosize", type.StringValue!), $"The autosize type '{type.StringValue}' is not supported yet.", type);
             }
         }
 

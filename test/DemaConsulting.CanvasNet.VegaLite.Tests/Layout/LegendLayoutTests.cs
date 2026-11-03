@@ -299,5 +299,39 @@ public class LegendLayoutTests
         // Assert
         Assert.Empty(placement.Groups);
         Assert.True(placement.Bounds.IsEmpty);
+        Assert.True(placement.FitBounds is { IsEmpty: true });
+    }
+
+    /// <summary>
+    ///     Validates that a fitted view counts a legend only across its side (a right or left legend by its horizontal extent, a top or bottom legend by its
+    ///     vertical extent, the inner orients and the orient none not at all), and that a view that is not fitted counts the whole bounds.
+    /// </summary>
+    [Fact]
+    public void LegendLayout_Combine_FitLegendCountsOrthogonalExtentOnly()
+    {
+        // Arrange: a right legend of 50 by 150 beside the 200 by 100 plot (x 218 to 268, y 0 to 150), a top legend of 300 by 20 above it (x 0 to 300, y -38 to -18),
+        // an inner top-left legend and a legend at its own position (x 250 to 280, y 120 to 150)
+        var placement = Place(Config(), Box("right", 50, 150), Box("top", 300, 20), Box("top-left", 50, 40), Box("none", 30, 30, null, 250, 120));
+
+        // Assert: the bounds are the union of all of them; the fit bounds are the horizontal extent of the right legend and the vertical extent of the top legend
+        Assert.Equal(new SceneBounds(0, -38, 300, 150), placement.Bounds);
+        Assert.Equal(new SceneBounds(0, -38, 268, 0), placement.FitBounds);
+
+        // Act
+        var padded = LegendLayout.Combine(default, placement, DataWidth, DataHeight, false);
+        var fitted = LegendLayout.Combine(default, placement, DataWidth, DataHeight, true);
+
+        // Assert: padding: 300 - 200 to the right, 38 above, 150 - 100 below; fit: 268 - 200 to the right and 38 above, nothing below
+        Assert.Equal(new ViewExtents(0, 38, 100, 50), padded);
+        Assert.Equal(new ViewExtents(0, 38, 68, 0), fitted);
+
+        // Assert: the larger reach of the axes still wins
+        Assert.Equal(new ViewExtents(10, 38, 68, 20), LegendLayout.Combine(new ViewExtents(10, 5, 3, 20), placement, DataWidth, DataHeight, true));
+
+        // Assert: a placement without separate fit bounds counts the whole bounds in both modes; an empty one adds nothing
+        var plain = new LegendPlacement([], new SceneBounds(218, -10, 268, 150));
+        Assert.Equal(LegendLayout.Combine(default, plain, DataWidth, DataHeight, false), LegendLayout.Combine(default, plain, DataWidth, DataHeight, true));
+        Assert.Equal(new ViewExtents(1, 2, 3, 4), LegendLayout.Combine(new ViewExtents(1, 2, 3, 4), Place(Config()), DataWidth, DataHeight, true));
+        Assert.Throws<ArgumentNullException>(() => LegendLayout.Combine(default, null!, DataWidth, DataHeight, true));
     }
 }

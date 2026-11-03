@@ -107,6 +107,12 @@ culture.
   the `maxbins` forms first, and optionally reports the resolved unit of each request.
 - `TemporalFields.Collect(SpecNode)` - the canonical names of the date fields of a view (its encoding, its `timeUnit`
   transforms, and its predicates).
+- `TemporalFields.CollectAll(views)` and `CollectAll(views, facets)` - the union of the date fields of several views (the
+  views that one loaded table serves: layers, the children of a concatenation, the copies of a repeat) and of the facets
+  among them; `TemporalFields.CollectFacet(FacetDefinition)` - the date fields of the `row`, `column`, or wrapped field
+  definitions of a facet, judged like an encoding definition (a field that is not a name, such as a repeat reference that
+  was not replaced, adds nothing). A facet field is read from the `FacetDefinition` of the view tree, which has the
+  repeat references replaced, so that the loader parses a temporal facet field as dates and the cells are dates (phase 11).
 
 **Preconditions and postconditions**: the input table, the requests, and the context are non-null; on return the table is
 complete and within the limits, or an exception was thrown.

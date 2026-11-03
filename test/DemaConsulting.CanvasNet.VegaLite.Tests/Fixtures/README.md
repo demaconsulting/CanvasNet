@@ -101,6 +101,17 @@ formulas, the path rules and the geometry of a circle, and the pixel assertions 
 the derivation puts inside or outside of a shape. `unsupported.vl.json` is unchanged: it still has a geoshape mark, a
 regression transform and a band position to report.
 
+`SceneSnapshots/` holds the scene snapshots of `VegaLiteRefactorSnapshotTests`: for each of 12 original specifications
+(written in that test file, with made-up data) the whole scene of the chart as text, one line for each item with its
+depth, its offset and every property. They were captured from the Phase 10 pipeline, before the pipeline was refactored
+for compositions, and pin the scene of single and layered views exactly. `single-container-fit.scene.txt` is the one that
+was captured again in Phase 11, for the deliberate change of the fit rule (the container path now fits the guide extents
+rounded up and the title; design deviation item 71); the other 11 are byte-identical to the Phase 10 capture. They are
+not hand-written and carry no data of
+any published chart. To capture them again after a deliberate change of the output, set the environment variable
+`CANVASNET_SCENE_SNAPSHOT_DIR` to this folder's `SceneSnapshots` directory and run the test, which then writes the
+files; review the difference before committing it.
+
 Line endings: the repository normalizes text files to LF (`.gitattributes` and `.editorconfig`), but a working tree may
 hold CRLF files, depending on how it was checked out. Tests that use a fixture must therefore assert the parsed or
 rendered meaning (rows, values, pixels) and never the raw bytes or the line endings of the file; do not rewrite a
