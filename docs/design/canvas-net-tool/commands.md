@@ -8,9 +8,11 @@ The `Commands` subsystem (namespace `DemaConsulting.CanvasNet.Tool.Commands`, fo
 `src/DemaConsulting.CanvasNet.Tool/Commands/`) turns the command named on the command line into running code.
 It defines what a command is (the `ICommand` contract and the `OptionSpec` option description) and holds the
 table of commands (`CommandRegistry`). It is a subsystem rather than a single unit because each family of
-commands is its own unit behind the same contract and registry. It contains six units:
+commands is its own unit behind the same contract and registry. It contains seven units:
 `CommandRegistry`, which also documents the supporting types `ICommand` and
-`OptionSpec`; `DiscoveryCommands`, which provides the `formats` and `info` commands; `RenderCommand`, which
+`OptionSpec`; `HelpTopics`, the catalog of help topics (the formats, the JSON documents, the errors, and the limits) with
+their tiny examples, which the built-in `help` command of the registry prints; `DiscoveryCommands`, which provides the
+`formats` and `info` commands; `RenderCommand`, which
 provides `render` and its alias `convert`, and the verb commands `crop`, `resize`, `rotate`, `flip`, and `pad`
 (the same class, constructed with a verb); `CompareCommand`, which provides `compare`; `MontageCommand`, which
 provides `montage`; and `InspectCommand`, which provides `inspect` with the subcommands `colors` and `pixel`.
@@ -26,7 +28,13 @@ expected failures by throwing `ToolException`, and never writes to the console d
 `usage-error`) when the command is missing or unknown, and re-throws the command's own `ToolException` after
 recording the command name on it.
 
-**CommandRegistry.RenderHelp(string?)** (provided to `Program`): returns the top-level help or a command's help.
+**CommandRegistry.RenderHelp(string?, bool)** (provided to `Program`): returns the help for a subject, as plain text or,
+with the flag, as JSON: the index (no subject, `help`, or `topics`), a command's help, or a help topic. An unknown
+subject throws a `ToolException` (code `usage-error`) that lists the valid subjects.
+
+**HelpTopics** (consumed by `CommandRegistry` and `Validation`): the topic catalog (`All`, `Find`, `TopicNames`,
+`SourceExamples`) and the renderings of a topic and its examples as text and JSON. The content is embedded in the tool
+assembly as resources.
 
 **CommandRegistry.CreateDefault()** (provided to `Program`): creates the registry with every command the tool
 ships with (`formats`, `info`, `render` with its alias `convert`, the verbs `crop`,
@@ -60,6 +68,10 @@ aliases) to an `ICommand` and calls `Run`. A command parses its own arguments - 
 removed the global options - so the global parser never needs to know any command's options, and a command can
 be added without touching `Context`. Help is generated from the registered commands: the command list from each
 command's name, aliases, and summary, and a command's help from its usage text and its `OptionSpec` table, so
-the help cannot drift from the options a command declares. The registry is an instance rather than static state
+the help cannot drift from the options a command declares. The help topics are a separate unit, `HelpTopics`, so that the
+registry stays the dispatcher: a help subject is a command, else a topic, and `HelpTopics` owns the embedded content, its
+consistency with the code (numbers are substituted from the constants of the code, and the unit tests check the cited
+options, error codes, and diagnostic identifiers and render every example), and its rendering. The registry is an
+instance rather than static state
 so that tests can inject a purpose-made command - one that fails, or throws an unexpected exception - and prove
 the error policy of `Program` end to end without depending on a shipped command.

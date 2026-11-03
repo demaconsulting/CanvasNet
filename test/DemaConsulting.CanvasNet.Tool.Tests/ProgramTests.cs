@@ -140,6 +140,29 @@ public class ProgramTests
     }
 
     /// <summary>
+    ///     Test that Run with the help flag and --json writes the JSON help without the banner.
+    /// </summary>
+    [Fact]
+    public void Program_Run_WithHelpAndJson_WritesJsonWithoutBanner()
+    {
+        // Arrange: a default registry
+        var registry = CommandRegistry.CreateDefault();
+
+        // Act: ask for the top-level help and for the help of a topic, as JSON
+        var (exitCode, output) = RunProgram(registry, "--help", "--json");
+        var (topicExit, topicOutput) = RunProgram(registry, "scad", "--json", "--help");
+
+        // Assert: each output is exactly one JSON document, so the banner was not printed
+        Assert.Equal(0, exitCode);
+        Assert.Equal(0, topicExit);
+        Assert.DoesNotContain("CanvasNet Tool version", output);
+        using var index = System.Text.Json.JsonDocument.Parse(output);
+        Assert.Equal("index", index.RootElement.GetProperty("kind").GetString());
+        using var topic = System.Text.Json.JsonDocument.Parse(topicOutput);
+        Assert.Equal("scad", topic.RootElement.GetProperty("topic").GetString());
+    }
+
+    /// <summary>
     ///     Test that Run with validate flag runs validation.
     /// </summary>
     [Fact]

@@ -21,7 +21,7 @@ changed: `CanvasNetTool_VersionDisplay` and `CanvasNetTool_HelpDisplay` (the pla
 `CanvasNetTool_Info`, `CanvasNetTool_RenderSvg`, `CanvasNetTool_PdfMinimal`, `CanvasNetTool_RenderScad`,
 `CanvasNetTool_CropResize`, and `CanvasNetTool_RotateFlipPad`, and the comparison self-tests
 `CanvasNetTool_Compare` and `CanvasNetTool_Montage`, and the photo self-test `CanvasNetTool_Adjustments`, and the
-chart self-test `CanvasNetTool_RenderVegaLite` (fifteen in
+chart self-test `CanvasNetTool_RenderVegaLite`, and the help self-test `CanvasNetTool_HelpExamples` (sixteen in
 total; the suite is deliberately kept small, so further coverage belongs in the unit and subsystem tests).
 Each is
 recorded as a `TestResult` with
@@ -111,7 +111,7 @@ and `inspect pixel 0,0` with `--json` and requires that the first dominant color
 This exercises the tone operations, the skew estimation, the arbitrary-angle rotation, the trim, the grid with its
 bundled-font labels, the analysis, and the commands together.
 
-**RunRenderVegaLiteTest**: the chart self-test (the 15th and last self-test, `CanvasNetTool_RenderVegaLite`), run
+**RunRenderVegaLiteTest**: the chart self-test (the 15th self-test, `CanvasNetTool_RenderVegaLite`), run
 through `RunSelfTest` and `RunCommand`. It writes an original bar chart to `chart.vl.json` in its temporary directory: a
 schema, a 200x100 data rectangle, two inline rows (`a` is 3 and `b` is 5), a `bar` mark, a nominal x field and a
 quantitative y field. It runs `info --json` and requires the `vega-lite` format, one `bar` mark, one data reference, and
@@ -122,6 +122,18 @@ each), that the second bar (the full height) and the first bar (three fifths of 
 and that the pixel above the first bar is white. This exercises the bundled Vega-Lite library, the detection of a chart
 by its file name, the source loader, the `chart` object of `info`, and the `render` command together; it needs no data
 file, no network, and no installed font.
+
+**RunHelpExamplesTest**: the help self-test (the 16th and last self-test, `CanvasNetTool_HelpExamples`), run through
+`RunSelfTest` and `RunCommand`, with three checks in turn that stop at the first failure. `CheckHelpExamplesRender`
+writes every source example of the help topics (`HelpTopics.SourceExamples`: the OpenSCAD models, the Vega-Lite charts,
+and the SVG drawings) to a file named `<topic>-<file name>` and runs
+`render <file> --strict --json -o <topic>-<example>.png` (with `--size 64x64` for a model, which only needs to render),
+requiring `ok` true and no diagnostic: the documented examples are accepted by the shipped renderers even under
+`--strict`. `CheckHelpExamplePrint` runs `help scad --example plate` and requires that the output, apart from its final
+line feed, equals the embedded source of the example, so that a printed example can be saved and run as it is.
+`CheckHelpIndex` runs `help topics --json` and requires the `index` document to list exactly the topics of
+`HelpTopics.TopicNames`, in order. This exercises the embedded help resources, the `help` command, and the `render`
+command together in the deployment environment.
 
 **WriteResultsFile**: serializes the results to `context.ResultsFile`: `.trx` uses `TrxSerializer`, `.xml`
 uses `JUnitSerializer`; any other extension calls `context.WriteError` and writes nothing.
@@ -143,6 +155,7 @@ becomes 1.
 - **Context** - output channel and results configuration.
 - **Program** - `Program.Run` is called in-process to exercise the tool.
 - **PathHelpers** - `SafePathCombine` builds log paths inside temporary directories.
+- **HelpTopics** (Commands) - the source examples and topic names checked by `CanvasNetTool_HelpExamples`.
 - **DemaConsulting.TestResults** (OTS) - `TestResults`, `TestResult`, `TestOutcome`, and the
   `TrxSerializer` and `JUnitSerializer` of `TestResults.IO`. See *DemaConsulting.TestResults OTS Integration
   Design* (`ots/test-results.md`).

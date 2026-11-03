@@ -1,0 +1,92 @@
+---
+# cspell:ignore scad openscad vsdx pptx
+# Software Unit Requirements for the HelpTopics Class
+#
+# The HelpTopics class is the catalog of help topics of the tool: the quick reference for each input format (what is
+# supported and what is not, the options that apply, the diagnostics and how --strict treats them, and the known
+# differences from the original program), for the --json result documents, for errors and exit codes, and for the
+# limits, with tiny examples that are verified to render without a diagnostic. The content ships inside the tool,
+# so it works offline, and it is verified against the code so that it cannot drift from what the tool does. The
+# class resolves a topic by name or alias and renders it, and its examples, as plain text or as a JSON document.
+
+sections:
+  - title: HelpTopics Unit Requirements
+    requirements:
+      - id: CanvasNetTool-Commands-HelpTopics-Catalog
+        title: >-
+          The HelpTopics class shall provide the ten help topics scad, vega-lite, svg, pdf, pptx, vsdx, raster, json,
+          errors, and limits from content shipped inside the tool, in that fixed order, each with a title, a summary,
+          and sections, shall resolve a topic by its name or by one of its aliases ignoring case, and shall give no
+          topic a name or alias that is the name or alias of another topic, of a command, or of the help subjects help
+          and topics.
+        justification: |
+          A person or an agent learns the formats and the limits of the tool from the tool itself, offline and in the
+          version it has installed; stable names and aliases that never collide with a command make the subject of
+          help unambiguous.
+        tests:
+          - HelpTopics_All_EveryTopicLoads_WithTitleSummaryAndSections
+          - HelpTopics_Find_EveryAlias_ResolvesIgnoringCase
+          - HelpTopics_Names_DoNotCollideWithCommandsHelpOrEachOther
+          - HelpTopics_Text_HasNoUnresolvedTokens
+
+      - id: CanvasNetTool-Commands-HelpTopics-FormatContent
+        title: >-
+          The HelpTopics class shall give the topic of each input format (scad, vega-lite, svg, pdf, pptx, vsdx, and
+          raster) the sections of what is supported, what is not supported, the options that apply, the diagnostics
+          and how the strict option treats them, and the known differences from the original program, and at least two
+          examples.
+        justification: |
+          Whether a feature will render is the first question about a format; an answer that always has the same
+          parts, in the same order, can be read by a person and found by an agent without trial and error.
+        tests:
+          - HelpTopics_FormatTopics_HaveSupportedUnsupportedOptionsDiagnosticsDifferencesAndExamples
+
+      - id: CanvasNetTool-Commands-HelpTopics-Examples
+        title: >-
+          The HelpTopics class shall give each example of a topic a unique name, a kind (source text, or a command
+          line), and a description, shall return the source text of an example exactly as it ships, or the command line
+          of a command example, and the list of the examples of a topic, shall report an unknown example name as a
+          usage error listing the names of the examples, and shall ship source examples that render with the strict
+          option without any diagnostic and command examples that use known commands and options.
+        justification: |
+          A tiny example that is known to work is the fastest way to start with a format; an example that is printed
+          alone can be saved to a file and used as it is, and an example that is verified cannot mislead.
+        tests:
+          - HelpTopics_Examples_NamesUniqueKindsValidAndSourcesNonEmpty
+          - HelpTopics_SourceExamples_RenderStrictWithoutDiagnostics
+          - HelpTopics_CommandExamples_UseKnownCommandsAndOptions
+          - HelpTopics_RenderExample_UnknownName_ThrowsUsageErrorListingNames
+          - HelpTopics_RenderExample_Source_ReturnsExactEmbeddedContent
+
+      - id: CanvasNetTool-Commands-HelpTopics-Rendering
+        title: >-
+          The HelpTopics class shall render a topic, the list of its examples, and an example as plain text without
+          color codes, wrapped to a fixed width without splitting a word, with the same bytes for the same topic every
+          time, and as a JSON document with the kind, the topic, and its aliases, title, summary, sections, and
+          examples (or the list of examples, or the one example), in that order.
+        justification: |
+          The text is read in terminals and pasted into other tools, so it must be plain and stable; agents parse the
+          JSON, so its shape is a contract that must not change from one run to the next.
+        tests:
+          - HelpTopics_RenderText_IsDeterministicPlainAndWrapped
+          - HelpTopics_AppendWrapped_LongWord_IsNotSplit
+          - HelpTopics_RenderJson_HasTheDocumentedShape
+
+      - id: CanvasNetTool-Commands-HelpTopics-Consistency
+        title: >-
+          The HelpTopics class shall state only facts that are verified against the tool: the options named in a topic
+          shall be options of the render command, the error codes listed in the errors topic shall be every error code
+          of the tool, the diagnostic identifiers cited in a topic shall exist in the libraries and be produced by the
+          input that is said to trigger them (reported as unsupported by the strict option), and the numeric limits
+          shall be the values used by the code.
+        justification: |
+          Help that disagrees with the program is worse than no help; checking the content against the code makes
+          every statement of a topic a tested statement, so that a change of the code that makes a topic untrue fails
+          a test instead of misleading a user.
+        tests:
+          - HelpTopics_OptionTerms_ExistInTheRenderOptionTable
+          - HelpTopics_ErrorsTopic_ListsEveryErrorCode
+          - HelpTopics_CitedDiagnosticIds_ExistInTheLibraries
+          - HelpTopics_DiagnosticTriggers_ProduceTheCitedIds
+          - HelpTopics_DiagnosticTriggers_Strict_FailsWithUnsupportedFeature
+          - HelpTopics_Text_HasNoUnresolvedTokens

@@ -33,6 +33,16 @@ sections:
           - Program_Run_WithQuestionMarkFlag_DisplaysUsage
           - Program_Run_WithCommandAndHelpFlag_DisplaysCommandHelp
 
+      - id: CanvasNetTool-Program-HelpJson
+        title: >-
+          The Program class shall write the help as one JSON document, without the banner, when a help flag is given
+          together with the JSON option.
+        justification: |
+          A banner before a JSON document would corrupt it; agents that ask for the help as JSON parse standard output
+          and must receive the document alone.
+        tests:
+          - Program_Run_WithHelpAndJson_WritesJsonWithoutBanner
+
       - id: CanvasNetTool-Program-Validate
         title: The Program class shall support --validate flag to invoke the self-validation framework.
         justification: |

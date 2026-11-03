@@ -48,8 +48,9 @@ not an option (or the value of an option) is the command name.
   arguments, and an option marked repeatable may be given more than once.
 - **Global options** are accepted in any position, before or after the command.
 - **Mistakes.** An unknown option or command is an error that names the closest valid one (`Did you mean '--fit'?`).
-- **Help.** `canvasnet --help` lists the commands, `canvasnet help <command>` and `canvasnet <command> --help` show
-  the usage, examples, and every option of a command.
+- **Help.** `canvasnet --help` lists the commands and the help topics, `canvasnet help <command>` and
+  `canvasnet <command> --help` show the usage, examples, and every option of a command, and
+  `canvasnet help <topic>` explains an input format or a cross-cutting subject (see _Help Topics_).
 - **Files.** Paths are relative to the current directory. Wildcards are not expanded by the tool.
 
 ### Global Options
@@ -57,7 +58,7 @@ not an option (or the value of an option) is the command name.
 | Option | Meaning |
 | --- | --- |
 | `-v`, `--version` | Print the version (only the version) and exit |
-| `-?`, `-h`, `--help` | Print the help of the tool or of the named command |
+| `-?`, `-h`, `--help` | Print the help of the tool or of the named command (with `--json`, as a JSON document) |
 | `--json` | Write the result of the command as one JSON document on standard output |
 | `--silent` | Suppress all console output, errors included (files are still written; `--log` still records) |
 | `--log <file>` | Also write everything that is printed, errors included, to this file (replaced if it exists) |
@@ -68,8 +69,8 @@ not an option (or the value of an option) is the command name.
 ## Output, Errors, and Exit Codes
 
 - **Standard output** carries only the result: the lines a command prints, or, with `--json`, one JSON document on one
-  line. The banner (`CanvasNet Tool version ...`) is printed only for `--help`, `--validate`, and an empty command line,
-  so a command's output can be piped and parsed.
+  line. The banner (`CanvasNet Tool version ...`) is printed only for `--help` (and not with `--json`), `--validate`,
+  and an empty command line, so a command's output can be piped and parsed.
 - **Standard error** carries diagnostics: `Error: <code>: <message>` and an optional `Hint: <advice>` line for an
   expected failure. There is never a stack trace for an expected failure. A mistake in the global options that is
   found before the command is known (for example `canvasnet --nope`) is reported without a code, as
@@ -994,6 +995,53 @@ quote
 a color that starts with `#` (`'#336699'`) or use the form without `#`, because many shells treat `#` as a comment.
 A value that does not match its grammar is a `usage-error` that quotes the value and shows an example.
 
+## Help Topics
+
+`canvasnet help <subject>` explains the tool from the tool itself, offline and for the installed version. The subject
+is a command (see _Commands_) or one of ten help topics, which cover the input formats and the subjects that apply to
+every command. A subject is matched in any letter case, and a topic may be named by an alias.
+
+| Topic | Aliases | What it covers |
+| --- | --- | --- |
+| `scad` | `openscad` | OpenSCAD models, drawn as one still picture from a named viewpoint |
+| `vega-lite` | `vegalite`, `vl` | Vega-Lite charts: the supported subset of Vega-Lite 5 and 6 |
+| `svg` | | SVG drawings: the supported subset, drawn sharply at the target size |
+| `pdf` | | PDF documents: a page is drawn as an image |
+| `pptx` | `powerpoint` | PowerPoint presentations: each slide is a page |
+| `vsdx` | `visio` | Visio drawings: each drawing page is a page |
+| `raster` | `png`, `jpeg`, `jpg`, `bmp`, `tiff`, `tif`, `gif`, `jpeg2000`, `jp2` | The pixel images read and written |
+| `json` | | The `--json` result documents |
+| `errors` | | Failures, the stable error codes, exit codes, and what `--strict` changes |
+| `limits` | | The largest sizes and budgets accepted, and the error each one produces |
+
+`canvasnet help topics` lists the commands and the topics with their aliases and one-line summaries. The topic of a
+format has the same parts every time: what is **supported**, what is **unsupported**, the **options** that apply, the
+**diagnostics** it reports and how `--strict` treats them, and the **known differences** from the original program,
+followed by its examples. The topics are embedded in the tool, so they work offline and always describe the version
+that is installed. This guide stays the narrative; the topics are the quick reference, they carry the same format notes
+in a machine-readable form, and they are tested against the code (the options, the error codes, the diagnostic
+identifiers, the limits, and every example).
+
+The topics ship tiny examples. The source examples of `scad`, `vega-lite`, and `svg` are files that render with
+`--strict` without a diagnostic; the other examples are command lines:
+
+```bash
+# Read the topic, list its examples, and print one: the output is only the source, so it can be saved as it is
+canvasnet help scad
+canvasnet help scad --examples
+canvasnet help scad --example plate > plate.scad
+canvasnet render plate.scad --view top --size 400x400 -o plate-top.png --json
+```
+
+- `--example <name>` prints only the example: the source of a file (an `.scad`, `.vl.json`, or `.svg` file) or, for a
+  topic whose example is a command, the command line. Nothing else is written to standard output.
+- `--examples` lists the names, kinds (`source` or `command`), and descriptions of the examples of the topic.
+- `--json` writes any help output as one JSON document, without a banner or color codes (see _Help Documents_).
+- An unknown subject is a `usage-error` that names the closest subject (`Did you mean 'scad'?`) when there is one and
+  lists the valid subjects. `--example` and `--examples` need a topic, and an unknown example name lists the names.
+- A topic name used as a command (`canvasnet scad`) is an unknown command whose hint says that it is a help topic and
+  to run `canvasnet help scad`.
+
 ## JSON Output
 
 With `--json` a command writes one JSON document on one line to standard output (and nothing else there). The
@@ -1084,6 +1132,24 @@ grow in later versions of the tool; a program should ignore an `op` or a key it 
 `montage --json` adds `sheet`, `cells`, and `outputs`; both documents are described in the sections of the commands
 (_compare_ and _montage_). `inspect --json` adds `subcommand` and the fields described in _inspect_.
 
+### Help Documents
+
+`help --json` (also `--help --json` and `help topics --json`), `help <command> --json` (also `<command> --help --json`),
+and `help <topic> --json` write the help as one document in the same envelope, with no banner and no color codes, and a
+`kind` that tells which document it is:
+
+| `kind` | Written for | Fields after `kind` |
+| --- | --- | --- |
+| `index` | The tool, or the subject `topics` | `topic` (`topics`), `usage`, `commands`, `topics` (each `{"name","aliases","summary"}`), `globalOptions` |
+| `command` | A command | `topic` (the command), `aliases`, `summary`, `usage`, `options`, `globalOptions` |
+| `topic` | A help topic | `topic`, `aliases`, `title`, `summary`, `sections` (`{"id","title","items"}`), `examples` |
+| `examples` | `help <topic> --examples` | `topic`, `examples` (each `{"name","kind","language","fileName","description"}`) |
+| `example` | `help <topic> --example <name>` | `topic`, `example` (the same fields and the `content`) |
+
+Each item of a section is `{"term","text"}` (the `term` only when it has one), each option is `{"name","aliases",
+"takesValue","valueName","description"}`, and an example of a topic carries its `content`, which is the source of a file
+or a command line. A mistake, such as an unknown subject, is the failure document of the `help` command.
+
 ### Failure Documents
 
 ```json
@@ -1165,7 +1231,7 @@ and hint may be improved at any time.
 | Montage: cell, spacing, padding, fit, labels | `256x256`, 8, 8, `contain`, none | `--cell`, `--spacing`, `--padding`, `--fit`, `--labels` |
 | Montage: columns | The square root of the number of cells, rounded up | `--columns` |
 | Largest side of an image | 8192 pixels | Not adjustable |
-| Banner | Only for `--help`, `--validate`, and an empty command line | Not adjustable |
+| Banner | Only for `--help` (not with `--json`), `--validate`, and an empty command line | Not adjustable |
 
 <!-- markdownlint-enable MD013 -->
 
@@ -1256,6 +1322,9 @@ inspect, and writes
 the agent's own drawings (an SVG or a SCAD model) as pictures it can compare with a reference. A few conventions make
 this reliable:
 
+- Start with `canvasnet help topics`, then `canvasnet help <format>` for what a format supports and what it does not
+  (`scad`, `vega-lite`, `svg`, `pdf`, `pptx`, `vsdx`, `raster`) and `canvasnet help <format> --example <name>` for a
+  tiny example that is known to render. Add `--json` to parse any of them.
 - Always pass `--json` and parse the one line on standard output. Check `ok`, and on a failure branch on
   `error.code`. Read `diagnostics` even on success: they list what was left out of the picture.
 - Ask before you render: `canvasnet info <file> --json` gives the size, the page count, or the modules of a model
@@ -1522,9 +1591,10 @@ Copyright (c) DEMA Consulting
 ✓ CanvasNetTool_Compare - Passed
 ✓ CanvasNetTool_Montage - Passed
 ✓ CanvasNetTool_Adjustments - Passed
+✓ CanvasNetTool_HelpExamples - Passed
 
-Total Tests: 15
-Passed: 15
+Total Tests: 16
+Passed: 16
 Failed: 0
 ```
 
@@ -1545,6 +1615,7 @@ Failed: 0
 | `CanvasNetTool_Compare` | `compare` measures identical and different images exactly and exits 1 on a miss |
 | `CanvasNetTool_Montage` | `montage` composes a labeled sheet of the expected size and layout |
 | `CanvasNetTool_Adjustments` | The photo tools, `--deskew`, `--trim`, `--grid`, and `inspect` work on a tilted sketch |
+| `CanvasNetTool_HelpExamples` | Every help example renders with `--strict`, and `help` prints and lists them |
 
 The exit code is 0 when every test passed and 1 when any failed. Add `--results <file>` to record the outcome as a
 TRX file (`.trx`) or a JUnit XML file (`.xml`), for example for a quality system that collects test evidence:

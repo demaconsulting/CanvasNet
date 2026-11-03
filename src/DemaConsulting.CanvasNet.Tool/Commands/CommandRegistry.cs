@@ -1,5 +1,4 @@
 // cspell:ignore canvasnet
-using System.Text;
 using DemaConsulting.CanvasNet.Tool.Imaging;
 
 namespace DemaConsulting.CanvasNet.Tool.Commands;
@@ -10,10 +9,10 @@ namespace DemaConsulting.CanvasNet.Tool.Commands;
 /// <remarks>
 ///     The registry is an instance (not static) so that tests can build a registry containing a
 ///     purpose-made command, for example one that throws an unexpected exception to prove that the
-///     entry point re-throws it. The name <c>help</c> is reserved: it prints the top-level help, or the
-///     help of the command named by its first argument.
+///     entry point re-throws it. The name <c>help</c> is reserved: it prints the top-level help, the help of
+///     a command, or a help topic (see <c>CommandRegistry.Help.cs</c>).
 /// </remarks>
-internal sealed class CommandRegistry
+internal sealed partial class CommandRegistry
 {
     /// <summary>
     ///     The reserved name of the built-in help command.
@@ -144,10 +143,10 @@ internal sealed class CommandRegistry
                        "No command was specified.",
                        "Run 'canvasnet --help' to list the available commands.");
 
-        // The built-in help command prints help for the command named by its first argument
+        // The built-in help command prints help for a command or a topic
         if (string.Equals(name, HelpCommandName, StringComparison.OrdinalIgnoreCase))
         {
-            context.WriteLine(RenderHelp(context.CommandArguments.FirstOrDefault()));
+            RunHelp(context);
             return;
         }
 
@@ -167,121 +166,49 @@ internal sealed class CommandRegistry
     }
 
     /// <summary>
-    ///     Renders help text.
-    /// </summary>
-    /// <param name="command">
-    ///     The name or alias of the command to describe, or <see langword="null"/> (or the reserved name
-    ///     <c>help</c>) for the top-level help (the command list and the global options).
-    /// </param>
-    /// <returns>The help text, without a trailing newline.</returns>
-    /// <exception cref="ToolException">Thrown with code <c>usage-error</c> when <paramref name="command"/> is unknown.</exception>
-    public string RenderHelp(string? command = null)
-    {
-        return command == null || string.Equals(command, HelpCommandName, StringComparison.OrdinalIgnoreCase)
-            ? RenderTopLevelHelp()
-            : RenderCommandHelp(command);
-    }
-
-    /// <summary>
-    ///     Renders the top-level help: usage, the command list, and the global options.
-    /// </summary>
-    /// <returns>The help text.</returns>
-    private string RenderTopLevelHelp()
-    {
-        var builder = new StringBuilder();
-        builder.AppendLine("Usage: canvasnet <command> [arguments] [options]");
-        builder.AppendLine("       canvasnet [options]");
-
-        // List the commands (name and aliases, aligned) when any are registered
-        if (_commands.Count > 0)
-        {
-            builder.AppendLine();
-            builder.AppendLine("Commands:");
-            var labels = _commands.Select(c => string.Join(", ", c.Aliases.Prepend(c.Name))).ToList();
-            var width = labels.Max(l => l.Length);
-            for (var i = 0; i < _commands.Count; i++)
-            {
-                builder.AppendLine($"  {labels[i].PadRight(width)}  {_commands[i].Summary}");
-            }
-
-            builder.AppendLine();
-            builder.AppendLine("Run 'canvasnet <command> --help' for help on a command.");
-        }
-
-        builder.AppendLine();
-        builder.AppendLine("Options:");
-        AppendOptions(builder, GlobalOptions);
-        return builder.ToString().TrimEnd();
-    }
-
-    /// <summary>
-    ///     Renders the help of one command: usage, summary, its options, and the global options.
-    /// </summary>
-    /// <param name="name">The command name or alias.</param>
-    /// <returns>The help text.</returns>
-    /// <exception cref="ToolException">Thrown with code <c>usage-error</c> when the command is unknown.</exception>
-    private string RenderCommandHelp(string name)
-    {
-        var command = Find(name) ?? throw CreateUnknownCommandException(name);
-
-        var builder = new StringBuilder();
-        builder.AppendLine($"Usage: {command.Usage}");
-        builder.AppendLine();
-        builder.AppendLine(command.Summary);
-
-        if (command.Options.Count > 0)
-        {
-            builder.AppendLine();
-            builder.AppendLine("Options:");
-            AppendOptions(builder, command.Options);
-        }
-
-        builder.AppendLine();
-        builder.AppendLine("Global options:");
-        AppendOptions(builder, GlobalOptions);
-        return builder.ToString().TrimEnd();
-    }
-
-    /// <summary>
-    ///     Appends an aligned option table.
-    /// </summary>
-    /// <param name="builder">The builder to append to.</param>
-    /// <param name="options">The options to list.</param>
-    private static void AppendOptions(StringBuilder builder, IReadOnlyList<OptionSpec> options)
-    {
-        // Build each option label as "alias, --name <value>" and align the descriptions
-        var labels = options.Select(o =>
-        {
-            var names = string.Join(", ", o.Aliases.Append(o.Name));
-            return o.TakesValue ? $"{names} <{o.ValueName ?? "value"}>" : names;
-        }).ToList();
-        var width = labels.Max(l => l.Length);
-        for (var i = 0; i < options.Count; i++)
-        {
-            builder.AppendLine($"  {labels[i].PadRight(width)}  {options[i].Description}");
-        }
-    }
-
-    /// <summary>
     ///     Creates the exception reported for an unknown command, suggesting the closest known name.
     /// </summary>
     /// <param name="name">The unknown command name as typed by the user.</param>
     /// <returns>The exception to throw.</returns>
+    /// <remarks>
+    ///     When the name is a help topic (for example <c>scad</c>), the hint points at <c>canvasnet help</c> instead
+    ///     of suggesting a command.
+    /// </remarks>
     private ToolException CreateUnknownCommandException(string name)
     {
-        // Suggest the closest command name or alias, when one is near enough to be a likely typo
-        var candidates = _commands.SelectMany(c => c.Aliases.Prepend(c.Name)).Append(HelpCommandName);
-        var suggestion = candidates
+        // A topic name typed as a command is a likely mistake of someone looking for the topic
+        if (HelpTopics.Find(name) is { } topic)
+        {
+            return new ToolException(
+                ErrorCodes.UsageError,
+                $"Unknown command '{name}'.",
+                $"'{name}' is a help topic: run 'canvasnet help {topic.Name}'. Run 'canvasnet --help' to list the available commands.")
+            {
+                Command = name
+            };
+        }
+
+        var suggestion = ClosestName(name, _commands.SelectMany(c => c.Aliases.Prepend(c.Name)).Append(HelpCommandName));
+        var hint = suggestion != null
+            ? $"Did you mean '{suggestion}'? Run 'canvasnet --help' to list the available commands."
+            : "Run 'canvasnet --help' to list the available commands.";
+        return new ToolException(ErrorCodes.UsageError, $"Unknown command '{name}'.", hint) { Command = name };
+    }
+
+    /// <summary>
+    ///     Finds the candidate closest to a typed name, when one is near enough to be a likely typo.
+    /// </summary>
+    /// <param name="name">The name as typed.</param>
+    /// <param name="candidates">The valid names.</param>
+    /// <returns>The closest candidate, or <see langword="null"/> when none is within <see cref="MaxSuggestionDistance"/> edits.</returns>
+    private static string? ClosestName(string name, IEnumerable<string> candidates)
+    {
+        return candidates
             .Select(c => (Name: c, Distance: EditDistance(name.ToLowerInvariant(), c.ToLowerInvariant())))
             .Where(c => c.Distance <= MaxSuggestionDistance)
             .OrderBy(c => c.Distance)
             .Select(c => c.Name)
             .FirstOrDefault();
-
-        var hint = suggestion != null
-            ? $"Did you mean '{suggestion}'? Run 'canvasnet --help' to list the available commands."
-            : "Run 'canvasnet --help' to list the available commands.";
-        return new ToolException(ErrorCodes.UsageError, $"Unknown command '{name}'.", hint) { Command = name };
     }
 
     /// <summary>

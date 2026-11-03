@@ -1,0 +1,14 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "width": 240,
+  "height": 120,
+  "data": { "values": [
+    { "day": "2025-01-01", "temp": 3 }, { "day": "2025-01-02", "temp": 5 },
+    { "day": "2025-01-03", "temp": 4 }, { "day": "2025-01-04", "temp": 8 }
+  ] },
+  "mark": { "type": "line", "point": true },
+  "encoding": {
+    "x": { "field": "day", "type": "temporal" },
+    "y": { "field": "temp", "type": "quantitative" }
+  }
+}

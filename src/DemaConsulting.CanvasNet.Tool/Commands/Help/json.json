@@ -1,0 +1,75 @@
+{
+  "topic": "json",
+  "aliases": [],
+  "title": "The --json result documents",
+  "summary": "With --json every command writes exactly one JSON document, on one line, to standard output.",
+  "sections": [
+    {
+      "id": "envelope",
+      "title": "Envelope",
+      "items": [
+        { "term": "schemaVersion", "text": "The version of the document layout, {{schemaVersion}}. It changes only when a document changes incompatibly; adding a key is not a change, so ignore keys and operations you do not know." },
+        { "term": "ok", "text": "true for a result, false for a failure." },
+        { "term": "command", "text": "The canonical name of the command that ran (null in a failure when no command was selected)." },
+        { "text": "The document is deterministic: fixed key order, invariant-culture numbers, one line, ASCII only (other characters are written as \\uXXXX). Standard error is not part of it." }
+      ]
+    },
+    {
+      "id": "fields",
+      "title": "Fields of render, convert, and the verbs",
+      "items": [
+        { "term": "tool", "text": "{name, version} of the tool." },
+        { "term": "input", "text": "{path, format, natural: {width, height}}, and for a document pageCount and page." },
+        { "term": "operations", "text": "Every step that was applied, in order; each has an op key (render, auto-orient, resize, fit, flatten, crop, rotate, flip, pad, and the photo operations) and its own fields. With --all-pages every operation also carries its page. The verbs are crop, resize, rotate, flip, and pad." },
+        { "term": "outputs", "text": "One entry per file written: {path, format, width, height, bytes} and page for a document." },
+        { "term": "diagnostics", "text": "The features that were left out of the picture; see the diagnostics section below." },
+        { "term": "echo", "text": "The text an OpenSCAD model printed with echo." }
+      ]
+    },
+    {
+      "id": "other-commands",
+      "title": "Fields of the other commands",
+      "items": [
+        { "term": "info", "text": "input {path, format, bytes} and one of image, document {pageCount, pages[]}, model {modules, functions, directives}, or chart (after an image object with the laid-out size)." },
+        { "term": "formats", "text": "tool, library, inputs[], outputs[], quality {min, max, default}, and maxDimension." },
+        { "term": "compare, montage, inspect", "text": "Described in their own help: run 'canvasnet help compare', 'canvasnet help montage', or 'canvasnet help inspect'." },
+        { "term": "help", "text": "kind is index, command, topic, examples, or example; see the help section below." }
+      ]
+    },
+    {
+      "id": "diagnostics",
+      "title": "Diagnostics entries",
+      "items": [
+        { "term": "source", "text": "Where the report comes from: scad, vega-lite, pptx, or vsdx. SVG, PDF, and raster images have no diagnostics channel." },
+        { "term": "severity", "text": "unsupported for a feature that was left out, or warning for a questionable construct that still rendered." },
+        { "term": "code", "text": "The stable identifier of the feature, for example scad-module-surface or vl-mark-geoshape. A warning of a SCAD model has the code scad-warning; a warning of a Vega-Lite chart has the code vega-lite-warning and carries its vl-* identifier at the start of the message text." },
+        { "term": "message", "text": "A description; for a model or chart it gives file, line, and column." },
+        { "term": "page", "text": "The page of a document the report belongs to." }
+      ]
+    },
+    {
+      "id": "failure",
+      "title": "Failure documents",
+      "items": [
+        { "term": "error", "text": "{code, message, hint}: code is one of the stable codes of the errors topic ('canvasnet help errors'); hint is omitted when there is none. The document has no exit-code field: the exit code of every failure is 1." },
+        { "text": "A failure document is written only when --json is given and --silent is not. A failed compare gate also carries the fields of the comparison." }
+      ]
+    },
+    {
+      "id": "help",
+      "title": "Help documents (canvasnet help ... --json)",
+      "items": [
+        { "term": "kind: index", "text": "topic is topics; usage, commands[], topics[] ({name, aliases, summary}), and globalOptions[]." },
+        { "term": "kind: command", "text": "topic is the command name; aliases, summary, usage, options[], and globalOptions[]. An option is {name, aliases, takesValue, valueName, description}." },
+        { "term": "kind: topic", "text": "topic, aliases, title, summary, sections[] ({id, title, items[] of {term, text}}), and examples[] ({name, kind, language, fileName, description, content})." },
+        { "term": "kind: examples", "text": "topic and examples[] without the content, for 'canvasnet help <topic> --examples --json'." },
+        { "term": "kind: example", "text": "topic and one example object, for 'canvasnet help <topic> --example <name> --json'." }
+      ]
+    }
+  ],
+  "examples": [
+    { "name": "render", "kind": "command", "language": "shell", "description": "Render and read the result document.", "content": "canvasnet render shapes.svg -o shapes.png --json" },
+    { "name": "formats", "kind": "command", "language": "shell", "description": "Discover the formats and limits of the installed tool.", "content": "canvasnet formats --json" },
+    { "name": "topic", "kind": "command", "language": "shell", "description": "Read a topic as a document.", "content": "canvasnet help scad --json" }
+  ]
+}

@@ -1,0 +1,68 @@
+{
+  "topic": "pdf",
+  "aliases": [],
+  "title": "PDF documents (.pdf)",
+  "summary": "Multi-page documents; a page is drawn as an image. There is no diagnostics channel.",
+  "sections": [
+    {
+      "id": "supported",
+      "title": "Supported",
+      "items": [
+        { "text": "Pages: --page N (from 1) or --all-pages; the page rotation is applied." },
+        { "text": "Resolution: --dpi, default 96, at most {{maxDpi}}." },
+        { "text": "Paths, fills, strokes, clipping, and images (resampled once to the size they cover)." },
+        { "text": "Color spaces Device, Cal, Lab, ICCBased (chosen by component count; the profile is not applied), Indexed, Separation, DeviceN, and Pattern." },
+        { "text": "Axial, radial, and mesh shadings (types 2 to 7) and tiling patterns." },
+        { "text": "Text with simple TrueType fonts. An embedded font is used; a font that is not embedded is substituted silently by an installed font, else by the bundled Liberation fonts (Symbol and ZapfDingbats use bundled Noto fonts)." }
+      ]
+    },
+    {
+      "id": "unsupported",
+      "title": "Unsupported",
+      "items": [
+        { "text": "These make the page fail with unsupported-feature, with or without --strict, and no partial picture is written: MMType1 fonts, function-based shadings (type 1), transparency groups, Type 3 glyphs under a text clip mode, and symbolic fonts that are not embedded and have no substitute." },
+        { "term": "pdf-image-lab-decode", "text": "An image in a Lab color space with a Decode array." },
+        { "term": "pdf-image-tint-budget", "text": "A DeviceN image with more distinct pixels than the tint-evaluation budget allows." },
+        { "text": "ICC profile data is ignored silently." },
+        { "text": "The tool has no option to supply a password, a font folder, or a page range other than one page or all pages." }
+      ]
+    },
+    {
+      "id": "options",
+      "title": "Render options",
+      "items": [
+        { "term": "--page <N>", "text": "The page to draw, counted from 1 (default 1); a page beyond the last is page-out-of-range." },
+        { "term": "--all-pages", "text": "Draw every page; for a document of more than one page the output must contain {page} or be a directory." },
+        { "term": "--dpi <D>", "text": "Resolution in dots per inch (default 96, above 0 and at most {{maxDpi}}). A 72 by 48 point page is 96 by 64 pixels at 96 dpi." },
+        { "term": "--scale <factor>", "text": "Multiply the natural size by a factor; --width, --height, and --size also size the page." },
+        { "term": "--background <color>", "text": "The color the page is flattened over (white by default)." },
+        { "term": "--strict", "text": "Accepted, but PDF has no diagnostics channel, so it changes nothing." }
+      ]
+    },
+    {
+      "id": "diagnostics",
+      "title": "Diagnostics and --strict",
+      "items": [
+        { "text": "None: the diagnostics[] list of a PDF is always empty and --strict has no effect. A feature the renderer cannot draw is an error instead." },
+        { "term": "unsupported-feature", "text": "Error code: the message names the feature, for example pdf-image-lab-decode or pdf-image-tint-budget." },
+        { "term": "corrupt-input", "text": "Error code: a damaged or truncated document." },
+        { "term": "page-out-of-range", "text": "Error code: --page is beyond the last page." }
+      ]
+    },
+    {
+      "id": "differences",
+      "title": "Known differences from PDF viewers",
+      "items": [
+        { "text": "ICC profiles are not applied, so colors in ICCBased spaces can differ slightly from a viewer." },
+        { "text": "A substituted font is chosen from the installed fonts, so text with fonts that are not embedded can differ between machines." },
+        { "text": "Mesh shadings in DeviceCMYK, Separation, and DeviceN spaces are approximated: each vertex is converted to RGB first and the result is blended." },
+        { "text": "Images are resampled once, so thin one pixel rules are attenuated rather than dropped." }
+      ]
+    }
+  ],
+  "examples": [
+    { "name": "info-pages", "kind": "command", "language": "shell", "description": "List every page with its size and rotation as JSON.", "content": "canvasnet info report.pdf --all-pages --json" },
+    { "name": "render-page", "kind": "command", "language": "shell", "description": "Draw page 2 at 150 dpi and print the JSON result.", "content": "canvasnet render report.pdf --page 2 --dpi 150 -o page2.png --json" },
+    { "name": "overview", "kind": "command", "language": "shell", "description": "Compose every page into one labeled contact sheet.", "content": "canvasnet montage report.pdf --all-pages --labels -o overview.png" }
+  ]
+}

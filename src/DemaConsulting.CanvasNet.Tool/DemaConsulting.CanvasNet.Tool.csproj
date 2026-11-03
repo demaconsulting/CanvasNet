@@ -104,6 +104,14 @@
     <None Include="..\..\Icon.png" Pack="true" PackagePath="\" />
   </ItemGroup>
 
+  <!-- The help topics (one JSON file per topic) and the tiny example sources they print are embedded in the tool
+       assembly, so 'canvasnet help <topic>' works from an installed tool without any files. The logical names are
+       flat (no folder segments), like the bundled fonts of the core library. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Commands\Help\*.json" LogicalName="DemaConsulting.CanvasNet.Tool.Help.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Commands\Help\Examples\*" LogicalName="DemaConsulting.CanvasNet.Tool.Help.Examples.%(Filename)%(Extension)" />
+  </ItemGroup>
+
   <!-- Third-party license notices of the bundled Vega-Lite library: BSD-3-Clause (Vega, Vega-Lite), ISC (d3), and
        Apache-2.0 (ColorBrewer, Turbo) and the notice of cividis require the notices to be reproduced in binary
        distributions, so they ship as plain files in the package's licenses\ folder (the library package does the same). The notice file keeps a distinct name here so it cannot

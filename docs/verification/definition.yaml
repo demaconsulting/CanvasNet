@@ -156,6 +156,7 @@ input-files:
   - docs/verification/canvas-net-tool/path-helpers.md
   - docs/verification/canvas-net-tool/commands.md
   - docs/verification/canvas-net-tool/commands/command-registry.md
+  - docs/verification/canvas-net-tool/commands/help-topics.md
   - docs/verification/canvas-net-tool/commands/discovery-commands.md
   - docs/verification/canvas-net-tool/commands/render-command.md
   - docs/verification/canvas-net-tool/commands/compare-command.md

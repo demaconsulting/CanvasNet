@@ -1,0 +1,69 @@
+{
+  "topic": "svg",
+  "aliases": [],
+  "title": "SVG drawings (.svg)",
+  "summary": "A common subset of SVG, drawn sharply at the target size. There is no diagnostics channel.",
+  "sections": [
+    {
+      "id": "supported",
+      "title": "Supported",
+      "items": [
+        { "text": "Shapes: rect, circle, ellipse, line, polyline, polygon, path." },
+        { "text": "Grouping with g and cascading presentation attributes; transform; use and symbol; marker." },
+        { "text": "Linear and radial gradients (with href inheritance), pattern, clipPath, and mask." },
+        { "text": "Filters: the fe* primitives blend, color matrix, component transfer, composite, convolve matrix, lighting, displacement map, drop shadow, flood, Gaussian blur, image, merge, morphology, offset, tile, and turbulence." },
+        { "text": "image elements with a base64 data: URI in a supported raster format; image-rendering selects smooth or pixelated drawing." },
+        { "text": "text, best effort, with weight and style: an installed family is used; the generic families and unknown families use the bundled Liberation Sans, Serif, and Mono." },
+        { "text": "The root viewBox and preserveAspectRatio (all aligns, meet and slice), and percent lengths." },
+        { "text": "CSS in a style element (type, class, id, universal, and compound selectors; descendant and child combinators; specificity) and inline style." },
+        { "text": "The intrinsic size is the viewBox, else width and height, else 300x150." }
+      ]
+    },
+    {
+      "id": "unsupported",
+      "title": "Unsupported",
+      "items": [
+        { "text": "These are silently not drawn, with no diagnostic: animation (animate and the rest of SMIL), foreignObject, nested svg elements, and filter primitives the library does not know." },
+        { "text": "A filter over its work budget is skipped: the element is drawn unfiltered." },
+        { "text": "Scripting and external resources: an image must carry a data: URI." },
+        { "text": "A malformed document, or one over a limit (5,000,000 characters, nesting depth 100, 100,000 rendered elements), is rejected as corrupt-input." }
+      ]
+    },
+    {
+      "id": "options",
+      "title": "Render options",
+      "items": [
+        { "term": "--width <pixels>", "text": "Draw at this width, keeping the aspect ratio; --height does the same for the height. The drawing is sharp, never enlarged afterwards." },
+        { "term": "--size <WxH>", "text": "Draw inside this box, centered and never stretched." },
+        { "term": "--scale <factor>", "text": "Multiply the intrinsic size by a factor." },
+        { "term": "--background <color>", "text": "The color transparency is flattened over (white by default); transparent keeps alpha." },
+        { "term": "--strict", "text": "Has no effect on an SVG." }
+      ]
+    },
+    {
+      "id": "diagnostics",
+      "title": "Diagnostics and --strict",
+      "items": [
+        { "text": "None: SVG has no diagnostics channel, so what cannot be drawn is simply absent and --strict has no effect." },
+        { "term": "corrupt-input", "text": "Error code: malformed XML, a root element that is not svg, or a document over a limit." }
+      ]
+    },
+    {
+      "id": "differences",
+      "title": "Known differences from browsers",
+      "items": [
+        { "text": "No scripting, animation, or external resources." },
+        { "text": "Text is best effort without shaping. An installed family is used, so text can differ between machines; generic and unknown families use the bundled Liberation fonts." },
+        { "text": "The drawing is rendered sharply at the target size, not rasterized first and scaled afterwards." }
+      ]
+    }
+  ],
+  "examples": [
+    { "name": "shapes", "kind": "source", "language": "xml", "fileName": "shapes.svg", "description": "A rectangle, a circle outline, and a triangle path." },
+    { "name": "gradient", "kind": "source", "language": "xml", "fileName": "gradient.svg", "description": "A rounded rectangle filled with a linear gradient." },
+    { "name": "group", "kind": "source", "language": "xml", "fileName": "group.svg", "description": "A clip path, use of a shared star, and transforms." },
+    { "name": "render-width", "kind": "command", "language": "shell", "description": "Draw shapes.svg 480 pixels wide.", "content": "canvasnet render shapes.svg --width 480 -o shapes.png" },
+    { "name": "transparent", "kind": "command", "language": "shell", "description": "Keep the transparency of the drawing.", "content": "canvasnet render shapes.svg --background transparent -o shapes-alpha.png" },
+    { "name": "info", "kind": "command", "language": "shell", "description": "Report the intrinsic size without drawing.", "content": "canvasnet info shapes.svg --json" }
+  ]
+}

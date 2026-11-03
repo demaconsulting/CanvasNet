@@ -26,11 +26,12 @@ evidence for the platform requirements, selected by the source filters in the pl
 run records the other self-tests (`CanvasNetTool_Formats`, `CanvasNetTool_RenderPng`, `CanvasNetTool_ConvertFormats`,
 `CanvasNetTool_Info`, `CanvasNetTool_RenderSvg`, `CanvasNetTool_PdfMinimal`, `CanvasNetTool_RenderScad`,
 `CanvasNetTool_CropResize`, `CanvasNetTool_RotateFlipPad`, `CanvasNetTool_Compare`, `CanvasNetTool_Montage`,
-`CanvasNetTool_Adjustments`, and
-`CanvasNetTool_RenderVegaLite`), which
+`CanvasNetTool_Adjustments`,
+`CanvasNetTool_RenderVegaLite`, and `CanvasNetTool_HelpExamples`), which
 generate their own inputs and are evidence for the validation requirements. The self-validation suite is deliberately
-kept small (fifteen tests); the compare, montage, and adjustments self-tests are smoke tests (the last runs every photo
-operation once on a generated sketch), the Vega-Lite self-test is a smoke test of one chart, and the detailed
+kept small (sixteen tests); the compare, montage, and adjustments self-tests are smoke tests (the last runs every photo
+operation once on a generated sketch), the Vega-Lite self-test is a smoke test of one chart, the help self-test renders
+every source example of the help topics with `--strict`, and the detailed
 coverage of these commands and operations is in the unit,
 subsystem, and system tests.
 The same job guards the package contents (no NuGet dependency at all, a `DotnetTool` package, and the tool, its
@@ -60,6 +61,9 @@ belong to the "Sequential" collection because console redirection is process-wid
 - Silent mode produces no console output.
 - With `--json`, a command's standard output is exactly one JSON document, and an expected failure is also
   written as a failure document (unless `--silent` is given); the formats command lists the formats as text or JSON.
+- The tool describes itself: `help <topic>` gives a topic (a format, the JSON documents, the errors, or the limits) as
+  text or JSON, `help <topic> --example <name>` prints only the source or command line of an example, and an unknown
+  help subject is a usage error that lists the valid subjects.
 - `render` and `convert` write PNG, JPEG, BMP, and TIFF files from every supported input (PNG, JPEG, BMP, TIFF, GIF,
   JPEG 2000, SVG, the pages of PDF, PPTX, and VSDX documents, OpenSCAD models, and Vega-Lite charts) with the
   documented defaults
@@ -318,7 +322,7 @@ chart with the rows inline; a chart that names a missing file returns exit code 
 ("was not found") and writes no output; a chart with a remote URL renders with exit code 0 and the `vl-data-remote-url`
 diagnostic in the JSON result (nothing is fetched), and with `--strict` returns an `unsupported-feature` error and writes
 no output; and `--data-dir` is a `usage-error`, because this release has no option for another data folder. The
-self-validation suite is unchanged at fifteen tests: no self-test was added for chart data, and the existing
+self-validation suite had fifteen tests when chart data was added: no self-test was added for chart data, and the existing
 `CanvasNetTool_RenderVegaLite` self-test still renders an inline chart.
 
 **CanvasNetTool_Compare_IdenticalImages_ReportsZeroDifference**: two identical gray PNGs are compared as real
@@ -429,3 +433,9 @@ result reports the final size; and `inspect colors --auto-levels` reports `#FFFF
 **CanvasNetTool_Photo_SameInputsTwice_WriteIdenticalBytes**: three option sets that use the photo operations (including
 Otsu, deskew, an oblique rotation, gamma, and the grid) are rendered twice in-process; the two files of each are
 byte-identical.
+
+**CanvasNetTool_HelpTopics_RunAsProcess_PrintTopicJsonAndRawExample**: as real processes, `help scad --json` exits 0 and
+writes one `help` document of the kind `topic` for `scad` with sections and examples; `help vega-lite --example bar`
+exits 0 and writes only the chart source, which parses as JSON with the mark `bar`; and `help nope` exits 1 with
+`Error: usage-error: Unknown help subject 'nope'.` and the list of valid subjects. This proves that the topic files
+and the example sources are embedded in the tool assembly.

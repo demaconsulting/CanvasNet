@@ -112,8 +112,8 @@ internal static class Program
     /// <remarks>
     ///     Dispatch is priority-ordered: version query first, then help, then self-validation, then
     ///     the selected command. Only the highest-priority matching action is executed per invocation.
-    ///     The banner is printed only for help, self-validation, and an empty command line, so that the
-    ///     output of a command is exactly the command's own output.
+    ///     The banner is printed only for help (not with <c>--json</c>), self-validation, and an empty command line, so
+    ///     that the output of a command is exactly the command's own output.
     /// </remarks>
     public static void Run(Context context)
     {
@@ -135,11 +135,16 @@ internal static class Program
             return;
         }
 
-        // Priority 2: Help (the command's own help when a command was named)
+        // Priority 2: Help (the help of the command or topic when one was named). The banner is skipped for --json, so
+        // that standard output is exactly one JSON document
         if (context.Help)
         {
-            PrintBanner(context);
-            context.WriteLine(registry.RenderHelp(context.Command));
+            if (!context.Json)
+            {
+                PrintBanner(context);
+            }
+
+            context.WriteLine(registry.RenderHelp(context.Command, context.Json));
             return;
         }
 

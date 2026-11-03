@@ -1,0 +1,14 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "width": 240,
+  "height": 120,
+  "title": "Crates sold per stall",
+  "data": { "values": [
+    { "stall": "A", "crates": 28 }, { "stall": "B", "crates": 55 }, { "stall": "C", "crates": 43 }
+  ] },
+  "mark": "bar",
+  "encoding": {
+    "x": { "field": "stall", "type": "nominal" },
+    "y": { "field": "crates", "type": "quantitative" }
+  }
+}

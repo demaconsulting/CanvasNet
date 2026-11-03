@@ -1,4 +1,4 @@
-// cspell:ignore canvasnet rmse deskew
+// cspell:ignore canvasnet rmse deskew scadd
 using DemaConsulting.CanvasNet.Tool.Commands;
 
 namespace DemaConsulting.CanvasNet.Tool.Tests.Commands;
@@ -155,9 +155,100 @@ public class CommandsSubsystemTests
         // Act: ask for help on a command that does not exist
         var (exitCode, _, stdErr) = ToolHost.Invoke(registry, "help", "nothing");
 
-        // Assert: exit code 1 and a usage error
+        // Assert: exit code 1 and a usage error that names the subject
         Assert.Equal(1, exitCode);
-        Assert.Contains("Error: usage-error: Unknown command 'nothing'.", stdErr);
+        Assert.Contains("Error: usage-error: Unknown help subject 'nothing'.", stdErr);
+    }
+
+    /// <summary>
+    ///     Test that a help topic is shown by name, by alias, and by the --help flag, all with the same text.
+    /// </summary>
+    [Fact]
+    public void CommandsSubsystem_HelpTopics_SubjectsResolve_ByNameAliasAndFlag()
+    {
+        // Arrange / Act: ask for the scad topic in the four ways
+        var (byName, byNameOut, _) = ToolHost.Invoke("help", "scad");
+        var (byAlias, byAliasOut, _) = ToolHost.Invoke("help", "OpenSCAD");
+        var (byFlag, byFlagOut, _) = ToolHost.Invoke("scad", "--help");
+        var (byTopics, byTopicsOut, _) = ToolHost.Invoke("help", "topics");
+
+        // Assert: the topic text is the same (the flag form adds the banner), and 'help topics' is the index with the topic list
+        Assert.Equal([0, 0, 0, 0], [byName, byAlias, byFlag, byTopics]);
+        Assert.StartsWith("Topic: OpenSCAD models (.scad)", byNameOut);
+        Assert.Equal(byNameOut, byAliasOut);
+        Assert.EndsWith(byNameOut, byFlagOut);
+        Assert.Contains("Help topics:", byTopicsOut);
+        Assert.All(HelpTopics.TopicNames, name => Assert.Contains(name, byTopicsOut));
+    }
+
+    /// <summary>
+    ///     Test that help with --json is one JSON line with no banner and no escape sequences, however it is asked for.
+    /// </summary>
+    [Fact]
+    public void CommandsSubsystem_HelpTopics_Json_IsOneLineWithoutBannerOrAnsi()
+    {
+        // Arrange / Act: ask for JSON help in the three ways
+        var results = new[]
+        {
+            ToolHost.Invoke("help", "scad", "--json"),
+            ToolHost.Invoke("--help", "--json"),
+            ToolHost.Invoke("scad", "--help", "--json")
+        };
+
+        // Assert: each is exactly one JSON document of the help command on one line
+        var kinds = new[] { "topic", "index", "topic" };
+        for (var i = 0; i < results.Length; i++)
+        {
+            var (exitCode, stdOut, stdErr) = results[i];
+            Assert.Equal(0, exitCode);
+            Assert.Equal(string.Empty, stdErr);
+            Assert.DoesNotContain('\u001b', stdOut);
+            Assert.Single(stdOut.TrimEnd().Split('\n'));
+            using var document = System.Text.Json.JsonDocument.Parse(stdOut);
+            Assert.Equal("help", document.RootElement.GetProperty("command").GetString());
+            Assert.Equal(kinds[i], document.RootElement.GetProperty("kind").GetString());
+        }
+    }
+
+    /// <summary>
+    ///     Test that --example prints only the source of the example on standard output.
+    /// </summary>
+    [Fact]
+    public void CommandsSubsystem_HelpTopics_Example_PrintsOnlyTheSource()
+    {
+        // Arrange: the plate example
+        var expected = HelpTopics.RenderExample(HelpTopics.Find("scad")!, "plate");
+
+        // Act: print it
+        var (exitCode, stdOut, stdErr) = ToolHost.Invoke("help", "scad", "--example", "plate");
+
+        // Assert: stdout is the source and one newline, and nothing else was written
+        Assert.Equal(0, exitCode);
+        Assert.Equal(string.Empty, stdErr);
+        Assert.Equal(expected + "\n", stdOut.Replace("\r\n", "\n", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    ///     Test that an unknown help subject is a usage error that lists the valid subjects, as text and as JSON.
+    /// </summary>
+    [Fact]
+    public void CommandsSubsystem_HelpTopics_UnknownSubject_ReportsUsageErrorWithValidSubjects()
+    {
+        // Arrange / Act: ask for an unknown subject, as text and with --json
+        var (exitCode, stdOut, stdErr) = ToolHost.Invoke("help", "scadd");
+        var (jsonExit, jsonOut, _) = ToolHost.Invoke("help", "nothing", "--json");
+
+        // Assert: exit code 1, the suggestion and the valid subjects on stderr, and a failure document in JSON
+        Assert.Equal(1, exitCode);
+        Assert.Equal(string.Empty, stdOut);
+        Assert.Contains("Error: usage-error: Unknown help subject 'scadd'.", stdErr);
+        Assert.Contains("Did you mean 'scad'?", stdErr);
+        Assert.Contains("Valid subjects:", stdErr);
+        Assert.Equal(1, jsonExit);
+        using var document = System.Text.Json.JsonDocument.Parse(jsonOut);
+        Assert.False(document.RootElement.GetProperty("ok").GetBoolean());
+        Assert.Equal("help", document.RootElement.GetProperty("command").GetString());
+        Assert.Equal("usage-error", document.RootElement.GetProperty("error").GetProperty("code").GetString());
     }
 
     /// <summary>

@@ -2,7 +2,8 @@
 # Software Unit Requirements for the CommandRegistry Class
 #
 # The CommandRegistry class holds the table of commands the tool offers. It resolves a typed name
-# or alias to a command, dispatches to it, and renders help. The ICommand and OptionSpec supporting
+# or alias to a command, dispatches to it, and renders help (for the commands and, through the
+# HelpTopics unit, for the help topics, as text or JSON). The ICommand and OptionSpec supporting
 # types are documented with this unit.
 
 sections:
@@ -81,3 +82,46 @@ sections:
           - CommandRegistry_RenderHelp_Command_ShowsUsageSummaryAndOptions
           - CommandRegistry_RenderHelp_HelpName_ReturnsTopLevelHelp
           - CommandRegistry_RenderHelp_UnknownCommand_ThrowsUsageError
+
+      - id: CanvasNetTool-Commands-CommandRegistry-HelpSubjects
+        title: >-
+          The CommandRegistry class shall let the built-in help command take a command (by name or alias), a help
+          topic (by name or alias), or the subject topics (the index of both), shall print only the source of one
+          example (or its command line) of a topic with the example option and list the examples of a topic with the
+          examples option, shall list the help topics in the top-level help, shall report an unknown subject as a
+          usage-error ToolException that suggests the closest subject within an edit distance of two, when there is
+          one, and lists the valid subjects, shall report an example option without a topic, with a command, or with
+          an unknown name as a usage error, and shall tell, for a topic name typed as a command, that it is a help
+          topic.
+        justification: |
+          Formats and limits are not commands, yet they are what a person or an agent needs to learn first; one help
+          entry point for both, whose answer for an example is only the example, lets an agent go from the list of
+          subjects to a file it can render without any parsing, and a mistake in the subject must say what the
+          choices are.
+        tests:
+          - CommandRegistry_RenderHelp_Topic_ReturnsTopicHelp
+          - CommandRegistry_RenderHelp_TopicAlias_EqualsCanonical
+          - CommandRegistry_RenderHelp_Topics_ListsCommandsAndTopics
+          - CommandRegistry_RenderHelp_TopLevel_ListsHelpTopics
+          - CommandRegistry_Run_HelpExample_WritesOnlyTheSource
+          - CommandRegistry_Run_HelpExamples_ListsNames
+          - CommandRegistry_Run_HelpExampleUnknown_ThrowsUsageErrorWithNames
+          - CommandRegistry_Run_HelpExampleOnCommand_ThrowsUsageError
+          - CommandRegistry_Run_HelpExampleWithoutSubject_ThrowsUsageError
+          - CommandRegistry_Run_HelpUnknownSubject_SuggestsClosestAndListsValidSubjects
+          - CommandRegistry_Run_HelpUnknownSubjectFarFromAll_HasNoSuggestionButListsSubjects
+          - CommandRegistry_Run_TopicNameAsCommand_HintsAtHelp
+
+      - id: CanvasNetTool-Commands-CommandRegistry-HelpJson
+        title: >-
+          The CommandRegistry class shall render every help output as one JSON document when asked: the index of the
+          commands and the help topics with their aliases and summaries, the help of a command with its usage and
+          options, and the help of a topic.
+        justification: |
+          Agents parse the output of the tool; the help that tells them what the tool can do must reach them in the same
+          machine-readable form as every result, without a banner or color codes.
+        tests:
+          - CommandRegistry_RenderHelp_Json_Command_HasOptions
+          - CommandRegistry_RenderHelp_Json_UsageUsesLineFeedsOnly
+          - CommandRegistry_RenderHelp_Json_Index_ListsCommandsAndTopics
+          - CommandRegistry_RenderHelp_TopicAlias_EqualsCanonical

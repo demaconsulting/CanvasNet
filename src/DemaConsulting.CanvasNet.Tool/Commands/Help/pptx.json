@@ -1,0 +1,65 @@
+{
+  "topic": "pptx",
+  "aliases": ["powerpoint"],
+  "title": "PowerPoint presentations (.pptx)",
+  "summary": "Each slide is a page, drawn as an image.",
+  "sections": [
+    {
+      "id": "supported",
+      "title": "Supported",
+      "items": [
+        { "text": "Slides as pages: --page N (from 1), --all-pages, and --dpi." },
+        { "text": "The shape tree including nested groups; preset and custom geometry with solid, linear-gradient, and covered pattern fills, and outlines." },
+        { "text": "Connectors (straight, elbow, and curved) with arrowheads." },
+        { "text": "Raster pictures (BMP, PNG, TIFF, JPEG, GIF, with srcRect cropping) and pictures that only carry an SVG." },
+        { "text": "Tables and embedded charts." },
+        { "text": "Text with placeholder, layout, master, and theme inheritance, wrapping, alignment, vertical anchoring, autofit, bullets, and numbering." },
+        { "text": "Slide, layout, and master backgrounds." }
+      ]
+    },
+    {
+      "id": "unsupported",
+      "title": "Unsupported",
+      "items": [
+        { "text": "EMF and WMF pictures: they are skipped and reported (see diagnostics); --strict turns the report into an error. Those on a layout or master are skipped silently." },
+        { "text": "These always fail the page with unsupported-feature, with or without --strict: radial and path gradients (pptx-gradient-path), preset shapes or pattern fills the library lacks (pptx-pattern-fill), linked images that are not embedded (pptx-image-link), and picture formats it cannot decode (pptx-image-format)." },
+        { "term": "pptx-chart-<token>", "text": "A chart feature that cannot be drawn fails the page with unsupported-feature; the token names the feature." },
+        { "text": "A shape, picture, or graphic frame that has no position anywhere in its ancestry is skipped silently." }
+      ]
+    },
+    {
+      "id": "options",
+      "title": "Render options",
+      "items": [
+        { "term": "--page <N>", "text": "The slide to draw, counted from 1 (default 1)." },
+        { "term": "--all-pages", "text": "Draw every slide; for a deck of more than one slide the output must contain {page} or be a directory." },
+        { "term": "--dpi <D>", "text": "Resolution in dots per inch (default 96, above 0 and at most {{maxDpi}})." },
+        { "term": "--background <color>", "text": "The color the slide is cleared to first (white by default); a declared slide background is painted over it." },
+        { "term": "--strict", "text": "Fail with unsupported-feature when an EMF or WMF picture would be skipped." }
+      ]
+    },
+    {
+      "id": "diagnostics",
+      "title": "Diagnostics and --strict",
+      "items": [
+        { "term": "pptx-image-metafile", "text": "{source: pptx, severity: unsupported}: an EMF or WMF picture was skipped. It is the only skipped-picture report; with --strict it is an unsupported-feature error." },
+        { "text": "The other pptx-* identifiers appear in the message of an unsupported-feature error, not in diagnostics[]." },
+        { "term": "unsupported-feature", "text": "Error code: see the list of failures above." },
+        { "term": "page-out-of-range", "text": "Error code: --page is beyond the last slide." }
+      ]
+    },
+    {
+      "id": "differences",
+      "title": "Known differences from PowerPoint",
+      "items": [
+        { "text": "Fonts that are not embedded come from the machine, so text can differ between machines." },
+        { "text": "EMF and WMF pictures are not drawn (a known gap)." },
+        { "text": "The result is a still picture of one slide." }
+      ]
+    }
+  ],
+  "examples": [
+    { "name": "all-slides", "kind": "command", "language": "shell", "description": "Draw every slide into the folder out, one file per slide.", "content": "canvasnet render slides.pptx --all-pages -o out/slide-{page}.png" },
+    { "name": "one-slide-strict", "kind": "command", "language": "shell", "description": "Draw slide 3 at 150 dpi and fail if a picture would be skipped.", "content": "canvasnet render slides.pptx --page 3 --dpi 150 --strict -o slide3.png --json" }
+  ]
+}

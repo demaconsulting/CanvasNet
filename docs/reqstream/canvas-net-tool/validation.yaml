@@ -131,8 +131,23 @@ sections:
         justification: |
           The Vega-Lite self-test proves, in the deployment environment, that the Vega-Lite library bundled with the
           tool, the source loader, and the commands work together on an original chart; its name is a contract with the
-          qualification evidence. It is the fifteenth and last self-test and a smoke test of one chart: the detailed
+          qualification evidence. It is a smoke test of one chart: the detailed
           coverage is in the unit and subsystem tests, and the self-validation suite is kept small.
         tests:
           - Validation_Run_VegaLiteSelfTest_PassesAndIsRecorded
           - CanvasNetTool_RenderVegaLite
+
+      - id: CanvasNetTool-Validation-HelpExamplesSelfTest
+        title: >-
+          The Validation class shall run the help examples self-test, which renders every source example of the help
+          topics in-process with the strict option, checking that it succeeds without a diagnostic, that the help
+          command prints the source of an example exactly as it ships, and that the help topics JSON document lists
+          all ten topics.
+        justification: |
+          The help examples self-test proves, in the deployment environment, that the help content shipped inside the
+          tool is present and that its examples render through the SVG, OpenSCAD, and Vega-Lite renderers bundled
+          with the tool; its name is a contract with the qualification evidence. It is a smoke test: the detailed
+          coverage is in the unit and subsystem tests, and the self-validation suite is kept small.
+        tests:
+          - Validation_Run_HelpExamplesSelfTest_PassesAndIsRecorded
+          - CanvasNetTool_HelpExamples

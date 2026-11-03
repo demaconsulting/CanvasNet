@@ -3317,8 +3317,25 @@ reviews:
       - "docs/verification/canvas-net-tool/commands/command-registry.md"  # unit verification
       - "docs/sysml2/model/canvas-net-tool/commands/command-registry.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.Tool/Commands/ICommand.cs"      # unit source (ICommand, OptionSpec)
-      - "src/DemaConsulting.CanvasNet.Tool/Commands/CommandRegistry.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Tool/Commands/CommandRegistry*.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/CommandRegistryTests.cs"  # unit tests
+
+  # CanvasNetTool-Commands-HelpTopics Review (one per unit)
+  - id: CanvasNetTool-Commands-HelpTopics
+    title: Review that CanvasNetTool Commands HelpTopics Implementation is Correct
+    context:
+      - "docs/design/canvas-net-tool.md"
+      - "docs/reqstream/canvas-net-tool.yaml"
+      - "docs/design/canvas-net-tool/commands.md"
+      - "docs/reqstream/canvas-net-tool/commands.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-tool/commands/help-topics.yaml"    # unit requirements
+      - "docs/design/canvas-net-tool/commands/help-topics.md"         # unit design
+      - "docs/verification/canvas-net-tool/commands/help-topics.md"   # unit verification
+      - "docs/sysml2/model/canvas-net-tool/commands/help-topics.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Tool/Commands/HelpTopics*.cs"   # unit source
+      - "src/DemaConsulting.CanvasNet.Tool/Commands/Help/**/*"        # shipped topic content and examples
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/HelpTopicsTests*.cs"  # unit tests
 
   # CanvasNetTool-Commands-DiscoveryCommands Review (one per unit)
   - id: CanvasNetTool-Commands-DiscoveryCommands
