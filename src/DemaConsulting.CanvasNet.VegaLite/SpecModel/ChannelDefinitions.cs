@@ -36,6 +36,131 @@ internal static class ChannelDefinitions
         definition["field"] is not null || definition["datum"] is not null || definition["aggregate"] is { IsNull: false };
 
     /// <summary>
+    ///     Gets the main channel of a secondary range channel: <c>x</c> for <c>x2</c>, <c>y</c> for <c>y2</c>, <c>theta</c> for <c>theta2</c>, <c>radius</c> for <c>radius2</c>,
+    ///     <c>latitude</c> for <c>latitude2</c> and <c>longitude</c> for <c>longitude2</c> (Vega-Lite's <c>getMainRangeChannel</c>).
+    /// </summary>
+    /// <param name="channel">The channel name.</param>
+    /// <returns>The main channel; null when the channel is not a secondary range channel.</returns>
+    public static string? MainChannelOf(string channel) => channel switch
+    {
+        "x2" => "x",
+        "y2" => "y",
+        "theta2" => "theta",
+        "radius2" => "radius",
+        "latitude2" => "latitude",
+        "longitude2" => "longitude",
+        _ => null,
+    };
+
+    /// <summary>
+    ///     Gets the effective type of a field (or datum) definition for a channel: the written <c>type</c>, or else the type Vega-Lite infers (its <c>defaultType</c>).
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         A <c>type</c> is optional in Vega-Lite 5. When the definition has none, the type is, in this order: <c>quantitative</c> for <c>latitude</c> and <c>longitude</c>; <c>nominal</c> for
+    ///         <c>row</c>, <c>column</c>, <c>facet</c>, <c>shape</c> and <c>strokeDash</c>; <c>ordinal</c> for <c>order</c>; <c>ordinal</c> for a <c>sort</c> array;
+    ///         <c>temporal</c> for a <c>timeUnit</c>; <c>quantitative</c> for a <c>bin</c> or an <c>aggregate</c> (except <c>argmin</c> and <c>argmax</c>); the type of the
+    ///         <c>scale.type</c> (<c>quantitative</c> for a numeric or discretizing scale, <c>temporal</c> for <c>time</c> and <c>utc</c>); and <c>nominal</c> otherwise.
+    ///         The channel does not matter beyond the first three rules, so a field on <c>x</c> or <c>y</c> without a type is nominal.
+    ///         A secondary channel (<c>x2</c>, <c>y2</c>, <c>theta2</c>, <c>radius2</c>) takes the type of its main channel. A datum takes its type from its value: a number is
+    ///         quantitative, a date-time object temporal, and anything else (a text, a boolean, another object) nominal.
+    ///     </para>
+    ///     <para>The method reads the specification tree only and is constant work.</para>
+    /// </remarks>
+    /// <param name="definition">The field or datum definition object (the condition that holds the field, for a conditional channel).</param>
+    /// <param name="channel">The channel name.</param>
+    /// <param name="encoding">The encoding object that holds the main channel of a secondary channel, or null.</param>
+    /// <returns>The type text: <c>quantitative</c>, <c>nominal</c>, <c>ordinal</c>, <c>temporal</c> or <c>geojson</c>.</returns>
+    public static string TypeOf(SpecNode definition, string channel, SpecNode? encoding = null)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        ArgumentNullException.ThrowIfNull(channel);
+        if (definition["type"] is { IsString: true } written)
+        {
+            return written.StringValue!;
+        }
+
+        // A secondary channel has the type of its main channel
+        if (MainChannelOf(channel) is { } main)
+        {
+            if (encoding?[main] is { IsObject: true } mainDefinition)
+            {
+                return TypeOf(FieldDefinitionOf(mainDefinition), main, encoding);
+            }
+
+            channel = main;
+        }
+
+        return InferType(definition, channel);
+    }
+
+    /// <summary>
+    ///     Infers the type of a definition that has none (Vega-Lite's <c>defaultType</c> and the type of a datum).
+    /// </summary>
+    /// <param name="definition">The definition object.</param>
+    /// <param name="channel">The channel name.</param>
+    /// <returns>The inferred type.</returns>
+    private static string InferType(SpecNode definition, string channel)
+    {
+        // A datum has the type of its value, whatever the channel (Vega-Lite's initDatumDef): a number is quantitative, a
+        // date-time object temporal, and anything else (a text, a boolean, another object) nominal
+        if (definition["datum"] is { } datum && definition["field"] is null)
+        {
+            return datum.Kind switch
+            {
+                SpecNodeKind.Number => "quantitative",
+                SpecNodeKind.Object when SpecParser.IsDateTimeShaped(datum) => "temporal",
+                _ => "nominal",
+            };
+        }
+
+        switch (channel)
+        {
+            case "latitude" or "longitude":
+                return "quantitative";
+            case "row" or "column" or "facet" or "shape" or "strokeDash":
+                return "nominal";
+            case "order":
+                return "ordinal";
+            default:
+                break;
+        }
+
+        if (definition["sort"] is { IsArray: true })
+        {
+            return "ordinal";
+        }
+
+        if (definition["timeUnit"] is { IsNull: false } and not { IsBoolean: true, BoolValue: false })
+        {
+            return "temporal";
+        }
+
+        if (IsOn(definition["bin"]) || (definition["aggregate"] is { IsNull: false } aggregate && !IsArgAggregate(aggregate)))
+        {
+            return "quantitative";
+        }
+
+        return definition["scale"]?["type"]?.AsString() switch
+        {
+            "linear" or "log" or "pow" or "sqrt" or "symlog" or "identity" or "sequential" or "quantile" or "quantize" or "threshold" => "quantitative",
+            "time" or "utc" => "temporal",
+            _ => "nominal",
+        };
+    }
+
+    /// <summary>Tells whether an aggregate is the <c>argmin</c> or <c>argmax</c> object, which keeps the type of the field.</summary>
+    /// <param name="aggregate">The <c>aggregate</c> value.</param>
+    /// <returns><see langword="true"/> for an object with <c>argmin</c> or <c>argmax</c>.</returns>
+    private static bool IsArgAggregate(SpecNode aggregate) =>
+        aggregate.IsObject && (aggregate["argmin"] is not null || aggregate["argmax"] is not null);
+
+    /// <summary>Tells whether a switch property is on: anything except absent, null and false.</summary>
+    /// <param name="node">The value, or null when absent.</param>
+    /// <returns><see langword="true"/> when the property is on.</returns>
+    private static bool IsOn(SpecNode? node) => node is { IsNull: false } && !(node.IsBoolean && !node.BoolValue);
+
+    /// <summary>
     ///     Lists the conditions of a channel definition: the object of a single condition, or the objects of an array of conditions.
     /// </summary>
     /// <param name="definition">The channel definition object.</param>

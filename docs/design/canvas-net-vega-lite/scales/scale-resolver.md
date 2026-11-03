@@ -112,6 +112,16 @@ is one chart. The container sizes are not known to the resolver; the caller adds
 
 **Inference rules** (Vega-Lite 6 behavior, ported with attribution):
 
+- **Field type.** The type of a channel is the written `type`, or else the type of Vega-Lite's `defaultType`, which
+  `ChannelDefinitions.TypeOf(definition, channel, encoding)` gives for every stage of the renderer (`ReadType`,
+  `IsUnbinnedQuantitative`, and `IsTemporalDefinition` of this unit call it, and so do the encoding plan, the stack
+  rules, the temporal fields, the text mark, the facet headers, the composite marks, and the feature catalog): a
+  definition without a type is `quantitative` on `latitude` and `longitude`, `nominal` on `row`, `column`, `facet`,
+  `shape`, and `strokeDash`, `ordinal` on `order` or with a `sort` array, `temporal` with a `timeUnit`, `quantitative`
+  with a `bin` or an `aggregate` other than `argmin` and `argmax`, `quantitative` or `temporal` for a numeric,
+  discretizing, `time`, or `utc` `scale.type`, and `nominal` otherwise, so a plain field on `x`, `y`, or `color` is
+  nominal. A secondary channel (`x2`, `y2`, `theta2`, `radius2`) takes the type of its main channel; a datum takes the
+  type of its value.
 - **Type.** `ChooseKind` is Vega-Lite's `defaultType` with its `channelSupportScaleType` and `scaleTypeSupportDataType`
   checks.
   Quantitative position channels are linear; discrete position channels are band scales for `rect`, `bar`,

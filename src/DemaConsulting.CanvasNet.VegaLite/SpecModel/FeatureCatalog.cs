@@ -1111,7 +1111,7 @@ internal static class FeatureCatalog
         {
             // A temporal field has a time scale whatever type is written (only time and utc are accepted for it; on a color channel it is the time scale of Vega-Lite, drawn here as a sequential one)
             var scaleType = definition["scale"]?["type"]?.AsString();
-            var isTemporal = definition["type"]?.AsString() == "temporal";
+            var isTemporal = ChannelDefinitions.TypeOf(definition, channel) == "temporal";
             var isTime = isTemporal ? channel is not ("shape" or "strokeDash") : scaleType is "time" or "utc";
             if (isTime)
             {
@@ -1205,7 +1205,7 @@ internal static class FeatureCatalog
         /// <param name="definition">The channel definition object.</param>
         /// <returns><see langword="true"/> for the type <c>quantitative</c> without a discrete <c>scale.type</c>.</returns>
         private static bool IsContinuous(string name, SpecNode definition) =>
-            definition["type"] is { IsString: true, StringValue: "quantitative" }
+            ChannelDefinitions.TypeOf(definition, name) == "quantitative"
             && name is not ("shape" or "strokeDash")
             && !(definition["scale"]?["type"] is { IsString: true } scaleType && DiscreteScaleTypes.Contains(scaleType.StringValue!));
 
@@ -1490,13 +1490,22 @@ internal static class FeatureCatalog
         /// <param name="definition">The channel definition object.</param>
         private void VisitScaleType(string channel, SpecNode definition)
         {
-            if (definition["type"] is not { IsString: true, StringValue: "quantitative" or "temporal" or "nominal" or "ordinal" } fieldType || definition["field"] is null)
+            if (definition["field"] is null || (definition["type"] is null && ChannelDefinitions.MainChannelOf(channel) is not null))
             {
                 return;
             }
 
+            // A field without a type has the type Vega-Lite infers; a secondary channel without one has no scale of its own
+            var fieldTypeName = ChannelDefinitions.TypeOf(definition, channel);
+            if (fieldTypeName is not ("quantitative" or "temporal" or "nominal" or "ordinal"))
+            {
+                return;
+            }
+
+            var fieldType = definition["type"] ?? definition;
+
             // Zero is not meaningful for time: Vega-Lite drops the property and says so
-            if (fieldType.StringValue == "temporal" && definition["scale"]?["zero"] is { } zero
+            if (fieldTypeName == "temporal" && definition["scale"]?["zero"] is { } zero
                 && definition["scale"]?["type"]?.AsString() is null or "time" or "utc")
             {
                 Warn("vl-scale-zero-ignored", "The scale property 'zero' is not applicable to a time scale; it is ignored.", zero);
@@ -1504,19 +1513,19 @@ internal static class FeatureCatalog
 
             if (definition["scale"]?["type"] is { IsString: true } scaleType)
             {
-                if (SupportedScaleTypes.Contains(scaleType.StringValue!) && !ScaleResolver.AcceptsScaleType(channel, fieldType.StringValue, scaleType.StringValue!, IsBinning(definition)))
+                if (SupportedScaleTypes.Contains(scaleType.StringValue!) && !ScaleResolver.AcceptsScaleType(channel, fieldTypeName, scaleType.StringValue!, IsBinning(definition)))
                 {
                     Warn(
                         "vl-scale-type-ignored",
-                        $"The '{scaleType.StringValue}' scale type cannot be used for the '{channel}' channel with a {fieldType.StringValue} field; the default scale type is used.",
+                        $"The '{scaleType.StringValue}' scale type cannot be used for the '{channel}' channel with a {fieldTypeName} field; the default scale type is used.",
                         scaleType);
                 }
             }
-            else if (channel is "shape" or "strokeDash" && fieldType.StringValue is "quantitative" or "temporal")
+            else if (channel is "shape" or "strokeDash" && fieldTypeName is "quantitative" or "temporal")
             {
                 Warn(
                     "vl-scale-type-ignored",
-                    $"The '{channel}' channel shows categories, so a {fieldType.StringValue} field gets an ordinal scale; use a nominal or ordinal field{(fieldType.StringValue == "quantitative" ? " or a discretizing scale type (quantize, quantile, threshold)" : string.Empty)}.",
+                    $"The '{channel}' channel shows categories, so a {fieldTypeName} field gets an ordinal scale; use a nominal or ordinal field{(fieldTypeName == "quantitative" ? " or a discretizing scale type (quantize, quantile, threshold)" : string.Empty)}.",
                     fieldType);
             }
         }

@@ -471,7 +471,7 @@ internal sealed class EncodingPlan
             else if (source is not null && aggregate is null)
             {
                 bin = BinKind.Binning;
-                var discrete = StackRules.TypeOf(fieldDefinition) is "nominal" or "ordinal";
+                var discrete = ChannelDefinitions.TypeOf(fieldDefinition, channel) is "nominal" or "ordinal";
                 var maxBins = AutoMaxBins(channel);
                 var start = BinStartName(node, source, maxBins);
                 if (!bins.TryGetValue(start, out var builder))
@@ -552,7 +552,7 @@ internal sealed class EncodingPlan
     private static bool SpansUnit(string channel, SpecNode fieldDefinition, TimeContext time, ResolvedConfig config)
     {
         if (channel is not ("x" or "y")
-            || (fieldDefinition["type"]?.AsString() ?? "temporal") != "temporal"
+            || ChannelDefinitions.TypeOf(fieldDefinition, channel) != "temporal"
             || time.Encoding[channel + "2"] is { IsObject: true })
         {
             return false;

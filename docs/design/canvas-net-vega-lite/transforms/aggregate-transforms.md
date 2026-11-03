@@ -120,7 +120,8 @@ an explicit `extent` fall in the bins at minus and plus infinity.
 **Stack rules.** `StackRules.Decide(markType, orient, encoding)` returns the `StackDecision` (stacked channel,
 offset, stack-by definitions) or null. A mark is stackable when it is `arc`, `area`, `bar`, `rule`, `point`,
 `circle`, `square`, `line`, `text`, or `tick`; `arc`, `area`, and `bar` stack by default (offset `zero`) and the
-others only with an explicit `stack`. The stacked channel is the unbinned quantitative one of `x` and `y` (the
+others only with an explicit `stack`. The stacked channel is the unbinned quantitative one of `x` and `y` (a type that is
+not written is the inferred one, `ChannelDefinitions.TypeOf`: an aggregate is quantitative, a plain field nominal) (the
 aggregating one wins when both are, then the `orient` of a bar or area). **When `x` and `y` give no stack, the same
 rule is applied to the polar pair `theta` and `radius`** (Vega-Lite's `potentialStackedChannel`): the unbinned
 quantitative one is stacked, the aggregating one wins when both are, and an explicit `stack` decides before that;

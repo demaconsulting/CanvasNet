@@ -697,6 +697,21 @@ sections:
           - CanvasNetVegaLite_SystemIntegration_ConditionalMarks_DiagnosticsAreLocated
           - CanvasNetVegaLite_SystemIntegration_ConditionalMarks_LimitsCancellationAndDeterminismApply
 
+      - id: CanvasNetVegaLite-DefaultFieldType
+        title: >-
+          The library shall accept a field definition without a type, as Vega-Lite does, and give it the type
+          that Vega-Lite infers, the same in every stage that reads it, without reporting the missing type and
+          without refusing it in strict mode.
+        tags: [system]
+        justification: |
+          Vega-Lite 5 made the type optional, so a valid specification may leave it out; a text channel over
+          strings must show the strings and a color field must get a categorical scale and a symbol legend.
+        children:
+          - CanvasNetVegaLite-SpecModel-SpecParser-DefaultFieldType
+        tests:
+          - CanvasNetVegaLite_DefaultType_TextOverStringsShowsTheStrings
+          - CanvasNetVegaLite_DefaultType_ColorWithoutTypeIsNominal
+          - CanvasNetVegaLite_DefaultType_PositionsWithoutTypeFollowDefaultType
       - id: CanvasNetVegaLite-ExpressionLanguage
         title: >-
           The library shall evaluate a documented subset of the Vega expression language - literals, datum

@@ -264,7 +264,7 @@ internal sealed partial class SpecParser
             }
         }
         else if (guide.Parent is not { } definition
-            || !(definition["type"]?.AsString() == "temporal" || definition["timeUnit"] is { IsNull: false }))
+            || !(ChannelDefinitions.TypeOf(definition, definition.Name ?? string.Empty) == "temporal" || definition["timeUnit"] is { IsNull: false }))
         {
             return;
         }

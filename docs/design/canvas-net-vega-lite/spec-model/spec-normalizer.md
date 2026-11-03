@@ -171,7 +171,8 @@ object of the mark definition), `Orient` and `TryOrient`, `ContinuousAxis`, `Pos
   without throwing, for the catalog and the expansion.
 
 **Boxplot expansion** (Vega-Lite's `normalizeBoxPlot`, without tooltips). The orientation is the continuous
-(quantitative or temporal) channel; a plot with both continuous channels is vertical unless only `y` is temporal; none
+(quantitative or temporal, as written or as `ChannelDefinitions.TypeOf` infers it) channel; a plot with both
+continuous channels is vertical unless only `y` is temporal; none
 is an
 error. For the Tukey form (an `extent` that is a number, 1.5 by default) the layers are: a view with a `joinaggregate` of
 the quartiles by the grouping fields that holds the outlier `point` layer (the rows beyond the fences) and the whisker view

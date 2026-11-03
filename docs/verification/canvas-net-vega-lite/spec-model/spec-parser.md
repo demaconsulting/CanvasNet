@@ -417,6 +417,39 @@ that evaluate their size conditions (the symbols, `bar`, `rect`, `tick`, `rule`,
 for `area` and `arc`, which have no size, and that `theta`, `radius`, `theta2`, and `radius2` take no condition (Vega-Lite
 defines none) while `size` and `angle` do.
 
+##### A Field Definition Without A Type Gets The Type Vega-Lite Infers
+
+**Tests**: `ChannelDefinitionsTests.ChannelDefinitions_TypeOf_InfersTheMissingTypeLikeVegaLite`,
+`ChannelDefinitionsTests.ChannelDefinitions_TypeOf_DatumLatitudeAndSecondaryChannels`,
+`VegaLiteDefaultTypeIntegrationTests.CanvasNetVegaLite_DefaultType_TextOverStringsShowsTheStrings`,
+`VegaLiteDefaultTypeIntegrationTests.CanvasNetVegaLite_DefaultType_TextFollowsTheInferredType`,
+`VegaLiteDefaultTypeIntegrationTests.CanvasNetVegaLite_DefaultType_ColorWithoutTypeIsNominal`,
+`VegaLiteDefaultTypeIntegrationTests.CanvasNetVegaLite_DefaultType_ShapeWithoutTypeIsNominal`,
+`VegaLiteDefaultTypeIntegrationTests.CanvasNetVegaLite_DefaultType_PositionsWithoutTypeFollowDefaultType`,
+`VegaLiteDefaultTypeIntegrationTests.CanvasNetVegaLite_DefaultType_TimeUnitWithoutTypeIsTemporal`,
+`VegaLiteDefaultTypeIntegrationTests.CanvasNetVegaLite_DefaultType_BinWithoutTypeIsQuantitative`,
+`VegaLiteDefaultTypeIntegrationTests.CanvasNetVegaLite_DefaultType_CountingAggregatesWithoutTypeAreQuantitative`,
+`VegaLiteDefaultTypeIntegrationTests.CanvasNetVegaLite_DefaultType_SecondaryChannelFollowsItsMainChannel`,
+`VegaLiteDefaultTypeIntegrationTests.CanvasNetVegaLite_DefaultType_StackedBarWithoutTypes`
+
+Assert, as a theory of thirty-four definitions, that the type of a definition without one is the type of Vega-Lite's
+`defaultType`: nominal for a plain field on `text`, `color`, `shape`, `x`, `y`, `size`, and `theta`, and for a
+`strokeDash` even with a time unit; ordinal on `order` and for a `sort` array (before a time unit, but not for
+`"descending"`); temporal for a `timeUnit` and for a `time` or `utc` scale type; quantitative for a `bin` (not
+`bin: false`), for an `aggregate` (`count`, `valid`, `missing`, `distinct`, `mean`, `sum`) and for a numeric or
+discretizing scale type; nominal for an `argmax` aggregate and a `band` or `ordinal` scale type; and the written type
+(`ordinal` with a `bin`, `quantitative` on a string field, `temporal` on a color) always. The second test checks that a
+datum is typed by its value on
+every channel, that `latitude` and `longitude` are quantitative, that `x2` and `y2` take the written or inferred type of
+`x` and `y` (and are inferred as their main channel when there is none), and the six main channels. The integration tests
+draw each chart without the types in strict mode, with nothing reported, and require the scene and the pixels of the
+chart with the types that Vega-Lite infers: the user's case (a `text` channel over the string `Successful` shows
+`Successful`, with and without `nominal`), a `text` of a sum, a count, and a `yearmonth` unit (`4`, `2`, `Mar 2024`), a
+color of three categories (the three categorical colors in a symbol legend, no gradient), a shape (three symbol shapes),
+a plain `x` of a bar and a point chart (a band and a point scale), a month unit, a bin with a count, the counting
+aggregates on a string field, a range of dates whose `x2` has no type, and a stacked bar whose dimension and color have
+none.
+
 ##### Time Units Are Validated
 
 **Tests**: `SpecParserTimeTests.SpecParser_TimeUnit_AcceptsEveryName`,

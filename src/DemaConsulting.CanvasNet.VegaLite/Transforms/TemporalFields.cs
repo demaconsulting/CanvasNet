@@ -69,10 +69,10 @@ internal static class TemporalFields
                 var main = MainChannels.TryGetValue(channel.Name!, out var mainName) && encoding[mainName] is { IsObject: true } mainDefinition
                     ? mainDefinition
                     : null;
-                AddDefinition(fields, definition, main);
+                AddDefinition(fields, definition, channel.Name!, encoding, main);
                 foreach (var condition in ChannelDefinitions.Conditions(definition))
                 {
-                    AddDefinition(fields, condition, main);
+                    AddDefinition(fields, condition, channel.Name!, encoding, main);
                     if (condition["test"] is { } test)
                     {
                         AddPredicate(fields, test);
@@ -137,9 +137,12 @@ internal static class TemporalFields
     {
         ArgumentNullException.ThrowIfNull(facet);
         var fields = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var definition in new[] { facet.Row, facet.Column, facet.Wrap }.Where(d => d is { IsObject: true }))
+        foreach (var (definition, channel) in new[] { (facet.Row, "row"), (facet.Column, "column"), (facet.Wrap, "facet") })
         {
-            AddDefinition(fields, definition!, null);
+            if (definition is { IsObject: true })
+            {
+                AddDefinition(fields, definition, channel, null, null);
+            }
         }
 
         return fields;
@@ -242,8 +245,10 @@ internal static class TemporalFields
     /// </summary>
     /// <param name="fields">Receives the canonical name.</param>
     /// <param name="definition">The definition (or condition) object.</param>
+    /// <param name="channel">The channel name.</param>
+    /// <param name="encoding">The encoding object that holds the main channel of a secondary channel, or null.</param>
     /// <param name="main">The definition of the main channel for a secondary channel, or null.</param>
-    private static void AddDefinition(HashSet<string> fields, SpecNode definition, SpecNode? main)
+    private static void AddDefinition(HashSet<string> fields, SpecNode definition, string channel, SpecNode? encoding, SpecNode? main)
     {
         if (definition["field"] is not { IsString: true } field || FieldPath.Canonicalize(field.StringValue) is not { } canonical)
         {
@@ -251,7 +256,7 @@ internal static class TemporalFields
         }
 
         var judged = definition["type"] is null && main is not null ? main : definition;
-        if (IsDate(judged) || IsDate(definition))
+        if (IsDate(judged) || IsDate(definition) || ChannelDefinitions.TypeOf(definition, channel, encoding) == "temporal")
         {
             fields.Add(canonical);
         }

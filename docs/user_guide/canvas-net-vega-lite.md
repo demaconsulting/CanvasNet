@@ -325,6 +325,36 @@ without it. A key that Vega-Lite does not define for a view, mark, encoding, or 
 | Other transforms | **None** (`regression`, `loess`, `density`, `quantile`, and `extent` are reported; see the identifiers below) |
 <!-- markdownlint-enable MD013 -->
 
+**Field types without a `type`.** The `type` of a field definition is optional, as in Vega-Lite 5 and later. A definition
+without one gets the type Vega-Lite infers (its `defaultType`), the same in every stage that reads it (scales, legends,
+axes, labels, stacks, bins, time parsing, composite marks); a missing type is valid and is never reported, also in strict
+mode. The rules apply in this order, and a written `type` always wins:
+
+<!-- markdownlint-disable MD013 -->
+| Rule | Inferred type |
+| ---- | ------------- |
+| The channel is `latitude` or `longitude` | `quantitative` |
+| The channel is `row`, `column`, `facet`, `shape`, or `strokeDash` | `nominal` |
+| The channel is `order`, or `sort` is an array of values | `ordinal` |
+| There is a `timeUnit` | `temporal` |
+| There is a `bin`, or an `aggregate` other than `argmin` and `argmax` (so `count`, `valid`, `missing`, and `distinct` too) | `quantitative` |
+| The `scale.type` is a numeric or discretizing type (`linear`, `log`, `pow`, `sqrt`, `symlog`, `identity`, `sequential`, `quantile`, `quantize`, `threshold`), or `time` or `utc` | `quantitative`, or `temporal` (any other scale type, such as `ordinal`, `point`, `band`, or `bin-ordinal`, leaves the field `nominal`, as in Vega-Lite) |
+| Anything else | `nominal` |
+<!-- markdownlint-enable MD013 -->
+
+The channel matters only for the first three rules, so a field on `x`, `y`, `color`, `size`, or `text` without a `type`
+(and without a `bin`, an `aggregate`, a `timeUnit`, or a `scale.type`) is **nominal**: `"text": {"field": "status"}`
+shows the strings of the field, a `color` field gets the categorical colors and a symbol legend, and a field on `x`
+gets a band or point scale. Write `"type": "quantitative"` on a measure that is not aggregated or binned. The secondary
+channels `x2`, `y2`, `theta2`, and `radius2` have the type of their main channel. A `datum` takes its type from its
+value (a number is `quantitative`, a string or a boolean `nominal`, a date-time object `temporal`).
+
+**Behavior change.** Earlier versions of this package read a field without a `type` as `quantitative` on every
+channel. That was not Vega-Lite's behavior: an `x` or `y` field **without a type is now nominal**, as in Vega-Lite
+(a band or point scale, not a linear one), and a `text` or `color` field without a type no longer draws `NaN` or
+a gradient. A specification that relied on the old default for a measure that is neither aggregated nor binned needs
+`"type": "quantitative"` on that field.
+
 The default colors, sizes, orientations, and layout constants follow Vega-Lite 6 and Vega; positions are derived from
 the same rules, so a chart is laid out as Vega-Lite would lay it out up to the width of the text. Marks that are not
 paths with a missing, `null`, NaN, or non-numeric value on a continuous `x`, `y`, `size`, or `opacity` channel are
@@ -987,8 +1017,9 @@ A field of the type `temporal` holds **dates**. A date is an instant: the number
 1970-01-01T00:00:00Z. The package reads, groups, scales, and labels dates in one **calendar** per `Measure` or `Render`
 call: UTC by default, or the zone of `VegaLiteRenderOptions.TimeZone`. It never uses the zone, the clock, or the
 culture of the machine, so the same document and options give the same picture everywhere (see *The time zone*
-below). Write the `type` of a time channel: the package does not infer `temporal` from a `timeUnit` or from the
-values, and a channel without a `type` is read as quantitative. Example 36 draws a time series in a time zone.
+below). Write the `type` of a time channel, or a `timeUnit`: as in Vega-Lite, a channel without a `type` is typed by Vega-Lite's
+default rules, and a `timeUnit` makes the type `temporal` (see *Field types without a `type`* in *Supported Vega-Lite Subset*).
+The package does not infer `temporal` from the values. Example 36 draws a time series in a time zone.
 
 ```json
 {

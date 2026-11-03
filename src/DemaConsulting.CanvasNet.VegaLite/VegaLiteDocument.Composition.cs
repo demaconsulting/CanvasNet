@@ -625,7 +625,7 @@ public sealed partial class VegaLiteDocument
                 var location = definition.GetLocation(_sourceName);
                 var calendar = _layers.Count > 0 ? _layers[0].Data.Evaluation.Calendar : null;
                 Func<DataValue, string>? label = settings.ShowLabels
-                    ? settings.CreateLabelFormatter(new HeaderLabelFormat(definition["type"]?.AsString(), null, calendar, _limits.MaxStringLength, location), _sourceName)
+                    ? settings.CreateLabelFormatter(new HeaderLabelFormat(ChannelDefinitions.TypeOf(definition, channel), null, calendar, _limits.MaxStringLength, location), _sourceName)
                     : null;
                 created = new FacetChannel(settings, label, TitleLinesOf(definition, settings), location);
             }

@@ -90,7 +90,7 @@ internal static partial class SpecNormalizer
             {
                 orient = hasX2 ? "horizontal" : "vertical";
                 var (axis, definitionOfAxis) = hasX2 ? ("x", x) : ("y", y);
-                problem = CompositeBuilder.IsContinuous(definitionOfAxis) ? null : $"Both {axis} and {axis}2 have to be quantitative in an {type}.";
+                problem = CompositeBuilder.IsContinuous(definitionOfAxis, axis) ? null : $"Both {axis} and {axis}2 have to be quantitative in an {type}.";
             }
 
             return problem is null;
@@ -111,7 +111,7 @@ internal static partial class SpecNormalizer
             {
                 orient = hasXError ? "horizontal" : "vertical";
                 var (axis, definitionOfAxis) = hasXError ? ("x", x) : ("y", y);
-                problem = CompositeBuilder.IsContinuous(definitionOfAxis) ? null : $"All {axis}, {axis}Error and {axis}Error2 (if present) have to be quantitative in an {type}.";
+                problem = CompositeBuilder.IsContinuous(definitionOfAxis, axis) ? null : $"All {axis}, {axis}Error and {axis}Error2 (if present) have to be quantitative in an {type}.";
             }
 
             return problem is null;
