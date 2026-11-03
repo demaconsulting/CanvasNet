@@ -4,9 +4,11 @@
 # PURPOSE:
 # - Define requirements for the CanvasNetTool Commands subsystem
 # - The Commands subsystem spans the ICommand contract and the CommandRegistry unit (command
-#   table, resolution, dispatch, and help rendering) and the command units DiscoveryCommands
-#   (formats and info), RenderCommand (render and convert, and the verbs crop, resize, rotate, flip,
-#   and pad), CompareCommand (compare), MontageCommand (montage), and InspectCommand (inspect)
+#   table, resolution, dispatch, and help rendering), the HelpTopics unit (the help topics for the
+#   input formats, the result documents, errors, and limits, with their verified examples), and the
+#   command units DiscoveryCommands (formats and info), RenderCommand (render and convert, and the
+#   verbs crop, resize, rotate, flip, and pad), CompareCommand (compare), MontageCommand (montage),
+#   and InspectCommand (inspect)
 # - Subsystem requirements describe the externally visible command-dispatch behavior
 
 sections:
@@ -44,6 +46,31 @@ sections:
           - CommandsSubsystem_Help_TopLevel_ListsRegisteredCommands
           - CommandsSubsystem_Help_CommandHelp_ShownByFlagAndByHelpCommand
           - CommandsSubsystem_Help_UnknownCommand_ReportsUsageError
+
+      - id: CanvasNetTool-Commands-HelpTopics
+        title: >-
+          The Commands subsystem shall let the help command explain, besides each command, the input formats, the
+          result documents, errors, and limits as help topics shipped inside the tool, each with what is supported and
+          what is not, the options, the diagnostics, the known differences, and tiny verified examples, shall print one
+          example alone or list the examples, shall write any help as one JSON document when the JSON option is given
+          (without a banner or color codes), and shall report an unknown help subject as a usage error that suggests
+          the closest subject and lists the valid ones.
+        justification: |
+          People and AI agents must be able to learn what the tool supports, and to get a working first example, from
+          the tool itself, offline and in the version installed; a format is not a command, so the help takes both.
+        children:
+          - CanvasNetTool-Commands-HelpTopics-Catalog
+          - CanvasNetTool-Commands-HelpTopics-FormatContent
+          - CanvasNetTool-Commands-HelpTopics-Examples
+          - CanvasNetTool-Commands-HelpTopics-Rendering
+          - CanvasNetTool-Commands-HelpTopics-Consistency
+          - CanvasNetTool-Commands-CommandRegistry-HelpSubjects
+          - CanvasNetTool-Commands-CommandRegistry-HelpJson
+        tests:
+          - CommandsSubsystem_HelpTopics_SubjectsResolve_ByNameAliasAndFlag
+          - CommandsSubsystem_HelpTopics_Json_IsOneLineWithoutBannerOrAnsi
+          - CommandsSubsystem_HelpTopics_Example_PrintsOnlyTheSource
+          - CommandsSubsystem_HelpTopics_UnknownSubject_ReportsUsageErrorWithValidSubjects
 
       - id: CanvasNetTool-Commands-Formats
         title: >-

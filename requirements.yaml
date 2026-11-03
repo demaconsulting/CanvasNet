@@ -169,6 +169,7 @@ includes:
   - docs/reqstream/canvas-net-tool/path-helpers.yaml
   - docs/reqstream/canvas-net-tool/commands.yaml
   - docs/reqstream/canvas-net-tool/commands/command-registry.yaml
+  - docs/reqstream/canvas-net-tool/commands/help-topics.yaml
   - docs/reqstream/canvas-net-tool/commands/discovery-commands.yaml
   - docs/reqstream/canvas-net-tool/commands/render-command.yaml
   - docs/reqstream/canvas-net-tool/commands/compare-command.yaml

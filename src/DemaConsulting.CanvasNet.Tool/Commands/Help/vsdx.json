@@ -1,0 +1,64 @@
+{
+  "topic": "vsdx",
+  "aliases": ["visio"],
+  "title": "Visio drawings (.vsdx)",
+  "summary": "Each drawing page is a page, drawn as an image.",
+  "sections": [
+    {
+      "id": "supported",
+      "title": "Supported",
+      "items": [
+        { "text": "Pages: --page N (from 1) and --all-pages; 'canvasnet info' lists the page names. --dpi must be a whole number." },
+        { "text": "Shape trees with Master and MasterShape and StyleSheet inheritance: fills, strokes, and text." },
+        { "text": "1-D connectors with arrowheads and glue, and nested groups." },
+        { "text": "The built-in color palette, themed colors, and line and fill transparency; NonPrinting and HideText are honored." },
+        { "text": "PolylineTo, NURBSTo, and spline rows, drawn as flattened line segments." }
+      ]
+    },
+    {
+      "id": "unsupported",
+      "title": "Unsupported",
+      "items": [
+        { "text": "These are left out or approximated and reported; the page is still drawn, and --strict turns the first report into an unsupported-feature error:" },
+        { "text": "Embedded images and foreign shapes." },
+        { "term": "vsdx-themed-color", "text": "Theme Quick Style variation matrices: a themed color that cannot be resolved is drawn neutral gray." },
+        { "text": "Non-solid fill patterns and gradients, and the full table of arrowhead styles." },
+        { "term": "vsdx-geometry-row-<Type>", "text": "A malformed geometry row, or a row type such as InfiniteLine, is skipped; <Type> names the row type." },
+        { "term": "vsdx-geometry-spline-approximated", "text": "A curve that cannot be evaluated exactly is approximated by a polyline." }
+      ]
+    },
+    {
+      "id": "options",
+      "title": "Render options",
+      "items": [
+        { "term": "--page <N>", "text": "The page to draw, counted from 1 (default 1)." },
+        { "term": "--all-pages", "text": "Draw every page; the output must contain {page} or be a directory." },
+        { "term": "--dpi <D>", "text": "Resolution in dots per inch (default 96, a whole number above 0 and at most {{maxDpi}})." },
+        { "term": "--background <color>", "text": "The color transparency is flattened over (white by default)." },
+        { "term": "--strict", "text": "Fail with unsupported-feature instead of drawing with an approximation." }
+      ]
+    },
+    {
+      "id": "diagnostics",
+      "title": "Diagnostics and --strict",
+      "items": [
+        { "text": "Each report is listed in diagnostics[] as {source: vsdx, severity: unsupported, code: <token>}, once per distinct feature per page. With --strict the first report fails with unsupported-feature." },
+        { "term": "vsdx-themed-color", "text": "A themed color was drawn neutral gray." },
+        { "term": "vsdx-geometry-spline-approximated", "text": "A curve was approximated by a polyline." },
+        { "term": "vsdx-geometry-row-<Type>", "text": "A geometry row was skipped." }
+      ]
+    },
+    {
+      "id": "differences",
+      "title": "Known differences from Visio",
+      "items": [
+        { "text": "The approximations listed above, in particular neutral gray for themed colors that cannot be resolved." },
+        { "text": "Fonts that are not embedded come from the machine, so text can differ between machines." }
+      ]
+    }
+  ],
+  "examples": [
+    { "name": "render", "kind": "command", "language": "shell", "description": "Draw the first page at 150 dpi and print the JSON result.", "content": "canvasnet render diagram.vsdx --dpi 150 -o diagram.png --json" },
+    { "name": "info-pages", "kind": "command", "language": "shell", "description": "List every page with its name and size as JSON.", "content": "canvasnet info diagram.vsdx --all-pages --json" }
+  ]
+}

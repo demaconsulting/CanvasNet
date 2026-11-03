@@ -46,6 +46,24 @@ sections:
           - CanvasNetTool_Help_ListsCompareAndMontage
           - CanvasNetTool_Help_ListsInspectAndPhotoOptions
 
+      - id: CanvasNetTool-System-HelpTopics
+        title: >-
+          The tool shall explain the input formats it reads (what is supported and what is not, the options, the
+          diagnostics, and the known differences), the result documents, errors, and limits as help topics, with tiny
+          examples that render without a diagnostic, when the help command is given a topic, shall print one example
+          alone or list the examples, and shall write any help as one JSON document, without a banner, when the
+          `--json` option is given.
+        tags: [system]
+        justification: |
+          An AI agent that has to draw or convert a file must learn what each format supports, and get a working
+          example to start from, without leaving the tool or guessing; the content ships with the tool so that it
+          is offline, matches the installed version, and is machine-readable for agents.
+        children:
+          - CanvasNetTool-Commands-HelpTopics
+          - CanvasNetTool-Program-HelpJson
+        tests:
+          - CanvasNetTool_HelpTopics_RunAsProcess_PrintTopicJsonAndRawExample
+
       - id: CanvasNetTool-System-Validate
         title: The tool shall execute self-validation tests when the validate flag is provided.
         tags: [system]
@@ -63,6 +81,7 @@ sections:
           - CanvasNetTool-Validation-CompareMontageSelfTests
           - CanvasNetTool-Validation-AdjustmentsSelfTest
           - CanvasNetTool-Validation-VegaLiteSelfTest
+          - CanvasNetTool-Validation-HelpExamplesSelfTest
         tests:
           - CanvasNetTool_ValidateFlag_Provided_RunsValidation
 

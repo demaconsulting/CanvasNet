@@ -1,0 +1,64 @@
+{
+  "topic": "errors",
+  "aliases": [],
+  "title": "Errors, diagnostics, exit codes, and --strict",
+  "summary": "How a failure is reported, the stable error codes, and what --strict changes.",
+  "sections": [
+    {
+      "id": "reporting",
+      "title": "How failures are reported",
+      "items": [
+        { "text": "The exit code is 0 for success and 1 for every failure. The finer distinction is the stable error code." },
+        { "text": "Standard error carries 'Error: <code>: <message>' and, when there is advice, a 'Hint: <advice>' line. There is no stack trace for an expected failure." },
+        { "text": "With --json (and without --silent) the failure is also written to standard output as a JSON failure document with error.code, error.message, and error.hint; see 'canvasnet help json'." },
+        { "text": "'Unexpected error: <message>' is a defect of the tool, not a mistake of the user: no JSON document is written and the exit code is the runtime's own non-zero code. Please report it." },
+        { "text": "A usage-error names the closest valid command or option ('Did you mean ...?') when there is one." }
+      ]
+    },
+    {
+      "id": "codes",
+      "title": "Error codes",
+      "items": [
+        { "term": "usage-error", "text": "The command line is wrong: an unknown command, option, or help subject, a missing or malformed value, conflicting options, or a missing output. Read the hint and 'canvasnet <command> --help'." },
+        { "term": "operation-failed", "text": "A command could not complete for a reason that has no more specific code. Read the message." },
+        { "term": "input-not-found", "text": "The input file or folder does not exist. Check the path." },
+        { "term": "input-unreadable", "text": "The input exists but cannot be read (permissions, a folder, a locked file)." },
+        { "term": "unsupported-format", "text": "The input is not a format the tool reads. 'canvasnet formats' lists them." },
+        { "term": "corrupt-input", "text": "The content is damaged, or is not what its extension says, or a model, chart, or SVG file is beyond a size or depth limit. Repair or replace the file." },
+        { "term": "unsupported-feature", "text": "The file is valid but uses a feature the library cannot draw or decode, or any skipped feature with --strict. Remove the feature, or drop --strict if it is only a skipped picture." },
+        { "term": "page-out-of-range", "text": "--page is beyond the last page. Pages are counted from 1; 'canvasnet info' gives the count." },
+        { "term": "size-limit", "text": "A requested, declared, or resulting size exceeds {{maxDimension}} pixels on a side. Use a smaller size, resolution, or border." },
+        { "term": "same-input-output", "text": "The output file is the input file. Name a different output." },
+        { "term": "output-exists", "text": "The output exists and --no-clobber was given." },
+        { "term": "output-write-failed", "text": "The output could not be written (an invalid path, a file where a folder should be, permissions, a full disk)." },
+        { "term": "scad-error", "text": "An OpenSCAD model has a syntax error, an evaluation error, or an include that cannot be read; the message has file, line, and column." },
+        { "term": "vega-lite-error", "text": "A Vega-Lite chart has an invalid specification, a data file that is missing or refused, or cannot be laid out or drawn; the message has file, line, column, and JSON pointer." },
+        { "term": "budget-exceeded", "text": "A model exceeds a rendering limit such as --max-triangles, or a chart exceeds a limit of the chart library. Raise the limit (a model) or simplify the model or chart." },
+        { "term": "size-mismatch", "text": "compare was given two images of different sizes and no --resize-to." },
+        { "term": "threshold-failed", "text": "compare measured a value on the wrong side of a --threshold limit; the result and the pictures were still written." }
+      ]
+    },
+    {
+      "id": "diagnostics-vs-errors",
+      "title": "Diagnostics are not errors",
+      "items": [
+        { "text": "A diagnostic is a note in diagnostics[] of a successful result: the picture was drawn without a feature (severity unsupported) or with a questionable construct (severity warning). Read diagnostics even when ok is true." },
+        { "text": "Only SCAD models, Vega-Lite charts, PPTX documents (skipped EMF and WMF pictures), and VSDX documents report diagnostics. SVG, PDF, and raster images do not." },
+        { "text": "The warning codes are scad-warning for a model and vega-lite-warning for a chart." }
+      ]
+    },
+    {
+      "id": "strict",
+      "title": "What --strict does",
+      "items": [
+        { "term": "scad, vega-lite, vsdx", "text": "Every unsupported-feature diagnostic becomes an unsupported-feature error and no output is written." },
+        { "term": "pptx", "text": "A skipped EMF or WMF picture becomes an error. Other unsupported shapes, fills, and pictures are errors with or without --strict." },
+        { "term": "svg, pdf, raster", "text": "No effect: they have no diagnostics channel. A PDF feature that cannot be drawn is an error with or without --strict." }
+      ]
+    }
+  ],
+  "examples": [
+    { "name": "missing-input", "kind": "command", "language": "shell", "description": "A failure that exits with 1 and reports input-not-found as JSON and on standard error.", "content": "canvasnet render missing.png -o out.png --json" },
+    { "name": "strict-gate", "kind": "command", "language": "shell", "description": "Turn every unsupported-feature diagnostic of a chart into a failure.", "content": "canvasnet render bar.vl.json --strict -o out.png --json" }
+  ]
+}

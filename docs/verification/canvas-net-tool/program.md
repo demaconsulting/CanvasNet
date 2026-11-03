@@ -20,7 +20,7 @@ console.
   every expected failure.
 - Expected failures are reported on standard error as specified, without a stack trace.
 - An unexpected exception is reported and re-thrown unchanged.
-- The banner appears for help, self-validation, and an empty command line, and never for a command.
+- The banner appears for help (not with `--json`), self-validation, and an empty command line, and never for a command.
 
 ### Test Scenarios
 
@@ -39,6 +39,10 @@ copyright; exit code 0.
 
 **Program_Run_WithCommandAndHelpFlag_DisplaysCommandHelp**: `greet --help` shows the command's own usage,
 summary, and options.
+
+**Program_Run_WithHelpAndJson_WritesJsonWithoutBanner**: `Run` with `--help --json` and with `scad --json --help` on the
+default registry exits 0 and writes exactly one JSON help document each (the index, and the `scad` topic), without the
+banner.
 
 **Program_Run_WithValidateFlag_RunsValidation**: `Run` with `--validate` writes the "Total Tests:" summary;
 exit code 0.

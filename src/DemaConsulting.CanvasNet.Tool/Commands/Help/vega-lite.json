@@ -1,0 +1,107 @@
+{
+  "topic": "vega-lite",
+  "aliases": ["vegalite", "vl"],
+  "title": "Vega-Lite charts (.vl.json, .vl)",
+  "summary": "A chart is laid out and drawn as one still picture; a defined subset of Vega-Lite 5 and 6.",
+  "sections": [
+    {
+      "id": "supported",
+      "title": "Supported",
+      "items": [
+        { "text": "Files: .vl.json and .vl, or a .json file whose top-level $schema is a Vega-Lite schema. A $schema of version 5 or 6 (version 6 defaults apply) or none." },
+        { "text": "Views: a single view, layer, concat, hconcat, vconcat, facet, and repeat." },
+        { "text": "Data: inline values, a relative local url (JSON, CSV, TSV, or DSV in the specification's folder and below), sequence, and the datasets of the specification." },
+        { "text": "Marks: bar, rect, point, circle, square, rule, tick, line, area, trail, text, arc, boxplot, errorbar, errorband." },
+        { "text": "Channels: x, y, theta, radius, color, fill, stroke, size, opacity, fillOpacity, strokeOpacity, strokeWidth, strokeDash, shape, angle, text, order, detail, and the secondary channels x2, y2, theta2, radius2, and the xError and yError channels of errorbar and errorband." },
+        { "text": "Field types quantitative, temporal, nominal, ordinal; aggregate, bin, timeUnit, stack, impute, sort, and condition." },
+        { "text": "Scales (linear, log, pow, sqrt, symlog, sequential, time, utc, band, point, ordinal, quantile, quantize, threshold, bin-ordinal), axes, legends, 68 named color schemes, titles, autosize, and container sizes." },
+        { "text": "Transforms: calculate, filter, fold, flatten, sample, pivot, lookup, timeUnit, aggregate, joinaggregate, window, bin, stack, impute." },
+        { "text": "A subset of the Vega expression language with 99 functions, and static variable params." },
+        { "text": "Dates in UTC; text drawn with the bundled Liberation fonts." }
+      ]
+    },
+    {
+      "id": "unsupported",
+      "title": "Unsupported",
+      "items": [
+        { "text": "Marks image and geoshape; geographic data, the longitude and latitude channels, projection, and the geojson field type." },
+        { "text": "Interaction: selection params and bindings (nothing is selected); variable params inside a layer or a composition." },
+        { "text": "Transforms regression, loess, density, quantile, and extent." },
+        { "text": "legend.encode and axis.encode, labelExpr, and a custom formatType." },
+        { "text": "Expression functions outside the 99, signal, event, and item, and the bitwise and in operators." },
+        { "text": "Remote data: a url with a scheme, a drive letter, or an absolute path is never fetched; the chart is drawn with an empty dataset." },
+        { "text": "values given as text, custom SVG-path shapes, cubehelix interpolation, the identity scale, and scale properties such as bins and domainRaw." },
+        { "text": "Faceting by a binned, aggregated, or time-unit field, and facet sort by an aggregate." },
+        { "text": "Vega (as opposed to Vega-Lite) specifications." },
+        { "text": "Anything injected from the command line: there is no option for datasets, parameters, configuration, a data folder, a time zone, or fonts." }
+      ]
+    },
+    {
+      "id": "options",
+      "title": "Render options",
+      "items": [
+        { "term": "--scale <factor>", "text": "Multiply the laid-out size by a factor." },
+        { "term": "--width <pixels>", "text": "Fit the chart to a width, keeping its aspect ratio; --height does the same for the height." },
+        { "term": "--size <WxH>", "text": "Fit the chart inside a box and center it." },
+        { "term": "--background <color>", "text": "Replace the background the chart declares (white when it declares none); transparent keeps alpha." },
+        { "term": "--strict", "text": "Fail with unsupported-feature instead of leaving a construct out." },
+        { "term": "--page <N>", "text": "A chart has one page, so only 1 is valid; a larger number is page-out-of-range." },
+        { "text": "The model options (-D, --view, ...) are a usage-error for a chart. 'canvasnet info' reports the laid-out size, marks, and data references without drawing." }
+      ]
+    },
+    {
+      "id": "diagnostics",
+      "title": "Diagnostics and --strict",
+      "items": [
+        { "text": "Identifiers have the form vl-<area>-<detail>, in lower case. An unsupported construct is listed in diagnostics[] as {source: vega-lite, severity: unsupported, code: <id>}; the message gives file, line, column, and JSON pointer. With --strict the first one fails with unsupported-feature." },
+        { "term": "vl-mark-<type>", "text": "A mark that is not drawn, for example vl-mark-geoshape; the view is drawn without marks." },
+        { "term": "vl-channel-geo", "text": "A longitude or latitude channel." },
+        { "term": "vl-data-remote-url", "text": "A url with a scheme, a drive letter, or an absolute path: never fetched, empty dataset." },
+        { "term": "vl-data-geo", "text": "Geographic data (sphere, graticule, topojson)." },
+        { "term": "vl-projection", "text": "A projection." },
+        { "term": "vl-param-selection", "text": "A selection param: nothing is selected." },
+        { "term": "vl-param-variable", "text": "A variable param of a nested view (a layer or a composition)." },
+        { "term": "vl-transform-<name>", "text": "A transform that is not run, for example vl-transform-regression." },
+        { "term": "vl-expr-function-<name>", "text": "An expression function outside the supported 99, for example vl-expr-function-now: the call evaluates to null." },
+        { "term": "vl-guide-encode", "text": "axis.encode or legend.encode." },
+        { "term": "vl-expr-label", "text": "labelExpr of an axis, a legend, or a header." },
+        { "term": "vl-shape-path", "text": "A custom SVG-path shape: a circle is drawn." },
+        { "term": "vl-scale-<type>", "text": "A scale type that is not supported, for example vl-scale-identity." },
+        { "term": "vl-type-geojson", "text": "The geojson field type." },
+        { "term": "vl-unknown-property", "text": "Warning: a property Vega-Lite does not define for that object." },
+        { "term": "vl-schema-version", "text": "Warning: a $schema that is not version 5 or 6; version 6 defaults are used." },
+        { "term": "vl-layout-fit-step", "text": "Warning: autosize fit together with a step size; the fit is dropped for that dimension." },
+        { "term": "vl-composition-property-ignored", "text": "Warning: a width, height, padding, config, or similar property of a composition that only the top-level view decides." },
+        { "text": "Warnings have the code vega-lite-warning and carry the vl-* identifier at the start of the message text, after the location. Errors: vega-lite-error (invalid specification, a data file that is missing or refused, a chart that cannot be drawn), budget-exceeded (a library limit), corrupt-input (a specification longer than {{vlMaxSourceLength}} characters), and size-limit (a chart laid out beyond {{maxDimension}} pixels on a side)." },
+        { "text": "See the Vega-Lite section of the Vega-Lite user guide for the complete list of identifiers." }
+      ]
+    },
+    {
+      "id": "differences",
+      "title": "Known differences from Vega-Lite",
+      "items": [
+        { "text": "The picture is static: no interaction, and tooltips are omitted." },
+        { "text": "A schema of version 5 is drawn with the version 6 defaults (a view is 300 by 300 pixels by default, for example)." },
+        { "text": "Text is measured with the bundled fonts, so labels, legends, and facet headers can differ from a browser by a few pixels." },
+        { "text": "Dates are always UTC; nothing is read from the network; data files are only read from the specification's folder and below." },
+        { "text": "Color schemes are interpolated piecewise in sRGB, not taken from the d3-scale-chromatic tables." },
+        { "text": "Composite marks (boxplot, errorbar, errorband) report binned, aggregated, or time-unit grouping channels and do not apply them." },
+        { "text": "A shared legend shows the symbols of the first layer." },
+        { "text": "Compositions drop more properties than Vega-Lite does; each is reported as a warning." },
+        { "text": "Delimited text is not type-inferred (as in Vega): cells stay strings unless format.parse says otherwise." },
+        { "text": "A line feed inside title text splits the title into lines, which Vega itself does not do." },
+        { "text": "Compared with vega-embed: no actions menu, no signals, no renderer choice, and no config or datasets injection from the command line." }
+      ]
+    }
+  ],
+  "examples": [
+    { "name": "bar", "kind": "source", "language": "json", "fileName": "bar.vl.json", "description": "A bar chart of inline data with a title." },
+    { "name": "line", "kind": "source", "language": "json", "fileName": "line.vl.json", "description": "A line chart over a temporal axis, with points." },
+    { "name": "scatter", "kind": "source", "language": "json", "fileName": "scatter.vl.json", "description": "A scatter plot colored by a nominal field." },
+    { "name": "layer", "kind": "source", "language": "json", "fileName": "layer.vl.json", "description": "A bar layer and a rule layer at the mean." },
+    { "name": "render", "kind": "command", "language": "shell", "description": "Draw bar.vl.json and print the JSON result.", "content": "canvasnet render bar.vl.json -o bar.png --json" },
+    { "name": "scale-background", "kind": "command", "language": "shell", "description": "Draw at twice the size over a light gray background.", "content": "canvasnet render bar.vl.json --scale 2 --background \"#f4f4f4\" -o bar-large.png" },
+    { "name": "info", "kind": "command", "language": "shell", "description": "Report the laid-out size, marks, and data references without drawing.", "content": "canvasnet info bar.vl.json --json" },
+    { "name": "strict-check", "kind": "command", "language": "shell", "description": "Fail instead of leaving an unsupported construct out.", "content": "canvasnet render bar.vl.json --strict -o bar.png" }
+  ]
+}

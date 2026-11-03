@@ -1,0 +1,15 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "width": 240,
+  "height": 120,
+  "data": { "values": [
+    { "stall": "A", "crates": 28 }, { "stall": "B", "crates": 55 }, { "stall": "C", "crates": 43 }
+  ] },
+  "layer": [
+    { "mark": "bar", "encoding": {
+        "x": { "field": "stall", "type": "nominal" },
+        "y": { "field": "crates", "type": "quantitative" } } },
+    { "mark": "rule", "encoding": {
+        "y": { "aggregate": "mean", "field": "crates", "type": "quantitative" } } }
+  ]
+}

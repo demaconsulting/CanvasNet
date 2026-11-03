@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Tool.Commands;
 using DemaConsulting.TestResults.IO;
 
 namespace DemaConsulting.CanvasNet.Tool;
@@ -56,6 +57,7 @@ internal static class Validation
         RunCompareTest(context, testResults);
         RunMontageTest(context, testResults);
         RunAdjustmentsTest(context, testResults);
+        RunHelpExamplesTest(context, testResults);
         var totalTests = testResults.Results.Count;
         var passedTests = testResults.Results.Count(t => t.Outcome == DemaConsulting.TestResults.TestOutcome.Passed);
         var failedTests = testResults.Results.Count(t => t.Outcome == DemaConsulting.TestResults.TestOutcome.Failed);
@@ -884,6 +886,79 @@ internal static class Validation
                    ?? CheckTrimAndGrid(directory, input)
                    ?? CheckInspect(directory, input);
         });
+    }
+
+    /// <summary>
+    ///     Runs a test that renders every source example of the help topics with <c>--strict</c> and checks that none
+    ///     reports a diagnostic, that <c>help &lt;topic&gt; --example</c> prints exactly the embedded source, and that the
+    ///     topic index lists every topic.
+    /// </summary>
+    /// <param name="context">The context for output.</param>
+    /// <param name="testResults">The test results collection.</param>
+    private static void RunHelpExamplesTest(Context context, DemaConsulting.TestResults.TestResults testResults)
+    {
+        RunSelfTest(context, testResults, "CanvasNetTool_HelpExamples", directory =>
+            CheckHelpExamplesRender(directory)
+            ?? CheckHelpExamplePrint(directory)
+            ?? CheckHelpIndex(directory));
+    }
+
+    /// <summary>
+    ///     Writes every source example of the help topics to a file and renders it with <c>--strict</c>.
+    /// </summary>
+    /// <param name="directory">The temporary directory.</param>
+    /// <returns><see langword="null"/> when every example rendered without a diagnostic, otherwise a description of the failure.</returns>
+    private static string? CheckHelpExamplesRender(string directory)
+    {
+        foreach (var (topic, example) in HelpTopics.SourceExamples())
+        {
+            var input = PathHelpers.SafePathCombine(directory, $"{topic.Name}-{example.FileName}");
+            var output = PathHelpers.SafePathCombine(directory, $"{topic.Name}-{example.Name}.png");
+            File.WriteAllText(input, example.Content);
+
+            // A model is drawn small: the default 800x800 picture is not needed to prove that it renders
+            string[] size = topic.Name == "scad" ? ["--size", "64x64"] : [];
+            string[] arguments = ["render", input, "--strict", "--json", "-o", output, .. size];
+            var json = RunCommand(directory, arguments);
+            using var document = JsonDocument.Parse(json);
+            var root = document.RootElement;
+            if (!root.GetProperty("ok").GetBoolean() || root.GetProperty("diagnostics").GetArrayLength() != 0)
+            {
+                return $"The {topic.Name} example '{example.Name}' did not render without a diagnostic";
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    ///     Checks that <c>help scad --example plate</c> prints exactly the embedded source of the example.
+    /// </summary>
+    /// <param name="directory">The temporary directory.</param>
+    /// <returns><see langword="null"/> when the output is the source, otherwise a description of the failure.</returns>
+    private static string? CheckHelpExamplePrint(string directory)
+    {
+        var topic = HelpTopics.All.First(t => t.Name == "scad");
+        var printed = RunCommand(directory, "help", "scad", "--example", "plate").Replace("\r\n", "\n", StringComparison.Ordinal);
+        return printed.TrimEnd('\n') == HelpTopics.RenderExample(topic, "plate")
+            ? null
+            : "'help scad --example plate' did not print the example source";
+    }
+
+    /// <summary>
+    ///     Checks that <c>help topics --json</c> is an index document that lists every help topic.
+    /// </summary>
+    /// <param name="directory">The temporary directory.</param>
+    /// <returns><see langword="null"/> when the index is complete, otherwise a description of the failure.</returns>
+    private static string? CheckHelpIndex(string directory)
+    {
+        var json = RunCommand(directory, "help", "topics", "--json");
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+        var names = root.GetProperty("topics").EnumerateArray().Select(t => t.GetProperty("name").GetString()).ToList();
+        return root.GetProperty("kind").GetString() == "index" && names.SequenceEqual(HelpTopics.TopicNames)
+            ? null
+            : "'help topics --json' does not list every help topic";
     }
 
     /// <summary>

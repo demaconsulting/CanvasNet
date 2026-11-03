@@ -45,7 +45,9 @@ consists of six direct units and two subsystems:
 - **Commands** (subsystem; namespace `DemaConsulting.CanvasNet.Tool.Commands`, folder `Commands/`): the
   command contract, the command registry, and the commands themselves. It is a subsystem, not a unit, because
   each family of commands is its own unit behind the shared command contract; it holds
-  `CommandRegistry`, `DiscoveryCommands` (the `formats` and `info` commands), `RenderCommand` (the `render`
+  `CommandRegistry` (which also owns the built-in `help` command), `HelpTopics` (the catalog of help topics with their
+  tiny examples, embedded in the tool assembly: the formats, the JSON documents, the errors, and the limits),
+  `DiscoveryCommands` (the `formats` and `info` commands), `RenderCommand` (the `render`
   command and its alias `convert`, and the verb commands `crop`, `resize`, `rotate`, `flip`, and `pad`),
   `CompareCommand` (the `compare` command: exact metrics, a grid of per-cell errors, difference pictures, and
   threshold gating), `MontageCommand` (the `montage` command: a labeled contact sheet of images and document
@@ -86,7 +88,8 @@ The template's `Program` runs one demo action. CanvasNetTool differs in these re
   commands. Global options are honored anywhere; unknown options are rejected only before the command name,
   and after it are passed to the command, which parses its own options with `ArgumentReader`.
 - **Banner policy.** The template prints the banner for every action except the version query. The banner
-  here is printed only for help, self-validation, and an empty command line, so that a command's standard
+  here is printed only for help (without `--json`), self-validation, and an empty command line, so that a command's
+  standard
   output is exactly the command's own output and can be piped or parsed.
 - **Error report format.** An expected failure is reported as `Error: {code}: {message}` (plus an optional
   `Hint:` line) when it is a `ToolException`, and as the template's `Error: {message}` otherwise.
@@ -114,7 +117,7 @@ The template's `Program` runs one demo action. CanvasNetTool differs in these re
 | --------- | --------- | ------ | ----------- |
 | Command line | Inbound | `canvasnet [global options] <command> [command arguments]` | Global options are `-v`/`--version`, `-?`/`-h`/`--help`, `--silent`, `--validate`, `--json`, `--results <file>` (alias `--result`), `--depth <1-6>`, and `--log <file>`, valid in any position; the first token that is not an option or an option value is the command name; unknown options before the command name are an error. A command's own options are written `--name value`, `--name=value`, or `-a value`, and may be repeated; see _ArgumentReader Unit Design_ |
 | Exit code | Outbound | Integer | 0 for success; 1 for any failure; an unexpected exception terminates the process through the runtime's unhandled-exception path |
-| Standard output | Outbound | UTF-8 text, or one single-line JSON document | The version, banner, help, self-validation report, or the selected command's own output; suppressed by `--silent`; clean of decoration when a command runs. With `--json` a command writes one JSON document: `{"schemaVersion":1,"ok":true,"command":"...", ...}`; an expected failure is written as `{"schemaVersion":1,"ok":false,"command":"...","error":{"code":"...","message":"...","hint":"..."}}` (`command` is null when no command was selected; `hint` only when there is one; no exit-code field; the failure of an unmet `compare` threshold appends the result fields of the command after `error`); the document is ASCII-only and deterministic; see _ResultWriter Unit Design_ |
+| Standard output | Outbound | UTF-8 text, or one single-line JSON document | The version, banner, help, self-validation report, or the selected command's own output; suppressed by `--silent`; clean of decoration when a command runs. With `--json` a command writes one JSON document: `{"schemaVersion":1,"ok":true,"command":"...", ...}`, and so does `help` (a `kind` of `index`, `command`, `topic`, `examples`, or `example`, without the banner; `help <topic> --example <name>` writes the raw example text only); an expected failure is written as `{"schemaVersion":1,"ok":false,"command":"...","error":{"code":"...","message":"...","hint":"..."}}` (`command` is null when no command was selected; `hint` only when there is one; no exit-code field; the failure of an unmet `compare` threshold appends the result fields of the command after `error`); the document is ASCII-only and deterministic; see _ResultWriter Unit Design_ |
 | Standard error | Outbound | UTF-8 text | `Error: {code}: {message}` and optional `Hint: {hint}` lines for expected failures; `Error: {message}` for argument and operation failures; `Unexpected error: {message}` before an unexpected exception is re-thrown; no stack trace for expected failures; red only when standard error is an interactive console; suppressed by `--silent` (the runtime's own report of an unexpected exception is not) except when no context could be created (a malformed global option, or a log file that cannot be opened), when the report is always written |
 | Log file | Outbound | Text file | Written when `--log <file>` is given, with every line written to standard output or standard error whether or not `--silent` is set, including the report of an expected or unexpected failure; truncated at open; failure to open is an expected failure |
 | Results file | Outbound | TRX (`.trx`) or JUnit XML (`.xml`) | Written by `--validate --results <file>`; any other extension is an error and no file is written |
@@ -191,7 +194,8 @@ loaded.
    arguments, and opens the log file when `--log` was given. An `ArgumentException` or
    `InvalidOperationException` here is an expected failure.
 3. `Program.Run(context, registry)` performs the first matching action: version query (prints the bare
-   version); help (banner, then top-level help, or the help of the named command); self-validation (banner,
+   version); help (the banner unless `--json` was given, then the index, or the help of the named command or topic);
+   self-validation (banner,
    then `Validation.Run`); the named command (`CommandRegistry.Run`); otherwise the banner and a usage hint.
 4. A command reads its arguments with `ArgumentReader` (against its option table), reads its inputs, writes its
    results through the `Context` (as text, or through `ResultWriter` as one JSON document when `--json` was
@@ -211,8 +215,9 @@ loaded.
   `crop`, and the `info` and `render` of a small Vega-Lite chart) so that the bundled libraries are proven to
   load on every platform.
 - Packaging: packed as a dotnet tool with the command name `canvasnet`; the sibling libraries are
-  bundled (see _Dependencies_). The package readme is the repository README, so README links must be
-  absolute URLs.
+  bundled (see _Dependencies_). The help topics and their examples are embedded resources of the tool assembly, so
+  `canvasnet help <topic>` needs no file beside the installed tool. The package readme is the repository README, so
+  README links must be absolute URLs.
 - Threading: a console application with no shared mutable state between invocations. The pixel operations of the
   photo tools may use row-partitioned parallel loops whose outputs are disjoint, and reduce histograms in fixed blocks
   that are merged in order, so a result never depends on the number of cores. Tests that

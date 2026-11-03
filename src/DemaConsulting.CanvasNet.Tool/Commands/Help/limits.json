@@ -1,0 +1,48 @@
+{
+  "topic": "limits",
+  "aliases": [],
+  "title": "Size and resource limits",
+  "summary": "The largest sizes and budgets the tool accepts, and the error each one produces.",
+  "sections": [
+    {
+      "id": "images",
+      "title": "Images and output",
+      "items": [
+        { "term": "Image side", "text": "At most {{maxDimension}} pixels on a side for any image the tool reads, draws, or writes; a larger size is refused with size-limit before any pixels are allocated. 'canvasnet formats' reports it as maxDimension." },
+        { "term": "--dpi", "text": "Above 0 and at most {{maxDpi}} (PDF, PPTX, VSDX; a VSDX needs a whole number). The default is 96. A page is its size in points times the dpi divided by 72." },
+        { "term": "--quality", "text": "JPEG quality {{qualityMin}} to {{qualityMax}}, default {{qualityDefault}}." },
+        { "term": "Memory", "text": "An image {{maxDimension}} by {{maxDimension}} pixels uses about 256 MB per copy, so large pipelines need memory." }
+      ]
+    },
+    {
+      "id": "models",
+      "title": "OpenSCAD models",
+      "items": [
+        { "term": "--max-triangles", "text": "Default {{scadMaxTriangles}} triangles; a model that needs more fails with budget-exceeded. A model source longer than the library reads is corrupt-input." },
+        { "term": "Default size", "text": "800x800 pixels unless --size, --width, --height, or --scale is given." }
+      ]
+    },
+    {
+      "id": "charts",
+      "title": "Vega-Lite charts",
+      "items": [
+        { "term": "Specification", "text": "At most {{vlMaxSourceLength}} characters (corrupt-input) and JSON nesting depth {{vlMaxJsonDepth}} (vega-lite-error)." },
+        { "term": "Data files", "text": "At most {{vlMaxDataFiles}} files, {{vlMaxDataBytes}} bytes per file, and {{vlMaxDataRows}} rows in total; beyond that the chart fails with budget-exceeded." },
+        { "term": "Size", "text": "A chart that lays out larger than {{maxDimension}} pixels on a side is size-limit." }
+      ]
+    },
+    {
+      "id": "documents",
+      "title": "SVG and documents",
+      "items": [
+        { "term": "SVG", "text": "At most 5,000,000 characters, nesting depth 100, and 100,000 rendered elements; beyond that the file is corrupt-input." },
+        { "term": "PPTX", "text": "Opening a presentation buffers the whole package in memory, up to 256 MiB." },
+        { "term": "Default resolution", "text": "A document page is drawn at 96 dpi." }
+      ]
+    }
+  ],
+  "examples": [
+    { "name": "formats", "kind": "command", "language": "shell", "description": "Print the limits of the installed tool as JSON.", "content": "canvasnet formats --json" },
+    { "name": "too-large", "kind": "command", "language": "shell", "description": "A width above the limit fails with size-limit before any pixels are allocated.", "content": "canvasnet render big.svg --width 9000 -o big.png" }
+  ]
+}

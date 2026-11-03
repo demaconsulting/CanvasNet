@@ -20,7 +20,10 @@ internal sealed partial class ArgumentReader
     /// <summary>
     ///     The largest accepted dots-per-inch value.
     /// </summary>
-    private const double MaxDpi = 2400;
+    /// <remarks>
+    ///     Internal so that the help topics can quote the limit from the code instead of repeating the number.
+    /// </remarks>
+    internal const double MaxDpi = 2400;
 
     /// <summary>
     ///     Parses an integer within a range.

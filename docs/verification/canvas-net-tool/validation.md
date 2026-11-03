@@ -36,14 +36,19 @@ reported as passed, and are named in the TRX file.
 
 **Validation_Run_CompareMontageSelfTests_PassAndAreRecorded**: the two comparison self-tests
 (`CanvasNetTool_Compare` and `CanvasNetTool_Montage`) pass (exit code 0), are
-reported as passed, are named in the TRX file, and the run reports fifteen tests in all.
+reported as passed, are named in the TRX file, and the run reports sixteen tests in all.
 
 **Validation_Run_VegaLiteSelfTest_PassesAndIsRecorded**: the chart self-test (`CanvasNetTool_RenderVegaLite`) passes
-(exit code 0), is reported as passed, is named in the TRX file, and the run reports fifteen tests, fifteen passed, and
+(exit code 0), is reported as passed, is named in the TRX file, and the run reports sixteen tests, sixteen passed, and
 none failed.
 
 **Validation_Run_AdjustmentsSelfTest_PassesAndIsRecorded**: the photo self-test (`CanvasNetTool_Adjustments`) passes
 (exit code 0), is reported as passed, is named in the TRX file, and the run reports no failed test.
+
+**Validation_Run_HelpExamplesSelfTest_PassesAndIsRecorded**: the help self-test (`CanvasNetTool_HelpExamples`) passes
+(exit code 0), is reported as passed, is named in the TRX file, and the run reports no failed test. The self-test itself
+renders every source example of the help topics with `--strict` (no diagnostic), checks that `help scad --example plate`
+prints exactly the embedded source, and checks that `help topics --json` lists every topic.
 
 **Validation_Run_NullContext_ThrowsArgumentNullException**: a null context throws.
 

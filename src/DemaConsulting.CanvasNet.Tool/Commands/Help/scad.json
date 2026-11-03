@@ -1,0 +1,99 @@
+{
+  "topic": "scad",
+  "aliases": ["openscad"],
+  "title": "OpenSCAD models (.scad)",
+  "summary": "A model is evaluated and drawn as one still picture from a named viewpoint.",
+  "sections": [
+    {
+      "id": "supported",
+      "title": "Supported",
+      "items": [
+        { "text": "3D primitives: cube, sphere, cylinder (cones too), polyhedron." },
+        { "text": "2D shapes: square, circle, polygon, and text (flat glyph outlines; extrude or subtract them like any 2D shape)." },
+        { "text": "Transforms: translate, rotate, scale, mirror, multmatrix, resize." },
+        { "text": "color(): CSS names, #RGB, #RGBA, #RRGGBB, #RRGGBBAA, [r, g, b] and [r, g, b, a]. An alpha below 1 makes the surface translucent." },
+        { "text": "Booleans: union, difference, intersection, render, intersection_for." },
+        { "text": "linear_extrude (twist, slices, scale), rotate_extrude, hull of 3D or 2D children, minkowski of convex 3D children." },
+        { "text": "Modifiers: ! (show only), * (disable), # (highlight, a translucent copy), % (background, a translucent ghost)." },
+        { "text": "The language: variables, functions, modules with children(), for, if, let, comprehensions, echo, assert, include and use, and the built-in functions." },
+        { "text": "Curve resolution from $fn, $fa, and $fs." },
+        { "text": "-D name=value overrides a variable of the model with a number, a boolean, or text." },
+        { "text": "text() uses the bundled Liberation Sans unless the model names another font." }
+      ]
+    },
+    {
+      "id": "unsupported",
+      "title": "Unsupported",
+      "items": [
+        { "text": "Modules offset, projection, surface, import, and roof: they are left out and reported." },
+        { "text": "Functions parent_module, textmetrics, and fontmetrics (they evaluate to undef and are reported), and some argument forms of search()." },
+        { "text": "minkowski of 2D children, of mixed 2D and 3D children, or of non-convex children (a difference, an intersection, a hollow mesh)." },
+        { "text": "hull with a difference or an intersection among its children, or with mixed 2D and 3D children." },
+        { "text": "multmatrix with a bottom row other than [0, 0, 0, 1]." },
+        { "text": "Animation: one still picture per command; --time only sets $t. Run the command once per view." },
+        { "text": "-D values that are vectors or other expressions." }
+      ]
+    },
+    {
+      "id": "options",
+      "title": "Render options",
+      "items": [
+        { "term": "--view <name>", "text": "The viewpoint: iso (default), front, back, left, right, top, or bottom." },
+        { "term": "--azimuth <degrees>", "text": "Replace the azimuth of the view: degrees about the Z axis, 0 from the front." },
+        { "term": "--elevation <degrees>", "text": "Replace the elevation of the view: degrees above the XY plane, -90 to 90." },
+        { "term": "--projection <type>", "text": "ortho (default) or perspective." },
+        { "term": "--define <name=value>", "text": "Set a variable of the model; -D is the short form. Repeatable; the later definition wins." },
+        { "term": "--time <T>", "text": "The value of $t (default 0)." },
+        { "term": "--default-color <color>", "text": "The color of surfaces the model does not color (default gray)." },
+        { "term": "--max-triangles <N>", "text": "The most triangles the model may produce (default {{scadMaxTriangles}})." },
+        { "term": "--size <WxH>", "text": "The picture is 800x800 pixels unless a size option is given; --width, --height, and --scale also size it. The camera fits the picture; nothing is stretched." },
+        { "term": "--background <color>", "text": "The color the picture is flattened over (default white); transparent keeps alpha." },
+        { "term": "--strict", "text": "Fail with unsupported-feature instead of leaving a construct out." }
+      ]
+    },
+    {
+      "id": "diagnostics",
+      "title": "Diagnostics and --strict",
+      "items": [
+        { "text": "Without --strict an unsupported construct is left out and listed in diagnostics[] of the JSON result as {source: scad, severity: unsupported, code: <id>}. With --strict the first one fails with unsupported-feature and no file is written." },
+        { "term": "scad-module-offset", "text": "Also scad-module-projection, scad-module-surface, scad-module-import, and scad-module-roof: the module and its children are omitted." },
+        { "term": "scad-hull-csg-operand", "text": "A hull has a difference or an intersection among its children." },
+        { "term": "scad-hull-mixed-dimensions", "text": "A hull has both 2D and 3D children." },
+        { "term": "scad-minkowski-nonconvex", "text": "A minkowski has a child that is not convex." },
+        { "term": "scad-minkowski-2d", "text": "A minkowski of 2D children." },
+        { "term": "scad-modifier-highlight", "text": "# on a 2D shape that is not extruded: drawn normally, without highlight." },
+        { "term": "scad-modifier-background", "text": "% on a 2D shape that is not extruded: omitted." },
+        { "term": "scad-multmatrix-projective", "text": "multmatrix with a bottom row other than [0, 0, 0, 1]: omitted." },
+        { "term": "scad-resize-approximate", "text": "resize over children that contain a difference or an intersection: estimated bounds are used." },
+        { "term": "scad-function-<name>", "text": "An unimplemented built-in function, for example scad-function-textmetrics: the call evaluates to undef." },
+        { "term": "scad-warning", "text": "Severity warning: a questionable argument (an invalid argument, for example) that still renders." },
+        { "term": "scad-error", "text": "Error code: a syntax error, an evaluation error, or an include that cannot be read; the message names file, line, and column." },
+        { "term": "budget-exceeded", "text": "Error code: the model needs more triangles than --max-triangles allows." },
+        { "text": "See the OpenSCAD section of the Scad user guide for the complete list of identifiers." }
+      ]
+    },
+    {
+      "id": "differences",
+      "title": "Known differences from OpenSCAD",
+      "items": [
+        { "text": "This is an independent dialect, not OpenSCAD: pictures and tessellation are not pixel-identical to OpenSCAD and no parity is claimed." },
+        { "text": "include and use are read only from the model's folder and below, symbolic links are not followed, and a missing include is an error here." },
+        { "text": "Indexing is lenient: v[i] is undef for a negative or non-finite index, and a fractional index is truncated." },
+        { "text": "text() is laid out one character at a time without shaping or ligatures; language and script are ignored; size is the height of the glyph H. A named font comes from the installed fonts, so it can differ between machines." },
+        { "text": "The semantics of the # highlight and the % ghost are this package's documented choices; a ghost is part of the fitted bounds but not of the model." },
+        { "text": "hull and minkowski constructs they cannot handle are omitted and reported, never approximated." },
+        { "text": "The result is a static picture from a named view (iso, orthographic by default), not an interactive camera." }
+      ]
+    }
+  ],
+  "examples": [
+    { "name": "plate", "kind": "source", "language": "openscad", "fileName": "plate.scad", "description": "A plate with a round hole (difference of a cube and a cylinder)." },
+    { "name": "posts", "kind": "source", "language": "openscad", "fileName": "posts.scad", "description": "A row of posts built from a module and a for loop; -D width=30 changes the spacing." },
+    { "name": "torus", "kind": "source", "language": "openscad", "fileName": "torus.scad", "description": "A torus made by rotate_extrude of a circle." },
+    { "name": "hull-ghost", "kind": "source", "language": "openscad", "fileName": "hull-ghost.scad", "description": "A colored hull of two spheres and a translucent ghost." },
+    { "name": "render-top", "kind": "command", "language": "shell", "description": "Draw plate.scad from above at 400x400 and print the JSON result.", "content": "canvasnet render plate.scad --view top --size 400x400 -o plate-top.png --json" },
+    { "name": "define-width", "kind": "command", "language": "shell", "description": "Draw posts.scad with the variable width set to 30.", "content": "canvasnet render posts.scad -D width=30 -o posts.png" },
+    { "name": "free-view", "kind": "command", "language": "shell", "description": "Draw plate.scad from a free viewpoint with a perspective camera.", "content": "canvasnet render plate.scad --azimuth 30 --elevation 20 --projection perspective -o plate.png" },
+    { "name": "strict-check", "kind": "command", "language": "shell", "description": "Fail instead of leaving an unsupported construct out.", "content": "canvasnet render plate.scad --strict -o plate.png --json" }
+  ]
+}

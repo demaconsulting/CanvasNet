@@ -186,6 +186,9 @@ Give an agent eyes on documents and models by turning them into pictures it can 
 drawings with a reference:
 
 ```bash
+# 0. Learn formats, supported features, and tiny examples from the tool itself
+canvasnet help topics
+
 # 1. Learn what the file is (pages and sizes) - parse the one JSON line on standard output
 canvasnet info report.pdf --all-pages --json
 

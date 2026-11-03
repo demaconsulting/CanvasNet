@@ -1,12 +1,13 @@
 ## Commands
 
-<!-- cspell:ignore deskew -->
+<!-- cspell:ignore deskew scadd -->
 
 ### Verification Approach
 
-The `Commands` subsystem is verified at two tiers. The unit tests of `CommandRegistry`, `DiscoveryCommands`,
+The `Commands` subsystem is verified at two tiers. The unit tests of `CommandRegistry`, `HelpTopics`, `DiscoveryCommands`,
 `RenderCommand`, `CompareCommand`, `MontageCommand`, and `InspectCommand` (see
-_CommandRegistry Unit Verification Design_, _DiscoveryCommands Unit Verification Design_, _RenderCommand Unit
+_CommandRegistry Unit Verification Design_, _HelpTopics Unit Verification Design_, _DiscoveryCommands Unit Verification
+Design_, _RenderCommand Unit
 Verification Design_, _CompareCommand Unit Verification Design_, _MontageCommand Unit Verification Design_, and
 _InspectCommand Unit Verification Design_
 under `commands/`)
@@ -15,7 +16,9 @@ verify the registry and the commands in isolation. The subsystem tests in
 entry point, with a registry holding `TestCommand` instances (a configurable `ICommand` defined in the test
 project): resolution by name and alias, argument hand-off with global options mixed in, error context, the
 unknown-command report, and help; and, with the default registry, that the shipped `formats`, `info`, `render`,
-transform verb, `compare`, `montage`, and `inspect` commands are registered, run, and are listed in the help. The shipped
+transform verb, `compare`, `montage`, and `inspect` commands are registered, run, and are listed in the help, and that
+the help topics are shown by name, by alias, and as JSON, their examples are printed, and an unknown help subject is
+reported. The shipped
 commands are verified by their own unit tests.
 
 ### Test Environment
@@ -28,7 +31,9 @@ console.
 - All subsystem tests pass with zero failures.
 - A command runs with exactly its own arguments; global options never reach it.
 - An unknown command is a usage error with a suggestion and exit code 1.
-- Help lists the commands and shows each command's usage and options without running it.
+- Help lists the commands and the help topics, shows each command's usage and options without running it, and prints a
+  topic, an example, or a JSON help document on request; an unknown help subject is a usage error that lists the valid
+  subjects.
 
 ### Test Scenarios
 
@@ -51,8 +56,24 @@ summary, and the global options.
 **CommandsSubsystem_Help_CommandHelp_ShownByFlagAndByHelpCommand**: `render --help` and `help render` both show
 the command's usage and options, and the command itself does not run.
 
-**CommandsSubsystem_Help_UnknownCommand_ReportsUsageError**: `help nothing` returns exit code 1 with a usage
-error.
+**CommandsSubsystem_Help_UnknownCommand_ReportsUsageError**: `help nothing` returns exit code 1 with the usage error
+`Unknown help subject 'nothing'.` (the run path `nothing` still reports `Unknown command`).
+
+**CommandsSubsystem_HelpTopics_SubjectsResolve_ByNameAliasAndFlag**: `help scad`, `help OpenSCAD`, `scad --help`, and
+`help topics` all exit 0; the topic is shown by name and by alias with the same text (the flag form adds only the
+banner), and `help topics` is the index with the `Help topics:` list naming every topic.
+
+**CommandsSubsystem_HelpTopics_Json_IsOneLineWithoutBannerOrAnsi**: `help scad --json`, `--help --json`, and
+`scad --help --json` each exit 0 with nothing on standard error and write exactly one JSON line without banner or escape
+sequence: a `help` document of the kind `topic`, `index`, and `topic`.
+
+**CommandsSubsystem_HelpTopics_Example_PrintsOnlyTheSource**: `help scad --example plate` exits 0 and writes exactly the
+source of the example and one line end to standard output, and nothing to standard error.
+
+**CommandsSubsystem_HelpTopics_UnknownSubject_ReportsUsageErrorWithValidSubjects**: `help scadd` returns exit code 1,
+nothing on standard output, and on standard error the usage error `Unknown help subject 'scadd'.` with the suggestion
+`scad` and the valid subjects; `help nothing --json` returns 1 and writes a failure document for the command `help` with
+the code `usage-error`.
 
 **CommandsSubsystem_Formats_DefaultRegistry_RunsFormatsCommand**: with the default registry, `formats` writes the
 text listing (no banner, nothing on standard error) and `formats --json` writes the success document.
