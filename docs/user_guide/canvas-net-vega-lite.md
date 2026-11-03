@@ -338,7 +338,7 @@ mode. The rules apply in this order, and a written `type` always wins:
 | The channel is `order`, or `sort` is an array of values | `ordinal` |
 | There is a `timeUnit` | `temporal` |
 | There is a `bin`, or an `aggregate` other than `argmin` and `argmax` (so `count`, `valid`, `missing`, and `distinct` too) | `quantitative` |
-| The `scale.type` is a numeric or discretizing type (`linear`, `log`, `pow`, `sqrt`, `symlog`, `sequential`, `quantile`, `quantize`, `threshold`), or `time` or `utc` | `quantitative`, or `temporal` |
+| The `scale.type` is a numeric or discretizing type (`linear`, `log`, `pow`, `sqrt`, `symlog`, `identity`, `sequential`, `quantile`, `quantize`, `threshold`), or `time` or `utc` | `quantitative`, or `temporal` (any other scale type, such as `ordinal`, `point`, `band`, or `bin-ordinal`, leaves the field `nominal`, as in Vega-Lite) |
 | Anything else | `nominal` |
 <!-- markdownlint-enable MD013 -->
 
