@@ -82,6 +82,12 @@ framework.
   two cubes, a rounded box from a Minkowski sum, a 2D hull that is extruded, and a block from which a hull is
   subtracted, and asserts five closed meshes of positive volume, the analytic bounds of the hull and of the
   extrusion, the bounds of the rounded box, a boolean node for the cut, and no warning or report.
+- **Projection Is A 2D Shape** (the `projection` requirements of `ScadGeometryBuilder`): the shadow and the section of
+  solids, the classification of booleans, the budgets, and the reports are verified at the unit tier (see
+  _ScadGeometryBuilder Unit Verification Design_, _Projection_ scenarios); at this tier `projection` is no longer
+  used as the example of an unsupported module (the strict-mode scenario above uses `roof`), and the render-level
+  behavior (a drawing sheet built from projections, drawn flat from above) is verified in the `ScadDocument` unit and
+  the system tests.
 - **Text Is A 2D Shape** (requirement `CanvasNetScad-ScadGeometry-Text`):
   `ScadGeometryTests.ScadGeometry_Build_TextRegion_ParticipatesIn2DBooleanAndLinearExtrusion` — builds a
   `linear_extrude` of a difference of an `H` of size 10 and a square and asserts no warning and no unsupported
@@ -95,7 +101,8 @@ framework.
   and asserts one mesh, one warning at the invalid cube's line, and the three reports `scad-module-surface`,
   `scad-module-roof`, and `scad-module-offset` at lines 3 to 5 in source order;
   `ScadGeometryTests.ScadGeometry_Build_StrictMode_ThrowsAtTheFirstUnsupportedFeature` — asserts that with strict
-  mode the first unsupported feature (`projection` at line 2) throws a `ScadUnsupportedFeatureException` with its
+  mode the first unsupported feature (`roof` at line 2; `projection` is built, so a `projection()` there would not
+  be reported) throws a `ScadUnsupportedFeatureException` with its
   identifier and location and that the later `surface` is never reached.
 - **Triangle Budget** (requirement `CanvasNetScad-ScadGeometry-Limits`):
   `ScadGeometryTests.ScadGeometry_Build_TriangleBudgetExceeded_ThrowsLocatedEvaluationException` — builds a cube

@@ -338,7 +338,7 @@ internal sealed partial class CompareCommand : ICommand
             defines[name] = value;
         }
 
-        return options with { View = side.View ?? options.View, Defines = defines };
+        return options with { View = side.View ?? options.View, ViewGiven = options.ViewGiven || side.View != null, Defines = defines };
     }
 
     /// <summary>

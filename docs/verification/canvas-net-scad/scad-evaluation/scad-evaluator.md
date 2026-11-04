@@ -1,6 +1,6 @@
 ### ScadEvaluator Unit Verification Design
 
-<!-- cspell:ignore undef unseeded evaluator hoisted lexically memoized -->
+<!-- cspell:ignore undef unseeded evaluator hoisted lexically memoized readback -->
 
 This document describes the unit-level verification strategy for the `ScadEvaluator` unit: the internal evaluator
 (`ScadEvaluator` and its partial files), its scopes, the instantiation tree (`ScadInstance`), the recognized
@@ -49,7 +49,7 @@ Unit tests reside in `ScadEvaluatorScopingTests.cs`, `ScadEvaluatorSpecialVariab
 `ScadEvaluatorControlFlowTests.cs`, `ScadEvaluatorComprehensionTests.cs`, `ScadEvaluatorExpressionTests.cs`,
 `ScadEvaluatorInstanceTreeTests.cs`, `ScadEvaluatorIncludeUseTests.cs`, `ScadEvaluatorOverrideTests.cs`,
 `ScadEvaluatorDiagnosticsTests.cs`, `ScadEvaluatorLimitTests.cs`, `ScadEvaluatorProductLimitTests.cs`,
-`ScadEvaluatorStackTests.cs`,
+`ScadEvaluatorStackTests.cs`, `ScadEvaluatorViewportTests.cs`,
 `ScadEvaluatorCancellationTests.cs`, `ScadEvaluatorDeterminismTests.cs`, `ScadEvaluatorEntryPointTests.cs`,
 `ScadEvaluatorFixtureTests.cs`, and `ScadEvaluationSinkTests.cs` within the `DemaConsulting.CanvasNet.Scad.Tests`
 project, in the `Evaluation` folder, with the shared helpers in `ScadEvaluatorTestSupport.cs` and
@@ -380,6 +380,45 @@ Asserts that an override replaces an assignment without evaluating its expressio
 creates an absent variable, replaces every assignment of the name, applies to the top level only, can be a vector,
 gives the same result in any order, flows into dependent assignments, replaces a special variable's default, and
 applies to included assignments but not to libraries.
+
+##### CanvasNetScad-ScadEvaluation-ScadEvaluator-ViewportDefaults: Viewport Variables Are Defined
+
+**Tests**: `ScadEvaluatorViewportTests.ScadEvaluatorViewport_Defaults_AreTheViewerDefaults`,
+`ScadEvaluatorViewportTests.ScadEvaluatorViewport_SuppliedValues_AreVisibleToTheDocument`,
+`ScadEvaluatorViewportTests.ScadEvaluatorViewport_Override_WinsOverTheAssignment`,
+`ScadEvaluatorViewportTests.ScadEvaluatorViewport_ReboundInAModule_IsVisibleToChildrenOnly`
+
+Asserts that a program that echoes `$vpt`, `$vpr`, `$vpd`, and `$vpf` with default settings prints
+`ECHO: [0, 0, 0], [55, 0, 25], 140, 22.5` with no diagnostic (the variables are not unknown) and that the output reports
+no viewport variable as defined by the document; that the values supplied in `ScadEvaluationSettings.Viewport`
+(`[1, 2, 3]`, `[10, 20, 30]`, 77, and 33) are what the document sees until it assigns its own, again without being
+reported as defined by it; that an override of `$vpd` of 7 wins over the file's assignment of 9 (the echo prints 7) and
+counts as assigned even when the file assigns nothing; and that the viewport variables are ordinary special variables:
+a module that is called with `$vpd = 12` sees 12 in its body and for its children, the top level still sees 140, and the
+rebinding does not change the viewport the output reports.
+
+##### CanvasNetScad-ScadEvaluation-ScadEvaluator-ViewportAssignments: What The Document Assigned
+
+**Tests**: `ScadEvaluatorViewportTests.ScadEvaluatorViewport_TopLevelAssignments_AreReadBack`,
+`ScadEvaluatorViewportTests.ScadEvaluatorViewport_OnlyRotation_IsNotManual`,
+`ScadEvaluatorViewportTests.ScadEvaluatorViewport_InvalidValue_WarnsOnceAndIsIgnored`,
+`ScadEvaluatorViewportTests.ScadEvaluatorViewport_Override_WinsOverTheAssignment`,
+`ScadEvaluatorViewportTests.ScadEvaluatorViewport_Assignment_CanUseTheAnimationTimeAndOtherVariables`,
+`ScadEvaluatorViewportTests.ScadEvaluatorViewport_IncludeCountsAndUseAndNestedScopesDoNot`
+
+Asserts that top-level assignments of `$vpt = [1, 2]` (the third component is zero), `$vpr = [10, 20, 30]`,
+`$vpd = 99`, and `$vpf = 40` are read back exactly and make a manual camera, with no diagnostic; that only `$vpr`
+assigned is read back and is not a manual camera; that an unusable value is reported once, with the value in the
+text and at the line of the assignment, and the variable counts as not defined: `$vpr = [1, 2, 3, 4]`,
+`$vpt = "x"`, and `$vpt = [1, "a", 3]` give
+`Unable to convert $vpr=[1, 2, 3, 4] to a vec3 or vec2 of numbers; the viewport variable is ignored` and the like,
+`$vpd = -5` and `$vpd = [1]` give `... to a finite number greater than 0; ...`, and `$vpf = 180` and `$vpf = 0`
+give `... to a number between 0 and 180 (exclusive); ...`; that an override alone is read back as the assignment
+would be; that an assignment may use `$t` (`$vpr = [0, 0, $t * 360]` with a time of 0.25 gives `[0, 0, 90]`) and
+other variables (`$vpd = w * 2` gives 60) and that a self-reference (`$vpd = $vpd * 2`) does not crash but gives the
+circular-reference warning; and that an assignment
+in an included file counts (33), one in a used library does not, and one inside a module is not at the top level of the
+main file and has no effect on the viewport.
 
 ##### CanvasNetScad-ScadEvaluation-ScadEvaluator-Warnings: Located, De-Duplicated Warnings
 

@@ -110,7 +110,10 @@ sections:
         title: >-
           The render command shall pass the view, azimuth, elevation, projection, variable definitions
           (repeatable, -D being the short name of define), time, default color, and triangle limit to the
-          source loader for an OpenSCAD model, shall describe what it drew (the view, angles, projection,
+          source loader for an OpenSCAD model, passing a view only when the view, azimuth, or elevation
+          option is given (so that without one the SCAD library chooses the view: iso for a model with
+          3D objects, top for a model that is entirely 2D, and the model's own view when it sets one),
+          shall describe what it drew (the view that was used, its angles, the projection,
           size, background, definitions, and limits) in the render operation of the result, shall report
           the warnings, unsupported features, and echoed text of the model in the diagnostics and echo of
           the result (and, without the JSON option, on standard error), shall reject a view or projection
@@ -119,12 +122,17 @@ sections:
           output for a model that fails.
         justification: |
           The options must reach the loader as typed, the result must say what picture was drawn so that an
-          agent can reproduce or vary it, and a model option that would be silently ignored on another kind
+          agent can reproduce or vary it (including the view that the library chose when none was asked
+          for), and a model option that would be silently ignored on another kind
           of input is a mistake that deserves an error.
         tests:
           - RenderCommand_Run_ScadDefaults_Writes800SquareImage
           - RenderCommand_Run_EachView_WritesItsOwnImage
           - RenderCommand_Run_ViewAzimuthElevationProjection_AreReportedInTheOperation
+          - RenderCommand_Run_ViewDefaultsDependOnTheDimensionsOfTheModel
+          - RenderCommand_Run_FlatModelWithoutView_IsDrawnFlatFromTheTop
+          - RenderCommand_Run_ModelSettingTheViewport_IsReportedAsACustomView
+          - RenderCommand_Run_ViewOption_WinsOverTheModelViewport
           - RenderCommand_Run_Defines_ChangeTheImageAndAreReported
           - RenderCommand_Run_TimeDefaultColorAndMaxTriangles_AreReported
           - RenderCommand_Run_ScadDiagnosticsAndEcho_AreInTheJsonResult

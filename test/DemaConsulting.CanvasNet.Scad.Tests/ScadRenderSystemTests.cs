@@ -60,7 +60,7 @@ public class ScadRenderSystemTests
     public static TheoryData<string> AllFixtures => [.. FixtureNames()];
 
     /// <summary>
-    ///     Validates that the sixteen render fixtures exist, so the theories cannot silently run empty.
+    ///     Validates that the render fixtures exist, so the theories cannot silently run empty.
     /// </summary>
     [Fact]
     public void ScadRenderSystem_Fixtures_AreDiscovered()
@@ -72,7 +72,8 @@ public class ScadRenderSystemTests
         Assert.Equal(
             [
                 "2d-csg", "bracket-csg", "extrusions", "hull", "intersection", "minkowski", "modifiers", "modules-scene",
-                "parametric", "polyhedron", "primitives", "root-modifier", "text", "transforms", "transparency", "unsupported",
+                "parametric", "polyhedron", "primitives", "projection-sheet", "projection-views", "root-modifier", "text", "transforms",
+                "transparency", "unsupported", "viewport-hud",
             ],
             names.Order(StringComparer.Ordinal).ToList());
     }
@@ -791,7 +792,7 @@ public class ScadRenderSystemTests
         {
             ("scad-module-surface", 4),
             ("scad-module-offset", 5),
-            ("scad-module-projection", 6),
+            ("scad-module-offset", 6),
             ("scad-module-surface", 7),
             ("scad-module-import", 8),
             ("scad-module-roof", 9),

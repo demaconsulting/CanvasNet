@@ -219,7 +219,8 @@ software items, specifically:
   providing a clean-room front end for the OpenSCAD language that parses, evaluates, builds the geometry of,
   and renders models. It contains one direct unit, `ScadDocument` (the public `Parse`/`Open`/`Evaluate`/
   `BuildScene`/`Render` API with `ScadOpenOptions`, `ScadEvaluationOptions`, `ScadEvaluationResult`,
-  `ScadRenderOptions`, `ScadLimits`, `ScadSourceLocation`, `ScadSyntaxException`, `ScadEvaluationException`,
+  `ScadRenderOptions`, `ScadResolvedView`, `ScadViewSource`, `ScadLimits`, `ScadSourceLocation`,
+  `ScadSyntaxException`, `ScadEvaluationException`,
   and the recorded `include`/`use` directives, module names, and function names), and three internal
   subsystems. The `ScadLanguage` subsystem has two units:
   `ScadLexer` (tokens with one-based locations) and `ScadParser` (recursive-descent statements and
@@ -231,7 +232,8 @@ software items, specifically:
   and a platform-independent random generator), and `ScadFileResolver` (`include`/`use`
   resolution inside a sandbox). The `ScadGeometry` subsystem has five units: `ScadGeometryBuilder` (the
   iterative, recursion-free walk that combines the instantiation tree into a Render3D scene, with modifiers,
-  booleans, the hull and minkowski convex combinations, the triangle budget, reporting, and the
+  booleans, the hull and minkowski convex combinations, the projection of solids, the triangle budget, reporting,
+  and the
   node-to-location map), `ScadPrimitives` (cube, sphere,
   cylinder, polyhedron, square, circle, polygon, and the fragment rule), `ScadTransforms` (translate, rotate,
   scale, mirror, multmatrix, resize, and color), `ScadExtrusions` (linear and rotational extrusion over a
@@ -1073,6 +1075,9 @@ src/DemaConsulting.CanvasNet.Scad/
 ├── ScadDocument.Evaluate.cs       — ScadDocument: Evaluate (headless evaluation, handler delivery)
 ├── ScadDocument.Render.cs         — ScadDocument: BuildScene and Render (geometry, rendering, delivery)
 ├── ScadRenderOptions.cs           — ScadDocument: immutable, validated render options
+├── ScadViewport.cs                — ScadDocument: viewport plan, camera mapping, and camera choice
+├── ScadResolvedView.cs            — ScadDocument: the view a render used (public record)
+├── ScadViewSource.cs              — ScadDocument: where the view came from (public enumeration)
 ├── ScadFontResolutionOptions.cs   — ScadDocument: immutable font resolution options of the text module
 ├── ScadOpenOptions.cs             — ScadDocument: immutable, validated open options
 ├── ScadSourceLocation.cs          — ScadDocument: file, line, and column value
@@ -1113,6 +1118,11 @@ src/DemaConsulting.CanvasNet.Scad/
 │   ├── ScadFeatureIds.cs          — ScadGeometryBuilder: stable unsupported-feature identifiers
 │   ├── ScadBooleans.cs            — ScadGeometryBuilder: union, difference, and intersection combiners
 │   ├── ScadHulls.cs               — ScadGeometryBuilder: hull and minkowski combiners
+│   ├── ScadProjections.cs         — ScadGeometryBuilder: projection combiner, arguments, and budget
+│   ├── ScadProjections.Tree.cs    — ScadGeometryBuilder: projection solid tree and shared state
+│   ├── ScadProjections.Faces.cs   — ScadGeometryBuilder: projection face groups and footprints
+│   ├── ScadProjections.Slice.cs   — ScadGeometryBuilder: projection cross-section of a mesh
+│   ├── ScadProjections.Classify.cs — ScadGeometryBuilder: projection silhouette, classification, and cut
 │   ├── ScadArguments.cs           — ScadPrimitives: argument binder and typed readers
 │   ├── ScadFragmentRule.cs        — ScadPrimitives: fragment count from $fn, $fa, and $fs
 │   ├── ScadPrimitives.cs          — ScadPrimitives: cube, sphere, and cylinder
@@ -1158,6 +1168,7 @@ src/DemaConsulting.CanvasNet.Scad/
     ├── ScadBuiltinModules.cs      — ScadEvaluator: recognized built-in module names
     ├── ScadEvaluationSettings.cs  — ScadEvaluator: evaluation settings
     ├── ScadEvaluationOutput.cs    — ScadEvaluator: evaluation result
+    ├── ScadViewportValues.cs      — ScadEvaluator: viewport variable values and the document's viewport
     ├── ScadEvaluationSink.cs      — ScadEvaluator: buffered echo, warnings, unsupported features
     ├── IScadBuiltinHost.cs        — ScadBuiltinFunctions: evaluator services for functions
     ├── ScadBuiltinFunctions.cs    — ScadBuiltinFunctions: registry and argument binding

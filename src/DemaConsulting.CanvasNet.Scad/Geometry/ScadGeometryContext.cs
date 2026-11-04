@@ -30,7 +30,8 @@ internal sealed record ScadGeometrySettings(
 /// <param name="Scene">The scene; an empty group when the model produced no geometry.</param>
 /// <param name="Map">The location map of the scene's mesh nodes.</param>
 /// <param name="TrianglesCharged">The triangles charged against the budget: the triangles of all the meshes created plus those of every <c>#</c> copy (which the renderer draws a second time).</param>
-internal sealed record ScadBuiltScene(Scene Scene, ScadSceneMap Map, long TrianglesCharged);
+/// <param name="IsFlatModel">Whether the model is entirely two-dimensional: its result at the top level is a 2D shape (a mix of 2D and 3D is a 3D model).</param>
+internal sealed record ScadBuiltScene(Scene Scene, ScadSceneMap Map, long TrianglesCharged, bool IsFlatModel = false);
 
 /// <summary>
 ///     The services every geometry builder uses: reporting, the triangle budget, cancellation and the node map.

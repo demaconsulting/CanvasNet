@@ -1,8 +1,9 @@
 ### ScadGeometryBuilder
 
 <!-- cspell:ignore evaluator minuend subtrahend subtrahends minkowski multmatrix tessellation tessellator memoized -->
+<!-- cspell:ignore coplanar -->
 
-The `ScadGeometryBuilder` unit is the first software unit in the `ScadGeometry` subsystem. It comprises twelve
+The `ScadGeometryBuilder` unit is the first software unit in the `ScadGeometry` subsystem. It comprises seventeen
 source files in the `DemaConsulting.CanvasNet.Scad.Geometry` namespace, all `internal`:
 
 - `ScadGeometryBuilder.cs` — `ScadGeometryBuilder` (sealed partial class): the entry point `Build`, the dimension
@@ -23,13 +24,24 @@ source files in the `DemaConsulting.CanvasNet.Scad.Geometry` namespace, all `int
 - `ScadBooleans.cs` — `ScadBooleans`: the implicit union and the `difference` and `intersection` combiners
 - `ScadHulls.cs` — `ScadHulls`: the `hull` and `minkowski` combiners (also `ScadShape2D.IsUnionOnly` and
   `HasColor`, the iterative 2D tree checks it uses, live in `ScadShape2D.cs`)
+- `ScadProjections.cs` — `ScadProjections` (static partial class): the `projection` combiner (`Projection`), the
+  argument and budget checks, and the class-level documentation; part of this unit like `ScadHulls`, not a unit of
+  its own
+- `ScadProjections.Tree.cs` — the flattened solid tree (`FrameMesh`, `TreeNode`, `SolidTree`), the shared `State`
+  (tolerances, work meter, section cache, first failure), and `Collect`
+- `ScadProjections.Faces.cs` — the face groups of a mesh (`GroupFaces`) and their XY footprints (`Footprint`)
+- `ScadProjections.Slice.cs` — the cross-section of a mesh by a plane, with the infinitesimal shift as a tie rule
+  (`SectionRegion`, `SliceMesh`, `Section`)
+- `ScadProjections.Classify.cs` — the silhouette (`Silhouette`), the exact classification of boolean subtrees
+  (`Classify`, `ClassifyGroup`, `SectionTree`), and the cut (`Cut`)
 
 #### Purpose
 
 `ScadGeometryBuilder` converts the geometry-agnostic instantiation tree produced by the evaluator (a list of
 `ScadInstance` roots) into a Render3D `Scene`, and returns with it the map from the scene's mesh nodes back to
 source locations. It owns what is common to every module: the walk, the implicit union, the modifiers, the CSG
-booleans and the dimension rules, the `hull` and `minkowski` convex combinations, the table of modules that are
+booleans and the dimension rules, the `hull` and `minkowski` convex combinations, the `projection` shadow and
+cross-section of solids, the table of modules that are
 recognized but not built, the triangle budget,
 cancellation, the single reporting channel, and the copy of the renderer options. What a particular primitive,
 transform, color, text, or extrusion builds is delegated to the `ScadPrimitives`, `ScadTransforms`,
@@ -61,8 +73,10 @@ The unit's behavior is specified by the `CanvasNetScad-ScadGeometry-ScadGeometry
 context exposes as `HighlightColor` and `GhostColor`), and the optional `FontResolution`
 (`ScadFontResolutionOptions?`; null means the defaults; the context creates the `ScadFontResolver` of the build
 from it on first use). **`ScadBuiltScene`** (record) is the
-outcome: the `Scene` (an empty group when nothing was built), the `ScadSceneMap`, and the triangles charged (the
-meshes created plus the copies of `#` overlays).
+outcome: the `Scene` (an empty group when nothing was built), the `ScadSceneMap`, the triangles charged (the
+meshes created plus the copies of `#` overlays), and `IsFlatModel` (true when the result of the whole forest is a
+2D shape, `ScadGeoKind.Flat`, so that a union that mixes 2D and 3D, which keeps its 3D members, is a 3D model; the
+renderer entry point uses it to choose the flat top view).
 
 **`ScadGeometryContext`** holds the services of one build on one thread: the `ScadReporter`, the
 `ScadSceneMap`, the settings, the cancellation schedule, and the triangle counter. `Tick()` counts one visited
@@ -101,12 +115,13 @@ the recorded location, or `default` (an unknown location) for a `null` node or o
 
 | Identifier                                                          | Meaning                                      |
 |---------------------------------------------------------------------|----------------------------------------------|
-| `scad-module-offset`, `-projection`, `-surface`, `-import`          | recognized module not built; omitted         |
+| `scad-module-offset`, `-surface`, `-import`                         | recognized module not built; omitted         |
 | `scad-module-roof`                                                  | recognized module not built; omitted         |
 | `scad-text-invalid-outline`, `-overlapping-contours`                | `text` glyph outline unusable; text omitted  |
 | `scad-hull-csg-operand`, `-degenerate`, `-mixed-dimensions`         | `hull` with a boolean, flat points, 2D + 3D  |
 | `scad-minkowski-nonconvex`, `-2d`, `-mixed-dimensions`              | non-convex operand, deferred 2D sum, 2D + 3D |
 | `scad-minkowski-too-complex`                                        | work above the documented bounds             |
+| `scad-projection-too-complex`, `scad-projection-open-mesh`          | work above the ceiling; open mesh; omitted   |
 | `scad-modifier-highlight`                                           | `#` on a 2D shape: rendered normally         |
 | `scad-modifier-background`                                          | `%` on a 2D shape: omitted                   |
 | `scad-resize-approximate`                                           | `resize` used estimated bounds               |
@@ -121,10 +136,12 @@ the recorded location, or `default` (an unknown location) for a `null` node or o
 | `scad-csg-singular-transform`                                       | collapsed world transform of an operand      |
 
 The `Module(name)` helper builds `scad-module-{name}` with underscores kept. `scad-color-alpha` no longer exists
-(Phase 8): the alpha of a color is rendered. This unit itself emits the
-`scad-module-*` identifiers of the six unsupported modules, the two `scad-modifier-*` identifiers (for 2D shapes
-only), and the seven
-`scad-hull-*` and `scad-minkowski-*` identifiers of `ScadHulls`; the
+(Phase 8): the alpha of a color is rendered. The identifier `scad-module-projection` is retired: `projection` is
+built, and reports `scad-projection-*` instead. This unit itself emits the
+`scad-module-*` identifiers of the four unsupported modules, the two `scad-modifier-*` identifiers (for 2D shapes
+only), the seven
+`scad-hull-*` and `scad-minkowski-*` identifiers of `ScadHulls`, and the two `scad-projection-*` identifiers (and
+`scad-geometry-rejected` for a section of a projection that the polygon validator rejects) of `ScadProjections`; the
 other identifiers are emitted by the sibling units and by `ScadDocument`, and are defined here so that they live
 in one place.
 
@@ -184,8 +201,8 @@ The tables are `FrozenDictionary` instances keyed by ordinal module name:
 | Leaf        | `cube`, `sphere`, `cylinder`, `polyhedron`, `square`, `circle`, `polygon`, `text`       |
 | Container   | `union`, `render` (the implicit union), `difference`, `intersection`, `translate`,      |
 |             | `rotate`, `scale`, `mirror`, `multmatrix`, `resize`, `color`, `linear_extrude`,         |
-|             | `rotate_extrude`, `hull`, `minkowski`                                                   |
-| Unsupported | every other recognized built-in: `offset`, `projection`, `surface`, `import`, `roof`    |
+|             | `rotate_extrude`, `hull`, `minkowski`, `projection`                                     |
+| Unsupported | every other recognized built-in: `offset`, `surface`, `import`, `roof`                  |
 
 `intersection_for` reaches the builder as the built-in `intersection` whose children are one group per iteration
 (the evaluator's decision), so it needs no entry of its own.
@@ -399,6 +416,111 @@ gathered, and `context.Cancellation` is passed into the Render3D loops. The poin
 order, the Render3D results depend on point sets only, and nothing is enumerated from a hash order, so the same
 model gives the same meshes. Every walk is iterative.
 
+##### `ScadProjections.Projection` (`projection`)
+
+`projection(cut = false | true)` turns the 3D children into a 2D result: the shadow of the solid on the XY plane, or
+its cross-section at `z = 0`. It is a container builder like `hull`, part of this unit (the class
+`ScadProjections` is not a software unit of its own), and everything it builds is a symbolic `ScadShape2D`, so the
+package keeps having no 2D or mesh boolean kernel and every consumer of a 2D shape (2D transforms, `color`,
+`linear_extrude`, `rotate_extrude`, `hull`, 2D booleans, and the slabs of a top-level 2D shape) accepts the result.
+The result has kind `Flat`, the location of the module, and the bounds of its vertices (tight when the shape is
+union-only and nothing was classified; an upper bound otherwise).
+
+**Arguments and children.** The arguments are bound with the names `cut` and `convexity`. `cut` is honored when it is
+a boolean; any other value warns (`projection: 'cut' must be true or false; false is used`) and counts as `false`.
+`convexity` is accepted and ignored. 2D children are ignored with a warning (`projection: only 3D children can be
+projected; the 2D children are ignored`); with no 3D child left the result is empty and silent. The children are
+the union of the solid results. `%` overlays (`OverlayNode`) are skipped, and a `#` highlight is projected as the real
+subtree only, never twice (the overlay copy is skipped). Colors inside the projection are not kept: one warning says
+that the result takes the enclosing `color`. The identifier `scad-module-projection` is retired.
+
+**Flattening.** The scene trees of the children are walked iteratively (no recursion; `context.Tick()` per node)
+into a flat list of nodes: a mesh node, or a union, difference, or intersection of child nodes, each with the world
+matrix accumulated as `node.Transform * parent`. A mesh is put into the frame of the projection (`FrameMesh`): the
+vertices that triangles reference are transformed and **welded by exact position**, a triangle that collapsed to
+fewer than three distinct vertices is dropped, and the winding is restored after a mirroring matrix. A mesh is a
+_closed outward solid_ when it is closed and has a positive signed volume. Every node knows whether it is subtracted
+an odd number of times (a cutter of the solid). The tolerance for "on a plane" is `1e-9` times the largest absolute
+coordinate of any mesh (at least 1) and the doubled XY area below which a triangle counts as vertical is `1e-12`
+times its square.
+
+**Silhouette (`cut = false`).** Projection distributes over a union, so the node tree is walked from its root and
+a mesh or a union contributes directly, and each maximal subtree rooted at a difference or an intersection is
+classified exactly (below).
+
+- _Faces._ For a closed outward solid only the upward faces (triangles with a positive Z component of the normal)
+  can be on the shadow boundary; every non-vertical triangle of any other mesh is used, because the shadow of the
+  back faces of an open mesh counts too. Vertical triangles have no footprint and are skipped.
+- _Merging._ The wanted triangles of one mesh are joined into groups by union-find over shared edges when their
+  normals agree (cosine at least `1 - 1e-12`) and one lies in the plane of the other within the tolerance. The
+  footprint of a group is **one region**: the directed edges that have no reverse edge in the group are the boundary,
+  chained into closed contours (the even-odd nesting of `PolygonRegion` makes holes), so the top of a cube is one
+  rectangle and the cap of a `$fn = 64` cylinder is one polygon. When the boundary is ambiguous (a vertex where
+  two contours touch), does not close, or the region is rejected, or the group is a single triangle, the footprint
+  falls back to **one region per triangle**, which covers the same area.
+- _Result._ A union-only tree is the union of the footprints as leaf regions; one leaf is the shape itself.
+
+**Classification of a difference or an intersection.** The shadow of a boolean is not the shadow of its operands, so
+for every face group of every mesh below the subtree root (the upward faces of the added operands, the downward faces
+of the subtracted ones, every non-vertical face of a mesh that is not a closed outward solid) the part of its
+footprint that bounds the solid from above is `face AND below AND NOT above`, where _below_ is the section of the
+whole subtree by the plane of the face shifted infinitesimally down (the solid is just below the face) and _above_ the
+section shifted infinitesimally up (the solid is just above it). The silhouette of the subtree is the union of these
+parts. Slicing commutes with set operations, so a section of the subtree is the same boolean tree over the sections
+of its meshes.
+
+- _The infinitesimal shift is a tie rule, not a number._ A vertex within the tolerance of the plane counts as **above**
+  the plane for the down shift and as **below** it for the up shift; every other vertex is classified by the sign of
+  its distance. A triangle with vertices on both sides contributes one directed segment (from the cut edge that leaves
+  the upper side to the one that enters it), which orients every contour consistently. The points
+  of the contours are keyed by the mesh edge that was cut, or by the vertex when the edge ends on the plane (the
+  point is then that vertex), **never by coordinates**, so the contours close exactly whatever the rounding. The
+  contours of a mesh become one `PolygonRegion`. Sections are cached by node, plane, and direction (planes are
+  identified by rounded normal and offset, so coplanar faces share their sections).
+- _Window pruning and full sections._ A section matters only inside the bounding box (the window) of the footprint of
+  the face. A mesh whose bounds do not reach the plane, or whose section lies outside the window, is empty. A section
+  of the mesh the face belongs to covers the whole footprint on the side of its solid (below an upward face, above a
+  downward one): it is **full**, and costs nothing. Another section that is one convex contour is clipped to the
+  (slightly padded) window, and one that covers the window is full too. A face that nothing else touches therefore
+  yields just its footprint and no boolean at all. The booleans combine empty, full, and shape operands without
+  creating shapes where the answer is already known (an empty operand vanishes from a union and empties an
+  intersection; a full operand makes a union full, vanishes from an intersection, and empties a difference when it is
+  subtracted).
+- _Worked checks._ A tube (a cylinder minus a taller or equal one) is an annulus, a plate with a through hole has the
+  hole, and a blind pocket has no hole in its shadow.
+
+**Cut (`cut = true`).** The children are sliced at `z = 0` and the boolean structure is kept symbolically: the section
+of a difference is the difference of the sections. A face that lies in the plane belongs to the section (closed-set
+semantics): when any vertex of any mesh is within the tolerance of the plane, the section is the **union of the
+section just below and the section just above** the plane; otherwise one section suffices. The union of the two is
+the documented behavior of this package, and is a **known divergence** from backends that treat vertices on the
+plane asymmetrically; whether another implementation (for example the Manifold backend of OpenSCAD) does so was not
+verified, so the behavior is documented, not asserted to match. A plane that misses every solid gives an empty,
+silent result.
+
+**Budget and cost.** Everything is bounded before it is allocated:
+
+1. The triangles of the children are counted first (an iterative walk that skips overlays). More than
+   `MaxProjectionWork` (2^23) is `scad-projection-too-complex`, the module is omitted, and nothing was allocated.
+2. `context.EnsureTriangles(8 * candidates)` then checks that the slabs the footprints could need (8 triangles per
+   candidate triangle, an upper bound) fit the triangle budget, with the located triangle-limit
+   `ScadEvaluationException` otherwise, before any region is built. The check is repeated for the leaves created so
+   far after the footprints of each mesh, after each classified face group, and after the cut (8 triangles per leaf).
+3. Every slice, and every walk of a section tree, charges a **work meter** (`State.Charge`: the triangles and
+   vertices of the mesh, or the number of nodes of the subtree) _before_ it runs. A total above
+   `MaxProjectionWork` is `scad-projection-too-complex` and the projection is omitted, **never approximated**.
+   `Charge` also polls cancellation, so a canceled build stops per slice.
+4. The transformed vertex copies and the section caches are transient storage bounded by the size of meshes that
+   are already charged; like the transient storage of `ScadHulls` they are not charged separately.
+
+**Failure modes.** A section that does not close (the segments do not balance at a point) means that the mesh is not a
+closed solid: `scad-projection-open-mesh`. A section that the polygon validator rejects (contours that touch or
+cross) is `scad-geometry-rejected`. Both, and the too-complex failure, omit the **whole** projection, because
+dropping an operand of a boolean would silently change its meaning; the first failure is the one reported. An
+open mesh in a union-only tree is not an error: its triangles are projected one by one. The methods are stateless
+and thread-safe, everything iterates over explicit stacks (so the 64 KiB-stack guarantee of the engine holds), and
+the result depends only on the geometry, in document order.
+
 ##### Triangle budget
 
 The charges are the **exact** triangle counts of the meshes, computed from their parameters and charged **before**
@@ -416,20 +538,24 @@ across all instances, including those of loops, and the check uses subtraction, 
 ##### Cancellation
 
 `Tick()` is called for every instance entered and polls the token once every 256 instances; `Poll()` is called
-explicitly before each heavy tessellation (a primitive, an extrusion, a slab) and before each hull and convex sum.
+explicitly before each heavy tessellation (a primitive, an extrusion, a slab) and before each hull and convex sum,
+and the work meter of a projection polls it before every slice.
 A model of fewer than 256
 instances that needs no tessellation (for example an empty document) never polls and completes even with a
 canceled token. The `OperationCanceledException` is never wrapped; the events reported before it stay in the
 sink.
 
-##### `ScadSceneOptions.Create(source, handler)` and `MapFeature(feature)`
+##### `ScadSceneOptions.Create(source, handler, flat)` and `MapFeature(feature)`
 
 `SceneRenderOptions` has no clone or `with` support, so `Create` copies every public property explicitly
 (`BackgroundColor`, `DefaultColor`, `BackFaceColor`, `Lights`, `SpecularStrength`, `SpecularPower`,
 `Supersampling`, `MaxDegreeOfParallelism`, `MaxFragmentsPerTile`) and **replaces** two: the
 `UnsupportedFeatureHandler` becomes the supplied handler (or `null`) and `ThrowOnUnsupportedFeature` is always
 `false`, because reporting and strict mode are decided by `ScadEvaluationOptions`, never by the nested scene
-options. A `null` source yields a new instance with the Render3D defaults. A reflection test enumerates the
+options. When `flat` is `true` (a model that is entirely 2D drawn with the flat default view; the default is
+`false`) and the caller set no `Lights`, the copy is lit by a single ambient light of intensity 1, so that a face
+shows exactly its own color; lights the caller set are always kept. A `null` source yields a new instance with the
+Render3D defaults. A reflection test enumerates the
 public properties of `SceneRenderOptions` and fails when one is not known to the test, so a property added to
 Render3D later cannot be forgotten by the copy. `MapFeature` rewrites the prefix: `render3d-x` becomes `scad-x`
 (so the six `render3d-csg-*` identifiers become the six `scad-csg-*` identifiers), and an identifier without the
@@ -438,15 +564,19 @@ prefix gets `scad-` prepended.
 #### Error Handling
 
 - **Warning** (through the reporter, into the shared sink): the mixed-dimension warnings above and the warning
-  that colors inside a `hull` or `minkowski` are not kept. The primitives,
+  that colors inside a `hull`, a `minkowski`, or a `projection` are not kept, and the warnings of `projection` (a
+  `cut` that is not a boolean, 2D children that are ignored). The primitives,
   transforms, and extrusions report their invalid arguments the same way (see their unit designs).
 - **Unsupported feature** (`ScadReporter.Unsupported`): `scad-module-{name}` with the message
   `The module '{name}' is not supported; it and its children are omitted`, `scad-modifier-highlight`
   (`The '#' modifier on a 2D shape is not highlighted; the shape is rendered normally (extrude it to draw a
   highlight)`), `scad-modifier-background`
-  (`The '%' modifier on a 2D shape is not supported; the shape is omitted (extrude it to draw a ghost)`), and the
+  (`The '%' modifier on a 2D shape is not supported; the shape is omitted (extrude it to draw a ghost)`), the
   `scad-hull-*` and `scad-minkowski-*`
-  identifiers of `ScadHulls` (each message names the module, the cause, and that the module is omitted), each at
+  identifiers of `ScadHulls` (each message names the module, the cause, and that the module is omitted), and the
+  `scad-projection-too-complex` and `scad-projection-open-mesh` identifiers of `ScadProjections` (and
+  `scad-geometry-rejected` for a section the polygon validator rejects; each message says that the projection is
+  omitted), each at
   the instance's location (which names an
   included or used file when the instance came from one). The sink de-duplicates by feature and location, so a
   loop reports one module once. In **strict mode** the first report of a feature at a location throws a
@@ -456,7 +586,7 @@ prefix gets `scad-` prepended.
   ordered (evaluation, geometry, renderer), de-duplicated, capped like the evaluator's, and delivered once on
   the calling thread by the owner (`ScadDocument`).
 - **`ScadEvaluationException`**: `Triangle limit exceeded (limit N)`, located at the instance that would exceed
-  the budget.
+  the budget, also for the slabs a `projection` could need (see _Projection_).
 - **`OperationCanceledException`**: never wrapped.
 - **`ArgumentNullException`**: `Build` with a `null` argument.
 - **Not handled here**: the renderer's `RenderBudgetExceededException` (the fragment budget of a tile) is mapped
@@ -474,7 +604,8 @@ prefix gets `scad-` prepended.
   `ScadColors.Color`, `ScadExtrusions.*`), and `ScadExtrusions.MakeSlabs` for a flat model; `ScadShape2D` for the
   2D shape tree. The context also creates the `ScadFontResolver` that `ScadTextGeometry` uses (one per build).
 - **`Render3D` public types** — `Scene`, `SceneNode`, `GroupNode`, `MeshNode`, `CsgNode`, `OverlayNode`, `CsgOperation`,
-  `BoundingBox3D`, `PolygonRegion`, and `Mesh` (scene model and tessellation), `ConvexHull` and `MinkowskiSum`
+  `BoundingBox3D`, `PolygonRegion`, and `Mesh` (scene model and tessellation), `Matrix4x4D` and `Vector3D` (the frame
+  of a `projection`), `ConvexHull` and `MinkowskiSum`
   (the exact hull and the convex Minkowski sum used by `ScadHulls`), and `SceneRenderOptions`,
   `SceneRenderUnsupportedFeature`, and `Light` (scene rendering).
 - **`CanvasNet` core types** — `Rgba32` (through the options copy).
@@ -489,8 +620,9 @@ instances.
 `ScadDocument` is the only production caller: `BuildScene` and `Render` evaluate the document into a fresh
 sink, build `ScadGeometrySettings` from the effective options (`MaxTriangles`, `FlatShapeThickness`, strict
 mode, and the token), and call `ScadGeometryBuilder.Build` with the evaluation's roots and the **same** sink;
-`Render` then creates the renderer options with `ScadSceneOptions.Create` and uses `MapFeature` and
-`ScadSceneMap.Find` in the renderer's handler. The tests in
+`Render` then creates the renderer options with `ScadSceneOptions.Create` (with `flat` set for the flat default view)
+and uses `MapFeature` and
+`ScadSceneMap.Find` in the renderer's handler, and reads `ScadBuiltScene.IsFlatModel` to choose the camera. The tests in
 `test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadGeometryBuilder*Tests.cs`, `ScadSceneOptionsTests.cs`, and
 `ScadUnsupportedModuleTests.cs` call `Build` and `Create` directly through `InternalsVisibleTo`, through the
 helpers of `ScadGeometryTestSupport` (which evaluates a program into a sink and builds it), and hand-built

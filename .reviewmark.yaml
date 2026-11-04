@@ -1888,6 +1888,9 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Scad/ScadDocument.Render.cs"    # unit source
       - "src/DemaConsulting.CanvasNet.Scad/ScadRenderOptions.cs"      # unit source
       - "src/DemaConsulting.CanvasNet.Scad/ScadFontResolutionOptions.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/ScadViewport.cs"           # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/ScadResolvedView.cs"       # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/ScadViewSource.cs"         # unit source
       - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadDocumentTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadOpenOptionsTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadSourceLocationTests.cs"  # unit tests
@@ -1906,6 +1909,8 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadDocumentRenderCsgTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadDocumentRenderExtrusionTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadDocumentRenderReportTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadViewportTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadDocumentViewportRenderTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadFixtures/**"    # original fixtures, goldens, provenance README
 
   # CanvasNetScad-ScadLanguage Review (one per subsystem)
@@ -2027,6 +2032,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Scad/Evaluation/ScadBuiltinModules.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Scad/Evaluation/ScadEvaluationSettings.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Scad/Evaluation/ScadEvaluationOutput.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/Evaluation/ScadViewportValues.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Scad/Evaluation/ScadEvaluationSink.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadEvaluator*.cs"  # unit tests and test support
       - "test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadEvaluationSinkTests.cs"  # unit tests
@@ -2105,7 +2111,9 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Scad/Geometry/ScadFeatureIds.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Scad/Geometry/ScadBooleans.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Scad/Geometry/ScadHulls.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/Geometry/ScadProjections*.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadGeometryBuilder*Tests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadProjectionTestSupport.cs"  # test support
       - "test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadSceneOptionsTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Scad.Tests/Geometry/ScadUnsupportedModuleTests.cs"  # unit tests
 

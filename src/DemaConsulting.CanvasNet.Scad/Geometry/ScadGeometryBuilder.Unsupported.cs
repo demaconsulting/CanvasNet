@@ -59,6 +59,7 @@ internal sealed partial class ScadGeometryBuilder
             ["rotate_extrude"] = ScadExtrusions.RotateExtrude,
             ["hull"] = ScadHulls.Hull,
             ["minkowski"] = ScadHulls.Minkowski,
+            ["projection"] = ScadProjections.Projection,
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
     /// <summary>
@@ -66,11 +67,11 @@ internal sealed partial class ScadGeometryBuilder
     /// </summary>
     /// <remarks>
     ///     <para>
-    ///         The modules that reach this method are <c>offset</c>, <c>projection</c>, <c>surface</c>,
+    ///         The modules that reach this method are <c>offset</c>, <c>surface</c>,
     ///         <c>import</c> and <c>roof</c>. The module's children are not visited, so
     ///         what is inside an unsupported module is not reported separately; the report names the module and
     ///         carries its source location. (<c>hull</c> and <c>minkowski</c> are built by <see cref="ScadHulls"/>,
-    ///         <c>text</c> by <see cref="ScadTextGeometry"/>.)
+    ///         <c>projection</c> by <see cref="ScadProjections"/>, <c>text</c> by <see cref="ScadTextGeometry"/>.)
     ///     </para>
     /// </remarks>
     /// <param name="node">The instance.</param>

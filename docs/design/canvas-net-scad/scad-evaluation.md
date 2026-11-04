@@ -40,11 +40,16 @@ The subsystem's namespace documentation is in `Evaluation/NamespaceDoc.cs`. Its 
   ScadEvaluationSettings, ScadEvaluationSink)` evaluates an already resolved unit (used by the unit tests).
   It returns a `ScadEvaluationOutput` and throws the exceptions listed under _Event Classification_.
 - `ScadEvaluationSettings` — init-only: `Limits`, `Time`, `Overrides` (the converted `-D`-style variables, in
-  ordinal key order), `ThrowOnUnsupportedFeature`, and `Cancellation`.
+  ordinal key order), `Viewport` (the defaults of the viewport variables `$vpt`, `$vpr`, `$vpd`, and `$vpf`; the
+  documented defaults of a fresh viewer when not set), `ThrowOnUnsupportedFeature`, and `Cancellation`.
 - `ScadEvaluationSink` — the buffer that receives echo lines, warnings, and unsupported-feature reports; it
   keeps them even when evaluation fails and replays them chronologically through `Deliver`.
 - `ScadEvaluationOutput` — the roots of the instantiation tree, snapshots of the echo, diagnostics, and
-  unsupported features, the instance count, and the step and loop-iteration counts (test hooks).
+  unsupported features, the instance count, the step and loop-iteration counts (test hooks), and the `Viewport`
+  that the main file or an override defined (`ScadDocumentViewport`: `$vpt`, `$vpr`, `$vpd`, and `$vpf`, each
+  `null` when it was not defined or was unusable). The viewport variables are defined in the defaults scope and
+  read back from the scope of the main file after its assignments were forced; the renderer, not the evaluator,
+  gives them their meaning (see _ScadEvaluator Unit Design_ and _ScadDocument Unit Design_).
 - The instantiation tree: `ScadInstance`, `ScadInstanceKind`, `ScadInstanceArgument`,
   `ScadFragmentSettings`, and the recognized built-in module names `ScadBuiltinModules`.
 
@@ -101,9 +106,11 @@ continues, which type carries the information, and where the caller sees it.
 
 The rule of thumb is: a _mistake in the model_ that still allows a meaningful result is a warning; something
 this implementation _does not provide_ is an unsupported feature; a problem that makes the result
-_meaningless or dangerous_ is an error. Geometry-level unsupported features (`surface`, `offset`, `projection`,
-and similar) are not detected here: the evaluator emits them as ordinary instances and the `ScadGeometry`
-subsystem reports them through the same sink (see _ScadGeometry Subsystem Design_).
+_meaningless or dangerous_ is an error. Geometry-level unsupported features (`surface`, `offset`, `import`, and
+similar) are not detected here: the evaluator emits them as ordinary instances and the `ScadGeometry`
+subsystem reports them through the same sink (see _ScadGeometry Subsystem Design_). A viewport variable
+(`$vpt`, `$vpr`, `$vpd`, `$vpf`) that the main file assigns an unusable value is a warning of this subsystem and the
+value is ignored (see _ScadEvaluator Unit Design_).
 
 #### The Instantiation Tree (The Evaluation / Geometry Boundary)
 
@@ -130,8 +137,9 @@ Shape rules (each is pinned by a test):
   `polyhedron`, `square`, `circle`, `polygon`, `text`, `translate`, `rotate`, `scale`, `mirror`, `multmatrix`,
   `resize`, `color`, `union`, `difference`, `intersection`, `linear_extrude`, `rotate_extrude`, `hull`,
   `minkowski`, `offset`, `projection`, `render`, `surface`, `import`, and `roof`). The evaluator evaluates
-  their arguments and children but **never interprets them**: it does not validate argument names, and
-  `import("x.stl")` performs no file access.
+  their arguments and children but **never interprets them** (the geometry subsystem builds `projection` like the
+  other modules and reports `offset`, `surface`, `import`, and `roof` as unsupported): it does not validate argument
+  names, and `import("x.stl")` performs no file access.
 - **Lookup order** for `name(arguments) children`: the `children` pseudo-module, then a user module (innermost
   scope outward), then a built-in module, otherwise a warning `Ignoring unknown module 'name'` with nothing
   emitted and the arguments and children **not evaluated**. A user module shadows a built-in of the same name.

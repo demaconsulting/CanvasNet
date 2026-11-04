@@ -266,6 +266,25 @@ internal sealed record ScadViewOptions
     public string View { get; init; } = SourceLoader.DefaultScadView;
 
     /// <summary>
+    ///     Gets a value indicating whether the viewpoint was chosen (with <c>--view</c> or a per-input view of a
+    ///     comparison); without it, and without an azimuth or an elevation, the library picks the view: isometric for a
+    ///     model with 3D objects, a flat top view for a model that is entirely 2D.
+    /// </summary>
+    /// <remarks>
+    ///     The command line sets it for every <c>--view</c>, including <c>--view iso</c>; code that builds the options
+    ///     directly only needs it to ask for the isometric view of a model that is entirely 2D, because any other
+    ///     <see cref="View"/> counts as chosen.
+    /// </remarks>
+    public bool ViewGiven { get; init; }
+
+    /// <summary>
+    ///     Gets a value indicating whether the view is explicit: a viewpoint (given, or any other than the default), an
+    ///     azimuth, or an elevation was given.
+    /// </summary>
+    public bool IsViewExplicit =>
+        ViewGiven || Azimuth.HasValue || Elevation.HasValue || !string.Equals(View, SourceLoader.DefaultScadView, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
     ///     Gets the azimuth in degrees that replaces the azimuth of <see cref="View"/>, or <see langword="null"/> to keep it.
     /// </summary>
     public double? Azimuth { get; init; }

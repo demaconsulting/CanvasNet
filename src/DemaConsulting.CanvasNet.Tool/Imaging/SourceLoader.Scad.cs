@@ -14,7 +14,9 @@ namespace DemaConsulting.CanvasNet.Tool.Imaging;
 ///         A model has no pages and no natural size: it is evaluated and drawn at the requested size, and
 ///         <see cref="DefaultScadSize"/> pixels square is the natural size that <c>--scale</c> multiplies and that
 ///         is used when no size option is given. The viewpoint is a named one (<see cref="ScadViews"/>) whose azimuth
-///         and elevation <c>--azimuth</c> and <c>--elevation</c> can replace; the projection is orthographic unless
+///         and elevation <c>--azimuth</c> and <c>--elevation</c> can replace; when none of the three is given the
+///         library chooses the view (isometric, or a flat top view for a model that is entirely 2D, or the view the
+///         model sets with its viewport variables). The projection is orthographic unless
 ///         perspective is asked for. The renderer draws over the background color directly, so a background with
 ///         zero alpha gives a transparent image.
 ///     </para>
@@ -175,7 +177,8 @@ internal static partial class SourceLoader
             var echo = new List<string>();
             var notes = new List<ImageDiagnostic>();
             var missingInclude = new List<ScadDiagnostic>();
-            var renderOptions = CreateRenderOptions(view, azimuth, elevation, background, echo, notes, missingInclude);
+            ScadResolvedView? resolved = null;
+            var renderOptions = CreateRenderOptions(view, azimuth, elevation, background, echo, notes, missingInclude, v => resolved = v);
 
             var surface = Read(Info.Path, SourceKind.Scad, () => _document.Render(width, height, renderOptions));
             if (missingInclude.Count > 0)
@@ -190,7 +193,7 @@ internal static partial class SourceLoader
 
             var operations = new List<AppliedOperation>
             {
-                Operation("render", DescribeRender(view, azimuth, elevation, width, height, background))
+                Operation("render", DescribeRender(view, azimuth, elevation, resolved, width, height, background))
             };
             return new LoadedSource(surface, Info, 1, true, notes, echo, operations);
         }
@@ -221,6 +224,7 @@ internal static partial class SourceLoader
         /// <param name="echo">The list the <c>echo</c> lines of the model are added to.</param>
         /// <param name="notes">The list the warnings and unsupported features of the model are added to.</param>
         /// <param name="missingInclude">The list the warnings about an <c>include</c> or <c>use</c> that cannot be opened are added to.</param>
+        /// <param name="resolvedView">Receives the view the library used.</param>
         /// <returns>The options.</returns>
         /// <exception cref="ToolException">Thrown with code <c>usage-error</c> when a variable has a name the library does not accept.</exception>
         private ScadRenderOptions CreateRenderOptions(
@@ -230,7 +234,8 @@ internal static partial class SourceLoader
             Rgba32 background,
             List<string> echo,
             List<ImageDiagnostic> notes,
-            List<ScadDiagnostic> missingInclude)
+            List<ScadDiagnostic> missingInclude,
+            Action<ScadResolvedView> resolvedView)
         {
             try
             {
@@ -257,14 +262,26 @@ internal static partial class SourceLoader
                 var scene = view.DefaultColor is { } color
                     ? new SceneRenderOptions { BackgroundColor = background, DefaultColor = color }
                     : new SceneRenderOptions { BackgroundColor = background };
-                return new ScadRenderOptions
-                {
-                    Evaluation = evaluation,
-                    ViewAzimuthDegrees = azimuth,
-                    ViewElevationDegrees = elevation,
-                    Projection = view.Perspective ? CameraProjection.Perspective : CameraProjection.Orthographic,
-                    SceneOptions = scene
-                };
+                var projection = view.Perspective ? CameraProjection.Perspective : CameraProjection.Orthographic;
+
+                // Without a chosen view the library picks it: isometric for a 3D model, a flat top view for a 2D one
+                return view.IsViewExplicit
+                    ? new ScadRenderOptions
+                    {
+                        Evaluation = evaluation,
+                        ViewAzimuthDegrees = azimuth,
+                        ViewElevationDegrees = elevation,
+                        Projection = projection,
+                        SceneOptions = scene,
+                        ResolvedViewHandler = resolvedView
+                    }
+                    : new ScadRenderOptions
+                    {
+                        Evaluation = evaluation,
+                        Projection = projection,
+                        SceneOptions = scene,
+                        ResolvedViewHandler = resolvedView
+                    };
             }
             catch (ArgumentException ex)
             {
@@ -277,26 +294,41 @@ internal static partial class SourceLoader
         ///     Describes a render for the <c>operations</c> of a result.
         /// </summary>
         /// <param name="view">The view options.</param>
-        /// <param name="azimuth">The azimuth in degrees.</param>
-        /// <param name="elevation">The elevation in degrees.</param>
+        /// <param name="azimuth">The azimuth in degrees that was requested.</param>
+        /// <param name="elevation">The elevation in degrees that was requested.</param>
+        /// <param name="resolved">The view the library used, or <see langword="null"/> when it reported none.</param>
         /// <param name="width">The width in pixels.</param>
         /// <param name="height">The height in pixels.</param>
         /// <param name="background">The background color.</param>
         /// <returns>The parameters of the operation, in the order they are written.</returns>
+        /// <remarks>
+        ///     An explicit view (a viewpoint, an azimuth, or an elevation was given) is described as it was asked for.
+        ///     Otherwise the library chose the view and the operation reports what it used: <c>iso</c> for the default
+        ///     view, <c>top</c> for the flat top view of a model that is entirely 2D, and <c>custom</c> for a view
+        ///     the model set with its viewport variables.
+        /// </remarks>
         private static (string Name, object Value)[] DescribeRender(
             ScadViewOptions view,
             double azimuth,
             double elevation,
+            ScadResolvedView? resolved,
             int width,
             int height,
             Rgba32 background)
         {
+            var name = view.View.ToLowerInvariant();
+            var projection = view.Perspective ? CameraProjection.Perspective : CameraProjection.Orthographic;
+            if (!view.IsViewExplicit && resolved is not null)
+            {
+                (name, azimuth, elevation, projection) = (NameView(resolved), resolved.AzimuthDegrees, resolved.ElevationDegrees, resolved.Projection);
+            }
+
             var fields = new List<(string Name, object Value)>
             {
-                ("view", view.View.ToLowerInvariant()),
+                ("view", name),
                 ("azimuth", azimuth),
                 ("elevation", elevation),
-                ("projection", view.Perspective ? "perspective" : "orthographic"),
+                ("projection", projection == CameraProjection.Perspective ? "perspective" : "orthographic"),
                 ("width", width),
                 ("height", height),
                 ("background", FormatColor(background))
@@ -322,6 +354,37 @@ internal static partial class SourceLoader
             }
 
             return [.. fields];
+        }
+
+        /// <summary>
+        ///     Names the view the library used: the viewpoint whose angles it matches, otherwise <c>custom</c>.
+        /// </summary>
+        /// <param name="resolved">The view the library used.</param>
+        /// <returns>The name.</returns>
+        private static string NameView(ScadResolvedView resolved)
+        {
+            const double tolerance = 1e-6;
+            var match = ScadViews.FirstOrDefault(v =>
+                Math.Abs(v.Elevation - resolved.ElevationDegrees) < tolerance
+                && (Math.Abs(Math.Abs(v.Elevation) - 90) < tolerance || Math.Abs(AngleDifference(v.Azimuth, resolved.AzimuthDegrees)) < tolerance));
+            return match?.Name ?? "custom";
+        }
+
+        /// <summary>
+        ///     Gets the signed difference of two angles, wrapped into -180 to 180 degrees.
+        /// </summary>
+        /// <param name="a">The first angle in degrees.</param>
+        /// <param name="b">The second angle in degrees.</param>
+        /// <returns>The difference <paramref name="a"/> minus <paramref name="b"/>.</returns>
+        private static double AngleDifference(double a, double b)
+        {
+            var difference = (a - b) % 360.0;
+            if (difference > 180.0)
+            {
+                return difference - 360.0;
+            }
+
+            return difference < -180.0 ? difference + 360.0 : difference;
         }
 
         /// <summary>

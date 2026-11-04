@@ -77,7 +77,8 @@ internal sealed partial class RenderCommand : ICommand
         + "extension. Vector sources are flattened over white; a JPEG is turned upright by its EXIF orientation." + Environment.NewLine
         + "A PDF page, PPTX slide, or VSDX page is 96 dpi by default; choose it with --page and the size with --dpi." + Environment.NewLine
         + "An OpenSCAD model is drawn from one viewpoint (--view, --azimuth, --elevation, --projection) at 800x800" + Environment.NewLine
-        + "pixels unless a size is given; -D sets its variables. Its include and use directives are read from the" + Environment.NewLine
+        + "pixels unless a size is given (a model that is entirely 2D is drawn from the top unless a view is chosen);" + Environment.NewLine
+        + "-D sets its variables. Its include and use directives are read from the" + Environment.NewLine
         + "folder of the model and below it only, and one that names a missing file is an error." + Environment.NewLine
         + "A Vega-Lite chart is drawn at the size its specification lays out (--scale, --width, and --height resize it" + Environment.NewLine
         + "sharply) over its own background, white by default, with UTC dates and the bundled fonts. Its local data" + Environment.NewLine

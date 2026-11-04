@@ -43,8 +43,12 @@ as written, the `DataReferences` as `ChartDataReference` records of `Kind` (`inl
 `Strict`, `Scale`, `Width`, `Height` (the size options), `Background` (a nullable `Rgba32`), `AutoOrient`
 (default `true`), and `Scad` (a nullable `ScadViewOptions`; the defaults when absent).
 
-**ScadViewOptions** (record, all properties `init`): `View` (a name from `ScadViews`, `iso` by default), `Azimuth`
-and `Elevation` (nullable; they replace the angles of the view), `Perspective` (default `false`), `Defines` (the
+**ScadViewOptions** (record, all properties `init`): `View` (a name from `ScadViews`, `iso` by default), `ViewGiven`
+(`true` when `--view` was written, even `--view iso`, which is how the command line asks for the isometric view of a
+model that is entirely 2D; for `compare` the per-input views set it too), `Azimuth`
+and `Elevation` (nullable; they replace the angles of the view), `IsViewExplicit` (computed: `ViewGiven`, or an
+`Azimuth` or an `Elevation` was given, or `View` is a name other than `iso`), `Perspective` (default `false`),
+`Defines` (the
 variables as a dictionary of `double`, `bool`, and `string` values), `Time` (nullable, the value of `$t`),
 `MaxTriangles` (nullable, the library default of 5,000,000 when absent), and `DefaultColor` (nullable). **ScadView**
 (record): a view's `Name`, `Azimuth`, and `Elevation`. **SourceLoader.ScadViews** is the table of the views, in the
@@ -152,10 +156,16 @@ An *OpenSCAD model* load (`ScadPageSource`) opens the model once and draws it wi
 options)`. The target size is `ComputeTargetSize` of the natural size 800 by 800 (`DefaultScadSize`), so a scale
 multiplies it, one side keeps the picture square, and two sides are exact; the renderer fits the camera to the
 model and to the aspect ratio, so nothing is stretched. The view is the named viewpoint of `ScadViews` with
-`Azimuth` and `Elevation` replacing its angles; an unknown name is a `usage-error` listing the views. The
-projection is orthographic unless `Perspective` is set. The `ScadRenderOptions` carry the evaluation options (the
+`Azimuth` and `Elevation` replacing its angles; an unknown name is a `usage-error` listing the views. Only an
+**explicit** view (`IsViewExplicit`) is passed to the library as `ViewAzimuthDegrees` and `ViewElevationDegrees`;
+otherwise the loader leaves the angles unset and the library decides: the isometric view for a model that is
+3D, a flat top view for a model whose whole result is 2D (for example a `projection()` drawing sheet), or the view
+that the model sets with its viewport variables `$vpr`, `$vpt`, `$vpd`, and `$vpf`. An explicit view wins over the
+viewport variables of the model. The projection is orthographic unless `Perspective` is set, and is always passed. The
+`ScadRenderOptions` carry the evaluation options (the
 `Defines` as the variables, `Time` as `$t`, the limits with `MaxTriangles` when given, `ThrowOnUnsupportedFeature`
-from `Strict`, and handlers that collect the `echo` lines, the warnings, and the unsupported features) and a
+from `Strict`, and handlers that collect the `echo` lines, the warnings, and the unsupported features), a
+`ResolvedViewHandler` that receives the view the library used, and a
 `SceneRenderOptions` whose `BackgroundColor` is the background option (white by default; zero alpha is a
 transparent picture) and whose `DefaultColor` is the default color when one is given, so no flatten step is needed.
 A warning becomes a note (`scad`, `warning`, `scad-warning`, the library's `file:line:column: message`); an
@@ -165,7 +175,11 @@ the library does not accept as a variable (it is an `ArgumentException` from con
 `usage-error`. The picture is the same for the same model and options: the library's render is deterministic.
 The operation recorded is `render` with the `view`, the resolved `azimuth` and `elevation`, the `projection`
 (`orthographic` or `perspective`), the size, the `background`, and, when they were given, `defines` (a list of
-`name=value` in name order, text in quotes), `time`, `maxTriangles`, and `defaultColor`.
+`name=value` in name order, text in quotes), `time`, `maxTriangles`, and `defaultColor`. For an explicit view the
+`view`, `azimuth`, and `elevation` are those that were asked for, so they are unchanged from earlier releases; for a
+view the library chose they report what it used (`ScadResolvedView`): `iso`, 45, and about 35.26 with
+`orthographic` for a 3D model, `top`, 0, and 90 for a flat model, and `custom` with the angles for a view that
+the model set itself (the name of a view is the viewpoint of `ScadViews` whose angles match, otherwise `custom`).
 
 A *Vega-Lite chart* load (`VegaLitePageSource`) opens the chart once and draws it with
 `VegaLiteDocument.Render(width, height, options)`. The target size is `ComputeTargetSize` of the natural size from the probe,
@@ -299,7 +313,9 @@ loader has no case for - which cannot happen while every kind of `SourceKind` is
 - **CanvasNet SVG system** - `SvgCodec` renders SVG and reports its intrinsic size.
 - **CanvasNet PDF, PPTX, and VSDX systems** - `PdfDocument`, `PptxDocument`, and `VsdxDocument` list and render the
   pages of a document, and report the features they cannot draw.
-- **CanvasNet SCAD and Render3D systems** - `ScadDocument` parses and draws a model; `Camera`, `CameraProjection`, and
+- **CanvasNet SCAD and Render3D systems** - `ScadDocument` parses and draws a model, and
+  `ScadRenderOptions.ResolvedViewHandler` with `ScadResolvedView` tells the loader which view it used; `Camera`,
+  `CameraProjection`, and
   `SceneRenderOptions` give the camera convention, the projection, and the background and default colors.
 - **CanvasNet Vega-Lite system** - `VegaLiteDocument` parses, measures, and draws a chart, with the render options,
   the diagnostics, and the exceptions that the loader maps.

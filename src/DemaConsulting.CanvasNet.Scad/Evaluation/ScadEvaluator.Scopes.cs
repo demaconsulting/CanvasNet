@@ -1,4 +1,5 @@
 using System.Globalization;
+using DemaConsulting.CanvasNet.Render3D.SceneModel;
 using DemaConsulting.CanvasNet.Scad.Language;
 
 namespace DemaConsulting.CanvasNet.Scad.Evaluation;
@@ -38,7 +39,106 @@ internal sealed partial class ScadEvaluator
         scope.DefineVariable(new ScadCell("$fs", ScadValue.FromNumber(DefaultFs), default));
         scope.DefineVariable(new ScadCell("$t", ScadValue.FromNumber(_settings.Time), default));
         scope.DefineVariable(new ScadCell("$preview", ScadValue.True, default));
+
+        // The viewport variables: the documented defaults of a viewer unless the caller supplies the effective view
+        var viewport = _settings.Viewport ?? ScadViewportValues.OpenScadDefaults;
+        scope.DefineVariable(new ScadCell(ScadViewportValues.TargetName, viewport.TargetValue(), default));
+        scope.DefineVariable(new ScadCell(ScadViewportValues.RotationName, viewport.RotationValue(), default));
+        scope.DefineVariable(new ScadCell(ScadViewportValues.DistanceName, ScadValue.FromNumber(viewport.Distance), default));
+        scope.DefineVariable(new ScadCell(ScadViewportValues.FieldOfViewName, ScadValue.FromNumber(viewport.FieldOfView), default));
         return scope;
+    }
+
+    /// <summary>
+    ///     Reads the viewport variables that the main file (or an override) defined at the top level.
+    /// </summary>
+    /// <remarks>
+    ///     The scope of the main file owns a frame only when it binds a <c>$</c> name, so the variables the document
+    ///     did not assign are simply not found there. A value that is not usable (a <c>$vpt</c> or <c>$vpr</c> that is
+    ///     not a list of two or three numbers, a <c>$vpd</c> that is not a finite number above zero, a <c>$vpf</c>
+    ///     outside 0 to 180 degrees exclusive) is reported with a warning and treated as not defined.
+    /// </remarks>
+    /// <param name="fileScope">The main file scope after its assignments were forced.</param>
+    /// <returns>The valid values.</returns>
+    private ScadDocumentViewport ReadViewport(ScadScope fileScope)
+    {
+        var frame = fileScope.OwnedFrame;
+        if (frame is null)
+        {
+            return ScadDocumentViewport.None;
+        }
+
+        var target = ReadViewportVector(frame, ScadViewportValues.TargetName);
+        var rotation = ReadViewportVector(frame, ScadViewportValues.RotationName);
+        var distance = ReadViewportNumber(frame, ScadViewportValues.DistanceName, static v => v > 0.0, "a finite number greater than 0");
+        var fieldOfView = ReadViewportNumber(frame, ScadViewportValues.FieldOfViewName, static v => v > 0.0 && v < 180.0, "a number between 0 and 180 (exclusive)");
+        return new ScadDocumentViewport(target, rotation, distance, fieldOfView);
+    }
+
+    /// <summary>
+    ///     Reads a viewport variable that must be a vector of two or three numbers (a missing third component is zero).
+    /// </summary>
+    /// <param name="frame">The frame of the main file scope.</param>
+    /// <param name="name">The variable name.</param>
+    /// <returns>The vector, or <see langword="null"/> when the variable is not defined or not usable.</returns>
+    private Vector3D? ReadViewportVector(ScadSpecialFrame frame, string name)
+    {
+        if (!frame.TryGet(name, out var cell))
+        {
+            return null;
+        }
+
+        var value = cell.Value;
+        if (value.Kind == ScadValueKind.Vector && value.AsVector.Count is 2 or 3)
+        {
+            var items = value.AsVector.AsSpan();
+            var ok = true;
+            var numbers = new double[3];
+            for (var i = 0; i < items.Length; i++)
+            {
+                if (items[i].Kind == ScadValueKind.Number && double.IsFinite(items[i].AsNumber))
+                {
+                    numbers[i] = items[i].AsNumber;
+                }
+                else
+                {
+                    ok = false;
+                }
+            }
+
+            if (ok)
+            {
+                return new Vector3D(numbers[0], numbers[1], numbers[2]);
+            }
+        }
+
+        Warn($"Unable to convert {name}={value.ToEchoText()} to a vec3 or vec2 of numbers; the viewport variable is ignored", cell.Location);
+        return null;
+    }
+
+    /// <summary>
+    ///     Reads a viewport variable that must be a number satisfying a range check.
+    /// </summary>
+    /// <param name="frame">The frame of the main file scope.</param>
+    /// <param name="name">The variable name.</param>
+    /// <param name="isValid">Tells whether a finite number is in the accepted range.</param>
+    /// <param name="expected">The description of the accepted values for the warning.</param>
+    /// <returns>The number, or <see langword="null"/> when the variable is not defined or not usable.</returns>
+    private double? ReadViewportNumber(ScadSpecialFrame frame, string name, Func<double, bool> isValid, string expected)
+    {
+        if (!frame.TryGet(name, out var cell))
+        {
+            return null;
+        }
+
+        var value = cell.Value;
+        if (value.Kind == ScadValueKind.Number && double.IsFinite(value.AsNumber) && isValid(value.AsNumber))
+        {
+            return value.AsNumber;
+        }
+
+        Warn($"Unable to convert {name}={value.ToEchoText()} to {expected}; the viewport variable is ignored", cell.Location);
+        return null;
     }
 
     /// <summary>

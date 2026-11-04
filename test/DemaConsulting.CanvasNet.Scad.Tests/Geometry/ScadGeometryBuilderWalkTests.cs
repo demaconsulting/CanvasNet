@@ -19,6 +19,7 @@ public class ScadGeometryBuilderWalkTests
         [
             "cube", "sphere", "cylinder", "polyhedron", "square", "circle", "polygon", "text", "union", "render", "difference", "intersection",
             "translate", "rotate", "scale", "mirror", "multmatrix", "resize", "color", "linear_extrude", "rotate_extrude", "hull", "minkowski",
+            "projection",
         ];
 
     /// <summary>Gets the recognized built-in module names that are not built yet, as theory data.</summary>

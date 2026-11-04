@@ -111,6 +111,107 @@ public class RenderCommandScadTests
     }
 
     /// <summary>
+    ///     Test that a model that is entirely 2D is drawn from the top when no view option is given, that every view option
+    ///     (even <c>--view iso</c>) makes the view explicit, and that a model with 3D objects keeps the isometric default.
+    /// </summary>
+    /// <param name="options">The view options of the command line.</param>
+    /// <param name="flat"><see langword="true"/> to render a model that is entirely 2D.</param>
+    /// <param name="view">The expected view name.</param>
+    /// <param name="azimuth">The expected azimuth.</param>
+    /// <param name="elevation">The expected elevation.</param>
+    [Theory]
+    [InlineData("", true, "top", 0.0, 90.0)]
+    [InlineData("--view iso", true, "iso", 45.0, 35.264389682754654)]
+    [InlineData("--view front", true, "front", 0.0, 0.0)]
+    [InlineData("--azimuth 30", true, "iso", 30.0, 35.264389682754654)]
+    [InlineData("--elevation 20", true, "iso", 45.0, 20.0)]
+    [InlineData("--projection perspective", true, "top", 0.0, 90.0)]
+    [InlineData("", false, "iso", 45.0, 35.264389682754654)]
+    public void RenderCommand_Run_ViewDefaultsDependOnTheDimensionsOfTheModel(string options, bool flat, string view, double azimuth, double elevation)
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteText(directory.Path, "model.scad", flat ? "square([20, 10]);" : "cube([20, 10, 5]);");
+        string[] extra = options.Length == 0 ? [] : options.Split(' ');
+
+        // Act
+        var stdOut = Run(true, [input, .. extra, "--size", "32x32", "-o", directory.Combine("o.png")]);
+
+        // Assert: the view the library used
+        using var document = JsonDocument.Parse(stdOut);
+        var render = document.RootElement.GetProperty("operations")[0];
+        Assert.Equal(view, render.GetProperty("view").GetString());
+        Assert.Equal(azimuth, render.GetProperty("azimuth").GetDouble(), 1e-9);
+        Assert.Equal(elevation, render.GetProperty("elevation").GetDouble(), 1e-9);
+        Assert.Equal(options.Contains("perspective", StringComparison.Ordinal) ? "perspective" : "orthographic", render.GetProperty("projection").GetString());
+    }
+
+    /// <summary>
+    ///     Test that the flat top view of a model that is entirely 2D is drawn in the flat default gray with the model
+    ///     filling the picture, and that the isometric view of the same model is shaded and so differs.
+    /// </summary>
+    [Fact]
+    public void RenderCommand_Run_FlatModelWithoutView_IsDrawnFlatFromTheTop()
+    {
+        // Arrange: a square 20 by 20 centered at the origin
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteText(directory.Path, "flat.scad", "square(20, center = true);");
+        var top = directory.Combine("top.png");
+        var iso = directory.Combine("iso.png");
+
+        // Act
+        Run(false, input, "--size", "40x40", "-o", top);
+        Run(false, input, "--size", "40x40", "--view", "iso", "-o", iso);
+
+        // Assert: the middle of the top view is exactly the flat gray, and the isometric picture is another one
+        using var topImage = PngCodec.Load(top);
+        Assert.Equal(new Rgba32(180, 180, 180, 255), topImage[20, 20]);
+        Assert.NotEqual(File.ReadAllBytes(top), File.ReadAllBytes(iso));
+    }
+
+    /// <summary>
+    ///     Test that a model that sets <c>$vpr</c> itself is reported as a custom view with the angles it describes.
+    /// </summary>
+    [Fact]
+    public void RenderCommand_Run_ModelSettingTheViewport_IsReportedAsACustomView()
+    {
+        // Arrange: the front view raised by 30 degrees and turned by 30
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteText(directory.Path, "vpr.scad", "$vpr = [60, 0, 30];\ncube(5);");
+
+        // Act
+        var stdOut = Run(true, input, "--size", "32x32", "-o", directory.Combine("o.png"));
+
+        // Assert
+        using var document = JsonDocument.Parse(stdOut);
+        var render = document.RootElement.GetProperty("operations")[0];
+        Assert.Equal("custom", render.GetProperty("view").GetString());
+        Assert.Equal(30.0, render.GetProperty("azimuth").GetDouble(), 1e-9);
+        Assert.Equal(30.0, render.GetProperty("elevation").GetDouble(), 1e-9);
+    }
+
+    /// <summary>
+    ///     Test that a view option on the command line wins over the model's own <c>$vpr</c>.
+    /// </summary>
+    [Fact]
+    public void RenderCommand_Run_ViewOption_WinsOverTheModelViewport()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteText(directory.Path, "vpr.scad", "$vpr = [60, 0, 30];\ncube(5);");
+
+        // Act
+        var stdOut = Run(true, input, "--view", "right", "--size", "32x32", "-o", directory.Combine("o.png"));
+
+        // Assert
+        using var document = JsonDocument.Parse(stdOut);
+        var render = document.RootElement.GetProperty("operations")[0];
+        Assert.Equal("right", render.GetProperty("view").GetString());
+        Assert.Equal(90.0, render.GetProperty("azimuth").GetDouble(), 1e-9);
+        Assert.Equal(0.0, render.GetProperty("elevation").GetDouble(), 1e-9);
+    }
+
+    /// <summary>
     ///     Test that repeated definitions set variables, that the later one of a name wins, and that they change the image.
     /// </summary>
     [Fact]

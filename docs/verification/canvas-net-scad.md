@@ -1,6 +1,6 @@
 # System Verification Design
 
-<!-- cspell:ignore multmatrix -->
+<!-- cspell:ignore multmatrix unlit supersampling -->
 
 This document describes the system-level verification strategy for CanvasNetScad.
 
@@ -80,8 +80,8 @@ implementation, grammar, manual, or example (clean-room provenance, documented i
 - **Execution**: `dotnet test` invoked by `build.ps1` and the CI pipeline, on every target framework
   (`net8.0`, `net9.0`, `net10.0`) and on the Windows, Linux, and macOS CI runners
 - **Dependencies**: No external services, databases, or network access required. The fixture files in
-  `test/DemaConsulting.CanvasNet.Scad.Tests/ScadFixtures/` (forty-one valid `.scad` files — ten parse
-  fixtures, sixteen golden evaluation fixtures `eval-*.scad` with their `.txt` expectation files, and fifteen
+  `test/DemaConsulting.CanvasNet.Scad.Tests/ScadFixtures/` (forty-five valid `.scad` files — ten parse
+  fixtures, sixteen golden evaluation fixtures `eval-*.scad` with their `.txt` expectation files, and nineteen
   render fixtures `render-*.scad` without expectation files — three
   `invalid-*.scad` files, the include libraries in `libs/`, and a provenance `README.md`) are copied to the
   test output directory and located relative to the test assembly
@@ -138,8 +138,8 @@ to the caller's list does not alter the options), and that a supplied `SourceNam
 
 **Test**: `CanvasNetScad_SystemIntegration_Syntax_AllAuthoredFixturesParse`
 
-Opens every valid fixture from disk with `ScadDocument.Open` and asserts that exactly forty-one documents
-result (the ten parse fixtures, the sixteen golden evaluation fixtures, and the fifteen render fixtures), each
+Opens every valid fixture from disk with `ScadDocument.Open` and asserts that exactly forty-five documents
+result (the ten parse fixtures, the sixteen golden evaluation fixtures, and the nineteen render fixtures), each
 named by its path. The fixtures cover
 assignments, modules and functions, control flow, expressions and
 operators, list comprehensions, function literals, modifiers, include and use directives, lexical forms, a
@@ -407,11 +407,70 @@ omitted.
 `ScadRenderSystem_Strict_SupportedFixturesDoNotThrow`
 
 Renders `render-unsupported.scad` with a handler and asserts nine reports (a `surface` on line 4, the other
-unsupported modules, a hull of mixed dimensions,
+unsupported modules (`offset` on lines 5 and 6, a second `surface`, an `import`, and a `roof`; `projection` is built and
+is no longer among them), a hull of mixed dimensions,
 a Minkowski sum with a boolean operand, and a `%` on a 2D shape that is not extruded), each at a distinct line of
 the fixture and in source order, that only the supported geometry is drawn (and the bounds equal those of the
 supported geometry), and that strict mode throws the first report with its feature and location; and asserts
 that no fixture other than the unsupported one throws in strict mode.
+
+### Projection: Drawing Sheets Of Views And Sections
+
+**Tests**: `ScadDocumentViewport_ProjectionSheet_ShowsBothViewsTheBorderAndTheText`,
+`ScadDocumentViewport_ProjectionViews_ShowTheHolesTheStepsAndTheSection`,
+`ScadRenderSystem_Fixtures_RenderWithoutWarnings`, `ScadRenderSystem_Fixtures_RenderDeterministically`,
+`ScadRenderSystem_Unsupported_EveryConstructIsReportedOnceAtItsLocation`
+
+Draws `render-projection-sheet.scad` from above over a known window and asserts that the two projections of a cube
+are 30 by 20 and 30 by 15 around their centers in the default gray, that the sheet border is two units wide, that
+nothing else is covered but the title text (some pixels covered and some not), and that the rest is white; draws
+`render-projection-views.scad` (a flanged bushing as a top view, a front view, and a side view of `projection()` and a
+`projection(cut = true)` section on one sheet) and asserts, at sample points, the plate with the bore and the two
+mounting holes empty in the top view, the stepped outline of the front view, and the bore empty and the walls solid in
+the section; that both fixtures render without warnings and byte-identically on repeated renders and at every degree of
+parallelism; and that `projection` is not reported as an unsupported module (of the modules, the unsupported fixture
+reports only `surface`, `offset`, `import`, and `roof`, each at its line).
+
+### Flat Drawing: A Model Of Only 2D Objects
+
+**Tests**: `ScadDocumentViewport_ProjectionSheet_IsDrawnFlatFromTheTop`,
+`ScadDocumentViewport_MixedTwoAndThreeDimensions_KeepsTheThreeDimensionalView`,
+`ScadDocumentViewport_FlatModel_ExplicitViewsOverrideTheFlatDefault`,
+`ScadDocumentViewport_FlatDrawing_IsUnlitUnlessLightsAreChosen`,
+`ScadDocumentViewport_FlatModelWithDocumentView_IsShaded`
+
+Renders the drawing sheet with a view handler and asserts no warning and no unsupported feature, exactly one reported
+view equal to a top view (azimuth 0, elevation 90, orthographic, a flat model, source `FlatDefault`), that every pixel
+is white or exactly the default gray when drawn without supersampling (nothing is shaded), and that the 135-unit
+width of the sheet fills the picture but for the margin of the fit; that a model that mixes a square and a cube keeps
+the isometric view, the usual warning (`A union mixes 2D and 3D objects; the 2D objects are ignored`), and a picture
+identical to the cube alone; that for a model that is entirely 2D explicit view angles, an explicit camera, and an
+assigned `$vpr` each give their own view (with the source `Options`, `Camera`, and `Document`) and that an explicit
+projection alone changes only the projection; that a flat square is exactly the default gray at its center, a
+`color()` square is exactly its color, and lights that the caller chose (an ambient light of 0.5, giving
+(90, 90, 90)) are respected; and that a flat model that sets `$vpr` is lit like any other.
+
+### Viewport Variables: Values, Precedence, And Facing
+
+**Tests**: `ScadDocumentViewport_Evaluate_ShowsTheViewerDefaults`,
+`ScadDocumentViewport_Variables_FollowTheDocumentedPrecedence`,
+`ScadDocumentViewport_HudAsWritten_EvaluatesAndIsPlacedByItsRotations`,
+`ScadDocumentViewport_RotateVpr_FacesTheCamera`, `ScadDocumentViewport_AssignedDistance_GivesAManualCamera`,
+`ScadDocumentViewport_DefaultThreeDimensionalView_IsUnchangedAndReportedOnce`,
+`ScadDocumentViewport_ExplicitCamera_IsReportedAsTheSource`
+
+Asserts that `Evaluate` with no render options shows the viewer defaults `[0, 0, 0]`, `[55, 0, 25]`, `140`, and
+`22.5` with no diagnostic; that a model which echoes the four variables sees, for every source, the documented value
+(the default view `[54.7356, 0, 45]`, view angles of 30 and 20 as `[70, 0, 30]`, an explicit camera as all four
+variables, a top-level assignment, an override, and the order explicit option over override over assignment over
+default); that the head-up display fixture written with negated rotations evaluates without an unknown-variable
+warning and lies in the plane that those rotations give; that `translate($vpt) rotate($vpr)` gives a text that is as
+thick as it was extruded across the view direction and as tall as the glyph in the picture's vertical, for the
+default view, four explicit views, and a `$vpr` that the document sets; that assigning `$vpd` places a manual camera
+(a cube 500 units away is not in a picture taken from 30 units above the origin, and the view is reported with the
+source `Document`); that the default 3D view
+is reported once as `Default` with the angles 45 and the isometric elevation and gives the picture that the same
+explicit angles give; and that an explicit camera is reported as the source `Camera` with its own direction.
 
 ### Text: Analytic Bounds, Coverage, And Composition
 

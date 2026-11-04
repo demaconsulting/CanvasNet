@@ -88,7 +88,9 @@ rendering at the natural size and resampling; a raster source is decoded at its 
 A page of a document is chosen by its number counted from 1 and sized at a resolution in dots per inch (96 by
 default); every page of one document is loaded from one opened source. A model is drawn from a named viewpoint
 (`iso`, `front`, `back`, `left`, `right`, `top`, or `bottom`, in the camera convention of the Render3D library: the
-eye on the side the name says, Z up) at 800 by 800 pixels unless a size is given, with the variables and limits
+eye on the side the name says, Z up; with no view chosen the library decides: `iso` for a 3D model, `top` for a
+model that is entirely 2D, or the view the model sets with its viewport variables) at 800 by 800 pixels unless a size
+is given, with the variables and limits
 the options set; the files its `include` and `use` directives name are read from the folder of the model and below
 it only. A chart is laid out by the library at its natural size, which the probe reports, and is drawn at the target
 size with UTC dates and only the bundled fonts over its own background (white by default); nothing is read from the

@@ -31,7 +31,10 @@ N/A - standard test environment. The tests belong to the "Sequential" collection
 - The chosen page, or every page, of a document is rendered at the resolution given; every output is checked before
   any page is written; unsupported features are reported or, with strict mode, refused.
 - An output problem is reported before the input is decoded; a bad input is an expected error and leaves no output.
-- A model is rendered from the view chosen, with its variables, time, default color, and triangle limit; the options
+- A model is rendered from the view chosen (a view that is not chosen is the library's to pick: iso for a model with 3D
+  objects, top for a model that is entirely 2D, or the view the model sets itself, which the operation reports as
+  `custom` unless its angles match a named view), with its variables, time, default color, and triangle limit; the
+  options
   and the operation, diagnostics, and echo are in the result; a model option for another kind of input, an unknown
   view, and a malformed value are usage errors; an exceeded limit, a syntax error, and a strict-mode unsupported
   feature are expected errors and leave no output.
@@ -154,6 +157,23 @@ different from every side renders from each of the seven views to seven differen
 in capitals) with `--azimuth 30`, `--elevation=-20` (a negative value after an equals sign), and `--projection
 perspective` is reported as the `render` operation with the view `top`, the angles 30 and -20, the projection, the
 size, and `#FFFFFF`, and without `defines`.
+
+**RenderCommand_Run_ViewDefaultsDependOnTheDimensionsOfTheModel** (a theory of seven cases): with a 20 by 10 square
+(entirely 2D) and a 20 by 10 by 5 cube, the `render` operation reports what the library drew. No view option on the
+square gives `top`, azimuth 0, elevation 90, `orthographic`; `--view iso` on the square gives `iso`, 45, and
+35.264389682754654 (so `--view iso` is an explicit view); `--view front` gives `front`, 0, 0; `--azimuth 30` gives
+`iso`, 30, 35.264389682754654; `--elevation 20` gives `iso`, 45, 20; `--projection perspective` alone on the square
+still gives `top`, 0, 90 and reports `perspective`; no view option on the cube gives `iso`, 45, 35.264389682754654,
+`orthographic` (unchanged for a model with 3D objects).
+
+**RenderCommand_Run_FlatModelWithoutView_IsDrawnFlatFromTheTop**: a centered 20 by 20 square rendered at 40x40 with no
+view option has the exact flat gray (180, 180, 180, 255) at the center pixel, and its file differs from the file of the
+same model rendered with `--view iso`.
+
+**RenderCommand_Run_ModelSettingTheViewport_IsReportedAsACustomView** and
+**RenderCommand_Run_ViewOption_WinsOverTheModelViewport**: a model that assigns `$vpr = [60, 0, 30]` and draws a cube is
+reported with the view `custom`, azimuth 30, and elevation 30 when no view option is given; with `--view right` the
+operation reports `right`, 90, and 0, because an option on the command line wins over the model's own viewport.
 
 **RenderCommand_Run_Defines_ChangeTheImageAndAreReported** and
 **RenderCommand_Run_TimeDefaultColorAndMaxTriangles_AreReported**: `-D width=5`, `--define width=40`, and the attached

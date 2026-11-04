@@ -59,7 +59,9 @@ N/A - standard test environment; the tests need no network and write only to tem
 - Skipped pictures and approximated constructs are reported with their page, or are `unsupported-feature` in strict
   mode.
 - The size policy follows the documented rules; a side beyond 8192 pixels is `size-limit`, before decoding.
-- A model is drawn from the named view chosen (iso by default) at 800x800 pixels unless a size is given, with the
+- A model is drawn from the named view chosen (iso by default, top for a model that is entirely 2D, the view the model
+  sets with its own viewport variables when it sets one) at 800x800 pixels unless a size is given; a view name,
+  azimuth, or elevation that was given always wins, and the operation reports the view that was drawn; with the
   variables, time, default color, and triangle limit given, the same picture every time; its include and use files
   are read from its folder and below only; a missing include, a syntax error, and a failed assertion are `scad-error`,
   an exceeded limit is `budget-exceeded`, and an unsupported feature is a note or, in strict mode, an error.
@@ -286,6 +288,18 @@ of front and back, and of left and right, are mirror images of each other to wit
 an azimuth of 90 on the front view equals the right view, an elevation of 90 equals the top view, and an override
 alone starts from `iso`; the name is accepted in any case and another name is a `usage-error` whose hint lists the
 views; a perspective view differs from the orthographic one and says so in its operation.
+
+**ScadViewOptions_IsViewExplicit_FollowsTheRules**: a default `ScadViewOptions`, one with the view named `ISO` (any
+case), and one that only asks for a perspective projection are not explicit; one with `ViewGiven` set (which the
+command line
+sets for every `--view`, even `--view iso`), one with an azimuth of 0, one with an elevation of 0, and one with a view
+named `top` are explicit. Only an explicit view is passed to the library, so these rules decide who chooses the view.
+
+**SourceLoader_Load_FlatModel_UsesTheTopViewUnlessAViewIsChosen**: a model that is entirely 2D (a centered 20 by 10
+square) loaded with the default options reports the view `top` with azimuth 0 and elevation 90 in its `render`
+operation, and its center pixel is exactly the flat gray (180, 180, 180, 255); loaded with `ViewGiven` set (the
+isometric
+view asked for) it reports `iso` and is a different picture; loaded with the view `front` it reports `front`.
 
 **SourceLoader_Load_SizeOptions_FollowTheNaturalSize**, **SourceLoader_Load_Background_IsWhiteColoredOrTransparent**,
 **SourceLoader_Load_DefaultColor_ColorsUncoloredSurfaces**, and **SourceLoader_Load_ModelWithoutGeometry_IsTheBackground**:

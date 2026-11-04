@@ -411,10 +411,10 @@ aspect ratio). Only a single view is drawn per command; run the command once per
 
 | Model option | Meaning |
 | --- | --- |
-| `--view <name>` | The named viewpoint: `iso` (default), `front`, `back`, `left`, `right`, `top`, or `bottom` |
+| `--view <name>` | `iso`, `front`, `back`, `left`, `right`, `top`, or `bottom` (see below for the default) |
 | `--azimuth <degrees>` | Replace the azimuth of the view: degrees about the Z axis, 0 from the front |
 | `--elevation <degrees>` | Replace the elevation of the view: degrees above the XY plane, -90 to 90 |
-| `--projection <type>` | `ortho` (default; `orthographic` is accepted) or `perspective` |
+| `--projection <type>` | `ortho` (default) or `perspective`; it changes only the projection, not the view |
 | `-D <name=value>`, `--define` | Set a variable of the model, as `-D width=20`; repeatable (see below) |
 | `--time <T>` | The value of `$t`, the animation time (default 0) |
 | `--default-color <color>` | The color of surfaces the model does not color (default gray) |
@@ -434,6 +434,21 @@ The named views are orthographic and look at the model from the stated side with
 
 `--azimuth` and `--elevation` replace the angles of the selected view (or of `iso`), so `--azimuth 30 --elevation 20`
 gives a free viewpoint. Model options given for an input that is not a model are a `usage-error`.
+
+**Who chooses the view.** Without `--view`, `--azimuth`, and `--elevation`, the library chooses: the isometric view
+(`iso`) for a 3D model, a flat top-down picture for a model that is entirely 2D (for example a drawing sheet made of
+`projection()` shapes: orthographic, fitted with a margin, one flat gray unless the model uses `color()`), or the
+view that the model itself sets with its own `$vpr`, `$vpt`, `$vpd`, or `$vpf` assignment. Any of the three options
+(also `--view iso`) makes the view explicit, and then it wins over the model and over the flat default.
+`--projection` alone does not make the view explicit. The `render` entry of the `operations` in the JSON result
+reports what was used (see _JSON Output_).
+
+**Viewport variables.** A model sees the camera of its picture in `$vpt` (target), `$vpr` (rotation in degrees),
+`$vpd` (distance), and `$vpf` (vertical field of view in degrees), so `translate($vpt) rotate($vpr)` places an object
+facing the camera. An explicit `--view`, `--azimuth`, or `--elevation` sets `$vpr` for the model; otherwise the
+model's own assignment at the top level of the file wins over the default. `-D` cannot define vectors, so `$vpr` and
+`$vpt` cannot be set from the command line, while a scalar such as `-D '$vpd=200'` works. The camera is chosen after
+the model is built, so the model sees the defaults of the variables it does not assign.
 
 The value of `-D name=value` is a **number** (`-D width=20`, `-D ratio=0.5`), a **boolean** (`-D debug=true`), or
 **text** (`-D label=hello`; the text may be put in quotes). Vectors and other expressions are not accepted. If a name
@@ -464,6 +479,13 @@ chart, the warning `vl-text-missing-glyph`, which never fails the render).
 canvasnet render part.scad --view top -D width=30 -o part-top.png --json
 canvasnet render part.scad --azimuth 30 --elevation 20 --projection perspective -o part.png
 canvasnet render part.scad --view front --size 400x400 --background transparent -o front.png
+```
+
+A drawing sheet that a model builds from `projection()` shapes is entirely 2D, so it needs no view option: the
+library draws it flat from above.
+
+```bash
+canvasnet render sheet.scad -o sheet.png
 ```
 
 #### Vega-Lite Charts
@@ -1135,7 +1157,7 @@ describes the format), `outputs` (`{"format","extensions","alpha","lossy"}`), `q
 | `op` | Fields besides `op` |
 | --- | --- |
 | `auto-orient` | `orientation` (the EXIF orientation, 2-8, that was applied) |
-| `render` | `width`, `height`; a document adds `page`, `dpi`, `background`; a model adds `view`, `azimuth`, `elevation`, `projection`, `width`, `height`, `background`, and when given `defines`, `time`, `maxTriangles`, `defaultColor`; a chart adds `width`, `height`, `timeZone` (always `UTC`), and `background` when one was given |
+| `render` | `width`, `height`; a document adds `page`, `dpi`, `background`; a model adds `view`, `azimuth`, `elevation`, `projection`, `width`, `height`, `background`, and when given `defines`, `time`, `maxTriangles`, `defaultColor`; a chart adds `width`, `height`, `timeZone` (always `UTC`), and `background` when one was given. For a model, `view`, `azimuth`, `elevation`, and `projection` report the view that was **used**: `view` is `iso`, `top`, another named view whose angles match, or `custom` (for example a view set by the model's `$vpr`) |
 | `resize` | `width`, `height`, and `filter` when one was chosen (a raster sized by `--scale`, `--width`, `--height`, or `--size`, or `--resize`) |
 | `fit` | The loader's fit of a drawing into a `--width` by `--height` box has `width`, `height` (the box); the `--fit` operation has `width`, `height` (the result), `boxWidth`, `boxHeight`, `filter`, `allowUpscale`, `scaled` |
 | `flatten` | `background` (transparency flattened over a color: a drawing over its background, or the JPEG encoder) |
@@ -1240,7 +1262,7 @@ and hint may be improved at any time.
 | Size of a Vega-Lite chart | The size its specification lays out | The size options |
 | Time zone and fonts of a chart | UTC, the bundled fonts only | Not adjustable |
 | Data files of a chart | Read from the folder of the specification and below it; no network | Not adjustable (no data-folder option) |
-| SCAD view and projection | `iso`, orthographic | `--view`, `--azimuth`, `--elevation`, `--projection perspective` |
+| SCAD view and projection | The library chooses: `iso` for a 3D model, a flat `top` view for a model that is entirely 2D (or the model's own `$vpr`); orthographic | `--view`, `--azimuth`, `--elevation` (any of them makes the view explicit), `--projection perspective` |
 | SCAD default surface color | Gray | `--default-color` |
 | Maximum triangles of a model | 5,000,000 | `--max-triangles` |
 | Resampling filter | `auto` | `--filter` |
@@ -1301,7 +1323,7 @@ internet) is left alone, and the tool is not started for it.
 | `background` | all | `#RRGGBB`, `#RRGGBBAA`, a color name, or `transparent` (a model is drawn over white) |
 | `page` | `.vsdx`, `.pptx`, `.pdf` | The page or slide, counted from 1 (default 1) |
 | `dpi` | `.vsdx`, `.pptx`, `.pdf` | The resolution in dots per inch, above 0 up to 2400 (whole number for `.vsdx`) |
-| `view` | `.scad` | `iso` (default), `front`, `back`, `left`, `right`, `top`, or `bottom` |
+| `view` | `.scad` | `iso`, `front`, `back`, `left`, `right`, `top`, or `bottom` (see the model options) |
 | `azimuth`, `elevation` | `.scad` | The viewpoint in degrees (elevation from -90 to 90) |
 | `projection` | `.scad` | `ortho` (default) or `perspective` |
 | `define-NAME` | `.scad` | Sets the model variable `NAME`, for example `define-wall_height=44` |

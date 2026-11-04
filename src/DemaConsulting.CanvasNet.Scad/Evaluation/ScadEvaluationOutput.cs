@@ -10,6 +10,7 @@ namespace DemaConsulting.CanvasNet.Scad.Evaluation;
 /// <param name="InstanceCount">The number of instances created, groups included.</param>
 /// <param name="Steps">The evaluation steps charged (a test hook).</param>
 /// <param name="LoopIterations">The loop iterations charged (a test hook).</param>
+/// <param name="Viewport">The viewport variables the main file (or an override) defined at the top level; <see langword="null"/> means none.</param>
 internal sealed record ScadEvaluationOutput(
     IReadOnlyList<ScadInstance> Roots,
     IReadOnlyList<string> Echo,
@@ -17,4 +18,5 @@ internal sealed record ScadEvaluationOutput(
     IReadOnlyList<ScadUnsupportedFeature> UnsupportedFeatures,
     int InstanceCount,
     long Steps,
-    long LoopIterations);
+    long LoopIterations,
+    ScadDocumentViewport? Viewport = null);
