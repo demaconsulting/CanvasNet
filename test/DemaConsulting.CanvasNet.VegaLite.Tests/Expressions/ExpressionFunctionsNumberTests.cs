@@ -133,6 +133,34 @@ public class ExpressionFunctionsNumberTests
     }
 
     /// <summary>
+    ///     Validates that the specifier is read, charged and compiled before the null rule, as Vega compiles it first: <c>format(null)</c> and <c>format(null, 'nonsense')</c> are errors, a valid specifier still gives the text
+    ///     <c>null</c>, and a specifier is charged to the step budget even for a null value.
+    /// </summary>
+    [Fact]
+    public void ExpressionFunctionsNumber_Format_NullStillCompilesTheSpecifier()
+    {
+        // Arrange
+        var context = new ExpressionFunctionContext(null, CancellationToken.None);
+        var budget = new ExpressionFunctionContext(Steps(3), CancellationToken.None);
+        string Call(params DataValue[] arguments) => ExpressionFunctions.Invoke("format", arguments, context).Text!;
+
+        // Act
+        var missing = Assert.Throws<ExpressionRuntimeException>(() => ExpressionFunctions.Invoke("format", [default], context));
+        var invalid = Assert.Throws<ExpressionRuntimeException>(() => ExpressionFunctions.Invoke("format", [default, DataValue.FromString("nonsense")], context));
+        var located = Assert.Throws<VegaLiteRenderException>(() => Eval("format(null, 'nonsense')"));
+        var charged = Assert.Throws<ExpressionRuntimeException>(() => ExpressionFunctions.Invoke("format", [default, DataValue.FromString(new string('x', 640))], budget));
+
+        // Assert
+        Assert.Equal("invalid format: undefined", missing.Message);
+        Assert.Equal("invalid format: nonsense", invalid.Message);
+        Assert.Contains("invalid format: nonsense", located.Message, StringComparison.Ordinal);
+        Assert.Contains("MaxEvaluationSteps", charged.Message, StringComparison.Ordinal);
+        Assert.Equal("null", Call(default, DataValue.FromString(",d")));
+        Assert.Equal("null", Call(default, DataValue.FromString("c")));
+        Assert.Equal("null", Eval("format(null, ',d')").Text);
+    }
+
+    /// <summary>
     ///     Validates the bounds: the formatter cache holds at most 64 specifiers and is cleared when it is full (and still formats), a specifier longer than 64 characters is not kept, the step budget is charged by the
     ///     specifier and the result, a result over the string limit is a runtime error, and the result does not depend on the current culture.
     /// </summary>

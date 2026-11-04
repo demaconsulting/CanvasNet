@@ -122,7 +122,7 @@ internal sealed class LabelExpressions
     /// </summary>
     /// <param name="expression">The compiled expression.</param>
     /// <param name="datum">The datum (see <see cref="Datum"/>).</param>
-    /// <returns>The text of the label.</returns>
+    /// <returns>The text of the label; the text of an array result is its lines joined by line feeds, and is bounded by <see cref="VegaLiteLimits.MaxStringLength"/> as a whole.</returns>
     /// <exception cref="VegaLiteRenderException">Thrown, at the expression, when a limit is exceeded.</exception>
     /// <exception cref="OperationCanceledException">Thrown when the call is canceled.</exception>
     public LabelText Evaluate(CompiledExpression expression, DataValue datum)
@@ -142,11 +142,17 @@ internal sealed class LabelExpressions
             {
                 var elements = result.Elements;
                 var lines = new string[elements.Length];
+
+                // The joined text (the lines and the line feeds between them) is bounded like a single text
+                long total = Math.Max(0, lines.Length - 1);
                 for (var i = 0; i < lines.Length; i++)
                 {
                     lines[i] = elements[i].IsNull ? string.Empty : TrimJs(ExpressionEvaluator.ToJsString(elements[i], maxLength, context));
+                    total += lines[i].Length;
+                    context.CheckStringLength(total);
                 }
 
+                context.ChargeSize(total);
                 return new LabelText(string.Join('\n', lines), lines);
             }
 

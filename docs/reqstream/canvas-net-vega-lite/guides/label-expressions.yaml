@@ -71,7 +71,8 @@ sections:
                 title: >-
                   The LabelExpressions unit shall evaluate a label expression with the limits and the parameters
                   of the call: the evaluation steps count against the step budget shared with
-                  every other expression of the call, a result longer than the string limit and a budget that is
+                  every other expression of the call, a result (or the lines of an array result joined by line
+                  feeds) longer than the string limit and a budget that is
                   exceeded fail closed with a located VegaLiteRenderException that names the limit, and a parameter
                   of the specification can be read.
                 justification: |
@@ -81,3 +82,4 @@ sections:
                   - LabelExpressions_Evaluate_ParameterIsReadAndStepsAreChargedToTheCall
                   - LabelExpressions_Evaluate_StepBudgetIsEnforcedAsRenderException
                   - LabelExpressions_Evaluate_StringLimitIsEnforcedAsRenderException
+                  - LabelExpressions_Evaluate_ArrayJoinedLengthIsBoundedByTheStringLimit

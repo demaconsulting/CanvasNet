@@ -103,6 +103,7 @@ location given.
 **Tests**: `LabelExpressionsTests.LabelExpressions_Evaluate_ParameterIsReadAndStepsAreChargedToTheCall`,
 `LabelExpressionsTests.LabelExpressions_Evaluate_StepBudgetIsEnforcedAsRenderException`,
 `LabelExpressionsTests.LabelExpressions_Evaluate_StringLimitIsEnforcedAsRenderException`,
+`LabelExpressionsTests.LabelExpressions_Evaluate_ArrayJoinedLengthIsBoundedByTheStringLimit`,
 `LabelExpressionsTests.LabelExpressions_Evaluate_UnsupportedFunctionIsNullAndEmpty`,
 `LabelExpressionsTests.LabelExpressions_Evaluate_FormatAndTimeFormat`
 
@@ -113,7 +114,10 @@ a function outside the whitelist (the color function `luminance('#fff')`) evalua
 and that `format` and `timeFormat` run: `format(datum.value, '.0%')` of 0.2 is `20%`, `format(datum.value, ',.0f')` of
 1200 is `1,200`, `timeFormat(datum.value, '%b %Y')` of 2024-03-01 is `Mar 2024`, and the array
 `[format(datum.value, '$.2f'), timeFormat(datum.value, '%d')]` of the date 2024-03-07 (1,709,769,600,000 ms, so the
-number text is `$1709769600000.00`) is the two lines `$1709769600000.00` and `07`.
+number text is `$1709769600000.00`) is the two lines `$1709769600000.00` and `07`. With a string limit of 8 the array
+`['12345', '67890']` (each element fits, the joined text is 11) is a `VegaLiteRenderException` naming `MaxStringLength`
+at the location of the expression, while `['123', '4567']` (the joined text is exactly 8) gives the lines `123` and
+`4567` and the text `123` line feed `4567`.
 
 ##### Axis Labels Are Replaced Before They Are Laid Out
 

@@ -56,7 +56,9 @@ null **does not exist**, so `datum.index` of a header is null, as in Vega. By gu
 **Coercion** (`Evaluate`, after `textLines` and `textValue` of `vega-scenegraph`, since the result goes through the Vega
 text mark): a null result is the empty text; an array is **lines**, each element a null (the empty text) or its
 JavaScript string conversion, each line trimmed with JavaScript's `trim`; any other result is converted with the
-JavaScript string conversion and trimmed. A date converts to its ISO text in this engine (not the JavaScript
+JavaScript string conversion and trimmed. The lines of an array result joined by line feeds (the elements as trimmed plus
+the line feeds between them) are checked against `MaxStringLength` and charged to the step budget as a whole, so the
+combined text is bounded as a single text is. A date converts to its ISO text in this engine (not the JavaScript
 `Date.toString`).
 
 **Precedence of the expression** (`Resolve(SpecNode? node, string? configuredText, VegaLiteLocation)`): the expression
@@ -102,7 +104,8 @@ text:
   them, so a multi-line header is taller.
 
 **Preconditions and postconditions**: `Evaluate` and `Datum` arguments are non-null; the result never exceeds
-`MaxStringLength` per label (the conversion stops at the limit); the unit changes no state of the guide.
+`MaxStringLength` per label (the conversion stops at the limit, and for an array result the joined text is checked as a
+whole); the unit changes no state of the guide.
 
 #### Error Handling
 
@@ -124,7 +127,8 @@ text:
 `MaxEvaluationSteps` budget as every other expression. The number of evaluations is bounded by the number of labels
 (`MaxTicks` per axis, the legend entry limits per legend, the number of cells of a header); three layout passes of an axis
 re-evaluate its labels, so the cost is at most three times `MaxTicks` times the steps of one expression, and
-exhausting the budget is a located `VegaLiteRenderException`. The label length is bounded by `MaxStringLength` per label.
+exhausting the budget is a located `VegaLiteRenderException`. The label length is bounded by `MaxStringLength` per label
+(the joined text of an array result as a whole, with the line feeds).
 
 **Determinism.** The expression engine reads no clock, host zone, or culture; the same specification, data, and
 parameters give the same labels on every call and machine.

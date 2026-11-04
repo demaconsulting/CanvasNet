@@ -176,6 +176,27 @@ public class LabelExpressionsTests
     }
 
     /// <summary>
+    ///     Validates that the lines of an array result joined by line feeds are bounded by the string limit as a whole: each element fits, the joined text does not, and a joined text of exactly the limit still fits.
+    /// </summary>
+    [Fact]
+    public void LabelExpressions_Evaluate_ArrayJoinedLengthIsBoundedByTheStringLimit()
+    {
+        // Arrange
+        var limits = new VegaLiteLimits { MaxStringLength = 8 };
+        var datum = LabelExpressions.Datum(DataValue.FromNumber(1), "1");
+
+        // Act
+        var error = Assert.Throws<VegaLiteRenderException>(() => Run("['12345', '67890']", datum, limits));
+        var fits = Run("['123', '4567']", datum, limits);
+
+        // Assert: 5 + 1 + 5 = 11 is over 8, and 3 + 1 + 4 = 8 is the limit
+        Assert.Contains("MaxStringLength", error.Message, StringComparison.Ordinal);
+        Assert.Equal(At, error.Location);
+        Assert.Equal("123\n4567", fits.Text);
+        Assert.Equal(["123", "4567"], fits.Lines);
+    }
+
+    /// <summary>
     ///     Validates that the text of a configured expression is compiled once and reused, and that no text gives no expression.
     /// </summary>
     [Fact]

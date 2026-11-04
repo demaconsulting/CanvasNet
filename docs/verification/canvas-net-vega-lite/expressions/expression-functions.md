@@ -523,6 +523,16 @@ messages `invalid format: .2.3f`, `invalid format: $$`, and `invalid format: und
 `undefined`), and that `format(1, 'nonsense')` through the evaluator is a `VegaLiteRenderException` whose message
 contains `invalid format: nonsense` and whose location is the expression's pointer.
 
+##### Number Format Null Still Needs A Valid Specifier
+
+**Tests**: `ExpressionFunctionsNumberTests.ExpressionFunctionsNumber_Format_NullStillCompilesTheSpecifier`
+
+Asserts that the specifier is compiled before the null rule, as Vega does: `format(null)` throws
+`invalid format: undefined`, `format(null, 'nonsense')` throws `invalid format: nonsense` (a located
+`VegaLiteRenderException` through the evaluator), a specifier of 640 characters against a budget of 3 steps fails naming
+`MaxEvaluationSteps` even for a null value (the specifier is charged first), and a valid specifier (`,d` or `c`) still
+gives the text `null`.
+
 ##### Number Format Cache, Limits, And Culture
 
 **Tests**: `ExpressionFunctionsNumberTests.ExpressionFunctionsNumber_Format_CachesAndBoundsWork`

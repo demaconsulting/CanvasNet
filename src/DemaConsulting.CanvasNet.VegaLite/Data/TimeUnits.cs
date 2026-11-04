@@ -504,7 +504,7 @@ internal sealed class TimeUnitSpec
     ///     Gets the length of one step of the smallest part measured in a calendar (Vega-Lite evaluates <c>durationExpr</c> with the local <c>datetime</c> of the chart, so a zone with a
     ///     daylight saving time changes the length of a quarter or a year by the hour of the change).
     /// </summary>
-    /// <param name="calendar">The calendar the reference dates are read in.</param>
+    /// <param name="calendar">The calendar the reference dates are read in; a UTC unit ignores it and always reads them in UTC.</param>
     /// <returns>The milliseconds; null when the smallest part is the day of the week, the unit keeps no part or the dates are outside the range of the calendar.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="calendar"/> is null.</exception>
     public double? DurationMilliseconds(TimeCalendar calendar) =>
@@ -513,7 +513,7 @@ internal sealed class TimeUnitSpec
     /// <summary>
     ///     Gets the two dates of Vega-Lite's <c>durationExpr</c>: the first of January 2001 and one step of the smallest part later.
     /// </summary>
-    /// <param name="calendar">The calendar the dates are read in.</param>
+    /// <param name="calendar">The calendar the dates are read in; a UTC unit ignores it and always reads them in UTC.</param>
     /// <returns>The instants in milliseconds; null when the smallest part is the day of the week, the unit keeps no part or the dates are not valid.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="calendar"/> is null.</exception>
     public (double Start, double End)? ReferenceSpan(TimeCalendar calendar)
@@ -563,8 +563,9 @@ internal sealed class TimeUnitSpec
                 break;
         }
 
-        var start = calendar.FromParts(2001, 0, 1, 0, 0, 0, 0);
-        var end = calendar.FromParts(year, month, date, hours, minutes, seconds, milliseconds);
+        var cal = Utc ? TimeCalendar.Utc : calendar;
+        var start = cal.FromParts(2001, 0, 1, 0, 0, 0, 0);
+        var end = cal.FromParts(year, month, date, hours, minutes, seconds, milliseconds);
         return double.IsFinite(start) && double.IsFinite(end - start) ? (start, end) : null;
     }
 
