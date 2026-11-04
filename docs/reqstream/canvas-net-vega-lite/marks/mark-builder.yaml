@@ -4,8 +4,9 @@
 # These requirements describe the design-level behavior of the MarkBuilder unit of the Marks subsystem
 # (internal namespace DemaConsulting.CanvasNet.VegaLite.Marks): the per-mark geometry of bar, rect, point,
 # circle, square, rule, tick, line, area, trail, text, and arc (MarkBuilder.cs and its partial files
-# MarkBuilder.Order.cs, MarkBuilder.Paths.cs, MarkBuilder.Overlays.cs, MarkBuilder.Text.cs, and
-# MarkBuilder.Arcs.cs), the stacked, binned, and ranged geometry that the implicit encoding pipeline
+# MarkBuilder.Order.cs, MarkBuilder.Paths.cs, MarkBuilder.Overlays.cs, MarkBuilder.Text.cs,
+# MarkBuilder.Arcs.cs, and MarkBuilder.Offsets.cs for the xOffset and yOffset channels), the stacked, binned, and
+# ranged geometry that the implicit encoding pipeline
 # and the secondary channels x2 and y2 produce, the grouping, sorting, and invalid-data rules of the paths, the
 # overlays of the path marks, the polar geometry of the arcs and of text, the resolution of the paint and size
 # channels, and the limits. The
@@ -552,3 +553,30 @@ sections:
                   The number of arcs is the number of rows; it must be bounded before the memory is spent.
                 tests:
                   - MarkBuilder_Build_ArcsAreChargedPerSliceAndPollCancellation
+
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-Offsets
+                title: >-
+                  The MarkBuilder unit shall place the marks of a view with an xOffset or yOffset channel inside the
+                  band of their group: a point, circle, square, text, line, or area at the start of the band plus
+                  the center of the offset scale (a continuous offset of a point-like mark drawing a strip of the
+                  band), a bar, rect, tick, or rule spanning the band of the offset scale (a bar of an explicit size
+                  centered in it, and a fixed-width chart letting the groups share the band), stacking the bars
+                  of one offset group with each other and not with those of the other groups (a default stack that
+                  a quantitative offset without a dimension disables, and none for aggregated grouped bars), and
+                  not drawing a row whose offset value is invalid.
+                justification: |
+                  Grouped bars and offset points only compare the subgroups if every mark sits in its own part of
+                  the group; a row with no valid offset has no place and must not be drawn at a wrong one.
+                tests:
+                  - MarkBuilder_Build_GroupedBarsHaveTheOffsetBandWidthAtTheOffsetPosition
+                  - MarkBuilder_Build_GroupedBarsInAFixedWidthFillTheBandwidth
+                  - MarkBuilder_Build_HorizontalGroupedBarsUseYOffset
+                  - MarkBuilder_Build_OffsetPaddingNarrowsTheBarsAndLeavesAGap
+                  - MarkBuilder_Build_BarWithASizeIsCenteredInItsOffsetBand
+                  - MarkBuilder_Build_PointsSitAtTheBandStartPlusTheOffsetPoint
+                  - MarkBuilder_Build_TextAndRuleFollowTheOffsetCenter
+                  - MarkBuilder_Build_LineMarkUsesTheOffsetPositions
+                  - MarkBuilder_Build_QuantitativeOffsetOfPointsIsAStripInsideTheBand
+                  - MarkBuilder_Build_RowWithInvalidOffsetIsNotDrawn
+                  - MarkBuilder_Build_StackedGroupedBarsStackInsideEachGroup
+                  - MarkBuilder_Build_AggregatedGroupedBarsAreNotStacked

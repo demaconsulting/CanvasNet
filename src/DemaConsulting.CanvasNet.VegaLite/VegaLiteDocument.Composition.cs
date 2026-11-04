@@ -115,8 +115,8 @@ public sealed partial class VegaLiteDocument
             limits,
             sourceName,
             expressions,
-            new AxisBuilder(measurer, config, limits, sourceName, layers[0].Data.Evaluation.Calendar),
-            new LegendBuilder(measurer, limits, sourceName),
+            new AxisBuilder(measurer, config, limits, sourceName, layers[0].Data.Evaluation.Calendar, expressions),
+            new LegendBuilder(measurer, limits, sourceName, expressions),
             headerAxisPlans,
             keepHeaderAxis);
 
@@ -331,6 +331,9 @@ public sealed partial class VegaLiteDocument
         /// <summary>The compiled expressions of the call.</summary>
         private readonly RowExpressions? _expressions;
 
+        /// <summary>The evaluation of the <c>labelExpr</c> of the headers.</summary>
+        private readonly LabelExpressions _labelExpressions;
+
         /// <summary>The name of the specification.</summary>
         private readonly string? _sourceName;
 
@@ -385,6 +388,7 @@ public sealed partial class VegaLiteDocument
             _limits = limits;
             _budget = budget;
             _expressions = expressions;
+            _labelExpressions = new LabelExpressions(expressions, limits, layers.Count > 0 ? layers[0].Data.Evaluation.Calendar : null, cancellationToken);
             _sourceName = sourceName;
             _cancellationToken = cancellationToken;
             for (var i = 0; i < layers.Count; i++)
@@ -625,13 +629,36 @@ public sealed partial class VegaLiteDocument
                 var location = definition.GetLocation(_sourceName);
                 var calendar = _layers.Count > 0 ? _layers[0].Data.Evaluation.Calendar : null;
                 Func<DataValue, string>? label = settings.ShowLabels
-                    ? settings.CreateLabelFormatter(new HeaderLabelFormat(ChannelDefinitions.TypeOf(definition, channel), null, calendar, _limits.MaxStringLength, location), _sourceName)
+                    ? WithLabelExpression(
+                        settings,
+                        settings.CreateLabelFormatter(new HeaderLabelFormat(ChannelDefinitions.TypeOf(definition, channel), null, calendar, _limits.MaxStringLength, location), _sourceName),
+                        location)
                     : null;
                 created = new FacetChannel(settings, label, TitleLinesOf(definition, settings), location);
             }
 
             _facetChannels[(facet, channel)] = created;
             return created;
+        }
+
+        /// <summary>
+        ///     Wraps the label formatter of a header in the <c>labelExpr</c> of the header, when it has one (the header, the configuration of its channel or <c>config.header</c>).
+        /// </summary>
+        /// <remarks>
+        ///     The datum of the expression has the value of the cell (<c>datum.value</c>) and the formatted label (<c>datum.label</c>), as Vega-Lite's header gives it; an array result is
+        ///     several lines, joined by a line feed in the text of the header.
+        /// </remarks>
+        /// <param name="settings">The header properties.</param>
+        /// <param name="formatter">The formatter that gives the label without the expression.</param>
+        /// <param name="location">The location of the field definition.</param>
+        /// <returns>The formatter; <paramref name="formatter"/> itself when the header has no label expression.</returns>
+        private Func<DataValue, string> WithLabelExpression(HeaderSettings settings, Func<DataValue, string> formatter, VegaLiteLocation location)
+        {
+            var node = settings.ExplicitNode("labelExpr");
+            var expression = _labelExpressions.Resolve(node, node is null ? settings.Text("labelExpr") : null, location);
+            return expression is null
+                ? formatter
+                : value => _labelExpressions.Evaluate(expression, LabelExpressions.Datum(value, formatter(value))).Text;
         }
 
         /// <summary>
@@ -696,7 +723,7 @@ public sealed partial class VegaLiteDocument
             }
 
             var around = bounds.IsEmpty ? new SceneBounds(0, 0, 0, 0) : bounds;
-            var legendBuilder = new LegendBuilder(_measurer, _limits, _sourceName);
+            var legendBuilder = new LegendBuilder(_measurer, _limits, _sourceName, _expressions);
             var legends = BuildLegends(specs, legendBuilder, _config, around, around, 0, 0, _budget, _cancellationToken);
             items.AddRange(legends.Groups);
             return bounds.Union(legends.Bounds);

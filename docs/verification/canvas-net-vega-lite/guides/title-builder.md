@@ -156,7 +156,10 @@ with `honoredOrientsOnly`, the other sides read as not given while the default r
 
 Asserts the number, time, unit and default formats with the values derived above, that a nominal value is its text and a
 null is empty, that a value that is no date stays its text under a time format, that a format that is not a d3 specifier
-is a spec error, and that a label past the limit is a render error.
+is a spec error, and that a label past the limit is a render error. The `labelExpr` of a header wraps this formatter in
+the facet code of `VegaLiteDocument` (with `HeaderSettings.ExplicitNode` finding the compiled expression of the header
+itself) and is verified at the system tier by `VegaLiteLabelExprIntegrationTests` (see the _LabelExpressions Unit
+Verification Design_ and the _VegaLiteDocument Unit Verification Design_).
 
 ##### Label And Title Blocks
 

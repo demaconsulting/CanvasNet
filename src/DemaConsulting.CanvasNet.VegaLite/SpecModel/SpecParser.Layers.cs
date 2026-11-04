@@ -345,6 +345,8 @@ internal sealed partial class SpecParser
         {
             WarnUnknown(property, "a header");
         }
+
+        CompileLabelExpression(header);
     }
 
     /// <summary>

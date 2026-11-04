@@ -27,7 +27,8 @@ class `FeatureCatalogTimeTests` has its own `Visit` and `VisitView` helpers of t
 
 Unit tests reside in `FeatureCatalogTests.cs`, `FeatureCatalogTimeTests.cs`, `FeatureCatalogLayerTests.cs` (the layer
 scenarios of Phase 10), and `FeatureCatalogCompositeTests.cs` (the composite mark scenarios of Phase 10, with the two
-configuration-default tests of the composite marks) within the
+configuration-default tests of the composite marks), and `FeatureCatalogLabelExprAndOffsetTests.cs` (the label expressions
+and the offset channels) within the
 `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `SpecModel` folder; the test of the channels that a mark does
 not draw is in `MarkChannelGatingTests.cs` in the `Scales` folder, which owns the support table that the catalog
 follows. Time is supported since Phase 8, so the
@@ -123,8 +124,9 @@ in two layers; the composite marks are drawn since Phase 10 and `vl-mark-boxplot
 `image` and `geoshape` each report `vl-mark-<type>` at the mark; that on a `point`
 mark every channel except `x`, `y`, `theta`, `radius`, `theta2`, `radius2`, `text`, `color`, `fill`, `stroke`, `size`,
 `opacity`, `shape`, `strokeWidth`, `strokeDash`, `fillOpacity`, `strokeOpacity`, and `angle` reports
-`vl-channel-<name>` (the test shows `x2`, `text`, `row`, and `xOffset`, while the geographic `longitude` and `latitude2`
-share the one identifier `vl-channel-geo`) while `tooltip`, `href`, `description`, and `key` are accepted silently, and
+`vl-channel-<name>` (the test shows `x2`, `text`, and `row`, while the geographic `longitude` and `latitude2`
+share the one identifier `vl-channel-geo`; `xOffset` is a supported channel, whose report is `vl-offset-position` when it
+has no nominal or ordinal `x`) while `tooltip`, `href`, `description`, and `key` are accepted silently, and
 so are `detail` and `order` (every mark accepts them, so neither identifier exists any more), with the exception of the
 secondary position channels, which are reported when the mark cannot draw the range (see the encoding rules below), as
 the `x2` of a point mark shows; that, as a theory over nine marks and channels, `shape` is
@@ -240,8 +242,9 @@ that draw them (`point`; `point`, `circle`, `square`, and `text`; every mark but
 marks follows the support table and is asserted in the scenario of the marks and channels above);
 that an explicit scale type that the channel or the field type cannot use warns `vl-scale-type-ignored` (a quantitative
 field on `shape` or `strokeDash` as well) while accepted types and types reported otherwise do not; and that
-guide `encode`, `labelExpr`, `formatType`, and the listed unsupported axis properties are reported while the honored
-properties are not.
+guide `encode`, `formatType`, and the listed unsupported axis properties are reported while the honored
+properties are not; and that the `labelExpr` of an axis is evaluated, so it reports only the function that the engine
+does not have (`vl-expr-function-format` at `/encoding/y/axis/labelExpr`, in place of the retired `vl-expr-label`).
 
 ##### Legends
 
@@ -249,7 +252,9 @@ properties are not.
 
 Asserts that legends are not reported (the identifier `vl-guide-legend` is retired), that the legend properties that are
 not drawn are reported once each at the exact property (`vl-guide-legend-titleorient` for a title orient other than
-`top`, `vl-guide-legend-clipheight`, `vl-expr-label`, `vl-format-type-custom` (for a format type that is not `number`,
+`top`, `vl-guide-legend-clipheight`, `vl-expr-function-format` (for a `labelExpr` that calls the number `format`, which
+the engine does not have; the retired `vl-expr-label` is never produced), `vl-format-type-custom` (for a format type that
+is not `number`,
 `time`, or `utc`: the test uses `myFormat`), `vl-shape-path` for a symbol type that
 is a path, and `vl-guide-encode`), in document order, and that a `titleOrient` of `top`, a `null` legend, a null scale,
 and a legend object on a position channel produce no report.
@@ -615,7 +620,9 @@ of a facet) are still `vl-channel-row`, `-column`, and `-facet` at the channel, 
 only facets a unit view that is not a layer or the spec of a facet; that a `bin`, a `timeUnit` and an `aggregate` of a
 facet field are `vl-facet-field-transform` at that property, in the operator and in the channel of a unit view (and
 `bin: false`, `timeUnit: null` and `aggregate: null` report nothing); that a `sort` that is an object is `vl-facet-sort`
-at the sort while `null`, `descending` and an array are silent; that `header.labelExpr` is `vl-expr-label`, a custom
+at the sort while `null`, `descending` and an array are silent; that `header.labelExpr` is evaluated and reports only
+what its
+expression cannot do (`vl-expr-function-format` at `/facet/row/header/labelExpr`), a custom
 `header.formatType` is `vl-format-type-custom` and a `labelOrient` or `titleOrient` that the channel does not honor (a
 row's label on top, a column's title on the left, a wrapped facet's title on the right) is `vl-header-orient`, while a
 row's title on the right, a column's label at the bottom and a wrapped facet's label on the left are honored and silent;
@@ -674,3 +681,31 @@ reported for a
 mark that has no range; and that the `size` channel of an `errorbar` is reported as not drawn (Vega-Lite drops it), as
 are a
 `shape` or an `angle`, while the stroke dash of the rule is drawn.
+
+##### Label Expressions Report Only What They Cannot Do
+
+**Tests**: `FeatureCatalogLabelExprAndOffsetTests.FeatureCatalog_Visit_SupportedLabelExpressionsAreNotReported`,
+`FeatureCatalogLabelExprAndOffsetTests.FeatureCatalog_Visit_LabelExpressionConstructsAreReportedAtTheText`,
+`FeatureCatalogLabelExprAndOffsetTests.SpecParser_Parse_LabelExpressionErrorIsASpecExceptionAtTheText`,
+`FeatureCatalogLabelExprAndOffsetTests.FeatureCatalog_Visit_ConfigLegendLabelExprIsIgnored`
+
+Asserts that a `labelExpr` that uses only supported functions reports nothing in an axis, a legend, a header, or the
+configuration; that an unsupported function or view state is reported at the expression text with the identifier of the
+construct (`vl-expr-function-now` at `/encoding/x/axis/labelExpr`, `vl-expr-view-state` at
+`/encoding/color/legend/labelExpr`, `vl-expr-function-format` at `/config/axisBand/labelExpr`, and `vl-expr-view-state`
+at `/config/headerColumn/labelExpr`) and that the retired `vl-expr-label` is never produced; that a syntax error or an
+unknown parameter in an axis, legend, header, or `config` `labelExpr` (`datum.label +`, `(`, `1 +`, and
+`datum.label + unknownParam`) is a `VegaLiteSpecException` located at the text when the document is parsed; and that
+`config.legend.labelExpr` is neither compiled nor reported.
+
+##### Offset Channels Report Only When They Are Not Drawn
+
+**Tests**: `FeatureCatalogLabelExprAndOffsetTests.FeatureCatalog_Visit_OffsetsAreReportedOnlyWhenTheyAreNotDrawn`,
+`FeatureCatalogLabelExprAndOffsetTests.FeatureCatalog_Visit_PointScaleOnAPositionWithOffsetWarns`,
+`FeatureCatalogLabelExprAndOffsetTests.SpecParser_Parse_StepForMustBePositionOrOffset`
+
+Asserts that an `xOffset` over a nominal `x` of a bar is not reported; that an offset whose position is quantitative, is
+missing, or has a time unit is `vl-offset-position` at `/encoding/xOffset` (and at `/encoding/yOffset` for `yOffset`) and
+a continuous offset of a bar or area is `vl-offset-ranged`; that an explicit `point` scale type on a position that holds
+an offset is the warning `vl-scale-type-ignored` at `/encoding/x/scale/type`; and that the `for` of a width step accepts
+`position` and `offset` and any other value is a `VegaLiteSpecException` located at `/width/for`.

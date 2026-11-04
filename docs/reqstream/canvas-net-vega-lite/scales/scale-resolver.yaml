@@ -10,7 +10,7 @@
 # (ScaleResolver.cs, ScaleResolver.Plan.cs, ScaleResolver.Sort.cs, ScaleResolver.Color.cs, and
 # ScaleResolver.Range.cs, and ScaleResolver.Time.cs for the temporal fields), and (Phase 10) the scales of the layers
 # of a layered view - the shared scale with the combined domain, the independent scales of resolve, and the conflicts -
-# in ScaleResolver.Layers.cs. See
+# in ScaleResolver.Layers.cs, and the nested scales of the xOffset and yOffset channels in ScaleResolver.Offsets.cs. See
 # docs/verification/canvas-net-vega-lite/scales/scale-resolver.md for the test-evidence mapping.
 
 sections:
@@ -613,3 +613,81 @@ sections:
                   - ScaleResolver_ResolveLayers_HintsForGivesTheStepExtentOfTheChartsOwnGroup
                   - ScaleResolver_ResolveLayers_SharedStepAppliesToTheUnionOfAllCellCategories
                   - ScaleResolver_ResolveLayers_HintsForChecksItsArguments
+
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-OffsetDecision
+                title: >-
+                  The ScaleResolver unit shall give an xOffset or yOffset channel a scale only when its position
+                  channel (x or y) is a nominal or ordinal field without a time unit (the discrete parent) and,
+                  for a bar or an area, only when the offset field is not continuous; shall give no scale to an
+                  offset without a discrete parent or to a continuous offset of a bar or an area, so that the
+                  offset is ignored; and shall give a quantitative or temporal offset of the other marks a linear
+                  or time scale without zero, nice, or pixel padding.
+                justification: |
+                  Vega-Lite nests an offset only in a band of a discrete position; the rest cannot be drawn
+                  meaningfully, and the decision must be one rule that the marks, the plan, and the catalog share.
+                tests:
+                  - ScaleResolver_DecideOffset_FollowsTheRules
+                  - ScaleResolver_Resolve_OffsetWithoutADiscreteParentHasNoScale
+                  - ScaleResolver_Resolve_QuantitativeOffsetIsLinearWithoutZeroOrNice
+
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-OffsetScales
+                title: >-
+                  The ScaleResolver unit shall resolve the position scale that holds a nested offset as a band scale
+                  (also for the marks that have a point scale otherwise and for an explicit point scale type) and
+                  the nominal or ordinal offset as a band scale for the bar, rect, image, rule, and tick marks and
+                  a point scale for the other marks, with the whole field as its domain in the sort of the
+                  channel, the range of the scale spanning the bandwidth of the band of the position (honoring
+                  reverse and round of the offset scale), for x and for y alike.
+                justification: |
+                  Grouped bars and offset points are the standard way to compare subgroups side by side; the
+                  nesting of the scales is what puts every subgroup in the band of its group.
+                tests:
+                  - ScaleResolver_Resolve_NominalXOffsetOfABarIsBandWithoutPaddingAndXHasNestedPaddings
+                  - ScaleResolver_Resolve_PointMarkHasBandPositionAndPointOffset
+                  - ScaleResolver_Resolve_ExplicitPointOnAPositionWithOffsetUsesBand
+                  - ScaleResolver_Resolve_YOffsetNestsInTheBandOfY
+                  - ScaleResolver_Resolve_OffsetDomainIsTheWholeFieldAndFollowsItsSort
+                  - ScaleResolver_Resolve_OffsetScaleTakesRangeReverseAndRound
+
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-OffsetPaddings
+                title: >-
+                  The ScaleResolver unit shall pad the band of a position that holds a nested offset with the inner
+                  and outer paddings of config.scale.bandWithNestedOffsetPaddingInner and
+                  bandWithNestedOffsetPaddingOuter (0.2 each by default) unless the scale gives a padding or an
+                  explicit paddingInner or paddingOuter, and shall pad a band offset scale with
+                  config.scale.offsetBandPaddingInner and offsetBandPaddingOuter (0 by default) and a point offset
+                  scale with an outer padding of one half, which together decide the size of the groups.
+                justification: |
+                  The gap between the groups and the gap inside them are what the reader sees in a grouped chart,
+                  and Vega-Lite has dedicated configuration for them.
+                tests:
+                  - ScaleResolver_Resolve_PaddingsFollowTheScaleAndTheConfiguration
+                  - ScaleResolver_Resolve_OffsetPaddingChangesThePositionStep
+
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-OffsetSteps
+                title: >-
+                  The ScaleResolver unit shall size a position that holds a discrete offset, for a width or height
+                  given as a step (the default step included), so that the step applies to the offset scale unless
+                  the step says for position: the step of the position is the step times the band space of the
+                  offset categories divided by the share of the band that the padding leaves, so that the default
+                  three categories of two groups give a step of 50 pixels, a width of 160 pixels, and bars of 20
+                  pixels; and shall let the offset scale fill the bandwidth of the position for a fixed size.
+                justification: |
+                  A step is the space of one mark; for grouped bars the mark is the bar of a group, so the step
+                  must apply to the groups in each band to keep the bars of a legible size.
+                tests:
+                  - ScaleResolver_Resolve_DefaultStepIsScaledByTheOffsetCount
+                  - ScaleResolver_Resolve_FixedWidthLetsTheOffsetFillTheBandwidth
+                  - ScaleResolver_Resolve_StepForPositionKeepsTheStep
+                  - ScaleResolver_Resolve_StepForOffsetAppliesToTheHeightOfAHorizontalChart
+
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-OffsetLayers
+                title: >-
+                  The ScaleResolver unit shall merge the domains of a shared offset scale of the layers of a view
+                  once, in the one pass that resolves the layered scales, and keep the own offset domain of each
+                  layer whose offset scale is independent.
+                justification: |
+                  Layers of grouped bars must put the same group in the same place, and layers whose resolve keeps
+                  the offset independent must not be forced onto the groups of the others.
+                tests:
+                  - ScaleResolver_ResolveLayers_SharedOffsetMergesTheDomainAndIndependentKeepsItsOwn

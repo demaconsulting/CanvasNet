@@ -96,6 +96,20 @@ internal static class StackRules
             groupBy.Add(key);
         }
 
+        // The offset of the dimension (yOffset for a stacked x, xOffset for a stacked y) splits the groups too: the bars of one offset value stack among themselves
+        var dimensionOffset = DimensionOffsetChannel(channel) is { } offsetChannel ? encoding[offsetChannel] : null;
+        if (IsFieldDef(dimensionOffset) && FieldKey(dimensionOffset) is { } offsetKey && offsetKey != stackedKey)
+        {
+            groupBy.Add(offsetKey);
+        }
+
+        // Without an explicit stack, a quantitative offset on a view that has no dimension is a strip of points, not stack groups
+        if (stacked["stack"] is null && encoding[other] is null && IsFieldDef(dimensionOffset)
+            && ChannelDefinitions.TypeOf(dimensionOffset, DimensionOffsetChannel(channel)!, encoding) == "quantitative")
+        {
+            return null;
+        }
+
         var stackBy = new List<SpecNode>();
         foreach (var name in StackByChannels)
         {
@@ -165,6 +179,22 @@ internal static class StackRules
             "theta" => "radius",
             "radius" => "theta",
             _ => throw new ArgumentOutOfRangeException(nameof(channel), channel, "The channel cannot be stacked."),
+        };
+    }
+
+    /// <summary>
+    ///     Gets the offset channel of the dimension of a stacked channel (Vega-Lite's <c>getOffsetChannel</c> of the dimension).
+    /// </summary>
+    /// <param name="channel">The stacked channel.</param>
+    /// <returns><c>yOffset</c> for <c>x</c>, <c>xOffset</c> for <c>y</c>; null for a polar channel, which has no offset.</returns>
+    public static string? DimensionOffsetChannel(string channel)
+    {
+        ArgumentNullException.ThrowIfNull(channel);
+        return channel switch
+        {
+            "x" => "yOffset",
+            "y" => "xOffset",
+            _ => null,
         };
     }
 

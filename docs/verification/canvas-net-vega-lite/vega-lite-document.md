@@ -44,7 +44,9 @@ Unit tests reside in `VegaLiteOpenOptionsTests.cs` (the open options and, in the
 `VegaLiteRecordsAndExceptionsTests.cs`, `VegaLiteReportSinkTests.cs`, `VegaLiteDocumentLayoutTests.cs`, and
 `SpecModel/VegaLiteDocumentSpecModelTests.cs`, and, for the time zone option, `VegaLiteTemporalScaleTests.cs` and
 `Data/DataLoaderCalendarTests.cs`, and, for the layers and the composite marks of Phase 10, the system-level tests
-`VegaLiteLayerIntegrationTests.cs` and `VegaLiteCompositeMarkIntegrationTests.cs` (the document's pipeline is verified
+`VegaLiteLayerIntegrationTests.cs` and `VegaLiteCompositeMarkIntegrationTests.cs`, and, for the label expressions and the
+offset channels, `VegaLiteLabelExprIntegrationTests.cs` and `VegaLiteOffsetIntegrationTests.cs` (the document's pipeline
+is verified
 through the public API: its stages are internal and are exercised for real) within the
 `DemaConsulting.CanvasNet.VegaLite.Tests` project.
 
@@ -611,9 +613,62 @@ field is ignored with `vl-composition-columns-ignored`, `spacing` of 40 puts the
 `bounds: "flush"` lays out the data rectangles (120 apart whatever the axes). The limit on the number of views is
 checked from the number of cells before any is made (six cells and the facet are seven views; refused at six, located at
 the `row` field), a facet with unsupported parts reports `vl-facet-field-transform`, `vl-facet-sort`,
-`vl-header-orient`, `vl-expr-label` and `vl-format-type-custom` and draws the rest, strict mode has nothing to throw for
+`vl-header-orient`, the unsupported function of a header `labelExpr` (`vl-expr-function-format`; `vl-expr-label` is retired)
+and `vl-format-type-custom` and draws the rest, strict mode has nothing to throw for
 a facet that uses only what is drawn, the scene item limit (charged once for each header, so a 5 by 5 grid renders under
 exactly the limit of its own scene's item count, and one less fails) and a canceled token stop the work, `Measure`
 equals
 `Render`, the render is deterministic also from several threads, a facet of no rows draws no cell and a facet of an
 unsupported mark draws its empty cells and reports the mark once.
+
+#### Label Expressions: Axes, Legends, And Headers Are Labeled By Their Expressions
+
+**Tests**: `VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_AxisLabelsAreReplacedAndStrictModeHasNothingToReport`,
+`VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_TemporalAxisUsesTheDateValue`,
+`VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_LegendLabelsAreReplaced`,
+`VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_HeaderLabelsAreReplacedWithPrecedence`,
+`VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_WrappedFacetTitlesAreReplaced`,
+`VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_ParameterCanBeUsed`,
+`VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_ResultDoesNotDependOnTheCulture`,
+`VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_BudgetExceededIsARenderException`,
+`VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_FormatIsReportedAndEvaluatesToEmptyLabels`
+
+The `labelExpr` of axes, legends, and facet headers runs on the evaluator of the call when the chart is laid out (the
+document gives the `RowExpressions` to the axis and legend builders and to the facet headers). A line chart whose y
+labels are `datum.label + '%'` and whose x labels are blanked by a conditional has the labels `FY2020` and `FY2022` and
+not `2021`, and `20%` and `60%`, with strict mode reporting nothing; a temporal axis reads `datum.value` as a date
+(`Q1 2021`); a legend is labeled with its index and value (`A (0)` and `B (1)`); the column and row headers of a facet
+read `C:a`, `C:b` and `R:2020`, `R:2021`, `R:2022`, with the header taking precedence over the header configuration of
+the channel and over `config.header`, and the cell titles of a wrapped facet take `config.header` as the fallback
+(`a!a` and `b!b`); an expression reads a variable parameter (`20 kg`) and the labels under `tr-TR` are those of the
+invariant culture. An expression that needs more than the step budget is a `VegaLiteRenderException` located at
+`/encoding/x/axis/labelExpr` and naming `MaxEvaluationSteps`, and a `format()` call is reported as
+`vl-expr-function-format` at the text, gives empty labels, and fails strict mode with a
+`VegaLiteUnsupportedFeatureException`. The command line renders the same kinds of chart in strict mode with no
+diagnostics (`RenderCommandVegaLiteTests.RenderCommand_Run_VegaLiteOffsetAndLabelExpr_AreDrawnWithStrictAndNoDiagnostics`).
+
+#### Offset Channels: Grouped Bars, Strips, And Shared Offset Scales
+
+**Tests**: `VegaLiteOffsetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Offset_GroupedBarsHaveTwentyPixelBarsAndReportNothing`,
+`VegaLiteOffsetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Offset_AxisIsCenteredOnTheBandAndLegendListsTheGroups`,
+`VegaLiteOffsetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Offset_YOffsetDrawsHorizontalGroupedBars`,
+`VegaLiteOffsetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Offset_ScalePaddingOfTheOffsetLeavesAGapInsideTheGroup`,
+`VegaLiteOffsetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Offset_FixedWidthSharesTheBandwidth`,
+`VegaLiteOffsetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Offset_ConcatChartsHaveIndependentOffsetScalesUnlessShared`,
+`VegaLiteOffsetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Offset_FacetCellsShareTheOffsetDomain`,
+`VegaLiteOffsetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Offset_LayersShareTheOffsetScale`,
+`VegaLiteOffsetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Offset_NotDrawnOffsetsAreReportedAndIgnored`,
+`VegaLiteOffsetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Offset_BoxplotBoxesSitSideBySide`
+
+A grouped bar chart of three categories and two groups through the whole pipeline is 160 pixels wide, has bars 20 pixels
+wide at 10, 30, 60, 80, and 110 from the left of the view (the position step 20 x 2 / 0.8 = 50, the nested paddings
+0.2), and reports nothing, so strict mode has nothing to throw. The x axis has one tick for each category centered in its
+band (the offset does not move the axis) and the legend lists the groups; `yOffset` draws the horizontal variant (160
+pixels high, bars 20 high at y = 10, 30, 60, 80, and 110); an offset padding makes the view 140 wide with bars of 15 and
+a gap of 5 inside the group; a width of 200 gives bars of 25 from 12.5. The offset scales of the children of a
+concatenation are independent (the second chart is 80 pixels wider, with bars of 20) unless `resolve.scale.xOffset` says
+`shared`, the cells of a facet share the offset domain (every cell has the same grouped bars), and a bar layer and a
+text layer over the same offsets share the position and the offset scales (each label is at the center of its bar). An
+offset that is not drawn is reported and the marks are drawn at their position (`vl-offset-position` for a quantitative
+position and `vl-offset-ranged` for a continuous offset of a bar), and the three boxes of a boxplot with an offset
+channel sit side by side with equal widths.

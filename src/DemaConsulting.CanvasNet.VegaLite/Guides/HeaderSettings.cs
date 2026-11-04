@@ -35,7 +35,11 @@ internal sealed record HeaderLabelFormat(string? FieldType, TimeUnitSpec? TimeUn
 ///         <see cref="CreateLabelFormatter"/> turns the value of a cell into its label (<c>format</c>, <c>formatType</c>).
 ///     </para>
 ///     <para>
-///         <b>Not interpreted.</b> The <c>orient</c> shortcut (Vega-Lite's compiler does not read it either; only <c>labelOrient</c> and <c>titleOrient</c> count), <c>labelExpr</c>, a custom
+///         <b>Label expressions.</b> The <c>labelExpr</c> is read like any property (<see cref="Get"/>) and evaluated by the composition over the formatted label (<see cref="LabelExpressions"/>; the datum has
+///         <c>value</c> and <c>label</c>).
+///     </para>
+///     <para>
+///         <b>Not interpreted.</b> The <c>orient</c> shortcut (Vega-Lite's compiler does not read it either; only <c>labelOrient</c> and <c>titleOrient</c> count), a custom
 ///         <c>formatType</c>, and properties that are expressions or signals; the feature catalog reports the ones that change the drawing. The object is immutable and safe for concurrent use.
 ///     </para>
 /// </remarks>
@@ -212,6 +216,13 @@ internal sealed class HeaderSettings
         ArgumentNullException.ThrowIfNull(property);
         return _header?[property] is { } own ? ConfigNode.FromSpec(own) : _channelConfig?[property] ?? _generalConfig?[property];
     }
+
+    /// <summary>
+    ///     Gets the node of a property that the <c>header</c> of the field definition itself has (not the configuration), such as the compiled <c>labelExpr</c>.
+    /// </summary>
+    /// <param name="property">The property name.</param>
+    /// <returns>The node (a null node for JSON null), or null when the header does not have the property.</returns>
+    public SpecNode? ExplicitNode(string property) => _header?[property];
 
     /// <summary>
     ///     Reads a text property (a number is read as its text).

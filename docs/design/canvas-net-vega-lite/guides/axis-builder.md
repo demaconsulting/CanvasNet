@@ -7,7 +7,8 @@ in the `DemaConsulting.CanvasNet.VegaLite.Guides` namespace, and defines four `i
 `AxisRequest`, `AxisTick`, and `AxisResult` (sealed records), plus private helper types (the layout and settings of one
 axis). The file carries the provenance header comment for the Vega and Vega-Lite axis rules it ports and for the d3-time
 behavior of its time axes. The label formats and the tick requests of the date axes are shared with the legends through
-the `TimeLabels` unit (see _Time Labels Design_).
+the `TimeLabels` unit (see _Time Labels Design_), and the `labelExpr` of the axis is evaluated by the
+`LabelExpressions` unit (see _LabelExpressions Unit Design_).
 
 #### Purpose
 
@@ -33,18 +34,21 @@ The unit's behavior is specified by the `CanvasNetVegaLite-Guides-AxisBuilder-*`
   object says nothing (only the first independent axis has one); both are null for a single view, which keeps the usual
   rules. Since phase 11, `InHeader` (false by default) builds the axis that the cells of a facet share for the header or
   footer that holds it (see _Header axes_ below).
-- **`AxisTick`** `(DataValue Value, double Position, string Label)` - one tick: the domain value (a date for a time
-  tick, or a plain number for an instant outside the years a date can hold), its position along the
-  axis (rounded like the tick mark), and its label text before truncation.
+- **`AxisTick`** `(DataValue Value, double Position, string Label, IReadOnlyList<string>? Lines)` - one tick: the domain
+  value (a date for a time tick, or a plain number for an instant outside the years a date can hold), its position along
+  the axis (rounded like the tick mark), its label text before truncation, and the lines of a multi-line label (set when
+  a label expression gave an array; null for the single line of `Label`).
 - **`AxisResult`** `(SceneGroup Group, SceneGroup? Grid, SceneBounds Bounds, string Orient, IReadOnlyList<AxisTick>
   Ticks, int ItemCount, bool InFront, bool InHeader)` - the axis group (role `axis`, with ticks, labels, domain, and
   title as children, in drawing order), the separate grid group (role `axis-grid-group`, at the same position, or null),
   the bounds of the axis in the data rectangle's coordinates (the grid is not part of them), the side, the ticks
   (including those whose labels were dropped because they overlap), the number of scene items for the budget, whether
   the axis is drawn in front of the marks (`zindex` above 0), and whether it was built for a header (`InHeader`).
-- **`AxisBuilder`** holds the `TextMeasurer`, the `ResolvedConfig`, the `MaxTicks` and `MaxSceneItems` limits, and the
-  source name. `AxisRequest` may carry the `SceneBudget` of the chart; the builder then charges the axis group, the grid
-  group, each grid line, tick rule, the remaining labels, the domain line and the title text before it creates them (an
+- **`AxisBuilder`** holds the `TextMeasurer`, the `ResolvedConfig`, the `MaxTicks` and `MaxSceneItems` limits, the
+  source name, and the `LabelExpressions` of the call (the constructor takes the optional `RowExpressions` of the call;
+  without them the builder evaluates on an evaluator of its own with the same limits). `AxisRequest` may carry the
+  `SceneBudget` of the chart; the builder then charges the axis group, the grid group, each grid line, tick rule, the
+  remaining labels, the domain line and the title text before it creates them (an
   axis without a shared budget uses a budget of its own from `MaxSceneItems`).
 
 **Properties and precedence.** A property is looked up in the axis of the channel, then the Vega-Lite-only configuration
@@ -78,8 +82,10 @@ and `labelLineHeight`, `labelFlush`, `labelFlushOffset`, `labelOverlap` (true, `
 and cap, `titleAnchor`, `titleAngle`, `titleAlign`, `titleBaseline`, `titleColor`, `titleFont*`, `titleLimit`,
 `titleLineHeight`, `titleOpacity`, `titlePadding`, `zindex`, and `bandPosition` (the configuration default 0.5). The
 properties `labelBound`, `tickBand`, `tickExtra`, `position`, `translate`, `bandPosition` (as an axis property), `titleX`,
-`titleY`, `encode`, `labelExpr` (not implemented for any axis or legend), and a `formatType` other than `number`, `time`,
-and `utc` (a custom format type) are not drawn and are reported by the feature catalog.
+`titleY`, `encode`, and a `formatType` other than `number`, `time`, and `utc` (a custom format type) are not
+drawn and are reported by the feature catalog. The `labelExpr` is honored (see _Label expressions_ below); the axis of a
+position that holds a nested offset (`xOffset` or `yOffset`) is the ordinary band axis of the position (the offset
+channel has no axis of its own).
 
 **Geometry** (Vega): the group sits at the edge of the data rectangle shifted half a pixel, so a one-pixel line is
 crisp; tick and grid positions are the scale position plus the band offset (half a band, with the `-0.5` correction of
@@ -159,6 +165,16 @@ the top, left, and right axes; bounds follow Vega (a stroked rule grows by half 
   expands to more than 4,096 pieces, a located `VegaLiteSpecException` too, as d3 copies the directives it does not
   know). All names are the English d3 locale and all digits are ASCII, so a label never depends on the culture of the
   host, and an instant that is not a valid date is labeled `Invalid Date`.
+- **Label expressions** (`ApplyLabelExpression`, after `BuildTicks` and before the layout): the `labelExpr` of the
+  axis object, else of the axis configuration chain (`axisX` or `axisY`, `axisBottom`, `axisTop`, `axisLeft`,
+  `axisRight`, `axisBand`, `axisPoint`, `axisQuantitative`, `axisTemporal`, then `axis`: the precedence of every
+  other property) replaces the label of each tick, so the extent of the axis, `labelLimit`, and the overlap removal
+  see the replaced text. The datum of a tick is `LabelExpressions.Datum(tick.Value, tick.Label, i / max(n - 1, 1),
+  i)`: `datum.value` (a date for a time scale), `datum.label` (the text the label would have), `datum.index` (a
+  fraction from 0 to 1) and `datum.tickIndex` (a whole number). An array result sets `AxisTick.Lines` and the label
+  is drawn on several lines. An axis with `labels: false` does not evaluate (or compile) its expression. The three
+  layout passes of the pipeline build the axis again, so the labels are evaluated again each time; the cost is bounded
+  by `MaxTicks` times the steps of the expression, charged to the shared `MaxEvaluationSteps` budget.
 - Label overlap: Vega's parity method (every second label dropped until none overlap, taking `labelSeparation` into
   account) or its greedy method, performed by the `LabelOverlap` unit that `AxisBuilder` shares with `LegendBuilder`
   (see _LabelOverlap Unit Design_); dropped labels remain in `AxisResult.Ticks`.
@@ -182,9 +198,11 @@ of `Ticks` is rethrown with the location; the count is checked before any label 
 `MaxStringLength` (the formatter stops as soon as it would write more, so a huge specifier cannot allocate more), or
 time labels that are together longer than `MaxStringLength` (the label function of the axis keeps a running total and
 gives the formatter what is left, so the labels of one axis are charged before they are made), is a
-`VegaLiteRenderException` located at the channel whose message names `VegaLiteLimits.MaxStringLength`. A canceled token
-is an
-`OperationCanceledException`. A null request, measurer,
+`VegaLiteRenderException` located at the channel whose message names `VegaLiteLimits.MaxStringLength`. A label
+expression that exceeds the step budget or the string limit is a `VegaLiteRenderException` located at the expression;
+a text of the axis configuration that is not an expression is a `VegaLiteSpecException` located at the channel (an
+expression in the specification was already compiled by `SpecParser` when the document was opened). A canceled token
+is an `OperationCanceledException`. A null request, measurer,
 or configuration is `ArgumentNullException`. A `values` array that is not made of numbers, strings, or booleans is
 ignored (a time axis reads dates; an entry that is not a date is dropped). The unit performs no I/O and never reads the
 host clock, zone, or culture.
@@ -194,6 +212,8 @@ host clock, zone, or culture.
 - **`TextMeasurer`** - label and title measurement, in the `TextMeasurer` unit
 - **`TimeLabels`** - the time label function, the interval `tickCount`, the default-count rule, and the reading of `values`
   of dates (see _Time Labels Design_)
+- **`LabelExpressions`** and **`LabelText`** - the evaluation of the `labelExpr` of the axis (see _LabelExpressions Unit
+  Design_); `RowExpressions` of the `Expressions` subsystem carries the evaluator of the call
 - **`ScaleModel`**, **`ResolvedScale`**, **`Ticks`**, and **`NumberFormat`** - the `Scales` subsystem
 - **`BinKind`** and **`StackOffset`** - the bin kind and the stack offset that a `ResolvedScale` carries (the `Transforms`
   subsystem)
@@ -209,9 +229,10 @@ host clock, zone, or culture.
 
 #### Callers
 
-`VegaLiteDocument` builds the axes of the x and y channels in every layout pass (one axis for each `AxisPlan` of a
-layered view, see _VegaLiteDocument Unit Design_) and passes the results to `ViewLayout` (through `GetExtents`) and into
+`VegaLiteDocument` builds the axes of the x and y channels (passing the expressions of the call) in every layout pass
+(one axis for each `AxisPlan` of a layered view, see _VegaLiteDocument Unit Design_) and passes the results to
+`ViewLayout` (through `GetExtents`) and into
 the scene content (grids first, then the axes behind the marks, then the axes in front). The facet pipeline (a later
 work package) builds the axes that the cells share `InHeader` and gives them to `TitleBuilder.BuildHeader`. The tests in
 `test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/AxisBuilderTests.cs`, `AxisBuilderTimeTests.cs` and
-`AxisBuilderHeaderTests.cs` call the builder directly through `InternalsVisibleTo`.
+`AxisBuilderHeaderTests.cs` (and `AxisBuilderLabelExprTests.cs` for `labelExpr`) call the builder directly through `InternalsVisibleTo`.

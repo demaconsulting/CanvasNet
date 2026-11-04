@@ -136,6 +136,7 @@ input-files:
   - docs/verification/canvas-net-vega-lite/guides/label-overlap.md
   - docs/verification/canvas-net-vega-lite/guides/legend-builder.md
   - docs/verification/canvas-net-vega-lite/guides/time-labels.md
+  - docs/verification/canvas-net-vega-lite/guides/label-expressions.md
   - docs/verification/canvas-net-vega-lite/layout.md
   - docs/verification/canvas-net-vega-lite/layout/view-layout.md
   - docs/verification/canvas-net-vega-lite/layout/legend-layout.md

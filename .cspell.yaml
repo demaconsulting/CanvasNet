@@ -510,6 +510,8 @@ words:
   - autosize
   - bandposition
   - bandspace
+  - perc
+  - yoffset
   - blanchedalmond
   - blinkmacsystemfont
   - blueorange

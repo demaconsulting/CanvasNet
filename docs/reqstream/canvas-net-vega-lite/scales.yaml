@@ -414,3 +414,25 @@ sections:
               - ScaleResolver_ResolveLayers_ConcatChildrenKeepIndependentPositionScales
               - ScaleResolver_ResolveLayers_FacetCellsShareAllScalesByDefault
               - ScaleResolver_ResolveLayers_HintsForGivesTheStepExtentOfTheChartsOwnGroup
+
+          - id: CanvasNetVegaLite-Scales-OffsetScales
+            title: >-
+              The Scales subsystem shall resolve the xOffset and yOffset channels of Vega-Lite as nested scales
+              of the discrete position that they offset (band paddings for the nesting, a band or point scale
+              for a discrete offset inside the bandwidth of the position, a linear or time scale for a
+              continuous one), size a discrete position by the step of its offset, share or keep apart the
+              offset scales of layers as the other scales, and give no scale to an offset that cannot be nested.
+            justification: |
+              Grouped bars and offset points are the common way to compare subgroups; their groups and gaps are
+              what the reader reads, and an offset that cannot be nested must not be drawn wrongly.
+            children:
+              - CanvasNetVegaLite-Scales-ScaleResolver-OffsetDecision
+              - CanvasNetVegaLite-Scales-ScaleResolver-OffsetScales
+              - CanvasNetVegaLite-Scales-ScaleResolver-OffsetPaddings
+              - CanvasNetVegaLite-Scales-ScaleResolver-OffsetSteps
+              - CanvasNetVegaLite-Scales-ScaleResolver-OffsetLayers
+            tests:
+              - ScaleResolver_DecideOffset_FollowsTheRules
+              - ScaleResolver_Resolve_NominalXOffsetOfABarIsBandWithoutPaddingAndXHasNestedPaddings
+              - ScaleResolver_Resolve_DefaultStepIsScaledByTheOffsetCount
+              - ScaleResolver_ResolveLayers_SharedOffsetMergesTheDomainAndIndependentKeepsItsOwn

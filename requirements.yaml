@@ -148,6 +148,7 @@ includes:
   - docs/reqstream/canvas-net-vega-lite/guides/label-overlap.yaml
   - docs/reqstream/canvas-net-vega-lite/guides/legend-builder.yaml
   - docs/reqstream/canvas-net-vega-lite/guides/time-labels.yaml
+  - docs/reqstream/canvas-net-vega-lite/guides/label-expressions.yaml
   - docs/reqstream/canvas-net-vega-lite/layout.yaml
   - docs/reqstream/canvas-net-vega-lite/layout/view-layout.yaml
   - docs/reqstream/canvas-net-vega-lite/layout/legend-layout.yaml

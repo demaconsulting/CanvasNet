@@ -58,7 +58,9 @@ trail, arc, and text marks are in `LegendBuilderPathMarkTests.cs` (which reads t
 `ChartTestHelpers.Legend` helper); the legends of temporal fields (the time
 ticks and date labels of a gradient, date symbols, a size over dates, and the zone) are in `LegendBuilderTimeTests.cs`,
 in the same folder, with the expectations of the ten day data derived in the scenarios below from the d3 interval
-table.
+table; the label expressions of the legends (the datum of a symbol, gradient, and discrete gradient legend, the
+`symbolLimit` row, and the configuration rule) are in `LegendBuilderLabelExprTests.cs`, in the same folder, which reads
+the labels of the first legend through the shared `ChartTestHelpers.Legend` helper.
 
 #### Test Environment
 
@@ -333,3 +335,30 @@ Asserts that a legend that the children of a concatenation share is owned by the
 an independent legend stays with the leaf that makes it independent, also inside a nested concatenation; that a legend
 that is merged across the children of a concatenation holds the union of their members; that the channel filter plans
 each owner once; that a layer without a node has no owner; and that `Owners` rejects null arguments.
+
+##### Label Expressions Of Symbol Legends
+
+**Tests**: `LegendBuilderLabelExprTests.LegendBuilder_Build_LabelExprSymbolLegendGivesIndexValueAndLabel`,
+`LegendBuilderLabelExprTests.LegendBuilder_Build_LabelExprAppliesToTheEllipsisEntry`,
+`LegendBuilderLabelExprTests.LegendBuilder_Build_LabelExprBlankLabelsChangeTheMeasuredWidth`,
+`LegendBuilderLabelExprTests.LegendBuilder_Build_LabelExprConfigIsIgnoredAndExplicitWins`
+
+Asserts, for a point chart whose nominal color has the values `a`, `b`, and `c`, that the expression
+`datum.index + ':' + upper(datum.value) + ':' + datum.label` gives `0:A:a`, `1:B:b`, and `2:C:c`; that with a
+`symbolLimit` of 2 the legend shows the entry `a` and the row for the other two, and `datum.index + '/' + datum.label`
+gives `0/a` and `1/…2 entries` (the row is an extra entry whose index is the number of entries shown); that labels made
+longer widen the measured legend by more than 40 pixels and blank labels make it narrower than the plain legend (the
+replacement is made before the entries are measured); and that a `labelExpr` in `config.legend` is not read (the labels
+stay `a`, `b`, and `c`) while the explicit `legend.labelExpr` gives `a!`, `b!`, and `c!` under the same configuration.
+
+##### Label Expressions Of Gradient Legends
+
+**Tests**: `LegendBuilderLabelExprTests.LegendBuilder_Build_LabelExprGradientLegendGivesPerc`,
+`LegendBuilderLabelExprTests.LegendBuilder_Build_LabelExprDiscreteGradientGivesPercAndPerc2`,
+`LegendBuilderLabelExprTests.LegendBuilder_Build_LabelExprTemporalLegendGivesDate`
+
+Asserts that a gradient legend of a quantitative color with the values 0, 25, and 100 gives `round(datum.perc * 100) + '%
+of ' + datum.value + ' #' + datum.index` as `0% of 0 #0`, `25% of 25 #1`, and `100% of 100 #2` (`perc` is the position
+of the tick along the bar, 0 to 1); that a discrete gradient of a quantize scale gives the ends of each class as `perc`
+and `perc2` (`20-40`, `40-60`, `60-80`, and `80-100`); and that the value of a temporal legend is a date
+(`'in ' + year(datum.value)` gives `in 2024`).

@@ -43,7 +43,12 @@ function from the value of a cell to its label: `formatType` `number` or a quant
 d3 number format; `time`/`utc` or a temporal field (type or time unit) is the d3 time `format`, else the specifier of
 the time unit, else `config.timeFormat` (through `TimeLabels`); anything else is the text of the value (null is empty).
 A custom `formatType` is treated as absent, and the `orient` shortcut is not read (Vega-Lite's compiler does not read it
-either). `Read(config, header, channel, honoredOrientsOnly)` reads a side that `IsHonoredOrient` does not honor (a row's
+either). `ExplicitNode(property)` returns the node of a property that the `header` of the field definition itself has (not
+the configuration), which is how the compiled `labelExpr` of the header is found; the facet code of `VegaLiteDocument`
+wraps the label formatter in the `labelExpr` of the header, else of the channel configuration, else of `config.header`
+(see _LabelExpressions Unit Design_; the datum has `value`, the raw value of the cell, and `label`, the formatted text,
+only, and an array result is joined with line feeds). `Read(config, header, channel, honoredOrientsOnly)` reads a side
+that `IsHonoredOrient` does not honor (a row's
 `top` or `bottom`, a column's `left` or `right`, a wrapped facet's title on the `left` or `right`) as not given when the
 flag is set, which is how the facet pipeline draws the default side for what the feature catalog reports as
 `vl-header-orient`. **`HeaderPart`** says whether a block is a `Label` or the `Title` of the channel.

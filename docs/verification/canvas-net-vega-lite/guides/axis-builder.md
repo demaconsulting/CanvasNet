@@ -83,6 +83,13 @@ expectations are derived from the d3 interval table, the multi-format rule, and 
   after the start, 18.5 / 240 x 400 = 30.83 pixels (rounded 31); a UTC scale ignores the zone.
 - January 1, 2024 is day 19,723 (54 x 365 + 13 leap days), 19,723 x 86,400,000 = 1,704,067,200,000 ms, which the number
   format prints with grouped digits (the culture scenario pins the same text under de-DE).
+- **Label expressions.** A linear x axis of 0 to 100 over 300 pixels has the eleven ticks 0, 10, ..., 100, so
+  `datum.label + '%'` gives `0%` to `100%` (with `tickCount: 5` the ticks are 0, 20, ..., 100 and the labels `0%`,
+  `20%`, ..., `100%`); five listed values 0 to 40 give `datum.index` 0, 0.25, 0.5, 0.75, and 1 (`i / (n - 1)`) and
+  `datum.tickIndex` 0 to 4, so `tickIndex + '@' + index` reads `0@0`, `1@0.25`, `2@0.5`, `3@0.75`, and `4@1`;
+  `datum.value % 20 ? '' : datum.label` leaves the labels 0, 20, ..., 100 on eleven ticks; with the listed values 0 to
+  50 at 60 pixels apart the labels `N kilograms` overlap and are thinned by parity, while blanking all but the multiples
+  of 30 leaves `0 kilograms` and `30 kilograms`.
 
 #### Test Environment
 
@@ -331,3 +338,50 @@ an offset of 4 at x = 304.5 next to the rectangle and at 4.5 in a footer with bo
 200 unchanged; that the grid group is still built at (0.5, 200.5) with 11 lines of length 200 (30 pixels apart, 3 pixels
 per unit) and the axis group holds no grid line; and that a top axis with an offset of 4 is at y = -3.5 and a bottom
 axis at 4.5 in a header, where it would be at 204.5 next to the rectangle.
+
+##### Label Expressions Replace The Tick Labels
+
+**Tests**: `AxisBuilderLabelExprTests.AxisBuilder_Build_LabelExprAppendsPercent`,
+`AxisBuilderLabelExprTests.AxisBuilder_Build_LabelExprConditionalBlanksTicks`,
+`AxisBuilderLabelExprTests.AxisBuilder_Build_LabelExprArrayResultIsMultiLine`
+
+Asserts that `datum.label + '%'` labels the eleven ticks `0%` to `100%` (in the scene and in `AxisResult.Ticks`) and,
+with `tickCount: 5`, thins them to `0%`, `20%`, ..., `100%`; that a conditional that blanks the ticks that are not
+multiples of 20 leaves the six labels `0`, `20`, ..., `100` drawn and all eleven ticks in the result; and that an array
+result `['top', datum.label]` is one label whose lines are `top` and `0`.
+
+##### Label Expression Datum Follows The Scale
+
+**Tests**: `AxisBuilderLabelExprTests.AxisBuilder_Build_LabelExprIndexIsFractionAndTickIndexIsInteger`,
+`AxisBuilderLabelExprTests.AxisBuilder_Build_LabelExprTemporalAxisUsesDateValue`,
+`AxisBuilderLabelExprTests.AxisBuilder_Build_LabelExprBandAxisGivesCategoryAsValueAndLabel`
+
+Asserts that five listed values give the labels `0@0`, `1@0.25`, `2@0.5`, `3@0.75`, and `4@1` for the expression
+`datum.tickIndex + '@' + datum.index`; that the value of a time axis is a date (`timeFormat(datum.value, '%b %Y') + ' /
+' + year(datum.value)` gives `Jan 2024 / 2024` and `Mar 2024 / 2024`); and that the value and the label of a band axis
+are the category text (`upper(datum.value) + datum.label` gives `Aa` and `Bb`).
+
+##### Label Expressions Run Before The Labels Are Measured And Thinned
+
+**Tests**: `AxisBuilderLabelExprTests.AxisBuilder_Build_LabelExprLongerLabelWidensTheAxisExtent`,
+`AxisBuilderLabelExprTests.AxisBuilder_Build_LabelExprOverlapRemovalUsesTheReplacedText`,
+`AxisBuilderLabelExprTests.AxisBuilder_Build_LabelExprLabelLimitAppliesToReplacedText`
+
+Asserts that the labels `value N` make the left extent of the y axis reach more than 20 pixels further than the plain
+labels; that the `N kilograms` labels of six values 60 pixels apart are thinned by parity while blanking all but the
+multiples of 30 leaves `0 kilograms` and `30 kilograms`, which fit; and that a label whose replaced text is
+`abcdefghijklmnop` keeps the whole text in the scene and carries the `labelLimit` of 30 that truncates it when it is
+painted.
+
+##### Label Expression Configuration, Labels Off, And Errors
+
+**Tests**: `AxisBuilderLabelExprTests.AxisBuilder_Build_LabelExprConfigPrecedenceFollowsTheAxisChain`,
+`AxisBuilderLabelExprTests.AxisBuilder_Build_LabelExprIsNotUsedWhenLabelsAreOff`,
+`AxisBuilderLabelExprTests.AxisBuilder_Build_LabelExprInvalidConfiguredTextIsSpecException`
+
+Asserts that with `config.axis` (`A`), `axisY` (`Y`), and `axisQuantitative` (`Q`) the first x label is `0A`, the first
+y
+label `0Y`, the x label with the quantitative configuration `0Q`, and the label of an axis object that has its own
+`labelExpr` `0X`; that an axis with `labels: false` draws no label and does not even compile an invalid configured
+expression; and that an invalid configured expression (`datum.label +`) of an axis that has labels is a
+`VegaLiteSpecException`.

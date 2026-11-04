@@ -133,6 +133,7 @@ sections:
               - CanvasNetVegaLite-SpecModel-FeatureCatalog-CompositionReports
               - CanvasNetVegaLite-SpecModel-FeatureCatalog-FacetReports
               - CanvasNetVegaLite-SpecModel-FeatureCatalog-CompositeMarks
+              - CanvasNetVegaLite-SpecModel-FeatureCatalog-OffsetReports
             tests:
               - FeatureCatalog_Visit_RecognizedUnsupportedPropertiesReturnsStableIds
               - FeatureCatalog_Visit_SupportedSpecificationHasNoReports
@@ -147,6 +148,7 @@ sections:
               - FeatureCatalog_Report_ArcIsSupportedAndPolarChannelsAreGated
               - FeatureCatalog_Visit_LayerCompositionIsNeverReported
               - FeatureCatalog_Visit_BoxPlotIsSupportedWithItsChannels
+              - FeatureCatalog_Visit_OffsetsAreReportedOnlyWhenTheyAreNotDrawn
               - CanvasNetVegaLite_SystemIntegration_Unsupported_MarkAndTransformCarryPointerLineColumn
 
           - id: CanvasNetVegaLite-SpecModel-LayerValidation
@@ -284,6 +286,23 @@ sections:
               - SpecParser_Parse_Phase5TransformsAndParametersAreAccepted
               - CanvasNetVegaLite_SystemIntegration_Expressions_ErrorsAndLimitsFailWhenTheDocumentIsOpened
 
+          - id: CanvasNetVegaLite-SpecModel-LabelExpressionValidation
+            title: >-
+              The SpecModel subsystem shall compile, when a specification is parsed, the labelExpr of every axis,
+              legend, and facet header and of the axis and header configuration (not the legend configuration,
+              which Vega-Lite does not read), failing with a located specification exception at the text of an
+              expression that has a syntax error or an unknown parameter, and shall report only the constructs that
+              such an expression cannot evaluate, at its text, with the identifiers of the other expressions.
+            justification: |
+              A label expression with a mistake must stop the author where it is written, and a supported one must
+              not make every chart noisy.
+            children:
+              - CanvasNetVegaLite-SpecModel-SpecParser-LabelExpressions
+              - CanvasNetVegaLite-SpecModel-FeatureCatalog-ExpressionConstructs
+            tests:
+              - SpecParser_Parse_LabelExpressionErrorIsASpecExceptionAtTheText
+              - FeatureCatalog_Visit_SupportedLabelExpressionsAreNotReported
+              - FeatureCatalog_Visit_LabelExpressionConstructsAreReportedAtTheText
           - id: CanvasNetVegaLite-SpecModel-AggregationValidation
             title: >-
               The SpecModel subsystem shall validate, when a specification is parsed, the shape of the

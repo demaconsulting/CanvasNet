@@ -192,7 +192,10 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   labels of a field that is not temporal but has `formatType: "time"`), and the legend builder passes the calendar of
   its canonical scale to its own `ExpressionFunctionContext`; the `RowExpressions` (the compiled expressions and the
   evaluator) go to `MarkBuilder`. `ApplyStandalone` (the entry the tests use for the implicit pipeline alone) passes
-  `TimeCalendar.Utc` explicitly. The findings of the data stage are kept in the plan in this order: the loader's
+  `TimeCalendar.Utc` explicitly. The `RowExpressions` also go to the `AxisBuilder` and `LegendBuilder` (and to the facet
+  headers of the composition), so the `labelExpr` of axes, legends, and headers runs on the same evaluator, step
+  budget, and parameters as every other expression of the call (see _LabelExpressions Unit Design_). The findings of
+  the data stage are kept in the plan in this order: the loader's
   warnings (`vl-data-parse-failed`), the warnings of a lookup source (the loader's warnings that arose while the
   transforms ran), and then the transform warnings (`vl-expr-runtime`, `vl-transform-runtime`); they are recorded in the
   report sink as soon as they exist (a `finally` block around the parameters and transforms), so a later failure still
@@ -311,7 +314,9 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   that it supplies only (`AxisRequest.KeepInHeader`: the first column for left and right, the first row for top and
   bottom) and its grids otherwise). The headers and footers are built by `TitleBuilder.BuildHeader` (one for each row
   and column,
-  with the label of its value and the shared axes;
+  with the label of its value and the shared axes; the label of a cell is the formatted value, replaced by the
+  `labelExpr` of the header when it has one (`Composer.WithLabelExpression`, on the shared evaluator of the
+  call, with the precedence header, then `headerRow`/`headerColumn`/`headerFacet`, then `config.header`);
   `HeaderSettings.Read(config, header, channel, honoredOrientsOnly: true)` reads the header properties, so a side that
   the renderer does not draw is read as not given and the default side is used), the row and column titles by
   `BuildHeader` with the `title` part (the title of the header, else that of the field definition, else the field name;

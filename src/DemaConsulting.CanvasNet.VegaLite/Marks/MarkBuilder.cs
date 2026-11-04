@@ -320,6 +320,9 @@ internal sealed partial class MarkBuilder
         /// <summary>Gets the compiled expression of a constant <c>value</c> given as <c>{"expr": ...}</c>, or null.</summary>
         public CompiledExpression? ValueExpression { get; }
 
+        /// <summary>Gets or sets the offset scale that places a mark inside the band of this position channel (<c>xOffset</c> or <c>yOffset</c>), or null.</summary>
+        public ChannelOffset? Offset { get; set; }
+
         /// <summary>
         ///     Reads the value of the channel for a row.
         /// </summary>
@@ -543,6 +546,7 @@ internal sealed partial class MarkBuilder
                 }
             }
 
+            AttachOffsets(encoding);
             _filtered = [.. _channels.Where(c => c.Key is not ("x" or "y" or "size" or "opacity") && c.Value.HasContinuousDomain && !c.Value.IsFieldConditional).Select(c => c.Value)];
             ResolvePaint();
             foreach (var dash in Get("strokeDash")?.Scale?.DashRange ?? [])
@@ -1127,6 +1131,11 @@ internal sealed partial class MarkBuilder
         /// <returns>The position, or null when the row is invalid.</returns>
         private double? Center(Channel channel, ScaleModel model, int row)
         {
+            if (channel.Offset is { } offset)
+            {
+                return OffsetCenter(channel, model, offset, row);
+            }
+
             if (!channel.HasBandEnds)
             {
                 return model.MapCenter(channel.Read(_table, row));
@@ -1475,6 +1484,18 @@ internal sealed partial class MarkBuilder
             if (model.Map(channel.Read(_table, row)) is not { } start)
             {
                 return null;
+            }
+
+            // An offset places the mark inside the band of its position: it spans a band of the offset scale that starts that far into it
+            if (channel.Offset is { } offset)
+            {
+                if (offset.Start(_table, row) is not { } inside)
+                {
+                    return null;
+                }
+
+                start += inside;
+                model = offset.Model;
             }
 
             var thickness = Thickness(sizing, row, out var valid);

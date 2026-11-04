@@ -4,6 +4,7 @@ using DemaConsulting.CanvasNet.VegaLite.Expressions;
 using DemaConsulting.CanvasNet.VegaLite.Scales;
 using DemaConsulting.CanvasNet.VegaLite.Scenegraph;
 using DemaConsulting.CanvasNet.VegaLite.SpecModel;
+using DemaConsulting.CanvasNet.VegaLite.Transforms;
 
 namespace DemaConsulting.CanvasNet.VegaLite.Guides;
 
@@ -104,8 +105,13 @@ internal sealed record LegendResult(
 ///         legend of a temporal color or of a size or an opacity over dates has the time ticks of its domain (see <c>LegendBuilder.Time.cs</c>).
 ///     </para>
 ///     <para>
-///         <b>Not drawn.</b> <c>titleOrient</c> other than <c>top</c>, <c>clipHeight</c>, <c>encode</c>, <c>labelExpr</c> and custom format types
+///         <b>Not drawn.</b> <c>titleOrient</c> other than <c>top</c>, <c>clipHeight</c>, <c>encode</c> and custom format types
 ///         (the feature catalog reports them); the symbols of the <c>arrow</c>, <c>wedge</c> and <c>triangle</c> shapes use the box of their path.
+///     </para>
+///     <para>
+///         <b>Label expressions.</b> The <c>labelExpr</c> of the legend (the configuration has none: Vega-Lite 6 does not read <c>config.legend.labelExpr</c>) replaces the label of every entry
+///         before the entries are measured and laid out (<see cref="LabelExpressions"/>). A symbol legend gives <c>datum.index</c>, <c>datum.value</c> and <c>datum.label</c>; a gradient legend also
+///         <c>datum.perc</c> and a discrete gradient <c>datum.perc2</c>. <c>datum.size</c> and <c>datum.offset</c> of a symbol legend are not available (they are null).
 ///     </para>
 /// </remarks>
 internal sealed partial class LegendBuilder
@@ -122,19 +128,24 @@ internal sealed partial class LegendBuilder
     /// <summary>The source name for the locations of failures.</summary>
     private readonly string? _sourceName;
 
+    /// <summary>The evaluation of <c>labelExpr</c>.</summary>
+    private readonly LabelExpressions _labelExpressions;
+
     /// <summary>
     ///     Initializes a legend builder.
     /// </summary>
     /// <param name="measurer">The text measurer that sizes labels and titles.</param>
     /// <param name="limits">The limits to enforce; the defaults when null.</param>
     /// <param name="sourceName">The source name for the locations of failures, or null.</param>
+    /// <param name="expressions">The compiled expressions and the evaluator of the call that <c>labelExpr</c> runs on; null to use an evaluator of the builder.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="measurer"/> is null.</exception>
-    public LegendBuilder(TextMeasurer measurer, VegaLiteLimits? limits = null, string? sourceName = null)
+    public LegendBuilder(TextMeasurer measurer, VegaLiteLimits? limits = null, string? sourceName = null, RowExpressions? expressions = null)
     {
         ArgumentNullException.ThrowIfNull(measurer);
         _measurer = measurer;
         _limits = limits ?? VegaLiteLimits.Default;
         _sourceName = sourceName;
+        _labelExpressions = new LabelExpressions(expressions, _limits);
     }
 
     /// <summary>
@@ -156,7 +167,10 @@ internal sealed partial class LegendBuilder
         ArgumentNullException.ThrowIfNull(budget);
         cancellationToken.ThrowIfCancellationRequested();
         // The evaluation that label text is charged to knows the calendar of the chart's time scale (UTC when the legend has none)
-        var context = new Context(spec, budget, cancellationToken, new ExpressionFunctionContext(_limits, cancellationToken, spec.Canonical.Scale.Calendar), dataWidth, dataHeight, _sourceName);
+        var context = new Context(spec, budget, cancellationToken, new ExpressionFunctionContext(_limits, cancellationToken, spec.Canonical.Scale.Calendar), dataWidth, dataHeight, _sourceName)
+        {
+            LabelExpression = _labelExpressions.Resolve(spec.Settings.ExplicitNode("labelExpr"), null, spec.Location),
+        };
         var s = spec.Settings;
         var location = spec.Location;
         var padding = s.Number("padding") ?? 0;
@@ -304,11 +318,12 @@ internal sealed partial class LegendBuilder
     /// <param name="align">The horizontal alignment.</param>
     /// <param name="baseline">The vertical alignment.</param>
     /// <param name="limit">The width limit; 0 for none.</param>
+    /// <param name="lines">The lines of a multi-line label (a label expression that gave an array); null for the single line <paramref name="text"/>.</param>
     /// <returns>The label (role <c>legend-label</c>).</returns>
-    private static SceneText MakeLabel(Context c, double x, double y, string text, string align, string baseline, double limit)
+    private static SceneText MakeLabel(Context c, double x, double y, string text, string align, string baseline, double limit, IReadOnlyList<string>? lines = null)
     {
         var s = c.S;
-        return new SceneText("legend-label", x, y, [text])
+        return new SceneText("legend-label", x, y, lines ?? [text])
         {
             Fill = s.Text("labelColor") ?? s.StyleText("guide-label", "fill"),
             FillOpacity = s.Number("labelOpacity") ?? 1,
@@ -321,6 +336,22 @@ internal sealed partial class LegendBuilder
             Baseline = baseline,
         };
     }
+
+    /// <summary>
+    ///     Applies the <c>labelExpr</c> of the legend to the label of an entry.
+    /// </summary>
+    /// <param name="c">The build state.</param>
+    /// <param name="value">The value of the entry (<c>datum.value</c>).</param>
+    /// <param name="label">The label the entry has without the expression (<c>datum.label</c>).</param>
+    /// <param name="index">The position of the entry (<c>datum.index</c>).</param>
+    /// <param name="perc">The position along a gradient (<c>datum.perc</c>), or null.</param>
+    /// <param name="perc2">The end of the class along a discrete gradient (<c>datum.perc2</c>), or null.</param>
+    /// <returns>The label; the one given when the legend has no label expression.</returns>
+    /// <exception cref="VegaLiteRenderException">Thrown, with the location of the expression, when a limit of the evaluation is exceeded.</exception>
+    private LabelText Labeled(Context c, DataValue value, string label, int index, double? perc = null, double? perc2 = null) =>
+        c.LabelExpression is { } expression
+            ? _labelExpressions.Evaluate(expression, LabelExpressions.Datum(value, label, index, null, perc, perc2))
+            : new LabelText(label, null);
 
     /// <summary>
     ///     Converts a domain value to label text, bounded by <see cref="VegaLiteLimits.MaxStringLength"/> and charged to the evaluation of the build.
@@ -474,6 +505,9 @@ internal sealed partial class LegendBuilder
 
         /// <summary>Gets the source name.</summary>
         public string? SourceName { get; }
+
+        /// <summary>Gets the compiled <c>labelExpr</c> of the legend, or null when it has none.</summary>
+        public CompiledExpression? LabelExpression { get; init; }
     }
 
     /// <summary>

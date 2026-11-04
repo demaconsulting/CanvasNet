@@ -127,7 +127,12 @@ rule is applied to the polar pair `theta` and `radius`** (Vega-Lite's `potential
 quantitative one is stacked, the aggregating one wins when both are, and an explicit `stack` decides before that;
 the `orient` of a bar or area applies to `x` and `y` only. `StackRules.DimensionChannel(channel)` pairs the channels
 (`x` with `y`, `theta` with `radius`). The group-by is the dimension channel (the other channel of the pair), unless it
-reads the stacked field itself (a radial chart reads its `theta` and its `radius` from one field). The
+reads the stacked field itself (a radial chart reads its `theta` and its `radius` from one field); **the offset channel
+of the dimension** (`StackRules.DimensionOffsetChannel(channel)`: `yOffset` for a stacked `x`, `xOffset` for a stacked
+`y`, null for a polar channel) is a group-by too (unless it reads the stacked field), as in Vega-Lite's stack
+(`stack.ts`), so the bars of one offset value stack among themselves and the bars of the offset groups stand side by
+side, and it is **not a stack-by** field (it does not split the layers of a stack). Without an explicit `stack`, a
+quantitative offset on a view that has no dimension channel (a strip of points) disables the default stack. The
 stack-by channels are the non-position channels with a field that does not aggregate (the tooltip
 is excluded; `order` counts). There is no stack when an aggregating encoding has no stack-by field, when the
 stacked channel has a range (`x2`, `y2`, `theta2`, or `radius2` with a field, datum, or aggregate: a ranged mark draws
@@ -296,5 +301,6 @@ categories by an aggregate and to read the bins. `SpecParser` (`SpecParser.Aggre
 orientation from `ScaleResolver.InferOrient`) to decide whether the `order` channel orders a stack and
 `StackRules.IsEnabled` for the stack of a non-linear scale. The tests in
 `test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/` (`AggregateTransforms*Tests.cs`,
-`AggregateMeasuresTests.cs`, `BinAlgorithmTests.cs`, `StackRulesTests.cs`, and `StableSorterTests.cs`) call the
+`AggregateMeasuresTests.cs`, `BinAlgorithmTests.cs`, `StackRulesTests.cs`, `StackRulesOffsetTests.cs`, and
+`StableSorterTests.cs`) call the
 types directly through `InternalsVisibleTo`.

@@ -350,3 +350,16 @@ sections:
               - RowTransforms_Filter_RangeOfDatetimeObjects_NoUnit
               - RowTransforms_Filter_ZoneChangesTheDate
               - CanvasNetVegaLite_SystemIntegration_Time_FilterByTimeUnitAndDatetimeObject
+
+          - id: CanvasNetVegaLite-Transforms-OffsetGroups
+            title: >-
+              The Transforms subsystem shall plan the stack and the aggregate of a view with xOffset or yOffset
+              channels inside each group of the offset, so that grouped bars stack and aggregate within their
+              group only.
+            justification: |
+              Grouped bars compare subgroups; their sums and stacks must be those of each subgroup.
+            children:
+              - CanvasNetVegaLite-Transforms-EncodingPlan-OffsetGroups
+            tests:
+              - StackRules_Decide_OffsetFieldSplitsTheGroupsAndIsNotAStackBy
+              - EncodingPlan_Create_StackAndAggregateGroupByTheOffsetField

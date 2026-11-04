@@ -3,7 +3,7 @@
 ![Marks Structure](VegaLiteMarksView.svg)
 
 The `MarkBuilder` unit is the first software unit in the `Marks` subsystem (the second is _CurveBuilder_). It comprises
-six
+seven
 source files in the `DemaConsulting.CanvasNet.VegaLite.Marks` namespace; together they define one `internal` type, the
 `sealed partial class MarkBuilder` (with private helper types for one channel, the sizing of a position, the paint of an
 item, the settings of an overlay, and one build run, the nested `sealed partial class Run`):
@@ -18,6 +18,8 @@ item, the settings of an overlay, and one build run, the nested `sealed partial 
 - `MarkBuilder.Overlays.cs` - the point and line overlays of the path marks
 - `MarkBuilder.Text.cs` - the `text` mark: positions, polar offset, font properties, the text of a row, and its limits
 - `MarkBuilder.Arcs.cs` - the `arc` mark, the polar span of a channel, and the polar position of a stacked `text`
+- `MarkBuilder.Offsets.cs` - the `xOffset` and `yOffset` channels: `ChannelOffset` (the offset scale of a position and
+  how it reads the offset value of a row), `AttachOffsets`, and `OffsetCenter`
 
 Every file carries the provenance header comment for the d3-shape, d3-path, Vega, and Vega-Lite behavior it ports (see
 _CanvasNetVegaLite System Design_, Third-Party Provenance and Attribution).
@@ -147,11 +149,28 @@ mark properties, other encoding values, and conditions that cannot be evaluated)
 feature catalog (`vl-expr-ref`, `vl-encoding-condition`, `vl-encoding-condition-param`).
 
 **Ignored without a report**: `tooltip`, `href`, and the individual corner radii and
-`cornerRadiusEnd`. `x2` and `y2` of the marks other than `bar`, `rect`, `rule`, and `area`, and the
-offset channels are reported by the feature catalog and ignored here. A `datum` of a temporal channel is read as one
+`cornerRadiusEnd`. `x2` and `y2` of the marks other than `bar`, `rect`, `rule`, and `area` are reported by the feature
+catalog and ignored here. A `datum` of a temporal channel is read as one
 instant (a number is milliseconds, a text is a date text in the calendar of the scale; a text that is not a date gives
 the datum no position); a `datum` that is a date-time object is reported (`vl-encoding-datum-datetime`) and the
 channel is ignored.
+
+**Offset channels** (`MarkBuilder.Offsets.cs`; Vega-Lite's `mark/encode/offset.ts`, `position-point.ts`,
+`position-rect.ts`). When a position band scale holds a resolved offset scale (`AttachOffsets` gives
+the `x` or `y` channel a `ChannelOffset`: the offset scale, created for the **bandwidth** of the position band), the
+position of a row is the **start of its band** and the offset scale places the mark inside it:
+
+- Point-like marks (`point`, `circle`, `square`, `text`, `line`, `trail`, and the others that sit at a position) are at
+  the start of the band plus the **center** of the offset (`OffsetCenter`: the middle of an offset band, the offset
+  point, or, for a quantitative or temporal offset, the value on the linear or time offset scale, which makes a strip or
+  jitter plot inside the band). This is the hook in `Center()`.
+- `bar`, `rect`, `tick`, and `rule` **span the band of the offset scale** (the hook in `BandSpan()`; its default size
+  is the bandwidth of the offset scale, so a grouped bar chart has bars of that width and, with the default offset
+  paddings of 0, no gap between the bars of a group). An explicit `size` is centered in the offset band.
+- A row whose offset value is not valid has no offset position and **is not drawn** (like an invalid position).
+- Box plots and error bars keep the offset: the boxes of the default size 14 are centered in the offset band. A stack
+  with an offset (`StackRules`) stacks inside each group of the offset, so stacked bars are grouped by the offset.
+- The pixel `xOffset` and `yOffset` **properties of the mark** (not the channels) are still not drawn.
 
 **Path marks** (`MarkBuilder.Paths.cs`). A `line`, `area`, or `trail` is built group by group, in two passes over the rows
 and then one step per group:
@@ -486,6 +505,7 @@ feature catalog has already reported it. The unit performs no I/O.
 passing the Main table that the implicit pipeline produced and the `RowExpressions` of the call. The
 tests in `test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/` (`MarkBuilderTests.cs`, `MarkBuilderChannelTests.cs`,
 `MarkBuilderConditionTests.cs`, `MarkBuilderTimeTests.cs`, `MarkBuilderPathTests.cs`, `MarkBuilderOrderTests.cs`,
-`MarkBuilderOverlayTests.cs`, `MarkBuilderTextTests.cs`, `MarkBuilderArcTests.cs`, and `MarkBuilderPolarTextTests.cs`)
+`MarkBuilderOverlayTests.cs`, `MarkBuilderTextTests.cs`, `MarkBuilderArcTests.cs`, `MarkBuilderPolarTextTests.cs`, and
+`MarkBuilderOffsetTests.cs`)
 call the builder directly through
 `InternalsVisibleTo`, and the chart integration tests exercise it through the public document.

@@ -229,6 +229,31 @@ public class RenderCommandVegaLiteTests
     }
 
     /// <summary>
+    ///     Test that a grouped bar chart (<c>xOffset</c>) and a chart with a <c>labelExpr</c> are drawn with <c>--strict</c>, with an exit that writes the
+    ///     picture and diagnostics that are empty: both are supported constructs now.
+    /// </summary>
+    /// <param name="chart">The chart text.</param>
+    [Theory]
+    [InlineData("{\"data\": {\"values\": [{\"c\": \"a\", \"g\": \"x\", \"v\": 1}, {\"c\": \"a\", \"g\": \"y\", \"v\": 2}]}, \"mark\": \"bar\", \"encoding\": {\"x\": {\"field\": \"c\", \"type\": \"nominal\"}, \"xOffset\": {\"field\": \"g\", \"type\": \"nominal\"}, \"y\": {\"field\": \"v\", \"type\": \"quantitative\"}, \"color\": {\"field\": \"g\", \"type\": \"nominal\"}}}")]
+    [InlineData("{\"data\": {\"values\": [{\"c\": \"a\", \"v\": 1}, {\"c\": \"b\", \"v\": 2}]}, \"mark\": \"bar\", \"encoding\": {\"x\": {\"field\": \"c\", \"type\": \"nominal\", \"axis\": {\"labelExpr\": \"upper(datum.label)\"}}, \"y\": {\"field\": \"v\", \"type\": \"quantitative\", \"axis\": {\"labelExpr\": \"datum.label + '%'\"}}}}")]
+    public void RenderCommand_Run_VegaLiteOffsetAndLabelExpr_AreDrawnWithStrictAndNoDiagnostics(string chart)
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteText(directory.Path, "chart.vl.json", chart);
+        var output = directory.Combine("o.png");
+
+        // Act
+        var stdOut = Run(true, input, "--strict", "-o", output);
+
+        // Assert
+        using var document = JsonDocument.Parse(stdOut);
+        Assert.True(document.RootElement.GetProperty("ok").GetBoolean());
+        Assert.Empty(document.RootElement.GetProperty("diagnostics").EnumerateArray());
+        Assert.True(File.Exists(output));
+    }
+
+    /// <summary>
     ///     Test that a chart with an error is a <c>vega-lite-error</c> with the location, through the entry point, and
     ///     that no output is written.
     /// </summary>

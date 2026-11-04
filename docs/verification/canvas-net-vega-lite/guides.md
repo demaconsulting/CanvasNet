@@ -1,13 +1,14 @@
 ## Guides Subsystem Verification Design
 
 This document describes the subsystem-level verification strategy for the `Guides` subsystem (internal namespace
-`DemaConsulting.CanvasNet.VegaLite.Guides`), containing six units: `TextMeasurer` (font resolution, text
+`DemaConsulting.CanvasNet.VegaLite.Guides`), containing seven units: `TextMeasurer` (font resolution, text
 measurement, truncation, line splitting, and Vega text bounds), `TitleBuilder` (the title and subtitle scene items and
 their extent), `AxisBuilder` (the axis grid, ticks, labels, domain, and title, and the extent they need), `LabelOverlap`
 (Vega's parity and greedy removal of overlapping labels), `LegendBuilder` (which channels have legends and how they
-merge, and the symbol, gradient, and discrete gradient legends with the box each needs), and `TimeLabels` (the label
+merge, and the symbol, gradient, and discrete gradient legends with the box each needs), `TimeLabels` (the label
 format of a date, the interval `tickCount`, the default tick count rule of a time axis, and the dates of an explicit
-`values` list, shared by the axes and the legends of temporal fields).
+`values` list, shared by the axes and the legends of temporal fields), and `LabelExpressions` (the evaluation of the
+`labelExpr` of axes, legends, and facet headers on the shared expression evaluator of the call).
 
 ### Verification Approach
 
@@ -52,7 +53,7 @@ assembly's `InternalsVisibleTo` access.
 ### Acceptance Criteria
 
 The `Guides` subsystem's verification passes when every subsystem-level scenario below and every unit-level scenario in
-the six unit verification documents passes without error or unexpected exception. A skipped scenario that is
+the seven unit verification documents passes without error or unexpected exception. A skipped scenario that is
 documented above as machine-dependent is not a failure.
 
 ### Test Scenarios
@@ -194,6 +195,20 @@ documented above as machine-dependent is not a failure.
   ASCII digits under `tr-TR` and `de-DE` and the same on every call; the per-call formatter that the text mark uses
   (`CreateBounded`) gives the label when it fits the limit of the call (`Mar 05, 2024` is 12 characters, so the limit 12
   gives it and 11 gives none) and no label, never an exception, when it does not.
+- **Label Expressions Replace The Labels Of Axes, Legends, And Headers Before They Are Laid Out**:
+  `LabelExpressionsTests.LabelExpressions_Evaluate_AxisIndexIsFractionAndTickIndexIsInteger`,
+  `AxisBuilderLabelExprTests.AxisBuilder_Build_LabelExprAppendsPercent`,
+  `AxisBuilderLabelExprTests.AxisBuilder_Build_LabelExprOverlapRemovalUsesTheReplacedText`,
+  `LegendBuilderLabelExprTests.LegendBuilder_Build_LabelExprBlankLabelsChangeTheMeasuredWidth`,
+  `LegendBuilderLabelExprTests.LegendBuilder_Build_LabelExprGradientLegendGivesPerc`,
+  `VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_HeaderLabelsAreReplacedWithPrecedence`,
+  `VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_BudgetExceededIsARenderException` —
+  `datum.label + '%'` gives every label of an axis a percent sign, so the extent grows and the overlap removal sees the
+  replaced text; the datum of the guide has the members of Vega (the fraction `index` and the whole-number `tickIndex` of
+  an axis, `perc` of a gradient legend); a legend with blank labels is measured narrower; the label of a facet header
+  follows the precedence header, `headerRow` or `headerColumn`, then `config.header`; and an expression over the step
+  budget of the call is a render error located at the expression. The details are in the _LabelExpressions Unit
+  Verification Design_.
 - **Axes And Legends Of A Layered View**:
   `AxisBuilderTests.AxisBuilder_Build_DefaultOrientAndGridApplyOnlyWhenTheAxisSaysNothing`,
   `LegendPlanLayerTests.LegendPlan_Create_SameFieldInTwoLayersIsOneLegend`,

@@ -281,10 +281,11 @@ software items, specifically:
   `theta` and `radius` scales, and the channels that each mark draws), `Ticks` (the d3-array and d3-time tick
   algorithms), `NumberFormat` (the d3-format number formatter), `ColorSchemes` (the 68 Vega color schemes and the
   configuration of a color range), and `ColorInterpolator` (the sRGB, HSL, CIELAB, and HCL color interpolation). The
-  `Guides` subsystem has six units: `TextMeasurer` (bundled-font resolution, measurement, and truncation),
+  `Guides` subsystem has seven units: `TextMeasurer` (bundled-font resolution, measurement, and truncation),
   `TitleBuilder` (title and subtitle), `AxisBuilder` (grid, ticks, labels, domain, and title of an axis), `LabelOverlap`
   (parity and greedy removal of overlapping labels), `LegendBuilder` (symbol, gradient, and discrete gradient legends),
-  and `TimeLabels` (the label format, interval tick count, and default tick count of time axes and legends). The
+  `TimeLabels` (the label format, interval tick count, and default tick count of time axes and legends), and
+  `LabelExpressions` (the `labelExpr` of axes, legends, and facet headers). The
   `Layout` subsystem has three units, `ViewLayout` (data rectangle, padding, autosize including fit and container sizes,
   title placement, view border, and
   the helpers of composed charts), `LegendLayout` (the placement of the legends around the data rectangle and the axes,
@@ -509,7 +510,8 @@ internal `Expressions` subsystem holds the `ExpressionParser`, `ExpressionEvalua
 its internal `Transforms` subsystem holds the `RowTransforms`, `AggregateTransforms`, `EncodingPlan`, and
 `TimeUnitTransform` units, its internal `Scales` subsystem holds the `ScaleModel`, `ScaleResolver`, `Ticks`,
 `NumberFormat`, `ColorSchemes`, and `ColorInterpolator` units, its internal `Guides` subsystem holds the `TextMeasurer`,
-`TitleBuilder`, `AxisBuilder`, `LabelOverlap`, `LegendBuilder`, and `TimeLabels` units, its internal `Layout` subsystem
+`TitleBuilder`, `AxisBuilder`, `LabelOverlap`, `LegendBuilder`, `TimeLabels`, and `LabelExpressions` units, its internal
+`Layout` subsystem
 holds the `ViewLayout`, `LegendLayout`, and `CompositionLayout` units, its internal `Marks` subsystem holds the
 `MarkBuilder` and `CurveBuilder` units, and its internal `Scenegraph` subsystem holds the `SceneModel`, `ScenePainter`,
 `ArcGeometry`, and `CssPaint`
@@ -1216,6 +1218,7 @@ src/DemaConsulting.CanvasNet.VegaLite/
 │   ├── SpecParser.Aggregates.cs   — SpecParser: aggregating transform and aggregate, bin, stack, and sort validation
 │   ├── SpecParser.Time.cs         — SpecParser: time unit, date-time object, tick interval, and timeUnit transform validation
 │   ├── SpecParser.Layers.cs       — SpecParser: resolve, composite mark properties, and composition validation
+│   ├── SpecParser.LabelExpressions.cs — SpecParser: the compilation of the labelExpr of axes, legends, and headers
 │   ├── SpecExpressions.cs         — SpecParser: the compiled expressions of a specification
 │   ├── SpecNode.cs                — SpecParser: SpecNode, SpecNodeKind, NodePosition, and SpecTree
 │   ├── SpecMetadata.cs            — SpecParser: descriptive metadata of a specification
@@ -1304,6 +1307,7 @@ src/DemaConsulting.CanvasNet.VegaLite/
 │   ├── ScaleResolver.Range.cs     — ScaleResolver: the ranges of the non-position channels and named ranges
 │   ├── ScaleResolver.Time.cs      — ScaleResolver: temporal domains, bounds, nice, and the time-unit scales
 │   ├── ScaleResolver.Layers.cs    — ScaleResolver: the scales shared by the layers of a view (merge, conflicts, resolve)
+│   ├── ScaleResolver.Offsets.cs   — ScaleResolver: the nested offset scales of xOffset and yOffset and the position step
 │   ├── Ticks.cs                   — Ticks: d3-array ticks, nice, and Vega tick counts
 │   ├── Ticks.Time.cs              — Ticks: d3-time ticks, tick intervals, and nice for time scales
 │   ├── NumberFormat.cs            — NumberFormat: d3-format number formatting and tickFormat
@@ -1324,7 +1328,8 @@ src/DemaConsulting.CanvasNet.VegaLite/
 │   ├── LegendBuilder.Gradient.cs  — LegendBuilder: gradient and discrete gradient legends
 │   ├── LegendBuilder.Time.cs      — LegendBuilder: the ticks, labels, and values of legends of temporal fields
 │   ├── LegendBuilder.Grid.cs      — LegendBuilder: the grid layout of Vega's layout transform
-│   └── TimeLabels.cs              — TimeLabels: date label format, interval tick count, default count, and values reader
+│   ├── TimeLabels.cs              — TimeLabels: date label format, interval tick count, default count, and values reader
+│   └── LabelExpressions.cs        — LabelExpressions: the labelExpr of axes, legends, and headers and the LabelText result
 ├── Layout/                        — Layout subsystem (internal)
 │   ├── NamespaceDoc.cs            — Layout: namespace-level XML documentation
 │   ├── CompositionLayout.cs       — CompositionLayout: the cells, headers, and titles of a composition (types and the grid)
@@ -1339,6 +1344,7 @@ src/DemaConsulting.CanvasNet.VegaLite/
 │   ├── MarkBuilder.Overlays.cs    — MarkBuilder: the point and line overlays of the path marks
 │   ├── MarkBuilder.Text.cs        — MarkBuilder: the text mark (labels, formats, polar offset)
 │   ├── MarkBuilder.Arcs.cs        — MarkBuilder: the arc mark (pie, donut, and radial slices)
+│   ├── MarkBuilder.Offsets.cs     — MarkBuilder: the xOffset and yOffset channels (marks inside the band of a position)
 │   ├── CurveBuilder.cs            — CurveBuilder: the curve kinds, the segment bound, and the line and area entry points
 │   ├── CurveBuilder.Generators.cs — CurveBuilder: the line and area generators with defined gaps
 │   └── CurveBuilder.Splines.cs    — CurveBuilder: the cardinal, catmull-rom, monotone, and natural curves
@@ -1492,7 +1498,10 @@ multi-format, and `Date.parse` test files); for `TimeUnitTransform` in the `Tran
 `transforms/time-unit-transform`, `TimeUnitTransform.cs` and `TemporalFields.cs`, and `TimeUnitTransformTests.cs` and
 `TemporalFieldsTests.cs`; and for `TimeLabels` in the `Guides` subsystem, the same paths with `guides/time-labels`,
 `TimeLabels.cs` (the temporal legends are in `LegendBuilder.Time.cs`, a partial file of the `LegendBuilder` unit), and
-`TimeLabelsTests.cs`. The two units added for the line, area, trail, text, and arc marks follow the same pattern: for
+`TimeLabelsTests.cs`; for `LabelExpressions` in the `Guides` subsystem, the same paths with `guides/label-expressions`,
+`LabelExpressions.cs`, and `LabelExpressionsTests.cs` (with `AxisBuilderLabelExprTests.cs` and
+`LegendBuilderLabelExprTests.cs` for the guides that use it). The two units added for the line, area, trail, text, and
+arc marks follow the same pattern: for
 `CurveBuilder` in the `Marks` subsystem, requirements `docs/reqstream/canvas-net-vega-lite/marks/curve-builder.yaml`,
 design `docs/design/canvas-net-vega-lite/marks/curve-builder.md`, verification
 `docs/verification/canvas-net-vega-lite/marks/curve-builder.md`, SysML2 model

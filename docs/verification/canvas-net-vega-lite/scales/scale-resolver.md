@@ -110,6 +110,16 @@ under test) and the expected values are derived by hand:
   15,340 days from 1970).
 - Opacity runs 0.3 to 0.8, so the middle date (January 6) is 0.55, and the angle 0 to 360 gives 180; January 1 and
   January 11 are the ends of any numeric range. Three dates in a limit of three are accepted and four fail.
+- **Offset channels** (three categories and two groups `x` and `y`, with the
+  default step of 20 for the offset). The position band has the nested paddings 0.2 and 0.2 and the offset band
+  none, so `bandspace(2, 0, 0)` is 2 steps of the offset and the position step is 20 x 2 / (1 - 0.2) = **50**; the
+  natural width is 50 x (3 - 0.2 + 0.4) = **160** (three steps less the inner padding of 0.2 plus two outer paddings of
+  0.2),
+  the bandwidth of the position is 50 x (1 - 0.2) = **40**, and each offset band is 40 / 2 = **20**. With a width of 200
+  the step is 200 / 3.2 = **62.5**, the bandwidth 50, and each band 25. With an inner padding of 0.25 on the offset the
+  position step is 20 x (2 - 0.25) / 0.8 = **43.75**. With three groups on a merged offset domain the step is
+  20 x 3 / 0.8 = **75**, and with `for: "position"` the step is the 30 that the specification gives. A point offset has
+  an outer padding of 0.5 and the same arithmetic with the inner padding 1.
 
 #### Test Environment
 
@@ -808,3 +818,57 @@ the two charts together (two scales of `x`), no chart, and a chart that has no s
 container size is given; that the two cells of a facet that share a step scale are both 60 wide (the union `a`, `b`, `c`),
 and that with independent `x` scales cell p is 40 wide (`a`, `b`) and cell q 20 wide (`c`); and that an index that is
 not a layer, or a null list, is refused.
+
+##### Offset Channels Nest Inside The Band Of Their Position
+
+**Tests**: `ScaleResolverOffsetTests.ScaleResolver_Resolve_NominalXOffsetOfABarIsBandWithoutPaddingAndXHasNestedPaddings`,
+`ScaleResolverOffsetTests.ScaleResolver_Resolve_DefaultStepIsScaledByTheOffsetCount`,
+`ScaleResolverOffsetTests.ScaleResolver_Resolve_FixedWidthLetsTheOffsetFillTheBandwidth`,
+`ScaleResolverOffsetTests.ScaleResolver_Resolve_StepForPositionKeepsTheStep`,
+`ScaleResolverOffsetTests.ScaleResolver_Resolve_StepForOffsetAppliesToTheHeightOfAHorizontalChart`,
+`ScaleResolverOffsetTests.ScaleResolver_Resolve_YOffsetNestsInTheBandOfY`
+
+Asserts that the `xOffset` of a bar is a band scale with no paddings, flagged `IsOffset` and with no step of its own, and
+that `x` is a band scale with the paddings 0.2 and 0.2; that the default step of `x` is 50, its natural extent 160, its
+bandwidth 40 and the bandwidth of the offset 20; that a width of 200 gives the step 62.5, the bandwidth 50, and 25 for the
+offset; that `for: "position"` keeps the step of 30 on the position and an explicit `for: "offset"` gives the same
+as the default (a height step of 25 gives 25 and the default 50 for a horizontal chart); and that `yOffset` nests in
+the band of `y` with the first group at 0 and the second at 20.
+
+##### Offset Scale Kinds, Paddings, Domains, And Ranges
+
+**Tests**: `ScaleResolverOffsetTests.ScaleResolver_Resolve_PointMarkHasBandPositionAndPointOffset`,
+`ScaleResolverOffsetTests.ScaleResolver_Resolve_ExplicitPointOnAPositionWithOffsetUsesBand`,
+`ScaleResolverOffsetTests.ScaleResolver_Resolve_PaddingsFollowTheScaleAndTheConfiguration`,
+`ScaleResolverOffsetTests.ScaleResolver_Resolve_OffsetPaddingChangesThePositionStep`,
+`ScaleResolverOffsetTests.ScaleResolver_Resolve_OffsetDomainIsTheWholeFieldAndFollowsItsSort`,
+`ScaleResolverOffsetTests.ScaleResolver_Resolve_QuantitativeOffsetIsLinearWithoutZeroOrNice`,
+`ScaleResolverOffsetTests.ScaleResolver_Resolve_OffsetScaleTakesRangeReverseAndRound`
+
+Asserts that a point mark has a band position and a point offset with an outer padding of 0.5 and the same step of 50; that
+an explicit `point` type on a position with an offset is not accepted (the band is used, and `AcceptsScaleType` says
+so for the nested flag only); that `scale.padding` drops the nested defaults (0.1 and 0.1), a `paddingInner` of 0.25 on
+the offset is kept, and the configuration (`bandWithNestedOffsetPaddingInner` and `...Outer` 0.3 and 0.1,
+`offsetBandPaddingInner` and `...Outer` 0.05 and 0.02) sets the paddings of the two scales; that an inner padding of 0.25
+on the offset gives the step 20 x (2 - 0.25) / 0.8 = 43.75; that the domain of the offset is the sorted values of the whole
+field and follows `sort` (ascending, descending, and an array); that a quantitative offset is a linear scale with no zero
+and no nice (the domain 1 to 5 maps to 0 and 40 on x and runs upward on y); and that an explicit range, `reverse`, and
+`round` apply to the offset scale.
+
+##### Offsets Without A Discrete Position Are Not Resolved
+
+**Tests**: `ScaleResolverOffsetTests.ScaleResolver_Resolve_OffsetWithoutADiscreteParentHasNoScale`,
+`ScaleResolverOffsetTests.ScaleResolver_DecideOffset_FollowsTheRules`
+
+Asserts that an offset whose position is quantitative, missing, or has a time unit has no scale (the position stays
+linear), and that `DecideOffset` returns `Supported`, `NoDiscreteParent`, or `Ranged` for every combination of position
+type, offset type, and mark (a continuous offset of a bar or area is `Ranged`) and rejects a null channel.
+
+##### Layers Share Or Keep Their Offset Domains
+
+**Test**: `ScaleResolverOffsetTests.ScaleResolver_ResolveLayers_SharedOffsetMergesTheDomainAndIndependentKeepsItsOwn`
+
+Asserts, for a bar layer with the groups `x` and `y` and a tick layer with `z` over the same position, that the shared
+offset has the merged domain `x`, `y`, `z` and the step 20 x 3 / 0.8 = 75 in both layers and in the merged scales (the
+step is computed once from the merged domain), and that with `resolve.scale.xOffset: "independent"` the layers keep the
+domains `x`, `y` and `z` and the first layer the step 50.

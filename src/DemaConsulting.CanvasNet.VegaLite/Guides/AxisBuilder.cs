@@ -39,7 +39,8 @@ internal sealed record AxisRequest(string Channel, SpecNode? ChannelDef, Resolve
 /// <param name="Value">The domain value (a number for a linear scale, a category for a band or point scale).</param>
 /// <param name="Position">The position along the axis in pixels of the data rectangle, rounded like the tick mark (<c>tickRound</c>).</param>
 /// <param name="Label">The label text before truncation; empty labels are not drawn.</param>
-internal sealed record AxisTick(DataValue Value, double Position, string Label);
+/// <param name="Lines">The lines of a multi-line label (a label expression that gave an array), or null for the single line of <paramref name="Label"/>.</param>
+internal sealed record AxisTick(DataValue Value, double Position, string Label, IReadOnlyList<string>? Lines = null);
 
 /// <summary>
 ///     The axis of one channel: its scene groups, how far it reaches and the ticks it has.
@@ -108,10 +109,15 @@ internal sealed record AxisResult(SceneGroup Group, SceneGroup? Grid, SceneBound
 ///         default. Ticks are bounded by <see cref="VegaLiteLimits.MaxTicks"/> before any label is made and labels by <see cref="VegaLiteLimits.MaxStringLength"/>.
 ///     </para>
 ///     <para>
+///         <b>Label expressions.</b> The <c>labelExpr</c> of the axis, else that of the axis configuration (the same precedence as the other properties), replaces the label of every tick
+///         before the labels are measured, laid out and thinned (<see cref="LabelExpressions"/>): <c>datum.value</c> is the tick value (a date for a time scale), <c>datum.label</c> the
+///         text the label would have, <c>datum.index</c> the position among the ticks as a fraction from 0 to 1 (Vega's) and <c>datum.tickIndex</c> the position as a whole number.
+///     </para>
+///     <para>
 ///         <b>Not drawn.</b> <c>labelBound</c>, <c>tickBand</c>, <c>tickExtra</c>, <c>position</c>, <c>translate</c>,
-///         <c>bandPosition</c>, <c>titleX</c>, <c>titleY</c>, label and axis <c>encode</c>, custom format types and label expressions
+///         <c>bandPosition</c>, <c>titleX</c>, <c>titleY</c>, label and axis <c>encode</c> and custom format types
 ///         (the feature catalog reports them); a <c>values</c> array that is not made of numbers, strings or booleans is ignored (dates only for a time axis). The
-///         class is stateless between calls and safe for concurrent use.
+///         class belongs to one call and one thread (its label expressions run on the evaluator of the call).
 ///     </para>
 /// </remarks>
 internal sealed class AxisBuilder
@@ -140,6 +146,9 @@ internal sealed class AxisBuilder
     /// <summary>The calendar of the chart (the zone of the render options), for the labels of a field that is not temporal but is formatted as a time.</summary>
     private readonly TimeCalendar _chartCalendar;
 
+    /// <summary>The evaluation of <c>labelExpr</c>.</summary>
+    private readonly LabelExpressions _labelExpressions;
+
     /// <summary>
     ///     Initializes an axis builder.
     /// </summary>
@@ -148,8 +157,9 @@ internal sealed class AxisBuilder
     /// <param name="limits">The limits to enforce (<see cref="VegaLiteLimits.MaxTicks"/>); the defaults when null.</param>
     /// <param name="sourceName">The source name for the locations of errors, or null.</param>
     /// <param name="chartCalendar">The calendar of the chart, used by a <c>formatType</c> of <c>time</c> on a field that is not temporal; UTC when null.</param>
+    /// <param name="expressions">The compiled expressions and the evaluator of the call that <c>labelExpr</c> runs on; null to use an evaluator of the builder.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="measurer"/> or <paramref name="config"/> is null.</exception>
-    public AxisBuilder(TextMeasurer measurer, ResolvedConfig config, VegaLiteLimits? limits = null, string? sourceName = null, TimeCalendar? chartCalendar = null)
+    public AxisBuilder(TextMeasurer measurer, ResolvedConfig config, VegaLiteLimits? limits = null, string? sourceName = null, TimeCalendar? chartCalendar = null, RowExpressions? expressions = null)
     {
         ArgumentNullException.ThrowIfNull(measurer);
         ArgumentNullException.ThrowIfNull(config);
@@ -160,6 +170,7 @@ internal sealed class AxisBuilder
         _maxStringLength = (limits ?? VegaLiteLimits.Default).MaxStringLength;
         _sourceName = sourceName;
         _chartCalendar = chartCalendar ?? TimeCalendar.Utc;
+        _labelExpressions = new LabelExpressions(expressions, limits, _chartCalendar);
     }
 
     /// <summary>
@@ -429,6 +440,44 @@ internal sealed class AxisBuilder
         if (ticks.Count > _maxTicks)
         {
             throw new VegaLiteRenderException($"The axis has {ticks.Count} ticks, more than VegaLiteLimits.MaxTicks ({_maxTicks}).", location);
+        }
+
+        return settings.Bool("labels") == false ? ticks : ApplyLabelExpression(ticks, axis, settings, location, cancellationToken);
+    }
+
+    /// <summary>
+    ///     Replaces the labels of the ticks by the result of the <c>labelExpr</c> of the axis, when it has one.
+    /// </summary>
+    /// <remarks>
+    ///     This runs before the labels are measured, laid out and thinned, so everything downstream sees the replaced text. The datum of a tick has the tick value, the label it
+    ///     would have, its position among the ticks as a fraction (Vega's <c>index</c>: <c>i / (n - 1 || 1)</c>) and as a whole number (<c>tickIndex</c>).
+    /// </remarks>
+    /// <param name="ticks">The ticks.</param>
+    /// <param name="axis">The axis object, or null.</param>
+    /// <param name="settings">The axis settings.</param>
+    /// <param name="location">The location of the channel.</param>
+    /// <param name="cancellationToken">The token that stops the work.</param>
+    /// <returns>The ticks with their labels replaced; the same list when the axis has no label expression.</returns>
+    /// <exception cref="VegaLiteSpecException">Thrown, with the location of the axis, when the expression of the configuration is not valid.</exception>
+    /// <exception cref="VegaLiteRenderException">Thrown, with the location of the expression, when a limit of the evaluation is exceeded.</exception>
+    private List<AxisTick> ApplyLabelExpression(List<AxisTick> ticks, SpecNode? axis, Settings settings, VegaLiteLocation location, CancellationToken cancellationToken)
+    {
+        var node = axis?["labelExpr"];
+        var expression = _labelExpressions.Resolve(node, node is null ? settings.Text("labelExpr") : null, location);
+        if (expression is null || ticks.Count == 0)
+        {
+            return ticks;
+        }
+
+        // Vega's index is a fraction of the way along the ticks, i / (n - 1 || 1)
+        var count = ticks.Count;
+        var divisor = count - 1 == 0 ? 1 : count - 1;
+        for (var i = 0; i < count; i++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var tick = ticks[i];
+            var text = _labelExpressions.Evaluate(expression, LabelExpressions.Datum(tick.Value, tick.Label, i / (double)divisor, i));
+            ticks[i] = tick with { Label = text.Text, Lines = text.Lines };
         }
 
         return ticks;
@@ -920,7 +969,7 @@ internal sealed class AxisBuilder
             var a = align ?? DefaultAlign(layout, flushed);
             var b = baseline ?? DefaultBaseline(layout, flushed);
             var shift = flush is not null && flushOffset != 0 ? flushed * flushOffset : 0;
-            var text = new SceneText("axis-label", x, y, [tick.Label])
+            var text = new SceneText("axis-label", x, y, tick.Lines ?? [tick.Label])
             {
                 Fill = s.Text("labelColor") ?? s.StyleText("guide-label", "fill"),
                 FillOpacity = s.Number("labelOpacity") ?? 1,

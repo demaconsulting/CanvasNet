@@ -61,7 +61,7 @@ internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation
 ///         <item><term><c>vl-composite-grouping</c></term><description>a channel of a <c>boxplot</c>, <c>errorbar</c> or <c>errorband</c> that groups the rows (every channel but the measure axis, the second ends and errors, and the tooltip) and has a <c>bin</c>, a <c>timeUnit</c> or an <c>aggregate</c>: the rows are grouped by the raw field (a bin or a time unit is not applied) and a channel that aggregates is left out of the layers.</description></item>
 ///         <item><term><c>vl-channel-xerror</c>, <c>-xerror2</c>, <c>-yerror</c>, <c>-yerror2</c></term><description>an error channel on a mark other than <c>errorbar</c> and <c>errorband</c>, which use them (the channels are ignored). The <c>x2</c> and <c>y2</c> channels of those two marks are the ends of the range and are not reported; the <c>size</c> channel of an <c>errorbar</c> reports <c>vl-channel-size</c> (Vega-Lite drops it).</description></item>
 ///         <item><term><c>vl-mark-invalid-show</c>, <c>vl-mark-invalid-domains</c> (warning), <c>vl-mark-interpolate-bundle-area</c>, <c>vl-mark-interpolate-unknown</c></term><description>the <c>invalid</c> of a mark: <c>show</c> and null report <c>vl-mark-invalid-show</c> (the default mode applies), and <c>filter</c> and <c>break-paths-filter-domains</c> warn that the scale domains of this renderer still include the invalid rows; the <c>interpolate: "bundle"</c> of an <c>area</c>, which d3-shape cannot draw (the area uses the linear interpolation); and an <c>interpolate</c> name of a line or area that is not one of Vega-Lite's 15 (the parser rejects it in a mark definition, so it can only come from the configuration; the line is drawn with the linear interpolation). The value is read as the mark builder reads it: from the mark definition, else from the <c>config.style</c> entries of the mark, <c>config.&lt;mark&gt;</c> or <c>config.mark</c> of the specification; a value from the configuration is reported at the configuration (once, however many marks use it).</description></item>
-///         <item><term><c>vl-channel-&lt;name&gt;</c></term><description>an encoding channel other than x, y, color, fill, stroke, size, opacity, shape, strokeWidth, strokeDash, fillOpacity, strokeOpacity, angle, text, theta, radius, theta2, radius2, order and detail; <c>shape</c> is drawn by a point, <c>text</c> by a text mark, <c>angle</c> by a point, circle, square or text, <c>theta</c> and <c>radius</c> by an arc or text mark, <c>theta2</c> and <c>radius2</c> by an arc mark, <c>strokeDash</c> by every mark but a rect, area, trail, text and arc and <c>size</c> by every mark but a rect, an area and an arc, and the channel is reported (and ignored) for any other mark; <c>tooltip</c>, <c>href</c>, <c>description</c> and <c>key</c> are accepted and ignored without a report; <c>longitude</c>, <c>latitude</c>, <c>longitude2</c> and <c>latitude2</c> report <c>vl-channel-geo</c>. <c>x2</c> and <c>y2</c> are accepted (the range of a bar, rect, rule or area) when the mark is one of those and the channel they extend (<c>x</c> or <c>y</c>) is present, and report <c>vl-channel-x2</c> / <c>vl-channel-y2</c> otherwise. <c>order</c> (the order of a stack, of the points of a path, or the drawing order of the marks) and <c>detail</c> (it groups the points of a path) are accepted by every mark.</description></item>
+///         <item><term><c>vl-channel-&lt;name&gt;</c></term><description>an encoding channel other than x, y, xOffset, yOffset, color, fill, stroke, size, opacity, shape, strokeWidth, strokeDash, fillOpacity, strokeOpacity, angle, text, theta, radius, theta2, radius2, order and detail; <c>shape</c> is drawn by a point, <c>text</c> by a text mark, <c>angle</c> by a point, circle, square or text, <c>theta</c> and <c>radius</c> by an arc or text mark, <c>theta2</c> and <c>radius2</c> by an arc mark, <c>strokeDash</c> by every mark but a rect, area, trail, text and arc and <c>size</c> by every mark but a rect, an area and an arc, and the channel is reported (and ignored) for any other mark; <c>tooltip</c>, <c>href</c>, <c>description</c> and <c>key</c> are accepted and ignored without a report; <c>longitude</c>, <c>latitude</c>, <c>longitude2</c> and <c>latitude2</c> report <c>vl-channel-geo</c>. <c>x2</c> and <c>y2</c> are accepted (the range of a bar, rect, rule or area) when the mark is one of those and the channel they extend (<c>x</c> or <c>y</c>) is present, and report <c>vl-channel-x2</c> / <c>vl-channel-y2</c> otherwise. <c>order</c> (the order of a stack, of the points of a path, or the drawing order of the marks) and <c>detail</c> (it groups the points of a path) are accepted by every mark.</description></item>
 ///         <item><term><c>vl-type-geojson</c></term><description>the <c>type</c> of a supported channel.</description></item>
 ///         <item><term><c>vl-shape-path</c></term><description>a shape that is not a symbol name: the <c>shape</c> of a mark, the <c>value</c> of a <c>shape</c> channel, an entry of its <c>scale.range</c> or the <c>symbolType</c> of a legend (custom SVG path shapes are not drawn; a circle is).</description></item>
 ///         <item><term><c>vl-scale-interpolate-cubehelix</c></term><description>a <c>scale.interpolate</c> of the type <c>cubehelix</c> or <c>cubehelix-long</c> (RGB interpolation is used).</description></item>
@@ -82,17 +82,18 @@ internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation
 ///         <item><term><c>vl-encoding-sort-mixed-types</c> (warning)</term><description>a <c>sort</c> array that mixes strings, numbers, booleans or null; produced by <see cref="SpecParser"/> at the array. Values are matched by kind (<c>1</c> does not position <c>"1"</c>), as Vega-Lite's strict comparison does. An object or array item of a <c>sort</c> array is a specification error instead (a date-time object is accepted on a temporal field).</description></item>
 ///         <item><term><c>vl-scale-&lt;type&gt;</c></term><description><c>scale.type</c>, for every type except linear, log, pow, sqrt, symlog, sequential, time, utc, band, point, ordinal, quantile, quantize, threshold and bin-ordinal.</description></item>
 ///         <item><term><c>vl-scale-property-&lt;name&gt;</c></term><description>a scale property other than type, domain, range, zero, nice, padding, reverse, paddingInner, paddingOuter, align, round, clamp, scheme, domainMid, domainMin, domainMax, rangeMin, rangeMax, interpolate, base, exponent and constant. An unknown color scheme name is a specification error of the scale resolver, not a report.</description></item>
+///         <item><term><c>vl-offset-position</c>, <c>vl-offset-ranged</c></term><description>an <c>xOffset</c> or <c>yOffset</c> that is not drawn (the marks are drawn at the position of their <c>x</c> or <c>y</c> channel): <c>vl-offset-position</c> when the position channel is missing, is not nominal or ordinal (a quantitative or temporal position is not discrete; Vega-Lite rejects it) or has a time unit (the duration of the unit is not ported); <c>vl-offset-ranged</c> for a continuous (quantitative or temporal) offset of a bar or area, which Vega-Lite draws as a range from the start of the band. The offsets of the other marks are drawn: a discrete one by a band or point scale, a continuous one by a linear or time scale (a strip of points).</description></item>
 ///         <item><term><c>vl-guide-legend-titleorient</c>, <c>vl-guide-legend-clipheight</c></term><description>the <c>titleOrient</c> of a legend when it is not <c>top</c> (the title is drawn above the entries) and its <c>clipHeight</c>; legends themselves are drawn and are not reported.</description></item>
 ///         <item><term><c>vl-guide-encode</c></term><description><c>axis.encode</c> and <c>legend.encode</c>.</description></item>
 ///         <item><term><c>vl-guide-axis-&lt;name&gt;</c></term><description>an axis property from the list of unsupported axis properties (<c>labelBound</c>, <c>tickBand</c>, <c>tickExtra</c>, <c>position</c>, <c>translate</c>, <c>bandPosition</c>, <c>titleX</c>, <c>titleY</c>).</description></item>
 ///         <item><term><c>vl-format-type-custom</c></term><description><c>axis.formatType</c>, <c>legend.formatType</c>, the <c>header.formatType</c> of a facet field and the <c>formatType</c> of a <c>text</c> channel other than <c>number</c>, <c>time</c> and <c>utc</c> (a custom format type is not evaluated; the default format is used).</description></item>
-///         <item><term><c>vl-expr-ref</c>, <c>vl-expr-label</c></term><description>an <c>{"expr": ...}</c> value that the renderer does not evaluate (anywhere in a view's title, size, padding, background, view, in a facet's field definitions and headers, in a mark property other than the row-bound paint properties, or in an encoding other than the <c>value</c> of a color, fill, stroke, opacity or symbol size channel), and <c>axis.labelExpr</c>, <c>legend.labelExpr</c> and <c>header.labelExpr</c>. The row-bound sites are evaluated and are reported only for what their expression cannot do.</description></item>
+///         <item><term><c>vl-expr-ref</c></term><description>an <c>{"expr": ...}</c> value that the renderer does not evaluate (anywhere in a view's title, size, padding, background, view, in a facet's field definitions, in a mark property other than the row-bound paint properties, or in an encoding other than the <c>value</c> of a color, fill, stroke, opacity or symbol size channel). The row-bound sites and the <c>labelExpr</c> of axes, legends and headers are evaluated and are reported only for what their expression cannot do. <c>vl-expr-label</c> (the <c>axis.labelExpr</c>, <c>legend.labelExpr</c> and <c>header.labelExpr</c> that were not evaluated) was retired when label expressions were implemented and is never produced again.</description></item>
 ///         <item><term><c>vl-expr-function-&lt;name&gt;</c>, <c>vl-expr-view-state</c>, <c>vl-expr-construct-&lt;name&gt;</c></term><description>the expression text of a supported site (a calculate, a filter, a variable parameter or a row-bound expression reference): a call of a function outside the whitelist (the number format and color functions among them), a use of view state (<c>signal</c>, <c>event</c>, <c>item</c>, <c>width</c>, <c>height</c>), or a deferred operator (bitwise, shift, <c>in</c>). The construct evaluates to null; the position is that of the expression text and the message names the offset inside it.</description></item>
 ///         <item><term><c>vl-transform-&lt;name&gt;</c></term><description>every entry of <c>transform</c> that the renderer does not compute: the transforms of later phases (<c>density</c>, <c>extent</c>, <c>loess</c>, <c>quantile</c>, <c>regression</c>; "not supported yet"). <c>calculate</c>, <c>filter</c>, <c>fold</c>, <c>flatten</c>, <c>sample</c>, <c>pivot</c>, <c>lookup</c>, <c>aggregate</c>, <c>joinaggregate</c>, <c>window</c>, <c>bin</c>, <c>stack</c>, <c>impute</c> and <c>timeUnit</c> of any view (the single view, a layered view and its layers, and the views of a <c>concat</c>, <c>hconcat</c>, <c>vconcat</c>, <c>facet</c> or <c>repeat</c>) are computed and not reported. The Phase 10 message "The '&lt;name&gt;' transform is not applied: the view is a '&lt;composition&gt;' composition, which is not supported yet." was retired in Phase 11: every composition is drawn, so no transform is left unapplied by one.</description></item>
 ///         <item><term><c>vl-transform-filter-param</c>, <c>-pivot-op</c>, <c>-lookup-param</c>, <c>-bin-extent-param</c></term><description>the parts of a computed transform that are not supported: a filter predicate on a selection parameter (every row passes), a pivot <c>op</c> other than sum and count (sum is used), a lookup in the data of a parameter (not applied) and a <c>bin</c> whose <c>extent</c> is a parameter (the extent of the data is used).</description></item>
 ///         <item><term><c>vl-composition-property-ignored</c> (warning)</term><description>a <c>width</c>, <c>height</c> or <c>autosize</c> (other than <c>pad</c>) of a concatenation, a facet or a repeat of rows or columns (only the views inside have a size), the <c>"container"</c> size of a view inside one, and the <c>padding</c>, <c>background</c>, <c>config</c>, <c>datasets</c> or <c>autosize</c> of a view inside one: Vega-Lite ignores them and only the top-level view decides them. The composition is drawn padded (<c>autosize: pad</c>). A <c>concat</c>, <c>hconcat</c>, <c>vconcat</c>, <c>repeat</c> and <c>facet</c> are drawn and not reported: <c>vl-composition-concat</c>, <c>-hconcat</c>, <c>-vconcat</c>, <c>-repeat</c> and <c>-facet</c> were retired in Phase 11 and are never produced (<c>vl-composition-layer</c> was retired in Phase 10); the views nested in a composition are examined too.</description></item>
 ///         <item><term><c>vl-channel-row</c>, <c>-column</c>, <c>-facet</c></term><description>a <c>row</c>, <c>column</c> or <c>facet</c> channel of a unit view that cannot be faceted: a layer of a layered view, a layered view whose encoding holds the channel, or the <c>spec</c> of a <c>facet</c> (Vega-Lite facets only a unit view that is the root, a child of a concatenation or a copy of a repeat; the channel is ignored there, use the <c>facet</c> operator). The channels of a unit view that is faceted are drawn and not reported.</description></item>
-///         <item><term><c>vl-facet-field-transform</c>, <c>vl-facet-sort</c>, <c>vl-header-orient</c></term><description>the parts of the definition of a facet field (a <c>facet</c> operator's field or <c>row</c> and <c>column</c> fields, or the <c>row</c>, <c>column</c> and <c>facet</c> channel of a unit view) that are not drawn: a <c>bin</c>, <c>timeUnit</c> or <c>aggregate</c> of the field is not applied (the raw value of the field is the cell; <c>vl-facet-field-transform</c>, at the property); a <c>sort</c> by a field and an operation (an object) orders the cells by the facet field in ascending order (<c>vl-facet-sort</c>); a <c>header.labelOrient</c> or <c>header.titleOrient</c> on a side that the header does not draw on (the default side is used; <c>vl-header-orient</c>): a row honors <c>left</c> and <c>right</c>, a column <c>top</c> and <c>bottom</c>, the label of a wrapped facet (the title of its cells) any side and its title <c>top</c> and <c>bottom</c>. <c>header.labelExpr</c> reports <c>vl-expr-label</c> and a custom <c>header.formatType</c> <c>vl-format-type-custom</c>.</description></item>
+///         <item><term><c>vl-facet-field-transform</c>, <c>vl-facet-sort</c>, <c>vl-header-orient</c></term><description>the parts of the definition of a facet field (a <c>facet</c> operator's field or <c>row</c> and <c>column</c> fields, or the <c>row</c>, <c>column</c> and <c>facet</c> channel of a unit view) that are not drawn: a <c>bin</c>, <c>timeUnit</c> or <c>aggregate</c> of the field is not applied (the raw value of the field is the cell; <c>vl-facet-field-transform</c>, at the property); a <c>sort</c> by a field and an operation (an object) orders the cells by the facet field in ascending order (<c>vl-facet-sort</c>); a <c>header.labelOrient</c> or <c>header.titleOrient</c> on a side that the header does not draw on (the default side is used; <c>vl-header-orient</c>): a row honors <c>left</c> and <c>right</c>, a column <c>top</c> and <c>bottom</c>, the label of a wrapped facet (the title of its cells) any side and its title <c>top</c> and <c>bottom</c>. A custom <c>header.formatType</c> reports <c>vl-format-type-custom</c>; <c>header.labelExpr</c> is evaluated.</description></item>
 ///         <item><term><c>vl-concat-axis-shared</c>, <c>vl-composition-columns-ignored</c>, <c>vl-repeat-ref-unresolved</c> (warnings)</term><description>produced by the renderer from the view tree, not by the catalog (so each is reported once, from the tree that is drawn): <c>resolve.axis.x</c> or <c>y</c> set to <c>shared</c> on a concatenation (the children keep their own axes, as Vega-Lite does), <c>columns</c> together with a <c>row</c> or <c>column</c> mapping of a facet or repeat (ignored), and a <c>{"repeat": ...}</c> reference that the enclosing repeat does not define (the channel is dropped).</description></item>
 ///         <item><term><c>vl-layer-property-ignored</c> (warning)</term><description>a <c>width</c>, <c>height</c>, <c>autosize</c>, <c>padding</c>, <c>background</c>, <c>config</c>, <c>datasets</c> or <c>title</c> of a view inside a layered view (a layer or a nested layered view): only the top-level view decides them.</description></item>
 ///         <item><term><c>vl-layer-scale-conflict</c> (warning)</term><description>produced by the renderer, not by the catalog: views (the layers of a layered view, the children of a concatenation) whose scales of a shared channel cannot be merged (a continuous with a discrete scale, a linear with a logarithmic or a time scale) keep scales of their own; reported at the channel of the view that was left out.</description></item>
@@ -115,7 +116,7 @@ internal static class FeatureCatalog
     /// <summary>The channels that the renderer draws; any other channel is reported unless it is ignored.</summary>
     private static readonly HashSet<string> SupportedChannels =
     [
-        "x", "y", "color", "fill", "stroke", "size", "opacity", "shape", "strokeWidth", "strokeDash", "fillOpacity", "strokeOpacity", "angle", "text", "theta", "radius", "theta2", "radius2",
+        "x", "y", "xOffset", "yOffset", "color", "fill", "stroke", "size", "opacity", "shape", "strokeWidth", "strokeDash", "fillOpacity", "strokeOpacity", "angle", "text", "theta", "radius", "theta2", "radius2",
     ];
 
     /// <summary>The channels that are accepted and ignored without a report (interaction, accessibility and linking).</summary>
@@ -322,6 +323,7 @@ internal static class FeatureCatalog
                 VisitView(view);
             }
 
+            VisitConfigLabelExpressions();
             // The encoding of a layered view and of each layer is merged into the encoding of every layer below it, which is what the layer's mark draws: it is visited with
             // the mark of that layer (a channel that several layers inherit is found once for each, and reported once)
             foreach (var unit in LayerUnits().Where(u => !ReferenceEquals(u.Unit, u.Source)).Select(u => u.Unit!))
@@ -1035,6 +1037,11 @@ internal static class FeatureCatalog
             VisitStack(name, definition);
             VisitSort(name, definition);
             VisitCondition(name, definition);
+            if (name is "xOffset" or "yOffset")
+            {
+                VisitOffset(name, definition);
+            }
+
             if (name is not ("x" or "y"))
             {
                 // The impute of a position channel is run by the pipeline (EncodingPlan.Impute); on any other channel it is not
@@ -1265,6 +1272,38 @@ internal static class FeatureCatalog
         /// <returns><see langword="true"/> when the bins are computed from the data.</returns>
         private static bool IsBinning(SpecNode definition) =>
             definition["bin"] is { } bin && IsEnabled(bin) && !(bin.IsString || bin["binned"] is { IsBoolean: true, BoolValue: true });
+
+        /// <summary>
+        ///     Reports an offset channel that the renderer does not draw (<see cref="ScaleResolver.DecideOffset"/>): one without a discrete position channel to nest in, and a ranged one.
+        /// </summary>
+        /// <param name="name">The channel name: <c>xOffset</c> or <c>yOffset</c>.</param>
+        /// <param name="definition">The channel definition object.</param>
+        private void VisitOffset(string name, SpecNode definition)
+        {
+            if (definition.Parent is not { IsObject: true } encoding)
+            {
+                return;
+            }
+
+            var position = name[..1];
+            switch (ScaleResolver.DecideOffset(name, encoding, _markType))
+            {
+                case OffsetDecision.NoDiscreteParent:
+                    Unsupported(
+                        "vl-offset-position",
+                        $"The '{name}' channel needs a nominal or ordinal '{position}' channel without a time unit to nest in; the offset is ignored and the marks are drawn at the '{position}' position.",
+                        definition);
+                    break;
+                case OffsetDecision.Ranged:
+                    Unsupported(
+                        "vl-offset-ranged",
+                        $"A continuous '{name}' of a '{_markType}' mark (a ranged offset) is not supported; the offset is ignored and the marks are drawn at the '{position}' position.",
+                        definition);
+                    break;
+                default:
+                    break;
+            }
+        }
 
         /// <summary>
         ///     Reports the <c>bin</c> of a channel that is not a position channel, and a bin extent that is a parameter.
@@ -1562,7 +1601,8 @@ internal static class FeatureCatalog
 
             if (definition["scale"]?["type"] is { IsString: true } scaleType)
             {
-                if (SupportedScaleTypes.Contains(scaleType.StringValue!) && !ScaleResolver.AcceptsScaleType(channel, fieldTypeName, scaleType.StringValue!, IsBinning(definition)))
+                if (SupportedScaleTypes.Contains(scaleType.StringValue!)
+                    && !ScaleResolver.AcceptsScaleType(channel, fieldTypeName, scaleType.StringValue!, IsBinning(definition), ScaleResolver.HasNestedOffset(channel, definition.Parent, _markType)))
                 {
                     Warn(
                         "vl-scale-type-ignored",
@@ -1610,8 +1650,8 @@ internal static class FeatureCatalog
         /// </summary>
         /// <remarks>
         ///     The facet itself is drawn: the distinct values of the field are its cells. A <c>bin</c>, <c>timeUnit</c> or <c>aggregate</c> of the field is not applied (the raw value is the
-        ///     cell), a <c>sort</c> by a field and operation orders the cells by the field itself, and the <c>header</c> reports the same constructs as an axis does (<c>labelExpr</c>, a custom
-        ///     <c>formatType</c>) and the sides that the header does not draw on (<c>labelOrient</c> and <c>titleOrient</c>; see <see cref="Guides.HeaderSettings.IsHonoredOrient"/>).
+        ///     cell), a <c>sort</c> by a field and operation orders the cells by the field itself, and the <c>header</c> reports the same constructs as an axis does (a
+        ///     custom <c>formatType</c>; the <c>labelExpr</c> is evaluated and reports only what its expression cannot do) and the sides that the header does not draw on (<c>labelOrient</c> and <c>titleOrient</c>; see <see cref="Guides.HeaderSettings.IsHonoredOrient"/>).
         /// </remarks>
         /// <param name="channel">The facet channel: <c>row</c>, <c>column</c> or <c>facet</c>.</param>
         /// <param name="definition">The field definition.</param>
@@ -1647,7 +1687,7 @@ internal static class FeatureCatalog
                 switch (property.Name)
                 {
                     case "labelExpr":
-                        Unsupported("vl-expr-label", "Label expressions (header.labelExpr) are not supported yet.", property);
+                        ReportConstructs(property);
                         break;
                     case "formatType" when !IsEvaluatedFormatType(property.AsString()):
                         Unsupported("vl-format-type-custom", "Custom format types (header.formatType) are not supported; the format type must be number, time or utc.", property);
@@ -1667,6 +1707,27 @@ internal static class FeatureCatalog
         }
 
         /// <summary>
+        ///     Reports what the <c>labelExpr</c> of the guide configurations of the specification cannot do (<c>config.axis</c> and the other axis configurations, <c>config.header</c>
+        ///     and the header configurations of the channels). <c>config.legend</c> has no <c>labelExpr</c> in Vega-Lite and is not read.
+        /// </summary>
+        private void VisitConfigLabelExpressions()
+        {
+            if (_tree.Root["config"] is not { IsObject: true } config)
+            {
+                return;
+            }
+
+            foreach (var property in config.Properties)
+            {
+                if (property.IsObject && property.Name is { } name && (name.StartsWith("axis", StringComparison.Ordinal) || name is "header" or "headerRow" or "headerColumn" or "headerFacet")
+                    && property["labelExpr"] is { IsString: true } text)
+                {
+                    ReportConstructs(text);
+                }
+            }
+        }
+
+        /// <summary>
         ///     Visits an axis definition.
         /// </summary>
         /// <param name="axis">The axis object.</param>
@@ -1681,7 +1742,7 @@ internal static class FeatureCatalog
                         Unsupported("vl-guide-encode", "Custom guide encodings (axis.encode) are not supported.", property);
                         break;
                     case "labelExpr":
-                        Unsupported("vl-expr-label", "Label expressions (axis.labelExpr) are not supported yet.", property);
+                        ReportConstructs(property);
                         break;
                     case "formatType" when !IsEvaluatedFormatType(property.AsString()):
                         Unsupported("vl-format-type-custom", "Custom format types (axis.formatType) are not supported; the format type must be number, time or utc.", property);
@@ -1702,7 +1763,7 @@ internal static class FeatureCatalog
         /// </summary>
         /// <remarks>
         ///     Legends themselves are drawn (by the <c>LegendPlan</c> and <c>LegendBuilder</c> units) and are not reported. A <c>titleOrient</c> other than <c>top</c> and a
-        ///     <c>clipHeight</c> are not drawn, <c>encode</c>, <c>labelExpr</c> and <c>formatType</c> are not evaluated, and a
+        ///     <c>clipHeight</c> are not drawn, <c>encode</c> and <c>formatType</c> are not evaluated (the <c>labelExpr</c> is evaluated and reports only what its expression cannot do), and a
         ///     <c>symbolType</c> that is not a symbol name is a custom shape path (a circle is drawn).
         /// </remarks>
         /// <param name="channel">The channel name.</param>
@@ -1722,7 +1783,7 @@ internal static class FeatureCatalog
                         Unsupported("vl-guide-encode", "Custom guide encodings (legend.encode) are not supported.", property);
                         break;
                     case "labelExpr":
-                        Unsupported("vl-expr-label", "Label expressions (legend.labelExpr) are not supported yet.", property);
+                        ReportConstructs(property);
                         break;
                     case "formatType" when !IsEvaluatedFormatType(property.AsString()):
                         Unsupported("vl-format-type-custom", "Custom format types (legend.formatType) are not supported; the format type must be number, time or utc.", property);

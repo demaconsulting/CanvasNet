@@ -5,7 +5,7 @@
 # (internal namespace DemaConsulting.CanvasNet.VegaLite.Guides): text measurement with the bundled fonts
 # (TextMeasurer), the title and subtitle block (TitleBuilder), the axis guide with its grid, ticks, labels,
 # domain line, and title (AxisBuilder), the shared rules for the labels of time guides (TimeLabels), the removal of
-# overlapping labels (LabelOverlap), and the legend guides
+# overlapping labels (LabelOverlap), the label expressions of axes and legends (LabelExpressions), and the legend guides
 # (LegendBuilder), including the header guides of composed views (the header properties and blocks of a facet, the
 # axis built in a header, and the owner of a shared legend). Guides produce scene items and the extents they need;
 # the layout places them. Each requirement here links down to the unit requirements that implement it. See
@@ -130,6 +130,35 @@ sections:
               - LabelOverlap_Hidden_ParityKeepsEveryOtherLabelUntilNothingOverlaps
               - LabelOverlap_Hidden_GreedyHidesLabelsThatOverlapTheLastOneKept
               - AxisBuilder_Build_OverlappingLabelsAreRemovedByParity
+
+          - id: CanvasNetVegaLite-Guides-LabelExpressionGuides
+            title: >-
+              The Guides subsystem shall replace the text of the labels of an axis and of a legend (symbols, gradient,
+              and discrete gradient, with the ellipsis entry) with the result of the labelExpr of the guide, or else
+              of the axis configuration for an axis, as Vega-Lite 6.5 does (the legend configuration has no
+              labelExpr), evaluating it with the datum of Vega (value, label, index,
+              tickIndex, perc, and perc2 as the guide has them) and the limits and parameters of the call, before
+              the labels are measured, laid out, and thinned for overlap, so that a replaced label decides the
+              extent of the guide, the legend width, and which labels are removed; a result that is null is an empty
+              label, an array a multi-line label, and any other value its JavaScript text.
+            justification: |
+              Label expressions are the way an author formats a guide beyond a format string (a percent sign, a
+              blank for every other tick, the name of a category); the replaced text must size and thin the guide
+              as the original text would.
+            children:
+              - CanvasNetVegaLite-Guides-LabelExpressions-Datum
+              - CanvasNetVegaLite-Guides-LabelExpressions-Coercion
+              - CanvasNetVegaLite-Guides-LabelExpressions-Resolution
+              - CanvasNetVegaLite-Guides-LabelExpressions-Limits
+              - CanvasNetVegaLite-Guides-AxisBuilder-LabelExpressions
+              - CanvasNetVegaLite-Guides-LegendBuilder-LabelExpressions
+            tests:
+              - LabelExpressions_Evaluate_ValueAndLabelAreBound
+              - LabelExpressions_Evaluate_ArrayGivesLinesWithElementsTrimmed
+              - AxisBuilder_Build_LabelExprAppendsPercent
+              - AxisBuilder_Build_LabelExprOverlapRemovalUsesTheReplacedText
+              - LegendBuilder_Build_LabelExprSymbolLegendGivesIndexValueAndLabel
+              - LegendBuilder_Build_LabelExprGradientLegendGivesPerc
 
           - id: CanvasNetVegaLite-Guides-Legends
             title: >-

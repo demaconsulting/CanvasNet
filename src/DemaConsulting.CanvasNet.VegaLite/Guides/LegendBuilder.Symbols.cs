@@ -278,7 +278,7 @@ internal sealed partial class LegendBuilder
 
         // Labels are made only for the entries that are kept
         var fontSize = LabelFontSize(s);
-        var entries = new List<(DataValue Value, string Label)>(items.Count + 1);
+        var entries = new List<(DataValue Value, LabelText Label)>(items.Count + 1);
         for (var i = 0; i < items.Count; i++)
         {
             if (i % CancellationInterval == 0)
@@ -286,7 +286,7 @@ internal sealed partial class LegendBuilder
                 c.Token.ThrowIfCancellationRequested();
             }
 
-            entries.Add((items[i], LabelOf(c, set, items, i, sliced)));
+            entries.Add((items[i], Labeled(c, items[i], LabelOf(c, set, items, i, sliced), i)));
         }
 
         var shown = entries.Count;
@@ -294,7 +294,8 @@ internal sealed partial class LegendBuilder
         {
             var remaining = values.Count - items.Count;
             c.Evaluation.ChargeSize(24);
-            entries.Add((values[items.Count], "\u2026" + remaining.ToString(System.Globalization.CultureInfo.InvariantCulture) + " entries"));
+            var more = "\u2026" + remaining.ToString(System.Globalization.CultureInfo.InvariantCulture) + " entries";
+            entries.Add((values[items.Count], Labeled(c, values[items.Count], more, items.Count)));
         }
 
         // Every item is charged before it is created: a symbol and a label per entry
@@ -358,7 +359,7 @@ internal sealed partial class LegendBuilder
                 StrokeOpacity = look.StrokeOpacity,
                 StrokeDash = look.Dash,
             };
-            var label = MakeLabel(c, reference + symbolOffset + labelOffset, y, entries[i].Label, align, baseline, limitWidth);
+            var label = MakeLabel(c, reference + symbolOffset + labelOffset, y, entries[i].Label.Text, align, baseline, limitWidth, entries[i].Label.Lines);
             symbols.Add(symbol);
             labels.Add(label);
             boxes.Add(SymbolBounds(symbol).Union(_measurer.GetBounds(label)));

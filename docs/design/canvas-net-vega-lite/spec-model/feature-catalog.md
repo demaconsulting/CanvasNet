@@ -27,7 +27,7 @@ construct (the value; for an unknown property or a duplicate key, the key), and 
 
 **The supported sets** are private read-only sets in the class and define the boundary: the supported marks (bar, rect,
 point, circle, square, rule, tick, line, area, trail, text, arc, and, since phase 10, boxplot, errorbar, errorband), the
-supported channels (x, y, color, fill, stroke, size,
+supported channels (x, y, xOffset, yOffset, color, fill, stroke, size,
 opacity, shape, strokeWidth, strokeDash, fillOpacity, strokeOpacity, angle, text, theta, radius, theta2, radius2, and, since
 phase 10, xError, xError2, yError, yError2; `order`
 and `detail` are accepted by every mark and are not in the set), the marks that
@@ -233,7 +233,8 @@ layered view whose encoding holds the channel, the `spec` of a facet). The ident
   the cells are in ascending order of the field. `vl-header-orient` - a `header.labelOrient` or `header.titleOrient` on
   a side that the header does not draw on (`HeaderSettings.IsHonoredOrient`: a row honors `left` and `right`, a column
   `top` and `bottom`, the label of a wrapped facet any side and its title `top` and `bottom`); the default side is used.
-  `header.labelExpr` reports the existing `vl-expr-label`, a custom `header.formatType` the existing
+  `header.labelExpr` is evaluated and, like every label expression, reports only the constructs its expression cannot
+  do (see _Label expression identifiers_ below), a custom `header.formatType` the existing
   `vl-format-type-custom`, and an `{"expr": ...}` in a facet property `vl-expr-ref` (`facet` joins the expression
   scopes).
 - `vl-composition-property-ignored` (warning) - a `width`, `height`, or `autosize` other than `pad` of a concatenation,
@@ -256,6 +257,26 @@ layered view whose encoding holds the channel, the `spec` of a facet). The ident
   `{"repeat": ...}` reference that the enclosing repeat does not define (the channel is dropped).
 - `vl-layer-scale-conflict` now says "view" instead of "layer" in its message: it is also produced for the children
   of a concatenation that share a channel.
+
+**Label expression identifiers.** The `labelExpr` of an axis, a legend, and a facet header (and of `config.axis`, the
+other axis configurations, `config.header`, `headerRow`, `headerColumn`, and `headerFacet`) is compiled by `SpecParser`
+when the document is opened and is evaluated by the guides, so **`vl-expr-label` is retired**: it is never produced
+again and its identifier is never reused. `ReportConstructs` reports only what the expression cannot do:
+`vl-expr-function-<name>`, `vl-expr-view-state`, and `vl-expr-construct-<name>`, located at the expression text (also
+for the `labelExpr` of an axis or header configuration; `VisitConfigLabelExpressions` visits `config`). A `labelExpr` in
+`config.legend` is **neither compiled nor reported**: Vega-Lite 6 has no such property and the renderer does not read
+it. The number `format()` function is outside the 99 whitelisted functions, so `format(datum.value, ',')` reports
+`vl-expr-function-format` and evaluates to null (an empty label).
+
+**Offset channel identifiers.** `xOffset` and `yOffset` are supported channels. `VisitOffset` calls
+`ScaleResolver.DecideOffset`, the rule that the scale resolver also applies, so the report and the drawing agree:
+**`vl-offset-position`** when the offset is ignored because the position channel (`x` for `xOffset`, `y` for `yOffset`)
+is missing, is not nominal or ordinal, or has a `timeUnit`, and **`vl-offset-ranged`** when a continuous (quantitative
+or temporal) offset sits on a `bar` or `area`, which Vega-Lite draws as a range; both are unsupported-feature reports
+located at the offset channel definition and neither is produced for an offset that is drawn. An explicit
+`scale.type` of `point` on a position that holds an offset is the existing warning `vl-scale-type-ignored`
+(`ScaleResolver.AcceptsScaleType` takes the nested-offset flag, so the default band scale is used). A `bin` on an offset
+channel is the existing `vl-encoding-bin`. Both new identifiers are never reused once retired.
 
 #### Key Methods
 
@@ -300,14 +321,17 @@ layered view whose encoding holds the channel, the `spec` of a facet). The ident
   `vl-mark-invalid-domains` for `filter` and `break-paths-filter-domains`; `VisitMarkInterpolate`: the `interpolate: "bundle"`
   of an `area` (`vl-mark-interpolate-bundle-area`) and a name of a `line` or `area` that Vega-Lite does not know
   (`vl-mark-interpolate-unknown`)). `VisitEncoding` reports the
-  channels outside the supported set (`vl-channel-<name>`, `vl-channel-geo`), the field type (`vl-type-geojson`; a
+  channels outside the supported set (`vl-channel-<name>`, `vl-channel-geo`), the offset channels that are not drawn
+  (`VisitOffset`: `vl-offset-position`, `vl-offset-ranged`), the field type (`vl-type-geojson`; a
   `temporal` field is supported), the encoding properties (`vl-encoding-<name>`), the scale type and properties
   (`vl-scale-<type>`, `vl-scale-property-<name>`, `vl-scale-interpolate-cubehelix`, `vl-scale-type-ignored`), the parts
-  of a legend that are not drawn (`VisitLegend`: `vl-guide-encode`, `vl-expr-label`, `vl-format-type-custom` (for a
+  of a legend that are not drawn (`VisitLegend`: `vl-guide-encode`, `vl-format-type-custom` (for a
   `formatType` other than `number`, `time`, and `utc`),
-  `vl-guide-legend-titleorient`, `vl-guide-legend-clipheight`, and `vl-shape-path` for a custom `symbolType`), the custom
+  `vl-guide-legend-titleorient`, `vl-guide-legend-clipheight`, and `vl-shape-path` for a custom `symbolType`; its
+  `labelExpr` reports only its unsupported constructs), the custom
   path shapes (`vl-shape-path`), and the axis
-  properties (`vl-guide-axis-<name>`, `vl-guide-encode`, `vl-format-type-custom`, `vl-expr-label`). `VisitEncoding` also
+  properties (`vl-guide-axis-<name>`, `vl-guide-encode`, `vl-format-type-custom`; the `labelExpr` of an axis reports only
+  its unsupported constructs). `VisitEncoding` also
   remembers the mark definition and the mark type of the view (for the band position rule). The phase 6 rules:
   `x2` and `y2` are accepted (and their definitions visited like any channel definition) for a bar, rect, rule, or
   area that has the channel they extend, and report `vl-channel-x2` or `vl-channel-y2` otherwise; **`order` and
@@ -449,7 +473,8 @@ applied here: the document records the reports in a sink, which throws at the fi
   per mark, shared with the scale resolver
 - **`TimeUnitSpec`** - the time unit reader of the `Data` subsystem (see _Time Calendar Design_), so that the report and
   the unit that is applied agree on what a binned or `maxbins` unit is
-- **`ScaleResolver.AcceptsScaleType`** - the scale type rule per channel and field type (including temporal fields), in
+- **`ScaleResolver.AcceptsScaleType`**, **`ScaleResolver.DecideOffset`**, and **`ScaleResolver.HasNestedOffset`** - the
+  scale type rule per channel and field type (including temporal fields) and the offset rules, in
   the `Scales` subsystem
 - **`VegaLiteLocation`** - the public location type of the `VegaLiteDocument` unit
 - **.NET base class library** - `System.Globalization` (invariant-culture formatting of messages)
@@ -458,7 +483,8 @@ applied here: the document records the reports in a sink, which throws at the fi
 
 `VegaLiteDocument` calls `Visit` once when a document is created and merges the result with the parse warnings; the
 pipeline delivers the reports through the sink. The tests in
-`test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/FeatureCatalogTests.cs` (and `FeatureCatalogLayerTests.cs` and
-`FeatureCatalogCompositeTests.cs`) call `Visit` and `IsSchemeBearingUrl`
+`test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/FeatureCatalogTests.cs` (and `FeatureCatalogLayerTests.cs`,
+`FeatureCatalogCompositeTests.cs`, and `FeatureCatalogLabelExprAndOffsetTests.cs` for the label expressions and the
+offset channels) call `Visit` and `IsSchemeBearingUrl`
 directly through `InternalsVisibleTo`; the test `FeatureCatalog_Visit_OrderChannelIsAcceptedForEveryMark` pins that `order`
 is accepted by every mark.

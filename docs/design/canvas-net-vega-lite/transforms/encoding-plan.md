@@ -123,12 +123,15 @@ definition contributes its start, its end, and its range text; a definition with
 field and, when the channel spans its unit, its end field), without duplicates; the measures are the
 aggregating definitions, one per distinct output name, in channel order. The end of a unit follows from its start, so
 including it adds no groups, but it keeps the end field alive after the aggregate for the marks that span the unit
-(without it `Field2Path` would read null); a mark that does not span (a point) groups by the start only.
+(without it `Field2Path` would read null); a mark that does not span (a point) groups by the start only. Because the
+group-by is every field of every channel, the fields of `xOffset` and `yOffset` are in it, so an aggregated grouped chart
+has one row per category and offset value.
 
 **`StackPlan`** `(Channel, Offset, Field, StartName, EndName, GroupBy, Sort, Definition)`: the stacked channel
 (`x`, `y`, `theta`, or `radius`),
 the offset, the field that is stacked (the value field of the channel), the two literal output names, the
-group-by (the value fields of the dimension channel and its secondary, plus the end of a bin and the end of a
+group-by (the value fields of the dimension channel and its secondary, **the field of the offset channel of the
+dimension** (`StackRules.DimensionOffsetChannel`), plus the end of a bin and the end of a
 unit that the channel spans), and the
 **order of the layers** as `SortField`s: the fields of the `order` channel (each with its own `sort`, ascending
 by default) when the encoding has one, otherwise the stack-by fields (see `StackRules` in
@@ -371,7 +374,8 @@ directly for the rows of an overlay, which group as a line). `FeatureCatalog` do
 `vl-encoding-stack-impute-bin` for a binned dimension that the stack impute skips) and the plan decide alike. The tests
 in
 `test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/EncodingPlanTests.cs`, `EncodingPlanTimeTests.cs`,
-`EncodingPlanPolarTests.cs`, `EncodingPlanPathTests.cs`, `EncodingTransformsTests.cs`, `EncodingTransformsTimeTests.cs`,
+`EncodingPlanPolarTests.cs`, `EncodingPlanPathTests.cs`, `StackRulesOffsetTests.cs` (`EncodingPlan_Create_StackAndAggregateGroupByTheOffsetField`),
+`EncodingTransformsTests.cs`, `EncodingTransformsTimeTests.cs`,
 `EncodingTransformsImputeTests.cs`, and `EncodingTransformsFacetTests.cs`
 call the unit directly through `InternalsVisibleTo`. The facet part is called by the generalized data stage of
 `VegaLiteDocument` for every `Facet` node of the view tree (phase 11, after the facet's own `data` and `transform`):

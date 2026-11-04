@@ -286,10 +286,21 @@ internal static partial class ScaleResolver
         var perLayer = new ResolvedScales[layers.Count];
         for (var i = 0; i < layers.Count; i++)
         {
+            // The step of a position scale that holds an offset scale follows the offset domain, which is the merged one now: the step is adjusted once for every map
+            if (contexts[i] is { } layerContext)
+            {
+                ApplyNestedOffsets(maps[i], layerContext);
+            }
+
             perLayer[i] = new ResolvedScales(layers[i].Plan.MarkType, layers[i].Plan.Orient, maps[i], layers[i].Plan);
         }
 
         var first = layers[0];
+        if (contexts[0] is { } firstContext)
+        {
+            ApplyNestedOffsets(merged, firstContext);
+        }
+
         return new LayeredScales(perLayer, new ResolvedScales(first.Plan.MarkType, first.Plan.Orient, merged, first.Plan), groups, warnings);
     }
 

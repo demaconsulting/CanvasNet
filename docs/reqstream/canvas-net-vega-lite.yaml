@@ -184,7 +184,8 @@ sections:
         title: >-
           The library shall support exactly the documented subset of Vega-Lite - the marks bar, rect,
           point, circle, square, rule, tick, line, area, trail, text, and arc and the composite marks boxplot,
-          errorbar, and errorband, the layer composition with its resolve, the x, y, theta, radius, text,
+          errorbar, and errorband, the layer composition with its resolve, the x, y, xOffset, yOffset, theta,
+          radius, text,
           order, detail, color, fill, stroke, size, opacity, fillOpacity,
           strokeOpacity, strokeWidth, strokeDash, shape, and angle channels (and the x2, y2, theta2, and
           radius2 ranges of the marks that draw them, and the xError, xError2, yError, and yError2 channels
@@ -1882,3 +1883,66 @@ sections:
         tests:
           - CanvasNetVegaLite_CompositeMark_BoxPlot_ReportsOnlyUnsupportedGrouping
           - CanvasNetVegaLite_CompositeMark_ErrorBar_ReportsOnlyWhatItDoesNotUse
+
+      - id: CanvasNetVegaLite-LabelExpressions
+        title: >-
+          The library shall replace the text of the labels of an axis, a legend, and a facet header with the result
+          of the labelExpr of the guide (or, for an axis and a header, of the configuration) as Vega-Lite 6.5 does,
+          evaluating it with the datum of Vega (value and label, and the index, tickIndex, perc, and perc2 that the
+          guide has) and the parameters of the specification, before the labels are measured, laid out, and thinned
+          for overlap, within the limits and the cancellation of the call and independent of the culture; shall
+          report an expression with an error at the text that holds it when the document is opened; and shall
+          report, at the text of the expression and with the identifiers of the other expressions, only a function
+          or a construct that the expression language does not support (never the retired vl-expr-label), the label
+          being empty in that case.
+        tags: [system]
+        justification: |
+          A label expression is how an author formats the labels of a guide beyond a format string; the guides must
+          read as in Vega-Lite and a construct that cannot be evaluated must be reported, not skipped silently.
+        children:
+          - CanvasNetVegaLite-Guides-LabelExpressionGuides
+          - CanvasNetVegaLite-VegaLiteDocument-FacetHeaders
+          - CanvasNetVegaLite-SpecModel-LabelExpressionValidation
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_LabelExpr_AxisLabelsAreReplacedAndStrictModeHasNothingToReport
+          - CanvasNetVegaLite_SystemIntegration_LabelExpr_TemporalAxisUsesTheDateValue
+          - CanvasNetVegaLite_SystemIntegration_LabelExpr_LegendLabelsAreReplaced
+          - CanvasNetVegaLite_SystemIntegration_LabelExpr_HeaderLabelsAreReplacedWithPrecedence
+          - CanvasNetVegaLite_SystemIntegration_LabelExpr_WrappedFacetTitlesAreReplaced
+          - CanvasNetVegaLite_SystemIntegration_LabelExpr_ParameterCanBeUsed
+          - CanvasNetVegaLite_SystemIntegration_LabelExpr_ResultDoesNotDependOnTheCulture
+          - CanvasNetVegaLite_SystemIntegration_LabelExpr_BudgetExceededIsARenderException
+          - CanvasNetVegaLite_SystemIntegration_LabelExpr_FormatIsReportedAndEvaluatesToEmptyLabels
+
+      - id: CanvasNetVegaLite-OffsetChannels
+        title: >-
+          The library shall draw the xOffset and yOffset channels as Vega-Lite 6.5 does - grouped bars and offset
+          points, lines, text, rules, and ticks, the marks of a subgroup side by side in the band of their group
+          (the position a band scale with the nested paddings, the offset a band or point scale inside its
+          bandwidth, or a continuous scale for a strip), with a step width or height that applies to the offset
+          (or, with for position, to the position), the stack and the aggregate of a group within it, the
+          domains of the offset scales shared across layers and the cells of a facet and independent across the
+          charts of a concatenation - and shall report, ignoring the offset, one that cannot be nested (no discrete
+          position, vl-offset-position) and a continuous offset of a bar or an area (vl-offset-ranged), and not
+          report an offset that is drawn.
+        tags: [system]
+        justification: |
+          Grouped bars are among the most used bar charts; the groups, the gaps, and the size of the bars must be
+          those of Vega-Lite, and an offset that cannot be drawn must be named instead of being skipped silently.
+        children:
+          - CanvasNetVegaLite-Scales-OffsetScales
+          - CanvasNetVegaLite-Marks-OffsetMarks
+          - CanvasNetVegaLite-Transforms-OffsetGroups
+          - CanvasNetVegaLite-SpecModel-SpecParser-StepFor
+          - CanvasNetVegaLite-SpecModel-FeatureCatalog-OffsetReports
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Offset_GroupedBarsHaveTwentyPixelBarsAndReportNothing
+          - CanvasNetVegaLite_SystemIntegration_Offset_AxisIsCenteredOnTheBandAndLegendListsTheGroups
+          - CanvasNetVegaLite_SystemIntegration_Offset_YOffsetDrawsHorizontalGroupedBars
+          - CanvasNetVegaLite_SystemIntegration_Offset_ScalePaddingOfTheOffsetLeavesAGapInsideTheGroup
+          - CanvasNetVegaLite_SystemIntegration_Offset_FixedWidthSharesTheBandwidth
+          - CanvasNetVegaLite_SystemIntegration_Offset_ConcatChartsHaveIndependentOffsetScalesUnlessShared
+          - CanvasNetVegaLite_SystemIntegration_Offset_FacetCellsShareTheOffsetDomain
+          - CanvasNetVegaLite_SystemIntegration_Offset_LayersShareTheOffsetScale
+          - CanvasNetVegaLite_SystemIntegration_Offset_NotDrawnOffsetsAreReportedAndIgnored
+          - CanvasNetVegaLite_SystemIntegration_Offset_BoxplotBoxesSitSideBySide
