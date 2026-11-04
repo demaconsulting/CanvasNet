@@ -71,7 +71,7 @@ requested size is not post-processed and costs nothing more.
 
 ### Error Handling
 
-A null `path`, `stream`, or `fileName` throws `ArgumentNullException`; a null or empty folder for
+A null `path`, `stream`, or `fileName` throws `ArgumentNullException`; a null, empty or white-space folder for
 `CreateImageResolver` throws `ArgumentException`; a path outside `options.Folder` throws `ArgumentException`; a
 `Width` or `Height` that is given and is not from 1 to `Surface.MaxDimension` throws `ArgumentOutOfRangeException`
 (parameter `options`, message naming `ViewerRenderOptions.Width` or `ViewerRenderOptions.Height`) before any file or

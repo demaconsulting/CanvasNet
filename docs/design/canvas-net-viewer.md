@@ -42,8 +42,8 @@ The system exposes the following public API:
   claim. The command-line tool's `svg` help topic is checked against `Extensions`.
 - **`CanvasNetViewer.CreateImageResolver(folder, options)`** / **`CreateImageResolver(folder, extraSources, options)`**:
   a new `FolderImageResolver` for one render, over the built-in sources followed by the extra ones; assign it to
-  `SvgLoadOptions.ImageResolver`. Throws `ArgumentException` for a null or empty folder and `ArgumentNullException` for
-  null extra sources.
+  `SvgLoadOptions.ImageResolver`. Throws `ArgumentException` for a null, empty or white-space folder and
+  `ArgumentNullException` for null extra sources.
 - **`CanvasNetViewer.Render(path, options)`** / **`Render(stream, fileName, options)`**: draw one file as a
   `ViewerImage` (the picture, its format, the notes, the printed text, and the embedded images). Throw
   `FileNotFoundException`, `NotSupportedException` (no source claims the extension), `ArgumentException` (the file is

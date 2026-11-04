@@ -132,7 +132,7 @@ Cancellation
 (from the resolver's own checks, the sandbox, or a source) passes through as `OperationCanceledException`. A direct
 render
 throws the exceptions listed above, and `ImageSourceBudgetException` for an over-budget picture. Invalid construction
-arguments (a null sequence, an empty folder, a negative limit, an
+arguments (a null sequence, an empty or white-space folder, a negative limit, an
 invalid claim) are `ArgumentNullException`, `ArgumentException`, or `ArgumentOutOfRangeException`.
 
 #### Dependencies

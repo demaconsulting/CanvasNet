@@ -123,6 +123,7 @@ public class CanvasNetViewerTests
         Assert.Contains(".colors", extended.Extensions);
         Assert.Equal(["test-scheme"], extended.Schemes);
         Assert.Throws<ArgumentException>(() => CanvasNetViewer.CreateImageResolver(string.Empty));
+        Assert.Throws<ArgumentException>(() => CanvasNetViewer.CreateImageResolver("   "));
         Assert.Throws<ArgumentNullException>(() => CanvasNetViewer.CreateImageResolver(folder.Path, (IEnumerable<IImageSource>)null!));
         Assert.ThrowsAny<ArgumentException>(() => CanvasNetViewer.CreateImageResolver(null!, []));
     }

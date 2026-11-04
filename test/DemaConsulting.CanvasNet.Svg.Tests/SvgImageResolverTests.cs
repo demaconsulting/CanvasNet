@@ -427,6 +427,34 @@ public class SvgImageResolverTests
     }
 
     /// <summary>
+    ///     Test that every kind of exception of the resolver, other than <see cref="FormatException"/>, leaves
+    ///     <c>Load</c> with its own type and instance (the output surface is released on the way out).
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_ImageResolverThrows_PropagatesTheSameException()
+    {
+        // Arrange
+        Exception[] failures =
+        [
+            new ImageSourceException("source failure", "p", null, new InvalidDataException("bad picture")),
+            new ImageSourceBudgetException(100, 10),
+            new IOException("host failure"),
+            new OperationCanceledException("canceled"),
+            new InvalidOperationException("host state")
+        ];
+        var svg = Document("<image href='p' x='0' y='0' width='10' height='10'/>");
+
+        foreach (var failure in failures)
+        {
+            // Act
+            var thrown = Assert.Throws(failure.GetType(), () => Render(svg, new SvgLoadOptions { ImageResolver = new DelegateResolver(_ => throw failure) }));
+
+            // Assert
+            Assert.Same(failure, thrown);
+        }
+    }
+
+    /// <summary>
     ///     Test that every call is charged before it is made, so a fan-out of references cannot call the resolver
     ///     without bound.
     /// </summary>

@@ -835,6 +835,8 @@ public class FolderImageResolverTests
         Assert.Throws<ArgumentOutOfRangeException>(() => new FolderImageResolver(null, [], new FolderImageResolverOptions { MaxDepth = -1 }));
         Assert.Throws<ArgumentOutOfRangeException>(() => new FolderImageResolver(null, [], new FolderImageResolverOptions { MaxImages = -1 }));
         Assert.Throws<ArgumentException>(() => new FolderImageResolver(string.Empty, []));
+        Assert.Throws<ArgumentException>(() => new FolderImageResolver("   ", []));
+        Assert.NotNull(new FolderImageResolver(null, []));
         Assert.Throws<ArgumentException>(() => new FolderImageResolver(null, [new StubImageSource("bad", ["png"])]));
         Assert.Throws<ArgumentNullException>(() => new FolderImageResolver(null, []).Resolve(null!, 1, 1));
     }

@@ -1240,7 +1240,9 @@ exception thrown by the resolver propagates to the caller unchanged: the codec's
 untrusted _document_ content, while the resolver is trusted _host_ code whose failures would
 otherwise be hidden (and the tool needs a `ToolException` to reach the user intact). The one guard is
 `FormatException`, which `LoadCore` converts to "invalid numeric data" for the document; the resolver
-call wraps it in an `InvalidOperationException` so a host error is not mislabelled as bad SVG data.
+call wraps it in an `InvalidOperationException` so a host error is not mislabelled as bad SVG data. `LoadCore`
+disposes the output `Surface` it allocated on every exceptional exit (the resolver's exception included) and
+rethrows, so the exception type is preserved and no surface is leaked.
 `feImage` does not use the resolver: its primitive-subregion path is separate, and an external
 `feImage` href stays a no-op (a possible follow-up).
 

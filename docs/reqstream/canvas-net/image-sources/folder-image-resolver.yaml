@@ -268,8 +268,8 @@ sections:
               - id: CanvasNet-ImageSources-FolderImageResolver-Configuration
                 title: >-
                   The FolderImageResolver class shall list the extensions and schemes its sources claim, sorted and
-                  without duplicates, and shall reject a null sequence, an empty folder, a negative limit, and a
-                  source that makes an invalid claim, and a null link.
+                  without duplicates, and shall reject a null sequence, an empty or white-space folder, a negative
+                  limit, a source that makes an invalid claim, and a null link.
                 justification: |
                   Misconfiguration must fail at once, and callers need the list of what can be embedded for messages
                   and documentation.

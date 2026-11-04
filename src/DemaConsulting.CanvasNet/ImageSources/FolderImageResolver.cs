@@ -147,13 +147,19 @@ public sealed partial class FolderImageResolver : IImageResolver
     /// <param name="options">The limits and switches, or <see langword="null"/> for the defaults.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="sources"/> is null.</exception>
     /// <exception cref="ArgumentException">
-    ///     Thrown when <paramref name="rootFolder"/> is empty, or a source makes an invalid claim (a malformed extension,
+    ///     Thrown when <paramref name="rootFolder"/> is empty or only white space (null is allowed and means no folder),
+    ///     or a source makes an invalid claim (a malformed extension,
     ///     a malformed scheme, or the reserved schemes <c>file</c> and <c>data</c>; see <see cref="ImageSourceSet"/>).
     /// </exception>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when a limit in <paramref name="options"/> is negative.</exception>
     public FolderImageResolver(string? rootFolder, IEnumerable<IImageSource> sources, FolderImageResolverOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(sources);
+        if (rootFolder is not null)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(rootFolder);
+        }
+
         _options = options ?? new FolderImageResolverOptions();
         ArgumentOutOfRangeException.ThrowIfNegative(_options.MaxDepth);
         ArgumentOutOfRangeException.ThrowIfNegative(_options.MaxImages);

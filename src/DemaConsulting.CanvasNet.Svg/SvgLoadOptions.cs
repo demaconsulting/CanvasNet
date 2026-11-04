@@ -63,7 +63,9 @@ public sealed record SvgLoadOptions
     ///     </para>
     ///     <para>
     ///     The resolver is never called for an empty <c>href</c>, a <c>data:</c> URI (valid or
-    ///     not), or a same-document <c>#fragment</c> reference. The codec charges the placement's
+    ///     not), or a same-document <c>#fragment</c> reference; so a nested SVG given as a
+    ///     <c>data:image/svg+xml</c> URI is not supported (it draws nothing), also when a resolver is
+    ///     set, and only an external SVG file can be nested, through the resolver. The codec charges the placement's
     ///     pixel area plus a fixed per-call overhead against its shared work budget before each
     ///     call and skips the call when the budget is exhausted, which bounds the number of calls a
     ///     hostile document (for example a <c>use</c> fan-out) can cause. A surface larger than the

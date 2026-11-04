@@ -289,6 +289,6 @@ name, the folder (none without a folder), the size, an unknown extension, and a 
 
 Asserts the sorted union of extensions and schemes, that the `Extensions`, `Schemes`, `Diagnostics`, `Echo`, and
 `Embedded` lists are read-only (not an array or `List<T>`; `Add` through `IList<T>` throws `NotSupportedException`),
-and the rejection of a null sequence, negative limits, an empty
-folder, an
+and the rejection of a null sequence, negative limits, an empty or white-space
+folder (a null folder stays allowed), an
 invalid claim, and a null link.

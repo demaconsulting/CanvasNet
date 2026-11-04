@@ -75,8 +75,8 @@ public static class CanvasNetViewer
     ///     Creates a resolver that embeds every built-in format from a folder.
     /// </summary>
     /// <param name="folder">
-    ///     The folder the links are confined to, normally the folder of the document that is rendered. Must not be null
-    ///     or empty; it may be relative.
+    ///     The folder the links are confined to, normally the folder of the document that is rendered. Must not be null,
+    ///     empty or only white space; it may be relative.
     /// </param>
     /// <param name="options">The limits and switches, or <see langword="null"/> for the defaults.</param>
     /// <returns>
@@ -84,17 +84,17 @@ public static class CanvasNetViewer
     ///     Read its <see cref="FolderImageResolver.Diagnostics"/>, <see cref="FolderImageResolver.Echo"/> and
     ///     <see cref="FolderImageResolver.Embedded"/> after the render.
     /// </returns>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="folder"/> is null or empty.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="folder"/> is null, empty or only white space.</exception>
     public static FolderImageResolver CreateImageResolver(string folder, FolderImageResolverOptions? options = null)
     {
-        ArgumentException.ThrowIfNullOrEmpty(folder);
+        ArgumentException.ThrowIfNullOrWhiteSpace(folder);
         return new FolderImageResolver(folder, BuiltInSources, options);
     }
 
     /// <summary>
     ///     Creates a resolver that embeds every built-in format and your own sources from a folder.
     /// </summary>
-    /// <param name="folder">The folder the links are confined to. Must not be null or empty.</param>
+    /// <param name="folder">The folder the links are confined to. Must not be null, empty or only white space.</param>
     /// <param name="extraSources">
     ///     Your own sources. They are placed <b>after</b> the built-in ones, so one that claims the same extension or URI
     ///     scheme as a built-in source (or as an earlier extra source) wins. Must not be null.
@@ -103,7 +103,7 @@ public static class CanvasNetViewer
     /// <returns>A new resolver, as for <see cref="CreateImageResolver(string, FolderImageResolverOptions?)"/>.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="extraSources"/> is null.</exception>
     /// <exception cref="ArgumentException">
-    ///     Thrown when <paramref name="folder"/> is null or empty, or a source makes an invalid claim (see
+    ///     Thrown when <paramref name="folder"/> is null, empty or only white space, or a source makes an invalid claim (see
     ///     <see cref="ImageSourceSet"/>).
     /// </exception>
     public static FolderImageResolver CreateImageResolver(
@@ -111,7 +111,7 @@ public static class CanvasNetViewer
         IEnumerable<IImageSource> extraSources,
         FolderImageResolverOptions? options = null)
     {
-        ArgumentException.ThrowIfNullOrEmpty(folder);
+        ArgumentException.ThrowIfNullOrWhiteSpace(folder);
         ArgumentNullException.ThrowIfNull(extraSources);
         return new FolderImageResolver(folder, [.. BuiltInSources, .. extraSources], options);
     }

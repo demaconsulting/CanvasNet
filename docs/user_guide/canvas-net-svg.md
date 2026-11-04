@@ -163,7 +163,9 @@ By default `SvgCodec` draws an `image` element only when its `href` is a base64 
 **never reads a file or the network** for any other `href` (the element draws nothing). To embed a
 picture by file name, set `ImageResolver`: the codec then calls `Resolve` for every `image` whose `href`
 is not a `data:` URI and not a same-document `#fragment` (an empty `href` is never passed either), and
-draws the `Surface` it returns. This is an explicit opt-in: **the codec still performs no I/O itself -
+draws the `Surface` it returns. A `data:` URI is never passed to the resolver: a nested SVG given as a
+`data:image/svg+xml` URI is not supported and draws nothing, with or without a resolver (an external SVG file can be
+embedded through the resolver). This is an explicit opt-in: **the codec still performs no I/O itself -
 the only I/O is whatever your resolver does**, so what it may reach (one folder, a sandbox, an
 allow-list) is your decision. Never resolve an `href` from an untrusted document against the file
 system without confining it first.

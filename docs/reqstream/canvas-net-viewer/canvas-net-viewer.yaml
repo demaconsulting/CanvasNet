@@ -33,7 +33,7 @@ sections:
             title: >-
               The CanvasNetViewer class shall expose CreateImageResolver, which creates a new folder image
               resolver for every call with the built-in sources followed by any extra sources and the given
-              limits, and rejects a null or empty folder and null extra sources.
+              limits, and rejects a null, empty or white-space folder and null extra sources.
             justification: |
               A resolver counts the images and collects the notes of one render, so it must not be shared; creating
               one is cheap and nothing is cached in it.

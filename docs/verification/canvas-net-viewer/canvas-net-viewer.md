@@ -49,8 +49,8 @@ and scheme lists of a created resolver, and the `Diagnostics`, `Echo`, and `Embe
 **Tests**: `CanvasNetViewer_CreateImageResolver_CreatesNewResolverWithBuiltInAndExtraSources`
 
 Asserts that every call returns a new resolver, that its extensions are those of the built-in sources, that extra
-sources are added after them (their extensions and schemes appear), and that a null or empty folder and null extra
-sources are rejected.
+sources are added after them (their extensions and schemes appear), and that a null, empty or white-space folder and
+null extra sources are rejected.
 
 #### CanvasNetViewer-CanvasNetViewer-RenderPath: Render By Path
 

@@ -1395,6 +1395,7 @@ sections:
               - SvgCodec_Load_ImageResolverReturnsNull_RendersNothingWithoutThrowing
               - SvgCodec_Load_ImageResolverSet_DataUriAndFragmentAndEmptyHrefNeverCallResolver
               - SvgCodec_Load_ImageResolverThrows_ExceptionPropagatesUnchanged
+              - SvgCodec_Load_ImageResolverThrows_PropagatesTheSameException
               - SvgCodec_Load_ImageResolverThrowsFormatException_IsNotReportedAsInvalidSvgData
               - SvgCodec_Load_ImageResolverReturnsSurface_IsDisposedByCodec
               - SvgCodec_Load_ImageResolverSet_FeImageExternalHrefDoesNotCallResolver

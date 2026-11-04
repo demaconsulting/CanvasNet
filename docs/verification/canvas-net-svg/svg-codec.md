@@ -1706,6 +1706,7 @@ is caught alongside the malformed-payload cases above rather than propagating ou
 `SvgCodec_Load_ImageResolverReturnsNull_RendersNothingWithoutThrowing`,
 `SvgCodec_Load_ImageResolverSet_DataUriAndFragmentAndEmptyHrefNeverCallResolver`,
 `SvgCodec_Load_ImageResolverThrows_ExceptionPropagatesUnchanged`,
+`SvgCodec_Load_ImageResolverThrows_PropagatesTheSameException`,
 `SvgCodec_Load_ImageResolverThrowsFormatException_IsNotReportedAsInvalidSvgData`,
 `SvgCodec_Load_ImageResolverReturnsSurface_IsDisposedByCodec`,
 `SvgCodec_Load_ImageResolverSet_FeImageExternalHrefDoesNotCallResolver`,
@@ -1724,7 +1725,9 @@ picture into a square placement (the top edge is drawn only for slice and none);
 every `href` the codec handles itself (a valid `data:` URI, a malformed one, an SVG one, a text one, one
 with leading whitespace, a `#fragment`, an empty, a blank, and an absent `href`) never reach or
 silently pass through the resolver (`NeverCallResolver` asserts zero calls); a resolver exception
-propagates as the same instance, and a `FormatException` becomes an `InvalidOperationException` that
+propagates as the same instance (`PropagatesTheSameException` repeats this for an `ImageSourceException`, an
+`ImageSourceBudgetException`, an `IOException`, an `OperationCanceledException`, and an `InvalidOperationException`;
+`Load` releases its output surface on every such exit), and a `FormatException` becomes an `InvalidOperationException` that
 keeps it as the inner exception (not an `InvalidDataException` about numeric data); the codec disposes
 a returned surface after drawing it (the surface throws `ObjectDisposedException`); and an external
 `feImage` `href` does not call the resolver, documenting the scope boundary. Two `image` elements with the same `href`,
