@@ -413,13 +413,13 @@ public class CompareCommandSourceTests
     [Fact]
     public void CompareCommand_Run_DiagnosticsInTextMode_AreWrittenToStandardError()
     {
-        // Arrange: two charts of the same size, each with a channel that its mark does not draw, one with a red line
+        // Arrange: two charts of the same size, each with a channel that its mark does not draw, one with red bars
         using var directory = new TempDirectory();
-        var a = FixtureFactory.WriteText(directory.Path, "a.vl.json", FixtureFactory.ShapeOnLineChart);
+        var a = FixtureFactory.WriteText(directory.Path, "a.vl.json", FixtureFactory.ShapeOnBarChart);
         var b = FixtureFactory.WriteText(
             directory.Path,
             "b.vl.json",
-            FixtureFactory.ShapeOnLineChart.Replace("\"mark\": \"line\"", "\"mark\": { \"type\": \"line\", \"color\": \"red\" }", StringComparison.Ordinal));
+            FixtureFactory.ShapeOnBarChart.Replace("\"mark\": \"bar\"", "\"mark\": { \"type\": \"bar\", \"color\": \"red\" }", StringComparison.Ordinal));
 
         // Act
         var (exitCode, stdOut, stdErr) = ToolHost.Invoke("compare", a, b);
