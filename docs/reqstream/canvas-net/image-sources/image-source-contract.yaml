@@ -34,6 +34,7 @@ sections:
                 tests:
                   - ImageSourceSet_Constructor_SameClaims_LaterSourceWins
                   - ImageSourceSet_Add_ReturnsNewSetAndLeavesOriginalUnchanged
+                  - ImageSourceSet_ExtensionsAndSchemes_AreReadOnly
                   - ImageSourceSet_FindByExtension_LongestSuffixCaseInsensitive
                   - ImageSourceSet_FindByScheme_CaseInsensitive
                   - ImageSourceSet_Constructor_InvalidExtension_ThrowsArgumentException

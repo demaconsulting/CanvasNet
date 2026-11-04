@@ -33,13 +33,15 @@ exception type constitutes a failure.
 
 **Tests**: `RasterImageSource_Render_Format_IsDecidedByContentNotName`,
 `RasterImageSource_Render_GifAndJpeg2000Fixtures_AreDecoded`,
-`RasterImageSource_Properties_NameExtensionsAndNoSchemes`
+`RasterImageSource_Properties_NameExtensionsAndNoSchemes`,
+`RasterImageSource_Properties_ExtensionsAndSchemesAreReadOnly`
 
 Asserts, as a theory, that a PNG, a JPEG, a BMP, and a TIFF named with another extension are decoded at their natural
 size with the
-detected format name and no notes or text, that the GIF and JPEG 2000 fixtures are decoded and named, and the name, the
+detected format name and no notes or text, that the GIF and JPEG 2000 fixtures are decoded and named, the name, the
 ten
-extensions, and the absence of schemes.
+extensions, and the absence of schemes, and that the extension and scheme lists are read-only (not an array or a
+`List<T>`, and refusing `Add` when cast to `IList<T>`).
 
 ##### CanvasNet-ImageSources-RasterImageSource-Orientation: Exif Orientation
 

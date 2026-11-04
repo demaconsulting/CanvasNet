@@ -35,6 +35,23 @@ public class ImageSourceSetTests
     }
 
     /// <summary>
+    ///     Test that the extension and scheme lists cannot be changed by casting them to an array, a list or
+    ///     <see cref="IList{T}"/>.
+    /// </summary>
+    [Fact]
+    public void ImageSourceSet_ExtensionsAndSchemes_AreReadOnly()
+    {
+        // Arrange
+        var set = new ImageSourceSet([new StubImageSource("a", [".a"], ["alpha"])]);
+
+        // Act / Assert
+        ReadOnlyListAssert.IsReadOnly(set.Extensions, ".x");
+        ReadOnlyListAssert.IsReadOnly(set.Schemes, "x");
+        Assert.Equal([".a"], set.Extensions);
+        Assert.Equal(["alpha"], set.Schemes);
+    }
+
+    /// <summary>
     ///     Test that <see cref="ImageSourceSet.Add"/> returns a new set with the source last and leaves the original
     ///     unchanged.
     /// </summary>

@@ -412,4 +412,4 @@ the package already uses).
 The behavior of the class is specified by the `CanvasNetScad-ScadDocument-ImageSource` requirement and verified by
 `ScadImageSourceTests.cs`. Its **callers** are the shared `FolderImageResolver` of the core package (through
 `IImageSource`), the `CanvasNetViewer` system, which lists it with the other built-in sources, and applications. The
-unit depends on the core package only through the `ImageSources` contract types.
+unit depends on the core package only through the `ImageSources` contract types.

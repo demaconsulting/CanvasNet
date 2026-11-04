@@ -49,7 +49,8 @@ default font resolution tests) within the `DemaConsulting.CanvasNet.Svg.Tests` p
 `SvgImageSource_Render_NestedImage_UsesResolverOfRequest`,
 `SvgImageSource_Render_NestedImageWithoutResolver_DrawsNothing`,
 `SvgImageSource_Render_TwiceForSameRequest_ReturnsDistinctSurfaces`,
-`SvgImageSource_Render_InvalidInput_Throws`, `SvgImageSource_Properties_NameExtensionAndNoSchemes`
+`SvgImageSource_Render_InvalidInput_Throws`, `SvgImageSource_Properties_NameExtensionAndNoSchemes`,
+`SvgImageSource_Properties_ExtensionsAndSchemesAreReadOnly`
 
 `SvgImageSourceTests.cs` calls `SvgImageSource.Render` with requests built by hand over a 40 by 30 document. Asserts the
 natural size
@@ -63,8 +64,9 @@ the 64 MB of the picture) while a budget of exactly 80 by 60 draws, that without
 nothing, that two calls return two surfaces, that
 text that is
 not an SVG document is `InvalidDataException`, a request without a file `InvalidOperationException`, a null request
-`ArgumentNullException`, a canceled request `OperationCanceledException`, and the name, extension, and absence of
-schemes.
+`ArgumentNullException`, a canceled request `OperationCanceledException`, the name, extension, and absence of
+schemes, and that the extension and scheme lists are read-only (not a `string[]`; `Add` through `IList<string>` throws
+`NotSupportedException`).
 
 #### CanvasNetSvg-SvgCodec-LoadBasicShapes: Basic Shapes Rasterize Correctly
 

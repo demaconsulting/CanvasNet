@@ -1656,3 +1656,4 @@ sections:
               - SvgImageSource_Render_TwiceForSameRequest_ReturnsDistinctSurfaces
               - SvgImageSource_Render_InvalidInput_Throws
               - SvgImageSource_Properties_NameExtensionAndNoSchemes
+              - SvgImageSource_Properties_ExtensionsAndSchemesAreReadOnly

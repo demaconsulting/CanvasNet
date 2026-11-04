@@ -807,6 +807,24 @@ public class FolderImageResolverTests
     }
 
     /// <summary>
+    ///     Test that the lists of a resolver (claims, notes, text and embedded images) cannot be changed by casting them
+    ///     to an array, a list or <see cref="IList{T}"/>.
+    /// </summary>
+    [Fact]
+    public void FolderImageResolver_Collections_AreReadOnly()
+    {
+        // Arrange
+        var resolver = new FolderImageResolver(null, [new StubImageSource("a", [".a"], ["alpha"])]);
+
+        // Act / Assert
+        ReadOnlyListAssert.IsReadOnly(resolver.Extensions, ".x");
+        ReadOnlyListAssert.IsReadOnly(resolver.Schemes, "x");
+        ReadOnlyListAssert.IsReadOnly(resolver.Diagnostics, new ImageSourceDiagnostic("s", ImageDiagnosticSeverity.Info, "c", "m"));
+        ReadOnlyListAssert.IsReadOnly(resolver.Echo, "x");
+        ReadOnlyListAssert.IsReadOnly(resolver.Embedded, new EmbeddedImage("a", "b", 1, 1));
+    }
+
+    /// <summary>
     ///     Test that invalid arguments are rejected by the constructor.
     /// </summary>
     [Fact]

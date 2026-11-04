@@ -26,6 +26,7 @@ sections:
                   - RasterImageSource_Render_Format_IsDecidedByContentNotName
                   - RasterImageSource_Render_GifAndJpeg2000Fixtures_AreDecoded
                   - RasterImageSource_Properties_NameExtensionsAndNoSchemes
+                  - RasterImageSource_Properties_ExtensionsAndSchemesAreReadOnly
 
               - id: CanvasNet-ImageSources-RasterImageSource-Orientation
                 title: >-

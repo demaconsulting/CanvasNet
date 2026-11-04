@@ -1,5 +1,6 @@
 // cspell:ignore hrefs
 using System.Collections;
+using System.Collections.ObjectModel;
 
 namespace DemaConsulting.CanvasNet.ImageSources;
 
@@ -93,8 +94,8 @@ public sealed class ImageSourceSet : IReadOnlyList<IImageSource>
         }
 
         _extensionsLongestFirst = [.. _byExtension.Keys.OrderByDescending(e => e.Length).ThenBy(e => e, StringComparer.Ordinal)];
-        Extensions = [.. _byExtension.Keys.Order(StringComparer.Ordinal)];
-        Schemes = [.. _byScheme.Keys.Order(StringComparer.Ordinal)];
+        Extensions = new ReadOnlyCollection<string>([.. _byExtension.Keys.Order(StringComparer.Ordinal)]);
+        Schemes = new ReadOnlyCollection<string>([.. _byScheme.Keys.Order(StringComparer.Ordinal)]);
     }
 
     /// <summary>

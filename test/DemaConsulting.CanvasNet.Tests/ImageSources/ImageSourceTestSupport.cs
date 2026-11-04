@@ -70,6 +70,30 @@ internal sealed class ImageTestFolder : IDisposable
 }
 
 /// <summary>
+///     Assertions that a list handed out by the library cannot be changed by casting it to a mutable type.
+/// </summary>
+internal static class ReadOnlyListAssert
+{
+    /// <summary>
+    ///     Asserts that a list is not an array or a <see cref="List{T}"/>, and that when it can be cast to
+    ///     <see cref="IList{T}"/> it reports read-only and refuses to add.
+    /// </summary>
+    /// <typeparam name="T">The element type.</typeparam>
+    /// <param name="list">The list.</param>
+    /// <param name="sample">An element to try to add.</param>
+    public static void IsReadOnly<T>(IReadOnlyList<T> list, T sample)
+    {
+        Assert.False(list is T[]);
+        Assert.False(list is List<T>);
+        if (list is IList<T> mutable)
+        {
+            Assert.True(mutable.IsReadOnly);
+            Assert.Throws<NotSupportedException>(() => mutable.Add(sample));
+        }
+    }
+}
+
+/// <summary>
 ///     An image source for tests: it claims what it is told to and draws what a delegate says, recording every request.
 /// </summary>
 internal sealed class StubImageSource : IImageSource

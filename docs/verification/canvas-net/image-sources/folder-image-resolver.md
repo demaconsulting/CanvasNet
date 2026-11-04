@@ -266,9 +266,12 @@ name, the folder (none without a folder), the size, an unknown extension, and a 
 ##### CanvasNet-ImageSources-FolderImageResolver-Configuration: Lists And Arguments
 
 **Tests**: `FolderImageResolver_ExtensionsAndSchemes_AreSortedUnionOfSources`,
+`FolderImageResolver_Collections_AreReadOnly`,
 `FolderImageResolver_Constructor_InvalidArguments_Throw`,
 `FolderImageResolver_Constructor_MaxDecodedPixels_DefaultNegativeAndZero`
 
-Asserts the sorted union of extensions and schemes, and the rejection of a null sequence, negative limits, an empty
+Asserts the sorted union of extensions and schemes, that the `Extensions`, `Schemes`, `Diagnostics`, `Echo`, and
+`Embedded` lists are read-only (not an array or `List<T>`; `Add` through `IList<T>` throws `NotSupportedException`),
+and the rejection of a null sequence, negative limits, an empty
 folder, an
 invalid claim, and a null link.

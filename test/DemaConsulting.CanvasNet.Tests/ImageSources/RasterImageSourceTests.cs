@@ -244,4 +244,19 @@ public class RasterImageSourceTests
             source.Extensions);
         Assert.Empty(source.Schemes);
     }
+
+    /// <summary>
+    ///     Test that the shared extension and scheme lists cannot be changed by casting them to an array or
+    ///     <see cref="IList{T}"/>.
+    /// </summary>
+    [Fact]
+    public void RasterImageSource_Properties_ExtensionsAndSchemesAreReadOnly()
+    {
+        // Arrange
+        var source = new RasterImageSource();
+
+        // Act / Assert
+        ReadOnlyListAssert.IsReadOnly(source.Extensions, ".x");
+        ReadOnlyListAssert.IsReadOnly(source.Schemes, "x");
+    }
 }

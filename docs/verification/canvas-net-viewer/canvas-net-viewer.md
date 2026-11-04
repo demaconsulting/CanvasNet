@@ -34,11 +34,15 @@ embedded image record, a wrong exception type, or a disposed surface that is sti
 
 #### CanvasNetViewer-CanvasNetViewer-ImageSources: Fixed List Of Sources
 
-**Tests**: `CanvasNetViewer_ImageSources_AreFixedAndExtensionsAreSortedUnion`
+**Tests**: `CanvasNetViewer_ImageSources_AreFixedAndExtensionsAreSortedUnion`,
+`CanvasNetViewer_ImageSources_ExtensionsAndSchemesAreReadOnly`, `CanvasNetViewer_Collections_AreReadOnly`
 
 Asserts that the list is the same read-only list on every call (not an `IList` that can be modified), has seven sources,
 and that `Extensions` is sorted, has no duplicate, has `.vl.json` but not `.json`, and equals the union of the claims of
-the sources.
+the sources. A theory over the seven built-in sources asserts that each source's `Extensions` and `Schemes` are
+read-only: not a `string[]` or `List<string>`, and when cast to `IList<string>` they report read-only and throw
+`NotSupportedException` on `Add`. A further scenario asserts the same for `ImageSources`, `Extensions`, the extension
+and scheme lists of a created resolver, and the `Diagnostics`, `Echo`, and `Embedded` lists of a rendered `ViewerImage`.
 
 #### CanvasNetViewer-CanvasNetViewer-CreateImageResolver: New Resolver Per Call
 

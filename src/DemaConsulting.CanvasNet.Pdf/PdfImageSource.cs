@@ -1,4 +1,5 @@
 // cspell:ignore pdf
+using System.Collections.ObjectModel;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.ImageSources;
 
@@ -33,7 +34,12 @@ public sealed class PdfImageSource : IImageSource
     /// <summary>
     ///     The extensions this source claims.
     /// </summary>
-    private static readonly string[] ClaimedExtensions = [".pdf"];
+    private static readonly ReadOnlyCollection<string> ClaimedExtensions = new([".pdf"]);
+
+    /// <summary>
+    ///     The schemes this source claims: none. Read-only, so a caller cannot change what is shared.
+    /// </summary>
+    private static readonly ReadOnlyCollection<string> NoSchemes = new([]);
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="PdfImageSource"/> class.
@@ -49,7 +55,7 @@ public sealed class PdfImageSource : IImageSource
     public IReadOnlyList<string> Extensions => ClaimedExtensions;
 
     /// <inheritdoc />
-    public IReadOnlyList<string> Schemes => [];
+    public IReadOnlyList<string> Schemes => NoSchemes;
 
     /// <summary>
     ///     Draws the first page of the PDF file of a request.

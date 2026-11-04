@@ -191,18 +191,18 @@ public sealed partial class FolderImageResolver : IImageResolver
     ///     message (<c>"{href}: {message}"</c>). Notes of a nested file are listed before the note of the file that
     ///     embeds it, because the nested file is drawn first.
     /// </summary>
-    public IReadOnlyList<ImageSourceDiagnostic> Diagnostics => _diagnostics;
+    public IReadOnlyList<ImageSourceDiagnostic> Diagnostics => _diagnostics.AsReadOnly();
 
     /// <summary>
     ///     Gets the lines the embedded files printed (the <c>echo</c> output of models), in render order.
     /// </summary>
-    public IReadOnlyList<string> Echo => _echo;
+    public IReadOnlyList<string> Echo => _echo.AsReadOnly();
 
     /// <summary>
     ///     Gets one entry for every image that was loaded and handed to the renderer, in completion order (a nested image
     ///     is listed before the image that embeds it; <see cref="EmbeddedImage.Depth"/> tells them apart).
     /// </summary>
-    public IReadOnlyList<EmbeddedImage> Embedded => _embedded;
+    public IReadOnlyList<EmbeddedImage> Embedded => _embedded.AsReadOnly();
 
     /// <summary>
     ///     Gets the part of the pixel budget (<see cref="FolderImageResolverOptions.MaxDecodedPixels"/>) that has not been

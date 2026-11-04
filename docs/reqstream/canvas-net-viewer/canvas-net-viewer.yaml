@@ -26,6 +26,8 @@ sections:
               the command-line tool is checked against it.
             tests:
               - CanvasNetViewer_ImageSources_AreFixedAndExtensionsAreSortedUnion
+              - CanvasNetViewer_ImageSources_ExtensionsAndSchemesAreReadOnly
+              - CanvasNetViewer_Collections_AreReadOnly
 
           - id: CanvasNetViewer-CanvasNetViewer-CreateImageResolver
             title: >-

@@ -1,4 +1,5 @@
 // cspell:ignore jpeg tiff jpeg2000 exif
+using System.Collections.ObjectModel;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 
@@ -33,7 +34,13 @@ public sealed class RasterImageSource : IImageSource
     /// <summary>
     ///     The extensions this source claims.
     /// </summary>
-    private static readonly string[] ClaimedExtensions = [".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".gif", ".jp2", ".j2k", ".j2c"];
+    private static readonly ReadOnlyCollection<string> ClaimedExtensions =
+        new([".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".gif", ".jp2", ".j2k", ".j2c"]);
+
+    /// <summary>
+    ///     The schemes this source claims: none. Read-only, so a caller cannot change what is shared.
+    /// </summary>
+    private static readonly ReadOnlyCollection<string> NoSchemes = new([]);
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="RasterImageSource"/> class.
@@ -49,7 +56,7 @@ public sealed class RasterImageSource : IImageSource
     public IReadOnlyList<string> Extensions => ClaimedExtensions;
 
     /// <inheritdoc />
-    public IReadOnlyList<string> Schemes => [];
+    public IReadOnlyList<string> Schemes => NoSchemes;
 
     /// <summary>
     ///     Decodes the file of a request.

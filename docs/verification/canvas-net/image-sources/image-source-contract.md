@@ -40,6 +40,7 @@ type constitutes a failure.
 
 **Tests**: `ImageSourceSet_Constructor_SameClaims_LaterSourceWins`,
 `ImageSourceSet_Add_ReturnsNewSetAndLeavesOriginalUnchanged`,
+`ImageSourceSet_ExtensionsAndSchemes_AreReadOnly`,
 `ImageSourceSet_FindByExtension_LongestSuffixCaseInsensitive`, `ImageSourceSet_FindByScheme_CaseInsensitive`,
 `ImageSourceSet_Constructor_InvalidExtension_ThrowsArgumentException`,
 `ImageSourceSet_Constructor_InvalidSources_Throw`,
@@ -47,7 +48,9 @@ type constitutes a failure.
 
 Asserts that of two sources that claim the same extension (in different cases) and scheme the later wins, that the lists
 are
-sorted lower-case unions without duplicates, that `Add` returns a new set with the source last and leaves the original
+sorted lower-case unions without duplicates, that `ImageSourceSet.Extensions` and `Schemes` are read-only (not an array
+or `List<string>`; `Add` through `IList<string>`
+throws `NotSupportedException`), that `Add` returns a new set with the source last and leaves the original
 unchanged, that the lookup by extension takes the longest suffix (`.vl.json` over `.json`), ignores case, and ignores
 the folder
 part (`dir.json/readme` is not a `.json`), that the lookup by scheme ignores case, that an extension without a dot, a

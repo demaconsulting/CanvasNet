@@ -263,5 +263,6 @@ sections:
                   and documentation.
                 tests:
                   - FolderImageResolver_ExtensionsAndSchemes_AreSortedUnionOfSources
+                  - FolderImageResolver_Collections_AreReadOnly
                   - FolderImageResolver_Constructor_InvalidArguments_Throw
                   - FolderImageResolver_Constructor_MaxDecodedPixels_DefaultNegativeAndZero

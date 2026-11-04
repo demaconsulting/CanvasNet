@@ -1,4 +1,5 @@
 // cspell:ignore pptx
+using System.Collections.ObjectModel;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.ImageSources;
 
@@ -34,7 +35,12 @@ public sealed class PptxImageSource : IImageSource
     /// <summary>
     ///     The extensions this source claims.
     /// </summary>
-    private static readonly string[] ClaimedExtensions = [".pptx"];
+    private static readonly ReadOnlyCollection<string> ClaimedExtensions = new([".pptx"]);
+
+    /// <summary>
+    ///     The schemes this source claims: none. Read-only, so a caller cannot change what is shared.
+    /// </summary>
+    private static readonly ReadOnlyCollection<string> NoSchemes = new([]);
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="PptxImageSource"/> class.
@@ -50,7 +56,7 @@ public sealed class PptxImageSource : IImageSource
     public IReadOnlyList<string> Extensions => ClaimedExtensions;
 
     /// <inheritdoc />
-    public IReadOnlyList<string> Schemes => [];
+    public IReadOnlyList<string> Schemes => NoSchemes;
 
     /// <summary>
     ///     Draws the first slide of the presentation of a request.

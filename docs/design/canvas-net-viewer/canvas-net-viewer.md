@@ -31,7 +31,8 @@ The unit's behavior is specified by the `CanvasNetViewer-CanvasNetViewer-*` requ
   default the folder of the file for a render by path, none for a stream), `ThrowOnUnsupportedFeature`,
   `MaxDecodedPixels` (nullable; none = the resolver default budget), `ExtraSources`,
   and `CancellationToken`.
-- **`ViewerImage`** (`IDisposable`) — owns the `Surface` and carries `Format`, `Diagnostics`, `Echo`, and `Embedded`.
+- **`ViewerImage`** (`IDisposable`) — owns the `Surface` and carries `Format`, `Diagnostics`, `Echo`, and `Embedded`
+  as read-only snapshots (`ReadOnlyCollection<T>` copies, not castable to a mutable list).
   Disposing it disposes the surface.
 
 ### Key Methods

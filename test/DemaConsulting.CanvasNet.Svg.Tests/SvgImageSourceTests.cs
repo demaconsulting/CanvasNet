@@ -219,4 +219,27 @@ public class SvgImageSourceTests
         Assert.Equal([".svg"], source.Extensions);
         Assert.Empty(source.Schemes);
     }
+
+    /// <summary>
+    ///     Test that the shared extension and scheme lists cannot be changed by casting them to an array or
+    ///     <see cref="IList{T}"/>.
+    /// </summary>
+    [Fact]
+    public void SvgImageSource_Properties_ExtensionsAndSchemesAreReadOnly()
+    {
+        // Arrange
+        var source = new SvgImageSource();
+
+        // Act
+        var extensions = source.Extensions;
+        var schemes = source.Schemes;
+
+        // Assert
+        Assert.False(extensions is string[]);
+        Assert.False(schemes is string[]);
+        Assert.True(extensions is IList<string> { IsReadOnly: true });
+        Assert.True(schemes is IList<string> { IsReadOnly: true });
+        Assert.Throws<NotSupportedException>(() => ((IList<string>)extensions).Add("x"));
+        Assert.Throws<NotSupportedException>(() => ((IList<string>)schemes).Add("x"));
+    }
 }

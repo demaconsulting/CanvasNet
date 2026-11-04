@@ -34,6 +34,72 @@ public class CanvasNetViewerTests
     }
 
     /// <summary>
+    ///     Test that the extension and scheme lists of every built-in source cannot be changed by casting them to an
+    ///     array or <see cref="IList{T}"/>.
+    /// </summary>
+    /// <param name="index">The position of the built-in source.</param>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(6)]
+    public void CanvasNetViewer_ImageSources_ExtensionsAndSchemesAreReadOnly(int index)
+    {
+        // Arrange
+        var source = CanvasNetViewer.ImageSources[index];
+
+        // Act / Assert
+        AssertReadOnly(source.Extensions, ".x");
+        AssertReadOnly(source.Schemes, "x");
+    }
+
+    /// <summary>
+    ///     Test that the lists of the viewer, of a resolver it creates and of a rendered image cannot be changed by
+    ///     casting them to an array, a list or <see cref="IList{T}"/>.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_Collections_AreReadOnly()
+    {
+        // Arrange
+        using var folder = new ViewerTestFolder();
+        var path = folder.WriteText("a.svg", ViewerFixtures.Svg(string.Empty));
+        var resolver = CanvasNetViewer.CreateImageResolver(folder.Path);
+
+        // Act
+        using var image = CanvasNetViewer.Render(path);
+
+        // Assert
+        AssertReadOnly(CanvasNetViewer.ImageSources, new RasterImageSource());
+        AssertReadOnly(CanvasNetViewer.Extensions, ".x");
+        AssertReadOnly(resolver.Extensions, ".x");
+        AssertReadOnly(resolver.Schemes, "x");
+        AssertReadOnly(image.Diagnostics, new ImageSourceDiagnostic("s", ImageDiagnosticSeverity.Info, "c", "m"));
+        AssertReadOnly(image.Echo, "x");
+        AssertReadOnly(image.Embedded, new EmbeddedImage("a", "b", 1, 1));
+    }
+
+    /// <summary>
+    ///     Asserts that a list is not an array or a <see cref="List{T}"/>, and that when it can be cast to
+    ///     <see cref="IList{T}"/> it reports read-only and refuses to add.
+    /// </summary>
+    /// <typeparam name="T">The element type.</typeparam>
+    /// <param name="list">The list.</param>
+    /// <param name="sample">An element to try to add.</param>
+    private static void AssertReadOnly<T>(IReadOnlyList<T> list, T sample)
+    {
+        Assert.False(list is T[]);
+        Assert.False(list is List<T>);
+        if (list is IList<T> mutable)
+        {
+            Assert.True(mutable.IsReadOnly);
+            Assert.Throws<NotSupportedException>(() => mutable.Add(sample));
+        }
+    }
+
+    /// <summary>
     ///     Test that every call creates a new resolver with the built-in extensions, that extra sources are added after
     ///     the built-in ones, and that invalid arguments are rejected.
     /// </summary>

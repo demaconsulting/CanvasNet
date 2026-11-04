@@ -1,4 +1,5 @@
 // cspell:ignore vega
+using System.Collections.ObjectModel;
 using DemaConsulting.CanvasNet.ImageSources;
 
 namespace DemaConsulting.CanvasNet.VegaLite;
@@ -34,7 +35,12 @@ public sealed class VegaLiteImageSource : IImageSource
     /// <summary>
     ///     The extensions this source claims.
     /// </summary>
-    private static readonly string[] ClaimedExtensions = [".vl", ".vl.json"];
+    private static readonly ReadOnlyCollection<string> ClaimedExtensions = new([".vl", ".vl.json"]);
+
+    /// <summary>
+    ///     The schemes this source claims: none. Read-only, so a caller cannot change what is shared.
+    /// </summary>
+    private static readonly ReadOnlyCollection<string> NoSchemes = new([]);
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="VegaLiteImageSource"/> class.
@@ -50,7 +56,7 @@ public sealed class VegaLiteImageSource : IImageSource
     public IReadOnlyList<string> Extensions => ClaimedExtensions;
 
     /// <inheritdoc />
-    public IReadOnlyList<string> Schemes => [];
+    public IReadOnlyList<string> Schemes => NoSchemes;
 
     /// <summary>
     ///     Draws the chart of a request.

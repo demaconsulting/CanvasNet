@@ -61,7 +61,8 @@ it is not a failure of the file.
 
 **`ImageSourceSet`**: the sources in order, a dictionary from extension to the winning source, a dictionary from scheme
 to
-the winning source, the extensions longest first, and the sorted lists `Extensions` and `Schemes`. It is immutable.
+the winning source, the extensions longest first, and the sorted lists `Extensions` and `Schemes`, which are
+`ReadOnlyCollection<string>` instances (not arrays or lists, so a cast cannot change them). It is immutable.
 
 #### Key Methods
 

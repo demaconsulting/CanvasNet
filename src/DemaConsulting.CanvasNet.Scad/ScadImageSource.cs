@@ -1,4 +1,5 @@
 // cspell:ignore scad openscad
+using System.Collections.ObjectModel;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.ImageSources;
 using DemaConsulting.CanvasNet.Render3D.SceneRendering;
@@ -46,7 +47,12 @@ public sealed class ScadImageSource : IImageSource
     /// <summary>
     ///     The extensions this source claims.
     /// </summary>
-    private static readonly string[] ClaimedExtensions = [".scad"];
+    private static readonly ReadOnlyCollection<string> ClaimedExtensions = new([".scad"]);
+
+    /// <summary>
+    ///     The schemes this source claims: none. Read-only, so a caller cannot change what is shared.
+    /// </summary>
+    private static readonly ReadOnlyCollection<string> NoSchemes = new([]);
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="ScadImageSource"/> class.
@@ -62,7 +68,7 @@ public sealed class ScadImageSource : IImageSource
     public IReadOnlyList<string> Extensions => ClaimedExtensions;
 
     /// <inheritdoc />
-    public IReadOnlyList<string> Schemes => [];
+    public IReadOnlyList<string> Schemes => NoSchemes;
 
     /// <summary>
     ///     Draws the model of a request.

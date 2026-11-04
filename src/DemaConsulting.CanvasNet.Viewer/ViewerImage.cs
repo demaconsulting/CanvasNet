@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.ImageSources;
 
@@ -17,9 +18,9 @@ public sealed class ViewerImage : IDisposable
     /// </summary>
     /// <param name="surface">The picture; the new object owns it.</param>
     /// <param name="format">The format that was drawn.</param>
-    /// <param name="diagnostics">The notes of the file and of the files it embeds.</param>
-    /// <param name="echo">The text the files printed.</param>
-    /// <param name="embedded">The images the file embedded.</param>
+    /// <param name="diagnostics">The notes of the file and of the files it embeds; copied into a read-only list.</param>
+    /// <param name="echo">The text the files printed; copied into a read-only list.</param>
+    /// <param name="embedded">The images the file embedded; copied into a read-only list.</param>
     internal ViewerImage(
         Surface surface,
         string format,
@@ -29,9 +30,9 @@ public sealed class ViewerImage : IDisposable
     {
         Surface = surface;
         Format = format;
-        Diagnostics = diagnostics;
-        Echo = echo;
-        Embedded = embedded;
+        Diagnostics = new ReadOnlyCollection<ImageSourceDiagnostic>([.. diagnostics]);
+        Echo = new ReadOnlyCollection<string>([.. echo]);
+        Embedded = new ReadOnlyCollection<EmbeddedImage>([.. embedded]);
     }
 
     /// <summary>

@@ -19,8 +19,9 @@ The unit's behavior is specified by the `CanvasNet-ImageSources-RasterImageSourc
 
 #### Data Model
 
-The class has no state. `Name` is `raster`; `Extensions` are `.png .jpg .jpeg .bmp .tif .tiff .gif .jp2 .j2k .j2c`;
-`Schemes` is empty. The class is stateless and thread-safe, so one instance serves any number of resolvers.
+The class has no mutable state. `Name` is `raster`; `Extensions` are `.png .jpg .jpeg .bmp .tif .tiff .gif .jp2 .j2k .j2c`;
+`Schemes` is empty. Both lists are shared `ReadOnlyCollection<string>` instances, so a caller cannot change them by
+casting. The class is stateless and thread-safe, so one instance serves any number of resolvers.
 
 #### Key Methods
 
