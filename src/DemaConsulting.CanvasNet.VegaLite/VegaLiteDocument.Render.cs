@@ -182,7 +182,7 @@ public sealed partial class VegaLiteDocument
         T result;
         try
         {
-            result = finish(BuildPlan(plan, sink, cancellationToken));
+            result = finish(BuildPlan(plan, options, sink, cancellationToken));
         }
         catch
         {
@@ -485,7 +485,7 @@ public sealed partial class VegaLiteDocument
             var sink = new VegaLiteReportSink(options.Limits.MaxDiagnostics, options.ThrowOnUnsupportedFeature);
             try
             {
-                RecordReports(sink, cancellationToken);
+                RecordReports(options, sink, cancellationToken);
 
                 // The findings of the data stage come after those of the specification, as when the chart renders
                 foreach (var warning in dataWarnings)
@@ -507,12 +507,13 @@ public sealed partial class VegaLiteDocument
     /// <summary>
     ///     Records the findings of the specification model in the sink, in document order.
     /// </summary>
+    /// <param name="options">The effective options (the caller's configuration decides the reports that depend on it).</param>
     /// <param name="sink">The sink.</param>
     /// <param name="cancellationToken">The token that stops the work.</param>
     /// <exception cref="VegaLiteUnsupportedFeatureException">Thrown in strict mode at the first unsupported feature.</exception>
-    private void RecordReports(VegaLiteReportSink sink, CancellationToken cancellationToken)
+    private void RecordReports(VegaLiteRenderOptions options, VegaLiteReportSink sink, CancellationToken cancellationToken)
     {
-        foreach (var report in Reports)
+        foreach (var report in ReportsFor(options))
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (report.Kind == FeatureReportKind.Warning)
@@ -535,13 +536,14 @@ public sealed partial class VegaLiteDocument
     ///     draw yet are, with their stable identifiers.
     /// </remarks>
     /// <param name="plan">The prepared plan.</param>
+    /// <param name="options">The effective options (the caller's configuration decides the reports that depend on it).</param>
     /// <param name="sink">The sink that records the reports.</param>
     /// <param name="cancellationToken">The token that stops the work.</param>
     /// <returns>The plan.</returns>
-    private ChartPlan BuildPlan(ChartPlan plan, VegaLiteReportSink sink, CancellationToken cancellationToken)
+    private ChartPlan BuildPlan(ChartPlan plan, VegaLiteRenderOptions options, VegaLiteReportSink sink, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        RecordReports(sink, cancellationToken);
+        RecordReports(options, sink, cancellationToken);
 
         // The data stage's own findings follow those of the specification text
         foreach (var warning in plan.DataWarnings ?? [])

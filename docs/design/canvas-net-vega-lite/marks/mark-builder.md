@@ -231,14 +231,15 @@ opacity of 0); the line overlay is a `line` mark with the `clip`, `interpolate`,
 run has no `x2` and `y2` (the line is drawn at the edge of the area), reads the stacked end of a stacked channel, skips
 a channel that has a field but no scale (a channel that the overlaid mark does not draw), and groups its rows as a line
 does. An `area` that has an overlay and names no `opacity`, `fillOpacity`, or configured opacity has the opacity 0.7.
-The point overlay is also enabled by an **encoding with a `shape` channel** when the mark has no `point` property and
-`config.<mark>.point` is not truthy (Vega-Lite's `getPointOverlay`; `point: false` or null keeps it off). The base run
-never reads the `shape` (nor an `angle`, or a `strokeDash` of an area or trail: `ScaleResolver.ChannelIsDrawn` of the
-mark type is false, as Vega-Lite drops the shape from the path layer), so the shape does not group the paths; the
-overlay run
-is a `point` mark and reads every channel that has a scale, so the scales that the resolver builds for the overlay points
-(a `shape`, an `angle`, a `strokeDash`, the `size` of an area) give them their shapes, rotations, dashes and sizes.
-Every overlay item is charged like the items of any run (a line overlay as a path, each point as an item).
+The overlay definitions are built by `SpecNormalizer.PointOverlayDefinition` and `LineOverlayDefinition`, which the scale
+resolver and the legend planner share. The point overlay is also enabled by an **encoding with a `shape` channel** when
+the mark has no `point` property and `config.<mark>.point` is not truthy (Vega-Lite's `getPointOverlay`; `point: false`
+or null keeps it off). The base run never reads the `shape` (nor an `angle`, or a `strokeDash` of an area or trail:
+`ScaleResolver.ChannelIsDrawn` of the mark type is false, as Vega-Lite drops the shape from the path layer), so the shape
+does not group the paths. The overlay runs read every channel that has a scale, so the scales that the resolver builds
+for the overlays give the points their shapes, rotations, dashes, and sizes (a `shape`, an `angle`, a `strokeDash`, the
+`size` of an area), and the line overlay of an area its dash and its width (the `size`, with the range of the stroke
+widths). Every overlay item is charged like the items of any run (a line overlay as a path, each point as an item).
 
 **Draw order** (`MarkBuilder.Order.cs`). The `order` channel decides the drawing order of `bar`, `rect`, `tick`, `rule`,
 `point`, `circle`, `square`, `text`, and `arc` (Vega-Lite sorts the marks by it) when the encoding is **not stacked**:

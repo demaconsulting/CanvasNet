@@ -287,4 +287,45 @@ public class MarkBuilderOverlayTests
         Assert.Equal(3, angled.Count);
         Assert.Equal(3, angled.Select(p => p.Angle).Distinct().Count());
     }
+
+    /// <summary>
+    ///     Validates that the line overlay of an area draws the channels of a line (Vega-Lite gives the line layer the whole encoding): the <c>strokeDash</c> of the groups dashes the line
+    ///     of each group (the area has none), and a <c>size</c> that is constant in a group is the width of its line, with the range of the stroke widths and not that of a symbol.
+    /// </summary>
+    [Fact]
+    public void MarkBuilder_Build_LineOverlayOfAnAreaDrawsTheSizeAndTheDashOfTheEncoding()
+    {
+        // Arrange: two groups with a width each (the size groups the line, as it does a line mark)
+        const string rows = """
+            [ { "x": 0, "y": 1, "g": "a", "w": 1 }, { "x": 1, "y": 2, "g": "a", "w": 1 }, { "x": 0, "y": 3, "g": "b", "w": 3 }, { "x": 1, "y": 4, "g": "b", "w": 3 } ]
+            """;
+        const string dashed = """
+            { "x": { "field": "x", "type": "quantitative" }, "y": { "field": "y", "type": "quantitative" }, "strokeDash": { "field": "g", "type": "nominal" } }
+            """;
+        const string widths = """
+            { "x": { "field": "x", "type": "quantitative" }, "y": { "field": "y", "type": "quantitative" }, "detail": { "field": "g" }, "size": { "field": "w", "type": "quantitative" } }
+            """;
+
+        // Act: the line overlay alone (the points are switched off)
+        var group = ChartTestHelpers.Marks(Chart("""{ "type": "area", "line": true, "point": false }""", dashed, rows), 300, 200);
+
+        // Assert: the areas have no dash; the lines have the dash of their group, which differ
+        Assert.Equal(["mark-area", "mark-area", "mark-line", "mark-line"], group.Children.Select(c => c.Role));
+        Assert.All(ChartTestHelpers.Of<ScenePath>(group, "mark-area"), a => Assert.Null(a.StrokeDash));
+        var lines = ChartTestHelpers.Of<ScenePath>(group, "mark-line");
+        Assert.All(lines, l => Assert.NotNull(l.StrokeDash));
+        Assert.NotEqual(lines[0].StrokeDash, lines[1].StrokeDash);
+
+        // Act: the widths
+        var wide = ChartTestHelpers.Of<ScenePath>(ChartTestHelpers.Marks(Chart("""{ "type": "area", "line": true, "point": false }""", widths, rows), 300, 200), "mark-line");
+
+        // Assert: two lines, the width of each from the stroke width range (1 to 4) and growing with the size
+        Assert.Equal(2, wide.Count);
+        Assert.True(wide[0].StrokeWidth < wide[1].StrokeWidth);
+        Assert.All(wide, l => Assert.InRange(l.StrokeWidth ?? 0, 1.0, 4.0));
+
+        // Act / Assert: without a line overlay the same encoding draws only the areas, which keep their own look
+        var plain = ChartTestHelpers.Marks(Chart("""{ "type": "area", "line": false, "point": false }""", dashed, rows), 300, 200);
+        Assert.Equal(["mark-area", "mark-area"], plain.Children.Select(c => c.Role));
+    }
 }

@@ -204,6 +204,7 @@ the unit verification document passes without error or unexpected exception.
 - **Overlays, Invalid Modes, And The Draw Order Through The Whole Pipeline**:
   `VegaLiteLineAreaIntegrationTests.CanvasNetVegaLite_SystemIntegration_Overlays_LinePointsAndAreaLineAreDrawn`,
   `VegaLiteLineAreaIntegrationTests.CanvasNetVegaLite_SystemIntegration_Overlays_ShapeChannelShapesTheOverlayPointsInStrictMode`,
+  `VegaLiteLineAreaIntegrationTests.CanvasNetVegaLite_SystemIntegration_Overlays_CallerConfigurationAndLineOverlayAgreeWithTheReports`,
   `VegaLiteLineAreaIntegrationTests.CanvasNetVegaLite_SystemIntegration_InvalidData_NullsBreakAFilterConnectsAndShowIsReported`,
   `VegaLiteLineAreaIntegrationTests.CanvasNetVegaLite_SystemIntegration_Order_OrderChannelControlsOverlapAndPathSort`,
   `MarkBuilderOverlayTests.MarkBuilder_Build_PointOverlayDrawsSymbolsWithTheOverlayDefinition`,

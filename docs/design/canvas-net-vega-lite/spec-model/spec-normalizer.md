@@ -171,19 +171,25 @@ object of the mark definition), `Orient` and `TryOrient`, `ContinuousAxis`, `Pos
   node and are applied by the data stage.
 - `TryOrientation(type, definition, encoding, out orient, out problem)` - decides the orientation of a composite mark
   without throwing, for the catalog and the expansion.
-- **Path overlay decision** (`SpecNormalizer.PathOverlay.cs`; Vega-Lite's `getPointOverlay` in its path overlay
-  normalizer). `HasPointOverlay(markType, mark, encoding, configPoint)` tells whether a line, area, trail, or rule
-  has a point overlay: its `point` is `true`, an object, or `"transparent"`; or its `point` is **missing** and
-  `config.<mark>.point` is truthy **or the encoding has a `shape` channel** (`HasShapeChannel`); `false` and null
-  switch it off. The mark builder, the scale resolver (`Context.PointOverlay`), and the feature catalog (which reads the
-  configuration of the specification only) all ask it, so that the points, the scales and legends of the channels they
-  draw, and the reports agree. Vega-Lite normalizes such a mark into two layers: the path (`omit(encoding, ['shape'])`:
-  the shape is dropped **before** the channels are checked against the mark, so it raises no `incompatibleChannel`
-  warning there and does not group the path) and the overlay `point` (the whole encoding without `x2` and `y2`, so its
-  shape, angle, stroke dash, and size are drawn by the points). Every other channel goes to both layers, so the path
-  layer still warns about an `angle`, a `strokeDash` on an area or trail, and a `size` on an area (`initEncoding` in
-  `encoding.ts`); the feature catalog reports them with a message that says that only the point overlay draws them.
-  `IsTruthyConfig` is the JavaScript truthiness of a configuration value.
+- **Path overlay decision** (`SpecNormalizer.PathOverlay.cs`; Vega-Lite's `getPointOverlay` and `getLineOverlay` in its
+  path overlay normalizer). `HasPointOverlay` and `PointOverlayDefinition(markType, mark, encoding, configPoint)`
+  decide and build the point overlay of a `line`, `area`, `trail`, or `rule`: its `point` is `true`, an object, or
+  `"transparent"`; or its `point` is **missing** and `config.<mark>.point` is truthy **or the encoding has a `shape`
+  channel** (`HasShapeChannel`); `false` and null switch it off. `HasLineOverlay` and
+  `LineOverlayDefinition(markType, mark, configLine)` do the same for the line overlay of an `area` (`line` true or an
+  object, else `config.area.line`; the `clip`, `interpolate`, and `tension` of the area are inherited), and
+  `OverlayDrawsChannel(channel, pointOverlay, lineOverlay)` tells whether an overlay draws a channel (`ChannelIsDrawn`
+  for `point` and for `line`). The mark builder (which builds the overlay runs from the definitions), the scale resolver
+  (`Context.PointOverlay` and `Context.LineOverlay`), the legend planner (the symbols of a path mark with a point
+  overlay are those of the filled overlay `point`), and the feature catalog all ask it, so that the points, the lines,
+  the scales and legends of the channels they draw, and the reports agree. Vega-Lite normalizes such a mark into
+  layers: the path (`omit(encoding, ['shape'])`: the shape is dropped **before** the channels are checked against the
+  mark, so it raises no `incompatibleChannel` warning there and does not group the path), the line overlay of an area,
+  and the overlay `point` (each with the whole encoding without `x2` and `y2`, so the points draw the shape, angle,
+  stroke dash, and size, and the line overlay the stroke dash and the size as the width). Every other channel goes to
+  all the layers, so the path layer still warns about an `angle`, a `strokeDash` on an area or trail, and a `size` on
+  an area (`initEncoding` in `encoding.ts`); the feature catalog reports them with a message that says which overlay
+  draws them. `IsTruthyConfig` is the JavaScript truthiness of a configuration value.
 
 **Boxplot expansion** (Vega-Lite's `normalizeBoxPlot`, without tooltips). The orientation is the continuous
 (quantitative or temporal, as written or as `ChannelDefinitions.TypeOf` infers it) channel; a plot with both

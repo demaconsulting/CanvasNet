@@ -469,6 +469,52 @@ public class VegaLiteLineAreaIntegrationTests
     }
 
     /// <summary>
+    ///     Validates that the reports and the drawing agree when the caller gives a configuration: a shape with <c>config.line.point</c> of the caller is drawn without a report in strict mode,
+    ///     an angle that the points that this configuration enables draw is reported as drawn by the point overlay (and as ignored without the configuration), and the dash of an area
+    ///     with a line overlay is drawn by the line, with the report naming the line overlay.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Overlays_CallerConfigurationAndLineOverlayAgreeWithTheReports()
+    {
+        // Arrange
+        const string data = """
+            [ { "x": 0, "y": 1, "g": "a" }, { "x": 1, "y": 2, "g": "a" }, { "x": 0, "y": 3, "g": "b" }, { "x": 1, "y": 4, "g": "b" } ]
+            """;
+        const string caller = """{ "line": { "point": true } }""";
+        var shaped = VegaLiteDocument.Parse(Chart("\"line\"", data, Encoding(", \"color\": { \"field\": \"g\", \"type\": \"nominal\" }, \"shape\": { \"field\": \"g\", \"type\": \"nominal\" }")));
+
+        // Act: strict mode with the caller's configuration
+        var strict = new VegaLiteRenderOptions { Config = caller, ThrowOnUnsupportedFeature = true };
+        var scene = shaped.BuildScene(strict, Ct);
+        using var surface = shaped.Render(strict, Ct);
+
+        // Assert: no report, and the points are shaped
+        Assert.Equal(["circle", "circle", "square", "square"], Items<SceneSymbol>(scene, "mark-point").Select(p => p.Shape));
+
+        // Arrange / Act: an angle on a line is reported by the catalog of the rendering that has the caller's configuration as drawn by the points, and as ignored otherwise
+        var angled = VegaLiteDocument.Parse(Chart("\"line\"", data, Encoding(", \"angle\": { \"field\": \"y\", \"type\": \"quantitative\" }")));
+        string Report(string? config)
+        {
+            var reported = new List<VegaLiteUnsupportedFeature>();
+            using var drawn = angled.Render(new VegaLiteRenderOptions { Config = config, UnsupportedFeatureHandler = reported.Add }, Ct);
+            return Assert.Single(reported, f => f.Feature == "vl-channel-angle").Message;
+        }
+
+        Assert.Contains("point overlay", Report(caller), StringComparison.Ordinal);
+        Assert.Contains("ignored", Report(null), StringComparison.Ordinal);
+
+        // Arrange / Act: the dash of an area with a line overlay is the dash of its lines (the report names the line overlay)
+        var dashed = VegaLiteDocument.Parse(Chart("{ \"type\": \"area\", \"line\": true, \"point\": false }", data, Encoding(", \"strokeDash\": { \"field\": \"g\", \"type\": \"nominal\" }")));
+        var reports = new List<VegaLiteUnsupportedFeature>();
+        var areaScene = dashed.BuildScene(new VegaLiteRenderOptions { UnsupportedFeatureHandler = reports.Add }, Ct);
+        using var areaSurface = dashed.Render(new VegaLiteRenderOptions { UnsupportedFeatureHandler = reports.Add }, Ct);
+
+        // Assert
+        Assert.Equal(2, Items<ScenePath>(areaScene, "mark-line").Count(l => l.StrokeDash is { Count: > 0 }));
+        Assert.Contains("line overlay", Assert.Single(reports, f => f.Feature == "vl-channel-strokedash").Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Validates the invalid data modes: a null y in the middle of five points breaks the default line into two subpaths (two moves), the <c>filter</c> mode connects the points on both
     ///     sides, the filter mode warns that the scale domains include the filtered rows, and the modes <c>show</c> and <c>null</c> are reported as unsupported (and thrown in strict mode).
     /// </summary>

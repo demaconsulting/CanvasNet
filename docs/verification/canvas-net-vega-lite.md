@@ -1138,6 +1138,17 @@ series, and that the legend symbols are a circle and a square. Renders an area w
 the same) and a line with no `point` at all (the shape switches the overlay on: four points, no report), and asserts that
 with `point: false` strict mode throws for `vl-channel-shape`.
 
+### Overlays: The Caller's Configuration And The Line Overlay Agree With The Reports
+
+**Test**: `VegaLiteLineAreaIntegrationTests.CanvasNetVegaLite_SystemIntegration_Overlays_CallerConfigurationAndLineOverlayAgreeWithTheReports`
+
+Renders a line with a `shape` in strict mode with the caller's `{"line": {"point": true}}` and asserts that nothing is
+reported and the points are a circle, a circle, a square, and a square. Renders a line with an `angle` and asserts that
+the
+report of `vl-channel-angle` names the point overlay with the caller's configuration and says that the channel is ignored
+without it. Renders an area with `line: true`, `point: false`, and a `strokeDash` of two groups and asserts that the two
+`mark-line` paths have a dash and that the report of `vl-channel-strokedash` names the line overlay.
+
 **Test**: `VegaLiteLineAreaIntegrationTests.CanvasNetVegaLite_SystemIntegration_InvalidData_NullsBreakAFilterConnectsAndShowIsReported`
 
 Renders a line of the rows (x, y) = (0, 0), (1, 10), (2, null), (3, 5), and (4, 8): the x pixels are 0, 75, 150, 225,

@@ -669,6 +669,7 @@ internal static partial class ScaleResolver
             return null;
         }
 
+        var markDefinition = view["mark"] is { IsObject: true } mark ? mark : null;
         return new Context
         {
             Plan = plan,
@@ -676,7 +677,8 @@ internal static partial class ScaleResolver
             Config = config,
             MarkType = markType,
             Orient = plan.Orient,
-            PointOverlay = SpecNormalizer.HasPointOverlay(markType, view["mark"] is { IsObject: true } markDefinition ? markDefinition : null, encoding, config.VegaLite[markType]?["point"]),
+            PointOverlay = SpecNormalizer.HasPointOverlay(markType, markDefinition, encoding, config.VegaLite[markType]?["point"]),
+            LineOverlay = SpecNormalizer.HasLineOverlay(markType, markDefinition, config.VegaLite[markType]?["line"]),
             Encoding = encoding,
             SourceName = sourceName,
             Limits = limits ?? VegaLiteLimits.Default,
@@ -953,7 +955,7 @@ internal static partial class ScaleResolver
             return null;
         }
 
-        if (!ChannelIsDrawn(channel, context.MarkType) && !(context.PointOverlay && ChannelIsDrawn(channel, "point")))
+        if (!ChannelIsDrawn(channel, context.MarkType) && !SpecNormalizer.OverlayDrawsChannel(channel, context.PointOverlay, context.LineOverlay))
         {
             return null;
         }
@@ -1816,8 +1818,18 @@ internal static partial class ScaleResolver
     {
         var scale = context.Config;
 
-        // The points of the overlay of an area draw its size channel (the area itself has none), so the range is that of a point
-        switch (context.MarkType == "area" && context.PointOverlay ? "point" : context.MarkType)
+        // The overlays of an area draw its size (the area itself has none): the width of its line overlay, which comes first among the layers, else the size of its points
+        var sizeMark = context.MarkType;
+        if (sizeMark == "area" && context.LineOverlay)
+        {
+            sizeMark = "line";
+        }
+        else if (sizeMark == "area" && context.PointOverlay)
+        {
+            sizeMark = "point";
+        }
+
+        switch (sizeMark)
         {
             case "bar" or "tick":
                 return (scale.GetNumber("scale.minBandSize") ?? 2, scale.GetNumber("scale.maxBandSize") ?? (context.MinStep - 1));
@@ -1999,6 +2011,9 @@ internal static partial class ScaleResolver
 
         /// <summary>Gets a value indicating whether the mark has a point overlay, whose points draw the channels of a <c>point</c> mark (a <c>shape</c> on a line, for example).</summary>
         public bool PointOverlay { get; init; }
+
+        /// <summary>Gets a value indicating whether the mark (an area) has a line overlay, which draws the channels of a <c>line</c> mark (its <c>size</c> as the width and its <c>strokeDash</c>).</summary>
+        public bool LineOverlay { get; init; }
 
         /// <summary>Gets the inferred orientation of the mark.</summary>
         public string? Orient { get; init; }

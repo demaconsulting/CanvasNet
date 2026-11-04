@@ -290,8 +290,10 @@ the labels are the same under the Turkish, German, and invariant cultures and fo
 
 Asserts that layers that color by the same field share one legend with one member and the title of the field; that a line
 with a point overlay whose `shape` and `color` are one field has one legend that holds the color and the shape (its
-symbols a circle, a square, and a triangle in the colors of the groups), that a shape of another field has a legend of
-its own, and that with `point: false` there is no shape legend; that the titles
+symbols a circle, a square, and a triangle filled with the colors of the groups, with no stroke of that color, as the
+filled overlay points are), that an overlay object with `filled: false` gives hollow symbols (the color is the stroke),
+that an area with a point overlay has filled symbols too, that a shape of another field has a legend of its own,
+and that with `point: false` there is no shape legend; that the titles
 of different fields on the shared scale join in layer order (`a, b`); that a written title (a channel `title` or a
 `legend.title`) of any layer, first, middle, or last, wins over the derived titles of the others, as Vega-Lite's merge of
 explicit and implicit titles does; that different written titles join (`One, Two`), equal ones are one, and a written

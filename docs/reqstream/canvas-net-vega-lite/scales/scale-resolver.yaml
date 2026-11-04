@@ -82,7 +82,9 @@ sections:
                   and image, stroke dash for every mark but rect, area, trail, text, and arc, angle for point,
                   circle, square, and text, shape for point, and text for text) and, for a line, area, trail, or
                   rule that has a point overlay, also for the channels that the overlay points draw (shape, angle,
-                  stroke dash, and size, the size of an area with the range of a point), so that the feature
+                  stroke dash, and size, the size of an area with the range of a point) and, for an area that has
+                  a line overlay, for the channels of its line (stroke dash and size, with the range of the stroke
+                  widths), so that the feature
                   catalog and the builders agree on which channels a mark ignores.
                 justification: |
                   A channel that a mark does not draw must be ignored and reported, not resolved into a scale and a

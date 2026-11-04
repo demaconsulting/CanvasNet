@@ -517,7 +517,9 @@ input:
    and the parameter names from the tree; `FeatureCatalog.Visit` lists the recognized-but-unsupported constructs (the
    functions, view state, and operators that the compiled expressions collected among them). The
    parse warnings and the catalog reports are merged once, sorted by line and column (stable), and kept as the
-   document's reports.
+   document's reports. A render with a caller's `Config` visits the catalog again with the effective configuration
+   (`VegaLiteDocument.ReportsFor`), so that the reports that depend on the configuration (the overlays of a path mark,
+   which say whether the points or the line of an area draw a channel) are those of what is drawn.
 5. **Output**: an immutable `VegaLiteDocument`, safe to share between threads.
 
 **Measure and render path (`Measure`, `Render(options)`):**
@@ -1216,7 +1218,10 @@ The following decisions differ from, or are stricter than, the Vega-Lite referen
     configuration of the mark; an area with an overlay and without an opacity gets the opacity 0.7), with these
     differences: an `encoding.shape` **switches the point overlay on** when the mark has no `point` and the configuration
     does not decide (Vega-Lite's `getPointOverlay`; the shape is then drawn by the overlay points and is not reported),
-    a `size` channel is applied to the overlay points through the scale of the base mark (for a line that
+    the overlay marks draw the channels of their mark that the path does not (the points a `shape`, `angle`, `strokeDash`,
+    and `size`, the line overlay of an area its `strokeDash` and its `size` as the width; the legend of a line with
+    points shows filled symbols), a `size` channel is applied to the overlay points through the scale of the base mark
+    (for a line that
     is its range of stroke widths read as the area of a symbol), the overlay line of an area groups as a line, and an
     `{"expr": ...}` inside an overlay object is not evaluated (`vl-expr-ref`).
 52. **Impute (P9-D7, P9-D8)**: the `impute` of `x` or `y` runs the impute engine after the aggregate and before the

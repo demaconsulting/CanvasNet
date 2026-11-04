@@ -105,7 +105,8 @@ sections:
                   draw them (as vl-channel-name, the channel being ignored; a shape of a line, area, trail, or
                   rule that has a point overlay, which a shape switches on unless point is false or null, is not
                   reported, and an angle, a stroke dash, or a size that only the overlay points draw is reported
-                  with a message that says so), the geographic types, and the
+                  with a message that says so), the overlays being decided with the effective configuration of the
+                  rendering (the caller's included) when there is one, the geographic types, and the
                   encoding properties impute (on a channel other than x and y) and bandPosition when they change
                   the chart (a bandPosition of a field without a time unit), but not the temporal type, the time
                   unit, the properties aggregate, stack, and sort (in its supported forms), the impute of x and
@@ -137,6 +138,7 @@ sections:
                   - FeatureCatalog_Visit_BinOnScaleChannelsAndTheBinOrdinalScaleAreSupported
                   - FeatureCatalog_Visit_ReportsChannelsThatTheMarkDoesNotDraw
                   - FeatureCatalog_Visit_ShapeOfAPathMarkWithAPointOverlayIsNotReported
+                  - FeatureCatalog_Visit_ReportsFollowTheEffectiveConfiguration
 
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-PathMarks
                 title: >-

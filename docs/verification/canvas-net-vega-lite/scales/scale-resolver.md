@@ -209,7 +209,10 @@ a trail, a text, or an arc, an angle on a line, and a shape on an arc have no sc
 a text, a stroke dash on a line, and an angle on a text do. With a point overlay (`point` true, an object, or
 `"transparent"`, an `area` with only a `line` overlay and a `shape`, or a `shape` alone on a `line` or `trail`) a shape
 on a line, trail, or area, an angle on a line, a size on an area, and a stroke dash on a trail or area have a scale,
-while with `point: false` or null, on an arc, or for a `text` channel they do not.
+while with `point: false` or null, on an arc, or for a `text` channel they do not. With a line overlay of an area (`line`
+true or an object, or `config.area.line`) a size and a stroke dash have a scale (a shape and an angle do not, with the
+points off), and the size range is that of the stroke widths: the largest size of the field is mapped to 4; with
+`line: false` or null, or on a trail, they do not.
 
 ##### Zero, Nice, Domain, Range, And Padding
 

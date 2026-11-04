@@ -406,7 +406,10 @@ errors; and that a range channel that is not a field is a specification error lo
 `MarkChannelGatingTests.ScaleResolver_Resolve_PointOverlayBuildsTheScalesOfThePointChannels`,
 `MarkChannelGatingTests.FeatureCatalog_Visit_ShapeOfAPathMarkWithAPointOverlayIsNotReported`
 
-`SpecNormalizer.HasPointOverlay` has no test of its own; its three callers pin it. Asserts that a line, a trail, and an
+`SpecNormalizer.HasPointOverlay` and `HasLineOverlay` have no test of their own; their callers pin them (the line overlay
+by `MarkChannelGatingTests.ScaleResolver_Resolve_PointOverlayBuildsTheScalesOfThePointChannels` and
+`MarkBuilderOverlayTests.MarkBuilder_Build_LineOverlayOfAnAreaDrawsTheSizeAndTheDashOfTheEncoding`). Asserts that a line,
+a trail, and an
 area with a `shape` and no `point` have the overlay points, that `point: false` and null leave none, that
 `"transparent"`, an
 object, and `true` have them, that a falsy `config.<mark>.point` leaves the decision to the shape while a truthy one

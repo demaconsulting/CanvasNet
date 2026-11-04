@@ -173,12 +173,17 @@ internal static class FeatureCatalog
     ///     Lists the recognized-but-unsupported constructs of a specification.
     /// </summary>
     /// <param name="tree">The parsed specification. Must not be null.</param>
+    /// <param name="config">
+    ///     The effective configuration (defaults, specification and the caller's configuration), or null to read the configuration of the specification alone. The decisions that depend on
+    ///     the configuration of the renderer (whether a path mark has a point overlay, which says whether a <c>shape</c> is drawn) use it, so a rendering with a caller's configuration
+    ///     reports what it draws.
+    /// </param>
     /// <returns>The reports in document order; empty when the specification uses only supported constructs.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="tree"/> is null.</exception>
-    public static IReadOnlyList<FeatureReport> Visit(SpecTree tree)
+    public static IReadOnlyList<FeatureReport> Visit(SpecTree tree, ResolvedConfig? config = null)
     {
         ArgumentNullException.ThrowIfNull(tree);
-        var walker = new Walker(tree);
+        var walker = new Walker(tree, config);
         walker.Run();
 
         // LINQ's ordering is stable, so reports at one position keep the order in which they were found; a finding that several layers share (a channel of the encoding that
@@ -265,11 +270,35 @@ internal static class FeatureCatalog
         /// <summary>The stack decision of the view whose encoding is visited (decided when it is first needed), or null outside an encoding.</summary>
         private Lazy<StackDecision?>? _stack;
 
+        /// <summary>The effective configuration, or null when only the configuration of the specification is read.</summary>
+        private readonly ResolvedConfig? _config;
+
         /// <summary>
         ///     Initializes a walker.
         /// </summary>
         /// <param name="tree">The specification.</param>
-        public Walker(SpecTree tree) => _tree = tree;
+        /// <param name="config">The effective configuration, or null.</param>
+        public Walker(SpecTree tree, ResolvedConfig? config)
+        {
+            _tree = tree;
+            _config = config;
+        }
+
+        /// <summary>
+        ///     Reads the <c>point</c> or <c>line</c> that the configuration gives a mark type: the effective configuration when there is one, else the specification's own.
+        /// </summary>
+        /// <param name="markType">The mark type.</param>
+        /// <param name="overlay">The property, <c>point</c> or <c>line</c>.</param>
+        /// <returns>The value, or null.</returns>
+        private ConfigNode? ConfiguredOverlay(string markType, string overlay)
+        {
+            if (_config is not null)
+            {
+                return _config.VegaLite[markType]?[overlay];
+            }
+
+            return _tree.Root["config"]?[markType]?[overlay] is { } node ? ConfigNode.FromSpec(node) : null;
+        }
 
         /// <summary>Gets the reports found so far, in the order they were found.</summary>
         public List<FeatureReport> Reports { get; } = [];
@@ -803,9 +832,9 @@ internal static class FeatureCatalog
             var stackDecision = new Lazy<StackDecision?>(() => StackRules.Decide(markType, ScaleResolver.InferOrient(markType, mark?["orient"]?.AsString(), encoding), encoding));
             _stack = stackDecision;
             var is2D = markType == "errorband" && encoding["x"] is { IsNull: false } && encoding["y"] is { IsNull: false };
-            // Only the configuration of the specification is visible here (a caller's configuration is not part of the tree)
-            var configuredPoint = _tree.Root["config"]?[markType]?["point"] is { } configuredNode ? ConfigNode.FromSpec(configuredNode) : null;
-            var pointOverlay = SpecNormalizer.HasPointOverlay(markType, _mark, encoding, configuredPoint);
+            // The overlays of a path mark: the configuration is the effective one when the caller gave one (a rendering, see Visit), else that of the specification alone
+            var pointOverlay = SpecNormalizer.HasPointOverlay(markType, _mark, encoding, ConfiguredOverlay(markType, "point"));
+            var lineOverlay = SpecNormalizer.HasLineOverlay(markType, _mark, ConfiguredOverlay(markType, "line"));
             var drawnAs = markType switch
             {
                 "boxplot" => "point",
@@ -893,10 +922,15 @@ internal static class FeatureCatalog
                     // The channel is supported, but the mark does not draw it (a shape needs a point, an angle a symbol or text, a dash a mark with a stroke line, a size a mark that has one, a text a text mark,
                     // an angle (theta) or radius a text or arc mark and their second ends an arc mark); the outliers of a boxplot are points. A shape of a path mark with a point overlay is not reported:
                     // Vega-Lite drops it from the path layer before it checks the channels, and the overlay points draw it. An angle, a dash or a size is checked against the path mark as it is (Vega-Lite
-                    // warns about it there), and the points of the overlay still draw it.
-                    var drawnByOverlay = pointOverlay && name is "angle" or "strokeDash" or "size";
+                    // warns about it there), and the overlay marks still draw it: the points what a point draws, the line overlay of an area what a line draws.
+                    var drawnByOverlay = name != "shape" && SpecNormalizer.OverlayDrawsChannel(name, pointOverlay, lineOverlay);
+                    var overlayName = "line overlay";
+                    if (SpecNormalizer.OverlayDrawsChannel(name, pointOverlay, false))
+                    {
+                        overlayName = SpecNormalizer.OverlayDrawsChannel(name, false, lineOverlay) ? "point and line overlays" : "point overlay";
+                    }
                     Unsupported(Id("channel", name), drawnByOverlay
-                        ? $"The '{name}' channel is not drawn by the '{markType}' mark itself; only the points of its point overlay draw it."
+                        ? $"The '{name}' channel is not drawn by the '{markType}' mark itself; only its {overlayName} draws it."
                         : $"The '{name}' channel is not drawn by the '{markType}' mark; it is ignored.", channel);
                 }
                 else if (channel.IsObject)

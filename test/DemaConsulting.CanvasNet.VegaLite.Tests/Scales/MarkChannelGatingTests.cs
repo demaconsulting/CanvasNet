@@ -175,6 +175,14 @@ public class MarkChannelGatingTests
             ("""{"type":"trail","point":true}""", "strokeDash", "nominal", true),
             ("""{"type":"area","point":true}""", "strokeDash", "nominal", true),
             ("""{"type":"area","point":true}""", "text", "nominal", false),
+            ("""{"type":"area","line":true,"point":false}""", "size", "quantitative", true),
+            ("""{"type":"area","line":true,"point":false}""", "strokeDash", "nominal", true),
+            ("""{"type":"area","line":{"color":"red"},"point":false}""", "size", "quantitative", true),
+            ("""{"type":"area","line":true,"point":false}""", "shape", "nominal", false),
+            ("""{"type":"area","line":true,"point":false}""", "angle", "quantitative", false),
+            ("""{"type":"area","line":false,"point":false}""", "size", "quantitative", false),
+            ("""{"type":"area","line":null,"point":false}""", "strokeDash", "nominal", false),
+            ("""{"type":"trail","line":true,"point":false}""", "strokeDash", "nominal", false),
         };
 
         // Act / Assert
@@ -193,6 +201,13 @@ public class MarkChannelGatingTests
         var configuredTable = DataLoader.Load(configured.Root["data"], configured.SourceName, null, TestContext.Current.CancellationToken);
         var shaped = ScaleResolver.Resolve(configured.Root, configuredTable, ConfigResolver.Resolve(configured, null), configured.SourceName, null, TestContext.Current.CancellationToken);
         Assert.Equal(["a", "b"], shaped["shape"]!.DiscreteDomain.Select(d => d.Text));
+
+        // Assert: the line overlay of the configuration builds the scales of the line too; the size of an area then has the range of the stroke widths of its line (not that of a symbol)
+        var area = SpecParser.Parse("{\"data\": {\"values\": [{\"f\": 1}, {\"f\": 2}]}, \"mark\": {\"type\": \"area\", \"point\": false}, \"encoding\": {\"size\": {\"field\": \"f\", \"type\": \"quantitative\"}}, \"config\": {\"area\": {\"line\": true}}}");
+        var areaTable = DataLoader.Load(area.Root["data"], area.SourceName, null, TestContext.Current.CancellationToken);
+        var lineSize = ScaleResolver.Resolve(area.Root, areaTable, ConfigResolver.Resolve(area, null), area.SourceName, null, TestContext.Current.CancellationToken)["size"];
+        Assert.NotNull(lineSize);
+        Assert.Equal(4.0, lineSize.CreateModel(0).Map(2.0));
     }
 
     /// <summary>
@@ -240,6 +255,46 @@ public class MarkChannelGatingTests
         Assert.Equal(["vl-channel-size"], ChannelReports("""{"type":"area","point":true}""", """ "size": {"field":"v","type":"quantitative"} """));
         Assert.Equal(["vl-channel-strokedash"], ChannelReports("""{"type":"trail","point":true}""", """ "strokeDash": {"field":"v","type":"nominal"} """));
         Assert.Contains("ignored", FeatureCatalog.Visit(SpecParser.Parse(Spec("\"line\"", """ "angle": {"field":"v","type":"quantitative"} """))).Single(r => r.Id == "vl-channel-angle").Message, StringComparison.Ordinal);
+
+        // Assert: the line overlay of an area counts the same way: its size and its dash are drawn by the line, the message names the overlay that draws them
+        const string size = """ "size": {"field":"v","type":"quantitative"} """;
+        const string dash = """ "strokeDash": {"field":"v","type":"nominal"} """;
+        string Message(string mark, string channels, string id) =>
+            FeatureCatalog.Visit(SpecParser.Parse(Spec(mark, channels))).Single(r => r.Id == id).Message;
+        var lineOnly = Message("""{"type":"area","line":true,"point":false}""", size, "vl-channel-size");
+        Assert.Contains("line overlay", lineOnly, StringComparison.Ordinal);
+        Assert.DoesNotContain("point", lineOnly, StringComparison.Ordinal);
+        Assert.Contains("point and line overlays", Message("""{"type":"area","line":true,"point":true}""", dash, "vl-channel-strokedash"), StringComparison.Ordinal);
+        Assert.Contains("ignored", Message("""{"type":"area","line":false,"point":false}""", size, "vl-channel-size"), StringComparison.Ordinal);
+        Assert.Contains("ignored", Message("""{"type":"trail","line":true,"point":false}""", dash, "vl-channel-strokedash"), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that the reports follow the configuration of the rendering when there is one: the angle of a line is drawn by the overlay points that <c>config.line.point</c> of the
+    ///     caller enables (the message says so), and the size of an area by the line overlay that <c>config.area.line</c> enables, while the same specification visited without that
+    ///     configuration reports them as ignored.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_ReportsFollowTheEffectiveConfiguration()
+    {
+        // Arrange
+        var angle = SpecParser.Parse(Spec("\"line\"", """ "angle": {"field":"v","type":"quantitative"} """));
+        var size = SpecParser.Parse(Spec("""{"type":"area","point":false}""", """ "size": {"field":"v","type":"quantitative"} """));
+
+        // Act / Assert: the specification alone has no overlay
+        Assert.Contains("ignored", FeatureCatalog.Visit(angle).Single(r => r.Id == "vl-channel-angle").Message, StringComparison.Ordinal);
+        Assert.Contains("ignored", FeatureCatalog.Visit(size).Single(r => r.Id == "vl-channel-size").Message, StringComparison.Ordinal);
+
+        // Act / Assert: the effective configuration (with the caller's) enables them
+        var points = FeatureCatalog.Visit(angle, ConfigResolver.Resolve(angle, """{ "line": { "point": true } }""")).Single(r => r.Id == "vl-channel-angle");
+        Assert.Contains("point overlay", points.Message, StringComparison.Ordinal);
+        var line = FeatureCatalog.Visit(size, ConfigResolver.Resolve(size, """{ "area": { "line": true } }""")).Single(r => r.Id == "vl-channel-size");
+        Assert.Contains("line overlay", line.Message, StringComparison.Ordinal);
+
+        // Assert: a shape is not reported either way (it switches the overlay on)
+        var shape = SpecParser.Parse(Spec("\"line\"", """ "shape": {"field":"v","type":"nominal"} """));
+        Assert.Empty(FeatureCatalog.Visit(shape));
+        Assert.Empty(FeatureCatalog.Visit(shape, ConfigResolver.Resolve(shape, """{ "line": { "point": true } }""")));
     }
 
     /// <summary>
@@ -268,6 +323,18 @@ public class MarkChannelGatingTests
         // Assert: the symbols of the built legend have the shapes of the shape scale (a circle, a square, a triangle) and the colors of the groups
         var symbols = Assert.IsType<SceneGroup>(ChartTestHelpers.Legend(json).Children[0]).Children.OfType<SceneSymbol>().ToList();
         Assert.Equal(["circle", "square", "triangle-up"], symbols.Select(s => s.Shape));
+
+        // Assert: the symbols are filled with the colors of the groups, as the filled points of the overlay are (the stroke of the line does not make them hollow)
+        Assert.Equal(["#4c78a8", "#f58518", "#e45756"], symbols.Select(s => s.Fill));
+        Assert.All(symbols, s => Assert.NotEqual(s.Fill, s.Stroke));
+
+        // Assert: an overlay object that says so keeps the points, and so the symbols, unfilled; an area with a point overlay is filled like a line
+        var hollowJson = json.Replace("\"point\": true", "\"point\": { \"filled\": false }", StringComparison.Ordinal);
+        var hollow = Assert.IsType<SceneGroup>(ChartTestHelpers.Legend(hollowJson).Children[0]).Children.OfType<SceneSymbol>().ToList();
+        Assert.Equal(["#4c78a8", "#f58518", "#e45756"], hollow.Select(s => s.Stroke));
+        var areaJson = json.Replace("\"type\": \"line\"", "\"type\": \"area\"", StringComparison.Ordinal);
+        var areaSymbols = Assert.IsType<SceneGroup>(ChartTestHelpers.Legend(areaJson).Children[0]).Children.OfType<SceneSymbol>().ToList();
+        Assert.Equal(["#4c78a8", "#f58518", "#e45756"], areaSymbols.Select(s => s.Fill));
         Assert.Equal(["#4c78a8", "#f58518", "#e45756"], symbols.Select(s => s.Stroke ?? s.Fill));
 
         // Act / Assert: another field for the shape is a legend of its own

@@ -405,7 +405,9 @@ sections:
                   configuration does not enable it (point false or null keeps it off); and shall draw the
                   channels of a point mark that the path does not draw (the shape, the angle, and the stroke dash,
                   and the size of an area) on the overlay points, the shape of a path mark being left out of the
-                  path (it does not group the paths).
+                  path (it does not group the paths); and shall draw the line overlay of an area with the channels
+                  of a line (its stroke dash as the dash of the line and its size as the width, with the range of the
+                  stroke widths).
                 justification: |
                   A line with points and an area with a line are the common forms of the path marks; Vega-Lite
                   draws them as layers of the base mark and the overlay must match, and its overlay points are
@@ -418,6 +420,7 @@ sections:
                   - MarkBuilder_Build_ShapeChannelEnablesThePointOverlayUnlessSwitchedOff
                   - MarkBuilder_Build_ShapeChannelOfAnAreaShapesTheOverlayPoints
                   - MarkBuilder_Build_PointChannelsOfThePathMarkReachTheOverlayPoints
+                  - MarkBuilder_Build_LineOverlayOfAnAreaDrawsTheSizeAndTheDashOfTheEncoding
 
               - id: CanvasNetVegaLite-Marks-MarkBuilder-DrawOrder
                 title: >-
