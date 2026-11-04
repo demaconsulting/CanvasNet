@@ -113,7 +113,8 @@ and that the location of a mark report is the value of the `mark` property, with
 `FeatureCatalogTests.FeatureCatalog_Visit_UnknownChannelIsNotReported`,
 `MarkChannelGatingTests.FeatureCatalog_Visit_ReportsChannelsThatTheMarkDoesNotDraw`,
 `MarkChannelGatingTests.FeatureCatalog_Visit_ShapeOfAPathMarkWithAPointOverlayIsNotReported`,
-`MarkChannelGatingTests.FeatureCatalog_Visit_ReportsFollowTheEffectiveConfiguration`
+`MarkChannelGatingTests.FeatureCatalog_Visit_ReportsFollowTheEffectiveConfiguration`,
+`MarkChannelGatingTests.FeatureCatalog_Visit_VisitsTheDefinitionOfAChannelThatAnOverlayDraws`
 
 Asserts, as a theory over seventeen mark types, that `bar`, `rect`, `point`, `circle`, `square`, `rule`, `tick`, `arc`,
 `area`, `line`, `text`, `trail`, `boxplot`, `errorbar`, and `errorband` are silent (written as a string and as a definition,
@@ -146,6 +147,9 @@ the line overlay, with both overlays "point and line overlays", and a trail or a
 channel is ignored. With the effective configuration (`FeatureCatalog.Visit(tree, config)`, with the caller's
 `config.line.point` or `config.area.line`) the messages follow what is drawn, the specification alone reports the
 channels as ignored, and a shape is silent either way (`FeatureCatalog_Visit_ReportsFollowTheEffectiveConfiguration`).
+The definition of a channel that an overlay draws is still visited (a custom shape path of a shape, or the unsupported
+`bin` of an angle, is reported with the channel's own identifier), while that of a channel that nothing draws is not
+(`FeatureCatalog_Visit_VisitsTheDefinitionOfAChannelThatAnOverlayDraws`).
 
 ##### Data
 

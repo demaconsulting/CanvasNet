@@ -638,7 +638,8 @@ that a line without the properties has the offset 0 and no cap, join, or miter l
 `MarkBuilderOverlayTests.MarkBuilder_Build_ShapeChannelEnablesThePointOverlayUnlessSwitchedOff`,
 `MarkBuilderOverlayTests.MarkBuilder_Build_ShapeChannelOfAnAreaShapesTheOverlayPoints`,
 `MarkBuilderOverlayTests.MarkBuilder_Build_PointChannelsOfThePathMarkReachTheOverlayPoints`,
-`MarkBuilderOverlayTests.MarkBuilder_Build_LineOverlayOfAnAreaDrawsTheSizeAndTheDashOfTheEncoding`
+`MarkBuilderOverlayTests.MarkBuilder_Build_LineOverlayOfAnAreaDrawsTheSizeAndTheDashOfTheEncoding`,
+`MarkBuilderOverlayTests.MarkBuilder_Build_TransparentPointOfTheConfigurationEnablesTheDefaultOverlay`
 
 Assert the overlays derived above: the roles `mark-line`, `mark-point` x 3 with the budget 14, the filled blue circles of
 the size 30 at the three pixels (the green line not inherited), the replaced properties, no overlay for `false` or null,
@@ -655,7 +656,9 @@ points with `point: true`, with only `line: true`, and from `config.area.point`,
 alone with `point: false`; and that the size of an area (from 4 for the smallest value, with the range of a point) and the
 angle of a line reach the overlay points; and that the line overlay of an area draws the dash of the groups on its lines
 (the areas have none) and the width of its lines from the size (inside the range of the stroke widths, 1 to 4, growing
-with the size), and that without the line overlay only the areas are drawn.
+with the size), and that without the line overlay only the areas are drawn. Last, it asserts that a `"transparent"` in `config.line.point`
+or `config.area.point` enables the default overlay with opaque points (as Vega-Lite's `getPointOverlay` reads a truthy
+configuration value that is not an object), while the `"transparent"` of the mark definition makes the points opacity 0.
 
 ##### The Order Channel Sorts The Drawing
 

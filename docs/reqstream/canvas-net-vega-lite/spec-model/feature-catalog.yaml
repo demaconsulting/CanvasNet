@@ -139,6 +139,7 @@ sections:
                   - FeatureCatalog_Visit_ReportsChannelsThatTheMarkDoesNotDraw
                   - FeatureCatalog_Visit_ShapeOfAPathMarkWithAPointOverlayIsNotReported
                   - FeatureCatalog_Visit_ReportsFollowTheEffectiveConfiguration
+                  - FeatureCatalog_Visit_VisitsTheDefinitionOfAChannelThatAnOverlayDraws
 
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-PathMarks
                 title: >-

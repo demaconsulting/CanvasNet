@@ -932,6 +932,12 @@ internal static class FeatureCatalog
                     Unsupported(Id("channel", name), drawnByOverlay
                         ? $"The '{name}' channel is not drawn by the '{markType}' mark itself; only its {overlayName} draws it."
                         : $"The '{name}' channel is not drawn by the '{markType}' mark; it is ignored.", channel);
+
+                    // The overlay draws the channel, so its definition is visited as any other: its own unsupported properties and constructs are still reported
+                    if (drawnByOverlay && channel.IsObject)
+                    {
+                        VisitChannelDefinition(name, channel);
+                    }
                 }
                 else if (channel.IsObject)
                 {
