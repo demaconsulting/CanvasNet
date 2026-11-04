@@ -90,6 +90,8 @@ wrong reported name or list constitutes a failure.
 
 **Tests**: `ScadImageSource_Render_NoRequestedSize_DrawsNaturalSizeOnTransparentBackground`,
 `ScadImageSource_Render_RequestedSize_DrawsAtThatSize`,
+`ScadImageSource_Render_FlatModel_DrawsFilledTopDownShape`,
+`ScadImageSource_Render_ModelWithViewport_UsesTheViewTheLibraryPicks`,
 `ScadImageSource_Render_SizeBeyondRemainingPixels_IsRefusedBeforeDrawing`,
 `ScadImageSource_Render_ModelWithEchoAndUnsupportedFeature_ReturnsEchoAndDiagnostics`,
 `ScadImageSource_Render_UnsupportedFeatureWhenStrict_ThrowsUnsupportedFeatureException`,
@@ -102,7 +104,11 @@ folder, the strictness switch), so the source is verified without any resolver. 
 size is
 800 by 800 pixels with a transparent corner and a drawn model, that a requested box is exactly that size and one
 dimension keeps
-the square aspect ratio, that a 4000 by 4000 size against a budget of 1000 pixels is refused with
+the square aspect ratio, that a flat 2D model (`square(20, center = true)`) is drawn top-down as an axis-aligned
+rectangle with the same drawn extent on every row, centered on the picture, with the far corners transparent, that a
+3D model with a `$vpr` assignment is drawn exactly as `ScadDocument.Render` draws it with no view chosen (byte-identical
+at the same size, transparent background, and orthographic projection) and differently from the same model without
+the assignment, that a 4000 by 4000 size against a budget of 1000 pixels is refused with
 `ImageSourceBudgetException` (16,000,000 and 1000 on the exception) before the model is parsed, with an allocation far
 below the 64 MB of the picture, while a budget of exactly 60 by 40 pixels draws, that `echo` output and an
 unsupported feature (`offset`) are returned as echo lines and an

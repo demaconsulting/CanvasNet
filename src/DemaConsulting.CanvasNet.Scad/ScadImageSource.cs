@@ -11,8 +11,11 @@ namespace DemaConsulting.CanvasNet.Scad;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         The model is drawn from the default isometric viewpoint with an orthographic projection, at the size of the
-///         placement (<see cref="ImageSourceRequest.SizeFor(int, int, bool)"/> with a natural size of
+///         The model is drawn with the view the library itself chooses for it (see
+///         <see cref="ScadDocument.Render(int, int, ScadRenderOptions?, CancellationToken)"/>): the fitted isometric
+///         view for a model with 3D objects, a flat top-down view for a model that is entirely 2D, or the view of the
+///         model's own <c>$vpr</c>, <c>$vpt</c>, <c>$vpd</c> and <c>$vpf</c> assignments; the projection is orthographic.
+///         The picture has the size of the placement (<see cref="ImageSourceRequest.SizeFor(int, int, bool)"/> with a natural size of
 ///         <see cref="NaturalSize"/> pixels square), over a <b>transparent</b> background so the document that embeds it
 ///         shows through. The <c>include</c> and <c>use</c> directives of the model resolve against
 ///         <see cref="ImageSourceRequest.Directory"/>, the folder of the file, and the Scad library confines them to it;
@@ -90,7 +93,8 @@ public sealed class ScadImageSource : IImageSource
             document = ScadDocument.Open(stream, new ScadOpenOptions { BaseDirectory = request.Directory, SourceName = request.FileName });
         }
 
-        // The default view, drawn straight onto a transparent background so the embedding document shows through
+        // No view is chosen here: the library picks it (isometric for 3D, top-down for flat 2D, or the model's own $vp*
+        // variables). The picture is drawn straight onto a transparent background so the embedding document shows through
         var options = new ScadRenderOptions
         {
             Evaluation = new ScadEvaluationOptions
@@ -106,8 +110,6 @@ public sealed class ScadImageSource : IImageSource
                         OneLine($"{unsupported.Location}: {unsupported.Message}"))),
                 ThrowOnUnsupportedFeature = request.ThrowOnUnsupportedFeature
             },
-            ViewAzimuthDegrees = Camera.DefaultAzimuthDegrees,
-            ViewElevationDegrees = Camera.DefaultElevationDegrees,
             Projection = CameraProjection.Orthographic,
             SceneOptions = new SceneRenderOptions { BackgroundColor = new Rgba32(0, 0, 0, 0) }
         };

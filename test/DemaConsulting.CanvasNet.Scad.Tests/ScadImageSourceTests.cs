@@ -1,6 +1,7 @@
 // cspell:ignore scad openscad
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.ImageSources;
+using DemaConsulting.CanvasNet.Render3D.SceneRendering;
 
 namespace DemaConsulting.CanvasNet.Scad.Tests;
 
@@ -134,6 +135,108 @@ public class ScadImageSourceTests
         Assert.Equal((16_000_000L, 1000L), (ex.RequestedPixels, ex.RemainingPixels));
         Assert.True(allocated < 32 * 1024 * 1024, $"{allocated} bytes were allocated before the refusal.");
         Assert.Equal((60, 40), (fits.Width, fits.Height));
+    }
+
+    /// <summary>
+    ///     Test that a model that is entirely 2D is drawn as a flat top-down shape: an axis-aligned filled square,
+    ///     symmetric about the center of the picture, over a transparent background (an isometric view would tilt it).
+    /// </summary>
+    [Fact]
+    public void ScadImageSource_Render_FlatModel_DrawsFilledTopDownShape()
+    {
+        // Arrange
+        var source = new ScadImageSource();
+
+        // Act
+        using var surface = source.Render(Request("square(20, center = true);", 100, 100)).Surface;
+
+        // Assert: the center and the area near the corners of the fitted square are drawn, the far corners are not
+        Assert.NotEqual(0, surface[50, 50].A);
+        Assert.NotEqual(0, surface[10, 10].A);
+        Assert.NotEqual(0, surface[89, 10].A);
+        Assert.NotEqual(0, surface[10, 89].A);
+        Assert.NotEqual(0, surface[89, 89].A);
+        Assert.Equal(0, surface[0, 0].A);
+        Assert.Equal(0, surface[99, 99].A);
+
+        // Assert: every row through the shape has the same extent (a rectangle) and it is centered on the picture
+        var (firstLeft, firstRight) = OpaqueSpan(surface, 20);
+        foreach (var y in new[] { 20, 35, 50, 65, 80 })
+        {
+            Assert.Equal((firstLeft, firstRight), OpaqueSpan(surface, y));
+        }
+
+        Assert.InRange(Math.Abs(firstLeft - (surface.Width - 1 - firstRight)), 0, 1);
+    }
+
+    /// <summary>
+    ///     Test that a model with 3D objects is drawn with the view the library picks, the same picture as
+    ///     <see cref="ScadDocument.Render(int, int, ScadRenderOptions?, CancellationToken)"/> gives with no view chosen
+    ///     (here the view of the model's own <c>$vpr</c>), which differs from the view of the same model without it.
+    /// </summary>
+    [Fact]
+    public void ScadImageSource_Render_ModelWithViewport_UsesTheViewTheLibraryPicks()
+    {
+        // Arrange
+        const string plain = "cube([30, 10, 5]);";
+        const string withView = "$vpr = [90, 0, 0];\n" + plain;
+        var options = new ScadRenderOptions
+        {
+            Projection = CameraProjection.Orthographic,
+            SceneOptions = new SceneRenderOptions { BackgroundColor = new Rgba32(0, 0, 0, 0) }
+        };
+        var source = new ScadImageSource();
+
+        // Act
+        using var embedded = source.Render(Request(withView, 80, 80)).Surface;
+        using var direct = ScadDocument.Parse(withView).Render(80, 80, options, TestContext.Current.CancellationToken);
+        using var isometric = source.Render(Request(plain, 80, 80)).Surface;
+
+        // Assert
+        Assert.True(AreIdentical(embedded, direct));
+        Assert.False(AreIdentical(embedded, isometric));
+        Assert.True(HasModelOnTransparentBackground(embedded));
+    }
+
+    /// <summary>
+    ///     Gets the first and last pixel column of a row that are not transparent.
+    /// </summary>
+    /// <param name="surface">The surface.</param>
+    /// <param name="y">The row.</param>
+    /// <returns>The first and last drawn column, or (-1, -1) for a row without a drawn pixel.</returns>
+    private static (int First, int Last) OpaqueSpan(Surface surface, int y)
+    {
+        var first = -1;
+        var last = -1;
+        for (var x = 0; x < surface.Width; x++)
+        {
+            if (surface[x, y].A != 0)
+            {
+                first = first < 0 ? x : first;
+                last = x;
+            }
+        }
+
+        return (first, last);
+    }
+
+    /// <summary>
+    ///     Determines whether two surfaces of the same size are byte-identical.
+    /// </summary>
+    /// <param name="left">The first surface.</param>
+    /// <param name="right">The second surface.</param>
+    /// <returns><see langword="true"/> when every row matches.</returns>
+    private static bool AreIdentical(Surface left, Surface right)
+    {
+        for (var y = 0; y < left.Height; y++)
+        {
+            if (!left.GetRowSpanBytes(y).SequenceEqual(right.GetRowSpanBytes(y)))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /// <summary>

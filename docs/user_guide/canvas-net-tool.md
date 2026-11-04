@@ -641,7 +641,9 @@ draws the model and the chart into their rectangles. The result lists each embed
   chart, page, or SVG file is fitted inside it by the `preserveAspectRatio` of the element. A raster is decoded at its
   own size and resampled once. A model and an SVG file are drawn over a **transparent** background, so the diagram shows
   through; a chart keeps **its own background** (white unless it declares another), because a chart is meant to carry
-  its own paper. An embedded model uses its default view and default settings: the options of the command (`--view`,
+  its own paper. An embedded model is drawn with the view the library chooses for it (isometric for a 3D model,
+  top-down for a flat 2D model, or the view of its own `$vpr`, `$vpt`, `$vpd`, and `$vpf` variables) and default
+  settings: the options of the command (`--view`,
   `-D`, `--page`, `--dpi`, ...) apply to the SVG file only.
 - **A reference that is not drawn** (the file is missing, outside the folder, behind a link, of an unknown format, a
   network URL, or over a limit) is the warning **`svg-image-unresolved`** in `diagnostics` (and on standard error); the

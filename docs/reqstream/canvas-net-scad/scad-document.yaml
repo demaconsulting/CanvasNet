@@ -729,7 +729,9 @@ sections:
               scheme) that parses the model from the bytes of the request, resolves its include and use
               directives against the folder of the request (a missing file is a scad-warning note, and a request
               without a folder fails a model that uses include or use with ScadEvaluationException), draws it
-              from the default isometric viewpoint with an orthographic projection at the size of the request
+              from the view the library chooses for the model (the fitted isometric view for a model with 3D
+              objects, the flat top-down view for a model that is entirely 2D, or the view of the model's own $vpr,
+              $vpt, $vpd and $vpf variables) with an orthographic projection at the size of the request
               (800 by 800 pixels when none is asked for) over a transparent background, refuses with
               ImageSourceBudgetException, before drawing anything, a size that exceeds the pixels the request
               allows, returns the warnings and
@@ -739,11 +741,14 @@ sections:
               error, InvalidOperationException for a request without a file, and OperationCanceledException for a
               canceled request.
             justification: |
-              Models are linked from diagrams; the source draws them with one fixed, documented view so the
-              result is the same everywhere, and keeps the include confinement of the Scad library.
+              Models are linked from diagrams; the source leaves the choice of the view to the library, as a
+              rendering of the model on its own does, so the result is the same everywhere, and keeps the include
+              confinement of the Scad library.
             tests:
               - ScadImageSource_Render_NoRequestedSize_DrawsNaturalSizeOnTransparentBackground
               - ScadImageSource_Render_RequestedSize_DrawsAtThatSize
+              - ScadImageSource_Render_FlatModel_DrawsFilledTopDownShape
+              - ScadImageSource_Render_ModelWithViewport_UsesTheViewTheLibraryPicks
               - ScadImageSource_Render_SizeBeyondRemainingPixels_IsRefusedBeforeDrawing
               - ScadImageSource_Render_ModelWithEchoAndUnsupportedFeature_ReturnsEchoAndDiagnostics
               - ScadImageSource_Render_UnsupportedFeatureWhenStrict_ThrowsUnsupportedFeatureException

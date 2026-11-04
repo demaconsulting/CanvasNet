@@ -557,7 +557,9 @@ out-of-memory error.
 `ScadImageSource` is the image source of this package for `.scad` files. With it a document that links to a model (an
 SVG `<image href="part.scad" .../>`, for example) draws the model through a `FolderImageResolver` of the core package
 (or `CanvasNetViewer.CreateImageResolver` of the Viewer package, which lists it with the other sources). The model is
-drawn from the default isometric view with an orthographic projection, at the size of its placement (800 by 800 pixels
+drawn with the view the library chooses for it (the fitted isometric view for a 3D model, a flat top-down view for a
+model that is entirely 2D, or the view of the model's own `$vpr`, `$vpt`, `$vpd`, and `$vpf` assignments) and an
+orthographic projection, at the size of its placement (800 by 800 pixels
 when no size is requested), over a transparent background so the document shows through; its `include` and `use` files
 are looked up in the folder of the file and nowhere else, and a missing one is reported as a `scad-warning` note.
 Warnings and unsupported features of the model are returned as notes of the source `scad`, and its `echo` output as

@@ -398,8 +398,10 @@ model with `ScadDocument.Open(request.OpenContent(), new ScadOpenOptions { BaseD
 by the library; draws it with `ScadDocument.Render` at the size `request.SizeFor(800, 800)` gives (a model has no
 natural size, so 800 by 800 pixels, the `NaturalSize` constant, when none is requested), checking that size first with
 `request.EnsureWithinBudget(width, height)` (a size that does not fit in the budget of the request is refused with `ImageSourceBudgetException`
-before the model is parsed or any surface is allocated), from the default isometric view
-with an orthographic projection, with a transparent `SceneRenderOptions.BackgroundColor` so the embedding document shows
+before the model is parsed or any surface is allocated), with the view the library chooses for the model (it sets no
+azimuth or elevation: the fitted isometric view for a model with 3D objects, the flat top-down view for a model that
+is entirely 2D, or the view of the model's own `$vpr`, `$vpt`, `$vpd`, and `$vpf` assignments) and an orthographic
+projection, with a transparent `SceneRenderOptions.BackgroundColor` so the embedding document shows
 through; and passes the cancellation token to the render. The warnings of the library become `scad-warning` notes, its
 unsupported features notes with the feature name as the code (the request's `ThrowOnUnsupportedFeature` makes the
 library throw instead), and its `echo` output the echo lines of the result. A missing `include` file is a `scad-warning`
