@@ -47,8 +47,12 @@ namespace DemaConsulting.CanvasNet.Scad.Geometry;
 ///     </para>
 ///     <para>
 ///         <b>Failure policy.</b> Invalid arguments are warnings and yield nothing; an empty string yields nothing
-///         silently; control characters are skipped silently; a character the font does not map is drawn with the
-///         font's <c>.notdef</c> glyph, or skipped with one warning when that glyph has no outline; a damaged glyph,
+///         silently; control characters are skipped silently; a character the font does not map is taken from the
+///         bundled fallback fonts (<see cref="GlyphFallback"/>: Noto Sans, Noto Sans Math, Noto Sans Symbols 2; scaled by
+///         the em size of the font that supplies the glyph, so the <c>size</c> rule above is unchanged, with no kerning
+///         between glyphs of different fonts); a character that no bundled font maps either is drawn with the
+///         font's <c>.notdef</c> glyph, or skipped when that glyph has no outline, and in both cases one warning per
+///         instance lists the (up to eight) code points; a damaged glyph,
 ///         a mapped glyph whose subpaths are all degenerate (no area, so it is not an empty glyph like a space),
 ///         or a glyph whose contours cross or touch each other, other than as a hole or an island or as the overlapping
 ///         solids of a composite glyph (which are unioned), is reported as the unsupported feature
@@ -308,23 +312,32 @@ internal static partial class ScadTextGeometry
         }
 
         var vertical = request.Direction is Direction.TopToBottom or Direction.BottomToTop;
-        var cache = new Dictionary<int, Vector2D[][]>();
+        var cache = new Dictionary<(TrueTypeFont Font, int Glyph), Vector2D[][]>();
         var missing = new List<int>();
+        var missingSkipped = false;
         var pen = 0.0;
+        TrueTypeFont? previousFont = null;
         var previousGlyph = -1;
         long vertices = 0;
         foreach (var scalar in scalars)
         {
-            // Control characters (line feeds, tabs, ...) have no shape in a single line of text
-            if (Rune.IsControl(new Rune(scalar)))
+            // Control characters (line feeds, tabs, ...) have no shape in a single line of text; invisible
+            // zero-width characters (variation selectors, joiners, bidirectional marks) take no glyph and no advance,
+            // and skipping them before the previous-glyph state is touched keeps the kerning pair intact
+            if (GlyphFallback.IsIgnorable(scalar) || Rune.IsControl(new Rune(scalar)))
             {
                 continue;
             }
 
-            var glyph = font.GetGlyphIndex(scalar);
-            if (!cache.TryGetValue(glyph, out var contours))
+            // A character the font does not map is taken from the bundled fallback fonts (which have another em size,
+            // so their glyph scale and flattening tolerance follow the size of the model unit per font unit)
+            var (glyphFont, glyph) = GlyphFallback.Resolve(font, scalar);
+            var fromPrimary = ReferenceEquals(glyphFont, font);
+            var glyphScale = fromPrimary ? scale : scale * font.UnitsPerEm / glyphFont.UnitsPerEm;
+            var glyphTolerance = fromPrimary ? tolerance : tolerance * glyphFont.UnitsPerEm / font.UnitsPerEm;
+            if (!cache.TryGetValue((glyphFont, glyph), out var contours))
             {
-                if (!TryFlatten(font, glyph, tolerance, context, out contours, out var degenerate))
+                if (!TryFlatten(glyphFont, glyph, glyphTolerance, context, out contours, out var degenerate))
                 {
                     ReportInvalid(node, context, ScadFeatureIds.TextInvalidOutline, $"the outline of the glyph for U+{scalar:X4} is damaged");
                     invalid = true;
@@ -339,32 +352,41 @@ internal static partial class ScadTextGeometry
                     return result;
                 }
 
-                cache[glyph] = contours;
+                cache[(glyphFont, glyph)] = contours;
             }
 
-            // A glyph without an outline: .notdef (a missing character) is skipped with a warning, a space just advances
-            if (contours.Length == 0 && glyph == 0)
+            // No font covers the character (glyph 0 of the font itself): it is reported, whether its .notdef glyph
+            // draws a box or has no outline
+            if (glyph == 0)
             {
                 missing.Add(scalar);
+            }
+
+            // A glyph without an outline: .notdef (a missing character) is skipped, a space just advances
+            if (contours.Length == 0 && glyph == 0)
+            {
+                missingSkipped = true;
                 continue;
             }
 
-            // Kerning moves the pen before the glyph is placed (horizontal text only), the advance after
-            if (!vertical && previousGlyph >= 0)
+            // Kerning moves the pen before the glyph is placed (horizontal text only, and only between glyphs of one
+            // font, since glyph indices of different fonts are unrelated), the advance after
+            if (!vertical && previousGlyph >= 0 && ReferenceEquals(previousFont, glyphFont))
             {
-                pen += font.GetKerning(previousGlyph, glyph) * scale;
+                pen += glyphFont.GetKerning(previousGlyph, glyph) * glyphScale;
             }
 
             var origin = pen;
-            var advance = font.GetAdvanceWidth(glyph) * scale * request.Spacing;
+            var advance = glyphFont.GetAdvanceWidth(glyph) * glyphScale * request.Spacing;
             pen += request.Direction == Direction.TopToBottom ? -advance : advance;
+            previousFont = glyphFont;
             previousGlyph = glyph;
             if (contours.Length == 0)
             {
                 continue;
             }
 
-            var placed = Place(contours, scale, origin, vertical);
+            var placed = Place(contours, glyphScale, origin, vertical);
             result.Add(new Placed(placed));
             foreach (var contour in placed)
             {
@@ -378,9 +400,11 @@ internal static partial class ScadTextGeometry
 
         if (missing.Count > 0)
         {
-            var list = string.Join(", ", missing.Distinct().Take(8).Select(s => string.Create(CultureInfo.InvariantCulture, $"U+{s:X4}")));
+            var distinct = missing.Distinct().ToList();
+            var list = string.Join(", ", distinct.Take(8).Select(s => string.Create(CultureInfo.InvariantCulture, $"U+{s:X4}")));
+            var outcome = missingSkipped ? "those characters are skipped" : "the font's missing-glyph box is drawn instead";
             context.Reporter.Warn(
-                $"{node.Name}: the font has no glyph for {list}{(missing.Distinct().Count() > 8 ? ", ..." : string.Empty)} and its .notdef glyph has no outline; those characters are skipped",
+                $"{node.Name}: no glyph for {list}{(distinct.Count > 8 ? ", ..." : string.Empty)} in the font or the bundled fallback fonts; {outcome}",
                 node.Location);
         }
 

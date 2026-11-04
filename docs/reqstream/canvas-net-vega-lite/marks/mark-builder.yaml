@@ -463,13 +463,16 @@ sections:
                   channel), the font, the font size (the size channel through the size scale, the fontSize
                   property, or the configuration), the font style and weight, the limit, the ellipsis, and the
                   line height, and the paint of a filled mark (black by default), and shall offset the position
-                  by the polar radius and theta of the mark when it has them.
+                  by the polar radius and theta of the mark when it has them, and shall record the location of
+                  the mark in the specification as the source of each item.
                 justification: |
-                  Text marks label the data; their position, font, and paint must be what Vega-Lite resolves.
+                  Text marks label the data; their position, font, and paint must be what Vega-Lite resolves, and a
+                  diagnostic about a label must be able to point at the mark that made it.
                 tests:
                   - MarkBuilder_Build_TextHasPositionDefaultsAndPaint
                   - MarkBuilder_Build_TextOffsetsAnglesAndFontPropertiesReachTheItem
                   - MarkBuilder_Build_TextSizeChannelMapsToTheFontSize
+                  - MarkBuilder_Build_TextItemCarriesTheMarkLocationAsItsSource
 
               - id: CanvasNetVegaLite-Marks-MarkBuilder-TextContent
                 title: >-

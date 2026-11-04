@@ -12,6 +12,22 @@ namespace DemaConsulting.CanvasNet.Rendering;
 ///     the target <see cref="Canvas"/>'s <see cref="Canvas.CurrentTransform"/>, so text follows
 ///     any transform (translate / rotate) already applied to the canvas.
 /// </summary>
+/// <remarks>
+///     <para>
+///     A character the chosen font has no glyph for (for example U+221D or U+226B in a Liberation font)
+///     is taken from the bundled Noto fonts of <see cref="GlyphFallback"/>, per character, scaled by its own
+///     font's em size; <see cref="MeasureText"/>, <see cref="DrawText"/>, <see cref="CreateTextPath"/>, and
+///     <see cref="TruncateToWidth"/> all use the same placement, so they always agree. The fallback is
+///     deterministic: it never consults an installed font, it is regular style only, kerning is applied
+///     only between glyphs of the same font, and ascent and descent stay those of the chosen font. A
+///     character that no bundled font covers draws the chosen font's missing-glyph box (the renderer has
+///     no diagnostics channel; callers report it with <see cref="GlyphFallback.FindMissing"/>). An
+///     invisible character (<see cref="GlyphFallback.IsIgnorable"/>: variation selector, zero-width
+///     joiner, bidirectional mark) is skipped: it takes no glyph and no advance and does not break
+///     kerning between its neighbors. Text the chosen font covers completely is laid out exactly as it
+///     was without the fallback.
+///     </para>
+/// </remarks>
 public static class TextRenderer
 {
     /// <summary>
@@ -35,20 +51,12 @@ public static class TextRenderer
         ArgumentNullException.ThrowIfNull(font);
         ValidateSize(size);
 
+        // The width is the pen position after the last glyph of a run that starts at zero.
         var scale = size / font.UnitsPerEm;
         var width = 0f;
-        int? previousGlyph = null;
-
-        foreach (var rune in text.EnumerateRunes())
+        foreach (var placement in EnumerateRun(text, font, size, 0f))
         {
-            var glyphIndex = font.GetGlyphIndex(rune.Value);
-            if (previousGlyph.HasValue)
-            {
-                width += font.GetKerning(previousGlyph.Value, glyphIndex) * scale;
-            }
-
-            width += font.GetAdvanceWidth(glyphIndex) * scale;
-            previousGlyph = glyphIndex;
+            width = placement.Pen + placement.GlyphFont.GetAdvanceWidth(placement.GlyphIndex) * placement.Scale;
         }
 
         var ascent = font.Ascender * scale;
@@ -87,15 +95,15 @@ public static class TextRenderer
         ValidateSize(size);
         ValidateAlign(align);
 
-        var scale = size / font.UnitsPerEm;
         var totalAdvance = MeasureText(text, font, size).Width;
         var alignOffset = AlignmentOffset(align, totalAdvance);
 
-        foreach (var (outline, pen) in EnumerateGlyphPlacements(text, font, scale, x + alignOffset))
+        foreach (var (outline, pen, scale) in EnumerateGlyphPlacements(text, font, size, x + alignOffset))
         {
             // Bake the glyph's local-space y-flip + font-units-to-pixel scale + baseline
             // translation, then compose the canvas' current transform on the outside so the
-            // glyph inherits any translate/rotate the caller has already stacked.
+            // glyph inherits any translate/rotate the caller has already stacked. The scale is the
+            // one of the font that supplied the glyph (a fallback font may have another em size).
             var glyphMatrix = Matrix3x2.CreateScale(scale, -scale) * Matrix3x2.CreateTranslation(pen, y) * canvas.CurrentTransform;
             var transformed = outline.Transform(glyphMatrix);
             Drawing.PathFiller.Fill(canvas.Surface, transformed, color);
@@ -126,7 +134,7 @@ public static class TextRenderer
     ///     <para>
     ///     Exists for callers that need the text as geometry instead of pixels: a vector renderer that
     ///     applies its own accumulated transform later, builds a clip or mask from text, or strokes the
-    ///     glyph outlines. Pen advance, kerning, alignment, and the y-flip are exactly those of
+    ///     glyph outlines. Pen advance, kerning, alignment, glyph fallback, and the y-flip are exactly those of
     ///     <see cref="DrawText"/> and <see cref="MeasureText"/> (the same glyph-placement code runs for
     ///     all three), so <c>CreateTextPath</c> followed by a fill matches the drawn text.
     ///     </para>
@@ -143,14 +151,13 @@ public static class TextRenderer
         ValidateSize(size);
         ValidateAlign(align);
 
-        var scale = size / font.UnitsPerEm;
         var totalAdvance = MeasureText(text, font, size).Width;
         var alignOffset = AlignmentOffset(align, totalAdvance);
 
         // Every glyph is appended to one builder so the run becomes a single path without an
         // intermediate Path per glyph.
         var builder = new PathBuilder();
-        foreach (var (outline, pen) in EnumerateGlyphPlacements(text, font, scale, x + alignOffset))
+        foreach (var (outline, pen, scale) in EnumerateGlyphPlacements(text, font, size, x + alignOffset))
         {
             // The font's outline is Y-up in design units; flipping the y scale maps it into
             // Y-down space in the same step as scaling to pixels and moving the origin to the pen.
@@ -237,38 +244,81 @@ public static class TextRenderer
 
     /// <summary>
     ///     Walks a text run exactly as <see cref="MeasureText"/> measures it and yields, for every
-    ///     glyph that has contour data, its outline and the pen position it is placed at.
+    ///     glyph that has contour data, its outline, the pen position it is placed at, and the scale
+    ///     to draw it with.
     /// </summary>
     /// <param name="text">The text to walk.</param>
-    /// <param name="font">The font providing glyph indices, kerning, advances, and outlines.</param>
-    /// <param name="scale">The design-units-to-pixel scale (<c>size / UnitsPerEm</c>).</param>
+    /// <param name="font">The primary font; see <see cref="EnumerateRun"/>.</param>
+    /// <param name="size">The text size in pixels.</param>
     /// <param name="startPen">The pen x-position before the first glyph, with any alignment shift applied.</param>
-    /// <returns>The outline and pen x-position of each glyph with at least one subpath, in text order.</returns>
+    /// <returns>
+    ///     The outline, pen x-position, and design-units-to-pixel scale of each glyph with at least one
+    ///     subpath, in text order.
+    /// </returns>
     /// <remarks>
-    ///     The single home of the rune iteration, kerning-before-advance order, and float accumulation
-    ///     order, so <see cref="DrawText"/> and <see cref="CreateTextPath"/> cannot drift apart.
-    ///     Glyphs without outlines (spaces) still advance the pen and take part in kerning.
+    ///     Filters <see cref="EnumerateRun"/>, the single home of the rune iteration, glyph fallback,
+    ///     kerning-before-advance order, and float accumulation order, so <see cref="MeasureText"/>,
+    ///     <see cref="DrawText"/> and <see cref="CreateTextPath"/> cannot drift apart. Glyphs without
+    ///     outlines (spaces) still advance the pen and take part in kerning.
     /// </remarks>
-    private static IEnumerable<(Path Outline, float Pen)> EnumerateGlyphPlacements(string text, TrueTypeFont font, float scale, float startPen)
+    private static IEnumerable<(Path Outline, float Pen, float Scale)> EnumerateGlyphPlacements(string text, TrueTypeFont font, float size, float startPen)
     {
-        var pen = startPen;
-        int? previousGlyph = null;
-
-        foreach (var rune in text.EnumerateRunes())
+        foreach (var placement in EnumerateRun(text, font, size, startPen))
         {
-            var glyphIndex = font.GetGlyphIndex(rune.Value);
-            if (previousGlyph.HasValue)
-            {
-                pen += font.GetKerning(previousGlyph.Value, glyphIndex) * scale;
-            }
-
-            var outline = font.GetGlyphOutline(glyphIndex);
+            var outline = placement.GlyphFont.GetGlyphOutline(placement.GlyphIndex);
             if (outline.Subpaths.Count > 0)
             {
-                yield return (outline, pen);
+                yield return (outline, placement.Pen, placement.Scale);
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Walks every character of a text run and yields, in text order, the font and glyph that draw it,
+    ///     the scale of that font, and the pen position the glyph is placed at.
+    /// </summary>
+    /// <param name="text">The text to walk.</param>
+    /// <param name="font">
+    ///     The primary font. A character it has no glyph for is looked up in the bundled fallback fonts
+    ///     (<see cref="GlyphFallback"/>); a character no font covers uses the primary font's missing glyph.
+    /// </param>
+    /// <param name="size">The text size in pixels.</param>
+    /// <param name="startPen">The pen x-position before the first glyph.</param>
+    /// <returns>
+    ///     For each glyph: the font that supplies it, its glyph index, the scale <c>size / UnitsPerEm</c> of
+    ///     that font (a fallback font may have a different em size), and the pen x-position of the glyph
+    ///     after kerning with the previous glyph has been applied.
+    /// </returns>
+    /// <remarks>
+    ///     Kerning is applied only between two consecutive glyphs of the same font, since glyph indices of
+    ///     different fonts are unrelated. For text the primary font covers completely, the arithmetic
+    ///     (kerning before advance, one accumulation order) is that of a single-font run, so the result
+    ///     is bit-identical to the layout before fallback existed. Ascent and descent are always those of
+    ///     the primary font. A character for which <see cref="GlyphFallback.IsIgnorable"/> is true is
+    ///     skipped entirely: no glyph, no advance, and the kerning pair around it is preserved.
+    /// </remarks>
+    private static IEnumerable<(TrueTypeFont GlyphFont, int GlyphIndex, float Scale, float Pen)> EnumerateRun(string text, TrueTypeFont font, float size, float startPen)
+    {
+        var pen = startPen;
+        TrueTypeFont? previousFont = null;
+        var previousGlyph = 0;
+
+        // An invisible zero-width character (variation selector, joiner, bidirectional mark) takes no glyph and
+        // no advance; filtering it out before the previous-glyph state is touched keeps the kerning pair
+        // on either side of it intact.
+        foreach (var codePoint in text.EnumerateRunes().Select(rune => rune.Value).Where(value => !GlyphFallback.IsIgnorable(value)))
+        {
+            var (glyphFont, glyphIndex) = GlyphFallback.Resolve(font, codePoint);
+            var scale = size / glyphFont.UnitsPerEm;
+            if (ReferenceEquals(previousFont, glyphFont))
+            {
+                pen += glyphFont.GetKerning(previousGlyph, glyphIndex) * scale;
             }
 
-            pen += font.GetAdvanceWidth(glyphIndex) * scale;
+            yield return (glyphFont, glyphIndex, scale, pen);
+
+            pen += glyphFont.GetAdvanceWidth(glyphIndex) * scale;
+            previousFont = glyphFont;
             previousGlyph = glyphIndex;
         }
     }

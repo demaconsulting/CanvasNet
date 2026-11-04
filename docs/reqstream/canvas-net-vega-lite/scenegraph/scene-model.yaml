@@ -31,7 +31,8 @@ sections:
               - id: CanvasNetVegaLite-Scenegraph-SceneModel-Defaults
                 title: >-
                   The SceneModel unit shall give items the Vega defaults (full opacity, no stroke dash,
-                  circle symbols, alphabetic baseline, left alignment, the ellipsis character) and
+                  circle symbols, alphabetic baseline, left alignment, the ellipsis character, and for a
+                  text item an unknown source location in the specification) and
                   support copies that change a property, and shall reject invalid arguments such as a
                   blank role.
                 justification: |

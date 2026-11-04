@@ -679,6 +679,26 @@ public class PptxBulletTests
         Assert.Equal(30000f, layout.Glyphs[1].OriginXEmu, 2);
     }
 
+    /// <summary>
+    ///     Proves that an invisible variation selector in a bullet character adds no glyph and no advance: the
+    ///     bullet is the single glyph of the plain bullet and the text starts at the same position.
+    /// </summary>
+    [Fact]
+    public void ResolveTextLayout_BulletCharacterWithVariationSelector_AddsNoGlyphForTheSelector()
+    {
+        // Arrange
+        var plain = Layout(BuildTextBody(
+            ("""<pPr xmlns="http://schemas.openxmlformats.org/drawingml/2006/main" marL="50000" indent="-20000"><buChar char="A"/></pPr>""", "A")));
+        var withSelector = Layout(BuildTextBody(
+            ("""<pPr xmlns="http://schemas.openxmlformats.org/drawingml/2006/main" marL="50000" indent="-20000"><buChar char="A&#xFE0F;"/></pPr>""", "A")));
+
+        // Act / Assert: run glyph + exactly one bullet glyph, at the same places as the plain bullet
+        Assert.Equal(2, withSelector.Glyphs.Count);
+        Assert.Equal(plain.Glyphs[0].OriginXEmu, withSelector.Glyphs[0].OriginXEmu);
+        Assert.Equal(plain.Glyphs[1].OriginXEmu, withSelector.Glyphs[1].OriginXEmu);
+        Assert.All(withSelector.Glyphs, g => Assert.NotEqual(0, g.GlyphIndex));
+    }
+
     /// <summary>Proves an explicit <c>&lt;a:buNone/&gt;</c> paints no bullet glyph at all - the glyph stream contains only the paragraph's own run text.</summary>
     [Fact]
     public void ResolveTextLayout_BuNone_PaintsNoGlyphBeyondRunText()

@@ -168,6 +168,47 @@ Verifies that a `null` text, font, or ellipsis is rejected with `ArgumentNullExc
 parameter, and that a size of zero, a negative size, NaN, or infinity is rejected with
 `ArgumentOutOfRangeException` even when the text would fit the budget.
 
+#### CanvasNet-Rendering-TextRenderer-GlyphFallback: Measure, Draw, Path, And Truncation Agree On Fallback Glyphs
+
+**Tests**: `TextRenderer_MeasureText_CharacterMissingInPrimary_UsesFallbackAdvance`,
+`TextRenderer_MeasureText_MixedRun_IsSumOfPartsWithoutCrossFontKerning`,
+`TextRenderer_DrawText_CharacterMissingInPrimary_DrawsFallbackGlyphNotNotdefBox`,
+`TextRenderer_CreateTextPath_CharacterCoveredByNoFont_UsesPrimaryNotdefOutline`,
+`TextRenderer_CreateTextPath_MixedText_AgreesWithMeasureAndDraw`,
+`TextRenderer_TruncateToWidth_FallbackCharacters_UseFallbackAdvances`,
+`TextRenderer_MeasureText_MixedText_IsDeterministicAcrossThreads`,
+`TextRenderer_DrawText_LiberationOnlyText_IsBitIdenticalToPreFallbackDigest`
+
+Verifies, with the real Liberation Sans and the bundled Noto fonts, that U+221D and U+226B measure with
+the Noto Sans Math advance scaled by that font's own 1000 units per em (not the missing glyph's); that a
+mixed run measures as the sum of its parts (no kerning across fonts); that the fallback glyph is drawn as
+ink that differs from the missing-glyph box of a character nothing covers; that a character nothing covers
+creates the primary font's missing-glyph outline; that the text path of mixed text lies within the
+measured width for every alignment and that drawing is pixel-identical to a left-aligned draw at the
+computed start; that truncation keeps whole fallback characters using their advances; and that repeated
+and concurrent runs give identical widths and paths. A frozen SHA-256 digest of the measured widths and
+the drawn pixels of Liberation-only text (kerning pairs, accents, the euro sign), computed from the code
+before the fallback existed, proves that text the font covers is bit-identical. The existing legacy-oracle
+test now compares only texts the oracle (which has no fallback) can reproduce: texts the font covers or
+no bundled font covers (private-use characters).
+
+#### CanvasNet-Rendering-TextRenderer-IgnorableCharacters: Invisible Characters Take No Glyph, Advance, Or Kerning
+
+**Tests**: `TextRenderer_MeasureText_VariationSelectorBetweenLetters_EqualsPlainText`,
+`TextRenderer_MeasureText_RealKerningPairAcrossIgnorable_EqualsPlainText`,
+`TextRenderer_MeasureText_OnlyIgnorableCharacters_IsZero`,
+`TextRenderer_DrawText_VariationSelectorAndZwj_DrawNothing`,
+`TextRenderer_TruncateToWidth_IgnorableCharacters_TakeNoWidth`
+
+Verifies that `"A\uFE0FA"`, `"A\u200DA"`, `"A\u200EA"`, and a selector plus joiner measure exactly like `"AA"`
+in the synthetic font (whose `(A, A)` kerning pair and zero-advance missing glyph would give a different
+width if the invisible character were drawn or separated the pair); that `"A\uFE0FV"` and `"A\u200DV"` measure
+bit-identically to `"AV"` with the real Liberation Sans kerning pair; that text of only ignorable characters has
+zero width; that drawing `"A\uFE0FA"` and the emoji-range sequence `"\u2764\u200D\u2764"` is pixel-identical to
+the text without the invisible characters and that their text paths have the same number of subpaths (no
+missing-glyph box); and that truncation fits text with ignorable characters exactly as measurement does. The
+Liberation-only digest test of the glyph-fallback scenario above passes unchanged.
+
 ### Traceability
 
 Every requirement in `docs/reqstream/canvas-net/rendering/text-renderer.yaml` links to one or

@@ -135,3 +135,16 @@ width is below any positive limit), and the extent has width 0, without an excep
 `ArgumentOutOfRangeException` for a size that is not a finite single); that the largest finite single, 3e38, is
 measured without a result that is not a number; and that the bounds of a text item of font size 1e300 and limit 50
 have width 0.
+
+##### Characters The Font Lacks Are Measured With The Bundled Fallback And Reported When No Font Covers Them
+
+**Tests**: `TextMeasurerTests.TextMeasurer_FindMissingGlyphs_AndMeasureWidth_UseTheBundledFallbackChain`,
+`TextMeasurerTests.TextMeasurer_FindMissingGlyphs_ChecksOnlyTheTruncatedTextThatIsDrawn`
+
+Asserts that the proportional-to sign, which Liberation Sans lacks, has a positive width that is not the width of the
+missing-glyph box (that of a private-use character); that a text item with the math signs reports no missing
+character; that an item with U+E000 (twice) and U+4E2D over two lines reports exactly `[U+4E2D, U+E000]`; and that an
+item without lines reports none. It also asserts that a private-use character after 26 letters at a limit of 60 (which
+the truncation cuts off, as `TextValue` shows) is not reported, that the same text without a limit reports `[U+E000]`,
+that a missing character within the limit is reported, and that a missing custom ellipsis is reported because it is
+drawn.

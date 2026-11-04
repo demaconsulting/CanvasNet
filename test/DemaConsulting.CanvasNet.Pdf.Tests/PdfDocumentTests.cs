@@ -7953,6 +7953,85 @@ public class PdfDocumentTests
     }
 
     /// <summary>
+    ///     Proves that a character that neither the primary candidate nor the bundled Liberation Sans covers
+    ///     (U+221D, PROPORTIONAL TO, via <c>/Differences /uni221D</c>) is painted from the bundled Noto chain of
+    ///     <c>GlyphFallback</c>: the render is pixel-identical to a reference fixture that embeds
+    ///     <c>NotoSansMath-Regular.ttf</c> directly, and differs from the missing-glyph box that a private-use
+    ///     character (U+E000) paints.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_BuildResolvedFont_CharacterOutsideLiberation_FallsBackToBundledNotoMath()
+    {
+        // Arrange: an unmatched, fixed-pitch family whose code 1 is U+221D, and the same with U+E000
+        var descriptorObj = "<< /Type /FontDescriptor /Flags 1 >>"u8.ToArray();
+        byte[] FontDict(string glyphName) => System.Text.Encoding.ASCII.GetBytes(
+            "<< /Type /Font /Subtype /TrueType /BaseFont /TotallyUnlikelyFontFamilyXyzzyMono /FirstChar 1 /LastChar 1 /Widths [600] /FontDescriptor 6 0 R "
+            + $"/Encoding << /Differences [1 /{glyphName}] >> >>");
+        const string content = "BT /F1 40 Tf 10 30 Td <01> Tj ET";
+        var bytes = BuildSinglePagePdfWithResources(100, 100, content, "/Font << /F1 5 0 R >>", [FontDict("uni221D"), descriptorObj]);
+        var boxBytes = BuildSinglePagePdfWithResources(100, 100, content, "/Font << /F1 5 0 R >>", [FontDict("uniE000"), descriptorObj]);
+        var (referenceResourcesBody, referenceExtraObjects) = BuildSimpleTrueTypeFontResources(
+            ReadBundledFontBytes("NotoSansMath-Regular.ttf"),
+            fontDictExtra: "/FirstChar 1 /LastChar 1 /Widths [600] /Encoding << /Differences [1 /uni221D] >>");
+        var referenceBytes = BuildSinglePagePdfWithResources(100, 100, content, referenceResourcesBody, referenceExtraObjects);
+
+        // Act
+        using var surface = RenderPdfBytes(bytes);
+        using var boxSurface = RenderPdfBytes(boxBytes);
+        using var referenceSurface = RenderPdfBytes(referenceBytes);
+
+        // Assert: identical to the Noto Sans Math reference, and not the box of the missing glyph
+        var sameAsReference = true;
+        var sameAsBox = true;
+        var ink = false;
+        for (var y = 0; y < surface.Height; y++)
+        {
+            sameAsReference &= surface.GetRowSpanBytes(y).SequenceEqual(referenceSurface.GetRowSpanBytes(y));
+            sameAsBox &= surface.GetRowSpanBytes(y).SequenceEqual(boxSurface.GetRowSpanBytes(y));
+            for (var x = 0; x < surface.Width; x++)
+            {
+                ink |= surface[x, y].A > 0;
+            }
+        }
+
+        Assert.True(ink, "U+221D must paint ink");
+        Assert.True(sameAsReference, "U+221D must be painted with the Noto Sans Math glyph");
+        Assert.False(sameAsBox, "U+221D must not be the missing-glyph box");
+    }
+
+    /// <summary>
+    ///     Proves that the Noto chain is consulted lazily: the substitute list for an ordinary non-embedded font
+    ///     is exactly the primary match and the plain Liberation Sans, with none of the bundled Noto fonts
+    ///     listed, so a page whose text those two fonts cover never loads (or touches) the Noto chain. The
+    ///     Noto fonts are recognized by identity through the bundled-font cache (the chain loads through the same
+    ///     cache), so the assertion itself never creates the process-wide chain and does not depend on test order.
+    ///     The chain is only reached on a miss, which
+    ///     <see cref="PdfDocument_BuildResolvedFont_CharacterOutsideLiberation_FallsBackToBundledNotoMath"/>
+    ///     proves, and a fully covered render is unaffected.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_ResolveFallbackFont_OrdinaryFont_DoesNotMaterializeNotoChain()
+    {
+        // Arrange
+        using var stream = new MemoryStream(BuildSinglePagePdf(100, 100, "BT ET"));
+        using var document = PdfDocument.Open(stream);
+        var generic = SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold: false, italic: false);
+        string[] notoFileNames = ["NotoSans-Regular.ttf", "NotoSansMath-Regular.ttf", "NotoSansSymbols2-Regular.ttf"];
+
+        // Act
+        var fonts = document.ResolveFallbackFont("TotallyUnlikelyFontFamilyXyzzyMono", PdfDocument.PdfObject.NullValue);
+
+        // Assert: [primary, plain Liberation Sans] only, and none is a bundled Noto font (by identity)
+        Assert.Equal(2, fonts.Count);
+        Assert.Same(generic, fonts[1]);
+        foreach (var notoFileName in notoFileNames)
+        {
+            var noto = SystemFontCatalog.LoadBundledFallbackCore(notoFileName);
+            Assert.DoesNotContain(fonts, font => ReferenceEquals(font, noto));
+        }
+    }
+
+    /// <summary>
     ///     Proves <c>PdfDocument.ResolveFallbackFont</c>'s new per-character
     ///     glyph-coverage fallback for an ordinary (non-<c>Symbol</c>/<c>ZapfDingbats</c>)
     ///     non-embedded font: an unmatched, fixed-pitch <c>/BaseFont</c> family's primary

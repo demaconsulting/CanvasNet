@@ -410,7 +410,8 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
 - **Glyph fallback** (`VsdxDocument.TextLayout.cs`, `TextRender.cs`): when a non-whitespace code
   point has no glyph in the run's font, `SelectGlyphFont` asks `ResolveGlyphFallbackFont`
   (preferred symbol families such as Segoe UI Symbol, Arial Unicode MS, Cambria Math, DejaVu
-  Sans, then any catalog face, then the bundled Liberation faces) and uses the returned font for
+  Sans, then any catalog face, then the bundled Liberation faces, then the bundled Noto chain of
+  the core `GlyphFallback`) and uses the returned font for
   both measurement and the placed glyph. A process-lifetime static cache (never evicted, shared by
   all documents) backs the lookup: `FallbackResults`, keyed by (code point, bold, italic). Preferred-family
   fonts are loaded through `SystemFontCatalog.Load`, whose own process-lifetime path/face cache
@@ -419,9 +420,13 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
   transiently (not through that cache) so an uncovered code point cannot pin every installed font,
   and a sweep hit is then obtained through `SystemFontCatalog.Load` (loaded again and cached) so
   results never hold private duplicate copies. `ResolveTextFont` also uses `SystemFontCatalog.Load`,
-  and falls back to the bundled font when the matched file cannot be loaded. When no font covers the code point,
+  and falls back to the bundled font when the matched file cannot be loaded. When no available font, installed or
+  bundled, covers the code point (the bundled Noto chain covers mathematical operators, arrows, and many symbols),
   `SelectGlyphFont` reports `vsdx-text-missing-glyph` through the unsupported-feature handler and
-  keeps the run's own font. Tests inject their own resolver.
+  keeps the run's own font. A code point for which `GlyphFallback.IsIgnorable` is true (a variation
+  selector, a zero-width joiner, a bidirectional mark) is skipped by the width measurement and the glyph
+  placement: no glyph, no advance, no fallback lookup, and no report; `SelectGlyphFont` skips fallback for
+  every code point that `GlyphFallback.NeedsGlyph` rejects. Tests inject their own resolver.
 
 ### Error Handling
 

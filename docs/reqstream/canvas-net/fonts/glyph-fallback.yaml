@@ -1,0 +1,94 @@
+---
+# Software Unit Requirements for GlyphFallback
+#
+# These requirements describe the design-level behavior of the GlyphFallback unit: the per-character
+# fallback to the bundled Noto fonts for a character that the font a caller chose has no glyph for.
+# cspell:ignore Noto
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: Fonts Requirements
+        sections:
+          - title: GlyphFallback Requirements
+            requirements:
+              - id: CanvasNet-Fonts-GlyphFallback-Resolve
+                title: >-
+                  The GlyphFallback type shall resolve a code point against a primary font to the
+                  primary font and its glyph when the primary font maps the code point (without
+                  loading any fallback font), otherwise - when the code point is one that is
+                  expected to have a visible glyph - to the first of the bundled Noto Sans, Noto Sans
+                  Math, and Noto Sans Symbols 2 fonts, in that order and skipping the primary font
+                  itself, that maps it, and otherwise to the primary font with the missing glyph
+                  index zero, deterministically and from any number of threads.
+                justification: |
+                  A character such as the proportional-to sign is absent from the bundled Liberation
+                  fonts and would otherwise be drawn as an unexplained missing-glyph box; a fixed,
+                  bundled, ordered chain gives a real glyph that does not depend on the machine, and
+                  the fast path keeps text that the chosen font covers exactly as it was.
+                tests:
+                  - GlyphFallback_BundledFonts_IsTheNotoTrioInOrder
+                  - GlyphFallback_Resolve_CharacterMissingInPrimary_UsesNotoSansMath
+                  - GlyphFallback_Resolve_CharacterCoveredByPrimary_ReturnsPrimaryGlyph
+                  - GlyphFallback_Resolve_CharacterCoveredByNoFont_ReturnsPrimaryNotdef
+                  - GlyphFallback_Resolve_PrimaryIsChainMember_SkipsItselfAndFindsNextFont
+                  - GlyphFallback_Resolve_InvisibleCharacterMissingInPrimary_ReturnsPrimaryNotdef
+                  - GlyphFallback_Resolve_ConcurrentCalls_AreDeterministic
+
+              - id: CanvasNet-Fonts-GlyphFallback-NeedsGlyph
+                title: >-
+                  The GlyphFallback type shall tell which code points are expected to have a visible
+                  glyph, excluding control characters, white space, format characters, variation
+                  selectors, surrogates, non-characters, and values outside the Unicode range, so
+                  that they are never replaced by a fallback glyph and never reported as missing.
+                justification: |
+                  A missing space or zero-width joiner is not a visible box, so replacing or
+                  reporting it would be noise.
+                tests:
+                  - GlyphFallback_NeedsGlyph_InvisibleCharacter_ReturnsFalse
+                  - GlyphFallback_NeedsGlyph_VisibleAndPrivateUse_ReturnsTrueAndInvalidReturnsFalse
+                  - GlyphFallback_NeedsGlyph_EveryCodePoint_MatchesUnicodeCategoryDefinition
+
+              - id: CanvasNet-Fonts-GlyphFallback-IsIgnorable
+                title: >-
+                  The GlyphFallback type shall tell which code points are invisible and zero width
+                  (values outside the Unicode range, surrogates, non-characters, variation selectors,
+                  format characters such as zero-width joiners, bidirectional marks, the soft hyphen
+                  and U+FEFF, and control characters that are not white space) so that a text layout
+                  can skip them without a glyph or an advance, shall not count white space as
+                  ignorable, and shall define NeedsGlyph in terms of it.
+                justification: |
+                  One shared definition keeps every text layout (the core renderer, SCAD, PPTX,
+                  VSDX) from drawing the missing-glyph box for, or advancing over, a character that
+                  has no visible form, and keeps the answer to "does it need a glyph" identical to
+                  what the layouts skip.
+                tests:
+                  - GlyphFallback_IsIgnorable_InvisibleOrInvalidCharacter_ReturnsTrue
+                  - GlyphFallback_IsIgnorable_VisibleCharacterOrWhiteSpace_ReturnsFalse
+                  - GlyphFallback_NeedsGlyph_EveryCodePoint_MatchesUnicodeCategoryDefinition
+
+              - id: CanvasNet-Fonts-GlyphFallback-BundledFonts
+                title: >-
+                  The GlyphFallback type shall publish its bundled fallback chain as a read-only
+                  collection that cannot be cast back to a mutable array, with the same font
+                  instances on every access.
+                justification: |
+                  The chain is process-wide shared state; a caller that could replace an element
+                  would change the text layout of every other caller.
+                tests:
+                  - GlyphFallback_BundledFonts_IsReadOnlyWrapper_CannotBeMutated
+                  - GlyphFallback_BundledFonts_IsTheNotoTrioInOrder
+
+              - id: CanvasNet-Fonts-GlyphFallback-FindMissing
+                title: >-
+                  The GlyphFallback type shall list the distinct code points of a text, in ascending
+                  order, that neither the primary font nor the bundled fallback fonts cover (empty
+                  when there are none), treating a lone surrogate as the replacement character, and
+                  shall reject a null font or text with ArgumentNullException.
+                justification: |
+                  A caller that reports unsupported characters needs the same judgement that the
+                  renderers apply when they draw, as a stable, ordered list.
+                tests:
+                  - GlyphFallback_FindMissing_ReportsOnlyUncoveredCharactersDistinctAndAscending
+                  - GlyphFallback_FindMissing_LoneSurrogate_IsTreatedAsReplacementCharacter
+                  - GlyphFallback_NullArguments_ThrowArgumentNullException

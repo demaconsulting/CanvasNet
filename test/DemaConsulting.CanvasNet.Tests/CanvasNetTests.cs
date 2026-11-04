@@ -1338,6 +1338,33 @@ public class CanvasNetTests
     }
 
     /// <summary>
+    ///     Proves that the public text API gives a character that the chosen Liberation font lacks (the
+    ///     proportional-to sign) a real glyph from the bundled fallback fonts, with the same measured width
+    ///     from <see cref="TextRenderer.MeasureText"/> as the text path, and that a character nothing covers is
+    ///     listed by <see cref="GlyphFallback.FindMissing"/>.
+    /// </summary>
+    [Fact]
+    public void CanvasNet_SystemIntegration_TextWithMathSigns_UsesBundledFallbackGlyphsAndReportsUncovered()
+    {
+        // Arrange
+        var font = SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold: false, italic: false);
+        const string text = "a \u221D b \u226B c";
+
+        // Act
+        var width = TextRenderer.MeasureText(text, font, 20f).Width;
+        var path = TextRenderer.CreateTextPath(text, font, 20f, 0f, 20f);
+        var missingCovered = GlyphFallback.FindMissing(font, text);
+        var missingUncovered = GlyphFallback.FindMissing(font, text + "\uE000");
+
+        // Assert: the sign has a glyph, the path ends inside the measured width, and only the private-use character is missing
+        Assert.Equal(0, font.GetGlyphIndex(0x221D));
+        Assert.NotEmpty(path.Subpaths);
+        Assert.True(path.GetBounds().Right <= width + 1f);
+        Assert.Empty(missingCovered);
+        Assert.Equal(new[] { 0xE000 }, missingUncovered);
+    }
+
+    /// <summary>
     ///     Proves that text measured through the public <see cref="TextRenderer.MeasureText"/> API
     ///     can be word-wrapped through the public <see cref="WordWrap"/> API: every line fits the
     ///     requested width, no word is split, and joining the lines gives back the original text.

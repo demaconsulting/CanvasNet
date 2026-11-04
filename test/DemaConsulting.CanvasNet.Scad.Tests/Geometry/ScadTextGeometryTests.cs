@@ -488,32 +488,106 @@ public class ScadTextGeometryTests
     }
 
     /// <summary>
-    ///     Validates that a character the font does not map is drawn silently with the font's <c>.notdef</c> glyph
-    ///     when that glyph has an outline, that control characters are skipped silently, and that a non-string value
-    ///     is converted like <c>str()</c>.
+    ///     Validates that a character that neither the font nor the bundled fallback fonts map is drawn with the
+    ///     font's <c>.notdef</c> glyph when that glyph has an outline, with one warning, that control characters
+    ///     are skipped silently, and that a non-string value is converted like <c>str()</c>.
     /// </summary>
     [Fact]
-    public void ScadTextGeometry_Build_MissingGlyph_DrawsNotdefSilentlyAndSkipsControls()
+    public void ScadTextGeometry_Build_MissingGlyph_DrawsNotdefWithOneWarningAndSkipsControls()
     {
-        // Arrange: a CJK ideograph that Liberation Sans does not map, so it is drawn as .notdef
+        // Arrange: a CJK ideograph that no bundled font maps, so it is drawn as .notdef
         Assert.Equal(0, Font.GetGlyphIndex(0x4E2D));
+        Assert.Equal(0, GlyphFallback.Resolve(Font, 0x4E2D).GlyphIndex);
         var notdef = Font.GetGlyphOutline(0);
         Assert.NotEmpty(notdef.Subpaths);
 
         // Act
-        var missing = Run("text(\"\u4E2D\");");
+        var missing = Run("text(\"\u4E2D\u4E2D\");");
         var withControl = Run("text(\"H\\nI\\tH\");");
         var plain = Run("text(\"HIH\");");
         var number = Run("text(12);");
         var asString = Run("text(\"12\");");
 
-        // Assert: .notdef is drawn silently, the controls vanish without a trace, the number is its digits
-        Assert.Empty(missing.Warnings);
-        Assert.Single(missing.Regions);
+        // Assert: .notdef is drawn once per character with one warning naming the code point, the controls
+        // vanish without a trace, the number is its digits
+        var warning = Assert.Single(missing.Warnings);
+        Assert.Contains("U+4E2D", warning.Message, StringComparison.Ordinal);
+        Assert.Contains("missing-glyph box is drawn", warning.Message, StringComparison.Ordinal);
+        Assert.Equal(2, missing.Regions.Count);
         Assert.NotEmpty(missing.Regions[0].Contours);
         AssertSameVertices(plain, withControl);
         Assert.Empty(withControl.Warnings);
         AssertSameVertices(asString, number);
+    }
+
+    /// <summary>
+    ///     Validates that invisible zero-width characters (a variation selector, a zero-width joiner) take no glyph
+    ///     and no advance, do not break kerning between their neighbors, and are not reported as missing.
+    /// </summary>
+    [Fact]
+    public void ScadTextGeometry_Build_IgnorableCharacters_DrawNothingAndKeepKerning()
+    {
+        // Arrange
+        var (first, second) = FindKernedPair();
+
+        // Act
+        var plain = Run("text(\"AA\");");
+        var withSelector = Run("text(\"A\uFE0FA\u200D\");");
+        var kerned = Run($"text(\"{first}{second}\");");
+        var kernedAcrossJoiner = Run($"text(\"{first}\u200D{second}\");");
+
+        // Assert: same geometry as the text without them, and no warning
+        AssertSameVertices(plain, withSelector);
+        AssertSameVertices(kerned, kernedAcrossJoiner);
+        Assert.Empty(withSelector.Warnings);
+        Assert.Empty(kernedAcrossJoiner.Warnings);
+    }
+
+    /// <summary>
+    ///     Validates that a character the primary font lacks but a bundled fallback font maps is drawn with the
+    ///     fallback glyph, silently, at a size consistent with the primary font's rule (another em size).
+    /// </summary>
+    [Fact]
+    public void ScadTextGeometry_Build_CharacterInBundledFallback_DrawsFallbackGlyphWithoutWarning()
+    {
+        // Arrange: U+221D is mapped by Noto Sans Math (1000 units per em), not by Liberation (2048)
+        Assert.Equal(0, Font.GetGlyphIndex(0x221D));
+        var (math, glyph) = GlyphFallback.Resolve(Font, 0x221D);
+        Assert.NotEqual(0, glyph);
+
+        // Act
+        var proportional = Run("text(\"\u221D\", size = 10);");
+        var withSpaces = Run("text(\"a \u221D b\");");
+        var withoutIt = Run("text(\"a b\");");
+
+        // Assert: no warning, ink, and the glyph's height is its em fraction times size / the cap height fraction of H
+        Assert.Empty(proportional.Warnings);
+        Assert.Empty(withSpaces.Warnings);
+        Assert.NotEmpty(proportional.Regions);
+        Assert.True(withSpaces.Regions.Count > withoutIt.Regions.Count);
+        var bounds = math.GetGlyphOutline(glyph).GetBounds();
+        var expectedHeight = (bounds.Bottom - bounds.Top) / math.UnitsPerEm * Font.UnitsPerEm * 10.0 / HeightOfH();
+        var ys = proportional.Regions.SelectMany(region => region.Contours).SelectMany(contour => contour).Select(p => p.Y).ToArray();
+        Assert.Equal(expectedHeight, ys.Max() - ys.Min(), 0.2);
+    }
+
+    /// <summary>
+    ///     Validates that text the font covers completely never warns, and that a missing character after a fallback
+    ///     character is still reported once with its code point.
+    /// </summary>
+    [Fact]
+    public void ScadTextGeometry_Build_PrivateUseCharacterAfterFallbackCharacter_WarnsOnceWithItsCodePoint()
+    {
+        // Act
+        var covered = Run("text(\"Hello \u221D \u226B\");");
+        var mixed = Run("text(\"a \u221D \uE000 \uE000\");");
+
+        // Assert
+        Assert.Empty(covered.Warnings);
+        var warning = Assert.Single(mixed.Warnings);
+        Assert.Contains("U+E000", warning.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("U+221D", warning.Message, StringComparison.Ordinal);
+        Assert.Contains("fallback", warning.Message, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -523,26 +597,26 @@ public class ScadTextGeometryTests
     [Fact]
     public void ScadTextGeometry_Build_MissingGlyph_WarnsOnceAndDrawsNothingWhenNotdefIsEmpty()
     {
-        // Arrange: a synthetic font with an empty .notdef that maps only H and D; X is unmapped
+        // Arrange: a synthetic font with an empty .notdef that maps only H and D; U+E000 is unmapped and no bundled font covers it
         using var directory = new ScadTempDirectory();
         var family = "Synthetic Empty Notdef";
         WriteSyntheticFont(directory.Combine("synthetic.ttf"), family);
         var options = new ScadFontResolutionOptions { UseSystemFonts = false, AdditionalDirectories = [directory.Path] };
         var resolved = new ScadFontResolver(options).Resolve(new ScadFontSpec(family, false, false));
         Assert.Equal(ScadFontSource.AdditionalDirectory, resolved.Source);
-        Assert.Equal(0, resolved.Font.GetGlyphIndex('X'));
+        Assert.Equal(0, resolved.Font.GetGlyphIndex(0xE000));
         Assert.Empty(resolved.Font.GetGlyphOutline(0).Subpaths);
 
         // Act
-        var onlyMissing = Run($"\n  text(\"X\", font = \"{family}\");", options);
-        var repeated = Run($"text(\"XX\", font = \"{family}\");", options);
-        var mixed = Run($"text(\"HXH\", font = \"{family}\");", options);
+        var onlyMissing = Run($"\n  text(\"\uE000\", font = \"{family}\");", options);
+        var repeated = Run($"text(\"\uE000\uE000\", font = \"{family}\");", options);
+        var mixed = Run($"text(\"H\uE000H\", font = \"{family}\");", options);
         var mapped = Run($"text(\"HH\", font = \"{family}\");", options);
 
         // Assert: one warning naming the character, no region for it, and the mapped characters unaffected
         var warning = Assert.Single(onlyMissing.Warnings);
-        Assert.Contains("U+0058", warning.Message, StringComparison.Ordinal);
-        Assert.Contains(".notdef", warning.Message, StringComparison.Ordinal);
+        Assert.Contains("U+E000", warning.Message, StringComparison.Ordinal);
+        Assert.Contains("skipped", warning.Message, StringComparison.Ordinal);
         Assert.Equal(new ScadSourceLocation(null, 2, 3), warning.Location);
         Assert.Equal(ScadGeoKind.Empty, onlyMissing.Geo.Kind);
         Assert.Empty(onlyMissing.Regions);

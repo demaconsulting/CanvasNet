@@ -226,7 +226,9 @@ pixel column and row.
 
 **Tests**: `ScenePainterTests.ScenePainter_Paint_TextUsesBaselineRotationAndScale`,
 `ScenePainterTests.ScenePainter_Paint_TextLimitTruncatesTheDrawnLine`,
-`ScenePainterTests.ScenePainter_Paint_TextBeyondTheMagnitudeBoundDrawsNothingAndNeverThrows`
+`ScenePainterTests.ScenePainter_Paint_TextBeyondTheMagnitudeBoundDrawsNothingAndNeverThrows`,
+`ScenePainterTests.ScenePainter_IsDrawable_Text_FollowsTheSharedRule`,
+`ScenePainterTests.ScenePainter_Paint_TextWithZeroFontSizeDrawsNothing`
 
 Asserts the derived text placement, rotation, alignment, scaling, and determinism, and that a limit of 60 pixels
 truncates the drawn line so that its ink ends between 40 and 60 pixels while the same line without a limit is wider than
@@ -236,6 +238,11 @@ angle of 1e7, a line height of 1e300, or a limit that is not a number draws no i
 time and all together; that a limit of 1e300 is clamped to the bound and gives a surface identical to the same text
 without a limit; and that a font size of 20,000 draws no ink at a scale of 2 (40,000 pixels, beyond the bound of
 32,768).
+
+Asserts that the internal rule `ScenePainter.IsDrawable(SceneText, float, out Rgba32)`, which the painter and the
+missing-glyph report of `VegaLiteDocument` share, is true for an ordinary text (and resolves the fill color) and false
+for a font size of 0, -1, NaN, 1e-300 (zero as a single), or 1e300 (beyond the bound), a position, limit, or line height
+that is NaN, an angle of 1e7, a fill of `none`, or an opacity of 0; and that a text with a font size of 0 draws no ink.
 
 ##### Invalid Arguments And Cancellation
 

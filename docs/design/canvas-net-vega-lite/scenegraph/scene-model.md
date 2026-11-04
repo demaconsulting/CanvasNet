@@ -56,7 +56,9 @@ replaces the solid `Fill` when it is set and can be drawn.
   (the area of the bounding box in square pixels, 64 by default) and `Angle`; **`SceneText`** `(X, Y, Lines)` with `Text`
   (lines joined by a line feed), `Dx`, `Dy`, `FontFamily`, `FontSize` (11), `FontWeight`, `FontStyle`, `Align` (left,
   center, right), `Baseline` (alphabetic, top, middle, bottom, line-top, line-bottom), `Angle`, `Limit`, `LineHeight`, and
-  `Ellipsis` (the horizontal ellipsis); text has no gradient fill.
+  `Ellipsis` (the horizontal ellipsis), and `Source` (a `VegaLiteLocation`, `default` = unknown: where in the
+  specification the text comes from, which a diagnostic about the text points at; the text mark sets it to the
+  location of its mark, text built by the chart itself leaves it unknown); text has no gradient fill.
 - **`ScenePathSegmentKind`** (`MoveTo`, `LineTo`, `CubicTo`, `Close`) and **`ScenePathSegment`** - one drawing command with
   absolute coordinates: `Kind`, the point `(X, Y)` (the end point of a cubic), and the control points `(X1, Y1)` and
   `(X2, Y2)` of a cubic (zero when unused). The factories `Move(x, y)`, `Line(x, y)`, `Cubic(x1, y1, x2, y2, x, y)` (the

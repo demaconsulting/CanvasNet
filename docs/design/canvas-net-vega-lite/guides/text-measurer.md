@@ -53,7 +53,13 @@ A directory that does not exist, a file that cannot be read, and a face that doe
 - `Resolve(TextFont)` and `Resolve(family, weight, style)` - the resolution above; never null, because Liberation Sans is
   the last resort; results are cached per instance.
 - `MeasureWidth(text, font)` - the advance width with kerning from the core `TextRenderer`, never rounded; 0 for empty
-  text or a size that is not positive and finite.
+  text or a size that is not positive and finite. A character the face lacks is measured with its bundled Noto fallback
+  glyph (the core `GlyphFallback`, through `TextRenderer`), so the width agrees with what the painter draws.
+- `FindMissingGlyphs(SceneText)` - the distinct code points, in ascending order, of the text that is drawn that neither
+  the resolved face nor the core `GlyphFallback` covers (`GlyphFallback.FindMissing` over the `TextValue` of each line,
+  that is, trimmed and truncated at the limit, clamped as the painter clamps it, with its ellipsis; a character that the
+  truncation cuts off is not drawn and not reported, a missing ellipsis glyph is); empty for an item without lines.
+  `VegaLiteDocument` reports them as `vl-text-missing-glyph`.
 - `Truncate(text, font, limit, ellipsis, rightToLeft)` - Vega's truncation: text narrower than the limit is returned
   unchanged; otherwise the line is cut by binary search at the longest prefix whose width plus the ellipsis (the horizontal
   ellipsis by default) stays below the limit, or, right to left, at the longest suffix.
@@ -92,7 +98,8 @@ overflows to infinity or underflows to zero as a single. The unit performs no ne
 - **`VegaLiteFontOptions`** - the public font options of the `VegaLiteDocument` unit
 - **`SceneText`** and **`SceneBounds`** - the scene types of the `SceneModel` unit
 - **Core `CanvasNet`** - `FontResolver`, `ResolvedFont` and `GenericFontFamilies` (the `Fonts` subsystem, which also
-  supplies `TrueTypeFont`, the directory scan and the bundled Liberation fonts) and `TextRenderer` (the `Rendering`
+  supplies `TrueTypeFont`, the directory scan, the bundled Liberation fonts and `GlyphFallback`) and `TextRenderer`
+  (the `Rendering`
   subsystem), through their public API
 - **.NET base class library** - `System.Globalization`
 

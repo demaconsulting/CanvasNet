@@ -70,6 +70,30 @@ public class MarkBuilderTextTests
     }
 
     /// <summary>
+    ///     Validates that the text mark's items carry the location of the mark as their source, which the
+    ///     <c>vl-text-missing-glyph</c> warning points at.
+    /// </summary>
+    [Fact]
+    public void MarkBuilder_Build_TextItemCarriesTheMarkLocationAsItsSource()
+    {
+        // Arrange
+        const string rows = """[ { "x": 0, "y": 0, "t": "a" }, { "x": 2, "y": 10, "t": "b" } ]""";
+        const string encoding = """
+            { "x": { "field": "x", "type": "quantitative" }, "y": { "field": "y", "type": "quantitative" }, "text": { "field": "t", "type": "nominal" } }
+            """;
+
+        // Act
+        var marks = ChartTestHelpers.Marks(Chart("\"text\"", encoding, rows), 300, 200);
+        var texts = ChartTestHelpers.Of<SceneText>(marks, "mark-text");
+
+        // Assert: every item names the mark's pointer; a text built elsewhere has no source
+        Assert.Equal(2, texts.Count);
+        Assert.All(texts, t => Assert.True(t.Source.IsKnown));
+        Assert.Single(texts.Select(t => t.Source).Distinct());
+        Assert.False(new SceneText("title-text", 0, 0, ["x"]).Source.IsKnown);
+    }
+
+    /// <summary>
     ///     Validates the position of the items (the scale of x and y, the middle of the data rectangle for an absent channel), the role and the defaults of Vega's text mark (centered, middle
     ///     baseline, 11 pixels, sans-serif, black) and the paint from the color and opacity channels.
     /// </summary>

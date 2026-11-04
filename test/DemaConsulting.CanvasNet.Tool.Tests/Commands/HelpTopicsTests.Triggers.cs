@@ -55,7 +55,8 @@ public partial class HelpTopicsTests
         new("vl-unknown-property", "vl-unknown-property", true, Chart(top: ",\"bogus\":1"), true),
         new("vl-schema-version", "vl-schema-version", true, Chart(top: ",\"$schema\":\"https://vega.github.io/schema/vega-lite/v4.json\""), true),
         new("vl-layout-fit-step", "vl-layout-fit-step", true, Chart(mark: "\"bar\"", x: "{\"field\":\"x\",\"type\":\"ordinal\"}", top: ",\"autosize\":\"fit\",\"width\":{\"step\":20}"), true),
-        new("vl-composition-property-ignored", "vl-composition-property-ignored", true, "{\"hconcat\":[" + Chart() + "],\"width\":100}", true)
+        new("vl-composition-property-ignored", "vl-composition-property-ignored", true, "{\"hconcat\":[" + Chart() + "],\"width\":100}", true),
+        new("vl-text-missing-glyph", "vl-text-missing-glyph", true, Chart(mark: "{\"type\":\"text\",\"text\":\"a \\uE000 b\"}"), true)
     ];
 
     /// <summary>

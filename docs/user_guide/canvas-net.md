@@ -1677,6 +1677,61 @@ var resolved = resolver.Resolve("\"My Brand Sans\", serif", bold: true, italic: 
 // resolved.Font is ready to use; failure is null because "serif" was met even if "My Brand Sans" was not
 ```
 
+### GlyphFallback
+
+`GlyphFallback` is the per-character fallback of the library's text paths. A font rarely covers every
+character: the bundled Liberation fonts, for instance, have no `∝` (U+221D), `≫` (U+226B), most
+arrows, or mathematical operators, which used to be drawn as the font's missing-glyph box with no
+diagnostic. The fallback looks such a character up, in order, in the three Noto fonts that are
+already bundled with the library - Noto Sans, Noto Sans Math, and Noto Sans Symbols 2 - and uses the
+first glyph it finds:
+
+```csharp
+public static class GlyphFallback
+{
+    public static IReadOnlyList<TrueTypeFont> BundledFonts { get; }
+    public static bool NeedsGlyph(int codePoint);
+    public static bool IsIgnorable(int codePoint);
+    public static (TrueTypeFont Font, int GlyphIndex) Resolve(TrueTypeFont primary, int codePoint);
+    public static IReadOnlyList<int> FindMissing(TrueTypeFont primary, string text);
+}
+```
+
+- `Resolve` returns `primary` and its glyph when `primary` maps the code point (the common case, which
+  loads nothing). Otherwise, for a code point that `NeedsGlyph` accepts, it returns the first font of
+  `BundledFonts` (skipping `primary` itself) that maps it, with that font's glyph index; otherwise
+  `primary` and glyph 0, its missing glyph. Use the returned font's `UnitsPerEm` to scale the glyph (the Noto
+  fonts have 1000 units per em, Liberation 2048).
+- `NeedsGlyph` is `false` for characters that have no visible glyph - controls, white space, format
+  characters such as the zero-width joiner, variation selectors, surrogates, non-characters, and values
+  outside the Unicode range - which are never replaced and never reported.
+- `IsIgnorable` is `true` for the invisible, zero-width characters a text layout must skip: format characters
+  (zero-width joiner and non-joiner, bidirectional marks, the soft hyphen, U+FEFF), variation selectors,
+  non-printing control characters, surrogates, non-characters, and values outside the Unicode range. White space is
+  not ignorable (a layout handles it itself). `TextRenderer`, OpenSCAD `text()`, and the Pptx and Vsdx text
+  layouts skip such a character: it draws nothing (not even the missing-glyph box), takes no space, and does not
+  break kerning between its neighbors, so `"A\uFE0FA"` measures exactly like `"AA"`. A soft hyphen is therefore
+  invisible. `NeedsGlyph` is defined as "not ignorable and not white space".
+- `FindMissing` returns the distinct code points of a text, in ascending order, that neither `primary`
+  nor the bundled fonts cover (empty when there are none), so a caller can warn about them. A lone
+  surrogate is judged as U+FFFD, as it is when drawn.
+- `BundledFonts` is the chain itself, in lookup order: Noto Sans, Noto Sans Math, Noto Sans Symbols 2.
+  Reading it loads the fonts. The list is read-only: it cannot be cast back to an array or modified, and it is
+  the same instance on every access.
+
+The fallback is deterministic and does not depend on the machine: only the bundled fonts are used, never an
+installed font. It is the regular style (a bold or italic request is not synthesized for a fallback
+glyph), and it has no shaping or combining-mark attachment. Characters outside the chain's coverage - CJK
+ideographs, private-use characters, emoji beyond the Symbols 2 repertoire, and most box-drawing and block
+characters - stay missing. See `Fonts/BundledFonts/README.md` for the coverage table. All members are thread-safe.
+
+```csharp
+var font = SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold: false, italic: false);
+
+var (math, glyph) = GlyphFallback.Resolve(font, 0x221D); // Noto Sans Math, a real glyph for "∝"
+var missing = GlyphFallback.FindMissing(font, "a ∝ b \uE000 c"); // [0xE000]: nothing covers it
+```
+
 ### PathFiller
 
 The `PathFiller` static class fills a closed `Geometry.Path` with a solid color onto a `Surface`,
@@ -2617,6 +2672,14 @@ canvas.DrawText("Hello", x: 100, y: 100, TextAlign.Center, font, size: 32f, new 
 
 `DrawText` respects the Canvas current transform, so translated/rotated text works too.
 
+`DrawText`, `MeasureText`, `CreateTextPath`, and `TruncateToWidth` all take a character that `font` has no
+glyph for - for example `∝` (U+221D) or `≫` (U+226B) in a Liberation font - from the bundled Noto fonts
+(see *GlyphFallback*), per character, so the four operations always agree. The fallback glyph is scaled
+by its own font's em size and is not kerned against a neighbor from another font; the ascent and descent
+stay those of `font`. A character that no bundled font covers is drawn as `font`'s own missing-glyph box
+(the renderer has no diagnostics channel; list such characters with `GlyphFallback.FindMissing`). Text
+that `font` covers completely is laid out exactly as it was before the fallback existed.
+
 #### CreateTextPath
 
 ```csharp
@@ -2637,7 +2700,7 @@ using var surface = new Surface(200, 200);
 PathFiller.Fill(surface, outline.Transform(Matrix3x2.CreateTranslation(0, 20)), new Rgba32(0, 0, 0, 255));
 ```
 
-`CreateTextPath` places glyphs with the same pen advance, kerning, and alignment as `DrawText` and
+`CreateTextPath` places glyphs with the same pen advance, kerning, glyph fallback, and alignment as `DrawText` and
 `MeasureText`, in y-down coordinates, and returns `Path.Empty` for empty or whitespace-only text. All
 glyphs are merged into one path, so overlapping glyphs are filled as a single shape under the
 fill rule (`DrawText` composites them one after another). `size` must be finite and positive; a

@@ -97,10 +97,19 @@ peak is not an on-curve vertex), and the result is still deterministic.
 Glyphs are placed one Unicode scalar at a time (`string.EnumerateRunes`; an unpaired surrogate is U+FFFD). There
 is no shaping, no ligature, no combining-mark handling, and no bidirectional or Arabic shaping.
 
-- **Characters.** A control character (`Rune.IsControl`) is skipped silently. Every other scalar is mapped through
-  the font's `cmap` (`GetGlyphIndex`); an unmapped scalar is glyph 0, `.notdef`, which is drawn like any glyph (a
-  box in the bundled fonts). If `.notdef` has no outline, the character is skipped (it does not advance the pen)
-  and one warning at the instance lists the first eight missing scalars as `U+XXXX`. A glyph with no outline (a
+- **Characters.** A control character (`Rune.IsControl`) and an invisible zero-width character
+  (`GlyphFallback.IsIgnorable`: a variation selector, a zero-width joiner, a bidirectional mark) is skipped
+  silently, before the previous glyph is touched, so it takes no advance, adds no warning entry, and does not
+  separate a kerning pair. Every other scalar goes through
+  `GlyphFallback.Resolve(font, scalar)`: a scalar that the font's `cmap` maps keeps the font and its glyph; one it
+  does not map is taken from the first bundled Noto font (Noto Sans, Noto Sans Math, Noto Sans Symbols 2) that maps
+  it, silently. A glyph of a fallback font is scaled by the em size of that font (`scale * primaryUnitsPerEm /
+  glyphUnitsPerEm`, the flattening tolerance likewise), so the `size` rule is unchanged, advances use that font, and
+  kerning applies only between glyphs of the same font. A scalar that no font maps is glyph 0, `.notdef`, of the
+  font itself, which is drawn like any glyph (a box in the bundled fonts); if `.notdef` has no outline, the
+  character is skipped (it does not advance the pen). In both cases one warning at the instance lists the first
+  eight missing scalars as `U+XXXX`, says that no glyph exists in the font or the bundled fallback fonts, and says
+  whether the missing-glyph box is drawn or the characters are skipped. A glyph with no outline (a
   space) advances the pen without drawing.
 - **`ltr`.** The pen starts at 0. For each glyph after the first, the pen first moves by
   `kerning(previous, current) * scale` (the font's `kern` table; no kerning without a table), the glyph is placed
@@ -141,7 +150,7 @@ fewer than three vertices or no area is dropped; an unreadable glyph (`InvalidDa
 **degenerate**, which is not the same as an empty outline: a mapped degenerate glyph is reported as
 `scad-text-invalid-outline` and omits the whole text, whereas an empty outline (a space) just advances the pen
 (`.notdef` keeps its skip-with-a-warning behavior). Cancellation is polled after every flattened subpath. The
-flattened contours of a glyph are cached per glyph index for the instance
+flattened contours of a glyph are cached per font and glyph index for the instance
 and are moved to their pen position by `Place`, which allocates new arrays.
 
 ##### Contours
@@ -250,7 +259,8 @@ so a model without `text` pays nothing.
 
 - **Warnings** (instance empty): the invalid arguments above, a text that is too large, and (instance kept) an
   unknown argument, a surplus argument, a repeated argument, and a child object; also the font warning (the
-  bundled sans font is used) and the missing-glyph warning (those characters are skipped).
+  bundled sans font is used) and the missing-glyph warning (a box is drawn or the characters are skipped, for
+  characters that neither the font nor the bundled fallback fonts cover).
 - **Unsupported features** (the whole `text` omitted): `scad-text-invalid-outline` (a damaged outline, or a mapped
   glyph whose subpaths all lack an area) and
   `scad-text-overlapping-contours`; in strict mode the first of them throws `ScadUnsupportedFeatureException`.

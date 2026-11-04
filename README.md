@@ -61,6 +61,8 @@ load/crop/resize/save workflows.
 - 🧱 **Tile Paint** - Fill a path by repeating a pre-rendered tile bitmap at a configurable pitch
 - 🔤 **TrueType/CFF Fonts** - Load fonts and collections, extract glyph outlines, query metadata
 - 🗂️ **System Font Discovery** - Match a family/style against installed fonts, with a bundled fallback
+- 🔣 **Glyph Fallback** - A character a font lacks (`∝`, `≫`, arrows, math signs) is drawn from bundled Noto fonts,
+  the same on every machine; `GlyphFallback.FindMissing` lists the rest
 - 🛡️ **Sandboxed File Resolver** - Resolve untrusted relative paths to files inside chosen directories, no escapes
 - 🎬 **Rendering** - Transform-aware canvas with text and shape drawing
 - 📦 **Package Reading** - `OpcPackage` and `SafeXml` read untrusted `.pptx`/`.vsdx` packages and XML safely
@@ -481,7 +483,8 @@ sourcing/provenance details.
 The `DemaConsulting.CanvasNet` package also bundles the Noto Sans, Noto Sans Math, and Noto Sans
 Symbols 2 TrueType fonts (`NotoSans-Regular.ttf`, `NotoSansMath-Regular.ttf`,
 `NotoSansSymbols2-Regular.ttf`) as embedded resources, used as the dedicated substitute font for
-`Symbol`/`ZapfDingbats` text by `PdfDocument`'s automatic font-substitution feature. These fonts
+`Symbol`/`ZapfDingbats` text by `PdfDocument`'s automatic font-substitution feature, and as the
+per-character glyph-fallback chain (`GlyphFallback`) for characters that the Liberation fonts lack. These fonts
 are part of the Noto Project, licensed under the SIL Open Font License, Version 1.1; see
 `src/DemaConsulting.CanvasNet/Fonts/BundledFonts/NotoFonts-OFL.txt` and the "Noto Substitute
 Fonts" section of `src/DemaConsulting.CanvasNet/Fonts/BundledFonts/README.md` for the full license

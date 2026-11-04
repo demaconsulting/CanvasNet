@@ -182,3 +182,5 @@ sections:
                   - ScenePainter_Paint_GroupBeyondTheMagnitudeBoundDrawsNothing
                   - ScenePainter_Paint_TheBoundAppliesToTheSizeInSurfacePixels
                   - ScenePainter_Paint_TextBeyondTheMagnitudeBoundDrawsNothingAndNeverThrows
+                  - ScenePainter_IsDrawable_Text_FollowsTheSharedRule
+                  - ScenePainter_Paint_TextWithZeroFontSizeDrawsNothing

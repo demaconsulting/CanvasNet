@@ -26,6 +26,14 @@ internal readonly record struct ScenePlacement(double Scale, double OffsetX, dou
     public static ScenePlacement Uniform(double scale) => new(scale, 0, 0);
 
     /// <summary>
+    ///     Gets the scale as the painter uses it: the single-precision factor of every transform and of the test whether text is drawn.
+    /// </summary>
+    /// <remarks>
+    ///     The painter and the missing-glyph report both read the scale here, so they cannot disagree about whether an item is drawn.
+    /// </remarks>
+    public float PaintScale => (float)Scale;
+
+    /// <summary>
     ///     Fits the scene into a target: scaled uniformly by the largest factor that fits, and centered.
     /// </summary>
     /// <param name="sceneWidth">The scene width.</param>
@@ -183,8 +191,8 @@ internal sealed partial class ScenePainter
         }
 
         surface.Clear(CssColor.TryParse(scene.Background, out var background) ? background : new Rgba32(0, 0, 0, 0));
-        var transform = Matrix3x2.CreateScale((float)placement.Scale) * Matrix3x2.CreateTranslation((float)placement.OffsetX, (float)placement.OffsetY);
-        PaintGroup(scene.Root, new Context(surface, transform, (float)placement.Scale), cancellationToken);
+        var transform = Matrix3x2.CreateScale(placement.PaintScale) * Matrix3x2.CreateTranslation((float)placement.OffsetX, (float)placement.OffsetY);
+        PaintGroup(scene.Root, new Context(surface, transform, placement.PaintScale), cancellationToken);
     }
 
     /// <summary>The names of the symbol shapes that <see cref="SymbolPath"/> draws; any other name is drawn as a circle.</summary>
@@ -530,31 +538,50 @@ internal sealed partial class ScenePainter
     }
 
     /// <summary>
+    ///     Determines whether a text item is drawn at a placement scale: the single rule that both the painter and the
+    ///     missing-glyph report use, so that text that is not drawn is not reported.
+    /// </summary>
+    /// <remarks>
+    ///     The position, offsets, font size and line height must be bounded (finite and within MaxMagnitude surface
+    ///     pixels, so that the conversion to a single and the scaling cannot overflow, and the glyphs are not
+    ///     flattened at a size beyond precision), and so must the angle; the limit only has to be a number (it is
+    ///     clamped when drawing: a limit larger than any line is the same as no limit). The font size must be positive
+    ///     and still a positive finite single once scaled, and the fill must be visibly painted.
+    /// </remarks>
+    /// <param name="text">The text item.</param>
+    /// <param name="scale">The uniform scale of the placement.</param>
+    /// <param name="color">The resolved fill color when the text is drawn.</param>
+    /// <returns><see langword="true"/> when the text is drawn at the scale.</returns>
+    internal static bool IsDrawable(SceneText text, float scale, out Rgba32 color)
+    {
+        color = default;
+        if (!IsBoundedAt(scale, text.X, text.Y, text.Dx, text.Dy, text.FontSize)
+            || !IsBounded(text.Angle)
+            || !double.IsFinite(text.Limit)
+            || (text.LineHeight is { } lineHeight && !IsBoundedAt(scale, lineHeight))
+            || text.FontSize <= 0
+            || !CssPaint.TryResolvePaint(text.Fill, text.FillOpacity * text.Opacity, out color))
+        {
+            return false;
+        }
+
+        var size = (float)(text.FontSize * scale);
+        return float.IsFinite(size) && size > 0;
+    }
+
+    /// <summary>
     ///     Draws text: each line at its baseline, filled, at the scaled font size.
     /// </summary>
     /// <param name="text">The text item.</param>
     /// <param name="local">The context of the enclosing group.</param>
     private void PaintText(SceneText text, Context local)
     {
-        // The position, offsets, font size and line height must be drawable (finite and within MaxMagnitude surface pixels, so that the
-        // conversion to a single and the scaling cannot overflow, and the glyphs are not flattened at a size beyond precision), and so must the angle; the limit only has to be a number
-        // (it is clamped below: a limit larger than any line is the same as no limit)
-        if (!IsBoundedAt(local.Scale, text.X, text.Y, text.Dx, text.Dy, text.FontSize)
-            || !IsBounded(text.Angle)
-            || !double.IsFinite(text.Limit)
-            || (text.LineHeight is { } lineHeight && !IsBoundedAt(local.Scale, lineHeight))
-            || text.FontSize <= 0
-            || !CssPaint.TryResolvePaint(text.Fill, text.FillOpacity * text.Opacity, out var color))
+        if (!IsDrawable(text, local.Scale, out var color))
         {
             return;
         }
 
         var size = (float)(text.FontSize * local.Scale);
-        if (!float.IsFinite(size) || !(size > 0))
-        {
-            return;
-        }
-
         var limit = Math.Min(text.Limit, MaxMagnitude);
         var font = new TextFont(text.FontFamily, text.FontSize, text.FontWeight, text.FontStyle);
         var face = _measurer.Resolve(font).Font;

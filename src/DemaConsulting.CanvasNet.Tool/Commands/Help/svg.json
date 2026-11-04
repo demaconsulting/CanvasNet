@@ -53,7 +53,7 @@
       "title": "Known differences from browsers",
       "items": [
         { "text": "No scripting, animation, or external resources." },
-        { "text": "Text is best effort without shaping. An installed family is used, so text can differ between machines; generic and unknown families use the bundled Liberation fonts." },
+        { "text": "Text is best effort without shaping. An installed family is used, so text can differ between machines; generic and unknown families use the bundled Liberation fonts. A character those lack (such as U+221D) is taken from the bundled Noto fonts; a character nothing covers draws the font's missing-glyph box with no diagnostic, because SVG rendering reports nothing." },
         { "text": "The drawing is rendered sharply at the target size, not rasterized first and scaled afterwards." }
       ]
     }

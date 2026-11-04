@@ -1948,6 +1948,15 @@ culture-invariant), the time zone defaults to UTC, and only the **bundled fonts*
   `true`, and/or give `AdditionalDirectories`, to let a **named** family (`"font": "Verdana"`) be found in your
   directories first and then among the installed fonts. A family that cannot be found falls back to the bundled sans
   font.
+- **Characters a font lacks.** A character that the chosen font has no glyph for - `∝` (U+221D), `≫` (U+226B), and most
+  arrows and mathematical operators are not in the Liberation fonts - is measured and drawn, per character, with the
+  bundled Noto Sans, Noto Sans Math, or Noto Sans Symbols 2 (the fallback of the core `GlyphFallback`), so that text
+  such as
+  `"a ∝ b ≫ c"` in a text mark shows the real signs. Only the bundled Noto fonts are used, never an installed one, so
+  the picture is the same on every machine (a fallback glyph is the regular style, even in a bold or italic text). A
+  character that no bundled font covers (a private-use or CJK character, for example) is drawn as the font's
+  missing-glyph box and reported as the warning `vl-text-missing-glyph`, once for each text mark location and distinct
+  set of characters; the chart still renders, and `ThrowOnUnsupportedFeature` does not throw for it.
 - **Time.** Dates, time units, time scales, and the date functions of expressions are computed in one calendar: the
   zone of `VegaLiteRenderOptions.TimeZone`, which is **UTC when `null`**, never the zone, the clock, or the culture of the
   machine (the names are the English ones of d3, and the digits are ASCII). So the same document and options give the
@@ -2051,6 +2060,7 @@ thread, after the work finished and before the method returns or throws.
 | `vl-duplicate-key` | Warning | The later of two equal keys of one object (the last value wins) |
 | `vl-unknown-property` | Warning | A key that Vega-Lite does not define for a view, mark definition, encoding, channel definition, or sort object |
 | `vl-diagnostics-suppressed` | Warning | The first report beyond `MaxDiagnostics` |
+| `vl-text-missing-glyph` | Warning | The `mark` of a `text` mark (the unknown location for axis labels, legend labels, and titles), when the text that is drawn (after truncation at `limit`, with a visible fill) has characters that neither the font nor the bundled fallback fonts have a glyph for (a private-use or CJK character, for example); the font's missing-glyph box is drawn. One warning for each mark location and distinct set of characters, listing the first eight code points as `U+XXXX`. Characters that a bundled Noto font covers (`∝`, `≫`, arrows, math signs) are drawn and are not reported. It never throws, also with `ThrowOnUnsupportedFeature` |
 <!-- markdownlint-enable MD013 -->
 
 Pass handlers to receive the reports as they are delivered, or set `ThrowOnUnsupportedFeature` to refuse an

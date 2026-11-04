@@ -768,7 +768,13 @@ step living entirely in `PptxDocument.TextLayout.cs` - see _Text Layout_ step 6 
 driven by a second, independent delegate (`fallbackFontResolver`, defaulting to
 `Fonts.SystemFontCatalog.LoadBundledFallback` with the same `serif: false, fixedPitch: false`
 convention, keyed/cached by `(bold, italic)` only, not by family name, since a fallback font is
-family-agnostic by design). Tests inject their own synthetic resolvers (for either delegate) for
+family-agnostic by design). When that Liberation fallback misses too, `ResolveGlyph` makes a last attempt with
+`GlyphFallback.Resolve(fallbackFont, codepoint)` (the bundled Noto Sans, Noto Sans Math, and Noto Sans Symbols 2
+chain of the core library, which covers mathematical operators, arrows, and many symbols); a character that nothing
+covers keeps the primary font's own `.notdef` glyph. A character for which `GlyphFallback.IsIgnorable` is true
+(a variation selector, a zero-width joiner, a bidirectional mark) is skipped by the width measurement, by the glyph
+placement, and by the bullet layout alike: no glyph, no advance, and no fallback lookup. Tests inject their own
+synthetic resolvers (for either delegate) for
 deterministic, installed-font-independent assertions.
 
 #### Deferred to a Later Phase (Phase 1d)

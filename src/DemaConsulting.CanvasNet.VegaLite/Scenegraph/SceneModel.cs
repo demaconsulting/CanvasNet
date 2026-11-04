@@ -688,6 +688,13 @@ internal sealed record SceneText : SceneItem
     /// <summary>Gets the vertical offset added to the position and the baseline offset; 0 by default.</summary>
     public double Dy { get; init; }
 
+    /// <summary>
+    ///     Gets where in the specification the text comes from (the mark of a text mark), which a diagnostic about
+    ///     the text points at; <c>default</c> (unknown) for text the chart builds itself, such as axis labels,
+    ///     legends, and titles.
+    /// </summary>
+    public VegaLiteLocation Source { get; init; }
+
     /// <summary>Gets the font family as a CSS list (<c>"Helvetica Neue", sans-serif</c>), or <see langword="null"/> for <c>sans-serif</c>.</summary>
     public string? FontFamily { get; init; }
 

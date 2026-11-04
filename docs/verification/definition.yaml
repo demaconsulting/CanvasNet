@@ -40,6 +40,7 @@ input-files:
   - docs/verification/canvas-net/fonts/font-directory-scanner.md
   - docs/verification/canvas-net/fonts/generic-font-families.md
   - docs/verification/canvas-net/fonts/font-resolver.md
+  - docs/verification/canvas-net/fonts/glyph-fallback.md
   - docs/verification/canvas-net/rendering.md
   - docs/verification/canvas-net/rendering/canvas.md
   - docs/verification/canvas-net/rendering/text-renderer.md

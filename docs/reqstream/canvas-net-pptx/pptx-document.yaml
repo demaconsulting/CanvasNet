@@ -1138,9 +1138,15 @@ sections:
               run's own primary font resolution, each non-whitespace character shall additionally
               be resolved for per-character glyph coverage: a character missing from its run's
               primary font (GetGlyphIndex returning .notdef) falls back to a single bundled
-              fallback font (keyed by bold/italic only), with that character alone painting from
+              fallback font (keyed by bold/italic only), and a character missing from that too
+              falls back once more to the bundled Noto chain of the core GlyphFallback, with that character
+              alone painting
+              from
               whichever font actually resolved a non-.notdef glyph for it, independent of any
-              neighboring character's own resolution.
+              neighboring character's own resolution. A character for which the core
+              GlyphFallback.IsIgnorable is true (a variation selector, a zero-width joiner, a
+              bidirectional mark) shall be skipped, with no glyph and no advance, in the text
+              measure and in the glyph placement alike, including in a bullet character.
             justification: |
               Painting resolved glyph ink onto a Surface is this phase's terminal, user-visible
               output; reusing the already-verified core PathFiller/SystemFontCatalog building
@@ -1171,6 +1177,10 @@ sections:
               - ResolveTextFont_AnyFamilyHint_ResolvesNonNullFont
               - ResolveTextLayout_PlusMinusFollowedByDegree_BothNeitherInPrimary_BothIndependentlyResolveFallback
               - ResolveTextLayout_PlusMinusAlone_ResolvesFallbackGlyph
+              - ResolveTextLayout_CharacterOutsideBothFonts_ResolvesBundledNotoChainGlyph
+              - ResolveTextLayout_VariationSelectorBetweenLetters_SameGlyphsAndPositionsAsPlainText
+              - ResolveTextLayout_ZeroWidthJoinerBetweenLetters_DoesNotConsultFallbackAndAddsNoGlyph
+              - ResolveTextLayout_BulletCharacterWithVariationSelector_AddsNoGlyphForTheSelector
               - ResolveTextLayout_PlusMinusFollowedByDegree_PrimaryCoversOnlyDegree_DegreeStaysOnPrimaryFont
               - CanvasNetPptx_SystemIntegration_TextLayoutAndRender_TitlePlaceholderResolvesMasterTitleStyleEndToEnd
               - CanvasNetPptx_SystemIntegration_TextLayoutAndRender_NonPlaceholderShapeResolvesMasterOtherStyleEndToEnd

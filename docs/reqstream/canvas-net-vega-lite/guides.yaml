@@ -35,6 +35,18 @@ sections:
               - TextMeasurer_Resolve_NamedFamilyNeedsSystemFontsOrDirectories
               - TextMeasurer_Measure_TruncatesAndSplitsLines
 
+          - id: CanvasNetVegaLite-Guides-MissingGlyphs
+            title: >-
+              The Guides subsystem shall find the characters of a text item that neither the resolved font
+              nor the bundled fallback fonts cover, so that the document can report them.
+            justification: |
+              A character that is drawn as a missing-glyph box should be named to the author.
+            children:
+              - CanvasNetVegaLite-Guides-TextMeasurer-MissingGlyphs
+            tests:
+              - TextMeasurer_FindMissingGlyphs_AndMeasureWidth_UseTheBundledFallbackChain
+              - TextMeasurer_FindMissingGlyphs_ChecksOnlyTheTruncatedTextThatIsDrawn
+
           - id: CanvasNetVegaLite-Guides-Titles
             title: >-
               The Guides subsystem shall build the title and subtitle of a chart as scene items for the

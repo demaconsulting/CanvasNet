@@ -364,6 +364,29 @@ internal sealed class TextMeasurer
     }
 
     /// <summary>
+    ///     Finds the characters of the text that is drawn for a text item (each line trimmed and truncated at the
+    ///     limit, with its ellipsis) that neither its font nor the bundled fallback fonts cover, so that they are
+    ///     drawn as the font's missing-glyph box.
+    /// </summary>
+    /// <param name="text">The text item.</param>
+    /// <returns>The distinct code points in ascending order; empty when every drawn character is covered.</returns>
+    public IReadOnlyList<int> FindMissingGlyphs(SceneText text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        if (text.Lines.Count == 0)
+        {
+            return [];
+        }
+
+        // Only the text that the painter draws is checked: the same TextValue (trimmed, truncated at the clamped limit)
+        var textFont = new TextFont(text.FontFamily, text.FontSize, text.FontWeight, text.FontStyle);
+        var limit = Math.Min(text.Limit, ScenePainter.MaxMagnitude);
+        var drawn = string.Concat(text.Lines.Select(l => TextValue(l, textFont, limit, text.Ellipsis)));
+        var font = Resolve(text.FontFamily, text.FontWeight, text.FontStyle).Font;
+        return GlyphFallback.FindMissing(font, drawn);
+    }
+
+    /// <summary>
     ///     Determines whether the measurer maps a family name to a bundled font itself (a generic or well-known family).
     /// </summary>
     /// <param name="family">The family name.</param>

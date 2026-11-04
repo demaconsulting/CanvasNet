@@ -36,7 +36,7 @@ sections:
                 tests:
                   - ScadTextGeometry_Build_EmptyString_ReturnsEmptyWithoutWarnings
                   - ScadTextGeometry_Build_LanguageAndScript_AreAcceptedAndIgnored
-                  - ScadTextGeometry_Build_MissingGlyph_DrawsNotdefSilentlyAndSkipsControls
+                  - ScadTextGeometry_Build_MissingGlyph_DrawsNotdefWithOneWarningAndSkipsControls
 
               - id: CanvasNetScad-ScadGeometry-ScadTextGeometry-FontResolution
                 title: >-
@@ -113,17 +113,27 @@ sections:
 
               - id: CanvasNetScad-ScadGeometry-ScadTextGeometry-Glyphs
                 title: >-
-                  The ScadTextGeometry unit shall draw a character that the font does not map with the
-                  font's .notdef glyph, shall skip such a character with exactly one located warning per
-                  text instance and draw no region for it when .notdef has no outline, shall skip control
-                  characters silently, and shall let a glyph without an outline
+                  The ScadTextGeometry unit shall take a character that the font does not map from the
+                  bundled fallback fonts of the core GlyphFallback (scaled by the em size of the font that
+                  supplies the glyph, so that the size rule is unchanged, and kerned only against a neighbor
+                  from the same font) without a report, shall draw a character that no bundled font covers with
+                  the font's .notdef glyph, or skip it and draw no region when .notdef has no outline, in
+                  both cases with exactly one located warning per text instance that lists the code points,
+                  shall skip control characters silently, shall skip an invisible zero-width character (a
+                  variation selector, a zero-width joiner, a bidirectional mark: GlyphFallback.IsIgnorable)
+                  without a glyph, an advance, or a report and without breaking the kerning of its
+                  neighbors, and shall let a glyph without an outline
                   (a space) advance the pen without drawing.
                 justification: |
-                  A missing character must neither crash the model nor vanish unexplained; the rule must be
-                  the same for every font.
+                  A missing character must neither crash the model nor vanish or turn into a box
+                  unexplained; the rule must be the same for every font, and mathematical signs that the
+                  bundled Noto fonts cover should be drawn.
                 tests:
-                  - ScadTextGeometry_Build_MissingGlyph_DrawsNotdefSilentlyAndSkipsControls
+                  - ScadTextGeometry_Build_MissingGlyph_DrawsNotdefWithOneWarningAndSkipsControls
                   - ScadTextGeometry_Build_MissingGlyph_WarnsOnceAndDrawsNothingWhenNotdefIsEmpty
+                  - ScadTextGeometry_Build_CharacterInBundledFallback_DrawsFallbackGlyphWithoutWarning
+                  - ScadTextGeometry_Build_IgnorableCharacters_DrawNothingAndKeepKerning
+                  - ScadTextGeometry_Build_PrivateUseCharacterAfterFallbackCharacter_WarnsOnceWithItsCodePoint
                   - ScadTextGeometry_Build_EmptyString_ReturnsEmptyWithoutWarnings
 
               - id: CanvasNetScad-ScadGeometry-ScadTextGeometry-Contours

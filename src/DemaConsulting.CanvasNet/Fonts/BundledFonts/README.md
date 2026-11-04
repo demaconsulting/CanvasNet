@@ -101,3 +101,44 @@ U+271D/U+271E/U+271F/U+2721 are not).
 `BundledNotoFontsTests.cs` (in `test/DemaConsulting.CanvasNet.Tests/Fonts/`) dogfoods all 3 of
 these files through `Fonts.TrueTypeFont.Load`, exactly like `BundledLiberationFontsTests.cs` does
 for the 12 Liberation files above.
+
+## Glyph Fallback Chain (Characters The Liberation Fonts Lack)
+
+The same 3 Noto files are also the one per-character **glyph fallback chain** of the public
+`Fonts.GlyphFallback` unit, which `Rendering.TextRenderer` (and so Svg, Charts, Vega-Lite, and the
+tool), OpenSCAD `text()`, and the Pdf, Pptx, and Vsdx font fallbacks use for a character that the chosen
+font has no glyph for - for example U+221D (PROPORTIONAL TO) and U+226B (MUCH GREATER-THAN), which
+Liberation Sans lacks and which were previously drawn as a missing-glyph box with no diagnostic. No new
+font file, license text, or package entry was needed: the chain is exactly these 3 files, in this order -
+`NotoSans-Regular.ttf`, `NotoSansMath-Regular.ttf`, `NotoSansSymbols2-Regular.ttf` - and only these
+are consulted (an installed font never is, so the result is the same on every machine). The chain is
+the regular style; a bold or italic request is not synthesized for a fallback glyph. The fonts are
+loaded lazily, on the first character that the chosen font misses.
+
+Coverage, measured over the files in this folder (code points mapped; a character that none of the
+fonts maps stays a missing-glyph box and is reported where the host has a diagnostics channel):
+
+Each entry reads: block (code points in it) - mapped by Liberation Sans / Noto Sans / Noto Sans Math / Noto Sans
+Symbols 2 - mapped by the chain together with Liberation Sans.
+
+- U+221D and U+226B: only Noto Sans Math - covered by the chain.
+- Greek 0370-03FF (144): 127 / 121 / 59 / 0 - 135.
+- Arrows 2190-21FF (112): 8 / 0 / 112 / 13 - 112.
+- Mathematical operators 2200-22FF (256): 18 / 1 / 256 / 7 - 256.
+- General punctuation 2000-206F (112): 57 / 111 / 42 / 12 - 111.
+- Supplemental mathematical operators and arrows (27C0-27FF, 2900-2AFF): 0 / 0 / all / a few - all.
+- Geometric shapes 25A0-25FF (96): 24 / 1 / 96 / 96 - 96.
+- Box drawing 2500-257F (128): 40 / 0 / 10 / 0 - 44.
+- Block elements 2580-259F (32): 8 / 0 / 8 / 0 - 8.
+- CJK ideographs and private-use characters: 0 / 0 / 0 / 0 - 0 (still missing).
+
+The numbers can be reproduced with `fontTools` (`TTFont(path)["cmap"].getBestCmap()`, intersected with
+a block's range). Another font was considered for the box-drawing and block-element gaps: DejaVu Sans
+2.37 (757 KB, Bitstream Vera license plus public-domain changes) would cover all of both blocks, but it
+is weaker on supplemental mathematical symbols and arrows, adds 757 KB and a second license notice, and
+the characters it would add are rarely needed in chart or model text, so it is **not** bundled; the
+box-drawing characters beyond the 44 that Liberation and Noto together cover remain missing (adding it
+later is a one-line change of the chain in `GlyphFallback.cs` plus a license entry). The Noto fonts have
+1000 units per em and Liberation 2048, so every renderer scales a fallback glyph with the em size of the
+font that supplies it, and none of the Noto fonts has a classic `kern` table, so no kerning is applied
+across or within them.

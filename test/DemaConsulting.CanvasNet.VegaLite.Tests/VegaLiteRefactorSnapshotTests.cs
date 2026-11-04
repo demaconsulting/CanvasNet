@@ -221,7 +221,8 @@ public class VegaLiteRefactorSnapshotTests
     /// <returns>The properties.</returns>
     private static IEnumerable<PropertyInfo> PropertiesOf(Type type) =>
         type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .Where(p => p.CanRead && p.GetIndexParameters().Length == 0 && p.Name != "EqualityContract")
+            // Source is a pointer back to the specification for diagnostics (vl-text-missing-glyph), not something that is drawn
+            .Where(p => p.CanRead && p.GetIndexParameters().Length == 0 && p.Name is not ("EqualityContract" or "Source"))
             .OrderBy(p => p.Name, StringComparer.Ordinal);
 
     /// <summary>

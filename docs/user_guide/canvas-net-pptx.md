@@ -19,7 +19,11 @@ with placeholder, layout, master and theme inheritance, word wrap, alignment, ve
 autofit, bullets and numbering. The slide's own background fill (falling back to its layout's, then
 its master's) is painted before the shapes. Footer, date and slide-number placeholders inherit from
 the master like any other placeholder, and a master's non-placeholder date or slide-number text box
-honors its own list style, so its size is not replaced by the 18 pt default. `PptxDocument` is not
+honors its own list style, so its size is not replaced by the 18 pt default. Text is drawn per character: a
+character that a run's font lacks is first looked up in a bundled Liberation font and then in the bundled Noto Sans, Noto
+Sans Math, and Noto Sans Symbols 2 of the core `GlyphFallback` (so `∝` and `≫` are drawn, never from another installed font);
+a character that no bundled font covers is drawn as the run's own missing-glyph box, silently (there is no diagnostics channel
+for it). `PptxDocument` is not
 thread-safe: open one instance per thread, or synchronize access externally.
 
 ```csharp

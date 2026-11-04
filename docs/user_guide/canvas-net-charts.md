@@ -180,7 +180,11 @@ fully deterministic, legible rendering: `ChartRenderer` resolves each series'/po
 unspecified, from `Chart.ColorPalette`, then `ChartRenderOptions.ColorPalette`, then
 `ChartColorPalette.Default` (a documented, fixed 10-entry categorical palette), wrapping by index
 via modulo; text is drawn with the bundled Liberation Sans Regular fallback font unless
-`ChartRenderOptions.Font` overrides it. A render target too small to reserve a title/legend/axis
+`ChartRenderOptions.Font` overrides it; a label character that font lacks (for example `≫`, U+226B) is drawn from the
+bundled Noto fonts (the fallback of the core `GlyphFallback`, measured and drawn alike), and a character that no
+bundled font covers is drawn as the font's missing-glyph box. **Charts have no diagnostics channel**, so that case is
+silent; list such characters with `GlyphFallback.FindMissing(font, text)` if you need to know. A render target too
+small to reserve a title/legend/axis
 band simply skips that band rather than throwing; a legend with more entries than fit its band
 omits the entries that do not fit; an over-long category/legend label is truncated to fit.
 

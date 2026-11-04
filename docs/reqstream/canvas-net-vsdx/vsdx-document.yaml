@@ -981,16 +981,23 @@ sections:
           - id: CanvasNetVsdx-VsdxDocument-GlyphFallback
             title: >-
               The VsdxDocument class shall draw and measure a code point that a run's font lacks
-              with a fallback font that covers it (searched in the installed-font catalog) rather
-              than the missing-glyph box, and report vsdx-text-missing-glyph when no font does.
+              with a fallback font that covers it (searched in the installed-font catalog, then
+              among the bundled Liberation and the bundled Noto fonts of the core GlyphFallback)
+              rather than the missing-glyph box, and report vsdx-text-missing-glyph when no font
+              does. A character for which the core GlyphFallback.IsIgnorable is true (a variation
+              selector, a zero-width joiner, a bidirectional mark) shall be skipped, with no glyph, no
+              advance, no fallback lookup, and no report.
             justification: |
               Symbols such as U+2794 are commonly typed in Calibri/Arial runs that lack them;
-              Visio substitutes a font per glyph.
+              Visio substitutes a font per glyph. An invisible character is not a missing glyph.
             tests:
               - GlyphFallback_MissingCodePoint_UsesFallbackFontAndAdvance
               - GlyphFallback_CoveredCodePoint_DoesNotConsultFallback
               - GlyphFallback_NoFontCoversCodePoint_KeepsPrimaryGlyph
               - GlyphFallback_DefaultResolver_ReturnsCoveringFontOrNull
+              - GlyphFallback_DefaultResolver_MathSignIsAlwaysCoveredByTheBundledChain
+              - GlyphFallback_IgnorableCharacter_HasNoGlyphAndNoAdvance
+              - GlyphFallback_IgnorableCharacter_IsNotReportedMissingAndDoesNotConsultFallback
 
           - id: CanvasNetVsdx-VsdxDocument-LayerVisibility
             title: >-

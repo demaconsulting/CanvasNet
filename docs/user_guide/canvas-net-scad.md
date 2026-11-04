@@ -260,8 +260,13 @@ text is laid out one character at a time without shaping, ligatures, or combinin
 `script` change nothing, so right-to-left scripts are not shaped (`"rtl"` only reverses the characters); the kerning
 is the one of the font's classic `kern` table; the size is the ink height of `H` and not a font-wide ascent;
 vertical text stacks upright characters by their advance width (a tall letter can touch the next one; raise `spacing`
-to separate them); a character the font does not map is drawn with the font's `.notdef`
-glyph; control characters (such as line feeds) are skipped, so text does not wrap; the functions `textmetrics()` and
+to separate them); a character the font does not map is taken from the bundled Noto Sans, Noto Sans Math, or Noto
+Sans Symbols 2 (so `∝`, `≫`, arrows, and mathematical operators are drawn; only these bundled fonts are used, never an
+installed one, so the result does not depend on the machine; the glyph is scaled so that `size` keeps its meaning, in the
+regular style, with no kerning between glyphs of different fonts); a character that no bundled font covers (a
+private-use or CJK character, for example) is drawn with the font's `.notdef` glyph, or skipped when that glyph has no
+outline, and **one warning per `text()`** lists up to eight of those code points as `U+XXXX`;
+control characters (such as line feeds) are skipped, so text does not wrap; the functions `textmetrics()` and
 `fontmetrics()` are not supported (see *Unsupported Features and Strict Mode*). A glyph whose outline cannot be
 represented (a damaged outline, or contours that cross each other) is reported as `scad-text-invalid-outline` or
 `scad-text-overlapping-contours` and the whole text is omitted; none of the bundled fonts has such a glyph in Basic

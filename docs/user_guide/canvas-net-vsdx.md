@@ -42,7 +42,11 @@ malformed geometry row is skipped, never thrown, and reported with the token
 `SplineStart`/`SplineKnot` row with a missing, malformed, non-finite or over-limit cell or formula;
 an orphan `SplineStart`/`SplineKnot`; a row that continues a subpath before any `MoveTo`; or an
 unrecognized row type such as `InfiniteLine`. See the Design Constraints section of the
-*CanvasNetVsdx System Design* document for the complete deferred-feature boundary.
+*CanvasNetVsdx System Design* document for the complete deferred-feature boundary. Text is drawn per character: one
+that a run's font lacks is drawn with an installed fallback font that covers it, and failing that with a bundled Liberation
+font or the bundled Noto Sans, Noto Sans Math, or Noto Sans Symbols 2 of the core `GlyphFallback` (so `∝` and `≫` are always
+drawn); only a character that no font covers is drawn as the run's missing-glyph box and reported as
+`vsdx-text-missing-glyph` through the unsupported-feature handler.
 
 ```csharp
 using var doc = VsdxDocument.Open("diagram.vsdx");

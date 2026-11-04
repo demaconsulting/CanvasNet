@@ -335,13 +335,17 @@ sections:
               from a font - a caller-supplied font matching its font-family when one is
               registered, otherwise a default font (see
               CanvasNetSvg-SvgCodec-TextFontDefaultFallback) - positioned using the font's
-              advance widths and kerning pairs and scaled by font-size.
+              advance widths and kerning pairs and scaled by font-size, and taking a character
+              that the font lacks from the bundled fallback fonts of the core text renderer (the
+              SVG codec has no diagnostics channel, so a character that no bundled font covers
+              silently draws the font's missing-glyph box).
             justification: |
               Callers need text content in an SVG document rendered as recognizable glyph
               shapes at the correct position, using real font metrics rather than an
               approximation.
             tests:
               - SvgCodec_Load_TextWithMatchingFont_RendersGlyphAtExpectedPosition
+              - SvgCodec_Load_TextWithCharacterOutsideLiberation_PaintsBundledFallbackGlyphNotTheBox
               - SvgCodec_Load_TextWithKerningPair_AppliesKerningBetweenGlyphs
               - SvgCodec_Load_TextFixtureWithRealFont_RendersVisibleGlyphInk
 
