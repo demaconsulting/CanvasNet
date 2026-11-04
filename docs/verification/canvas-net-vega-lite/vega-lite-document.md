@@ -168,12 +168,15 @@ identifier); and that the parameterless, message, inner-exception, and located c
 
 **Tests**: `VegaLiteReportSinkTests.VegaLiteReportSink_Deliver_PreservesOrderAcrossKinds`,
 `VegaLiteReportSinkTests.VegaLiteReportSink_Duplicates_AreRecordedOnce`,
+`VegaLiteReportSinkTests.VegaLiteReportSink_WarnWithKey_DistinctKeysAreRecordedSeparately`,
 `VegaLiteReportSinkTests.VegaLiteReportSink_Cap_CollapsesOverflowIntoOneNotice`,
 `VegaLiteReportSinkTests.VegaLiteReportSink_Strict_ThrowsAtFirstUnsupportedFeatureAfterRecordingIt`,
 `VegaLiteReportSinkTests.VegaLiteReportSink_HandlerFailure_PropagatesOnlyFromNormalDelivery`
 
 Asserts that warnings and unsupported-feature reports are delivered in the order they were recorded to the right
-handlers; that identical reports are recorded once; that more reports than the diagnostics cap collapse the overflow
+handlers; that identical reports are recorded once, while warnings with the same message and location but different
+optional de-duplication keys are recorded separately (an equal or absent key still collapses them, and keyed warnings
+count toward the cap); that more reports than the diagnostics cap collapse the overflow
 into a single notice; that strict mode records the first unsupported feature and then throws, even when the buffer is
 full; and that a handler exception propagates from normal delivery but is swallowed while a failure is already being
 reported, so that the original failure is not hidden.
@@ -196,7 +199,8 @@ that strict mode throws at the first unsupported feature while warnings never st
 **Tests**: `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_TextMissingGlyph_FallbackCoveredCharactersAreSilentAndDrawn`,
 `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_TextMissingGlyph_UncoveredCharactersWarnOnceAtTheMark`,
 `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_TextMissingGlyph_OneWarningPerLocationAndSet`,
-`VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_TextMissingGlyph_InvisibleTextIsNotReported`
+`VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_TextMissingGlyph_InvisibleTextIsNotReported`,
+`VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_TextMissingGlyph_SetsSharingTheFirstEightCodePointsAreBothReported`
 
 Asserts, for the chart of the report (`"a ∝ b ≫ c"` in a text mark), that no `vl-text-missing-glyph` warning is
 delivered and that the pixels differ from the same chart with private-use characters (the missing-glyph boxes); that a
@@ -205,7 +209,10 @@ text mark with `"a \uE000 \u4E2D \uE000"` delivers exactly one warning that star
 layers with the same text and a nominal axis whose label has the character give one warning for each of the two
 marks (`/layer/0/mark`, `/layer/1/mark`) and one at the unknown location for the axis label, the same for a `Measure`;
 and that a text mark with a missing character gives one warning with the default fill but none with the fill `none`, an
-invalid fill color, a fill opacity of 0, or an opacity of 0 (text that is not painted is not reported).
+invalid fill color, a fill opacity of 0, an opacity of 0, or a font size of 0, 1e-300, or 1e300 (text that is not drawn
+is not reported: the report uses the painter's own rule, `ScenePainter.IsDrawable`); and that a text mark driven by data
+whose two rows lack nine code points that differ only in the ninth give two warnings at `/mark`, both listing the same
+first eight code points, while two identical rows give one.
 The `Help topics` trigger table of the tool tests also renders a chart with the character and expects the warning
 with this identifier in the diagnostics.
 

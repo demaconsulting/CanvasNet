@@ -1249,7 +1249,10 @@ its own distinguishable `Feature` token.
   when both listed fonts return glyph 0 for a code point that `GlyphFallback.NeedsGlyph` accepts does it call
   `GlyphFallback.Resolve(Fonts[^1], codepoint)`, so a character that neither the primary match nor Liberation
   Sans covers (for example U+221D) still reaches a real glyph through the same Noto order, and a document whose
-  text the two fonts cover completely never loads the Noto chain. The glyph width still comes from `/Widths`
+  text the two fonts cover completely never loads the Noto chain. (The Pdf test assembly is also granted core
+  `InternalsVisibleTo`, so that the test of this laziness recognizes the Noto fonts by identity through
+  `LoadBundledFallbackCore` without touching `GlyphFallback.BundledFonts` or the process-wide chain.)
+  The glyph width still comes from `/Widths`
   when declared. Output changes only where a code point was `.notdef` before. The Symbol/ZapfDingbats lists
   are unchanged.
 

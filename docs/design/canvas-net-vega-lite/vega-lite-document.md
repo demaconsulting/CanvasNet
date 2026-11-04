@@ -123,7 +123,9 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   is unknown; the standard parameterless, message, and message-plus-inner-exception constructors leave the location
   unknown. `VegaLiteSpecException` derives from `FormatException` because `InvalidDataException` is sealed.
 - **`VegaLiteReportSink`** (internal sealed class) - the buffer of one call: recorded warnings and unsupported
-  features in order, de-duplicated by value, capped at `MaxDiagnostics`, with the strict-mode switch (strict mode always
+  features in order, de-duplicated by value (a warning also by an optional key, so that a message that lists only a
+  prefix of what identifies it, such as the missing-glyph warning, does not hide a different set), capped at
+  `MaxDiagnostics`, with the strict-mode switch (strict mode always
   records the first unsupported feature, even beyond the cap, so the handler receives it before the exception is thrown).
 
 ### Key Methods
@@ -196,12 +198,15 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   report sink as soon as they exist (a `finally` block around the parameters and transforms), so a later failure still
   delivers them, and the `BuildPlan` step records them after the reports of the specification, followed by the
   missing-glyph warnings of the scene (`ReportMissingGlyphs`: the scene is walked in drawing order; for every
-  `SceneText` whose fill `CssPaint.TryResolvePaint` resolves to a visible paint (the painter's rule: not none, valid,
-  and a non-zero fill opacity times opacity), `TextMeasurer.FindMissingGlyphs` lists the code points that neither the
-  face nor the core `GlyphFallback` covers, and one `vl-text-missing-glyph` warning goes to the sink at
+  `SceneText` that the painter draws (`ScenePainter.IsDrawable`, the painter's own rule at the scale 1, because the
+  placement scale is not known at plan time: a visible fill, a positive font size that is still a positive single, and
+  a bounded position, offset, angle, and line height), `TextMeasurer.FindMissingGlyphs` lists the code points that
+  neither the face nor the core `GlyphFallback` covers, and one `vl-text-missing-glyph` warning goes to the sink at
   `SceneText.Source` (the text
-  mark), listing the first eight; the sink de-duplicates identical message and location, so a set is reported once
-  per mark location; text that the chart builds itself, such as axis labels, legends, and titles, has no source and
+  mark), listing the first eight; the sink de-duplicates identical message, location, and key, and the key is the
+  complete set of code points, so two different sets that share the listed eight are both reported, and a set is
+  reported once per mark location; text that the chart builds itself, such as axis labels, legends, and titles, has
+  no source and
   is reported at the unknown location; a warning is never an unsupported feature, so strict mode does not throw).
   The only I/O of the
   pipeline happens here, on the calling thread. `BuildChart` iterates the guides of the **cell** (`BuildCellGuides`: the

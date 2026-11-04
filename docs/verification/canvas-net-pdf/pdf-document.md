@@ -1973,11 +1973,14 @@ the U+221D render is pixel-identical to the Noto Sans Math reference and not equ
 
 `PdfDocument_ResolveFallbackFont_OrdinaryFont_DoesNotMaterializeNotoChain` proves the lazy loading: the
 substitute list that `ResolveFallbackFont` returns for an ordinary non-embedded font has exactly two
-elements (the primary match and the plain Liberation Sans) and none of them is one of the bundled Noto fonts
-of `GlyphFallback.BundledFonts`, so a document whose text those two fonts cover never lists, and so never
-consults or loads, the Noto chain (it is reached only through `ResolvedSimpleFont.UseGlyphFallbackChain` on a
-miss, which the Noto Sans Math render above exercises). The process-wide chain cannot be observed through a
-load counter without a test seam in the core assembly, so the test asserts the structure instead.
+elements (the primary match and the plain Liberation Sans) and none of them is one of the three bundled Noto fonts
+(`NotoSans-Regular`, `NotoSansMath-Regular`, `NotoSansSymbols2-Regular`), so a document whose text those two fonts
+cover never lists, and so never consults or loads, the Noto chain (it is reached only through
+`ResolvedSimpleFont.UseGlyphFallbackChain` on a miss, which the Noto Sans Math render above exercises). The test
+recognizes the Noto fonts by identity: it obtains them through `SystemFontCatalog.LoadBundledFallbackCore`, the
+cache by file name through which the chain loads its fonts too (the core assembly grants `InternalsVisibleTo` to the
+Pdf test assembly for this), and compares by reference. It therefore never reads `GlyphFallback.BundledFonts` or the
+lazily created process-wide chain, so it is deterministic whatever tests ran before it or run in parallel.
 
 #### CanvasNetPdf-PdfDocument-SymbolZapfDingbatsFallback: Symbol/ZapfDingbats Resolve via a Bundled Noto Union
 

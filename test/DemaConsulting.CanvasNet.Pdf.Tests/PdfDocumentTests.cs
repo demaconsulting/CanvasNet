@@ -8002,8 +8002,10 @@ public class PdfDocumentTests
     /// <summary>
     ///     Proves that the Noto chain is consulted lazily: the substitute list for an ordinary non-embedded font
     ///     is exactly the primary match and the plain Liberation Sans, with none of the bundled Noto fonts
-    ///     listed, so a page whose text those two fonts cover never loads (or touches) the Noto chain. The chain
-    ///     is only reached on a miss, which
+    ///     listed, so a page whose text those two fonts cover never loads (or touches) the Noto chain. The
+    ///     Noto fonts are recognized by identity through the bundled-font cache (the chain loads through the same
+    ///     cache), so the assertion itself never creates the process-wide chain and does not depend on test order.
+    ///     The chain is only reached on a miss, which
     ///     <see cref="PdfDocument_BuildResolvedFont_CharacterOutsideLiberation_FallsBackToBundledNotoMath"/>
     ///     proves, and a fully covered render is unaffected.
     /// </summary>
@@ -8014,14 +8016,19 @@ public class PdfDocumentTests
         using var stream = new MemoryStream(BuildSinglePagePdf(100, 100, "BT ET"));
         using var document = PdfDocument.Open(stream);
         var generic = SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold: false, italic: false);
+        string[] notoFileNames = ["NotoSans-Regular.ttf", "NotoSansMath-Regular.ttf", "NotoSansSymbols2-Regular.ttf"];
 
         // Act
         var fonts = document.ResolveFallbackFont("TotallyUnlikelyFontFamilyXyzzyMono", PdfDocument.PdfObject.NullValue);
 
-        // Assert: [primary, plain Liberation Sans] only, and none is a bundled Noto font
+        // Assert: [primary, plain Liberation Sans] only, and none is a bundled Noto font (by identity)
         Assert.Equal(2, fonts.Count);
         Assert.Same(generic, fonts[1]);
-        Assert.DoesNotContain(fonts, font => GlyphFallback.BundledFonts.Contains(font));
+        foreach (var notoFileName in notoFileNames)
+        {
+            var noto = SystemFontCatalog.LoadBundledFallbackCore(notoFileName);
+            Assert.DoesNotContain(fonts, font => ReferenceEquals(font, noto));
+        }
     }
 
     /// <summary>

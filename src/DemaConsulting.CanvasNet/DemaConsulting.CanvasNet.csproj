@@ -87,6 +87,11 @@
          substitute-font resolution path - see PdfDocument.FontFallback.cs's
          ResolveSymbolicNotoFallback. -->
     <InternalsVisibleTo Include="DemaConsulting.CanvasNet.Pdf" />
+    <!-- Grants DemaConsulting.CanvasNet.Pdf.Tests test-only access to Fonts.SystemFontCatalog's
+         internal LoadBundledFallbackCore, so that a test can recognize the bundled Noto fonts by
+         identity (the catalog caches them by file name) without forcing the process-wide fallback
+         chain (GlyphFallback.BundledFonts) to be created. -->
+    <InternalsVisibleTo Include="DemaConsulting.CanvasNet.Pdf.Tests" />
     <!-- Grants DemaConsulting.CanvasNet.Pptx access to the internal SurfaceResampler engine, reused
          (not duplicated) by PptxDocument.Images.cs's PaintPicture image-compositing loop for smooth
          raster image resampling (the per-pixel Porter-Duff Rgba32.CompositeOver it also uses is

@@ -564,9 +564,14 @@ public sealed partial class VegaLiteDocument
     ///     A character the chosen font lacks is first looked up in the bundled fallback fonts
     ///     (<see cref="GlyphFallback"/>); only a character that none covers is drawn as the font's missing-glyph
     ///     box and reported here as <c>vl-text-missing-glyph</c>. The scene is walked in drawing order, so the
-    ///     warnings come in a deterministic order. Text whose fill is not visibly painted (none, invalid, or zero opacity) is not drawn and is not reported; text the
-    ///     chart builds itself (axis labels, legends, titles) has no location in the specification and is reported
-    ///     at the unknown location, once per distinct set of characters.
+    ///     warnings come in a deterministic order. Text that the painter does not draw (see
+    ///     <see cref="ScenePainter.IsDrawable(SceneText, float, out Rgba32)"/>: a fill that is not visibly painted, or a
+    ///     font size, position or offset that is not drawable) is not reported; the check uses the scale 1 because the
+    ///     placement scale is not known when the plan is built, so a size that is only not drawable at an extreme
+    ///     placement scale is still reported. Text the chart builds itself (axis labels, legends, titles) has no
+    ///     location in the specification and is reported at the unknown location, once per distinct set of
+    ///     characters. The warning lists at most <see cref="MaxReportedMissingGlyphs"/> code points, but the
+    ///     de-duplication uses the complete set, so two sets that share the listed prefix are both reported.
     /// </remarks>
     /// <param name="plan">The plan whose scene is checked.</param>
     /// <param name="sink">The sink that records the warnings.</param>
@@ -576,7 +581,7 @@ public sealed partial class VegaLiteDocument
         foreach (var entry in plan.Scene.Enumerate())
         {
             if (entry.Item is not SceneText text
-                || !CssPaint.TryResolvePaint(text.Fill, text.FillOpacity * text.Opacity, out _))
+                || !ScenePainter.IsDrawable(text, 1f, out _))
             {
                 continue;
             }
@@ -592,7 +597,8 @@ public sealed partial class VegaLiteDocument
             var more = missing.Count > MaxReportedMissingGlyphs ? ", ..." : string.Empty;
             sink.Warn(
                 $"vl-text-missing-glyph: no font has a glyph for {list}{more} (the bundled fonts do not cover them); the font's missing-glyph box is drawn instead.",
-                text.Source);
+                text.Source,
+                distinctKey: string.Join(',', missing));
         }
     }
 

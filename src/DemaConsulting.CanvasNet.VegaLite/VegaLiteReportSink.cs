@@ -12,7 +12,7 @@ namespace DemaConsulting.CanvasNet.VegaLite;
 ///         a failed call it is ignored so that the original failure is the one the caller sees.
 ///     </para>
 ///     <para>
-///         Identical reports (same message and location) are recorded once. At most
+///         Identical reports (same message and location, and for a warning the same optional key) are recorded once. At most
 ///         <see cref="VegaLiteLimits.MaxDiagnostics"/> reports are kept; the first one beyond the cap is replaced by a
 ///         single <c>vl-diagnostics-suppressed</c> notice and the rest are dropped, so a hostile specification cannot
 ///         grow the buffer without bound. Strict mode is unaffected by the cap: the first unsupported feature is always
@@ -25,8 +25,8 @@ internal sealed class VegaLiteReportSink
     /// <summary>The recorded reports in order; each is a warning or an unsupported feature.</summary>
     private readonly List<(VegaLiteDiagnostic? Warning, VegaLiteUnsupportedFeature? Unsupported)> _events = [];
 
-    /// <summary>The warnings recorded so far, for de-duplication.</summary>
-    private readonly HashSet<VegaLiteDiagnostic> _seenWarnings = [];
+    /// <summary>The warnings recorded so far, each with its optional de-duplication key, for de-duplication.</summary>
+    private readonly HashSet<(VegaLiteDiagnostic Warning, string? Key)> _seenWarnings = [];
 
     /// <summary>The unsupported features recorded so far, for de-duplication.</summary>
     private readonly HashSet<VegaLiteUnsupportedFeature> _seenUnsupported = [];
@@ -61,10 +61,14 @@ internal sealed class VegaLiteReportSink
     /// </summary>
     /// <param name="message">The identifier and description of the problem.</param>
     /// <param name="location">The location it is about.</param>
-    public void Warn(string message, VegaLiteLocation location)
+    /// <param name="distinctKey">
+    ///     An optional key that distinguishes warnings with the same message and location, for a message that
+    ///     deliberately shows less than what identifies the report; null when the message and location identify it.
+    /// </param>
+    public void Warn(string message, VegaLiteLocation location, string? distinctKey = null)
     {
         var warning = new VegaLiteDiagnostic(message, location);
-        if (_seenWarnings.Add(warning))
+        if (_seenWarnings.Add((warning, distinctKey)))
         {
             Add((warning, null));
         }

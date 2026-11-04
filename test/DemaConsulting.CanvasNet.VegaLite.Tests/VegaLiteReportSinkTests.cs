@@ -49,6 +49,42 @@ public class VegaLiteReportSinkTests
     }
 
     /// <summary>
+    ///     Validates that the optional de-duplication key distinguishes warnings with the same message and location,
+    ///     that an equal key or no key still collapses them, and that keyed warnings count toward the cap.
+    /// </summary>
+    [Fact]
+    public void VegaLiteReportSink_WarnWithKey_DistinctKeysAreRecordedSeparately()
+    {
+        // Arrange
+        var sink = new VegaLiteReportSink(10, throwOnUnsupported: false);
+        var keyed = new VegaLiteReportSink(10, throwOnUnsupported: false);
+        var capped = new VegaLiteReportSink(2, throwOnUnsupported: false);
+        var delivered = new List<string>();
+
+        // Act
+        sink.Warn("w", Where, "a");
+        sink.Warn("w", Where, "b");
+        sink.Warn("w", Where, "a");
+        keyed.Warn("w", Where);
+        keyed.Warn("w", Where);
+        keyed.Warn("w", Where, "a");
+        keyed.Warn("w", Where, "a");
+        for (var i = 0; i < 5; i++)
+        {
+            capped.Warn("w", Where, "k" + i);
+        }
+
+        capped.Deliver(w => delivered.Add(w.Message), null);
+
+        // Assert: two keys are two reports, a repeated key and a null key are one each, and the cap applies to keyed warnings
+        Assert.Equal(2, sink.Count);
+        Assert.Equal(2, keyed.Count);
+        Assert.Equal(3, capped.Count);
+        Assert.Equal(["w", "w"], delivered[..2]);
+        Assert.StartsWith("vl-diagnostics-suppressed:", delivered[2], StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Validates that the cap collapses the overflow into a single notice.
     /// </summary>
     [Fact]

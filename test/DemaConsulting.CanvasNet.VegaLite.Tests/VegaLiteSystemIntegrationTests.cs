@@ -1036,10 +1036,11 @@ public class VegaLiteSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Validates that text whose fill is not visibly painted (none, an invalid color, zero fill opacity or zero
-    ///     opacity) is not reported, while the same text with the default fill is reported once.
+    ///     Validates that text that is not drawn is not reported: its fill is not visibly painted (none, an invalid color,
+    ///     zero fill opacity or zero opacity) or its font size is not drawable (zero, or beyond what a single can hold),
+    ///     while the same text with the default fill and size is reported once.
     /// </summary>
-    /// <param name="property">The mark properties that make the text invisible, or empty for the visible control.</param>
+    /// <param name="property">The mark properties that make the text not drawn, or empty for the visible control.</param>
     /// <param name="expected">The number of warnings.</param>
     [Theory]
     [InlineData("", 1)]
@@ -1047,6 +1048,9 @@ public class VegaLiteSystemIntegrationTests
     [InlineData(",\"fill\":\"not-a-color\"", 0)]
     [InlineData(",\"fillOpacity\":0", 0)]
     [InlineData(",\"opacity\":0", 0)]
+    [InlineData(",\"fontSize\":0", 0)]
+    [InlineData(",\"fontSize\":1e-300", 0)]
+    [InlineData(",\"fontSize\":1e300", 0)]
     public void CanvasNetVegaLite_SystemIntegration_TextMissingGlyph_InvisibleTextIsNotReported(string property, int expected)
     {
         // Arrange
@@ -1060,6 +1064,35 @@ public class VegaLiteSystemIntegrationTests
 
         // Assert
         Assert.Equal(expected, warnings.Count(w => w.Message.StartsWith("vl-text-missing-glyph:", StringComparison.Ordinal)));
+    }
+
+    /// <summary>
+    ///     Validates that two sets of characters that share the first eight code points listed in the warning are both
+    ///     reported at the same mark (the de-duplication uses the complete set), and that identical sets are reported once.
+    /// </summary>
+    /// <param name="second">The second row's text.</param>
+    /// <param name="expected">The number of warnings.</param>
+    [Theory]
+    [InlineData("\\uE000\\uE001\\uE002\\uE003\\uE004\\uE005\\uE006\\uE007\\uE009", 2)]
+    [InlineData("\\uE000\\uE001\\uE002\\uE003\\uE004\\uE005\\uE006\\uE007\\uE008", 1)]
+    public void CanvasNetVegaLite_SystemIntegration_TextMissingGlyph_SetsSharingTheFirstEightCodePointsAreBothReported(string second, int expected)
+    {
+        // Arrange: one text mark driven by data, whose first row misses U+E000..U+E008 and whose second row misses the same
+        // or the nine code points U+E000..U+E007 and U+E009
+        var document = VegaLiteDocument.Parse(
+            "{\"width\":200,\"height\":60,\"data\":{\"values\":[{\"x\":1,\"y\":1,\"t\":\"\\uE000\\uE001\\uE002\\uE003\\uE004\\uE005\\uE006\\uE007\\uE008\"},"
+            + "{\"x\":2,\"y\":2,\"t\":\"" + second + "\"}]},\"mark\":\"text\","
+            + "\"encoding\":{\"x\":{\"field\":\"x\",\"type\":\"quantitative\"},\"y\":{\"field\":\"y\",\"type\":\"quantitative\"},\"text\":{\"field\":\"t\",\"type\":\"nominal\"}}}");
+        var warnings = new List<VegaLiteDiagnostic>();
+
+        // Act
+        using var surface = document.Render(new VegaLiteRenderOptions { WarningHandler = warnings.Add }, Ct);
+
+        // Assert: the warnings are at the mark and list the same eight code points, one per distinct set
+        var missing = warnings.Where(w => w.Message.StartsWith("vl-text-missing-glyph:", StringComparison.Ordinal)).ToList();
+        Assert.Equal(expected, missing.Count);
+        Assert.All(missing, w => Assert.Equal("/mark", w.Location.Pointer));
+        Assert.All(missing, w => Assert.Contains("U+E000, U+E001, U+E002, U+E003, U+E004, U+E005, U+E006, U+E007, ...", w.Message, StringComparison.Ordinal));
     }
 
     /// <summary>

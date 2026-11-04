@@ -553,6 +553,74 @@ public class ScenePainterTests
     }
 
     /// <summary>
+    ///     Validates the single rule that decides whether a text item is drawn, which the painter and the missing-glyph
+    ///     report share: an ordinary text is drawn, and a text with a font size that is not positive, not finite, beyond
+    ///     the bound or zero as a single, a position, offset, angle, limit or line height that is not a usable number, or a fill that is
+    ///     not visibly painted is not.
+    /// </summary>
+    /// <param name="property">The property that is made unusable, or empty for the control.</param>
+    /// <param name="expected">Whether the text is drawn.</param>
+    [Theory]
+    [InlineData("", true)]
+    [InlineData("size-zero", false)]
+    [InlineData("size-negative", false)]
+    [InlineData("size-nan", false)]
+    [InlineData("size-underflow", false)]
+    [InlineData("size-unbounded", false)]
+    [InlineData("x-nan", false)]
+    [InlineData("limit-nan", false)]
+    [InlineData("line-height-nan", false)]
+    [InlineData("angle-unbounded", false)]
+    [InlineData("fill-none", false)]
+    [InlineData("opacity-zero", false)]
+    public void ScenePainter_IsDrawable_Text_FollowsTheSharedRule(string property, bool expected)
+    {
+        // Arrange
+        var text = new SceneText("t", 5, 20, ["Hello"]) { Fill = "#000000", FontSize = 12 };
+        text = property switch
+        {
+            "size-zero" => text with { FontSize = 0 },
+            "size-negative" => text with { FontSize = -1 },
+            "size-nan" => text with { FontSize = double.NaN },
+            "size-underflow" => text with { FontSize = 1e-300 },
+            "size-unbounded" => text with { FontSize = 1e300 },
+            "x-nan" => new SceneText("t", double.NaN, 20, ["Hello"]) { Fill = "#000000", FontSize = 12 },
+            "limit-nan" => text with { Limit = double.NaN },
+            "line-height-nan" => text with { LineHeight = double.NaN },
+            "angle-unbounded" => text with { Angle = 1e7 },
+            "fill-none" => text with { Fill = "none" },
+            "opacity-zero" => text with { Opacity = 0 },
+            _ => text,
+        };
+
+        // Act
+        var drawn = ScenePainter.IsDrawable(text, 1f, out var color);
+
+        // Assert: the resolved color is the fill when drawn
+        Assert.Equal(expected, drawn);
+        if (expected)
+        {
+            Assert.Equal(Black, color);
+        }
+    }
+
+    /// <summary>
+    ///     Validates that the painter uses the shared rule: a text with a font size of zero draws nothing.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_TextWithZeroFontSizeDrawsNothing()
+    {
+        // Arrange
+        var scene = MakeScene(100, 40, new SceneText("t", 5, 20, ["Hello"]) { Fill = "#000000", FontSize = 0 });
+
+        // Act
+        using var surface = PaintAtOne(scene, 100, 40);
+
+        // Assert
+        Assert.Null(VegaLiteTestHelpers.InkBounds(surface, White));
+    }
+
+    /// <summary>
     ///     Validates that dash patterns whose work would be unbounded are drawn solid, without any timing assumption.
     /// </summary>
     [Fact]

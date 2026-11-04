@@ -132,7 +132,12 @@ translations), and the scale.
   each line drawn at its baseline using Vega's baseline offsets and alignment, rotated about the text position; the lines
   are those the measurer produced (trimmed and truncated to the limit). A text whose position, offsets, font size, or
   line height is beyond the magnitude bound, or whose font size would not be a finite positive single after scaling, draws
-  nothing (a font size of 1e300 once made the core text renderer throw an `ArgumentOutOfRangeException`).
+  nothing (a font size of 1e300 once made the core text renderer throw an `ArgumentOutOfRangeException`). This rule is
+  the internal `ScenePainter.IsDrawable(SceneText, float scale, out Rgba32 color)` (next to the trail point overload):
+  besides the bounds it requires a finite angle within bounds, a limit that is a number, a font size above zero, and a
+  fill that `CssPaint.TryResolvePaint` resolves to a visible paint. The painter calls it with the placement scale, and
+  `VegaLiteDocument`'s missing-glyph report calls it with the scale 1 (the placement scale is not known when the plan
+  is built), so text that is not drawn is not reported.
 
 #### Key Methods
 

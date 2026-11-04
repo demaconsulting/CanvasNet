@@ -91,6 +91,8 @@ in the four unit verification documents passes without error or unexpected excep
   `ScenePainterPathTests.ScenePainter_Paint_GroupBeyondTheMagnitudeBoundDrawsNothing`,
   `ScenePainterPathTests.ScenePainter_Paint_TheBoundAppliesToTheSizeInSurfacePixels`,
   `ScenePainterTests.ScenePainter_Paint_TextBeyondTheMagnitudeBoundDrawsNothingAndNeverThrows`,
+  `ScenePainterTests.ScenePainter_IsDrawable_Text_FollowsTheSharedRule`,
+  `ScenePainterTests.ScenePainter_Paint_TextWithZeroFontSizeDrawsNothing`,
   `TextMeasurerTests.TextMeasurer_UnrepresentableFontSizeIsUnmeasurableAndNeverThrows` — a path end point, an arc, a
   trail point, a group offset, a stroke width, or a text that is not finite or is beyond 32,768 surface pixels draws
   nothing (a cubic control point beyond it is a line), a trail is painted in chunks of a bounded estimated cost with
