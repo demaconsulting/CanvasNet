@@ -36,21 +36,21 @@ internal static partial class ExpressionFunctions
     /// </summary>
     /// <param name="arguments">The value and the d3-format specifier.</param>
     /// <param name="context">The context.</param>
-    /// <returns>The text; the text <c>null</c> for a null value, after the specifier has been compiled (as Vega), so an invalid or missing specifier is an error even for null.</returns>
+    /// <returns>The text; the text <c>null</c> for a null value, whose specifier is not read, charged or compiled (as Vega's <c>format</c>).</returns>
     /// <exception cref="ExpressionRuntimeException">Thrown when the specifier is not valid or the text would be longer than the string limit.</exception>
     private static DataValue FormatNumber(ReadOnlySpan<DataValue> arguments, ExpressionFunctionContext context)
     {
         var value = Arg(arguments, 0);
 
-        // Vega compiles the specifier before it looks at the value, so a bad or missing specifier fails even for null
-        var specifier = Text(arguments, 1, context);
-        context.ChargeSize(specifier.Length);
-        var formatter = context.GetNumberFormatter(specifier);
+        // Vega 6.4.0 vega-functions format.js: value === null ? 'null' : locale[method](spec)(value), so the specifier is not looked at for null
         if (arguments.Length > 0 && value.IsNull)
         {
             return DataValue.FromString("null");
         }
 
+        var specifier = Text(arguments, 1, context);
+        context.ChargeSize(specifier.Length);
+        var formatter = context.GetNumberFormatter(specifier);
         string text;
         if (formatter.IsText)
         {

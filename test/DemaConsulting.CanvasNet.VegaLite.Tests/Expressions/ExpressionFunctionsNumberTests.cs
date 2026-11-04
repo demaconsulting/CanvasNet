@@ -133,31 +133,41 @@ public class ExpressionFunctionsNumberTests
     }
 
     /// <summary>
-    ///     Validates that the specifier is read, charged and compiled before the null rule, as Vega compiles it first: <c>format(null)</c> and <c>format(null, 'nonsense')</c> are errors, a valid specifier still gives the text
-    ///     <c>null</c>, and a specifier is charged to the step budget even for a null value.
+    ///     Validates that a null value is the text <c>null</c> without the specifier being read, charged or compiled, as Vega 6.4.0's <c>format.js</c> tests <c>value === null</c> before it compiles the specifier:
+    ///     <c>format(null)</c> and <c>format(null, 'nonsense')</c> are the text <c>null</c>, a specifier too long for the step budget is not charged for a null value, while any other value still fails an invalid or
+    ///     missing specifier.
     /// </summary>
     [Fact]
-    public void ExpressionFunctionsNumber_Format_NullStillCompilesTheSpecifier()
+    public void ExpressionFunctionsNumber_Format_NullIsTheTextNullWithoutReadingTheSpecifier()
     {
         // Arrange
         var context = new ExpressionFunctionContext(null, CancellationToken.None);
         var budget = new ExpressionFunctionContext(Steps(3), CancellationToken.None);
-        string Call(params DataValue[] arguments) => ExpressionFunctions.Invoke("format", arguments, context).Text!;
+        string Call(ExpressionFunctionContext on, params DataValue[] arguments) => ExpressionFunctions.Invoke("format", arguments, on).Text!;
 
         // Act
-        var missing = Assert.Throws<ExpressionRuntimeException>(() => ExpressionFunctions.Invoke("format", [default], context));
-        var invalid = Assert.Throws<ExpressionRuntimeException>(() => ExpressionFunctions.Invoke("format", [default, DataValue.FromString("nonsense")], context));
-        var located = Assert.Throws<VegaLiteRenderException>(() => Eval("format(null, 'nonsense')"));
-        var charged = Assert.Throws<ExpressionRuntimeException>(() => ExpressionFunctions.Invoke("format", [default, DataValue.FromString(new string('x', 640))], budget));
+        var missing = Call(context, default(DataValue));
+        var invalid = Call(context, default(DataValue), DataValue.FromString("nonsense"));
+        var located = Eval("format(null, 'nonsense')");
+        var oversize = Call(budget, default(DataValue), DataValue.FromString(new string('x', 640)));
+        var stepsAfterOversize = budget.Steps;
 
-        // Assert
-        Assert.Equal("invalid format: undefined", missing.Message);
-        Assert.Equal("invalid format: nonsense", invalid.Message);
-        Assert.Contains("invalid format: nonsense", located.Message, StringComparison.Ordinal);
-        Assert.Contains("MaxEvaluationSteps", charged.Message, StringComparison.Ordinal);
-        Assert.Equal("null", Call(default, DataValue.FromString(",d")));
-        Assert.Equal("null", Call(default, DataValue.FromString("c")));
+        // Assert: the text null, with no error and no charge for the specifier
+        Assert.Equal("null", missing);
+        Assert.Equal("null", invalid);
+        Assert.True(located.IsString);
+        Assert.Equal("null", located.Text);
+        Assert.Equal("null", oversize);
+        Assert.Equal(0, stepsAfterOversize);
+        Assert.Equal("null", Call(context, default(DataValue), DataValue.FromString(",d")));
+        Assert.Equal("null", Call(context, default(DataValue), DataValue.FromString("c")));
         Assert.Equal("null", Eval("format(null, ',d')").Text);
+
+        // Assert: a value that is not null still needs a valid specifier, so the check is not vacuous
+        var notNullMissing = Assert.Throws<ExpressionRuntimeException>(() => ExpressionFunctions.Invoke("format", [DataValue.FromNumber(1)], context));
+        var notNullInvalid = Assert.Throws<ExpressionRuntimeException>(() => ExpressionFunctions.Invoke("format", [DataValue.FromNumber(1), DataValue.FromString("nonsense")], context));
+        Assert.Equal("invalid format: undefined", notNullMissing.Message);
+        Assert.Equal("invalid format: nonsense", notNullInvalid.Message);
     }
 
     /// <summary>

@@ -21,7 +21,11 @@ namespace DemaConsulting.CanvasNet.VegaLite.Data;
 ///     </para>
 ///     <para>
 ///         The <c>binned*</c> units are parsed (<see cref="IsBinned"/>) but not applied here: the data of a binned unit is
-///         already floored. A <c>utc</c> unit always uses the UTC calendar, whatever calendar is passed in.
+///         already floored. A <c>utc</c> unit always uses the UTC calendar in <c>Floor</c> and <c>End</c>, whatever calendar is
+///         passed in (Vega-Lite's <c>fieldExpr</c> prefixes <c>utc</c>), but <see cref="ReferenceSpan"/> and
+///         <see cref="DurationMilliseconds(TimeCalendar)"/> read the calendar they are given, even for a UTC unit, as Vega-Lite's
+///         <c>durationExpr</c> builds its dates without <c>utc</c> (vega-lite 6.5.0 <c>src/timeunit.ts</c>; <c>dateTimeToExpr</c> in
+///         <c>src/datetime.ts</c> emits <c>utc(...)</c> only when the date has the <c>utc</c> flag).
 ///         <see cref="DurationMilliseconds()"/> measures the smallest part from 2001-01-01 in UTC, which makes it independent
 ///         of the zone (Vega-Lite measures it in the local zone).
 ///     </para>
@@ -504,7 +508,7 @@ internal sealed class TimeUnitSpec
     ///     Gets the length of one step of the smallest part measured in a calendar (Vega-Lite evaluates <c>durationExpr</c> with the local <c>datetime</c> of the chart, so a zone with a
     ///     daylight saving time changes the length of a quarter or a year by the hour of the change).
     /// </summary>
-    /// <param name="calendar">The calendar the reference dates are read in; a UTC unit ignores it and always reads them in UTC.</param>
+    /// <param name="calendar">The calendar the reference dates are read in.</param>
     /// <returns>The milliseconds; null when the smallest part is the day of the week, the unit keeps no part or the dates are outside the range of the calendar.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="calendar"/> is null.</exception>
     public double? DurationMilliseconds(TimeCalendar calendar) =>
@@ -512,8 +516,9 @@ internal sealed class TimeUnitSpec
 
     /// <summary>
     ///     Gets the two dates of Vega-Lite's <c>durationExpr</c>: the first of January 2001 and one step of the smallest part later.
+    ///     The calendar given is used for every unit, a UTC unit included, as <c>durationExpr</c> builds its dates without <c>utc</c>.
     /// </summary>
-    /// <param name="calendar">The calendar the dates are read in; a UTC unit ignores it and always reads them in UTC.</param>
+    /// <param name="calendar">The calendar the dates are read in.</param>
     /// <returns>The instants in milliseconds; null when the smallest part is the day of the week, the unit keeps no part or the dates are not valid.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="calendar"/> is null.</exception>
     public (double Start, double End)? ReferenceSpan(TimeCalendar calendar)
@@ -563,9 +568,8 @@ internal sealed class TimeUnitSpec
                 break;
         }
 
-        var cal = Utc ? TimeCalendar.Utc : calendar;
-        var start = cal.FromParts(2001, 0, 1, 0, 0, 0, 0);
-        var end = cal.FromParts(year, month, date, hours, minutes, seconds, milliseconds);
+        var start = calendar.FromParts(2001, 0, 1, 0, 0, 0, 0);
+        var end = calendar.FromParts(year, month, date, hours, minutes, seconds, milliseconds);
         return double.IsFinite(start) && double.IsFinite(end - start) ? (start, end) : null;
     }
 

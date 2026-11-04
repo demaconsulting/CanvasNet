@@ -466,7 +466,7 @@ returns the same object; and that an extent that is NaN resolves to the year wit
 **Tests**: `TimeUnitSpecTests.TimeUnitSpec_Duration_IsTheSmallestPartOfTwoThousandOne`,
 `TimeUnitSpecTests.TimeUnitSpec_Duration_DayOfWeekHasNone`, `TimeUnitSpecTests.TimeUnitSpec_IsSingleLocalUnit_OnlyForOneLocalPart`,
 `TimeUnitSpecTests.TimeUnitSpec_DurationMilliseconds_UsesTheCalendar`,
-`TimeUnitSpecTests.TimeUnitSpec_ReferenceSpan_UtcUnitIgnoresTheCalendar`,
+`TimeUnitSpecTests.TimeUnitSpec_ReferenceSpan_UtcUnitUsesTheGivenCalendarLikeDurationExpr`,
 `TimeUnitSpecTests.TimeUnitSpec_Parse_Specifier_And_Floor_AreCultureIndependent`
 
 Asserts the thirteen derived durations, that `day`, `weekday`, and `yearweekday` have none, that only a unit of one local
@@ -477,10 +477,11 @@ invariant culture. The calendar overload `DurationMilliseconds(TimeCalendar)` gi
 starts in March the first quarter of 2001 is an hour shorter (7,776,000,000 - 3,600,000 = 7,772,400,000 ms, as
 Vega-Lite measures it with the local `datetime`) and a `month` is still 2,678,400,000 ms; `day` has none (null) in that
 zone and `weekday` has none in UTC; a null calendar is an `ArgumentNullException`; and `ReferenceSpan(TimeCalendar.Utc)`
-of `month` starts at 978,307,200,000 ms (2001-01-01T00:00Z) while that of `day` is null. A UTC unit is measured in UTC
-whatever the calendar: `utcquarter` and `utcmonth` with the US-like zone give the same span as with
-UTC (start 978,307,200,000 ms; 7,776,000,000 ms for the quarters, with no lost hour, and 2,678,400,000 ms for the
-month), while `yearquarter` in that zone differs from its UTC span (7,772,400,000 ms), so the check is not vacuous.
+of `month` starts at 978,307,200,000 ms (2001-01-01T00:00Z) while that of `day` is null. A UTC unit is measured in the
+calendar given like any unit, as Vega-Lite's `durationExpr` builds its dates without `utc`: with the US-like zone
+`utcquarter` and `utcmonth` give the span of `yearquarter` and `yearmonth` there (start the zone's 2001-01-01, not
+978,307,200,000 ms; 7,772,400,000 ms for the quarter and 2,678,400,000 ms for the month), while with the UTC calendar
+(and the parameterless form) `utcquarter` is 7,776,000,000 ms from 978,307,200,000 ms.
 
 ##### Datetime Objects Are Read And Evaluated
 

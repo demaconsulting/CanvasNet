@@ -149,12 +149,15 @@ days whose day of the month is a multiple of `k`; it exists for the UTC calendar
 - **Duration.** `DurationMilliseconds()` is Vega-Lite's `durationExpr`, the length of one step of the smallest part
   measured from 2001-01-01 **in UTC** (Vega-Lite measures it in the local zone; this keeps it independent of the zone):
   the axis uses it as the minimum tick step. It is null when the smallest part is the day of the week or the unit has
-  no parts. `DurationMilliseconds(TimeCalendar)` measures it in a calendar (the parameterless form delegates with UTC; a
-  **UTC unit** such as `utcquarter` always measures in UTC whatever calendar is given, as `Floor` and `End` read it),
+  no parts. `DurationMilliseconds(TimeCalendar)` measures it in a calendar (the parameterless form delegates with UTC),
+  and, like `ReferenceSpan(TimeCalendar)`, in the calendar given for every unit, a **UTC unit** such as `utcquarter`
+  included, because Vega-Lite's `durationExpr` builds its dates without `utc` (vega-lite 6.5.0 `src/timeunit.ts`;
+  `dateTimeToExpr` in `src/datetime.ts` emits `utc(...)` only for a date with the `utc` flag), unlike `Floor` and `End`,
+  whose `fieldExpr` prefixes `utc` (the scale of a UTC unit already has the UTC calendar, which is deviation (c) of
+  _MarkBuilder Design_),
   and `ReferenceSpan(TimeCalendar)` gives the two instants `(Start, End)` it is the difference of: 2001-01-01 and one
-  step of the smallest part later in that calendar (UTC for a UTC unit; null for the same cases, and for dates outside
-  the calendar's range). The offset of a position with a time unit measures the pixels of that span on the position
-  scale (see
+  step of the smallest part later in that calendar (null for the same cases, and for dates outside the calendar's
+  range). The offset of a position with a time unit measures the pixels of that span on the position scale (see
   _MarkBuilder Design_).
 - `IsSingleLocalUnit` tells the units for which a bare number or text can stand for one part.
 

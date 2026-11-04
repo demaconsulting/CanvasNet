@@ -629,28 +629,31 @@ public class TimeUnitSpecTests
     }
 
     /// <summary>
-    ///     Validates that a UTC unit is measured in UTC whatever calendar is given (as <c>Floor</c> and <c>End</c> read it), so the reference span and the duration of a UTC unit do not move with the zone, while the same unit
-    ///     without the prefix still follows the zone.
+    ///     Validates that the reference span of a UTC unit is measured in the calendar that is given, like any unit, as Vega-Lite's <c>durationExpr</c> builds its dates without <c>utc</c> (vega-lite 6.5.0
+    ///     <c>src/timeunit.ts</c>; <c>dateTimeToExpr</c> in <c>src/datetime.ts</c> emits <c>utc(...)</c> only for a date with the <c>utc</c> flag), unlike <c>Floor</c> and <c>End</c>, whose <c>fieldExpr</c> prefixes <c>utc</c>.
     /// </summary>
     [Fact]
-    public void TimeUnitSpec_ReferenceSpan_UtcUnitIgnoresTheCalendar()
+    public void TimeUnitSpec_ReferenceSpan_UtcUnitUsesTheGivenCalendarLikeDurationExpr()
     {
         // Arrange: a zone whose daylight saving time starts in March makes the first quarter of 2001 an hour shorter
         var zoned = TimeCalendar.Create(TimeTestSupport.UsLike());
+        var zonedStart = zoned.FromParts(2001, 0, 1, 0, 0, 0, 0);
 
-        // Act / Assert: the UTC units give the span of UTC, from the first instant of 2001 in UTC
-        foreach (var unit in new[] { "utcquarter", "utcmonth" })
+        // Act / Assert: the UTC units give the span of their twin without the prefix in the zone, from the first instant of 2001 in the zone
+        foreach (var (unit, twin) in new[] { ("utcquarter", "yearquarter"), ("utcmonth", "yearmonth") })
         {
-            Assert.Equal(Parse(unit).ReferenceSpan(TimeCalendar.Utc), Parse(unit).ReferenceSpan(zoned));
-            Assert.Equal(978_307_200_000.0, Parse(unit).ReferenceSpan(zoned)!.Value.Start);
+            Assert.Equal(Parse(twin).ReferenceSpan(zoned), Parse(unit).ReferenceSpan(zoned));
+            Assert.Equal(zonedStart, Parse(unit).ReferenceSpan(zoned)!.Value.Start);
+            Assert.NotEqual(978_307_200_000.0, Parse(unit).ReferenceSpan(zoned)!.Value.Start);
         }
 
-        Assert.Equal(7_776_000_000.0, Parse("utcquarter").DurationMilliseconds(zoned));
+        Assert.Equal(7_772_400_000.0, Parse("utcquarter").DurationMilliseconds(zoned));
         Assert.Equal(2_678_400_000.0, Parse("utcmonth").DurationMilliseconds(zoned));
 
-        // Assert: the unit without the prefix follows the zone, so the check cannot pass because the zone makes no difference
-        Assert.NotEqual(Parse("yearquarter").ReferenceSpan(TimeCalendar.Utc), Parse("yearquarter").ReferenceSpan(zoned));
-        Assert.Equal(7_776_000_000.0 - 3_600_000.0, Parse("yearquarter").DurationMilliseconds(zoned));
+        // Assert: in the UTC calendar it is the span of UTC, so the zoned case differs and the check is not vacuous
+        Assert.Equal(978_307_200_000.0, Parse("utcquarter").ReferenceSpan(TimeCalendar.Utc)!.Value.Start);
+        Assert.Equal(7_776_000_000.0, Parse("utcquarter").DurationMilliseconds(TimeCalendar.Utc));
+        Assert.Equal(7_776_000_000.0, Parse("utcquarter").DurationMilliseconds());
     }
 
     /// <summary>

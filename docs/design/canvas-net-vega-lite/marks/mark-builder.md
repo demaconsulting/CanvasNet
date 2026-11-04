@@ -178,8 +178,7 @@ is a temporal field with a time unit (the position scale stays a time scale; `Sc
 
 - `length = parentTimeScale(end) - parentTimeScale(start)` of the reference span of the unit
   (`TimeUnitSpec.ReferenceSpan(calendar)`: 2001-01-01 and one step of the smallest part later, in the calendar of the
-  scale, or in UTC whatever the scale calendar for a UTC unit), the pixels of **one reference unit on the parent
-  scale**. It is the same for every unit of the chart (a month
+  scale), the pixels of **one reference unit on the parent scale**. It is the same for every unit of the chart (a month
   is the 31 days of January 2001, a year 365 days) and **negative on a y scale**. A unit without a reference span or a
   length that is not finite leaves the offset undrawn.
 - `padding = config.scale.bandWithNestedOffsetPaddingInner` (0.2 by default) and `bpo = bandPosition - 0.5`, where the

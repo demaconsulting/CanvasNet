@@ -121,11 +121,11 @@ a date result and NaN for a number result, and it never throws for a bad value.
 
 **Number formatting.** `format(value, specifier)` is Vega's `format`: d3-format with the en-US locale through the
 `NumberFormat` unit of the `Scales` subsystem (the minus sign is U+2212 and the thousands separator a comma, whatever
-the host culture). The specifier is read as text, charged to the step budget, and compiled **first**, as Vega compiles it
-before it looks at the value; then a null value gives the text `null`, as in Vega, so an invalid or missing specifier is
-an error even for null (`format(null)` and `format(null, 'nonsense')` fail, `format(null, ',d')` is `null`). Any other
-value is read as JavaScript's unary plus
-reads it (the text `'12'` is 12, `true` is 1, a date is its milliseconds, a one-element array such as `[5]` is 5, and a
+the host culture). A null value gives the text `null` and the specifier is not read, charged, or compiled for it (Vega
+6.4.0 `vega-functions/src/functions/format.js` tests `value === null` before `locale[method](spec)`), so `format(null)`
+and `format(null, 'nonsense')` are `null`; an invalid or missing specifier is an error for any other value. Any other
+value is read as JavaScript's unary plus reads it (the text `'12'` is 12, `true` is 1, a date is its milliseconds, a
+one-element array such as `[5]` is 5, and a
 missing value, an unreadable text, and an object are NaN, which formats as `NaN`), except for the type `c`, which
 prints the original value
 as JavaScript text (`x + ""`, as d3-format does: `'foo'` stays `foo` and `true` is `true`), bounded by `MaxStringLength`;
