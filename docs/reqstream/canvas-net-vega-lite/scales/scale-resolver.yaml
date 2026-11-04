@@ -617,14 +617,19 @@ sections:
               - id: CanvasNetVegaLite-Scales-ScaleResolver-OffsetDecision
                 title: >-
                   The ScaleResolver unit shall give an xOffset or yOffset channel a scale only when its position
-                  channel (x or y) is a nominal or ordinal field without a time unit (the discrete parent) and,
+                  channel (x or y) is a nominal or ordinal field without a time unit (the discrete parent) or a
+                  temporal field with a supported time unit (the time unit parent: the unit parses, is not binned
+                  or maxbins, has a smallest part that is not the day of the week, and the mark is not a rect) and,
                   for a bar or an area, only when the offset field is not continuous; shall give no scale to an
-                  offset without a discrete parent or to a continuous offset of a bar or an area, so that the
-                  offset is ignored; and shall give a quantitative or temporal offset of the other marks a linear
-                  or time scale without zero, nice, or pixel padding.
+                  offset with neither parent (a missing, quantitative, or temporal position without a time unit, a
+                  day or weekday unit, a binned or maxbins unit, a rect mark, or a nominal or ordinal position with
+                  a time unit) or to a continuous offset of a bar or an area, so that the offset is ignored; and
+                  shall give a quantitative or temporal offset of the other marks a linear or time scale without
+                  zero, nice, or pixel padding.
                 justification: |
-                  Vega-Lite nests an offset only in a band of a discrete position; the rest cannot be drawn
-                  meaningfully, and the decision must be one rule that the marks, the plan, and the catalog share.
+                  Vega-Lite nests an offset only in a band of a discrete position or inside the unit of a time scale;
+                  the rest cannot be drawn meaningfully, and the decision must be one rule that the marks, the plan,
+                  and the catalog share.
                 tests:
                   - ScaleResolver_DecideOffset_FollowsTheRules
                   - ScaleResolver_Resolve_OffsetWithoutADiscreteParentHasNoScale
@@ -637,10 +642,13 @@ sections:
                   the nominal or ordinal offset as a band scale for the bar, rect, image, rule, and tick marks and
                   a point scale for the other marks, with the whole field as its domain in the sort of the
                   channel, the range of the scale spanning the bandwidth of the band of the position (honoring
-                  reverse and round of the offset scale), for x and for y alike.
+                  reverse and round of the offset scale), for x and for y alike; and shall keep the position scale
+                  of a time unit parent a time scale, giving the offset scale the range supplied by the marks (in
+                  pixels, without the y flip) instead of the default range, with the range, rangeMin, rangeMax, and
+                  reverse of the scale still applying.
                 justification: |
                   Grouped bars and offset points are the standard way to compare subgroups side by side; the
-                  nesting of the scales is what puts every subgroup in the band of its group.
+                  nesting of the scales is what puts every subgroup in the band of its group or inside its unit.
                 tests:
                   - ScaleResolver_Resolve_NominalXOffsetOfABarIsBandWithoutPaddingAndXHasNestedPaddings
                   - ScaleResolver_Resolve_PointMarkHasBandPositionAndPointOffset
@@ -648,6 +656,8 @@ sections:
                   - ScaleResolver_Resolve_YOffsetNestsInTheBandOfY
                   - ScaleResolver_Resolve_OffsetDomainIsTheWholeFieldAndFollowsItsSort
                   - ScaleResolver_Resolve_OffsetScaleTakesRangeReverseAndRound
+                  - ScaleResolver_Resolve_OffsetWithATimeUnitParentHasANominalOffsetScale
+                  - ScaleResolver_CreateModel_NestedRangeReplacesTheDefaultRange
 
               - id: CanvasNetVegaLite-Scales-ScaleResolver-OffsetPaddings
                 title: >-

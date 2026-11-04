@@ -604,6 +604,31 @@ public class TimeUnitSpecTests
     }
 
     /// <summary>
+    ///     Validates that the duration is measured in the calendar that is given: UTC gives the parameterless value, and a zone whose daylight saving time starts in March makes the first quarter of 2001 an hour shorter,
+    ///     as Vega-Lite measures it with the local <c>datetime</c> of the chart.
+    /// </summary>
+    [Fact]
+    public void TimeUnitSpec_DurationMilliseconds_UsesTheCalendar()
+    {
+        // Arrange
+        var zoned = TimeCalendar.Create(TimeTestSupport.UsLike());
+
+        // Act / Assert: UTC is the parameterless duration
+        foreach (var unit in new[] { "month", "year", "yearquarter", "yearweek", "hours" })
+        {
+            Assert.Equal(Parse(unit).DurationMilliseconds(), Parse(unit).DurationMilliseconds(TimeCalendar.Utc));
+        }
+
+        Assert.Equal(7_776_000_000.0 - 3_600_000.0, Parse("yearquarter").DurationMilliseconds(zoned));
+        Assert.Equal(2_678_400_000.0, Parse("month").DurationMilliseconds(zoned));
+        Assert.Null(Parse("day").DurationMilliseconds(zoned));
+        Assert.Null(Parse("weekday").DurationMilliseconds(TimeCalendar.Utc));
+        Assert.Throws<ArgumentNullException>(() => Parse("month").DurationMilliseconds(null!));
+        Assert.Equal(978_307_200_000.0, Parse("month").ReferenceSpan(TimeCalendar.Utc)!.Value.Start);
+        Assert.Null(Parse("day").ReferenceSpan(TimeCalendar.Utc));
+    }
+
+    /// <summary>
     ///     Validates that units whose smallest part is the day of the week have no duration.
     /// </summary>
     [Theory]

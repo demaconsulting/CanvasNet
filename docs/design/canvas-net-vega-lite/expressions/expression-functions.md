@@ -3,7 +3,7 @@
 ![Expressions Structure](VegaLiteExpressionsView.svg)
 
 The `ExpressionFunctions` unit is the third software unit in the `Expressions` subsystem. It
-comprises seven source files in
+comprises eight source files in
 the `DemaConsulting.CanvasNet.VegaLite.Expressions` namespace, all `internal`:
 
 - `ExpressionFunctions.cs` - `ExpressionFunctions` (static partial class): the frozen function table, `Names`, `TryGet`,
@@ -12,6 +12,7 @@ the `DemaConsulting.CanvasNet.VegaLite.Expressions` namespace, all `internal`:
 - `ExpressionFunctions.Types.cs` - the type-checking and conversion functions (including `toDate`)
 - `ExpressionFunctions.Regex.cs` - `regexp`, `test`, and the regular expression forms of `replace` and `split`
 - `ExpressionFunctions.Time.cs` - the date and time functions (`AddTime`)
+- `ExpressionFunctions.Number.cs` - the number formatting function `format` (`AddNumber`)
 - `ExpressionFunctionContext.cs` - the `ExpressionFunction` delegate and `ExpressionFunctionContext`, the per-evaluation
   state
 - `ExpressionRegex.cs` - `ExpressionRegex`, the translation of a JavaScript regular expression into a safe .NET one
@@ -22,12 +23,13 @@ the `DemaConsulting.CanvasNet.VegaLite.Expressions` namespace, all `internal`:
 context that bounds their work. It exists so that the security boundary of the expression language is one frozen list: a
 function is callable only if it is in this table, and every function in it is deterministic,
 culture-invariant, free of side
-effects, and bounded in time and memory. Number formatting, color, geographic, scale, statistical, and data-flow
-functions are not in the table (they are reported by the `FeatureCatalog` and evaluate to null), and there is no
+effects, and bounded in time and memory. Color, geographic, scale, statistical, and data-flow
+functions are not in the table (they are reported by the `FeatureCatalog` and evaluate to null; `luminance`, `geoarea`,
+and `now` are examples), and there is no
 `random` function and no `now` function (the clock is not an input of a pure expression; `now` is reported as
 `vl-expr-function-now` and evaluates to null). The date and time functions are in the table; they compute with the
 calendar of the evaluation (see _Time Calendar Design_ and _Time Format Design_), never with the host's zone, clock, or
-culture.
+culture. So is the number `format` function, which formats with the en-US d3-format of the `NumberFormat` unit.
 
 The unit's behavior is specified by the `CanvasNetVegaLite-Expressions-ExpressionFunctions-*` requirements in
 `docs/reqstream/canvas-net-vega-lite/expressions/expression-functions.yaml`.
@@ -39,7 +41,7 @@ The unit's behavior is specified by the `CanvasNetVegaLite-Expressions-Expressio
 `(ReadOnlySpan<DataValue> arguments, ExpressionFunctionContext context) -> DataValue`; an
 argument that is not supplied is simply missing (JavaScript's `undefined`: NaN as a number, the
 text `undefined` as text), and
-an optional argument that is null counts as not supplied. The 99 functions are:
+an optional argument that is null counts as not supplied. The 100 functions are:
 
 - **Math (27)**: `abs`, `acos`, `acosh`, `asin`, `asinh`, `atan`, `atan2`, `atanh`, `ceil`, `clamp`, `cos`, `cosh`, `exp`,
   `floor`, `log`, `log10`, `max`, `min`, `pow`, `round`, `sign`, `sin`, `sinh`, `sqrt`, `tan`,
@@ -68,6 +70,7 @@ an optional argument that is null counts as not supplied. The 99 functions are:
   `utcOffset`, `timeSequence`, and `utcSequence`; `timeUnitSpecifier`; `timeFormat`, `utcFormat`, `timeParse`, and
   `utcParse`; and the name formatters `monthFormat`, `monthAbbrevFormat`, `dayFormat`, and `dayAbbrevFormat`. With
   `toDate` these are the 42 functions that Phase 8 added. `now` is deliberately not among them.
+- **Number formatting (1)**: `format(value, specifier)`, Vega's number format (see _Number formatting_ below).
 
 **Date and time rules.** A date value is an instant in whole milliseconds since the Unix epoch (`DataValue.FromDate`),
 valid in the years 1 to 9999 (`TimeCalendar.IsValid`); where JavaScript gives an `Invalid Date` a function gives null for
@@ -116,6 +119,19 @@ a date result and NaN for a number result, and it never throws for a bad value.
   of the text and of the specifier. The name formatters take a whole number (month from 0, weekday from Sunday = 0;
   other whole numbers roll over) and give the empty text for anything else.
 
+**Number formatting.** `format(value, specifier)` is Vega's `format`: d3-format with the en-US locale through the
+`NumberFormat` unit of the `Scales` subsystem (the minus sign is U+2212 and the thousands separator a comma, whatever
+the host culture). A null value gives the text `null`, as in Vega; any other value is read as JavaScript's unary plus
+reads it (the text `'12'` is 12, `true` is 1, a date is its milliseconds, a one-element array such as `[5]` is 5, and a
+missing value, an unreadable text, and an object are NaN, which formats as `NaN`). The specifier is read as text, so a
+missing specifier is the text `undefined`, which is not a valid specifier. A specifier that d3-format rejects is an
+`ExpressionRuntimeException` ("invalid format: ..."), a located render failure and not a warning, as an over-long
+`timeFormat` specifier or an invalid `regexp` is. The length of the specifier and of the result are charged to the step
+budget and a result longer than `MaxStringLength` is a runtime error. Known deviation: the d3 type `c` prints the
+original value text, where this port formats the number first (so `NaN` for a text that is not a number). The special
+cases are those of `NumberFormat`: `d` of an infinity is the infinity sign U+221E, and `f` of 1e21 is `1e+21` (as
+JavaScript's `toFixed`).
+
 **`ExpressionFunctionContext`** is the per-evaluation state: the step counter and budget (`MaxEvaluationSteps`), the
 string limit (`MaxStringLength`), `MaxArrayLength` (the most elements a function may build into one array, which is the
 `MaxScaleDomainSize` limit and bounds the date sequences), `Calendar` (the `TimeCalendar` of the date and time
@@ -135,7 +151,10 @@ cache of at most 64 compiled expressions that is cleared when full, and `GetTime
 kind of cache (at most 64 compiled `TimeFormatter` objects by specifier, cleared when full), bounded by size as well as
 by count: only a specifier of at most 64 characters (`MaxCachedSpecifierLength`) is kept, so the cache holds a few
 thousand characters at most and a long specifier is compiled for its call and dropped, so a specifier that a
-chart formats thousands of times is compiled once. The cancellation token is polled whenever the step
+chart formats thousands of times is compiled once. `GetNumberFormatter(specifier)` is the same cache for the compiled
+`NumberFormat` objects of `format` (at most 64, cleared when full, a specifier of more than 64 characters is not kept),
+and the static `CompileNumberFormat` maps the `FormatException` of an invalid specifier to an
+`ExpressionRuntimeException`. The cancellation token is polled whenever the step
 counter crosses a multiple of 1,024, including inside a bulk charge.
 
 **`ExpressionRegex`** is an immutable, thread-safe pair of the JavaScript source and flags and the .NET `Regex` that
@@ -152,11 +171,12 @@ and `.` and `\s` follow the .NET classes.
 
 #### Key Methods
 
-- `Names()` - the 99 names in ordinal order; `TryGet(name, out function)` - a case-sensitive lookup used by the parser to
+- `Names()` - the 100 names in ordinal order; `TryGet(name, out function)` - a case-sensitive lookup used by the
+  parser to
   decide whether a call is supported; `Invoke(name, arguments, context)` - calls a function (a name that is not in the table
   is an `ArgumentException`, a programming error because the parser never compiles such a call).
 - Each family registers its functions in one method (`AddMath`, `AddText`, `AddTypes`,
-  `AddRegex`, `AddTime`); `BuildTable` freezes the
+  `AddRegex`, `AddTime`, `AddNumber`); `BuildTable` freezes the
   result. The helpers convert arguments the JavaScript way (`Num`, `Text`, an integer-or-infinity conversion, a position
   clamp, and a position that counts from the end) and check results against `MaxStringLength` before a string is built.
 - `Instant`, `Components`, `OffsetDate`, `Sequence`, `FormatTime`, and `ParseTime` (private, in the time file) - the
@@ -176,8 +196,9 @@ A function signals a failure with `ExpressionRuntimeException`, which the `Expre
 `VegaLiteRenderException`: the step budget is exhausted, a result string would be longer than `MaxStringLength`, a regular
 expression pattern is longer than 1,024 characters, invalid, or has an unknown or repeated flag, and a backtracking match
 exceeds its 100 millisecond timeout (a pattern that would take exponential time fails closed instead of hanging), a date
-sequence would hold more dates than `MaxArrayLength` allows or more than the remaining steps pay for, and a formatted
-date would be longer than `MaxStringLength`. A canceled
+sequence would hold more dates than `MaxArrayLength` allows or more than the remaining steps pay for, a formatted
+date would be longer than `MaxStringLength`, and a number `format` has an invalid d3-format specifier ("invalid
+format: ...") or a result longer than `MaxStringLength`. A canceled
 token is an `OperationCanceledException`. A wrong type of argument is never an error: JavaScript coercion gives a value
 (often NaN, null, or false), and a date function given something that is not an instant gives null (a date) or NaN (a
 number); a `TimeRangeLimitException` and a `TimeFormatTooLongException` of the `Data` subsystem never escape, they become
@@ -193,6 +214,8 @@ number); a `TimeRangeLimitException` and a `TimeFormatTooLongException` of the `
 - **`VegaLiteLimits`** - the public limits (`MaxStringLength`, `MaxEvaluationSteps`, `MaxScaleDomainSize`)
 - **`TimeCalendar`**, **`TimeInterval`**, **`TimeFormat`**, **`TimeFormatter`**, **`TimeUnitSpec`**, and
   **`JsDateParser`** - the time model of the `Data` subsystem (see _Time Calendar Design_ and _Time Format Design_)
+- **`NumberFormat`** - the d3-format unit of the `Scales` subsystem (see _NumberFormat Design_); `Scales` already
+  depends on `Expressions`, so this closes a namespace cycle inside the one assembly, which is accepted
 - **.NET base class library** - `System.Collections.Frozen`, `System.Text.RegularExpressions`, `System.Math`, and
   `System.Globalization` (invariant culture)
 

@@ -22,7 +22,7 @@ namespace DemaConsulting.CanvasNet.VegaLite.Data;
 ///     <para>
 ///         The <c>binned*</c> units are parsed (<see cref="IsBinned"/>) but not applied here: the data of a binned unit is
 ///         already floored. A <c>utc</c> unit always uses the UTC calendar, whatever calendar is passed in.
-///         <see cref="DurationMilliseconds"/> measures the smallest part from 2001-01-01 in UTC, which makes it independent
+///         <see cref="DurationMilliseconds()"/> measures the smallest part from 2001-01-01 in UTC, which makes it independent
 ///         of the zone (Vega-Lite measures it in the local zone).
 ///     </para>
 ///     <para>
@@ -498,8 +498,27 @@ internal sealed class TimeUnitSpec
     ///     The milliseconds between 2001-01-01 and one step of the smallest part later, measured in UTC (a month is 31
     ///     days, a year 365 days); null when the smallest part is the day of the week or the unit keeps no part.
     /// </returns>
-    public double? DurationMilliseconds()
+    public double? DurationMilliseconds() => DurationMilliseconds(TimeCalendar.Utc);
+
+    /// <summary>
+    ///     Gets the length of one step of the smallest part measured in a calendar (Vega-Lite evaluates <c>durationExpr</c> with the local <c>datetime</c> of the chart, so a zone with a
+    ///     daylight saving time changes the length of a quarter or a year by the hour of the change).
+    /// </summary>
+    /// <param name="calendar">The calendar the reference dates are read in.</param>
+    /// <returns>The milliseconds; null when the smallest part is the day of the week, the unit keeps no part or the dates are outside the range of the calendar.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="calendar"/> is null.</exception>
+    public double? DurationMilliseconds(TimeCalendar calendar) =>
+        ReferenceSpan(calendar) is { } span ? span.End - span.Start : null;
+
+    /// <summary>
+    ///     Gets the two dates of Vega-Lite's <c>durationExpr</c>: the first of January 2001 and one step of the smallest part later.
+    /// </summary>
+    /// <param name="calendar">The calendar the dates are read in.</param>
+    /// <returns>The instants in milliseconds; null when the smallest part is the day of the week, the unit keeps no part or the dates are not valid.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="calendar"/> is null.</exception>
+    public (double Start, double End)? ReferenceSpan(TimeCalendar calendar)
     {
+        ArgumentNullException.ThrowIfNull(calendar);
         if (_parts.Length == 0 || _parts[^1] == "day")
         {
             return null;
@@ -544,10 +563,9 @@ internal sealed class TimeUnitSpec
                 break;
         }
 
-        var start = TimeCalendar.Utc.FromParts(2001, 0, 1, 0, 0, 0, 0);
-        var end = TimeCalendar.Utc.FromParts(year, month, date, hours, minutes, seconds, milliseconds);
-        var duration = end - start;
-        return double.IsFinite(duration) ? duration : null;
+        var start = calendar.FromParts(2001, 0, 1, 0, 0, 0, 0);
+        var end = calendar.FromParts(year, month, date, hours, minutes, seconds, milliseconds);
+        return double.IsFinite(start) && double.IsFinite(end - start) ? (start, end) : null;
     }
 
     /// <summary>

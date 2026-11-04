@@ -27,7 +27,8 @@ is specified by the `CanvasNetVegaLite-Guides-LabelExpressions-*` requirements i
 #### Data Model
 
 **`LabelText`** (readonly record struct) is the result for one label: `Text` (the text; for an array result the lines
-joined by a line feed) and `Lines` (the lines of a multi-line label, or null for a single line).
+joined by a line feed) and `Lines` (the lines of a multi-line label, or null for a single line; the axis, the legends,
+and the facet headers all use the lines).
 
 **`LabelExpressions`** (sealed class) holds the `RowExpressions` of the call (or null), the evaluator, the limits, and a
 cache of the compiled texts of configured expressions by text. Its constructor takes `(RowExpressions? expressions,
@@ -95,8 +96,10 @@ text:
 - `LegendBuilder` calls `Labeled` for each entry of a symbol legend (the `...N entries` row included) and for each tick
   of a gradient or discrete gradient legend; `MakeLabel` uses the lines.
 - `VegaLiteDocument.Composition.WithLabelExpression` wraps the label formatter of a facet header: the wrapper formats the
-  cell first (so `datum.label` is the formatted text) and returns `Text` (an array result is therefore joined with line
-  feeds in a header).
+  cell first (so `datum.label` is the formatted text) and returns the **lines** of the result (`Lines` of an array
+  result, so `[datum.label, 'n=' + datum.value]` is a header of two lines; a string result stays one line, even when it
+  holds line feeds). The header, footer, and wrapped-facet cell title pass the lines to `TitleBuilder`, which measures
+  them, so a multi-line header is taller.
 
 **Preconditions and postconditions**: `Evaluate` and `Datum` arguments are non-null; the result never exceeds
 `MaxStringLength` per label (the conversion stops at the limit); the unit changes no state of the guide.
@@ -109,11 +112,13 @@ text:
   `config.axis*` and `config.header*` entries); a configured text that reaches the unit without being compiled and is
   invalid is the same exception, located at the guide.
 - A **runtime failure** is a located `VegaLiteRenderException` at the expression: exhausting the step budget
-  (`MaxEvaluationSteps`), a string longer than `MaxStringLength`, or an expression that builds too large a value.
+  (`MaxEvaluationSteps`), a string longer than `MaxStringLength`, an expression that builds too large a value, or an
+  invalid number format specifier of `format`.
   Cancellation is an `OperationCanceledException` (the callers poll the token per label as well).
-- An unsupported function, a view-state reference, or an unsupported construct is **not an error of this unit**: the
-  expression engine evaluates it to null (so the label is empty) and the feature catalog reports it at the text (see
-  _FeatureCatalog_).
+- An unsupported function (`luminance`, `now`), a view-state reference, or an unsupported construct is **not an error
+  of this unit**: the expression engine evaluates it to null (so the label is empty) and the feature catalog reports it
+  at the text (see _FeatureCatalog_). The number `format(value, specifier)` and `timeFormat` are supported, so
+  `format(datum.value, ',.1f')` is a label; an invalid specifier of `format` is a runtime failure (above).
 
 **Limits and budget.** The expression runs on the evaluator of the call, so its steps are charged to the same
 `MaxEvaluationSteps` budget as every other expression. The number of evaluations is bounded by the number of labels
@@ -132,9 +137,7 @@ parameters give the same labels on every call and machine.
 3. **A custom `formatType`** is reported and not evaluated, so the interplay of a custom format function with the text
    replacement of `datum.label` is not modeled.
 4. **The extra tick of a binned axis** (Vega-Lite adds a tick for the end of the last bin) is not modeled.
-5. **The number `format()` function** is outside the 99 whitelisted functions: it is reported
-   (`vl-expr-function-format`) and evaluates to null, so a label that uses it is empty (a follow-up item).
-6. **`config.legend.labelExpr`** is not read, because Vega-Lite 6 does not read it.
+5. **`config.legend.labelExpr`** is not read, because Vega-Lite 6 does not read it.
 
 #### Dependencies
 

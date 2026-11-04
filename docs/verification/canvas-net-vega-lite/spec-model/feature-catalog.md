@@ -126,7 +126,8 @@ mark every channel except `x`, `y`, `theta`, `radius`, `theta2`, `radius2`, `tex
 `opacity`, `shape`, `strokeWidth`, `strokeDash`, `fillOpacity`, `strokeOpacity`, and `angle` reports
 `vl-channel-<name>` (the test shows `x2`, `text`, and `row`, while the geographic `longitude` and `latitude2`
 share the one identifier `vl-channel-geo`; `xOffset` is a supported channel, whose report is `vl-offset-position` when it
-has no nominal or ordinal `x`) while `tooltip`, `href`, `description`, and `key` are accepted silently, and
+has no nominal or ordinal `x` (or temporal `x` with a supported time unit)) while `tooltip`, `href`, `description`, and
+`key` are accepted silently, and
 so are `detail` and `order` (every mark accepts them, so neither identifier exists any more), with the exception of the
 secondary position channels, which are reported when the mark cannot draw the range (see the encoding rules below), as
 the `x2` of a point mark shows; that, as a theory over nine marks and channels, `shape` is
@@ -244,7 +245,7 @@ that an explicit scale type that the channel or the field type cannot use warns 
 field on `shape` or `strokeDash` as well) while accepted types and types reported otherwise do not; and that
 guide `encode`, `formatType`, and the listed unsupported axis properties are reported while the honored
 properties are not; and that the `labelExpr` of an axis is evaluated, so it reports only the function that the engine
-does not have (`vl-expr-function-format` at `/encoding/y/axis/labelExpr`, in place of the retired `vl-expr-label`).
+does not have (`vl-expr-function-luminance` at `/encoding/y/axis/labelExpr`, in place of the retired `vl-expr-label`).
 
 ##### Legends
 
@@ -252,7 +253,7 @@ does not have (`vl-expr-function-format` at `/encoding/y/axis/labelExpr`, in pla
 
 Asserts that legends are not reported (the identifier `vl-guide-legend` is retired), that the legend properties that are
 not drawn are reported once each at the exact property (`vl-guide-legend-titleorient` for a title orient other than
-`top`, `vl-guide-legend-clipheight`, `vl-expr-function-format` (for a `labelExpr` that calls the number `format`, which
+`top`, `vl-guide-legend-clipheight`, `vl-expr-function-luminance` (for a `labelExpr` that calls a color function, which
 the engine does not have; the retired `vl-expr-label` is never produced), `vl-format-type-custom` (for a format type that
 is not `number`,
 `time`, or `utc`: the test uses `myFormat`), `vl-shape-path` for a symbol type that
@@ -297,10 +298,11 @@ by the Phase 6 scenario below.
 Asserts that the constructs that the compiled expressions list are reported once each, in document order, at the string
 value of the expression (the pointer of the `expr`, `calculate`, or `filter` string, and of an expression inside a
 predicate such as `/transform/4/filter/or/0`), as unsupported features with the message form "… (at expression offset
-N)": `vl-expr-function-geoarea`, `vl-expr-function-gradient`, `vl-expr-function-rgb`, and `vl-expr-function-format` (the
+N)": `vl-expr-function-geoarea`, `vl-expr-function-gradient`, `vl-expr-function-rgb`, and `vl-expr-function-luminance` (the
 name lower-cased; the message of the `gradient` report names it as written; the date and time functions that the first
-three phases used for this example, `datetime` and `timeFormat`, are in the function table since Phase 8 and are no
-longer reported); `vl-expr-view-state` for `signal` and
+three phases used for this example, `datetime` and `timeFormat`, are in the function table since Phase 8, and the number
+`format` that a later phase used is in it since the label expression follow-up, so none of them is
+reported any longer); `vl-expr-view-state` for `signal` and
 `event` in one filter and an undeclared `height` while
 `width`, which the specification declares as a parameter, is silent; and `vl-expr-construct-bitwise-and` and
 `vl-expr-construct-in`. It asserts that the first report is at line 2 (the parameter's expression) and that the message
@@ -583,8 +585,8 @@ its slice, and is `vl-encoding-bandposition` at `/encoding/theta/bandPosition` f
 The regression of the reported defect: a layered specification with a top-level `calculate` produces no report at all (in
 particular no `vl-transform-calculate`), and neither the `layer` property, a nested layered view, nor a layered view with
 `geoshape` is reported as a composition, so `vl-composition-layer` is never produced. Asserts that the transforms of a layered
-view and of its layers are visited as drawn, so that only their unsupported parts are reported (a call of `format`, outside
-the function table, in the top-level `calculate` and in the `calculate` of a layer: `vl-expr-function-format` at
+view and of its layers are visited as drawn, so that only their unsupported parts are reported (a call of `luminance`, outside
+the function table, in the top-level `calculate` and in the `calculate` of a layer: `vl-expr-function-luminance` at
 `/transform/0/calculate` and `/layer/0/transform/0/calculate`), and that a transform of a later phase in a layer
 (`regression`) keeps the identifier `vl-transform-regression` and
 its message "is not supported yet". As a theory over `concat`, `hconcat`, `vconcat`, and `repeat`, asserts that
@@ -622,7 +624,7 @@ facet field are `vl-facet-field-transform` at that property, in the operator and
 `bin: false`, `timeUnit: null` and `aggregate: null` report nothing); that a `sort` that is an object is `vl-facet-sort`
 at the sort while `null`, `descending` and an array are silent; that `header.labelExpr` is evaluated and reports only
 what its
-expression cannot do (`vl-expr-function-format` at `/facet/row/header/labelExpr`), a custom
+expression cannot do (`vl-expr-function-luminance` at `/facet/row/header/labelExpr`), a custom
 `header.formatType` is `vl-format-type-custom` and a `labelOrient` or `titleOrient` that the channel does not honor (a
 row's label on top, a column's title on the left, a wrapped facet's title on the right) is `vl-header-orient`, while a
 row's title on the right, a column's label at the bottom and a wrapped facet's label on the left are honored and silent;
@@ -692,7 +694,7 @@ are a
 Asserts that a `labelExpr` that uses only supported functions reports nothing in an axis, a legend, a header, or the
 configuration; that an unsupported function or view state is reported at the expression text with the identifier of the
 construct (`vl-expr-function-now` at `/encoding/x/axis/labelExpr`, `vl-expr-view-state` at
-`/encoding/color/legend/labelExpr`, `vl-expr-function-format` at `/config/axisBand/labelExpr`, and `vl-expr-view-state`
+`/encoding/color/legend/labelExpr`, `vl-expr-function-luminance` at `/config/axisBand/labelExpr`, and `vl-expr-view-state`
 at `/config/headerColumn/labelExpr`) and that the retired `vl-expr-label` is never produced; that a syntax error or an
 unknown parameter in an axis, legend, header, or `config` `labelExpr` (`datum.label +`, `(`, `1 +`, and
 `datum.label + unknownParam`) is a `VegaLiteSpecException` located at the text when the document is parsed; and that
@@ -705,7 +707,10 @@ unknown parameter in an axis, legend, header, or `config` `labelExpr` (`datum.la
 `FeatureCatalogLabelExprAndOffsetTests.SpecParser_Parse_StepForMustBePositionOrOffset`
 
 Asserts that an `xOffset` over a nominal `x` of a bar is not reported; that an offset whose position is quantitative, is
-missing, or has a time unit is `vl-offset-position` at `/encoding/xOffset` (and at `/encoding/yOffset` for `yOffset`) and
+missing, is a nominal field with a time unit, or is temporal with the unit `day`, a `maxbins` unit, or on a `rect`
+mark is
+`vl-offset-position` at `/encoding/xOffset` (and at `/encoding/yOffset` for `yOffset`), while a temporal `x` with the
+unit `year` has no report (the offset is drawn inside the unit) and
 a continuous offset of a bar or area is `vl-offset-ranged`; that an explicit `point` scale type on a position that holds
 an offset is the warning `vl-scale-type-ignored` at `/encoding/x/scale/type`; and that the `for` of a width step accepts
 `position` and `offset` and any other value is a `VegaLiteSpecException` located at `/width/for`.

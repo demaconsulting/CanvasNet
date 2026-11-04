@@ -240,4 +240,113 @@ public class MarkBuilderOffsetTests
         Assert.Equal([20.0, 40.0, 60.0, 80.0, 100.0], R(bars.Select(b => b.Height)));
         Assert.Equal([10.0, 30.0, 60.0, 80.0, 110.0], R(bars.Select(b => b.X)));
     }
+
+    /// <summary>The rows of a chart over months: two groups over January and February 2023 (the data is in UTC).</summary>
+    private const string MonthRows = """
+        [ { "d": "2023-01-15", "g": "x", "v": 1 }, { "d": "2023-01-20", "g": "y", "v": 2 }, { "d": "2023-02-10", "g": "x", "v": 3 }, { "d": "2023-02-12", "g": "y", "v": 4 } ]
+        """;
+
+    /// <summary>The length of the reference month (31 days) on the time scale of the charts below: 59 days over 300 pixels (the domain is the two months of the data, not rounded to nice values).</summary>
+    private const double MonthPixels = 31 * 300.0 / 59;
+
+    /// <summary>
+    ///     Gets the encoding of a chart over months with a nominal offset.
+    /// </summary>
+    /// <param name="position">The position: <c>x</c> or <c>y</c>.</param>
+    /// <param name="positionExtra">More members of the position definition, with a leading comma, or empty.</param>
+    /// <returns>The encoding object.</returns>
+    private static string MonthEncoding(string position = "x", string positionExtra = "")
+    {
+        var value = position == "x" ? "y" : "x";
+        return "{ \"" + position + "\": { \"field\": \"d\", \"type\": \"temporal\", \"timeUnit\": \"yearmonth\", \"scale\": { \"nice\": false }" + positionExtra + " }, \"" + position + "Offset\": { \"field\": \"g\", \"type\": \"nominal\" }, "
+            + "\"" + value + "\": { \"field\": \"v\", \"type\": \"quantitative\" } }";
+    }
+
+    /// <summary>
+    ///     Validates the bars of a grouped chart over months as Vega-Lite 6.5 draws them: the offset scale spans [0.1, 0.9] of the length of the reference month (31 days; the nested padding is 0.2), each of the two
+    ///     groups has 0.4 of it, and the position is read at the start of its month. The domain of the two months, January 1 to March 1 2023, is 59 days over 300 pixels.
+    /// </summary>
+    [Fact]
+    public void MarkBuilder_Run_TimeUnitOffsetPlacesBarsInsideTheMonth()
+    {
+        // Act
+        var bars = ChartTestHelpers.Of<SceneRect>(ChartTestHelpers.Marks(Spec("\"bar\"", MonthEncoding(), MonthRows), 300, 100), "mark-bar");
+
+        // Assert: January starts at 0 and February at the length of January (31 days)
+        Assert.Equal([0.1 * MonthPixels, 0.5 * MonthPixels, MonthPixels + (0.1 * MonthPixels), MonthPixels + (0.5 * MonthPixels)], R(bars.Select(b => b.X)).Select(x => x), new Tolerance());
+        Assert.All(bars, b => Assert.Equal(0.4 * MonthPixels, b.Width, 6));
+    }
+
+    /// <summary>
+    ///     Validates the knobs of the offset range of a time unit: <c>timeUnitBandSize</c> narrows the bars inside their offset band (centered), an explicit size centers a bar of that width, <c>bandPosition: 0</c> of the
+    ///     position moves the range by half a unit to the left (it is <c>[-0.4, 0.4]</c> of the unit), and a nested padding of 0 makes the range the whole unit and ignores the band position.
+    /// </summary>
+    [Fact]
+    public void MarkBuilder_Run_TimeUnitOffsetRangeFollowsBandSizeSizeBandPositionAndPadding()
+    {
+        // Act
+        var narrow = ChartTestHelpers.Of<SceneRect>(ChartTestHelpers.Marks(Spec("{ \"type\": \"bar\", \"timeUnitBandSize\": 0.5 }", MonthEncoding(), MonthRows), 300, 100), "mark-bar");
+        var sized = ChartTestHelpers.Of<SceneRect>(ChartTestHelpers.Marks(Spec("{ \"type\": \"bar\", \"size\": 10 }", MonthEncoding(), MonthRows), 300, 100), "mark-bar");
+        var start = ChartTestHelpers.Of<SceneRect>(ChartTestHelpers.Marks(Spec("\"bar\"", MonthEncoding(positionExtra: ", \"bandPosition\": 0"), MonthRows), 300, 100), "mark-bar");
+        var withoutPadding = ChartTestHelpers.Of<SceneRect>(ChartTestHelpers.Marks(Spec("\"bar\"", MonthEncoding(positionExtra: ", \"bandPosition\": 0"), MonthRows, ", \"config\": { \"scale\": { \"bandWithNestedOffsetPaddingInner\": 0 } }"), 300, 100), "mark-bar");
+
+        // Assert
+        var band = 0.4 * MonthPixels;
+        Assert.Equal(0.1 * MonthPixels + (band / 4), narrow[0].X, 6);
+        Assert.Equal(band / 2, narrow[0].Width, 6);
+        Assert.Equal(0.1 * MonthPixels + (band / 2) - 5, sized[0].X, 6);
+        Assert.Equal(10.0, sized[0].Width, 6);
+        Assert.Equal(-0.4 * MonthPixels, start[0].X, 6);
+        Assert.Equal(band, start[0].Width, 6);
+        Assert.Equal(0.0, withoutPadding[0].X, 6);
+        Assert.Equal(MonthPixels / 2, withoutPadding[0].Width, 6);
+        Assert.Equal(MonthPixels / 2, withoutPadding[1].X, 6);
+    }
+
+    /// <summary>
+    ///     Validates the other marks over months: a point sits at the start of its month plus the center of its offset point (the offset scale of a point is a point scale with half a step of outer padding), a point mark
+    ///     without a band position of its own uses the middle of the unit (Vega-Lite computes NaN), and a tick spans the offset band.
+    /// </summary>
+    [Fact]
+    public void MarkBuilder_Run_TimeUnitOffsetPointsAndTicks()
+    {
+        // Act: the offset range is [0.1, 0.9] of the month for two points 0.4 apart with 0.2 of it before the first
+        var points = ChartTestHelpers.Of<SceneSymbol>(ChartTestHelpers.Marks(Spec("\"point\"", MonthEncoding(), MonthRows), 300, 100), "mark-point");
+        var ticks = ChartTestHelpers.Of<SceneRect>(ChartTestHelpers.Marks(Spec("\"tick\"", MonthEncoding(), MonthRows), 300, 100), "mark-tick");
+        var atStart = ChartTestHelpers.Of<SceneSymbol>(ChartTestHelpers.Marks(Spec("{ \"type\": \"point\", \"timeUnitBandPosition\": 0 }", MonthEncoding(), MonthRows), 300, 100), "mark-point");
+
+        // Assert: a point has no end of its unit in its domain (1 to 31 January over 300 pixels, so a month is 300 pixels); the domain of a tick (and of a point with a band position) has it
+        Assert.Equal([0.3 * 300, 0.7 * 300, 300 + (0.3 * 300), 300 + (0.7 * 300)], R(points.Select(p => p.X)), new Tolerance());
+        Assert.Equal([0.1 * MonthPixels, 0.5 * MonthPixels], R(ticks.Take(2).Select(t => t.X)), new Tolerance());
+        Assert.Equal([-0.2 * MonthPixels, 0.2 * MonthPixels], R(atStart.Take(2).Select(p => p.X)), new Tolerance());
+    }
+
+    /// <summary>
+    ///     Validates <c>yOffset</c> of a temporal <c>y</c> with a time unit: the length of the month on the y scale is negative (it runs upward), so the bands lie above the start of the month and the first group is the
+    ///     nearest to it.
+    /// </summary>
+    [Fact]
+    public void MarkBuilder_Run_TimeUnitYOffsetRunsUpward()
+    {
+        // Act: 59 days over 300 pixels from the bottom; the bars are horizontal
+        var bars = ChartTestHelpers.Of<SceneRect>(ChartTestHelpers.Marks(Spec("\"bar\"", MonthEncoding("y"), MonthRows), 100, 300), "mark-bar");
+
+        // Assert: January starts at the bottom (300); group x is at 0.1 to 0.5 of a month above it, group y at 0.5 to 0.9
+        var band = 0.4 * MonthPixels;
+        Assert.Equal(300 - (0.5 * MonthPixels), bars[0].Y, 6);
+        Assert.Equal(300 - (0.9 * MonthPixels), bars[1].Y, 6);
+        Assert.All(bars, b => Assert.Equal(band, b.Height, 6));
+    }
+
+    /// <summary>
+    ///     Compares numbers with a tolerance of a hundred-thousandth.
+    /// </summary>
+    private sealed class Tolerance : IEqualityComparer<double>
+    {
+        /// <inheritdoc />
+        public bool Equals(double x, double y) => Math.Abs(x - y) < 1e-5;
+
+        /// <inheritdoc />
+        public int GetHashCode(double obj) => 0;
+    }
 }

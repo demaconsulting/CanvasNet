@@ -197,13 +197,13 @@ public class VegaLiteLabelExprIntegrationTests
     }
 
     /// <summary>
-    ///     Validates that a function outside the table is reported as an unsupported feature at the text and the labels are empty, and strict mode fails.
+    ///     Validates that a function outside the table (a color function) is reported as an unsupported feature at the text and the labels are empty, and strict mode fails.
     /// </summary>
     [Fact]
-    public void CanvasNetVegaLite_SystemIntegration_LabelExpr_FormatIsReportedAndEvaluatesToEmptyLabels()
+    public void CanvasNetVegaLite_SystemIntegration_LabelExpr_UnsupportedFunctionIsReportedAndEvaluatesToEmptyLabels()
     {
         // Arrange
-        var json = "{ " + Data + ", \"mark\": \"point\", \"encoding\": { \"x\": { \"field\": \"year\", \"type\": \"quantitative\" }, \"y\": { \"field\": \"share\", \"type\": \"quantitative\", \"axis\": { \"labelExpr\": \"format(datum.value, ',.0f')\" } } } }";
+        var json = "{ " + Data + ", \"mark\": \"point\", \"encoding\": { \"x\": { \"field\": \"year\", \"type\": \"quantitative\" }, \"y\": { \"field\": \"share\", \"type\": \"quantitative\", \"axis\": { \"labelExpr\": \"luminance('#fff') + datum.label\" } } } }";
         var unsupported = new List<string>();
         var options = new VegaLiteRenderOptions { UnsupportedFeatureHandler = u => unsupported.Add(u.Feature) };
 
@@ -212,8 +212,108 @@ public class VegaLiteLabelExprIntegrationTests
         var scene = SceneOf(json);
 
         // Assert
-        Assert.Equal(["vl-expr-function-format"], unsupported);
+        Assert.Equal(["vl-expr-function-luminance"], unsupported);
         Assert.DoesNotContain("40", Texts(scene, "axis-label"));
         Assert.Throws<VegaLiteUnsupportedFeatureException>(() => VegaLiteDocument.Parse(json).Render(new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true }, Ct));
+    }
+
+    /// <summary>
+    ///     Validates that <c>format</c> and <c>timeFormat</c> draw without diagnostics in strict mode on an axis, a header and a legend: the y labels have a thousands separator, the header and the legend are
+    ///     formatted, and an invalid specifier is a render exception located at the expression.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_LabelExpr_FormatAndTimeFormatDrawWithoutDiagnostics()
+    {
+        // Arrange
+        var json = "{ " + Data + ", \"facet\": { \"column\": { \"field\": \"g\", \"type\": \"nominal\", \"header\": { \"labelExpr\": \"format(datum.value == 'a' ? 1 : 2, '03d')\" } } },"
+            + " \"spec\": { \"mark\": \"point\", \"encoding\": { \"x\": { \"field\": \"d\", \"type\": \"temporal\", \"axis\": { \"values\": [\"2021-01-01\"], \"labelExpr\": \"timeFormat(datum.value, '%b %Y')\" } },"
+            + " \"y\": { \"field\": \"share\", \"type\": \"quantitative\", \"axis\": { \"labelExpr\": \"format(datum.value * 1000, ',.0f')\" } },"
+            + " \"color\": { \"field\": \"year\", \"type\": \"ordinal\", \"legend\": { \"labelExpr\": \"format(datum.value, '+d')\" } } } } }";
+        var unsupported = new List<string>();
+        var options = new VegaLiteRenderOptions { UnsupportedFeatureHandler = u => unsupported.Add(u.Feature), ThrowOnUnsupportedFeature = true };
+
+        // Act
+        var scene = SceneOf(json, options);
+        var invalid = Assert.Throws<VegaLiteRenderException>(() => SceneOf(json.Replace("',.0f'", "'.2.3f'", StringComparison.Ordinal)));
+
+        // Assert
+        Assert.Empty(unsupported);
+        Assert.Contains("20,000", Texts(scene, "axis-label"));
+        Assert.Contains("Jan 2021", Texts(scene, "axis-label"));
+        Assert.Equal(["+2020", "+2021", "+2022"], Texts(scene, "legend-label"));
+        var headers = scene.FindAll("column-header").SelectMany(e => Scene.Enumerate((SceneGroup)e.Item)).Select(x => x.Item).OfType<SceneText>().Select(t => t.Text).ToList();
+        Assert.Equal(["001", "002"], headers);
+        Assert.Contains("invalid format: .2.3f", invalid.Message, StringComparison.Ordinal);
+        Assert.EndsWith("/axis/labelExpr", invalid.Location.Pointer, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Gets the texts of the items of a header group of a facet, as the scene holds them.
+    /// </summary>
+    /// <param name="scene">The scene.</param>
+    /// <param name="role">The role of the header group.</param>
+    /// <returns>The text items.</returns>
+    private static List<SceneText> HeaderTexts(Scene scene, string role) =>
+        [.. scene.FindAll(role).SelectMany(e => Scene.Enumerate((SceneGroup)e.Item)).Select(x => x.Item).OfType<SceneText>()];
+
+    /// <summary>
+    ///     Validates that an array result of a header <c>labelExpr</c> is several lines of the label (not one line joined by a line feed), for a column and a row, and that a string with a line feed stays one line.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_LabelExpr_HeaderArrayResultIsSeveralLines()
+    {
+        // Arrange
+        var json = "{ " + Data
+            + ", \"facet\": { \"column\": { \"field\": \"g\", \"type\": \"nominal\", \"header\": { \"labelExpr\": \"[datum.label, 'n=' + datum.value]\" } },"
+            + " \"row\": { \"field\": \"year\", \"type\": \"ordinal\", \"header\": { \"labelExpr\": \"[datum.label, 'r']\" } } },"
+            + " \"spec\": { \"mark\": \"point\", \"encoding\": { \"x\": { \"field\": \"share\", \"type\": \"quantitative\", \"axis\": null }, \"y\": { \"field\": \"share\", \"type\": \"quantitative\", \"axis\": null } } } }";
+        var oneString = json.Replace("[datum.label, 'n=' + datum.value]", "datum.label + '\\\\n' + datum.value", StringComparison.Ordinal);
+
+        // Act
+        var scene = SceneOf(json);
+        var columns = HeaderTexts(scene, "column-header");
+        var rows = HeaderTexts(scene, "row-header");
+        var single = HeaderTexts(SceneOf(oneString), "column-header");
+
+        // Assert
+        Assert.Equal([["a", "n=a"], ["b", "n=b"]], columns.Select(t => t.Lines.ToArray()));
+        Assert.Equal([["2020", "r"], ["2021", "r"], ["2022", "r"]], rows.Select(t => t.Lines.ToArray()));
+        Assert.All(single, t => Assert.Single(t.Lines));
+        Assert.Equal(["a\na", "b\nb"], single.Select(t => t.Text));
+    }
+
+    /// <summary>
+    ///     Validates that an array result of <c>headerFacet.labelExpr</c> is several lines in the title of the cell of a wrapped facet.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_LabelExpr_WrappedFacetTitleArrayResultIsSeveralLines()
+    {
+        // Arrange
+        var json = "{ \"config\": { \"headerFacet\": { \"labelExpr\": \"[datum.label, '#' + datum.value]\" } }, " + Data
+            + ", \"facet\": { \"field\": \"g\", \"type\": \"nominal\" }, \"spec\": { \"mark\": \"point\", \"encoding\": { \"x\": { \"field\": \"share\", \"type\": \"quantitative\", \"axis\": null }, \"y\": { \"field\": \"share\", \"type\": \"quantitative\", \"axis\": null } } } }";
+
+        // Act
+        var titles = SceneOf(json).Enumerate().Select(e => e.Item).OfType<SceneText>().Where(t => t.Lines.Count == 2).Select(t => t.Lines.ToArray()).ToList();
+
+        // Assert
+        Assert.Equal([["a", "#a"], ["b", "#b"]], titles);
+    }
+
+    /// <summary>
+    ///     Validates that the layout measures the lines of a header label: the chart with a two-line header is taller than the one with a one-line header.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_LabelExpr_HeaderMultiLineLabelIsTallerThanOneLine()
+    {
+        // Arrange
+        string Chart(string expression) => "{ " + Data + ", \"facet\": { \"column\": { \"field\": \"g\", \"type\": \"nominal\", \"header\": { \"labelExpr\": \"" + expression + "\" } } },"
+            + " \"spec\": { \"mark\": \"point\", \"encoding\": { \"x\": { \"field\": \"share\", \"type\": \"quantitative\", \"axis\": null }, \"y\": { \"field\": \"share\", \"type\": \"quantitative\", \"axis\": null } } } }";
+
+        // Act
+        var one = SceneOf(Chart("datum.label"));
+        var two = SceneOf(Chart("[datum.label, datum.value]"));
+
+        // Assert: a line is about a dozen pixels
+        Assert.True(two.Height > one.Height + 8, $"{two.Height} should be taller than {one.Height}");
     }
 }

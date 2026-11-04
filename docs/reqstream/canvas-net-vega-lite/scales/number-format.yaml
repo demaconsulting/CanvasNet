@@ -6,7 +6,8 @@
 # (specifier parsing, number formatting, SI prefixes, and the tick-format precision rules). The port is an own
 # implementation of the algorithms of d3-format 3.1.2 (ISC license) with the en-US locale; the attribution is
 # in src/DemaConsulting.CanvasNet.VegaLite/third-party/ and the expected values in the tests are derived by
-# hand. See docs/verification/canvas-net-vega-lite/scales/number-format.md for the test-evidence mapping.
+# hand. The format function of the expression language (ExpressionFunctions.Number.cs) is a consumer of the unit.
+# See docs/verification/canvas-net-vega-lite/scales/number-format.md for the test-evidence mapping.
 
 sections:
   - title: CanvasNetVegaLite Requirements
@@ -21,7 +22,8 @@ sections:
                   symbol, zero, width, comma, precision, trim, and type parts, reproduce its text form,
                   and reject invalid text with a FormatException.
                 justification: |
-                  Axis formats come from the specification; an invalid one must be an error, not a guess.
+                  Axis formats and the format function of expressions come from the specification; an invalid
+                  one must be an error, not a guess.
                 tests:
                   - NumberFormat_ParseSpecifier_ReadsEveryPartAndRejectsInvalidText
 

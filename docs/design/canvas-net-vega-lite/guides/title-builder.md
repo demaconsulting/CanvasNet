@@ -47,7 +47,8 @@ either). `ExplicitNode(property)` returns the node of a property that the `heade
 the configuration), which is how the compiled `labelExpr` of the header is found; the facet code of `VegaLiteDocument`
 wraps the label formatter in the `labelExpr` of the header, else of the channel configuration, else of `config.header`
 (see _LabelExpressions Unit Design_; the datum has `value`, the raw value of the cell, and `label`, the formatted text,
-only, and an array result is joined with line feeds). `Read(config, header, channel, honoredOrientsOnly)` reads a side
+only, and an array result is several header lines: `BuildHeader` and `BuildHeaderBlock` take the lines). `Read(config,
+header, channel, honoredOrientsOnly)` reads a side
 that `IsHonoredOrient` does not honor (a row's
 `top` or `bottom`, a column's `left` or `right`, a wrapped facet's title on the `left` or `right`) as not given when the
 flag is set, which is how the facet pipeline draws the default side for what the feature catalog reports as

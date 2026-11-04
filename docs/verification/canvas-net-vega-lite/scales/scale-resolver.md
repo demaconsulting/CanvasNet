@@ -855,14 +855,32 @@ field and follows `sort` (ascending, descending, and an array); that a quantitat
 and no nice (the domain 1 to 5 maps to 0 and 40 on x and runs upward on y); and that an explicit range, `reverse`, and
 `round` apply to the offset scale.
 
-##### Offsets Without A Discrete Position Are Not Resolved
+##### Offsets Without A Discrete Position Or A Time Unit Are Not Resolved
 
 **Tests**: `ScaleResolverOffsetTests.ScaleResolver_Resolve_OffsetWithoutADiscreteParentHasNoScale`,
 `ScaleResolverOffsetTests.ScaleResolver_DecideOffset_FollowsTheRules`
 
-Asserts that an offset whose position is quantitative, missing, or has a time unit has no scale (the position stays
-linear), and that `DecideOffset` returns `Supported`, `NoDiscreteParent`, or `Ranged` for every combination of position
-type, offset type, and mark (a continuous offset of a bar or area is `Ranged`) and rejects a null channel.
+Asserts that an offset whose position is quantitative, missing, a temporal field with the unit `day`, or a nominal field
+with a time unit has no scale (the quantitative position stays linear), and that `DecideOffset` returns `Supported`,
+`NoDiscreteParent`, `Ranged`, or `TimeUnitParent` for every combination of position type, time unit, offset type, and
+mark and rejects a null channel: a temporal position with the unit `year`, `month`, `yearmonthdate`, `hours`, or
+`{unit: month, step: 2}` is `TimeUnitParent` for a nominal offset (`bar`, `point`, or `tick`), and for a quantitative
+offset of a `point`; a continuous offset of a `bar` or `area` is `Ranged` (also over a `month` unit); and a temporal
+position with the unit `day`, with `maxbins`, with `binnedyearmonth`, without a time unit, a `yearmonthdate` unit on a
+`rect`, or a nominal position with the unit `month` is `NoDiscreteParent`.
+
+##### Offsets Inside A Time Unit Have A Scale Of Their Own
+
+**Tests**: `ScaleResolverOffsetTests.ScaleResolver_Resolve_OffsetWithATimeUnitParentHasANominalOffsetScale`,
+`ScaleResolverOffsetTests.ScaleResolver_CreateModel_NestedRangeReplacesTheDefaultRange`
+
+Asserts that over a temporal `x` with the unit `year` the position stays a time scale and the nominal `xOffset` of a bar
+is a band scale with the paddings 0 and 0 over the domain `x`, `y`, while that of a `point` mark is a point scale; and
+that `CreateModel(0, (10, 50))` replaces the default range of the offset by the pixels 10 to 50: the two bands of 20
+pixels are at 10 and 30, `rangeMin: 20` gives the bands at 20 and 35 (a range of 20 to 50), an explicit `range` of
+`[0, 100]` gives 0 and 50, `reverse` gives 30 and 10, a descending range `(-10, -50)` gives -30 and -50, the point
+offset keeps its order, and `CreateModel(40)` without a nested range is the unchanged range 0 to 40 (the bands at 0 and
+20).
 
 ##### Layers Share Or Keep Their Offset Domains
 

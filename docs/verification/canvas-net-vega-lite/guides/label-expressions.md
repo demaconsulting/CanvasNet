@@ -103,12 +103,17 @@ location given.
 **Tests**: `LabelExpressionsTests.LabelExpressions_Evaluate_ParameterIsReadAndStepsAreChargedToTheCall`,
 `LabelExpressionsTests.LabelExpressions_Evaluate_StepBudgetIsEnforcedAsRenderException`,
 `LabelExpressionsTests.LabelExpressions_Evaluate_StringLimitIsEnforcedAsRenderException`,
-`LabelExpressionsTests.LabelExpressions_Evaluate_UnsupportedFunctionIsNullAndEmpty`
+`LabelExpressionsTests.LabelExpressions_Evaluate_UnsupportedFunctionIsNullAndEmpty`,
+`LabelExpressionsTests.LabelExpressions_Evaluate_FormatAndTimeFormat`
 
 Asserts that an expression reads a variable parameter of the chart (`datum.label + unit` is `5 kg`) and that the steps
 it takes are added to the counter of the shared evaluator; that a step budget of 5 and a string limit of 8 are located
-`VegaLiteRenderException`s that name `MaxEvaluationSteps` and `MaxStringLength`, at the location of the expression; and
-that a function outside the whitelist (`format`) evaluates to null and so to the empty label.
+`VegaLiteRenderException`s that name `MaxEvaluationSteps` and `MaxStringLength`, at the location of the expression; that
+a function outside the whitelist (the color function `luminance('#fff')`) evaluates to null and so to the empty label;
+and that `format` and `timeFormat` run: `format(datum.value, '.0%')` of 0.2 is `20%`, `format(datum.value, ',.0f')` of
+1200 is `1,200`, `timeFormat(datum.value, '%b %Y')` of 2024-03-01 is `Mar 2024`, and the array
+`[format(datum.value, '$.2f'), timeFormat(datum.value, '%d')]` of the date 2024-03-07 (1,709,769,600,000 ms, so the
+number text is `$1709769600000.00`) is the two lines `$1709769600000.00` and `07`.
 
 ##### Axis Labels Are Replaced Before They Are Laid Out
 
@@ -129,10 +134,15 @@ compiles a configured expression (an invalid configured text is not an error).
 
 **Tests**: `AxisBuilderLabelExprTests.AxisBuilder_Build_LabelExprIndexIsFractionAndTickIndexIsInteger`,
 `AxisBuilderLabelExprTests.AxisBuilder_Build_LabelExprTemporalAxisUsesDateValue`,
+`AxisBuilderLabelExprTests.AxisBuilder_Build_LabelExprFormatAndTimeFormat`,
 `AxisBuilderLabelExprTests.AxisBuilder_Build_LabelExprBandAxisGivesCategoryAsValueAndLabel`
 
 Asserts that `index` is a fraction of the way along the ticks and `tickIndex` a whole number, that the value of a time
-axis is a date that the time functions can read, and that the value and the label of a band axis are the category text.
+axis is a date that the time functions can read, that `format(datum.value / 100, '.0%')` on a 0 to 100 axis gives the
+eleven labels `0%`, `10%`, up to `100%`, that `timeFormat(datum.value, '%d %H') + '|' + utcFormat(datum.value, '%d %H')`
+of the tick 2024-01-01 is `01 00|01 00` in UTC and `31 19|01 00` in a chart whose zone is UTC-5 (midnight UTC is the
+evening of December 31 there, and the UTC form is unchanged), and that the value and the label of a band axis are the
+category text.
 
 ##### Axis Configuration Precedence And Errors
 
@@ -169,21 +179,38 @@ Asserts that `perc` is the position of the tick along the bar and `value` the ti
 `VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_LegendLabelsAreReplaced`,
 `VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_HeaderLabelsAreReplacedWithPrecedence`,
 `VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_WrappedFacetTitlesAreReplaced`,
+`VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_HeaderArrayResultIsSeveralLines`,
+`VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_WrappedFacetTitleArrayResultIsSeveralLines`,
+`VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_HeaderMultiLineLabelIsTallerThanOneLine`,
 `VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_ParameterCanBeUsed`
 
 Asserts that a chart with a `labelExpr` on its axes, legends, and headers is laid out with the replaced labels and no
 diagnostics in strict mode; that the header of a facet takes `header.labelExpr` over `headerRow` or `headerColumn` over
 `config.header`; that the cell titles of a wrapped facet use `config.header`; and that an expression reads a parameter.
+An array result of a header is several lines and not one joined text: in a column and row facet the column headers
+`[datum.label, 'n=' + datum.value]` have the lines `a`, `n=a` and `b`, `n=b` and the row headers
+`[datum.label, 'r']` the lines `2020`, `r`, then `2021`, `r`, and `2022`, `r`, while the string
+`datum.label + '\n' + datum.value` stays a single line whose text is `a\na` and `b\nb`; in a wrapped facet,
+`headerFacet.labelExpr` `[datum.label, '#' + datum.value]` gives the two-line cell titles `a`, `#a` and `b`, `#b`; and a
+chart whose column header is the two-line `[datum.label, datum.value]` is more than 8 pixels taller than the same
+chart with the one-line `datum.label` (the layout measures the lines of a header).
 
 ##### Label Expressions Are Bounded And Deterministic
 
 **Tests**: `VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_BudgetExceededIsARenderException`,
 `VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_ResultDoesNotDependOnTheCulture`,
-`VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_FormatIsReportedAndEvaluatesToEmptyLabels`
+`VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_UnsupportedFunctionIsReportedAndEvaluatesToEmptyLabels`,
+`VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_FormatAndTimeFormatDrawWithoutDiagnostics`
 
 Asserts that an expression that needs more than the step budget of the call is a render exception located at the
-expression, that the labels are the same under `tr-TR` as under the invariant culture, and that the number `format()`
-function is reported as `vl-expr-function-format` at the expression text, gives empty labels, and fails strict mode.
+expression, that the labels are the same under `tr-TR` as under the invariant culture, that an unsupported function
+(`luminance('#fff') + datum.label`) is reported as `vl-expr-function-luminance` at the expression text, gives empty
+labels (no `40` among the axis labels), and fails strict mode, and that `format` and `timeFormat` draw in strict mode
+with nothing reported: the y labels `format(datum.value * 1000, ',.0f')` include `20,000`, the x axis
+`timeFormat(datum.value, '%b %Y')` of 2021-01-01 gives `Jan 2021`, the legend `format(datum.value, '+d')` gives
+`+2020`, `+2021`, and `+2022`, the column headers `format(..., '03d')` give `001` and `002`, and the same chart with
+the specifier `.2.3f` is a `VegaLiteRenderException` whose message contains `invalid format: .2.3f` and whose location
+ends with `/axis/labelExpr`.
 
 ##### Label Expressions Are Reported Only When They Cannot Be Evaluated
 
@@ -197,4 +224,7 @@ Asserts that a supported label expression is reported nowhere (the retired `vl-e
 unsupported function or view state is reported at the expression text with `vl-expr-function-<name>` or
 `vl-expr-view-state`, also for `config.axis*` and `config.header*`; that a syntax error is a located
 `VegaLiteSpecException` when the document is opened; that `config.legend.labelExpr` is neither compiled nor reported; and
-that the command line renders a chart with label expressions and offset channels in strict mode with no diagnostics.
+that the command line renders a chart with label expressions and offset channels in strict mode with no diagnostics:
+a grouped bar chart, a chart with `upper(datum.label)` and `datum.label + '%'` labels, a line chart whose
+labelExpr uses `timeFormat(datum.value, '%b %Y')` and `format(datum.value, '.0%')`, and a `yearmonth` bar chart with an
+`xOffset`.

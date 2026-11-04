@@ -827,6 +827,31 @@ band plus the offset point), that a line connects the offset positions (20, 40, 
 quantitative offset are a strip inside the band of 40 pixels (at 4, 8, 32, 36, and 60 for the data of the test), and
 that a row whose offset value is not valid is not drawn (two points remain).
 
+##### Offsets Inside A Time Unit
+
+**Tests**: `MarkBuilderOffsetTests.MarkBuilder_Run_TimeUnitOffsetPlacesBarsInsideTheMonth`,
+`MarkBuilderOffsetTests.MarkBuilder_Run_TimeUnitOffsetRangeFollowsBandSizeSizeBandPositionAndPadding`,
+`MarkBuilderOffsetTests.MarkBuilder_Run_TimeUnitOffsetPointsAndTicks`,
+`MarkBuilderOffsetTests.MarkBuilder_Run_TimeUnitYOffsetRunsUpward`
+
+The chart has two groups (`x`, `y`) over January and February 2023 (a `yearmonth` unit, `nice: false`, 300 by 100
+pixels): the domain is January 1 to March 1, 59 days over 300 pixels, so the reference month of 31 days (January 2001)
+is `M` = 31 x 300 / 59 = 157.63 pixels. Asserts that the bars of a `bar` mark are 0.4 M wide (the offset range is
+[0.1, 0.9] M for the nested padding 0.2, two bands of 0.4 M) and start at 0.1 M and 0.5 M after the start of January and
+at M + 0.1 M and M + 0.5 M for February (the position is read at the start of the month). With `timeUnitBandSize` 0.5
+the first bar is 0.2 M wide (half of the band, centered: it starts at 0.1 M + 0.1 M); a `size` of 10 gives a bar of 10
+pixels centered in the band; `bandPosition: 0` on the position moves the range by half a unit, so the first bar starts at
+-0.4 M and is still 0.4 M wide; and with `bandWithNestedOffsetPaddingInner` 0 (and the band position ignored) the
+range is the whole month, so the bars are M / 2 wide and start at 0 and M / 2. For the other marks, the points of a
+`point` mark have no `timeUnitBandPosition`, so their domain holds only the starts of the months (31 days over 300
+pixels: a month is 300 pixels), the band position is 0.5, the offset range is [30, 270] and the point scale with the
+outer padding 0.5 puts the points at x = 0.3 x 300 = 90 and 0.7 x 300 = 210 and, in February, at 390 and 510; the
+`tick` bars span the offset bands (x = 0.1 M and 0.5 M); a point mark with `timeUnitBandPosition` 0 uses the band
+position 0 and its first two points are at -0.2 M and 0.2 M. For `yOffset` over a temporal `y` (a 100 by 300 chart with
+horizontal bars) the length of the month on the y scale is negative (the scale runs upward), so January starts at the
+bottom, 300, the bar of group `x` is at y = 300 - 0.5 M (spanning 0.1 M to 0.5 M above the start), that of group `y` is
+at y = 300 - 0.9 M, and each bar is 0.4 M high.
+
 ##### Stacks Are Grouped By The Offset
 
 **Tests**: `MarkBuilderOffsetTests.MarkBuilder_Build_StackedGroupedBarsStackInsideEachGroup`,

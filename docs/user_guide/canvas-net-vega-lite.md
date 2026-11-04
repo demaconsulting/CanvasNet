@@ -318,7 +318,7 @@ without it. A key that Vega-Lite does not define for a view, mark, encoding, or 
 | Titles | `text` (a string or an array of lines), `subtitle`, `anchor`, `orient`, `offset`, `frame`, the font, color, and alignment properties, `limit`, `angle`, `dx`, and `dy` |
 | Layout | `width` and `height` as numbers, `{"step": n}`, or `"container"`; `padding` as a number or an object; `autosize` of `pad`, `none`, `fit`, `fit-x`, and `fit-y` (with `contains`), also implied by a `"container"` size, for a single or a layered view (see *Vega-Lite Autosize and Container Sizes*); `background`; the `view` configuration (size, fill, and stroke). Of a layered view only the top-level `width`, `height`, `padding`, `autosize`, and `background` count, and a `step` is applied to the merged discrete scale of the layers (the union of their categories times the step). A composition is laid out as a grid with `spacing` (20 pixels by default), `columns`, `align`, `center`, and `bounds`, and takes the size of the views inside it (see *Vega-Lite Composition*) |
 | Configuration | The Vega-Lite 6 and Vega defaults, the `config` of the specification, and `VegaLiteRenderOptions.Config`, merged in that order; the `style` mechanism; the `boxplot`, `errorbar`, and `errorband` entries of the composite marks (see *Vega-Lite Layers and Composite Marks*); the `concat` and `facet` entries (`spacing`, `columns`) and the `header`, `headerRow`, `headerColumn`, and `headerFacet` entries of the facet headers (see *Vega-Lite Composition*). Only the top-level `config` counts in a layered view or a composition |
-| Expressions | A subset of the Vega expression language with 99 functions (math, string, array, type, regular expression, and date and time), in the `calculate` and `filter` transforms, the `expr` of a parameter, the `{"expr": ...}` color, fill, stroke, opacity, stroke width, and size values of a mark that are evaluated for every row, and the `labelExpr` of axes, legends, and facet headers; see *Vega-Lite Expressions* and *Vega-Lite Label Expressions* |
+| Expressions | A subset of the Vega expression language with 100 functions (math, string, array, type, regular expression, number format, and date and time), in the `calculate` and `filter` transforms, the `expr` of a parameter, the `{"expr": ...}` color, fill, stroke, opacity, stroke width, and size values of a mark that are evaluated for every row, and the `labelExpr` of axes, legends, and facet headers; see *Vega-Lite Expressions* and *Vega-Lite Label Expressions* |
 | Parameters | Static **variable** parameters of the single or top-level view (`value` or `expr`, with a caller override through `VegaLiteRenderOptions.Parameters`), read by expressions and by the `param` filter predicate; see *Vega-Lite Parameters*. Selections and bindings have no meaning in a still picture. A variable parameter declared inside a layer or a composition is reported (`vl-param-variable`) |
 | Transforms | `calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot`, `lookup`, `timeUnit`, `aggregate`, `joinaggregate`, `window`, `bin`, `stack`, and `impute`, run in the order of the specification on the rows before the scales are built, where the `transform` of a layered view or a composition is applied first and then the `transform` of each layer or child (see *Vega-Lite Layers and Composite Marks* and *Vega-Lite Composition*); see *Vega-Lite Transforms*, *Vega-Lite Time and Time Zones*, and *Vega-Lite Aggregation, Binning, and Stacking* |
 | Time | Temporal fields with implicit date parsing, the `parse` directives `date`, `date:'...'`, and `utc:'...'`, the time units, date-time objects, time and UTC scales with calendar ticks and `nice` intervals, date labels on axes and legends, the date and time expression functions, and the render option `TimeZone`; see *Vega-Lite Time and Time Zones* |
@@ -429,7 +429,7 @@ declares (`width`, `height`, `padding`, `autosize`, `background`, `cursor`: `vl-
 `VegaLiteUnsupportedFeatureException` (see *Vega-Lite Unsupported Features and Strict Mode*); the report is located at
 the string value of the expression and its message names the offset of the construct.
 
-**The functions.** There are exactly **99** functions; names are case-sensitive and an argument that is not given is
+**The functions.** There are exactly **100** functions; names are case-sensitive and an argument that is not given is
 `undefined` (`NaN` as a number, the text `undefined` as a string). Number arguments are converted as in JavaScript.
 
 <!-- markdownlint-disable MD013 -->
@@ -476,6 +476,10 @@ the string value of the expression and its message names the offset of the const
 | `regexp(pattern[, flags])` | A regular expression value; an invalid pattern or an unknown, unsupported (`u`, `v`, `y`, `d`) or repeated flag fails the render |
 | `test(regexp, s)` | Whether the text matches; a text instead of a regular expression is used as the pattern |
 
+| Number format (1) | Meaning |
+| ----------------- | ------- |
+| `format(value, specifier)` | The number as text with a d3 number format (d3-format) in the `en-US` locale: the minus sign is U+2212 and the thousands separator is a comma, whatever the culture of the machine. `value` is converted as JavaScript's unary plus does (`'12'` is 12, `true` is 1, a date is its milliseconds), so a value that cannot be read gives the text `NaN`, and `null` gives the text `null`. A `specifier` that d3 does not accept is a `VegaLiteRenderException` located at the expression (it is not a warning). The type `c` differs from d3: it formats the number instead of echoing the original text, so a text value gives `NaN` |
+
 | Date and time (41) | Meaning |
 | ------------------ | ------- |
 | `datetime()`, `datetime(x)`, `datetime(year, month[, day, hours, minutes, seconds, milliseconds])` | A date. With no argument it is `null` (an expression has no clock); with one argument it is the instant `x` (a date, a number of milliseconds, or a date text); with two or more it is the wall-clock time in the zone of the chart, with the month counted from 0 and the day 1 by default. Parts that are too large or too small roll over as in JavaScript (month 12 is January of the next year, day 0 is the last day of the previous month), and a year from 0 to 99 means 1900 to 1999. A result outside the years 1 to 9999 is `null` |
@@ -490,7 +494,7 @@ the string value of the expression and its message names the offset of the const
 | `monthFormat(m)`, `monthAbbrevFormat(m)`, `dayFormat(d)`, `dayAbbrevFormat(d)` | The English name of month `m` (0 is January) or weekday `d` (0 is Sunday), full or abbreviated; the empty text for anything that is not a whole number; other numbers roll over |
 <!-- markdownlint-enable MD013 -->
 
-The functions of the formatting (`format`, ...), color (`rgb`, `hsl`, ...), scale, data (`data`, `scale`), and
+The functions of the color (`rgb`, `hsl`, ...), scale, data (`data`, `scale`), and
 geographic families, and the other functions of Vega, are reported as unsupported (`vl-expr-function-<name>`, for
 example `vl-expr-function-geoarea`) and give `null`. `now` and `random` are not available by design: an expression has
 no clock and no random source, so `now()` is reported as `vl-expr-function-now`, and `datetime()` gives `null`.
@@ -1018,7 +1022,7 @@ the canonical scale of a legend that merges several continuous channels is the f
 
 The `labelExpr` of an axis, a legend, and a facet header replaces the text of every label with the result of an
 expression, as in Vega-Lite 6. The expression runs on the same engine as every other expression (see *Vega-Lite
-Expressions*: the same 99 functions and parameters, and the same `MaxEvaluationSteps`, `MaxStringLength`, and
+Expressions*: the same 100 functions and parameters, and the same `MaxEvaluationSteps`, `MaxStringLength`, and
 cancellation), once for every label and **before the labels are measured, laid out, and thinned**, so a longer text
 makes the axis or the legend wider, and a blank text takes no room and no part in the removal of overlapping labels.
 The `labelExpr` of the configuration applies to every guide that has none of its own: `config.axis` and the other axis
@@ -1038,10 +1042,14 @@ Vega-Lite has no `config.legend.labelExpr`, so there is none here either.
 **The result** becomes the text the way Vega's text mark does it: `null` (and a member that does not exist) is the empty
 text, an array is several lines (every element is trimmed, and a `null` element is empty), and anything else is
 converted to text as JavaScript does and trimmed. A date is its ISO text. A text is **not** split at a line feed; only an
-array makes lines (in a facet header the lines are joined with line feeds, which the header splits again). A function
-that the engine does not have evaluates to `null`, so the label is empty, and it is reported
-(`vl-expr-function-<name>`): the number format `format()` is the common one, so write the digits with `round`,
-`datum.label`, and string concatenation. A view signal is reported too (`vl-expr-view-state`).
+array makes lines (also in a facet header: a column or row header, its footer, and the title of a cell of a wrapped
+facet, so `[datum.label, 'n=' + datum.value]` is a header of two lines, and the layout measures them, which makes the
+header taller). A function that the engine does not have (`luminance`, `geoarea`, `now`, ...) evaluates to `null`, so
+the label is empty, and it is reported (`vl-expr-function-<name>`). A view signal is reported too
+(`vl-expr-view-state`).
+
+`format(value, specifier)` writes a number with a d3 number format, and `timeFormat(value, specifier)` a date with a d3
+time format in the time zone of the chart (`utcFormat` writes it in UTC), as in Vega.
 
 Every label expression is **compiled when the document is opened**, also the ones in the `config` of the specification,
 so a syntax error or a reference to a parameter that does not exist is a `VegaLiteSpecException` at the text. An
@@ -1057,7 +1065,20 @@ cost is bounded by `MaxTicks` times `MaxEvaluationSteps`; labels that are switch
          "axis": { "labelExpr": "datum.label + '%'" } } }
 ```
 
-**Not supported.** `format()` and the other functions outside the 99, `datum.size` and `datum.offset` of a symbol legend
+A y axis of ratios written as percent with `format`, and a temporal x axis written as month and year with `timeFormat`:
+
+```json
+{ "mark": "line",
+  "data": { "values": [ { "month": "2024-01-01", "share": 0.28 }, { "month": "2024-04-01", "share": 0.41 },
+                        { "month": "2024-07-01", "share": 0.62 } ] },
+  "encoding": {
+    "x": { "field": "month", "type": "temporal",
+           "axis": { "labelExpr": "timeFormat(datum.value, '%b %Y')" } },
+    "y": { "field": "share", "type": "quantitative",
+           "axis": { "labelExpr": "format(datum.value, '.0%')" } } } }
+```
+
+**Not supported.** The functions outside the 100, `datum.size` and `datum.offset` of a symbol legend
 (they are `null`), the replacement of `datum.label` by the text of a custom `formatType` (a custom format type is reported
 and not evaluated), and the extra tick of a binned axis. Example 47 shows label expressions.
 
@@ -1077,7 +1098,8 @@ groups side by side (a grouped bar chart) or points that spread inside their ban
 
 The rules are those of Vega-Lite:
 
-- **The position.** The `x` (or `y`) channel must be a nominal or ordinal field (or datum) without a `timeUnit`. Its
+- **The position.** The `x` (or `y`) channel must be a nominal or ordinal field (or datum) without a `timeUnit`, or a
+  temporal field with a time unit (see *Time-unit positions* below). Its
   scale is then a **band scale for every mark** (a `point` mark too, and an explicit `scale.type` of `point` is replaced
   with `vl-scale-type-ignored`), with the paddings `config.scale.bandWithNestedOffsetPaddingInner` and `...Outer` (0.2
   each by default) instead of the paddings of the mark, unless `scale.padding`, `paddingInner`, or `paddingOuter` says
@@ -1111,11 +1133,51 @@ The rules are those of Vega-Lite:
   its own. The charts of a `concat` or `repeat` keep independent offset scales by default and `"shared"` shares one; the
   cells of a `facet` share the offset domain.
 
-**Not drawn, and reported.** An offset without a discrete position (`vl-offset-position`) and a continuous offset of a
+**Time-unit positions.** The `x` (or `y`) channel of a `temporal` field with a `timeUnit` (`yearmonth`, `year`,
+`yearmonthdate`, `hours`, ...) can have an offset too. The position then **stays a time scale**, and only the offset gets
+a scale of its own (a band scale for `bar`, `rect`, `image`, `rule`, and `tick` with no paddings, a point scale for the
+other marks; a quantitative or temporal offset is a linear or time scale, and a continuous offset of a `bar` or an `area`
+stays `vl-offset-ranged`). The marks read the position at the **start** of the unit and add the offset. The range of the
+offset scale is a share of the length of **one reference unit** on the time scale, as Vega-Lite computes it: the length
+is the distance between 2001-01-01 and one step of the smallest part of the unit later, measured on the position scale
+(the same for every unit of the chart, so a month is the 31 days of January 2001 and a year is 365 days, and the length
+is negative on a `y` scale, so that a `yOffset` runs upward). With the padding
+`config.scale.bandWithNestedOffsetPaddingInner` (0.2 by default) the range is from `(padding / 2 + p) * length` to
+`(1 - padding / 2 + p) * length`, where `p` is the band position minus 0.5 (the band position is the `bandPosition` of
+the position channel, else the
+`timeUnitBandPosition` of the mark, else 0.5); a padding of 0 gives the range from 0 to `length` and ignores the
+band position.
+A bar spans a band of the offset scale and is narrowed by `timeUnitBandSize` (1 by default, centered) unless it has a
+`size`. A chart of 59 days over 300 pixels with two groups per month draws bands of 0.4 of a month, starting at 0.1 and
+0.5 of a month from the start of each month:
+
+```json
+{ "data": { "values": [
+    { "date": "2024-01-01", "kind": "A", "n": 4 }, { "date": "2024-01-01", "kind": "B", "n": 7 },
+    { "date": "2024-02-01", "kind": "A", "n": 6 }, { "date": "2024-02-01", "kind": "B", "n": 3 } ] },
+  "mark": { "type": "bar", "timeUnitBandSize": 1 },
+  "encoding": {
+    "x": { "field": "date", "type": "temporal", "timeUnit": "yearmonth" },
+    "xOffset": { "field": "kind", "type": "nominal" },
+    "y": { "field": "n", "type": "quantitative" },
+    "color": { "field": "kind", "type": "nominal" } } }
+```
+
+These details differ from Vega-Lite: a mark that has no `timeUnitBandPosition` or `bandPosition` (a `point`, `line`,
+`text`, ...) uses the middle of the unit where Vega-Lite computes `NaN`; a `utc` unit measures its reference duration in
+the calendar of the scale (UTC) where Vega-Lite uses the zone of the chart (up to an hour apart for a quarter in a zone
+with daylight saving time); a `bandPosition` other than 0.5 on a `bar` does not move the domain of the scale
+(`vl-encoding-bandposition-rect` is still reported); and `minBandSize` clamps around the start of the band instead of its
+center. The unit `month` without a year puts every date into the leap year 2012, while `yearmonth` uses the real year.
+
+**Not drawn, and reported.** An offset without a supported position (`vl-offset-position`) and a continuous offset of a
 `bar` or an `area` (a ranged offset, `vl-offset-ranged`) are ignored and the marks are drawn at their position. The
-`bin` of an offset channel is not applied (`vl-encoding-bin`), the Vega-Lite reference duration of a time unit is not
-ported, and the `xOffset` and `yOffset` **properties** of a mark (a pixel offset) are not drawn, as before. Example 47
-draws a grouped bar chart.
+position is not supported when the `x` (or `y`) channel is missing, is quantitative, or is temporal without a
+`timeUnit`; when its unit is `day`, `weekday`, or `yearweekday` (the smallest part is the day of the week), a `maxbins`
+unit, or a binned one; when the mark is a `rect` with a time unit; and when the field is nominal or ordinal **with** a
+`timeUnit`. A temporal field with any other time unit is no longer reported. The
+`bin` of an offset channel is not applied (`vl-encoding-bin`), and the `xOffset` and `yOffset` **properties** of a mark
+(a pixel offset) are not drawn, as before. Example 47 draws a grouped bar chart.
 
 ### Vega-Lite Time and Time Zones
 
@@ -1407,7 +1469,8 @@ and the years 0 to 99 mean 1900 to 1999. They differ in these ways: `now()` is n
 is not an input; it is reported as `vl-expr-function-now` and gives `null`), `datetime()` with no argument is `null`,
 a result outside the years 1 to 9999 is `null` for a date and `NaN` for a number where JavaScript has `Invalid Date`, a
 `null` or boolean argument is not an instant (JavaScript reads `null` as the epoch), and `isoweek` and `utcisoweek` are
-included, though Vega has no such unit.
+included, though Vega has no such unit. `timeFormat` and `timeParse` read the calendar of the chart and `utcFormat` and
+`utcParse` UTC.
 
 **The time zone.** `VegaLiteRenderOptions.TimeZone` is a `TimeZoneInfo`; `null` (the default) is **UTC**, and a chart
 never uses the zone of the machine (`TimeZoneInfo.Local`, the clock, and the culture are not consulted), so a chart that
@@ -2142,9 +2205,9 @@ thread, after the work finished and before the method returns or throws.
 | `vl-guide-axis-tickcount-interval` | Warning | A time interval (`"week"` or `{"interval": "week", "step": 2}`) as the `tickCount` of an axis or legend whose scale is not a time scale; the default tick count is used |
 | `vl-format-type-custom` | Unsupported | An `axis.formatType`, `legend.formatType`, `header.formatType`, or the `formatType` of a `text` channel other than `number`, `time`, and `utc` (a custom format type is not evaluated; the default format is used) |
 | `vl-expr-ref` | Unsupported | An `{"expr": ...}` value where the renderer does not evaluate one: a title, padding, background, `view`, a mark property other than color, fill, stroke, opacity, stroke width, and the size of a point, circle, square, line, trail, or text, an encoding `value` other than that of color, fill, stroke, opacity, or the size of such a mark, and a facet field definition or `header`; and an expression inside a `point` or `line` overlay object. The value is not used |
-| `vl-offset-position` | Unsupported | An `xOffset` or `yOffset` that has no discrete position to nest in: the `x` (or `y`) channel is missing, is quantitative or temporal, or has a `timeUnit`. The offset is ignored and the marks are drawn at their position (Vega-Lite throws for a continuous position) |
+| `vl-offset-position` | Unsupported | An `xOffset` or `yOffset` that has no position to nest in: the `x` (or `y`) channel is missing, is quantitative, or is temporal without a `timeUnit`; or its time unit is `day`, `weekday`, `yearweekday`, binned, or `maxbins`; or the mark is a `rect` with a time unit; or the field is nominal or ordinal with a `timeUnit`. A temporal field with another time unit is nested in and not reported. The offset is ignored and the marks are drawn at their position (Vega-Lite throws for a continuous position) |
 | `vl-offset-ranged` | Unsupported | A continuous (quantitative or temporal) `xOffset` or `yOffset` of a `bar` or an `area`, which Vega-Lite draws as a range from the start of the band (a ranged offset). The offset is ignored and the marks are drawn at their position; the continuous offset of a point-like mark is drawn |
-| `vl-expr-function-<name>` | Unsupported | The string value of an expression (also a `labelExpr`) that calls a function outside the 99 supported ones, once per call, with `<name>` lower-cased (`vl-expr-function-now` for `now`, `vl-expr-function-geoarea` for `geoArea`; the message names the function **as written**). The call evaluates to null |
+| `vl-expr-function-<name>` | Unsupported | The string value of an expression (also a `labelExpr`) that calls a function outside the 100 supported ones, once per call, with `<name>` lower-cased (`vl-expr-function-now` for `now`, `vl-expr-function-geoarea` for `geoArea`; `vl-expr-function-luminance` for `luminance`; the message names the function **as written**). The call evaluates to null |
 | `vl-expr-view-state` | Unsupported | The string value of an expression that uses `signal`, `event`, or `item`, or the name `width`, `height`, `padding`, `autosize`, `background`, or `cursor` without declaring a parameter of that name. It evaluates to null |
 | `vl-expr-construct-<name>` | Unsupported | The string value of an expression that uses an operator that is parsed but not run: `bitwise-or`, `bitwise-xor`, `bitwise-and`, `bitwise-not` (the unary `~`), `shift-left`, `shift-right`, `shift-right-unsigned`, or `in`. It evaluates to null |
 | `vl-expr-runtime` | Warning | The string value of a `calculate` expression whose result is a regular expression for some rows; null is stored (one warning per transform, with the number of rows and the first row index) |
@@ -2240,10 +2303,13 @@ and is retired: label expressions are evaluated now (see *Vega-Lite Label Expres
 is reported with `vl-expr-function-<name>`, `vl-expr-view-state`, and `vl-expr-construct-<name>` at the text of the
 expression, and `vl-expr-label` is never produced again and will not be reused. The identifiers `vl-channel-xoffset`
 and `-yoffset` are no longer produced because the offset channels are drawn (see *Vega-Lite Offset Channels (Grouped
-Bars)*); they are retired with it, and `vl-offset-position` and `vl-offset-ranged` are new. A build that matched one of
+Bars)*); they are retired with it, and `vl-offset-position` and `vl-offset-ranged` are new (`vl-offset-position` is no
+longer reported for a temporal position with a supported time unit, which is nested in now). The identifier
+`vl-expr-function-format` is no longer reported either, because `format()` is supported (see *Vega-Lite Expressions*).
+A build that matched one of
 the retired identifiers should stop doing so.
 Planned later releases add, among other things, the other transforms (`regression`, `loess`, `density`, `quantile`,
-`extent`), the number formatting (`format()`) and color functions of the expression language, expressions in more
+`extent`), the color functions of the expression language, expressions in more
 places, `image`, and
 selections; until then the constructs are
 reported with the identifiers above. Geographic constructs (`projection`, `geoshape`, `longitude` and `latitude`,

@@ -19,7 +19,7 @@ item, the settings of an overlay, and one build run, the nested `sealed partial 
 - `MarkBuilder.Text.cs` - the `text` mark: positions, polar offset, font properties, the text of a row, and its limits
 - `MarkBuilder.Arcs.cs` - the `arc` mark, the polar span of a channel, and the polar position of a stacked `text`
 - `MarkBuilder.Offsets.cs` - the `xOffset` and `yOffset` channels: `ChannelOffset` (the offset scale of a position and
-  how it reads the offset value of a row), `AttachOffsets`, and `OffsetCenter`
+  how it reads the offset value of a row), `AttachOffsets`, `TimeUnitOffsetRange`, and `OffsetCenter`
 
 Every file carries the provenance header comment for the d3-shape, d3-path, Vega, and Vega-Lite behavior it ports (see
 _CanvasNetVegaLite System Design_, Third-Party Provenance and Attribution).
@@ -171,6 +171,35 @@ position of a row is the **start of its band** and the offset scale places the m
 - Box plots and error bars keep the offset: the boxes of the default size 14 are centered in the offset band. A stack
   with an offset (`StackRules`) stacks inside each group of the offset, so stacked bars are grouped by the offset.
 - The pixel `xOffset` and `yOffset` **properties of the mark** (not the channels) are still not drawn.
+
+**Offsets inside a time unit** (Vega-Lite's `getOffsetRange`, `durationExpr`, and `timeUnitBandSize`). When the position
+is a temporal field with a time unit (the position scale stays a time scale; `ScaleResolver.HasTimeUnitOffset`),
+`AttachOffsets` creates the offset scale with `CreateModel(0, range)` where `range` comes from `TimeUnitOffsetRange`:
+
+- `length = parentTimeScale(end) - parentTimeScale(start)` of the reference span of the unit
+  (`TimeUnitSpec.ReferenceSpan(calendar)`: 2001-01-01 and one step of the smallest part later, in the calendar of the
+  scale), the pixels of **one reference unit on the parent scale**. It is the same for every unit of the chart (a month
+  is the 31 days of January 2001, a year 365 days) and **negative on a y scale**. A unit without a reference span or a
+  length that is not finite leaves the offset undrawn.
+- `padding = config.scale.bandWithNestedOffsetPaddingInner` (0.2 by default) and `bpo = bandPosition - 0.5`, where the
+  band position is the `bandPosition` of the position channel, else the `timeUnitBandPosition` of the mark, else 0.5.
+  The range is `[(padding / 2 + bpo) * length, (1 - padding / 2 + bpo) * length]`, or `[0, length]` when the padding is
+  0 (the band position then does not apply).
+- A mark reads the parent at the **start of the unit** and adds the offset (`Center()` for the point-like marks). A
+  `bar`, `tick`, or `rule` spans a band of the offset scale: `Span` routes a channel that has an offset and a time scale
+  to `BandSpan` (before the `rectBinPosition` rule for a unit on a time scale), whose size is the bandwidth of the offset
+  scale times `timeUnitBandSize` (default 1, centered) unless a `size` is given. For example, a monthly grouped bar chart
+  (`yearmonth`, two groups, a domain of 59 days over 300 pixels) has a month of 31 x 300 / 59 pixels and bars that are
+  0.4 of a month wide, at 0.1 and 0.5 of the month from its start.
+
+Documented deviations: (a) a mark without `timeUnitBandPosition` and `bandPosition` (a point, a line, a text) uses 0.5,
+where Vega-Lite computes NaN; (b) a `rect` mark, a `day`, `weekday`, binned, or `maxbins` unit, and a nominal or ordinal
+parent with a time unit are not drawn (`vl-offset-position`); (c) a UTC unit measures its reference duration in the
+calendar of the scale (UTC) where Vega-Lite uses the zone of the chart (up to an hour for a quarter in a zone with a
+daylight saving time); (d) a `bandPosition` other than 0.5 on a bar does not shift the scale domain as Vega-Lite's
+shifted rect fields do (`vl-encoding-bandposition-rect` is still reported); (e) `minBandSize` clamps around the start
+of the band, not its center. The unit `month` without a year puts all dates into the leap year 2012 (the reference span
+is still January 2001, the domain uses 2012 dates); `yearmonth` uses the real year.
 
 **Path marks** (`MarkBuilder.Paths.cs`). A `line`, `area`, or `trail` is built group by group, in two passes over the rows
 and then one step per group:

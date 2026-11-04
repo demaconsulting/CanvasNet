@@ -133,7 +133,9 @@ and repeated here:
   a year 365 days (31,536,000,000), a quarter 31 + 28 + 31 = 90 days (7,776,000,000), a week 604,800,000, a date or
   day of
   year 86,400,000, an hour 3,600,000, a minute 60,000, a second 1,000, a millisecond 1; a step multiplies it (two months
-  are 59 days, 5,097,600,000; six hours 21,600,000); a unit whose smallest part is the day of the week has none.
+  are 59 days, 5,097,600,000; six hours 21,600,000); a unit whose smallest part is the day of the week has none. The
+  overload with a calendar measures the same dates in that calendar (the first quarter of 2001 is an hour shorter in a
+  zone whose daylight saving time starts in March).
 - **Label specifiers.** The Vega-Lite specifier of a unit (Vega's `timeUnitSpecifier` with the Vega-Lite overrides)
   is in the table below; Vega's own defaults (`TryGetUnitSpecifier` without overrides) are `year` `%Y`, year-month
   `%Y-%m`, year-month-date `%Y-%m-%d`, month-date `%b %d`, hours-minutes `%H:%M`, hours-minutes-seconds `%H:%M:%S`,
@@ -463,12 +465,18 @@ returns the same object; and that an extent that is NaN resolves to the year wit
 
 **Tests**: `TimeUnitSpecTests.TimeUnitSpec_Duration_IsTheSmallestPartOfTwoThousandOne`,
 `TimeUnitSpecTests.TimeUnitSpec_Duration_DayOfWeekHasNone`, `TimeUnitSpecTests.TimeUnitSpec_IsSingleLocalUnit_OnlyForOneLocalPart`,
+`TimeUnitSpecTests.TimeUnitSpec_DurationMilliseconds_UsesTheCalendar`,
 `TimeUnitSpecTests.TimeUnitSpec_Parse_Specifier_And_Floor_AreCultureIndependent`
 
 Asserts the thirteen derived durations, that `day`, `weekday`, and `yearweekday` have none, that only a unit of one local
 part is a single local unit (`month` is, `utcmonth`, `yearmonth`, and `binnedyear` are not), and that names, specifiers,
 field names, and floors of five units whose names contain the letter I are the same under `tr-TR`, `de-DE`, and the
-invariant culture.
+invariant culture. The calendar overload `DurationMilliseconds(TimeCalendar)` gives, for `month`, `year`, `yearquarter`,
+`yearweek`, and `hours`, the same value in UTC as the parameterless form; in a US-like zone whose daylight saving time
+starts in March the first quarter of 2001 is an hour shorter (7,776,000,000 - 3,600,000 = 7,772,400,000 ms, as
+Vega-Lite measures it with the local `datetime`) and a `month` is still 2,678,400,000 ms; `day` has none (null) in that
+zone and `weekday` has none in UTC; a null calendar is an `ArgumentNullException`; and `ReferenceSpan(TimeCalendar.Utc)`
+of `month` starts at 978,307,200,000 ms (2001-01-01T00:00Z) while that of `day` is null.
 
 ##### Datetime Objects Are Read And Evaluated
 

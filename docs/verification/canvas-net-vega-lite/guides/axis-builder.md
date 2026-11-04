@@ -89,7 +89,8 @@ expectations are derived from the d3 interval table, the multi-format rule, and 
   `datum.tickIndex` 0 to 4, so `tickIndex + '@' + index` reads `0@0`, `1@0.25`, `2@0.5`, `3@0.75`, and `4@1`;
   `datum.value % 20 ? '' : datum.label` leaves the labels 0, 20, ..., 100 on eleven ticks; with the listed values 0 to
   50 at 60 pixels apart the labels `N kilograms` overlap and are thinned by parity, while blanking all but the multiples
-  of 30 leaves `0 kilograms` and `30 kilograms`.
+  of 30 leaves `0 kilograms` and `30 kilograms`; `format(datum.value / 100, '.0%')` gives `0%`, `10%`, ..., `100%` and
+  `timeFormat`/`utcFormat` read the tick 2024-01-01 as `31 19` and `01 00` in a UTC-5 chart.
 
 #### Test Environment
 
@@ -354,11 +355,16 @@ result `['top', datum.label]` is one label whose lines are `top` and `0`.
 
 **Tests**: `AxisBuilderLabelExprTests.AxisBuilder_Build_LabelExprIndexIsFractionAndTickIndexIsInteger`,
 `AxisBuilderLabelExprTests.AxisBuilder_Build_LabelExprTemporalAxisUsesDateValue`,
+`AxisBuilderLabelExprTests.AxisBuilder_Build_LabelExprFormatAndTimeFormat`,
 `AxisBuilderLabelExprTests.AxisBuilder_Build_LabelExprBandAxisGivesCategoryAsValueAndLabel`
 
 Asserts that five listed values give the labels `0@0`, `1@0.25`, `2@0.5`, `3@0.75`, and `4@1` for the expression
 `datum.tickIndex + '@' + datum.index`; that the value of a time axis is a date (`timeFormat(datum.value, '%b %Y') + ' /
-' + year(datum.value)` gives `Jan 2024 / 2024` and `Mar 2024 / 2024`); and that the value and the label of a band axis
+' + year(datum.value)` gives `Jan 2024 / 2024` and `Mar 2024 / 2024`); that `format(datum.value / 100, '.0%')` on the
+eleven ticks 0 to 100 of the linear axis (`labelOverlap: false`) gives `0%`, `10%`, ..., `100%`, and that, for the one
+listed tick 2024-01-01, `timeFormat(datum.value, '%d %H') + '|' + utcFormat(datum.value, '%d %H')` gives `01 00|01 00`
+in UTC and `31 19|01 00` in a chart whose zone is UTC-5 (the local form follows the calendar of the chart, the UTC form
+does not); and that the value and the label of a band axis
 are the category text (`upper(datum.value) + datum.label` gives `Aa` and `Bb`).
 
 ##### Label Expressions Run Before The Labels Are Measured And Thinned

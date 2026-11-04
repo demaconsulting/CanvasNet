@@ -613,7 +613,7 @@ field is ignored with `vl-composition-columns-ignored`, `spacing` of 40 puts the
 `bounds: "flush"` lays out the data rectangles (120 apart whatever the axes). The limit on the number of views is
 checked from the number of cells before any is made (six cells and the facet are seven views; refused at six, located at
 the `row` field), a facet with unsupported parts reports `vl-facet-field-transform`, `vl-facet-sort`,
-`vl-header-orient`, the unsupported function of a header `labelExpr` (`vl-expr-function-format`; `vl-expr-label` is retired)
+`vl-header-orient`, the unsupported function of a header `labelExpr` (`vl-expr-function-luminance`; `vl-expr-label` is retired)
 and `vl-format-type-custom` and draws the rest, strict mode has nothing to throw for
 a facet that uses only what is drawn, the scene item limit (charged once for each header, so a 5 by 5 grid renders under
 exactly the limit of its own scene's item count, and one less fails) and a canceled token stop the work, `Measure`
@@ -628,10 +628,14 @@ unsupported mark draws its empty cells and reports the mark once.
 `VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_LegendLabelsAreReplaced`,
 `VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_HeaderLabelsAreReplacedWithPrecedence`,
 `VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_WrappedFacetTitlesAreReplaced`,
+`VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_HeaderArrayResultIsSeveralLines`,
+`VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_WrappedFacetTitleArrayResultIsSeveralLines`,
+`VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_HeaderMultiLineLabelIsTallerThanOneLine`,
 `VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_ParameterCanBeUsed`,
 `VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_ResultDoesNotDependOnTheCulture`,
 `VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_BudgetExceededIsARenderException`,
-`VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_FormatIsReportedAndEvaluatesToEmptyLabels`
+`VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_UnsupportedFunctionIsReportedAndEvaluatesToEmptyLabels`,
+`VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_FormatAndTimeFormatDrawWithoutDiagnostics`
 
 The `labelExpr` of axes, legends, and facet headers runs on the evaluator of the call when the chart is laid out (the
 document gives the `RowExpressions` to the axis and legend builders and to the facet headers). A line chart whose y
@@ -641,11 +645,21 @@ not `2021`, and `20%` and `60%`, with strict mode reporting nothing; a temporal 
 read `C:a`, `C:b` and `R:2020`, `R:2021`, `R:2022`, with the header taking precedence over the header configuration of
 the channel and over `config.header`, and the cell titles of a wrapped facet take `config.header` as the fallback
 (`a!a` and `b!b`); an expression reads a variable parameter (`20 kg`) and the labels under `tr-TR` are those of the
-invariant culture. An expression that needs more than the step budget is a `VegaLiteRenderException` located at
-`/encoding/x/axis/labelExpr` and naming `MaxEvaluationSteps`, and a `format()` call is reported as
-`vl-expr-function-format` at the text, gives empty labels, and fails strict mode with a
-`VegaLiteUnsupportedFeatureException`. The command line renders the same kinds of chart in strict mode with no
-diagnostics (`RenderCommandVegaLiteTests.RenderCommand_Run_VegaLiteOffsetAndLabelExpr_AreDrawnWithStrictAndNoDiagnostics`).
+invariant culture. The array result of a header expression is several lines of the header: `[datum.label, 'n=' +
+datum.value]` on the column header of a facet gives the lines `a`, `n=a` and `b`, `n=b`, `[datum.label, 'r']` on the
+row header gives `2020`, `r` and so on, while a string result with a line feed stays one line (`a\na`); the cell title of
+a wrapped facet with `headerFacet.labelExpr` `[datum.label, '#' + datum.value]` has the lines `a`, `#a` and `b`, `#b`;
+and the chart with a two-line column header is more than 8 pixels taller than the one with a one-line header (the
+layout measures the lines). An expression that needs more than the step budget is a `VegaLiteRenderException` located at
+`/encoding/x/axis/labelExpr` and naming `MaxEvaluationSteps`, and a call of an unsupported function
+(`luminance('#fff')`) is reported as `vl-expr-function-luminance` at the text, gives empty labels, and fails strict mode
+with a `VegaLiteUnsupportedFeatureException`. The functions `format` and `timeFormat` are evaluated and not reported:
+the y labels `format(datum.value * 1000, ',.0f')` include `20,000`, the x label `timeFormat(datum.value, '%b %Y')` is
+`Jan 2021`, the legend `format(datum.value, '+d')` gives `+2020`, `+2021`, and `+2022`, the column headers
+`format(..., '03d')` give `001` and `002`, strict mode has nothing to throw, and the specifier `.2.3f` is a located
+`VegaLiteRenderException` ("invalid format: .2.3f"). The command line renders the same kinds of chart in strict mode with
+no diagnostics (`RenderCommandVegaLiteTests.RenderCommand_Run_VegaLiteOffsetAndLabelExpr_AreDrawnWithStrictAndNoDiagnostics`,
+which also draws a chart whose labels use `format` and `timeFormat` and a `yearmonth` bar chart with an `xOffset`).
 
 #### Offset Channels: Grouped Bars, Strips, And Shared Offset Scales
 
@@ -658,6 +672,7 @@ diagnostics (`RenderCommandVegaLiteTests.RenderCommand_Run_VegaLiteOffsetAndLabe
 `VegaLiteOffsetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Offset_FacetCellsShareTheOffsetDomain`,
 `VegaLiteOffsetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Offset_LayersShareTheOffsetScale`,
 `VegaLiteOffsetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Offset_NotDrawnOffsetsAreReportedAndIgnored`,
+`VegaLiteOffsetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Offset_MonthlyGroupedBars`,
 `VegaLiteOffsetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Offset_BoxplotBoxesSitSideBySide`
 
 A grouped bar chart of three categories and two groups through the whole pipeline is 160 pixels wide, has bars 20 pixels
@@ -670,5 +685,10 @@ concatenation are independent (the second chart is 80 pixels wider, with bars of
 `shared`, the cells of a facet share the offset domain (every cell has the same grouped bars), and a bar layer and a
 text layer over the same offsets share the position and the offset scales (each label is at the center of its bar). An
 offset that is not drawn is reported and the marks are drawn at their position (`vl-offset-position` for a quantitative
-position and `vl-offset-ranged` for a continuous offset of a bar), and the three boxes of a boxplot with an offset
+position or a `day` time unit, and `vl-offset-ranged` for a continuous offset of a bar; a `month` unit reports nothing),
+a grouped bar chart over months (`month` unit, width 300, three months of two groups: the domain is January 1 to April 1
+of the leap year 2012, 91 days, so a day is 300 / 91 pixels and the reference month of 31 days is 31 x 300 / 91 =
+102.2 pixels) has six bars 0.4 of a month (40.9 pixels) wide, the first two touching at 0.1 and 0.5 of a month from the
+left of the view and the next two at one month plus 0.1 and 0.5 of a month, with a legend `a`, `b` and nothing
+reported in strict mode, and the three boxes of a boxplot with an offset
 channel sit side by side with equal widths.

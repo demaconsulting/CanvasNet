@@ -46,7 +46,10 @@ mocking or stubbing is required; the internal types are reached through the test
 access.
 
 Unit tests reside in `NumberFormatTests.cs` within the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the
-`Scales` folder.
+`Scales` folder. The expression function `format(value, specifier)` is a second consumer of `NumberFormat.Create` and
+`Format`; its scenarios (the d3 vectors through an expression, the value coercion, the invalid specifier, and the
+formatter cache) are in `ExpressionFunctionsNumberTests.cs` and are described in the _ExpressionFunctions Unit
+Verification Design_.
 
 #### Test Environment
 

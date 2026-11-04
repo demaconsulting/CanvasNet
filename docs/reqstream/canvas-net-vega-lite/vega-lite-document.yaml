@@ -552,7 +552,8 @@ sections:
               title of a wrapped facet on a side) drawn on the default side; and the text of each label (the label of
               a cell, or the title of a cell of a wrapped facet) replaced by the labelExpr of the header, or else of
               the row or column header configuration and of config.header, evaluated with the datum of a header
-              (value and label only) and the limits and parameters of the call.
+              (value and label only) and the limits and parameters of the call, an array result being several
+              lines of the header (a string result with a line feed staying one line), which the layout measures.
             justification: |
               The labels and titles are what name the cells; the order and the format are what the reader reads
               the cells by, and an undrawn side must not silently place the text somewhere unexpected.
@@ -566,6 +567,9 @@ sections:
               - CanvasNetVegaLite_SystemIntegration_Facet_HeaderLabelsUseTheFormat
               - CanvasNetVegaLite_SystemIntegration_LabelExpr_HeaderLabelsAreReplacedWithPrecedence
               - CanvasNetVegaLite_SystemIntegration_LabelExpr_WrappedFacetTitlesAreReplaced
+              - CanvasNetVegaLite_SystemIntegration_LabelExpr_HeaderArrayResultIsSeveralLines
+              - CanvasNetVegaLite_SystemIntegration_LabelExpr_WrappedFacetTitleArrayResultIsSeveralLines
+              - CanvasNetVegaLite_SystemIntegration_LabelExpr_HeaderMultiLineLabelIsTallerThanOneLine
               - CanvasNetVegaLite_SystemIntegration_Facet_ColumnLabelsAndTitleAtTheBottomAreFootersAndTitleBelow
               - CanvasNetVegaLite_SystemIntegration_Facet_RowLabelsAndTitleAtTheRightAreFootersAndTitleBeside
               - CanvasNetVegaLite_SystemIntegration_Facet_NotDrawnPartsAreReported

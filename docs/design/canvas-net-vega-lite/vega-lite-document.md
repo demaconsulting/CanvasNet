@@ -316,7 +316,10 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   and column,
   with the label of its value and the shared axes; the label of a cell is the formatted value, replaced by the
   `labelExpr` of the header when it has one (`Composer.WithLabelExpression`, on the shared evaluator of the
-  call, with the precedence header, then `headerRow`/`headerColumn`/`headerFacet`, then `config.header`);
+  call, with the precedence header, then `headerRow`/`headerColumn`/`headerFacet`, then `config.header`; the label
+  is the **lines** of the result, so an array result such as `[datum.label, 'n=' + datum.value]` is a header, footer,
+  or wrapped-facet cell title of several lines, which `TitleBuilder` measures so that the header is taller, and a
+  string result stays one line);
   `HeaderSettings.Read(config, header, channel, honoredOrientsOnly: true)` reads the header properties, so a side that
   the renderer does not draw is read as not given and the default side is used), the row and column titles by
   `BuildHeader` with the `title` part (the title of the header, else that of the field definition, else the field name;

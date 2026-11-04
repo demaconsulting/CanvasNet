@@ -214,16 +214,36 @@ public class LabelExpressionsTests
     }
 
     /// <summary>
-    ///     Validates that a function outside the table (the number format) evaluates to null and so to the empty text.
+    ///     Validates that a function outside the table (a color function) evaluates to null and so to the empty text.
     /// </summary>
     [Fact]
     public void LabelExpressions_Evaluate_UnsupportedFunctionIsNullAndEmpty()
     {
         // Act
-        var result = Run("format(datum.value, ',.0f')", LabelExpressions.Datum(DataValue.FromNumber(1200), "1,200"));
+        var result = Run("luminance('#fff')", LabelExpressions.Datum(DataValue.FromNumber(1200), "1,200"));
 
         // Assert
         Assert.Equal(string.Empty, result.Text);
+    }
+
+    /// <summary>
+    ///     Validates that <c>format</c> (d3-format) and <c>timeFormat</c> (d3-time-format) run in a label expression: a percentage, a number with a thousands separator, a month and a year, and that an array
+    ///     of them is several lines.
+    /// </summary>
+    [Fact]
+    public void LabelExpressions_Evaluate_FormatAndTimeFormat()
+    {
+        // Act
+        var percent = Run("format(datum.value, '.0%')", LabelExpressions.Datum(DataValue.FromNumber(0.2), "0.2"));
+        var thousands = Run("format(datum.value, ',.0f')", LabelExpressions.Datum(DataValue.FromNumber(1200), "1,200"));
+        var month = Run("timeFormat(datum.value, '%b %Y')", LabelExpressions.Datum(DataValue.FromDate(Date(2024, 3, 1)), "Mar 1"));
+        var lines = Run("[format(datum.value, '$.2f'), timeFormat(datum.value, '%d')]", LabelExpressions.Datum(DataValue.FromDate(Date(2024, 3, 7)), "x"));
+
+        // Assert
+        Assert.Equal("20%", percent.Text);
+        Assert.Equal("1,200", thousands.Text);
+        Assert.Equal("Mar 2024", month.Text);
+        Assert.Equal(["$1709769600000.00", "07"], lines.Lines);
     }
 
     /// <summary>

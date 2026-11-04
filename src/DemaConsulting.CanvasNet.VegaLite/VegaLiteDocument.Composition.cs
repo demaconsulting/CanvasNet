@@ -77,10 +77,10 @@ public sealed partial class VegaLiteDocument
     ///     What a facet needs of one of its channels (<c>row</c>, <c>column</c> or the wrapped <c>facet</c>) to draw its headers.
     /// </summary>
     /// <param name="Settings">The header properties of the channel (the sides that the renderer does not honor read as not given).</param>
-    /// <param name="Label">Turns the value of a cell into the text of its label; null when the labels are switched off or the facet has no such channel.</param>
+    /// <param name="Label">Turns the value of a cell into the lines of its label; null when the labels are switched off or the facet has no such channel.</param>
     /// <param name="TitleLines">The lines of the title of the channel; none when it has none.</param>
     /// <param name="Location">The location of the field definition.</param>
-    private sealed record FacetChannel(HeaderSettings Settings, Func<DataValue, string>? Label, IReadOnlyList<string> TitleLines, VegaLiteLocation Location);
+    private sealed record FacetChannel(HeaderSettings Settings, Func<DataValue, IReadOnlyList<string>>? Label, IReadOnlyList<string> TitleLines, VegaLiteLocation Location);
 
     /// <summary>
     ///     Creates the inputs of a cell.
@@ -588,8 +588,8 @@ public sealed partial class VegaLiteDocument
             var builder = new TitleBuilder(_measurer);
             if (facet?.Facet is { IsWrap: true } && chart.Cell is { } cell && ChannelOf(facet, "facet") is { Label: { } format } wrap)
             {
-                var text = cell.WrapValue.IsNull ? "null" : format(cell.WrapValue);
-                if (builder.BuildHeaderBlock([text], wrap.Settings, HeaderPart.Label, _budget, wrap.Location) is { } label)
+                IReadOnlyList<string> text = cell.WrapValue.IsNull ? ["null"] : format(cell.WrapValue);
+                if (builder.BuildHeaderBlock(text, wrap.Settings, HeaderPart.Label, _budget, wrap.Location) is { } label)
                 {
                     return label;
                 }
@@ -628,7 +628,7 @@ public sealed partial class VegaLiteDocument
                 var settings = HeaderSettings.Read(_config, definition["header"], channel, honoredOrientsOnly: true);
                 var location = definition.GetLocation(_sourceName);
                 var calendar = _layers.Count > 0 ? _layers[0].Data.Evaluation.Calendar : null;
-                Func<DataValue, string>? label = settings.ShowLabels
+                Func<DataValue, IReadOnlyList<string>>? label = settings.ShowLabels
                     ? WithLabelExpression(
                         settings,
                         settings.CreateLabelFormatter(new HeaderLabelFormat(ChannelDefinitions.TypeOf(definition, channel), null, calendar, _limits.MaxStringLength, location), _sourceName),
@@ -646,19 +646,26 @@ public sealed partial class VegaLiteDocument
         /// </summary>
         /// <remarks>
         ///     The datum of the expression has the value of the cell (<c>datum.value</c>) and the formatted label (<c>datum.label</c>), as Vega-Lite's header gives it; an array result is
-        ///     several lines, joined by a line feed in the text of the header.
+        ///     several lines of the header (a string result stays one line, however many line feeds it holds).
         /// </remarks>
         /// <param name="settings">The header properties.</param>
         /// <param name="formatter">The formatter that gives the label without the expression.</param>
         /// <param name="location">The location of the field definition.</param>
-        /// <returns>The formatter; <paramref name="formatter"/> itself when the header has no label expression.</returns>
-        private Func<DataValue, string> WithLabelExpression(HeaderSettings settings, Func<DataValue, string> formatter, VegaLiteLocation location)
+        /// <returns>The function that gives the lines of a label: the formatted label alone when the header has no label expression.</returns>
+        private Func<DataValue, IReadOnlyList<string>> WithLabelExpression(HeaderSettings settings, Func<DataValue, string> formatter, VegaLiteLocation location)
         {
             var node = settings.ExplicitNode("labelExpr");
             var expression = _labelExpressions.Resolve(node, node is null ? settings.Text("labelExpr") : null, location);
-            return expression is null
-                ? formatter
-                : value => _labelExpressions.Evaluate(expression, LabelExpressions.Datum(value, formatter(value))).Text;
+            if (expression is null)
+            {
+                return value => [formatter(value)];
+            }
+
+            return value =>
+            {
+                var result = _labelExpressions.Evaluate(expression, LabelExpressions.Datum(value, formatter(value)));
+                return result.Lines ?? [result.Text];
+            };
         }
 
         /// <summary>
@@ -865,30 +872,30 @@ public sealed partial class VegaLiteDocument
         /// </summary>
         /// <param name="channel">The channel of the field.</param>
         /// <param name="value">The value of the field in the cell.</param>
-        /// <returns>The text (a null value is labeled <c>null</c>, as Vega-Lite does); null when the labels are switched off.</returns>
-        private static string? LabelOf(FacetChannel channel, DataValue value)
+        /// <returns>The lines (a null value is labeled <c>null</c>, as Vega-Lite does); null when the labels are switched off.</returns>
+        private static IReadOnlyList<string>? LabelOf(FacetChannel channel, DataValue value)
         {
             if (channel.Label is not { } format)
             {
                 return null;
             }
 
-            return value.IsNull ? "null" : format(value);
+            return value.IsNull ? ["null"] : format(value);
         }
 
         /// <summary>
         ///     Builds one header or footer of a row or a column.
         /// </summary>
         /// <param name="role">The role of the group.</param>
-        /// <param name="label">The label, or null for none.</param>
+        /// <param name="label">The lines of the label, or null for none.</param>
         /// <param name="channel">The channel whose header properties the label has.</param>
         /// <param name="width">The width of the group: the width of the cell for a column.</param>
         /// <param name="height">The height of the group: the height of the cell for a row.</param>
         /// <param name="axes">The axes the group holds.</param>
         /// <param name="facet">The facet, for the location of the failure.</param>
         /// <returns>The group; null when it has neither a label nor an axis.</returns>
-        private HeaderGroup? Header(string role, string? label, FacetChannel channel, double width, double height, IReadOnlyList<AxisResult> axes, LayerNode facet) =>
-            new TitleBuilder(_measurer).BuildHeader(role, label is null ? [] : [label], channel.Settings, HeaderPart.Label, width, height, axes, _budget, facet.Source.GetLocation(_sourceName));
+        private HeaderGroup? Header(string role, IReadOnlyList<string>? label, FacetChannel channel, double width, double height, IReadOnlyList<AxisResult> axes, LayerNode facet) =>
+            new TitleBuilder(_measurer).BuildHeader(role, label ?? [], channel.Settings, HeaderPart.Label, width, height, axes, _budget, facet.Source.GetLocation(_sourceName));
 
         /// <summary>
         ///     Builds the title of a row or a column field.

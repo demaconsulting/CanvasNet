@@ -230,7 +230,7 @@ public class ScaleResolverOffsetTests
     }
 
     /// <summary>
-    ///     Validates that an offset without a discrete position has no scale: the position is missing, quantitative or has a time unit.
+    ///     Validates that an offset without a discrete position or a time unit has no scale: the position is missing, quantitative, has a time unit of the day of the week or is nominal with a time unit.
     /// </summary>
     [Fact]
     public void ScaleResolver_Resolve_OffsetWithoutADiscreteParentHasNoScale()
@@ -238,13 +238,64 @@ public class ScaleResolverOffsetTests
         // Act
         var quantitative = ChartTestHelpers.Parts(Spec("\"point\"", """{ "x": { "field": "v", "type": "quantitative" }, "xOffset": { "field": "g", "type": "nominal" }, "y": { "field": "v", "type": "quantitative" } }""")).Scales;
         var missing = ChartTestHelpers.Parts(Spec("\"point\"", """{ "xOffset": { "field": "g", "type": "nominal" }, "y": { "field": "v", "type": "quantitative" } }""")).Scales;
-        var unit = ChartTestHelpers.Parts(Spec("\"bar\"", """{ "x": { "field": "c", "type": "temporal", "timeUnit": "year" }, "xOffset": { "field": "g", "type": "nominal" }, "y": { "field": "v", "type": "quantitative" } }""")).Scales;
+        var day = ChartTestHelpers.Parts(Spec("\"bar\"", """{ "x": { "field": "c", "type": "temporal", "timeUnit": "day" }, "xOffset": { "field": "g", "type": "nominal" }, "y": { "field": "v", "type": "quantitative" } }""")).Scales;
+        var nominalUnit = ChartTestHelpers.Parts(Spec("\"bar\"", """{ "x": { "field": "c", "type": "nominal", "timeUnit": "year" }, "xOffset": { "field": "g", "type": "nominal" }, "y": { "field": "v", "type": "quantitative" } }""")).Scales;
 
         // Assert
         Assert.Null(quantitative["xOffset"]);
         Assert.Null(missing["xOffset"]);
-        Assert.Null(unit["xOffset"]);
+        Assert.Null(day["xOffset"]);
+        Assert.Null(nominalUnit["xOffset"]);
         Assert.Equal(ScaleKind.Linear, quantitative["x"]!.Kind);
+    }
+
+    /// <summary>
+    ///     Validates that the offset of a temporal position with a time unit has a scale of its own while the position stays a time scale (Vega-Lite's <c>channelHasNestedOffsetScale</c> accepts a field with a time unit): a
+    ///     nominal offset of a bar is a band scale without padding, and the position has no band paddings.
+    /// </summary>
+    [Fact]
+    public void ScaleResolver_Resolve_OffsetWithATimeUnitParentHasANominalOffsetScale()
+    {
+        // Act
+        var scales = ChartTestHelpers.Parts(Spec("\"bar\"", """{ "x": { "field": "c", "type": "temporal", "timeUnit": "year" }, "xOffset": { "field": "g", "type": "nominal" }, "y": { "field": "v", "type": "quantitative" } }""")).Scales;
+        var point = ChartTestHelpers.Parts(Spec("\"point\"", """{ "x": { "field": "c", "type": "temporal", "timeUnit": "year" }, "xOffset": { "field": "g", "type": "nominal" }, "y": { "field": "v", "type": "quantitative" } }""")).Scales;
+
+        // Assert
+        Assert.Equal(ScaleKind.Time, scales["x"]!.Kind);
+        var offset = scales["xOffset"]!;
+        Assert.Equal((ScaleKind.Band, 0.0, 0.0), (offset.Kind, offset.PaddingInner, offset.PaddingOuter));
+        Assert.Equal(["x", "y"], offset.DiscreteDomain.Select(d => d.Text));
+        Assert.Equal(ScaleKind.Point, point["xOffset"]!.Kind);
+    }
+
+    /// <summary>
+    ///     Validates that the range that a caller gives replaces the default range of an offset scale (a share of a time unit) and that <c>rangeMin</c>, an explicit range and <c>reverse</c> still apply to it.
+    /// </summary>
+    [Fact]
+    public void ScaleResolver_CreateModel_NestedRangeReplacesTheDefaultRange()
+    {
+        // Arrange
+        const string timeParent = """{ "x": { "field": "c", "type": "temporal", "timeUnit": "year" }, "xOffset": { "field": "g", "type": "nominal"SCALE }, "y": { "field": "v", "type": "quantitative" } }""";
+        ResolvedScale Offset(string scale, string mark = "\"bar\"") => ChartTestHelpers.Parts(Spec(mark, timeParent.Replace("SCALE", scale, StringComparison.Ordinal))).Scales["xOffset"]!;
+
+        // Act
+        var plain = Offset(string.Empty).CreateModel(0, (10, 50));
+        var rangeMin = Offset(", \"scale\": { \"rangeMin\": 20 }").CreateModel(0, (10, 50));
+        var explicitRange = Offset(", \"scale\": { \"range\": [0, 100] }").CreateModel(0, (10, 50));
+        var reversed = Offset(", \"scale\": { \"reverse\": true }").CreateModel(0, (10, 50));
+        var descending = Offset(string.Empty).CreateModel(0, (-10, -50));
+        var point = Offset(string.Empty, "\"point\"").CreateModel(0, (10, 50));
+        var unchanged = Offset(string.Empty).CreateModel(40);
+
+        // Assert: the band offset has two bands of 20 pixels in [10, 50]
+        Assert.Equal((10.0, 30.0), (plain.Map(DataValue.FromString("x")) ?? -1, plain.Map(DataValue.FromString("y")) ?? -1));
+        Assert.Equal(20.0, plain.Bandwidth, 9);
+        Assert.Equal((20.0, 35.0), (rangeMin.Map(DataValue.FromString("x")) ?? -1, rangeMin.Map(DataValue.FromString("y")) ?? -1));
+        Assert.Equal((0.0, 50.0), (explicitRange.Map(DataValue.FromString("x")) ?? -1, explicitRange.Map(DataValue.FromString("y")) ?? -1));
+        Assert.Equal((30.0, 10.0), (reversed.Map(DataValue.FromString("x")) ?? -1, reversed.Map(DataValue.FromString("y")) ?? -1));
+        Assert.Equal((-30.0, -50.0), (descending.Map(DataValue.FromString("x")) ?? 1, descending.Map(DataValue.FromString("y")) ?? 1));
+        Assert.True(point.Map(DataValue.FromString("x")) < point.Map(DataValue.FromString("y")));
+        Assert.Equal((0.0, 20.0), (unchanged.Map(DataValue.FromString("x")) ?? -1, unchanged.Map(DataValue.FromString("y")) ?? -1));
     }
 
     /// <summary>
@@ -258,7 +309,19 @@ public class ScaleResolverOffsetTests
     [InlineData("""{ "x": { "field": "c", "type": "nominal" }, "xOffset": { "field": "v", "type": "quantitative" } }""", "area", "Ranged")]
     [InlineData("""{ "x": { "field": "v", "type": "quantitative" }, "xOffset": { "field": "g", "type": "nominal" } }""", "bar", "NoDiscreteParent")]
     [InlineData("""{ "xOffset": { "field": "g", "type": "nominal" } }""", "bar", "NoDiscreteParent")]
-    [InlineData("""{ "x": { "field": "c", "type": "temporal", "timeUnit": "month" }, "xOffset": { "field": "g", "type": "nominal" } }""", "bar", "NoDiscreteParent")]
+    [InlineData("""{ "x": { "field": "c", "type": "temporal", "timeUnit": "year" }, "xOffset": { "field": "g", "type": "nominal" } }""", "bar", "TimeUnitParent")]
+    [InlineData("""{ "x": { "field": "c", "type": "temporal", "timeUnit": "month" }, "xOffset": { "field": "g", "type": "nominal" } }""", "bar", "TimeUnitParent")]
+    [InlineData("""{ "x": { "field": "c", "type": "temporal", "timeUnit": "yearmonthdate" }, "xOffset": { "field": "g", "type": "nominal" } }""", "point", "TimeUnitParent")]
+    [InlineData("""{ "x": { "field": "c", "type": "temporal", "timeUnit": "hours" }, "xOffset": { "field": "g", "type": "nominal" } }""", "tick", "TimeUnitParent")]
+    [InlineData("""{ "x": { "field": "c", "type": "temporal", "timeUnit": { "unit": "month", "step": 2 } }, "xOffset": { "field": "g", "type": "nominal" } }""", "bar", "TimeUnitParent")]
+    [InlineData("""{ "x": { "field": "c", "type": "temporal", "timeUnit": "month" }, "xOffset": { "field": "v", "type": "quantitative" } }""", "point", "TimeUnitParent")]
+    [InlineData("""{ "x": { "field": "c", "type": "temporal", "timeUnit": "month" }, "xOffset": { "field": "v", "type": "quantitative" } }""", "bar", "Ranged")]
+    [InlineData("""{ "x": { "field": "c", "type": "temporal", "timeUnit": "day" }, "xOffset": { "field": "g", "type": "nominal" } }""", "bar", "NoDiscreteParent")]
+    [InlineData("""{ "x": { "field": "c", "type": "temporal", "timeUnit": "yearmonthdate" }, "xOffset": { "field": "g", "type": "nominal" } }""", "rect", "NoDiscreteParent")]
+    [InlineData("""{ "x": { "field": "c", "type": "temporal", "timeUnit": { "maxbins": 10 } }, "xOffset": { "field": "g", "type": "nominal" } }""", "bar", "NoDiscreteParent")]
+    [InlineData("""{ "x": { "field": "c", "type": "temporal", "timeUnit": "binnedyearmonth" }, "xOffset": { "field": "g", "type": "nominal" } }""", "bar", "NoDiscreteParent")]
+    [InlineData("""{ "x": { "field": "c", "type": "temporal" }, "xOffset": { "field": "g", "type": "nominal" } }""", "bar", "NoDiscreteParent")]
+    [InlineData("""{ "x": { "field": "c", "type": "nominal", "timeUnit": "month" }, "xOffset": { "field": "g", "type": "nominal" } }""", "bar", "NoDiscreteParent")]
     [InlineData("""{ "x": { "field": "c", "type": "nominal" }, "xOffset": { "value": 3 } }""", "bar", "Supported")]
     public void ScaleResolver_DecideOffset_FollowsTheRules(string encoding, string mark, string expected)
     {

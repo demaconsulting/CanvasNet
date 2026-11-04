@@ -55,7 +55,7 @@ public class FeatureCatalogLabelExprAndOffsetTests
     {
         // Arrange
         const string json = """
-            { "config": { "axisBand": { "labelExpr": "format(datum.value, 'd')" }, "headerColumn": { "labelExpr": "signal" } },
+            { "config": { "axisBand": { "labelExpr": "luminance(datum.value)" }, "headerColumn": { "labelExpr": "signal" } },
               "mark": "point",
               "encoding": {
                 "x": { "field": "a", "type": "quantitative", "axis": { "labelExpr": "now() + datum.label" } },
@@ -68,7 +68,7 @@ public class FeatureCatalogLabelExprAndOffsetTests
         // Assert: the views are visited first, then the configuration
         Assert.Contains(("vl-expr-function-now", "/encoding/x/axis/labelExpr"), ids);
         Assert.Contains(("vl-expr-view-state", "/encoding/color/legend/labelExpr"), ids);
-        Assert.Contains(("vl-expr-function-format", "/config/axisBand/labelExpr"), ids);
+        Assert.Contains(("vl-expr-function-luminance", "/config/axisBand/labelExpr"), ids);
         Assert.Contains(("vl-expr-view-state", "/config/headerColumn/labelExpr"), ids);
         Assert.DoesNotContain(ids, i => i.Id == "vl-expr-label");
     }
@@ -105,7 +105,7 @@ public class FeatureCatalogLabelExprAndOffsetTests
     }
 
     /// <summary>
-    ///     Validates the reports of the offset channels: a missing, quantitative or time unit position is reported with <c>vl-offset-position</c> and a continuous offset of a bar or area with
+    ///     Validates the reports of the offset channels: a missing or quantitative position, a time unit that cannot hold an offset (<c>day</c>, <c>weekday</c>, <c>maxbins</c>, binned or on a <c>rect</c>) or a nominal position with a time unit is reported with <c>vl-offset-position</c> and a continuous offset of a bar or area with
     ///     <c>vl-offset-ranged</c>; a supported offset is not reported, and neither is it by the generic channel report that the offsets had before.
     /// </summary>
     [Fact]
@@ -115,13 +115,21 @@ public class FeatureCatalogLabelExprAndOffsetTests
         var supported = Visit(Chart("""{ "field": "c", "type": "nominal" }""").Replace("\"y\":", "\"xOffset\": { \"field\": \"g\", \"type\": \"nominal\" }, \"y\":", StringComparison.Ordinal));
         var quantitative = Visit(Chart("""{ "field": "c", "type": "quantitative" }""").Replace("\"y\":", "\"xOffset\": { \"field\": \"g\", \"type\": \"nominal\" }, \"y\":", StringComparison.Ordinal));
         var unit = Visit(Chart("""{ "field": "c", "type": "temporal", "timeUnit": "year" }""").Replace("\"y\":", "\"xOffset\": { \"field\": \"g\", \"type\": \"nominal\" }, \"y\":", StringComparison.Ordinal));
+        var day = Visit(Chart("""{ "field": "c", "type": "temporal", "timeUnit": "day" }""").Replace("\"y\":", "\"xOffset\": { \"field\": \"g\", \"type\": \"nominal\" }, \"y\":", StringComparison.Ordinal));
+        var maxbins = Visit(Chart("""{ "field": "c", "type": "temporal", "timeUnit": { "maxbins": 10 } }""").Replace("\"y\":", "\"xOffset\": { \"field\": \"g\", \"type\": \"nominal\" }, \"y\":", StringComparison.Ordinal));
+        var rect = Visit(Chart("""{ "field": "c", "type": "temporal", "timeUnit": "year" }""").Replace("\"bar\"", "\"rect\"", StringComparison.Ordinal).Replace("\"y\":", "\"xOffset\": { \"field\": \"g\", \"type\": \"nominal\" }, \"y\":", StringComparison.Ordinal));
+        var nominalUnit = Visit(Chart("""{ "field": "c", "type": "nominal", "timeUnit": "year" }""").Replace("\"y\":", "\"xOffset\": { \"field\": \"g\", \"type\": \"nominal\" }, \"y\":", StringComparison.Ordinal));
         var ranged = Visit(Chart("""{ "field": "c", "type": "nominal" }""").Replace("\"y\":", "\"xOffset\": { \"field\": \"g\", \"type\": \"quantitative\" }, \"y\":", StringComparison.Ordinal));
         var yOffset = Visit("""{ "mark": "bar", "encoding": { "x": { "field": "v", "type": "quantitative" }, "yOffset": { "field": "g", "type": "nominal" } } }""");
 
         // Assert
         Assert.Empty(supported);
         Assert.Equal([("vl-offset-position", "/encoding/xOffset")], quantitative);
-        Assert.Equal([("vl-offset-position", "/encoding/xOffset")], unit);
+        Assert.Empty(unit);
+        Assert.Equal([("vl-offset-position", "/encoding/xOffset")], day);
+        Assert.Equal([("vl-offset-position", "/encoding/xOffset")], maxbins);
+        Assert.Equal([("vl-offset-position", "/encoding/xOffset")], rect);
+        Assert.Equal([("vl-offset-position", "/encoding/xOffset")], nominalUnit);
         Assert.Equal([("vl-offset-ranged", "/encoding/xOffset")], ranged);
         Assert.Equal([("vl-offset-position", "/encoding/yOffset")], yOffset);
     }

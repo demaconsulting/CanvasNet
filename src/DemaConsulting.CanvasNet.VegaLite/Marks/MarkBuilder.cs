@@ -1375,6 +1375,12 @@ internal sealed partial class MarkBuilder
                 return BandSpan(channel!, model, sizing, row);
             }
 
+            // An offset places the mark inside its time unit, where it spans a band of the offset scale (Vega-Lite does not apply rectBinPosition to a channel with an offset)
+            if (channel is { Offset: not null } && model is { Kind: ScaleKind.Time or ScaleKind.Utc })
+            {
+                return BandSpan(channel, model, sizing, row);
+            }
+
             // A field that is binned on a continuous scale, or has a time unit on a time scale, spans its bin or unit unless a size is given (Vega-Lite's rectBinPosition)
             if (channel is { HasBandEnds: true } && model is not null && sizing.Fixed is null && sizing.Encoded is null)
             {
@@ -1514,7 +1520,7 @@ internal sealed partial class MarkBuilder
 
             if (isBand)
             {
-                var band = sizing.Band ?? 1;
+                var band = sizing.Band ?? (channel.Scale is { TimeUnit: not null } && channel.Model is { Kind: ScaleKind.Time or ScaleKind.Utc } ? Prop("timeUnitBandSize")?.AsNumber() : null) ?? 1;
                 var minimum = Prop("minBandSize")?.AsNumber() ?? 0;
                 return (start + (model.Bandwidth * (1 - band) / 2), Math.Max(minimum, model.Bandwidth * band));
             }

@@ -563,10 +563,16 @@ sections:
                   centered in it, and a fixed-width chart letting the groups share the band), stacking the bars
                   of one offset group with each other and not with those of the other groups (a default stack that
                   a quantitative offset without a dimension disables, and none for aggregated grouped bars), and
-                  not drawing a row whose offset value is invalid.
+                  not drawing a row whose offset value is invalid; and, for an offset inside a temporal position with
+                  a time unit, reading the time scale at the start of the unit and adding the offset, the range of
+                  the offset scale being one reference unit of the time scale (a month is the 31 days of January
+                  2001, a year 365 days; negative on a y scale) inset by the inner padding of the nested offset
+                  (config.scale.bandWithNestedOffsetPaddingInner) and moved by the band position, a bar spanning a
+                  band of the offset scale scaled by the band size of the time unit unless it has a size.
                 justification: |
                   Grouped bars and offset points only compare the subgroups if every mark sits in its own part of
-                  the group; a row with no valid offset has no place and must not be drawn at a wrong one.
+                  the group or of the month; a row with no valid offset has no place and must not be drawn at a
+                  wrong one.
                 tests:
                   - MarkBuilder_Build_GroupedBarsHaveTheOffsetBandWidthAtTheOffsetPosition
                   - MarkBuilder_Build_GroupedBarsInAFixedWidthFillTheBandwidth
@@ -580,3 +586,7 @@ sections:
                   - MarkBuilder_Build_RowWithInvalidOffsetIsNotDrawn
                   - MarkBuilder_Build_StackedGroupedBarsStackInsideEachGroup
                   - MarkBuilder_Build_AggregatedGroupedBarsAreNotStacked
+                  - MarkBuilder_Run_TimeUnitOffsetPlacesBarsInsideTheMonth
+                  - MarkBuilder_Run_TimeUnitOffsetRangeFollowsBandSizeSizeBandPositionAndPadding
+                  - MarkBuilder_Run_TimeUnitOffsetPointsAndTicks
+                  - MarkBuilder_Run_TimeUnitYOffsetRunsUpward

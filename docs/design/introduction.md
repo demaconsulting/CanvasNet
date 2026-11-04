@@ -268,7 +268,8 @@ software items, specifically:
   and parsing with the English locale, Vega's multi-format, and JavaScript's `Date.parse`). The `Expressions` subsystem
   has three units: `ExpressionParser` (a bounded compiler of the Vega expression language into an immutable postfix
   program), `ExpressionEvaluator` (a culture-invariant interpreter with JavaScript coercion under a step budget), and
-  `ExpressionFunctions` (the closed table of 99 pure functions, including the date and time functions, with the safe
+  `ExpressionFunctions` (the closed table of 100 pure functions, including the date and time functions and the number
+  `format`, with the safe
   regular expression translation). The `Transforms` subsystem has four units: `RowTransforms` (the static parameter
   environment and the `calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot`, `lookup`, and `timeUnit` transforms
   between the loader and the scales), `AggregateTransforms` (the `aggregate`, `joinaggregate`, `window`, `bin`, `stack`,

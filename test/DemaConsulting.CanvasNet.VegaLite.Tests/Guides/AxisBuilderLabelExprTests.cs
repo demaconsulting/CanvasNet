@@ -99,6 +99,32 @@ public class AxisBuilderLabelExprTests
     }
 
     /// <summary>
+    ///     Validates <c>format</c> and <c>timeFormat</c> in the expression of an axis: a quantitative axis shows a percentage, and a temporal axis shows a date in the zone of the chart for <c>timeFormat</c> and in UTC for
+    ///     <c>utcFormat</c> (midnight UTC is the evening of the day before at UTC-5).
+    /// </summary>
+    [Fact]
+    public void AxisBuilder_Build_LabelExprFormatAndTimeFormat()
+    {
+        // Arrange
+        const string temporal = """
+            { "data": { "values": [ { "d": "2024-01-01", "n": 1 }, { "d": "2024-03-01", "n": 2 } ] }, "mark": "line",
+              "encoding": { "x": { "field": "d", "type": "temporal", "axis": { "values": ["2024-01-01"], "labelExpr": "timeFormat(datum.value, '%d %H') + '|' + utcFormat(datum.value, '%d %H')" } },
+                            "y": { "field": "n", "type": "quantitative" } } }
+            """;
+        var zone = TimeZoneInfo.CreateCustomTimeZone("minus-five", TimeSpan.FromHours(-5), "minus-five", "minus-five");
+
+        // Act
+        var percent = ChartTestHelpers.Axis(WithAxis("{ \"labelOverlap\": false, \"labelExpr\": \"format(datum.value / 100, '.0%')\" }"), "x", 300, 200)!;
+        var utc = ChartTestHelpers.Axis(temporal, "x", 300, 200)!;
+        var zoned = ChartTestHelpers.Axis(temporal, "x", 300, 200, zone: zone)!;
+
+        // Assert
+        Assert.Equal(["0%", "10%", "20%", "30%", "40%", "50%", "60%", "70%", "80%", "90%", "100%"], Labels(percent));
+        Assert.Equal(["01 00|01 00"], Labels(utc));
+        Assert.Equal(["31 19|01 00"], Labels(zoned));
+    }
+
+    /// <summary>
     ///     Validates the band axis: the value is the category and the label its text.
     /// </summary>
     [Fact]

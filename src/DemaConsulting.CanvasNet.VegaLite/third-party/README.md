@@ -391,7 +391,7 @@ number of views, their nesting and the scene items are bounded by the render lim
 
 `LabelExpressions` (`Guides/`), the `labelExpr` parts of `AxisBuilder`, `LegendBuilder` and `HeaderSettings` (`Guides/`) and of
 `VegaLiteDocument.Composition.cs` (the root namespace), `ScaleResolver.Offsets.cs` and the offset parts of `ScaleResolver`
-(`Scales/`), `MarkBuilder.Offsets.cs` and the offset hooks of `MarkBuilder` (`Marks/`), and the offset rules of `StackRules` and
+(`Scales/`), `MarkBuilder.Offsets.cs` and the offset hooks of `MarkBuilder` (`Marks/`), `TimeUnitSpec` (`Data/`: the reference duration of a unit), `ExpressionFunctions.Number.cs` (`Expressions/`), and the offset rules of `StackRules` and
 `EncodingPlan` (`Transforms/`) re-implement the following behavior in C#. The files were read from the Vega-Lite `v6.5.0` tag and
 the Vega `v6.4.0` line (`main` branch for `AxisTicks.js`, whose `tickIndex` member is in 6.4.0 and not before) for rules,
 structure and default values. No code, comments, tests, examples or output were copied: the tests of these units use values
@@ -409,14 +409,17 @@ verification documents), never output of Vega-Lite or Vega. The unit headers car
 | Vega | `packages/vega-scenegraph/src/util/text.js` | how the result of a label expression becomes text: a missing value is the empty text, an array is several lines with every element trimmed, and anything else is its JavaScript string trimmed |
 | Vega-Lite | `src/encoding.ts` (`channelHasNestedOffsetScale`), `src/channel.ts`, `src/compile/scale/type.ts` | when a position channel holds an offset scale (a discrete field or datum with an offset field), that its scale is then a band scale for every mark, and the default type of an offset scale (band for rect, bar, image, rule and tick, point for the other marks when discrete, linear or time when continuous) |
 | Vega-Lite | `src/compile/scale/properties.ts`, `src/scale.ts` | the nested offset paddings of a position (`bandWithNestedOffsetPaddingInner` and `Outer`, 0.2 each), the offset band paddings (`offsetBandPaddingInner` and `Outer`, none by default), the outer padding of half a step of a point offset, and that an offset has neither `nice`, `zero` nor pixel padding |
-| Vega-Lite | `src/compile/scale/range.ts`, `src/spec/base.ts` | the range of an offset scale (the bandwidth of its position scale, running upward for a continuous `yOffset`), and the step arithmetic of `for: "offset"` and `for: "position"`: the step of the position scale as the step of the offset times the space of the offset domain over one minus the inner padding of the position |
-| Vega-Lite | `src/compile/mark/encode/offset.ts`, `position-point.ts`, `position-rect.ts`, `valueref.ts` | that a position with an offset is read at the start of its band, a point-like mark sits at the center of its offset, and a bar, rect, tick or rule spans the offset band and is centered in it when it has a size |
+| Vega-Lite | `src/compile/scale/range.ts`, `src/spec/base.ts` | the range of an offset scale (the bandwidth of its position scale, running upward for a continuous `yOffset`; for a position with a time unit the share of the duration of the unit that `getOffsetRange` gives, with the nested offset padding and the band position of the position), and the step arithmetic of `for: "offset"` and `for: "position"`: the step of the position scale as the step of the offset times the space of the offset domain over one minus the inner padding of the position |
+| Vega-Lite | `src/compile/mark/encode/offset.ts`, `position-point.ts`, `position-rect.ts`, `valueref.ts` | that a position with an offset is read at the start of its band, a point-like mark sits at the center of its offset, and a bar, rect, tick or rule spans the offset band and is centered in it when it has a size; for a position with a time unit, that the position is read at the start of its unit and that the size of a bar is the offset bandwidth times the band size of the unit (`getBandSize`, `timeUnitBandSize`) |
+| Vega-Lite | `src/timeunit.ts` (`durationExpr`), `src/channeldef.ts` (`getBandPosition`), `src/mark.ts` | the reference duration of a time unit (the pixels from 2001-01-01 to one step of its smallest part later, measured on the position scale; none for a unit whose smallest part is the day of the week), the band position of a position (`bandPosition`, else the `timeUnitBandPosition` of the mark, 0.5 for a bar, rect and tick by default) and the band size of a time unit |
+| Vega | `packages/vega-functions/src/functions/format.js`, `codegen.js` | the `format` function of the expression language: the text `null` for a null value, the coercion of the value like a unary plus, the specifier read as text and the error of d3-format for an invalid one |
+| d3-format | `src/locale.js`, `src/formatSpecifier.js` | the specifier grammar and the number formats that `format()` of the expression language gives (the same rules as the `NumberFormat` row of the provenance table above) |
 | Vega-Lite | `src/stack.ts`, `src/compile/unit.ts` | that the offset of the dimension is a group-by field of a stack and so not a stack-by field, that an aggregate with nothing to stack by is not stacked, that a continuous offset without a dimension disables the default stack, and which continuous offsets are ranged (the cases that are reported and not drawn) |
 
 Where this package deliberately differs from the upstream behavior: the ranged offset of a bar or an area and the offset of a
-position that has a time unit (Vega-Lite's reference duration of the unit) are reported (`vl-offset-ranged`,
-`vl-offset-position`) and not drawn; `format()` of the Vega expression language is not available in a label expression (the
-label is empty and `vl-expr-function-<name>` is reported); `datum.size` and `datum.offset` of a symbol legend are null; the
+position that has a time unit that cannot hold it (the day of the week, a binned unit, `maxbins`, a `rect` mark, or a discrete position) are reported (`vl-offset-ranged`,
+`vl-offset-position`) and not drawn; a mark without a band position over a time unit uses the middle of the unit where Vega-Lite computes NaN; the reference duration of a UTC unit
+is measured in UTC; `format()` of a number formats the number even for the type `c`; `datum.size` and `datum.offset` of a symbol legend are null; the
 text of a date that a label expression converts is its ISO text; the custom `formatType` and the replacement of `datum.label`
 by a custom format are not modeled; and the evaluation of a label expression is bounded by the evaluation step budget, the
 string length limit and the tick limit of the call.
@@ -424,13 +427,13 @@ string length limit and the tick limit of the call.
 ## Expression language and row transforms (nothing ported)
 
 The units `ExpressionParser`, `ExpressionEvaluator`, `ExpressionFunctions` (except its date and time functions, see _Files
-read for the time units, time formats and time scales_ above) and `ExpressionRegex` (`Expressions/`) and
+read for the time units, time formats and time scales_ above, and its `format` function, see _Files read for label expressions and offset channels_ above) and `ExpressionRegex` (`Expressions/`) and
 `RowTransforms`, `RowSampler`, `TableLayout` and `ParameterEnvironment` (`Transforms/`) are original C# code. Nothing
 from Vega (including `vega-expression` and `vega-functions`), Vega-Lite or d3 was ported, copied or translated into
 them: no source file, test, example, data set, constant table or documentation text was taken, which is why these units
 have no row in the provenance table and carry no `Portions derived from` header. The date and time functions are in
-the separate file `ExpressionFunctions.Time.cs`, which carries the header and is covered by the time rows of the
-provenance table.
+the separate file `ExpressionFunctions.Time.cs` and the `format` function in `ExpressionFunctions.Number.cs`; both carry the header
+and are covered by the time rows of the provenance table and the rows above.
 
 They were written from public descriptions only:
 

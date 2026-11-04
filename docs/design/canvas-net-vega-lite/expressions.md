@@ -21,9 +21,9 @@ that the render options name, UTC when none). It contains three units:
 - **ExpressionEvaluator** - the internal `ExpressionEvaluator` and the `IExpressionDatum` interface: runs a compiled
   expression with JavaScript coercion, culture-independently, under the step budget and the cancellation token; see
   _ExpressionEvaluator Unit Design_ (`expressions/expression-evaluator.md`)
-- **ExpressionFunctions** - the internal `ExpressionFunctions` table of 99 functions, the `ExpressionFunctionContext`,
-  and `ExpressionRegex`: the math, text and array, type and conversion, regular expression, and date and time
-  functions; see _ExpressionFunctions Unit Design_ (`expressions/expression-functions.md`)
+- **ExpressionFunctions** - the internal `ExpressionFunctions` table of 100 functions, the `ExpressionFunctionContext`,
+  and `ExpressionRegex`: the math, text and array, type and conversion, regular expression, date and time, and number
+  formatting functions; see _ExpressionFunctions Unit Design_ (`expressions/expression-functions.md`)
 
 The subsystem's namespace documentation is in `Expressions/NamespaceDoc.cs`. Its behavior is specified by the
 `CanvasNetVegaLite-Expressions-*` requirements in `docs/reqstream/canvas-net-vega-lite/expressions.yaml`.
@@ -45,7 +45,9 @@ subsystem (the value model, with the array, object, and regular expression kinds
 `VegaLiteDocument` unit. From the `Data` subsystem it also consumes the time model that the date and time functions
 are built on: `TimeCalendar` (the calendar and zone of local dates), `TimeFormat` and `TimeFormatter` (the d3 time
 format and parse), `TimeUnitSpec` (the unit specifier), and `JsDateParser` (date text); see _Time Calendar Design_
-and _Time Format Design_. The .NET base class library supplies `System.Text.RegularExpressions`,
+and _Time Format Design_. For the number `format` function it consumes `NumberFormat` of the `Scales` subsystem (the
+d3-format unit; `Scales` already depends on `Expressions`, a namespace cycle inside the one assembly that is accepted).
+The .NET base class library supplies `System.Text.RegularExpressions`,
 `System.Collections.Frozen`, `System.Globalization`, and `System.Math`.
 
 **Consumers**: the `SpecModel` subsystem (`SpecParser` compiles the expression of every supported site when the document
@@ -101,9 +103,10 @@ string with the offset in the message; a cancellation is an `OperationCanceledEx
 **Closed function table.** `ExpressionFunctions` is the whole security boundary of the
 language: a function exists only if
 it is in the frozen table. The families are the math functions, the text and array functions, the type and conversion
-functions, the regular expression functions, and the date and time functions (the constructors, the getters and their
-UTC forms, offsets and sequences, the unit specifier, and the time format and parse functions). The number formatting,
-color, geographic, scale, statistical, and data-flow functions are deferred to later phases of the roadmap. There is no
+functions, the regular expression functions, the date and time functions (the constructors, the getters and their
+UTC forms, offsets and sequences, the unit specifier, and the time format and parse functions), and the number `format`
+function (d3-format, en-US). The color, geographic, scale, statistical, and data-flow
+functions are deferred to later phases of the roadmap. There is no
 `random` function because reproducible rendering is a system contract, and there is no `now` function for the same
 reason: the clock is not an input of a pure expression, so a call of `now` is reported as `vl-expr-function-now` and
 gives null. A date function never reads the host's zone or clock; it takes its calendar from the evaluator.

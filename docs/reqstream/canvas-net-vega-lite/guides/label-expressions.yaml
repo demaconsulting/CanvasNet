@@ -40,7 +40,8 @@ sections:
                   that the expression language does not support) is the empty text, an array is a multi-line
                   text whose elements are trimmed and whose null elements are empty, and any other value is
                   converted with the JavaScript string conversion (a number, a boolean, a date as ISO text) and
-                  trimmed of white space, in every culture identically.
+                  trimmed of white space, in every culture identically, and shall evaluate the number format
+                  function format and the time format functions like every other function of the language.
                 justification: |
                   A label expression commonly returns a number, null to hide a label, or an array to break a
                   label into lines; the text must be the one the same specification gives in Vega-Lite.
@@ -50,6 +51,7 @@ sections:
                   - LabelExpressions_Evaluate_ArrayGivesLinesWithElementsTrimmed
                   - LabelExpressions_Evaluate_ResultIsTrimmed
                   - LabelExpressions_Evaluate_UnsupportedFunctionIsNullAndEmpty
+                  - LabelExpressions_Evaluate_FormatAndTimeFormat
 
               - id: CanvasNetVegaLite-Guides-LabelExpressions-Resolution
                 title: >-

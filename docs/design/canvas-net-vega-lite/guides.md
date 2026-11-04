@@ -140,6 +140,7 @@ by `LabelExpressions` on the evaluator of the call, so it shares the step budget
 token, and the parameters of every other expression. The replacement happens after the ticks and entries (and the
 labels they would have) are known and before the labels are measured, laid out, and thinned, so the extent of the axis,
 `labelLimit`, the overlap removal, and the legend box all see the replaced text. A result that is an array is a multi-line
-label. The datum has `value` and `label` and, by guide, `index`, `tickIndex`, `perc`, and `perc2` (see _LabelExpressions
+label (in a facet header, several header lines). The datum has `value` and `label` and, by guide, `index`, `tickIndex`,
+`perc`, and `perc2` (see _LabelExpressions
 Unit Design_). A syntax error is found when the document is opened; the feature catalog reports only what an expression
 cannot do (`vl-expr-function-<name>`, `vl-expr-view-state`, `vl-expr-construct-<name>`).

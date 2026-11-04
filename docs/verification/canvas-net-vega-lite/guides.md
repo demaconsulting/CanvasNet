@@ -202,11 +202,13 @@ documented above as machine-dependent is not a failure.
   `LegendBuilderLabelExprTests.LegendBuilder_Build_LabelExprBlankLabelsChangeTheMeasuredWidth`,
   `LegendBuilderLabelExprTests.LegendBuilder_Build_LabelExprGradientLegendGivesPerc`,
   `VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_HeaderLabelsAreReplacedWithPrecedence`,
+  `VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_HeaderArrayResultIsSeveralLines`,
   `VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_BudgetExceededIsARenderException` —
   `datum.label + '%'` gives every label of an axis a percent sign, so the extent grows and the overlap removal sees the
   replaced text; the datum of the guide has the members of Vega (the fraction `index` and the whole-number `tickIndex` of
   an axis, `perc` of a gradient legend); a legend with blank labels is measured narrower; the label of a facet header
-  follows the precedence header, `headerRow` or `headerColumn`, then `config.header`; and an expression over the step
+  follows the precedence header, `headerRow` or `headerColumn`, then `config.header`, and an array result of a header
+  expression is several lines of the header; and an expression over the step
   budget of the call is a render error located at the expression. The details are in the _LabelExpressions Unit
   Verification Design_.
 - **Axes And Legends Of A Layered View**:

@@ -159,7 +159,8 @@ null is empty, that a value that is no date stays its text under a time format, 
 is a spec error, and that a label past the limit is a render error. The `labelExpr` of a header wraps this formatter in
 the facet code of `VegaLiteDocument` (with `HeaderSettings.ExplicitNode` finding the compiled expression of the header
 itself) and is verified at the system tier by `VegaLiteLabelExprIntegrationTests` (see the _LabelExpressions Unit
-Verification Design_ and the _VegaLiteDocument Unit Verification Design_).
+Verification Design_ and the _VegaLiteDocument Unit Verification Design_); an array result is several lines of the
+header, which the builder measures like the lines of any header label.
 
 ##### Label And Title Blocks
 

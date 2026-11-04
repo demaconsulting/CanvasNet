@@ -469,7 +469,7 @@ public class FeatureCatalogTests
         // Arrange
         const string json = """
             { "mark": "point", "encoding": {
-              "color": { "field": "a", "type": "nominal", "legend": { "titleOrient": "left", "clipHeight": 20, "labelExpr": "format(datum.value, '.0f')", "formatType": "myFormat", "symbolType": "M0,0L1,1", "encode": {} } },
+              "color": { "field": "a", "type": "nominal", "legend": { "titleOrient": "left", "clipHeight": 20, "labelExpr": "luminance(datum.value)", "formatType": "myFormat", "symbolType": "M0,0L1,1", "encode": {} } },
               "size": { "field": "a", "type": "quantitative", "legend": { "orient": "left", "titleOrient": "top", "symbolType": "diamond", "title": "S" } },
               "opacity": { "field": "a", "type": "quantitative", "legend": null },
               "fill": { "field": "a", "type": "nominal", "scale": null },
@@ -486,7 +486,7 @@ public class FeatureCatalogTests
             [
                 ("vl-guide-legend-titleorient", "/encoding/color/legend/titleOrient"),
                 ("vl-guide-legend-clipheight", "/encoding/color/legend/clipHeight"),
-                ("vl-expr-function-format", "/encoding/color/legend/labelExpr"),
+                ("vl-expr-function-luminance", "/encoding/color/legend/labelExpr"),
                 ("vl-format-type-custom", "/encoding/color/legend/formatType"),
                 ("vl-shape-path", "/encoding/color/legend/symbolType"),
                 ("vl-guide-encode", "/encoding/color/legend/encode"),
@@ -776,7 +776,7 @@ public class FeatureCatalogTests
         const string json = """
             { "mark": "point", "encoding": {
               "x": { "field": "a", "type": "quantitative", "axis": { "grid": true, "tickCount": 3, "format": ".2f", "title": "T", "orient": "top", "labelOverlap": "parity", "tickMinStep": 2, "labelFlush": true, "labelBound": true, "tickBand": "extent" } },
-              "y": { "field": "a", "type": "quantitative", "axis": { "encode": { "labels": {} }, "labelExpr": "format(datum.value, '.0f')", "formatType": "custom", "position": 5 } }
+              "y": { "field": "a", "type": "quantitative", "axis": { "encode": { "labels": {} }, "labelExpr": "luminance(datum.value)", "formatType": "custom", "position": 5 } }
             } }
             """;
 
@@ -789,7 +789,7 @@ public class FeatureCatalogTests
                 ("vl-guide-axis-labelbound", "/encoding/x/axis/labelBound"),
                 ("vl-guide-axis-tickband", "/encoding/x/axis/tickBand"),
                 ("vl-guide-encode", "/encoding/y/axis/encode"),
-                ("vl-expr-function-format", "/encoding/y/axis/labelExpr"),
+                ("vl-expr-function-luminance", "/encoding/y/axis/labelExpr"),
                 ("vl-format-type-custom", "/encoding/y/axis/formatType"),
                 ("vl-guide-axis-position", "/encoding/y/axis/position"),
             ],
@@ -1040,7 +1040,7 @@ public class FeatureCatalogTests
                 { "filter": { "or": [ "rgb(1, 2, 3)", { "field": "a", "equal": 1 } ] } }
               ],
               "mark": "point",
-              "encoding": { "color": { "value": { "expr": "format(datum.a, '.1f')" } } }
+              "encoding": { "color": { "value": { "expr": "luminance(datum.a)" } } }
             }
             """;
 
@@ -1058,7 +1058,7 @@ public class FeatureCatalogTests
                 ("vl-expr-construct-in", "/transform/2/calculate"),
                 ("vl-expr-view-state", "/transform/3/calculate"),
                 ("vl-expr-function-rgb", "/transform/4/filter/or/0"),
-                ("vl-expr-function-format", "/encoding/color/value/expr"),
+                ("vl-expr-function-luminance", "/encoding/color/value/expr"),
             ],
             reports.Select(r => (r.Id, r.Location.Pointer)));
         Assert.All(reports, r => Assert.Equal(FeatureReportKind.UnsupportedFeature, r.Kind));

@@ -70,6 +70,8 @@ clamped. The unit performs no I/O.
 
 #### Callers
 
-`AxisBuilder` formats tick labels with `TickFormat` and `Create`. The tests in
+`AxisBuilder` formats tick labels with `TickFormat` and `Create`. `ExpressionFunctionContext` (the `Expressions`
+subsystem) compiles the specifier of the expression function `format(value, specifier)` with `Create` and maps the
+`FormatException` to an `ExpressionRuntimeException`. The tests in
 `test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/NumberFormatTests.cs` call the formatter directly through
 `InternalsVisibleTo`, including under a non-English culture to prove culture independence.

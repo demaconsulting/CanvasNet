@@ -243,4 +243,5 @@ sections:
                   - AxisBuilder_Build_LabelExprIsNotUsedWhenLabelsAreOff
                   - AxisBuilder_Build_LabelExprConfigPrecedenceFollowsTheAxisChain
                   - AxisBuilder_Build_LabelExprArrayResultIsMultiLine
+                  - AxisBuilder_Build_LabelExprFormatAndTimeFormat
                   - AxisBuilder_Build_LabelExprInvalidConfiguredTextIsSpecException

@@ -571,9 +571,9 @@ that would have come later.
 
 Renders a document with a selection parameter, the transforms `regression`, `loess`, `density`, and `quantile`, a
 `timeUnit` transform (supported since Phase 8, so it is computed and not reported), a calculate that calls `now` and
-`format`, and a condition on the `x` channel (which takes none). Asserts that each is
+`luminance`, and a condition on the `x` channel (which takes none). Asserts that each is
 reported once, in document order (`vl-param-selection`, `vl-transform-regression`, `vl-transform-loess`,
-`vl-transform-density`, `vl-transform-quantile`, `vl-expr-function-now`, `vl-expr-function-format`,
+`vl-transform-density`, `vl-transform-quantile`, `vl-expr-function-now`, `vl-expr-function-luminance`,
 `vl-encoding-condition`), that nothing is executed silently, and that
 the chart is still drawn. The aggregate, window, bin, stack, and impute transforms that this scenario reported before they
 were supported are computed now and are covered by the aggregation scenarios below.
@@ -1725,7 +1725,7 @@ is made and is located at the facet field, that a `columns` next to a `row` and 
 `vl-composition-columns-ignored`, and that a `bin` of the facet field, a sort by an aggregate, a header
 side that is not drawn, and a format type that is not drawn are reported with `vl-facet-field-transform`,
 `vl-facet-sort`, `vl-header-orient`, and `vl-format-type-custom`, and the unsupported function of a header label
-expression (`format`) with `vl-expr-function-format` (the retired `vl-expr-label` is never produced), while the cells
+expression (`luminance`) with `vl-expr-function-luminance` (the retired `vl-expr-label` is never produced), while the cells
 are drawn. The
 remaining scenarios of the facet (the order and the null cell, the header properties, the sides, the aggregate and the
 stack of a cell, the layered body, the unit view with facet channels, the size of independent step scales, the limits,
@@ -1762,10 +1762,14 @@ facet and a repeat of a layered chart (two levels) fail with `MaxCompositionDept
 `VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_LegendLabelsAreReplaced`,
 `VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_HeaderLabelsAreReplacedWithPrecedence`,
 `VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_WrappedFacetTitlesAreReplaced`,
+`VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_HeaderArrayResultIsSeveralLines`,
+`VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_WrappedFacetTitleArrayResultIsSeveralLines`,
+`VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_HeaderMultiLineLabelIsTallerThanOneLine`,
 `VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_ParameterCanBeUsed`,
 `VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_ResultDoesNotDependOnTheCulture`,
 `VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_BudgetExceededIsARenderException`,
-`VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_FormatIsReportedAndEvaluatesToEmptyLabels`,
+`VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_UnsupportedFunctionIsReportedAndEvaluatesToEmptyLabels`,
+`VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_FormatAndTimeFormatDrawWithoutDiagnostics`,
 `RenderCommandVegaLiteTests.RenderCommand_Run_VegaLiteOffsetAndLabelExpr_AreDrawnWithStrictAndNoDiagnostics`
 
 Asserts that the `labelExpr` of an axis, a legend, and a facet header (and of `config.header`) runs on the evaluator of
@@ -1774,9 +1778,15 @@ mode reporting nothing, a temporal axis reads a date as `datum.value` (`Q1 2021`
 from `index` and `value`, the headers of a facet read `C:a`, `C:b` and `R:2020`, `R:2021`, `R:2022` with the header
 taking precedence over its channel and the general header configuration, a wrapped facet titles its cells `a!a` and
 `b!b`, a variable parameter is read (`20 kg`), and the labels under `tr-TR` equal those of the invariant culture; that an
-expression over the step budget of the call is a `VegaLiteRenderException` located at the expression; that the number
-`format()` is `vl-expr-function-format` at the text, gives empty labels, and fails strict mode; and that the command line
-renders a chart with label expressions in strict mode with no diagnostics. The retired `vl-expr-label` is never
+expression over the step budget of the call is a `VegaLiteRenderException` located at the expression; that an unsupported
+function (`luminance('#fff')`) is `vl-expr-function-luminance` at the text, gives empty labels, and fails strict mode;
+that `format` and `timeFormat` are evaluated and not reported (the y labels include `20,000`, the x label is
+`Jan 2021`, the legend `+2020`, `+2021`, and `+2022`, the column headers `001` and `002`, and the specifier `.2.3f` is a
+located `VegaLiteRenderException`); that the array result of a header expression is several lines (`a`, `n=a` and `b`,
+`n=b` in a column header; `a`, `#a` in a wrapped cell title), a string with a line feed stays one line, and a two-line
+header makes the chart taller than a one-line header; and that the command line
+renders a chart with label expressions (also with `format` and `timeFormat`) in strict mode with no diagnostics. The
+retired `vl-expr-label` is never
 produced.
 
 ### Offset Channels: Grouped Bars Nest Inside The Band Of Their Category
@@ -1790,6 +1800,7 @@ produced.
 `VegaLiteOffsetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Offset_FacetCellsShareTheOffsetDomain`,
 `VegaLiteOffsetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Offset_LayersShareTheOffsetScale`,
 `VegaLiteOffsetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Offset_NotDrawnOffsetsAreReportedAndIgnored`,
+`VegaLiteOffsetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Offset_MonthlyGroupedBars`,
 `VegaLiteOffsetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Offset_BoxplotBoxesSitSideBySide`
 
 Asserts, with the positions derived by hand (three categories and two groups with the default offset step of 20: the
@@ -1800,8 +1811,14 @@ groups, that `yOffset` draws the horizontal variant (160 pixels high, bars at y 
 padding of 0.25 makes the bars 15 wide with a gap of 5 inside the group (the view is 140 wide), that a width of 200 gives
 the step 62.5 and bars of 25 from 12.5, that the children of a concatenation have independent offset scales (the second
 chart is 80 pixels wider) unless they are shared, that the cells of a facet and the layers of a layered view share the
-offset scale (the labels of a text layer are at the centers of the bars), that an offset without a discrete position and
-a continuous offset of a bar are reported (`vl-offset-position` and `vl-offset-ranged`) and ignored, and that the boxes
+offset scale (the labels of a text layer are at the centers of the bars), that an offset without a discrete position
+or a
+supported time unit (a quantitative `x`, or the `day` unit) and a continuous offset of a bar are reported
+(`vl-offset-position` and `vl-offset-ranged`) and ignored while the `month` unit reports nothing, that a grouped bar
+chart over months (`month` unit, width 300, two groups over January to March, so the domain is the 91 days of the leap
+year 2012 and the reference month of 31 days is 31 x 300 / 91 = 102.2 pixels) has six bars 0.4 of a month wide, starting
+at 0.1 and 0.5 of a month in January (touching) and at one month plus the same offsets in February, with a legend of `a`
+and `b` and nothing reported even in strict mode, and that the boxes
 of a boxplot with an offset are side by side with equal widths.
 
 ### Platform: Every System Scenario Runs On Every Target

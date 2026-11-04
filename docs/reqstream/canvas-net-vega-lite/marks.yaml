@@ -254,14 +254,16 @@ sections:
             title: >-
               The Marks subsystem shall draw the marks of the xOffset and yOffset channels of Vega-Lite - grouped
               bars and offset points, lines, text, rules, and ticks - at the position of their group and offset,
-              with the width of the offset band for bars, stacked within a group only, and without drawing a row
+              with the width of the offset band for bars, stacked within a group only, inside the unit of a
+              temporal position with a time unit, and without drawing a row
               that has no valid offset.
             justification: |
               Grouped bars are one of the most common bar charts; the marks of a subgroup must stand side by
-              side in the band of their group.
+              side in the band of their group or inside their month.
             children:
               - CanvasNetVegaLite-Marks-MarkBuilder-Offsets
             tests:
               - MarkBuilder_Build_GroupedBarsHaveTheOffsetBandWidthAtTheOffsetPosition
+              - MarkBuilder_Run_TimeUnitOffsetPlacesBarsInsideTheMonth
               - MarkBuilder_Build_PointsSitAtTheBandStartPlusTheOffsetPoint
               - MarkBuilder_Build_RowWithInvalidOffsetIsNotDrawn

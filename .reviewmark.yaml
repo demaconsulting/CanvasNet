@@ -2601,6 +2601,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.VegaLite/Expressions/ExpressionRegex.cs"  # unit source (regex translation)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Expressions/ExpressionFunctionsTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Expressions/ExpressionFunctionsTimeTests.cs"  # unit tests (time)
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/Expressions/ExpressionFunctionsNumberTests.cs"  # tests (number)
 
   # CanvasNetVegaLite-Transforms Review (one per subsystem)
   - id: CanvasNetVegaLite-Transforms

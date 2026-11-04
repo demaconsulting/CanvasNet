@@ -16,8 +16,22 @@ public class VegaLiteOffsetIntegrationTests
     /// <summary>The encoding of a grouped bar chart without axes and legend, so the bars are the only content.</summary>
     private const string Grouped = """{ "x": { "field": "c", "type": "nominal", "axis": null }, "xOffset": { "field": "g", "type": "nominal" }, "y": { "field": "v", "type": "quantitative", "axis": null }, "color": { "field": "g", "type": "nominal", "legend": null } }""";
 
+    /// <summary>The rows: two groups over three months of 2023.</summary>
+    private const string MonthlyData = """
+        "data": { "values": [ { "d": "2023-01-15", "g": "a", "v": 3 }, { "d": "2023-01-20", "g": "b", "v": 5 }, { "d": "2023-02-10", "g": "a", "v": 4 }, { "d": "2023-02-12", "g": "b", "v": 2 }, { "d": "2023-03-05", "g": "a", "v": 6 }, { "d": "2023-03-25", "g": "b", "v": 1 } ] }
+        """;
+
     /// <summary>Gets the cancellation token of the running test.</summary>
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
+
+    /// <summary>
+    ///     Gets the encoding of a grouped bar chart over months, with the legend but without axes.
+    /// </summary>
+    /// <param name="unit">The time unit of the position.</param>
+    /// <returns>The encoding object.</returns>
+    private static string MonthlyEncoding(string unit) =>
+        "{ \"x\": { \"field\": \"d\", \"type\": \"temporal\", \"timeUnit\": \"" + unit + "\", \"axis\": null }, \"xOffset\": { \"field\": \"g\", \"type\": \"nominal\" }, "
+        + "\"y\": { \"field\": \"v\", \"type\": \"quantitative\", \"aggregate\": \"sum\", \"axis\": null }, \"color\": { \"field\": \"g\", \"type\": \"nominal\" } }";
 
     /// <summary>
     ///     Lays a specification out without painting.
@@ -223,18 +237,58 @@ public class VegaLiteOffsetIntegrationTests
     [Fact]
     public void CanvasNetVegaLite_SystemIntegration_Offset_NotDrawnOffsetsAreReportedAndIgnored()
     {
-        // Arrange: a quantitative x, a bar with a quantitative offset (ranged), and a time unit position
+        // Arrange: a quantitative x, a bar with a quantitative offset (ranged), and the time unit positions that cannot hold an offset (the day of the week) or can (a month)
         const string quantitative = """{ "mark": "point", "encoding": { "x": { "field": "v", "type": "quantitative" }, "xOffset": { "field": "g", "type": "nominal" }, "y": { "field": "v", "type": "quantitative" } } }""";
         const string ranged = """{ "mark": "bar", "encoding": { "x": { "field": "c", "type": "nominal" }, "xOffset": { "field": "v", "type": "quantitative" }, "y": { "field": "v", "type": "quantitative" } } }""";
 
         // Act
         var (quantitativeReport, _) = Report("{ " + Data + ", " + quantitative.TrimStart('{').TrimEnd('}') + " }");
         var (rangedReport, _) = Report("{ " + Data + ", " + ranged.TrimStart('{').TrimEnd('}') + " }");
+        var (dayReport, _) = Report("{ " + MonthlyData + ", \"mark\": \"bar\", \"encoding\": " + MonthlyEncoding("day") + " }");
+        var (monthReport, warnings) = Report("{ " + MonthlyData + ", \"mark\": \"bar\", \"encoding\": " + MonthlyEncoding("month") + " }");
 
         // Assert
         Assert.Equal(["vl-offset-position"], quantitativeReport);
         Assert.Equal(["vl-offset-ranged"], rangedReport);
+        Assert.Equal(["vl-offset-position"], dayReport);
+        Assert.Empty(monthReport);
+        Assert.Empty(warnings);
     }
+
+    /// <summary>
+    ///     Validates a grouped bar chart over months (the temporal position has a time unit): the offset spans a share of the length of a month on the time scale, as Vega-Lite 6.5 draws it. The view is 300
+    ///     pixels wide for the domain of January to March (a <c>month</c> unit puts the dates in the leap year 2012: 1 January to 1 April, 91 days), so a day is 300/91 pixels; the reference month (January 2001) has 31 days, the offset
+    ///     range is [0.1, 0.9] of it (padding 0.2) and the two groups each have 0.4 of it. The bars start at the start of their month plus the offset.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Offset_MonthlyGroupedBars()
+    {
+        // Arrange
+        var json = "{ \"padding\": 0, \"width\": 300, " + MonthlyData + ", \"mark\": \"bar\", \"encoding\": " + MonthlyEncoding("month") + " }";
+
+        // Act
+        var scene = SceneOf(json);
+        var bars = Rects(scene, "mark-bar");
+        var (unsupported, warnings) = Report(json);
+
+        // Assert: the first bars of January start at 0.1 and 0.5 of the reference month and touch, those of February are at the start of February (31 days) plus the same offsets
+        var pixelsPerDay = 300.0 / 91;
+        var month = 31 * pixelsPerDay;
+        Assert.Equal(6, bars.Count);
+        Assert.All(bars, b => Assert.Equal(0.8 * month / 2, b.Width, 4));
+        double[] expected = [0.1 * month, 0.5 * month, month + (0.1 * month), month + (0.5 * month)];
+        for (var i = 0; i < expected.Length; i++)
+        {
+            Assert.Equal(expected[i], bars[i].X, 4);
+        }
+
+        Assert.Equal(bars[0].X + bars[0].Width, bars[1].X, 4);
+        Assert.Empty(unsupported);
+        Assert.Empty(warnings);
+        using var strict = VegaLiteDocument.Parse(json).Render(new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true }, Ct);
+        Assert.Equal(["a", "b"], scene.FindAll("legend-label").Select(e => ((SceneText)e.Item).Text));
+    }
+
 
     /// <summary>
     ///     Validates that a boxplot is drawn with an offset channel: the expansion of the composite mark keeps it, so the boxes of the groups of a category sit side by side.

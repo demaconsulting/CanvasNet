@@ -39,7 +39,7 @@ internal enum DomainOrder
 ///         the <c>zero</c> rule), the padding, <c>nice</c>, the range of colors, sizes and opacities, and, for a
 ///         discrete position scale, the step that sizes the view. What depends on the size of the data rectangle (the
 ///         range of a position scale, the pixel padding of a continuous scale, <c>nice</c> after that padding) is applied
-///         by <see cref="CreateModel"/> once the layout knows it.
+///         by <see cref="CreateModel(double)"/> once the layout knows it.
 ///     </para>
 ///     <para>
 ///         The type is an immutable record, so the scales of the layers of a layered view can be derived from one shared scale with <c>with</c>
@@ -246,15 +246,27 @@ internal sealed record ResolvedScale
     /// </remarks>
     /// <param name="extent">The width (x) or height (y) of the data rectangle in pixels.</param>
     /// <returns>The scale model.</returns>
-    public ScaleModel CreateModel(double extent)
+    public ScaleModel CreateModel(double extent) => CreateModel(extent, null);
+
+    /// <summary>
+    ///     Creates the scale model of an offset channel whose default range is given: the share of the time unit of its position that the offset occupies.
+    /// </summary>
+    /// <remarks>
+    ///     Vega-Lite gives the offset scale of a position with a time unit the range <c>[(padding / 2 + bandPositionOffset) * duration, (1 - padding / 2 + bandPositionOffset) * duration]</c>
+    ///     (<c>getOffsetRange</c>) instead of <c>[0, bandwidth]</c>. It is a default range: <c>rangeMin</c>, <c>rangeMax</c>, an explicit range and <c>reverse</c> apply to it as to any other.
+    /// </remarks>
+    /// <param name="extent">The width (x) or height (y) of the data rectangle in pixels, or the bandwidth of the position scale of an offset.</param>
+    /// <param name="nestedRange">The default range of the offset scale, in pixels from the start of the time unit; null for the range of the channel.</param>
+    /// <returns>The scale model.</returns>
+    public ScaleModel CreateModel(double extent, (double Start, double End)? nestedRange)
     {
         switch (Kind)
         {
             case ScaleKind.Linear:
-                var range = ResolveRange(extent);
+                var range = ResolveRange(extent, nestedRange);
                 return ScaleModel.CreateLinear(ExtendedDomain(Math.Abs(range[^1] - range[0])), range, Clamp, Round, Transform);
             case ScaleKind.Time or ScaleKind.Utc:
-                var timeRange = ResolveRange(extent);
+                var timeRange = ResolveRange(extent, nestedRange);
                 return ScaleModel.CreateTime(ExtendedDomain(Math.Abs(timeRange[^1] - timeRange[0])), timeRange, Clamp, Round, Calendar ?? TimeCalendar.Utc, Kind == ScaleKind.Utc);
             case ScaleKind.Sequential or ScaleKind.Diverging:
                 return ScaleModel.CreateSequential(ExtendedDomain(0), Interpolator ?? (t => default), Clamp, Transform);
@@ -270,10 +282,10 @@ internal sealed record ResolvedScale
 
             // A band or point scale takes the first two entries of its range, as d3's scaleBand does
             case ScaleKind.Band:
-                var bandRange = ResolveRange(extent);
+                var bandRange = ResolveRange(extent, nestedRange);
                 return ScaleModel.CreateBand(DiscreteDomain, bandRange[0], bandRange[1], PaddingInner, PaddingOuter, Align, Round);
             case ScaleKind.Point:
-                var pointRange = ResolveRange(extent);
+                var pointRange = ResolveRange(extent, nestedRange);
                 return ScaleModel.CreatePoint(DiscreteDomain, pointRange[0], pointRange[1], PaddingOuter, Align, Round);
             default:
                 return ScaleModel.CreateOrdinal(DiscreteDomain, OutputRange());
@@ -376,8 +388,9 @@ internal sealed record ResolvedScale
     ///     Works out the range: the entries of an explicit range, or the two ends of the default one.
     /// </summary>
     /// <param name="extent">The size of the data rectangle along the axis.</param>
+    /// <param name="nestedRange">The default range of an offset scale nested in a time unit, or null.</param>
     /// <returns>The range entries (at least two); a reversed scale gets them in reverse order, as Vega reverses the whole array.</returns>
-    private double[] ResolveRange(double extent)
+    private double[] ResolveRange(double extent, (double Start, double End)? nestedRange)
     {
         double[] range;
         if (ExplicitRange is { Count: >= 2 } explicitRange)
@@ -386,7 +399,11 @@ internal sealed record ResolvedScale
         }
         else
         {
-            if (IsPosition || IsOffset)
+            if (IsOffset && nestedRange is { } nested)
+            {
+                range = [nested.Start, nested.End];
+            }
+            else if (IsPosition || IsOffset)
             {
                 // The origin of a view is its top left corner, so a continuous y scale runs upward; an offset scale spans the bandwidth of its position scale, and a continuous yOffset runs upward too
                 range = Channel is "y" or "yOffset" && Kind is ScaleKind.Linear or ScaleKind.Time or ScaleKind.Utc ? [extent, 0.0] : [0.0, extent];
@@ -942,8 +959,8 @@ internal static partial class ScaleResolver
         var plan = context.Plan.Channels.FirstOrDefault(c => c.Definition == channelDefinition);
         var definition = plan?.FieldDef ?? channelDefinition;
 
-        // An offset scale exists only inside the band of a discrete position scale; the other offsets are reported by the feature catalog and ignored
-        if (GroupOf(channel) == ChannelGroup.Offset && DecideOffset(channel, context.Encoding, context.MarkType) != OffsetDecision.Supported)
+        // An offset scale exists only inside the band of a discrete position scale or the time unit of a temporal one; the other offsets are reported by the feature catalog and ignored
+        if (GroupOf(channel) == ChannelGroup.Offset && DecideOffset(channel, context.Encoding, context.MarkType) is OffsetDecision.NoDiscreteParent or OffsetDecision.Ranged)
         {
             return null;
         }

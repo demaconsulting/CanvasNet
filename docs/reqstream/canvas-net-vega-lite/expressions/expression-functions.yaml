@@ -4,11 +4,11 @@
 # These requirements describe the design-level behavior of the ExpressionFunctions unit of the Expressions
 # subsystem (internal namespace DemaConsulting.CanvasNet.VegaLite.Expressions): the closed table of the pure
 # functions that an expression may call (math, text and array, type and conversion, regular expression, and, from
-# Phase 8, date and time functions), the per-evaluation context that charges their work and carries the time
-# calendar, and the translation of a JavaScript regular
+# Phase 8, date and time functions, and the d3 number format function), the per-evaluation context that charges
+# their work and carries the time calendar, and the translation of a JavaScript regular
 # expression into a bounded .NET one. The unit comprises ExpressionFunctions.cs, ExpressionFunctions.Text.cs,
 # ExpressionFunctions.Types.cs, ExpressionFunctions.Regex.cs, ExpressionFunctions.Time.cs,
-# ExpressionFunctionContext.cs, and ExpressionRegex.cs. See
+# ExpressionFunctions.Number.cs, ExpressionFunctionContext.cs, and ExpressionRegex.cs. See
 # docs/verification/canvas-net-vega-lite/expressions/expression-functions.md for the test-evidence mapping.
 
 sections:
@@ -25,15 +25,15 @@ sections:
                   min, pow, round, sign, sin, sinh, sqrt, tan, tanh, trunc, lower, upper, trim, substring,
                   slice, indexof, lastindexof, startswith, endswith, includes, replace, split, join, pad,
                   length, isArray, isBoolean, isDate, isFinite, isNaN, isNumber, isObject, isRegExp, isString,
-                  isValid, toBoolean, toDate, toNumber, toString, regexp, and test, and the date and time
-                  functions named in the requirements of the date and time group below - with no random,
-                  clock (so no now), reflection, file, or network function, and shall refuse to invoke a
-                  name outside the table.
+                  isValid, toBoolean, toDate, toNumber, toString, regexp, test, and format, and the date and
+                  time functions named in the requirements of the date and time group below (100 functions in
+                  all) - with no random, clock (so no now), reflection, file, or network function, and shall
+                  refuse to invoke a name outside the table.
                 justification: |
                   A closed, enumerable table is what makes an expression engine safe to run on untrusted
                   specifications, and the absence of a random source is what keeps the output reproducible.
                 tests:
-                  - ExpressionFunctions_Names_AreExactlyTheWhitelist
+                  - ExpressionFunctions_Names_AreTheOneHundredWhitelistedFunctions
                   - ExpressionFunctions_Invoke_UnknownName_ThrowsArgumentException
 
               - id: CanvasNetVegaLite-Expressions-ExpressionFunctions-Math
@@ -214,6 +214,26 @@ sections:
                   - ExpressionFunctions_TimeUnitSpecifier_InvalidUnits_AreNull
                   - ExpressionFunctions_NameFormatters_GiveTheEnglishNames
 
+              - id: CanvasNetVegaLite-Expressions-ExpressionFunctions-NumberFormat
+                title: >-
+                  The ExpressionFunctions unit shall provide format(value, specifier), which formats a number
+                  with a d3-format specifier of the en-US locale (the minus sign U+2212) as the number format
+                  of the scales does, coercing the value like the JavaScript unary plus (a numeric text, a
+                  boolean, a date, or a one-element array becomes a number, anything unreadable NaN, and null
+                  gives the text null), failing an invalid or missing specifier with a located
+                  VegaLiteRenderException (not a warning), charging the specifier and the result to the step
+                  budget, bounding the result by the string-length limit, and caching at most 64 compiled
+                  formatters per evaluation and only for specifiers of at most 64 characters.
+                justification: |
+                  Label expressions and calculated fields format numbers with the specifier of the author;
+                  the text must read as in Vega, an invalid specifier must be named and not skipped, and the
+                  work must stay bounded.
+                tests:
+                  - ExpressionFunctionsNumber_Format_MatchesD3
+                  - ExpressionFunctionsNumber_Format_CoercesTheValueLikeUnaryPlus
+                  - ExpressionFunctionsNumber_Format_InvalidSpecifierIsARuntimeError
+                  - ExpressionFunctionsNumber_Format_CachesAndBoundsWork
+
               - id: CanvasNetVegaLite-Expressions-ExpressionFunctions-Parse
                 title: >-
                   The ExpressionFunctions unit shall provide timeParse and utcParse, which read a text with a
@@ -268,13 +288,15 @@ sections:
                 title: >-
                   The ExpressionFunctions unit shall give the date and time functions the same result for
                   the same arguments, time zone, and calendar on repeated calls, in every culture, and on
-                  every platform, using UTC when no calendar is given.
+                  every platform, using UTC when no calendar is given, and shall give format the same text
+                  in every culture.
                 justification: |
                   Reproducibility is a system contract; a date function that read the host would break it.
                 tests:
                   - ExpressionFunctions_Time_AreCultureInvariant
                   - ExpressionFunctions_Time_AreDeterministic
                   - ExpressionFunctions_Time_DefaultCalendarIsUtc
+                  - ExpressionFunctionsNumber_Format_MatchesD3
 
               - id: CanvasNetVegaLite-Expressions-ExpressionFunctions-Determinism
                 title: >-
@@ -286,4 +308,4 @@ sections:
                   specification render differently.
                 tests:
                   - ExpressionFunctions_Repeated_ResultsAreIdentical
-                  - ExpressionFunctions_Names_AreExactlyTheWhitelist
+                  - ExpressionFunctions_Names_AreTheOneHundredWhitelistedFunctions
