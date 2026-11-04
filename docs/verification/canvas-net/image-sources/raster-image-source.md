@@ -55,8 +55,8 @@ by 8.
 **Tests**: `RasterImageSource_Render_RemainingPixels_IsCheckedFromHeaderForEveryFormat`,
 `RasterImageSource_Render_HeaderOnlyHugePicture_IsRefusedWithoutDecoding`
 
-Asserts, as a theory over PNG, JPEG, BMP, TIFF, GIF, and JPEG 2000 files, that a request whose `RemainingPixels` is
-exactly the size of the picture is decoded and one pixel less throws `ImageSourceBudgetException` carrying the declared
+Asserts, as a theory over PNG, JPEG, BMP, TIFF, GIF, and JPEG 2000 files, that a request whose `Budget` has exactly the
+size of the picture left is decoded and one pixel less throws `ImageSourceBudgetException` carrying the declared
 size and the remainder; and that a 33-byte PNG that only declares 8192 by 8192 pixels, and one that declares 30,000 by
 30,000 (more than the codecs decode), are refused with the declared pixel count with an allocation below 1 MiB for the
 two refusals (no decode is attempted, which would fail with `InvalidDataException`), while a truncated header still

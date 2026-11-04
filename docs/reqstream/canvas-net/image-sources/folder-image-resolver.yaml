@@ -132,43 +132,51 @@ sections:
               - id: CanvasNet-ImageSources-FolderImageResolver-Limits
                 title: >-
                   The FolderImageResolver class shall stop a file that embeds itself directly or through other files
-                  (a cycle, found before the depth), refuse to nest more than the configured number of levels (four
+                  (a cycle, found before the depth for a scheme-claimed link), refuse to nest more than the
+                  configured number of levels (four
                   by default) and to load more than the configured number of images in total (64 by default, counting
-                  every call that reaches a source, including repeated links and scheme-claimed pictures), and report
+                  every call that reaches a source, including repeated links and scheme-claimed pictures), check the
+                  depth and the image count before it opens the file of an embedded image (so an image over a limit
+                  is never read), let the sandbox read at most the configured number of images plus the top-level file
+                  of a render by path, and report
                   each as an unresolved warning while the render carries on.
                 justification: |
-                  A document tree can embed itself or fan out; the limits bound the work of one render.
+                  A document tree can embed itself or fan out; the limits bound the work of one render, including the
+                  files read.
                 tests:
                   - FolderImageResolver_Resolve_Cycles_TerminateWithWarning
                   - FolderImageResolver_Resolve_TooDeep_TerminatesWithWarning
                   - FolderImageResolver_Resolve_TooMany_StopsAtLimitWithWarnings
                   - FolderImageResolver_Resolve_ClaimedSchemeCycleAndDepth_AreWarnings
                   - FolderImageResolver_Resolve_ClaimedSchemeLinks_CountAgainstImageLimit
+                  - FolderImageResolver_Resolve_ImageCountExhausted_NeverReadsTheEmbeddedFile
+                  - FolderImageResolver_Render_PathAndStream_SandboxFileSlotsMatchTheImageLimit
 
               - id: CanvasNet-ImageSources-FolderImageResolver-PixelBudget
                 title: >-
                   The FolderImageResolver class shall limit the pixels one resolver lets its sources allocate in total
+                  with one live budget shared by every request, nested ones included
                   (FolderImageResolverOptions.MaxDecodedPixels, 64,000,000 by default; a negative value is rejected):
                   it shall clamp the requested size of every link to 1 through the maximum surface dimension per side
-                  and refuse, before it calls a source, a link whose requested size does not fit in what is left; shall
-                  charge the requested size before the call (giving the source that charge as
-                  ImageSourceRequest.ReservedPixels and what was left after it as ImageSourceRequest.RemainingPixels),
-                  and charge the larger of the requested and the returned size after it, for every level of nesting,
-                  giving back the charge of a source that refused; shall discard
-                  and dispose a returned surface that does not fit; shall report each refusal as a warning with the
-                  code svg-image-too-large (and not as an exception, and not as a loaded image); shall throw
-                  ImageSourceBudgetException instead for a direct render; and shall expose the part of the budget not
-                  yet charged as RemainingPixels.
+                  and refuse, before it calls a source, a link whose requested size does not fit in what is left
+                  (charging nothing at that point); shall let the source charge what it allocates
+                  (ImageSourceRequest.EnsureWithinBudget), charge after the call whatever the returned surface is
+                  larger than the pixels the request charged, and give back the pixels a request charged when its
+                  source throws, returns nothing or is refused, while leaving charged what nested pictures already
+                  drew; shall discard and dispose a returned surface that does not fit; shall report each refusal as a
+                  warning with the code svg-image-too-large (and not as an exception, and not as a loaded image);
+                  shall throw ImageSourceBudgetException instead for a direct render; and shall expose the live part
+                  of the budget that is still free as RemainingPixels.
                 justification: |
                   A small placement can ask for a huge picture (an 8192 by 8192 raster in a 1 by 1 rectangle would
-                  allocate 256 MiB, again for every link); a budget that is charged before allocation and shared by
-                  every source bounds the memory and time one render can cause, and a defined refusal lets a source
-                  outside this repository respect it.
+                  allocate 256 MiB, again for every link); one live budget that the sources charge when they allocate,
+                  shared by every level, bounds the memory and time one render can cause, never goes stale as nested
+                  pictures charge it, and a defined refusal lets a source outside this repository respect it.
                 tests:
                   - FolderImageResolver_Resolve_HugeRasterAtTinyPlacement_IsRefusedBeforeDecoding
                   - FolderImageResolver_Resolve_ManyRasters_ExhaustBudgetAndLaterOnesAreRefused
-                  - FolderImageResolver_Resolve_SourceReturnsMoreThanReserved_IsChargedAndRefusedWhenOverBudget
-                  - FolderImageResolver_Resolve_SourceReturnsMoreThanRequested_ReducesRemainingPixelsByReturnedSize
+                  - FolderImageResolver_Resolve_SourceNeverCharges_ReturnedSurfaceIsChargedAndRefusedWhenOverBudget
+                  - FolderImageResolver_Resolve_SourceReturnsMoreThanRequested_ChargesReturnedSize
                   - FolderImageResolver_Resolve_SourceRefusesBeforeDrawing_IsWarningAndNotCharged
                   - FolderImageResolver_Resolve_PlacementLargerThanBudget_IsRefusedWithoutCallingSource
                   - FolderImageResolver_Resolve_RequestedSize_IsClampedPerSide
@@ -178,9 +186,13 @@ sections:
                   - FolderImageResolver_Render_SourceReturnsTooMuch_ThrowsAndDiscardsSurface
                   - FolderImageResolver_Constructor_MaxDecodedPixels_DefaultNegativeAndZero
                   - FolderImageResolver_Resolve_NormalRaster_IsUnaffectedByTheBudget
-                  - FolderImageResolver_Resolve_RemainingPixelsAfterReservation_NestedAndLargerSurfaceShareLiveBudget
+                  - FolderImageResolver_Resolve_NestedAndLargerSurface_ShareLiveBudget
                   - FolderImageResolver_Resolve_LargerSurfaceThatFitsAfterNestedPicture_IsAcceptedAndSpendsTheBudget
-                  - FolderImageResolver_Resolve_SourceDrawingAtRequestedSize_PassesEnsureWithinBudget
+                  - FolderImageResolver_Resolve_SourceChargingExactlyTheBudget_IsNotChargedTwice
+                  - FolderImageResolver_Resolve_OwnSurfaceAfterNestedCharge_IsRefusedByLiveRemaining
+                  - FolderImageResolver_Resolve_NestedSiblings_AccumulateCharges
+                  - FolderImageResolver_Resolve_SourceFailsAfterCharging_RefundsTheCharge
+                  - FolderImageResolver_Render_SourceFailsAfterCharging_RefundsTheCharge
                   - FolderImageResolver_RemainingPixels_StartsFullAndDecreasesAfterEmbed
               - id: CanvasNet-ImageSources-FolderImageResolver-Cancellation
                 title: >-

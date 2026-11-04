@@ -151,7 +151,9 @@ root folder, and the depths of the embedded images.
 `FolderImageResolver_Resolve_TooDeep_TerminatesWithWarning`,
 `FolderImageResolver_Resolve_TooMany_StopsAtLimitWithWarnings`,
 `FolderImageResolver_Resolve_ClaimedSchemeCycleAndDepth_AreWarnings`,
-`FolderImageResolver_Resolve_ClaimedSchemeLinks_CountAgainstImageLimit`
+`FolderImageResolver_Resolve_ClaimedSchemeLinks_CountAgainstImageLimit`,
+`FolderImageResolver_Resolve_ImageCountExhausted_NeverReadsTheEmbeddedFile`,
+`FolderImageResolver_Render_PathAndStream_SandboxFileSlotsMatchTheImageLimit`
 
 Asserts that a file that links itself and two files that link each other stop with one cycle warning, that a chain
 longer than the
@@ -159,14 +161,18 @@ depth stops after exactly as many files as the depth allows with a warning about
 image limit
 are drawn only up to the limit with a warning for each further one, and that scheme-claimed pictures are subject to the
 cycle,
-depth, and count limits.
+depth, and count limits; that with `MaxImages = 0` a file larger than the 16 MiB sandbox limit is refused with the
+"more than 0 images" reason and never read (the sandbox would otherwise report its size limit) and its source is not
+called; and that, with links that are read but refused for the pixel budget (so they are not counted as images) and a
+limit of two images, a render by path and a render of a stream both read exactly two embedded files before the sandbox
+refuses the third (the top-level file of a path render has a slot of its own).
 
 ##### CanvasNet-ImageSources-FolderImageResolver-PixelBudget: Pixel Budget
 
 **Tests**: `FolderImageResolver_Resolve_HugeRasterAtTinyPlacement_IsRefusedBeforeDecoding`,
 `FolderImageResolver_Resolve_ManyRasters_ExhaustBudgetAndLaterOnesAreRefused`,
-`FolderImageResolver_Resolve_SourceReturnsMoreThanReserved_IsChargedAndRefusedWhenOverBudget`,
-`FolderImageResolver_Resolve_SourceReturnsMoreThanRequested_ReducesRemainingPixelsByReturnedSize`,
+`FolderImageResolver_Resolve_SourceNeverCharges_ReturnedSurfaceIsChargedAndRefusedWhenOverBudget`,
+`FolderImageResolver_Resolve_SourceReturnsMoreThanRequested_ChargesReturnedSize`,
 `FolderImageResolver_Resolve_SourceRefusesBeforeDrawing_IsWarningAndNotCharged`,
 `FolderImageResolver_Resolve_PlacementLargerThanBudget_IsRefusedWithoutCallingSource`,
 `FolderImageResolver_Resolve_RequestedSize_IsClampedPerSide`,
@@ -176,9 +182,13 @@ depth, and count limits.
 `FolderImageResolver_Render_SourceReturnsTooMuch_ThrowsAndDiscardsSurface`,
 `FolderImageResolver_Constructor_MaxDecodedPixels_DefaultNegativeAndZero`,
 `FolderImageResolver_Resolve_NormalRaster_IsUnaffectedByTheBudget`,
-`FolderImageResolver_Resolve_RemainingPixelsAfterReservation_NestedAndLargerSurfaceShareLiveBudget`,
+`FolderImageResolver_Resolve_NestedAndLargerSurface_ShareLiveBudget`,
 `FolderImageResolver_Resolve_LargerSurfaceThatFitsAfterNestedPicture_IsAcceptedAndSpendsTheBudget`,
-`FolderImageResolver_Resolve_SourceDrawingAtRequestedSize_PassesEnsureWithinBudget`,
+`FolderImageResolver_Resolve_SourceChargingExactlyTheBudget_IsNotChargedTwice`,
+`FolderImageResolver_Resolve_OwnSurfaceAfterNestedCharge_IsRefusedByLiveRemaining`,
+`FolderImageResolver_Resolve_NestedSiblings_AccumulateCharges`,
+`FolderImageResolver_Resolve_SourceFailsAfterCharging_RefundsTheCharge`,
+`FolderImageResolver_Render_SourceFailsAfterCharging_RefundsTheCharge`,
 `FolderImageResolver_RemainingPixels_StartsFullAndDecreasesAfterEmbed`
 
 These tests are in `FolderImageResolverBudgetTests.cs`. They use `PngHeaderFixtures` (a valid 33-byte PNG file that only
@@ -188,24 +198,31 @@ warning `svg-image-too-large` (source `svg`, severity `Warning`), no image is li
 (a decode would have thrown `InvalidDataException`), and the allocation measured with
 `GC.GetAllocatedBytesForCurrentThread` stays below 8 MiB (the decoded picture would be 256 MiB); that five embeds of a
 1000 by 1000 PNG against a budget of 3,500,000 pixels draw three and refuse two with a warning each (the pictures are
-placed at 1 by 1 and still cost their own size); that a stub that ignores the budget and returns 400 pixels is charged
-400 and not the 4 it was asked for (the next request sees `RemainingPixels` 596: 600 left less the 4 reserved for that
-request, and `ReservedPixels` 4), and the one that no longer fits is
+placed at 1 by 1 and still cost their own size); that a stub that never calls `EnsureWithinBudget` and returns 400
+pixels is charged 400 and not the 4 it was asked for (the live remaining its next request sees drops from 1000 to 600,
+nothing is charged before the source runs, and `ChargedPixels` stays 0), and the one that no longer fits is
 disposed (`ObjectDisposedException` on access) and refused with the warning; that a stub that calls
-`EnsureWithinBudget` and is refused leaves the budget as it was (two requests both see 499,900, the 500,000 less the 100
-reserved) and that the warning
+`EnsureWithinBudget` and is refused leaves the budget as it was (both requests see the whole 500,000 and only the drawn
+10 by 10 picture is charged) and that the warning
 names the pixels needed; that a placement of 8192 by 8192 (67,108,864) exceeds the default and never reaches the
 source; that a requested size of 100,000 by `int.MaxValue` reaches the source as 8192 by 8192 and 0 or negative as 1;
 that a refusal does not use up `MaxImages`; that a picture embedded by another picture draws on the same budget; that a
 direct render throws `ImageSourceBudgetException` with the numbers (also for a stream and for a returned surface that
 does not fit, which is disposed); that the default is 64,000,000, a negative value is `ArgumentOutOfRangeException`,
 and zero refuses everything; that a normal raster is returned at its natural size with no note; that with a budget of
-20,000 and a 100 by 100 placement the source is told 10,000 reserved and 10,000 remaining, a nested 60 by 100 picture
-fits, a second nested 100 by 100 picture is refused with `svg-image-too-large`, and a 150 by 100 surface (which the
-snapshot cannot know is too much) is refused by the live charge, while a 140 by 100 surface is accepted and leaves
-nothing; that a source drawing exactly at the requested size passes `EnsureWithinBudget` even with nothing remaining
-and one more column is refused; and that `RemainingPixels` of the resolver is the whole budget at the start, drops by
-what an embed is charged, and is unchanged by a refusal.
+20,000 a source that charges its own 100 by 100 surface sees 20,000 and then 10,000 remaining, a nested 60 by 100
+picture fits (4,000 remain live), a second nested 100 by 100 picture is refused with `svg-image-too-large`, and a
+150 by 100 surface (5,000 more than the source charged) is refused by the resolver, which gives back the source's
+10,000 (14,000 remain: the nested picture stays charged and the source's `ChargedPixels` is 0 again), while a 140 by 100
+surface is accepted and leaves nothing; that a source that charges exactly the whole budget is not charged a second
+time and one more pixel is refused with the live numbers; that a source which resolves a 6,000-pixel nested picture
+(14,000 of 20,000 remain live) and then charges an 18,000-pixel surface of its own is refused before it allocates
+anything (the link is an `svg-image-too-large` warning naming 18,000 pixels, the source's `ChargedPixels` is 0 and
+14,000 remain); that three sibling pictures of 400 pixels each on a budget of 1,000 after the parent's 100 see 900, 500,
+and 100 remaining, so the first two are drawn and the third is refused; that a source which throws after it charged
+(a link: `ImageSourceException` wrapping the original; a direct render too) or is refused for a second surface gets its
+charge back (the whole 5,000 remain); and that `RemainingPixels` of the resolver is the whole budget at the start, drops
+by what an embed is charged, and is unchanged by a refusal.
 
 ##### CanvasNet-ImageSources-FolderImageResolver-Cancellation: Cancellation
 

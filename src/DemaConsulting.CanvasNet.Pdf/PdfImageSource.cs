@@ -63,7 +63,7 @@ public sealed class PdfImageSource : IImageSource
     /// <param name="request">The request; it must carry the bytes of a file (<see cref="ImageSourceRequest.HasContent"/>).</param>
     /// <returns>The first page on a transparent background, fitted inside the requested box (or at its natural size).</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="request"/> is null.</exception>
-    /// <exception cref="ImageSourceBudgetException">Thrown, before drawing, when the size to draw at does not fit in the budget of the request (<see cref="ImageSourceRequest.EnsureWithinBudget(int, int)"/>).</exception>
+    /// <exception cref="ImageSourceBudgetException">Thrown, before drawing, when the surface to allocate does not fit in the pixel budget (see <see cref="ImageSourceRequest"/>).</exception>
     /// <exception cref="InvalidOperationException">Thrown when the request has no file content (it was handed over by scheme).</exception>
     /// <exception cref="InvalidDataException">Thrown when the file is not a readable PDF (see <see cref="PdfDocument.Open(Stream, string?)"/>).</exception>
     /// <exception cref="OperationCanceledException">Thrown when the request is canceled.</exception>

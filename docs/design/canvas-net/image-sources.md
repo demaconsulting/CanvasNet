@@ -33,8 +33,10 @@ The public types of the subsystem are in the namespace `DemaConsulting.CanvasNet
 - **`IImageSource`** - one format or live source: `Name`, `Extensions` (file-based claims, such as `.png` or
   `.vl.json`),
   `Schemes` (scheme claims, such as `camera`), and `Render(ImageSourceRequest)`.
-- **`ImageSourceRequest`, `ImageSourceResult`, `ImageSourceDiagnostic`, `ImageDiagnosticSeverity`, `EmbeddedImage`,
-  `ImageSourceException`, `ImageSourceBudgetException`** - the data that flows through the contract.
+- **`ImageSourceRequest`, `ImageBudget`, `ImageSourceResult`, `ImageSourceDiagnostic`, `ImageDiagnosticSeverity`,
+  `EmbeddedImage`, `ImageSourceException`, `ImageSourceBudgetException`** - the data that flows through the contract
+  (`ImageBudget` is the live pixel counter a request carries; `ImageSourceResult` copies its `Diagnostics` and `Echo`
+  lists into read-only snapshots, so a result is genuinely immutable).
 - **`ImageSourceSet`** - an ordered, immutable list of sources that validates claims and applies the precedence rule.
 - **`FolderImageResolver`, `FolderImageResolverOptions`** - the resolver; `Resolve` is the tolerant embed path and
   `Render(path)` and `Render(Stream, fileName)` draw a top-level file and fail loudly.
@@ -69,17 +71,25 @@ drawn throws `ImageSourceException`; cancellation is never wrapped. A link is re
 the fragment are cut off before percent-decoding, so neither can change which file is read. See the unit designs for
 the details.
 
-**One pixel budget for the whole render.** A small placement can ask for a huge picture (a raster is decoded at its own
-size), so `FolderImageResolverOptions.MaxDecodedPixels` limits the pixels every source of one resolver may allocate in
-total, at every level of nesting. The resolver clamps and charges the requested size before it calls a source
-(`ImageSourceRequest.ReservedPixels`), tells the source what is left after that charge in
-`ImageSourceRequest.RemainingPixels`, and charges the larger of the requested and the returned size afterwards.
-`FolderImageResolver.RemainingPixels` is the part of the budget not charged yet. A source checks the size it will
-allocate **before** allocating
-(`ImageSourceRequest.EnsureWithinBudget`; the raster source from the file header, every vector source from the size it
-draws at) and refuses with `ImageSourceBudgetException`; the resolver reports the refusal as the warning
-`svg-image-too-large` and draws nothing. A source that does not check is still charged afterwards, and its oversize
-surface is discarded.
+**One live pixel budget for the whole render.** A small placement can ask for a huge picture (a raster is decoded at its
+own size), so `FolderImageResolverOptions.MaxDecodedPixels` limits the pixels every source of one resolver may allocate
+in total, at every level of nesting. The limit is one live counter, an `ImageBudget`, that the resolver owns and hands
+to every request it builds (nested requests included), so `ImageSourceRequest.RemainingPixels` always reads the current
+number and never a snapshot. The contract is documented once, in the XML remarks of `ImageSourceRequest`; in short:
+
+- A source charges each surface it is about to allocate with `ImageSourceRequest.EnsureWithinBudget(width, height)`,
+  once per surface and before allocating (the raster source from the file header, every vector source from the size it
+  draws at; the SVG source before it loads nested pictures). The call takes the pixels from the live budget and records
+  them in `ImageSourceRequest.ChargedPixels`, or throws `ImageSourceBudgetException` and charges nothing.
+- The resolver reserves nothing up front. For a link it only refuses early (the warning `svg-image-too-large`, no
+  source call) when the requested size alone exceeds what is left; after the source returns it charges whatever the
+  returned surface is larger than `ChargedPixels` (so a source that never checks cannot overspend, and an oversized
+  surface is disposed and refused); and when a source throws, returns nothing or is refused it gives back what that
+  request charged, so a failed source leaks no budget. Pictures a source already drew through its nested resolver stay
+  charged.
+- A direct render follows the same rules and throws `ImageSourceBudgetException` instead of warning.
+  `FolderImageResolver.RemainingPixels` is the live part of the budget that is free; the viewer uses it to check the
+  final buffer of a resized render.
 
 ### Dependencies
 

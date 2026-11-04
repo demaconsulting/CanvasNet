@@ -1684,8 +1684,10 @@ linked from another document (another SVG, a presentation, anything that draws t
 `FolderImageResolver`). It claims `.svg` and no URI scheme. `Render(request)` reads the natural size of the file with
 `SvgCodec.GetInfo(request.OpenContent())`, asks `request.SizeFor(naturalWidth, naturalHeight)` for the size to draw at
 (the exact box when both dimensions are requested; the codec fits the drawing into it by the `preserveAspectRatio` of
-the file's own root element), checks that size with `request.EnsureWithinBudget(width, height)` (a size that does not
-fit in the budget of the request is refused with `ImageSourceBudgetException` before the document is drawn), and draws
+the file's own root element), charges that size with `request.EnsureWithinBudget(width, height)` **before** the nested
+links are loaded (a size that does not fit in the live budget is refused with `ImageSourceBudgetException` before the
+document is drawn; the codec allocates its own canvas before it resolves any image, so the nested pictures see only
+what is left; the contract is on `ImageSourceRequest`), and draws
 with
 `SvgCodec.LoadWithFontFaces(stream, width, height, null, new SvgLoadOptions
 { ImageResolver = request.Resolver })`. The background stays transparent so the embedding document shows through.

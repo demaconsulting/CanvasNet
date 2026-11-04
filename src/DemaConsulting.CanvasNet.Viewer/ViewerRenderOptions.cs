@@ -56,10 +56,11 @@ public sealed record ViewerRenderOptions
     ///     <see langword="null"/> for the resolver default (<see cref="FolderImageResolverOptions.MaxDecodedPixels"/>,
     ///     64,000,000). The default refuses a single 8192 x 8192 picture; set this to render one large image. A render over
     ///     the budget throws <see cref="ImageSourceBudgetException"/>; an embedded picture over it is skipped with a
-    ///     <c>svg-image-too-large</c> note. A negative value throws <see cref="ArgumentOutOfRangeException"/>.
+    ///     <c>svg-image-too-large</c> note. A negative value throws <see cref="ArgumentOutOfRangeException"/>. The
+    ///     budget contract is described in the remarks of <see cref="ImageSourceRequest"/>.
     ///     When the render is post-processed to the requested <see cref="Width"/> and <see cref="Height"/> (a raster, or
-    ///     any source that returns another size), the final picture is a second buffer charged to this budget in addition
-    ///     to the surface the source produced (peak memory is both): one that does not fit throws
+    ///     any source that returns another size), the final picture is a second buffer that must fit in what is left of
+    ///     this budget after the surface the source produced (peak memory is both): one that does not fit throws
     ///     <see cref="ImageSourceBudgetException"/> as well.
     /// </summary>
     public long? MaxDecodedPixels { get; init; }

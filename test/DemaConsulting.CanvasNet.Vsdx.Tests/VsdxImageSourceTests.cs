@@ -73,7 +73,7 @@ public class VsdxImageSourceTests
             PixelWidth = width,
             PixelHeight = height,
             ThrowOnUnsupportedFeature = strict,
-            RemainingPixels = remaining
+            Budget = new ImageBudget(remaining)
         };
     }
 

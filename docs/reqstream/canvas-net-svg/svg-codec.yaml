@@ -1635,11 +1635,14 @@ sections:
               The Svg package shall provide an image source for .svg files (claiming that extension and
               no URI scheme) that draws an SVG file another document links to at the size its placement asks
               for (the natural size when none is asked for, the exact box when both dimensions are asked for)
-              over a transparent background, refuses with ImageSourceBudgetException, before drawing anything, a
-              size that exceeds the pixels the request allows, resolves the image elements of that file through
+              over a transparent background, charges the surface it will allocate to the live pixel budget of the
+              request before drawing anything and before it loads any nested picture (refusing with
+              ImageSourceBudgetException a size that exceeds the pixels the budget still has), resolves the image
+              elements of that file through
               the resolver
               scoped to the request (so that its relative links resolve against its own folder and the
-              limits of the whole render apply) and draws nothing for them when there is none, returns a new
+              limits of the whole render apply, and a nested picture sees only the budget its own canvas left) and
+              draws nothing for them when there is none, returns a new
               surface on every call, and fails with InvalidDataException for content that is not an SVG
               document, InvalidOperationException for a request without a file, and
               OperationCanceledException for a canceled request.
@@ -1651,6 +1654,8 @@ sections:
               - SvgImageSource_Render_NoRequestedSize_DrawsNaturalSizeOnTransparentBackground
               - SvgImageSource_Render_RequestedSize_DrawsAtThatSize
               - SvgImageSource_Render_SizeBeyondRemainingPixels_IsRefusedBeforeDrawing
+              - SvgImageSource_Render_DirectNaturalSize_NestedPictureBeyondLiveRemaining_IsRefusedBeforeItsSource
+              - SvgImageSource_Render_DirectNaturalSize_NestedPictureWithinLiveRemaining_IsDrawnAndCharged
               - SvgImageSource_Render_NestedImage_UsesResolverOfRequest
               - SvgImageSource_Render_NestedImageWithoutResolver_DrawsNothing
               - SvgImageSource_Render_TwiceForSameRequest_ReturnsDistinctSurfaces

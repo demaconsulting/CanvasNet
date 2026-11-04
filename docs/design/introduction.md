@@ -734,8 +734,9 @@ src/DemaConsulting.CanvasNet/
 │   └── NamespaceDoc.cs                — Namespace-level XML documentation
 ├── ImageSources/
 │   ├── IImageSource.cs                — Public contract of a source: name, claimed extensions and schemes, Render
-│   ├── ImageSourceRequest.cs          — Public request: link, file bytes/name/folder, size, scoped resolver, token
-│   ├── ImageSourceResult.cs           — Public result: picture, notes, printed text, format
+│   ├── ImageSourceRequest.cs          — Public request: link, file, size, scoped resolver, token, budget contract
+│   ├── ImageBudget.cs                 — Public live pixel counter shared by every request of one render
+│   ├── ImageSourceResult.cs           — Public result: picture, notes, printed text, format (lists copied read-only)
 │   ├── ImageSourceDiagnostic.cs       — Public note (and ImageDiagnosticSeverity.cs, its severity enumeration)
 │   ├── IImageResolver.cs              — Public contract a renderer calls to turn a link into a picture
 │   ├── EmbeddedImage.cs               — Public record of one loaded image

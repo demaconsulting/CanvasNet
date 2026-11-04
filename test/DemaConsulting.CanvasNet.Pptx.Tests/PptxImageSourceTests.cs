@@ -164,7 +164,7 @@ public class PptxImageSourceTests
             PixelWidth = width,
             PixelHeight = height,
             ThrowOnUnsupportedFeature = strict,
-            RemainingPixels = remaining
+            Budget = new ImageBudget(remaining)
         };
     }
 

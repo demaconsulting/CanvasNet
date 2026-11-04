@@ -152,54 +152,107 @@ public class ImageSourceContractTests
     }
 
     /// <summary>
-    ///     Test that <see cref="ImageSourceRequest.RemainingPixels"/> is unlimited on a hand-built request, that
-    ///     <see cref="ImageSourceRequest.EnsureWithinBudget(int, int)"/> accepts what fits (exactly the remainder too)
-    ///     and throws <see cref="ImageSourceBudgetException"/> with the numbers for what does not, and that the
-    ///     exception message names them.
+    ///     Test that a hand-built request has no limit, that a request given an <see cref="ImageBudget"/> charges
+    ///     <see cref="ImageSourceRequest.EnsureWithinBudget(int, int)"/> against it (the sizes of several calls add up,
+    ///     exactly the remainder fits), that a call that does not fit throws <see cref="ImageSourceBudgetException"/>
+    ///     with the numbers and charges nothing, and that the exception message names them.
     /// </summary>
     [Fact]
-    public void ImageSourceRequest_EnsureWithinBudget_ThrowsOnlyWhenOverRemainingPixels()
+    public void ImageSourceRequest_EnsureWithinBudget_ChargesLiveBudgetAndThrowsOnlyWhenOver()
     {
         // Arrange
         var unlimited = Sized(null, null);
-        var limited = new ImageSourceRequest { Href = "x", RemainingPixels = 600 };
+        var budget = new ImageBudget(600);
+        var limited = new ImageSourceRequest { Href = "x", Budget = budget };
 
         // Act
         unlimited.EnsureWithinBudget(Surface.MaxDimension, Surface.MaxDimension);
-        limited.EnsureWithinBudget(20, 30);
         limited.EnsureWithinBudget(0, 1000);
-        var ex = Assert.Throws<ImageSourceBudgetException>(() => limited.EnsureWithinBudget(21, 30));
+        limited.EnsureWithinBudget(20, 29);
+        var ex = Assert.Throws<ImageSourceBudgetException>(() => limited.EnsureWithinBudget(21, 1));
+        limited.EnsureWithinBudget(20, 1);
 
         // Assert
-        Assert.Equal(long.MaxValue, unlimited.RemainingPixels);
-        Assert.Equal((630L, 600L), (ex.RequestedPixels, ex.RemainingPixels));
-        Assert.Contains("630", ex.Message, StringComparison.Ordinal);
-        Assert.Contains("600", ex.Message, StringComparison.Ordinal);
+        Assert.Equal(long.MaxValue, Sized(null, null).RemainingPixels);
+        Assert.Equal((long)Surface.MaxDimension * Surface.MaxDimension, unlimited.ChargedPixels);
+        Assert.Equal((21L, 20L), (ex.RequestedPixels, ex.RemainingPixels));
+        Assert.Contains("21", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("20", ex.Message, StringComparison.Ordinal);
+        Assert.Equal((600L, 0L, 0L), (limited.ChargedPixels, limited.RemainingPixels, budget.Remaining));
     }
 
     /// <summary>
-    ///     Test that <see cref="ImageSourceRequest.EnsureWithinBudget(int, int)"/> treats
-    ///     <see cref="ImageSourceRequest.ReservedPixels"/> as already charged: only the pixels beyond it must fit in
-    ///     <see cref="ImageSourceRequest.RemainingPixels"/>, and the exception reports the pixels the source could have
-    ///     used (reserved plus remaining).
+    ///     Test that requests that share one <see cref="ImageBudget"/> see each other's charges live, and that each
+    ///     keeps its own <see cref="ImageSourceRequest.ChargedPixels"/>.
     /// </summary>
     [Fact]
-    public void ImageSourceRequest_EnsureWithinBudget_ReservedPixelsAreAlreadyCharged()
+    public void ImageSourceRequest_EnsureWithinBudget_SharedBudget_SeesChargesOfOtherRequests()
     {
-        // Arrange: 1000 reserved and 500 more allowed
-        var request = new ImageSourceRequest { Href = "x", ReservedPixels = 1000, RemainingPixels = 500 };
-        var byDefault = Sized(null, null);
+        // Arrange: two requests on one budget of 1000 pixels
+        var budget = new ImageBudget(1000);
+        var first = new ImageSourceRequest { Href = "a", Budget = budget };
+        var second = new ImageSourceRequest { Href = "b", Budget = budget };
 
         // Act
-        request.EnsureWithinBudget(10, 100);
-        request.EnsureWithinBudget(10, 50);
-        request.EnsureWithinBudget(10, 150);
-        var ex = Assert.Throws<ImageSourceBudgetException>(() => request.EnsureWithinBudget(10, 151));
+        first.EnsureWithinBudget(10, 60);
+        var ex = Assert.Throws<ImageSourceBudgetException>(() => second.EnsureWithinBudget(10, 41));
 
         // Assert
-        Assert.Equal(0L, byDefault.ReservedPixels);
-        Assert.Equal((1510L, 1500L), (ex.RequestedPixels, ex.RemainingPixels));
+        Assert.Equal(400L, second.RemainingPixels);
+        Assert.Equal((410L, 400L), (ex.RequestedPixels, ex.RemainingPixels));
+        Assert.Equal((600L, 0L), (first.ChargedPixels, second.ChargedPixels));
     }
+
+    /// <summary>
+    ///     Test that a budget starts with all its pixels and rejects a negative maximum; zero is valid.
+    /// </summary>
+    [Fact]
+    public void ImageBudget_Constructor_StartsFullAndRejectsNegative()
+    {
+        // Arrange / Act
+        var budget = new ImageBudget(250);
+        var zero = new ImageBudget(0);
+
+        // Assert
+        Assert.Equal(250L, budget.Remaining);
+        Assert.Equal(0L, zero.Remaining);
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ImageBudget(-1));
+    }
+
+    /// <summary>
+    ///     Test that the lists a result is given are copied into read-only snapshots: changing the original lists
+    ///     afterwards does not change the result, the values cannot be changed through a cast, null becomes empty, and
+    ///     <c>with</c> keeps working.
+    /// </summary>
+    [Fact]
+    public void ImageSourceResult_Init_CopiesListsIntoReadOnlySnapshots()
+    {
+        // Arrange
+        using var surface = new Surface(2, 2);
+        var note = new ImageSourceDiagnostic("s", ImageDiagnosticSeverity.Info, "c", "m");
+        var notes = new List<ImageSourceDiagnostic> { note };
+        var echo = new List<string> { "e" };
+        var result = new ImageSourceResult(surface) { Diagnostics = notes, Echo = echo };
+
+        // Act
+        notes.Add(note);
+        echo.Add("f");
+        var renamed = result with { Format = "x" };
+        var replaced = result with { Echo = ["g"] };
+        var nulls = new ImageSourceResult(surface) { Diagnostics = null!, Echo = null! };
+
+        // Assert
+        Assert.Equal([note], result.Diagnostics);
+        Assert.Equal(["e"], result.Echo);
+        ReadOnlyListAssert.IsReadOnly(result.Diagnostics, note);
+        ReadOnlyListAssert.IsReadOnly(result.Echo, "x");
+        Assert.Equal("x", renamed.Format);
+        Assert.Equal(["e"], renamed.Echo);
+        Assert.Equal(["g"], replaced.Echo);
+        Assert.Empty(nulls.Diagnostics);
+        Assert.Empty(nulls.Echo);
+    }
+
     /// <summary>
     ///     Test the shape of the small value types: severity names, the embedded image record and its depth.
     /// </summary>

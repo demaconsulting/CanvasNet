@@ -41,8 +41,8 @@ sections:
                 title: >-
                   The RasterImageSource class shall read the size a file declares in its header (without decoding any
                   pixel data, for PNG, JPEG, BMP, TIFF and JPEG 2000 through the codecs' header probes, and for GIF
-                  from the Logical Screen Descriptor) and check it against the budget of the request
-                  (EnsureWithinBudget) before it
+                  from the Logical Screen Descriptor) and charge it to the budget of the request
+                  (EnsureWithinBudget, once) before it
                   decodes, refusing with ImageSourceBudgetException a picture that does not fit, however small the
                   file is and also when the header declares more than the codecs decode.
                 justification: |

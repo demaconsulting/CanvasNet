@@ -41,14 +41,15 @@ namespace DemaConsulting.CanvasNet.ImageSources;
 ///     </para>
 ///     <para>
 ///         <b>Memory.</b> A render may allocate at most <see cref="FolderImageResolverOptions.MaxDecodedPixels"/> pixels
-///         in all. The resolver clamps the requested size of every picture to 1 to <see cref="Surface.MaxDimension"/>
-///         per side, charges it before it calls a source (<see cref="ImageSourceRequest.ReservedPixels"/>), tells the
-///         source what is left after that charge (<see cref="ImageSourceRequest.RemainingPixels"/>; a source checks
-///         with <see cref="ImageSourceRequest.EnsureWithinBudget(int, int)"/> before it allocates, and the raster
-///         source reads the declared size from the header before decoding), and charges the larger of the requested and
-///         the returned size afterwards. <see cref="RemainingPixels"/> is the part of the budget not yet charged. A
-///         picture that does not fit is not drawn and is a warning with the code
-///         <see cref="TooLargeCode"/> (a direct render throws <see cref="ImageSourceBudgetException"/> instead).
+///         in all, from one live budget (<see cref="ImageBudget"/>) that the resolver shares with every request, nested
+///         ones included. The contract, for a source and for the resolver, is described once, in the remarks of
+///         <see cref="ImageSourceRequest"/>; in short, a source charges each surface it allocates
+///         (<see cref="ImageSourceRequest.EnsureWithinBudget(int, int)"/>), and the resolver refuses a link whose
+///         requested size cannot fit, charges whatever a source returned beyond what it charged, and gives back what a
+///         failed source charged. <see cref="RemainingPixels"/> is the live part of the budget not yet charged. A picture
+///         that does not fit is not drawn and is a warning with the code <see cref="TooLargeCode"/> (a direct render
+///         throws <see cref="ImageSourceBudgetException"/> instead). The requested size of every picture is clamped to
+///         1 to <see cref="Surface.MaxDimension"/> per side.
 ///     </para>
 ///     <para>
 ///         <b>One resolver, one render; nothing is cached.</b> The resolver counts the images it loads, accumulates
@@ -94,9 +95,10 @@ public sealed partial class FolderImageResolver : IImageResolver
     private readonly string? _rootDirectory;
 
     /// <summary>
-    ///     The sandbox that finds files in the folder, or <see langword="null"/> when there is no folder.
+    ///     The sandbox that finds files in the folder; created at first use (see <see cref="GetSandbox(bool)"/>), and
+    ///     never created when there is no folder.
     /// </summary>
-    private readonly SandboxedFileResolver? _sandbox;
+    private SandboxedFileResolver? _sandbox;
 
     /// <summary>
     ///     The notes of this render, in order.
@@ -124,10 +126,10 @@ public sealed partial class FolderImageResolver : IImageResolver
     private int _loaded;
 
     /// <summary>
-    ///     The pixels charged against <see cref="FolderImageResolverOptions.MaxDecodedPixels"/> so far, shared by every
-    ///     level of the render.
+    ///     The live pixel budget of the render, shared by every level and given to every request.
     /// </summary>
-    private long _pixelsUsed;
+    private readonly ImageBudget _budget;
+
     /// <summary>
     ///     Initializes a new instance of the <see cref="FolderImageResolver"/> class.
     /// </summary>
@@ -157,21 +159,40 @@ public sealed partial class FolderImageResolver : IImageResolver
         ArgumentOutOfRangeException.ThrowIfNegative(_options.MaxImages);
         ArgumentOutOfRangeException.ThrowIfNegative(_options.MaxDecodedPixels);
         _sources = sources as ImageSourceSet ?? new ImageSourceSet(sources);
+        _budget = new ImageBudget(_options.MaxDecodedPixels);
+        _rootDirectory = rootFolder is null ? null : Path.GetFullPath(rootFolder);
+        _rootScope = new Scope(this, null, [], 0, null);
+    }
 
-        // The sandbox may read one file more than the limit of images because a direct render reads the top-level file too
-        if (rootFolder is not null)
+    /// <summary>
+    ///     Gets the sandbox, creating it on first use, or <see langword="null"/> when the resolver has no folder.
+    /// </summary>
+    /// <param name="topLevelFile">
+    ///     <see langword="true"/> for the read of the top-level file of a render by path, which takes a file slot of the
+    ///     sandbox without counting as an embedded image.
+    /// </param>
+    /// <returns>The sandbox, or <see langword="null"/> when there is no folder.</returns>
+    /// <remarks>
+    ///     The sandbox may read as many distinct files as the resolver may load images
+    ///     (<see cref="FolderImageResolverOptions.MaxImages"/>), plus one for the top-level file when the render is by
+    ///     path (<see cref="Render(string, int?, int?)"/>; a render of a stream reads no top-level file). The limit is
+    ///     fixed when the sandbox is created, so a render by path must be the first thing a resolver does; that is how a
+    ///     resolver is meant to be used (one resolver, one render).
+    /// </remarks>
+    private SandboxedFileResolver? GetSandbox(bool topLevelFile = false)
+    {
+        if (_rootDirectory is null)
         {
-            _rootDirectory = Path.GetFullPath(rootFolder);
-            _sandbox = new SandboxedFileResolver(
-                new SandboxOptions
-                {
-                    BaseDirectory = _rootDirectory,
-                    MaxFiles = (int)Math.Min((long)_options.MaxImages + 1, int.MaxValue)
-                },
-                _options.CancellationToken);
+            return null;
         }
 
-        _rootScope = new Scope(this, null, [], 0, null);
+        return _sandbox ??= new SandboxedFileResolver(
+            new SandboxOptions
+            {
+                BaseDirectory = _rootDirectory,
+                MaxFiles = (int)Math.Min((long)_options.MaxImages + (topLevelFile ? 1 : 0), int.MaxValue)
+            },
+            _options.CancellationToken);
     }
 
     /// <summary>
@@ -205,13 +226,13 @@ public sealed partial class FolderImageResolver : IImageResolver
     public IReadOnlyList<EmbeddedImage> Embedded => _embedded.AsReadOnly();
 
     /// <summary>
-    ///     Gets the part of the pixel budget (<see cref="FolderImageResolverOptions.MaxDecodedPixels"/>) that has not been
-    ///     charged yet: the maximum minus the pixels charged so far for the pictures this resolver has drawn (the size
-    ///     requested for a picture is charged before its source runs, and a larger returned surface is charged when it comes
-    ///     back). A caller that allocates a further buffer of its own after a render, such as a resized final picture, can
-    ///     compare its size with this value to stay inside the same budget.
+    ///     Gets the part of the pixel budget (<see cref="FolderImageResolverOptions.MaxDecodedPixels"/>) that is free
+    ///     right now: the maximum minus the pixels charged so far for the pictures this resolver has drawn (see the
+    ///     remarks of <see cref="ImageSourceRequest"/> for who charges what). A caller that allocates a further buffer of
+    ///     its own after a render, such as a resized final picture, can compare its size with this value to stay inside
+    ///     the same budget.
     /// </summary>
-    public long RemainingPixels => _options.MaxDecodedPixels - _pixelsUsed;
+    public long RemainingPixels => _budget.Remaining;
 
     /// <summary>
     ///     Loads the picture a link names, for the top-level document.
@@ -258,7 +279,7 @@ public sealed partial class FolderImageResolver : IImageResolver
     public ImageSourceResult Render(string path, int? pixelWidth = null, int? pixelHeight = null)
     {
         ArgumentNullException.ThrowIfNull(path);
-        if (_sandbox is null)
+        if (_rootDirectory is null)
         {
             throw new InvalidOperationException("The resolver was created without a folder, so it cannot render a file by path; use Render(Stream, string).");
         }
@@ -267,7 +288,8 @@ public sealed partial class FolderImageResolver : IImageResolver
 
         // The extension is checked first so a file nobody can draw is never read
         var source = _sources.FindByExtension(path) ?? throw NoSource(path);
-        var file = _sandbox.Resolve(path)
+        var sandbox = GetSandbox(topLevelFile: true)!;
+        var file = sandbox.Resolve(path)
                    ?? throw new FileNotFoundException($"The file '{path}' was not found in the folder.", path);
         if (!ReferenceEquals(_sources.FindByExtension(file.Key), source))
         {
@@ -275,7 +297,7 @@ public sealed partial class FolderImageResolver : IImageResolver
         }
 
         var name = RelativeName(file);
-        var (width, height, reserved) = PrepareDirect(pixelWidth, pixelHeight);
+        var (width, height) = PrepareDirect(pixelWidth, pixelHeight);
         var request = new ImageSourceRequest
         {
             Href = path,
@@ -284,13 +306,12 @@ public sealed partial class FolderImageResolver : IImageResolver
             Directory = file.Directory,
             PixelWidth = width,
             PixelHeight = height,
-            RemainingPixels = RemainingPixels - reserved,
-            ReservedPixels = reserved,
+            Budget = _budget,
             Resolver = new Scope(this, file, [file.Key], 0, name),
             ThrowOnUnsupportedFeature = _options.ThrowOnUnsupportedFeature,
             CancellationToken = _options.CancellationToken
         };
-        return RenderDirect(source, request, reserved);
+        return RenderDirect(source, request);
     }
 
     /// <summary>
@@ -320,7 +341,7 @@ public sealed partial class FolderImageResolver : IImageResolver
         _options.CancellationToken.ThrowIfCancellationRequested();
 
         var source = _sources.FindByExtension(fileName) ?? throw NoSource(fileName);
-        var (width, height, reserved) = PrepareDirect(pixelWidth, pixelHeight);
+        var (width, height) = PrepareDirect(pixelWidth, pixelHeight);
         var request = new ImageSourceRequest
         {
             Href = fileName,
@@ -329,13 +350,12 @@ public sealed partial class FolderImageResolver : IImageResolver
             Directory = _rootDirectory,
             PixelWidth = width,
             PixelHeight = height,
-            RemainingPixels = RemainingPixels - reserved,
-            ReservedPixels = reserved,
+            Budget = _budget,
             Resolver = new Scope(this, null, [], 0, fileName),
             ThrowOnUnsupportedFeature = _options.ThrowOnUnsupportedFeature,
             CancellationToken = _options.CancellationToken
         };
-        return RenderDirect(source, request, reserved);
+        return RenderDirect(source, request);
     }
 
     /// <summary>
@@ -383,25 +403,25 @@ public sealed partial class FolderImageResolver : IImageResolver
             return null;
         }
 
-        var reason = CheckLimits(scope, key);
+        // No file is read for a scheme-claimed link, so the cycle check (which names the better reason) can run first
+        var reason = CheckCycle(scope, key) ?? CheckDepthAndCount(scope);
         if (reason is not null)
         {
             return Unresolved(href, reason);
         }
 
-        var reserved = (long)width * height;
+        _loaded++;
         var request = new ImageSourceRequest
         {
             Href = href,
             PixelWidth = width,
             PixelHeight = height,
-            RemainingPixels = RemainingPixels - reserved,
-            ReservedPixels = reserved,
+            Budget = _budget,
             Resolver = new Scope(this, null, [.. scope.Chain, key], scope.Depth + 1, href),
             ThrowOnUnsupportedFeature = _options.ThrowOnUnsupportedFeature,
             CancellationToken = _options.CancellationToken
         };
-        return Draw(scope, source, request, reserved);
+        return Draw(scope, source, request);
     }
 
     /// <summary>
@@ -414,7 +434,8 @@ public sealed partial class FolderImageResolver : IImageResolver
     /// <returns>The picture, or <see langword="null"/> when the link was not drawn.</returns>
     private Surface? ResolveFile(Scope scope, string href, int pixelWidth, int pixelHeight)
     {
-        if (_sandbox is null)
+        var sandbox = GetSandbox();
+        if (sandbox is null)
         {
             return Unresolved(href, "the resolver has no folder, so no file can be loaded");
         }
@@ -432,11 +453,19 @@ public sealed partial class FolderImageResolver : IImageResolver
             return Unresolved(href, DescribeUnknownFormat());
         }
 
+        // The depth and count limits need no file, so they are applied before the sandbox opens (reads) it: an image
+        // that is over a limit is never read. Only the cycle check needs the resolved key and has to wait
+        reason = CheckDepthAndCount(scope);
+        if (reason is not null)
+        {
+            return Unresolved(href, reason);
+        }
+
         // The sandbox does every safety check; a refusal is a reason, never a read
         SandboxedFile? file;
         try
         {
-            file = _sandbox.Resolve(path, relativeToCurrent ? scope.Current : null);
+            file = sandbox.Resolve(path, relativeToCurrent ? scope.Current : null);
         }
         catch (SandboxException ex)
         {
@@ -459,14 +488,15 @@ public sealed partial class FolderImageResolver : IImageResolver
             return null;
         }
 
-        reason = CheckLimits(scope, file.Key);
+        // The image is counted only now, when every check has passed
+        reason = CheckCycle(scope, file.Key);
         if (reason is not null)
         {
             return Unresolved(href, reason);
         }
 
+        _loaded++;
         var name = RelativeName(file);
-        var reserved = (long)width * height;
         var request = new ImageSourceRequest
         {
             Href = href,
@@ -475,33 +505,22 @@ public sealed partial class FolderImageResolver : IImageResolver
             Directory = file.Directory,
             PixelWidth = width,
             PixelHeight = height,
-            RemainingPixels = RemainingPixels - reserved,
-            ReservedPixels = reserved,
+            Budget = _budget,
             Resolver = new Scope(this, file, [.. scope.Chain, file.Key], scope.Depth + 1, name),
             ThrowOnUnsupportedFeature = _options.ThrowOnUnsupportedFeature,
             CancellationToken = _options.CancellationToken
         };
-        return Draw(scope, source, request, reserved);
+        return Draw(scope, source, request);
     }
 
     /// <summary>
-    ///     Applies the cycle, depth and count limits to an image about to be loaded, and counts it.
+    ///     Applies the depth and image-count limits to an image about to be loaded; they need no file, so they are
+    ///     checked before the file is opened.
     /// </summary>
     /// <param name="scope">The scope that contains the link.</param>
-    /// <param name="key">The identity of the image: the full path of the file, or the scheme-claimed link.</param>
-    /// <returns>The reason the image must not be loaded, or <see langword="null"/> when it may be (it is then counted).</returns>
-    /// <remarks>
-    ///     The cycle check runs first, so a file that embeds itself stops at once and one file embedding another that
-    ///     embeds it stops at the second occurrence.
-    /// </remarks>
-    private string? CheckLimits(Scope scope, string key)
+    /// <returns>The reason the image must not be loaded, or <see langword="null"/> when it may be.</returns>
+    private string? CheckDepthAndCount(Scope scope)
     {
-        var comparer = _sandbox?.KeyComparer ?? StringComparer.Ordinal;
-        if (scope.Chain.Contains(key, comparer))
-        {
-            return "the file embeds itself (a cycle)";
-        }
-
         if (scope.Depth >= _options.MaxDepth)
         {
             return $"files are embedded in each other more than {_options.MaxDepth} levels deep";
@@ -512,8 +531,24 @@ public sealed partial class FolderImageResolver : IImageResolver
             return $"more than {_options.MaxImages} images are embedded";
         }
 
-        _loaded++;
         return null;
+    }
+
+    /// <summary>
+    ///     Applies the cycle check to an image about to be loaded: it needs the identity of the image, so it can only run
+    ///     once the file is resolved.
+    /// </summary>
+    /// <param name="scope">The scope that contains the link.</param>
+    /// <param name="key">The identity of the image: the full path of the file, or the scheme-claimed link.</param>
+    /// <returns>The reason the image must not be loaded, or <see langword="null"/> when it may be.</returns>
+    /// <remarks>
+    ///     A file that embeds itself stops at once, and one file embedding another that embeds it stops at the second
+    ///     occurrence.
+    /// </remarks>
+    private string? CheckCycle(Scope scope, string key)
+    {
+        var comparer = GetSandbox()?.KeyComparer ?? StringComparer.Ordinal;
+        return scope.Chain.Contains(key, comparer) ? "the file embeds itself (a cycle)" : null;
     }
 
     /// <summary>
@@ -540,23 +575,27 @@ public sealed partial class FolderImageResolver : IImageResolver
     }
 
     /// <summary>
-    ///     Clamps the optional size of a direct render and checks that it fits in the pixel budget.
+    ///     Clamps the optional size of a direct render and checks that it can fit in the pixel budget.
     /// </summary>
     /// <param name="pixelWidth">The requested width, or <see langword="null"/> for the natural width.</param>
     /// <param name="pixelHeight">The requested height, or <see langword="null"/> for the natural height.</param>
-    /// <returns>The clamped size and the pixels to charge for it (zero when no size is requested).</returns>
-    /// <exception cref="ImageSourceBudgetException">Thrown when the requested size does not fit in the budget.</exception>
-    private (int? Width, int? Height, long Reserved) PrepareDirect(int? pixelWidth, int? pixelHeight)
+    /// <returns>The clamped size; a dimension that was not requested stays <see langword="null"/>.</returns>
+    /// <remarks>
+    ///     This is only the cheap early refusal, like the one for a link: nothing is charged, the source charges what
+    ///     it allocates. A natural-size render has no size to check.
+    /// </remarks>
+    /// <exception cref="ImageSourceBudgetException">Thrown when the requested size exceeds the budget that is left.</exception>
+    private (int? Width, int? Height) PrepareDirect(int? pixelWidth, int? pixelHeight)
     {
         int? width = pixelWidth is { } w ? Math.Clamp(w, 1, Surface.MaxDimension) : null;
         int? height = pixelHeight is { } h ? Math.Clamp(h, 1, Surface.MaxDimension) : null;
-        var reserved = width is null && height is null ? 0L : (long)(width ?? 1) * (height ?? 1);
-        if (reserved > RemainingPixels)
+        var requested = width is null && height is null ? 0L : (long)(width ?? 1) * (height ?? 1);
+        if (requested > _budget.Remaining)
         {
-            throw new ImageSourceBudgetException(reserved, RemainingPixels);
+            throw new ImageSourceBudgetException(requested, _budget.Remaining);
         }
 
-        return (width, height, reserved);
+        return (width, height);
     }
 
     /// <summary>
@@ -565,48 +604,30 @@ public sealed partial class FolderImageResolver : IImageResolver
     /// <param name="scope">The scope that contains the link.</param>
     /// <param name="source">The source.</param>
     /// <param name="request">The request.</param>
-    /// <param name="reserved">The pixels to charge before the call: the requested size.</param>
     /// <returns>The picture, which the caller owns, or <see langword="null"/> when it does not fit in the pixel budget.</returns>
-    private Surface? Draw(Scope scope, IImageSource source, ImageSourceRequest request, long reserved)
+    private Surface? Draw(Scope scope, IImageSource source, ImageSourceRequest request)
     {
         _options.CancellationToken.ThrowIfCancellationRequested();
 
-        // The requested size is charged before the source runs; a source that refuses has allocated nothing, so it is returned
-        _pixelsUsed += reserved;
+        // A refusal for the budget is a warning and nothing is drawn; the render carries on
         ImageSourceResult result;
         try
         {
-            result = Invoke(source, request, scope.Name);
+            result = Run(source, request, scope.Name);
         }
         catch (ImageSourceBudgetException ex)
         {
-            _pixelsUsed -= reserved;
             TooLarge(request.Href, ex.RequestedPixels);
             return null;
         }
 
-        // What the source returned is charged too, whatever it was asked for (a raster comes back at its own size, and a
-        // custom source may not have checked): a surface that does not fit is discarded
-        var returned = (long)result.Surface.Width * result.Surface.Height;
-        if (returned > reserved)
-        {
-            if (returned - reserved > RemainingPixels)
-            {
-                result.Surface.Dispose();
-                TooLarge(request.Href, returned);
-                return null;
-            }
-
-            _pixelsUsed += returned - reserved;
-        }
-
         // The notes get the embedding link in front so their origin is clear; the rest is kept as reported
-        foreach (var note in result.Diagnostics ?? [])
+        foreach (var note in result.Diagnostics)
         {
             _diagnostics.Add(note with { Message = $"{request.Href}: {note.Message}" });
         }
 
-        _echo.AddRange(result.Echo ?? []);
+        _echo.AddRange(result.Echo);
         _embedded.Add(new EmbeddedImage(request.Href, result.Format ?? source.Name, result.Surface.Width, result.Surface.Height)
         {
             Depth = scope.Depth
@@ -619,40 +640,60 @@ public sealed partial class FolderImageResolver : IImageResolver
     /// </summary>
     /// <param name="source">The source.</param>
     /// <param name="request">The request.</param>
-    /// <param name="reserved">The pixels to charge before the call: the requested size.</param>
     /// <returns>The result, with the format filled in.</returns>
     /// <exception cref="ImageSourceBudgetException">Thrown when the picture does not fit in the pixel budget.</exception>
-    private ImageSourceResult RenderDirect(IImageSource source, ImageSourceRequest request, long reserved)
+    private ImageSourceResult RenderDirect(IImageSource source, ImageSourceRequest request)
     {
-        _pixelsUsed += reserved;
-        ImageSourceResult result;
-        try
-        {
-            result = Invoke(source, request, null);
-        }
-        catch (ImageSourceBudgetException)
-        {
-            _pixelsUsed -= reserved;
-            throw;
-        }
-
-        // The returned size is charged like the size of an embedded picture, and a surface that does not fit is discarded
-        var returned = (long)result.Surface.Width * result.Surface.Height;
-        if (returned > reserved)
-        {
-            var available = RemainingPixels;
-            if (returned - reserved > available)
-            {
-                result.Surface.Dispose();
-                throw new ImageSourceBudgetException(returned, available + reserved);
-            }
-
-            _pixelsUsed += returned - reserved;
-        }
-
+        var result = Run(source, request, null);
         return result.Format is null ? result with { Format = source.Name } : result;
     }
 
+    /// <summary>
+    ///     Calls a source and settles its charges against the budget: the single place where the resolver's side of the
+    ///     budget contract (see <see cref="ImageSourceRequest"/>) is applied.
+    /// </summary>
+    /// <param name="source">The source.</param>
+    /// <param name="request">The request, whose <see cref="ImageSourceRequest.ChargedPixels"/> the source has filled in.</param>
+    /// <param name="embedder">The file that contains the link, or <see langword="null"/> for the top level.</param>
+    /// <returns>What the source returned, with its surface charged to the budget.</returns>
+    /// <exception cref="ImageSourceBudgetException">
+    ///     Thrown when the source refused for the budget, or returned a surface larger than what it charged for that does
+    ///     not fit in the budget that is left (the surface is disposed).
+    /// </exception>
+    /// <exception cref="ImageSourceException">Thrown when the source throws, or returns nothing.</exception>
+    private ImageSourceResult Run(IImageSource source, ImageSourceRequest request, string? embedder)
+    {
+        // Whatever goes wrong, what this request charged goes back, so a failed source leaks no budget (the pictures that
+        // nested requests drew stay charged: they were allocated)
+        ImageSourceResult result;
+        try
+        {
+            result = Invoke(source, request, embedder);
+        }
+        catch
+        {
+            request.RefundCharges();
+            throw;
+        }
+
+        // A source that charged less than it returned (a raster comes back at its own size, a custom source may not have
+        // checked) is charged the difference now; a surface that does not fit is discarded
+        var returned = (long)result.Surface.Width * result.Surface.Height;
+        var excess = returned - request.ChargedPixels;
+        if (excess > _budget.Remaining)
+        {
+            result.Surface.Dispose();
+            request.RefundCharges();
+            throw new ImageSourceBudgetException(returned, _budget.Remaining);
+        }
+
+        if (excess > 0)
+        {
+            _budget.Charge(excess);
+        }
+
+        return result;
+    }
     /// <summary>
     ///     Calls a source and wraps the failures that are not cancellation.
     /// </summary>

@@ -184,14 +184,14 @@ using var dots = CanvasNetViewer.Render("grid.dots", new ViewerRenderOptions { E
   it (a list of allowed cameras, hosts, or paths), never build a file path or a URL from it unchecked, and bound the work
   it does; the resolver counts the images and the depth of scheme links like any other, but it cannot confine what the
   source reaches.
-- **Check the pixel budget before you allocate.** A render may allocate only so many pixels in all
-  (`MaxDecodedPixels`). The resolver has already charged the requested size (`request.ReservedPixels`, width times height
-  of the placement; zero for a render at the natural size) when it calls your source, and `request.RemainingPixels` is
-  what is still free after that, for the pictures you load through `request.Resolver` and for any surface larger than the
-  requested size. Call `request.EnsureWithinBudget(width, height)` with the size you are about to allocate: drawing at
-  the requested size always passes, and a larger surface must fit in `RemainingPixels`. It throws
-  `ImageSourceBudgetException`, which the resolver turns into an `svg-image-too-large` warning (an exception for a direct
-  `Render`). `RemainingPixels` is a snapshot, so the resolver charges what you return against the live budget too.
+- **Charge the pixel budget before you allocate.** A render may allocate only so many pixels in all
+  (`MaxDecodedPixels`), from one live budget shared by every picture, nested ones included. Call
+  `request.EnsureWithinBudget(width, height)` once for each surface you are about to allocate, before allocating it,
+  with the size you will allocate: it takes the pixels from the budget (and records them in `request.ChargedPixels`), or
+  throws `ImageSourceBudgetException` and charges nothing, which the resolver turns into an `svg-image-too-large`
+  warning (an exception for a direct `Render`). `request.RemainingPixels` always reads what is free right now. The
+  resolver reserves nothing for you, charges what you return beyond what you charged, and gives back what you charged
+  when you throw. The full contract is in the XML documentation of `ImageSourceRequest`.
 - **Throw for a file that cannot be drawn.** Throw for a corrupt file or an unsupported feature when
   `request.ThrowOnUnsupportedFeature` is set; the resolver wraps it in an `ImageSourceException` that names the link and
   the embedding file. Return notes in `ImageSourceResult.Diagnostics` and printed text in `Echo`.

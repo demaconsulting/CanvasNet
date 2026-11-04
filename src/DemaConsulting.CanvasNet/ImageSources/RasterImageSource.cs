@@ -19,9 +19,9 @@ namespace DemaConsulting.CanvasNet.ImageSources;
 ///     </para>
 ///     <para>
 ///         <b>Memory.</b> A decoded picture takes four bytes per pixel whatever the size of the file, so the source reads
-///         the declared size from the header first and refuses (<see cref="ImageSourceBudgetException"/>) a picture that
-///         does not fit in the budget of the request (<see cref="ImageSourceRequest.EnsureWithinBudget(int, int)"/>) before
-///         it decodes anything.
+///         the declared size from the header first and charges it (<see cref="ImageSourceRequest.EnsureWithinBudget(int, int)"/>;
+///         see <see cref="ImageSourceRequest"/> for the budget contract), refusing
+///         (<see cref="ImageSourceBudgetException"/>) a picture that does not fit before it decodes anything.
 ///     </para>
 ///     <para>
 ///         The source is stateless and thread-safe; one instance can serve any number of resolvers. It claims no URI

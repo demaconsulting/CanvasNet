@@ -1883,10 +1883,10 @@ no other unit or subsystem in this repository calls into it.
 link to a PDF file through the shared `FolderImageResolver`; it draws the **first page**. `Render(request)` opens the
 document with `PdfDocument.Open(request.OpenContent())`, takes the displayed (rotation-adjusted) size of page 0 from
 `GetPageInfo` at 96 dots per inch as the natural size (points times 96/72, rounded), asks `request.SizeFor(naturalWidth,
-naturalHeight, fitInside: true)` for the largest size of the aspect ratio of the page inside the requested box, checks
-that size with `request.EnsureWithinBudget(width, height)` (a size that does not fit in the budget of the request is
+naturalHeight, fitInside: true)` for the largest size of the aspect ratio of the page inside the requested box, charges
+that size with `request.EnsureWithinBudget(width, height)` (a size that does not fit in the live budget is
 refused with
-`ImageSourceBudgetException` before any surface is allocated), and
+`ImageSourceBudgetException` before any surface is allocated; the contract is on `ImageSourceRequest`), and
 draws it with `Render(0, width, height, new PdfRenderOptions { BackgroundColor = transparent })`, so the page is sharp
 at the size of its placement, not distorted, and the embedding document shows through. The PDF library has no
 diagnostics channel and cannot be canceled while it draws, so the result has no notes (the strictness switch has no

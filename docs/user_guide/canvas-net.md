@@ -2311,10 +2311,13 @@ forwarded in `Diagnostics` with the link in front of each message.
 **The pixel budget.** A small placement can ask for a huge picture: a raster is decoded at its own size, so an 8192 by
 8192 PNG placed in a 1 by 1 rectangle would allocate about 256 MiB, again for every link. `MaxDecodedPixels` (default
 64,000,000) limits the pixels (width times height) that all the sources of one resolver may allocate, at every level of
-nesting. The resolver clamps the requested size of each link to 1 through 8192 per side and refuses it, before it calls
-a source, when it does not fit in what is left; the raster source reads the declared size from the file header and
-refuses before it decodes anything; every vector source checks the size it is about to draw at; and what a source
-returns is charged afterwards too, so a source that does not check cannot overspend. A picture that does not fit is not
+nesting. The limit is one live counter: each source charges the surface it is about to allocate (the raster source reads
+the declared size from the file header and charges it before it decodes anything; every vector source charges the size
+it is about to draw at), and a source that draws nested pictures charges its own surface before it loads them, so they
+see only what is left. The resolver clamps the requested size of each link to 1 through 8192 per side and refuses it,
+before it calls a source, when it does not fit in what is left; whatever a source returns beyond what it charged is
+charged afterwards, so a source that does not check cannot overspend, and a source that fails gives back what it
+charged. A picture that does not fit is not
 drawn and is a warning with the code **`svg-image-too-large`** (the render carries on, there is no exception; a direct
 `Render` throws `ImageSourceBudgetException`). Pictures are disposed after use, so the budget caps the total work, not
 the memory held at one time.
@@ -2364,7 +2367,7 @@ sealed class DotsSource : IImageSource
 
         // The size to draw at: the requested size of the placement, or 200 x 100 when none is requested
         var (width, height) = request.SizeFor(200, 100);
-        request.EnsureWithinBudget(width, height);   // refuse BEFORE allocating: throws ImageSourceBudgetException
+        request.EnsureWithinBudget(width, height);   // charge BEFORE allocating; throws ImageSourceBudgetException
         var surface = new Surface(width, height);
         // ... draw `count` dots ...
         return new ImageSourceResult(surface) { Format = "dots" };
@@ -2411,18 +2414,20 @@ The contract, in short (every member is documented in the XML documentation):
 - **Cancellation and limits.** The resolver checks `CancellationToken` before every render and enforces the depth, cycle
   and
   image-count limits before it calls you; observe the token during long work and throw `OperationCanceledException`.
-- **Pixel budget.** The resolver charges the requested size before it calls you (`request.ReservedPixels`: width times
-  height of the placement, zero for a render at the natural size), and `request.RemainingPixels` is the budget that is
-  still free after that charge: the room for the pictures you load through `request.Resolver` and for any surface larger
-  than the requested size. **Check before you allocate**: call `request.EnsureWithinBudget(width, height)` with the size
-  you are about to allocate (a vector source the size it draws at, which always passes when it is the requested size; a
-  raster source the size its header declares, before decoding). It passes when the pixels beyond `ReservedPixels` do not
-  exceed `RemainingPixels`, and otherwise throws `ImageSourceBudgetException`, which the resolver turns into the warning
-  `svg-image-too-large` and no picture; you can also throw that exception yourself. `RemainingPixels` is a snapshot taken
-  when the request was built: the pictures you load afterwards through `request.Resolver` are charged against the live
-  budget, and so is the surface you return (the larger of the requested and the returned size), so a surface bigger than
-  what is left is discarded, but only after you have allocated it. After a render, `FolderImageResolver.RemainingPixels`
-  is the part of `MaxDecodedPixels` that has not been charged.
+- **Pixel budget.** One live budget (`MaxDecodedPixels`) is shared by every picture of the render, nested ones
+  included, and `request.RemainingPixels` always reads what is free right now. **Charge each surface you are about to
+  allocate**: call `request.EnsureWithinBudget(width, height)` once per surface, before allocating it, with the size you
+  will allocate (a vector source the size it draws at; a raster source the size its header declares, before decoding;
+  the sizes of several calls add up). The call takes the pixels from the budget and records them in
+  `request.ChargedPixels`, or, when they do not fit, throws `ImageSourceBudgetException` and charges nothing, which the
+  resolver turns into the warning `svg-image-too-large` and no picture (you can also throw that exception yourself). If
+  you draw a document with nested pictures, charge your own surface first, then load them through `request.Resolver`:
+  they see only what is left. The resolver reserves nothing for you: it refuses a link early when its requested size
+  cannot fit, charges whatever surface you return beyond `ChargedPixels` (a surface that does not fit is discarded, but
+  only after you have allocated it, so charge first), and gives back what you charged when you throw or are refused.
+  To give a hand-built request (a test of your source) a limit, set `Budget = new ImageBudget(maxPixels)` and read
+  `Budget.Remaining` afterwards. The full contract is in the XML documentation of `ImageSourceRequest`. After a render,
+  `FolderImageResolver.RemainingPixels` is the live part of `MaxDecodedPixels` that is still free.
 - **Ownership.** The surface you return is owned by the caller and disposed after drawing: never return a surface you
   keep or
   reuse, and produce a new picture on every call (nothing is cached).

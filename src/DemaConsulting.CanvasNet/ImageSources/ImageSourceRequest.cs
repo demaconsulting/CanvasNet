@@ -44,21 +44,36 @@ namespace DemaConsulting.CanvasNet.ImageSources;
 ///         frame is asked again each time).
 ///     </para>
 ///     <para>
-///         <b>The pixel budget.</b> A render may allocate only so many pixels in all
-///         (<see cref="FolderImageResolverOptions.MaxDecodedPixels"/>), however many pictures it embeds, because a small
-///         placement can ask for a huge picture (a raster is decoded at its own size, whatever size the request names).
-///         The resolver has already charged the requested size (<see cref="ReservedPixels"/>, the width times the height
-///         of <see cref="PixelWidth"/> and <see cref="PixelHeight"/>; zero for a natural-size render) before it calls the
-///         source, and <see cref="RemainingPixels"/> is what is still free after that charge: the room for pictures the
-///         source loads through <see cref="Resolver"/> (those are charged against the live budget, so the number is a
-///         snapshot) and for any surface larger than the requested size. <b>A source must check before it
-///         allocates</b>: a vector source checks the size it is about to draw at (which always fits when it is the
-///         requested size), a raster source the size its header declares (before decoding anything), by calling
-///         <see cref="EnsureWithinBudget(int, int)"/>, which throws an <see cref="ImageSourceBudgetException"/> that the
-///         resolver turns into a warning (<see cref="FolderImageResolver.TooLargeCode"/>) and an undrawn picture. The
-///         resolver also charges what it receives (the larger of the requested size and the returned size), so a source
-///         that does not check cannot overspend: an oversized surface is discarded and the link is refused the same way,
-///         but only after the source has already allocated, so checking first is what protects the memory.
+///         <b>The pixel budget (the one authoritative description).</b> A render may allocate only so many pixels in
+///         all (<see cref="FolderImageResolverOptions.MaxDecodedPixels"/>), however many pictures it embeds, because a
+///         small placement can ask for a huge picture (a raster is decoded at its own size, whatever size the request
+///         names). All of it is one <b>live</b> counter, an <see cref="ImageBudget"/>, that the resolver shares with every
+///         request of the render, nested requests included; <see cref="RemainingPixels"/> reads it at the moment you ask,
+///         so it already reflects every picture charged so far. Nothing is charged before a source runs.
+///     </para>
+///     <para>
+///         <b>A source charges what it allocates, when it allocates it.</b> Call <see cref="EnsureWithinBudget(int, int)"/>
+///         <b>once for every surface the source is about to allocate</b>, with the size it will allocate (a vector source
+///         the size it will draw at, a raster source the size its header declares, before decoding anything). The call
+///         takes width times height from the budget at that moment (a lease; the sizes of several calls add up) and
+///         records it in <see cref="ChargedPixels"/>; when it does not fit it throws an
+///         <see cref="ImageSourceBudgetException"/> and charges nothing, so the source has allocated nothing and the
+///         resolver turns the exception into a warning (<see cref="FolderImageResolver.TooLargeCode"/>) and an undrawn
+///         picture. A source that draws a document with nested pictures should charge its own surface <b>before</b> it
+///         loads them through <see cref="Resolver"/>, so the nested pictures see only what is left.
+///     </para>
+///     <para>
+///         <b>What the resolver does around a source.</b> Before it calls a source for a link, the resolver refuses the
+///         link early (the same warning, the source is not called) when the requested size alone exceeds
+///         <see cref="RemainingPixels"/>; it charges nothing at that point. After the source returns, it compares the
+///         size of the returned surface with <see cref="ChargedPixels"/> and charges the excess, so a source that never
+///         calls <see cref="EnsureWithinBudget(int, int)"/> cannot overspend: an oversized surface is disposed and the
+///         link refused the same way, but only after the source has allocated it, so charging first is what protects the
+///         memory. When the source throws, returns nothing or is refused, the resolver gives back what <i>this</i>
+///         request charged, so a failed source leaks no budget (the pictures that nested requests already drew stay
+///         charged, they were allocated). A picture that is accepted stays charged for the rest of the render: the budget
+///         is a cumulative cap. A direct render (<see cref="FolderImageResolver.Render(string, int?, int?)"/>) follows
+///         the same rules and throws the <see cref="ImageSourceBudgetException"/> instead of warning.
 ///     </para>
 ///     <para>
 ///         <b>Nested links.</b> A source that draws a document which links to other pictures (the SVG source) loads them
@@ -70,7 +85,8 @@ namespace DemaConsulting.CanvasNet.ImageSources;
 ///         request was built by hand.
 ///     </para>
 ///     <para>
-///         The class is immutable once built and anyone (a test of a custom source, for example) may construct one.
+///         The class is immutable once built apart from the <see cref="ChargedPixels"/> counter, and anyone (a test of a
+///         custom source, for example) may construct one.
 ///     </para>
 /// </remarks>
 public sealed class ImageSourceRequest
@@ -114,20 +130,26 @@ public sealed class ImageSourceRequest
     public int? PixelHeight { get; init; }
 
     /// <summary>
-    ///     Gets the number of pixels (width times height) of the render budget that are still free after the
-    ///     <see cref="ReservedPixels"/> were charged: what is left for pictures loaded through <see cref="Resolver"/> and
-    ///     for any allocation beyond the requested size; see the remarks of the class. It is a snapshot taken when the
-    ///     request is built. The default is <see cref="long.MaxValue"/> (no limit), which is what a request built by hand
-    ///     has.
+    ///     Gets the live shared pixel budget of the render (see the remarks of the class), or <see langword="null"/> for
+    ///     no limit, which is what a request built by hand has unless it sets one. The resolver sets it to the budget of
+    ///     the render; a test of a custom source can set <c>new ImageBudget(maxPixels)</c> and read
+    ///     <see cref="ImageBudget.Remaining"/> afterwards.
     /// </summary>
-    public long RemainingPixels { get; init; } = long.MaxValue;
+    public ImageBudget? Budget { get; init; }
 
     /// <summary>
-    ///     Gets the number of pixels the resolver has already charged to the budget for this request: the requested size
-    ///     (<see cref="PixelWidth"/> times <see cref="PixelHeight"/>), or zero for a natural-size direct render. A surface
-    ///     of up to this many pixels needs nothing more from <see cref="RemainingPixels"/>. The default is zero.
+    ///     Gets the number of pixels (width times height) of the render budget that are free right now, read live from
+    ///     <see cref="Budget"/>; <see cref="long.MaxValue"/> when there is no budget. See the remarks of the class.
     /// </summary>
-    public long ReservedPixels { get; init; }
+    public long RemainingPixels => Budget?.Remaining ?? long.MaxValue;
+
+    /// <summary>
+    ///     Gets the number of pixels this request has charged so far through <see cref="EnsureWithinBudget(int, int)"/>:
+    ///     the sum of width times height over its successful calls (zero when none). The resolver compares it with the
+    ///     size of the surface the source returns and gives it back when the source fails. It is the only state that
+    ///     changes after the request is built, and it is not thread-safe.
+    /// </summary>
+    public long ChargedPixels { get; private set; }
 
     /// <summary>
     ///     Gets the resolver a source uses to load the pictures that its own picture links to, scoped to this request
@@ -175,26 +197,37 @@ public sealed class ImageSourceRequest
     }
 
     /// <summary>
-    ///     Checks that a picture of the given size fits in the budget of this request; call it before allocating the
-    ///     picture (or decoding it), with the size the picture will have. The picture fits when the pixels beyond
-    ///     <see cref="ReservedPixels"/> (already charged) do not exceed <see cref="RemainingPixels"/>.
+    ///     Charges a surface the source is about to allocate to the live budget (a lease); call it once per surface,
+    ///     before allocating it (or decoding it), with the size it will have. See the remarks of the class for the
+    ///     whole contract.
     /// </summary>
-    /// <param name="width">The width in pixels the source is about to allocate.</param>
-    /// <param name="height">The height in pixels the source is about to allocate.</param>
+    /// <param name="width">The width in pixels the source is about to allocate (negative counts as zero).</param>
+    /// <param name="height">The height in pixels the source is about to allocate (negative counts as zero).</param>
+    /// <remarks>
+    ///     With no <see cref="Budget"/> nothing is limited, but the size is still recorded in
+    ///     <see cref="ChargedPixels"/>.
+    /// </remarks>
     /// <exception cref="ImageSourceBudgetException">
-    ///     Thrown when width times height minus <see cref="ReservedPixels"/> exceeds <see cref="RemainingPixels"/>. The
-    ///     exception reports width times height as the requested pixels and the sum of <see cref="ReservedPixels"/> and
-    ///     <see cref="RemainingPixels"/> (the most the source could have used) as the remaining pixels.
+    ///     Thrown when width times height exceeds <see cref="RemainingPixels"/> at this moment; nothing is charged then.
+    ///     The exception reports width times height as the requested pixels and <see cref="RemainingPixels"/> as the
+    ///     remaining pixels.
     /// </exception>
     public void EnsureWithinBudget(int width, int height)
     {
         var pixels = (long)Math.Max(width, 0) * Math.Max(height, 0);
-        var extra = Math.Max(0L, pixels - ReservedPixels);
-        if (extra > RemainingPixels)
-        {
-            var usable = RemainingPixels > long.MaxValue - ReservedPixels ? long.MaxValue : RemainingPixels + ReservedPixels;
-            throw new ImageSourceBudgetException(pixels, usable);
-        }
+        Budget?.Charge(pixels);
+
+        // Sizes accumulate; saturate rather than wrap, which only matters when there is no budget at all
+        ChargedPixels = ChargedPixels > long.MaxValue - pixels ? long.MaxValue : ChargedPixels + pixels;
+    }
+
+    /// <summary>
+    ///     Gives back what this request charged, for a source that failed or was refused (called by the resolver).
+    /// </summary>
+    internal void RefundCharges()
+    {
+        Budget?.Refund(ChargedPixels);
+        ChargedPixels = 0;
     }
 
     /// <summary>

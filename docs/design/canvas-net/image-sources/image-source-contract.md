@@ -10,7 +10,9 @@ source
 files, all `public`:
 
 - `IImageSource.cs` - `IImageSource` (interface): a source and what it claims
-- `ImageSourceRequest.cs` - `ImageSourceRequest` (sealed class): what a source is asked to draw
+- `ImageSourceRequest.cs` - `ImageSourceRequest` (sealed class): what a source is asked to draw, and the home of the
+  budget contract
+- `ImageBudget.cs` - `ImageBudget` (sealed class): the live pixel counter that every request of a render shares
 - `ImageSourceResult.cs` - `ImageSourceResult` (sealed record): what it drew
 - `ImageSourceDiagnostic.cs` and `ImageDiagnosticSeverity.cs` - `ImageSourceDiagnostic` (sealed record) and the severity
   enum
@@ -42,17 +44,26 @@ the
 longest match wins), `Schemes` (lower case, without the colon; never `file` or `data`), and
 `ImageSourceResult Render(ImageSourceRequest)`. A source that claims nothing of one kind returns an empty list.
 
-**`ImageSourceRequest`** (immutable): `Href` (the raw link; always set), `Content` (the bytes of a file), `FileName`
-(the
-path of the file relative to the folder, with forward slashes), `Directory` (the full path of the folder of the file),
-`PixelWidth` and `PixelHeight` (requested size in device pixels; `null` means the natural size), `Resolver` (an
-`IImageResolver` scoped to the request), `ThrowOnUnsupportedFeature`, `CancellationToken`, `ReservedPixels` (the pixels
-the resolver has already charged for the request: the requested size, zero for a natural-size render; default 0), and
-`RemainingPixels` (the budget still free after that charge, a snapshot; `long.MaxValue` for a request built by hand).
-`HasContent` is true exactly when `FileName` is not null: a file-based request has content, a scheme-claimed request
-has only `Href`.
+**`ImageSourceRequest`** (immutable apart from one counter): `Href` (the raw link; always set), `Content` (the bytes of
+a file), `FileName` (the path of the file relative to the folder, with forward slashes), `Directory` (the full path of
+the folder of the file), `PixelWidth` and `PixelHeight` (requested size in device pixels; `null` means the natural
+size), `Resolver` (an `IImageResolver` scoped to the request), `ThrowOnUnsupportedFeature`, `CancellationToken`,
+`Budget` (the shared live `ImageBudget`, or `null` for no limit, which is what a request built by hand has unless a test
+of a custom source sets `new ImageBudget(maxPixels)`), `RemainingPixels` (read live from `Budget`; `long.MaxValue`
+without one) and `ChargedPixels` (the pixels this request has charged through `EnsureWithinBudget`; default 0; the only
+state that changes after construction). `HasContent` is true exactly when `FileName` is not null: a file-based request
+has content, a scheme-claimed request has only `Href`. The budget contract is documented once, in the XML remarks of
+this class; the other documents link to it.
+
+**`ImageBudget`**: a private count of the pixels still free, created from `MaxDecodedPixels` (a negative maximum is
+`ArgumentOutOfRangeException`), the public get-only `Remaining`, and the internal `Charge(pixels)` (throws
+`ImageSourceBudgetException(pixels, Remaining)` and charges nothing when it does not fit) and `Refund(pixels)`. Only
+`EnsureWithinBudget` and the resolver can charge it, so it cannot be overdrawn by accident. Not thread-safe.
 
 **`ImageSourceResult`** (immutable): `Surface` (required; owned by the receiver), `Diagnostics`, `Echo`, and `Format`.
+`Diagnostics` and `Echo` are copied into private `ReadOnlyCollection<T>` snapshots when they are assigned (null becomes
+empty), so changing the original list afterwards does not change the result and a cast cannot modify it; `with` keeps
+working.
 **`ImageSourceDiagnostic`**: `Source`, `Severity` (`Info`, `Warning`, `Unsupported`), `Code`, and `Message`.
 **`EmbeddedImage`**: `Href`, `Format`, `Width`, `Height`, and `Depth` (0 for an image of the top-level document).
 **`ImageSourceException`**: `Href`, `Embedder` (null for the top-level document), and the original failure as the inner
@@ -92,16 +103,20 @@ box, or with `fitInside` `Surface.FitInside` of the natural size into the box; a
 the result is clamped to 1 through `Surface.MaxDimension`; a natural size below 1 is `ArgumentOutOfRangeException`.
 
 **`ImageSourceRequest.EnsureWithinBudget(width, height)`**: computes `width * height` as a `long` (a negative side
-counts as 0), subtracts `ReservedPixels` (already charged; the extra is never negative) and throws
-`ImageSourceBudgetException(requested, ReservedPixels + RemainingPixels)` (saturating) when the extra is greater than
-`RemainingPixels`. A source calls it with the size it is about to allocate, before allocating; a source outside this
-repository that prefers not to call the method can throw the exception itself.
+counts as 0), charges it to `Budget` at that moment (a lease; the sizes of several calls add up, and nothing is charged
+when it throws) and adds it to `ChargedPixels` (saturating). It throws `ImageSourceBudgetException(requested,
+RemainingPixels)` when the pixels exceed the live `RemainingPixels`. A source calls it once for every surface it is
+about to allocate, with the size it will allocate, before allocating; a source that draws nested pictures charges its
+own surface first so they see what is left. A source outside this repository that prefers not to call the method can
+throw the exception itself. The internal `RefundCharges()` gives back what the request charged (the resolver calls it
+when a source fails or is refused).
 
 #### Error Handling
 
 An invalid claim is an `ArgumentException` that names the source; a null set or source is `ArgumentNullException`;
 `OpenContent` on a scheme-claimed request is `InvalidOperationException`; `SizeFor` rejects a natural size below one
-pixel; `EnsureWithinBudget` throws `ImageSourceBudgetException` for a size over the budget;
+pixel; `EnsureWithinBudget` throws `ImageSourceBudgetException` for a size over the live budget; `ImageBudget` rejects a
+negative maximum;
 `ImageSourceResult` rejects a null surface. The unit throws nothing else and performs no I/O.
 
 #### Dependencies

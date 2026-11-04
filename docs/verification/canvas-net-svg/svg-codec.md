@@ -46,6 +46,8 @@ default font resolution tests) within the `DemaConsulting.CanvasNet.Svg.Tests` p
 **Tests**: `SvgImageSource_Render_NoRequestedSize_DrawsNaturalSizeOnTransparentBackground`,
 `SvgImageSource_Render_RequestedSize_DrawsAtThatSize`,
 `SvgImageSource_Render_SizeBeyondRemainingPixels_IsRefusedBeforeDrawing`,
+`SvgImageSource_Render_DirectNaturalSize_NestedPictureBeyondLiveRemaining_IsRefusedBeforeItsSource`,
+`SvgImageSource_Render_DirectNaturalSize_NestedPictureWithinLiveRemaining_IsDrawnAndCharged`,
 `SvgImageSource_Render_NestedImage_UsesResolverOfRequest`,
 `SvgImageSource_Render_NestedImageWithoutResolver_DrawsNothing`,
 `SvgImageSource_Render_TwiceForSameRequest_ReturnsDistinctSurfaces`,
@@ -58,9 +60,14 @@ and a transparent background, that a requested 80 by 60 box and a requested widt
 `image` element of
 the document is resolved through the resolver of the request (a recording resolver sees the link and the 20 by 10
 placement and its
-green surface is drawn), that a 4000 by 4000 size against a budget of 1000 pixels is refused with
+green surface is drawn), that a 4000 by 4000 size against an `ImageBudget` of 1000 pixels is refused with
 `ImageSourceBudgetException` before the document is drawn (16,000,000 and 1000 on the exception, an allocation far below
-the 64 MB of the picture) while a budget of exactly 80 by 60 draws, that without a resolver the nested link draws
+the 64 MB of the picture) while a budget of exactly 80 by 60 draws; that a natural-size direct render through a real
+`FolderImageResolver` of a 100 by 100 SVG file that embeds a 50 by 50 picture charges its own canvas (10,000 pixels)
+before the nested picture is resolved, so with a budget of 10,100 the nested picture (2,500) is refused with
+`svg-image-too-large` and its counting source is never called (100 pixels remain live) while the outer file is still
+drawn, and with a budget of 12,500 the nested picture is drawn through its source and both are charged; that without a
+resolver the nested link draws
 nothing, that two calls return two surfaces, that
 text that is
 not an SVG document is `InvalidDataException`, a request without a file `InvalidOperationException`, a null request

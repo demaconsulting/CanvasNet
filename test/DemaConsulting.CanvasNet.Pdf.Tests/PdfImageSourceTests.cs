@@ -63,7 +63,7 @@ public class PdfImageSourceTests
             Content = bytes,
             PixelWidth = width,
             PixelHeight = height,
-            RemainingPixels = remaining
+            Budget = new ImageBudget(remaining)
         };
     }
 

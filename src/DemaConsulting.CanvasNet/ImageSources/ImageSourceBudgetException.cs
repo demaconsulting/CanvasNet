@@ -2,8 +2,8 @@ namespace DemaConsulting.CanvasNet.ImageSources;
 
 /// <summary>
 ///     The exception an <see cref="IImageSource"/> throws, before it allocates anything, when the picture it would
-///     create does not fit in the pixel budget of the render (the pixels already charged for the request,
-///     <see cref="ImageSourceRequest.ReservedPixels"/>, plus <see cref="ImageSourceRequest.RemainingPixels"/>).
+///     create does not fit in the pixel budget of the render. See the remarks of <see cref="ImageSourceRequest"/> for the
+///     budget contract.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -26,10 +26,7 @@ public sealed class ImageSourceBudgetException : Exception
     ///     Initializes a new instance of the <see cref="ImageSourceBudgetException"/> class.
     /// </summary>
     /// <param name="requestedPixels">The number of pixels the source would have had to allocate.</param>
-    /// <param name="remainingPixels">
-    ///     The number of pixels that were still allowed (for a source, the pixels reserved for the request plus those
-    ///     still free).
-    /// </param>
+    /// <param name="remainingPixels">The number of pixels that were still free in the budget when the request was refused.</param>
     public ImageSourceBudgetException(long requestedPixels, long remainingPixels)
         : base($"The picture needs {requestedPixels} pixels but only {remainingPixels} remain in the pixel budget.")
     {
@@ -43,7 +40,7 @@ public sealed class ImageSourceBudgetException : Exception
     public long RequestedPixels { get; }
 
     /// <summary>
-    ///     Gets the number of pixels that were still allowed when the source refused.
+    ///     Gets the number of pixels that were still free in the budget when the request was refused.
     /// </summary>
     public long RemainingPixels { get; }
 }

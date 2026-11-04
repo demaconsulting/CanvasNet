@@ -76,7 +76,7 @@ public sealed class ScadImageSource : IImageSource
     /// <param name="request">The request; it must carry the bytes of a file (<see cref="ImageSourceRequest.HasContent"/>).</param>
     /// <returns>The picture of the model on a transparent background, with the notes and echo lines of the model.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="request"/> is null.</exception>
-    /// <exception cref="ImageSourceBudgetException">Thrown, before drawing, when the size to draw at does not fit in the budget of the request (<see cref="ImageSourceRequest.EnsureWithinBudget(int, int)"/>).</exception>
+    /// <exception cref="ImageSourceBudgetException">Thrown, before drawing, when the surface to allocate does not fit in the pixel budget (see <see cref="ImageSourceRequest"/>).</exception>
     /// <exception cref="InvalidOperationException">Thrown when the request has no file content (it was handed over by scheme).</exception>
     /// <exception cref="ScadSyntaxException">Thrown when the model has a syntax error.</exception>
     /// <exception cref="ScadEvaluationException">Thrown when the model cannot be evaluated (a failed <c>assert</c>, a limit).</exception>

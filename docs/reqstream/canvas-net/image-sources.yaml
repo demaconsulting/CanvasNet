@@ -87,8 +87,9 @@ sections:
               The ImageSources subsystem shall bound the work one render can cause: it shall stop a file that embeds
               itself (directly or through others), stop nesting deeper than a configured number of levels, stop after
               a configured number of images in total, stop when the pixels the sources allocate in total would exceed a
-              configured budget (checked before anything is allocated, by the resolver and by every source,
-              the raster source from the file header), and stop when the cancellation token is canceled, reporting
+              configured budget (one live budget that every source charges before it allocates, the raster source
+              from the file header, and that the resolver settles after each source), and stop when the cancellation
+              token is canceled, reporting
               each limit as an unresolved warning (an over-budget picture with the code svg-image-too-large,
               cancellation as OperationCanceledException) and carrying on.
             justification: |

@@ -66,19 +66,22 @@ scheme syntax is RFC 3986 with the single-letter drive exception (including `sec
 
 **Tests**: `ImageSourceRequest_OpenContent_FileRequest_ReturnsReadOnlySeekableStream`,
 `ImageSourceRequest_OpenContent_SchemeRequest_ThrowsInvalidOperationException`,
-`ImageSourceRequest_EnsureWithinBudget_ThrowsOnlyWhenOverRemainingPixels`,
-`ImageSourceRequest_EnsureWithinBudget_ReservedPixelsAreAlreadyCharged`
+`ImageSourceRequest_EnsureWithinBudget_ChargesLiveBudgetAndThrowsOnlyWhenOver`,
+`ImageSourceRequest_EnsureWithinBudget_SharedBudget_SeesChargesOfOtherRequests`,
+`ImageBudget_Constructor_StartsFullAndRejectsNegative`
 
 Asserts that a request with a file name has content (also when the file is empty), opens as a read-only seekable stream
 over the
 exact bytes of an array slice and of a non-array memory, and that a request with only a link has no content, no name, no
 folder,
 no resolver, and the default switch and token, and refuses to open content with a message naming the link; that
-`RemainingPixels` is `long.MaxValue` and `ReservedPixels` zero on a hand-built request; that `EnsureWithinBudget`
-accepts a size equal to the remainder (and a size of zero pixels) and throws `ImageSourceBudgetException` for one pixel
-more, with
-the requested and remaining pixels on the exception and in its message; and that with 1000 reserved and 500 remaining a
-size of up to 1500 pixels passes, 1510 throws, and the exception reports 1500 as the pixels the source could have used.
+`RemainingPixels` is `long.MaxValue` on a hand-built request without a budget and that `EnsureWithinBudget` still
+records the size in `ChargedPixels`; that with an `ImageBudget` of 600 the calls charge the live budget (sizes of
+several calls add up; a size of zero pixels is free; the last 20 pixels still fit exactly), that one pixel more throws
+`ImageSourceBudgetException` with the requested and the free pixels on the exception and in its message and charges
+nothing, and that `ChargedPixels`, `RemainingPixels`, and the budget agree afterwards; that two requests on one budget
+of 1000 see each other's charge live (after 600 the other sees 400 and is refused 410) and keep their own
+`ChargedPixels`; and that a budget starts with all its pixels, accepts zero, and rejects a negative maximum.
 
 ##### CanvasNet-ImageSources-ImageSourceContract-SizeRule: Sizing
 
@@ -96,11 +99,14 @@ pixel.
 ##### CanvasNet-ImageSources-ImageSourceContract-Result: Result And Value Types
 
 **Tests**: `ImageSourceResult_Constructor_RequiresSurfaceAndDefaultsToEmpty`,
+`ImageSourceResult_Init_CopiesListsIntoReadOnlySnapshots`,
 `ImageSourceContract_ValueTypes_HaveDocumentedShape`
 
 Asserts that a null surface is refused, that the notes, the printed text, and the format default to empty and to null,
 that what is
-given is kept, the names of the severities, the members and default depth of `EmbeddedImage`, the stable unresolved
+given is kept, that the notes and the printed text are copied into read-only snapshots (adding to the original lists
+afterwards changes nothing, a cast cannot modify the values, null becomes empty, and `with` keeps working), the names of
+the severities, the members and default depth of `EmbeddedImage`, the stable unresolved
 code, and
 the defaults of the resolver options.
 

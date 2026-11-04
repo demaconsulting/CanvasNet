@@ -64,7 +64,7 @@ public sealed class VegaLiteImageSource : IImageSource
     /// <param name="request">The request; it must carry the bytes of a file (<see cref="ImageSourceRequest.HasContent"/>).</param>
     /// <returns>The chart at the requested (or natural) size, on its own background, with the notes of the library.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="request"/> is null.</exception>
-    /// <exception cref="ImageSourceBudgetException">Thrown, before drawing, when the size to draw at does not fit in the budget of the request (<see cref="ImageSourceRequest.EnsureWithinBudget(int, int)"/>).</exception>
+    /// <exception cref="ImageSourceBudgetException">Thrown, before drawing, when the surface to allocate does not fit in the pixel budget (see <see cref="ImageSourceRequest"/>).</exception>
     /// <exception cref="InvalidOperationException">Thrown when the request has no file content (it was handed over by scheme).</exception>
     /// <exception cref="VegaLiteSpecException">Thrown when the specification is not valid.</exception>
     /// <exception cref="VegaLiteRenderException">Thrown when the chart cannot be drawn (missing data, a limit).</exception>

@@ -54,7 +54,7 @@ public class SvgImageSourceTests
             PixelWidth = width,
             PixelHeight = height,
             Resolver = resolver,
-            RemainingPixels = remaining
+            Budget = new ImageBudget(remaining)
         };
     }
 
@@ -241,5 +241,102 @@ public class SvgImageSourceTests
         Assert.True(schemes is IList<string> { IsReadOnly: true });
         Assert.Throws<NotSupportedException>(() => ((IList<string>)extensions).Add("x"));
         Assert.Throws<NotSupportedException>(() => ((IList<string>)schemes).Add("x"));
+    }
+
+    /// <summary>
+    ///     A source of <c>.cnt</c> files that charges the budget for the surface it draws and counts how often it was
+    ///     asked to draw.
+    /// </summary>
+    private sealed class CountingSource : IImageSource
+    {
+        /// <summary>Gets the number of times the source was asked to draw.</summary>
+        public int Calls { get; private set; }
+
+        /// <inheritdoc />
+        public string Name => "counting";
+
+        /// <inheritdoc />
+        public IReadOnlyList<string> Extensions { get; } = [".cnt"];
+
+        /// <inheritdoc />
+        public IReadOnlyList<string> Schemes { get; } = [];
+
+        /// <inheritdoc />
+        public ImageSourceResult Render(ImageSourceRequest request)
+        {
+            Calls++;
+            var (width, height) = request.SizeFor(1, 1);
+            request.EnsureWithinBudget(width, height);
+            var surface = new Surface(width, height);
+            surface.Clear(Green);
+            return new ImageSourceResult(surface);
+        }
+    }
+
+    /// <summary>
+    ///     Renders a 100 by 100 SVG file, directly at its natural size, that embeds one 50 by 50 picture, through a
+    ///     <see cref="FolderImageResolver"/> with a pixel budget.
+    /// </summary>
+    /// <param name="maxPixels">The pixel budget of the render.</param>
+    /// <param name="counting">The source of the nested picture.</param>
+    /// <returns>The resolver (after the render) and the size of the picture that was returned.</returns>
+    private static (FolderImageResolver Resolver, int Width, int Height) RenderOuterWithNestedPicture(long maxPixels, CountingSource counting)
+    {
+        var folder = Directory.CreateTempSubdirectory("canvasnet-nested-");
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(folder.FullName, "outer.svg"),
+                "<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'>"
+                + "<image href='n.cnt' x='0' y='0' width='50' height='50' preserveAspectRatio='none'/></svg>");
+            File.WriteAllText(Path.Combine(folder.FullName, "n.cnt"), "x");
+            var resolver = new FolderImageResolver(folder.FullName, [new SvgImageSource(), counting], new FolderImageResolverOptions { MaxDecodedPixels = maxPixels });
+            using var surface = resolver.Render("outer.svg").Surface;
+            return (resolver, surface.Width, surface.Height);
+        }
+        finally
+        {
+            folder.Delete(true);
+        }
+    }
+
+    /// <summary>
+    ///     Test that a natural-size direct render of an SVG file charges its own canvas before its nested pictures are
+    ///     resolved, so a nested picture that exceeds what is left of the live budget is refused with
+    ///     <c>svg-image-too-large</c> and never reaches its source (nothing is allocated for it) while the outer file is
+    ///     still drawn.
+    /// </summary>
+    [Fact]
+    public void SvgImageSource_Render_DirectNaturalSize_NestedPictureBeyondLiveRemaining_IsRefusedBeforeItsSource()
+    {
+        // Arrange / Act: the outer canvas (10,000) fits, leaving 100 of 10,100 for a nested 50 by 50 (2,500) picture
+        var counting = new CountingSource();
+        var (resolver, width, height) = RenderOuterWithNestedPicture(10_100, counting);
+
+        // Assert: the outer file is drawn, the nested picture was refused and its source was never called
+        Assert.Equal((100, 100), (width, height));
+        Assert.Equal(0, counting.Calls);
+        var note = Assert.Single(resolver.Diagnostics);
+        Assert.Equal(FolderImageResolver.TooLargeCode, note.Code);
+        Assert.Contains("n.cnt", note.Message, StringComparison.Ordinal);
+        Assert.Equal(100L, resolver.RemainingPixels);
+    }
+
+    /// <summary>
+    ///     Test the control of the regression above: with room for both the outer canvas and the nested picture the
+    ///     nested picture is drawn through its source and both are charged.
+    /// </summary>
+    [Fact]
+    public void SvgImageSource_Render_DirectNaturalSize_NestedPictureWithinLiveRemaining_IsDrawnAndCharged()
+    {
+        // Arrange / Act: 10,000 for the outer canvas and 2,500 for the nested picture is exactly 12,500
+        var counting = new CountingSource();
+        var (resolver, width, height) = RenderOuterWithNestedPicture(12_500, counting);
+
+        // Assert
+        Assert.Equal((100, 100), (width, height));
+        Assert.Equal(1, counting.Calls);
+        Assert.Empty(resolver.Diagnostics);
+        Assert.Equal(0L, resolver.RemainingPixels);
     }
 }

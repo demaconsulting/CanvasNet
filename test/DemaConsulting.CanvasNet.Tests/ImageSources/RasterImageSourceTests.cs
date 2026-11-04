@@ -158,7 +158,7 @@ public class RasterImageSourceTests
     }
 
     /// <summary>
-    ///     Test that every raster format is checked against <see cref="ImageSourceRequest.RemainingPixels"/> from its
+    ///     Test that every raster format is charged against the <see cref="ImageSourceRequest.Budget"/> from its
     ///     header: a picture that exactly fits is decoded and one pixel less is refused with
     ///     <see cref="ImageSourceBudgetException"/> carrying the declared size.
     /// </summary>
@@ -190,9 +190,9 @@ public class RasterImageSourceTests
         size.Surface.Dispose();
 
         // Act
-        using var fits = source.Render(new ImageSourceRequest { Href = "a", FileName = "a.bin", Content = bytes, RemainingPixels = pixels }).Surface;
+        using var fits = source.Render(new ImageSourceRequest { Href = "a", FileName = "a.bin", Content = bytes, Budget = new ImageBudget(pixels) }).Surface;
         var ex = Assert.Throws<ImageSourceBudgetException>(
-            () => source.Render(new ImageSourceRequest { Href = "a", FileName = "a.bin", Content = bytes, RemainingPixels = pixels - 1 }));
+            () => source.Render(new ImageSourceRequest { Href = "a", FileName = "a.bin", Content = bytes, Budget = new ImageBudget(pixels - 1) }));
 
         // Assert
         Assert.Equal(pixels, (long)fits.Width * fits.Height);
@@ -216,9 +216,9 @@ public class RasterImageSourceTests
         // Act
         var before = GC.GetAllocatedBytesForCurrentThread();
         var first = Assert.Throws<ImageSourceBudgetException>(
-            () => source.Render(new ImageSourceRequest { Href = "a", FileName = "a.png", Content = huge, RemainingPixels = 1000 }));
+            () => source.Render(new ImageSourceRequest { Href = "a", FileName = "a.png", Content = huge, Budget = new ImageBudget(1000) }));
         var second = Assert.Throws<ImageSourceBudgetException>(
-            () => source.Render(new ImageSourceRequest { Href = "a", FileName = "a.png", Content = beyondCodecs, RemainingPixels = 1000 }));
+            () => source.Render(new ImageSourceRequest { Href = "a", FileName = "a.png", Content = beyondCodecs, Budget = new ImageBudget(1000) }));
         var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 
         // Assert

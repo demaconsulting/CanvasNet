@@ -38,15 +38,10 @@ public sealed record FolderImageResolverOptions
     ///     <para>
     ///         The budget exists because a small placement can ask for a huge picture: a raster is decoded at its own
     ///         size, so an 8192 × 8192 PNG placed in a 1 × 1 rectangle would otherwise allocate about 256 MiB, again for
-    ///         every link. Before it calls a source the resolver charges the requested size (each side clamped to 1 to
-    ///         <see cref="Surface.MaxDimension"/>; <see cref="ImageSourceRequest.ReservedPixels"/>), and it passes the
-    ///         budget that is left after that charge to the source as <see cref="ImageSourceRequest.RemainingPixels"/>,
-    ///         what the source may still allocate beyond the requested size (and the room for the pictures it loads
-    ///         through its resolver); the source checks the size it will allocate with
-    ///         <see cref="ImageSourceRequest.EnsureWithinBudget(int, int)"/> (for a raster, from the header, before
-    ///         decoding). After the call the resolver charges the larger of the requested and the returned size, so every
-    ///         level of nesting draws on the same budget. Pictures are disposed after use, so
-    ///         the budget is a cumulative cap on work, not on memory held at one time.
+    ///         every link. It is one live counter shared by every picture of the render, nested ones included; the
+    ///         contract (who charges what, when, and what happens on failure) is described once, in the remarks of
+    ///         <see cref="ImageSourceRequest"/>. Pictures are disposed after use, so the budget is a cumulative cap on
+    ///         work, not on memory held at one time.
     ///     </para>
     ///     <para>
     ///         A picture that does not fit is not drawn and is reported as a warning with the code

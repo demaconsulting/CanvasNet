@@ -3689,9 +3689,9 @@ run changes).
 link to a presentation through the shared `FolderImageResolver`; it draws the **first slide**. `Render(request)` opens
 the presentation with `PptxDocument.Open(request.OpenContent())`, takes `SlideSize` in English Metric Units divided by
 9525 (96 dots per inch) as the natural size, asks `request.SizeFor(..., fitInside: true)` for the largest size of the
-aspect ratio of the slide inside the requested box, checks that size with `request.EnsureWithinBudget(width, height)`
-(a size that does not fit in the budget of the request is refused with `ImageSourceBudgetException` before any surface
-is allocated), and
+aspect ratio of the slide inside the requested box, charges that size with `request.EnsureWithinBudget(width, height)`
+(a size that does not fit in the live budget is refused with `ImageSourceBudgetException` before any surface
+is allocated; the contract is on `ImageSourceRequest`), and
 draws slide 0 with a `PptxRenderOptions` whose background is
 transparent, whose `StrictUnsupportedPictures` is the request's `ThrowOnUnsupportedFeature` and whose
 `OnUnsupportedPictureSkipped` handler adds an `Unsupported` note of the source `pptx` with the feature name as the code.

@@ -492,9 +492,9 @@ established pattern.
 link to a Visio drawing through the shared `FolderImageResolver`; it draws the **first page**. `Render(request)` opens
 the drawing with `VsdxDocument.Open(request.OpenContent())`, takes `GetPageSize(0)` in English Metric Units divided by
 9525 (96 dots per inch) as the natural size, asks `request.SizeFor(..., fitInside: true)` for the largest size of the
-aspect ratio of the page inside the requested box, checks that size with `request.EnsureWithinBudget(width, height)`
-(a size that does not fit in the budget of the request is refused with `ImageSourceBudgetException` before any surface
-is allocated), and
+aspect ratio of the page inside the requested box, charges that size with `request.EnsureWithinBudget(width, height)`
+(a size that does not fit in the live budget is refused with `ImageSourceBudgetException` before any surface
+is allocated; the contract is on `ImageSourceRequest`), and
 draws page 0 with a `VsdxRenderOptions` whose background is
 transparent, whose `ThrowOnUnsupportedFeature` is the request's and whose `UnsupportedFeatureHandler` adds an
 `Unsupported` note of the source `vsdx` with the feature name as the code. The VSDX library cannot be canceled while it

@@ -64,7 +64,8 @@ follow the same order. The resolver clamps a requested size to 1 to `Surface.Max
 validated to that range up front: a larger or non-positive value would otherwise be rendered at one size and
 post-processed to another. The post-processing allocates a second buffer next to the surface of the source (peak memory
 is both), so before it fits or resizes, the viewer checks the final size (width times height) against
-`FolderImageResolver.RemainingPixels`, the part of `MaxDecodedPixels` that is not charged yet, and throws
+`FolderImageResolver.RemainingPixels`, the live part of the shared `MaxDecodedPixels` budget that is still free (the
+surface of the source is already charged; see the budget contract on `ImageSourceRequest`), and throws
 `ImageSourceBudgetException` (disposing the source's surface) when it does not fit. A vector surface that is already the
 requested size is not post-processed and costs nothing more.
 

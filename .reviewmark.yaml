@@ -913,6 +913,7 @@ reviews:
       - "docs/sysml2/model/canvas-net/image-sources/image-source-contract.sysml"  # unit model
       - "src/DemaConsulting.CanvasNet/ImageSources/IImageSource.cs"            # unit source (source contract)
       - "src/DemaConsulting.CanvasNet/ImageSources/ImageSourceRequest.cs"      # unit source (request)
+      - "src/DemaConsulting.CanvasNet/ImageSources/ImageBudget.cs"             # unit source (live pixel budget)
       - "src/DemaConsulting.CanvasNet/ImageSources/ImageSourceResult.cs"       # unit source (result)
       - "src/DemaConsulting.CanvasNet/ImageSources/ImageSourceDiagnostic.cs"   # unit source (note)
       - "src/DemaConsulting.CanvasNet/ImageSources/ImageDiagnosticSeverity.cs"  # unit source (severity)

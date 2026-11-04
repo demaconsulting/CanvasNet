@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.ImageSources;
@@ -13,7 +14,9 @@ namespace DemaConsulting.CanvasNet.ImageSources;
 ///         request and must not keep, cache or reuse it.
 ///     </para>
 ///     <para>
-///         The record is immutable once built; it is safe to share between threads (the surface is not).
+///         The record is immutable once built; it is safe to share between threads (the surface is not). The
+///         <see cref="Diagnostics"/> and <see cref="Echo"/> lists are copied into read-only snapshots when they are
+///         assigned, so the lists a source passed in can be reused or changed afterwards without affecting the result.
 ///     </para>
 /// </remarks>
 public sealed record ImageSourceResult
@@ -37,15 +40,35 @@ public sealed record ImageSourceResult
     public Surface Surface { get; }
 
     /// <summary>
-    ///     Gets the notes about the picture (unsupported features, warnings). Empty by default.
+    ///     The notes, kept as a private read-only snapshot.
     /// </summary>
-    public IReadOnlyList<ImageSourceDiagnostic> Diagnostics { get; init; } = [];
+    private IReadOnlyList<ImageSourceDiagnostic> _diagnostics = ReadOnlyCollection<ImageSourceDiagnostic>.Empty;
+
+    /// <summary>
+    ///     The printed lines, kept as a private read-only snapshot.
+    /// </summary>
+    private IReadOnlyList<string> _echo = ReadOnlyCollection<string>.Empty;
+
+    /// <summary>
+    ///     Gets the notes about the picture (unsupported features, warnings). Empty by default. Assigning copies the
+    ///     list into a read-only snapshot (<see langword="null"/> becomes empty), so later changes to the list that was
+    ///     passed in do not change the result, and the value cannot be modified through a cast.
+    /// </summary>
+    public IReadOnlyList<ImageSourceDiagnostic> Diagnostics
+    {
+        get => _diagnostics;
+        init => _diagnostics = value is null ? ReadOnlyCollection<ImageSourceDiagnostic>.Empty : new ReadOnlyCollection<ImageSourceDiagnostic>([.. value]);
+    }
 
     /// <summary>
     ///     Gets the text the file printed while it was drawn (the <c>echo</c> output of an OpenSCAD model, for example).
-    ///     Empty by default.
+    ///     Empty by default. Assigning copies the list into a read-only snapshot, like <see cref="Diagnostics"/>.
     /// </summary>
-    public IReadOnlyList<string> Echo { get; init; } = [];
+    public IReadOnlyList<string> Echo
+    {
+        get => _echo;
+        init => _echo = value is null ? ReadOnlyCollection<string>.Empty : new ReadOnlyCollection<string>([.. value]);
+    }
 
     /// <summary>
     ///     Gets a more specific name of what was drawn than <see cref="IImageSource.Name"/> (<c>png</c> or <c>jpeg</c>

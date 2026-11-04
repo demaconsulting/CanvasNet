@@ -237,7 +237,8 @@ public static class CanvasNetViewer
     {
         // A source may return another size than the one asked for (a raster is always natural); the caller gets the size it
         // asked for: the box when both dimensions are given (the picture fitted inside it), or the aspect-preserving size.
-        // The final buffer exists next to the surface of the source, so it is charged to the budget too
+        // The final buffer exists next to the surface of the source (already charged), so it must fit in what is left of
+        // the live budget; nothing is allocated after it, so it only needs checking, not charging
         var surface = result.Surface;
         try
         {
@@ -299,9 +300,9 @@ public static class CanvasNetViewer
     }
 
     /// <summary>
-    ///     Checks that the final buffer of a post-processed render fits in what is left of the pixel budget.
+    ///     Checks that the final buffer of a post-processed render fits in what is left of the live pixel budget.
     /// </summary>
-    /// <param name="resolver">The resolver of the render, which has charged the surface of the source.</param>
+    /// <param name="resolver">The resolver of the render, whose live budget already holds the surface of the source.</param>
     /// <param name="width">The width of the final picture.</param>
     /// <param name="height">The height of the final picture.</param>
     /// <exception cref="ImageSourceBudgetException">Thrown when the final picture does not fit in the budget that is left.</exception>

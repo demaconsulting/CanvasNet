@@ -65,7 +65,7 @@ public sealed class SvgImageSource : IImageSource
     /// <param name="request">The request; it must carry the bytes of a file (<see cref="ImageSourceRequest.HasContent"/>).</param>
     /// <returns>The picture at the requested (or natural) size, with a transparent background and no notes.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="request"/> is null.</exception>
-    /// <exception cref="ImageSourceBudgetException">Thrown, before drawing, when the size to draw at does not fit in the budget of the request (<see cref="ImageSourceRequest.EnsureWithinBudget(int, int)"/>).</exception>
+    /// <exception cref="ImageSourceBudgetException">Thrown, before drawing, when the surface to allocate does not fit in the pixel budget (see <see cref="ImageSourceRequest"/>).</exception>
     /// <exception cref="InvalidOperationException">Thrown when the request has no file content (it was handed over by scheme).</exception>
     /// <exception cref="InvalidDataException">Thrown when the content is not a valid SVG document.</exception>
     /// <exception cref="OperationCanceledException">Thrown when the request is already canceled.</exception>
@@ -81,10 +81,12 @@ public sealed class SvgImageSource : IImageSource
             info = SvgCodec.GetInfo(stream);
         }
 
+        // The SVG canvas is charged here, BEFORE the nested links are loaded (the codec allocates its own canvas before it
+        // resolves any image), so the nested pictures see only what is left of the live budget
         var (width, height) = request.SizeFor(info.Width, info.Height);
         request.EnsureWithinBudget(width, height);
 
-        // The nested links go through the scoped resolver, which owns the budgets, so recursion is bounded
+        // The nested links go through the scoped resolver, which shares the live budget, so recursion is bounded
         using var content = request.OpenContent();
         var surface = SvgCodec.LoadWithFontFaces(content, width, height, null, new SvgLoadOptions { ImageResolver = request.Resolver });
         return new ImageSourceResult(surface);

@@ -47,8 +47,9 @@ sections:
               at the requested width and height (a vector drawn at that size, a raster fitted into the box or scaled
               to keep its aspect ratio), returns the picture with its format, notes, printed text, and embedded
               images, honors ThrowOnUnsupportedFeature and cancellation, rejects a requested width or height outside
-              1 to Surface.MaxDimension with ArgumentOutOfRangeException before reading the file, charges the final
-              buffer of a resized render to MaxDecodedPixels in addition to the surface of the source, and fails
+              1 to Surface.MaxDimension with ArgumentOutOfRangeException before reading the file, checks the final
+              buffer of a resized render against what is left of the live MaxDecodedPixels budget (in addition to the
+              surface of the source), and fails
               with ArgumentNullException, FileNotFoundException, NotSupportedException, ArgumentException,
               SandboxException, ImageSourceBudgetException, or ImageSourceException (keeping the original failure
               inside) as documented.

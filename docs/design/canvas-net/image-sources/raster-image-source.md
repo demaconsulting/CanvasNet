@@ -27,7 +27,7 @@ casting. The class is stateless and thread-safe, so one instance serves any numb
 
 **`Render(request)`**: check the token and that the request has content; detect the format from the first bytes with
 `ImageFormats.Detect` (the name of the file is not used, so a mislabeled file loads); **read the declared size from the
-header and check it against the budget of the request with `EnsureWithinBudget` before decoding anything**; decode with
+header and charge it to the budget of the request with `EnsureWithinBudget` (once, before decoding anything)**; decode with
 `ImageDecoder.Load(stream, format)`; for a JPEG read the Exif orientation from the same bytes and, when it is greater
 than 1,
 replace the surface with `Surface.ApplyExifOrientation` (disposing the first); return the surface at its natural size
@@ -49,7 +49,7 @@ public API was added to the codecs for this.
 Content that is not a recognized raster, or that the codec rejects, is `InvalidDataException` (the exception of the
 codec,
 unchanged, which `FolderImageResolver` wraps in an `ImageSourceException`). A picture whose declared size exceeds the
-remaining pixels is `ImageSourceBudgetException`, thrown before any decoding (the resolver turns it into the warning
+remaining budget is `ImageSourceBudgetException`, thrown before any decoding (the resolver turns it into the warning
 `svg-image-too-large`). A request without content is
 `InvalidOperationException`, a null request `ArgumentNullException`, and a canceled token `OperationCanceledException`.
 

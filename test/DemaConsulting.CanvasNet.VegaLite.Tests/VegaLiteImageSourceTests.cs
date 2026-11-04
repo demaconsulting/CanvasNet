@@ -41,7 +41,7 @@ public class VegaLiteImageSourceTests
             Directory = directory,
             PixelWidth = width,
             PixelHeight = height,
-            RemainingPixels = remaining
+            Budget = new ImageBudget(remaining)
         };
     }
 
