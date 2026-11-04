@@ -110,3 +110,9 @@ the page and the page count, and page 3 is `page-out-of-range`.
 
 **InspectCommand_Colors_TransparentPng_FlattensOverBackground**: a fully transparent red PNG is one white color by default
 and with a transparent background, and one green color with `--background #00FF00`, which is reported as the background.
+
+**InspectCommand_Run_DiagnosticsInTextMode_AreWrittenToStandardError** (for `colors` and `pixel`) and
+**InspectCommand_Run_ScadEchoInTextMode_IsWrittenToStandardError**: through the entry point, a chart with a `shape`
+channel on a line mark gives exit code 0, no note on standard output, and one `Unsupported: vl-channel-shape: ...` line
+on standard error that ends with `(<input>)`; with `--json` or `--silent` standard error is empty (and with `--silent`
+standard output too); a model that echoes `"hello"` gives the line `ECHO: "hello"`.

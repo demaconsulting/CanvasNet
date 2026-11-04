@@ -558,6 +558,33 @@ public class ContextTests
     }
 
     /// <summary>
+    ///     Test that every Unicode bidirectional control character (U+061C, U+200E, U+200F, U+202A to U+202E, and
+    ///     U+2066 to U+2069) is escaped.
+    /// </summary>
+    /// <param name="code">The code point.</param>
+    [Theory]
+    [InlineData(0x061C)]
+    [InlineData(0x200E)]
+    [InlineData(0x200F)]
+    [InlineData(0x202A)]
+    [InlineData(0x202B)]
+    [InlineData(0x202C)]
+    [InlineData(0x202D)]
+    [InlineData(0x202E)]
+    [InlineData(0x2066)]
+    [InlineData(0x2067)]
+    [InlineData(0x2068)]
+    [InlineData(0x2069)]
+    public void Context_EscapeControlCharacters_BidirectionalControl_IsEscaped(int code)
+    {
+        // Arrange / Act
+        var escaped = Context.EscapeControlCharacters($"a{(char)code}b");
+
+        // Assert
+        Assert.Equal($"a\\u{code:x4}b", escaped);
+    }
+
+    /// <summary>
     ///     Test that WriteDiagnostics writes nothing with --json or --silent, so standard output stays one JSON document.
     /// </summary>
     /// <param name="option">The global option.</param>

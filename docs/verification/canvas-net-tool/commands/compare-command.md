@@ -122,6 +122,12 @@ and `transparent` and `#ff000080` are usage errors.
 **CompareCommand_Run_Strict_UnsupportedFeature_Fails**: a slide with a picture the renderer skips is reported in the
 diagnostics with the side `b`, and with `--strict` is `unsupported-feature`.
 
+**CompareCommand_Run_DiagnosticsInTextMode_AreWrittenToStandardError**: through the entry point, two charts of one
+size that each have an ignored `shape` channel give exit code 0 and two `Unsupported: vl-channel-shape: ...` lines on
+standard error that end with `(input a)` and `(input b)`; with `--json` standard error is empty, with `--silent`
+nothing is written, and with `--threshold rmse=0` (which fails) the two lines are written first and the
+`Error: threshold-failed: ...` line follows, with exit code 1.
+
 **CompareCommand_Run_DiffOutput_WritesHeatmapOfDifferences** and **CompareCommand_Run_DiffStyleAbsAndGain_ChangePixels**:
 a difference of 50 at gain 4 is (255, 255, 90), identical pixels are black, and the line of the picture ends with `[diff]`;
 `abs` at gain 2 gives (0, 0, 100) and the heat map at gain 1 gives (150, 0, 0).

@@ -98,6 +98,9 @@ warning reaches the log file.
 `Warning: <code>: <message>`, and an unsupported note with an origin and a page as
 `Unsupported: <code>: <message> (deck.pptx, page 2)`, in that order, on standard error only, with exit code 0.
 
+**Context_EscapeControlCharacters_BidirectionalControl_IsEscaped**: each of the twelve characters with the Unicode
+`Bidirectional_Control` property (U+061C, U+200E, U+200F, U+202A to U+202E, and U+2066 to U+2069) is written as `\uXXXX`.
+
 **Context_WriteDiagnostics_JsonOrSilent_WritesNothing**: with `--json` or `--silent` nothing is written to either
 stream.
 

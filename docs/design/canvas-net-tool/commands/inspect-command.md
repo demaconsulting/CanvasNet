@@ -90,7 +90,7 @@ read). JSON, in this order: `schemaVersion`, `ok`, `command`, `subcommand` (`pix
 (`x`, `y`, `width`, `height` of the clipped window, `mean` as a hex color, and `pixels` as an array of rows of hex
 colors), `diagnostics`, and `echo`. The pixel is reported as stored (not flattened); its luma is the luma over white.
 For both subcommands, without `--json` the loader's notes and the echo are written to standard error by
-`context.WriteDiagnostics` after the text lines.
+`context.WriteDiagnostics` after the text lines, each note ending with the input path (and the page of a document).
 
 #### Error Handling
 

@@ -211,8 +211,12 @@ public class RenderCommandVegaLiteTests
         Assert.StartsWith("wrote ", stdOut, StringComparison.Ordinal);
         Assert.DoesNotContain("vl-", stdOut, StringComparison.Ordinal);
         var lines = stdErr.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
-        Assert.Contains(lines, l => l.StartsWith("Warning: vega-lite-warning: ", StringComparison.Ordinal));
-        Assert.Contains(lines, l => l.StartsWith("Unsupported: vl-channel-shape: ", StringComparison.Ordinal) && l.Contains("'shape'", StringComparison.Ordinal));
+        Assert.Contains(lines, l => l.StartsWith("Warning: vega-lite-warning: ", StringComparison.Ordinal) && l.EndsWith($"({input})", StringComparison.Ordinal));
+        Assert.Contains(
+            lines,
+            l => l.StartsWith("Unsupported: vl-channel-shape: ", StringComparison.Ordinal)
+                 && l.Contains("'shape'", StringComparison.Ordinal)
+                 && l.EndsWith($"({input})", StringComparison.Ordinal));
 
         // Assert: --silent writes nothing, and --json keeps standard output one document and standard error empty
         Assert.Equal((0, string.Empty, string.Empty), silent);

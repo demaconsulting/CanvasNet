@@ -95,6 +95,7 @@ sections:
         tests:
           - Context_WriteDiagnostics_NotJson_WritesNotesAndEchoToStandardError
           - Context_WriteDiagnostics_ControlCharacters_AreEscaped
+          - Context_EscapeControlCharacters_BidirectionalControl_IsEscaped
           - RenderCommand_Run_ScadEchoWithEscape_IsEscapedOnStandardErrorOnly
           - Context_WriteDiagnostics_JsonOrSilent_WritesNothing
           - Context_WriteDiagnostics_ManyNotes_WritesLimitAndCountsTheRest

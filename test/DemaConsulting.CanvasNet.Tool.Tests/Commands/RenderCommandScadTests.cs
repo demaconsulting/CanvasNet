@@ -204,6 +204,8 @@ public class RenderCommandScadTests
         Assert.Equal("ECHO: \"hello\"", lines[0]);
         Assert.StartsWith("Warning: scad-warning: ", lines[1], StringComparison.Ordinal);
         Assert.StartsWith("Unsupported: scad-module-surface: ", lines[2], StringComparison.Ordinal);
+        Assert.EndsWith($"({input})", lines[1], StringComparison.Ordinal);
+        Assert.EndsWith($"({input})", lines[2], StringComparison.Ordinal);
         Assert.Equal(3, lines.Length);
 
         // Assert: --silent writes nothing, and --json leaves standard error empty

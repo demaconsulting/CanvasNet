@@ -140,6 +140,10 @@ flattened for the JPEG.
 drawing with an unknown geometry row produce one diagnostic each (source, `unsupported`, a code that starts with the
 format, page 1, a message) and, with `--strict`, an `unsupported-feature` error and no file.
 
+**RenderCommand_Run_DocumentDiagnosticsInTextMode_NameTheInputAndPage**: the same presentation and drawing rendered
+without `--json` give exit code 0 and one `Unsupported: <format>-...` line on standard error that ends with
+`(<input>, page 1)`.
+
 **RenderCommand_Run_AllPagesTwice_WritesIdenticalBytes**: every page of each document rendered twice to PNG and JPEG
 gives identical bytes.
 

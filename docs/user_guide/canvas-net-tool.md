@@ -81,8 +81,9 @@ not an option (or the value of an option) is the command name.
 - **Diagnostics of a successful command** are also written to standard error, one line each, when the command is
   not run with `--json`. A feature the picture was drawn without is `Unsupported: <code>: <message>`, a questionable
   construct is `Warning: <code>: <message>`, and a line a SCAD model printed with `echo` is written as OpenSCAD prints
-  it, `ECHO: <text>`. A note about a page of a document, an input of `montage`, or a side of `compare` ends with the
-  place in parentheses, such as `(deck.pptx, page 2)` or `(input b)`. At most 20 notes, and 20 echo lines, are written;
+  it, `ECHO: <text>`. A note ends with where it came from in parentheses: the input, and the page of a document, such
+  as `(chart.vl.json)` or `(deck.pptx, page 2)`, or for `compare` the side, `(input b)`. At most 20 notes, and 20 echo
+  lines, are written;
   the rest are counted in one line, `... and N more diagnostics (use --json for all)`. Control characters (such as ESC
   or NUL) in a line are written escaped (`\u001b`), so a model cannot inject terminal sequences; the `--json` values
   are unchanged. They do not change the exit code, which stays 0 (`--strict` turns an unsupported feature into an

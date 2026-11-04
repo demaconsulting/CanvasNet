@@ -89,7 +89,8 @@ sections:
           unless disabled, an SVG drawing and an OpenSCAD model are rendered, the page chosen with the page option of a
           document is the one analyzed, and transparent pixels are flattened over the background color (white by
           default, a translucent background being flattened over white first) before they are counted, and shall
-          report the background used.
+          report the background used and, without the JSON option, write the notes of the loader and the echo of a
+          model to standard error with the input.
         justification: |
           The analysis must describe the picture the user would get from a render of the same input and options, not
           the raw bytes of the file.
@@ -98,6 +99,8 @@ sections:
           - InspectCommand_Colors_SvgAndScad_AreRenderedFirst
           - InspectCommand_Colors_DocumentPage_UsesChosenPage
           - InspectCommand_Colors_TransparentPng_FlattensOverBackground
+          - InspectCommand_Run_DiagnosticsInTextMode_AreWrittenToStandardError
+          - InspectCommand_Run_ScadEchoInTextMode_IsWrittenToStandardError
 
       - id: CanvasNetTool-Commands-InspectCommand-ReadOnly
         title: >-

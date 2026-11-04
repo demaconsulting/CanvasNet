@@ -224,13 +224,15 @@ sections:
       - id: CanvasNetTool-Commands-RenderCommand-Strict
         title: >-
           The render command shall report the notes about pictures and constructs the libraries skip or
-          approximate in the diagnostics of the result, with the page of each, and with the strict
+          approximate in the diagnostics of the result, with the page of each (and, without the JSON option, on
+          standard error, each ending with the input and page), and with the strict
           option shall fail with the error code unsupported-feature instead and write no output.
         justification: |
           A caller must be able to choose between an image that is drawn as well as it can be, with a
           list of what is missing, and no image at all.
         tests:
           - RenderCommand_Run_UnsupportedFeature_IsReportedOrFailsWhenStrict
+          - RenderCommand_Run_DocumentDiagnosticsInTextMode_NameTheInputAndPage
           - RenderCommand_Run_StrictWithUnsupportedFeature_FailsWithoutOutput
 
       - id: CanvasNetTool-Commands-RenderCommand-Output

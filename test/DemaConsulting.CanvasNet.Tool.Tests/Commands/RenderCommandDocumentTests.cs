@@ -437,6 +437,31 @@ public class RenderCommandDocumentTests
     }
 
     /// <summary>
+    ///     Test that, without --json, a skipped picture of a document is written to standard error with its input and
+    ///     page.
+    /// </summary>
+    /// <param name="key">The kind of document.</param>
+    [Theory]
+    [InlineData("pptx")]
+    [InlineData("vsdx")]
+    public void RenderCommand_Run_DocumentDiagnosticsInTextMode_NameTheInputAndPage(string key)
+    {
+        // Arrange: a document with something the renderer cannot draw on page 1
+        using var directory = new TempDirectory();
+        var input = directory.Combine("doc." + key);
+        File.WriteAllBytes(input, key == "pptx" ? FixtureFactory.CreatePptx(withMetafile: true) : FixtureFactory.CreateVsdx(withUnsupportedShape: true));
+
+        // Act
+        var (exitCode, _, stdErr) = ToolHost.Invoke("render", input, "-o", directory.Combine("out.png"));
+
+        // Assert: one Unsupported line that ends with the input and the page
+        Assert.Equal(0, exitCode);
+        var line = Assert.Single(stdErr.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries));
+        Assert.StartsWith($"Unsupported: {key}-", line, StringComparison.Ordinal);
+        Assert.EndsWith($"({input}, page 1)", line, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Test that every page of a document is rendered into the same bytes on a second run.
     /// </summary>
     /// <param name="key">The kind of document.</param>

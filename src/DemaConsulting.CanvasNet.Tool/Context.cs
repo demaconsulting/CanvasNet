@@ -393,7 +393,8 @@ internal sealed class Context : IDisposable
     }
 
     /// <summary>
-    ///     Writes the notes of a successful render to the error console, so that a feature that was left out of the
+    ///     Writes the notes of a successful command (render, convert, inspect, montage, or compare) to the error
+    ///     console, so that a feature that was left out of the
     ///     picture, and the <c>echo</c> output of a model, are not silent in the text output.
     /// </summary>
     /// <param name="diagnostics">
@@ -498,7 +499,7 @@ internal sealed class Context : IDisposable
     private static bool NeedsEscape(char c)
     {
         return char.IsControl(c)
-               || c is '\u2028' or '\u2029' or '\u200e' or '\u200f'
+               || c is '\u2028' or '\u2029' or '\u061c' or '\u200e' or '\u200f'
                || c is >= '\u202a' and <= '\u202e'
                || c is >= '\u2066' and <= '\u2069';
     }
