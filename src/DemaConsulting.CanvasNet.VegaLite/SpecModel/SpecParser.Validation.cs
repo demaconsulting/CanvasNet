@@ -345,6 +345,10 @@ internal sealed partial class SpecParser
                 Check(property, ViewRules["spec"], name);
                 ValidateFacetSpec(property);
                 return [property];
+            case "config":
+                Check(property, ViewRules[name], name);
+                CompileConfigLabelExpressions(property);
+                break;
             default:
                 Check(property, ViewRules[name], name);
                 break;
@@ -424,6 +428,11 @@ internal sealed partial class SpecParser
                 if (step is null || !step.IsNumber)
                 {
                     throw Error(step ?? node, $"The {node.Name} object needs a numeric 'step'.");
+                }
+
+                if (node["for"] is { } stepFor && stepFor.StringValue is not ("position" or "offset"))
+                {
+                    throw Error(stepFor, $"The 'for' of the {node.Name} step must be \"position\" or \"offset\".");
                 }
 
                 return;
@@ -765,6 +774,7 @@ internal sealed partial class SpecParser
         {
             CheckObject(axis, AxisRules);
             ValidateGuideTime(axis);
+            CompileLabelExpression(axis);
         }
 
         if (definition["legend"] is { IsObject: true } legend)
@@ -772,6 +782,7 @@ internal sealed partial class SpecParser
             CheckObject(legend, LegendRules);
             ValidateLegendOptions(legend);
             ValidateGuideTime(legend);
+            CompileLabelExpression(legend);
         }
 
         CompileChannelExpression(definition);

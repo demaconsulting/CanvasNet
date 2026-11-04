@@ -8,10 +8,10 @@ The `Guides` subsystem (namespace `DemaConsulting.CanvasNet.VegaLite.Guides`, fo
 `src/DemaConsulting.CanvasNet.VegaLite/Guides/`) builds the parts of a chart that are not marks: it resolves fonts and
 measures text, builds the title and subtitle, builds the axes (grid, ticks, labels, domain, title) together with the
 room they need, and builds the legends (symbol, gradient, and discrete gradient) together with the box each needs; the
-axes and legends of temporal fields (time ticks, date labels) share one label-format unit. It
-is **internal**: its
+axes and legends of temporal fields (time ticks, date labels) share one label-format unit, and the `labelExpr` of axes,
+legends, and facet headers is evaluated by one shared unit. It is **internal**: its
 types are visible only to the other subsystems of the system and, through `InternalsVisibleTo`, to the test assembly. It
-contains six units:
+contains seven units:
 
 - **TextMeasurer** - the internal `TextMeasurer` with `TextFont`, `ResolvedFont`, `FontSource`, `TextExtent`, and
   `FontMetrics`: font resolution (bundled Liberation fonts by default), text measurement, line splitting, truncation, and
@@ -34,6 +34,11 @@ contains six units:
   (and, through the bounded form `CreateBounded` that leaves the budget to its caller, by the text mark of `Marks`);
   see _TimeLabels Unit Design_ (`guides/time-labels.md`). The date formatting itself (the d3 time formats and Vega's
   multi-format) and the calendar are in the `Data` subsystem (plan decision P8-D1), not here
+- **LabelExpressions** - the internal sealed `LabelExpressions` and the `LabelText` record struct: the evaluation of
+  the `labelExpr` of axes, legends, and facet headers on the shared evaluator of the call (the datum of each guide,
+  the coercion of the result like Vega's text mark, and the compile of configured text), shared by `AxisBuilder`,
+  `LegendBuilder`, and the facet headers of `VegaLiteDocument`; see _LabelExpressions Unit Design_
+  (`guides/label-expressions.md`)
 
 The subsystem's namespace documentation is in `Guides/NamespaceDoc.cs`. Its behavior is specified by the
 `CanvasNetVegaLite-Guides-*` requirements in `docs/reqstream/canvas-net-vega-lite/guides.yaml`.
@@ -44,18 +49,22 @@ The subsystem's namespace documentation is in `Guides/NamespaceDoc.cs`. Its beha
 `Truncate`, `TextValue`, `GetBounds`, `GetMetrics`, and the static helpers `IsBold`, `IsItalic`,
 `SplitLines`, `LineHeight`, `BaselineOffset`, and `RoundHalfUp`; `new TitleBuilder(TextMeasurer).Build(SpecNode?,
 ResolvedConfig, bool)`, which returns a `TitleBlock` whose `Place` produces the positioned title group;
-`new AxisBuilder(TextMeasurer, ResolvedConfig, VegaLiteLimits?, string?, TimeCalendar?).Build(AxisRequest,`
+`new AxisBuilder(TextMeasurer, ResolvedConfig, VegaLiteLimits?, string?, TimeCalendar?, RowExpressions?).Build(AxisRequest,`
 `CancellationToken)`, which returns an `AxisResult`, and the static `AxisBuilder.GetExtents(axes, dataWidth, dataHeight)`;
 `LegendPlan.Create(SpecNode, ResolvedScales, ResolvedConfig, string?)`, which returns the planned `LegendSpec`s, and
-`new LegendBuilder(TextMeasurer, VegaLiteLimits?, string?).Build(LegendSpec, double, double, SceneBudget,`
+`new LegendBuilder(TextMeasurer, VegaLiteLimits?, string?, RowExpressions?).Build(LegendSpec, double, double, SceneBudget,`
 `CancellationToken)`, which returns a `LegendResult`, with the static `LegendBuilder.GridLayout(boxes, options)` (the
 grid layout that the
-`Layout` subsystem also uses to place the legends); the static `LabelOverlap.Hidden(...)`; and the static `TimeLabels`
-(`Create(Options)`, `CreateBounded(Options)`, `IntervalRequest`, `UsesVegaDefaultCount`, and `ReadInstant`).
+`Layout` subsystem also uses to place the legends); the static `LabelOverlap.Hidden(...)`; the static `TimeLabels`
+(`Create(Options)`, `CreateBounded(Options)`, `IntervalRequest`, `UsesVegaDefaultCount`, and `ReadInstant`); and
+`new LabelExpressions(RowExpressions?, VegaLiteLimits?, TimeCalendar?, CancellationToken)` with `Datum`, `Resolve`, and
+`Evaluate`.
 
 **Consumed**: `SpecNode` and `ResolvedConfig` from the `SpecModel` subsystem; `ScaleModel`, `ResolvedScale`, `Ticks`
 (including the time ticks), and `NumberFormat` from the `Scales` subsystem; `DataValue` and the time model
-(`TimeCalendar`, `TimeUnitSpec`, `DateTimeObject`, `TimeFormat`, and `JsDateParser`) from the `Data` subsystem; the scene
+(`TimeCalendar`, `TimeUnitSpec`, `DateTimeObject`, `TimeFormat`, and `JsDateParser`) from the `Data` subsystem;
+`RowExpressions`, `CompiledExpression`, and the shared evaluator from the `Expressions`
+subsystem; the scene
 types (`SceneGroup`,
 `SceneRule`, `SceneText`, `SceneBounds`, and the others) from the `Scenegraph` subsystem; `ViewExtents` from the `Layout`
 subsystem; the public `VegaLiteFontOptions`, `VegaLiteLimits`, `VegaLiteLocation`, `VegaLiteSpecException`, and
@@ -124,4 +133,14 @@ gets a gradient legend over time ticks, and the dates of a time-unit field are l
 format follows Vega-Lite (`format`, then the unit specifier, then `config.timeFormat` for a legend and Vega's
 multi-format for an axis) and lives in `TimeLabels`, so an axis and a legend format the same date the same way. All
 names are the English d3 locale with invariant digits, and the calendar is that of the chart (the `TimeZone` render
-option, UTC by default). `labelExpr` and `labelBound` are not evaluated.
+option, UTC by default). `labelBound` is not evaluated.
+
+**Label expressions run before the labels are laid out.** The `labelExpr` of an axis, a legend, and a facet header is evaluated
+by `LabelExpressions` on the evaluator of the call, so it shares the step budget, the string limit, the cancellation
+token, and the parameters of every other expression. The replacement happens after the ticks and entries (and the
+labels they would have) are known and before the labels are measured, laid out, and thinned, so the extent of the axis,
+`labelLimit`, the overlap removal, and the legend box all see the replaced text. A result that is an array is a multi-line
+label (in a facet header, several header lines). The datum has `value` and `label` and, by guide, `index`, `tickIndex`,
+`perc`, and `perc2` (see _LabelExpressions
+Unit Design_). A syntax error is found when the document is opened; the feature catalog reports only what an expression
+cannot do (`vl-expr-function-<name>`, `vl-expr-view-state`, `vl-expr-construct-<name>`).

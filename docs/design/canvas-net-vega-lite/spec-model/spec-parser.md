@@ -2,7 +2,7 @@
 
 ![SpecModel Structure](VegaLiteSpecModelView.svg)
 
-The `SpecParser` unit is the first software unit in the `SpecModel` subsystem. It comprises nine source files in the
+The `SpecParser` unit is the first software unit in the `SpecModel` subsystem. It comprises ten source files in the
 `DemaConsulting.CanvasNet.VegaLite.SpecModel` namespace, all `internal`:
 
 - `SpecParser.cs` - `SpecParser` (sealed partial class): the entry points, the single-pass reader with an explicit
@@ -20,6 +20,8 @@ The `SpecParser` unit is the first software unit in the `SpecModel` subsystem. I
 - `SpecParser.Layers.cs` - the sixth part of `SpecParser`: the validation of the `resolve` of a view, of the properties
   of the composite marks (`boxplot`, `errorbar`, `errorband`), and of the compositions (`facet`, `repeat`, `columns`,
   `spacing`, `align`, `center`, `header`, and the `{"repeat": ...}` references), and `IsResolveChannel`
+- `SpecParser.LabelExpressions.cs` - the seventh part of `SpecParser`: the compilation of the `labelExpr` of axes,
+  legends, and headers (`CompileLabelExpression`) and of the guide configurations (`CompileConfigLabelExpressions`)
 - `SpecExpressions.cs` - `SpecExpressions`: the compiled expressions of a tree, by the string node that holds the text
 - `SpecNode.cs` - `SpecNode`, `SpecNodeKind`, `NodePosition`, and `SpecTree`: the immutable tree
 - `SpecMetadata.cs` - `SpecMetadata` and `SpecMarkEntry`: the descriptive facts read from a tree
@@ -112,7 +114,12 @@ be what its author meant, and well-formed constructs that the renderer does not 
   `color`, `fill`, `stroke`,
   `opacity`, and `size` channels (the `size` of the same marks), of every view, are compiled with
   `ExpressionParser.Parse` (limits from
-  `VegaLiteLimits`, location of the string value) and kept in `SpecTree.Expressions`. Any other expression is not compiled.
+  `VegaLiteLimits`, location of the string value) and kept in `SpecTree.Expressions`. The `labelExpr` of an `axis`, a
+  `legend`, and a `header` (in a channel definition, a facet field definition, or a facet) and of the `config`
+  entries `axis`, every `axis*` configuration, `header`, `headerRow`, `headerColumn`, and `headerFacet` is compiled
+  too (`SpecParser.LabelExpressions.cs`; `config.legend` has no `labelExpr` in Vega-Lite and is not read), so a syntax
+  error, an over-long or over-deep text, or an unknown parameter is a located `VegaLiteSpecException` at the text when
+  the document is opened. Any other expression is not compiled.
 - **References.** An identifier of a compiled expression that is not a function or a constant
   is a parameter reference, and
   it must name a parameter declared in the view that contains the expression or an ancestor view (a selection parameter
@@ -360,6 +367,10 @@ an error; a duplicate key keeps the last value at the position of the first occu
   date-time value **is** written, with the date and time functions (see `PredicateSource` below), so it is evaluated in
   the calendar of the chart. The `value.expr` of a condition is compiled like
   the one of a channel. `CompileSource(key, source, location)` is the common part of `CompileExpression`.
+  `CompileLabelExpression(guide)` compiles the `labelExpr` of one guide object and
+  `CompileConfigLabelExpressions(config)` those of the guide
+  configurations of `config` (called from the validation of the `axis`, `legend`, and `header` objects and of
+  the `config` property); a label expression needs only its parameter references checked.
   `ChannelDefinitions` is the shared, pure helper that tells the conditional channels, lists the conditions, and finds
   the **field definition** of a channel (its own definition when it names a field, a datum, or an aggregate, else the
   first condition on a test that does, as Vega-Lite's `getFieldOrDatumDef`) and the constant values a legend shows
@@ -435,7 +446,9 @@ than `MaxScaleDomainSize` values are located at the offending value or member. A
 value (an `interpolate` that is not one of the 15 names, an `invalid` or `point` text that is not allowed, a text-mark
 property of the wrong kind), a member of an overlay object, and an `impute` object of a channel with a bad member or
 with more `keyvals` than
-`MaxScaleDomainSize` are located at the offending value or member as well. A null argument is a programming error and
+`MaxScaleDomainSize` are located at the offending value or member as well. The `for` of the `step` object of a `width` or
+`height` must be `"position"` or `"offset"`; any other value is a located
+`VegaLiteSpecException` ("The 'for' of the width step must be ..."). A null argument is a programming error and
 throws `ArgumentNullException`, which is not converted. Unknown and duplicate keys are warnings, returned with the tree.
 
 #### Dependencies

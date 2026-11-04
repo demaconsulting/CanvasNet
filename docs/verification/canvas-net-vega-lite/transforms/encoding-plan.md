@@ -128,7 +128,8 @@ derivation in the test comments:
 Unit tests reside in `EncodingPlanTests.cs` (the plan), `EncodingTransformsTests.cs` (the execution), `EncodingPlanPolarTests.cs`
 (the polar stack and the secondary polar channels), `EncodingPlanPathTests.cs` (the path grouping fields, the order fields,
 and the plan of the encoding impute and of the stack impute), `EncodingTransformsImputeTests.cs` (the imputes of the
-execution and their limits), `EncodingTransformsFacetTests.cs` (the cells of a facet, Phase 11) and, for the time
+execution and their limits), `EncodingTransformsFacetTests.cs` (the cells of a facet, Phase 11), `StackRulesOffsetTests.cs`
+(the offset channels in the group-by of the stack and the aggregate) and, for the time
 units, `EncodingPlanTimeTests.cs` (the plan) and `EncodingTransformsTimeTests.cs` (the execution; its helpers are in
 `TimeTestPipeline.cs`) within the
 `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `Transforms` folder; the parser rules of the `impute` object
@@ -216,6 +217,15 @@ inferred orientation, which decides the stack of a bar with two measures; and th
 -2, and 1 gets the decision, the layer order, and the rows of a bar in both orientations (vertical: z (0, 1), y (0, -2),
 x (1, 4); horizontal: x (0, 3), y (0, -2), z (3, 4)), so that the area mark, which is drawn since Phase 9, stacks as a bar
 does.
+
+##### The Offset Field Groups The Stack And The Aggregate
+
+**Test**: `StackRulesOffsetTests.EncodingPlan_Create_StackAndAggregateGroupByTheOffsetField`
+
+Asserts that for a grouped bar chart with a position `c`, an offset `g`, and a measure `v`, the stack plan groups by `c`
+and
+`g` and the aggregate plan of the same encoding, whose group-by is every other field of every channel, also groups by `c`
+and `g`; and that an aggregated chart whose color is the offset field has the aggregate and no stack.
 
 ##### Raw Table Is Flagged
 

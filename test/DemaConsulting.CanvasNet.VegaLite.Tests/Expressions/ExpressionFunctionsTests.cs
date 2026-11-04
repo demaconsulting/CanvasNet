@@ -15,11 +15,11 @@ public class ExpressionFunctionsTests
     private const double Tolerance = 1e-12;
 
     /// <summary>
-    ///     Validates that the function table is exactly the documented whitelist: nothing more (no randomness, clock,
-    ///     number format or color function) and nothing less.
+    ///     Validates that the function table is exactly the documented whitelist: nothing more (no randomness, clock
+    ///     or color function) and nothing less.
     /// </summary>
     [Fact]
-    public void ExpressionFunctions_Names_AreExactlyTheWhitelist()
+    public void ExpressionFunctions_Names_AreTheOneHundredWhitelistedFunctions()
     {
         // Arrange: the whitelist by family
         string[] math =
@@ -37,6 +37,7 @@ public class ExpressionFunctionsTests
             "isArray", "isBoolean", "isDate", "isFinite", "isNaN", "isNumber", "isObject", "isRegExp", "isString", "isValid",
             "toBoolean", "toNumber", "toString",
         ];
+        string[] number = ["format"];
         string[] regex = ["regexp", "test"];
         string[] time =
         [
@@ -46,15 +47,15 @@ public class ExpressionFunctionsTests
             "timeOffset", "utcOffset", "timeSequence", "utcSequence", "timeUnitSpecifier",
             "timeFormat", "utcFormat", "timeParse", "utcParse", "monthFormat", "monthAbbrevFormat", "dayFormat", "dayAbbrevFormat",
         ];
-        var expected = math.Concat(text).Concat(types).Concat(regex).Concat(time).Concat(["toDate"]).Order(StringComparer.Ordinal).ToArray();
+        var expected = math.Concat(text).Concat(types).Concat(number).Concat(regex).Concat(time).Concat(["toDate"]).Order(StringComparer.Ordinal).ToArray();
 
         // Act
         var names = ExpressionFunctions.Names();
 
         // Assert
         Assert.Equal(expected, names);
-        Assert.Equal(99, names.Count);
-        foreach (var excluded in new[] { "random", "now", "format", "rgb", "scale", "if", "eval", "Function" })
+        Assert.Equal(100, names.Count);
+        foreach (var excluded in new[] { "random", "now", "rgb", "scale", "if", "eval", "Function" })
         {
             Assert.DoesNotContain(excluded, names);
             Assert.False(ExpressionFunctions.TryGet(excluded, out _));

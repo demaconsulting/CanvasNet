@@ -977,7 +977,7 @@ public class VegaLiteChartIntegrationTests
                 { "density": "a" },
                 { "quantile": "a" },
                 { "timeUnit": "year", "field": "d", "as": "y" },
-                { "calculate": "now() + format(1, ',')", "as": "t" }
+                { "calculate": "now() + luminance(1)", "as": "t" }
               ],
               "mark": "point",
               "encoding": { "x": { "field": "a", "type": "quantitative", "condition": { "param": "sel", "value": 1 } } } }
@@ -992,7 +992,7 @@ public class VegaLiteChartIntegrationTests
         Assert.Equal(
             [
                 "vl-param-selection", "vl-transform-regression", "vl-transform-loess", "vl-transform-density", "vl-transform-quantile",
-                "vl-expr-function-now", "vl-expr-function-format", "vl-encoding-condition",
+                "vl-expr-function-now", "vl-expr-function-luminance", "vl-encoding-condition",
             ],
             reported);
         Assert.True(surface.Width > 0);

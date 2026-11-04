@@ -775,7 +775,7 @@ public class VegaLiteFacetIntegrationTests
     {
         // Arrange
         var json = FacetOver(
-            "{ \"row\": { \"field\": \"r\", \"type\": \"nominal\", \"sort\": { \"op\": \"count\" }, \"header\": { \"labelOrient\": \"top\", \"labelExpr\": \"datum.label\" } },"
+            "{ \"row\": { \"field\": \"r\", \"type\": \"nominal\", \"sort\": { \"op\": \"count\" }, \"header\": { \"labelOrient\": \"top\", \"labelExpr\": \"luminance(datum.value)\" } },"
             + " \"column\": { \"field\": \"v\", \"type\": \"quantitative\", \"bin\": true, \"header\": { \"formatType\": \"custom\" } } }",
             Bare);
 
@@ -785,7 +785,7 @@ public class VegaLiteFacetIntegrationTests
 
         // Assert
         Assert.Equal(
-            ["vl-expr-label", "vl-facet-field-transform", "vl-facet-sort", "vl-format-type-custom", "vl-header-orient"],
+            ["vl-expr-function-luminance", "vl-facet-field-transform", "vl-facet-sort", "vl-format-type-custom", "vl-header-orient"],
             ids);
     }
 

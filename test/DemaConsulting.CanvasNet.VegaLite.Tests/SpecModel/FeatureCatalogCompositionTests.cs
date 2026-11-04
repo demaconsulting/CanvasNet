@@ -128,7 +128,7 @@ public class FeatureCatalogCompositionTests
     }
 
     /// <summary>
-    ///     Validates the header reports: <c>labelExpr</c> reports <c>vl-expr-label</c>, a custom <c>formatType</c> reports <c>vl-format-type-custom</c>, and a side that the header does not
+    ///     Validates the header reports: a <c>labelExpr</c> is evaluated and reports only what its expression cannot do (<c>vl-expr-function-luminance</c>), a custom <c>formatType</c> reports <c>vl-format-type-custom</c>, and a side that the header does not
     ///     draw on reports <c>vl-header-orient</c> (a side along the channel, such as the bottom of a column header, is drawn and not reported).
     /// </summary>
     [Fact]
@@ -138,7 +138,7 @@ public class FeatureCatalogCompositionTests
         const string json = """
             {
               "facet": {
-                "row": { "field": "r", "type": "nominal", "header": { "labelExpr": "datum.label", "labelOrient": "top", "titleOrient": "right" } },
+                "row": { "field": "r", "type": "nominal", "header": { "labelExpr": "luminance(datum.value)", "labelOrient": "top", "titleOrient": "right" } },
                 "column": { "field": "c", "type": "nominal", "header": { "formatType": "custom", "labelOrient": "bottom", "titleOrient": "left" } }
               },
               "spec": { "mark": "point" }
@@ -153,7 +153,7 @@ public class FeatureCatalogCompositionTests
         // Assert: a row title may be on the right, a row label not on top; a column label may be at the bottom, a column title not on the left; a wrapped facet's labels are cell titles on any side
         Assert.Equal(
             [
-                ("vl-expr-label", "/facet/row/header/labelExpr"),
+                ("vl-expr-function-luminance", "/facet/row/header/labelExpr"),
                 ("vl-header-orient", "/facet/row/header/labelOrient"),
                 ("vl-format-type-custom", "/facet/column/header/formatType"),
                 ("vl-header-orient", "/facet/column/header/titleOrient"),

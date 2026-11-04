@@ -186,7 +186,9 @@ sections:
                   incompatible parts, and an object that is not valid, naming a derived field as
                   Vega-Lite does (yearmonth_date, utcmonth_date, month_step_2_date, and
                   timeunit_maxbins_10_date), and giving the duration of one step of the smallest part, from
-                  a fixed UTC reference, that sets the minimum tick step of an axis.
+                  a fixed reference (the year 2001 in UTC, or in the time zone of a given calendar, for any unit, a
+                  UTC unit included, as Vega-Lite's durationExpr), that sets
+                  the minimum tick step of an axis and the size of the offset of a time unit.
                 justification: |
                   A time unit is written in a specification and must be read exactly as Vega-Lite reads it;
                   the derived field names are visible to the author in titles and in calculated fields.
@@ -201,6 +203,8 @@ sections:
                   - TimeUnitSpec_IsSingleLocalUnit_OnlyForOneLocalPart
                   - TimeUnitSpec_Duration_IsTheSmallestPartOfTwoThousandOne
                   - TimeUnitSpec_Duration_DayOfWeekHasNone
+                  - TimeUnitSpec_DurationMilliseconds_UsesTheCalendar
+                  - TimeUnitSpec_ReferenceSpan_UtcUnitUsesTheGivenCalendarLikeDurationExpr
                   - TimeUnitSpec_Parse_Specifier_And_Floor_AreCultureIndependent
 
               - id: CanvasNetVegaLite-Data-TimeCalendar-TimeUnitFloors

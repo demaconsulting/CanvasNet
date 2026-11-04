@@ -40,6 +40,10 @@ on the platform's floating-point formatting.
   `formatPrefix`: the SI prefix is chosen from the reference value so that a set of numbers shares one prefix.
 - `Format(double)` - applies the sign, symbol, zero padding, width, grouping, precision, and trim rules of d3 for the
   type; NaN and infinity format as d3 does (`d` of infinity gives the infinity sign).
+- `IsText` and `FormatText(string)` - the `c` type, which prints the text of the original value instead of a number: `IsText`
+  tells whether the format has the type, and `FormatText` lays the text out with the prefix, suffix, width, fill, and
+  alignment of the specifier (no sign, no grouping), through the same layout as `Format`; it throws an
+  `InvalidOperationException` for another type. `Format(double)` of the `c` type still prints the number as plain text.
 - `TickFormat(start, stop, count, specifier)` - d3-scale's `tickFormat`, which is also what Vega's axis label format
   (`formatSpan`) uses: with no specifier it is `,f` with the precision of the tick step (`precisionFixed`); with a
   specifier of type `s` it uses `precisionPrefix`, and with types `e g p r` it uses `precisionRound`.
@@ -70,6 +74,8 @@ clamped. The unit performs no I/O.
 
 #### Callers
 
-`AxisBuilder` formats tick labels with `TickFormat` and `Create`. The tests in
+`AxisBuilder` formats tick labels with `TickFormat` and `Create`. `ExpressionFunctionContext` (the `Expressions`
+subsystem) compiles the specifier of the expression function `format(value, specifier)` with `Create` and maps the
+`FormatException` to an `ExpressionRuntimeException`. The tests in
 `test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/NumberFormatTests.cs` call the formatter directly through
 `InternalsVisibleTo`, including under a non-English culture to prove culture independence.

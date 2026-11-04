@@ -31,7 +31,8 @@ that each rule is visible:
   0.0001234 is `0.000123`; `.5g` of 5e-324 is `4.9407e-324`; `.2r` of 1234.5678 is `1200`; `n` is `,g`.
 - The empty type and unknown types behave as `.12~g`: 0.1 + 0.2 is `0.3`, 1e21 is `1e+21`, and negative zero is `0`.
 - Integers and radixes: `d` rounds to an integer (`−2.5` gives `−3`); `x`, `X`, `#x`, `b`, `#b`, `o`, and `c` follow
-  the radix rules; special values keep their sign, padding, and alignment (`NaN`, `Infinity`, `−Infinity`).
+  the radix rules (`c` prints a number as plain text, and a text with `FormatText`); special values keep their sign,
+  padding, and alignment (`NaN`, `Infinity`, `−Infinity`).
 
 The `TickFormat` vectors derive the precision from the tick step, as d3-scale does: a step of 20 needs no decimals
 (`1,234` for 1234 under the default `,f`), a step of 0.1 needs one decimal (`0.5`, `1.0`), a step of 0.01 two decimals,
@@ -46,7 +47,10 @@ mocking or stubbing is required; the internal types are reached through the test
 access.
 
 Unit tests reside in `NumberFormatTests.cs` within the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the
-`Scales` folder.
+`Scales` folder. The expression function `format(value, specifier)` is a second consumer of `NumberFormat.Create` and
+`Format`; its scenarios (the d3 vectors through an expression, the value coercion, the invalid specifier, and the
+formatter cache) are in `ExpressionFunctionsNumberTests.cs` and are described in the _ExpressionFunctions Unit
+Verification Design_.
 
 #### Test Environment
 
@@ -73,6 +77,16 @@ Asserts more than one hundred `(specifier, value, text)` vectors covering every 
 `x`, `X`, `b`, `o`, `c`, `n`, `%`, `p`, and the empty type), every flag (`+`, space, `(`, `$`, `#`, `,`, `~`, `0`),
 alignments and fills, widths, rounding edges, SI prefixes from yocto to yotta, and the special values NaN and
 infinity, and reports all failures together so that one run shows every mismatch.
+
+##### Format Text Prints The Text With Prefix, Suffix, And Padding
+
+**Tests**: `NumberFormatTests.NumberFormat_FormatText_PrintsTheTextWithPrefixSuffixAndPadding`
+
+Asserts that `IsText` is true for `c` and false for `d` and the empty type; that `FormatText("ab")` is `ab` for `c`,
+three spaces and `ab` for `>5c`, `ab` and three spaces for `<5c`, `*ab**` for `*^5c` (the odd padding character goes
+after the text), `000ab` for `05c`, `$ab` for `$c`, and `ab` for `+c` (no sign); that `,c` does not group `1234`, that
+`-5` stays `-5`, and that the empty text is empty; that `Format(65)` of `c` is still `65`; and that `FormatText` of the
+type `d` throws an `InvalidOperationException` and of a null text an `ArgumentNullException`.
 
 ##### Culture Independence
 

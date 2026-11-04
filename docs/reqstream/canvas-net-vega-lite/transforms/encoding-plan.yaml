@@ -383,3 +383,22 @@ sections:
                   - EncodingTransforms_FacetDomain_SortArrayIsLimited
                   - EncodingTransforms_Facet_CancellationIsHonored
                   - EncodingTransforms_Facet_ChecksItsArguments
+
+              - id: CanvasNetVegaLite-Transforms-EncodingPlan-OffsetGroups
+                title: >-
+                  The EncodingPlan unit shall, for a view with an xOffset or yOffset channel, group the implicit
+                  stack and the implicit aggregate by the offset field as well as by the dimension (the offset
+                  field splits the groups and is never a stack-by field), name the offset channel of the dimension,
+                  not stack aggregated grouped bars, and let a quantitative offset on a view without a dimension
+                  disable the default stack.
+                justification: |
+                  Grouped bars must stack and aggregate inside each group; stacking across the groups would pile
+                  the groups on one another and defeat the grouping.
+                tests:
+                  - StackRules_Decide_OffsetFieldSplitsTheGroupsAndIsNotAStackBy
+                  - StackRules_Decide_AggregatedGroupedBarsAreNotStacked
+                  - StackRules_Decide_QuantitativeOffsetWithoutADimensionDisablesTheDefaultStack
+                  - StackRules_Decide_QuantitativeOffsetTreatsNullAsAbsentAndValueAsPresent
+                  - StackRules_Decide_JsonNullDimensionIsAbsentForTheQuantitativeOffset
+                  - StackRules_DimensionOffsetChannel_NamesTheOffsetOfTheDimension
+                  - EncodingPlan_Create_StackAndAggregateGroupByTheOffsetField

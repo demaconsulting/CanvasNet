@@ -274,6 +274,16 @@ edges are 0.5, 102.698, and 198.302 with the widths 102.198, 95.604, and 102.198
 constants are the expressions `31 * PerDay` and so on, with `PerDay` = 300 / 91, which agree with this arithmetic (the
 figure 102.2527 in the plan is wrong; 31 / 91 x 300 = 102.198, and the tests are right).
 
+The offset channels use three categories `A`, `B`, and `C` and two groups, where `C` has only the first group, with
+the default step of 20 pixels (see _ScaleResolver_ for the step): the position step is 50, the nested paddings of the
+position are 0.2 and 0.2, so the bands start at 0.2 x 50 = 10, 60, and 110 with the bandwidth 40, and each of the two
+offset bands is 20 wide, so the bars are at x = 10, 30 (A), 60, 80 (B), and 110 (C; the slot at 130 stays empty) and all
+are 20 wide; with a width of 200 the step is 62.5, the bandwidth 50, and the bars are 25 wide at 12.5, 37.5, 75, 100,
+and 137.5; an inner padding of 0.25 on the offset gives the step 43.75, the bandwidth 35, and bars of 15 at 8.75, 28.75,
+52.5, 72.5, and 96.25; a bar with the size 10 is centered in its 20 pixel band (at 15, 35, 65, 85, and 115). A point
+offset is at the start of the band plus the center of its offset band (the outer padding of 0.5 puts the points at the
+centers 20, 40, 70, 90, and 120), and a quantitative offset over the band of 40 pixels maps its domain to 0 to 40.
+
 #### Test Environment
 
 - **Framework**: xUnit v3 running under the .NET SDK
@@ -788,3 +798,66 @@ and, on the 300 by 200 view, the quarter, half, and zero turns (200, 100), (150,
 (150, 100), the theta field (190, 100) and (150, 60), the radius field (200, 100) and (250, 100), and the dropped row
 of an
 angle that is null.
+
+##### Grouped Bars And Marks Sit Inside The Band Of Their Position
+
+**Tests**: `MarkBuilderOffsetTests.MarkBuilder_Build_GroupedBarsHaveTheOffsetBandWidthAtTheOffsetPosition`,
+`MarkBuilderOffsetTests.MarkBuilder_Build_GroupedBarsInAFixedWidthFillTheBandwidth`,
+`MarkBuilderOffsetTests.MarkBuilder_Build_HorizontalGroupedBarsUseYOffset`,
+`MarkBuilderOffsetTests.MarkBuilder_Build_OffsetPaddingNarrowsTheBarsAndLeavesAGap`,
+`MarkBuilderOffsetTests.MarkBuilder_Build_BarWithASizeIsCenteredInItsOffsetBand`
+
+Asserts that the five bars of the grouped chart are at x = 10, 30, 60, 80, and 110 with the width 20, the heights 20,
+40, 60, 80, and 100, and y = 80, 60, 40, 20, and 0 (no gap inside a group, 10 pixels between the groups and at the
+ends, and an empty slot for the missing group); that a width of 200 gives bars 25 wide at 12.5, 37.5, 75, 100, and
+137.5; that the horizontal variant with `yOffset` has bars 20 high at y = 10, 30, 60, 80, and 110 starting at x = 0
+with the widths 20 to 100; that an offset inner padding of 0.25 gives bars 15 wide at 8.75, 28.75, 52.5, 72.5, and 96.25
+(a gap of 5 inside the group); and that a bar with `size` 10 is centered in its offset band (at 15, 35, 65, 85, and 115).
+
+##### Point-Like Marks Sit At The Center Of Their Offset
+
+**Tests**: `MarkBuilderOffsetTests.MarkBuilder_Build_PointsSitAtTheBandStartPlusTheOffsetPoint`,
+`MarkBuilderOffsetTests.MarkBuilder_Build_TextAndRuleFollowTheOffsetCenter`,
+`MarkBuilderOffsetTests.MarkBuilder_Build_LineMarkUsesTheOffsetPositions`,
+`MarkBuilderOffsetTests.MarkBuilder_Build_QuantitativeOffsetOfPointsIsAStripInsideTheBand`,
+`MarkBuilderOffsetTests.MarkBuilder_Build_RowWithInvalidOffsetIsNotDrawn`
+
+Asserts that the points, the labels of a text mark, and the rules are at x = 20, 40, 70, 90, and 120 (the start of the
+band plus the offset point), that a line connects the offset positions (20, 40, and 70), that the points of a
+quantitative offset are a strip inside the band of 40 pixels (at 4, 8, 32, 36, and 60 for the data of the test), and
+that a row whose offset value is not valid is not drawn (two points remain).
+
+##### Offsets Inside A Time Unit
+
+**Tests**: `MarkBuilderOffsetTests.MarkBuilder_Run_TimeUnitOffsetPlacesBarsInsideTheMonth`,
+`MarkBuilderOffsetTests.MarkBuilder_Run_TimeUnitOffsetRangeFollowsBandSizeSizeBandPositionAndPadding`,
+`MarkBuilderOffsetTests.MarkBuilder_Run_TimeUnitOffsetPointsAndTicks`,
+`MarkBuilderOffsetTests.MarkBuilder_Run_TimeUnitYOffsetRunsUpward`
+
+The chart has two groups (`x`, `y`) over January and February 2023 (a `yearmonth` unit, `nice: false`, 300 by 100
+pixels): the domain is January 1 to March 1, 59 days over 300 pixels, so the reference month of 31 days (January 2001)
+is `M` = 31 x 300 / 59 = 157.63 pixels. Asserts that the bars of a `bar` mark are 0.4 M wide (the offset range is
+[0.1, 0.9] M for the nested padding 0.2, two bands of 0.4 M) and start at 0.1 M and 0.5 M after the start of January and
+at M + 0.1 M and M + 0.5 M for February (the position is read at the start of the month). With `timeUnitBandSize` 0.5
+the first bar is 0.2 M wide (half of the band, centered: it starts at 0.1 M + 0.1 M); a `size` of 10 gives a bar of 10
+pixels centered in the band; `bandPosition: 0` on the position moves the range by half a unit, so the first bar starts at
+-0.4 M and is still 0.4 M wide; and with `bandWithNestedOffsetPaddingInner` 0 (and the band position ignored) the
+range is the whole month, so the bars are M / 2 wide and start at 0 and M / 2. For the other marks, the points of a
+`point` mark have no `timeUnitBandPosition`, so their domain holds only the starts of the months (31 days over 300
+pixels: a month is 300 pixels), the band position is 0.5, the offset range is [30, 270] and the point scale with the
+outer padding 0.5 puts the points at x = 0.3 x 300 = 90 and 0.7 x 300 = 210 and, in February, at 390 and 510; the
+`tick` bars span the offset bands (x = 0.1 M and 0.5 M); a point mark with `timeUnitBandPosition` 0 uses the band
+position 0 and its first two points are at -0.2 M and 0.2 M. For `yOffset` over a temporal `y` (a 100 by 300 chart with
+horizontal bars) the length of the month on the y scale is negative (the scale runs upward), so January starts at the
+bottom, 300, the bar of group `x` is at y = 300 - 0.5 M (spanning 0.1 M to 0.5 M above the start), that of group `y` is
+at y = 300 - 0.9 M, and each bar is 0.4 M high.
+
+##### Stacks Are Grouped By The Offset
+
+**Tests**: `MarkBuilderOffsetTests.MarkBuilder_Build_StackedGroupedBarsStackInsideEachGroup`,
+`MarkBuilderOffsetTests.MarkBuilder_Build_AggregatedGroupedBarsAreNotStacked`
+
+Asserts that the segments of the color field stack inside each group of the offset (three bars in two groups: the first
+group has the segments at y = 0 and 40 with the heights 40 and 60 and the second one segment of the height 20, each
+group starting at zero), and that an aggregated grouped bar chart whose color is the offset field is not stacked: the
+bars have the heights 20, 40, 60, 80, and 100 and start at the baseline, at x = 10, 30, 60, 80, and 110.

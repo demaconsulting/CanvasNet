@@ -223,6 +223,7 @@ internal sealed partial class SpecParser
         {
             CheckObject(axis, AxisRules);
             ValidateGuideTime(axis);
+            CompileLabelExpression(axis);
         }
 
         if (condition["legend"] is { IsObject: true } legend)
@@ -230,6 +231,7 @@ internal sealed partial class SpecParser
             CheckObject(legend, LegendRules);
             ValidateLegendOptions(legend);
             ValidateGuideTime(legend);
+            CompileLabelExpression(legend);
         }
     }
 

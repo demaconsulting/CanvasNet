@@ -39,7 +39,7 @@ internal enum DomainOrder
 ///         the <c>zero</c> rule), the padding, <c>nice</c>, the range of colors, sizes and opacities, and, for a
 ///         discrete position scale, the step that sizes the view. What depends on the size of the data rectangle (the
 ///         range of a position scale, the pixel padding of a continuous scale, <c>nice</c> after that padding) is applied
-///         by <see cref="CreateModel"/> once the layout knows it.
+///         by <see cref="CreateModel(double)"/> once the layout knows it.
 ///     </para>
 ///     <para>
 ///         The type is an immutable record, so the scales of the layers of a layered view can be derived from one shared scale with <c>with</c>
@@ -193,6 +193,12 @@ internal sealed record ResolvedScale
     public bool IsPosition => Channel is "x" or "y";
 
     /// <summary>
+    ///     Gets a value indicating whether the channel is an offset channel (<c>xOffset</c> or <c>yOffset</c>): its scale places a mark inside the band of its position scale (Vega-Lite's
+    ///     nested offset scale), so its range is the bandwidth of that band.
+    /// </summary>
+    public bool IsOffset => Channel is "xOffset" or "yOffset";
+
+    /// <summary>
     ///     Gets a value indicating whether the channel is a polar position channel (<c>theta</c> or <c>radius</c>). A polar scale maps to an angle in radians
     ///     (<c>[0, 2 * PI]</c>) or to a distance from the center in pixels (<c>[0, extent]</c>); it has no pixel padding, no <c>nice</c>, no axis and no step.
     /// </summary>
@@ -240,15 +246,27 @@ internal sealed record ResolvedScale
     /// </remarks>
     /// <param name="extent">The width (x) or height (y) of the data rectangle in pixels.</param>
     /// <returns>The scale model.</returns>
-    public ScaleModel CreateModel(double extent)
+    public ScaleModel CreateModel(double extent) => CreateModel(extent, null);
+
+    /// <summary>
+    ///     Creates the scale model of an offset channel whose default range is given: the share of the time unit of its position that the offset occupies.
+    /// </summary>
+    /// <remarks>
+    ///     Vega-Lite gives the offset scale of a position with a time unit the range <c>[(padding / 2 + bandPositionOffset) * duration, (1 - padding / 2 + bandPositionOffset) * duration]</c>
+    ///     (<c>getOffsetRange</c>) instead of <c>[0, bandwidth]</c>. It is a default range: <c>rangeMin</c>, <c>rangeMax</c>, an explicit range and <c>reverse</c> apply to it as to any other.
+    /// </remarks>
+    /// <param name="extent">The width (x) or height (y) of the data rectangle in pixels, or the bandwidth of the position scale of an offset.</param>
+    /// <param name="nestedRange">The default range of the offset scale, in pixels from the start of the time unit; null for the range of the channel.</param>
+    /// <returns>The scale model.</returns>
+    public ScaleModel CreateModel(double extent, (double Start, double End)? nestedRange)
     {
         switch (Kind)
         {
             case ScaleKind.Linear:
-                var range = ResolveRange(extent);
+                var range = ResolveRange(extent, nestedRange);
                 return ScaleModel.CreateLinear(ExtendedDomain(Math.Abs(range[^1] - range[0])), range, Clamp, Round, Transform);
             case ScaleKind.Time or ScaleKind.Utc:
-                var timeRange = ResolveRange(extent);
+                var timeRange = ResolveRange(extent, nestedRange);
                 return ScaleModel.CreateTime(ExtendedDomain(Math.Abs(timeRange[^1] - timeRange[0])), timeRange, Clamp, Round, Calendar ?? TimeCalendar.Utc, Kind == ScaleKind.Utc);
             case ScaleKind.Sequential or ScaleKind.Diverging:
                 return ScaleModel.CreateSequential(ExtendedDomain(0), Interpolator ?? (t => default), Clamp, Transform);
@@ -264,10 +282,10 @@ internal sealed record ResolvedScale
 
             // A band or point scale takes the first two entries of its range, as d3's scaleBand does
             case ScaleKind.Band:
-                var bandRange = ResolveRange(extent);
+                var bandRange = ResolveRange(extent, nestedRange);
                 return ScaleModel.CreateBand(DiscreteDomain, bandRange[0], bandRange[1], PaddingInner, PaddingOuter, Align, Round);
             case ScaleKind.Point:
-                var pointRange = ResolveRange(extent);
+                var pointRange = ResolveRange(extent, nestedRange);
                 return ScaleModel.CreatePoint(DiscreteDomain, pointRange[0], pointRange[1], PaddingOuter, Align, Round);
             default:
                 return ScaleModel.CreateOrdinal(DiscreteDomain, OutputRange());
@@ -370,8 +388,9 @@ internal sealed record ResolvedScale
     ///     Works out the range: the entries of an explicit range, or the two ends of the default one.
     /// </summary>
     /// <param name="extent">The size of the data rectangle along the axis.</param>
+    /// <param name="nestedRange">The default range of an offset scale nested in a time unit, or null.</param>
     /// <returns>The range entries (at least two); a reversed scale gets them in reverse order, as Vega reverses the whole array.</returns>
-    private double[] ResolveRange(double extent)
+    private double[] ResolveRange(double extent, (double Start, double End)? nestedRange)
     {
         double[] range;
         if (ExplicitRange is { Count: >= 2 } explicitRange)
@@ -380,10 +399,14 @@ internal sealed record ResolvedScale
         }
         else
         {
-            if (IsPosition)
+            if (IsOffset && nestedRange is { } nested)
             {
-                // The origin of a view is its top left corner, so a continuous y scale runs upward
-                range = Channel == "y" && Kind is ScaleKind.Linear or ScaleKind.Time or ScaleKind.Utc ? [extent, 0.0] : [0.0, extent];
+                range = [nested.Start, nested.End];
+            }
+            else if (IsPosition || IsOffset)
+            {
+                // The origin of a view is its top left corner, so a continuous y scale runs upward; an offset scale spans the bandwidth of its position scale, and a continuous yOffset runs upward too
+                range = Channel is "y" or "yOffset" && Kind is ScaleKind.Linear or ScaleKind.Time or ScaleKind.Utc ? [extent, 0.0] : [0.0, extent];
             }
             else if (IsPolar)
             {
@@ -554,7 +577,7 @@ internal static partial class ScaleResolver
 {
     /// <summary>The channels that are resolved, in the order of the result.</summary>
     private static readonly string[] Channels =
-        ["x", "y", "theta", "radius", "color", "fill", "stroke", "size", "opacity", "shape", "strokeWidth", "strokeDash", "fillOpacity", "strokeOpacity", "angle"];
+        ["x", "y", "xOffset", "yOffset", "theta", "radius", "color", "fill", "stroke", "size", "opacity", "shape", "strokeWidth", "strokeDash", "fillOpacity", "strokeOpacity", "angle"];
 
     /// <summary>The marks whose discrete positions are bands, so that the mark fits into the band.</summary>
     private static readonly HashSet<string> BandMarks = ["rect", "bar", "image", "rule", "tick"];
@@ -640,7 +663,7 @@ internal static partial class ScaleResolver
 
         // The mark decides the scale kinds, the zero rule, the paddings and the size range
         var context = CreateContext(view, plan, data, config, sourceName, limits, cancellationToken);
-        return new ResolvedScales(plan.MarkType, plan.Orient, context is null ? [] : ResolveChannels(context), plan);
+        return new ResolvedScales(plan.MarkType, plan.Orient, context is null ? [] : ApplyNestedOffsets(ResolveChannels(context), context), plan);
     }
 
     /// <summary>
@@ -686,6 +709,8 @@ internal static partial class ScaleResolver
             WidthStep = StepOf(view["width"], config, "width"),
             HeightStep = StepOf(view["height"], config, "height"),
             MinStep = Math.Min(MinStepOf(view["width"], config, "width"), MinStepOf(view["height"], config, "height")),
+            WidthStepFor = StepForOf(view["width"], config, "width"),
+            HeightStepFor = StepForOf(view["height"], config, "height"),
         };
     }
 
@@ -934,6 +959,12 @@ internal static partial class ScaleResolver
         var plan = context.Plan.Channels.FirstOrDefault(c => c.Definition == channelDefinition);
         var definition = plan?.FieldDef ?? channelDefinition;
 
+        // An offset scale exists only inside the band of a discrete position scale or the time unit of a temporal one; the other offsets are reported by the feature catalog and ignored
+        if (GroupOf(channel) == ChannelGroup.Offset && DecideOffset(channel, context.Encoding, context.MarkType) is OffsetDecision.NoDiscreteParent or OffsetDecision.Ranged)
+        {
+            return null;
+        }
+
         // A channel without a field or datum has no scale (a value is used as it is), and so has "scale": null
         var scaleNode = definition["scale"];
         if (scaleNode is { IsNull: true })
@@ -962,7 +993,7 @@ internal static partial class ScaleResolver
 
         var binning = plan is { Bin: BinKind.Binning } && type == "quantitative";
         var (unit, isTemporal) = ReadTimeUnit(plan, type, context);
-        var kind = ChooseKind(channel, type, scaleDef?["type"]?.AsString(), context.MarkType, binning, unit is { Utc: true }, out var transformKind, out var utcRequested);
+        var kind = ChooseKind(channel, type, scaleDef?["type"]?.AsString(), context.MarkType, binning, unit is { Utc: true }, out var transformKind, out var utcRequested, HasNestedOffset(channel, context.Encoding, context.MarkType));
         var location = definition.GetLocation(context.SourceName);
         var time = MakeTimeFacts(unit, isTemporal, kind, utcRequested, context);
         var common = new CommonInputs(channel, type, fieldPath, datum, definition, scaleDef, location, plan, transformKind, time);
@@ -998,6 +1029,9 @@ internal static partial class ScaleResolver
         /// <summary><c>x</c> and <c>y</c>.</summary>
         Position,
 
+        /// <summary><c>xOffset</c> and <c>yOffset</c>: the scale types of a position, inside the band of the position scale.</summary>
+        Offset,
+
         /// <summary><c>theta</c> and <c>radius</c>: the scale types of a position, without padding, <c>nice</c> and step.</summary>
         Polar,
 
@@ -1019,6 +1053,7 @@ internal static partial class ScaleResolver
     private static ChannelGroup GroupOf(string channel) => channel switch
     {
         "x" or "y" => ChannelGroup.Position,
+        "xOffset" or "yOffset" => ChannelGroup.Offset,
         "theta" or "radius" => ChannelGroup.Polar,
         "color" or "fill" or "stroke" => ChannelGroup.Color,
         "shape" or "strokeDash" => ChannelGroup.Discrete,
@@ -1041,8 +1076,9 @@ internal static partial class ScaleResolver
     /// <param name="utcUnit">Whether the field has a UTC time unit (its temporal default scale is a UTC scale).</param>
     /// <param name="transformKind">Receives the transform of the scale: log, pow (also for sqrt) or symlog for the matching explicit type, else linear.</param>
     /// <param name="utcRequested">Receives whether the explicit type <c>utc</c> was accepted but the kind does not show it (a color channel's sequential scale, which still uses the UTC calendar).</param>
+    /// <param name="nestedOffset">Whether the channel is a position whose band holds an offset scale: the scale is a band scale for every mark, and an explicit <c>point</c> is not accepted.</param>
     /// <returns>The kind.</returns>
-    private static ScaleKind ChooseKind(string channel, string type, string? specified, string markType, bool binning, bool utcUnit, out ScaleTransformKind transformKind, out bool utcRequested)
+    private static ScaleKind ChooseKind(string channel, string type, string? specified, string markType, bool binning, bool utcUnit, out ScaleTransformKind transformKind, out bool utcRequested, bool nestedOffset = false)
     {
         var group = GroupOf(channel);
         transformKind = ScaleTransformKind.Linear;
@@ -1073,7 +1109,12 @@ internal static partial class ScaleResolver
         {
             defaultKind = ScaleKind.Ordinal;
         }
-        else if ((group == ChannelGroup.Position && BandMarks.Contains(markType)) || (group == ChannelGroup.Polar && markType == "arc"))
+        else if (nestedOffset)
+        {
+            // A position that holds an offset scale is a band scale whatever the mark is (Vega-Lite's channelHasNestedOffsetScale)
+            defaultKind = ScaleKind.Band;
+        }
+        else if ((group is ChannelGroup.Position or ChannelGroup.Offset && BandMarks.Contains(markType)) || (group == ChannelGroup.Polar && markType == "arc"))
         {
             // Rectangles that must fit a band are drawn on bands; so are the slices and rings of an arc (an arc is a rectangle in polar coordinates)
             defaultKind = ScaleKind.Band;
@@ -1083,7 +1124,8 @@ internal static partial class ScaleResolver
             defaultKind = ScaleKind.Point;
         }
 
-        if (!TryParseKind(specified, group, out var requested, out var requestedTransform, out var timeName) || !Accepts(group, type, requested, binning, timeName))
+        if (!TryParseKind(specified, group, out var requested, out var requestedTransform, out var timeName) || !Accepts(group, type, requested, binning, timeName)
+            || (nestedOffset && requested == ScaleKind.Point))
         {
             return defaultKind;
         }
@@ -1183,7 +1225,7 @@ internal static partial class ScaleResolver
         var discretizing = kind is ScaleKind.Quantile or ScaleKind.Quantize or ScaleKind.Threshold;
         var channelAccepts = group switch
         {
-            ChannelGroup.Position or ChannelGroup.Polar => kind is ScaleKind.Linear or ScaleKind.Band or ScaleKind.Point or ScaleKind.Time or ScaleKind.Utc,
+            ChannelGroup.Position or ChannelGroup.Offset or ChannelGroup.Polar => kind is ScaleKind.Linear or ScaleKind.Band or ScaleKind.Point or ScaleKind.Time or ScaleKind.Utc,
             ChannelGroup.Color => kind is ScaleKind.Sequential or ScaleKind.Ordinal or ScaleKind.BinOrdinal || discretizing,
             ChannelGroup.Discrete => kind == ScaleKind.Ordinal || discretizing,
             _ => kind is ScaleKind.Linear or ScaleKind.Band or ScaleKind.Point or ScaleKind.Ordinal or ScaleKind.Time or ScaleKind.Utc || discretizing,
@@ -1217,14 +1259,16 @@ internal static partial class ScaleResolver
     /// <param name="fieldType">The field type (<c>quantitative</c>, <c>temporal</c>, <c>nominal</c> or <c>ordinal</c>).</param>
     /// <param name="scaleType">The scale type name.</param>
     /// <param name="binned">Whether the encoding bins the field (<c>bin</c> is true or an object, not <c>"binned"</c>).</param>
+    /// <param name="nestedOffset">Whether the channel is a position whose band holds an offset scale (<c>xOffset</c> or <c>yOffset</c> with a field): it accepts a band scale only, not a point scale.</param>
     /// <returns><see langword="true"/> when the type is one this package draws and both the channel and the field type accept it; <see langword="false"/> for any other type, whether Vega-Lite rejects it or this package does not draw it yet.</returns>
-    public static bool AcceptsScaleType(string channel, string fieldType, string scaleType, bool binned = false)
+    public static bool AcceptsScaleType(string channel, string fieldType, string scaleType, bool binned = false, bool nestedOffset = false)
     {
         ArgumentNullException.ThrowIfNull(channel);
         ArgumentNullException.ThrowIfNull(fieldType);
         ArgumentNullException.ThrowIfNull(scaleType);
         var group = GroupOf(channel);
-        return TryParseKind(scaleType, group, out var kind, out _, out var timeName) && Accepts(group, fieldType, kind, binned && EncodingPlan.CanBin(channel), timeName);
+        return TryParseKind(scaleType, group, out var kind, out _, out var timeName) && Accepts(group, fieldType, kind, binned && EncodingPlan.CanBin(channel), timeName)
+            && !(nestedOffset && kind == ScaleKind.Point);
     }
 
     /// <summary>
@@ -1770,13 +1814,20 @@ internal static partial class ScaleResolver
     {
         var scaleDef = input.ScaleDef;
         var padding = scaleDef?["padding"]?.AsNumber();
+        var isOffset = GroupOf(input.Channel) == ChannelGroup.Offset;
         double inner;
         double outer;
         if (kind == ScaleKind.Point)
         {
-            // A point scale only has outer padding: the scale's, or half a step by configuration on x and y
+            // A point scale only has outer padding: the scale's, or half a step by configuration on x and y; a point offset has half a step, so its points align with the centers of the bands
             inner = 1;
-            outer = scaleDef?["paddingOuter"]?.AsNumber() ?? padding ?? (isPosition ? context.Config.GetNumber("scale.pointPadding") ?? 0.5 : 0);
+            var defaultOuter = isOffset ? 0.5 : 0;
+            if (isPosition)
+            {
+                defaultOuter = context.Config.GetNumber("scale.pointPadding") ?? 0.5;
+            }
+
+            outer = scaleDef?["paddingOuter"]?.AsNumber() ?? padding ?? defaultOuter;
             return (inner, Math.Max(0, outer));
         }
 
@@ -1787,6 +1838,12 @@ internal static partial class ScaleResolver
             outer = p;
             inner = scaleDef?["paddingInner"]?.AsNumber() is { } explicitInner ? explicitInner : inner;
             outer = scaleDef?["paddingOuter"]?.AsNumber() is { } explicitOuter ? explicitOuter : outer;
+        }
+        else if (isPosition && HasNestedOffset(input.Channel, context.Encoding, context.MarkType))
+        {
+            // A band that holds an offset scale has the nested offset paddings (0.2 by default) instead of the mark's
+            inner = scaleDef?["paddingInner"]?.AsNumber() ?? context.Config.GetNumber("scale.bandWithNestedOffsetPaddingInner") ?? 0.2;
+            outer = scaleDef?["paddingOuter"]?.AsNumber() ?? context.Config.GetNumber("scale.bandWithNestedOffsetPaddingOuter") ?? 0.2;
         }
         else if (isPosition)
         {
@@ -1802,8 +1859,9 @@ internal static partial class ScaleResolver
         }
         else
         {
-            inner = scaleDef?["paddingInner"]?.AsNumber() ?? 0;
-            outer = scaleDef?["paddingOuter"]?.AsNumber() ?? 0;
+            // Other channels have none by default; an offset band has the offset band paddings of the configuration (none by default)
+            inner = scaleDef?["paddingInner"]?.AsNumber() ?? (isOffset ? context.Config.GetNumber("scale.offsetBandPaddingInner") : null) ?? 0;
+            outer = scaleDef?["paddingOuter"]?.AsNumber() ?? (isOffset ? context.Config.GetNumber("scale.offsetBandPaddingOuter") : null) ?? 0;
         }
 
         return (Math.Clamp(inner, 0, 1), Math.Max(0, outer));
@@ -2038,6 +2096,12 @@ internal static partial class ScaleResolver
 
         /// <summary>Gets the smaller of the two steps, which limits the size of marks.</summary>
         public double MinStep { get; init; } = DefaultStep;
+
+        /// <summary>Gets what the step of the width is for (<c>position</c> or <c>offset</c>), or null when the specification does not say.</summary>
+        public string? WidthStepFor { get; init; }
+
+        /// <summary>Gets what the step of the height is for (<c>position</c> or <c>offset</c>), or null when the specification does not say.</summary>
+        public string? HeightStepFor { get; init; }
     }
 
     /// <summary>The facts about one channel that the builders share.</summary>

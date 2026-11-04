@@ -2,12 +2,14 @@
 
 This document describes the unit-level verification strategy for the `ExpressionFunctions` unit in the
 `DemaConsulting.CanvasNet.VegaLite.Expressions` namespace: the internal static `ExpressionFunctions` class (the closed
-function table with `Names`, `TryGet`, and `Invoke`, split over its math, text, type, regular-expression, and time files),
+function table with `Names`, `TryGet`, and `Invoke`, split over its math, text, type, regular-expression, time, and
+number files),
 the `ExpressionFunction` delegate and `ExpressionFunctionContext` (the per-evaluation context that counts steps, charges
 size-proportional work, checks cancellation and the string limit, carries the calendar of the date and time functions,
-and caches compiled regular expressions and time formatters), and `ExpressionRegex` (the translation of a JavaScript
+and caches compiled regular expressions, time formatters, and number formatters), and `ExpressionRegex` (the
+translation of a JavaScript
 regular expression into a safe .NET regular expression, with its flags and its source text). The table holds exactly
-the 99 whitelisted functions of the supported subset:
+the 100 whitelisted functions of the supported subset:
 
 - **Math (27)**: `abs`, `acos`, `acosh`, `asin`, `asinh`, `atan`, `atan2`, `atanh`, `ceil`, `clamp`, `cos`, `cosh`,
   `exp`, `floor`, `log`, `log10`, `max`, `min`, `pow`, `round`, `sign`, `sin`, `sinh`, `sqrt`, `tan`, `tanh`, `trunc`
@@ -21,8 +23,9 @@ the 99 whitelisted functions of the supported subset:
   (`utcdate` to `utcdayofyear`, 24 names); `timeOffset`, `utcOffset`, `timeSequence`, `utcSequence`;
   `timeUnitSpecifier`; `timeFormat`, `utcFormat`, `timeParse`, `utcParse`; and `monthFormat`, `monthAbbrevFormat`,
   `dayFormat`, `dayAbbrevFormat`
+- **Number formatting (1)**: `format`
 
-Number format, color, scale, and random functions are not in the table, and neither is `now` (the clock is not an input
+Color, scale, and random functions are not in the table, and neither is `now` (the clock is not an input
 of a pure expression): a call to them is parsed, reported by the feature catalog, and evaluates to null. The date and
 time functions compute in the calendar of the evaluation (a `TimeCalendar`: UTC unless the render was given a time
 zone) and never in the host's zone, clock, or culture; the calendar, the d3 time format, and the unit specifier that
@@ -77,7 +80,8 @@ the backtracking engine with a 100 ms limit that fails closed with a located err
 characters. And the failures are located: an invalid pattern or flag is a `VegaLiteRenderException` at the expression
 with the offset of the failing call.
 
-Unit tests reside in `ExpressionFunctionsTests.cs` and `ExpressionFunctionsTimeTests.cs` within the
+Unit tests reside in `ExpressionFunctionsTests.cs`, `ExpressionFunctionsTimeTests.cs`, and
+`ExpressionFunctionsNumberTests.cs` within the
 `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `Expressions` folder, with the shared helpers in
 `ExpressionTestSupport.cs` and `TimeTestSupport.cs` (the latter in the `Data` folder); the unit specifier scenario is
 in `TimeUnitSpecifierTests.cs` in the `Data` folder.
@@ -105,11 +109,11 @@ constitutes a failure.
 
 ##### The Function Table Is Exactly The Whitelist
 
-**Tests**: `ExpressionFunctionsTests.ExpressionFunctions_Names_AreExactlyTheWhitelist`,
+**Tests**: `ExpressionFunctionsTests.ExpressionFunctions_Names_AreTheOneHundredWhitelistedFunctions`,
 `ExpressionFunctionsTests.ExpressionFunctions_Invoke_UnknownName_ThrowsArgumentException`
 
-Asserts that `Names` returns exactly the 99 names above in ordinal order (the 57 names of the earlier phases, the 41
-date and time names, and `toDate`), that `random`, `now`, `format`, `rgb`, `scale`, `if`, `eval`, and `Function` are
+Asserts that `Names` returns exactly the 100 names above in ordinal order (the 57 names of the earlier phases, the 41
+date and time names, `toDate`, and `format`), that `random`, `now`, `rgb`, `scale`, `if`, `eval`, and `Function` are
 absent and not found by `TryGet`, that
 names are case sensitive (`ABS` and `isNan` are not found), that invoking an unknown name is an `ArgumentException`, a
 null context is an `ArgumentNullException`, and `abs(-3)` called directly gives 3.
@@ -473,3 +477,70 @@ overflow the 64-entry formatter cache so that an old entry is compiled again (a 
 the anchor as `2024`), a specifier of 202 characters (over the 64 the cache keeps) is a different formatter object at
 every call while `%Y` is the same object, a failed compilation caches nothing, and a context with no calendar reads in
 UTC while one with +02:00 reads 14 for the hour of 12:34 UTC.
+
+##### Number Format Matches d3-format
+
+**Tests**: `ExpressionFunctionsNumberTests.ExpressionFunctionsNumber_Format_MatchesD3`
+
+Asserts, as a theory of thirty-four texts with hand-derived results (the minus sign is U+2212, the thousands separator a
+comma), that `format(1234.5678, ',.2f')` is `1,234.57`, `format(0.256, '.0%')` is `26%`, `format(0.2, '.0%')` is `20%`,
+`format(1500000, '.2s')` is `1.5M`, `format(-5, 'd')` is `−5`, `format(42, '$,.2f')` is `$42.00`, `format(255, '#x')` is
+`0xff`, `format(5, '05d')` is `00005`, `format(0.000123, '.2e')` is `1.23e-4`, `format(1200, ',.0f')` is `1,200`,
+`format(12345.6789, '.3~s')` is `12.3k`, `format(3, '+d')` is `+3`, `format(7, '>5')` is four spaces and `7`,
+`format(1234.5, '')` is `1234.5`, `format(NaN, 'd')` is `NaN`, `format(1 / 0, 'd')` is the infinity sign U+221E and
+`format(-1 / 0, 'd')` is U+2212 and U+221E, `format(1 / 0, 'f')` is `Infinity`, and `format(1e21, 'f')` is `1e+21`;
+and, for the type `c`, which prints the original value as JavaScript text, that `format('foo', 'c')` is `foo`,
+`format(true, 'c')` is `true`, `format(65, 'c')` is `65`, `format(-5, 'c')` is `-5` (an ASCII hyphen, not U+2212),
+`format(1.5, 'c')` is `1.5`, `format([1, 2], 'c')` is `1,2`, `format({}, 'c')` is `[object Object]`,
+`format(1 / 0, 'c')` is `Infinity`, `format(NaN, 'c')` is `NaN`, `format('x', '>5c')` is four spaces and `x`,
+`format('x', '*^5c')` is `**x**`, `format('ab', '$c')` is `$ab`, `format('a', '05c')` is `0000a`,
+`format('x', '+c')` is `x`, and `format('1234', ',c')` is `1234` (no grouping); every
+result is a string.
+
+##### Number Format Type C Prints The Original Value As Text
+
+**Tests**: `ExpressionFunctionsNumberTests.ExpressionFunctionsNumber_Format_TypeCPrintsTheOriginalValueAsText`
+
+Asserts, with `Invoke` on text, boolean, and null values, that a null value with `c` is the text `null`, the text `foo`
+with `c` is `foo`, `true` with `c` is `true`, the same text `foo` with `d` is still `NaN` (only the type `c` skips the
+coercion to a number), a text of ten characters with `c` against a limit of 5 is an `ExpressionRuntimeException` naming
+`VegaLiteLimits.MaxStringLength`, and an invalid specifier (`$$c`) with a text value still throws `invalid format: $$c`.
+
+##### Number Format Coerces The Value Like Unary Plus
+
+**Tests**: `ExpressionFunctionsNumberTests.ExpressionFunctionsNumber_Format_CoercesTheValueLikeUnaryPlus`
+
+Asserts that a null value gives the text `null` (as Vega, and not 0), the text `'12'` formats as `12`, `true` as `1`,
+the unreadable text `'twelve'` and an object `{}` as `NaN`, the array `[5]` as `5`, and a date as its milliseconds (the
+date of one second after the epoch and a date value of 1000 both give `1,000` with `,d`).
+
+##### Number Format Invalid Specifier Is A Runtime Error
+
+**Tests**: `ExpressionFunctionsNumberTests.ExpressionFunctionsNumber_Format_InvalidSpecifierIsARuntimeError`
+
+Asserts that the specifiers `.2.3f` and `$$` and a missing specifier throw an `ExpressionRuntimeException` with the
+messages `invalid format: .2.3f`, `invalid format: $$`, and `invalid format: undefined` (a missing specifier is the text
+`undefined`), and that `format(1, 'nonsense')` through the evaluator is a `VegaLiteRenderException` whose message
+contains `invalid format: nonsense` and whose location is the expression's pointer.
+
+##### Number Format Null Ignores The Specifier
+
+**Tests**: `ExpressionFunctionsNumberTests.ExpressionFunctionsNumber_Format_NullIsTheTextNullWithoutReadingTheSpecifier`
+
+Asserts, as Vega 6.4.0's `format.js` tests `value === null` before it compiles the specifier, that `format(null)` and
+`format(null, 'nonsense')` are the text `null` (also through the evaluator), that a specifier of 640 characters against
+a budget of 3 steps still gives `null` and charges no step, that `,d` and `c` still give `null`, and, so the check is
+not vacuous, that `format(1)` and `format(1, 'nonsense')` still fail with `invalid format: undefined` and
+`invalid format: nonsense`.
+
+##### Number Format Cache, Limits, And Culture
+
+**Tests**: `ExpressionFunctionsNumberTests.ExpressionFunctionsNumber_Format_CachesAndBoundsWork`
+
+Asserts that 65 distinct specifiers `.0f` to `.64f` on 1.5 (the first two give `2` and `1.5`) overflow the formatter
+cache of 64 entries, which is cleared when full, and the formatter still gives `1.5` for `.1f` twice afterwards; that a
+specifier of more than 64 characters (a dot, 70 zeros, and `2f`) is not kept and still formats 1.5 as `1.50`; that a
+result over `MaxStringLength` (a limit of 5 with `format(123456, ',d')`, `123,456`) is an `ExpressionRuntimeException`
+naming `VegaLiteLimits.MaxStringLength`; that a specifier of 640 characters against a budget of 3 steps fails naming
+`VegaLiteLimits.MaxEvaluationSteps` (the specifier length is charged); and that `format(1234.5, ',.1f')` is `1,234.5`
+under `tr-TR` and under `de-DE` (the result does not depend on the current culture).

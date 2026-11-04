@@ -164,8 +164,19 @@ Scene roles: `legend` (group) containing `legend-entry` (group) and `legend-titl
   `TimeLabels.Create`), and the length of each is charged to the build's evaluation (`MaxEvaluationSteps`, one step per
   64 characters) as it is made. The build's
   `ExpressionFunctionContext` is created with the **calendar** of the canonical scale (`ResolvedScale.Calendar`, UTC when
-  the legend has none), so that expressions evaluated for the legend read dates in the zone of the chart; `labelExpr` is
-  not implemented for any legend.
+  the legend has none), so that expressions evaluated for the legend read dates in the zone of the chart.
+- **Label expressions** (`LabelExpressions`, see _LabelExpressions Unit Design_; Vega-Lite's `compile/legend/assemble.ts`
+  and Vega's `LegendEntries.js`): the explicit `legend.labelExpr` (the compiled expression of the node, found through
+  `LegendSettings.ExplicitNode`) replaces the label of every entry **before the entries are measured and laid out**, so
+  blank labels change the measured width of the legend. **`config.legend.labelExpr` is not read**, because Vega-Lite 6
+  has no such property. `Labeled` builds the datum for each label: a symbol legend gives `index` (a whole number),
+  `label`, and `value` (the `...N entries` row of `symbolLimit` is an extra entry whose `index` is the number of entries
+  shown); a gradient legend gives `index`, `label`, `value` (a date for a temporal field), and `perc` (the position
+  along the bar); a discrete gradient also gives `perc2` (the end of the class). `datum.size` and `datum.offset` of a
+  symbol legend are null. The context keeps the compiled expression; an array result is a multi-line label
+  (`MakeLabel` takes the lines). The expression runs on the evaluator of the call (the optional `RowExpressions`
+  argument of the constructor; without it the builder uses an evaluator of its own with the same limits) and the length
+  of the replaced text is charged as the length of every label is.
 - Gradient legends - the bar is `gradientThickness` (16) by the gradient length, which is `gradientLength`, else for a
   continuous scale the view height limited to 64 to 200 (vertical) or the view width limited to 100 to 200 for top and
   bottom (100 for other horizontal legends), else 200. Its `FillGradient` has the stops of Vega's `scaleGradient`: the ends
@@ -203,15 +214,18 @@ labels of a gradient after the overlap removal (hidden labels cost nothing); the
 every 1,024 entries. **Determinism**: text is measured with the bundled fonts only; the gradient has at most about 30
 stops; no dictionary enumeration order reaches the output. A time label is also bounded before it is made (the formatter
 stops at `MaxStringLength`, and all the labels of a legend together are limited to it), the time ticks by `MaxTicks`
-(located at the legend), and nothing reads the host clock, zone, or culture.
+(located at the legend), and nothing reads the host clock, zone, or culture. A label expression that exceeds the step
+budget or the string limit is a `VegaLiteRenderException` located at the expression (the steps are those of the shared
+`MaxEvaluationSteps` budget of the call).
 
 #### Dependencies
 
-`TextMeasurer`, `LabelOverlap`, `TimeLabels`, `ResolvedScale`, `ScaleModel`, `Ticks` (including `TimeTicks`,
+`TextMeasurer`, `LabelOverlap`, `TimeLabels`, `LabelExpressions`, `ResolvedScale`, `ScaleModel`, `Ticks` (including
+`TimeTicks`,
 `TimeTickRequest`, and `ResolveTickCount`), `NumberFormat`, `RgbColor` and the discretizing
 scale kinds of the `Scales` subsystem; `SpecNode`, `ConfigNode` and `ResolvedConfig` of the `SpecModel` subsystem;
 `DataValue`, `JsNumber`, `TimeCalendar`, `TimeUnitSpec`, `DateTimeObject`, and `JsDateParser` of the `Data` subsystem;
-`ExpressionEvaluator.ToJsString` and `ExpressionFunctionContext` of
+`ExpressionEvaluator.ToJsString`, `ExpressionFunctionContext`, and `RowExpressions` of
 the `Expressions` subsystem; the scene types and `SceneBudget` of the `Scenegraph` subsystem; and the public
 `VegaLiteLimits`, `VegaLiteLocation`, `VegaLiteRenderException` and `VegaLiteSpecException`.
 
@@ -220,7 +234,8 @@ the `Expressions` subsystem; the scene types and `SceneBudget` of the `Scenegrap
 `VegaLiteDocument` and `LegendLayout` of the `Layout` subsystem (which also calls `LegendBuilder.GridLayout`). The
 tests in `test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendPlanTests.cs`, `LegendPlanLayerTests.cs` (the legends
 of layered views), `LegendBuilderTests.cs`,
-`LegendBuilderTimeTests.cs`, and `LegendBuilderPathMarkTests.cs` (the symbols of the line, rule, trail, area, arc, and text
+`LegendBuilderTimeTests.cs`, `LegendBuilderLabelExprTests.cs` (`labelExpr`), and `LegendBuilderPathMarkTests.cs` (the
+symbols of the line, rule, trail, area, arc, and text
 marks) call the
 unit directly through `InternalsVisibleTo`.
 
@@ -231,10 +246,11 @@ stop its position along the transformed domain (Vega's `scaleFraction`; the file
 read, so the
 log, pow, and symlog fractions are derived from the d3 transforms). The canonical scale of a merged continuous
 legend is the first channel in Vega-Lite's order
-(Vega picks by its own order of scale names). A `titleOrient` other than `top`, `clipHeight`, `encode`, `labelExpr` (not
-implemented for any legend or axis)
-and custom format types (a `formatType` other than `number`, `time`, and `utc`) are not drawn and are reported by the
-feature catalog. A discrete legend over the dates of a nominal field without a time unit is not temporal (its values are
+(Vega picks by its own order of scale names). A `titleOrient` other than `top`, `clipHeight`, `encode`, and custom format
+types (a `formatType` other than `number`, `time`, and `utc`) are not drawn and are reported by the
+feature catalog. The `datum.size` and `datum.offset` of a symbol legend that a `labelExpr` can read are null, and
+`config.legend.labelExpr` is not read (Vega-Lite 6 has no such property). A discrete legend over the dates of a nominal
+field without a time unit is not temporal (its values are
 not date-parsed) and keeps the text labels. A temporal color scale that asks for a discretizing type (quantile,
 quantize, threshold) is replaced by the sequential default (see _ScaleResolver Unit Design_), so no discretized
 temporal legend exists. The symbols of the `arrow`, `wedge` and

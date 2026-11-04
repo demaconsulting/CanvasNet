@@ -1,0 +1,85 @@
+---
+# Software Unit Requirements for LabelExpressions
+#
+# These requirements describe the design-level behavior of the LabelExpressions unit of the Guides subsystem (internal
+# namespace DemaConsulting.CanvasNet.VegaLite.Guides): the labelExpr of an axis, a legend, and a facet header, with
+# the semantics of Vega-Lite 6.5 and Vega 6.4 - the datum that the expression reads, the way its result becomes the
+# text of the label, the resolution of the expression of a guide, and the limits of the call that the evaluation
+# obeys. The axis, legend, and header builders use the unit to replace the text of their labels before the labels
+# are measured, laid out, and thinned. It uses the expression engine of the Expressions subsystem. Each "tests"
+# entry cites an existing test method in the DemaConsulting.CanvasNet.VegaLite.Tests project; see
+# docs/verification/canvas-net-vega-lite/guides/label-expressions.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Guides Requirements
+        sections:
+          - title: LabelExpressions Requirements
+            requirements:
+              - id: CanvasNetVegaLite-Guides-LabelExpressions-Datum
+                title: >-
+                  The LabelExpressions unit shall give a label expression a datum with the members of Vega: value
+                  (what the label names) and label (the text the label has without the expression) for every
+                  guide, and in addition the index (for an axis the position of the tick as a fraction from the
+                  first tick to the last, which is zero for a single tick, and for a legend the position of the
+                  entry) and the tickIndex (the integer position of an axis tick), the perc of a gradient legend
+                  label and the perc2 of a discrete gradient legend label, while the datum of a facet header has
+                  value and label only and a member that a guide does not have does not exist.
+                justification: |
+                  Authors write label expressions against the datum that Vega gives them; a datum that differs in
+                  its members or in the meaning of index would give different labels than Vega-Lite does.
+                tests:
+                  - LabelExpressions_Evaluate_ValueAndLabelAreBound
+                  - LabelExpressions_Evaluate_AxisIndexIsFractionAndTickIndexIsInteger
+
+              - id: CanvasNetVegaLite-Guides-LabelExpressions-Coercion
+                title: >-
+                  The LabelExpressions unit shall turn the result of a label expression into the text of the
+                  label as the text mark of Vega does: null (and so a missing member or a call of a function
+                  that the expression language does not support) is the empty text, an array is a multi-line
+                  text whose elements are trimmed and whose null elements are empty, and any other value is
+                  converted with the JavaScript string conversion (a number, a boolean, a date as ISO text) and
+                  trimmed of white space, in every culture identically, and shall evaluate the number format
+                  function format and the time format functions like every other function of the language.
+                justification: |
+                  A label expression commonly returns a number, null to hide a label, or an array to break a
+                  label into lines; the text must be the one the same specification gives in Vega-Lite.
+                tests:
+                  - LabelExpressions_Evaluate_NullAndMissingMemberGiveEmptyText
+                  - LabelExpressions_Evaluate_NumberBooleanAndDateAreCoercedLikeJavaScript
+                  - LabelExpressions_Evaluate_ArrayGivesLinesWithElementsTrimmed
+                  - LabelExpressions_Evaluate_ResultIsTrimmed
+                  - LabelExpressions_Evaluate_UnsupportedFunctionIsNullAndEmpty
+                  - LabelExpressions_Evaluate_FormatAndTimeFormat
+
+              - id: CanvasNetVegaLite-Guides-LabelExpressions-Resolution
+                title: >-
+                  The LabelExpressions unit shall use the expression that the specification parser compiled for
+                  the labelExpr of a guide, shall compile the text of a labelExpr that the configuration gives
+                  once and reuse it for every label, shall use no expression for a guide that has none or whose
+                  text is empty, and shall fail with a located VegaLiteSpecException when the text of a configured
+                  expression is not a valid expression.
+                justification: |
+                  A label expression is evaluated for every label of every guide; it must be compiled once, and a
+                  mistake in it must be reported at the text that holds it rather than at some label.
+                tests:
+                  - LabelExpressions_Resolve_ConfiguredTextIsCompiledOnceAndCached
+                  - LabelExpressions_Resolve_ConfiguredSyntaxErrorIsSpecException
+
+              - id: CanvasNetVegaLite-Guides-LabelExpressions-Limits
+                title: >-
+                  The LabelExpressions unit shall evaluate a label expression with the limits and the parameters
+                  of the call: the evaluation steps count against the step budget shared with
+                  every other expression of the call, a result (or the lines of an array result joined by line
+                  feeds) longer than the string limit and a budget that is
+                  exceeded fail closed with a located VegaLiteRenderException that names the limit, and a parameter
+                  of the specification can be read.
+                justification: |
+                  A label expression is untrusted text that runs once for every tick or entry; it must not be able
+                  to exhaust time or memory, and it must see the same parameter values as the rest of the chart.
+                tests:
+                  - LabelExpressions_Evaluate_ParameterIsReadAndStepsAreChargedToTheCall
+                  - LabelExpressions_Evaluate_StepBudgetIsEnforcedAsRenderException
+                  - LabelExpressions_Evaluate_StringLimitIsEnforcedAsRenderException
+                  - LabelExpressions_Evaluate_ArrayJoinedLengthIsBoundedByTheStringLimit

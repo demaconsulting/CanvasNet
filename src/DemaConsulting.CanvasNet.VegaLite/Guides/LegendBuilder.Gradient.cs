@@ -74,8 +74,8 @@ internal sealed partial class LegendBuilder
             }
 
             var along = model.Fraction(value.Number);
-            var text = format(value.Number);
-            c.Evaluation.ChargeSize(text.Length);
+            var text = Labeled(c, EntryValue(c, value), format(value.Number), i, along);
+            c.Evaluation.ChargeSize(text.Text.Length);
             candidates.Add(GradientLabel(c, text, along, vertical, thickness, offset, length, limit));
         }
 
@@ -145,8 +145,14 @@ internal sealed partial class LegendBuilder
                 continue;
             }
 
-            var text = format(values[i].Number);
-            c.Evaluation.ChargeSize(text.Length);
+            var text = Labeled(
+                c,
+                values[i],
+                format(values[i].Number),
+                i,
+                fraction(values[i].Number),
+                i < values.Count - 1 ? fraction(NumberOrNaN(values[i + 1])) : 1);
+            c.Evaluation.ChargeSize(text.Text.Length);
             candidates.Add(GradientLabel(c, text, fraction(values[i].Number), vertical, thickness, offset, length, limit));
         }
 
@@ -277,7 +283,7 @@ internal sealed partial class LegendBuilder
     ///     Builds one label of a gradient legend.
     /// </summary>
     /// <param name="c">The build state.</param>
-    /// <param name="text">The text.</param>
+    /// <param name="text">The text, with its lines when the label has several.</param>
     /// <param name="along">The position along the bar from 0 to 1.</param>
     /// <param name="vertical">Whether the bar is vertical.</param>
     /// <param name="thickness">The thickness of the bar.</param>
@@ -285,14 +291,37 @@ internal sealed partial class LegendBuilder
     /// <param name="length">The length of the bar.</param>
     /// <param name="limit">The width limit; 0 for none.</param>
     /// <returns>The label.</returns>
-    private static SceneText GradientLabel(Context c, string text, double along, bool vertical, double thickness, double offset, double length, double limit)
+    private static SceneText GradientLabel(Context c, LabelText text, double along, bool vertical, double thickness, double offset, double length, double limit)
     {
         if (vertical)
         {
-            return MakeLabel(c, thickness + offset, (1 - along) * length, text, "left", Pick(along, "bottom", "top", "middle"), limit);
+            return MakeLabel(c, thickness + offset, (1 - along) * length, text.Text, "left", Pick(along, "bottom", "top", "middle"), limit, text.Lines);
         }
 
-        return MakeLabel(c, along * length, thickness + offset, text, Pick(along, "left", "right", "center"), "top", limit);
+        return MakeLabel(c, along * length, thickness + offset, text.Text, Pick(along, "left", "right", "center"), "top", limit, text.Lines);
+    }
+
+    /// <summary>
+    ///     Gets the value that <c>datum.value</c> of a gradient legend label is: a date for the legend of a temporal field, else the value itself.
+    /// </summary>
+    /// <param name="c">The build state.</param>
+    /// <param name="value">The value of the tick.</param>
+    /// <returns>The value of the datum.</returns>
+    private static DataValue EntryValue(Context c, DataValue value)
+    {
+        if (IsTemporal(c) && value.IsNumber && double.IsFinite(value.Number))
+        {
+            try
+            {
+                return DataValue.FromDate(value.Number);
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                return value;
+            }
+        }
+
+        return value;
     }
 
     /// <summary>

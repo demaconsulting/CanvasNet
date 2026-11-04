@@ -47,7 +47,10 @@ properties) within the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the
 the path, text, and arc marks), `SpecParserImputeTests.cs` (the `impute` object of an encoding),
 `SpecParserResolveTests.cs` (the `resolve` and composite
 mark rules of `SpecParser.Layers.cs` and the compilation of the expressions of every view, Phase 10 and 11),
-`SpecParserCompositionTests.cs` (the composition rules of `SpecParser.Layers.cs`, Phase 11), and
+`SpecParserCompositionTests.cs` (the composition rules of `SpecParser.Layers.cs`, Phase 11),
+`FeatureCatalogLabelExprAndOffsetTests.cs` (the compilation of the `labelExpr` of the guides and the `for` of a step, in
+the scenarios `SpecParser_Parse_LabelExpressionErrorIsASpecExceptionAtTheText` and `SpecParser_Parse_StepForMustBePositionOrOffset`),
+and
 `ChannelDefinitionsTests.cs`; the
 large-inline-data test is in `VegaLiteDocumentSpecModelTests.cs` in the same folder, and the test of the marks that
 evaluate the conditions of a `size` channel is in `MarkChannelGatingTests.cs` in the `Scales` folder. The time
@@ -687,3 +690,15 @@ Asserts that a `{"repeat": ...}` reference naming `row`, `column`, `repeat`, or 
 the `field` or `datum` of a channel, the `field` of a `sort`, the `field` of a condition, and a facet's `row` field, and
 that a reference naming anything else, or whose `repeat` is not a string, is an error at the `repeat` member of the
 channel field, the datum, the sort field, and the condition field.
+
+##### The Label Expressions Of The Guides Are Compiled
+
+**Tests**: `FeatureCatalogLabelExprAndOffsetTests.SpecParser_Parse_LabelExpressionErrorIsASpecExceptionAtTheText`,
+`FeatureCatalogLabelExprAndOffsetTests.SpecParser_Parse_StepForMustBePositionOrOffset`
+
+Asserts that a `labelExpr` of an axis, a legend, a facet header, `config.axis`, and `config.headerFacet` that has a syntax
+error (`datum.label +`, `(`, `1 +`), or that names a parameter that no view declares (`unknownParam`), is a
+`VegaLiteSpecException` located at the pointer of the expression text (`/encoding/x/axis/labelExpr`,
+`/encoding/color/legend/labelExpr`, `/facet/row/header/labelExpr`, `/config/axis/labelExpr`,
+`/config/headerFacet/labelExpr`) when the text is parsed; and that the `for` of the `step` object of a `width` is
+accepted as `position` or `offset` and is a located specification error (`/width/for`) for another value.

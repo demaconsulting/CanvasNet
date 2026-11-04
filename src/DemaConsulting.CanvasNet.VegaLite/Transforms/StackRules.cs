@@ -96,6 +96,21 @@ internal static class StackRules
             groupBy.Add(key);
         }
 
+        // The offset of the dimension (yOffset for a stacked x, xOffset for a stacked y) splits the groups too: the bars of one offset value stack among themselves
+        var dimensionOffset = DimensionOffsetChannel(channel) is { } offsetChannel ? encoding[offsetChannel] : null;
+        if (IsFieldDef(dimensionOffset) && FieldKey(dimensionOffset) is { } offsetKey && offsetKey != stackedKey)
+        {
+            groupBy.Add(offsetKey);
+        }
+
+        // Without an explicit stack (Vega-Lite: stack === undefined, so a JSON null stack is explicit), a quantitative offset on a view whose dimension is
+        // falsy in JavaScript (absent or JSON null; a value or datum object is truthy and counts as present) is a strip of points, not stack groups
+        if (stacked["stack"] is null && encoding[other] is null or { IsNull: true }
+            && IsUnbinnedQuantitativeOffset(dimensionOffset, DimensionOffsetChannel(channel), encoding))
+        {
+            return null;
+        }
+
         var stackBy = new List<SpecNode>();
         foreach (var name in StackByChannels)
         {
@@ -165,6 +180,22 @@ internal static class StackRules
             "theta" => "radius",
             "radius" => "theta",
             _ => throw new ArgumentOutOfRangeException(nameof(channel), channel, "The channel cannot be stacked."),
+        };
+    }
+
+    /// <summary>
+    ///     Gets the offset channel of the dimension of a stacked channel (Vega-Lite's <c>getOffsetChannel</c> of the dimension).
+    /// </summary>
+    /// <param name="channel">The stacked channel.</param>
+    /// <returns><c>yOffset</c> for <c>x</c>, <c>xOffset</c> for <c>y</c>; null for a polar channel, which has no offset.</returns>
+    public static string? DimensionOffsetChannel(string channel)
+    {
+        ArgumentNullException.ThrowIfNull(channel);
+        return channel switch
+        {
+            "x" => "yOffset",
+            "y" => "xOffset",
+            _ => null,
         };
     }
 
@@ -268,6 +299,17 @@ internal static class StackRules
     /// <returns><see langword="true"/> for a measure that is not binned; a field without a <c>type</c> is one when Vega-Lite infers it quantitative (an aggregate, for example).</returns>
     private static bool IsUnbinnedQuantitative([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] SpecNode? definition, string channel, SpecNode encoding) =>
         IsFieldDef(definition) && ChannelDefinitions.TypeOf(definition, channel, encoding) == "quantitative" && !IsEnabled(definition["bin"]);
+
+    /// <summary>
+    ///     Determines whether an offset definition is an unbinned quantitative field or a numeric datum (Vega-Lite's <c>channelHasQuantitativeOffset</c>).
+    /// </summary>
+    /// <param name="definition">The offset definition, or null.</param>
+    /// <param name="channel">The offset channel, or null for a polar stack that has none.</param>
+    /// <param name="encoding">The encoding object.</param>
+    /// <returns><see langword="true"/> for an unbinned quantitative field, or a datum that is a number.</returns>
+    private static bool IsUnbinnedQuantitativeOffset(SpecNode? definition, string? channel, SpecNode encoding) =>
+        channel is not null && definition is { IsObject: true }
+        && (IsUnbinnedQuantitative(definition, channel, encoding) || definition["datum"] is { IsNumber: true });
 
     /// <summary>
     ///     Determines whether any channel of an encoding aggregates.

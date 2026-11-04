@@ -2,7 +2,7 @@
 
 ![Scales Structure](VegaLiteScalesView.svg)
 
-The `ScaleResolver` unit is the second software unit in the `Scales` subsystem. It comprises seven source files in the
+The `ScaleResolver` unit is the second software unit in the `Scales` subsystem. It comprises eight source files in the
 `DemaConsulting.CanvasNet.VegaLite.Scales` namespace, all `internal`, that define the `internal` types
 `ScaleResolver` (a `static partial` class), `ResolvedScales` (sealed class), `ResolvedScale` (sealed record),
 `RangeEnd` (readonly record struct), and, since phase 10, `LayerScaleInput` (record), `LayeredScales` (sealed class), and
@@ -23,6 +23,10 @@ the `DomainOrder` enumeration:
   conversion of one entry to milliseconds, and the `nice` request of a time scale
 - `ScaleResolver.Layers.cs` - the scales of the layers of a layered view (`ResolveLayers`, `LayerScaleInput`,
   `LayeredScales`): the shared scale with the combined domain, the independent scales, and the conflicts
+- `ScaleResolver.Offsets.cs` - the nested offset scales of `xOffset` and `yOffset`: `OffsetDecision` (an enumeration:
+  `Supported`, `NoDiscreteParent`, `Ranged`, `TimeUnitParent`), `DecideOffset`, `HasNestedOffset`, `HasTimeUnitOffset`,
+  `StepForOf`, and the `ApplyNestedOffsets`
+  post-pass that sizes the step of a position scale from its offset scale
 
 The files carry the provenance header comment for the Vega-Lite and Vega rules and the d3-scale and d3-time
 behavior they port.
@@ -44,8 +48,8 @@ The unit's behavior is specified by the `CanvasNetVegaLite-Scales-ScaleResolver-
 
 **`ResolvedScales`** holds the `MarkType`, the inferred `Orient` (horizontal, vertical, or null), the `Plan` (the
 `EncodingPlan` the scales were resolved with), the scales by channel
-(an indexer by channel name and an enumeration in the fixed channel order x, y, theta, radius, color, fill, stroke, size,
-opacity, shape,
+(an indexer by channel name and an enumeration in the fixed channel order x, y, xOffset, yOffset, theta, radius, color,
+fill, stroke, size, opacity, shape,
 strokeWidth, strokeDash, fillOpacity, strokeOpacity, angle), and
 the `DiscreteWidth` and `DiscreteHeight` that a step-driven discrete position scale needs.
 
@@ -276,6 +280,63 @@ transform) for a
   domain** (so a log domain keeps its geometric middle). On a **time or UTC** scale `nice` extends the domain to the
   boundaries of a calendar interval with `Ticks.TimeNice` (after the pixel padding, like the numeric `nice`), in the
   calendar of the scale, and a non-finite or out-of-range result keeps the padded domain.
+- **Offset channels** (`xOffset` and `yOffset`, the partial file `ScaleResolver.Offsets.cs`; Vega-Lite's
+  `channelHasNestedOffsetScale`, `scale/type.ts`, `scale/properties.ts`, `scale/range.ts`, `scale/domain.ts`, and
+  `getStepFor` of `spec/base.ts`). The channel group `ChannelGroup.Offset` takes the scale types of a position. An offset
+  needs a position channel that is a nominal or ordinal field or datum (with or without a `timeUnit`: a discrete position
+  with a time unit is an ordinary band parent, as `channelHasNestedOffsetScale` accepts `isDiscrete(type) || timeUnit`),
+  or a temporal one with a
+  supported `timeUnit` (below): `DecideOffset` returns
+  `Supported`, `NoDiscreteParent` (position missing, continuous, or temporal without a time unit that can hold the
+  offset), `Ranged` (a continuous
+  offset of a `bar` or `area`, which Vega-Lite draws as a range from the start of the band), or `TimeUnitParent` (a
+  temporal position with a time unit, whose smallest part is not the day of the week); only a `Supported` or
+  `TimeUnitParent` offset
+  has a scale
+  (`NoDiscreteParent` and `Ranged` are reported by the feature catalog and ignored). A position that holds a nested
+  offset
+  (`HasNestedOffset`) is **always a band scale**, for every mark (an explicit `scale.type` of `point` is not accepted,
+  the feature catalog warns), with `paddingInner` and `paddingOuter` of `config.scale.bandWithNestedOffsetPaddingInner`
+  and `...Outer` (0.2 each by default) unless `scale.padding` or an explicit padding of the scale says otherwise. The
+  **offset scale**: a discrete offset is a band scale for `bar`, `rect`, `image`, `rule`, and `tick` marks and a point
+  scale for the others (its outer padding is 0.5, so the points sit at the centers of the bands of an offset band
+  scale); a band offset has the paddings `config.scale.offsetBandPaddingInner` and `...Outer` (0 by default); a
+  quantitative or temporal offset is a linear or time scale with no zero, no `nice`, and no pixel padding. The
+  **domain** of
+  a discrete offset is the distinct values of the whole field (a slot with no row stays empty), ordered by `sort`
+  (ascending by default). The **range** (`ScaleResolver.Range.cs`, `ResolvedScale.IsOffset`) is the bandwidth of the
+  position band, `[0, bandwidth]` (a linear or time `yOffset` runs upward, `[bandwidth, 0]`); `range`, `rangeMin`,
+  `rangeMax`, `reverse`, and `round` apply as to a position. The offset scale has no step of its own here (the model
+  spans the bandwidth of the position band), so the **step** is applied to the position scale: `ApplyNestedOffsets` (run
+  exactly once for each scale map: for each layer map and for the merged map of a layered view, after the shared offset
+  domains are merged, and once for a single view) sets, for a position scale that has a step and an offset scale that is
+  band or point, `step = offsetStep * BandSpace(offsetCount, offsetPaddingInner, offsetPaddingOuter) / (1 -
+  positionPaddingInner)` when the step is `for: "offset"` (the default for a discrete offset; a point offset uses an
+  inner padding of 1), and leaves the step alone for `for: "position"` (`Context.WidthStepFor` and `HeightStepFor` read
+  the `for` of the `width` or `height` step object, or of `config.view.discreteWidth` or `discreteHeight`, through
+  `StepForOf`). For example, three categories and two groups with an offset step of 20 (the default size) give a
+  position step of 20 x 2 / 0.8 = 50, a width of 50 x (3 - 0.2 + 0.4) = 160, a bandwidth of 40, and bars of 20 pixels;
+  with a width of 200 the step is 62.5, the bandwidth 50, and the bars 25. Layers that share the offset scale merge its
+  domain (`resolve.scale.xOffset: "independent"` keeps each layer's own), and the position step is computed from the
+  merged offset domain; the children of a concatenation keep their offset scales independent
+  (`resolve.scale.xOffset: "shared"` shares them) and the cells of a facet share them (see `LayerResolve` above).
+  **A temporal position with a time unit** (`TimeUnitParent`; Vega-Lite's `channelHasNestedOffsetScale` for a time
+  unit, `getOffsetRange`, `durationExpr`, and `timeUnitBandSize`) is the other parent: the parent type is `temporal`, its
+  `timeUnit` parses, is not binned, has parts, and its smallest part is not the day of the week
+  (`TimeUnitSpec.DurationMilliseconds()` is not null, so not `day`, `weekday`, `yearweekday`, `maxbins`, or a `binned`
+  unit), and the mark is not a `rect`. The position scale **stays a time scale** (`HasNestedOffset` is unchanged and
+  covers the discrete parents only; `HasTimeUnitOffset` says whether the offset is of this kind); only the offset
+  gets a scale of its own, by the rules above (a nominal offset is a band scale for a `bar`, `rect`, `image`, `rule`,
+  or `tick` with the paddings 0, a point scale with the outer padding 0.5 for the other marks; a quantitative or temporal
+  offset is a linear or time scale; a continuous offset of a `bar` or `area` is still `Ranged`, `vl-offset-ranged`).
+  Its **range** is not the bandwidth of the position band but the pixels of one reference unit of the parent time scale
+  (`MarkBuilder.TimeUnitOffsetRange`, see _MarkBuilder Design_), passed to `ResolvedScale.CreateModel(extent,
+  (Start, End)? nestedRange)`: the overload whose default range for an offset channel is `[Start, End]` pixels (no y
+  flip), with `rangeMin`, `rangeMax`, an explicit `range`, and `reverse` still applying. A nominal or ordinal parent
+  with a `timeUnit` is not of this kind: it is an ordinary band parent (`Supported`), whatever the unit and the mark. Every
+  other case (a missing, quantitative, or temporal parent without a unit, `day`,
+  `weekday`, a binned or `maxbins` unit of a temporal parent, a `rect` mark with a temporal parent) stays
+  `NoDiscreteParent` (`vl-offset-position`).
 - **Range.** x is 0 to the width and y is the height to 0 (continuous) or 0 to the height (discrete). **`theta` is 0 to
   2 * PI** (radians; the extent is ignored) and **`radius` is 0 to
   the extent that the caller passes** (half of the smaller side of the data rectangle, in pixels); an explicit
@@ -407,6 +468,16 @@ explicit `utc` type on a temporal color keeps its meaning although the scale is 
 color scale): the scale uses the UTC calendar and `ResolvedScale.IsUtcTime` is set, so the legend takes the whole-day
 ticks counted from the epoch and UTC labels whatever the zone of the chart is.
 
+The offset channels deviate from Vega-Lite in these ways: (1) a **continuous** offset of a `bar` or `area` (Vega-Lite's
+ranged offset) is not drawn (`vl-offset-ranged`); (2) a temporal position nests the offset only for a unit whose
+smallest part is not the day of
+the week, with the reference unit of `durationExpr` measured on the scale of the chart (the deviations of the
+placement are listed in _MarkBuilder Design_); (3) the offset scale of a discrete parent has no step of its own: it
+spans the
+bandwidth of the position band, and the step of the offset is applied to the position scale by `ApplyNestedOffsets`;
+(4) a `bin` on an offset channel is not supported (`vl-encoding-bin`), and the pixel `xOffset` and `yOffset` properties
+of a mark are still not drawn.
+
 **The `ScaleKind.Linear` audit.** `ScaleKind.Time` and `ScaleKind.Utc` are new enum members, so each of the 31 source
 sites that tested for `ScaleKind.Linear` was reviewed and decided deliberately:
 
@@ -459,6 +530,18 @@ parameter) resolve no scale.
   (position, color, shape and dash, numeric).
 - `InferOrient(markType, specified, encoding)` - the orientation rule above; a measure is an unbinned quantitative field
   or a count.
+- `DecideOffset(offsetChannel, encoding, markType)` (`ScaleResolver.Offsets.cs`) - the `OffsetDecision` of an offset
+  channel (`Supported`, `NoDiscreteParent`, `Ranged`, or `TimeUnitParent`; `Supported` also when the encoding has no
+  offset to decide);
+  the feature catalog and the resolver both call it, so what is reported is what is ignored. `HasNestedOffset(channel,
+  encoding, markType)` says whether the band of a position holds a drawn offset scale (it makes the position a band
+  scale with the nested paddings; a discrete parent, with or without a time unit), and
+  `HasTimeUnitOffset(channel, encoding, markType)` whether
+  the position is a temporal one with a time unit that holds an offset scale (it stays a time scale).
+  `ApplyNestedOffsets(scales, context)` sizes the step of the position scales as
+  described in the _Offset channels_ item; it must run **exactly once** for each map of scales (`Resolve` runs it for a
+  single view, and `ResolveLayers` for each layer map and the merged map after the offset domains are merged), because
+  it multiplies the step of the specification.
 - `ResolveLayers(layers, config, sourceName, limits, token)` (`ScaleResolver.Layers.cs`) - resolves the scales of the
   layers of a layered view in two passes. Pass 1 resolves each layer's unit view as `Resolve` does (`CreateContext` and
   `ResolveChannels`, split out of the pipeline entry). Pass 2, for each channel that a layer carries, divides the
@@ -514,7 +597,10 @@ parameter) resolve no scale.
   linear, time (`ScaleModel.CreateTime`, with the calendar and the UTC flag), UTC, sequential, diverging, quantize,
   quantile, threshold, bin-ordinal,
   band, point, or ordinal `ScaleModel` (the discretizing scales from the output range of the channel); a non-finite
-  domain after nice keeps the padded domain.
+  domain after nice keeps the padded domain. `CreateModel(extent, (Start, End)? nestedRange)` is the overload for the
+  offset of a time-unit parent: with a range it replaces the default range of the offset channel by `[Start, End]` pixels
+  (`rangeMin`, `rangeMax`, an explicit `range`, and `reverse` still apply); `CreateModel(extent)` is the same with no
+  nested range.
 - `ResolvedScale.NaturalExtent` - `step * BandSpace(count, inner, outer)`, the size a step-driven discrete scale needs.
 - `LinearExtent` (`ScaleResolver.Plan.cs`) - finds the domain of a continuous channel before the zero rule:
   the bins of a

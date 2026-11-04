@@ -6,7 +6,8 @@
 # (specifier parsing, number formatting, SI prefixes, and the tick-format precision rules). The port is an own
 # implementation of the algorithms of d3-format 3.1.2 (ISC license) with the en-US locale; the attribution is
 # in src/DemaConsulting.CanvasNet.VegaLite/third-party/ and the expected values in the tests are derived by
-# hand. See docs/verification/canvas-net-vega-lite/scales/number-format.md for the test-evidence mapping.
+# hand. The format function of the expression language (ExpressionFunctions.Number.cs) is a consumer of the unit.
+# See docs/verification/canvas-net-vega-lite/scales/number-format.md for the test-evidence mapping.
 
 sections:
   - title: CanvasNetVegaLite Requirements
@@ -21,20 +22,23 @@ sections:
                   symbol, zero, width, comma, precision, trim, and type parts, reproduce its text form,
                   and reject invalid text with a FormatException.
                 justification: |
-                  Axis formats come from the specification; an invalid one must be an error, not a guess.
+                  Axis formats and the format function of expressions come from the specification; an invalid
+                  one must be an error, not a guess.
                 tests:
                   - NumberFormat_ParseSpecifier_ReadsEveryPartAndRejectsInvalidText
 
               - id: CanvasNetVegaLite-Scales-NumberFormat-Formatting
                 title: >-
                   The NumberFormat unit shall format a number by a specifier with the d3-format rules for
-                  the types, grouping, sign, padding, trimming, and SI prefixes, give the hand-derived
+                  the types, grouping, sign, padding, trimming, and SI prefixes, print a text with the c type
+                  between the prefix and the suffix of the specifier, give the hand-derived
                   label text for the documented values, and provide the precision helpers that derive the
                   digits from a step.
                 justification: |
                   The label text of an axis must match what a Vega-Lite user expects.
                 tests:
                   - NumberFormat_Format_QuantitativeLabelsMatchHandDerivedExpectedVector
+                  - NumberFormat_FormatText_PrintsTheTextWithPrefixSuffixAndPadding
                   - NumberFormat_PrecisionHelpers_MatchHandDerivedValues
                   - NumberFormat_CreatePrefix_ScalesByThePrefixOfTheReferenceValue
 

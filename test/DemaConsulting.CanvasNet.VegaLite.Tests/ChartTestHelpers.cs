@@ -82,7 +82,7 @@ internal static class ChartTestHelpers
         var scale = parts.Scales[channel] ?? throw new InvalidOperationException("The test specification has no scale for " + channel);
         var model = scale.CreateModel(channel == "x" ? width : height);
         var request = new AxisRequest(channel, parts.Tree.Root["encoding"]?[channel], scale, model, width, height, parts.Scales.MarkType, InHeader: inHeader);
-        return new AxisBuilder(new TextMeasurer(), parts.Config, limits, parts.Tree.SourceName, parts.Data.Evaluation.Calendar).Build(request);
+        return new AxisBuilder(new TextMeasurer(), parts.Config, limits, parts.Tree.SourceName, parts.Data.Evaluation.Calendar, parts.Expressions).Build(request);
     }
 
     /// <summary>
@@ -145,7 +145,7 @@ internal static class ChartTestHelpers
         var specs = LegendPlan.Create(parts.Tree.Root, parts.Scales, parts.Config, parts.Tree.SourceName);
         var builderLimits = guideLimits ?? limits;
         var effective = builderLimits ?? VegaLiteLimits.Default;
-        return new LegendBuilder(new TextMeasurer(), builderLimits, parts.Tree.SourceName)
+        return new LegendBuilder(new TextMeasurer(), builderLimits, parts.Tree.SourceName, parts.Expressions)
             .Build(specs[index], width, height, budget ?? new SceneBudget(effective.MaxSceneItems), cancellationToken ?? TestContext.Current.CancellationToken);
     }
 

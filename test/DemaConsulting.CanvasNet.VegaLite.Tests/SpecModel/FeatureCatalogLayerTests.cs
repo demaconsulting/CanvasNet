@@ -149,8 +149,8 @@ public class FeatureCatalogLayerTests
         // Arrange: a calculate with a function outside the whitelist at the top level and at a layer, and a filter on a selection
         var json = $$"""
             {
-              "transform": [ { "calculate": "format(datum.a, '.1f')", "as": "b" }, {{Calculate}} ],
-              "layer": [ { "mark": "point", "transform": [ { "calculate": "format(datum.a, '.1f')", "as": "c" } ] } ]
+              "transform": [ { "calculate": "luminance(datum.a)", "as": "b" }, {{Calculate}} ],
+              "layer": [ { "mark": "point", "transform": [ { "calculate": "luminance(datum.a)", "as": "c" } ] } ]
             }
             """;
 
@@ -159,7 +159,7 @@ public class FeatureCatalogLayerTests
 
         // Assert
         Assert.Equal(
-            [("vl-expr-function-format", "/transform/0/calculate"), ("vl-expr-function-format", "/layer/0/transform/0/calculate")],
+            [("vl-expr-function-luminance", "/transform/0/calculate"), ("vl-expr-function-luminance", "/layer/0/transform/0/calculate")],
             reports.Select(r => (r.Id, r.Location.Pointer)));
     }
 

@@ -12,7 +12,8 @@
 # objects, the tick and nice intervals, the timeUnit transform, and the time predicates in SpecParser.Time.cs
 # (with the predicate-to-expression translation of PredicateSource.cs), the validation of resolve and of the
 # composite mark properties and of the compositions (facet, repeat, columns, spacing, align, center, header, and the
-# repeat references) in SpecParser.Layers.cs, and the
+# repeat references) in SpecParser.Layers.cs, the compilation of the labelExpr of axes, legends, and headers and of the
+# axis and header configuration in SpecParser.LabelExpressions.cs, and the
 # SpecMetadata reader. See
 # docs/verification/canvas-net-vega-lite/spec-model/spec-parser.md for the test-evidence mapping.
 
@@ -563,3 +564,29 @@ sections:
                   where it is written.
                 tests:
                   - SpecParser_Parse_RepeatRefIsAcceptedAsField
+
+              - id: CanvasNetVegaLite-SpecModel-SpecParser-LabelExpressions
+                title: >-
+                  The SpecParser unit shall compile the labelExpr of every axis, legend, and facet header, and of
+                  config.axis, config.axisX, config.axisY, config.axisBand, the other axis configuration, and
+                  config.header, config.headerRow, config.headerColumn, and config.headerFacet, when the document
+                  is opened (and not config.legend, which Vega-Lite does not read), so that an expression with a
+                  syntax error or an unknown parameter fails with a VegaLiteSpecException located at the text of the
+                  expression, before any data is read.
+                justification: |
+                  A mistake in a label expression should stop the author where the text is written, at open time,
+                  rather than after the data has been read or at some label of a chart.
+                tests:
+                  - SpecParser_Parse_LabelExpressionErrorIsASpecExceptionAtTheText
+                  - FeatureCatalog_Visit_ConfigLegendLabelExprIsIgnored
+
+              - id: CanvasNetVegaLite-SpecModel-SpecParser-StepFor
+                title: >-
+                  The SpecParser unit shall accept the for property of a width or height given as a step with the
+                  values position and offset (the step of the offset scale is the default for a discrete offset),
+                  and shall fail with a VegaLiteSpecException located at the property for any other value.
+                justification: |
+                  The step of a chart with grouped bars can apply to the groups or to the positions; the author's
+                  choice must be read, and a value that Vega-Lite does not know must be refused where it is written.
+                tests:
+                  - SpecParser_Parse_StepForMustBePositionOrOffset

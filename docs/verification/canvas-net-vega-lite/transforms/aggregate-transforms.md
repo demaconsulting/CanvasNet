@@ -66,7 +66,8 @@ cumulative frame, computed incrementally, fits the same budget and gives the sum
 Unit tests reside in `AggregateTransformsTests.cs` (the `aggregate` and `bin` transforms and the `WorkMeter`),
 `AggregateTransformsJoinAggregateTests.cs`, `AggregateTransformsWindowTests.cs`, `AggregateTransformsStackTests.cs`,
 `AggregateTransformsImputeTests.cs`, `AggregateMeasuresTests.cs` (the registry and the accumulators),
-`BinAlgorithmTests.cs`, `StackRulesTests.cs`, and `StableSorterTests.cs`, with the shared helpers in
+`BinAlgorithmTests.cs`, `StackRulesTests.cs`, `StackRulesOffsetTests.cs` (the offset channels in the stack rules and in
+the encoding plan), and `StableSorterTests.cs`, with the shared helpers in
 `AggregateTestSupport.cs`, all within the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the `Transforms` folder.
 
 #### Test Environment
@@ -426,6 +427,27 @@ encodings, that two quantitative polar channels with no explicit stack, a `theta
 without layers, a `rect`, and a `line` are not stacked while a `theta2` that is a value is not a range; and that the
 dimension channel of `x` is `y` and the reverse, of `theta` is `radius` and the reverse, and any other channel or a null
 is refused.
+
+##### Offset Channels In The Stack Rules
+
+**Tests**: `StackRulesOffsetTests.StackRules_Decide_OffsetFieldSplitsTheGroupsAndIsNotAStackBy`,
+`StackRulesOffsetTests.StackRules_Decide_AggregatedGroupedBarsAreNotStacked`,
+`StackRulesOffsetTests.StackRules_Decide_QuantitativeOffsetWithoutADimensionDisablesTheDefaultStack`,
+`StackRulesOffsetTests.StackRules_Decide_QuantitativeOffsetTreatsNullAsAbsentAndValueAsPresent`,
+`StackRulesOffsetTests.StackRules_Decide_JsonNullDimensionIsAbsentForTheQuantitativeOffset`,
+`StackRulesOffsetTests.StackRules_DimensionOffsetChannel_NamesTheOffsetOfTheDimension`
+
+Asserts that the field of the offset channel of the dimension (`xOffset` for a stacked `y`) is a group-by of the stack and
+not a stack-by: a color on the same field as the offset does not make layers (the stack-by list is empty and the stacked
+channel is still `y`), while a color on another field is one stack-by definition; that an aggregated grouped bar chart whose
+color is the offset field has nothing to stack (the decision is null); that a quantitative offset on a view that has no
+dimension channel (a strip of points) disables the default stack of a bar while the same bar without the offset stacks
+and an
+explicit `stack` is kept; that, as in Vega-Lite's `!encoding.y`, a dimension that is a JSON null counts as absent (the
+default stack is off, an explicit stack is kept) while a dimension that is a `value` or `datum` object or a field keeps
+the stack, an explicit null `stack` is never overridden, a numeric datum offset is quantitative while a string datum, a
+binned field, and a nominal field are not; and that the offset channel of the dimension is `yOffset` for `x`, `xOffset`
+for `y`, and none for `theta` and `radius`, and a null channel is refused.
 
 ##### Cancellation, Determinism, And Culture
 

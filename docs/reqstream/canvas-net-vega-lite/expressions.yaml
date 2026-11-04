@@ -61,10 +61,11 @@ sections:
           - id: CanvasNetVegaLite-Expressions-Functions
             title: >-
               The Expressions subsystem shall provide exactly the whitelisted pure functions - the math,
-              text and array, type and conversion, regular expression, and date and time functions (the
-              constructors, the local and utc date parts, the week and day of the year numbers, the
-              calendar offset and sequence, the d3 time format and parse functions, and the time unit
-              specifier, all in the time zone of the chart) - with the JavaScript and Vega results,
+              text and array, type and conversion, regular expression, number format (format), and date
+              and time functions (the constructors, the local and utc date parts, the week and day of the
+              year numbers, the calendar offset and sequence, the d3 time format and parse functions, and
+              the time unit specifier, all in the time zone of the chart) - 100 functions in all, with the
+              JavaScript and Vega results,
               invariant of the culture, and no function that reads a clock (now is not provided), a random
               source, the file system, or the network.
             justification: |
@@ -82,11 +83,13 @@ sections:
               - CanvasNetVegaLite-Expressions-ExpressionFunctions-Offset
               - CanvasNetVegaLite-Expressions-ExpressionFunctions-Sequence
               - CanvasNetVegaLite-Expressions-ExpressionFunctions-Format
+              - CanvasNetVegaLite-Expressions-ExpressionFunctions-NumberFormat
               - CanvasNetVegaLite-Expressions-ExpressionFunctions-Parse
               - CanvasNetVegaLite-Expressions-ExpressionFunctions-Names
               - CanvasNetVegaLite-Expressions-ExpressionEvaluator-Calendar
             tests:
-              - ExpressionFunctions_Names_AreExactlyTheWhitelist
+              - ExpressionFunctions_Names_AreTheOneHundredWhitelistedFunctions
+              - ExpressionFunctionsNumber_Format_MatchesD3
               - ExpressionFunctions_Math_ExactValuesAndSpecialCases
               - ExpressionFunctions_Text_FollowJavaScriptAndVega
               - ExpressionFunctions_Types_PredicatesFollowVega

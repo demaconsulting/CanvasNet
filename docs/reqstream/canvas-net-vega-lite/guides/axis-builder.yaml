@@ -215,3 +215,33 @@ sections:
                   - AxisBuilder_Build_InHeaderRowAxisKeepsHeight
                   - AxisBuilder_Build_InHeaderStillReturnsTheGrid
                   - AxisBuilder_Build_InHeaderKeepsTheOffsetFromTheHeaderOrigin
+
+              - id: CanvasNetVegaLite-Guides-AxisBuilder-LabelExpressions
+                title: >-
+                  The AxisBuilder unit shall replace the text of every tick label of an axis with the result of the
+                  labelExpr of the axis, or else of config.axisX, config.axisY, config.axisBand, and the other axis
+                  configuration in the precedence of the other axis properties, evaluated for each tick with the
+                  value of the tick (a date for a temporal axis, the category for a band or point axis), its
+                  default label, its index as a fraction and its tickIndex as an integer, before the labels are
+                  measured, thinned for overlap, limited by the label limit, and counted in the extent of the
+                  axis; shall draw a multi-line label for an array result; shall not evaluate the expression when
+                  the labels are switched off; and shall fail with a located VegaLiteSpecException when the text
+                  of a configured expression is not valid.
+                justification: |
+                  Authors replace the labels of an axis with a label expression (a percent sign, a blank for most
+                  ticks); the replaced text must decide the extent of the axis and the labels that overlap removes,
+                  as in Vega-Lite.
+                tests:
+                  - AxisBuilder_Build_LabelExprAppendsPercent
+                  - AxisBuilder_Build_LabelExprConditionalBlanksTicks
+                  - AxisBuilder_Build_LabelExprIndexIsFractionAndTickIndexIsInteger
+                  - AxisBuilder_Build_LabelExprTemporalAxisUsesDateValue
+                  - AxisBuilder_Build_LabelExprBandAxisGivesCategoryAsValueAndLabel
+                  - AxisBuilder_Build_LabelExprLongerLabelWidensTheAxisExtent
+                  - AxisBuilder_Build_LabelExprOverlapRemovalUsesTheReplacedText
+                  - AxisBuilder_Build_LabelExprLabelLimitAppliesToReplacedText
+                  - AxisBuilder_Build_LabelExprIsNotUsedWhenLabelsAreOff
+                  - AxisBuilder_Build_LabelExprConfigPrecedenceFollowsTheAxisChain
+                  - AxisBuilder_Build_LabelExprArrayResultIsMultiLine
+                  - AxisBuilder_Build_LabelExprFormatAndTimeFormat
+                  - AxisBuilder_Build_LabelExprInvalidConfiguredTextIsSpecException

@@ -1,4 +1,5 @@
 using DemaConsulting.CanvasNet.VegaLite.Data;
+using DemaConsulting.CanvasNet.VegaLite.Scales;
 
 namespace DemaConsulting.CanvasNet.VegaLite.Expressions;
 
@@ -54,6 +55,9 @@ internal sealed class ExpressionFunctionContext
 
     /// <summary>The compiled time formatters of this evaluation by specifier.</summary>
     private readonly Dictionary<string, TimeFormatter> _timeFormatCache = new(StringComparer.Ordinal);
+
+    /// <summary>The compiled number formatters of this evaluation by specifier.</summary>
+    private readonly Dictionary<string, NumberFormat> _numberFormatCache = new(StringComparer.Ordinal);
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="ExpressionFunctionContext"/> class.
@@ -201,6 +205,56 @@ internal sealed class ExpressionFunctionContext
 
         _timeFormatCache[specifier] = created;
         return created;
+    }
+
+    /// <summary>
+    ///     Gets the compiled formatter of a d3-format number specifier, from the cache when it was used before.
+    /// </summary>
+    /// <remarks>
+    ///     The cache is bounded like that of the time formatters: at most <see cref="RegexCacheSize"/> specifiers of at most
+    ///     <see cref="MaxCachedSpecifierLength"/> characters each; a longer specifier is compiled for the call and not kept.
+    /// </remarks>
+    /// <param name="specifier">The d3-format specifier.</param>
+    /// <returns>The formatter.</returns>
+    /// <exception cref="ExpressionRuntimeException">Thrown when the specifier is not valid (<c>invalid format: ...</c>, as d3-format throws).</exception>
+    public NumberFormat GetNumberFormatter(string specifier)
+    {
+        if (_numberFormatCache.TryGetValue(specifier, out var cached))
+        {
+            return cached;
+        }
+
+        var created = CompileNumberFormat(specifier);
+        if (specifier.Length > MaxCachedSpecifierLength)
+        {
+            return created;
+        }
+
+        if (_numberFormatCache.Count >= RegexCacheSize)
+        {
+            _numberFormatCache.Clear();
+        }
+
+        _numberFormatCache[specifier] = created;
+        return created;
+    }
+
+    /// <summary>
+    ///     Compiles a d3-format number specifier.
+    /// </summary>
+    /// <param name="specifier">The d3-format specifier.</param>
+    /// <returns>The formatter.</returns>
+    /// <exception cref="ExpressionRuntimeException">Thrown when the specifier is not valid.</exception>
+    public static NumberFormat CompileNumberFormat(string specifier)
+    {
+        try
+        {
+            return NumberFormat.Create(specifier);
+        }
+        catch (FormatException ex)
+        {
+            throw new ExpressionRuntimeException(ex.Message);
+        }
     }
 
     /// <summary>

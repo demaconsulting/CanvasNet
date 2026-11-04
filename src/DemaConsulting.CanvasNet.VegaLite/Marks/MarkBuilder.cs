@@ -320,6 +320,9 @@ internal sealed partial class MarkBuilder
         /// <summary>Gets the compiled expression of a constant <c>value</c> given as <c>{"expr": ...}</c>, or null.</summary>
         public CompiledExpression? ValueExpression { get; }
 
+        /// <summary>Gets or sets the offset scale that places a mark inside the band of this position channel (<c>xOffset</c> or <c>yOffset</c>), or null.</summary>
+        public ChannelOffset? Offset { get; set; }
+
         /// <summary>
         ///     Reads the value of the channel for a row.
         /// </summary>
@@ -543,6 +546,7 @@ internal sealed partial class MarkBuilder
                 }
             }
 
+            AttachOffsets(encoding);
             _filtered = [.. _channels.Where(c => c.Key is not ("x" or "y" or "size" or "opacity") && c.Value.HasContinuousDomain && !c.Value.IsFieldConditional).Select(c => c.Value)];
             ResolvePaint();
             foreach (var dash in Get("strokeDash")?.Scale?.DashRange ?? [])
@@ -1127,6 +1131,11 @@ internal sealed partial class MarkBuilder
         /// <returns>The position, or null when the row is invalid.</returns>
         private double? Center(Channel channel, ScaleModel model, int row)
         {
+            if (channel.Offset is { } offset)
+            {
+                return OffsetCenter(channel, model, offset, row);
+            }
+
             if (!channel.HasBandEnds)
             {
                 return model.MapCenter(channel.Read(_table, row));
@@ -1366,6 +1375,12 @@ internal sealed partial class MarkBuilder
                 return BandSpan(channel!, model, sizing, row);
             }
 
+            // An offset places the mark inside its time unit, where it spans a band of the offset scale (Vega-Lite does not apply rectBinPosition to a channel with an offset)
+            if (channel is { Offset: not null } && model is { Kind: ScaleKind.Time or ScaleKind.Utc })
+            {
+                return BandSpan(channel, model, sizing, row);
+            }
+
             // A field that is binned on a continuous scale, or has a time unit on a time scale, spans its bin or unit unless a size is given (Vega-Lite's rectBinPosition)
             if (channel is { HasBandEnds: true } && model is not null && sizing.Fixed is null && sizing.Encoded is null)
             {
@@ -1477,6 +1492,18 @@ internal sealed partial class MarkBuilder
                 return null;
             }
 
+            // An offset places the mark inside the band of its position: it spans a band of the offset scale that starts that far into it
+            if (channel.Offset is { } offset)
+            {
+                if (offset.Start(_table, row) is not { } inside)
+                {
+                    return null;
+                }
+
+                start += inside;
+                model = offset.Model;
+            }
+
             var thickness = Thickness(sizing, row, out var valid);
             if (!valid)
             {
@@ -1493,7 +1520,7 @@ internal sealed partial class MarkBuilder
 
             if (isBand)
             {
-                var band = sizing.Band ?? 1;
+                var band = sizing.Band ?? (channel.Scale is { TimeUnit: not null } && channel.Model is { Kind: ScaleKind.Time or ScaleKind.Utc } ? Prop("timeUnitBandSize")?.AsNumber() : null) ?? 1;
                 var minimum = Prop("minBandSize")?.AsNumber() ?? 0;
                 return (start + (model.Bandwidth * (1 - band) / 2), Math.Max(minimum, model.Bandwidth * band));
             }

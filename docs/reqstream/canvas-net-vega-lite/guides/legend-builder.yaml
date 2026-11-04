@@ -307,3 +307,24 @@ sections:
                   - LegendPlan_Create_NestedIndependentConcatKeepsItsChildrenLegends
                   - LegendPlan_Create_LayerWithoutNodeHasNoOwner
                   - LegendPlan_Owners_ChecksItsArguments
+
+              - id: CanvasNetVegaLite-Guides-LegendBuilder-LabelExpressions
+                title: >-
+                  The LegendBuilder unit shall replace the text of every label of a symbol legend (the entry that
+                  stands for the entries beyond the symbol limit included), a gradient legend, and a discrete
+                  gradient legend with the result of the labelExpr of the legend, evaluated for each label with
+                  the value, the default label, and the index of the entry (and the perc of a gradient label and
+                  the perc2 of a discrete gradient label), before the entries are measured so that the replaced
+                  text decides the width of the legend; and shall not read a label expression from the
+                  configuration, because Vega-Lite has no legend labelExpr in the configuration.
+                justification: |
+                  A legend is read through its labels; Vega-Lite lets the author replace them with an expression
+                  of the legend, and the replaced text sizes the legend.
+                tests:
+                  - LegendBuilder_Build_LabelExprSymbolLegendGivesIndexValueAndLabel
+                  - LegendBuilder_Build_LabelExprAppliesToTheEllipsisEntry
+                  - LegendBuilder_Build_LabelExprBlankLabelsChangeTheMeasuredWidth
+                  - LegendBuilder_Build_LabelExprConfigIsIgnoredAndExplicitWins
+                  - LegendBuilder_Build_LabelExprGradientLegendGivesPerc
+                  - LegendBuilder_Build_LabelExprDiscreteGradientGivesPercAndPerc2
+                  - LegendBuilder_Build_LabelExprTemporalLegendGivesDate

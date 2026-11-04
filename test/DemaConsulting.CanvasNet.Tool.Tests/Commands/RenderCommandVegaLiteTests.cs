@@ -229,6 +229,33 @@ public class RenderCommandVegaLiteTests
     }
 
     /// <summary>
+    ///     Test that a grouped bar chart (<c>xOffset</c>, also over a time unit), a chart with a <c>labelExpr</c> and one whose <c>labelExpr</c> uses <c>format</c> and <c>timeFormat</c> are drawn with
+    ///     <c>--strict</c>, with an exit that writes the picture and diagnostics that are empty: all are supported constructs now.
+    /// </summary>
+    /// <param name="chart">The chart text.</param>
+    [Theory]
+    [InlineData("{\"data\": {\"values\": [{\"c\": \"a\", \"g\": \"x\", \"v\": 1}, {\"c\": \"a\", \"g\": \"y\", \"v\": 2}]}, \"mark\": \"bar\", \"encoding\": {\"x\": {\"field\": \"c\", \"type\": \"nominal\"}, \"xOffset\": {\"field\": \"g\", \"type\": \"nominal\"}, \"y\": {\"field\": \"v\", \"type\": \"quantitative\"}, \"color\": {\"field\": \"g\", \"type\": \"nominal\"}}}")]
+    [InlineData("{\"data\": {\"values\": [{\"c\": \"a\", \"v\": 1}, {\"c\": \"b\", \"v\": 2}]}, \"mark\": \"bar\", \"encoding\": {\"x\": {\"field\": \"c\", \"type\": \"nominal\", \"axis\": {\"labelExpr\": \"upper(datum.label)\"}}, \"y\": {\"field\": \"v\", \"type\": \"quantitative\", \"axis\": {\"labelExpr\": \"datum.label + '%'\"}}}}")]
+    [InlineData("{\"data\": {\"values\": [{\"d\": \"2024-01-01\", \"v\": 0.2}, {\"d\": \"2024-03-01\", \"v\": 0.5}]}, \"mark\": \"line\", \"encoding\": {\"x\": {\"field\": \"d\", \"type\": \"temporal\", \"axis\": {\"labelExpr\": \"timeFormat(datum.value, '%b %Y')\"}}, \"y\": {\"field\": \"v\", \"type\": \"quantitative\", \"axis\": {\"labelExpr\": \"format(datum.value, '.0%')\"}}}}")]
+    [InlineData("{\"data\": {\"values\": [{\"d\": \"2023-01-15\", \"g\": \"a\", \"v\": 3}, {\"d\": \"2023-01-20\", \"g\": \"b\", \"v\": 5}, {\"d\": \"2023-02-10\", \"g\": \"a\", \"v\": 4}]}, \"mark\": \"bar\", \"encoding\": {\"x\": {\"field\": \"d\", \"type\": \"temporal\", \"timeUnit\": \"yearmonth\"}, \"xOffset\": {\"field\": \"g\", \"type\": \"nominal\"}, \"y\": {\"field\": \"v\", \"type\": \"quantitative\"}, \"color\": {\"field\": \"g\", \"type\": \"nominal\"}}}")]
+    public void RenderCommand_Run_VegaLiteOffsetAndLabelExpr_AreDrawnWithStrictAndNoDiagnostics(string chart)
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteText(directory.Path, "chart.vl.json", chart);
+        var output = directory.Combine("o.png");
+
+        // Act
+        var stdOut = Run(true, input, "--strict", "-o", output);
+
+        // Assert
+        using var document = JsonDocument.Parse(stdOut);
+        Assert.True(document.RootElement.GetProperty("ok").GetBoolean());
+        Assert.Empty(document.RootElement.GetProperty("diagnostics").EnumerateArray());
+        Assert.True(File.Exists(output));
+    }
+
+    /// <summary>
     ///     Test that a chart with an error is a <c>vega-lite-error</c> with the location, through the entry point, and
     ///     that no output is written.
     /// </summary>

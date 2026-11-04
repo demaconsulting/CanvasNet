@@ -735,8 +735,9 @@ internal sealed class EncodingPlan
         // The literal base of the two output names: the derived name of a measure, else the field as written
         var baseName = stacked.Measure?.Name ?? stacked.SourceField!;
         var other = StackRules.DimensionChannel(decision.Channel);
+        var otherOffset = StackRules.DimensionOffsetChannel(decision.Channel);
         var groupBy = new List<string>();
-        foreach (var plan in channels.Where(c => c.Channel == other || c.Channel == other + "2"))
+        foreach (var plan in channels.Where(c => c.Channel == other || c.Channel == other + "2" || c.Channel == otherOffset))
         {
             // A dimension that reads the stacked field itself does not split the stack (Vega-Lite avoids grouping by the stacked field: a radial chart reads its theta and radius from one field)
             if (plan.ValueField is null || plan.ValueField == field)

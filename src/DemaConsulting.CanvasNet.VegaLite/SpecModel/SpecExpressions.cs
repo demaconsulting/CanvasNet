@@ -12,7 +12,8 @@ namespace DemaConsulting.CanvasNet.VegaLite.SpecModel;
 ///         inside a filter predicate, and the <c>{"expr": ...}</c> values of the paint properties of the mark and of a
 ///         <c>value</c> encoding. A syntax error is a <see cref="VegaLiteSpecException"/> at that point, so the document never
 ///         opens with an expression that cannot run. An expression anywhere else (the title, the size, the padding, the
-///         background, <c>axis.labelExpr</c>) is not compiled and is reported by the feature catalog as not supported.
+///         background) is not compiled and is reported by the feature catalog as not supported. The <c>labelExpr</c> of an axis, a legend and a header, and of the axis and
+///         header configurations, is compiled too (it runs on a datum with <c>value</c> and <c>label</c>).
 ///     </para>
 ///     <para>
 ///         The entries are keyed by the string node that holds the expression text (identity), so a stage that has a node
