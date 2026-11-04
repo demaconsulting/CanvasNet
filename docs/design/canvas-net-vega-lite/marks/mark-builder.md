@@ -231,6 +231,13 @@ opacity of 0); the line overlay is a `line` mark with the `clip`, `interpolate`,
 run has no `x2` and `y2` (the line is drawn at the edge of the area), reads the stacked end of a stacked channel, skips
 a channel that has a field but no scale (a channel that the overlaid mark does not draw), and groups its rows as a line
 does. An `area` that has an overlay and names no `opacity`, `fillOpacity`, or configured opacity has the opacity 0.7.
+The point overlay is also enabled by an **encoding with a `shape` channel** when the mark has no `point` property and
+`config.<mark>.point` is not truthy (Vega-Lite's `getPointOverlay`; `point: false` or null keeps it off). The base run
+never reads the `shape` (nor an `angle`, or a `strokeDash` of an area or trail: `ScaleResolver.ChannelIsDrawn` of the
+mark type is false, as Vega-Lite drops the shape from the path layer), so the shape does not group the paths; the
+overlay run
+is a `point` mark and reads every channel that has a scale, so the scales that the resolver builds for the overlay points
+(a `shape`, an `angle`, a `strokeDash`, the `size` of an area) give them their shapes, rotations, dashes and sizes.
 Every overlay item is charged like the items of any run (a line overlay as a path, each point as an item).
 
 **Draw order** (`MarkBuilder.Order.cs`). The `order` channel decides the drawing order of `bar`, `rect`, `tick`, `rule`,
@@ -337,9 +344,11 @@ reports the exhausted evaluation steps, and the text limits name `VegaLiteLimits
 
 **Documented deviations from Vega-Lite and the plan** (each pinned by a test or reported by the feature catalog):
 
-1. **No `shape` overlay trigger**: Vega-Lite enables the point overlay for an encoding with a `shape` channel; here the
-   `shape` channel of a line is not drawn and the overlay is not enabled by it. A `size` channel of the overlaid mark is
-   applied through the scale of that mark to the overlay points as well.
+1. **Overlay differences** (the point overlay otherwise follows Vega-Lite's `getPointOverlay`, including the **`shape`
+   trigger**: an `encoding.shape` enables the overlay when `point` is missing and the configuration does not decide, see
+   `SpecNormalizer.HasPointOverlay`): the overlay is a second run of this builder and not a layer, so the `size` channel
+   of a line is applied through the scale of the line (its range of stroke widths read as the area of a symbol) to the
+   overlay points as well, and an `{"expr": ...}` inside an overlay object is not evaluated.
 2. **Invalid-mode domains**: the scale domains are never filtered by the `invalid` mode (reported by the warning
    `vl-mark-invalid-domains`); `show` is not supported (`vl-mark-invalid-show`).
 3. **An area without a measure channel** draws nothing.

@@ -27,14 +27,7 @@ internal sealed partial class MarkBuilder
         /// </summary>
         /// <param name="node">The value.</param>
         /// <returns><see langword="true"/> for true, a number other than zero, a text that is not empty, an object and an array.</returns>
-        private static bool IsTruthy(ConfigNode node) => node.Kind switch
-        {
-            ConfigNodeKind.Boolean => node.BoolValue,
-            ConfigNodeKind.Number => node.NumberValue != 0 && !double.IsNaN(node.NumberValue),
-            ConfigNodeKind.String => node.StringValue!.Length > 0,
-            ConfigNodeKind.Array or ConfigNodeKind.Object => true,
-            _ => false,
-        };
+        private static bool IsTruthy(ConfigNode node) => SpecNormalizer.IsTruthyConfig(node);
 
         /// <summary>
         ///     Works out the point overlay of the mark: the <c>point</c> of the mark definition (<c>true</c>, an object, or <c>"transparent"</c>), else that of <c>config.&lt;mark&gt;</c>.
@@ -42,7 +35,8 @@ internal sealed partial class MarkBuilder
         /// <remarks>
         ///     Vega-Lite's <c>getPointOverlay</c>. The overlay is a <c>point</c> mark with <c>opacity: 1</c>, <c>filled: true</c> and the <c>clip</c> of the mark, whatever the overlay
         ///     object adds to or replaces; <c>"transparent"</c> is the overlay <c>{"opacity": 0}</c>. <c>false</c> and null switch the overlay off, also when the configuration enables it.
-        ///     (Vega-Lite enables it also for an encoding with a <c>shape</c> channel; this renderer does not.)
+        ///     An encoding with a <c>shape</c> channel enables it when the mark definition has no <c>point</c> and the configuration does not enable it.
+        ///     The points draw every channel of the encoding that a <c>point</c> mark draws (a <c>shape</c>, an <c>angle</c>, a <c>strokeDash</c>, a <c>size</c>), which the path mark itself may not.
         /// </remarks>
         /// <returns>The mark definition of the overlay; null when the mark has no point overlay.</returns>
         private ConfigNode? PointOverlayDefinition()
@@ -71,6 +65,11 @@ internal sealed partial class MarkBuilder
             else if (_owner._config.VegaLite[_type]?["point"] is { } configured && IsTruthy(configured))
             {
                 overlay = configured.IsObject ? configured : ConfigNode.EmptyObject;
+            }
+            else if (SpecNormalizer.HasShapeChannel(_view["encoding"]))
+            {
+                // An encoding with a shape channel enables the overlay when neither the mark nor the configuration says anything about it
+                overlay = ConfigNode.EmptyObject;
             }
             else
             {

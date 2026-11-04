@@ -2,13 +2,15 @@
 
 ![SpecModel Structure](VegaLiteSpecModelView.svg)
 
-The `SpecNormalizer` unit is the fourth software unit in the `SpecModel` subsystem. It is six partial files of the
+The `SpecNormalizer` unit is the fourth software unit in the `SpecModel` subsystem. It is seven partial files of the
 internal static class `SpecNormalizer` in the `DemaConsulting.CanvasNet.VegaLite.SpecModel` namespace:
 `SpecNormalizer.cs` (the view tree and its walk), `SpecNormalizer.Composition.cs` (concatenations, facets, the faceted
 unit view, and the layout settings), `SpecNormalizer.Repeat.cs` (the expansion of `repeat` and the replacement of the
 repeat references), `SpecNormalizer.Composite.cs` (`Expand`, `ExpandedLayers`, `CompositeAxis`, and the
 `CompositeBuilder` helper), `SpecNormalizer.BoxPlot.cs`, and `SpecNormalizer.ErrorBar.cs` (the expansion of the composite
-marks, with the `ErrorInput` enumeration). The tree types `LayerTree`, `LayerNode`, `LayerResolve`, `ResolveMode`, and
+marks, with the `ErrorInput` enumeration), and `SpecNormalizer.PathOverlay.cs` (the decision of Vega-Lite's path overlay
+normalizer that the other stages share, see _Path overlay decision_). The tree types `LayerTree`, `LayerNode`,
+`LayerResolve`, `ResolveMode`, and
 `ViewKind` are declared in `SpecNormalizer.cs`; `CompositionSettings`, `CompositionAlign`, and `FacetDefinition` in
 `SpecNormalizer.Composition.cs`; `RepeaterValues` and `RepeatLayers` in `SpecNormalizer.Repeat.cs`. Its supporting node
 factories, `SpecNode.Overlay` and `SpecNode.Synthetic`, are in `SpecNode.cs`, and `SpecExpressions.With` in
@@ -169,6 +171,19 @@ object of the mark definition), `Orient` and `TryOrient`, `ContinuousAxis`, `Pos
   node and are applied by the data stage.
 - `TryOrientation(type, definition, encoding, out orient, out problem)` - decides the orientation of a composite mark
   without throwing, for the catalog and the expansion.
+- **Path overlay decision** (`SpecNormalizer.PathOverlay.cs`; Vega-Lite's `getPointOverlay` in its path overlay
+  normalizer). `HasPointOverlay(markType, mark, encoding, configPoint)` tells whether a line, area, trail, or rule
+  has a point overlay: its `point` is `true`, an object, or `"transparent"`; or its `point` is **missing** and
+  `config.<mark>.point` is truthy **or the encoding has a `shape` channel** (`HasShapeChannel`); `false` and null
+  switch it off. The mark builder, the scale resolver (`Context.PointOverlay`), and the feature catalog (which reads the
+  configuration of the specification only) all ask it, so that the points, the scales and legends of the channels they
+  draw, and the reports agree. Vega-Lite normalizes such a mark into two layers: the path (`omit(encoding, ['shape'])`:
+  the shape is dropped **before** the channels are checked against the mark, so it raises no `incompatibleChannel`
+  warning there and does not group the path) and the overlay `point` (the whole encoding without `x2` and `y2`, so its
+  shape, angle, stroke dash, and size are drawn by the points). Every other channel goes to both layers, so the path
+  layer still warns about an `angle`, a `strokeDash` on an area or trail, and a `size` on an area (`initEncoding` in
+  `encoding.ts`); the feature catalog reports them with a message that says that only the point overlay draws them.
+  `IsTruthyConfig` is the JavaScript truthiness of a configuration value.
 
 **Boxplot expansion** (Vega-Lite's `normalizeBoxPlot`, without tooltips). The orientation is the continuous
 (quantitative or temporal, as written or as `ChannelDefinitions.TypeOf` infers it) channel; a plot with both

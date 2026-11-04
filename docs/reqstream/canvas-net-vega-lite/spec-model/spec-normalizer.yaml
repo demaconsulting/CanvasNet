@@ -385,3 +385,19 @@ sections:
                 tests:
                   - SpecNormalizer_Expand_UndecidableBoxPlotIsASpecificationError
                   - SpecNormalizer_Expand_ErrorChannelWithoutFieldIsASpecificationError
+
+              - id: CanvasNetVegaLite-SpecModel-SpecNormalizer-PathOverlay
+                title: >-
+                  The SpecNormalizer unit shall decide as Vega-Lite's path overlay normalizer does whether a
+                  line, area, trail, or rule has a point overlay - its point property is true, an object, or
+                  transparent, or is missing while config.<mark>.point is truthy or the encoding has a shape
+                  channel, false and null switching the overlay off - so that the mark builder, the scale
+                  resolver, and the feature catalog agree on the points, the scales of the channels they draw,
+                  and the reports.
+                justification: |
+                  Vega-Lite draws the shape channel of a line with the points of its overlay and drops it from
+                  the path; every stage that reads the shape must decide the overlay alike.
+                tests:
+                  - MarkBuilder_Build_ShapeChannelEnablesThePointOverlayUnlessSwitchedOff
+                  - ScaleResolver_Resolve_PointOverlayBuildsTheScalesOfThePointChannels
+                  - FeatureCatalog_Visit_ShapeOfAPathMarkWithAPointOverlayIsNotReported

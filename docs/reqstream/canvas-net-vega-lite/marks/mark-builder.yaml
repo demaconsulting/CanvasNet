@@ -400,14 +400,24 @@ sections:
                   a line along the top edge of an area whose line property is true or an object - with the base
                   encoding without the secondary channels, the stacked end of a stacked channel, the default
                   opacity of 0.7 for an area that has an overlay and no opacity of its own, and the overlays that
-                  config.<mark>.point and config.<mark>.line enable.
+                  config.<mark>.point and config.<mark>.line enable; shall switch the point overlay on for an
+                  encoding that has a shape channel when the mark definition has no point property and the
+                  configuration does not enable it (point false or null keeps it off); and shall draw the
+                  channels of a point mark that the path does not draw (the shape, the angle, and the stroke dash,
+                  and the size of an area) on the overlay points, the shape of a path mark being left out of the
+                  path (it does not group the paths).
                 justification: |
                   A line with points and an area with a line are the common forms of the path marks; Vega-Lite
-                  draws them as layers of the base mark and the overlay must match.
+                  draws them as layers of the base mark and the overlay must match, and its overlay points are
+                  the ones that take the shape of a path mark's shape channel.
                 tests:
                   - MarkBuilder_Build_PointOverlayDrawsSymbolsWithTheOverlayDefinition
                   - MarkBuilder_Build_AreaLineOverlayAndDefaultOpacity
                   - MarkBuilder_Build_OverlayFromConfigAndTransparentPoints
+                  - MarkBuilder_Build_ShapeChannelOfALineShapesTheOverlayPoints
+                  - MarkBuilder_Build_ShapeChannelEnablesThePointOverlayUnlessSwitchedOff
+                  - MarkBuilder_Build_ShapeChannelOfAnAreaShapesTheOverlayPoints
+                  - MarkBuilder_Build_PointChannelsOfThePathMarkReachTheOverlayPoints
 
               - id: CanvasNetVegaLite-Marks-MarkBuilder-DrawOrder
                 title: >-

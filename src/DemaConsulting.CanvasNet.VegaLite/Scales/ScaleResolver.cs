@@ -676,6 +676,7 @@ internal static partial class ScaleResolver
             Config = config,
             MarkType = markType,
             Orient = plan.Orient,
+            PointOverlay = SpecNormalizer.HasPointOverlay(markType, view["mark"] is { IsObject: true } markDefinition ? markDefinition : null, encoding, config.VegaLite[markType]?["point"]),
             Encoding = encoding,
             SourceName = sourceName,
             Limits = limits ?? VegaLiteLimits.Default,
@@ -952,7 +953,7 @@ internal static partial class ScaleResolver
             return null;
         }
 
-        if (!ChannelIsDrawn(channel, context.MarkType))
+        if (!ChannelIsDrawn(channel, context.MarkType) && !(context.PointOverlay && ChannelIsDrawn(channel, "point")))
         {
             return null;
         }
@@ -1814,7 +1815,9 @@ internal static partial class ScaleResolver
     private static (double Min, double Max)? SizeRange(Context context)
     {
         var scale = context.Config;
-        switch (context.MarkType)
+
+        // The points of the overlay of an area draw its size channel (the area itself has none), so the range is that of a point
+        switch (context.MarkType == "area" && context.PointOverlay ? "point" : context.MarkType)
         {
             case "bar" or "tick":
                 return (scale.GetNumber("scale.minBandSize") ?? 2, scale.GetNumber("scale.maxBandSize") ?? (context.MinStep - 1));
@@ -1993,6 +1996,9 @@ internal static partial class ScaleResolver
 
         /// <summary>Gets the mark type.</summary>
         public required string MarkType { get; init; }
+
+        /// <summary>Gets a value indicating whether the mark has a point overlay, whose points draw the channels of a <c>point</c> mark (a <c>shape</c> on a line, for example).</summary>
+        public bool PointOverlay { get; init; }
 
         /// <summary>Gets the inferred orientation of the mark.</summary>
         public string? Orient { get; init; }

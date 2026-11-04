@@ -1127,7 +1127,16 @@ Renders a line with `point: true` of the polyline rows and asserts the line `M0,
 opacity 0, and that two series with a color field draw each line in its own color (`#4c78a8` and `#f58518`) and each
 series' two points in its color.
 
-### InvalidData: Nulls Break A Path, Filter Connects, And Show Is Reported
+### Overlays: The Shape Channel Shapes The Overlay Points In Strict Mode
+
+**Test**: `VegaLiteLineAreaIntegrationTests.CanvasNetVegaLite_SystemIntegration_Overlays_ShapeChannelShapesTheOverlayPointsInStrictMode`
+
+Renders, in strict mode (any report is an exception), a line with `point: true` of two series whose `color` and `shape`
+channels both follow the series, and asserts that nothing is reported, that the two lines are stroked with `#4c78a8` and
+`#f58518`, that the four `mark-point` symbols are a circle, a circle, a square, and a square in the colors of their
+series, and that the legend symbols are a circle and a square. Renders an area with `point: true` (the points are shaped
+the same) and a line with no `point` at all (the shape switches the overlay on: four points, no report), and asserts that
+with `point: false` strict mode throws for `vl-channel-shape`.
 
 **Test**: `VegaLiteLineAreaIntegrationTests.CanvasNetVegaLite_SystemIntegration_InvalidData_NullsBreakAFilterConnectsAndShowIsReported`
 

@@ -1214,8 +1214,9 @@ The following decisions differ from, or are stricter than, the Vega-Lite referen
 51. **Overlays (P9-D6)**: the `point` overlay of a line, area, trail, or rule and the `line` overlay of an area follow the
     overlay mark definitions of Vega-Lite (`true`, an object, `"transparent"` for invisible points, and the
     configuration of the mark; an area with an overlay and without an opacity gets the opacity 0.7), with these
-    differences: an `encoding.shape` does **not** switch the point overlay on (the channel stays reported as not drawn
-    by the mark), a `size` channel is applied to the overlay points through the scale of the base mark (for a line that
+    differences: an `encoding.shape` **switches the point overlay on** when the mark has no `point` and the configuration
+    does not decide (Vega-Lite's `getPointOverlay`; the shape is then drawn by the overlay points and is not reported),
+    a `size` channel is applied to the overlay points through the scale of the base mark (for a line that
     is its range of stroke widths read as the area of a symbol), the overlay line of an area groups as a line, and an
     `{"expr": ...}` inside an overlay object is not evaluated (`vl-expr-ref`).
 52. **Impute (P9-D7, P9-D8)**: the `impute` of `x` or `y` runs the impute engine after the aggregate and before the

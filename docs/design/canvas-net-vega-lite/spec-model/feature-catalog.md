@@ -135,7 +135,12 @@ sentinel unsupported channel), where `arc` and `theta` were before. The identifi
   `angle` by `point`, `circle`, `square`, and `text`, `strokeDash` by every mark but `rect`, `area`, `trail`, `text`, and
   `arc`, and `size` by every mark but `rect`, `area`, `arc`, and `image` (so `size` on an `area` or an `arc` is newly
   reported; the `rect` size stays unreported as before). `vl-channel-x2` and `vl-channel-y2` are narrowed too: a bar,
-  rect, rule, and (new) area that has the channel they extend accepts them.
+  rect, rule, and (new) area that has the channel they extend accepts them. A `shape` of a `line`, `area`, `trail`, or
+  `rule` that has a point overlay (`SpecNormalizer.HasPointOverlay`: an `encoding.shape` switches the overlay on unless
+  `point` is `false` or null) is **not** reported, because the overlay points draw it and Vega-Lite drops it from the path
+  layer before it checks the channels; an `angle`, a `strokeDash` or a `size` that the path mark does not draw but its
+  overlay points do is still reported (the path layer warns about it in Vega-Lite) with the message that only the point
+  overlay draws it. The catalog sees only the configuration of the specification for `config.<mark>.point`.
 - `vl-encoding-impute` is narrowed to a channel other than `x` and `y`: the impute of a position channel is run by the
   pipeline, and the impute of any other channel is ignored and reported.
 - `vl-encoding-bandposition` no longer reports the `bandPosition` of the **stacked** `theta` or `radius` of a text mark

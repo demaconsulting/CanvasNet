@@ -430,6 +430,45 @@ public class VegaLiteLineAreaIntegrationTests
     }
 
     /// <summary>
+    ///     Validates the <c>shape</c> channel of a line and an area with a point overlay in strict mode: nothing is reported (the shape is the overlay's), the points of each
+    ///     series have the shape of the series and its color, the legend shows the shape with the color, and a line without an overlay still reports the shape.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Overlays_ShapeChannelShapesTheOverlayPointsInStrictMode()
+    {
+        // Arrange / Act: two series, each with its color and its shape (strict mode throws on any report)
+        const string data = """
+            [ { "x": 0, "y": 1, "g": "a" }, { "x": 1, "y": 2, "g": "a" }, { "x": 0, "y": 3, "g": "b" }, { "x": 1, "y": 4, "g": "b" } ]
+            """;
+        var encoding = Encoding(", \"color\": { \"field\": \"g\", \"type\": \"nominal\" }, \"shape\": { \"field\": \"g\", \"type\": \"nominal\" }");
+        using var line = Draw(Chart("{ \"type\": \"line\", \"point\": true }", data, encoding), out var scene, out var warnings);
+
+        // Assert: no report; two lines in the colors of the series; the points of a series have its shape and its color
+        Assert.Empty(warnings);
+        Assert.Equal(["#4c78a8", "#f58518"], Items<ScenePath>(scene, "mark-line").Select(l => l.Stroke));
+        var points = Items<SceneSymbol>(scene, "mark-point");
+        Assert.Equal(["circle", "circle", "square", "square"], points.Select(p => p.Shape));
+        Assert.Equal(["#4c78a8", "#4c78a8", "#f58518", "#f58518"], points.Select(p => p.Fill));
+
+        // Assert: a legend of one title with the two entries, drawn with the shapes of the series
+        var legendSymbols = scene.Enumerate().Select(e => e.Item).OfType<SceneSymbol>().Where(s => s.Role != "mark-point").ToList();
+        Assert.Equal(["circle", "square"], legendSymbols.Select(s => s.Shape));
+
+        // Arrange / Act: an area with a point overlay, and the shape alone (it switches the overlay on)
+        using var area = Draw(Chart("{ \"type\": \"area\", \"point\": true }", data, Encoding(", \"color\": { \"field\": \"g\", \"type\": \"nominal\" }, \"shape\": { \"field\": \"g\", \"type\": \"nominal\" }")), out var areaScene, out var areaWarnings);
+        Assert.Empty(areaWarnings);
+        Assert.Equal(["circle", "circle", "square", "square"], Items<SceneSymbol>(areaScene, "mark-point").Select(p => p.Shape));
+        using var bare = Draw(Chart("\"line\"", data, encoding), out var bareScene, out var bareWarnings);
+        Assert.Empty(bareWarnings);
+        Assert.Equal(4, Items<SceneSymbol>(bareScene, "mark-point").Count);
+
+        // Assert: with the overlay switched off the shape is reported (an exception in strict mode)
+        var off = VegaLiteDocument.Parse(Chart("{ \"type\": \"line\", \"point\": false }", data, encoding));
+        var ex = Assert.Throws<VegaLiteUnsupportedFeatureException>(() => off.Render(new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true }, Ct));
+        Assert.Equal("vl-channel-shape", ex.Feature);
+    }
+
+    /// <summary>
     ///     Validates the invalid data modes: a null y in the middle of five points breaks the default line into two subpaths (two moves), the <c>filter</c> mode connects the points on both
     ///     sides, the filter mode warns that the scale domains include the filtered rows, and the modes <c>show</c> and <c>null</c> are reported as unsupported (and thrown in strict mode).
     /// </summary>

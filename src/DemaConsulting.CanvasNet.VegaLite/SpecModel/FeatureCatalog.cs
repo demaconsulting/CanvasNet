@@ -803,6 +803,9 @@ internal static class FeatureCatalog
             var stackDecision = new Lazy<StackDecision?>(() => StackRules.Decide(markType, ScaleResolver.InferOrient(markType, mark?["orient"]?.AsString(), encoding), encoding));
             _stack = stackDecision;
             var is2D = markType == "errorband" && encoding["x"] is { IsNull: false } && encoding["y"] is { IsNull: false };
+            // Only the configuration of the specification is visible here (a caller's configuration is not part of the tree)
+            var configuredPoint = _tree.Root["config"]?[markType]?["point"] is { } configuredNode ? ConfigNode.FromSpec(configuredNode) : null;
+            var pointOverlay = SpecNormalizer.HasPointOverlay(markType, _mark, encoding, configuredPoint);
             var drawnAs = markType switch
             {
                 "boxplot" => "point",
@@ -884,11 +887,17 @@ internal static class FeatureCatalog
                         Unsupported(Id("channel", name), $"The '{name}' channel is not supported yet.", channel);
                     }
                 }
-                else if ((name is "shape" or "angle" or "strokeDash" or "text" or "theta" or "radius" or "theta2" or "radius2" || (name == "size" && markType is "area" or "arc")) && !ScaleResolver.ChannelIsDrawn(name, drawnAs))
+                else if ((name is "shape" or "angle" or "strokeDash" or "text" or "theta" or "radius" or "theta2" or "radius2" || (name == "size" && markType is "area" or "arc")) && !ScaleResolver.ChannelIsDrawn(name, drawnAs)
+                    && !(name == "shape" && pointOverlay))
                 {
                     // The channel is supported, but the mark does not draw it (a shape needs a point, an angle a symbol or text, a dash a mark with a stroke line, a size a mark that has one, a text a text mark,
-                    // an angle (theta) or radius a text or arc mark and their second ends an arc mark); the outliers of a boxplot are points
-                    Unsupported(Id("channel", name), $"The '{name}' channel is not drawn by the '{markType}' mark; it is ignored.", channel);
+                    // an angle (theta) or radius a text or arc mark and their second ends an arc mark); the outliers of a boxplot are points. A shape of a path mark with a point overlay is not reported:
+                    // Vega-Lite drops it from the path layer before it checks the channels, and the overlay points draw it. An angle, a dash or a size is checked against the path mark as it is (Vega-Lite
+                    // warns about it there), and the points of the overlay still draw it.
+                    var drawnByOverlay = pointOverlay && name is "angle" or "strokeDash" or "size";
+                    Unsupported(Id("channel", name), drawnByOverlay
+                        ? $"The '{name}' channel is not drawn by the '{markType}' mark itself; only the points of its point overlay draw it."
+                        : $"The '{name}' channel is not drawn by the '{markType}' mark; it is ignored.", channel);
                 }
                 else if (channel.IsObject)
                 {

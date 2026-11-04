@@ -197,7 +197,8 @@ an `x` datum has the scales `x`, `theta`, and `color` in that order.
 ##### Channels Are Resolved Only For The Marks That Draw Them
 
 **Tests**: `MarkChannelGatingTests.ScaleResolver_ChannelIsDrawn_FollowsTheSupportTable`,
-`MarkChannelGatingTests.ScaleResolver_Resolve_ChannelsThatTheMarkDoesNotDrawHaveNoScale`
+`MarkChannelGatingTests.ScaleResolver_Resolve_ChannelsThatTheMarkDoesNotDrawHaveNoScale`,
+`MarkChannelGatingTests.ScaleResolver_Resolve_PointOverlayBuildsTheScalesOfThePointChannels`
 
 Asserts, for each of the 13 marks (point, circle, square, rect, bar, tick, rule, line, area, trail, text, arc, and
 image), the exact set of marks that draw a channel: `theta` and `radius` by text and arc, `theta2` and `radius2` by arc,
@@ -205,7 +206,10 @@ image), the exact set of marks that draw a channel: `theta` and `radius` by text
 text, and arc, `angle` by point, circle, square, and text, `shape` by point, and the position and paint channels by
 all; and, resolving a one-channel encoding of a small table, that a size on an area or an arc, a stroke dash on an area,
 a trail, a text, or an arc, an angle on a line, and a shape on an arc have no scale while a size on a line, a trail, or
-a text, a stroke dash on a line, and an angle on a text do.
+a text, a stroke dash on a line, and an angle on a text do. With a point overlay (`point` true, an object, or
+`"transparent"`, an `area` with only a `line` overlay and a `shape`, or a `shape` alone on a `line` or `trail`) a shape
+on a line, trail, or area, an angle on a line, a size on an area, and a stroke dash on a trail or area have a scale,
+while with `point: false` or null, on an arc, or for a `text` channel they do not.
 
 ##### Zero, Nice, Domain, Range, And Padding
 

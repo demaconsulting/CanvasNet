@@ -321,7 +321,7 @@ projects that apply to the file).
 | Vega-Lite | `src/compile/mark/encode/position-point.ts`, `position-rect.ts`, `position-range.ts`, `valueref.ts` | the point, the polar span and the range position of the marks, the middle of a slice (`bandPosition`), the interpolation of a stacked value |
 | Vega-Lite | `src/compile/mark/encode/text.ts`, `src/compile/format.ts` | the text of a row: the number, time, binned and plain formats |
 | Vega-Lite | `src/compile/mark/init.ts` | the orientation of the marks that follow the measure or the time |
-| Vega-Lite | `src/normalize/pathoverlay.ts` | the point and the line overlay of a path mark: which marks have them and the overlay mark definitions |
+| Vega-Lite | `src/normalize/pathoverlay.ts` | the point and the line overlay of a path mark: which marks have them, the overlay mark definitions, the `shape` channel that switches the point overlay on, and the channels that the overlay points draw (`SpecNormalizer.PathOverlay.cs`) |
 | Vega-Lite | `src/compile/data/parse.ts`, `src/compile/data/impute.ts`, `src/compile/data/stack.ts` | the order of the implicit transforms, the implicit impute of a stacked path mark and the impute of an encoding |
 | Vega-Lite | `src/compile/scale/properties.ts`, `range.ts`, `type.ts`, `src/scale.ts` | the zero rule, the ranges and the types of the polar scales |
 | Vega-Lite | `src/compile/legend/encode.ts` | the legend symbol of a path mark (the symbol of a trail is stroked and not filled) |
@@ -333,7 +333,7 @@ property and are not accepted; the curve `bundle` is not drawn for an area (a sp
 area is drawn with `linear`); the arc outline is a total function (an input that is not finite or whose magnitude is
 above 1e9 gives an empty path); two coincident points of a trail start their circle with a move rather than with a
 line; the invalid-data modes `show` and `null` are reported and not applied, and the scale domains are never filtered
-by the invalid-data mode; the overlay points are not enabled by a `shape` channel; the implicit impute of a stacked path
+by the invalid-data mode; the implicit impute of a stacked path
 mark is skipped for a binned dimension; a text longer than the string limit is an error; and the number of labels, the
 text length, the segments and the scene items are bounded by the render limits.
 

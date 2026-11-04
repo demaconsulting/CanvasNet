@@ -80,14 +80,18 @@ sections:
                   The ScaleResolver unit shall give a channel a scale only for the marks that draw it (theta and
                   radius for arc and text, theta2 and radius2 for arc, size for every mark but rect, area, arc,
                   and image, stroke dash for every mark but rect, area, trail, text, and arc, angle for point,
-                  circle, square, and text, shape for point, and text for text), so that the feature catalog and
-                  the builders agree on which channels a mark ignores.
+                  circle, square, and text, shape for point, and text for text) and, for a line, area, trail, or
+                  rule that has a point overlay, also for the channels that the overlay points draw (shape, angle,
+                  stroke dash, and size, the size of an area with the range of a point), so that the feature
+                  catalog and the builders agree on which channels a mark ignores.
                 justification: |
                   A channel that a mark does not draw must be ignored and reported, not resolved into a scale and a
-                  legend that explain nothing.
+                  legend that explain nothing; the points of a path overlay do draw it, and need its scale and
+                  legend.
                 tests:
                   - ScaleResolver_ChannelIsDrawn_FollowsTheSupportTable
                   - ScaleResolver_Resolve_ChannelsThatTheMarkDoesNotDrawHaveNoScale
+                  - ScaleResolver_Resolve_PointOverlayBuildsTheScalesOfThePointChannels
 
               - id: CanvasNetVegaLite-Scales-ScaleResolver-Domains
                 title: >-

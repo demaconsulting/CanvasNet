@@ -23,8 +23,9 @@ the other subsystems, and, through `InternalsVisibleTo`, the test assembly. It c
   _FeatureCatalog Unit Design_ (`spec-model/feature-catalog.md`)
 - **ConfigResolver** - the internal static `ConfigResolver`, `ResolvedConfig`, `ConfigNode`, and `ConfigNodeKind`; see
   _ConfigResolver Unit Design_ (`spec-model/config-resolver.md`)
-- **SpecNormalizer** - the internal static partial `SpecNormalizer` (`SpecNormalizer.cs`, `SpecNormalizer.Composition.cs`,
-  `SpecNormalizer.Repeat.cs`, `SpecNormalizer.Composite.cs`, `SpecNormalizer.BoxPlot.cs`, and `SpecNormalizer.ErrorBar.cs`),
+- **SpecNormalizer** - the internal static partial `SpecNormalizer` (`SpecNormalizer.cs`,
+  `SpecNormalizer.Composition.cs`, `SpecNormalizer.Repeat.cs`, `SpecNormalizer.Composite.cs`,
+  `SpecNormalizer.BoxPlot.cs`, `SpecNormalizer.ErrorBar.cs`, and `SpecNormalizer.PathOverlay.cs`),
   the tree types `LayerTree`, `LayerNode`, `LayerResolve`, `ResolveMode`, `ViewKind`, `CompositionSettings`,
   `CompositionAlign`, `FacetDefinition`, and `RepeaterValues`, `ExpandedLayers`, and the `CompositeBuilder` and
   `CompositeAxis` helpers: it turns the views of a specification into the tree of views (layers, concatenations, facets,

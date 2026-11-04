@@ -203,6 +203,7 @@ the unit verification document passes without error or unexpected exception.
   of those pixels have 4, 8, and 12 rows of ink (half widths 2, 4, and 6), in `#4c78a8` without a stroke.
 - **Overlays, Invalid Modes, And The Draw Order Through The Whole Pipeline**:
   `VegaLiteLineAreaIntegrationTests.CanvasNetVegaLite_SystemIntegration_Overlays_LinePointsAndAreaLineAreDrawn`,
+  `VegaLiteLineAreaIntegrationTests.CanvasNetVegaLite_SystemIntegration_Overlays_ShapeChannelShapesTheOverlayPointsInStrictMode`,
   `VegaLiteLineAreaIntegrationTests.CanvasNetVegaLite_SystemIntegration_InvalidData_NullsBreakAFilterConnectsAndShowIsReported`,
   `VegaLiteLineAreaIntegrationTests.CanvasNetVegaLite_SystemIntegration_Order_OrderChannelControlsOverlapAndPathSort`,
   `MarkBuilderOverlayTests.MarkBuilder_Build_PointOverlayDrawsSymbolsWithTheOverlayDefinition`,
