@@ -20,7 +20,7 @@
       "items": [
         { "term": "tool", "text": "{name, version} of the tool." },
         { "term": "input", "text": "{path, format, natural: {width, height}}, and for a document pageCount and page." },
-        { "term": "operations", "text": "Every step that was applied, in order; each has an op key (render, auto-orient, resize, fit, flatten, crop, rotate, flip, pad, and the photo operations) and its own fields. With --all-pages every operation also carries its page. The verbs are crop, resize, rotate, flip, and pad." },
+        { "term": "operations", "text": "Every step that was applied, in order; each has an op key (render, embed, auto-orient, resize, fit, flatten, crop, rotate, flip, pad, and the photo operations) and its own fields. With --all-pages every operation also carries its page. The verbs are crop, resize, rotate, flip, and pad." },
         { "term": "outputs", "text": "One entry per file written: {path, format, width, height, bytes} and page for a document." },
         { "term": "diagnostics", "text": "The features that were left out of the picture; see the diagnostics section below." },
         { "term": "echo", "text": "The text an OpenSCAD model printed with echo." }
@@ -40,7 +40,7 @@
       "id": "diagnostics",
       "title": "Diagnostics entries",
       "items": [
-        { "term": "source", "text": "Where the report comes from: scad, vega-lite, pptx, or vsdx. SVG, PDF, and raster images have no diagnostics channel." },
+        { "term": "source", "text": "Where the report comes from: scad, vega-lite, pptx, vsdx, or svg. PDF and raster images have no diagnostics channel." },
         { "term": "severity", "text": "unsupported for a feature that was left out, or warning for a questionable construct that still rendered." },
         { "term": "code", "text": "The stable identifier of the feature, for example scad-module-surface or vl-mark-geoshape. A warning of a SCAD model has the code scad-warning; a warning of a Vega-Lite chart has the code vega-lite-warning and carries its vl-* identifier at the start of the message text." },
         { "term": "message", "text": "A description; for a model or chart it gives file, line, and column." },

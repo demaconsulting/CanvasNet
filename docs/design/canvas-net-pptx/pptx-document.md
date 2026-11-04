@@ -707,7 +707,8 @@ plus the resolved total block height.
    preserved as their own token's own advance width, rather than collapsed). Each distinct
    `(FontFamily, Bold, Italic)` combination is resolved to a `TrueTypeFont` once via
    `fontResolver`, memoized per layout call; `ResolveTextFont` additionally shares loaded system
-   fonts across layouts through `SystemFontCatalog.Load`'s process-lifetime path/face cache (see `ResolveTextFont` below).
+   fonts across layouts through `SystemFontCatalog.Load`'s process-lifetime path/face cache (see `ResolveTextFont`
+   below).
    (Phase 1b's own theme/master/layout caches remain per-document, not static.)
    Tokens are packed greedily onto lines bounded by `widthEmu` less the body's horizontal insets,
    by the core `Rendering.WordWrap` packer (see _WordWrap Unit Design_,
@@ -745,7 +746,8 @@ glyph.Font.UnitsPerEm) * Matrix3x2.CreateTranslation(glyph.OriginXEmu, glyph.Ori
 shapeToSurfaceTransform` is composed (scale to EMU-per-unit, then translate to the shape-local
 baseline origin, then compose with the shape's own frame transform), the glyph's outline
 (`TrueTypeFont.GetGlyphOutline`) is appended to a fresh `Geometry.PathBuilder` with every
-point transformed by `glyphMatrix` (`PathBuilder.AppendPath(outline, glyphMatrix)`), and the result filled via `Drawing.PathFiller.Fill(surface,
+point transformed by `glyphMatrix` (`PathBuilder.AppendPath(outline, glyphMatrix)`), and the result filled via
+`Drawing.PathFiller.Fill(surface,
 path, glyph.Color, Drawing.FillRule.NonZero)`. A glyph whose outline has zero subpaths (a
 whitespace or control character) is skipped entirely, rather than issuing an empty fill.
 
@@ -2751,7 +2753,8 @@ painted. A non-permanent visual-verification generator (`GeneratePictureEllipseC
 mirroring `PptxTextLayoutTests.cs`'s own `GeneratePlusMinusDegreeTofuReproPng` precedent) renders
 the same ellipse-clipped picture end-to-end and saves it to
 `.agent-logs/pptx-picture-ellipse-clip-repro.png` for a human reviewer to open and visually
-confirm the circular photo-crop effect. `Render_PictureEllipseGeometry_NearSquareRealWorldAspect_ClipsAllFourBoundingBoxCorners`
+confirm the circular photo-crop effect.
+`Render_PictureEllipseGeometry_NearSquareRealWorldAspect_ClipsAllFourBoundingBoxCorners`
 (added later, in response to a bug report alleging an `ellipse`-clipped picture at a near-square,
 real-world corpus aspect ratio rendered with an unclipped rectangular top) adds regression coverage
 sampling all four bounding-box corners rather than one diagonal pair. A direct mask-boundary-trace
@@ -3248,7 +3251,8 @@ the "Bullets and Numbering Rendering" follow-up above (`"its 'numbers' are liter
 separated from the following word by a literal tab character... a distinct, pre-existing,
 out-of-scope defect (tab-stop support)"`) - this follow-up closes that deferred item.
 
-**Root cause confirmation and chosen default interval**: a real-world corpus file (slide 9, the single highest-divergence
+**Root cause confirmation and chosen default interval**: a real-world corpus file (slide 9, the single
+highest-divergence
 slide in a full 73-slide pixel-diff pass) contains 19 literal tab characters, each between a literal digit run and its
 sentence text, with no `<a:tabLst>` anywhere in the slide, its layout, or its master. Both the
 slide master's `<p:txStyles>` and the presentation's own `<p:defaultTextStyle>` declare
@@ -3678,3 +3682,24 @@ identical to its own cached text, completely unaffected), and
 `Render_PlainRunAlongsideSlideNumberField_PlainRunTextUnaffected` (a plain run sharing a paragraph
 with a `slidenum` field renders pixel-identical to a reference shape, proving only the field's own
 run changes).
+
+### Image Source
+
+`PptxImageSource` (`PptxImageSource.cs`) is the `IImageSource` of the package for `.pptx` files, so that a document can
+link to a presentation through the shared `FolderImageResolver`; it draws the **first slide**. `Render(request)` opens
+the presentation with `PptxDocument.Open(request.OpenContent())`, takes `SlideSize` in English Metric Units divided by
+9525 (96 dots per inch) as the natural size, asks `request.SizeFor(..., fitInside: true)` for the largest size of the
+aspect ratio of the slide inside the requested box, checks that size with `request.EnsureWithinBudget(width, height)`
+(a size that does not fit in the budget of the request is refused with `ImageSourceBudgetException` before any surface
+is allocated), and
+draws slide 0 with a `PptxRenderOptions` whose background is
+transparent, whose `StrictUnsupportedPictures` is the request's `ThrowOnUnsupportedFeature` and whose
+`OnUnsupportedPictureSkipped` handler adds an `Unsupported` note of the source `pptx` with the feature name as the code.
+The PPTX library cannot be canceled while it draws, so the cancellation token is checked before the presentation is
+opened and before it is drawn. The class is stateless, thread-safe, claims no URI scheme, and references only the core
+package (and the packages the document already uses).
+
+The behavior of the class is specified by the `CanvasNetPptx-PptxDocument-ImageSource` requirement and verified by
+`PptxImageSourceTests.cs`. Its **callers** are the shared `FolderImageResolver` of the core package (through
+`IImageSource`), the `CanvasNetViewer` system, which lists it with the other built-in sources, and applications. The
+unit depends on the core package only through the `ImageSources` contract types.

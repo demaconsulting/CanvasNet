@@ -1,0 +1,100 @@
+---
+# Software Unit Requirements for CanvasNetViewer
+#
+# These requirements describe the design-level behavior of the CanvasNetViewer unit: the static class that
+# lists the built-in image sources, creates the folder image resolver for a render, and renders any file as a
+# picture (with the ViewerRenderOptions and ViewerImage types it uses).
+#
+# Packaging note: CanvasNetViewer is distributed as the separate DemaConsulting.CanvasNet.Viewer NuGet package
+# (namespace DemaConsulting.CanvasNet.Viewer), which references the core package and the Svg, Pdf, Pptx, Vsdx,
+# Scad, and VegaLite packages. CanvasNetViewer is the sole unit of the CanvasNetViewer system. Every "tests"
+# entry below cites an existing test method in the DemaConsulting.CanvasNet.Viewer.Tests project; see
+# docs/verification/canvas-net-viewer/canvas-net-viewer.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetViewer Requirements
+    sections:
+      - title: CanvasNetViewer Unit Requirements
+        requirements:
+          - id: CanvasNetViewer-CanvasNetViewer-ImageSources
+            title: >-
+              The CanvasNetViewer class shall expose the built-in image sources as a fixed, read-only list
+              (raster, SVG, PDF, PowerPoint, Visio, OpenSCAD, and Vega-Lite, in that order, with shared
+              instances) and the extensions they claim as the sorted union of their claims.
+            justification: |
+              One fixed list is the single place where the supported file types are decided, and the help of
+              the command-line tool is checked against it.
+            tests:
+              - CanvasNetViewer_ImageSources_AreFixedAndExtensionsAreSortedUnion
+
+          - id: CanvasNetViewer-CanvasNetViewer-CreateImageResolver
+            title: >-
+              The CanvasNetViewer class shall expose CreateImageResolver, which creates a new folder image
+              resolver for every call with the built-in sources followed by any extra sources and the given
+              limits, and rejects a null or empty folder and null extra sources.
+            justification: |
+              A resolver counts the images and collects the notes of one render, so it must not be shared; creating
+              one is cheap and nothing is cached in it.
+            tests:
+              - CanvasNetViewer_CreateImageResolver_CreatesNewResolverWithBuiltInAndExtraSources
+
+          - id: CanvasNetViewer-CanvasNetViewer-RenderPath
+            title: >-
+              The CanvasNetViewer class shall expose Render(path), which draws the file with the source that claims
+              its extension, confined to its own folder (or ViewerRenderOptions.Folder), at its natural size or
+              at the requested width and height (a vector drawn at that size, a raster fitted into the box or scaled
+              to keep its aspect ratio), returns the picture with its format, notes, printed text, and embedded
+              images, honors ThrowOnUnsupportedFeature and cancellation, rejects a requested width or height outside
+              1 to Surface.MaxDimension with ArgumentOutOfRangeException before reading the file, charges the final
+              buffer of a resized render to MaxDecodedPixels in addition to the surface of the source, and fails
+              with ArgumentNullException, FileNotFoundException, NotSupportedException, ArgumentException,
+              SandboxException, ImageSourceBudgetException, or ImageSourceException (keeping the original failure
+              inside) as documented.
+            justification: |
+              A viewer, a thumbnail generator, or a report builder gets exactly the same safety and limits as an
+              embedded picture, and a caller can tell a missing file from a file that cannot be drawn.
+            tests:
+              - CanvasNetViewer_Render_PathNatural_ReturnsNaturalSizeAndFormat
+              - CanvasNetViewer_Render_PathSized_ReturnsRequestedSize
+              - CanvasNetViewer_Render_MaxDecodedPixels_IsPassedToTheResolver
+              - CanvasNetViewer_Render_SizeOutOfRange_ThrowsBeforeReading
+              - CanvasNetViewer_Render_SizeAtBoundaries_IsAccepted
+              - CanvasNetViewer_Render_ResizedFinalBuffer_IsChargedToTheBudget
+              - CanvasNetViewer_Render_SvgWithEmbeds_SurfacesDiagnosticsEchoAndEmbedded
+              - CanvasNetViewer_Render_SvgEscapingAndSelfEmbedding_AreWarnings
+              - CanvasNetViewer_Render_PathFailures_ThrowSpecificExceptions
+              - CanvasNetViewer_Render_ThrowOnUnsupportedFeature_FailsInsteadOfNote
+              - CanvasNetViewer_Render_CanceledToken_ThrowsOperationCanceledException
+              - CanvasNetViewer_Render_PathThroughSymbolicLink_ThrowsSandboxException
+
+          - id: CanvasNetViewer-CanvasNetViewer-RenderStream
+            title: >-
+              The CanvasNetViewer class shall expose Render(stream, fileName), which chooses the source by the
+              extension of the file name, resolves the files the document itself names only from
+              ViewerRenderOptions.Folder (none without it), and rejects null arguments, an unknown extension, and a
+              requested width or height outside 1 to Surface.MaxDimension (before reading the stream).
+            justification: |
+              Content that does not live in a file (an upload, a database column) must be renderable without
+              writing it to disk, and without being able to reach the disk by accident.
+            tests:
+              - CanvasNetViewer_Render_Stream_UsesFileNameAndOptionalFolder
+              - CanvasNetViewer_Render_StreamInvalidArguments_Throw
+              - CanvasNetViewer_Render_SizeOutOfRange_ThrowsBeforeReading
+              - CanvasNetViewer_Render_SizeAtBoundaries_IsAccepted
+
+          - id: CanvasNetViewer-CanvasNetViewer-ExtraSources
+            title: >-
+              The CanvasNetViewer class shall accept extra image sources (to CreateImageResolver and in
+              ViewerRenderOptions.ExtraSources), place them after the built-in sources so that one claiming the
+              same extension or URI scheme wins, hand a scheme-claimed link to its source as written, and ask a
+              source again on every render without caching.
+            justification: |
+              The built-in list is fixed; an application that needs another file type, an override, or a live
+              source adds it per render and keeps control over what the source may reach.
+            tests:
+              - CanvasNetViewer_CreateImageResolver_CreatesNewResolverWithBuiltInAndExtraSources
+              - CanvasNetViewer_SystemIntegration_CustomSourceForNewExtension_IsEmbedded
+              - CanvasNetViewer_SystemIntegration_CustomSourceOverridingBuiltInExtension_Wins
+              - CanvasNetViewer_SystemIntegration_CustomSchemeSource_IsEmbeddedFromRawHref
+              - CanvasNetViewer_SystemIntegration_LiveFrameSource_GivesFreshFrameOnEveryRender
+              - CanvasNetViewer_SystemIntegration_RenderWithExtraSources_UsesCustomSources

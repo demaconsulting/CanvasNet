@@ -143,8 +143,10 @@ Unit Design_ for the mapping.
   `TestResults.IO` serializers, writes the TRX and JUnit files. See _DemaConsulting.TestResults OTS
   Integration Design_ (`ots/test-results.md`).
 - **The CanvasNet libraries** (same repository): the tool references the core `CanvasNet` package and the
-  `CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetRender3D`, `CanvasNetScad`, and
-  `CanvasNetVegaLite` systems. The imaging code calls the core `Surface` and `Rgba32` types and the PNG, JPEG,
+  `CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetRender3D`, `CanvasNetScad`,
+  `CanvasNetVegaLite`, and `CanvasNetViewer` systems. The `SourceLoader` calls `CanvasNetViewer.CreateImageResolver`
+  to let an SVG file embed the files beside it (the tool wires the resolver in and passes no extra sources: it has no
+  plug-in mechanism). The imaging code calls the core `Surface` and `Rgba32` types and the PNG, JPEG,
   BMP, TIFF, GIF, and JPEG 2000 codecs, the `CanvasNetSvg` system's `SvgCodec`, the `PdfDocument`, `PptxDocument`, and
   `VsdxDocument` types of the `CanvasNetPdf`, `CanvasNetPptx`, and `CanvasNetVsdx` systems, and the
   `ScadDocument` type of the `CanvasNetScad` system (with the `Camera` and `SceneRenderOptions` types of the

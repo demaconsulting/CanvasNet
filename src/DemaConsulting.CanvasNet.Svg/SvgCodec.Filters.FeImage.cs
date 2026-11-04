@@ -34,6 +34,8 @@ public static partial class SvgCodec
             return output;
         }
 
+        // feImage deliberately does not use SvgLoadOptions.ImageResolver: an external href here
+        // is a no-op (see SvgCodec.Image.cs's remarks)
         RenderFeImageReference(href, chain, output, ref totalElements);
         return output;
     }

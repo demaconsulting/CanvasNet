@@ -64,6 +64,7 @@ sections:
           - CanvasNetTool-Commands-HelpTopics-Examples
           - CanvasNetTool-Commands-HelpTopics-Rendering
           - CanvasNetTool-Commands-HelpTopics-Consistency
+          - CanvasNetTool-Commands-HelpTopics-SvgImageLinks
           - CanvasNetTool-Commands-CommandRegistry-HelpSubjects
           - CanvasNetTool-Commands-CommandRegistry-HelpJson
         tests:

@@ -43,8 +43,10 @@ malformed geometry row is skipped, never thrown, and reported with the token
 an orphan `SplineStart`/`SplineKnot`; a row that continues a subpath before any `MoveTo`; or an
 unrecognized row type such as `InfiniteLine`. See the Design Constraints section of the
 *CanvasNetVsdx System Design* document for the complete deferred-feature boundary. Text is drawn per character: one
-that a run's font lacks is drawn with an installed fallback font that covers it, and failing that with a bundled Liberation
-font or the bundled Noto Sans, Noto Sans Math, or Noto Sans Symbols 2 of the core `GlyphFallback` (so `∝` and `≫` are always
+that a run's font lacks is drawn with an installed fallback font that covers it, and failing that with a bundled
+Liberation
+font or the bundled Noto Sans, Noto Sans Math, or Noto Sans Symbols 2 of the core `GlyphFallback` (so `∝` and `≫` are
+always
 drawn); only a character that no font covers is drawn as the run's missing-glyph box and reported as
 `vsdx-text-missing-glyph` through the unsupported-feature handler.
 
@@ -168,6 +170,21 @@ public void Dispose()
 
 Releases the document's underlying ZIP archive and in-memory buffer. Idempotent - safe to call
 more than once. Every other public member throws `ObjectDisposedException` once called.
+
+### Using As An Embedded Image
+
+`VsdxImageSource` is the image source of this package for `.vsdx` files. With it a document that links to a Visio
+drawing draws its **first page** through a `FolderImageResolver` of the core package (or
+`CanvasNetViewer.CreateImageResolver` of the Viewer package). The page is fitted, without distortion, inside the size of
+its placement (its natural size is the page size at 96 dots per inch) over a transparent background; a feature the
+renderer does not draw is returned as a note of the source `vsdx`, or fails when `ThrowOnUnsupportedFeature` is set.
+
+```csharp
+// An SVG document that links to files of this kind, drawn through the resolver
+var resolver = new FolderImageResolver("assets", [new VsdxImageSource()]);
+var options = new SvgLoadOptions { ImageResolver = resolver };
+using var surface = SvgCodec.Load("assets/diagram.svg", 800, 600, fonts: null, options);
+```
 
 ## Examples
 

@@ -1961,3 +1961,17 @@ sections:
           - CanvasNetVegaLite_SystemIntegration_Offset_BoxplotBoxesSitSideBySide
           - CanvasNetVegaLite_SystemIntegration_Offset_MonthlyGroupedBars
           - CanvasNetVegaLite_SystemIntegration_Offset_NominalTimeUnitGroupedBars
+
+      - id: CanvasNetVegaLite-ImageSource
+        title: >-
+          The library shall provide an image source for .vl and .vl.json files, for the image resolver of the core
+          package, that lays the chart out at the size its placement asks for on its own background and reports
+          the notes of the library.
+        tags: [system]
+        justification: |
+          A diagram that links to a chart (an SVG image element, for example) needs the Vega-Lite renderer as one
+          of the pluggable sources of the shared image resolver.
+        children:
+          - CanvasNetVegaLite-VegaLiteDocument-ImageSource
+        tests:
+          - VegaLiteImageSource_Render_RequestedSize_DrawsAtThatSize

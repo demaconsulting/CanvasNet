@@ -26,5 +26,6 @@ package CanvasNet {
         dependency usesFonts from CanvasNetVegaLiteSystem to Fonts;
         dependency usesGeometry from CanvasNetVegaLiteSystem to Geometry;
         dependency usesRendering from CanvasNetVegaLiteSystem to Rendering;
+        dependency usesImageSources from CanvasNetVegaLiteSystem to ImageSources;
     }
 }

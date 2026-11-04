@@ -61,10 +61,25 @@ endings and without trailing line feeds.
 
 A format topic has the sections `supported`, `unsupported`, `options`, `diagnostics`, and `differences`, and at least
 two examples; this is checked by the unit tests, not by the loader. An example `name` is unique within its topic. The
-`kind` is `source` (`SourceKind`) or `command` (`CommandKind`). A `source` example has a `fileName`, and its content is
-the text of the embedded file `Examples/<topic>-<fileName>`. A `command` example has inline `content` that is a command
+`kind` is `source` (`SourceKind`), `command` (`CommandKind`), or `snippet` (`SnippetKind`). A `source` example has a
+`fileName`, and its content is the text of the embedded file `Examples/<topic>-<fileName>`; it is a file the tool can
+read on its own, so the tests render every one with `--strict`. A `snippet` is stored the same way (`fileName` and an
+embedded file) but is text that refers to other files, such as the `embed` diagram of the `svg` topic whose `image`
+elements link a model, a chart, and an SVG file; `SourceExamples()` does not return it, so the strict-clean drift test
+skips it, and a dedicated test renders it with its sibling files (a new kind rather than an exception in the test, so
+a snippet is visible as one in `--examples` and in the JSON). A `command` example has inline `content` that is a command
 line and starts with the tool name followed by a space (`canvasnet`). The `language` is `openscad`, `json`, `xml`, or
 `shell`.
+
+The `svg` topic has one more section, `image-links` (after `supported`), that gathers what an agent needs to link a file
+from a diagram: the item `href file types` lists the file name extensions an `image` `href` may link, then items state
+the size rule, the folder rule (a query or fragment after the file name is ignored), the warnings `svg-image-unresolved`
+and `svg-image-too-large`, and an `example`, which points to the `embed`
+snippet, and the file types of the `href file types` item are compared by a unit test, in both directions, with
+`CanvasNetViewer.Extensions` (the extensions of the image sources the tool wires in, so a type added to the Viewer is
+caught) and with the `formats` table, so the list cannot
+drift from what the tool does. The `scad` and `vega-lite` topics, the footer of the `formats` listing, and the usage
+of `render` each point to `canvasnet help svg`.
 
 **Tokens**: text in a topic file may use `{{name}}` tokens, which the loader replaces from the live constants of the
 code before the JSON is parsed, so a documented number cannot drift from the real one. `Tokens` is the table; the values
@@ -106,7 +121,8 @@ self-test render each of them with `--strict`.
 parses the JSON, requires `topic` to equal `name`, requires every text property to be present and non-empty (`topic`,
 `title`, `summary`, section `id` and `title`, item `text`, example `name`, `kind`, `language`, and `description`),
 requires unique section ids and unique example names, and reads the content of each example: the embedded example file
-for a `source`, the inline `content` for a `command`. `LoadAll` then requires every name and alias to be unique across
+for a `source` or a `snippet`, the inline `content` for a `command`. `LoadAll` then requires every name and alias to be
+unique across
 the catalog, compared ignoring case.
 
 **RenderText(topic)**: the plain-text topic, without a trailing newline: `Topic: <title>`, a blank line, the summary,

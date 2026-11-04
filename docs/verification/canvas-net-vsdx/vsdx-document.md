@@ -63,6 +63,29 @@ is wrong.
 
 ### Unit-Level Test Scenarios
 
+#### CanvasNetVsdx-VsdxDocument-ImageSource: The Image Source For `.vsdx` Files
+
+**Tests**: `VsdxImageSource_Render_NoRequestedSize_DrawsNaturalSizeOnTransparentBackground`,
+`VsdxImageSource_Render_RequestedBox_FitsPageInsideBox`,
+`VsdxImageSource_Render_SizeBeyondRemainingPixels_IsRefusedBeforeDrawing`,
+`VsdxImageSource_Render_UnsupportedFeature_ReturnsDiagnosticOrThrowsWhenStrict`,
+`VsdxImageSource_Render_InvalidInput_Throws`, `VsdxImageSource_Properties_NameExtensionAndNoSchemes`
+
+`VsdxImageSourceTests.cs` calls `VsdxImageSource.Render` with requests built by hand over synthetic packages from
+`VsdxTestPackages` (a filled rectangle; a shape with a geometry row type the library does not know). Asserts the natural
+size as the
+page size in EMU divided by 9525, transparent and drawn pixels, that a requested 100 by 100 box is touched on its larger
+side with the
+aspect ratio of the page, that a 4000 by 4000 box against a budget of 1000 pixels is refused with
+`ImageSourceBudgetException` before drawing, with an allocation far below the 64 MB of the picture, while a budget of
+100 by 100 pixels draws a page fitted into that box, that the unknown row is an `Unsupported` note of the source
+`vsdx` and throws
+`VsdxUnsupportedFeatureException` when strict, that content that is not a drawing is `InvalidDataException`, a request
+without a file
+`InvalidOperationException`, a null request `ArgumentNullException`, a canceled request `OperationCanceledException`,
+and the name,
+extension, and absence of schemes.
+
 #### CanvasNetVsdx-VsdxDocument-OpenStream: Open(Stream) Buffers Input and Validates Null/Oversized Arguments
 
 **Tests**: `VsdxDocument_Open_WellFormedMinimalPackage_Succeeds`,

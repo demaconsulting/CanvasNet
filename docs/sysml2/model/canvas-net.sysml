@@ -23,5 +23,6 @@ package CanvasNet {
         part renderingSubsystem : Rendering;
         part files : Files;
         part packaging : Packaging;
+        part imageSources : ImageSources;
     }
 }

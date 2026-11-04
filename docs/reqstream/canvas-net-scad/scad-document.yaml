@@ -722,3 +722,31 @@ sections:
               - ScadDocument_Render_ExtrudedDifference_EqualsTheHandBuiltDifferenceOfExtrusions
               - ScadDocument_Render_RevolvedDifference_EqualsTheHandBuiltDifferenceOfRevolutions
               - ScadDocument_Render_ColoredAndTwistedExtrusions_AreVisible
+
+          - id: CanvasNetScad-ScadDocument-ImageSource
+            title: >-
+              The Scad package shall provide an image source for .scad files (claiming that extension and no URI
+              scheme) that parses the model from the bytes of the request, resolves its include and use
+              directives against the folder of the request (a missing file is a scad-warning note, and a request
+              without a folder fails a model that uses include or use with ScadEvaluationException), draws it
+              from the default isometric viewpoint with an orthographic projection at the size of the request
+              (800 by 800 pixels when none is asked for) over a transparent background, refuses with
+              ImageSourceBudgetException, before drawing anything, a size that exceeds the pixels the request
+              allows, returns the warnings and
+              the unsupported features of the model as notes of the source scad (and fails with
+              ScadUnsupportedFeatureException when the request is strict) and its echo output as printed
+              text, passes the cancellation token to the render, and fails with ScadSyntaxException for a syntax
+              error, InvalidOperationException for a request without a file, and OperationCanceledException for a
+              canceled request.
+            justification: |
+              Models are linked from diagrams; the source draws them with one fixed, documented view so the
+              result is the same everywhere, and keeps the include confinement of the Scad library.
+            tests:
+              - ScadImageSource_Render_NoRequestedSize_DrawsNaturalSizeOnTransparentBackground
+              - ScadImageSource_Render_RequestedSize_DrawsAtThatSize
+              - ScadImageSource_Render_SizeBeyondRemainingPixels_IsRefusedBeforeDrawing
+              - ScadImageSource_Render_ModelWithEchoAndUnsupportedFeature_ReturnsEchoAndDiagnostics
+              - ScadImageSource_Render_UnsupportedFeatureWhenStrict_ThrowsUnsupportedFeatureException
+              - ScadImageSource_Render_Include_ResolvesFromDirectoryOfRequest
+              - ScadImageSource_Render_InvalidInput_Throws
+              - ScadImageSource_Properties_NameExtensionAndNoSchemes

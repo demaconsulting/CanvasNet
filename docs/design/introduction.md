@@ -78,13 +78,25 @@ software items, specifically:
   `Drawing`, and `Fonts`: the transform-aware `Canvas` wrapper, `TextRenderer` (measure and draw
   TrueType text with alignment and kerning), `Shapes` (rectangle, rounded rectangle, and
   circle helpers), and `WordWrap` (a font- and unit-independent greedy word-wrap line packer)
-- **Files (Subsystem)** — Sandboxed file access, with no dependency on any other subsystem (and no core subsystem
-  depends on it): the
+- **Files (Subsystem)** — Sandboxed file access, with no dependency on any other subsystem (only the
+  `ImageSources` subsystem of the core package depends on it): the
   `SandboxedFileResolver` unit (the public resolver plus its `SandboxOptions`, `SandboxedFile`,
   `SandboxException`, and `SandboxFailureKind` types) that turns an untrusted relative path into the bytes of
   a file inside caller-chosen directories (or a caller-supplied virtual file source), refusing escapes,
-  hostile path text, and symbolic links or junctions, and used by `CanvasNetVegaLite` and `CanvasNetScad`
-  for every local file
+  hostile path text, and symbolic links or junctions, and used by `ImageSources`, `CanvasNetVegaLite`, and
+  `CanvasNetScad` for every local file
+- **ImageSources (Subsystem)** — Linked-picture support for documents that link to other pictures (an SVG
+  `image` element, for example), depending on `Files`, `Canvas`, and `Codecs` (no core subsystem depends on it): the
+  `ImageSourceContract` unit (the public `IImageSource`, `ImageSourceRequest`, `ImageSourceResult`,
+  `ImageSourceDiagnostic`, `ImageDiagnosticSeverity`, `IImageResolver`, `EmbeddedImage`, `ImageSourceException`, and
+  `ImageSourceBudgetException`
+  types that anyone can implement or use, and the `ImageSourceSet` that validates what sources claim and lets the
+  later source win), the `FolderImageResolver` unit (with its `FolderImageResolverOptions`: confines links to a folder,
+  picks the source by file name extension or URI scheme, bounds depth, cycles, image count, and the pixels the sources
+  allocate, forwards notes, and
+  never caches a picture), and the `RasterImageSource` unit (the source for the raster formats). Each format package
+  ships its own source (`SvgImageSource`, `ScadImageSource`, `VegaLiteImageSource`, `PdfImageSource`,
+  `PptxImageSource`, `VsdxImageSource`), folded into the direct unit of that package
 - **Packaging (Subsystem)** — hardened building blocks for reading untrusted Open Packaging
   Conventions (OPC) packages and untrusted XML, depending only on the .NET base class library: the
   `OpcPackage` unit (a read-only, size-bounded view of an OPC ZIP package, such as a `.pptx` or
@@ -344,6 +356,15 @@ software items, specifically:
   the other systems of this repository through private project references, so that their assemblies are bundled
   into the tool package — see _CanvasNetTool System Design_ (`canvas-net-tool.md`)
 
+- **CanvasNetViewer (System)** — A separate software system (packable as `DemaConsulting.CanvasNet.Viewer`) that
+  aggregates the image sources of every format. It contains one direct unit, `CanvasNetViewer` (with `ViewerRenderOptions`
+  and `ViewerImage`), which lists the built-in image sources (raster, SVG, PDF, PowerPoint, Visio, OpenSCAD, and
+  Vega-Lite) and the extensions they claim, creates the `FolderImageResolver` of the core `ImageSources` subsystem for
+  one render so that an SVG document can embed every format, renders any file by path or from a stream, and lets a
+  library user add image sources of their own (later sources win; nothing is cached). It references the core package
+  and the Svg, Pdf, Pptx, Vsdx, Scad, and VegaLite packages, is referenced only by the tool, and has no plug-in
+  mechanism of its own — see _CanvasNetViewer System Design_ (`canvas-net-viewer.md`)
+
 The following OTS items are also covered:
 
 - **BuildMark** — build-notes documentation tool
@@ -414,7 +435,9 @@ the `Shapes` extension-method unit, and the `WordWrap` line-packer unit, coverin
 `WordWrapTokenKind` enum inline, namespace `DemaConsulting.CanvasNet.Rendering`, flat — no
 further nesting), the `Files` subsystem (the `SandboxedFileResolver` unit, covering the public
 `SandboxOptions`, `SandboxedFile`, `SandboxException`, and `SandboxFailureKind` types inline, namespace
-`DemaConsulting.CanvasNet.Files`, flat — no further nesting), and the `Packaging` subsystem (the
+`DemaConsulting.CanvasNet.Files`, flat — no further nesting), the `ImageSources` subsystem (the
+`ImageSourceContract`, `FolderImageResolver`, and `RasterImageSource` units, namespace
+`DemaConsulting.CanvasNet.ImageSources`, flat — no further nesting), and the `Packaging` subsystem (the
 `OpcPackage` unit, covering its
 `OpcFormatException` inline, and the `SafeXml` unit, namespace
 `DemaConsulting.CanvasNet.Packaging`, flat — no further nesting; the `CanvasNetPptx`,
@@ -454,7 +477,8 @@ document order) — see the Folder Layout section below and _CanvasNetPptx Syste
 A fourth sibling top-level system, `CanvasNetVsdx`, likewise lives in this same repository
 alongside `CanvasNet`: its sole unit, `VsdxDocument`, namespace `DemaConsulting.CanvasNet.Vsdx`,
 is distributed as its own separate NuGet package and depends on the `CanvasNet` system's
-`Canvas`, `Geometry`, `Drawing`, `Fonts`, `Packaging`, and `Rendering` subsystems (`Render` opens a `.vsdx` package's OPC
+`Canvas`, `Geometry`, `Drawing`, `Fonts`, `Packaging`, and `Rendering` subsystems (`Render` opens a `.vsdx` package's
+OPC
 structure, resolves the Master/MasterShape cell-and-geometry-row inheritance chain and the
 StyleSheet line/fill/text style chain, resolves shape/connector transforms and geometry rows to
 paintable paths — including Milestone 11's real `EllipticalArcTo`/`ArcTo`-to-Bezier conversion —
@@ -519,12 +543,22 @@ holds the `ViewLayout`, `LegendLayout`, and `CompositionLayout` units, its inter
 `MarkBuilder` and `CurveBuilder` units, and its internal `Scenegraph` subsystem holds the `SceneModel`, `ScenePainter`,
 `ArcGeometry`, and `CssPaint`
 units (each subsystem lives in the sub-namespace and the sub-folder of its own name). In the SysML2 model the
-subsystem `part def` names carry the prefix `VegaLite` (`VegaLiteSpecModel`, `VegaLiteExpressions`, `VegaLiteTransforms`,
+subsystem `part def` names carry the prefix `VegaLite` (`VegaLiteSpecModel`, `VegaLiteExpressions`,
+`VegaLiteTransforms`,
 `VegaLiteScenegraph`, and so on) and the
 scene unit is `VegaLiteSceneModel`, because the model package is shared by every system and `SceneModel` already
 names a `CanvasNetRender3D` subsystem. It depends on the `CanvasNet` system's `Canvas` (`Surface`, `Rgba32`),
 `Geometry`, `Drawing`, `Fonts`, and `Rendering` subsystems through their public API. See the Folder Layout section
 below and _CanvasNetVegaLite System Design_ (`canvas-net-vega-lite.md`).
+
+A further sibling top-level system, `CanvasNetViewer`, likewise lives in this same repository and is distributed as its
+own NuGet package (`DemaConsulting.CanvasNet.Viewer`). It aggregates the image sources of every format: its sole unit,
+`CanvasNetViewer` (namespace `DemaConsulting.CanvasNet.Viewer`), lists the built-in sources (raster, SVG, PDF, PPTX,
+VSDX, OpenSCAD, and Vega-Lite), creates the `FolderImageResolver` of the core `ImageSources` subsystem for one render so
+that an SVG document can embed all of them, and renders any file as a picture. It references the core package and the
+`CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetScad`, and `CanvasNetVegaLite` packages;
+only the tool references it. See the Folder Layout section below and _CanvasNetViewer System Design_
+(`canvas-net-viewer.md`).
 
 A final sibling top-level system, `CanvasNetTool`, likewise lives in this same repository and is distributed as
 its own dotnet tool package (`DemaConsulting.CanvasNet.Tool`, command `canvasnet`) rather than as a library.
@@ -542,7 +576,8 @@ commands), and its `Imaging` subsystem (namespace
 pixels, transform pixels (grid, and the ordered operations over the core library's flip, pad, trim, tone, rotation, and
 skew operations), turn pixels into files, check the comparison of two
 images against thresholds, and compose a contact sheet. It uses the `CanvasNet`, `CanvasNetSvg`,
-`CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetRender3D`, `CanvasNetScad`, and `CanvasNetVegaLite` systems
+`CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetRender3D`, `CanvasNetScad`, `CanvasNetVegaLite`, and
+`CanvasNetViewer` systems
 through their public API and bundles their assemblies in its package. No library system references the tool. See the
 Folder Layout section below and _CanvasNetTool System Design_ (`canvas-net-tool.md`).
 
@@ -697,6 +732,21 @@ src/DemaConsulting.CanvasNet/
 │   ├── SandboxException.cs            — Public exception carrying the failure kind, path, and detail
 │   ├── SandboxFailureKind.cs          — Public enumeration of the reasons a path or file is refused
 │   └── NamespaceDoc.cs                — Namespace-level XML documentation
+├── ImageSources/
+│   ├── IImageSource.cs                — Public contract of a source: name, claimed extensions and schemes, Render
+│   ├── ImageSourceRequest.cs          — Public request: link, file bytes/name/folder, size, scoped resolver, token
+│   ├── ImageSourceResult.cs           — Public result: picture, notes, printed text, format
+│   ├── ImageSourceDiagnostic.cs       — Public note (and ImageDiagnosticSeverity.cs, its severity enumeration)
+│   ├── IImageResolver.cs              — Public contract a renderer calls to turn a link into a picture
+│   ├── EmbeddedImage.cs               — Public record of one loaded image
+│   ├── ImageSourceException.cs        — Public exception of a source that failed on a found file
+│   ├── ImageSourceBudgetException.cs  — Public refusal of a source for a picture over the pixel budget
+│   ├── ImageSourceSet.cs              — Public ordered, immutable list of sources; later source wins
+│   ├── FolderImageResolver.cs         — Public folder-confined resolver: dispatch, limits, scopes, direct render
+│   ├── FolderImageResolver.Href.cs    — Link parsing: query/fragment, file: URIs, percent-encoding, sandbox refusals
+│   ├── FolderImageResolverOptions.cs  — Public options: depth, image count, pixel budget, strictness, token
+│   ├── RasterImageSource.cs           — Public source for the raster formats
+│   └── NamespaceDoc.cs                — Namespace-level XML documentation
 ├── Rendering/
 │   ├── Canvas.cs                   — Transform-aware Save/Restore/Translate/RotateDegrees wrapper
 │   ├── TextAlign.cs                — Text horizontal-alignment enumeration
@@ -732,7 +782,8 @@ src/DemaConsulting.CanvasNet.Svg/
 │                                 default font resolution)
 ├── SvgFontFace.cs              — Registered font-face (family/weight/style) data carrier
 ├── SvgFontStyle.cs             — Font-style enumeration used by `SvgFontFace`
-├── SvgLoadOptions.cs           — Optional load settings (installed-font lookup on/off)
+├── SvgImageSource.cs           — `IImageSource` for `.svg` files, so an SVG file can be embedded in another document
+├── SvgLoadOptions.cs           — Optional load settings (installed-font lookup on/off, `IImageResolver` for external images)
 └── NamespaceDoc.cs             — Namespace-level XML documentation
 ```
 
@@ -1371,10 +1422,28 @@ src/DemaConsulting.CanvasNet.VegaLite/
     └── CssPaint.cs                — CssPaint: chart paint rules (none, opacity) on the core CssColor parser
 ```
 
-`CanvasNetVegaLite` uses only the `CanvasNet` system (`Surface`, `Rgba32`, and `CssColor` of `Canvas`, `Path` of `Geometry`,
+`CanvasNetVegaLite` uses only the `CanvasNet` system (`Surface`, `Rgba32`, and `CssColor` of `Canvas`, `Path` of
+`Geometry`,
 `PathFiller` and `PathStroker` of `Drawing`, `TrueTypeFont` and `SystemFontCatalog` of `Fonts`, and `TextRenderer` of
 `Rendering`) through its public API, and declares it as its only package dependency; the `ScenePainter`, `ArcGeometry`,
 and `TextMeasurer` units use it — see _CanvasNetVegaLite System Design_ (`canvas-net-vega-lite.md`).
+
+The `CanvasNetViewer` system lives in the `src/DemaConsulting.CanvasNet.Viewer/` project folder (the separate
+`DemaConsulting.CanvasNet.Viewer` package). Its sole unit, `CanvasNetViewer`, occupies the project root (see
+_CanvasNetViewer System Design_, `canvas-net-viewer.md`):
+
+```text
+src/DemaConsulting.CanvasNet.Viewer/
+├── DemaConsulting.CanvasNet.Viewer.csproj — Package definition (net8.0/net9.0/net10.0; packable)
+├── NamespaceDoc.cs                — CanvasNetViewer: namespace-level XML documentation
+├── CanvasNetViewer.cs             — CanvasNetViewer: the built-in sources, CreateImageResolver, and Render
+├── ViewerRenderOptions.cs         — CanvasNetViewer: the render options (size, folder, strictness, extra sources, token)
+└── ViewerImage.cs                 — CanvasNetViewer: the rendered picture with its format, notes, text, and embedded images
+```
+
+`CanvasNetViewer` references the `CanvasNet` core package (its `ImageSources` subsystem) and the `CanvasNetSvg`,
+`CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetScad`, and `CanvasNetVegaLite` packages for the image
+source each one supplies; no package references it except the tool.
 
 The `CanvasNetTool` system lives in the `src/DemaConsulting.CanvasNet.Tool/` project folder (the separate
 `DemaConsulting.CanvasNet.Tool` dotnet tool package). The six direct units occupy the project root, and the
@@ -1417,6 +1486,7 @@ src/DemaConsulting.CanvasNet.Tool/
     ├── SourceLoader.Detect.cs     — SourceLoader: format detection
     ├── SourceLoader.Raster.cs     — SourceLoader: PNG, JPEG, BMP, TIFF, GIF, and JPEG 2000 sources
     ├── SourceLoader.Svg.cs        — SourceLoader: SVG sources
+    ├── SourceLoader.SvgImages.cs  — SourceLoader: the wiring of the Viewer's image resolver for the files an SVG embeds
     ├── SourceLoader.Documents.cs  — SourceLoader: the page-based sources' shared sizing and rendering
     ├── SourceLoader.Pdf.cs        — SourceLoader: PDF documents
     ├── SourceLoader.Pptx.cs       — SourceLoader: PowerPoint presentations
@@ -1468,7 +1538,8 @@ files follow the same pattern: for `DataFileResolver`, requirements
 `docs/design/canvas-net-vega-lite/data/data-file-resolver.md`, verification
 `docs/verification/canvas-net-vega-lite/data/data-file-resolver.md`, source
 `src/DemaConsulting.CanvasNet.VegaLite/Data/DataFileResolver.cs` (with `DataFileResolver.Paths.cs`), tests
-`test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataFileResolverTests.cs` and `DataFileResolverLinkTests.cs` (with the
+`test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataFileResolverTests.cs` and `DataFileResolverLinkTests.cs` (with
+the
 helpers in `DataTestSupport.cs`), and SysML2 model
 `docs/sysml2/model/canvas-net-vega-lite/data/data-file-resolver.sysml`; for `DelimitedTextParser`, the same paths with
 `delimited-text-parser`, `DelimitedTextParser.cs`, and `DelimitedTextParserTests.cs`. The two subsystems added for
@@ -1479,7 +1550,8 @@ and SysML2 model `docs/sysml2/model/canvas-net-vega-lite/expressions.sysml`, and
 `expressions/expression-parser.yaml`, `expressions/expression-parser.md` (design and verification), source
 `src/DemaConsulting.CanvasNet.VegaLite/Expressions/ExpressionParser.cs` (with its partial files and
 `CompiledExpression.cs`), tests `test/DemaConsulting.CanvasNet.VegaLite.Tests/Expressions/ExpressionParserTests.cs`, and
-`expressions/expression-parser.sysml`; the `ExpressionEvaluator` and `ExpressionFunctions` units have the same paths with
+`expressions/expression-parser.sysml`; the `ExpressionEvaluator` and `ExpressionFunctions` units have the same paths
+with
 `expression-evaluator` and `expression-functions`. For the `Transforms` subsystem the files are `transforms.yaml`,
 `transforms.md`, and `transforms.sysml` and, for its `RowTransforms` unit, `transforms/row-transforms.*`, source
 `src/DemaConsulting.CanvasNet.VegaLite/Transforms/RowTransforms.cs` (with its partial files, `RowSampler.cs`,
@@ -1492,7 +1564,8 @@ subsystem for aggregation follow the same pattern: for `AggregateTransforms`, re
 `docs/sysml2/model/canvas-net-vega-lite/transforms/aggregate-transforms.sysml`, source
 `src/DemaConsulting.CanvasNet.VegaLite/Transforms/AggregateTransforms.cs` (with its partial files,
 `AggregateMeasures.cs` and `AggregateMeasures.Cell.cs`, `BinAlgorithm.cs`, `StackRules.cs`, `WorkMeter.cs`, and
-`StableSorter.cs`), and tests `test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/AggregateTransformsTests.cs` (with
+`StableSorter.cs`), and tests `test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/AggregateTransformsTests.cs`
+(with
 the window, stack, impute, and joinaggregate test files, `AggregateMeasuresTests.cs`, `BinAlgorithmTests.cs`,
 `StackRulesTests.cs`, and `StableSorterTests.cs`); for `EncodingPlan`, the same paths with `encoding-plan`,
 `EncodingPlan.cs` and `EncodingTransforms.cs`, and `EncodingPlanTests.cs` and `EncodingTransformsTests.cs`. The units
@@ -1526,7 +1599,8 @@ paths with `scenegraph/arc-geometry`, `Scenegraph/ArcGeometry.cs` (which also ho
 unit (`MarkBuilder.Paths.cs`, `.Order.cs`, `.Overlays.cs`, `.Text.cs`, and `.Arcs.cs`, with the tests
 `MarkBuilderPathTests.cs`, `MarkBuilderOrderTests.cs`, `MarkBuilderOverlayTests.cs`, `MarkBuilderTextTests.cs`,
 `MarkBuilderArcTests.cs`, and `MarkBuilderPolarTextTests.cs`), and the painting of the segment paths, arcs, and trails
-is in `ScenePainter.Paths.cs`, a partial file of the `ScenePainter` unit (with `ScenePainterPathTests.cs`). The attribution
+is in `ScenePainter.Paths.cs`, a partial file of the `ScenePainter` unit (with `ScenePainterPathTests.cs`). The
+attribution
 record and license texts of the ported algorithms are in `src/DemaConsulting.CanvasNet.VegaLite/third-party/`.
 
 ## References

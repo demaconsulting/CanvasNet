@@ -45,6 +45,8 @@ constituent software items, specifically:
   `TrueTypeFont` and `SystemFontCatalog`
 - **Files (Subsystem)** — Sandboxed file access: the `SandboxedFileResolver` unit and its supporting
   `SandboxOptions`, `SandboxedFile`, `SandboxException`, and `SandboxFailureKind` types
+- **ImageSources (Subsystem)** — Linked-picture support: the `ImageSourceContract`, `FolderImageResolver`, and
+  `RasterImageSource` units and their supporting types
 - **CanvasNetSvg (System)** — A separate, independently-distributed software system providing
   SVG (Scalable Vector Graphics) rasterization, containing a single unit, `SvgCodec` — see
   _CanvasNetSvg System Verification_ (`canvas-net-svg.md`)
@@ -88,16 +90,22 @@ constituent software items, specifically:
   `ExpressionParser`, `ExpressionEvaluator`, and `ExpressionFunctions`, the supported subset of the Vega expression
   language), `Transforms` (units `RowTransforms`, the row transforms `calculate`, `filter`, `fold`, `flatten`, `sample`,
   `pivot`, and `lookup` and the static parameters; `AggregateTransforms`, the grouped transforms `aggregate`,
-  `joinaggregate`, `window`, `bin`, `stack`, and `impute`; `EncodingPlan`, the implicit bin, time unit, aggregate, impute,
+  `joinaggregate`, `window`, `bin`, `stack`, and `impute`; `EncodingPlan`, the implicit bin, time unit, aggregate,
+  impute,
   and stack of the encoding; and `TimeUnitTransform`, the `timeUnit` transform and the start and end of the time unit
   of a
   date), `Scales` (units `ScaleModel`, `ScaleResolver`, `Ticks`,
   `NumberFormat`, `ColorSchemes`, and `ColorInterpolator`), `Guides` (units `TextMeasurer`, `TitleBuilder`,
   `AxisBuilder`, `LabelOverlap`, `LegendBuilder`, and `TimeLabels`), `Layout` (units `ViewLayout` and `LegendLayout`),
   `Marks` (units `MarkBuilder`, the bar, rect, symbol, rule, tick, line, area, trail, text, and arc marks, and
-  `CurveBuilder`, the d3-shape curves), and `Scenegraph` (units `SceneModel`, `ScenePainter`, `ArcGeometry`, the d3-shape
+  `CurveBuilder`, the d3-shape curves), and `Scenegraph` (units `SceneModel`, `ScenePainter`, `ArcGeometry`, the
+  d3-shape
   arc, and `CssPaint`) —
   see _CanvasNetVegaLite System Verification_ (`canvas-net-vega-lite.md`)
+- **CanvasNetViewer (System)** — A separate software system, distributed as the `DemaConsulting.CanvasNet.Viewer`
+  package, that lists the image sources of every format, creates the image resolver that lets an SVG document embed
+  them, and renders any file as a picture, containing a single direct unit, `CanvasNetViewer` (with
+  `ViewerRenderOptions` and `ViewerImage`) — see _CanvasNetViewer System Verification_ (`canvas-net-viewer.md`)
 - **CanvasNetTool (System)** — A separate software system shipped as the `DemaConsulting.CanvasNet.Tool` dotnet
   tool package (command `canvasnet`), containing six direct units, `Program`, `Context`, `ArgumentReader`,
   `ResultWriter`, `Validation`, and `PathHelpers`, a `Commands` subsystem with the `CommandRegistry`,
@@ -148,7 +156,8 @@ For example, the unit `ScaleResolver` of the `Scales` subsystem of the CanvasNet
 `docs/design/canvas-net-vega-lite/scales/scale-resolver.md`, this verification design
 `docs/verification/canvas-net-vega-lite/scales/scale-resolver.md`, the source
 `src/DemaConsulting.CanvasNet.VegaLite/Scales/ScaleResolver.cs`, and the tests
-`test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverTests.cs`. The system-level tests of that system are in
+`test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverTests.cs`. The system-level tests of that system are
+in
 `VegaLiteSystemIntegrationTests.cs` and `VegaLiteChartIntegrationTests.cs` in the root of its test project (with
 `VegaLiteAggregationIntegrationTests.cs`, `VegaLiteTimeIntegrationTests.cs`, `VegaLiteLineAreaIntegrationTests.cs`, and
 `VegaLiteArcTextIntegrationTests.cs`), and its
@@ -172,7 +181,8 @@ subsystems follow the same pattern, for example the verification design
 `test/DemaConsulting.CanvasNet.VegaLite.Tests/Expressions/ExpressionParserTests.cs` and
 `test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/RowTransformsTests.cs`; the units `AggregateTransforms` and
 `EncodingPlan` of the same subsystem have the verification designs `transforms/aggregate-transforms.md` and
-`transforms/encoding-plan.md` and the tests `Transforms/AggregateTransformsTests.cs` (with its companion test classes for
+`transforms/encoding-plan.md` and the tests `Transforms/AggregateTransformsTests.cs` (with its companion test classes
+for
 the measures, the bin algorithm, and the window, stack, impute, and joinaggregate transforms) and
 `Transforms/EncodingPlanTests.cs` (with `Transforms/EncodingTransformsTests.cs`); the unit `TimeUnitTransform` has the
 verification design `transforms/time-unit-transform.md` and the tests `Transforms/TimeUnitTransformTests.cs` and
@@ -183,7 +193,8 @@ arc marks follow the same pattern: `CurveBuilder` of the `Marks` subsystem has t
 `Marks/CurveBuilderAreaTests.cs`, `ArcGeometry` of the `Scenegraph` subsystem has `scenegraph/arc-geometry.md` and
 `Scenegraph/ArcGeometryTests.cs`, and the existing units `MarkBuilder` and `ScenePainter` have the new test classes
 `Marks/MarkBuilder{Path,Order,Overlay,Text,Arc,PolarText}Tests.cs` and `Scenegraph/ScenePainterPathTests.cs`, with the
-expected values of all of them derived by hand and the helper `Marks/PathText.cs`; the expression tests share the helpers
+expected values of all of them derived by hand and the helper `Marks/PathText.cs`; the expression tests share the
+helpers
 in `test/DemaConsulting.CanvasNet.VegaLite.Tests/Expressions/ExpressionTestSupport.cs`, and the composite values of the
 expression engine are tested in `test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataCompositeValueTests.cs`. Only
 original fixtures are used: no Vega-Lite example, gallery chart, documentation snippet, or `vega-datasets` data set is

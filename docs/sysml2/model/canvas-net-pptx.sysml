@@ -19,5 +19,6 @@ package CanvasNet {
         dependency usesSvg from CanvasNetPptxSystem to CanvasNetSvgSystem;
         dependency usesPackaging from CanvasNetPptxSystem to Packaging;
         dependency usesRendering from CanvasNetPptxSystem to Rendering;
+        dependency usesImageSources from CanvasNetPptxSystem to ImageSources;
     }
 }

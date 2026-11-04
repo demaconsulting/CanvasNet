@@ -320,7 +320,8 @@ is the one of the font's classic `kern` table; the size is the ink height of `H`
 vertical text stacks upright characters by their advance width (a tall letter can touch the next one; raise `spacing`
 to separate them); a character the font does not map is taken from the bundled Noto Sans, Noto Sans Math, or Noto
 Sans Symbols 2 (so `∝`, `≫`, arrows, and mathematical operators are drawn; only these bundled fonts are used, never an
-installed one, so the result does not depend on the machine; the glyph is scaled so that `size` keeps its meaning, in the
+installed one, so the result does not depend on the machine; the glyph is scaled so that `size` keeps its meaning, in
+the
 regular style, with no kerning between glyphs of different fonts); a character that no bundled font covers (a
 private-use or CJK character, for example) is drawn with the font's `.notdef` glyph, or skipped when that glyph has no
 outline, and **one warning per `text()`** lists up to eight of those code points as `U+XXXX`;
@@ -550,6 +551,24 @@ recursive program may need a dedicated 384 MiB-stack thread (address space, comm
 the process cannot provide it, such as a 32-bit process, `Evaluate` throws a `ScadEvaluationException` (and
 `Parse` a `ScadSyntaxException` for the corresponding 16 MiB parser thread) instead of a runtime
 out-of-memory error.
+
+### Using As An Embedded Image
+
+`ScadImageSource` is the image source of this package for `.scad` files. With it a document that links to a model (an
+SVG `<image href="part.scad" .../>`, for example) draws the model through a `FolderImageResolver` of the core package
+(or `CanvasNetViewer.CreateImageResolver` of the Viewer package, which lists it with the other sources). The model is
+drawn from the default isometric view with an orthographic projection, at the size of its placement (800 by 800 pixels
+when no size is requested), over a transparent background so the document shows through; its `include` and `use` files
+are looked up in the folder of the file and nowhere else, and a missing one is reported as a `scad-warning` note.
+Warnings and unsupported features of the model are returned as notes of the source `scad`, and its `echo` output as
+printed text. Set `FolderImageResolverOptions.ThrowOnUnsupportedFeature` to fail on an unsupported feature instead.
+
+```csharp
+// An SVG document that links to files of this kind, drawn through the resolver
+var resolver = new FolderImageResolver("assets", [new RasterImageSource(), new ScadImageSource()]);
+var options = new SvgLoadOptions { ImageResolver = resolver };
+using var surface = SvgCodec.Load("assets/diagram.svg", 800, 600, fonts: null, options);
+```
 
 ## Examples
 

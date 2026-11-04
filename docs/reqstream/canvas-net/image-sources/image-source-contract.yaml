@@ -1,0 +1,101 @@
+---
+# cspell:ignore embedder
+# Software Unit Requirements for ImageSourceContract
+#
+# These requirements describe the design-level behavior of the ImageSourceContract unit of the ImageSources subsystem
+# (namespace DemaConsulting.CanvasNet.ImageSources): the public types that let any application plug a format or a
+# live source into the resolver - IImageSource, ImageSourceRequest, ImageSourceResult, ImageSourceDiagnostic,
+# ImageDiagnosticSeverity, IImageResolver, EmbeddedImage, ImageSourceException, and the ImageSourceSet that composes
+# sources and applies the precedence rule. Each "tests" entry cites an existing test method in the
+# DemaConsulting.CanvasNet.Tests project; see docs/verification/canvas-net/image-sources/image-source-contract.md for
+# the test-evidence mapping.
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: ImageSources Requirements
+        sections:
+          - title: ImageSourceContract Requirements
+            requirements:
+              - id: CanvasNet-ImageSources-ImageSourceContract-SourceClaims
+                title: >-
+                  The ImageSourceSet class shall hold an ordered, immutable list of sources, validate what each source
+                  claims when the set is built (extensions that are a dot followed by a name without separators;
+                  schemes of two or more characters made of letters, digits, plus, minus and dot that start with a
+                  letter; never the reserved schemes file and data; no null list, null source, or unnamed source),
+                  record every claim in lower case, let the later source win when several claim the same extension or
+                  scheme, find the source of a file name by its longest claimed suffix ignoring case and folders, find
+                  the source of a scheme ignoring case, list all claimed extensions and schemes sorted without
+                  duplicates, and return a new set from Add without changing the original.
+                justification: |
+                  A bad claim must fail where the set is composed, with the name of the source in the message; the
+                  precedence rule is what lets an application override a built-in format; and an immutable set can be
+                  shared by any number of resolvers.
+                tests:
+                  - ImageSourceSet_Constructor_SameClaims_LaterSourceWins
+                  - ImageSourceSet_Add_ReturnsNewSetAndLeavesOriginalUnchanged
+                  - ImageSourceSet_FindByExtension_LongestSuffixCaseInsensitive
+                  - ImageSourceSet_FindByScheme_CaseInsensitive
+                  - ImageSourceSet_Constructor_InvalidExtension_ThrowsArgumentException
+                  - ImageSourceSet_Constructor_InvalidSources_Throw
+                  - ImageSourceSet_GetScheme_FollowsRfc3986WithDriveLetterException
+
+              - id: CanvasNet-ImageSources-ImageSourceContract-Request
+                title: >-
+                  The ImageSourceRequest class shall carry the link as written; for a file-based request the bytes of
+                  the file, its name relative to the folder of the resolver, and the full path of its folder; for a
+                  scheme-claimed request no bytes, no name and no folder; the requested size, the resolver scoped to
+                  the request, the strictness switch, and a cancellation token; and shall open the bytes as a
+                  read-only seekable stream, failing with InvalidOperationException when the request has no file.
+                  The request shall also carry the pixels the resolver has already charged for it (ReservedPixels, the
+                  requested size) and the budget still free after that charge (RemainingPixels, unlimited when built
+                  by hand), and check a size against them with EnsureWithinBudget, which throws
+                  ImageSourceBudgetException (carrying the requested pixels and the most the source could have used)
+                  before anything is allocated when the pixels beyond the reserved ones do not fit.
+                justification: |
+                  A source implemented outside this repository can only be correct if the request says exactly what it
+                  holds in each case, and a scheme-claimed source must not be handed a file it cannot have; a defined
+                  budget and refusal let every source, in or outside this repository, respect the pixel limit.
+                tests:
+                  - ImageSourceRequest_OpenContent_FileRequest_ReturnsReadOnlySeekableStream
+                  - ImageSourceRequest_OpenContent_SchemeRequest_ThrowsInvalidOperationException
+                  - ImageSourceRequest_EnsureWithinBudget_ThrowsOnlyWhenOverRemainingPixels
+                  - ImageSourceRequest_EnsureWithinBudget_ReservedPixelsAreAlreadyCharged
+
+              - id: CanvasNet-ImageSources-ImageSourceContract-SizeRule
+                title: >-
+                  The ImageSourceRequest class shall turn the natural size of a picture and the requested size into
+                  the size to draw at: the natural size when nothing is requested, the requested dimension and the
+                  other one in the aspect ratio of the picture when one is requested, the requested box (or, when
+                  asked to fit inside, the largest size of the aspect ratio of the picture inside the box) when both
+                  are requested, a requested dimension below one pixel as one pixel, every result limited to 1 through
+                  the maximum surface dimension, and shall reject a natural size below one pixel.
+                justification: |
+                  Every source that draws vectors needs the same rule, and getting it wrong distorts or blurs the
+                  picture.
+                tests:
+                  - ImageSourceRequest_SizeFor_AppliesSizingRule
+                  - ImageSourceRequest_SizeFor_InvalidOrHugeNaturalSize_ThrowsOrClamps
+
+              - id: CanvasNet-ImageSources-ImageSourceContract-Result
+                title: >-
+                  The ImageSourceResult record shall require a picture, carry the notes (each with source, severity,
+                  code and message), the printed text, and an optional format name, default the notes and the text to
+                  empty, and the EmbeddedImage record shall describe a loaded image by link, format, size and depth.
+                justification: |
+                  The result is how a source reports everything besides the picture; a missing picture must fail at
+                  once and the defaults keep simple sources simple.
+                tests:
+                  - ImageSourceResult_Constructor_RequiresSurfaceAndDefaultsToEmpty
+                  - ImageSourceContract_ValueTypes_HaveDocumentedShape
+
+              - id: CanvasNet-ImageSources-ImageSourceContract-FailureReporting
+                title: >-
+                  The ImageSourceException class shall carry the link that was being loaded, the file that contains
+                  the link (none for the top-level document), and the original failure of the source as its inner
+                  exception.
+                justification: |
+                  A caller maps the original failure to its own error and uses the link and the embedding file to say
+                  which files are involved.
+                tests:
+                  - ImageSourceException_Constructor_KeepsHrefEmbedderAndInner

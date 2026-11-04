@@ -3,6 +3,7 @@ using System.Text;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Fonts;
+using DemaConsulting.CanvasNet.ImageSources;
 using DemaConsulting.CanvasNet.Svg;
 using DemaConsulting.CanvasNet.Tests.TestSupport;
 
@@ -17,6 +18,19 @@ namespace DemaConsulting.CanvasNet.Svg.Tests;
 /// </summary>
 public class SvgSystemIntegrationTests
 {
+    /// <summary>
+    ///     An <see cref="IImageResolver"/> that calls a delegate with what it was asked for.
+    /// </summary>
+    /// <param name="Handler">The delegate, given the link and the placement size in device pixels.</param>
+    private sealed record RecordingResolver(Func<string, int, int, Surface?> Handler) : IImageResolver
+    {
+        /// <inheritdoc />
+        public Surface? Resolve(string href, int pixelWidth, int pixelHeight)
+        {
+            return Handler(href, pixelWidth, pixelHeight);
+        }
+    }
+
     /// <summary>Wraps <paramref name="svg"/> as a UTF-8 stream for <see cref="SvgCodec"/> to read.</summary>
     private static MemoryStream ToStream(string svg) => new(Encoding.UTF8.GetBytes(svg));
 
@@ -308,6 +322,39 @@ public class SvgSystemIntegrationTests
         Assert.Equal(new Rgba32(0, 0, 255, 255), surface[50, 50]);
         // Assert: outside the placement rect, nothing was painted
         Assert.Equal(0, surface[10, 10].A);
+    }
+
+    /// <summary>
+    ///     Proves that the system draws an external <c>image</c> reference through the opt-in
+    ///     <see cref="SvgLoadOptions.ImageResolver"/> resolver of the public API, with the placement
+    ///     size in device pixels, and that the resolver is the only way a reference is resolved.
+    /// </summary>
+    [Fact]
+    public void CanvasNetSvg_SystemIntegration_SvgImageResolver_RendersResolvedImage()
+    {
+        // Arrange: an external reference placed at (20,20) with a 60x60 placement rect, drawn at twice the size
+        const string svg = "<svg viewBox='0 0 100 100'><image href='diagram/part.png' x='20' y='20' width='60' height='60'/></svg>";
+        (string Href, int Width, int Height)? seen = null;
+        var options = new SvgLoadOptions
+        {
+            ImageResolver = new RecordingResolver((href, width, height) =>
+            {
+                seen = (href, width, height);
+                return BuildSolidSurface(2, 2, new Rgba32(0, 0, 255, 255));
+            })
+        };
+
+        // Act: once with the resolver and once without options
+        using var stream = ToStream(svg);
+        var resolved = SvgCodec.LoadWithFontFaces(stream, 200, 200, null, options);
+        using var plainStream = ToStream(svg);
+        var plain = SvgCodec.Load(plainStream, 200, 200);
+
+        // Assert: the resolver saw the raw href and the device size, the picture is drawn, and without the
+        // resolver the same document draws nothing
+        Assert.Equal(("diagram/part.png", 120, 120), seen);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), resolved[100, 100]);
+        Assert.Equal(0, plain[100, 100].A);
     }
 
     /// <summary>

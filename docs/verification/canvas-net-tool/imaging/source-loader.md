@@ -376,6 +376,50 @@ light green; scale, width, height, and exact sizes render at that size (the draw
 when the aspect ratio is kept); a transparent background keeps alpha and a given color replaces white; the
 operations list says what happened.
 
+**SourceLoader_Load_SvgEmbeddingPng_DrawsPictureAndListsEmbedOperation**,
+**SourceLoader_Load_SvgEmbeddingScad_DrawsModelOverTransparentBackground**,
+**SourceLoader_Load_SvgEmbeddingVegaLite_KeepsChartBackgroundOpaque**,
+**SourceLoader_Load_SvgEmbeddingNestedSvg_ListsOnlyTheOuterEmbedOperation**, and
+**SourceLoader_Load_SvgEmbeddingByFileName_DrawsListedTypesAndSkipsOthers** (`SourceLoaderSvgImageTests.cs`; each test
+writes the files beside a 40 by 40 red SVG in a temporary folder): a green PNG is drawn in its placement with red
+around it, no notes, and one `embed` operation (`href`, `format` `png`, and its natural width of 4); the model fixture is
+drawn at the size of its placement (80 pixels at `--scale 2`) with the red diagram at the corner (a transparent
+background); the chart fixture is opaque white in its placement, red below it, and drawn at the size of the
+placement; `sub/inner.svg` draws `sub/img.png` although the outer folder has no such file, and only the outer
+`sub/inner.svg` is an `embed` operation (the picture it embeds is not listed); a PDF named `.pdf` and a chart named
+`.vl.json` are drawn (formats `pdf` and `vega-lite`) while the same contents named `.bin` and `.json` are two
+`svg-image-unresolved` warnings (the type is decided by the file name).
+
+**SourceLoader_Load_SvgEmbeddingEscapingReference_IsUnresolvedWarning** (three references: `../`, a drive letter, and an
+`https` URL, with a valid picture one folder above the SVG; the many forms of escape are tested in the core
+`FolderImageResolver` tests),
+**SourceLoader_Load_SvgEmbeddingSymbolicLink_IsUnresolvedWarning** (skipped when a link cannot be created), and
+**SourceLoader_Load_SvgEmbeddingMissingAndUnknownFiles_AreWarnings**: each escaping reference is the one
+`svg-image-unresolved` warning (source `svg`, severity `warning`) naming the reference, nothing is drawn, and there
+is no `embed` operation; a link is refused (the one coverage of the symbolic-link sandbox at tool level); a missing
+file and a text file are two warnings. The sandbox, the dispatch, the cycle, depth, and count limits, and the file URI
+rules are verified by the `ImageSources` subsystem tests and the Viewer tests.
+
+**SourceLoader_Load_SvgEmbeddingTooLargePicture_IsWarningThenStrictError**: a 33-byte PNG that only declares 9000 by 9000
+pixels in a 10 by 10 placement is the one warning `svg-image-too-large` (source `svg`, severity `warning`), not an
+`svg-image-unresolved` warning, with the diagram unchanged; with strict mode it is an `unsupported-feature` error with
+the message `'diagram.svg' embeds 'huge.png', which was not drawn: ...` and a hint naming `svg-image-too-large`.
+
+**SourceLoader_Load_SvgEmbeddingModelWithNotes_MergesDiagnosticsAndEcho**,
+**SourceLoader_Load_SvgEmbeddingStrict_UnresolvedAndUnsupportedAreErrors**,
+**SourceLoader_Load_SvgEmbeddingBrokenFile_FailsWithItsCodeNamingBothFiles**,
+**SourceLoader_Load_SvgEmbeddingBrokenFileInNestedSvg_NamesTheNestedFile**,
+**SourceLoader_Load_SvgEmbeddingOuterOptions_DoNotReachEmbeddedFiles**, and
+**SourceLoader_Load_SvgWithoutEmbeddedFiles_ReportsNothingExtra**: a model that echoes and uses `offset` gives an
+`unsupported` note from `scad` whose message starts with `part.scad:` and keeps the echo line; with strict mode a
+missing reference and the unsupported feature are `unsupported-feature` errors (the first with the message
+`'missing.svg' embeds 'nothing.png', which was not drawn: ...` and the hint naming the code) while an SVG file without
+references is unchanged; a truncated PNG, a model with a syntax error, and a chart with a missing data file are errors with
+`corrupt-input`, `scad-error`, and `vega-lite-error` whose messages name both `diagram.svg` and the embedded file; a
+model with a syntax error inside `inner.svg`, which `outer.svg` embeds, names `'inner.svg' embeds 'bad.scad'`; a
+scale of 3 and an unknown view name do not reach the embedded files (the raster keeps 4 pixels, the model is drawn at
+30 pixels without a `usage-error`); the SVG fixture with strict mode has no notes, no echo, and no `embed` operation.
+
 **SourceLoader_ComputeTargetSize_SizeOptions_FollowsPolicy** and
 **SourceLoader_Load_RasterWithWidth_ResizesKeepingAspectRatio**: the size policy for none, scale, width, height, and
 both, with rounding and the one-pixel minimum; a raster is resized and the operation recorded.

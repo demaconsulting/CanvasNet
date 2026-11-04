@@ -1,0 +1,267 @@
+---
+# cspell:ignore embedder
+# Software Unit Requirements for FolderImageResolver
+#
+# These requirements describe the design-level behavior of the FolderImageResolver unit of the ImageSources subsystem
+# (namespace DemaConsulting.CanvasNet.ImageSources): the resolver that loads the pictures a document links to from
+# one folder, safely, through pluggable sources, together with its FolderImageResolverOptions. Each "tests" entry
+# cites an existing test method in the DemaConsulting.CanvasNet.Tests project; see
+# docs/verification/canvas-net/image-sources/folder-image-resolver.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: ImageSources Requirements
+        sections:
+          - title: FolderImageResolver Requirements
+            requirements:
+              - id: CanvasNet-ImageSources-FolderImageResolver-Confinement
+                title: >-
+                  The FolderImageResolver class shall resolve a link without a URI scheme as a path relative to the
+                  folder it was created with (relative to the folder of the embedding file for a link inside an
+                  embedded file) through the sandbox, and shall report as an unresolved warning, without reading the
+                  file and without calling a source, a link that is absolute, a drive or UNC path, an alternate data
+                  stream, contains a control character, leaves the folder (also percent-encoded), reaches a file
+                  through a symbolic link, or names a file that does not exist.
+                justification: |
+                  A link comes from an untrusted document; no spelling of a path may read a file outside the folder.
+                tests:
+                  - FolderImageResolver_Resolve_RelativeFile_PassesCompleteRequestToSource
+                  - FolderImageResolver_Resolve_EscapingReference_IsUnresolvedWarning
+                  - FolderImageResolver_Resolve_SymbolicLink_IsUnresolvedWarning
+                  - FolderImageResolver_Resolve_MissingAndUnknownFiles_AreWarnings
+
+              - id: CanvasNet-ImageSources-FolderImageResolver-FileUri
+                title: >-
+                  The FolderImageResolver class shall accept a file: URI only when it names a file inside the folder
+                  (a URI with a host, a URI outside the folder, and a malformed URI are unresolved warnings), shall
+                  treat the file scheme as a path inside the folder even when sources claim schemes, and shall decode
+                  percent-encoded characters of a relative path.
+                justification: |
+                  Documents written by tools use file: URIs and percent-encoded names; they must work inside the
+                  folder and must not become a way out of it.
+                tests:
+                  - FolderImageResolver_Resolve_FileUriAndEncodedPath_InsideFolderIsDrawnOutsideIsNot
+                  - FolderImageResolver_Resolve_FileUriWithControlCharacter_IsUnresolvedWarning
+                  - FolderImageResolver_Resolve_FileScheme_IsHandledByResolverNotSources
+
+              - id: CanvasNet-ImageSources-FolderImageResolver-UriReference
+                title: >-
+                  The FolderImageResolver class shall read a link without a URI scheme, and a file: URI, as a URI
+                  reference: it shall cut off the query (from the first question mark) and the fragment (from the
+                  first number sign) before it decodes percent-encoding, so that an encoded %23 or %3F stays a literal
+                  character of the file name; shall choose the source by the extension of what is left and resolve it
+                  through the sandbox with every refusal unchanged; shall report a link that is nothing but a query or
+                  a fragment as an unresolved warning; shall hand the source the link as written; and shall hand a
+                  link of a claimed scheme to its source as written, without cutting anything off.
+                justification: |
+                  Documents link files with cache-busting queries and fragments (image.png?v=2, part.scad#view); the
+                  order of stripping and decoding is what keeps an encoded character from changing the path and keeps
+                  every escape of the folder refused.
+                tests:
+                  - FolderImageResolver_Resolve_RelativeLinkWithQueryOrFragment_NamesTheFile
+                  - FolderImageResolver_Resolve_EncodedHash_IsLiteralCharacterOfTheFileName
+                  - FolderImageResolver_Resolve_EncodedQuestionMark_IsLiteralCharacterNotAQuery
+                  - FolderImageResolver_Resolve_FileUriWithQueryAndFragment_NamesTheFile
+                  - FolderImageResolver_Resolve_FileUriOutsideFolderWithQuery_IsStillUnresolved
+                  - FolderImageResolver_Resolve_OnlyQueryOrFragment_IsUnresolved
+                  - FolderImageResolver_Resolve_EscapingReferenceWithQueryOrFragment_IsStillUnresolved
+                  - FolderImageResolver_Resolve_SchemeLinkWithQueryAndFragment_IsPassedAsIs
+                  - FolderImageResolver_Resolve_UnclaimedSchemeWithQuery_IsUnresolved
+                  - FolderImageResolver_Resolve_NestedLinkWithQueryAndFragment_ResolvesFromFolderOfEmbeddingFile
+              - id: CanvasNet-ImageSources-FolderImageResolver-Dispatch
+                title: >-
+                  The FolderImageResolver class shall choose the source of a file by the longest claimed extension of
+                  its name, ignoring case (so a compound extension beats its last part), check the extension before
+                  any file is read, report a file whose extension nobody claims as an unresolved warning that lists
+                  the extensions that are claimed, and hand the source the file's bytes, its name relative to the
+                  folder, the full path of its folder, the requested size, the scoped resolver, the strictness switch,
+                  and the cancellation token.
+                justification: |
+                  The format of a file is decided by its name, so a file nobody can draw is never read and a source
+                  receives everything it needs.
+                tests:
+                  - FolderImageResolver_Resolve_RelativeFile_PassesCompleteRequestToSource
+                  - FolderImageResolver_Resolve_LongestSuffixAndCaseInsensitive_PicksSource
+                  - FolderImageResolver_Resolve_MissingAndUnknownFiles_AreWarnings
+
+              - id: CanvasNet-ImageSources-FolderImageResolver-Precedence
+                title: >-
+                  The FolderImageResolver class shall let the later source of the sequence it is given win when
+                  several sources claim the same extension or scheme, use an ImageSourceSet it is given as it is, and
+                  accept any sequence of sources.
+                justification: |
+                  A source that an application lists after the built-in ones overrides a built-in format without any
+                  global state.
+                tests:
+                  - FolderImageResolver_Resolve_TwoSourcesClaimExtension_LaterWins
+                  - FolderImageResolver_Resolve_ImageSourceSetWithAddedSource_OverridesEarlierSource
+
+              - id: CanvasNet-ImageSources-FolderImageResolver-Schemes
+                title: >-
+                  The FolderImageResolver class shall hand a link whose URI scheme a source claims (RFC 3986 syntax; a
+                  single letter is a drive, not a scheme) to that source exactly as written, in the case it was
+                  written, with no content, no file name and no folder, without any file access and without a folder;
+                  shall leave a link whose scheme nobody claims, including http and https for the built-in sources, as
+                  an unresolved warning; shall leave every link without a scheme unresolved when the resolver has no
+                  folder; and shall reject at construction a source that claims the schemes file or data, a single
+                  letter, or a malformed scheme.
+                justification: |
+                  A source for a live or remote picture owns access and security for its own scheme; everything else
+                  stays closed by default, so a network URL is never fetched unless an application says so.
+                tests:
+                  - FolderImageResolver_Resolve_ClaimedScheme_GivesSourceRawHrefWithoutFileAccess
+                  - FolderImageResolver_Resolve_NoFolder_FilesAreUnresolvedButSchemesWork
+                  - FolderImageResolver_Resolve_HttpAndHttps_UnresolvedByDefaultButClaimable
+                  - FolderImageResolver_Resolve_UnclaimedScheme_IsUnresolvedWarning
+                  - FolderImageResolver_Constructor_InvalidOrReservedScheme_ThrowsArgumentException
+
+              - id: CanvasNet-ImageSources-FolderImageResolver-NestedScope
+                title: >-
+                  The FolderImageResolver class shall give each source a resolver scoped to its own request, so that a
+                  relative link of an embedded file resolves against the folder of that file, a relative link of a
+                  scheme-claimed picture resolves against the folder of the resolver, and the limits and the lists of
+                  the whole render are shared by every level.
+                justification: |
+                  A source that draws a document with links of its own (an SVG file) can recurse correctly without
+                  holding any state.
+                tests:
+                  - FolderImageResolver_Resolve_NestedRelativeLink_ResolvesFromFolderOfEmbeddingFile
+                  - FolderImageResolver_Resolve_ClaimedSchemeNestedRelativeLink_ResolvesFromRootFolder
+
+              - id: CanvasNet-ImageSources-FolderImageResolver-Limits
+                title: >-
+                  The FolderImageResolver class shall stop a file that embeds itself directly or through other files
+                  (a cycle, found before the depth), refuse to nest more than the configured number of levels (four
+                  by default) and to load more than the configured number of images in total (64 by default, counting
+                  every call that reaches a source, including repeated links and scheme-claimed pictures), and report
+                  each as an unresolved warning while the render carries on.
+                justification: |
+                  A document tree can embed itself or fan out; the limits bound the work of one render.
+                tests:
+                  - FolderImageResolver_Resolve_Cycles_TerminateWithWarning
+                  - FolderImageResolver_Resolve_TooDeep_TerminatesWithWarning
+                  - FolderImageResolver_Resolve_TooMany_StopsAtLimitWithWarnings
+                  - FolderImageResolver_Resolve_ClaimedSchemeCycleAndDepth_AreWarnings
+                  - FolderImageResolver_Resolve_ClaimedSchemeLinks_CountAgainstImageLimit
+
+              - id: CanvasNet-ImageSources-FolderImageResolver-PixelBudget
+                title: >-
+                  The FolderImageResolver class shall limit the pixels one resolver lets its sources allocate in total
+                  (FolderImageResolverOptions.MaxDecodedPixels, 64,000,000 by default; a negative value is rejected):
+                  it shall clamp the requested size of every link to 1 through the maximum surface dimension per side
+                  and refuse, before it calls a source, a link whose requested size does not fit in what is left; shall
+                  charge the requested size before the call (giving the source that charge as
+                  ImageSourceRequest.ReservedPixels and what was left after it as ImageSourceRequest.RemainingPixels),
+                  and charge the larger of the requested and the returned size after it, for every level of nesting,
+                  giving back the charge of a source that refused; shall discard
+                  and dispose a returned surface that does not fit; shall report each refusal as a warning with the
+                  code svg-image-too-large (and not as an exception, and not as a loaded image); shall throw
+                  ImageSourceBudgetException instead for a direct render; and shall expose the part of the budget not
+                  yet charged as RemainingPixels.
+                justification: |
+                  A small placement can ask for a huge picture (an 8192 by 8192 raster in a 1 by 1 rectangle would
+                  allocate 256 MiB, again for every link); a budget that is charged before allocation and shared by
+                  every source bounds the memory and time one render can cause, and a defined refusal lets a source
+                  outside this repository respect it.
+                tests:
+                  - FolderImageResolver_Resolve_HugeRasterAtTinyPlacement_IsRefusedBeforeDecoding
+                  - FolderImageResolver_Resolve_ManyRasters_ExhaustBudgetAndLaterOnesAreRefused
+                  - FolderImageResolver_Resolve_SourceReturnsMoreThanReserved_IsChargedAndRefusedWhenOverBudget
+                  - FolderImageResolver_Resolve_SourceReturnsMoreThanRequested_ReducesRemainingPixelsByReturnedSize
+                  - FolderImageResolver_Resolve_SourceRefusesBeforeDrawing_IsWarningAndNotCharged
+                  - FolderImageResolver_Resolve_PlacementLargerThanBudget_IsRefusedWithoutCallingSource
+                  - FolderImageResolver_Resolve_RequestedSize_IsClampedPerSide
+                  - FolderImageResolver_Resolve_RefusedForBudget_DoesNotCountAsLoadedImage
+                  - FolderImageResolver_Resolve_NestedPictures_ShareTheBudget
+                  - FolderImageResolver_Render_OverBudget_ThrowsBudgetException
+                  - FolderImageResolver_Render_SourceReturnsTooMuch_ThrowsAndDiscardsSurface
+                  - FolderImageResolver_Constructor_MaxDecodedPixels_DefaultNegativeAndZero
+                  - FolderImageResolver_Resolve_NormalRaster_IsUnaffectedByTheBudget
+                  - FolderImageResolver_Resolve_RemainingPixelsAfterReservation_NestedAndLargerSurfaceShareLiveBudget
+                  - FolderImageResolver_Resolve_LargerSurfaceThatFitsAfterNestedPicture_IsAcceptedAndSpendsTheBudget
+                  - FolderImageResolver_Resolve_SourceDrawingAtRequestedSize_PassesEnsureWithinBudget
+                  - FolderImageResolver_RemainingPixels_StartsFullAndDecreasesAfterEmbed
+              - id: CanvasNet-ImageSources-FolderImageResolver-Cancellation
+                title: >-
+                  The FolderImageResolver class shall check the cancellation token before every image it renders and
+                  before every file it reads, pass it to every source, and let OperationCanceledException of the
+                  sandbox or a source pass through unchanged.
+                justification: |
+                  A caller must be able to abandon a render of many or slow pictures.
+                tests:
+                  - FolderImageResolver_Resolve_CanceledToken_ThrowsBeforeCallingSource
+                  - FolderImageResolver_Resolve_SourceThrowsCancellation_IsNotWrapped
+
+              - id: CanvasNet-ImageSources-FolderImageResolver-Diagnostics
+                title: >-
+                  The FolderImageResolver class shall collect, in render order, a warning with the code
+                  svg-image-unresolved naming the link and the reason for every link that was not drawn (and a warning
+                  with the code svg-image-too-large for every picture over the pixel budget), and the notes
+                  the sources return (with the embedding link and a colon in front of each message and the source,
+                  severity and code kept), collect the printed text of the sources, and list every image that was
+                  loaded with its link, format (the format the source reported or its name), size and depth.
+                justification: |
+                  When many files are embedded, every note must say where it came from, and a caller reports what was
+                  drawn.
+                tests:
+                  - FolderImageResolver_Resolve_SourceWithNotes_ForwardsDiagnosticsEchoAndEmbedded
+                  - FolderImageResolver_Resolve_EscapingReference_IsUnresolvedWarning
+                  - FolderImageResolver_Resolve_TooDeep_TerminatesWithWarning
+
+              - id: CanvasNet-ImageSources-FolderImageResolver-Failures
+                title: >-
+                  The FolderImageResolver class shall report a file that is found but cannot be drawn as an
+                  ImageSourceException that names the link and the embedding file (none at the top level), keeps the
+                  original failure as its inner exception, keeps the innermost link and embedder when the failure
+                  happened deeper, and shall not wrap cancellation.
+                justification: |
+                  A broken file is an error the author must fix, unlike a missing file; the caller needs both files and
+                  the original failure to say so.
+                tests:
+                  - FolderImageResolver_Resolve_SourceThrows_WrapsInImageSourceException
+                  - FolderImageResolver_Resolve_NestedSourceThrows_KeepsInnermostEmbedderAndHref
+                  - FolderImageResolver_Resolve_SourceThrowsCancellation_IsNotWrapped
+
+              - id: CanvasNet-ImageSources-FolderImageResolver-NoCaching
+                title: >-
+                  The FolderImageResolver class shall call the source again for every call that resolves a link,
+                  returning a new picture each time, and shall document that the counts and lists belong to one
+                  resolver, which serves one top-level render.
+                justification: |
+                  A live source, such as a video frame, must yield a fresh picture each time; per-render budgets need
+                  a new resolver per render.
+                tests:
+                  - FolderImageResolver_Resolve_SameLinkTwice_InvokesSourceEachTimeWithoutCaching
+
+              - id: CanvasNet-ImageSources-FolderImageResolver-DirectRender
+                title: >-
+                  The FolderImageResolver class shall draw a file of the folder by path, or a file given as a stream
+                  (read up to 16 MiB), as the top-level picture and return what the source returned with the format
+                  filled in, and shall fail with FileNotFoundException for a missing file, SandboxException for a
+                  refused path, NotSupportedException (naming the extensions) when no source claims the extension,
+                  ImageSourceException when the source fails, InvalidOperationException when there is no folder for a
+                  path, and InvalidDataException for an oversize stream.
+                justification: |
+                  A caller that renders one file wants the same sources, sandbox, and limits as embedding, with errors
+                  instead of warnings.
+                tests:
+                  - FolderImageResolver_RenderPath_File_ReturnsResultWithFormat
+                  - FolderImageResolver_RenderPath_SourceWithoutFormat_UsesSourceName
+                  - FolderImageResolver_RenderPath_Failures_ThrowSpecificExceptions
+                  - FolderImageResolver_RenderPath_FileLinkingItself_StopsAsCycle
+                  - FolderImageResolver_RenderStream_PassesBytesAndFolder_AndRejectsUnknownOrHuge
+                  - FolderImageResolver_RenderStream_NoFolder_SourceHasNoDirectory
+
+              - id: CanvasNet-ImageSources-FolderImageResolver-Configuration
+                title: >-
+                  The FolderImageResolver class shall list the extensions and schemes its sources claim, sorted and
+                  without duplicates, and shall reject a null sequence, an empty folder, a negative limit, and a
+                  source that makes an invalid claim, and a null link.
+                justification: |
+                  Misconfiguration must fail at once, and callers need the list of what can be embedded for messages
+                  and documentation.
+                tests:
+                  - FolderImageResolver_ExtensionsAndSchemes_AreSortedUnionOfSources
+                  - FolderImageResolver_Constructor_InvalidArguments_Throw
+                  - FolderImageResolver_Constructor_MaxDecodedPixels_DefaultNegativeAndZero

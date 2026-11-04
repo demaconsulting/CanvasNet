@@ -722,3 +722,17 @@ sections:
         tests:
           - ScadRenderSystem_Fixtures_RenderDeterministically
           - ScadRenderSystem_Fixtures_RenderWithoutWarnings
+
+      - id: CanvasNetScad-ImageSource
+        title: >-
+          The library shall provide an image source for .scad files, for the image resolver of the core package,
+          that draws the model from the default isometric viewpoint at the size its placement asks for over a
+          transparent background and reports the notes and printed text of the model.
+        tags: [system]
+        justification: |
+          A diagram that links to a model (an SVG image element, for example) needs the OpenSCAD renderer as one of
+          the pluggable sources of the shared image resolver.
+        children:
+          - CanvasNetScad-ScadDocument-ImageSource
+        tests:
+          - ScadImageSource_Render_RequestedSize_DrawsAtThatSize

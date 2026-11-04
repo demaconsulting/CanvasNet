@@ -1,6 +1,6 @@
 ### SourceLoader
 
-<!-- cspell:ignore canvasnet jpeg tiff jpeg2000 exif pptx vsdx scad letterboxed Visio EMU -->
+<!-- cspell:ignore canvasnet jpeg tiff jpeg2000 exif pptx vsdx scad letterboxed Visio EMU embedder -->
 
 ![Imaging Structure](ImagingView.svg)
 
@@ -12,7 +12,7 @@ size policy and the options that belong to reading (page, resolution, orientatio
 reports a bad file as an expected error. The unit consists of the static class `SourceLoader` (partial files
 `SourceLoader.cs`, `SourceLoader.Detect.cs`, `SourceLoader.Raster.cs`, `SourceLoader.Svg.cs`,
 `SourceLoader.Documents.cs`, `SourceLoader.Pdf.cs`, `SourceLoader.Pptx.cs`, `SourceLoader.Vsdx.cs`,
-`SourceLoader.Scad.cs`, and `SourceLoader.VegaLite.cs`),
+`SourceLoader.Scad.cs`, `SourceLoader.VegaLite.cs`, and `SourceLoader.SvgImages.cs`),
 and the supporting types in `SourceModels.cs`. The EXIF orientation is read by the core `JpegCodec.ReadExifOrientation`
 and applied by the core `Surface.ApplyExifOrientation`. The pixel helpers that used to be part of this unit
 (`FlattenOver`, `HasTransparency`, `FitInside`, and `FitInto`, with the `FitMode` enum) are methods of the core
@@ -70,6 +70,13 @@ what `OpenPages` returns.
 chart extension); the `formats` command lists the same extensions and a test keeps the two consistent. The two-part
 suffix of a chart, `.vl.json` (`VegaLiteJsonSuffix`), cannot be an extension (the extension of such a file is `.json`),
 so it is checked on the file name and the `formats` listing adds it to the extensions of the `vega-lite` row.
+
+The extensions an SVG `image` `href` may link are not a table of the tool: they are `CanvasNetViewer.Extensions`, the
+union of what the image sources of the core and format libraries claim (the raster extensions, `.svg`, `.pdf`,
+`.pptx`, `.vsdx`, `.scad`, `.vl`, and `.vl.json`; a plain `.json` is not linkable). The list is documented in the `svg`
+help topic, and a unit test compares it with the topic in both directions (and with the `formats` table). The
+resolver decides by the file name, not by the content, unlike `Detect`, which is what the tool's own commands use
+for the file they are given.
 
 #### Key Methods
 
@@ -131,10 +138,51 @@ refuses an image whose stored size exceeds the maximum, applies the EXIF orienta
 the orientation is 2 to 8, computes the target size from the *oriented* size, checks it against the maximum, all
 before decoding; then decodes, orients (`Surface.ApplyExifOrientation`), resizes when the size differs, and flattens over
 the background when one was given with some opacity. An *SVG* load (`LoadSvg`) computes the target size from the
-intrinsic size, checks it, renders with `SvgCodec.Load(path, width, height)`, and flattens over the background
+intrinsic size, checks it, renders with `SvgCodec.LoadWithFontFaces(path, width, height, null, options)` whose
+`SvgLoadOptions.ImageResolver` is the image resolver described below, and flattens over the background
 (white when none was given; none when the background has zero alpha). An SVG rendered at a size with another aspect
 ratio than the drawing is fitted by the SVG codec's rule (preserve the aspect ratio, centered), so the drawing is
-letterboxed.
+letterboxed. The notes, echo lines, and `embed` operations that the resolver collected are the diagnostics, echo,
+and operations of the loaded source.
+
+**SVG embedding** (`SourceLoader.SvgImages.cs`, the internal class `SvgImages`). The SVG library never reads a file
+for an `image` reference; it calls the `IImageResolver` of `SvgLoadOptions.ImageResolver`. For every SVG load the tool
+creates the resolver with `CanvasNetViewer.CreateImageResolver(folder, options)`, where the folder is the folder of the
+SVG file the user named (the sandbox root, the same rule as for `include` in a model and for the data files of a chart:
+there is no option for another folder) and `ThrowOnUnsupportedFeature` carries `--strict` to the sources. The whole of
+the embedding behavior belongs to the libraries: the sandbox, the extension dispatch, the sizes (a vector file at the
+size of the placement over a transparent background, a chart keeping its own background, a raster at its natural size),
+the nesting depth (4), the cycle check, the count limit (64), the diagnostics with the `href` in front, and the
+no-caching rule are specified and tested in the core `ImageSources` subsystem and the format packages. The tool has no
+plug-in mechanism: it never passes extra sources, so the supported types are exactly `CanvasNetViewer.Extensions`.
+
+`SvgImages` is the thin wiring around that resolver and keeps only the tool's own policy:
+
+- **Mapping.** After the render, `Notes()` maps each `ImageSourceDiagnostic` to an `ImageDiagnostic` (the severity
+  `Info`, `Warning`, and `Unsupported` become `info`, `warning`, and `unsupported`), the printed text becomes the echo,
+  and `Operations()` maps each `EmbeddedImage` with `Depth == 0` (a file the SVG file itself embeds; files that an
+  embedded SVG file embeds are not listed, as before) to an `embed` operation (`href`, `format`, `width`, `height`).
+  The outer sizing, page, resolution, and model options are not passed on: the resolver draws an embedded file from
+  its own defaults.
+- **Strict.** With `--strict`, `ThrowForUnresolved()` turns the first `svg-image-unresolved` or `svg-image-too-large`
+  diagnostic into a `ToolException` with code `unsupported-feature`, message
+  `'<svg>' embeds '<href>', which was not drawn: <reason>.` and the hint that without `--strict` the image is reported
+  as the warning with that code. The check runs after the render, so the surface
+  is disposed and the work of the rest of the picture is spent first.
+- **Errors.** A file that is found but cannot be drawn reaches the tool as an `ImageSourceException` (the resolver
+  wraps whatever the source threw; the original is the inner exception with its type intact). `Map` runs the inner
+  exception through the tool's `Read` allow-list, so every code is the one the same failure has when the file is
+  rendered alone (`corrupt-input`, `scad-error`, `vega-lite-error`, `unsupported-feature`, `budget-exceeded`), and
+  re-wraps it with the message `'<embedder>' embeds '<href>': <original message>`, where the embedder is the file
+  that contains the `href` (the SVG file itself, or the nested SVG file when the failure is deeper). An inner
+  exception that the allow-list does not map is a defect and is rethrown as itself.
+
+An unresolved reference is the warning `svg-image-unresolved` (source `svg`, message
+`image '<href>' was not drawn: <reason>`) and nothing is drawn; a picture that is too large for the pixel budget of the
+render (64 million pixels in all, charged by the resolver before anything is decoded) is the warning
+`svg-image-too-large` in the same form; in strict mode either is the `unsupported-feature` error
+above (the same rule as a skipped picture of a PPTX slide). A query or fragment after the file name of an `href` is not
+part of the name (the resolver cuts it off), and `KindOfName` ignores it when it words an error.
 
 A *document page* load (`DocumentPageSource`, shared by the PDF, PPTX, and VSDX page sources) sizes the page at
 the resolution (`options.Dpi`, 96 by default; a resolution that is not finite and greater than zero is
@@ -310,7 +358,11 @@ loader has no case for - which cannot happen while every kind of `SourceKind` is
 - **ToolException** and **ErrorCodes** - the expected-error contract.
 - **CanvasNet core library** - `Surface`, `Rgba32`, the PNG, JPEG, BMP, TIFF, GIF, and JPEG 2000 codecs, and
   `ImageFormats.Detect` (the shared signature recognizer behind `DetectSignature`).
-- **CanvasNet SVG system** - `SvgCodec` renders SVG and reports its intrinsic size.
+- **CanvasNet SVG system** - `SvgCodec` renders SVG and reports its intrinsic size; `SvgLoadOptions.ImageResolver` is
+  the hook through which an SVG file embeds other files.
+- **CanvasNet Viewer system** - `CanvasNetViewer.CreateImageResolver` creates the image resolver of an SVG render, and
+  `CanvasNetViewer.Extensions` is the list of the types an `image` may link. The core `ImageSources` subsystem supplies
+  the resolver, its diagnostics, the embedded images, and `ImageSourceException`.
 - **CanvasNet PDF, PPTX, and VSDX systems** - `PdfDocument`, `PptxDocument`, and `VsdxDocument` list and render the
   pages of a document, and report the features they cannot draw.
 - **CanvasNet SCAD and Render3D systems** - `ScadDocument` parses and draws a model, and

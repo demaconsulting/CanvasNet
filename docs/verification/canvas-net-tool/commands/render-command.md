@@ -210,6 +210,37 @@ mention the option and write nothing; the unknown view names the views in its hi
 PDF is a usage error that names the kind; page 2 of a model is `page-out-of-range`; a model with a syntax error is a
 `scad-error` that names the line and leaves no output.
 
+**RenderCommand_Run_SvgEmbeddingModelChartAndPicture_DrawsAllAndListsEmbeds** (`RenderCommandSvgEmbedTests.cs`): a
+120 by 80
+red diagram that embeds the model fixture, the chart fixture, and a green PNG beside it renders with exit code 0, no
+diagnostics, and three `embed` operations (`href` and `format`: `scad`, `vega-lite`, `png`) in document order; the chart
+placement is white, the picture is green, and the rest of the diagram is red.
+
+**RenderCommand_Run_SvgEmbeddingOutsideFolder_WarnsAndDrawsTheRest**,
+**RenderCommand_Run_SvgEmbeddingMissingFile_WritesWarningLineToStandardError**,
+**RenderCommand_Run_SvgEmbeddingStrictUnresolved_FailsWithUnsupportedFeature**, and
+**RenderCommand_Run_SvgEmbeddingModelWithUnsupportedFeature_IsNoteThenStrictError**: a valid picture above the folder of
+the SVG named with `../` is not drawn and is one `svg-image-unresolved` warning (source `svg`, severity `warning`) in the
+JSON result with exit code 0 and nothing on standard error; without `--json` the warning is one
+`Warning: svg-image-unresolved: image 'missing.png' was not drawn` line on standard error; with `--strict` an `https`
+reference is exit code 1 with `unsupported-feature` and no file; an embedded model that uses `offset` gives the
+`scad-module-offset` note with the message starting `part.scad:`, and `unsupported-feature` and no file with `--strict`.
+
+**RenderCommand_Run_SvgEmbeddingBrokenModel_FailsWithScadErrorNamingBothFiles** and
+**RenderCommand_Run_SvgWithoutEmbeddedFiles_IsUnchangedAndStrictSafe**: an embedded model with a syntax error is exit code
+1 with `scad-error`, a message that names `diagram.svg` and `broken.scad`, and no file; the SVG fixture renders with
+`--strict` with no diagnostics and no `embed` operation.
+
+**RenderCommand_Run_SvgEmbeddingTooLargePicture_WarnsWithTooLargeCodeAndDrawsTheRest** and
+**RenderCommand_Run_SvgEmbeddingStrictTooLargePicture_FailsWithUnsupportedFeature**: a 33-byte PNG that only declares
+9000 by 9000 pixels, placed in 20 by 20 beside a normal green picture, is exit code 0 with the one warning
+`svg-image-too-large` (source `svg`, severity `warning`, the message naming `huge.png`), the normal picture drawn and
+the placement of the huge one red; with `--strict` it is exit code 1 with `unsupported-feature`, a message naming
+`huge.png`, a hint naming `svg-image-too-large`, and no file.
+
+**RenderCommand_Run_SvgEmbeddingHrefWithQueryAndFragment_DrawsTheFile**: `logo.png?v=2#top` draws the green picture
+with `--strict` and no diagnostics, and the `embed` operation lists the link as written.
+
 **RenderCommand_Run_VegaLite_WritesPngAndReportsFormat**: the two-bar chart renders to a PNG whose size is the natural
 size in the JSON result, which names the `vega-lite` format and has one `render` operation with the `UTC` time zone
 and no

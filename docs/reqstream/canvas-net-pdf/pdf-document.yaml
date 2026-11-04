@@ -2297,3 +2297,22 @@ sections:
             tests:
               - Render_GridImage_NoLineMissingAtAnySize
               - Render_ShrunkRotatedImage_KeepsEveryLine
+
+          - id: CanvasNetPdf-PdfDocument-ImageSource
+            title: >-
+              The Pdf package shall provide an image source for .pdf files (claiming that extension and no URI
+              scheme) that opens the document from the bytes of the request and draws its first page over a
+              transparent background at its natural size (the displayed page size at 96 dots per inch), or fitted
+              inside the requested box keeping the aspect ratio, refuses with ImageSourceBudgetException, before
+              drawing anything, a size that exceeds the pixels the request allows, and fails with
+              InvalidDataException for content that is not a readable PDF file, InvalidOperationException for a
+              request without a file, and OperationCanceledException for a canceled request.
+            justification: |
+              The first page stands for a document linked from a diagram; fitting without distortion keeps the page
+              recognizable at any placement size.
+            tests:
+              - PdfImageSource_Render_NoRequestedSize_DrawsNaturalSizeOnTransparentBackground
+              - PdfImageSource_Render_RequestedSize_FitsPageInsideBoxKeepingAspectRatio
+              - PdfImageSource_Render_SizeBeyondRemainingPixels_IsRefusedBeforeDrawing
+              - PdfImageSource_Render_InvalidInput_Throws
+              - PdfImageSource_Properties_NameExtensionAndNoSchemes

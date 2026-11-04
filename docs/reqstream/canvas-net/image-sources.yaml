@@ -1,0 +1,149 @@
+---
+# cspell:ignore embedder
+# Software Subsystem Requirements for ImageSources
+#
+# These requirements decompose the CanvasNet system's linked-picture support into the ImageSources subsystem's own
+# responsibility: letting a document that links to other pictures (an SVG image element, for example) draw them
+# through one resolver that confines every file link to a folder, hands the file (or the link, for a URI scheme a
+# source claims) to the pluggable source that claims it, bounds the work, and reports what happened, without the
+# renderer or the resolver knowing any format (the ImageSourceContract, FolderImageResolver, and RasterImageSource
+# units). Each requirement here links down to the unit requirements that implement it.
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: ImageSources Requirements
+        requirements:
+          - id: CanvasNet-ImageSources-Contract
+            title: >-
+              The ImageSources subsystem shall define a public contract that anyone can implement outside this
+              repository: a source claims file name extensions, URI schemes, or both; a request carries the link,
+              the bytes and folder of a file or nothing but the link, the requested size, the resolver for the
+              pictures its own picture links to, the strictness switch, and a cancellation token; a result carries
+              the picture, the notes, the printed text, and a format name; and an ordered set of sources applies the
+              rule that, when several sources claim the same extension or scheme, the later one wins.
+            justification: |
+              New formats and live sources (a camera, a video frame) belong to applications, not to this library; the
+              contract must be complete and public so they can be plugged in, and the precedence rule lets an
+              application override a built-in format by listing its own source after the built-in ones.
+            children:
+              - CanvasNet-ImageSources-ImageSourceContract-SourceClaims
+              - CanvasNet-ImageSources-ImageSourceContract-Request
+              - CanvasNet-ImageSources-ImageSourceContract-SizeRule
+              - CanvasNet-ImageSources-ImageSourceContract-Result
+            tests:
+              - ImageSourceSet_Constructor_SameClaims_LaterSourceWins
+              - ImageSourceRequest_OpenContent_SchemeRequest_ThrowsInvalidOperationException
+              - ImageSourceRequest_SizeFor_AppliesSizingRule
+              - ImageSourceResult_Constructor_RequiresSurfaceAndDefaultsToEmpty
+
+          - id: CanvasNet-ImageSources-Confinement
+            title: >-
+              The ImageSources subsystem shall confine every file link to the folder of the resolver: it shall refuse
+              an absolute, drive, UNC, alternate-stream, control-character, outside-the-folder (also when
+              percent-encoded), network, or symbolic-link path without reading the file it names, accept a file: URI
+              only when it names a file inside the folder, and decode percent-encoded relative paths after cutting
+              off a query and a fragment (RFC 3986) so that neither can change the path or open a way out of the
+              folder.
+            justification: |
+              A link comes from an untrusted document and must never become a way to read arbitrary files of the host
+              or to reach the network.
+            children:
+              - CanvasNet-ImageSources-FolderImageResolver-Confinement
+              - CanvasNet-ImageSources-FolderImageResolver-FileUri
+              - CanvasNet-ImageSources-FolderImageResolver-UriReference
+            tests:
+              - FolderImageResolver_Resolve_EscapingReference_IsUnresolvedWarning
+              - FolderImageResolver_Resolve_FileUriAndEncodedPath_InsideFolderIsDrawnOutsideIsNot
+              - FolderImageResolver_Resolve_SymbolicLink_IsUnresolvedWarning
+              - FolderImageResolver_Resolve_RelativeLinkWithQueryOrFragment_NamesTheFile
+              - FolderImageResolver_Resolve_EscapingReferenceWithQueryOrFragment_IsStillUnresolved
+
+          - id: CanvasNet-ImageSources-Dispatch
+            title: >-
+              The ImageSources subsystem shall hand a file to the source that claims the longest matching extension
+              of its name (ignoring case), hand a link with a URI scheme to the source that claims the scheme exactly
+              as written without any file access, leave a link that nobody claims (including http and https, which no
+              built-in source claims) as an unresolved warning, resolve the links of an embedded file against the
+              folder of that file (or against the folder of the resolver for a link without a file), and let the later
+              of several sources that claim the same extension or scheme win.
+            justification: |
+              The format of a link is decided by its name or scheme, not by reading files; an application must be able
+              to add or replace a format, and a scheme-claimed source (a live camera) must receive the link untouched.
+            children:
+              - CanvasNet-ImageSources-FolderImageResolver-Dispatch
+              - CanvasNet-ImageSources-FolderImageResolver-Precedence
+              - CanvasNet-ImageSources-FolderImageResolver-Schemes
+              - CanvasNet-ImageSources-FolderImageResolver-NestedScope
+            tests:
+              - FolderImageResolver_Resolve_LongestSuffixAndCaseInsensitive_PicksSource
+              - FolderImageResolver_Resolve_TwoSourcesClaimExtension_LaterWins
+              - FolderImageResolver_Resolve_ClaimedScheme_GivesSourceRawHrefWithoutFileAccess
+              - FolderImageResolver_Resolve_HttpAndHttps_UnresolvedByDefaultButClaimable
+              - FolderImageResolver_Resolve_NestedRelativeLink_ResolvesFromFolderOfEmbeddingFile
+
+          - id: CanvasNet-ImageSources-Limits
+            title: >-
+              The ImageSources subsystem shall bound the work one render can cause: it shall stop a file that embeds
+              itself (directly or through others), stop nesting deeper than a configured number of levels, stop after
+              a configured number of images in total, stop when the pixels the sources allocate in total would exceed a
+              configured budget (checked before anything is allocated, by the resolver and by every source,
+              the raster source from the file header), and stop when the cancellation token is canceled, reporting
+              each limit as an unresolved warning (an over-budget picture with the code svg-image-too-large,
+              cancellation as OperationCanceledException) and carrying on.
+            justification: |
+              A hostile or careless document tree could otherwise recurse, fan out, or ask for a huge picture in a
+              tiny placement without bound.
+            children:
+              - CanvasNet-ImageSources-FolderImageResolver-Limits
+              - CanvasNet-ImageSources-FolderImageResolver-PixelBudget
+              - CanvasNet-ImageSources-RasterImageSource-Budget
+              - CanvasNet-ImageSources-FolderImageResolver-Cancellation
+            tests:
+              - FolderImageResolver_Resolve_Cycles_TerminateWithWarning
+              - FolderImageResolver_Resolve_TooDeep_TerminatesWithWarning
+              - FolderImageResolver_Resolve_TooMany_StopsAtLimitWithWarnings
+              - FolderImageResolver_Resolve_CanceledToken_ThrowsBeforeCallingSource
+              - FolderImageResolver_Resolve_HugeRasterAtTinyPlacement_IsRefusedBeforeDecoding
+              - FolderImageResolver_Resolve_ManyRasters_ExhaustBudgetAndLaterOnesAreRefused
+
+          - id: CanvasNet-ImageSources-Reporting
+            title: >-
+              The ImageSources subsystem shall report what happened: forward the notes and printed text of every
+              source with the embedding link in front, list every embedded image with its format, size and depth,
+              report a link that was not drawn as a warning with a stable code, wrap the failure of a source that
+              found a file in an exception that names the link and the embedding file and keeps the original failure
+              (but never wrap cancellation), never cache a drawn picture so that every call asks the source again, and
+              support drawing a file directly, by path or from a stream, with documented failures.
+            justification: |
+              Callers must see which file each note came from, tell a broken file from a missing one, and use live
+              sources; direct rendering of a file uses the same rules as embedding.
+            children:
+              - CanvasNet-ImageSources-FolderImageResolver-Diagnostics
+              - CanvasNet-ImageSources-FolderImageResolver-Failures
+              - CanvasNet-ImageSources-FolderImageResolver-NoCaching
+              - CanvasNet-ImageSources-FolderImageResolver-DirectRender
+              - CanvasNet-ImageSources-FolderImageResolver-Configuration
+              - CanvasNet-ImageSources-ImageSourceContract-FailureReporting
+            tests:
+              - FolderImageResolver_Resolve_SourceWithNotes_ForwardsDiagnosticsEchoAndEmbedded
+              - FolderImageResolver_Resolve_SourceThrows_WrapsInImageSourceException
+              - FolderImageResolver_Resolve_SameLinkTwice_InvokesSourceEachTimeWithoutCaching
+              - FolderImageResolver_RenderPath_File_ReturnsResultWithFormat
+              - ImageSourceException_Constructor_KeepsHrefEmbedderAndInner
+
+          - id: CanvasNet-ImageSources-Raster
+            title: >-
+              The ImageSources subsystem shall provide a source for raster pictures (PNG, JPEG, BMP, TIFF, GIF, and
+              JPEG 2000) that decides the format from the content, turns a JPEG upright by its Exif orientation,
+              returns the natural size, and reports corrupt or unrecognized content.
+            justification: |
+              Rasters are the most common linked pictures, and the core library already decodes them all.
+            children:
+              - CanvasNet-ImageSources-RasterImageSource-Formats
+              - CanvasNet-ImageSources-RasterImageSource-Orientation
+              - CanvasNet-ImageSources-RasterImageSource-Failures
+            tests:
+              - RasterImageSource_Render_Format_IsDecidedByContentNotName
+              - RasterImageSource_Render_JpegWithExifOrientation_IsTurnedUpright
+              - RasterImageSource_Render_CorruptOrUnknownContent_ThrowsInvalidDataException

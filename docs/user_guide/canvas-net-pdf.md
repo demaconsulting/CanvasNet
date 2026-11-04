@@ -232,6 +232,20 @@ public void Dispose()
 Releases the document's in-memory buffer and parsed state. Idempotent - safe to call more than
 once. Every other public member throws `ObjectDisposedException` once called.
 
+### Using As An Embedded Image
+
+`PdfImageSource` is the image source of this package for `.pdf` files. With it a document that links to a PDF file draws
+its **first page** through a `FolderImageResolver` of the core package (or `CanvasNetViewer.CreateImageResolver` of the
+Viewer package). The page is fitted, without distortion, inside the size of its placement (its natural size is the
+displayed page size at 96 dots per inch) over a transparent background.
+
+```csharp
+// An SVG document that links to files of this kind, drawn through the resolver
+var resolver = new FolderImageResolver("assets", [new PdfImageSource()]);
+var options = new SvgLoadOptions { ImageResolver = resolver };
+using var surface = SvgCodec.Load("assets/diagram.svg", 800, 600, fonts: null, options);
+```
+
 ## Examples
 
 ### Example 19: Rendering a PDF Page

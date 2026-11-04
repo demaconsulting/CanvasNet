@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="140" viewBox="0 0 320 140">
+  <!-- part.scad, chart.vl.json, and logo.svg sit in the same folder as this file -->
+  <rect width="320" height="140" fill="#f4f4f4"/>
+  <image href="part.scad" x="10" y="10" width="120" height="120"/>
+  <image href="chart.vl.json" x="140" y="10" width="120" height="90"/>
+  <image href="logo.svg" x="270" y="10" width="40" height="40"/>
+</svg>

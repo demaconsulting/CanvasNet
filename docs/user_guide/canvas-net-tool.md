@@ -154,7 +154,7 @@ as well.
 | TIFF | `.tif`, `.tiff` | 8-bit RGB, RGBA, and gray; tiled files, palettes, and CMYK are refused |
 | GIF | `.gif` | The first frame only (`info` reports the frame count) |
 | JPEG 2000 | `.jp2`, `.j2k`, `.j2c` | Decoding only |
-| SVG | `.svg` | A common subset of SVG; the size is the intrinsic size of the drawing |
+| SVG | `.svg` | A common subset of SVG; the size is the intrinsic size of the drawing; `image` can embed files |
 | PDF | `.pdf` | Multi-page; text uses the embedded font or a substituted font |
 | PowerPoint | `.pptx` | Multi-page (slides) |
 | Visio | `.vsdx` | Multi-page (drawing pages) |
@@ -191,6 +191,7 @@ scalable, and the help topic that describes each), the output formats, the limit
 of the library. Use it to discover what the installed version supports; the last line points to the help topics
 (`canvasnet help <topic>`), which say what each format supports, with examples and known differences.
 
+<!-- markdownlint-disable MD013 -->
 ```text
 $ canvasnet formats
 Input formats:
@@ -214,8 +215,9 @@ Versions:
   canvasnet tool: <version>
   CanvasNet library: <version>
 
-Run 'canvasnet help <topic>' for supported features, examples, and known differences (for example 'canvasnet help vega-lite').
+Run 'canvasnet help <topic>' for supported features, examples, and known differences (for example 'canvasnet help vega-lite'). An SVG drawing can embed files of these formats with <image href>; see 'canvasnet help svg'.
 ```
+<!-- markdownlint-enable MD013 -->
 
 The `--help` of every command (for example `canvasnet render --help` and `canvasnet formats --help`) ends with a
 _See also_ line that names `canvasnet help <topic>`, the topics, and `canvasnet help topics`.
@@ -407,7 +409,9 @@ times the resolution divided by 72 (a 72 by 48 point PDF page is 96 by 64 pixels
 
 An OpenSCAD model (`.scad`) is evaluated and drawn from one viewpoint as a still image, at **800 by 800 pixels**
 unless `--scale`, `--width`, `--height`, or `--size` is given (the picture is never stretched: the camera fits the
-aspect ratio). Only a single view is drawn per command; run the command once per view to get several.
+aspect ratio). Only a single view is drawn per command; run the command once per view to get several. A model can also
+be drawn inside an SVG diagram with `<image href="part.scad" .../>` (see _Embedding Images, Charts, and Models in an
+SVG_ and `canvasnet help svg`).
 
 | Model option | Meaning |
 | --- | --- |
@@ -513,7 +517,8 @@ ratio), and `--size WxH` fits it inside that box and centers it. The chart is al
 enlarged afterwards, so text and lines stay crisp. A chart has no options of its own: there is no option to set
 parameters, data, or configuration, and the model options (`-D`, `--view`, ...) given with a chart are a
 `usage-error`. A
-chart has one page, so `--page` beyond 1 is `page-out-of-range`.
+chart has one page, so `--page` beyond 1 is `page-out-of-range`. A chart can also be drawn inside an SVG diagram with
+`<image href="chart.vl.json" .../>` (see _Embedding Images, Charts, and Models in an SVG_ and `canvasnet help svg`).
 
 The background is the one the chart declares (white when it declares none); `--background <color>` replaces it, and
 `--background transparent` gives a transparent picture. The picture is static and the same on every machine: dates are in
@@ -564,15 +569,112 @@ canvasnet render chart.vl.json --scale 2 --background "#f4f4f4" -o chart-large.p
 canvasnet render chart.vl.json --strict -o chart.png
 ```
 
+#### Embedding Images, Charts, and Models in an SVG
+
+An `<image>` element of an SVG file can name another file by a **relative `href`**, and the tool draws that file in the
+element's rectangle. This turns an SVG into a diagram that puts a 3D part and a chart beside boxes and arrows. The
+shortest form is `<image href="part.scad" x="10" y="10" width="120" height="120"/>`; `canvasnet help svg` lists the
+rules below in its _Linking files with image href_ section, and `canvasnet help svg --example embed` prints a whole
+diagram. The file types an `href` may link (the list in the help is checked by a test against the extensions the tool
+accepts):
+
+| File type | Extensions |
+| --- | --- |
+| Raster picture | `.png`, `.jpg`, `.jpeg`, `.bmp`, `.tif`, `.tiff`, `.gif`, `.jp2`, `.j2k`, `.j2c` |
+| Another SVG file | `.svg` |
+| OpenSCAD model | `.scad` |
+| Vega-Lite chart | `.vl.json`, `.vl` |
+| Page 1 of a document (the first PDF page, PowerPoint slide, or Visio page) | `.pdf`, `.pptx`, `.vsdx` |
+
+The format is decided by the **file name** (its extension), not by the content: a Vega-Lite chart must be named `.vl.json`
+or `.vl` (a chart in a plain `.json` file is not linked), and a file with another name is not drawn (the warning
+`svg-image-unresolved`, below). A raster file is still decoded by its content, so a PNG named `.jpg` loads. (The tool's
+own commands, which are given a file to read, still recognize its format from the content first and its name second.)
+The embedding is done by the `CanvasNetViewer` package of the library, so a program that uses the library gets the same
+behavior; the tool itself has no way to add file types. For example, with these three files in one folder:
+
+```xml
+<!-- diagram.svg -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 160" width="400" height="160">
+  <rect x="0" y="0" width="400" height="160" fill="#f4f7fb"/>
+  <rect x="10" y="10" width="170" height="140" rx="8" fill="#fff3cd" stroke="#1d3557" stroke-width="2"/>
+  <image href="part.scad" x="15" y="15" width="160" height="130"/>
+  <path d="M180 80 L220 80" stroke="#1d3557" stroke-width="2"/>
+  <image href="sales.vl.json" x="220" y="20" width="170" height="120"/>
+</svg>
+```
+
+```text
+// part.scad
+difference() { cylinder(h = 20, r = 10, $fn = 48); translate([0, 0, -1]) cylinder(h = 22, r = 5, $fn = 32); }
+```
+
+```json
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "width": 120, "height": 70,
+  "data": { "values": [ { "q": "Q1", "n": 12 }, { "q": "Q2", "n": 19 }, { "q": "Q3", "n": 15 } ] },
+  "mark": "bar",
+  "encoding": { "x": { "field": "q", "type": "nominal" }, "y": { "field": "n", "type": "quantitative" } }
+}
+```
+
+(save the chart as `sales.vl.json`), the command
+
+```bash
+canvasnet render diagram.svg -o diagram.png
+```
+
+draws the model and the chart into their rectangles. The result lists each embedded file as an `embed` operation.
+
+- **Only this folder.** The files are read from the **folder of the SVG file you named, and below it**, like the
+  `include` files of a model and the data files of a chart; there is no option for another folder. An absolute path, a
+  drive letter, a `..` that leaves the folder, a symbolic link, and a network URL (`http:`, `https:`, `ftp:`, ...) are
+  **never** read or fetched. A `file:` URI that points inside the folder, and a percent-encoded path such as
+  `my%20picture.png`, are accepted, and a query or fragment after the file name (`logo.png?v=2`, `part.scad#view`) is
+  ignored (an encoded `%23` or `%3F` is a literal `#` or `?` in the name). An embedded SVG file looks for its own images
+  beside itself, so a diagram can be
+  split into folders. (Files that an embedded SVG file embeds are not listed as `embed` operations of the result; the
+  `embed` list names the files the SVG file you named embeds itself.)
+- **Size and background.** A model, chart, SVG file, or document page is drawn at the **device size of its rectangle**
+  (after `--scale`, `--width`, and any transform in the SVG), so it is sharp; the rectangle is filled by a model, and a
+  chart, page, or SVG file is fitted inside it by the `preserveAspectRatio` of the element. A raster is decoded at its
+  own size and resampled once. A model and an SVG file are drawn over a **transparent** background, so the diagram shows
+  through; a chart keeps **its own background** (white unless it declares another), because a chart is meant to carry
+  its own paper. An embedded model uses its default view and default settings: the options of the command (`--view`,
+  `-D`, `--page`, `--dpi`, ...) apply to the SVG file only.
+- **A reference that is not drawn** (the file is missing, outside the folder, behind a link, of an unknown format, a
+  network URL, or over a limit) is the warning **`svg-image-unresolved`** in `diagnostics` (and on standard error); the
+  rest of the diagram is drawn. With `--strict` it is an `unsupported-feature` failure instead. A picture that would take
+  more pixels than the render may use (**`svg-image-too-large`**: the pictures of one render may use 64 million pixels in
+  all, counted before anything is decoded, so a huge raster in a small rectangle is refused and not decoded) is a
+  warning in the same way, and with `--strict` the same failure. The notes of an embedded
+  model or chart, and the lines a model prints with `echo`, are reported too, with the file in front of each message.
+- **A file that is found but broken** (a corrupt picture, a model with a syntax error, a chart with an invalid
+  specification) fails the render with its own error code (`corrupt-input`, `scad-error`, `vega-lite-error`, ...), and
+  the message names both the embedding file (the SVG file you named, or the embedded SVG file that contains the link) and
+  the embedded file.
+- **Limits.** At most 64 files are embedded in one render, the pictures of one render may use at most 64 million
+  pixels in all, SVG files nest at most 4 levels deep, and an SVG file that
+  embeds itself (or two that embed each other) stops with a warning.
+- **`feImage` and `data:`.** A `data:` URI is drawn as always (an SVG given as a `data:` URI is not drawn). The `feImage`
+  filter primitive still reads only a `data:` URI, never a file.
+
+An SVG file that has no such reference renders exactly as before.
+
 #### Diagnostics and --strict
 
-PPTX and VSDX documents, OpenSCAD models, and Vega-Lite charts report every picture, shape, or feature the library
-recognizes but cannot
+PPTX and VSDX documents, OpenSCAD models, Vega-Lite charts, and SVG files that embed other files report every picture,
+shape, or feature the library recognizes but cannot
 draw. By default the page is drawn without it and the report is returned in `diagnostics` in the JSON result and, without
 `--json`, written to standard error as `Unsupported: <code>: <message>` and `Warning: <code>: <message>` lines (see
 _Output, Errors, and Exit Codes_), so a feature that was left out is never silent.
-`--strict` turns the report into a failure (`unsupported-feature`) and writes no output. SVG and PDF have no such
-report: whatever the library cannot draw is simply not drawn, and `--strict` has no effect on them.
+`--strict` turns the report into a failure (`unsupported-feature`) and writes no output. PDF and raster images have no such
+report: whatever the library cannot draw is simply not drawn, and `--strict` has no effect on them. An SVG file
+reports only
+its `image` references that were not drawn (`svg-image-unresolved`, or `svg-image-too-large` for a picture over the pixel
+budget) and the notes of the files it embeds; what the SVG
+library cannot draw in the file itself (animation, an unknown filter primitive) is simply not drawn.
 
 A PPTX shape that the library does not implement at all (for example an unknown preset shape) is always a failure
 (`unsupported-feature`), with or without `--strict`; `--strict` additionally upgrades the skipped EMF and WMF
@@ -1100,7 +1202,9 @@ canvasnet render plate.scad --view top --size 400x400 -o plate-top.png --json
 
 - `--example <name>` prints only the example: the source of a file (an `.scad`, `.vl.json`, or `.svg` file) or, for a
   topic whose example is a command, the command line. Nothing else is written to standard output.
-- `--examples` lists the names, kinds (`source` or `command`), and descriptions of the examples of the topic.
+- `--examples` lists the names, kinds (`source`, `command`, or `snippet`), and descriptions of the examples of the
+  topic. A `snippet` is shown but not rendered alone, because it refers to other files (the `embed` example of `svg` is
+  a diagram that links a model, a chart, and an SVG file beside it).
 - `--json` writes any help output as one JSON document, without a banner or color codes (see _Help Documents_).
 - An unknown subject is a `usage-error` that names the closest subject (`Did you mean 'scad'?`) when there is one and
   lists the valid subjects. `--example` and `--examples` need a topic, and an unknown example name lists the names.
@@ -1166,8 +1270,9 @@ describes the format), `outputs` (`{"format","extensions","alpha","lossy"}`), `q
 - `outputs`: one entry per file written: `path` (as given), `format`, `width`, `height`, `bytes`, and `page` for a
   document.
 - `diagnostics`: the features that were skipped, each `{"source","severity","code","message"}` and `page` for a
-  document (`source` is `scad`, `pptx`, `vsdx`, or `vega-lite`; `code` is the library's stable feature token, such as
-  `scad-module-surface` or `vl-mark-geoshape`, or `vega-lite-warning` for a warning of the chart library).
+  document (`source` is `scad`, `pptx`, `vsdx`, `vega-lite`, or `svg`; `code` is the library's stable feature token, such as
+  `scad-module-surface` or `vl-mark-geoshape`, `vega-lite-warning` for a warning of the chart library, or
+  `svg-image-unresolved` or `svg-image-too-large` for an SVG `image` that was not drawn).
 - `echo`: the text a SCAD model printed with `echo`.
 
 | `op` | Fields besides `op` |
@@ -1175,6 +1280,7 @@ describes the format), `outputs` (`{"format","extensions","alpha","lossy"}`), `q
 | `auto-orient` | `orientation` (the EXIF orientation, 2-8, that was applied) |
 | `render` | `width`, `height`; a document adds `page`, `dpi`, `background`; a model adds `view`, `azimuth`, `elevation`, `projection`, `width`, `height`, `background`, and when given `defines`, `time`, `maxTriangles`, `defaultColor`; a chart adds `width`, `height`, `timeZone` (always `UTC`), and `background` when one was given. For a model, `view`, `azimuth`, `elevation`, and `projection` report the view that was **used**: `view` is `iso`, `top`, another named view whose angles match, or `custom` (for example a view set by the model's `$vpr`) |
 | `resize` | `width`, `height`, and `filter` when one was chosen (a raster sized by `--scale`, `--width`, `--height`, or `--size`, or `--resize`) |
+| `embed` | A file an SVG embedded and drew: `href` (as written), `format`, `width`, `height` (the size it was loaded at); listed after the `render` and `flatten` of the SVG |
 | `fit` | The loader's fit of a drawing into a `--width` by `--height` box has `width`, `height` (the box); the `--fit` operation has `width`, `height` (the result), `boxWidth`, `boxHeight`, `filter`, `allowUpscale`, `scaled` |
 | `flatten` | `background` (transparency flattened over a color: a drawing over its background, or the JPEG encoder) |
 | `crop` | `x`, `y`, `width`, `height`, `clamped` |
@@ -1390,7 +1496,9 @@ this reliable:
 
 - Start with `canvasnet help topics`, then `canvasnet help <format>` for what a format supports and what it does not
   (`scad`, `vega-lite`, `svg`, `pdf`, `pptx`, `vsdx`, `raster`) and `canvasnet help <format> --example <name>` for a
-  tiny example that is known to render. Add `--json` to parse any of them.
+  tiny example that is known to render. Add `--json` to parse any of them. To put a model, a chart, or a picture inside
+  a diagram, link it from an SVG with `<image href="part.scad" .../>`; `canvasnet help svg` lists the file types, the
+  folder rule, and the `svg-image-unresolved` warning, and `canvasnet help svg --example embed` prints a diagram.
 - Always pass `--json` and parse the one line on standard output. Check `ok`, and on a failure branch on
   `error.code`. Read `diagnostics` even on success: they list what was left out of the picture.
 - Ask before you render: `canvasnet info <file> --json` gives the size, the page count, or the modules of a model
@@ -1598,9 +1706,12 @@ pictures side by side.
 - **Memory.** `compare` holds both images and one picture at a time (an 8192 by 8192 image is about 256 MB per copy),
   and `montage` holds the sheet and one input at a time.
 - **Quality of drawing.** The rendering libraries draw a defined subset of each format. Anything outside it is reported
-  where the library can report it (PPTX, VSDX, SCAD, and Vega-Lite: `diagnostics`). PDF and SVG have no such
-  report, and a
-  construct they cannot draw is simply absent from the picture.
+  where the library can report it (PPTX, VSDX, SCAD, and Vega-Lite: `diagnostics`; SVG: the `image` references it could
+  not draw). PDF has no such report, and a
+  construct it (or the SVG library, inside an SVG file) cannot draw is simply absent from the picture.
+- **SVG embedding.** Only relative references below the folder of the SVG file are followed (never the network, an
+  absolute path, or a link), at most 64 files per render and 4 levels of SVG files; an embedded model is drawn with its
+  default view; the `feImage` filter primitive reads only a `data:` URI.
 - **One frame.** A GIF is read as its first frame.
 - **JPEG.** Only gray and YCbCr files can be decoded; CMYK and arithmetic-coded JPEGs are refused. Output JPEG has no
   alpha: transparency is flattened.

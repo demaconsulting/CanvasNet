@@ -100,10 +100,13 @@ namespace DemaConsulting.CanvasNet.Svg;
 ///     <c>xlink:href</c> decoded via this codec's own sibling raster codecs - <see cref="PngCodec"/>,
 ///     <see cref="JpegCodec"/>, <see cref="BmpCodec"/>, <see cref="TiffCodec"/>, and
 ///     <see cref="GifCodec"/> - fully integrated with the same <c>filter</c>/<c>clip-path</c>/
-///     <c>mask</c>/<c>opacity</c> pipeline every other shape/text element uses; a non-<c>data:</c>
-///     href (a file path or URL) and any nested SVG reference (<c>data:image/svg+xml</c> or an
-///     external <c>.svg</c> file) are both a deliberate, documented, security-conscious no-op -
-///     see <c>SvgCodec.Image.cs</c>'s remarks for the full rationale).
+///     <c>mask</c>/<c>opacity</c> pipeline every other shape/text element uses; any other href
+///     (a file path or URL, including an external <c>.svg</c> file) and a nested SVG data URI
+///     (<c>data:image/svg+xml</c>) render nothing unless the caller opted in through
+///     <see cref="SvgLoadOptions.ImageResolver"/>, which loads an external <c>href</c> (a model, a
+///     chart, another SVG, a raster) as an already rendered <see cref="Surface"/> - the codec
+///     itself never reads a file or the network, and <c>data:</c> URIs are never passed to the
+///     resolver; see <c>SvgCodec.Image.cs</c>'s remarks for the full rationale).
 ///     </para>
 ///     <para>
 ///     <b>Out of scope (silently ignored, per element).</b>
@@ -459,6 +462,25 @@ public static partial class SvgCodec
     }
 
     /// <summary>
+    ///     Internal test seam: identical to <see cref="LoadWithDiagnostics(Stream, int, int, RenderDiagnostics)"/>
+    ///     but with explicit <see cref="SvgLoadOptions"/>, so tests can observe the work charged for
+    ///     <see cref="SvgLoadOptions.ImageResolver"/> calls.
+    /// </summary>
+    /// <param name="stream">The stream to read the SVG document from.</param>
+    /// <param name="width">The width, in pixels, of the returned surface.</param>
+    /// <param name="height">The height, in pixels, of the returned surface.</param>
+    /// <param name="options">The load options; must not be null.</param>
+    /// <param name="diagnostics">The per-call work-counter sink; must not be null.</param>
+    /// <returns>A new <see cref="Surface"/> containing the rasterized document.</returns>
+    internal static Surface LoadWithDiagnostics(
+        Stream stream, int width, int height, SvgLoadOptions options, RenderDiagnostics diagnostics)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(diagnostics);
+        return LoadCore(stream, width, height, fonts: null, options, diagnostics);
+    }
+
+    /// <summary>
     ///     Shared implementation of the stream-based load entry points.
     /// </summary>
     /// <param name="stream">The stream to read the SVG document from.</param>
@@ -504,7 +526,8 @@ public static partial class SvgCodec
             var stylesheet = BuildStylesheet(root);
             var context = new RenderContext(surface, idIndex, fonts, stylesheet)
             {
-                UseSystemFonts = options?.UseSystemFonts ?? true
+                UseSystemFonts = options?.UseSystemFonts ?? true,
+                ImageResolver = options?.ImageResolver
             };
             RenderDocument(root, fitTransform, size, context, diagnostics);
         }

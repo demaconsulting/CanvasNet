@@ -10,7 +10,7 @@ This document provides the system-level design for CanvasNet.
 ## Architecture
 
 CanvasNet is a .NET library providing a canvas-based drawing and rendering API, following
-DEMA Consulting best practices. The system consists of eight implemented subsystems:
+DEMA Consulting best practices. The system consists of nine implemented subsystems:
 
 - **Canvas subsystem** (namespace `DemaConsulting.CanvasNet.Canvas`, folder
   `src/DemaConsulting.CanvasNet/Canvas/`): the pixel-buffer primitives on which all other
@@ -91,8 +91,23 @@ DEMA Consulting best practices. The system consists of eight implemented subsyst
   `SandboxException`, and `SandboxFailureKind` types documented inline), which turns an untrusted
   relative path into the bytes of a file inside caller-chosen directories or a caller-supplied
   virtual file source, refusing escapes, hostile path text, and symbolic links or junctions. `Files`
-  depends on no other subsystem and no core subsystem depends on it; the satellite systems `CanvasNetVegaLite`
+  depends on no other subsystem; the `ImageSources` subsystem and the satellite systems `CanvasNetVegaLite`
   and `CanvasNetScad` depend on it through its public API. See _Files Subsystem Design_ (`files.md`).
+- **ImageSources subsystem** (namespace `DemaConsulting.CanvasNet.ImageSources`, folder
+  `src/DemaConsulting.CanvasNet/ImageSources/`, flat — no further nesting): linked-picture support for
+  documents that link to other pictures (an SVG `image` element, for example) — the `ImageSourceContract`
+  unit (the public `IImageSource`, `ImageSourceRequest`, `ImageSourceResult`, `ImageSourceDiagnostic`,
+  `IImageResolver`, `EmbeddedImage`, `ImageSourceException`, and `ImageSourceBudgetException` types that anyone can
+  implement or use,
+  and the `ImageSourceSet` that composes sources so that the later source wins), the `FolderImageResolver`
+  unit (confines links to a folder through `Files`, picks the source by file name extension or URI scheme,
+  bounds depth, cycles, count, and the pixels that sources allocate, and forwards notes), and the `RasterImageSource`
+  unit (the source for the
+  raster formats of `Codecs`). It depends on `Files`, `Canvas`, and `Codecs`; no core subsystem depends on it.
+  The format packages each ship one source (`SvgImageSource`, `ScadImageSource`, `VegaLiteImageSource`,
+  `PdfImageSource`, `PptxImageSource`, `VsdxImageSource`), the `CanvasNetViewer` system lists them all, and
+  the `CanvasNetSvg` system takes an `IImageResolver` in its `SvgLoadOptions`. See _ImageSources Subsystem
+  Design_ (`image-sources.md`).
 - **Packaging subsystem** (namespace `DemaConsulting.CanvasNet.Packaging`, folder
   `src/DemaConsulting.CanvasNet/Packaging/`, flat — no further nesting): the hardened building
   blocks for reading untrusted Open Packaging Conventions (OPC, ECMA-376 Part 2) packages and
@@ -108,7 +123,8 @@ The `Codecs` subsystem depends on the `Canvas` subsystem's `Surface` unit (const
 and reading/writing rows via `Surface.GetRowSpanBytes`); the `Canvas` subsystem has no dependency
 on `Codecs` or on any other subsystem. Within the `Codecs` subsystem, its six units are flat and
 mutually independent — none of `BmpCodec`, `PngCodec`, `TiffCodec`, `JpegCodec`, `GifCodec`,
-or `Jpeg2000Codec` depends on any other codec. Each codec also exposes a pair of `GetInfo(Stream)`/`GetInfo(string)` overloads
+or `Jpeg2000Codec` depends on any other codec. Each codec also exposes a pair of `GetInfo(Stream)`/`GetInfo(string)`
+overloads
 returning the shared `ImageInfo` record struct (width, height, channel count, and alpha presence)
 without fully decoding pixel data and without enforcing `Surface.MaxDimension` (now a public
 constant, so callers can perform this comparison themselves before ever calling `Load`) — except
@@ -339,7 +355,8 @@ The system exposes the following public API to external consumers:
   wrapped-around pattern-space offset. Throws the same exceptions as the solid-color overload,
   plus `ArgumentNullException` for a null `paint`.
 - **LineCap** / **LineJoin**: Public enums selecting stroke end-cap and corner-join geometry.
-- **StrokeStyle(float width, LineCap cap, LineJoin join, float miterLimit, IReadOnlyList<float>? dashArray, float dashOffset)**:
+- **StrokeStyle(float width, LineCap cap, LineJoin join, float miterLimit, IReadOnlyList<float>? dashArray, float
+  dashOffset)**:
   Immutable public stroke-style snapshot. Throws `ArgumentOutOfRangeException` for invalid width,
   enum, miter-limit, or dash-offset values, and `ArgumentException` for invalid dash-array
   entries.

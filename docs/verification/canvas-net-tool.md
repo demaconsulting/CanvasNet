@@ -308,6 +308,13 @@ operation, and the image has the size `info` reported, a white corner, and the d
 the second bar computed from the layout (5 pixels of padding at the right, 50 pixels from the right edge of the data
 rectangle, 15 pixels from the top).
 
+**CanvasNetTool_SvgEmbed_RenderAsProcess_DrawsModelAndChartAndWarnsOutsideFolder**: a 240 by 120 red diagram that
+embeds the
+model fixture, the chart fixture, and a reference to `../outside.png` is rendered as a real process (so the SVG, SCAD, and
+Vega-Lite assemblies bundled next to the tool work together); exit code 0, one `svg-image-unresolved` diagnostic in the
+JSON result, an image of 240 by 120, red at the corner of the diagram, white inside the chart placement (a chart keeps its
+own background), and red where the outside reference would have been drawn.
+
 **CanvasNetTool_VegaLite_DetectionDiagnosticsAndErrors_FollowTheContract**: in-process, a chart saved as `.json` is
 described as `vega-lite` (found by its `$schema`); a chart with an unsupported mark (a `geoshape` with a `longitude`
 channel) renders with exit code 0 and the `vl-mark-geoshape` diagnostic in the JSON result, and with `--strict`

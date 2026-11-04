@@ -595,3 +595,28 @@ sections:
               - CanvasNetVegaLite_CompositeMark_ErrorBar_LayersOverABar
               - CanvasNetVegaLite_CompositeMark_ErrorBar_ExpandedViewsAreLimitedByMaxViews
               - CanvasNetVegaLite_CompositeMark_ErrorBand_TwoDimensionalBandIsAnAreaWithLineBorders
+
+          - id: CanvasNetVegaLite-VegaLiteDocument-ImageSource
+            title: >-
+              The VegaLite package shall provide an image source for .vl and .vl.json files (and not .json;
+              claiming no URI scheme) that parses the chart from the bytes of the request, resolves its data
+              files against the folder of the request, lays it out deterministically (UTC, bundled fonts only) at
+              the size of the request (its own layout size when none is asked for) keeping its own background,
+              refuses with ImageSourceBudgetException, before drawing anything, a size that exceeds the pixels the
+              request allows,
+              returns the warnings and the unsupported features as notes of the source vega-lite (and fails with
+              VegaLiteUnsupportedFeatureException when the request is strict), passes the cancellation token to the
+              layout and the render, and fails with VegaLiteSpecException for an invalid specification,
+              InvalidOperationException for a request without a file, and OperationCanceledException for a canceled
+              request.
+            justification: |
+              Charts are linked from diagrams; a chart carries its own paper, so its background is kept, and the
+              deterministic settings make the result the same everywhere.
+            tests:
+              - VegaLiteImageSource_Render_NoRequestedSize_DrawsNaturalSizeOnChartBackground
+              - VegaLiteImageSource_Render_RequestedSize_DrawsAtThatSize
+              - VegaLiteImageSource_Render_SizeBeyondRemainingPixels_IsRefusedBeforeDrawing
+              - VegaLiteImageSource_Render_DataFile_ResolvesFromDirectoryOfRequest
+              - VegaLiteImageSource_Render_UnsupportedFeature_ReturnsDiagnosticOrThrowsWhenStrict
+              - VegaLiteImageSource_Render_InvalidInput_Throws
+              - VegaLiteImageSource_Properties_NameExtensionsAndNoSchemes

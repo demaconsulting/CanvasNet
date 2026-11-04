@@ -22,7 +22,17 @@ fails the build. The content is checked against the things it describes, so that
   assemblies of the libraries for the literal part of the identifier); an identifier that is none of these makes the
   test fail, so a topic cannot cite an identifier that does not exist;
 - every source example (OpenSCAD, Vega-Lite, and SVG) is written to a file and rendered through the real entry point
-  (`ToolHost.Invoke`) with `--strict` (the **strict-clean example test**), and must succeed without a diagnostic.
+  (`ToolHost.Invoke`) with `--strict` (the **strict-clean example test**), and must succeed without a diagnostic;
+- the **file types** the `svg` topic lists for `<image href>` are compared with `CanvasNetViewer.Extensions` (the
+  extensions of the image sources the tool wires in, the sorted union of what the registered sources claim) in
+  both directions and with the extensions of the `formats` table; a plain `.json` must not be linkable and `.vl.json`
+  must be. The resolver decides by the file name, so the list is also the list quoted in the `svg-image-unresolved`
+  message of a file of an unknown type;
+- the **`embed` snippet** of the `svg` topic links files that are not there when it is printed alone, so its kind is
+  `snippet` and the strict-clean example test skips it (it enumerates only `source` examples). A dedicated test parses
+  it as XML, checks that every `href` ends in a supported extension, writes each sibling file from the examples of the
+  matching topic (`scad`, `vega-lite`, `svg`), and renders it with `--strict` (decision: a new kind rather than a
+  special case in the drift test, so a snippet is visible as such in `--examples` and in the JSON).
 
 The text and JSON renderings are checked for every topic with theory tests. The interaction with the registry
 (`help` and its options) is verified by `CommandRegistryTests.cs` and at the subsystem level by
@@ -50,7 +60,13 @@ delete.
   codes of the tool.
 - Every cited diagnostic identifier is triggered by a tiny input, is an error code, or exists in a library; each
   trigger produces its identifier, and `--strict` turns a report into `unsupported-feature`.
-- Every source example renders with `--strict` and no diagnostic.
+- Every source example renders with `--strict` and no diagnostic; the snippet renders with `--strict` and no diagnostic
+  once its sibling files exist.
+- The file types the `svg` topic lists for `<image href>` are exactly the extensions of `CanvasNetViewer` and of the
+  `formats` table; the `image-links` section states the size rule, the folder rule, `svg-image-unresolved`,
+  `svg-image-too-large`, and the
+  example; the
+  `scad` and `vega-lite` topics, the `formats` footer, and the `render` usage point to `canvasnet help svg`.
 - The text of a topic is deterministic, plain (no ANSI escape sequence, no carriage return, no trailing newline), and
   wrapped; a word longer than the width is not split.
 - The JSON of a topic has the envelope and the fields of the documented shape, on one line and in ASCII.
@@ -80,14 +96,35 @@ topics has the five filled sections and at least two examples.
 
 **HelpTopics_Examples_NamesUniqueKindsValidAndSourcesNonEmpty**: example names are unique within a topic; content is
 non-empty, has no carriage return and no trailing line feed; a command example starts with the tool name `canvasnet`
-and has no file
-name; a source example has a file name with the extension of its format (`.scad`, `.vl.json`, or `.svg`); and the
-`scad`, `vega-lite`, and `svg` topics each have a source example.
+and has no file name; a source example or snippet has a file name with the extension of its format (`.scad`,
+`.vl.json`, or `.svg`); and the `scad`, `vega-lite`, and `svg` topics each have a source example.
 
 **HelpTopics_SourceExamples_RenderStrictWithoutDiagnostics**: a theory over every text example (the OpenSCAD models, the
-Vega-Lite charts, and the SVG drawings): the example is saved under its file name and rendered with
+Vega-Lite charts, and the SVG drawings; not the snippet): the example is saved under its file name and rendered with
 `render <file> --strict --json -o <png>` (a model at 64x64 to stay fast); the exit code is 0, `ok` is true, there is no
 diagnostic, and the picture is written.
+
+**HelpTopics_SvgTopic_ImageHrefFileTypes_MatchTheResolverExtensions**: the extensions found in the `href file types`
+item of the `image-links` section of the `svg` topic have no duplicate, are all in `CanvasNetViewer.Extensions`,
+and include every one of them (both directions); `CanvasNetViewer.Extensions` is the union of the extensions of the
+registered `ImageSources` and does not contain `.json` but does contain `.vl.json`; and they equal the extensions of
+`DiscoveryCommands.InputFormats`.
+
+**HelpTopics_SvgTopic_ImageLinksSection_StatesSizeFolderRuleDiagnosticAndExample**: the `image-links` section says that
+a linked file is drawn at the size of the image element, that the `href` is relative to the folder of the SVG file and
+that an absolute path and a network URL are never followed, that `--strict` applies, has an item for
+`svg-image-unresolved` and `svg-image-too-large`, shows the `part.scad` example, names
+`canvasnet help svg --example embed`, and the `embed`
+example can be printed.
+
+**HelpTopics_SvgTopic_EmbedSnippet_RendersStrictWithItsSiblingFiles**: the `svg` topic has exactly one snippet, which is
+not a source example; it parses as XML, every `image` `href` ends in a supported extension, and after the sibling files
+are written from the `scad`, `vega-lite`, and `svg` examples, `render <snippet> --strict --json` succeeds with no
+diagnostic, one `embed` operation per link, and the picture written.
+
+**HelpTopics_ImageHrefLinking_IsCrossReferencedFromScadVegaLiteFormatsAndRender**: the text of the `scad` topic and the
+`vega-lite` topic, the footer of the `formats` listing, and the usage of `render` each contain `<image href` and
+`canvasnet help svg`.
 
 **HelpTopics_CommandExamples_UseKnownCommandsAndOptions**: every command example starts with `canvasnet`, names a known
 command (or `help`, with `--example` and `--examples`), and uses only options that the command or the tool declares.

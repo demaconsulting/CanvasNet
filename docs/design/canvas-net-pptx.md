@@ -200,6 +200,13 @@ introduces no new OTS Software Item beyond those already used to build and verif
 `CanvasNet` system (BuildMark, FileAssert, Pandoc, ReqStream, ReviewMark, SarifMark, SonarMark,
 VersionMark, WeasyPrint, xUnit) — see _OTS Integration Design_ (`docs/design/ots.md`).
 
+**Image sources.** The package also ships `PptxImageSource`, an implementation of the core `ImageSources` subsystem's
+`IImageSource` for `.pptx` files (the first slide), so that a document can link to a presentation through the shared
+`FolderImageResolver` (see _ImageSources Subsystem Design_, `canvas-net/image-sources.md`). It uses only the public
+contract types of the core package, so the package still references no other format package; the separate
+`CanvasNetViewer` system references this package one-way, to list the source with the other built-in ones, and nothing
+in this package refers to it.
+
 ## Risk Control Measures
 
 `PptxDocument.Open` parses an externally-supplied, potentially untrusted `.pptx` package (a ZIP

@@ -1012,3 +1012,26 @@ sections:
               - Render_LayerMember_HonorsVisibleAndPrint
               - Render_HiddenLayerGroup_HidesChildren
               - Render_FullyTransparentText_PaintsNothing
+
+          - id: CanvasNetVsdx-VsdxDocument-ImageSource
+            title: >-
+              The Vsdx package shall provide an image source for .vsdx files (claiming that extension and no URI
+              scheme) that opens the drawing from the bytes of the request and draws its first page over a
+              transparent background at its natural size (the page size at 96 dots per inch), or fitted inside the
+              requested box keeping the aspect ratio, refuses with ImageSourceBudgetException, before drawing
+              anything, a size that exceeds the pixels the request allows, returns each feature the library does
+              not draw as an unsupported note of the source vsdx (and fails with VsdxUnsupportedFeatureException
+              when the request
+              is strict), and fails with InvalidDataException for content that is not a readable drawing,
+              InvalidOperationException for a request without a file, and OperationCanceledException for a canceled
+              request.
+            justification: |
+              The first page stands for a drawing linked from a diagram; fitting without distortion keeps the page
+              recognizable at any placement size.
+            tests:
+              - VsdxImageSource_Render_NoRequestedSize_DrawsNaturalSizeOnTransparentBackground
+              - VsdxImageSource_Render_RequestedBox_FitsPageInsideBox
+              - VsdxImageSource_Render_SizeBeyondRemainingPixels_IsRefusedBeforeDrawing
+              - VsdxImageSource_Render_UnsupportedFeature_ReturnsDiagnosticOrThrowsWhenStrict
+              - VsdxImageSource_Render_InvalidInput_Throws
+              - VsdxImageSource_Properties_NameExtensionAndNoSchemes

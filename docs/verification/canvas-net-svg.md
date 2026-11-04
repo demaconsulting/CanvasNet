@@ -103,6 +103,16 @@ Exercises end-to-end system behavior for `image` rendering: rasterizes an `image
 visible at the element's placement rect and absent outside it, confirming the `PngCodec`
 decode path integrates correctly with SVG image placement.
 
+### Integration: Svg Image Resolver Renders Resolved Image
+
+**Test**: `CanvasNetSvg_SystemIntegration_SvgImageResolver_RendersResolvedImage`
+
+Exercises end-to-end system behavior for the opt-in `SvgLoadOptions.ImageResolver`: rasterizes an
+`image` element with an external `href` at twice the viewBox size, through the public API, once with
+a resolver and once without options. Asserts the resolver saw the raw `href` and the placement size in
+device pixels (120 by 120 for a 60 by 60 placement), that the resolved picture is visible inside the
+placement, and that without the resolver the same document draws nothing there.
+
 ### Integration: Svg View Box Fitting Letterboxes Wide View Box
 
 **Test**: `CanvasNetSvg_SystemIntegration_SvgViewBoxFitting_LetterboxesWideViewBox`

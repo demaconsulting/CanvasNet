@@ -333,7 +333,8 @@ declines to throw.
 
 ### Integration: Render Other Symbolic Font Without Embedded Font Throws Unsupported Image Feature Exception
 
-**Test**: `CanvasNetPdf_SystemIntegration_RenderOtherSymbolicFontWithoutEmbeddedFont_ThrowsUnsupportedImageFeatureException`
+**Test**:
+`CanvasNetPdf_SystemIntegration_RenderOtherSymbolicFontWithoutEmbeddedFont_ThrowsUnsupportedImageFeatureException`
 
 Regression guard exercising end-to-end system behavior for the Phase 6 font-fallback fail-closed
 boundary: calls the public `Render` API against a synthetic, in-memory single-page document
@@ -354,7 +355,8 @@ file access is attempted.
 
 ### Integration: Pdf Unsupported Format Validation Malformed Content Stream Throws Invalid Data Exception
 
-**Test**: `CanvasNetPdf_SystemIntegration_PdfUnsupportedFormatValidation_MalformedContentStreamThrowsInvalidDataException`
+**Test**:
+`CanvasNetPdf_SystemIntegration_PdfUnsupportedFormatValidation_MalformedContentStreamThrowsInvalidDataException`
 
 Exercises end-to-end system behavior for content-stream-level malformed-data validation: calls
 the public `Render` API against a hand-authored fixture whose otherwise well-formed
@@ -401,6 +403,16 @@ Asserts both tile colors appear at multiple repeated tile offsets at their exact
 device pixels, confirming tiling-pattern cell execution, `/XStep`/`/YStep` tile-offset repetition,
 and the nested-execution machinery shared with `/Subtype /Form` XObjects all integrate correctly
 through the system's own public entry point.
+
+### Integration: Image Source Draws The first page of a PDF file At The Size Of Its Placement
+
+**Test**: `PdfImageSource_Render_RequestedSize_FitsPageInsideBoxKeepingAspectRatio`
+
+Exercises end-to-end system behavior of `PdfImageSource`, the package's source for the shared image resolver of the core
+package: it renders the first page of a PDF file from the bytes of a hand-built request with a requested size and
+asserts that the picture has the documented size. The full set of scenarios (natural size, transparency, notes, strict
+mode, the folder of the request, and invalid input) is in the unit verification design
+(`canvas-net-pdf/pdf-document.md`).
 
 ## Acceptance Criteria
 

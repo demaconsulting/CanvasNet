@@ -25,12 +25,15 @@ internal sealed record HelpItem(string? Term, string Text);
 internal sealed record HelpSection(string Id, string Title, IReadOnlyList<HelpItem> Items);
 
 /// <summary>
-///     A tiny example of a help topic: a source file or a command line.
+///     A tiny example of a help topic: a source file, a command line, or a snippet.
 /// </summary>
 /// <param name="Name">The name of the example, unique within its topic; selects it with <c>--example</c>.</param>
-/// <param name="Kind">Either <c>source</c> (the content is a file the tool can read) or <c>command</c> (a command line).</param>
+/// <param name="Kind">
+///     <c>source</c> (the content is a file the tool can read on its own), <c>command</c> (a command line), or
+///     <c>snippet</c> (text that is shown but cannot be rendered alone, because it refers to other files).
+/// </param>
 /// <param name="Language">The language of the content: <c>openscad</c>, <c>json</c>, <c>xml</c>, or <c>shell</c>.</param>
-/// <param name="FileName">The file name to save a <c>source</c> example as, or <see langword="null"/> for a command.</param>
+/// <param name="FileName">The file name to save a <c>source</c> example as, or <see langword="null"/> for a command or snippet.</param>
 /// <param name="Description">A one-line description.</param>
 /// <param name="Content">The exact text of the example: LF line endings and no trailing newline.</param>
 internal sealed record HelpExample(
@@ -102,6 +105,12 @@ internal static partial class HelpTopics
     ///     The kind of an example whose content is a command line.
     /// </summary>
     internal const string CommandKind = "command";
+
+    /// <summary>
+    ///     The kind of an example whose content is text that refers to other files, so it is shown but never rendered
+    ///     alone (the render drift test skips it; a dedicated test renders it with its companion files).
+    /// </summary>
+    internal const string SnippetKind = "snippet";
 
     /// <summary>
     ///     The text every command-line example starts with.
@@ -302,19 +311,20 @@ internal static partial class HelpTopics
         var language = RequireString(element, "language", topic);
         var description = RequireString(element, "description", topic);
 
-        if (kind == SourceKind)
+        // A source and a snippet are files; a snippet is shown but never rendered alone
+        if (kind is SourceKind or SnippetKind)
         {
             var fileName = RequireString(element, "fileName", topic);
             var content = ReadResource($"{ExampleResourcePrefix}{topic}-{fileName}");
             return new HelpExample(name, kind, language, fileName, description, content);
         }
 
-        // Anything but a source must be a command line, and a command line must start with the tool's name
+        // Anything else must be a command line, and a command line must start with the tool's name
         var command = RequireString(element, "content", topic);
         if (kind != CommandKind || !command.StartsWith(CommandPrefix, StringComparison.Ordinal))
         {
             throw new InvalidOperationException(
-                $"The example '{name}' of topic '{topic}' must be a source or a command starting with '{CommandPrefix}'.");
+                $"The example '{name}' of topic '{topic}' must be a source, a snippet, or a command starting with '{CommandPrefix}'.");
         }
 
         return new HelpExample(name, kind, language, null, description, command);

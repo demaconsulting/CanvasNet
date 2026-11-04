@@ -18,39 +18,41 @@ public static partial class SvgCodec
     // <image> element rendering (Phase 4 of the SVG roadmap)
     // ================================================================================================
     //
-    // An <image> element embeds a raster image, placed at x/y/width/height and fitted per
-    // preserveAspectRatio, exactly like an <img>/replaced-element box in CSS. This codec supports
-    // exactly one href form: a base64-encoded "data:" URI whose MIME type matches one of this
-    // codec's own sibling raster codecs (PngCodec/JpegCodec/BmpCodec/TiffCodec/GifCodec) - no new
-    // decode logic is written anywhere in this file, only base64/data-URI parsing and dispatch to
-    // each codec's own existing Load(Stream) entry point.
+    // An <image> element embeds a picture, placed at x/y/width/height and fitted per
+    // preserveAspectRatio, exactly like an <img>/replaced-element box in CSS. This codec itself
+    // decodes exactly one href form: a base64-encoded "data:" URI whose MIME type matches one of
+    // this codec's own sibling raster codecs (PngCodec/JpegCodec/BmpCodec/TiffCodec/GifCodec) - no
+    // new decode logic is written anywhere in this file, only base64/data-URI parsing and dispatch
+    // to each codec's own existing Load(Stream) entry point. Every other href is offered to the
+    // host's explicit, opt-in SvgLoadOptions.ImageResolver callback (when one was supplied), which
+    // returns an already rendered Surface that then goes through the same fit/sample/effects
+    // pipeline as a decoded data-URI raster.
     //
     // Explicitly out of scope, documented here as a single reference point (mirroring
     // SvgCodec.Patterns.cs's/SvgCodec.ClippingAndMasking.cs's identical convention):
     //
-    //   - A non-"data:" href (a file path, or an absolute/relative URL) is a documented, safe
-    //     no-op: the element renders nothing, no exception is thrown, and - critically - no
-    //     filesystem or network I/O of any kind is ever performed for it. This is a deliberate
-    //     security decision, not a missing feature: none of this codec's four Load/
-    //     LoadWithFontFaces overloads (see SvgCodec.cs) accept a base path, resource-resolver
-    //     delegate, or HttpClient, and there is no existing precedent anywhere in this codebase for
-    //     resolving an external resource reference during decode. Inventing one here, solely for
-    //     <image>, would introduce either an arbitrary-file-read vector (a base path inferred from
-    //     an unrelated Load(string path, ...) call, followed by a crafted "../../secret" href) or
-    //     an SSRF vector (fetching an attacker-controlled internal-network URL) - both avoided
-    //     entirely by never constructing a File.Exists/WebRequest/Stream for anything but a "data:"
-    //     URI's own in-memory payload.
-    //   - A nested SVG document - either "data:image/svg+xml" or any external ".svg" reference (the
-    //     latter already covered by the external-href-as-no-op decision above) - is also a
-    //     documented, safe no-op, for the same reason feImage (see SvgCodec.Filters.cs's own
-    //     remarks) is out of scope: this codec's entire rendering pipeline (RenderElement,
-    //     RenderContext, the whole-document IdIndex, and every GeometryWorkBudget/
-    //     FilterWorkBudget/BoundsPrePassWorkBudget) is built around exactly one root document
-    //     parsed once by Load. Supporting a second, nested document embedded in an <image> href
-    //     would require re-parsing a second XDocument, re-running BuildIdIndex, establishing fresh
-    //     (or shared - itself a non-trivial design question) work budgets, and a new
-    //     recursion-depth guard distinct from MaxElementDepth/MaxUseDepth - a disproportionate cost
-    //     for a rarely-used feature, deferred to a future phase.
+    //   - A non-"data:" href (a file path, or an absolute/relative URL) renders nothing, throws
+    //     nothing, and - critically - this codec never performs filesystem or network I/O of any
+    //     kind for it. This is a deliberate security decision: the codec has no base path, no
+    //     sandbox and no HTTP client, and inventing one here would introduce either an
+    //     arbitrary-file-read vector (a crafted "../../secret" href) or an SSRF vector. The only
+    //     way an external reference is ever loaded is the opt-in SvgLoadOptions.ImageResolver: the
+    //     I/O then happens only inside a caller-supplied delegate, and what it may reach is the
+    //     caller's decision and responsibility (a host that opts in is expected to confine it, for
+    //     example to a folder). With no resolver (the default) the behavior is exactly as before:
+    //     a safe no-op with no I/O. The resolver is never called for a "data:" URI (valid or
+    //     not) or a "#fragment" href, and is called at most a budget-bounded number of times (see
+    //     ResolverCallOverheadUnits).
+    //   - A nested SVG document given as "data:image/svg+xml" is a documented, safe no-op, for the
+    //     same reason feImage (see SvgCodec.Filters.cs's own remarks) is out of scope: this codec's
+    //     entire rendering pipeline (RenderElement, RenderContext, the whole-document IdIndex, and
+    //     every GeometryWorkBudget/FilterWorkBudget/BoundsPrePassWorkBudget) is built around
+    //     exactly one root document parsed once by Load. An external ".svg" href can be embedded
+    //     only through the resolver, which may return a surface it rendered itself (with its own
+    //     budgets and its own recursion guard - the host owns both).
+    //   - feImage does not use the resolver: an external feImage href stays a no-op (a possible
+    //     follow-up), because feImage is placed through the filter primitive-subregion machinery,
+    //     not through this method.
     //   - The raster is resampled smoothly (see SampleImageIntoRegion below): an axis-aligned
     //     placement is resampled once to its device-pixel rectangle by the shared SurfaceResampler
     //     engine (area averaging when shrunk, Catmull-Rom bicubic when enlarged); a rotated or
@@ -106,10 +108,11 @@ public static partial class SvgCodec
     ///     painted underneath fully visible) for every one of the following conditions, none of
     ///     which abort the whole document: a non-finite/non-positive <c>width</c>/<c>height</c>
     ///     (including the default of <c>0</c> when either is absent - see this class's remarks); a
-    ///     <c>href</c> that is not a well-formed <c>data:...;base64,...</c> URI (covers a non-
-    ///     <c>data:</c> href, i.e. a file path/URL, and a data URI missing the required
-    ///     <c>;base64</c> token); an unrecognized/unsupported MIME type (including
-    ///     <c>image/svg+xml</c>); a non-finite/non-invertible composed placement transform; a
+    ///     <c>href</c> that is not a well-formed <c>data:...;base64,...</c> URI and is not resolved
+    ///     by the opt-in <see cref="SvgLoadOptions.ImageResolver"/> (covers a non-
+    ///     <c>data:</c> href, i.e. a file path/URL, when no resolver was supplied, and a data URI
+    ///     missing the required <c>;base64</c> token); an unrecognized/unsupported MIME type
+    ///     (including <c>image/svg+xml</c>); a <see langword="null"/> resolver result; a non-finite/non-invertible composed placement transform; a
     ///     degenerate/oversized effects region (mirroring every other effects-capable element's
     ///     identical <see cref="ConvertLocalRegionToPixelBounds"/> reuse); a declined
     ///     <see cref="RenderScope.FilterWorkBudget"/> charge; or a malformed base64 payload/malformed or
@@ -137,11 +140,24 @@ public static partial class SvgCodec
             return;
         }
 
-        // Resolve the href - only a well-formed base64 "data:" URI with a recognized raster MIME
-        // type is ever decoded; every other form (a non-"data:" href, a data URI missing
-        // ";base64", or an unsupported/nested-SVG MIME type) tolerantly renders nothing without
-        // ever touching the filesystem or network - see this class's remarks
-        if (!TryResolveImageSource(element, out var decodeRaster, out var base64Payload))
+        // Classify the href: only a base64 "data:" URI is decoded by the codec itself, and only
+        // an href that is neither "data:" nor a "#fragment" is ever offered to the host's opt-in
+        // ImageResolver (see this class's remarks). Every other form tolerantly renders nothing
+        // without ever touching the filesystem or network
+        var href = GetHrefAttribute(element)?.Trim();
+        var hrefKind = ClassifyImageHref(href, context);
+        if (hrefKind == ImageHrefKind.None)
+        {
+            return;
+        }
+
+        // Build the loader for the resolved href: the data path decodes the base64 payload, the
+        // resolver path asks the host. Each reports its own extra work units. Doing this before
+        // the effects are resolved keeps the cheap "nothing to load" exits first
+        var imageLoad = hrefKind == ImageHrefKind.Data
+            ? CreateDataImageLoad(element)
+            : CreateResolverImageLoad(href!, width, height, transform, context, scope);
+        if (imageLoad == null)
         {
             return;
         }
@@ -159,8 +175,8 @@ public static partial class SvgCodec
 
         var (pixelX, pixelY, pixelWidth, pixelHeight) = effects.Value.Region;
 
-        // Charge the shared cumulative FilterWorkBudget BEFORE the base64 decode/raster Load is
-        // attempted - see this method's own remarks on the additional base64-length term
+        // Charge the shared cumulative FilterWorkBudget BEFORE the base64 decode/raster Load (or
+        // the host callback) is attempted - see this method's own remarks on the additional term
         var workUnits = ComputeEffectsPipelineWorkUnits(
             effects.Value.FilterApplies,
             effects.Value.PrimitiveCount,
@@ -169,13 +185,15 @@ public static partial class SvgCodec
             effects.Value.Mask != null,
             pixelWidth,
             pixelHeight)
-            + base64Payload.Length;
+            + imageLoad.Value.WorkUnits;
         if (!scope.FilterWorkBudget.TryCharge(workUnits))
         {
             return;
         }
 
-        var decodedSurface = TryDecodeImageSurface(decodeRaster, base64Payload);
+        // The loaded surface is owned by this method: it is always disposed once its pixels have
+        // been sampled into the region buffer (or the placement turned out to be unusable)
+        using var decodedSurface = imageLoad.Value.Loader();
         if (decodedSurface == null)
         {
             return;
@@ -231,6 +249,173 @@ public static partial class SvgCodec
         int PrimitiveCount,
         Rect PlacementRect,
         (int X, int Y, int Width, int Height) Region);
+
+    /// <summary>
+    ///     How an <c>image</c> element's <c>href</c> is to be loaded.
+    /// </summary>
+    private enum ImageHrefKind
+    {
+        /// <summary>Nothing is drawn: an empty/fragment href, or an external href with no resolver.</summary>
+        None,
+
+        /// <summary>A <c>data:</c> URI, decoded by the codec itself.</summary>
+        Data,
+
+        /// <summary>Any other reference, loaded by the host's <see cref="SvgLoadOptions.ImageResolver"/>.</summary>
+        External,
+    }
+
+    /// <summary>
+    ///     A deferred load of an <c>image</c> element's picture together with the work units to
+    ///     charge before it runs.
+    /// </summary>
+    /// <param name="WorkUnits">The work units charged, in addition to the effects pipeline, before <paramref name="Loader"/> runs.</param>
+    /// <param name="Loader">Loads the picture; returns <see langword="null"/> for a tolerant no-op.</param>
+    private readonly record struct ImageLoad(long WorkUnits, Func<Surface?> Loader);
+
+    /// <summary>
+    ///     The fixed work units charged for every call of the host's
+    ///     <see cref="SvgLoadOptions.ImageResolver"/>, on top of the requested pixel area. With the
+    ///     50,000,000-unit cumulative filter budget this allows fewer than 500 calls per document,
+    ///     which bounds a <c>use</c> fan-out of external images.
+    /// </summary>
+    private const long ResolverCallOverheadUnits = 100_000L;
+
+    /// <summary>
+    ///     Classifies a trimmed <c>href</c>: <c>data:</c> URIs go to the codec's own decoder, an
+    ///     empty or same-document <c>#fragment</c> href is never loaded, and every other href is
+    ///     external - loaded only when the host supplied a resolver.
+    /// </summary>
+    /// <param name="href">The trimmed <c>href</c>, or <see langword="null"/> when absent.</param>
+    /// <param name="context">The fixed per-document render context.</param>
+    /// <returns>The kind of load to perform.</returns>
+    private static ImageHrefKind ClassifyImageHref(string? href, RenderContext context)
+    {
+        if (string.IsNullOrEmpty(href) || href[0] == '#')
+        {
+            return ImageHrefKind.None;
+        }
+
+        if (href.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+        {
+            return ImageHrefKind.Data;
+        }
+
+        return context.ImageResolver == null ? ImageHrefKind.None : ImageHrefKind.External;
+    }
+
+    /// <summary>
+    ///     Builds the deferred load of a <c>data:</c> URI raster.
+    /// </summary>
+    /// <param name="element">The <c>image</c> element.</param>
+    /// <returns>The load, or <see langword="null"/> when the data URI is malformed or unsupported.</returns>
+    private static ImageLoad? CreateDataImageLoad(XElement element)
+    {
+        if (!TryResolveImageSource(element, out var decodeRaster, out var base64Payload))
+        {
+            return null;
+        }
+
+        return new ImageLoad(base64Payload.Length, () => TryDecodeImageSurface(decodeRaster, base64Payload));
+    }
+
+    /// <summary>
+    ///     Builds the deferred load of an external <c>href</c> through the host's resolver.
+    /// </summary>
+    /// <param name="href">The trimmed <c>href</c>.</param>
+    /// <param name="width">The placement width in local units.</param>
+    /// <param name="height">The placement height in local units.</param>
+    /// <param name="transform">The accumulated local-to-pixel transform.</param>
+    /// <param name="context">The fixed per-document render context (carries the resolver).</param>
+    /// <param name="scope">The shared work budgets.</param>
+    /// <returns>The load, or <see langword="null"/> for a non-finite placement transform.</returns>
+    private static ImageLoad? CreateResolverImageLoad(
+        string href,
+        float width,
+        float height,
+        Matrix3x2 transform,
+        RenderContext context,
+        RenderScope scope)
+    {
+        if (!IsFiniteTransform(transform))
+        {
+            return null;
+        }
+
+        // The device size of the placement is the edge length of the transformed rectangle, which
+        // also covers rotation and skew
+        var pixelWidth = ToDevicePixels(width * Math.Sqrt((transform.M11 * transform.M11) + (transform.M12 * transform.M12)));
+        var pixelHeight = ToDevicePixels(height * Math.Sqrt((transform.M21 * transform.M21) + (transform.M22 * transform.M22)));
+        var requestedPixels = (long)pixelWidth * pixelHeight;
+        return new ImageLoad(
+            requestedPixels + ResolverCallOverheadUnits,
+            () => InvokeImageResolver(context, scope, href, pixelWidth, pixelHeight));
+    }
+
+    /// <summary>
+    ///     Rounds a device-space length up to whole pixels and clamps it to the valid surface range.
+    /// </summary>
+    /// <param name="length">The device-space length.</param>
+    /// <returns>A value from 1 to <see cref="Surface.MaxDimension"/>.</returns>
+    /// <remarks>
+    ///     A small tolerance is subtracted before rounding up so a length that is a whole number of
+    ///     pixels up to floating-point noise (for example 200.00001 from a viewBox scale) does not
+    ///     gain an extra pixel.
+    /// </remarks>
+    private static int ToDevicePixels(double length)
+    {
+        if (double.IsNaN(length))
+        {
+            return 1;
+        }
+
+        return (int)Math.Clamp(Math.Ceiling(length - 1e-3), 1d, Surface.MaxDimension);
+    }
+
+    /// <summary>
+    ///     Calls the host's image resolver for one request and validates its result.
+    /// </summary>
+    /// <param name="context">The fixed per-document render context (carries the resolver).</param>
+    /// <param name="scope">The shared work budgets, charged for a result larger than requested.</param>
+    /// <param name="href">The trimmed <c>href</c> to resolve.</param>
+    /// <param name="pixelWidth">The placement width in device pixels.</param>
+    /// <param name="pixelHeight">The placement height in device pixels.</param>
+    /// <returns>The surface (owned by the caller), or <see langword="null"/> for a tolerant no-op.</returns>
+    /// <remarks>
+    ///     An exception from the resolver propagates unchanged: the resolver is trusted host code,
+    ///     not untrusted document content. A <see cref="FormatException"/> is wrapped so that
+    ///     <c>LoadCore</c> does not mislabel it as invalid SVG numeric data.
+    /// </remarks>
+    private static Surface? InvokeImageResolver(RenderContext context, RenderScope scope, string href, int pixelWidth, int pixelHeight)
+    {
+        Surface? surface;
+        try
+        {
+            surface = context.ImageResolver!.Resolve(href, pixelWidth, pixelHeight);
+        }
+        catch (FormatException ex)
+        {
+            throw new InvalidOperationException("The SVG image resolver threw a FormatException.", ex);
+        }
+
+        if (surface == null)
+        {
+            return null;
+        }
+
+        // The area was charged for the requested size; charge any excess before the pixels are used. This is the
+        // defense against a resolver that returns a bigger surface than was asked for (a raster comes back at its own
+        // size); it can only discard the surface after it exists. The memory itself is protected by the resolver, which
+        // refuses a picture that exceeds its own pixel budget before it allocates it (FolderImageResolver does)
+        var excess = ((long)surface.Width * surface.Height) - ((long)pixelWidth * pixelHeight);
+        if (excess > 0 && !scope.FilterWorkBudget.TryCharge(excess))
+        {
+            surface.Dispose();
+            return null;
+        }
+
+        return surface;
+    }
 
     /// <summary>
     ///     Resolves the <c>href</c> of an <c>image</c> element into a raster decoder and its raw

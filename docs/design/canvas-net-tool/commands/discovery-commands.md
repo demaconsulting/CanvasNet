@@ -53,7 +53,8 @@ the JSON document (when `context.Json`) or the text listing, through `context.Wr
 topic as `help <topic>`), _Output formats_ (format, extensions, alpha, quality), _Limits_ (maximum image dimension,
 JPEG quality range and default), and _Versions_ (tool and library), then a blank line and the footer
 `Run 'canvasnet help <topic>' for supported features, examples, and known differences (for example
-'canvasnet help vega-lite').` Columns are aligned and the last column is not padded. The help topic of a format is
+'canvasnet help vega-lite'). An SVG drawing can embed files of these formats with <image href>; see 'canvasnet help svg'.`
+Columns are aligned and the last column is not padded. The help topic of a format is
 the `HelpTopic` of its `InputFormat` row: `raster` for the six raster formats, otherwise the name of the format.
 
 **JSON document**: written through `ResultWriter.Success("formats", ...)` with these fields after the envelope, in

@@ -1,0 +1,85 @@
+---
+# cspell:ignore vsdx
+#
+# Software System Requirements for CanvasNetViewer
+#
+# These requirements describe the externally visible behavior of the DemaConsulting.CanvasNet.Viewer
+# package (namespace DemaConsulting.CanvasNet.Viewer) from the perspective of its consumers, without
+# specifying implementation details.
+#
+# CanvasNetViewer is an independent software system, distributed as its own NuGet package. It
+# aggregates the image sources of every CanvasNet format package (CanvasNetSvg, CanvasNetPdf,
+# CanvasNetPptx, CanvasNetVsdx, CanvasNetScad, CanvasNetVegaLite) and of the core ImageSources
+# subsystem (the raster source and the folder resolver), so that one call renders any file the
+# library can read and one call creates the resolver that lets an SVG document embed all of them -
+# see docs/design/canvas-net-viewer.md's Dependencies section for details.
+
+sections:
+  - title: CanvasNetViewer Requirements
+    requirements:
+      - id: CanvasNetViewer-Sources
+        title: >-
+          The library shall list the image sources it supports, one for each of the raster, SVG, PDF,
+          PowerPoint, Visio, OpenSCAD, and Vega-Lite formats, in a fixed order that an application cannot
+          change, and the file name extensions they claim as one sorted list.
+        tags: [system]
+        justification: |
+          An application, a document, and the command-line tool must agree on which file types can be linked
+          and rendered; one fixed list is that single source of truth, and a format is added to it in one place.
+        children:
+          - CanvasNetViewer-CanvasNetViewer-ImageSources
+        tests:
+          - CanvasNetViewer_SystemIntegration_ImageSources_ListEveryFormat
+
+      - id: CanvasNetViewer-Embedding
+        title: >-
+          The library shall create, for a folder, a resolver that lets an SVG document embed a raster, a model,
+          a chart, another SVG file, and a page of a document from that folder and below it only (a query or a
+          fragment after the file name is ignored), refuse a picture that would take more pixels than the render
+          may use before it is decoded (a warning, not an error), and report the
+          notes, printed text, and embedded images of the render.
+        tags: [system]
+        justification: |
+          A diagram that links to models, charts, and pictures is the central use of the package; the resolver
+          must work with the SVG codec without the application wiring any format package itself.
+        children:
+          - CanvasNetViewer-CanvasNetViewer-CreateImageResolver
+        tests:
+          - CanvasNetViewer_SystemIntegration_SvgEmbeddingEveryFormat_DrawsAllAndReportsEmbeds
+          - CanvasNetViewer_SystemIntegration_SvgEmbeddingWithQueryAndFragment_DrawsTheFile
+          - CanvasNetViewer_SystemIntegration_SvgEmbeddingHugeRasterInTinyPlacement_IsRefusedWithWarning
+
+      - id: CanvasNetViewer-Render
+        title: >-
+          The library shall render any file of a supported format, given as a path or as a stream with a file
+          name, as a picture at its natural size or at a requested size, returning the picture with its format,
+          notes, printed text, and embedded images, and shall fail with a specific exception for a missing file,
+          an unknown file type, a file that cannot be drawn, a path outside the folder, and a canceled render.
+        tags: [system]
+        justification: |
+          Applications that only want to show a file (a viewer, a thumbnail generator, a report builder) should
+          not need to know which package reads which format.
+        children:
+          - CanvasNetViewer-CanvasNetViewer-RenderPath
+          - CanvasNetViewer-CanvasNetViewer-RenderStream
+        tests:
+          - CanvasNetViewer_SystemIntegration_RenderWithExtraSources_UsesCustomSources
+
+      - id: CanvasNetViewer-CustomSources
+        title: >-
+          The library shall let a library user add image sources of their own, claiming a file name extension
+          or a URI scheme, so that a new file type or a live source can be embedded and rendered; a source that
+          claims the same extension or scheme as an earlier source shall take precedence, nothing shall be cached
+          between renders, and no source shall claim http or https unless the user supplies it.
+        tags: [system]
+        justification: |
+          New formats and live sources (a camera, a video frame) belong to applications, not to this library; the
+          precedence rule lets an application override a built-in format, and a live source must be asked again
+          for every render.
+        children:
+          - CanvasNetViewer-CanvasNetViewer-ExtraSources
+        tests:
+          - CanvasNetViewer_SystemIntegration_CustomSourceForNewExtension_IsEmbedded
+          - CanvasNetViewer_SystemIntegration_CustomSourceOverridingBuiltInExtension_Wins
+          - CanvasNetViewer_SystemIntegration_CustomSchemeSource_IsEmbeddedFromRawHref
+          - CanvasNetViewer_SystemIntegration_LiveFrameSource_GivesFreshFrameOnEveryRender

@@ -56,6 +56,10 @@ package CanvasNet {
         expose CanvasNetVegaLiteSystem;
     }
 
+    view CanvasNetViewerView {
+        expose CanvasNetViewerSystem;
+    }
+
     view VegaLiteSpecModelView {
         expose VegaLiteSpecModel;
     }
@@ -150,6 +154,10 @@ package CanvasNet {
 
     view FilesView {
         expose Files;
+    }
+
+    view ImageSourcesView {
+        expose ImageSources;
     }
 
     view PackagingView {

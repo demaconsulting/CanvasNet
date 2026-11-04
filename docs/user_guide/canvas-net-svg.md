@@ -33,7 +33,9 @@ paint server, honoring `patternUnits`/`patternContentUnits`, `patternTransform`,
 `viewBox`/`preserveAspectRatio`, and `href`/`xlink:href` tile-content inheritance) - `image`
 elements (a base64-encoded `data:` URI in a supported raster format, decoded through that
 format's own existing codec and drawn into the element's own `x`/`y`/`width`/`height` placement
-rect) - `image-rendering` on an `image` (attribute, `style` declaration or stylesheet rule, inherited
+rect; any other `href` only through the opt-in `SvgLoadOptions.ImageResolver` - see
+*Embedding External Images* below) - `image-rendering` on an `image` (attribute, `style` declaration or stylesheet
+rule, inherited
 from ancestors) selects the resampling filter: `pixelated`, `crisp-edges` and `optimizeSpeed` draw with
 hard nearest-pixel edges, any other recognized value (for example `auto` or `optimizeQuality`) smooths,
 and an unrecognized value is ignored so the inherited value applies - and best-effort,
@@ -140,10 +142,107 @@ public static Surface LoadWithFontFaces(string path, int width, int height,
     IReadOnlyDictionary<string, IReadOnlyList<SvgFontFace>>? fonts, SvgLoadOptions options)
 ```
 
-The same as the overloads without `options`, with explicit load options. `SvgLoadOptions` has one
-property, `UseSystemFonts` (default `true`); `new SvgLoadOptions()` behaves exactly like omitting the
+The same as the overloads without `options`, with explicit load options. `SvgLoadOptions` has two
+properties: `UseSystemFonts` (default `true`) and `ImageResolver` (default `null`, see below);
+`new SvgLoadOptions()` behaves exactly like omitting the
 argument. `options` must not be null (`ArgumentNullException`); the other exceptions are as for the
 overloads above.
+
+##### Embedding External Images: SvgLoadOptions.ImageResolver
+
+```csharp
+public IImageResolver? ImageResolver { get; init; }   // DemaConsulting.CanvasNet.ImageSources
+
+public interface IImageResolver
+{
+    Surface? Resolve(string href, int pixelWidth, int pixelHeight);
+}
+```
+
+By default `SvgCodec` draws an `image` element only when its `href` is a base64 `data:` URI, and it
+**never reads a file or the network** for any other `href` (the element draws nothing). To embed a
+picture by file name, set `ImageResolver`: the codec then calls `Resolve` for every `image` whose `href`
+is not a `data:` URI and not a same-document `#fragment` (an empty `href` is never passed either), and
+draws the `Surface` it returns. This is an explicit opt-in: **the codec still performs no I/O itself -
+the only I/O is whatever your resolver does**, so what it may reach (one folder, a sandbox, an
+allow-list) is your decision. Never resolve an `href` from an untrusted document against the file
+system without confining it first.
+
+The ready-made, confined resolver is `FolderImageResolver` of the core package (see the core user
+guide, *Linked Images*). It resolves each link inside one folder, hands the file to the image source
+that claims its extension (or the link to the source that claims its URI scheme), and bounds the depth,
+the cycles, the number of images, and the pixels they may use in total (a picture over that budget is refused before
+it is decoded, with the warning `svg-image-too-large`). A query or fragment after a file name (`logo.png?v=2`) is
+ignored. The core package has a raster source; the `Svg` package has
+`SvgImageSource` for `.svg` files; and the `Scad`, `VegaLite`, `Pdf`, `Pptx` and `Vsdx` packages have
+one each. The `DemaConsulting.CanvasNet.Viewer` package lists them all.
+
+```csharp
+// SVG files that embed raster images and other SVG files from the folder of the document
+var resolver = new FolderImageResolver("assets", [new RasterImageSource(), new SvgImageSource()]);
+var options = new SvgLoadOptions { ImageResolver = resolver };
+using var surface = SvgCodec.Load("assets/diagram.svg", 800, 600, fonts: null, options);
+
+foreach (var note in resolver.Diagnostics)
+{
+    Console.WriteLine($"{note.Severity}: {note.Message}");   // for example a link that could not be drawn
+}
+```
+
+Create a **new resolver for every render**: it counts the images of one render, accumulates its
+`Diagnostics`, and is not thread-safe. Nothing is cached, neither by the codec nor by the folder resolver:
+every `image` element and every render calls the resolver (and its source) again, so a resolver backed by a
+live source, such as a video frame, gives a fresh picture each time. The codec charges the size of the placement (and
+any larger picture the resolver returns) against its own work budget, but it can only discard an oversize picture
+after it exists; a resolver must protect the memory itself, as `FolderImageResolver` does by refusing a picture over
+its pixel budget before it is allocated.
+
+A resolver receives the `href` exactly as written (trimmed) and `pixelWidth` x `pixelHeight`, the size of the
+element's placement rectangle **in device pixels after all transforms** (the viewBox fit, `transform`
+attributes, rotation and skew included), rounded up and between 1 and `Surface.MaxDimension`. Draw a vector
+source (a rendered chart, another SVG) at that size to keep it sharp. The returned surface is fitted into the
+placement rectangle with the element's `preserveAspectRatio` and drawn through the same `image-rendering`,
+`opacity`, `clip-path`, `mask`, and `filter` handling as a `data:` raster. Return `null` for "not found / not
+allowed": the element then draws nothing.
+
+- **Ownership.** The codec takes ownership of the returned surface and disposes it after drawing:
+  return a surface you own exclusively, never one you keep or reuse.
+- **Budget.** Each call is charged (the placement's pixel area plus a fixed overhead, before the call)
+  against the codec's shared work budget, so a document cannot make you load an unbounded number of
+  pictures (fewer than 500 calls); a surface larger than the requested size is charged for the extra
+  pixels and is dropped when the budget is exhausted. `FolderImageResolver` additionally bounds the nesting
+  depth, cycles, and the number of images.
+- **Errors.** An exception thrown by your resolver propagates to the caller of `Load` unchanged (it is
+  trusted host code, not untrusted document content), except that a `FormatException` is wrapped in an
+  `InvalidOperationException` so it is not mistaken for invalid SVG data. `FolderImageResolver` throws
+  `ImageSourceException` for a file that exists but cannot be drawn, and only warns for a link it cannot
+  resolve.
+- **Scope.** `feImage` does not use the resolver; an external `feImage` `href` still draws nothing.
+
+To write your own resolver, implement `IImageResolver`; to add a format or a live source to
+`FolderImageResolver`, implement `IImageSource` (see the core user guide, *Linked Images*):
+
+```csharp
+// A resolver that serves one prepared picture for the link "logo"; anything else draws nothing.
+sealed class LogoResolver(Func<Surface> makeLogo) : IImageResolver
+{
+    public Surface? Resolve(string href, int pixelWidth, int pixelHeight)
+        => href == "logo" ? makeLogo() : null;   // a new surface every call; the codec disposes it
+}
+```
+
+##### SvgImageSource
+
+```csharp
+public sealed class SvgImageSource : IImageSource   // Name "svg"; Extensions [".svg"]; no Schemes
+```
+
+`SvgImageSource` lets one SVG file be embedded in another (or in any document that draws through a
+`FolderImageResolver`). It draws the file at the size of its placement over a transparent background and
+resolves the file's own `image` elements through the resolver of the request, so relative links inside the
+nested file resolve against its own folder and the limits of the whole render apply: SVG files that embed each
+other stop with a warning instead of recursing without end. The SVG library has no switch for unsupported
+features, so the strictness switch has no effect.
 
 ##### SvgCodec Default Fonts
 

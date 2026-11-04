@@ -88,6 +88,7 @@
         { "text": "A schema of version 5 is drawn with the version 6 defaults (a view is 300 by 300 pixels by default, for example)." },
         { "text": "Text is measured with the bundled fonts, so labels, legends, and facet headers can differ from a browser by a few pixels. A character the Liberation fonts lack is drawn from the bundled Noto fonts, never from an installed font, so the result does not depend on the machine." },
         { "text": "Dates are always UTC; nothing is read from the network; data files are only read from the specification's folder and below." },
+        { "text": "A chart can be drawn inside an SVG diagram with <image href=\"chart.vl.json\" .../> (see 'canvasnet help svg'); it keeps its own background there." },
         { "text": "Color schemes are interpolated piecewise in sRGB, not taken from the d3-scale-chromatic tables." },
         { "text": "labelExpr and the other expressions have format(value, specifier) (d3-format), timeFormat() and utcFormat() (d3-time-format); an invalid specifier is a render error. config.legend.labelExpr is not read, as in Vega-Lite 6." },
         { "text": "Composite marks (boxplot, errorbar, errorband) report binned, aggregated, or time-unit grouping channels and do not apply them." },
