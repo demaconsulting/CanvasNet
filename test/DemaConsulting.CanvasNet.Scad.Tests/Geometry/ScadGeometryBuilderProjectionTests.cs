@@ -109,6 +109,83 @@ public class ScadGeometryBuilderProjectionTests
     }
 
     /// <summary>
+    ///     Validates that a solid beside a larger solid is classified by its own tolerance: a cutter whose top lies
+    ///     5e-10 below the top of a 1e-3 plate leaves a sliver of the plate over the cutter, so the footprint of the
+    ///     plate is complete (no hole), as it is when the larger solid is not there. A solid of size 1e4 has a
+    ///     tolerance of about 1e-5 and one of size 1e6 of about 1e-3, both far above the sliver.
+    /// </summary>
+    /// <param name="size">The size of the solid beside the plate.</param>
+    [Theory]
+    [InlineData("1e4")]
+    [InlineData("1e6")]
+    public void ScadGeometryBuilderProjection_SmallDifferenceBesideAHugeSolid_KeepsASliver(string size)
+    {
+        // Arrange
+        var source = $"projection() {{ difference() {{ cube(1e-3); translate([3e-4, 3e-4, -1e-3]) cube([4e-4, 4e-4, 1.9999995e-3]); }} translate([1e3, 0, 0]) cube({size}); }}";
+
+        // Act
+        var result = BuildSource(source);
+
+        // Assert: the part of the plate is one slab (a hole would split it), and the larger cube is another
+        var plate = result.Meshes.Where(m => m.Mesh.Bounds.Max.X < 1.0).ToList();
+        var single = Assert.Single(plate);
+        Assert.Equal(0.0, single.Mesh.Bounds.Min.X, 1e-15);
+        Assert.Equal(1e-3, single.Mesh.Bounds.Max.X, 1e-15);
+        Assert.Equal(0.0, single.Mesh.Bounds.Min.Y, 1e-15);
+        Assert.Equal(1e-3, single.Mesh.Bounds.Max.Y, 1e-15);
+        Assert.Empty(result.Warnings);
+        Assert.Empty(result.Unsupported);
+    }
+
+    /// <summary>
+    ///     Validates the control of the sliver case: when the cutter pokes 5e-10 through the top of the plate the hole
+    ///     is a hole, beside a larger solid as well.
+    /// </summary>
+    /// <param name="size">The size of the solid beside the plate.</param>
+    [Theory]
+    [InlineData("1e4")]
+    [InlineData("1e6")]
+    public void ScadGeometryBuilderProjection_SmallDifferenceBesideAHugeSolid_KeepsAThroughHole(string size)
+    {
+        // Arrange
+        var source = $"projection() {{ difference() {{ cube(1e-3); translate([3e-4, 3e-4, -1e-3]) cube([4e-4, 4e-4, 2.0000005e-3]); }} translate([1e3, 0, 0]) cube({size}); }}";
+
+        // Act
+        var result = BuildSource(source);
+
+        // Assert: the plate is a frame of several slabs
+        var plate = result.Meshes.Where(m => m.Mesh.Bounds.Max.X < 1.0).ToList();
+        Assert.True(plate.Count > 1);
+        Assert.Empty(result.Warnings);
+        Assert.Empty(result.Unsupported);
+    }
+
+    /// <summary>
+    ///     Validates that a far, huge solid does not disturb a small solid: a cutter 1e9 away has face planes whose
+    ///     offsets are far outside the resolution of the small cube, and a tolerance shared with it (about 2e-3) would
+    ///     be larger than the cube. It also guards the order of the reach test and the plane key (an out-of-range
+    ///     offset is never turned into a key).
+    /// </summary>
+    [Fact]
+    public void ScadGeometryBuilderProjection_SmallPartBesideAFarCutter_IsNotAffectedByTheCutterPlane()
+    {
+        // Arrange
+        const string source = "projection() difference() { cube(1e-3); translate([1e9, 0, 1e9]) cube(1e6); }";
+
+        // Act
+        var result = BuildSource(source);
+
+        // Assert
+        var bounds = result.SingleMesh.Bounds;
+        Assert.Equal(0.0, bounds.Min.X, 1e-15);
+        Assert.Equal(1e-3, bounds.Max.X, 1e-15);
+        Assert.Equal(0.0, bounds.Min.Y, 1e-15);
+        Assert.Equal(1e-3, bounds.Max.Y, 1e-15);
+        Assert.Empty(result.Warnings);
+        Assert.Empty(result.Unsupported);
+    }
+
+    /// <summary>
     ///     Validates that a solid turned about the X axis projects to the extent it has in X and Z.
     /// </summary>
     [Fact]

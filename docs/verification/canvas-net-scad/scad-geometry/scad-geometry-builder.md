@@ -452,7 +452,10 @@ Asserts that a model with a hull of a sphere and a rotated cube, a distributed s
 `ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_FarTranslatedSmallCube_StillProjects`,
 `ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_FarTranslatedDifference_KeepsTheHole`,
 `ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_SmallScaleCube_Projects`,
-`ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_SmallScaleDifference_KeepsTheHole`
+`ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_SmallScaleDifference_KeepsTheHole`,
+`ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_SmallDifferenceBesideAHugeSolid_KeepsASliver`,
+`ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_SmallDifferenceBesideAHugeSolid_KeepsAThroughHole`,
+`ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_SmallPartBesideAFarCutter_IsNotAffectedByTheCutterPlane`
 
 Asserts, by drawing the result from above, that the shadow of a cube of 30 by 20 by 15 is exactly 600 square units and
 that the same cube turned 90 degrees about X (a front view) is exactly 450 (30 by 15); that a cube of side 10 turned
@@ -494,6 +497,14 @@ warning, and no report; a 10 by 10 by 10 plate with a 4 by 4 through hole transl
 several slabs (the hole survives) between x = 1e7 and 1e7 + 10; a cube of side 1e-4 projects to one slab of that size; and
 a plate of side 1e-3 with a through hole keeps the hole.
 
+Asserts that every solid is judged by its own tolerance, not by the largest one, again by the doubles of the built slabs.
+A plate of side 1e-3 whose cutter ends 5e-10 below the top of the plate leaves a sliver over the cutter, so its
+footprint is complete: the part of the plate (the slabs whose largest X is below 1) is one slab with the bounds of the
+unit square scaled to 1e-3, beside a cube of side 1e4 (a tolerance of about 1e-5) and beside one of side 1e6 (about
+1e-3). The control, a cutter that ends 5e-10 above the top, keeps its through hole (several slabs) beside the same
+cubes. A plate of side 1e-3 beside a cutter of side 1e6 at 1e9 projects to one slab of its own footprint (it also exercises
+a far plane against a tiny mesh, whose key quotient would not fit a long; the reach test runs before the key is built).
+
 ##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ProjectionClassification: Shadow Of Differences And Intersections
 
 **Tests**: `ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_PlateWithThroughHole_HasTheHole`,
@@ -531,7 +542,9 @@ unsupported report and a non-empty result.
 `ScadGeometryBuilderProjectionCutTests.ScadGeometryBuilderProjectionCut_OpenMesh_IsReportedAndOmitted`,
 `ScadGeometryBuilderProjectionCutTests.ScadGeometryBuilderProjectionCut_Result_CanBeExtruded`,
 `ScadGeometryBuilderProjectionCutTests.ScadGeometryBuilderProjectionCut_FarTranslatedCube_IsItsFootprint`,
-`ScadGeometryBuilderProjectionCutTests.ScadGeometryBuilderProjectionCut_SmallSolidJustOffThePlane_IsEmpty`
+`ScadGeometryBuilderProjectionCutTests.ScadGeometryBuilderProjectionCut_SmallSolidJustOffThePlane_IsEmpty`,
+`ScadGeometryBuilderProjectionCutTests.ScadGeometryBuilderProjectionCut_SmallSolidJustOffThePlaneBesideAHugeSolid_IsEmpty`,
+`ScadGeometryBuilderProjectionCutTests.ScadGeometryBuilderProjectionCut_SmallSolidOnThePlaneBesideAHugeSolid_IsCut`
 
 Asserts that a centered cube of 30 by 20 by 15 is cut to exactly its footprint of 600; that a cube of side 10 that
 rests on the plane from above and one that hangs from it (the plane in its underside or top face) are both cut to the
@@ -557,6 +570,12 @@ Asserts that the cut does not depend on the translation or the scale: a cube of 
 is cut to one slab with exactly the bounds of its unit footprint (no vertex of it counts as on the plane), and a cube of
 side 1e-3 whose underside is 5e-10 above the plane, or whose top is 5e-10 below it, is not cut at all (no slab, no
 warning, no report).
+
+Asserts that the cut judges every solid by its own tolerance: the same two small cubes (underside 5e-10 above the
+plane, top 5e-10 below it) are still not cut when a cube of side 1e4 (a tolerance of about 1e-5) or 1e6 (about 1e-3)
+stands wholly above the plane beside them, as they are not cut alone; and a cube of side 1e-3 that sits on the plane,
+or 5e-13 above it (inside its own tolerance of about 1e-12), is still cut to one slab with exactly its footprint beside
+the cube of side 1e6.
 
 ##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ProjectionBudget: Work Ceiling And Triangle Budget
 
@@ -768,7 +787,10 @@ per-triangle polls of the grouping, merging, footprint, and slicing loops can st
 fewer polls than one interval, completes its shadow with a canceled token (the counted schedule; the cut is not used
 there because it polls before every slice), and that the same prism completes with a live token. The loops are verified
 deterministically by the pre-canceled large mesh; a test that pins the exact loop in which the 256th poll falls would
-depend on the order of the polls and is deliberately not written, so each individual loop is verified by review.
+depend on the order of the polls and is deliberately not written, so each individual loop is verified by review. This
+applies to the walk of the nodes of a subtree (`Descendants`) and to the node loop of a section (`SectionTree`) as well:
+every earlier pass polls once per node, so the 256th poll of a count always falls in an earlier loop and a canceled
+token cannot isolate these two.
 
 ##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-SceneMap: Location Map
 

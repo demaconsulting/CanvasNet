@@ -28,7 +28,7 @@ source files in the `DemaConsulting.CanvasNet.Scad.Geometry` namespace, all `int
   argument and budget checks, and the class-level documentation; part of this unit like `ScadHulls`, not a unit of
   its own
 - `ScadProjections.Tree.cs` — the flattened solid tree (`FrameMesh`, `TreeNode`, `SolidTree`), the shared `State`
-  (tolerances, work meter, section cache, first failure), and `Collect`
+  (work meter, section cache, first failure; the tolerances belong to each `FrameMesh`), and `Collect`
 - `ScadProjections.Faces.cs` — the face groups of a mesh (`GroupFaces`) and their XY footprints (`Footprint`)
 - `ScadProjections.Slice.cs` — the cross-section of a mesh by a plane, with the infinitesimal shift as a tie rule
   (`SectionRegion`, `SliceMesh`, `Section`)
@@ -441,15 +441,21 @@ vertices that triangles reference are transformed and **welded by exact position
 fewer than three distinct vertices is dropped, and the winding is restored after a mirroring matrix. A mesh is a
 _closed outward solid_ when it is closed and has a positive signed volume. Every node knows whether it is subtracted
 an odd number of times (a cutter of the solid). The tolerances do **not** depend on the distance of the model from the
-origin: each mesh knows its _extent_ (the largest side of its bounds, which a translation does not change) and the
-spacing of the doubles at its largest absolute coordinate (`Math.BitIncrement(m) - m`, the unavoidable representation
-error). The tolerance for "on a plane" (and for distances in the XY plane) is `1e-9` times the largest extent of any
-mesh plus 16 spacings, so the distance of two things must exceed the size-relative part and the rounding of the
-coordinates to count as different; the doubled XY area below which a triangle counts as vertical is `1e-12` times the
-square of the extent of **its own mesh** plus 16 spacings times that extent (per mesh, so a tiny part beside a huge
-one keeps its top faces). There is no absolute floor, so a tiny part is not treated as degenerate and a vertex a small
-distance above the plane is not on it; an empty tree (no extent) uses a nominal `1e-9`. The tolerance shared by planes
-that cross meshes follows the largest extent, so a tiny part beside a huge one is judged by the huge one's tolerance.
+origin, and no tolerance is shared between meshes: each mesh knows its _extent_ (the largest side of its bounds, which
+a translation does not change) and the spacing of the doubles at its largest absolute coordinate
+(`Math.BitIncrement(m) - m`, the unavoidable representation error). The tolerance of a mesh for "on a plane" is `1e-9`
+times **its own** extent plus 16 spacings, so the distance of two things must exceed the size-relative part and the
+rounding of the coordinates to count as different; the doubled XY area below which a triangle counts as vertical is
+`1e-12` times the square of the extent of its own mesh plus 16 spacings times that extent. There is no absolute floor,
+so a tiny part is not treated as degenerate and a vertex a small distance above the plane is not on it, whether or not
+a solid of size 1e6 is next to it; an empty mesh (no extent) uses a nominal `1e-9`. A mesh is always judged by its own
+tolerance: its vertices against a plane (the plane may be a face of another mesh), its triangles against each other,
+and its cross-section cache key. The only value that involves two meshes is the padding of the XY window of a face
+when a section of another mesh is compared with it, which is the **sum** of the two tolerances (it only keeps more
+sections, never fewer). A consequence is that two meshes of very different size may disagree about whether a vertex is
+on a plane that lies between their tolerances; each is right at its own resolution, and exactly coincident faces
+(within rounding) are on the plane for both. The projection builds a symbolic tree of exact leaf regions, so no common
+snapping grid is needed.
 
 **Silhouette (`cut = false`).** Projection distributes over a union, so the node tree is walked from its root and
 a mesh or a union contributes directly, and each maximal subtree rooted at a difference or an intersection is
@@ -483,12 +489,16 @@ of its meshes.
   of the contours are keyed by the mesh edge that was cut, or by the vertex when the edge ends on the plane (the
   point is then that vertex), **never by coordinates**, so the contours close exactly whatever the rounding. The
   contours of a mesh become one `PolygonRegion`. Sections are cached by node, plane, and direction (planes are
-  identified by rounded normal and offset, so coplanar faces share their sections).
+  identified by rounded normal and offset in units of the tolerance of the mesh that is sliced, so coplanar faces share
+  their sections). A mesh whose bounds do not reach the plane is tested **before** the key is made, because the offset
+  of a plane of a far or huge mesh in units of the tolerance of a tiny one would overflow the key; a plane that reaches
+  a mesh has an offset within about its own coordinates, so the key stays small.
 - _Window pruning and full sections._ A section matters only inside the bounding box (the window) of the footprint of
   the face. A mesh whose bounds do not reach the plane, or whose section lies outside the window, is empty. A section
   of the mesh the face belongs to covers the whole footprint on the side of its solid (below an upward face, above a
   downward one): it is **full**, and costs nothing. Another section that is one convex contour is clipped to the
-  (slightly padded) window, and one that covers the window is full too. A face that nothing else touches therefore
+  (slightly padded) window, and one that covers the window is full too (the padding is the sum of the tolerances of the
+  two meshes). A face that nothing else touches therefore
   yields just its footprint and no boolean at all. The booleans combine empty, full, and shape operands without
   creating shapes where the answer is already known (an empty operand vanishes from a union and empties an
   intersection; a full operand makes a union full, vanishes from an intersection, and empties a difference when it is
@@ -519,7 +529,8 @@ silent result.
    `Charge` also polls cancellation, so a canceled build stops per slice. Between the charges the long loops poll with
    `context.Tick()` (the same 256-step schedule): the transformation of the triangles and vertices of each mesh
    (`FrameMesh.Create`), the grouping, merging, and collecting of the faces, the footprint of a group (the edge
-   passes, the chaining of the contour, and the triangle fallback), and the slicing of a mesh (its vertices and
+   passes, the chaining of the contour, and the triangle fallback), the walk of the nodes of a subtree (`Descendants`)
+   and the node loop of a section (`SectionTree`), and the slicing of a mesh (its vertices and
    triangles, the segments of the section, and the walk of its contours), so a mesh with one huge flat face can still be
    abandoned.
 4. The transformed vertex copies and the section caches are transient storage bounded by the size of meshes that

@@ -70,7 +70,11 @@ internal static partial class ScadProjections
     ///     whole footprint (the side of the face its solid lies on); otherwise -1.
     /// </param>
     /// <param name="MakeFace">Makes a new copy of the footprint of the face as a shape, or <see langword="null"/> when there is no face.</param>
-    private sealed record SectionRequest(CutPlane Plane, bool Down, Window Window, int OwnNode, Func<ScadShape2D>? MakeFace);
+    /// <param name="Tolerance">
+    ///     The tolerance of the mesh the face belongs to, which it adds to the tolerance of the mesh of a section when the
+    ///     XY box of that section is compared with the window; 0 when there is no face (the window is then infinite).
+    /// </param>
+    private sealed record SectionRequest(CutPlane Plane, bool Down, Window Window, int OwnNode, Func<ScadShape2D>? MakeFace, double Tolerance);
 
     /// <summary>
     ///     Builds the shadow of the solid tree (<c>cut = false</c>).
@@ -148,7 +152,7 @@ internal static partial class ScadProjections
     private static void Classify(SolidTree tree, int root, List<ScadShape2D> leaves, State state)
     {
         state.Classified = true;
-        var subtree = Descendants(tree, root);
+        var subtree = Descendants(tree, root, state.Context);
         foreach (var index in subtree.Where(i => tree.Nodes[i].Kind == NodeKind.Mesh))
         {
             var node = tree.Nodes[index];
@@ -213,13 +217,13 @@ internal static partial class ScadProjections
         ScadShape2D MakeFace() => FaceShape(footprint, state);
 
         // Just below the face the solid must be there; if it is not, the face does not bound the solid from above
-        var below = SectionTree(tree, subtree, new SectionRequest(plane, true, window, group.FacesUp ? own : -1, MakeFace), state);
+        var below = SectionTree(tree, subtree, new SectionRequest(plane, true, window, group.FacesUp ? own : -1, MakeFace, mesh.Tolerance), state);
         if (below.Coverage == Coverage.Empty)
         {
             return;
         }
 
-        var above = SectionTree(tree, subtree, new SectionRequest(plane, false, window, group.FacesUp ? -1 : own, MakeFace), state);
+        var above = SectionTree(tree, subtree, new SectionRequest(plane, false, window, group.FacesUp ? -1 : own, MakeFace, mesh.Tolerance), state);
         if (state.Failed || above.Coverage == Coverage.Full)
         {
             return;
@@ -292,7 +296,7 @@ internal static partial class ScadProjections
     {
         var all = Enumerable.Range(0, tree.Nodes.Count).ToList();
         var plane = new CutPlane(Vector3D.UnitZ, 0.0);
-        var below = SectionTree(tree, all, new SectionRequest(plane, true, Window.Everything, -1, null), state);
+        var below = SectionTree(tree, all, new SectionRequest(plane, true, Window.Everything, -1, null, 0.0), state);
         if (state.Failed)
         {
             return null;
@@ -305,7 +309,7 @@ internal static partial class ScadProjections
             return below.Shape;
         }
 
-        var above = SectionTree(tree, all, new SectionRequest(plane, false, Window.Everything, -1, null), state);
+        var above = SectionTree(tree, all, new SectionRequest(plane, false, Window.Everything, -1, null, 0.0), state);
         state.EnsureLeafBudget();
         if (state.Failed)
         {
@@ -320,14 +324,16 @@ internal static partial class ScadProjections
     /// </summary>
     /// <param name="tree">The tree.</param>
     /// <param name="root">The index of the root.</param>
+    /// <param name="context">The build context (cancellation is polled per node).</param>
     /// <returns>The indices in ascending order.</returns>
-    private static List<int> Descendants(SolidTree tree, int root)
+    private static List<int> Descendants(SolidTree tree, int root, ScadGeometryContext context)
     {
         var result = new List<int>();
         var stack = new Stack<int>();
         stack.Push(root);
         while (stack.Count > 0)
         {
+            context.Tick();
             var index = stack.Pop();
             result.Add(index);
             foreach (var child in tree.Nodes[index].Children)
@@ -359,6 +365,7 @@ internal static partial class ScadProjections
         var results = new Dictionary<int, SectionResult>();
         for (var i = subtree.Count - 1; i >= 0 && !state.Failed; i--)
         {
+            state.Context.Tick();
             var index = subtree[i];
             var node = tree.Nodes[index];
             results[index] = node.Kind == NodeKind.Mesh
@@ -380,12 +387,15 @@ internal static partial class ScadProjections
     private static SectionResult Leaf(SolidTree tree, int index, SectionRequest request, State state)
     {
         var entry = SectionRegion(tree, index, request.Plane, request.Down, state);
-        if (entry is null || !request.Window.Overlaps(entry, state.Tolerance))
+
+        // The XY boxes of a section of this mesh and of the face (another mesh) are compared, each with its own rounding
+        var tolerance = request.Tolerance + tree.Nodes[index].Mesh!.Tolerance;
+        if (entry is null || !request.Window.Overlaps(entry, tolerance))
         {
             return SectionResult.None;
         }
 
-        return index == request.OwnNode ? SectionResult.All : Windowed(entry, request.Window, state);
+        return index == request.OwnNode ? SectionResult.All : Windowed(entry, request.Window, tolerance, state);
     }
 
     /// <summary>
@@ -399,17 +409,17 @@ internal static partial class ScadProjections
     /// </remarks>
     /// <param name="entry">The section of the mesh.</param>
     /// <param name="window">The box of the face.</param>
+    /// <param name="tolerance">The padding of the box: the sum of the tolerances of the mesh of the face and of the section.</param>
     /// <param name="state">The shared state.</param>
     /// <returns>The result.</returns>
-    private static SectionResult Windowed(SectionEntry entry, Window window, State state)
+    private static SectionResult Windowed(SectionEntry entry, Window window, double tolerance, State state)
     {
         if (!entry.IsConvex || !double.IsFinite(window.MinX) || !double.IsFinite(window.MaxX))
         {
             return new SectionResult(Coverage.Shape, state.NewLeaf(entry.Region));
         }
 
-        var pad = state.Tolerance;
-        var box = new Window(window.MinX - pad, window.MaxX + pad, window.MinY - pad, window.MaxY + pad);
+        var box = new Window(window.MinX - tolerance, window.MaxX + tolerance, window.MinY - tolerance, window.MaxY + tolerance);
         var points = ClipToWindow(entry.Region.Contours[0], box);
         if (points.Count < 3)
         {

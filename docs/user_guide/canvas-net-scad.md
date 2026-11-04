@@ -55,7 +55,10 @@ public sealed partial class ScadDocument
 - `BuildScene` evaluates the program and returns a Render3D `Scene` in right-handed, Z-up model space, so you can
   measure it (`scene.ComputeBounds()`), combine it with other scenes, or render it with your own camera and
   `SceneRenderer`. Every call returns a new scene; a model without geometry gives a scene that renders as the
-  background.
+  background. The model sees the viewport variables `$vpt`, `$vpr`, `$vpd`, and `$vpf` as the `Camera` and the view
+  angles of the options define them (see *Viewport Variables*), so a model that reads them builds a different scene
+  for a different camera or view angle, and `BuildScene` and `Render` of one document with the same options build the
+  same scene; the `Projection` and the surface size do not change the scene, and `BuildScene` chooses no camera.
 - `Render` evaluates, builds, and draws the model onto a new `Surface` of exactly `width` by `height` pixels. The
   caller owns, and must dispose, the returned surface. Without a camera the view is **fitted to the model**: an
   isometric perspective view (azimuth 45 degrees, elevation about 35.26 degrees) on a white background, with

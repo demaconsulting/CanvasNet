@@ -108,7 +108,7 @@ internal static partial class ScadProjections
             context.Reporter.Warn("projection: colors inside projection() are not kept; the result takes the enclosing color", instance.Location);
         }
 
-        var state = new State(context, instance, tree.Extent, tree.MaxCoordinate);
+        var state = new State(context, instance);
         var shape = cut ? Cut(tree, state) : Silhouette(tree, state);
         if (state.Failure is { } failure)
         {

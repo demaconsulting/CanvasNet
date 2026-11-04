@@ -221,4 +221,53 @@ public class ScadGeometryBuilderProjectionCutTests
         Assert.Empty(result.Warnings);
         Assert.Empty(result.Unsupported);
     }
+
+    /// <summary>
+    ///     Validates that every solid is judged by its own tolerance: a small solid just off the plane is still not cut
+    ///     when a larger solid is next to it. A solid of size 1e4 has a tolerance of about 1e-5 and one of size 1e6 of
+    ///     about 1e-3; with a tolerance shared by all solids the vertices 5e-10 off the plane would count as on it.
+    /// </summary>
+    /// <param name="small">The small solid, just off the plane.</param>
+    /// <param name="size">The size of the solid beside it.</param>
+    [Theory]
+    [InlineData("translate([0, 0, 5e-10]) cube(1e-3);", "1e4")]
+    [InlineData("translate([0, 0, 5e-10]) cube(1e-3);", "1e6")]
+    [InlineData("translate([0, 0, -1.0000005e-3]) cube(1e-3);", "1e4")]
+    [InlineData("translate([0, 0, -1.0000005e-3]) cube(1e-3);", "1e6")]
+    public void ScadGeometryBuilderProjectionCut_SmallSolidJustOffThePlaneBesideAHugeSolid_IsEmpty(string small, string size)
+    {
+        // Arrange: the larger solid is wholly above the plane
+        var source = $"projection(cut = true) {{ {small} translate([2e6, 0, 10]) cube({size}); }}";
+
+        // Act
+        var result = BuildSource(source);
+
+        // Assert: the small solid is off the plane by more than its own tolerance
+        Assert.Empty(result.Meshes);
+        Assert.Empty(result.Warnings);
+        Assert.Empty(result.Unsupported);
+    }
+
+    /// <summary>
+    ///     Validates that a small solid that really is on the plane (within its own tolerance) is still cut when a solid
+    ///     of size 1e6 is next to it, so the per-solid tolerance is not zero.
+    /// </summary>
+    /// <param name="source">The program text.</param>
+    [Theory]
+    [InlineData("projection(cut = true) { cube(1e-3); translate([2e6, 0, 10]) cube(1e6); }")]
+    [InlineData("projection(cut = true) { translate([0, 0, 5e-13]) cube(1e-3); translate([2e6, 0, 10]) cube(1e6); }")]
+    public void ScadGeometryBuilderProjectionCut_SmallSolidOnThePlaneBesideAHugeSolid_IsCut(string source)
+    {
+        // Arrange / Act
+        var result = BuildSource(source);
+
+        // Assert: one slab with the footprint of the small cube
+        var bounds = result.SingleMesh.Bounds;
+        Assert.Equal(0.0, bounds.Min.X, 1e-15);
+        Assert.Equal(1e-3, bounds.Max.X, 1e-15);
+        Assert.Equal(0.0, bounds.Min.Y, 1e-15);
+        Assert.Equal(1e-3, bounds.Max.Y, 1e-15);
+        Assert.Empty(result.Warnings);
+        Assert.Empty(result.Unsupported);
+    }
 }

@@ -34,11 +34,28 @@ public sealed partial class ScadDocument
     ///         cannot overflow the stack of the calling thread whatever its size.
     ///     </para>
     ///     <para>
+    ///         The viewport special variables <c>$vpt</c>, <c>$vpr</c>, <c>$vpd</c> and <c>$vpf</c> are defined while the
+    ///         document is evaluated, with the values that follow from <paramref name="options"/>: an explicit
+    ///         <see cref="ScadRenderOptions.Camera"/>, or explicit <see cref="ScadRenderOptions.ViewAzimuthDegrees"/> and
+    ///         <see cref="ScadRenderOptions.ViewElevationDegrees"/>, set them (they win over an
+    ///         <see cref="ScadEvaluationOptions.Variables"/> override and a top-level assignment of the document);
+    ///         otherwise they have the defaults of the default view. A model that reads them (for example to size or place
+    ///         geometry) therefore builds a different scene for a different camera or view angle, exactly as
+    ///         <see cref="Render"/> does for the same options. The build chooses no camera and never calls
+    ///         <see cref="ScadRenderOptions.ResolvedViewHandler"/>; <see cref="ScadRenderOptions.Projection"/> and the size of
+    ///         a surface do not change the scene.
+    ///     </para>
+    ///     <para>
     ///         The document is immutable and holds no state between calls, so it can be built from several threads
     ///         at once; every call returns a new scene.
     ///     </para>
     /// </remarks>
-    /// <param name="options">Optional render options; <see langword="null"/> uses the defaults. Only the evaluation options and the flat-shape thickness matter here.</param>
+    /// <param name="options">
+    ///     Optional render options; <see langword="null"/> uses the defaults. The scene depends on the evaluation options,
+    ///     the camera and the view angles (they define the viewport variables, see the remarks), the flat-shape
+    ///     thickness, the highlight and ghost colors, and the font resolution; the projection and the resolved-view
+    ///     handler have no effect.
+    /// </param>
     /// <param name="cancellationToken">A token that stops the evaluation and the build.</param>
     /// <returns>The scene.</returns>
     /// <exception cref="OperationCanceledException">Thrown when the token is canceled before or during the build.</exception>

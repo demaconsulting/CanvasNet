@@ -194,7 +194,14 @@ listed. Directives are only legal at file scope, so `Directives` is the complete
   and calls `ScadGeometryBuilder.Build` with the roots, `ScadGeometrySettings` (the triangle limit, the
   flat-shape thickness, strict mode, and the token), and the **same** sink. The evaluation step is given the viewport
   plan (`ScadViewport.Plan`) so that the document sees `$vpt`, `$vpr`, `$vpd`, and `$vpf` (a scene has no camera,
-  so only the defaults and the explicit options of the plan apply). On success it delivers the buffered
+  so only the defaults and the explicit options of the plan apply). The plan is derived from the render options: an
+  explicit `Camera` sets all four variables, explicit view angles set `$vpr`, both beating an override of the
+  evaluation options and a top-level assignment of the document, and otherwise the defaults of the default view
+  apply. A model that reads these variables (to size or place geometry) therefore builds a different scene for a
+  different camera or view angle, as `Render` does for the same options. Besides the evaluation options, the
+  flat-shape thickness, the highlight and ghost colors, and the font resolution, the camera and the view angles
+  therefore matter to `BuildScene`; `Projection` and the surface size do not (they change no variable). On success it
+  delivers the buffered
   events of both stages once, on the calling thread, in order (a handler exception propagates) and returns the
   scene; on any failure the events recorded so far are still delivered and a handler exception on that path is
   ignored so that the failure wins. A model without geometry gives a scene with an empty root. `BuildScene` never
@@ -269,8 +276,9 @@ listed. Directives are only legal at file scope, so `Directives` is the complete
   behavior and warning) with no explicit camera, no explicit angles, and no `$vpr` from the document or an override
   is drawn from the top (azimuth 0, elevation 90), orthographic unless `Projection` was set, fitted with the 5 %
   margin, and lit by ambient light of intensity 1 only (unless `SceneOptions.Lights` is set), so every shape is
-  exactly its `color()` or the neutral gray 180. The slabs of the 2D shapes and their thickness are unchanged, so
-  `BuildScene` results do not change.
+  exactly its `color()` or the neutral gray 180. The slabs of the 2D shapes and their thickness are unchanged, and
+  `BuildScene` chooses no camera, so this view changes no result of `BuildScene`; only the viewport variables that
+  the options define (above) can make a built scene depend on the view.
 - **Circularity (documented and accepted).** The camera is chosen after the build, from the bounds of the built
   scene, so the document sees only the defaults of the variables it does not assign, and the fit includes the
   geometry that the variables placed (for example a heads-up display). The document also cannot see that the model

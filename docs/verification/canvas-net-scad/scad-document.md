@@ -406,11 +406,18 @@ message with it, leaves the message bare for an unknown location, provides the s
 **Tests**: `ScadDocumentBuildSceneTests.ScadDocument_BuildScene_DefaultOptions_BuildsSceneOfTheModel`,
 `ScadDocumentBuildSceneTests.ScadDocument_BuildScene_VariablesAndTime_ChangeTheGeometry`,
 `ScadDocumentBuildSceneTests.ScadDocument_BuildScene_FlatShapeThickness_SetsSlabHeight`,
+`ScadDocumentBuildSceneTests.ScadDocument_BuildScene_CameraAndViewAngles_SteerTheViewportVariables`,
+`ScadDocumentBuildSceneTests.ScadDocument_BuildScene_Projection_DoesNotChangeTheScene`,
 `ScadDocumentBuildSceneTests.ScadDocument_BuildScene_ConcurrentBuilds_AreEqual`
 
 Builds small programs with the default options and asserts the mesh nodes and bounds of the scene; builds with
 variable overrides and a different animation time and asserts that the geometry changes; builds a 2D shape with
-two thicknesses and asserts the slab height; and builds one document from several threads at once, asserting
+two thicknesses and asserts the slab height; builds a cube sized by `$vpd` and one sized by `$vpr[2]` and asserts
+that the scene follows the viewport variables that the options define (the default distance 140 without options, the
+distance 50 of an explicit camera even when an override of `$vpd` is also given, the override 70 alone, and the azimuth
+of the default view and of an explicit azimuth of 90 degrees); builds the cube sized by `$vpd` with an orthographic
+and with a perspective projection and asserts that the scene is the same as with the default options (the projection
+changes no viewport variable); and builds one document from several threads at once, asserting
 that every scene has the same bounds and the same meshes.
 
 #### CanvasNetScad-ScadDocument-Render: Render Validates, Fits, And Draws

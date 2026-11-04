@@ -41,7 +41,7 @@ internal static partial class ScadProjections
     /// </summary>
     /// <param name="mesh">The mesh.</param>
     /// <param name="facing">Which faces are wanted.</param>
-    /// <param name="state">The shared state (tolerances).</param>
+    /// <param name="state">The shared state (work meter and cancellation).</param>
     /// <returns>The groups in the order of their first triangle.</returns>
     private static List<FaceGroup> GroupFaces(FrameMesh mesh, Facing facing, State state)
     {
@@ -108,7 +108,7 @@ internal static partial class ScadProjections
                 {
                     owner[key] = k;
                 }
-                else if (AreCoplanar(mesh, kept, normals, k, other, state))
+                else if (AreCoplanar(mesh, kept, normals, k, other))
                 {
                     Join(parent, k, other);
                 }
@@ -117,16 +117,15 @@ internal static partial class ScadProjections
     }
 
     /// <summary>
-    ///     Tells whether two wanted triangles lie in one plane within the tolerances.
+    ///     Tells whether two wanted triangles lie in one plane within the tolerance of the mesh.
     /// </summary>
     /// <param name="mesh">The mesh.</param>
     /// <param name="kept">The numbers of the wanted triangles.</param>
     /// <param name="normals">The unit normals of the wanted triangles.</param>
     /// <param name="first">The index of the first triangle among the wanted ones.</param>
     /// <param name="second">The index of the second triangle among the wanted ones.</param>
-    /// <param name="state">The shared state.</param>
     /// <returns><see langword="true"/> when they are coplanar.</returns>
-    private static bool AreCoplanar(FrameMesh mesh, List<int> kept, List<Vector3D> normals, int first, int second, State state)
+    private static bool AreCoplanar(FrameMesh mesh, List<int> kept, List<Vector3D> normals, int first, int second)
     {
         if (Vector3D.Dot(normals[first], normals[second]) < CoplanarCosine)
         {
@@ -135,7 +134,7 @@ internal static partial class ScadProjections
 
         var (a, _, _) = Corners(mesh, kept[first]);
         var (o, _, _) = Corners(mesh, kept[second]);
-        return Math.Abs(Vector3D.Dot(normals[first], o - a)) <= state.Tolerance;
+        return Math.Abs(Vector3D.Dot(normals[first], o - a)) <= mesh.Tolerance;
     }
 
     /// <summary>

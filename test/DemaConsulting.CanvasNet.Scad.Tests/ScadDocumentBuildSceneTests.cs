@@ -1,4 +1,5 @@
 using DemaConsulting.CanvasNet.Render3D.SceneModel;
+using DemaConsulting.CanvasNet.Render3D.SceneRendering;
 using DemaConsulting.CanvasNet.Scad.Tests.Evaluation;
 using DemaConsulting.CanvasNet.Scad.Tests.Geometry;
 
@@ -212,5 +213,61 @@ public class ScadDocumentBuildSceneTests
         // Assert
         Assert.All(scenes, s => Assert.Equal(scenes[0], s));
         Assert.Equal(2, scenes[0].Length);
+    }
+
+    /// <summary>
+    ///     Validates that the viewport variables are defined from the render options while the scene is built: an
+    ///     explicit camera and explicit view angles steer <c>$vpd</c> and <c>$vpr</c>, the camera beats an override of
+    ///     the evaluation options, and without them the defaults of the default view are used.
+    /// </summary>
+    [Fact]
+    public void ScadDocument_BuildScene_CameraAndViewAngles_SteerTheViewportVariables()
+    {
+        // Arrange: the models size a cube by a viewport variable; the camera is 50 from its target
+        var distance = ScadDocument.Parse("cube($vpd);");
+        var azimuth = ScadDocument.Parse("cube($vpr[2]);");
+        var camera = Camera.LookAt(new Vector3D(0, -50, 0), Vector3D.Zero, Vector3D.UnitZ);
+        var overridden = new Dictionary<string, object?> { ["$vpd"] = 70 };
+
+        // Act
+        var byDefault = distance.BuildScene(cancellationToken: TestContext.Current.CancellationToken);
+        var byCamera = distance.BuildScene(new ScadRenderOptions { Camera = camera }, TestContext.Current.CancellationToken);
+        var cameraBeatsOverride = distance.BuildScene(
+            new ScadRenderOptions { Camera = camera, Evaluation = new ScadEvaluationOptions { Variables = overridden } },
+            TestContext.Current.CancellationToken);
+        var overrideAlone = distance.BuildScene(
+            new ScadRenderOptions { Evaluation = new ScadEvaluationOptions { Variables = overridden } },
+            TestContext.Current.CancellationToken);
+        var defaultAngle = azimuth.BuildScene(cancellationToken: TestContext.Current.CancellationToken);
+        var byAngle = azimuth.BuildScene(new ScadRenderOptions { ViewAzimuthDegrees = 90 }, TestContext.Current.CancellationToken);
+
+        // Assert: the default distance, the distance of the camera (not the override), the override alone, the angles
+        Assert.Equal(140.0, byDefault.ComputeBounds().Max.X, 1e-9);
+        Assert.Equal(50.0, byCamera.ComputeBounds().Max.X, 1e-9);
+        Assert.Equal(50.0, cameraBeatsOverride.ComputeBounds().Max.X, 1e-9);
+        Assert.Equal(70.0, overrideAlone.ComputeBounds().Max.X, 1e-9);
+        Assert.Equal(Camera.DefaultAzimuthDegrees, defaultAngle.ComputeBounds().Max.X, 1e-9);
+        Assert.Equal(90.0, byAngle.ComputeBounds().Max.X, 1e-9);
+    }
+
+    /// <summary>
+    ///     Validates that the projection of the render options does not change the scene: it changes no viewport
+    ///     variable, and a build chooses no camera.
+    /// </summary>
+    [Fact]
+    public void ScadDocument_BuildScene_Projection_DoesNotChangeTheScene()
+    {
+        // Arrange
+        var document = ScadDocument.Parse("cube($vpd);");
+
+        // Act
+        var byDefault = document.BuildScene(cancellationToken: TestContext.Current.CancellationToken);
+        var orthographic = document.BuildScene(new ScadRenderOptions { Projection = CameraProjection.Orthographic }, TestContext.Current.CancellationToken);
+        var perspective = document.BuildScene(new ScadRenderOptions { Projection = CameraProjection.Perspective }, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(140.0, byDefault.ComputeBounds().Max.X, 1e-9);
+        Assert.Equal(140.0, orthographic.ComputeBounds().Max.X, 1e-9);
+        Assert.Equal(140.0, perspective.ComputeBounds().Max.X, 1e-9);
     }
 }

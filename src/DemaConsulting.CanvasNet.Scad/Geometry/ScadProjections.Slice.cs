@@ -10,7 +10,7 @@ namespace DemaConsulting.CanvasNet.Scad.Geometry;
 ///     <para>
 ///         <b>Section by a shifted plane.</b> The section of a closed mesh by the plane <c>n . p = d</c> shifted by an
 ///         infinitesimal amount along its normal is computed without a number for the shift: a vertex that lies on the
-///         plane (within the tolerance of <see cref="State"/>) is treated as being <em>above</em> the plane when the plane
+///         plane (within the tolerance of the mesh) is treated as being <em>above</em> the plane when the plane
 ///         is shifted down and <em>below</em> it when the plane is shifted up. Every other vertex is classified by the
 ///         sign of its distance. Each triangle with vertices on both sides then contributes one directed segment, from
 ///         the edge that leaves the upper side to the edge that enters it, which orients every contour consistently.
@@ -37,7 +37,7 @@ internal static partial class ScadProjections
         /// <summary>
         ///     Gets the key that identifies the plane up to the tolerance.
         /// </summary>
-        /// <param name="tolerance">The plane tolerance.</param>
+        /// <param name="tolerance">The tolerance of the mesh that is sliced.</param>
         /// <returns>The key.</returns>
         public PlaneKey Key(double tolerance) => new(
             (long)Math.Round(Normal.X * 1e9),
@@ -64,18 +64,27 @@ internal static partial class ScadProjections
     /// <returns>The section with its bounds; <see langword="null"/> when it is empty or the projection failed.</returns>
     private static SectionEntry? SectionRegion(SolidTree tree, int index, CutPlane plane, bool down, State state)
     {
-        var key = (index, plane.Key(state.Tolerance), down);
+        var mesh = tree.Nodes[index].Mesh!;
+
+        // A mesh that does not reach the plane has no section, and needs no cache entry. This comes before the key on purpose:
+        // the plane may belong to a far or huge mesh, and its offset in units of the tolerance of this (maybe tiny) mesh would
+        // overflow the key. A plane that reaches the mesh has an offset of at most sqrt(3) times the largest coordinate of the
+        // mesh plus the tolerance, which is at least 16 spacings of that coordinate, so the key stays below about 5e13
+        if (!Reaches(mesh.Bounds, plane, mesh.Tolerance))
+        {
+            return null;
+        }
+
+        var key = (index, plane.Key(mesh.Tolerance), down);
         if (state.Sections.TryGetValue(key, out var cached))
         {
             return cached;
         }
 
-        var mesh = tree.Nodes[index].Mesh!;
         SectionEntry? entry = null;
 
-        // A mesh that does not reach the plane has no section; every other slice is charged before it runs
-        if (Reaches(mesh.Bounds, plane, state.Tolerance) && state.Charge(mesh.TriangleCount + mesh.Vertices.Length)
-            && SliceMesh(mesh, plane, down, state) is { } region)
+        // Every slice is charged before it runs
+        if (state.Charge(mesh.TriangleCount + mesh.Vertices.Length) && SliceMesh(mesh, plane, down, state) is { } region)
         {
             entry = new SectionEntry(region);
         }
@@ -159,7 +168,7 @@ internal static partial class ScadProjections
             state.Context.Tick();
             var d = plane.Distance(mesh.Vertices[i]);
             distance[i] = d;
-            var onPlane = Math.Abs(d) <= state.Tolerance;
+            var onPlane = Math.Abs(d) <= mesh.Tolerance;
             state.NearPlane |= onPlane;
             sign[i] = Side(d, onPlane, down);
             positive |= sign[i] > 0;
@@ -171,7 +180,7 @@ internal static partial class ScadProjections
             return null;
         }
 
-        var section = new Section(mesh, distance, state.Tolerance);
+        var section = new Section(mesh, distance, mesh.Tolerance);
         for (var t = 0; t < mesh.TriangleCount; t++)
         {
             state.Context.Tick();

@@ -418,10 +418,11 @@ sections:
                   the highlight modifier once; shall not keep the colors inside the projection (one
                   warning), the result taking the enclosing color; shall yield nothing, with no report,
                   for a module with no children; and shall build a deeply nested projection on a small
-                  caller stack without recursion; and shall decide with tolerances that follow the size of the
-                  model and the rounding error of its coordinates, never its distance from the origin, so
-                  that a small solid translated far from the origin projects exactly as it does at the
-                  origin and a tiny solid is not treated as degenerate.
+                  caller stack without recursion; and shall decide with tolerances that follow the size of
+                  each solid and the rounding error of its coordinates, never its distance from the origin
+                  or the size of another solid, so that a small solid translated far from the origin
+                  projects exactly as it does at the origin, a tiny solid is not treated as degenerate, and
+                  a tiny solid beside a huge one is judged by its own size.
                 justification: |
                   The projection module is how a 3D part becomes the 2D outline of a technical drawing; its
                   shadow must be the true silhouette (holes included), not an approximation, and a model
@@ -453,6 +454,9 @@ sections:
                   - ScadGeometryBuilderProjection_FarTranslatedDifference_KeepsTheHole
                   - ScadGeometryBuilderProjection_SmallScaleCube_Projects
                   - ScadGeometryBuilderProjection_SmallScaleDifference_KeepsTheHole
+                  - ScadGeometryBuilderProjection_SmallDifferenceBesideAHugeSolid_KeepsASliver
+                  - ScadGeometryBuilderProjection_SmallDifferenceBesideAHugeSolid_KeepsAThroughHole
+                  - ScadGeometryBuilderProjection_SmallPartBesideAFarCutter_IsNotAffectedByTheCutterPlane
 
               - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ProjectionCut
                 title: >-
@@ -467,8 +471,8 @@ sections:
                   2D shape; and shall report a mesh whose section does not close (an open mesh) as the
                   unsupported feature scad-projection-open-mesh at the module's location and omit the
                   module; and shall decide whether a vertex is on the plane with a tolerance that follows
-                  the size of the model and the rounding error of its coordinates, never its distance from
-                  the origin.
+                  the size of the solid it belongs to and the rounding error of its coordinates, never its
+                  distance from the origin or the size of another solid.
                 justification: |
                   A cross-section is the other half of a technical drawing; the cases at the boundary of
                   the plane (a face lying on it, a vertex on it) must be decided by a single rule so that
@@ -488,6 +492,8 @@ sections:
                   - ScadGeometryBuilderProjectionCut_Result_CanBeExtruded
                   - ScadGeometryBuilderProjectionCut_FarTranslatedCube_IsItsFootprint
                   - ScadGeometryBuilderProjectionCut_SmallSolidJustOffThePlane_IsEmpty
+                  - ScadGeometryBuilderProjectionCut_SmallSolidJustOffThePlaneBesideAHugeSolid_IsEmpty
+                  - ScadGeometryBuilderProjectionCut_SmallSolidOnThePlaneBesideAHugeSolid_IsCut
 
               - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ProjectionClassification
                 title: >-

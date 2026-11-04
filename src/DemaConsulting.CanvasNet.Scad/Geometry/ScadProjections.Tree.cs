@@ -9,7 +9,7 @@ namespace DemaConsulting.CanvasNet.Scad.Geometry;
 /// </content>
 internal static partial class ScadProjections
 {
-    /// <summary>The part of the extent of the meshes below which two distances coincide.</summary>
+    /// <summary>The part of the extent of a mesh below which two distances coincide.</summary>
     private const double DistanceFactor = 1e-9;
 
     /// <summary>The part of the squared extent of a mesh below which a doubled XY area counts as zero.</summary>
@@ -62,6 +62,15 @@ internal static partial class ScadProjections
             }
 
             AreaEpsilon = (AreaFactor * Extent * Extent) + (RoundingMargin * CoordinateUlp(MaxCoordinate) * Extent);
+
+            // The tolerance follows the size of this mesh and the rounding error of its coordinates, never the distance from
+            // the origin or the size of any other mesh
+            Tolerance = (DistanceFactor * Extent) + (RoundingMargin * CoordinateUlp(MaxCoordinate));
+            if (Tolerance <= 0.0)
+            {
+                // Only an empty mesh has no extent; any positive value serves
+                Tolerance = DistanceFactor;
+            }
         }
 
         /// <summary>Gets the welded vertices.</summary>
@@ -84,6 +93,13 @@ internal static partial class ScadProjections
         ///     plus the rounding error of the coordinates times the extent.
         /// </summary>
         public double AreaEpsilon { get; }
+
+        /// <summary>
+        ///     Gets the distance from a plane (or in the XY plane) below which a vertex of this mesh counts as on it: a part of
+        ///     the extent of this mesh plus the rounding error of its coordinates, so it depends neither on the translation nor
+        ///     on any other mesh.
+        /// </summary>
+        public double Tolerance { get; }
 
         /// <summary>Gets a value indicating whether the mesh is a closed, outward-wound solid (only its upward faces then matter for a shadow).</summary>
         public bool IsClosedOutward { get; }
@@ -206,12 +222,6 @@ internal static partial class ScadProjections
         /// <summary>Gets or sets a value indicating whether any node carries an appearance.</summary>
         public bool HasAppearance { get; set; }
 
-        /// <summary>Gets or sets the largest extent (the largest side of the bounds) of any mesh; translation does not change it.</summary>
-        public double Extent { get; set; }
-
-        /// <summary>Gets or sets the largest absolute coordinate of any mesh vertex (it sets the rounding error of the coordinates).</summary>
-        public double MaxCoordinate { get; set; }
-
         /// <summary>
         ///     Adds a node.
         /// </summary>
@@ -238,7 +248,7 @@ internal static partial class ScadProjections
     /// <param name="Nx">The rounded X component of the normal in units of 1e-9.</param>
     /// <param name="Ny">The rounded Y component of the normal in units of 1e-9.</param>
     /// <param name="Nz">The rounded Z component of the normal in units of 1e-9.</param>
-    /// <param name="D">The rounded offset in units of the plane tolerance.</param>
+    /// <param name="D">The rounded offset in units of ten times the tolerance of the mesh that is sliced.</param>
     private readonly record struct PlaneKey(long Nx, long Ny, long Nz, long D);
 
     /// <summary>
@@ -321,7 +331,8 @@ internal static partial class ScadProjections
     }
 
     /// <summary>
-    ///     The shared state of one projection: tolerances, the work meter, the cross-section cache and the first failure.
+    ///     The shared state of one projection: the work meter, the cross-section cache and the first failure. The
+    ///     tolerances are not shared; every mesh has its own.
     /// </summary>
     private sealed class State
     {
@@ -336,20 +347,10 @@ internal static partial class ScadProjections
         /// </summary>
         /// <param name="context">The build context.</param>
         /// <param name="node">The instance.</param>
-        /// <param name="extent">The largest extent of the meshes (the largest side of their bounds).</param>
-        /// <param name="maxCoordinate">The largest absolute coordinate of the meshes.</param>
-        public State(ScadGeometryContext context, ScadInstance node, double extent, double maxCoordinate)
+        public State(ScadGeometryContext context, ScadInstance node)
         {
             Context = context;
             Node = node;
-
-            // The tolerance follows the size of the parts and the rounding error of their coordinates, never the distance from the origin
-            Tolerance = (DistanceFactor * extent) + (RoundingMargin * CoordinateUlp(maxCoordinate));
-            if (Tolerance <= 0.0)
-            {
-                // Only an empty tree has no extent; any positive value serves
-                Tolerance = DistanceFactor;
-            }
         }
 
         /// <summary>Gets the build context.</summary>
@@ -357,12 +358,6 @@ internal static partial class ScadProjections
 
         /// <summary>Gets the instance of the module.</summary>
         public ScadInstance Node { get; }
-
-        /// <summary>
-        ///     Gets the distance from a plane (or in the XY plane) below which two things count as coinciding: a part of the
-        ///     largest extent plus the rounding error of the coordinates, so it does not depend on the translation.
-        /// </summary>
-        public double Tolerance { get; }
 
         /// <summary>Gets the first failure (the feature identifier and the message), or <see langword="null"/>.</summary>
         public (string Feature, string Message)? Failure { get; private set; }
@@ -497,9 +492,6 @@ internal static partial class ScadProjections
     private static void AddMesh(SolidTree tree, Mesh mesh, Matrix4x4D matrix, int parentIndex, bool negative, ScadGeometryContext context)
     {
         var frame = FrameMesh.Create(mesh, matrix, context);
-        tree.Extent = Math.Max(tree.Extent, frame.Extent);
-        tree.MaxCoordinate = Math.Max(tree.MaxCoordinate, frame.MaxCoordinate);
-
         tree.Add(new TreeNode(NodeKind.Mesh, negative, frame), parentIndex);
     }
 
