@@ -123,12 +123,15 @@ a date result and NaN for a number result, and it never throws for a bad value.
 `NumberFormat` unit of the `Scales` subsystem (the minus sign is U+2212 and the thousands separator a comma, whatever
 the host culture). A null value gives the text `null`, as in Vega; any other value is read as JavaScript's unary plus
 reads it (the text `'12'` is 12, `true` is 1, a date is its milliseconds, a one-element array such as `[5]` is 5, and a
-missing value, an unreadable text, and an object are NaN, which formats as `NaN`). The specifier is read as text, so a
+missing value, an unreadable text, and an object are NaN, which formats as `NaN`), except for the type `c`, which
+prints the original value
+as JavaScript text (`x + ""`, as d3-format does: `'foo'` stays `foo` and `true` is `true`), bounded by `MaxStringLength`;
+the prefix (`$`), suffix, width, fill, and alignment of the specifier still apply, through `NumberFormat.IsText` and
+`FormatText`. The specifier is read as text, so a
 missing specifier is the text `undefined`, which is not a valid specifier. A specifier that d3-format rejects is an
 `ExpressionRuntimeException` ("invalid format: ..."), a located render failure and not a warning, as an over-long
 `timeFormat` specifier or an invalid `regexp` is. The length of the specifier and of the result are charged to the step
-budget and a result longer than `MaxStringLength` is a runtime error. Known deviation: the d3 type `c` prints the
-original value text, where this port formats the number first (so `NaN` for a text that is not a number). The special
+budget and a result longer than `MaxStringLength` is a runtime error. The special
 cases are those of `NumberFormat`: `d` of an infinity is the infinity sign U+221E, and `f` of 1e21 is `1e+21` (as
 JavaScript's `toFixed`).
 

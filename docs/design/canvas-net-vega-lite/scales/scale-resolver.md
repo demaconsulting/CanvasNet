@@ -283,10 +283,12 @@ transform) for a
 - **Offset channels** (`xOffset` and `yOffset`, the partial file `ScaleResolver.Offsets.cs`; Vega-Lite's
   `channelHasNestedOffsetScale`, `scale/type.ts`, `scale/properties.ts`, `scale/range.ts`, `scale/domain.ts`, and
   `getStepFor` of `spec/base.ts`). The channel group `ChannelGroup.Offset` takes the scale types of a position. An offset
-  needs a position channel that is a nominal or ordinal field or datum without a `timeUnit`, or a temporal one with a
+  needs a position channel that is a nominal or ordinal field or datum (with or without a `timeUnit`: a discrete position
+  with a time unit is an ordinary band parent, as `channelHasNestedOffsetScale` accepts `isDiscrete(type) || timeUnit`),
+  or a temporal one with a
   supported `timeUnit` (below): `DecideOffset` returns
-  `Supported`, `NoDiscreteParent` (position missing, continuous without that time unit, or a nominal or ordinal one with
-  a time unit), `Ranged` (a continuous
+  `Supported`, `NoDiscreteParent` (position missing, continuous, or temporal without a time unit that can hold the
+  offset), `Ranged` (a continuous
   offset of a `bar` or `area`, which Vega-Lite draws as a range from the start of the band), or `TimeUnitParent` (a
   temporal position with a time unit, whose smallest part is not the day of the week); only a `Supported` or
   `TimeUnitParent` offset
@@ -331,8 +333,10 @@ transform) for a
   (`MarkBuilder.TimeUnitOffsetRange`, see _MarkBuilder Design_), passed to `ResolvedScale.CreateModel(extent,
   (Start, End)? nestedRange)`: the overload whose default range for an offset channel is `[Start, End]` pixels (no y
   flip), with `rangeMin`, `rangeMax`, an explicit `range`, and `reverse` still applying. A nominal or ordinal parent
-  with a `timeUnit` and every other case (a missing, quantitative, or temporal parent without a unit, `day`,
-  `weekday`, a binned or `maxbins` unit, a `rect` mark) stay `NoDiscreteParent` (`vl-offset-position`).
+  with a `timeUnit` is not of this kind: it is an ordinary band parent (`Supported`), whatever the unit and the mark. Every
+  other case (a missing, quantitative, or temporal parent without a unit, `day`,
+  `weekday`, a binned or `maxbins` unit of a temporal parent, a `rect` mark with a temporal parent) stays
+  `NoDiscreteParent` (`vl-offset-position`).
 - **Range.** x is 0 to the width and y is the height to 0 (continuous) or 0 to the height (discrete). **`theta` is 0 to
   2 * PI** (radians; the extent is ignored) and **`radius` is 0 to
   the extent that the caller passes** (half of the smaller side of the data rectangle, in pixels); an explicit
@@ -465,8 +469,8 @@ color scale): the scale uses the UTC calendar and `ResolvedScale.IsUtcTime` is s
 ticks counted from the epoch and UTC labels whatever the zone of the chart is.
 
 The offset channels deviate from Vega-Lite in these ways: (1) a **continuous** offset of a `bar` or `area` (Vega-Lite's
-ranged offset) is not drawn (`vl-offset-ranged`); (2) a nominal or ordinal position with a `timeUnit` has no nested
-offset (`vl-offset-position`), and a temporal one nests the offset only for a unit whose smallest part is not the day of
+ranged offset) is not drawn (`vl-offset-ranged`); (2) a temporal position nests the offset only for a unit whose
+smallest part is not the day of
 the week, with the reference unit of `durationExpr` measured on the scale of the chart (the deviations of the
 placement are listed in _MarkBuilder Design_); (3) the offset scale of a discrete parent has no step of its own: it
 spans the
@@ -531,7 +535,8 @@ parameter) resolve no scale.
   offset to decide);
   the feature catalog and the resolver both call it, so what is reported is what is ignored. `HasNestedOffset(channel,
   encoding, markType)` says whether the band of a position holds a drawn offset scale (it makes the position a band
-  scale with the nested paddings; a discrete parent only), and `HasTimeUnitOffset(channel, encoding, markType)` whether
+  scale with the nested paddings; a discrete parent, with or without a time unit), and
+  `HasTimeUnitOffset(channel, encoding, markType)` whether
   the position is a temporal one with a time unit that holds an offset scale (it stays a time scale).
   `ApplyNestedOffsets(scales, context)` sizes the step of the position scales as
   described in the _Offset channels_ item; it must run **exactly once** for each map of scales (`Resolve` runs it for a

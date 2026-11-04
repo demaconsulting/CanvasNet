@@ -230,7 +230,7 @@ public class ScaleResolverOffsetTests
     }
 
     /// <summary>
-    ///     Validates that an offset without a discrete position or a time unit has no scale: the position is missing, quantitative, has a time unit of the day of the week or is nominal with a time unit.
+    ///     Validates that an offset without a discrete position or a time unit has no scale: the position is missing, quantitative, or has a time unit of the day of the week.
     /// </summary>
     [Fact]
     public void ScaleResolver_Resolve_OffsetWithoutADiscreteParentHasNoScale()
@@ -239,14 +239,37 @@ public class ScaleResolverOffsetTests
         var quantitative = ChartTestHelpers.Parts(Spec("\"point\"", """{ "x": { "field": "v", "type": "quantitative" }, "xOffset": { "field": "g", "type": "nominal" }, "y": { "field": "v", "type": "quantitative" } }""")).Scales;
         var missing = ChartTestHelpers.Parts(Spec("\"point\"", """{ "xOffset": { "field": "g", "type": "nominal" }, "y": { "field": "v", "type": "quantitative" } }""")).Scales;
         var day = ChartTestHelpers.Parts(Spec("\"bar\"", """{ "x": { "field": "c", "type": "temporal", "timeUnit": "day" }, "xOffset": { "field": "g", "type": "nominal" }, "y": { "field": "v", "type": "quantitative" } }""")).Scales;
-        var nominalUnit = ChartTestHelpers.Parts(Spec("\"bar\"", """{ "x": { "field": "c", "type": "nominal", "timeUnit": "year" }, "xOffset": { "field": "g", "type": "nominal" }, "y": { "field": "v", "type": "quantitative" } }""")).Scales;
 
         // Assert
         Assert.Null(quantitative["xOffset"]);
         Assert.Null(missing["xOffset"]);
         Assert.Null(day["xOffset"]);
-        Assert.Null(nominalUnit["xOffset"]);
         Assert.Equal(ScaleKind.Linear, quantitative["x"]!.Kind);
+    }
+
+    /// <summary>
+    ///     Validates that a nominal or ordinal position with a time unit is an ordinary band parent (Vega-Lite's <c>channelHasNestedOffsetScale</c> accepts a discrete type, with or without a time unit): the
+    ///     position is a band scale with the nested paddings and the offset has a scale of its own, whatever the unit and the mark.
+    /// </summary>
+    [Fact]
+    public void ScaleResolver_Resolve_OffsetWithADiscreteParentAndATimeUnitHasANestedOffsetScale()
+    {
+        // Act
+        var scales = ChartTestHelpers.Parts(Spec("\"bar\"", """{ "x": { "field": "c", "type": "nominal", "timeUnit": "year" }, "xOffset": { "field": "g", "type": "nominal" }, "y": { "field": "v", "type": "quantitative" } }""")).Scales;
+        var point = ChartTestHelpers.Parts(Spec("\"point\"", """{ "x": { "field": "c", "type": "ordinal", "timeUnit": "month" }, "xOffset": { "field": "g", "type": "nominal" }, "y": { "field": "v", "type": "quantitative" } }""")).Scales;
+        var rect = ChartTestHelpers.Parts(Spec("\"rect\"", """{ "x": { "field": "c", "type": "nominal", "timeUnit": "year" }, "xOffset": { "field": "g", "type": "nominal" }, "y": { "field": "v", "type": "quantitative" } }""")).Scales;
+        var day = ChartTestHelpers.Parts(Spec("\"bar\"", """{ "x": { "field": "c", "type": "nominal", "timeUnit": "day" }, "xOffset": { "field": "g", "type": "nominal" }, "y": { "field": "v", "type": "quantitative" } }""")).Scales;
+
+        // Assert
+        var x = scales["x"]!;
+        var offset = scales["xOffset"]!;
+        Assert.Equal((ScaleKind.Band, 0.2, 0.2), (x.Kind, x.PaddingInner, x.PaddingOuter));
+        Assert.Equal((ScaleKind.Band, 0.0, 0.0), (offset.Kind, offset.PaddingInner, offset.PaddingOuter));
+        Assert.Equal(["x", "y"], offset.DiscreteDomain.Select(d => d.Text));
+        Assert.True(offset.IsOffset);
+        Assert.Equal(ScaleKind.Point, point["xOffset"]!.Kind);
+        Assert.Equal(ScaleKind.Band, rect["xOffset"]!.Kind);
+        Assert.Equal(ScaleKind.Band, day["xOffset"]!.Kind);
     }
 
     /// <summary>
@@ -321,7 +344,13 @@ public class ScaleResolverOffsetTests
     [InlineData("""{ "x": { "field": "c", "type": "temporal", "timeUnit": { "maxbins": 10 } }, "xOffset": { "field": "g", "type": "nominal" } }""", "bar", "NoDiscreteParent")]
     [InlineData("""{ "x": { "field": "c", "type": "temporal", "timeUnit": "binnedyearmonth" }, "xOffset": { "field": "g", "type": "nominal" } }""", "bar", "NoDiscreteParent")]
     [InlineData("""{ "x": { "field": "c", "type": "temporal" }, "xOffset": { "field": "g", "type": "nominal" } }""", "bar", "NoDiscreteParent")]
-    [InlineData("""{ "x": { "field": "c", "type": "nominal", "timeUnit": "month" }, "xOffset": { "field": "g", "type": "nominal" } }""", "bar", "NoDiscreteParent")]
+    [InlineData("""{ "x": { "field": "v", "type": "quantitative", "timeUnit": "month" }, "xOffset": { "field": "g", "type": "nominal" } }""", "bar", "NoDiscreteParent")]
+    [InlineData("""{ "x": { "field": "c", "type": "nominal", "timeUnit": "month" }, "xOffset": { "field": "g", "type": "nominal" } }""", "bar", "Supported")]
+    [InlineData("""{ "x": { "field": "c", "type": "ordinal", "timeUnit": "year" }, "xOffset": { "field": "g", "type": "nominal" } }""", "rect", "Supported")]
+    [InlineData("""{ "x": { "field": "c", "type": "nominal", "timeUnit": "day" }, "xOffset": { "field": "g", "type": "nominal" } }""", "bar", "Supported")]
+    [InlineData("""{ "x": { "field": "c", "type": "nominal", "timeUnit": { "maxbins": 10 } }, "xOffset": { "field": "g", "type": "nominal" } }""", "bar", "Supported")]
+    [InlineData("""{ "x": { "field": "c", "type": "nominal", "timeUnit": "month" }, "xOffset": { "field": "v", "type": "quantitative" } }""", "bar", "Ranged")]
+    [InlineData("""{ "x": { "field": "c", "type": "nominal", "timeUnit": "month" }, "xOffset": { "field": "v", "type": "quantitative" } }""", "point", "Supported")]
     [InlineData("""{ "x": { "field": "c", "type": "nominal" }, "xOffset": { "value": 3 } }""", "bar", "Supported")]
     public void ScaleResolver_DecideOffset_FollowsTheRules(string encoding, string mark, string expected)
     {

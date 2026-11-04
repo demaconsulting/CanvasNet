@@ -478,7 +478,7 @@ the string value of the expression and its message names the offset of the const
 
 | Number format (1) | Meaning |
 | ----------------- | ------- |
-| `format(value, specifier)` | The number as text with a d3 number format (d3-format) in the `en-US` locale: the minus sign is U+2212 and the thousands separator is a comma, whatever the culture of the machine. `value` is converted as JavaScript's unary plus does (`'12'` is 12, `true` is 1, a date is its milliseconds), so a value that cannot be read gives the text `NaN`, and `null` gives the text `null`. A `specifier` that d3 does not accept is a `VegaLiteRenderException` located at the expression (it is not a warning). The type `c` differs from d3: it formats the number instead of echoing the original text, so a text value gives `NaN` |
+| `format(value, specifier)` | The number as text with a d3 number format (d3-format) in the `en-US` locale: the minus sign is U+2212 and the thousands separator is a comma, whatever the culture of the machine. `value` is converted as JavaScript's unary plus does (`'12'` is 12, `true` is 1, a date is its milliseconds), so a value that cannot be read gives the text `NaN`, and `null` gives the text `null`. A `specifier` that d3 does not accept is a `VegaLiteRenderException` located at the expression (it is not a warning). The type `c` is the exception, as in d3: it prints the original value as JavaScript text (`format('foo', 'c')` is `foo` and `format(true, 'c')` is `true`), and the prefix, suffix, width, and padding of the specifier still apply |
 
 | Date and time (41) | Meaning |
 | ------------------ | ------- |
@@ -1174,8 +1174,9 @@ center. The unit `month` without a year puts every date into the leap year 2012,
 `bar` or an `area` (a ranged offset, `vl-offset-ranged`) are ignored and the marks are drawn at their position. The
 position is not supported when the `x` (or `y`) channel is missing, is quantitative, or is temporal without a
 `timeUnit`; when its unit is `day`, `weekday`, or `yearweekday` (the smallest part is the day of the week), a `maxbins`
-unit, or a binned one; when the mark is a `rect` with a time unit; and when the field is nominal or ordinal **with** a
-`timeUnit`. A temporal field with any other time unit is no longer reported. The
+unit, or a binned one; when the mark is a `rect` with a temporal time unit. A nominal or ordinal field with a
+`timeUnit` is an
+ordinary band parent and is drawn like one without. A temporal field with any other time unit is no longer reported. The
 `bin` of an offset channel is not applied (`vl-encoding-bin`), and the `xOffset` and `yOffset` **properties** of a mark
 (a pixel offset) are not drawn, as before. Example 47 draws a grouped bar chart.
 
@@ -2205,7 +2206,7 @@ thread, after the work finished and before the method returns or throws.
 | `vl-guide-axis-tickcount-interval` | Warning | A time interval (`"week"` or `{"interval": "week", "step": 2}`) as the `tickCount` of an axis or legend whose scale is not a time scale; the default tick count is used |
 | `vl-format-type-custom` | Unsupported | An `axis.formatType`, `legend.formatType`, `header.formatType`, or the `formatType` of a `text` channel other than `number`, `time`, and `utc` (a custom format type is not evaluated; the default format is used) |
 | `vl-expr-ref` | Unsupported | An `{"expr": ...}` value where the renderer does not evaluate one: a title, padding, background, `view`, a mark property other than color, fill, stroke, opacity, stroke width, and the size of a point, circle, square, line, trail, or text, an encoding `value` other than that of color, fill, stroke, opacity, or the size of such a mark, and a facet field definition or `header`; and an expression inside a `point` or `line` overlay object. The value is not used |
-| `vl-offset-position` | Unsupported | An `xOffset` or `yOffset` that has no position to nest in: the `x` (or `y`) channel is missing, is quantitative, or is temporal without a `timeUnit`; or its time unit is `day`, `weekday`, `yearweekday`, binned, or `maxbins`; or the mark is a `rect` with a time unit; or the field is nominal or ordinal with a `timeUnit`. A temporal field with another time unit is nested in and not reported. The offset is ignored and the marks are drawn at their position (Vega-Lite throws for a continuous position) |
+| `vl-offset-position` | Unsupported | An `xOffset` or `yOffset` that has no position to nest in: the `x` (or `y`) channel is missing, is quantitative, or is temporal without a `timeUnit`; or its time unit is `day`, `weekday`, `yearweekday`, binned, or `maxbins`; or the mark is a `rect` with a temporal time unit. A nominal or ordinal field with a `timeUnit` is an ordinary band parent and is drawn (not reported). A temporal field with another time unit is nested in and not reported. The offset is ignored and the marks are drawn at their position (Vega-Lite throws for a continuous position) |
 | `vl-offset-ranged` | Unsupported | A continuous (quantitative or temporal) `xOffset` or `yOffset` of a `bar` or an `area`, which Vega-Lite draws as a range from the start of the band (a ranged offset). The offset is ignored and the marks are drawn at their position; the continuous offset of a point-like mark is drawn |
 | `vl-expr-function-<name>` | Unsupported | The string value of an expression (also a `labelExpr`) that calls a function outside the 100 supported ones, once per call, with `<name>` lower-cased (`vl-expr-function-now` for `now`, `vl-expr-function-geoarea` for `geoArea`; `vl-expr-function-luminance` for `luminance`; the message names the function **as written**). The call evaluates to null |
 | `vl-expr-view-state` | Unsupported | The string value of an expression that uses `signal`, `event`, or `item`, or the name `width`, `height`, `padding`, `autosize`, `background`, or `cursor` without declaring a parameter of that name. It evaluates to null |

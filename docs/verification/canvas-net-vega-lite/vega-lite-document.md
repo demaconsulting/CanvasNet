@@ -673,6 +673,7 @@ which also draws a chart whose labels use `format` and `timeFormat` and a `yearm
 `VegaLiteOffsetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Offset_LayersShareTheOffsetScale`,
 `VegaLiteOffsetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Offset_NotDrawnOffsetsAreReportedAndIgnored`,
 `VegaLiteOffsetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Offset_MonthlyGroupedBars`,
+`VegaLiteOffsetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Offset_NominalTimeUnitGroupedBars`,
 `VegaLiteOffsetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Offset_BoxplotBoxesSitSideBySide`
 
 A grouped bar chart of three categories and two groups through the whole pipeline is 160 pixels wide, has bars 20 pixels
@@ -690,5 +691,7 @@ a grouped bar chart over months (`month` unit, width 300, three months of two gr
 of the leap year 2012, 91 days, so a day is 300 / 91 pixels and the reference month of 31 days is 31 x 300 / 91 =
 102.2 pixels) has six bars 0.4 of a month (40.9 pixels) wide, the first two touching at 0.1 and 0.5 of a month from the
 left of the view and the next two at one month plus 0.1 and 0.5 of a month, with a legend `a`, `b` and nothing
-reported in strict mode, and the three boxes of a boxplot with an offset
+reported in strict mode, a grouped bar chart over a nominal `x` with the `month` unit (an ordinary band parent: width 300,
+three bands with the nested paddings 0.2, the step 300 / 3.2 = 93.75) has six bars 37.5 wide at 18.75, 56.25, 112.5, 150,
+206.25, and 243.75 and nothing reported, and the three boxes of a boxplot with an offset
 channel sit side by side with equal widths.

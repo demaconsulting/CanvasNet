@@ -482,14 +482,29 @@ UTC while one with +02:00 reads 14 for the hour of 12:34 UTC.
 
 **Tests**: `ExpressionFunctionsNumberTests.ExpressionFunctionsNumber_Format_MatchesD3`
 
-Asserts, as a theory of nineteen texts with hand-derived results (the minus sign is U+2212, the thousands separator a
+Asserts, as a theory of thirty-four texts with hand-derived results (the minus sign is U+2212, the thousands separator a
 comma), that `format(1234.5678, ',.2f')` is `1,234.57`, `format(0.256, '.0%')` is `26%`, `format(0.2, '.0%')` is `20%`,
 `format(1500000, '.2s')` is `1.5M`, `format(-5, 'd')` is `−5`, `format(42, '$,.2f')` is `$42.00`, `format(255, '#x')` is
 `0xff`, `format(5, '05d')` is `00005`, `format(0.000123, '.2e')` is `1.23e-4`, `format(1200, ',.0f')` is `1,200`,
 `format(12345.6789, '.3~s')` is `12.3k`, `format(3, '+d')` is `+3`, `format(7, '>5')` is four spaces and `7`,
 `format(1234.5, '')` is `1234.5`, `format(NaN, 'd')` is `NaN`, `format(1 / 0, 'd')` is the infinity sign U+221E and
-`format(-1 / 0, 'd')` is U+2212 and U+221E, `format(1 / 0, 'f')` is `Infinity`, and `format(1e21, 'f')` is `1e+21`; every
+`format(-1 / 0, 'd')` is U+2212 and U+221E, `format(1 / 0, 'f')` is `Infinity`, and `format(1e21, 'f')` is `1e+21`;
+and, for the type `c`, which prints the original value as JavaScript text, that `format('foo', 'c')` is `foo`,
+`format(true, 'c')` is `true`, `format(65, 'c')` is `65`, `format(-5, 'c')` is `-5` (an ASCII hyphen, not U+2212),
+`format(1.5, 'c')` is `1.5`, `format([1, 2], 'c')` is `1,2`, `format({}, 'c')` is `[object Object]`,
+`format(1 / 0, 'c')` is `Infinity`, `format(NaN, 'c')` is `NaN`, `format('x', '>5c')` is four spaces and `x`,
+`format('x', '*^5c')` is `**x**`, `format('ab', '$c')` is `$ab`, `format('a', '05c')` is `0000a`,
+`format('x', '+c')` is `x`, and `format('1234', ',c')` is `1234` (no grouping); every
 result is a string.
+
+##### Number Format Type C Prints The Original Value As Text
+
+**Tests**: `ExpressionFunctionsNumberTests.ExpressionFunctionsNumber_Format_TypeCPrintsTheOriginalValueAsText`
+
+Asserts, with `Invoke` on text, boolean, and null values, that a null value with `c` is the text `null`, the text `foo`
+with `c` is `foo`, `true` with `c` is `true`, the same text `foo` with `d` is still `NaN` (only the type `c` skips the
+coercion to a number), a text of ten characters with `c` against a limit of 5 is an `ExpressionRuntimeException` naming
+`VegaLiteLimits.MaxStringLength`, and an invalid specifier (`$$c`) with a text value still throws `invalid format: $$c`.
 
 ##### Number Format Coerces The Value Like Unary Plus
 

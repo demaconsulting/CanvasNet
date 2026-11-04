@@ -105,8 +105,8 @@ public class FeatureCatalogLabelExprAndOffsetTests
     }
 
     /// <summary>
-    ///     Validates the reports of the offset channels: a missing or quantitative position, a time unit that cannot hold an offset (<c>day</c>, <c>weekday</c>, <c>maxbins</c>, binned or on a <c>rect</c>) or a nominal position with a time unit is reported with <c>vl-offset-position</c> and a continuous offset of a bar or area with
-    ///     <c>vl-offset-ranged</c>; a supported offset is not reported, and neither is it by the generic channel report that the offsets had before.
+    ///     Validates the reports of the offset channels: a missing or quantitative position, a time unit that cannot hold an offset (<c>day</c>, <c>weekday</c>, <c>maxbins</c>, binned or on a <c>rect</c>) is reported with <c>vl-offset-position</c> and a continuous offset of a bar or area with
+    ///     <c>vl-offset-ranged</c>; a nominal position with a time unit is a band parent like any other and is not reported; a supported offset is not reported, and neither is it by the generic channel report that the offsets had before.
     /// </summary>
     [Fact]
     public void FeatureCatalog_Visit_OffsetsAreReportedOnlyWhenTheyAreNotDrawn()
@@ -120,6 +120,7 @@ public class FeatureCatalogLabelExprAndOffsetTests
         var rect = Visit(Chart("""{ "field": "c", "type": "temporal", "timeUnit": "year" }""").Replace("\"bar\"", "\"rect\"", StringComparison.Ordinal).Replace("\"y\":", "\"xOffset\": { \"field\": \"g\", \"type\": \"nominal\" }, \"y\":", StringComparison.Ordinal));
         var nominalUnit = Visit(Chart("""{ "field": "c", "type": "nominal", "timeUnit": "year" }""").Replace("\"y\":", "\"xOffset\": { \"field\": \"g\", \"type\": \"nominal\" }, \"y\":", StringComparison.Ordinal));
         var ranged = Visit(Chart("""{ "field": "c", "type": "nominal" }""").Replace("\"y\":", "\"xOffset\": { \"field\": \"g\", \"type\": \"quantitative\" }, \"y\":", StringComparison.Ordinal));
+        var nominalRect = Visit(Chart("""{ "field": "c", "type": "nominal", "timeUnit": "year" }""").Replace("\"bar\"", "\"rect\"", StringComparison.Ordinal).Replace("\"y\":", "\"xOffset\": { \"field\": \"g\", \"type\": \"nominal\" }, \"y\":", StringComparison.Ordinal));
         var yOffset = Visit("""{ "mark": "bar", "encoding": { "x": { "field": "v", "type": "quantitative" }, "yOffset": { "field": "g", "type": "nominal" } } }""");
 
         // Assert
@@ -129,7 +130,8 @@ public class FeatureCatalogLabelExprAndOffsetTests
         Assert.Equal([("vl-offset-position", "/encoding/xOffset")], day);
         Assert.Equal([("vl-offset-position", "/encoding/xOffset")], maxbins);
         Assert.Equal([("vl-offset-position", "/encoding/xOffset")], rect);
-        Assert.Equal([("vl-offset-position", "/encoding/xOffset")], nominalUnit);
+        Assert.Empty(nominalUnit);
+        Assert.Empty(nominalRect);
         Assert.Equal([("vl-offset-ranged", "/encoding/xOffset")], ranged);
         Assert.Equal([("vl-offset-position", "/encoding/yOffset")], yOffset);
     }
@@ -142,6 +144,22 @@ public class FeatureCatalogLabelExprAndOffsetTests
     {
         // Arrange
         var json = Chart("""{ "field": "c", "type": "nominal", "scale": { "type": "point" } }""").Replace("\"y\":", "\"xOffset\": { \"field\": \"g\", \"type\": \"nominal\" }, \"y\":", StringComparison.Ordinal);
+
+        // Act
+        var ids = Visit(json);
+
+        // Assert
+        Assert.Equal([("vl-scale-type-ignored", "/encoding/x/scale/type")], ids);
+    }
+
+    /// <summary>
+    ///     Validates that an explicit <c>point</c> scale on a nominal position with a time unit that holds an offset warns too (the position is a band parent).
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_PointScaleOnADiscreteTimeUnitPositionWithOffsetWarns()
+    {
+        // Arrange
+        var json = Chart("""{ "field": "c", "type": "nominal", "timeUnit": "year", "scale": { "type": "point" } }""").Replace("\"y\":", "\"xOffset\": { \"field\": \"g\", \"type\": \"nominal\" }, \"y\":", StringComparison.Ordinal);
 
         // Act
         var ids = Visit(json);

@@ -30,13 +30,15 @@ sections:
               - id: CanvasNetVegaLite-Scales-NumberFormat-Formatting
                 title: >-
                   The NumberFormat unit shall format a number by a specifier with the d3-format rules for
-                  the types, grouping, sign, padding, trimming, and SI prefixes, give the hand-derived
+                  the types, grouping, sign, padding, trimming, and SI prefixes, print a text with the c type
+                  between the prefix and the suffix of the specifier, give the hand-derived
                   label text for the documented values, and provide the precision helpers that derive the
                   digits from a step.
                 justification: |
                   The label text of an axis must match what a Vega-Lite user expects.
                 tests:
                   - NumberFormat_Format_QuantitativeLabelsMatchHandDerivedExpectedVector
+                  - NumberFormat_FormatText_PrintsTheTextWithPrefixSuffixAndPadding
                   - NumberFormat_PrecisionHelpers_MatchHandDerivedValues
                   - NumberFormat_CreatePrefix_ScalesByThePrefixOfTheReferenceValue
 

@@ -289,6 +289,35 @@ public class VegaLiteOffsetIntegrationTests
         Assert.Equal(["a", "b"], scene.FindAll("legend-label").Select(e => ((SceneText)e.Item).Text));
     }
 
+    /// <summary>
+    ///     Validates a grouped bar chart over a nominal position with a time unit, which is an ordinary band parent in Vega-Lite 6.5 (<c>channelHasNestedOffsetScale</c> accepts a discrete type, with or without a time
+    ///     unit): the position is a band scale of the three months with the nested paddings of 0.2, so with 300 pixels the step is 300 / (3 - 0.2 + 2 * 0.2) = 93.75, the band 75 wide and the first band starts at
+    ///     93.75 * 0.2 = 18.75 (the paddings of the three bands: 0.2 inside, 0.2 outside); the two groups share the band without padding, so each bar is 37.5 wide and the second one touches the first. Nothing is reported.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Offset_NominalTimeUnitGroupedBars()
+    {
+        // Arrange
+        const string encoding = """{ "x": { "field": "d", "type": "nominal", "timeUnit": "month", "axis": null }, "xOffset": { "field": "g", "type": "nominal" }, "y": { "field": "v", "type": "quantitative", "aggregate": "sum", "axis": null }, "color": { "field": "g", "type": "nominal", "legend": null } }""";
+        var json = "{ \"padding\": 0, \"width\": 300, " + MonthlyData + ", \"mark\": \"bar\", \"encoding\": " + encoding + " }";
+
+        // Act
+        var bars = Rects(SceneOf(json), "mark-bar");
+        var (unsupported, warnings) = Report(json);
+
+        // Assert
+        Assert.Equal(6, bars.Count);
+        Assert.All(bars, b => Assert.Equal(37.5, b.Width, 4));
+        double[] expected = [18.75, 56.25, 112.5, 150, 206.25, 243.75];
+        for (var i = 0; i < expected.Length; i++)
+        {
+            Assert.Equal(expected[i], bars[i].X, 4);
+        }
+
+        Assert.Empty(unsupported);
+        Assert.Empty(warnings);
+        using var strict = VegaLiteDocument.Parse(json).Render(new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true }, Ct);
+    }
 
     /// <summary>
     ///     Validates that a boxplot is drawn with an offset channel: the expansion of the composite mark keeps it, so the boxes of the groups of a category sit side by side.

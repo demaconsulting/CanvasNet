@@ -193,8 +193,9 @@ is a temporal field with a time unit (the position scale stays a time scale; `Sc
   0.4 of a month wide, at 0.1 and 0.5 of the month from its start.
 
 Documented deviations: (a) a mark without `timeUnitBandPosition` and `bandPosition` (a point, a line, a text) uses 0.5,
-where Vega-Lite computes NaN; (b) a `rect` mark, a `day`, `weekday`, binned, or `maxbins` unit, and a nominal or ordinal
-parent with a time unit are not drawn (`vl-offset-position`); (c) a UTC unit measures its reference duration in the
+where Vega-Lite computes NaN; (b) a `rect` mark and a `day`, `weekday`, binned, or `maxbins` unit
+of a temporal parent are not drawn (`vl-offset-position`); a nominal or ordinal parent with a time unit is an ordinary
+band parent and is drawn; (c) a UTC unit measures its reference duration in the
 calendar of the scale (UTC) where Vega-Lite uses the zone of the chart (up to an hour for a quarter in a zone with a
 daylight saving time); (d) a `bandPosition` other than 0.5 on a bar does not shift the scale domain as Vega-Lite's
 shifted rect fields do (`vl-encoding-bandposition-rect` is still reported); (e) `minBandSize` clamps around the start

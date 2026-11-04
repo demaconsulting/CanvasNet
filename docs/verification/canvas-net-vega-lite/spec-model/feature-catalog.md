@@ -704,13 +704,16 @@ unknown parameter in an axis, legend, header, or `config` `labelExpr` (`datum.la
 
 **Tests**: `FeatureCatalogLabelExprAndOffsetTests.FeatureCatalog_Visit_OffsetsAreReportedOnlyWhenTheyAreNotDrawn`,
 `FeatureCatalogLabelExprAndOffsetTests.FeatureCatalog_Visit_PointScaleOnAPositionWithOffsetWarns`,
+`FeatureCatalogLabelExprAndOffsetTests.FeatureCatalog_Visit_PointScaleOnADiscreteTimeUnitPositionWithOffsetWarns`,
 `FeatureCatalogLabelExprAndOffsetTests.SpecParser_Parse_StepForMustBePositionOrOffset`
 
-Asserts that an `xOffset` over a nominal `x` of a bar is not reported; that an offset whose position is quantitative, is
-missing, is a nominal field with a time unit, or is temporal with the unit `day`, a `maxbins` unit, or on a `rect`
+Asserts that an `xOffset` over a nominal `x` of a bar is not reported, and neither is one over a nominal `x` with a time
+unit (a bar or a `rect`: an ordinary band parent); that an offset whose position is quantitative, is
+missing, or is temporal with the unit `day`, a `maxbins` unit, or on a `rect`
 mark is
 `vl-offset-position` at `/encoding/xOffset` (and at `/encoding/yOffset` for `yOffset`), while a temporal `x` with the
 unit `year` has no report (the offset is drawn inside the unit) and
 a continuous offset of a bar or area is `vl-offset-ranged`; that an explicit `point` scale type on a position that holds
-an offset is the warning `vl-scale-type-ignored` at `/encoding/x/scale/type`; and that the `for` of a width step accepts
+an offset (also a nominal one with a time unit) is the warning `vl-scale-type-ignored` at
+`/encoding/x/scale/type`; and that the `for` of a width step accepts
 `position` and `offset` and any other value is a `VegaLiteSpecException` located at `/width/for`.

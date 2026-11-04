@@ -36,6 +36,21 @@ public class ExpressionFunctionsNumberTests
     [InlineData("format(-1 / 0, 'd')", "\u2212\u221e")]
     [InlineData("format(1 / 0, 'f')", "Infinity")]
     [InlineData("format(1e21, 'f')", "1e+21")]
+    [InlineData("format('foo', 'c')", "foo")]
+    [InlineData("format(true, 'c')", "true")]
+    [InlineData("format(65, 'c')", "65")]
+    [InlineData("format(-5, 'c')", "-5")]
+    [InlineData("format(1.5, 'c')", "1.5")]
+    [InlineData("format([1, 2], 'c')", "1,2")]
+    [InlineData("format({}, 'c')", "[object Object]")]
+    [InlineData("format(1 / 0, 'c')", "Infinity")]
+    [InlineData("format(NaN, 'c')", "NaN")]
+    [InlineData("format('x', '>5c')", "    x")]
+    [InlineData("format('x', '*^5c')", "**x**")]
+    [InlineData("format('ab', '$c')", "$ab")]
+    [InlineData("format('a', '05c')", "0000a")]
+    [InlineData("format('x', '+c')", "x")]
+    [InlineData("format('1234', ',c')", "1234")]
     public void ExpressionFunctionsNumber_Format_MatchesD3(string text, string expected)
     {
         // Act
@@ -66,6 +81,32 @@ public class ExpressionFunctionsNumberTests
         Assert.Equal("5", Eval("format([5], 'd')").Text);
         Assert.Equal("1,000", Eval("format(datetime(1970, 0, 1, 0, 0, 1), ',d')").Text);
         Assert.Equal("1,000", Call(DataValue.FromDate(1000), DataValue.FromString(",d")));
+    }
+
+    /// <summary>
+    ///     Validates that the type <c>c</c> prints the original value as JavaScript text instead of reading it as a number (d3-format's <c>x + ""</c>): a null value is still the text <c>null</c>, a text longer
+    ///     than the string limit is a runtime error, any other type still reads the value as a number (a text is NaN), and an invalid specifier is still an error for a text.
+    /// </summary>
+    [Fact]
+    public void ExpressionFunctionsNumber_Format_TypeCPrintsTheOriginalValueAsText()
+    {
+        // Arrange
+        var context = new ExpressionFunctionContext(null, CancellationToken.None);
+        var tight = new ExpressionFunctionContext(new VegaLiteLimits { MaxStringLength = 5 }, CancellationToken.None);
+        string Call(params DataValue[] arguments) => ExpressionFunctions.Invoke("format", arguments, context).Text!;
+
+        // Act
+        var nothing = Call(default, DataValue.FromString("c"));
+        var tooLong = Assert.Throws<ExpressionRuntimeException>(() => ExpressionFunctions.Invoke("format", [DataValue.FromString("abcdefghij"), DataValue.FromString("c")], tight));
+        var invalid = Assert.Throws<ExpressionRuntimeException>(() => ExpressionFunctions.Invoke("format", [DataValue.FromString("foo"), DataValue.FromString("$$c")], context));
+
+        // Assert
+        Assert.Equal("null", nothing);
+        Assert.Equal("foo", Call(DataValue.FromString("foo"), DataValue.FromString("c")));
+        Assert.Equal("true", Call(DataValue.FromBoolean(true), DataValue.FromString("c")));
+        Assert.Equal("NaN", Call(DataValue.FromString("foo"), DataValue.FromString("d")));
+        Assert.Contains("VegaLiteLimits.MaxStringLength", tooLong.Message, StringComparison.Ordinal);
+        Assert.Equal("invalid format: $$c", invalid.Message);
     }
 
     /// <summary>

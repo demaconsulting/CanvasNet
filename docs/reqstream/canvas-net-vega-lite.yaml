@@ -1931,7 +1931,9 @@ sections:
           bandwidth, or a continuous scale for a strip), with a step width or height that applies to the offset
           (or, with for position, to the position), the stack and the aggregate of a group within it, the
           domains of the offset scales shared across layers and the cells of a facet and independent across the
-          charts of a concatenation, and, for a temporal position with a time unit (not day or weekday, binned,
+          charts of a concatenation, a nominal or ordinal position with a time unit as an ordinary band parent,
+          and, for a
+          temporal position with a time unit (not day or weekday, binned,
           or maxbins; not a rect mark), the marks of a subgroup side by side inside one unit of the time scale,
           which stays a time scale - and shall report, ignoring the offset, one that cannot be nested (no
           discrete position and no supported time unit, vl-offset-position) and a continuous offset of a bar
@@ -1958,3 +1960,4 @@ sections:
           - CanvasNetVegaLite_SystemIntegration_Offset_NotDrawnOffsetsAreReportedAndIgnored
           - CanvasNetVegaLite_SystemIntegration_Offset_BoxplotBoxesSitSideBySide
           - CanvasNetVegaLite_SystemIntegration_Offset_MonthlyGroupedBars
+          - CanvasNetVegaLite_SystemIntegration_Offset_NominalTimeUnitGroupedBars

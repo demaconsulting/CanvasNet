@@ -265,6 +265,32 @@ public class NumberFormatTests
     }
 
     /// <summary>
+    ///     Validates the <c>c</c> type of <see cref="NumberFormat.FormatText"/>: only that type is a text format, the text is neither signed nor grouped, and the prefix, suffix, width, fill, alignment and zero
+    ///     padding of the specifier apply around it as around a number; a number still prints as plain text.
+    /// </summary>
+    [Fact]
+    public void NumberFormat_FormatText_PrintsTheTextWithPrefixSuffixAndPadding()
+    {
+        // Act / Assert
+        Assert.True(NumberFormat.Create("c").IsText);
+        Assert.False(NumberFormat.Create("d").IsText);
+        Assert.False(NumberFormat.Create(string.Empty).IsText);
+        Assert.Equal("ab", NumberFormat.Create("c").FormatText("ab"));
+        Assert.Equal("   ab", NumberFormat.Create(">5c").FormatText("ab"));
+        Assert.Equal("ab   ", NumberFormat.Create("<5c").FormatText("ab"));
+        Assert.Equal("*ab**", NumberFormat.Create("*^5c").FormatText("ab"));
+        Assert.Equal("000ab", NumberFormat.Create("05c").FormatText("ab"));
+        Assert.Equal("$ab", NumberFormat.Create("$c").FormatText("ab"));
+        Assert.Equal("ab", NumberFormat.Create("+c").FormatText("ab"));
+        Assert.Equal("1234", NumberFormat.Create(",c").FormatText("1234"));
+        Assert.Equal("-5", NumberFormat.Create("c").FormatText("-5"));
+        Assert.Equal(string.Empty, NumberFormat.Create("c").FormatText(string.Empty));
+        Assert.Equal("65", NumberFormat.Create("c").Format(65));
+        Assert.Throws<InvalidOperationException>(() => NumberFormat.Create("d").FormatText("x"));
+        Assert.Throws<ArgumentNullException>(() => NumberFormat.Create("c").FormatText(null!));
+    }
+
+    /// <summary>
     ///     Validates that a huge width is limited instead of allocating unbounded padding.
     /// </summary>
     [Fact]

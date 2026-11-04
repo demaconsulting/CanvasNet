@@ -484,7 +484,9 @@ internal sealed partial class NumberFormat
     /// </summary>
     /// <remarks>
     ///     NaN is shown as <c>NaN</c> and the infinities as <c>Infinity</c> (or <c>-Infinity</c>), padded and signed
-    ///     like any other number, as d3 does. The method has no side effects.
+    ///     like any other number, as d3 does. The <c>c</c> type prints the number as plain text; an expression
+    ///     <c>format</c> prints the original value of any kind with <see cref="FormatText"/> instead. The method has
+    ///     no side effects.
     /// </remarks>
     /// <param name="value">The number.</param>
     /// <returns>The text.</returns>
@@ -545,6 +547,46 @@ internal sealed partial class NumberFormat
             }
         }
 
+        return Assemble(prefix, body, suffix);
+    }
+
+    /// <summary>
+    ///     Gets a value indicating whether the format has the <c>c</c> type, which prints the text of a value
+    ///     instead of formatting a number (see <see cref="FormatText"/>).
+    /// </summary>
+    public bool IsText => _type == 'c';
+
+    /// <summary>
+    ///     Formats a text with a <c>c</c> type format: d3's <c>c</c> type prints the original value as JavaScript
+    ///     text (<c>x + ""</c>), not read as a number.
+    /// </summary>
+    /// <remarks>
+    ///     The text is not signed or grouped; the prefix (<c>$</c>) and suffix of the specifier stay around it, and
+    ///     the width, fill, alignment and zero padding apply to the whole as they do for a number.
+    /// </remarks>
+    /// <param name="text">The text of the value, as JavaScript writes it.</param>
+    /// <returns>The text with the prefix, suffix and padding of the specifier.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the format does not have the <c>c</c> type.</exception>
+    public string FormatText(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        if (!IsText)
+        {
+            throw new InvalidOperationException("Only a format with the 'c' type formats a text.");
+        }
+
+        return Assemble(_prefix, string.Empty, text + _suffix);
+    }
+
+    /// <summary>
+    ///     Groups, pads and aligns the parts of a formatted value.
+    /// </summary>
+    /// <param name="prefix">The prefix: sign, currency or radix prefix.</param>
+    /// <param name="body">The digits of the value.</param>
+    /// <param name="suffix">The suffix: fraction, exponent, percent sign or SI prefix.</param>
+    /// <returns>The text of the parts as the width, fill and alignment of the specifier lay them out.</returns>
+    private string Assemble(string prefix, string body, string suffix)
+    {
         // With a fill other than zero grouping comes before padding
         if (_comma && !_zero)
         {

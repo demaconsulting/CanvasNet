@@ -435,6 +435,7 @@ sections:
             tests:
               - ScaleResolver_DecideOffset_FollowsTheRules
               - ScaleResolver_Resolve_OffsetWithATimeUnitParentHasANominalOffsetScale
+              - ScaleResolver_Resolve_OffsetWithADiscreteParentAndATimeUnitHasANestedOffsetScale
               - ScaleResolver_Resolve_NominalXOffsetOfABarIsBandWithoutPaddingAndXHasNestedPaddings
               - ScaleResolver_Resolve_DefaultStepIsScaledByTheOffsetCount
               - ScaleResolver_ResolveLayers_SharedOffsetMergesTheDomainAndIndependentKeepsItsOwn

@@ -860,14 +860,26 @@ and no nice (the domain 1 to 5 maps to 0 and 40 on x and runs upward on y); and 
 **Tests**: `ScaleResolverOffsetTests.ScaleResolver_Resolve_OffsetWithoutADiscreteParentHasNoScale`,
 `ScaleResolverOffsetTests.ScaleResolver_DecideOffset_FollowsTheRules`
 
-Asserts that an offset whose position is quantitative, missing, a temporal field with the unit `day`, or a nominal field
-with a time unit has no scale (the quantitative position stays linear), and that `DecideOffset` returns `Supported`,
+Asserts that an offset whose position is quantitative, missing, or a temporal field with the unit `day` has no scale (the
+quantitative position stays linear), and that `DecideOffset` returns `Supported`,
 `NoDiscreteParent`, `Ranged`, or `TimeUnitParent` for every combination of position type, time unit, offset type, and
 mark and rejects a null channel: a temporal position with the unit `year`, `month`, `yearmonthdate`, `hours`, or
 `{unit: month, step: 2}` is `TimeUnitParent` for a nominal offset (`bar`, `point`, or `tick`), and for a quantitative
-offset of a `point`; a continuous offset of a `bar` or `area` is `Ranged` (also over a `month` unit); and a temporal
-position with the unit `day`, with `maxbins`, with `binnedyearmonth`, without a time unit, a `yearmonthdate` unit on a
-`rect`, or a nominal position with the unit `month` is `NoDiscreteParent`.
+offset of a `point`; a continuous offset of a `bar` or `area` is `Ranged` (also over a `month` unit); a temporal
+position with the unit `day`, with `maxbins`, with `binnedyearmonth`, without a time unit, or a `yearmonthdate` unit on
+a `rect`, and a quantitative position with the unit `month`, is `NoDiscreteParent`; and a nominal or ordinal position
+with a time unit is an ordinary discrete parent: `Supported` with the unit `month` (`bar`), `year` on a `rect`, `day`,
+or `maxbins`, `Ranged` for a quantitative offset of a `bar` and `Supported` for one of a `point`.
+
+##### Offsets Of A Discrete Position With A Time Unit Are Nested In Its Band
+
+**Tests**: `ScaleResolverOffsetTests.ScaleResolver_Resolve_OffsetWithADiscreteParentAndATimeUnitHasANestedOffsetScale`
+
+Asserts that over a nominal `x` with the unit `year` and a bar the position is a band scale with the nested paddings
+0.2 and 0.2 and the nominal `xOffset` is a band scale with the paddings 0 and 0 over the domain `x`, `y` that is marked
+as an offset scale, while the offset of an ordinal `x` with the unit `month` and a `point` is a point scale, and the
+offset of a nominal `x` with a time unit on a `rect` mark or with the unit `day` is a band scale (the restrictions of
+the time units apply only to a temporal position).
 
 ##### Offsets Inside A Time Unit Have A Scale Of Their Own
 

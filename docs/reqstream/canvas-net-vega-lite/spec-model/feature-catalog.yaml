@@ -487,10 +487,12 @@ sections:
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-OffsetReports
                 title: >-
                   The FeatureCatalog unit shall not report the xOffset and yOffset channels of a view that draws them
-                  (the offset of a nominal or ordinal position without a time unit or of a temporal position with a
+                  (the offset of a nominal or ordinal position, with or without a time unit, or of a temporal
+                  position with
+                  a
                   supported time unit, a continuous offset of the marks other than bar and area), shall report at the
                   channel, with vl-offset-position, an offset whose position channel is missing, is quantitative,
-                  has a time unit of a nominal or ordinal field, is temporal without a time unit or with a day,
+                  is temporal without a time unit or with a day,
                   weekday, binned, or maxbins unit, or belongs to a rect mark, and, with vl-offset-ranged, a
                   continuous (quantitative or temporal) offset of a bar or an area, each ignored when drawn, and
                   shall warn with vl-scale-type-ignored about a point scale type given to a position that holds an
@@ -501,3 +503,4 @@ sections:
                 tests:
                   - FeatureCatalog_Visit_OffsetsAreReportedOnlyWhenTheyAreNotDrawn
                   - FeatureCatalog_Visit_PointScaleOnAPositionWithOffsetWarns
+                  - FeatureCatalog_Visit_PointScaleOnADiscreteTimeUnitPositionWithOffsetWarns

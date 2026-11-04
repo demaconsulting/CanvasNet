@@ -1801,6 +1801,7 @@ produced.
 `VegaLiteOffsetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Offset_LayersShareTheOffsetScale`,
 `VegaLiteOffsetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Offset_NotDrawnOffsetsAreReportedAndIgnored`,
 `VegaLiteOffsetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Offset_MonthlyGroupedBars`,
+`VegaLiteOffsetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Offset_NominalTimeUnitGroupedBars`,
 `VegaLiteOffsetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Offset_BoxplotBoxesSitSideBySide`
 
 Asserts, with the positions derived by hand (three categories and two groups with the default offset step of 20: the
@@ -1818,7 +1819,10 @@ supported time unit (a quantitative `x`, or the `day` unit) and a continuous off
 chart over months (`month` unit, width 300, two groups over January to March, so the domain is the 91 days of the leap
 year 2012 and the reference month of 31 days is 31 x 300 / 91 = 102.2 pixels) has six bars 0.4 of a month wide, starting
 at 0.1 and 0.5 of a month in January (touching) and at one month plus the same offsets in February, with a legend of `a`
-and `b` and nothing reported even in strict mode, and that the boxes
+and `b` and nothing reported even in strict mode, that a grouped bar chart over a nominal `x` with the `month` unit (an
+ordinary band parent; width 300, three bands with the nested paddings 0.2, so the step is 300 / 3.2 = 93.75, the band 75
+and the first band at 18.75) has six bars 37.5 wide at 18.75, 56.25 (touching), 112.5, 150, 206.25, and 243.75 and nothing
+reported even in strict mode, and that the boxes
 of a boxplot with an offset are side by side with equal widths.
 
 ### Platform: Every System Scenario Runs On Every Target

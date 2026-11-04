@@ -273,11 +273,13 @@ evaluates to null (an empty label).
 **Offset channel identifiers.** `xOffset` and `yOffset` are supported channels. `VisitOffset` calls
 `ScaleResolver.DecideOffset`, the rule that the scale resolver also applies, so the report and the drawing agree:
 **`vl-offset-position`** when the offset is ignored because the position channel (`x` for `xOffset`, `y` for `yOffset`)
-is missing, is quantitative, is temporal without a `timeUnit`, is nominal or ordinal with a `timeUnit`, or is temporal
+is missing, is quantitative, is temporal without a `timeUnit`, or is temporal
 with a `timeUnit` that cannot hold an offset (a unit whose smallest part is the day of the week such as `day`,
 `weekday`, or `yearweekday`, a binned unit, a `maxbins` unit, or a `rect` mark); a temporal position with another time
-unit (`TimeUnitParent`, for example `year` or `yearmonth`) is **not reported**: the offset is drawn inside the unit.
-The message is "The 'xOffset' channel needs a nominal or ordinal 'x' channel without a time unit, or a temporal one with
+unit (`TimeUnitParent`, for example `year` or `yearmonth`) is **not reported**: the offset is drawn inside the unit, and
+so is not a nominal or ordinal position with a time unit, which is an ordinary band parent.
+The message is "The 'xOffset' channel needs a nominal or ordinal 'x' channel (with or without a time unit), or a
+temporal one with
 a supported time unit (not 'day' or 'weekday', binned or 'maxbins'; not a 'rect' mark), to nest in; the offset is ignored
 ...". **`vl-offset-ranged`** is reported when a continuous (quantitative
 or temporal) offset sits on a `bar` or `area`, which Vega-Lite draws as a range; both are unsupported-feature reports
