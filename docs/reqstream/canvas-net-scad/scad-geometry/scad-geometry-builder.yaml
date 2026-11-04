@@ -418,7 +418,10 @@ sections:
                   the highlight modifier once; shall not keep the colors inside the projection (one
                   warning), the result taking the enclosing color; shall yield nothing, with no report,
                   for a module with no children; and shall build a deeply nested projection on a small
-                  caller stack without recursion.
+                  caller stack without recursion; and shall decide with tolerances that follow the size of the
+                  model and the rounding error of its coordinates, never its distance from the origin, so
+                  that a small solid translated far from the origin projects exactly as it does at the
+                  origin and a tiny solid is not treated as degenerate.
                 justification: |
                   The projection module is how a 3D part becomes the 2D outline of a technical drawing; its
                   shadow must be the true silhouette (holes included), not an approximation, and a model
@@ -446,6 +449,10 @@ sections:
                   - ScadGeometryBuilderProjection_CoplanarFaces_AreMergedIntoOneRegion
                   - ScadGeometryBuilderProjection_FaceWithATouchingHole_FallsBackToTriangles
                   - ScadGeometryBuilderProjection_DeepNesting_BuildsOnASmallStack
+                  - ScadGeometryBuilderProjection_FarTranslatedSmallCube_StillProjects
+                  - ScadGeometryBuilderProjection_FarTranslatedDifference_KeepsTheHole
+                  - ScadGeometryBuilderProjection_SmallScaleCube_Projects
+                  - ScadGeometryBuilderProjection_SmallScaleDifference_KeepsTheHole
 
               - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ProjectionCut
                 title: >-
@@ -459,7 +466,9 @@ sections:
                   section, a vertex on the plane is handled exactly, and the result can be extruded like any
                   2D shape; and shall report a mesh whose section does not close (an open mesh) as the
                   unsupported feature scad-projection-open-mesh at the module's location and omit the
-                  module.
+                  module; and shall decide whether a vertex is on the plane with a tolerance that follows
+                  the size of the model and the rounding error of its coordinates, never its distance from
+                  the origin.
                 justification: |
                   A cross-section is the other half of a technical drawing; the cases at the boundary of
                   the plane (a face lying on it, a vertex on it) must be decided by a single rule so that
@@ -477,6 +486,8 @@ sections:
                   - ScadGeometryBuilderProjectionCut_VerticesOnThePlane_GiveTheEquatorSquare
                   - ScadGeometryBuilderProjectionCut_OpenMesh_IsReportedAndOmitted
                   - ScadGeometryBuilderProjectionCut_Result_CanBeExtruded
+                  - ScadGeometryBuilderProjectionCut_FarTranslatedCube_IsItsFootprint
+                  - ScadGeometryBuilderProjectionCut_SmallSolidJustOffThePlane_IsEmpty
 
               - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ProjectionClassification
                 title: >-
@@ -707,7 +718,8 @@ sections:
               - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-Cancellation
                 title: >-
                   The ScadGeometryBuilder unit shall honor cancellation by polling the token at a fixed
-                  interval of visited instances and before each tessellation, throwing
+                  interval of visited instances and before each tessellation (and, inside a projection, at
+                  the same interval over the triangles and contour points of its long loops), throwing
                   OperationCanceledException without wrapping it, and keeping the events reported before
                   the cancellation in the sink.
                 justification: |
@@ -720,6 +732,9 @@ sections:
                   - ScadGeometryBuilder_Build_Canceled_KeepsEarlierEventsInSink
                   - ScadGeometryBuilder_Build_AlreadyCanceled_StopsTheShowOnlyPrePass
                   - ScadGeometryBuilder_Build_NotCanceled_ShowOnlyPrePassCompletes
+                  - ScadGeometryBuilderProjectionCancellation_PreCanceledLargeMesh_Throws
+                  - ScadGeometryBuilderProjectionCancellation_PreCanceledSmallMesh_CompletesBelowTheInterval
+                  - ScadGeometryBuilderProjectionCancellation_LargeMeshNotCanceled_Completes
 
               - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-SceneMap
                 title: >-

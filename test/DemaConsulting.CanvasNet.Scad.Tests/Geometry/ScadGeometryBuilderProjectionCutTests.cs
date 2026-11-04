@@ -182,4 +182,43 @@ public class ScadGeometryBuilderProjectionCutTests
         Assert.Equal(18.0, result.SingleMesh.SignedVolume, 1e-9);
         Assert.Empty(result.Warnings);
     }
+
+    /// <summary>
+    ///     Validates that the cut does not depend on the translation: a small cube far from the origin that spans the
+    ///     plane has its footprint as section (no vertex of it counts as being on the plane).
+    /// </summary>
+    [Fact]
+    public void ScadGeometryBuilderProjectionCut_FarTranslatedCube_IsItsFootprint()
+    {
+        // Arrange / Act
+        var result = BuildSource("projection(cut = true) translate([1e9, 0, -0.5]) cube(1);");
+
+        // Assert
+        var bounds = result.SingleMesh.Bounds;
+        Assert.Equal(1e9, bounds.Min.X);
+        Assert.Equal(1e9 + 1.0, bounds.Max.X);
+        Assert.Equal(0.0, bounds.Min.Y);
+        Assert.Equal(1.0, bounds.Max.Y);
+        Assert.Empty(result.Unsupported);
+        Assert.Empty(result.Warnings);
+    }
+
+    /// <summary>
+    ///     Validates that a small solid just above or below the plane is not cut by it: the tolerance follows the size
+    ///     of the model, so a gap of 5e-10 on a cube of 1e-3 is a gap.
+    /// </summary>
+    /// <param name="source">The program text.</param>
+    [Theory]
+    [InlineData("projection(cut = true) translate([0, 0, 5e-10]) cube(1e-3);")]
+    [InlineData("projection(cut = true) translate([0, 0, -1.0000005e-3]) cube(1e-3);")]
+    public void ScadGeometryBuilderProjectionCut_SmallSolidJustOffThePlane_IsEmpty(string source)
+    {
+        // Arrange / Act
+        var result = BuildSource(source);
+
+        // Assert
+        Assert.Empty(result.Meshes);
+        Assert.Empty(result.Warnings);
+        Assert.Empty(result.Unsupported);
+    }
 }

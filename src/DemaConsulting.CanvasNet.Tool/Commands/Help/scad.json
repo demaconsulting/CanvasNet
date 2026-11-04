@@ -14,7 +14,7 @@
         { "text": "color(): CSS names, #RGB, #RGBA, #RRGGBB, #RRGGBBAA, [r, g, b] and [r, g, b, a]. An alpha below 1 makes the surface translucent." },
         { "text": "Booleans: union, difference, intersection, render, intersection_for." },
         { "text": "linear_extrude (twist, slices, scale), rotate_extrude, hull of 3D or 2D children, minkowski of convex 3D children." },
-        { "text": "projection(): the shadow of 3D children on the XY plane (cut = false, the default) or their cross-section at z = 0 (cut = true), as a flat shape that 2D modules and extrusions use like any other. A model that is entirely 2D, for example a projection() drawing sheet, is drawn as a flat top-down view (orthographic, one flat gray) unless a view is chosen." },
+        { "text": "projection(): the shadow of 3D children on the XY plane (cut = false, the default) or their cross-section at z = 0 (cut = true), as a flat shape that 2D modules and extrusions use like any other. A model that is entirely 2D, for example a projection() drawing sheet, is drawn as a flat top-down view (orthographic) unless a view is chosen; its shapes are flat gray unless colored. For a stronger drawing use --default-color black, or color the shape in the model outside the projection (color(\"black\") projection() ...; colors inside projection() are dropped), and --background to choose the paper (white by default, transparent keeps alpha)." },
         { "text": "The viewport variables $vpt, $vpr, $vpd, and $vpf hold the camera of the picture, so a model can place geometry relative to it: translate($vpt) rotate($vpr) faces the camera. Assigning them at the top level of the model sets the view; --view, --azimuth, and --elevation win over the model." },
         { "text": "Modifiers: ! (show only), * (disable), # (highlight, a translucent copy), % (background, a translucent ghost)." },
         { "text": "The language: variables, functions, modules with children(), for, if, let, comprehensions, echo, assert, include and use, and the built-in functions." },
@@ -46,10 +46,10 @@
         { "term": "--projection <type>", "text": "ortho (default) or perspective." },
         { "term": "--define <name=value>", "text": "Set a variable of the model; -D is the short form. Repeatable; the later definition wins." },
         { "term": "--time <T>", "text": "The value of $t (default 0)." },
-        { "term": "--default-color <color>", "text": "The color of surfaces the model does not color (default gray)." },
+        { "term": "--default-color <color>", "text": "The color of surfaces the model does not color (default gray); the alpha is ignored. A flat 2D drawing is gray by default, so --default-color black gives a high-contrast drawing; a color() in the model overrides it." },
         { "term": "--max-triangles <N>", "text": "The most triangles the model may produce (default {{scadMaxTriangles}})." },
         { "term": "--size <WxH>", "text": "The picture is 800x800 pixels unless a size option is given; --width, --height, and --scale also size it. The camera fits the picture; nothing is stretched." },
-        { "term": "--background <color>", "text": "The color the picture is flattened over (default white); transparent keeps alpha." },
+        { "term": "--background <color>", "text": "The color the picture is flattened over (default white; black, #RRGGBB, or #RRGGBBAA); transparent keeps alpha." },
         { "term": "--strict", "text": "Fail with unsupported-feature instead of leaving a construct out." }
       ]
     },

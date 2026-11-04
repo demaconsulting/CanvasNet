@@ -9,6 +9,15 @@ namespace DemaConsulting.CanvasNet.Scad.Geometry;
 /// </content>
 internal static partial class ScadProjections
 {
+    /// <summary>The part of the extent of the meshes below which two distances coincide.</summary>
+    private const double DistanceFactor = 1e-9;
+
+    /// <summary>The part of the squared extent of a mesh below which a doubled XY area counts as zero.</summary>
+    private const double AreaFactor = 1e-12;
+
+    /// <summary>The number of spacings of the doubles that the rounding errors of a dot or cross product can add up to.</summary>
+    private const double RoundingMargin = 16.0;
+
     /// <summary>
     ///     The kind of a node of the flattened solid tree.
     /// </summary>
@@ -46,6 +55,13 @@ internal static partial class ScadProjections
             TriangleIndices = indices;
             Bounds = bounds;
             IsClosedOutward = isClosedOutward;
+            if (!bounds.IsEmpty)
+            {
+                Extent = Math.Max(bounds.Max.X - bounds.Min.X, Math.Max(bounds.Max.Y - bounds.Min.Y, bounds.Max.Z - bounds.Min.Z));
+                MaxCoordinate = Math.Max(MaxAbs(bounds.Min), MaxAbs(bounds.Max));
+            }
+
+            AreaEpsilon = (AreaFactor * Extent * Extent) + (RoundingMargin * CoordinateUlp(MaxCoordinate) * Extent);
         }
 
         /// <summary>Gets the welded vertices.</summary>
@@ -56,6 +72,18 @@ internal static partial class ScadProjections
 
         /// <summary>Gets the bounds of the vertices.</summary>
         public BoundingBox3D Bounds { get; }
+
+        /// <summary>Gets the largest side of the bounds; it does not change when the mesh is translated.</summary>
+        public double Extent { get; }
+
+        /// <summary>Gets the largest absolute coordinate of any vertex (it sets the rounding error of the coordinates).</summary>
+        public double MaxCoordinate { get; }
+
+        /// <summary>
+        ///     Gets the doubled XY area below which a triangle of this mesh counts as vertical: a part of the squared extent
+        ///     plus the rounding error of the coordinates times the extent.
+        /// </summary>
+        public double AreaEpsilon { get; }
 
         /// <summary>Gets a value indicating whether the mesh is a closed, outward-wound solid (only its upward faces then matter for a shadow).</summary>
         public bool IsClosedOutward { get; }
@@ -68,8 +96,9 @@ internal static partial class ScadProjections
         /// </summary>
         /// <param name="mesh">The mesh.</param>
         /// <param name="matrix">The matrix that takes the mesh into the frame.</param>
+        /// <param name="context">The build context (cancellation is polled per triangle and per vertex).</param>
         /// <returns>The mesh in the frame.</returns>
-        public static FrameMesh Create(Mesh mesh, Matrix4x4D matrix)
+        public static FrameMesh Create(Mesh mesh, Matrix4x4D matrix, ScadGeometryContext context)
         {
             var remap = new int[mesh.VertexCount];
             Array.Fill(remap, -1);
@@ -81,6 +110,7 @@ internal static partial class ScadProjections
             var bounds = BoundingBox3D.Empty;
             for (var i = 0; i + 2 < source.Count; i += 3)
             {
+                context.Tick();
                 var a = Weld(mesh, matrix, source[i], remap, welded, vertices);
                 var b = Weld(mesh, matrix, source[i + 1], remap, welded, vertices);
                 var c = Weld(mesh, matrix, source[i + 2], remap, welded, vertices);
@@ -96,6 +126,7 @@ internal static partial class ScadProjections
 
             foreach (var vertex in vertices)
             {
+                context.Tick();
                 bounds = bounds.Union(vertex);
             }
 
@@ -175,8 +206,11 @@ internal static partial class ScadProjections
         /// <summary>Gets or sets a value indicating whether any node carries an appearance.</summary>
         public bool HasAppearance { get; set; }
 
-        /// <summary>Gets or sets the largest absolute coordinate of any mesh vertex.</summary>
-        public double Scale { get; set; }
+        /// <summary>Gets or sets the largest extent (the largest side of the bounds) of any mesh; translation does not change it.</summary>
+        public double Extent { get; set; }
+
+        /// <summary>Gets or sets the largest absolute coordinate of any mesh vertex (it sets the rounding error of the coordinates).</summary>
+        public double MaxCoordinate { get; set; }
 
         /// <summary>
         ///     Adds a node.
@@ -302,14 +336,20 @@ internal static partial class ScadProjections
         /// </summary>
         /// <param name="context">The build context.</param>
         /// <param name="node">The instance.</param>
-        /// <param name="scale">The largest absolute coordinate of the meshes.</param>
-        public State(ScadGeometryContext context, ScadInstance node, double scale)
+        /// <param name="extent">The largest extent of the meshes (the largest side of their bounds).</param>
+        /// <param name="maxCoordinate">The largest absolute coordinate of the meshes.</param>
+        public State(ScadGeometryContext context, ScadInstance node, double extent, double maxCoordinate)
         {
             Context = context;
             Node = node;
-            var extent = Math.Max(1.0, scale);
-            Tolerance = 1e-9 * extent;
-            AreaEpsilon = 1e-12 * extent * extent;
+
+            // The tolerance follows the size of the parts and the rounding error of their coordinates, never the distance from the origin
+            Tolerance = (DistanceFactor * extent) + (RoundingMargin * CoordinateUlp(maxCoordinate));
+            if (Tolerance <= 0.0)
+            {
+                // Only an empty tree has no extent; any positive value serves
+                Tolerance = DistanceFactor;
+            }
         }
 
         /// <summary>Gets the build context.</summary>
@@ -318,11 +358,11 @@ internal static partial class ScadProjections
         /// <summary>Gets the instance of the module.</summary>
         public ScadInstance Node { get; }
 
-        /// <summary>Gets the distance from a plane below which a vertex counts as being on it.</summary>
+        /// <summary>
+        ///     Gets the distance from a plane (or in the XY plane) below which two things count as coinciding: a part of the
+        ///     largest extent plus the rounding error of the coordinates, so it does not depend on the translation.
+        /// </summary>
         public double Tolerance { get; }
-
-        /// <summary>Gets the doubled XY area below which a triangle counts as vertical.</summary>
-        public double AreaEpsilon { get; }
 
         /// <summary>Gets the first failure (the feature identifier and the message), or <see langword="null"/>.</summary>
         public (string Feature, string Message)? Failure { get; private set; }
@@ -423,7 +463,7 @@ internal static partial class ScadProjections
             switch (node)
             {
                 case MeshNode meshNode:
-                    AddMesh(tree, meshNode.Mesh, matrix, parentIndex, negative);
+                    AddMesh(tree, meshNode.Mesh, matrix, parentIndex, negative, context);
                     break;
                 case GroupNode group:
                     PushChildren(stack, group.Children, matrix, tree.Add(new TreeNode(NodeKind.Union, negative), parentIndex), negative, false);
@@ -453,13 +493,12 @@ internal static partial class ScadProjections
     /// <param name="matrix">The matrix into the frame of the projection.</param>
     /// <param name="parentIndex">The index of the parent node.</param>
     /// <param name="negative">Whether the mesh is subtracted an odd number of times.</param>
-    private static void AddMesh(SolidTree tree, Mesh mesh, Matrix4x4D matrix, int parentIndex, bool negative)
+    /// <param name="context">The build context.</param>
+    private static void AddMesh(SolidTree tree, Mesh mesh, Matrix4x4D matrix, int parentIndex, bool negative, ScadGeometryContext context)
     {
-        var frame = FrameMesh.Create(mesh, matrix);
-        if (!frame.Bounds.IsEmpty)
-        {
-            tree.Scale = Math.Max(tree.Scale, Math.Max(MaxAbs(frame.Bounds.Min), MaxAbs(frame.Bounds.Max)));
-        }
+        var frame = FrameMesh.Create(mesh, matrix, context);
+        tree.Extent = Math.Max(tree.Extent, frame.Extent);
+        tree.MaxCoordinate = Math.Max(tree.MaxCoordinate, frame.MaxCoordinate);
 
         tree.Add(new TreeNode(NodeKind.Mesh, negative, frame), parentIndex);
     }
@@ -493,4 +532,12 @@ internal static partial class ScadProjections
     /// <param name="v">The vector.</param>
     /// <returns>The largest absolute component.</returns>
     private static double MaxAbs(Vector3D v) => Math.Max(Math.Abs(v.X), Math.Max(Math.Abs(v.Y), Math.Abs(v.Z)));
+
+    /// <summary>
+    ///     Gets the spacing of the doubles at a coordinate: the rounding error that a coordinate of that size carries.
+    /// </summary>
+    /// <param name="maxCoordinate">The largest absolute coordinate.</param>
+    /// <returns>The spacing, or 0 when the coordinate is 0.</returns>
+    private static double CoordinateUlp(double maxCoordinate) =>
+        maxCoordinate > 0.0 ? Math.BitIncrement(maxCoordinate) - maxCoordinate : 0.0;
 }

@@ -488,6 +488,22 @@ library draws it flat from above.
 canvasnet render sheet.scad -o sheet.png
 ```
 
+**Contrast of a drawing.** The shapes of a flat drawing are a neutral gray on a white background unless the model
+colors them. There are three ways to get a stronger drawing, and they can be combined:
+
+- `--default-color <color>` colors every shape the model does not color, for example `--default-color black`. Its alpha
+  is ignored.
+- `color("black")` in the model colors a shape itself and wins over `--default-color`; the alpha of a `color()` is
+  honored. Put it **outside** the projection, as in `color("black") projection() block();`, because `projection()`
+  drops the colors that are inside it (and warns).
+- `--background <color>` chooses the color the picture is flattened over: white by default for a model, `black`,
+  `#RRGGBB`, `#RRGGBBAA`, or `transparent`, which keeps the alpha channel (use a format that has one, such as PNG).
+
+```bash
+canvasnet render sheet.scad --default-color black --background white -o sheet.png
+canvasnet render sheet.scad --default-color black --background transparent -o sheet.png
+```
+
 #### Vega-Lite Charts
 
 A Vega-Lite chart (`.vl.json` or `.vl`, or a `.json` file with a Vega-Lite `$schema`) is drawn as a still image at the

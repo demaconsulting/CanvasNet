@@ -26,6 +26,89 @@ public class ScadGeometryBuilderProjectionTests
     }
 
     /// <summary>
+    ///     Validates that the tolerances do not depend on the translation: a small cube far from the origin projects to
+    ///     its footprint, as it does at the origin.
+    /// </summary>
+    /// <param name="source">The program text.</param>
+    /// <param name="minX">The expected smallest X of the footprint.</param>
+    /// <param name="minY">The expected smallest Y of the footprint.</param>
+    [Theory]
+    [InlineData("projection() translate([1e9, 0, 0]) cube(1);", 1e9, 0.0)]
+    [InlineData("projection() translate([0, 0, 1e9]) cube(1);", 0.0, 0.0)]
+    [InlineData("projection() translate([-1e9, 1e9, 0]) cube(1);", -1e9, 1e9)]
+    public void ScadGeometryBuilderProjection_FarTranslatedSmallCube_StillProjects(string source, double minX, double minY)
+    {
+        // Arrange / Act
+        var result = BuildSource(source);
+
+        // Assert: one slab with the footprint of the cube (compared as doubles, not through a picture)
+        var bounds = result.SingleMesh.Bounds;
+        Assert.Equal(minX, bounds.Min.X);
+        Assert.Equal(minX + 1.0, bounds.Max.X);
+        Assert.Equal(minY, bounds.Min.Y);
+        Assert.Equal(minY + 1.0, bounds.Max.Y);
+        Assert.Empty(result.Warnings);
+        Assert.Empty(result.Unsupported);
+    }
+
+    /// <summary>
+    ///     Validates that a boolean far from the origin is classified like one at the origin: a cube with a through hole
+    ///     keeps the hole when translated by a large distance.
+    /// </summary>
+    [Fact]
+    public void ScadGeometryBuilderProjection_FarTranslatedDifference_KeepsTheHole()
+    {
+        // Arrange
+        const string source = "projection() translate([1e7, 1e7, 0]) difference() { cube(10); translate([3, 3, -1]) cube([4, 4, 12]); }";
+
+        // Act
+        var result = BuildSource(source);
+
+        // Assert: a frame of four slabs or more (a solid square would be one slab), no report
+        Assert.True(result.Meshes.Count > 1);
+        Assert.Empty(result.Unsupported);
+        Assert.Empty(result.Warnings);
+        Assert.Equal(1e7, result.Meshes.Min(m => m.Mesh.Bounds.Min.X));
+        Assert.Equal(1e7 + 10.0, result.Meshes.Max(m => m.Mesh.Bounds.Max.X));
+    }
+
+    /// <summary>
+    ///     Validates that the tolerances follow the size of the model: a tiny cube still projects to its footprint.
+    /// </summary>
+    [Fact]
+    public void ScadGeometryBuilderProjection_SmallScaleCube_Projects()
+    {
+        // Arrange / Act
+        var result = BuildSource("projection() cube(1e-4);");
+
+        // Assert
+        var bounds = result.SingleMesh.Bounds;
+        Assert.Equal(0.0, bounds.Min.X);
+        Assert.Equal(1e-4, bounds.Max.X, 1e-15);
+        Assert.Equal(1e-4, bounds.Max.Y, 1e-15);
+        Assert.Empty(result.Unsupported);
+    }
+
+    /// <summary>
+    ///     Validates that a small through hole stays a hole at small scale (the vertical walls and the cut faces are
+    ///     told apart by a tolerance that follows the model).
+    /// </summary>
+    [Fact]
+    public void ScadGeometryBuilderProjection_SmallScaleDifference_KeepsTheHole()
+    {
+        // Arrange
+        const string source = "projection() difference() { cube(1e-3); translate([3e-4, 3e-4, -1e-3]) cube([4e-4, 4e-4, 3e-3]); }";
+
+        // Act
+        var result = BuildSource(source);
+
+        // Assert
+        Assert.True(result.Meshes.Count > 1);
+        Assert.Empty(result.Unsupported);
+        Assert.Empty(result.Warnings);
+    }
+
+    /// <summary>
     ///     Validates that a solid turned about the X axis projects to the extent it has in X and Z.
     /// </summary>
     [Fact]

@@ -448,7 +448,11 @@ Asserts that a model with a hull of a sphere and a rotated cube, a distributed s
 `ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_VerticalFaces_HaveNoFootprint`,
 `ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_CoplanarFaces_AreMergedIntoOneRegion`,
 `ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_FaceWithATouchingHole_FallsBackToTriangles`,
-`ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_DeepNesting_BuildsOnASmallStack`
+`ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_DeepNesting_BuildsOnASmallStack`,
+`ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_FarTranslatedSmallCube_StillProjects`,
+`ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_FarTranslatedDifference_KeepsTheHole`,
+`ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_SmallScaleCube_Projects`,
+`ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_SmallScaleDifference_KeepsTheHole`
 
 Asserts, by drawing the result from above, that the shadow of a cube of 30 by 20 by 15 is exactly 600 square units and
 that the same cube turned 90 degrees about X (a front view) is exactly 450 (30 by 15); that a cube of side 10 turned
@@ -482,6 +486,13 @@ region; a face of six triangles whose hole touches its outline at a vertex (a bo
 contour) falls back to one region per triangle, six slabs, with the exact area of 13 within 0.2; and a recursive module
 that nests 3,000 translations around a cube, built under a projection on a thread with a 64 KiB stack, gives one slab
 (nothing recurses).
+
+Asserts that the tolerances do not depend on the translation or the absolute scale, by the doubles of the built slab
+rather than a picture (a single-precision rendering could not resolve them): a cube of side 1 translated by 1e9 in X,
+by 1e9 in Z, and by (-1e9, 1e9) in X and Y projects to one slab with exactly the bounds of its unit footprint, no
+warning, and no report; a 10 by 10 by 10 plate with a 4 by 4 through hole translated by 1e7 in X and Y still gives
+several slabs (the hole survives) between x = 1e7 and 1e7 + 10; a cube of side 1e-4 projects to one slab of that size; and
+a plate of side 1e-3 with a through hole keeps the hole.
 
 ##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ProjectionClassification: Shadow Of Differences And Intersections
 
@@ -518,7 +529,9 @@ unsupported report and a non-empty result.
 `ScadGeometryBuilderProjectionCutTests.ScadGeometryBuilderProjectionCut_TiltedCube_IsALongerRectangle`,
 `ScadGeometryBuilderProjectionCutTests.ScadGeometryBuilderProjectionCut_VerticesOnThePlane_GiveTheEquatorSquare`,
 `ScadGeometryBuilderProjectionCutTests.ScadGeometryBuilderProjectionCut_OpenMesh_IsReportedAndOmitted`,
-`ScadGeometryBuilderProjectionCutTests.ScadGeometryBuilderProjectionCut_Result_CanBeExtruded`
+`ScadGeometryBuilderProjectionCutTests.ScadGeometryBuilderProjectionCut_Result_CanBeExtruded`,
+`ScadGeometryBuilderProjectionCutTests.ScadGeometryBuilderProjectionCut_FarTranslatedCube_IsItsFootprint`,
+`ScadGeometryBuilderProjectionCutTests.ScadGeometryBuilderProjectionCut_SmallSolidJustOffThePlane_IsEmpty`
 
 Asserts that a centered cube of 30 by 20 by 15 is cut to exactly its footprint of 600; that a cube of side 10 that
 rests on the plane from above and one that hangs from it (the plane in its underside or top face) are both cut to the
@@ -539,6 +552,11 @@ area 18 within 0.5, covering the center and (2.6, 0) and not (2, 2)); that a tet
 as `scad-projection-open-mesh` at the module's location (1:1) and nothing is built; and that the section is a flat
 shape like any other, so extruding the section of a centered cube of side 3 by 2 gives a closed mesh of volume 18 with
 no warning.
+
+Asserts that the cut does not depend on the translation or the scale: a cube of side 1 at x = 1e9 that spans the plane
+is cut to one slab with exactly the bounds of its unit footprint (no vertex of it counts as on the plane), and a cube of
+side 1e-3 whose underside is 5e-10 above the plane, or whose top is 5e-10 below it, is not cut at all (no slab, no
+warning, no report).
 
 ##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ProjectionBudget: Work Ceiling And Triangle Budget
 
@@ -731,7 +749,10 @@ of height 2.5 and volume `4 * 2.5` (this last scenario resides in the `ScadPrimi
 `ScadGeometryBuilderCancellationTests.ScadGeometryBuilder_Build_NothingToDo_IgnoresCanceledToken`,
 `ScadGeometryBuilderCancellationTests.ScadGeometryBuilder_Build_Canceled_KeepsEarlierEventsInSink`,
 `ScadGeometryBuilderCancellationTests.ScadGeometryBuilder_Build_AlreadyCanceled_StopsTheShowOnlyPrePass`,
-`ScadGeometryBuilderCancellationTests.ScadGeometryBuilder_Build_NotCanceled_ShowOnlyPrePassCompletes`
+`ScadGeometryBuilderCancellationTests.ScadGeometryBuilder_Build_NotCanceled_ShowOnlyPrePassCompletes`,
+`ScadGeometryBuilderProjectionCancellationTests.ScadGeometryBuilderProjectionCancellation_PreCanceledLargeMesh_Throws`,
+`ScadGeometryBuilderProjectionCancellationTests.ScadGeometryBuilderProjectionCancellation_PreCanceledSmallMesh_CompletesBelowTheInterval`,
+`ScadGeometryBuilderProjectionCancellationTests.ScadGeometryBuilderProjectionCancellation_LargeMeshNotCanceled_Completes`
 
 Asserts that a canceled token throws `OperationCanceledException` before the first tessellation, that a walk over
 1,000 instances is stopped at the polling schedule, that an empty model completes even with a canceled token and an
@@ -739,6 +760,15 @@ uncanceled token never interferes, that the warning reported by the first instan
 the build is canceled (the show-only pre-pass of about 140 instances and the build share one 256-instance schedule), and
 that a canceled token stops the `!` pre-pass over 1,000 unmarked instances before the marked (unsupported) module is
 built or reported, while an uncanceled token lets the same model complete.
+
+Asserts, through `ScadProjections.Projection` called directly with a token canceled up front (the tessellation of a
+primitive would poll first in a whole build), that the projection of a prism whose caps are two faces of about 5,000
+triangles each throws `OperationCanceledException` for the shadow and for the cut (the few face groups mean that only the
+per-triangle polls of the grouping, merging, footprint, and slicing loops can stop the shadow), that a cube, which costs
+fewer polls than one interval, completes its shadow with a canceled token (the counted schedule; the cut is not used
+there because it polls before every slice), and that the same prism completes with a live token. The loops are verified
+deterministically by the pre-canceled large mesh; a test that pins the exact loop in which the 256th poll falls would
+depend on the order of the polls and is deliberately not written, so each individual loop is verified by review.
 
 ##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-SceneMap: Location Map
 

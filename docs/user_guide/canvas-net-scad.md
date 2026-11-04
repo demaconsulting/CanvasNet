@@ -395,6 +395,11 @@ exactly its `color()` or the default neutral gray (a flat shape has no shading).
 and explicit views behave as before. Lights chosen in `SceneOptions.Lights` are respected, and so is an explicit
 `Projection` (for example `Perspective`). `ResolvedViewHandler` reports `FlatDefault` for such a picture.
 
+For a stronger drawing, set `SceneOptions.DefaultColor` (for example black; its alpha is ignored), color the shape in
+the model with `color("black")` outside the `projection()` (the colors inside `projection()` are dropped; a `color()`
+wins over `DefaultColor` and its alpha is honored), and choose the paper with `SceneOptions.BackgroundColor` (a
+transparent color keeps the alpha of the picture).
+
 ```csharp
 using var sheet = ScadDocument.Open("sheet.scad").Render(1200, 900);
 PngCodec.Save(sheet, "sheet.png");

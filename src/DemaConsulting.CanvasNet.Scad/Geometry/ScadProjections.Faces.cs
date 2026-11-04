@@ -49,11 +49,12 @@ internal static partial class ScadProjections
         var normals = new List<Vector3D>();
         for (var t = 0; t < mesh.TriangleCount; t++)
         {
+            state.Context.Tick();
             var (a, b, c) = Corners(mesh, t);
             var cross = Vector3D.Cross(b - a, c - a);
 
             // A vertical triangle has no footprint; a face that is wanted looks the right way
-            if (Math.Abs(cross.Z) <= state.AreaEpsilon || !IsWanted(cross.Z, facing))
+            if (Math.Abs(cross.Z) <= mesh.AreaEpsilon || !IsWanted(cross.Z, facing))
             {
                 continue;
             }
@@ -69,7 +70,7 @@ internal static partial class ScadProjections
         }
 
         MergeNeighbors(mesh, kept, normals, parent, state);
-        return CollectGroups(mesh, kept, normals, parent);
+        return CollectGroups(mesh, kept, normals, parent, state);
     }
 
     /// <summary>
@@ -98,6 +99,7 @@ internal static partial class ScadProjections
         var owner = new Dictionary<long, int>();
         for (var k = 0; k < kept.Count; k++)
         {
+            state.Context.Tick();
             var (a, b, c) = Indices(mesh, kept[k]);
             foreach (var (u, v) in new[] { (a, b), (b, c), (c, a) })
             {
@@ -143,13 +145,15 @@ internal static partial class ScadProjections
     /// <param name="kept">The numbers of the wanted triangles.</param>
     /// <param name="normals">The unit normals of the wanted triangles.</param>
     /// <param name="parent">The union-find parents.</param>
+    /// <param name="state">The shared state (cancellation is polled per triangle).</param>
     /// <returns>The groups in the order of their first triangle.</returns>
-    private static List<FaceGroup> CollectGroups(FrameMesh mesh, List<int> kept, List<Vector3D> normals, int[] parent)
+    private static List<FaceGroup> CollectGroups(FrameMesh mesh, List<int> kept, List<Vector3D> normals, int[] parent, State state)
     {
         var groups = new List<FaceGroup>();
         var byRoot = new Dictionary<int, FaceGroup>();
         for (var k = 0; k < kept.Count; k++)
         {
+            state.Context.Tick();
             var root = Find(parent, k);
             if (!byRoot.TryGetValue(root, out var group))
             {
@@ -217,10 +221,11 @@ internal static partial class ScadProjections
     /// </remarks>
     /// <param name="mesh">The mesh.</param>
     /// <param name="group">The group.</param>
+    /// <param name="state">The shared state (cancellation is polled per triangle).</param>
     /// <returns>The regions; their union is the footprint.</returns>
-    private static List<PolygonRegion> Footprint(FrameMesh mesh, FaceGroup group)
+    private static List<PolygonRegion> Footprint(FrameMesh mesh, FaceGroup group, State state)
     {
-        var merged = TryMerged(mesh, group);
+        var merged = TryMerged(mesh, group, state);
         if (merged is not null)
         {
             return [merged];
@@ -229,6 +234,7 @@ internal static partial class ScadProjections
         var regions = new List<PolygonRegion>(group.Triangles.Count);
         foreach (var t in group.Triangles)
         {
+            state.Context.Tick();
             var (a, b, c) = Corners(mesh, t);
             try
             {
@@ -248,8 +254,9 @@ internal static partial class ScadProjections
     /// </summary>
     /// <param name="mesh">The mesh.</param>
     /// <param name="group">The group.</param>
+    /// <param name="state">The shared state (cancellation is polled per triangle).</param>
     /// <returns>The region, or <see langword="null"/> when the boundary cannot be chained cleanly.</returns>
-    private static PolygonRegion? TryMerged(FrameMesh mesh, FaceGroup group)
+    private static PolygonRegion? TryMerged(FrameMesh mesh, FaceGroup group, State state)
     {
         if (group.Triangles.Count == 1)
         {
@@ -259,6 +266,7 @@ internal static partial class ScadProjections
         var edges = new HashSet<long>();
         foreach (var t in group.Triangles)
         {
+            state.Context.Tick();
             var (a, b, c) = Indices(mesh, t);
             edges.Add(DirectedKey(a, b));
             edges.Add(DirectedKey(b, c));
@@ -268,6 +276,7 @@ internal static partial class ScadProjections
         var next = new Dictionary<int, int>();
         foreach (var t in group.Triangles)
         {
+            state.Context.Tick();
             var (a, b, c) = Indices(mesh, t);
             foreach (var (u, v) in new[] { (a, b), (b, c), (c, a) })
             {
@@ -278,7 +287,7 @@ internal static partial class ScadProjections
             }
         }
 
-        var contours = ChainContours(mesh, next);
+        var contours = ChainContours(mesh, next, state);
         if (contours is null)
         {
             return null;
@@ -299,13 +308,15 @@ internal static partial class ScadProjections
     /// </summary>
     /// <param name="mesh">The mesh.</param>
     /// <param name="next">The successor of each boundary vertex.</param>
+    /// <param name="state">The shared state (cancellation is polled per boundary vertex).</param>
     /// <returns>The contours projected to the XY plane, or <see langword="null"/> when a chain does not close.</returns>
-    private static List<IReadOnlyList<Vector2D>>? ChainContours(FrameMesh mesh, Dictionary<int, int> next)
+    private static List<IReadOnlyList<Vector2D>>? ChainContours(FrameMesh mesh, Dictionary<int, int> next, State state)
     {
         var contours = new List<IReadOnlyList<Vector2D>>();
         var visited = new HashSet<int>();
         foreach (var start in next.Keys)
         {
+            state.Context.Tick();
             if (visited.Contains(start))
             {
                 continue;
@@ -315,6 +326,7 @@ internal static partial class ScadProjections
             var current = start;
             do
             {
+                state.Context.Tick();
                 if (!visited.Add(current) || !next.TryGetValue(current, out var following))
                 {
                     return null;

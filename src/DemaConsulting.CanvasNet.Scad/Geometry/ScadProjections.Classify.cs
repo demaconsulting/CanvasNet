@@ -122,7 +122,7 @@ internal static partial class ScadProjections
         foreach (var group in GroupFaces(mesh, facing, state))
         {
             state.Context.Tick();
-            foreach (var region in Footprint(mesh, group))
+            foreach (var region in Footprint(mesh, group, state))
             {
                 leaves.Add(state.NewLeaf(region));
             }
@@ -199,7 +199,7 @@ internal static partial class ScadProjections
     private static void ClassifyGroup(SolidTree tree, List<int> subtree, int meshIndex, FaceGroup group, List<ScadShape2D> leaves, State state)
     {
         var mesh = tree.Nodes[meshIndex].Mesh!;
-        var footprint = Footprint(mesh, group);
+        var footprint = Footprint(mesh, group, state);
         if (footprint.Count == 0)
         {
             return;

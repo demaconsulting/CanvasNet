@@ -156,6 +156,7 @@ internal static partial class ScadProjections
         var negative = false;
         for (var i = 0; i < count; i++)
         {
+            state.Context.Tick();
             var d = plane.Distance(mesh.Vertices[i]);
             distance[i] = d;
             var onPlane = Math.Abs(d) <= state.Tolerance;
@@ -173,6 +174,7 @@ internal static partial class ScadProjections
         var section = new Section(mesh, distance, state.Tolerance);
         for (var t = 0; t < mesh.TriangleCount; t++)
         {
+            state.Context.Tick();
             var (a, b, c) = Indices(mesh, t);
             if (sign[a] == sign[b] && sign[b] == sign[c])
             {
@@ -271,6 +273,7 @@ internal static partial class ScadProjections
             var balance = new int[_points.Count];
             foreach (var (from, to) in _segments)
             {
+                state.Context.Tick();
                 (outgoing[from] ??= []).Add(to);
                 balance[from]++;
                 balance[to]--;
@@ -289,7 +292,7 @@ internal static partial class ScadProjections
             {
                 while (outgoing[start] is { Count: > 0 })
                 {
-                    var contour = Walk(outgoing, start);
+                    var contour = Walk(outgoing, start, state);
                     if (contour.Count >= 3)
                     {
                         contours.Add(contour);
@@ -305,13 +308,15 @@ internal static partial class ScadProjections
         /// </summary>
         /// <param name="outgoing">The unused segments by start point.</param>
         /// <param name="start">The start point.</param>
+        /// <param name="state">The shared state (cancellation is polled per point).</param>
         /// <returns>The points of the contour.</returns>
-        private List<Vector2D> Walk(List<int>[] outgoing, int start)
+        private List<Vector2D> Walk(List<int>[] outgoing, int start, State state)
         {
             var contour = new List<Vector2D>();
             var current = start;
             while (true)
             {
+                state.Context.Tick();
                 contour.Add(_points[current]);
                 var list = outgoing[current];
                 var next = list[^1];

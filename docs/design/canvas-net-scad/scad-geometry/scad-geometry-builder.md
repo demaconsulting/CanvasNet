@@ -440,9 +440,16 @@ matrix accumulated as `node.Transform * parent`. A mesh is put into the frame of
 vertices that triangles reference are transformed and **welded by exact position**, a triangle that collapsed to
 fewer than three distinct vertices is dropped, and the winding is restored after a mirroring matrix. A mesh is a
 _closed outward solid_ when it is closed and has a positive signed volume. Every node knows whether it is subtracted
-an odd number of times (a cutter of the solid). The tolerance for "on a plane" is `1e-9` times the largest absolute
-coordinate of any mesh (at least 1) and the doubled XY area below which a triangle counts as vertical is `1e-12`
-times its square.
+an odd number of times (a cutter of the solid). The tolerances do **not** depend on the distance of the model from the
+origin: each mesh knows its _extent_ (the largest side of its bounds, which a translation does not change) and the
+spacing of the doubles at its largest absolute coordinate (`Math.BitIncrement(m) - m`, the unavoidable representation
+error). The tolerance for "on a plane" (and for distances in the XY plane) is `1e-9` times the largest extent of any
+mesh plus 16 spacings, so the distance of two things must exceed the size-relative part and the rounding of the
+coordinates to count as different; the doubled XY area below which a triangle counts as vertical is `1e-12` times the
+square of the extent of **its own mesh** plus 16 spacings times that extent (per mesh, so a tiny part beside a huge
+one keeps its top faces). There is no absolute floor, so a tiny part is not treated as degenerate and a vertex a small
+distance above the plane is not on it; an empty tree (no extent) uses a nominal `1e-9`. The tolerance shared by planes
+that cross meshes follows the largest extent, so a tiny part beside a huge one is judged by the huge one's tolerance.
 
 **Silhouette (`cut = false`).** Projection distributes over a union, so the node tree is walked from its root and
 a mesh or a union contributes directly, and each maximal subtree rooted at a difference or an intersection is
@@ -509,7 +516,12 @@ silent result.
 3. Every slice, and every walk of a section tree, charges a **work meter** (`State.Charge`: the triangles and
    vertices of the mesh, or the number of nodes of the subtree) _before_ it runs. A total above
    `MaxProjectionWork` is `scad-projection-too-complex` and the projection is omitted, **never approximated**.
-   `Charge` also polls cancellation, so a canceled build stops per slice.
+   `Charge` also polls cancellation, so a canceled build stops per slice. Between the charges the long loops poll with
+   `context.Tick()` (the same 256-step schedule): the transformation of the triangles and vertices of each mesh
+   (`FrameMesh.Create`), the grouping, merging, and collecting of the faces, the footprint of a group (the edge
+   passes, the chaining of the contour, and the triangle fallback), and the slicing of a mesh (its vertices and
+   triangles, the segments of the section, and the walk of its contours), so a mesh with one huge flat face can still be
+   abandoned.
 4. The transformed vertex copies and the section caches are transient storage bounded by the size of meshes that
    are already charged; like the transient storage of `ScadHulls` they are not charged separately.
 
@@ -539,7 +551,8 @@ across all instances, including those of loops, and the check uses subtraction, 
 
 `Tick()` is called for every instance entered and polls the token once every 256 instances; `Poll()` is called
 explicitly before each heavy tessellation (a primitive, an extrusion, a slab) and before each hull and convex sum,
-and the work meter of a projection polls it before every slice.
+and the work meter of a projection polls it before every slice; the long loops of a projection (see _Budget and cost_)
+call `Tick()` per triangle, vertex, or contour point.
 A model of fewer than 256
 instances that needs no tessellation (for example an empty document) never polls and completes even with a
 canceled token. The `OperationCanceledException` is never wrapped; the events reported before it stay in the
