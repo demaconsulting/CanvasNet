@@ -530,6 +530,34 @@ public class ContextTests
     }
 
     /// <summary>
+    ///     Test that WriteDiagnostics escapes control characters (ESC, NUL, C1, line separators, and bidirectional
+    ///     controls) in echo lines, messages, and origins, and leaves other text unchanged.
+    /// </summary>
+    [Fact]
+    public void Context_WriteDiagnostics_ControlCharacters_AreEscaped()
+    {
+        // Arrange: an echo with ESC, a message with NUL and a bidirectional override, and an origin with a C1 control
+        using var context = Context.Create([]);
+        var notes = new (string? Origin, DemaConsulting.CanvasNet.Tool.Imaging.ImageDiagnostic Diagnostic)[]
+        {
+            ("in\u0085put", new("scad", "warning", "scad-warning", "a\0b \u202e evil\tok caf\u00e9 \\ done"))
+        };
+
+        // Act
+        var (_, stdErr) = ToolHost.Capture(() => context.WriteDiagnostics(notes, ["ECHO: \u001b[31m red \u001b[0m"]));
+
+        // Assert: nothing but printable text reaches standard error, and the escapes are \\uXXXX (\\t as in OpenSCAD)
+        var lines = stdErr.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal(
+            [
+                "ECHO: \\u001b[31m red \\u001b[0m",
+                "Warning: scad-warning: a\\u0000b \\u202e evil\\tok caf\u00e9 \\ done (in\\u0085put)"
+            ],
+            lines);
+        Assert.DoesNotContain(stdErr, c => c == '\u001b' || c == '\0' || c == '\u202e' || c == '\u0085');
+    }
+
+    /// <summary>
     ///     Test that WriteDiagnostics writes nothing with --json or --silent, so standard output stays one JSON document.
     /// </summary>
     /// <param name="option">The global option.</param>

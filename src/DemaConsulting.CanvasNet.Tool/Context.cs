@@ -410,7 +410,10 @@ internal sealed class Context : IDisposable
     ///     <para>
     ///         An <c>unsupported</c> note is written as <c>Unsupported: &lt;code&gt;: &lt;message&gt;</c> and any other
     ///         severity as <c>Warning: &lt;code&gt;: &lt;message&gt;</c>, followed by <c>(origin)</c> when there is one. An echo
-    ///         line is written as the model printed it (<c>ECHO: ...</c>). At most <see cref="MaxReportedLines"/>
+    ///         line is written as the model printed it (<c>ECHO: ...</c>). Every control character of a note or an echo
+    ///         line (ESC, NUL, and the rest of C0 and C1, line separators, bidirectional controls) is escaped as
+    ///         <c>\uXXXX</c> (<c>\n</c>, <c>\r</c>, and <c>\t</c> as in OpenSCAD), so that a model cannot drive the terminal.
+    ///         At most <see cref="MaxReportedLines"/>
     ///         notes and as many echo lines are written; the rest are counted in one closing line.
     ///     </para>
     /// </remarks>
@@ -451,6 +454,56 @@ internal sealed class Context : IDisposable
     }
 
     /// <summary>
+    ///     Escapes the characters of a note that could drive a terminal or disguise the text.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <returns>
+    ///     The text with each control character (C0, DEL, and C1, such as ESC and NUL), line and paragraph separator,
+    ///     and bidirectional control written as <c>\n</c>, <c>\r</c>, <c>\t</c>, or <c>\uXXXX</c>; every other
+    ///     character, including a backslash, is unchanged.
+    /// </returns>
+    internal static string EscapeControlCharacters(string text)
+    {
+        if (!text.Any(NeedsEscape))
+        {
+            return text;
+        }
+
+        var builder = new System.Text.StringBuilder(text.Length + 16);
+        foreach (var c in text)
+        {
+            if (!NeedsEscape(c))
+            {
+                builder.Append(c);
+                continue;
+            }
+
+            builder.Append(c switch
+            {
+                '\n' => "\\n",
+                '\r' => "\\r",
+                '\t' => "\\t",
+                _ => string.Create(System.Globalization.CultureInfo.InvariantCulture, $"\\u{(int)c:x4}")
+            });
+        }
+
+        return builder.ToString();
+    }
+
+    /// <summary>
+    ///     Determines whether a character is escaped by <see cref="EscapeControlCharacters"/>.
+    /// </summary>
+    /// <param name="c">The character.</param>
+    /// <returns><see langword="true"/> for a control, a line or paragraph separator, or a bidirectional control.</returns>
+    private static bool NeedsEscape(char c)
+    {
+        return char.IsControl(c)
+               || c is '\u2028' or '\u2029' or '\u200e' or '\u200f'
+               || c is >= '\u202a' and <= '\u202e'
+               || c is >= '\u2066' and <= '\u2069';
+    }
+
+    /// <summary>
     ///     Writes a line to the error console (unless silent) and to the log file (if logging is enabled), without
     ///     setting the error state.
     /// </summary>
@@ -458,6 +511,8 @@ internal sealed class Context : IDisposable
     /// <param name="color">The color to use when standard error is an interactive console, or <see langword="null"/> for none.</param>
     private void WriteNote(string message, ConsoleColor? color)
     {
+        // A model or a file can put anything in a note, so nothing that could drive the terminal is written as it is
+        message = EscapeControlCharacters(message);
         if (!Silent)
         {
             if (color is not { } noteColor || Console.IsErrorRedirected)

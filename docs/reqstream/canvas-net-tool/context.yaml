@@ -84,14 +84,18 @@ sections:
         title: >-
           The Context class shall write the notes of a successful command and the echoed text of a model to
           standard error, one line each, as Unsupported or Warning lines with the code and message (limited
-          to a fixed number, the rest counted in one line), without setting the error state, and shall write
+          to a fixed number, the rest counted in one line), with every control character escaped so that a
+          model cannot drive the terminal, without setting the error state, and shall write
           none of them when the JSON option or the silent flag is set.
         justification: |
           A feature that was left out of a picture must not be silent in text mode, or an agent that reads
-          only the output believes the picture is complete. With the JSON option the same notes are in the
-          result, and standard output and error must stay clean for the program that parses it.
+          only the output believes the picture is complete. The text of a note comes from a model or a file,
+          so an escape sequence in it must not reach the terminal. With the JSON option the same notes are in
+          the result, and standard output and error must stay clean for the program that parses it.
         tests:
           - Context_WriteDiagnostics_NotJson_WritesNotesAndEchoToStandardError
+          - Context_WriteDiagnostics_ControlCharacters_AreEscaped
+          - RenderCommand_Run_ScadEchoWithEscape_IsEscapedOnStandardErrorOnly
           - Context_WriteDiagnostics_JsonOrSilent_WritesNothing
           - Context_WriteDiagnostics_ManyNotes_WritesLimitAndCountsTheRest
 

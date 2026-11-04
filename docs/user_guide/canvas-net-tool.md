@@ -83,8 +83,10 @@ not an option (or the value of an option) is the command name.
   construct is `Warning: <code>: <message>`, and a line a SCAD model printed with `echo` is written as OpenSCAD prints
   it, `ECHO: <text>`. A note about a page of a document, an input of `montage`, or a side of `compare` ends with the
   place in parentheses, such as `(deck.pptx, page 2)` or `(input b)`. At most 20 notes, and 20 echo lines, are written;
-  the rest are counted in one line, `... and N more diagnostics (use --json for all)`. They do not change the exit
-  code, which stays 0 (`--strict` turns an unsupported feature into an error instead), and standard output keeps only
+  the rest are counted in one line, `... and N more diagnostics (use --json for all)`. Control characters (such as ESC
+  or NUL) in a line are written escaped (`\u001b`), so a model cannot inject terminal sequences; the `--json` values
+  are unchanged. They do not change the exit code, which stays 0 (`--strict` turns an unsupported feature into an
+  error instead), and standard output keeps only
   the result. `--silent` suppresses them like all other console output (`--log` still records them). With
   `--json` none are written to standard error, because the same notes are in the `diagnostics` and `echo` of the JSON
   document, and standard output stays that one document.

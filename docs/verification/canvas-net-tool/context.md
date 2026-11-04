@@ -101,6 +101,13 @@ warning reaches the log file.
 **Context_WriteDiagnostics_JsonOrSilent_WritesNothing**: with `--json` or `--silent` nothing is written to either
 stream.
 
+**Context_WriteDiagnostics_ControlCharacters_AreEscaped** and
+**RenderCommand_Run_ScadEchoWithEscape_IsEscapedOnStandardErrorOnly**: an echo line with ESC, a message with NUL, a
+bidirectional override, and a tab, and an origin with a C1 control, are written with `\u001b`, `\u0000`, `\u202e`,
+`\t`, and `\u0085`, and standard error holds none of the raw characters while a backslash and `é` are unchanged; a
+model that echoes a raw ESC shows `\u001b` on standard error and the unchanged ESC in the `echo` of the `--json`
+result.
+
 **Context_WriteDiagnostics_ManyNotes_WritesLimitAndCountsTheRest**: with five more notes and echo lines than the limit
 of 20, exactly 20 of each are written, followed by `... and 5 more echo lines (use --json for all)` and
 `... and 5 more diagnostics (use --json for all)`.
