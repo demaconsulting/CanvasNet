@@ -460,8 +460,8 @@ public class FeatureCatalogTests
 
     /// <summary>
     ///     Validates the legend rule: legends are drawn, so they are not reported; only the parts of a legend that are not drawn are
-    ///     (a title orient other than top, a clip height, an encode, a label expression, a custom format type, and a custom symbol path),
-    ///     at the exact property, and never for a position channel or a channel without a legend.
+    ///     (a title orient other than top, a clip height, an encode, a custom format type, and a custom symbol path; the label expression is evaluated and
+    ///     reports only a function the engine does not have), at the exact property, and never for a position channel or a channel without a legend.
     /// </summary>
     [Fact]
     public void FeatureCatalog_Visit_LegendsAreDrawnAndOnlyTheirUnsupportedPropertiesAreReported()

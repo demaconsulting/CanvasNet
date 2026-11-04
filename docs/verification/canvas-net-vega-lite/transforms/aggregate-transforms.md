@@ -433,6 +433,9 @@ is refused.
 **Tests**: `StackRulesOffsetTests.StackRules_Decide_OffsetFieldSplitsTheGroupsAndIsNotAStackBy`,
 `StackRulesOffsetTests.StackRules_Decide_AggregatedGroupedBarsAreNotStacked`,
 `StackRulesOffsetTests.StackRules_Decide_QuantitativeOffsetWithoutADimensionDisablesTheDefaultStack`,
+`StackRulesOffsetTests.StackRules_Decide_QuantitativeOffsetWithoutADimensionDisablesTheDefaultStack`,
+`StackRulesOffsetTests.StackRules_Decide_QuantitativeOffsetTreatsNullAsAbsentAndValueAsPresent`,
+`StackRulesOffsetTests.StackRules_Decide_JsonNullDimensionIsAbsentForTheQuantitativeOffset`,
 `StackRulesOffsetTests.StackRules_DimensionOffsetChannel_NamesTheOffsetOfTheDimension`
 
 Asserts that the field of the offset channel of the dimension (`xOffset` for a stacked `y`) is a group-by of the stack and
@@ -441,8 +444,11 @@ channel is still `y`), while a color on another field is one stack-by definition
 color is the offset field has nothing to stack (the decision is null); that a quantitative offset on a view that has no
 dimension channel (a strip of points) disables the default stack of a bar while the same bar without the offset stacks
 and an
-explicit `stack` is kept; and that the offset channel of the dimension is `yOffset` for `x`, `xOffset` for `y`, and none
-for `theta` and `radius`, and a null channel is refused.
+explicit `stack` is kept; that, as in Vega-Lite's `!encoding.y`, a dimension that is a JSON null counts as absent (the
+default stack is off, an explicit stack is kept) while a dimension that is a `value` or `datum` object or a field keeps
+the stack, an explicit null `stack` is never overridden, a numeric datum offset is quantitative while a string datum, a
+binned field, and a nominal field are not; and that the offset channel of the dimension is `yOffset` for `x`, `xOffset`
+for `y`, and none for `theta` and `radius`, and a null channel is refused.
 
 ##### Cancellation, Determinism, And Culture
 

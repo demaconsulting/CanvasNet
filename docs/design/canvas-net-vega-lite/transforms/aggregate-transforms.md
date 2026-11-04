@@ -132,7 +132,9 @@ of the dimension** (`StackRules.DimensionOffsetChannel(channel)`: `yOffset` for 
 `y`, null for a polar channel) is a group-by too (unless it reads the stacked field), as in Vega-Lite's stack
 (`stack.ts`), so the bars of one offset value stack among themselves and the bars of the offset groups stand side by
 side, and it is **not a stack-by** field (it does not split the layers of a stack). Without an explicit `stack`, a
-quantitative offset on a view that has no dimension channel (a strip of points) disables the default stack. The
+quantitative offset (an unbinned quantitative field, or a numeric datum) on a view whose dimension channel is absent or
+JSON null disables the default stack (Vega-Lite's `!encoding.y` is falsy for both; a dimension that is a `value` or
+`datum` object is present and keeps the stack, and an explicit `stack`, even null, is never overridden). The
 stack-by channels are the non-position channels with a field that does not aggregate (the tooltip
 is excluded; `order` counts). There is no stack when an aggregating encoding has no stack-by field, when the
 stacked channel has a range (`x2`, `y2`, `theta2`, or `radius2` with a field, datum, or aggregate: a ranged mark draws

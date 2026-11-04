@@ -103,9 +103,10 @@ internal static class StackRules
             groupBy.Add(offsetKey);
         }
 
-        // Without an explicit stack, a quantitative offset on a view that has no dimension is a strip of points, not stack groups
-        if (stacked["stack"] is null && encoding[other] is null && IsFieldDef(dimensionOffset)
-            && ChannelDefinitions.TypeOf(dimensionOffset, DimensionOffsetChannel(channel)!, encoding) == "quantitative")
+        // Without an explicit stack (Vega-Lite: stack === undefined, so a JSON null stack is explicit), a quantitative offset on a view whose dimension is
+        // falsy in JavaScript (absent or JSON null; a value or datum object is truthy and counts as present) is a strip of points, not stack groups
+        if (stacked["stack"] is null && encoding[other] is null or { IsNull: true }
+            && IsUnbinnedQuantitativeOffset(dimensionOffset, DimensionOffsetChannel(channel), encoding))
         {
             return null;
         }
@@ -298,6 +299,17 @@ internal static class StackRules
     /// <returns><see langword="true"/> for a measure that is not binned; a field without a <c>type</c> is one when Vega-Lite infers it quantitative (an aggregate, for example).</returns>
     private static bool IsUnbinnedQuantitative([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] SpecNode? definition, string channel, SpecNode encoding) =>
         IsFieldDef(definition) && ChannelDefinitions.TypeOf(definition, channel, encoding) == "quantitative" && !IsEnabled(definition["bin"]);
+
+    /// <summary>
+    ///     Determines whether an offset definition is an unbinned quantitative field or a numeric datum (Vega-Lite's <c>channelHasQuantitativeOffset</c>).
+    /// </summary>
+    /// <param name="definition">The offset definition, or null.</param>
+    /// <param name="channel">The offset channel, or null for a polar stack that has none.</param>
+    /// <param name="encoding">The encoding object.</param>
+    /// <returns><see langword="true"/> for an unbinned quantitative field, or a datum that is a number.</returns>
+    private static bool IsUnbinnedQuantitativeOffset(SpecNode? definition, string? channel, SpecNode encoding) =>
+        channel is not null && definition is { IsObject: true }
+        && (IsUnbinnedQuantitative(definition, channel, encoding) || definition["datum"] is { IsNumber: true });
 
     /// <summary>
     ///     Determines whether any channel of an encoding aggregates.

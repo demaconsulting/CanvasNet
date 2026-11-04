@@ -398,5 +398,7 @@ sections:
                   - StackRules_Decide_OffsetFieldSplitsTheGroupsAndIsNotAStackBy
                   - StackRules_Decide_AggregatedGroupedBarsAreNotStacked
                   - StackRules_Decide_QuantitativeOffsetWithoutADimensionDisablesTheDefaultStack
+                  - StackRules_Decide_QuantitativeOffsetTreatsNullAsAbsentAndValueAsPresent
+                  - StackRules_Decide_JsonNullDimensionIsAbsentForTheQuantitativeOffset
                   - StackRules_DimensionOffsetChannel_NamesTheOffsetOfTheDimension
                   - EncodingPlan_Create_StackAndAggregateGroupByTheOffsetField
