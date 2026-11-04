@@ -924,6 +924,7 @@ entry for the full investigation).
 `ResolveTextFont_AnyFamilyHint_ResolvesNonNullFont`,
 `ResolveTextLayout_PlusMinusFollowedByDegree_BothNeitherInPrimary_BothIndependentlyResolveFallback`,
 `ResolveTextLayout_PlusMinusAlone_ResolvesFallbackGlyph`,
+`ResolveTextLayout_CharacterOutsideBothFonts_ResolvesBundledNotoChainGlyph`,
 `ResolveTextLayout_PlusMinusFollowedByDegree_PrimaryCoversOnlyDegree_DegreeStaysOnPrimaryFont`,
 `CanvasNetPptx_SystemIntegration_TextLayoutAndRender_TitlePlaceholderResolvesMasterTitleStyleEndToEnd`,
 `CanvasNetPptx_SystemIntegration_TextLayoutAndRender_NonPlaceholderShapeResolvesMasterOtherStyleEndToEnd`
@@ -959,6 +960,10 @@ outline so a resolved glyph index can be asserted exactly, not merely "non-zero 
 - `ResolveTextLayout_PlusMinusAlone_ResolvesFallbackGlyph`: a baseline/control case isolating
   single-character fallback behavior (a run containing only the fallback-triggering character,
   with no following character to interact with).
+- `ResolveTextLayout_CharacterOutsideBothFonts_ResolvesBundledNotoChainGlyph`: with the same synthetic
+  primary and fallback fonts, the proportional-to sign (covered by neither) resolves to the Noto Sans
+  Math font of the core `GlyphFallback` with a non-zero glyph index, while a private-use character
+  that no font covers keeps the primary font and glyph 0.
 - `ResolveTextLayout_PlusMinusFollowedByDegree_PrimaryCoversOnlyDegree_DegreeStaysOnPrimaryFont`:
   the literal reported-symptom reproduction - the primary font covers U+00B0 but deliberately
   **not** U+00B1; asserts U+00B1 resolves via the fallback font while the immediately following

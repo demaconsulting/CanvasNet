@@ -65,7 +65,7 @@ constitutes a failure.
 
 **Tests**: `ScadTextGeometryTests.ScadTextGeometry_Build_EmptyString_ReturnsEmptyWithoutWarnings`,
 `ScadTextGeometryTests.ScadTextGeometry_Build_LanguageAndScript_AreAcceptedAndIgnored`,
-`ScadTextGeometryTests.ScadTextGeometry_Build_MissingGlyph_DrawsNotdefSilentlyAndSkipsControls`
+`ScadTextGeometryTests.ScadTextGeometry_Build_MissingGlyph_DrawsNotdefWithOneWarningAndSkipsControls`
 
 Asserts that an empty string and a string of spaces yield nothing without a warning, that `language` and `script`
 of several values (strings, a number, a vector) change nothing and give no warning, and that a number as the text
@@ -144,15 +144,23 @@ direction, and spacing.
 
 ##### CanvasNetScad-ScadGeometry-ScadTextGeometry-Glyphs: Missing Glyphs And Controls
 
-**Tests**: `ScadTextGeometryTests.ScadTextGeometry_Build_MissingGlyph_DrawsNotdefSilentlyAndSkipsControls`,
+**Tests**: `ScadTextGeometryTests.ScadTextGeometry_Build_MissingGlyph_DrawsNotdefWithOneWarningAndSkipsControls`,
 `ScadTextGeometryTests.ScadTextGeometry_Build_MissingGlyph_WarnsOnceAndDrawsNothingWhenNotdefIsEmpty`,
+`ScadTextGeometryTests.ScadTextGeometry_Build_CharacterInBundledFallback_DrawsFallbackGlyphWithoutWarning`,
+`ScadTextGeometryTests.ScadTextGeometry_Build_PrivateUseCharacterAfterFallbackCharacter_WarnsOnceWithItsCodePoint`,
 `ScadTextGeometryTests.ScadTextGeometry_Build_EmptyString_ReturnsEmptyWithoutWarnings`
 
-Asserts that a character the bundled font does not map (a CJK ideograph) is drawn with the `.notdef` outline without
-a warning, that line feeds and tabs vanish without a trace (the text `"H\nI\tH"` equals `"HIH"`), and that spaces
-advance without drawing. For the branch in which `.notdef` has no outline, a clean-room synthetic font (empty
-`.notdef`, only `H` and `D` mapped) shows that an unmapped character (`X`) is skipped with exactly one warning per
-text instance (naming `U+0058` and `.notdef`, also for `XX` and `HXH`), draws no region (`X` alone is empty, `HXH`
+Asserts that a character that no bundled font maps (a CJK ideograph, twice) is drawn with the `.notdef` outline
+(two regions) with exactly one warning that names `U+4E2D` and says the missing-glyph box is drawn, that line feeds
+and tabs vanish without a trace (the text `"H\nI\tH"` equals `"HIH"`), and that spaces
+advance without drawing. That the proportional-to sign (absent from Liberation Sans, present in Noto Sans Math with
+1000 units per em against 2048) is drawn without a warning, adds regions, and has the height
+that the size rule predicts (its Noto outline height times the em ratio times `size` over the cap height of `H`),
+that `"Hello ∝ ≫"` gives no warning, and that a private-use character after fallback characters gives one warning
+that names only `U+E000`. For the branch in which `.notdef` has no outline, a clean-room synthetic font (empty
+`.notdef`, only `H` and `D` mapped) shows that a character that no bundled font maps (`U+E000`) is skipped with
+exactly one warning per text instance (naming `U+E000` and saying the characters are skipped, also for two of them
+and for `H`, `U+E000`, `H`), draws no region (the character alone is empty, `H\uE000H`
 has two regions), and leaves the mapped characters unaffected.
 
 ##### CanvasNetScad-ScadGeometry-ScadTextGeometry-Contours: Holes, Composite Glyphs, And Rejections

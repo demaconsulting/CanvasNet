@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Security.Cryptography;
 using System.Text;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Drawing;
@@ -552,20 +553,23 @@ public class TextRendererTests
     /// <summary>
     ///     Proves that the result is bit-identical to the glyph-run algorithm the SVG codec used before the
     ///     method existed, across texts (kerning pairs, a surrogate pair, a missing glyph), sizes, anchors and
-    ///     positions.
+    ///     positions. The legacy algorithm has no fallback, so the texts are ones that either the font covers
+    ///     or no bundled font covers (private-use characters).
     /// </summary>
     [Fact]
     public void TextRenderer_CreateTextPath_MatchesLegacyGlyphRunOracle()
     {
-        // Arrange: a bundled real font with kerning and the synthetic font
+        // Arrange: a bundled real font with kerning, and the synthetic font that maps only 'A' (so the texts
+        // that are not made of 'A', spaces and private-use characters would be given fallback glyphs)
         var real = SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold: false, italic: false);
         var fonts = new[] { real, NewFont() };
-        var texts = new[] { "Hello, World!", "AVATAR To Wa fi", "A\U0001F600 AA ü", "AAAA", " " };
+        var realOnly = new[] { "Hello, World!", "AVATAR To Wa fi" };
+        var texts = new[] { "A\U000F0000 AA \uE000", "AAAA", " " };
         var aligns = new[] { TextAlign.Left, TextAlign.Center, TextAlign.Right };
 
         foreach (var font in fonts)
         {
-            foreach (var text in texts)
+            foreach (var text in ReferenceEquals(font, real) ? realOnly.Concat(texts) : texts)
             {
                 foreach (var size in new[] { 7.5f, 16f, 33.3f })
                 {
@@ -582,6 +586,41 @@ public class TextRendererTests
             }
         }
     }
+
+    /// <summary>
+    ///     Proves that text every character of which the primary font covers is laid out and drawn
+    ///     bit-identically to the code before the glyph fallback existed: the digest below was computed from
+    ///     the pre-fallback implementation (the measured widths' raw bits and every drawn pixel byte).
+    /// </summary>
+    [Fact]
+    public void TextRenderer_DrawText_LiberationOnlyText_IsBitIdenticalToPreFallbackDigest()
+    {
+        // Arrange: Liberation Sans and a text of kerning pairs, ligature-like pairs, accents, and the euro sign
+        var font = SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold: false, italic: false);
+        const string text = "Hello, World! fi AVATAR \u00FC \u20AC";
+        var surface = new Surface(420, 90);
+        var canvas = new RenderCanvas(surface);
+
+        // Act: measure at two sizes and draw at two sizes and alignments
+        var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        foreach (var size in new[] { 13.5f, 24f })
+        {
+            hash.AppendData(BitConverter.GetBytes(TextRenderer.MeasureText(text, font, size).Width));
+        }
+
+        canvas.DrawText(text, 10f, 30f, TextAlign.Left, font, 24f, new Rgba32(0, 0, 0, 255));
+        canvas.DrawText(text, 410f, 70f, TextAlign.Right, font, 13.5f, new Rgba32(200, 0, 0, 255));
+        for (var y = 0; y < surface.Height; y++)
+        {
+            hash.AppendData(surface.GetRowSpanBytes(y));
+        }
+
+        // Assert: the digest frozen from the implementation before the fallback was added
+        Assert.Equal(PreFallbackLiberationDigest, Convert.ToHexString(hash.GetHashAndReset()));
+    }
+
+    /// <summary>The SHA-256 digest of the Liberation-only layout, computed before the glyph fallback was added.</summary>
+    private const string PreFallbackLiberationDigest = "CC642F62E82316DB1257F10B4409EA2BFD1CB1C072C9C37D4931141BF0176157";
 
     /// <summary>
     ///     Proves that a null text is rejected.
@@ -633,6 +672,195 @@ public class TextRendererTests
 
         // Act / Assert
         Assert.Throws<ArgumentOutOfRangeException>("align", () => TextRenderer.CreateTextPath("A", font, 16f, 0f, 0f, (TextAlign)99));
+    }
+
+    /// <summary>
+    ///     Counts the pixels with any coverage on a surface.
+    /// </summary>
+    /// <param name="surface">The surface.</param>
+    /// <returns>The number of non-transparent pixels.</returns>
+    private static int CountInk(Surface surface)
+    {
+        var count = 0;
+        for (var y = 0; y < surface.Height; y++)
+        {
+            foreach (var px in surface.GetRowSpan(y))
+            {
+                if (px.A > 0)
+                {
+                    count++;
+                }
+            }
+        }
+
+        return count;
+    }
+
+    /// <summary>
+    ///     Proves that a character the font lacks is measured with its fallback font's advance (scaled by that
+    ///     font's own em size), not with the primary font's missing-glyph advance.
+    /// </summary>
+    [Theory]
+    [InlineData(0x221D)]
+    [InlineData(0x226B)]
+    public void TextRenderer_MeasureText_CharacterMissingInPrimary_UsesFallbackAdvance(int codePoint)
+    {
+        // Arrange
+        var primary = RealFont();
+        var math = GlyphFallback.BundledFonts[1];
+        var text = char.ConvertFromUtf32(codePoint);
+        var glyph = math.GetGlyphIndex(codePoint);
+
+        // Act
+        var width = TextRenderer.MeasureText(text, primary, 20f).Width;
+
+        // Assert: Noto Sans Math is 1000 units per em, Liberation 2048
+        Assert.Equal(math.GetAdvanceWidth(glyph) * (20f / math.UnitsPerEm), width);
+        Assert.NotEqual(primary.GetAdvanceWidth(0) * (20f / primary.UnitsPerEm), width);
+    }
+
+    /// <summary>
+    ///     Proves that a mixed run measures as the sum of its Liberation and fallback parts, with no kerning
+    ///     across the two fonts.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_MeasureText_MixedRun_IsSumOfPartsWithoutCrossFontKerning()
+    {
+        // Arrange
+        var font = RealFont();
+
+        // Act
+        var whole = TextRenderer.MeasureText("AV\u221DAV", font, 30f).Width;
+        var parts = TextRenderer.MeasureText("AV", font, 30f).Width
+            + TextRenderer.MeasureText("\u221D", font, 30f).Width
+            + TextRenderer.MeasureText("AV", font, 30f).Width;
+
+        // Assert
+        Assert.Equal(parts, whole, 3);
+    }
+
+    /// <summary>
+    ///     Proves that a fallback glyph is drawn as ink that differs from the font's missing-glyph box.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_DrawText_CharacterMissingInPrimary_DrawsFallbackGlyphNotNotdefBox()
+    {
+        // Arrange: draw the proportional-to sign and a character no bundled font covers (the missing-glyph box)
+        var font = RealFont();
+        var black = new Rgba32(0, 0, 0, 255);
+        var fallback = new Surface(64, 64);
+        var box = new Surface(64, 64);
+
+        // Act
+        new RenderCanvas(fallback).DrawText("\u221D", 10, 40, TextAlign.Left, font, 32f, black);
+        new RenderCanvas(box).DrawText("\uE000", 10, 40, TextAlign.Left, font, 32f, black);
+
+        // Assert: both paint, and the fallback glyph is not the box
+        Assert.True(CountInk(fallback) > 0);
+        Assert.True(CountInk(box) > 0);
+        var different = false;
+        for (var y = 0; y < fallback.Height; y++)
+        {
+            different |= !fallback.GetRowSpanBytes(y).SequenceEqual(box.GetRowSpanBytes(y));
+        }
+
+        Assert.True(different, "the fallback glyph must not be the .notdef box");
+        Assert.Empty(GlyphFallback.FindMissing(font, "\u221D"));
+    }
+
+    /// <summary>
+    ///     Proves that a character no bundled font covers draws the primary font's missing-glyph outline.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_CreateTextPath_CharacterCoveredByNoFont_UsesPrimaryNotdefOutline()
+    {
+        // Arrange
+        var font = RealFont();
+
+        // Act
+        var path = TextRenderer.CreateTextPath("\uE000", font, 2048f, 0f, 0f);
+
+        // Assert: the box of the primary font, in its own scale (2048 units per em at size 2048)
+        var notdef = font.GetGlyphOutline(0);
+        Assert.Equal(notdef.Subpaths.Count, path.Subpaths.Count);
+    }
+
+    /// <summary>
+    ///     Proves that measuring, drawing, and the text path agree for mixed text in every alignment: the
+    ///     path's right edge never passes the measured width and a path anchored right ends at the anchor.
+    /// </summary>
+    [Theory]
+    [InlineData(TextAlign.Left)]
+    [InlineData(TextAlign.Center)]
+    [InlineData(TextAlign.Right)]
+    public void TextRenderer_CreateTextPath_MixedText_AgreesWithMeasureAndDraw(TextAlign align)
+    {
+        // Arrange
+        var font = RealFont();
+        const string text = "a \u221D b \u226B c";
+        var width = TextRenderer.MeasureText(text, font, 24f).Width;
+        var left = align switch { TextAlign.Center => 100f - width / 2f, TextAlign.Right => 100f - width, _ => 100f };
+
+        // Act
+        var path = TextRenderer.CreateTextPath(text, font, 24f, 100f, 40f, align);
+        var bounds = path.GetBounds();
+        var drawn = new Surface(260, 70);
+        new RenderCanvas(drawn).DrawText(text, 100f, 40f, align, font, 24f, new Rgba32(0, 0, 0, 255));
+        var reference = new Surface(260, 70);
+        new RenderCanvas(reference).DrawText(text, left, 40f, TextAlign.Left, font, 24f, new Rgba32(0, 0, 0, 255));
+
+        // Assert: the glyphs lie inside [left, left + width] (small side bearings), and drawing is
+        // pixel-identical to a left-aligned draw at the computed start
+        Assert.True(bounds.Left >= left - 2f, $"left {bounds.Left} < {left}");
+        Assert.True(bounds.Right <= left + width + 2f, $"right {bounds.Right} > {left + width}");
+        for (var y = 0; y < drawn.Height; y++)
+        {
+            Assert.True(drawn.GetRowSpanBytes(y).SequenceEqual(reference.GetRowSpanBytes(y)), $"Row {y} mismatch");
+        }
+    }
+
+    /// <summary>
+    ///     Proves that truncation never splits a fallback character and measures it with the fallback advance.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_TruncateToWidth_FallbackCharacters_UseFallbackAdvances()
+    {
+        // Arrange
+        var font = RealFont();
+        const string text = "\u221D\u226B\u221D\u226B";
+        var budget = TextRenderer.MeasureText("\u221D\u226B\u2026", font, 20f).Width;
+
+        // Act
+        var result = TextRenderer.TruncateToWidth(text, font, 20f, budget);
+
+        // Assert
+        Assert.Equal("\u221D\u226B\u2026", result);
+    }
+
+    /// <summary>
+    ///     Proves that mixed-font layout is deterministic across repeated and concurrent runs.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_MeasureText_MixedText_IsDeterministicAcrossThreads()
+    {
+        // Arrange
+        var font = RealFont();
+        const string text = "a \u221D b \u226B c \uE000";
+        var expectedWidth = TextRenderer.MeasureText(text, font, 17f).Width;
+        var expectedPath = string.Join('|', Describe(TextRenderer.CreateTextPath(text, font, 17f, 3f, 20f)));
+        var widths = new float[32];
+        var paths = new string[32];
+
+        // Act
+        Parallel.For(0, widths.Length, i =>
+        {
+            widths[i] = TextRenderer.MeasureText(text, font, 17f).Width;
+            paths[i] = string.Join('|', Describe(TextRenderer.CreateTextPath(text, font, 17f, 3f, 20f)));
+        });
+
+        // Assert
+        Assert.All(widths, w => Assert.Equal(expectedWidth, w));
+        Assert.All(paths, p => Assert.Equal(expectedPath, p));
     }
 
     /// <summary>

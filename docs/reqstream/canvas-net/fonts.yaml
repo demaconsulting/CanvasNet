@@ -275,3 +275,23 @@ sections:
               - CanvasNet-Fonts-FontResolver-Options
             tests:
               - FontResolver_Resolve_NamedFamily_SearchesDirectoriesThenSystemThenBundledNames
+
+          - id: CanvasNet-Fonts-GlyphFallback
+            title: >-
+              The Fonts subsystem shall provide a deterministic, machine-independent per-character
+              glyph fallback for a character that a chosen font has no glyph for: the character is
+              looked up, in order, in the bundled Noto Sans, Noto Sans Math, and Noto Sans Symbols 2
+              fonts (loaded only on the first miss), a character no bundled font covers keeps the
+              chosen font's missing glyph, and the characters of a text that are still missing can
+              be listed so that a caller can report them (the GlyphFallback unit).
+            justification: |
+              Mathematical operators, arrows, and symbols are absent from the bundled Liberation
+              fonts; without a fallback they are drawn as missing-glyph boxes with no diagnostic.
+              The bundled Noto fonts are already part of the package, so the fallback adds nothing
+              to its size, and using only them keeps every output reproducible on every machine.
+            children:
+              - CanvasNet-Fonts-GlyphFallback-Resolve
+              - CanvasNet-Fonts-GlyphFallback-NeedsGlyph
+              - CanvasNet-Fonts-GlyphFallback-FindMissing
+            tests:
+              - GlyphFallback_Resolve_CharacterMissingInPrimary_UsesNotoSansMath

@@ -400,7 +400,9 @@ unit, added alongside `CanvasNetPdf`'s `/Pattern` color-space support, covering 
 `Type1CharstringInterpreter`/`Type1CharstringDecryption`/`Type1PfbReader`/`Type1PfaReader`/
 `Type1StandardGlyphNames`/`HmtxHheaReader`/`KernTable`/`NameTable`/`StyleTable` helpers inline,
 and the `SystemFontCatalog` unit, added Phase 6 of
-the `CanvasNetPdf` roadmap, with no internal helpers of its own, namespace
+the `CanvasNetPdf` roadmap, with no internal helpers of its own, the `FontDirectoryScanner`,
+`GenericFontFamilies`, `FontResolver`, and `GlyphFallback` units (the last: per-character fallback to the
+bundled Noto fonts), namespace
 `DemaConsulting.CanvasNet.Fonts`, flat — no further nesting), the `Rendering` subsystem (the
 transform-aware `Canvas` wrapper unit,
 the `TextRenderer` unit, covering the supporting `TextAlign` and `TextMetrics` types inline,
@@ -667,6 +669,7 @@ src/DemaConsulting.CanvasNet/
 │   ├── GenericFontFamilies.cs           — Generic-family keyword/alias classification and CSS font-family list splitting
 │   ├── FontResolver.cs                  — Resolves a CSS font-family list to a loaded font (plus ResolvedFont, FontSource)
 │   ├── FontResolverOptions.cs           — Directories, installed-font and alias options of a FontResolver
+│   ├── GlyphFallback.cs                 — Per-character fallback to bundled Noto fonts (and the still-missing list)
 │   ├── BundledFonts/                    — Embedded Liberation Sans/Serif/Mono plus Noto Symbol/ZapfDingbats substitute
 │   │                                       .ttf files and OFL.txt license(s)
 │   └── NamespaceDoc.cs                  — Namespace-level XML documentation

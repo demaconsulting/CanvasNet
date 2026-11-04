@@ -363,6 +363,22 @@ sections:
           - VegaLiteDocument_Render_DeliversParseWarningsAndCatalogReportsInDocumentOrder
           - VegaLiteReportSink_Cap_CollapsesOverflowIntoOneNotice
 
+      - id: CanvasNetVegaLite-TextMissingGlyph
+        title: >-
+          The library shall draw a character that the font of a text lacks with a glyph from the bundled
+          fallback fonts, and shall report a character that no bundled font covers as the located warning
+          vl-text-missing-glyph, once per mark location and distinct set of characters, without failing
+          the render and without making strict mode throw.
+        tags: [system]
+        justification: |
+          Mathematical signs in chart text must not turn into unexplained boxes, and text that cannot be
+          drawn must be named to the author.
+        children:
+          - CanvasNetVegaLite-VegaLiteDocument-MissingGlyphDiagnostic
+          - CanvasNetVegaLite-Guides-MissingGlyphs
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_TextMissingGlyph_UncoveredCharactersWarnOnceAtTheMark
+
       - id: CanvasNetVegaLite-UnsupportedFeatures
         title: >-
           The library shall report every recognized construct outside the supported subset - marks,

@@ -80,6 +80,12 @@ pixel rendering remain outside this subsystem's boundary.
   in the installed fonts (`SystemFontCatalog`), then among the bundled family names, and the
   reason for a fallback is reported. It is configured by `FontResolverOptions`; see
   _FontResolver Unit Design_ (`fonts/font-resolver.md`)
+- **GlyphFallback** — the sixth public unit, a static class. `GlyphFallback.Resolve` gives a
+  character that a chosen font has no glyph for the glyph of the first bundled font that has one
+  (Noto Sans, Noto Sans Math, Noto Sans Symbols 2 - the three Noto fonts already embedded for the PDF
+  `Symbol` substitute - never an installed font, so the result is the same on every machine), and
+  `FindMissing` lists the characters that even that chain does not cover so a caller can report
+  them; see _GlyphFallback Unit Design_ (`fonts/glyph-fallback.md`)
 
 ### Dependencies
 
@@ -98,7 +104,8 @@ happens outside the subsystem itself.
 
 ### Callers
 
-`TrueTypeFont`, `SystemFontCatalog`, `FontDirectoryScanner`, `GenericFontFamilies` and `FontResolver` are public API
+`TrueTypeFont`, `SystemFontCatalog`, `FontDirectoryScanner`, `GenericFontFamilies`, `FontResolver` and
+`GlyphFallback` are public API
 entry points, called directly by
 consumers of the CanvasNet package. Within this repository, the subsystem is exercised by
 dedicated `Fonts` unit tests, by real-font integration tests in
@@ -110,4 +117,6 @@ that load a synthetic font, query metrics, obtain an outline, and render that ou
 `PathFiller` onto a `Surface`. `SystemFontCatalog` is additionally called by
 `DemaConsulting.CanvasNet.Pdf`'s `PdfDocument` when resolving a non-embedded font. `FontResolver`
 resolves the default font of the Svg codec's `text` elements, the fonts of the Vega-Lite text
-measurer and the `font` argument of the OpenSCAD `text()` module.
+measurer and the `font` argument of the OpenSCAD `text()` module. `GlyphFallback` is called by
+`TextRenderer` for every character of every run (and so by Svg, Charts, Vega-Lite and the tool), by
+OpenSCAD `text()`, by the Vega-Lite missing-glyph diagnostic, and by the Pdf, Pptx and Vsdx font fallbacks.

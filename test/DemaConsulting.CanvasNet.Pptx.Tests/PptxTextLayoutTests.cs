@@ -1130,6 +1130,29 @@ public class PptxTextLayoutTests
     }
 
     /// <summary>
+    ///     Proves that a character that neither the run's primary font nor the bundled Liberation fallback font
+    ///     covers (the proportional-to sign) resolves to a real glyph from the bundled Noto chain of
+    ///     <see cref="GlyphFallback"/>, while a character nothing covers keeps the primary font's own
+    ///     missing glyph.
+    /// </summary>
+    [Fact]
+    public void ResolveTextLayout_CharacterOutsideBothFonts_ResolvesBundledNotoChainGlyph()
+    {
+        var primaryFont = NewFont(); // Covers only 'A'/' '.
+        var fallbackFont = NewFallbackFontCoveringPlusMinusAndDegree(); // Covers neither U+221D nor U+E000.
+
+        var proportional = LayoutWithFallback(BuildSingleRunTextBody("\u221D"), primaryFont, fallbackFont);
+        var privateUse = LayoutWithFallback(BuildSingleRunTextBody("\uE000"), primaryFont, fallbackFont);
+
+        var glyph = Assert.Single(proportional.Glyphs);
+        Assert.Same(GlyphFallback.BundledFonts[1], glyph.Font);
+        Assert.NotEqual(0, glyph.GlyphIndex);
+        var missing = Assert.Single(privateUse.Glyphs);
+        Assert.Same(primaryFont, missing.Font);
+        Assert.Equal(0, missing.GlyphIndex);
+    }
+
+    /// <summary>
     ///     Proves the original bug report's exact scenario: the run's primary font lacks U+00B1
     ///     (PLUS-MINUS SIGN) but DOES cover the immediately-following U+00B0 (DEGREE SIGN). Both
     ///     characters must still resolve correctly - U+00B1 via the fallback font, U+00B0 via the

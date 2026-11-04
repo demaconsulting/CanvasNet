@@ -963,6 +963,89 @@ public class VegaLiteSystemIntegrationTests
     }
 
     /// <summary>
+    ///     Validates that a text mark whose characters the font lacks but the bundled fallback fonts cover (the
+    ///     proportional-to and much-greater-than signs) renders real glyphs and reports nothing.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_TextMissingGlyph_FallbackCoveredCharactersAreSilentAndDrawn()
+    {
+        // Arrange: the text of the report, and the same chart with a character that no bundled font covers
+        var covered = TextChart("a \u221D b \u226B c");
+        var uncovered = TextChart("a \uE000 b \uE001 c");
+        var coveredWarnings = new List<VegaLiteDiagnostic>();
+
+        // Act
+        var coveredPixels = Pixels(covered, new VegaLiteRenderOptions { WarningHandler = coveredWarnings.Add });
+        var uncoveredPixels = Pixels(uncovered);
+
+        // Assert: no diagnostic, ink, and not the pixels of the missing-glyph boxes
+        Assert.DoesNotContain(coveredWarnings, w => w.Message.StartsWith("vl-text-missing-glyph", StringComparison.Ordinal));
+        Assert.False(coveredPixels.Pixels.AsSpan().SequenceEqual(uncoveredPixels.Pixels));
+    }
+
+    /// <summary>
+    ///     Validates that a text mark with characters that no bundled font covers delivers exactly one warning,
+    ///     <c>vl-text-missing-glyph</c>, at the location of the mark and listing the code points, also in strict mode.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_TextMissingGlyph_UncoveredCharactersWarnOnceAtTheMark()
+    {
+        // Arrange: a private-use character twice and a CJK ideograph
+        var document = TextChart("a \uE000 \u4E2D \uE000");
+        var warnings = new List<VegaLiteDiagnostic>();
+        var options = new VegaLiteRenderOptions { WarningHandler = warnings.Add, ThrowOnUnsupportedFeature = true };
+
+        // Act: strict mode must not throw, because the report is a warning
+        using var surface = document.Render(options, Ct);
+
+        // Assert
+        var warning = Assert.Single(warnings);
+        Assert.StartsWith("vl-text-missing-glyph:", warning.Message, StringComparison.Ordinal);
+        Assert.Contains("U+4E2D, U+E000", warning.Message, StringComparison.Ordinal);
+        Assert.Equal("/mark", warning.Location.Pointer);
+    }
+
+    /// <summary>
+    ///     Validates that the warning is delivered once per mark location and distinct set of characters, that
+    ///     text the chart builds itself is reported at the unknown location, and that a measure delivers it too.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_TextMissingGlyph_OneWarningPerLocationAndSet()
+    {
+        // Arrange: two layers with the same missing character, and a nominal axis whose label is missing it too
+        const string spec = """
+            { "width": 120, "height": 60, "data": { "values": [ { "k": "\uE000", "v": 1 }, { "k": "\uE000", "v": 2 } ] },
+              "layer": [
+                { "mark": { "type": "text", "text": "\uE000" }, "encoding": { "x": { "field": "k", "type": "nominal" }, "y": { "field": "v", "type": "quantitative" } } },
+                { "mark": { "type": "text", "text": "\uE000" }, "encoding": { "x": { "field": "k", "type": "nominal" }, "y": { "field": "v", "type": "quantitative" } } } ] }
+            """;
+        var document = VegaLiteDocument.Parse(spec);
+        var warnings = new List<VegaLiteDiagnostic>();
+        var options = new VegaLiteRenderOptions { WarningHandler = warnings.Add };
+
+        // Act
+        using var surface = document.Render(options, Ct);
+        var rendered = warnings.Where(w => w.Message.StartsWith("vl-text-missing-glyph:", StringComparison.Ordinal)).ToList();
+        warnings.Clear();
+        _ = document.Measure(options, Ct);
+        var measured = warnings.Where(w => w.Message.StartsWith("vl-text-missing-glyph:", StringComparison.Ordinal)).ToList();
+
+        // Assert: one per layer's mark, and one for the axis label at the unknown location; the same for a measure
+        Assert.Equal(["", "/layer/0/mark", "/layer/1/mark"], rendered.Select(w => w.Location.Pointer ?? string.Empty).Order(StringComparer.Ordinal));
+        Assert.Equal(rendered.Select(w => w.Message), measured.Select(w => w.Message));
+    }
+
+    /// <summary>
+    ///     Parses a chart with one text mark that shows a constant text.
+    /// </summary>
+    /// <param name="text">The text, which must not need JSON escaping other than what it contains literally.</param>
+    /// <returns>The document.</returns>
+    private static VegaLiteDocument TextChart(string text) =>
+        VegaLiteDocument.Parse(
+            "{\"width\":200,\"height\":60,\"data\":{\"values\":[{\"x\":1,\"y\":1}]},\"mark\":{\"type\":\"text\",\"text\":\""
+            + text + "\"},\"encoding\":{\"x\":{\"field\":\"x\",\"type\":\"quantitative\"},\"y\":{\"field\":\"y\",\"type\":\"quantitative\"}}}");
+
+    /// <summary>
     ///     Validates that the warnings of the data stage are delivered, once and in order after the reports of the
     ///     specification, even when a later stage (here the scene-item limit) fails the call, and before the exception.
     /// </summary>

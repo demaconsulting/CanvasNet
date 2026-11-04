@@ -304,6 +304,7 @@ internal sealed partial class MarkBuilder
                     {
                         Dx = font.Dx,
                         Dy = font.Dy,
+                        Source = _location,
                         FontFamily = font.Family,
                         FontSize = rowSize,
                         FontWeight = font.Weight,

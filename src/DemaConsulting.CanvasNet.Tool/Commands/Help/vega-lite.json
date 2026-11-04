@@ -18,7 +18,7 @@
         { "text": "Scales (linear, log, pow, sqrt, symlog, sequential, time, utc, band, point, ordinal, quantile, quantize, threshold, bin-ordinal), axes, legends, 68 named color schemes, titles, autosize, and container sizes." },
         { "text": "Transforms: calculate, filter, fold, flatten, sample, pivot, lookup, timeUnit, aggregate, joinaggregate, window, bin, stack, impute." },
         { "text": "A subset of the Vega expression language with 99 functions, and static variable params." },
-        { "text": "Dates in UTC; text drawn with the bundled Liberation fonts." }
+        { "text": "Dates in UTC; text drawn with the bundled Liberation fonts, and a character they lack (such as the math sign U+221D) taken from the bundled Noto Sans, Noto Sans Math, or Noto Sans Symbols 2, per character; a character none covers is drawn as the font's missing-glyph box and warned about (vl-text-missing-glyph)." }
       ]
     },
     {
@@ -74,6 +74,7 @@
         { "term": "vl-schema-version", "text": "Warning: a $schema that is not version 5 or 6; version 6 defaults are used." },
         { "term": "vl-layout-fit-step", "text": "Warning: autosize fit together with a step size; the fit is dropped for that dimension." },
         { "term": "vl-composition-property-ignored", "text": "Warning: a width, height, padding, config, or similar property of a composition that only the top-level view decides." },
+        { "term": "vl-text-missing-glyph", "text": "Warning: text with characters that neither the font nor the bundled fallback fonts have a glyph for (for example a private-use or CJK character); the font's missing-glyph box is drawn. Reported at the text mark, or with no location for axis labels, legends, and titles." },
         { "text": "Warnings have the code vega-lite-warning and carry the vl-* identifier at the start of the message text, after the location. Errors: vega-lite-error (invalid specification, a data file that is missing or refused, a chart that cannot be drawn), budget-exceeded (a library limit), corrupt-input (a specification longer than {{vlMaxSourceLength}} characters), and size-limit (a chart laid out beyond {{maxDimension}} pixels on a side)." },
         { "text": "See the Vega-Lite section of the Vega-Lite user guide for the complete list of identifiers." }
       ]
@@ -84,7 +85,7 @@
       "items": [
         { "text": "The picture is static: no interaction, and tooltips are omitted." },
         { "text": "A schema of version 5 is drawn with the version 6 defaults (a view is 300 by 300 pixels by default, for example)." },
-        { "text": "Text is measured with the bundled fonts, so labels, legends, and facet headers can differ from a browser by a few pixels." },
+        { "text": "Text is measured with the bundled fonts, so labels, legends, and facet headers can differ from a browser by a few pixels. A character the Liberation fonts lack is drawn from the bundled Noto fonts, never from an installed font, so the result does not depend on the machine." },
         { "text": "Dates are always UTC; nothing is read from the network; data files are only read from the specification's folder and below." },
         { "text": "Color schemes are interpolated piecewise in sRGB, not taken from the d3-scale-chromatic tables." },
         { "text": "Composite marks (boxplot, errorbar, errorband) report binned, aggregated, or time-unit grouping channels and do not apply them." },

@@ -333,6 +333,31 @@ public class ChartRendererAxisLegendTitleTests
         Assert.True(CountNonBackgroundPixels(surfaceWithLabel, White) > CountNonBackgroundPixels(surfaceWithoutLabel, White));
     }
 
+    /// <summary>Proves a data label with a character that the bundled Liberation fonts lack (the much-greater-than sign) is drawn with a bundled fallback glyph: it paints ink and differs from the missing-glyph box of an uncovered character.</summary>
+    [Fact]
+    public void Render_PointLabelWithCharacterOutsideLiberation_PaintsFallbackGlyphNotTheBox()
+    {
+        // Arrange
+        var math = new Chart(ChartType.Column, [new ChartSeries("Alpha", [5.0], pointLabels: ["\u226B"], color: Green)], new ChartAxis(["Only"]), new ChartAxis(minimum: 0f, maximum: 10f));
+        var box = new Chart(ChartType.Column, [new ChartSeries("Alpha", [5.0], pointLabels: ["\uE000"], color: Green)], new ChartAxis(["Only"]), new ChartAxis(minimum: 0f, maximum: 10f));
+        var none = new Chart(ChartType.Column, [new ChartSeries("Alpha", [5.0], color: Green)], new ChartAxis(["Only"]), new ChartAxis(minimum: 0f, maximum: 10f));
+
+        // Act
+        using var mathSurface = ChartRenderer.Render(math, 400, 300);
+        using var boxSurface = ChartRenderer.Render(box, 400, 300);
+        using var noneSurface = ChartRenderer.Render(none, 400, 300);
+
+        // Assert: ink was added, and not the ink of the missing-glyph box
+        Assert.True(CountNonBackgroundPixels(mathSurface, White) > CountNonBackgroundPixels(noneSurface, White));
+        var differs = false;
+        for (var y = 0; y < mathSurface.Height && !differs; y++)
+        {
+            differs = !mathSurface.GetRowSpanBytes(y).SequenceEqual(boxSurface.GetRowSpanBytes(y));
+        }
+
+        Assert.True(differs, "the much-greater-than sign must not be drawn as the missing-glyph box");
+    }
+
     /// <summary>Proves a series with no <see cref="ChartSeries.PointLabels"/> renders fully deterministically (no stray data-label artifacts appear from one render to the next).</summary>
     [Fact]
     public void Render_PointWithoutDataLabel_RendersDeterministicallyWithNoLabelArtifacts()

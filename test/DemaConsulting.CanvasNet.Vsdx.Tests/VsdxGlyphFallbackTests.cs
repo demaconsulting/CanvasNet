@@ -107,4 +107,14 @@ public class VsdxGlyphFallbackTests
 
         Assert.Null(VsdxDocument.ResolveGlyphFallbackFont(0x10FFFF, false, false));
     }
+
+    /// <summary>A math sign that no installed font may cover is always found, at the latest in the bundled Noto chain.</summary>
+    [Fact]
+    public void GlyphFallback_DefaultResolver_MathSignIsAlwaysCoveredByTheBundledChain()
+    {
+        var font = VsdxDocument.ResolveGlyphFallbackFont(0x221D, false, false);
+
+        Assert.NotNull(font);
+        Assert.NotEqual(0, font.GetGlyphIndex(0x221D));
+    }
 }

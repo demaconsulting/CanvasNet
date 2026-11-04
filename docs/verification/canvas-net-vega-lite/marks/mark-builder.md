@@ -696,7 +696,8 @@ two: 4 + 2 for the one run that could be long + 1 for the other), the trail has 
 
 **Tests**: `MarkBuilderTextTests.MarkBuilder_Build_TextHasPositionDefaultsAndPaint`,
 `MarkBuilderTextTests.MarkBuilder_Build_TextOffsetsAnglesAndFontPropertiesReachTheItem`,
-`MarkBuilderTextTests.MarkBuilder_Build_TextSizeChannelMapsToTheFontSize`
+`MarkBuilderTextTests.MarkBuilder_Build_TextSizeChannelMapsToTheFontSize`,
+`MarkBuilderTextTests.MarkBuilder_Build_TextItemCarriesTheMarkLocationAsItsSource`
 
 Assert the labels at (0, 200) and (300, 0) with the Vega defaults, the middle (150, 100) without a position, the colors
 from a color field (blue, orange) and from a value (`red`, opacity 0.5); that `dx`, `dy`, `angle`, `font`, `fontSize`,
@@ -704,7 +705,8 @@ from a color field (blue, orange) and from a value (`red`, opacity 0.5); that `d
 30, `Georgia`, 20, `italic`, `bold`, 50, `...`, 14, `left`, `top`) without moving the position, that a numeric weight is
 its text (`700`), that an unknown alignment is `left` and an unknown baseline `alphabetic`, the precedence of the mark over
 `config.text` and an angle channel (45) over the mark angle; and the font sizes 24 and 40 of the size channel and the
-documented order of the size value, `fontSize`, `size`, the expression, and the default 11.
+documented order of the size value, `fontSize`, `size`, the expression, and the default 11; and that every item carries
+the same known location (the mark's pointer) as its `Source`, while a text item built elsewhere has none.
 
 ##### Labels Beyond The Magnitude Bound Are Skipped
 

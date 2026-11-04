@@ -6205,6 +6205,43 @@ public class SvgCodecTests
     }
 
     /// <summary>
+    ///     Proves that <c>&lt;text&gt;</c> with a character that the bundled Liberation fonts lack (the
+    ///     proportional-to sign) paints the glyph of the bundled fallback fonts, which differs from the
+    ///     missing-glyph box that a character no bundled font covers paints. SVG rendering has no
+    ///     diagnostics channel, so the box of an uncovered character is silent.
+    /// </summary>
+    [Fact]
+    public void SvgCodec_Load_TextWithCharacterOutsideLiberation_PaintsBundledFallbackGlyphNotTheBox()
+    {
+        // Arrange: the same text with the math sign and with a private-use character
+        const string template = "<svg viewBox='0 0 100 40'><text x='5' y='30' font-family='sans-serif' font-size='30' fill='black'>{0}</text></svg>";
+        using var mathStream = ToStream(string.Format(System.Globalization.CultureInfo.InvariantCulture, template, "\u221D"));
+        using var boxStream = ToStream(string.Format(System.Globalization.CultureInfo.InvariantCulture, template, "\uE000"));
+
+        // Act
+        var math = SvgCodec.Load(mathStream, 100, 40);
+        var box = SvgCodec.Load(boxStream, 100, 40);
+
+        // Assert: both paint ink, and the fallback glyph is not the box
+        var differs = false;
+        var mathInk = 0;
+        var boxInk = 0;
+        for (var y = 0; y < 40; y++)
+        {
+            for (var x = 0; x < 100; x++)
+            {
+                differs |= math[x, y].A != box[x, y].A;
+                mathInk += math[x, y].A > 0 ? 1 : 0;
+                boxInk += box[x, y].A > 0 ? 1 : 0;
+            }
+        }
+
+        Assert.True(mathInk > 0);
+        Assert.True(boxInk > 0);
+        Assert.True(differs, "the proportional-to sign must not be drawn as the missing-glyph box");
+    }
+
+    /// <summary>
     ///     Proves that <c>text-anchor="middle"</c> centers the glyph run on the given <c>x</c>,
     ///     rather than starting there.
     /// </summary>

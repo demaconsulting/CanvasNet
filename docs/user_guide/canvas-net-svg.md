@@ -166,6 +166,15 @@ between machines, so the same SVG can look different on different hosts. For out
 identical everywhere, pass `new SvgLoadOptions { UseSystemFonts = false }`: installed fonts are then
 never consulted and every text you did not register a font for uses the bundled Liberation fonts.
 
+**Characters the font lacks.** Whatever font was chosen, a character it has no glyph for - `∝` (U+221D), `≫`
+(U+226B), most arrows and mathematical operators are not in the Liberation fonts - is drawn per character with the
+bundled Noto Sans, Noto Sans Math, or Noto Sans Symbols 2 (the fallback of the core `GlyphFallback`, never an installed
+font), scaled to the font size, in the regular style and without kerning against a neighbor from another font. Text
+anchoring and measuring use the same advances, so a mixed run stays aligned. A character that no bundled font covers
+(a private-use or CJK character, for example) is drawn as the chosen font's own missing-glyph box, **silently**: SVG
+loading has no diagnostics channel (`SvgCodec` reports no warnings, only the work counters of
+`RenderDiagnostics`), so check a text with `GlyphFallback.FindMissing(font, text)` if you need to know.
+
 ```csharp
 // Reproducible: text is drawn with the bundled Liberation fonts on every machine
 var surface = SvgCodec.Load("diagram.svg", 800, 600, fonts: null,

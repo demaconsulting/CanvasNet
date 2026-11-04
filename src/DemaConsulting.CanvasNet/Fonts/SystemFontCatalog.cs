@@ -130,7 +130,7 @@ public static class SystemFontCatalog
     ///     fallback (see <see cref="LoadBundledFallbackCore"/>'s remarks), keyed by the embedded
     ///     resource's bundled file name (for example <c>"LiberationSans-Bold.ttf"</c>) - at most
     ///     15 entries are ever created (12 Liberation Sans/Serif/Mono style variants plus 3 Noto
-    ///     substitute fonts), each created at most once, for the lifetime of the process. All
+    ///     substitute fonts, which are also the <see cref="GlyphFallback"/> chain), each created at most once, for the lifetime of the process. All
     ///     access to this dictionary is guarded by <see cref="BundledFontLock"/> - see the class
     ///     remarks' "Thread safety" section.
     /// </summary>

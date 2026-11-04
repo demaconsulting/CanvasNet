@@ -364,6 +364,25 @@ internal sealed class TextMeasurer
     }
 
     /// <summary>
+    ///     Finds the characters of a text item that neither its font nor the bundled fallback fonts cover, so
+    ///     that they are drawn as the font's missing-glyph box.
+    /// </summary>
+    /// <param name="text">The text item.</param>
+    /// <returns>The distinct code points in ascending order; empty when every visible character is covered.</returns>
+    public IReadOnlyList<int> FindMissingGlyphs(SceneText text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        if (text.Lines.Count == 0)
+        {
+            return [];
+        }
+
+        // The ellipsis of a truncation is not part of the author's text, so only the lines are checked
+        var font = Resolve(text.FontFamily, text.FontWeight, text.FontStyle).Font;
+        return GlyphFallback.FindMissing(font, string.Concat(text.Lines));
+    }
+
+    /// <summary>
     ///     Determines whether the measurer maps a family name to a bundled font itself (a generic or well-known family).
     /// </summary>
     /// <param name="family">The family name.</param>

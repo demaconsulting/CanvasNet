@@ -18,7 +18,7 @@
         { "text": "The language: variables, functions, modules with children(), for, if, let, comprehensions, echo, assert, include and use, and the built-in functions." },
         { "text": "Curve resolution from $fn, $fa, and $fs." },
         { "text": "-D name=value overrides a variable of the model with a number, a boolean, or text." },
-        { "text": "text() uses the bundled Liberation Sans unless the model names another font." }
+        { "text": "text() uses the bundled Liberation Sans unless the model names another font; a character the font lacks (such as U+221D) is taken from the bundled Noto fonts, and one that no font covers draws the missing-glyph box and gives one warning." }
       ]
     },
     {
@@ -81,7 +81,7 @@
         { "text": "This is an independent dialect, not OpenSCAD: pictures and tessellation are not pixel-identical to OpenSCAD and no parity is claimed." },
         { "text": "include and use are read only from the model's folder and below, symbolic links are not followed, and a missing include is an error here." },
         { "text": "Indexing is lenient: v[i] is undef for a negative or non-finite index, and a fractional index is truncated." },
-        { "text": "text() is laid out one character at a time without shaping or ligatures; language and script are ignored; size is the height of the glyph H. A generic name (sans, serif, mono, sans-serif, monospace, ...) is a bundled Liberation font; any other family is looked up in the installed fonts (so it can differ between machines), then among the bundled Liberation families, and a family found nowhere is drawn with the bundled Liberation Sans and a warning." },
+        { "text": "text() is laid out one character at a time without shaping or ligatures; language and script are ignored; size is the height of the glyph H. A generic name (sans, serif, mono, sans-serif, monospace, ...) is a bundled Liberation font; any other family is looked up in the installed fonts (so it can differ between machines), then among the bundled Liberation families, and a family found nowhere is drawn with the bundled Liberation Sans and a warning. Per character, one the chosen font lacks comes from the bundled Noto Sans, Noto Sans Math, or Noto Sans Symbols 2 (never an installed font), with no kerning across fonts; characters nothing covers are listed in one warning per text()." },
         { "text": "The semantics of the # highlight and the % ghost are this package's documented choices; a ghost is part of the fitted bounds but not of the model." },
         { "text": "hull and minkowski constructs they cannot handle are omitted and reported, never approximated." },
         { "text": "The result is a static picture from a named view (iso, orthographic by default), not an interactive camera." }

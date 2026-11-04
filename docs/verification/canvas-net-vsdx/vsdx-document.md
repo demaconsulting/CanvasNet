@@ -913,13 +913,16 @@ layers 1, 2 and `1;2` hide it. A group on a hidden layer hides its child. Text w
 **Tests**: `GlyphFallback_MissingCodePoint_UsesFallbackFontAndAdvance`,
 `GlyphFallback_CoveredCodePoint_DoesNotConsultFallback`,
 `GlyphFallback_NoFontCoversCodePoint_KeepsPrimaryGlyph`,
-`GlyphFallback_DefaultResolver_ReturnsCoveringFontOrNull`
+`GlyphFallback_DefaultResolver_ReturnsCoveringFontOrNull`,
+`GlyphFallback_DefaultResolver_MathSignIsAlwaysCoveredByTheBundledChain`
 
 Synthetic fonts (primary maps only `A`; a second maps only U+2794) and an injected fallback
 resolver prove the placed glyph uses the fallback font, index and advance, that covered glyphs
 never call the fallback, and that a null fallback keeps the primary's glyph 0. The default
 resolver test accepts any machine's installed fonts (a returned font must cover the code point;
-U+10FFFF yields null).
+U+10FFFF yields null). A second default-resolver test asserts that U+221D, which Liberation lacks and an
+installed font may or may not have, is always found: if no installed font covers it, the bundled
+Noto chain of `GlyphFallback` does, so the result is never null.
 
 ### Supplementary (Non-Requirement-Mapped) Coverage
 

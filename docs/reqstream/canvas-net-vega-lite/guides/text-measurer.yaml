@@ -59,3 +59,15 @@ sections:
                   - TextMeasurer_BaselineOffset_FollowsVegaConstants
                   - TextMeasurer_GetBounds_FollowsVegaTextBounds
                   - TextMeasurer_UnrepresentableFontSizeIsUnmeasurableAndNeverThrows
+
+              - id: CanvasNetVegaLite-Guides-TextMeasurer-MissingGlyphs
+                title: >-
+                  The TextMeasurer unit shall measure text with the core text renderer so that a character
+                  that the resolved font lacks is measured with its bundled fallback glyph, and shall list
+                  the characters of a text item - distinct, in ascending order - that neither the resolved
+                  font nor the bundled fallback fonts cover, none for an item without lines.
+                justification: |
+                  The width of a label decides the layout, so it must agree with what is drawn, and the
+                  renderer can only warn about characters that it can name.
+                tests:
+                  - TextMeasurer_FindMissingGlyphs_AndMeasureWidth_UseTheBundledFallbackChain

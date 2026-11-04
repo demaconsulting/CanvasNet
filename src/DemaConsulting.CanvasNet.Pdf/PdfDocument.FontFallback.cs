@@ -50,7 +50,8 @@ public sealed partial class PdfDocument
     ///     <see cref="SystemFontCatalog.LoadBundledFallback"/> when no system font matches, or
     ///     the matched one cannot be loaded by <see cref="SystemFontCatalog.Load"/>), and
     ///     appends a second, always-present, plain (non-serif, non-fixed-pitch, non-bold,
-    ///     non-italic) bundled Liberation Sans candidate - a per-character glyph-coverage
+    ///     non-italic) bundled Liberation Sans candidate and then the bundled Noto chain of
+    ///     <see cref="GlyphFallback"/> - a per-character glyph-coverage
     ///     fallback, consulted by <see cref="ResolvedSimpleFont.Resolve"/>'s existing first-
     ///     non-zero-glyph-wins candidate search only when the primary match's own font actually
     ///     lacks a given codepoint, mirroring <c>PptxDocument.TextLayout.cs</c>'s own
@@ -60,8 +61,9 @@ public sealed partial class PdfDocument
     /// <param name="descriptor">The font dictionary's resolved <c>/FontDescriptor</c>.</param>
     /// <returns>
     ///     The ordered, non-empty list of candidate substitute <see cref="Fonts.TrueTypeFont"/>
-    ///     instances - every non-<c>Symbol</c>/<c>ZapfDingbats</c> case now returns a two-element
-    ///     list (primary match, then the generic bundled Liberation Sans coverage fallback); see
+    ///     instances - every non-<c>Symbol</c>/<c>ZapfDingbats</c> case returns a five-element
+    ///     list (primary match, the generic bundled Liberation Sans coverage fallback, then the three
+    ///     bundled Noto fonts of <see cref="GlyphFallback"/>); see
     ///     <see cref="ResolveSymbolicNotoFallback"/> for the (three- or one-element)
     ///     <c>Symbol</c>/<c>ZapfDingbats</c> case.
     /// </returns>
@@ -108,8 +110,10 @@ public sealed partial class PdfDocument
         // Symbol/ZapfDingbats branch above. Listing the primary match first preserves existing
         // behavior for every font whose primary match already has full coverage: the bundled
         // fallback is only ever consulted on an actual glyph-0 miss.
+        // After those two, the bundled Noto chain of GlyphFallback is appended so a character that
+        // neither covers (a math operator, an arrow) still gets a real glyph instead of the .notdef box.
         var genericFallback = SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold: false, italic: false);
-        return [primary, genericFallback];
+        return [primary, genericFallback, .. GlyphFallback.BundledFonts];
     }
 
     /// <summary>

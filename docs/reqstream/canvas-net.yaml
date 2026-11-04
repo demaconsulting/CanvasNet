@@ -1723,6 +1723,22 @@ sections:
         tests:
           - CanvasNet_SystemIntegration_ResolveFontFamilyList_ReturnsBundledFontsAndFailureReason
 
+      - id: CanvasNet-Lib-FontsGlyphFallback
+        title: >-
+          The library shall draw, measure, and convert to an outline a character that the chosen
+          font has no glyph for with a glyph from the bundled Noto fonts, the same way in every
+          operation and on every machine, and shall let a caller list the characters that no
+          bundled font covers.
+        tags: [system]
+        justification: |
+          Text with mathematical signs, arrows, or symbols must not turn into unexplained
+          missing-glyph boxes, and the result must not depend on which fonts are installed.
+        children:
+          - CanvasNet-Fonts-GlyphFallback
+          - CanvasNet-Rendering-TextRendering
+        tests:
+          - CanvasNet_SystemIntegration_TextWithMathSigns_UsesBundledFallbackGlyphsAndReportsUncovered
+
   - title: Rendering API
     requirements:
       - id: CanvasNet-Lib-RenderingTransformStack

@@ -12,6 +12,32 @@ namespace DemaConsulting.CanvasNet.VegaLite.Tests.Guides;
 public class TextMeasurerTests
 {
     /// <summary>
+    ///     Validates that a character the font lacks but a bundled fallback font covers is measured with the
+    ///     fallback advance and is not reported missing, while a character no bundled font covers is reported.
+    /// </summary>
+    [Fact]
+    public void TextMeasurer_FindMissingGlyphs_AndMeasureWidth_UseTheBundledFallbackChain()
+    {
+        // Arrange
+        var measurer = new TextMeasurer();
+        var font = new TextFont(null, 20);
+        var sans = measurer.Resolve(font).Font;
+        var covered = new SceneText("mark-text", 0, 0, ["a \u221D b \u226B c"]);
+        var uncovered = new SceneText("mark-text", 0, 0, ["a \uE000", "\u4E2D \uE000"]) { FontSize = 20 };
+
+        // Act
+        var width = measurer.MeasureWidth("\u221D", font);
+        var missingCovered = measurer.FindMissingGlyphs(covered);
+        var missingUncovered = measurer.FindMissingGlyphs(uncovered);
+
+        // Assert: the proportional-to sign has a real advance, not the missing-glyph box's one
+        Assert.True(width > 0);
+        Assert.NotEqual(TextRenderer.MeasureText("\uE000", sans, 20).Width, width);
+        Assert.Empty(missingCovered);
+        Assert.Equal(new[] { 0x4E2D, 0xE000 }, missingUncovered);
+        Assert.Empty(measurer.FindMissingGlyphs(new SceneText("mark-text", 0, 0, [])));
+    }
+    /// <summary>
     ///     Validates that every default and generic family resolves to the bundled Liberation fonts, whatever is installed.
     /// </summary>
     [Fact]

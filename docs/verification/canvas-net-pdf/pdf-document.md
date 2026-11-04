@@ -1915,6 +1915,7 @@ silently ignored like the CMap's own PostScript resource-management wrapper keyw
 `PdfDocument_BuildResolvedFont_NonStandard14FlagsOnlyUnmatchedFamily_ResolvesViaBundledFallback`,
 `PdfDocument_BuildResolvedFont_SymbolicFlagWithoutEmbeddedFont_ThrowsSymbolicNotEmbeddedException`,
 `PdfDocument_BuildResolvedFont_PrimaryMatchMissesCodepoint_FallsBackToBundledLiberationSans`,
+`PdfDocument_BuildResolvedFont_CharacterOutsideLiberation_FallsBackToBundledNotoMath`,
 `CanvasNetPdf_SystemIntegration_RenderStandard14HelveticaWithoutEmbeddedFont_PaintsVisibleGlyphInk`,
 `CanvasNetPdf_SystemIntegration_RenderOtherSymbolicFontWithoutEmbeddedFont_ThrowsUnsupportedImageFeatureException`
 
@@ -1940,8 +1941,8 @@ a regression guard proving the new Symbol/ZapfDingbats substitution path did not
 fail-closed policy for any other symbolic font.
 
 `PdfDocument_BuildResolvedFont_PrimaryMatchMissesCodepoint_FallsBackToBundledLiberationSans`
-proves the ordinary (non-Symbol/non-ZapfDingbats) substitution path's extended 2-element candidate
-list (primary match, then the bundled Liberation fallback) actually resolves a codepoint the
+proves the ordinary (non-Symbol/non-ZapfDingbats) substitution path's extended candidate
+list (primary match, then the bundled Liberation fallback, then the bundled Noto chain) actually resolves a codepoint the
 primary match itself does not cover, rather than painting `.notdef`. Renders two fixtures and
 asserts pixel-identity between them - "any pixel was painted" is deliberately **not** sufficient
 here, since a real/synthetic `.notdef` glyph commonly has its own non-empty (visible box) outline,
@@ -1960,6 +1961,13 @@ guaranteeing a deterministic, environment-independent rendering of that exact gl
 against. This test was deliberately verified (via a temporary `git stash` of the production fix,
 rebuild, and re-run) to fail without the fix and pass with it, confirming it is a meaningful
 regression guard and not a vacuously-passing assertion.
+
+`PdfDocument_BuildResolvedFont_CharacterOutsideLiberation_FallsBackToBundledNotoMath` covers the
+third step of the same list: a fixed-pitch unmatched family whose code `1` is U+221D (PROPORTIONAL
+TO), a code point that neither the host's monospace substitute nor Liberation Sans covers. It renders
+the fixture, a fixture with U+E000 (the missing-glyph box that nothing covers), and a reference
+fixture that embeds the bundled `NotoSansMath-Regular.ttf` bytes as its `/FontFile2`, and asserts that
+the U+221D render is pixel-identical to the Noto Sans Math reference and not equal to the box render.
 
 #### CanvasNetPdf-PdfDocument-SymbolZapfDingbatsFallback: Symbol/ZapfDingbats Resolve via a Bundled Noto Union
 

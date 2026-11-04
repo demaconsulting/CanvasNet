@@ -39,7 +39,12 @@ Any other font whose `/FontDescriptor` marks it as a symbolic, non-Latin-text gl
 never substituted this way, since a symbol/dingbat glyph set with no bundled substitute has no
 meaningful generic-family
 equivalent - it still fails closed with `UnsupportedImageFeatureException`, exactly as a
-non-embedded font of any kind did before this fallback behavior existed. A shading pattern's
+non-embedded font of any kind did before this fallback behavior existed. A character that neither
+the matched font nor the bundled Liberation Sans covers (for example `∝`, U+221D, via `/Differences /uni221D`) is
+then taken from the bundled Noto Sans, Noto Sans Math, or Noto Sans Symbols 2 of the core `GlyphFallback`
+(an addition to the candidate list of a non-embedded, non-Symbol font; the first font that covers the
+character wins) instead of painting the font's missing-glyph box; a character nothing covers still paints it,
+silently. A shading pattern's
 `/Extend` is honored per end (PDF 32000-1 §8.7.4.5.2): an extended end repeats its end color
 beyond the defining geometry, while a non-extended end (the default) paints nothing past it;
 stitching-function boundaries render as sharp transitions, and a mesh shading's `/Function` is

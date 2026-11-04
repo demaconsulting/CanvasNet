@@ -31,7 +31,8 @@ Given a string, a `TrueTypeFont`, and a pixel `size`, `MeasureText` returns a `T
 where:
 
 - `Width` is the sum of scaled advance widths across every glyph in the string, plus scaled
-  kerning between adjacent glyphs.
+  kerning between adjacent glyphs of the same font. A character the font lacks is measured with
+  the advance of its bundled fallback glyph (see the run walker below).
 - `Ascent` is the font's `Ascender` field scaled to pixels.
 - `Descent` is the absolute value of the font's `Descender` field scaled to pixels.
 
@@ -47,6 +48,7 @@ outline:
 1. Retrieves the outline `Path` from the font.
 2. Computes the per-glyph transform
    `Matrix3x2.CreateScale(scale, -scale) * Matrix3x2.CreateTranslation(penX + alignOffset, y)`
+   (the scale being that of the font that supplies the glyph)
    which converts y-up font design units to y-down pixel space and positions the pen.
 3. Composes that with `canvas.CurrentTransform` so scene transforms apply to text as they do
    to filled paths.
@@ -66,8 +68,8 @@ Given a string, a `TrueTypeFont`, a pixel `size`, an anchor `(x, y)` at the text
 
 1. The run width is measured with `MeasureText` and the alignment offset is computed exactly as
    for `DrawText`.
-2. The private glyph-placement walker yields, for every glyph that has an outline, the outline and
-   its pen x-position.
+2. The private run walker yields, for every glyph that has an outline, the outline, its pen
+   x-position, and the scale of the font that supplies it.
 3. Each outline is appended to one `PathBuilder` with
    `AppendPath(outline, Matrix3x2.CreateScale(scale, -scale) * Matrix3x2.CreateTranslation(pen, y))`.
    No canvas transform is involved: the caller applies its own transform to the returned path.
@@ -102,12 +104,33 @@ The size is validated up front, independent of the budget, so a bad size is repo
 would fit. The consumers (`ChartRenderer`, `ContactSheet`) pass the ASCII ellipsis `...` explicitly; the
 shared default is the single character U+2026, a pure API-design choice.
 
-##### Glyph-placement walker (private)
+##### Run walker (private, `EnumerateRun` and `EnumerateGlyphPlacements`)
 
-An iterator over the run that mirrors `MeasureText`'s arithmetic: for each rune it looks up the
-glyph index, adds the scaled kerning against the previous glyph, yields `(outline, pen)` when the
-outline has at least one subpath, then adds the scaled advance. Glyphs without outlines still
-advance the pen and take part in kerning.
+`EnumerateRun` is the single home of the rune iteration, the glyph fallback, the
+kerning-before-advance order, and the float accumulation order. For each rune it asks
+`GlyphFallback.Resolve(font, rune)` for the font and glyph that draw it. For a character the primary
+font maps this is the primary font itself with its own glyph, and nothing else is loaded; for a
+character it lacks it is the first bundled Noto font that has a glyph (or the primary font's glyph 0,
+its missing glyph, when none has). The scale is `size / glyphFont.UnitsPerEm` - the Noto fonts have
+1000 units per em and Liberation 2048, so the scale is that of the font that supplies the glyph.
+Kerning with the previous glyph is applied only when the previous glyph came from the same
+`TrueTypeFont` instance, since glyph indices of different fonts are unrelated. It yields
+`(glyphFont, glyphIndex, scale, pen)` with the pen after kerning, then adds the scaled advance.
+
+`MeasureText` takes the pen after the last glyph plus its advance (a run starting at zero), `DrawText`
+and `CreateTextPath` use `EnumerateGlyphPlacements`, which filters `EnumerateRun` to the glyphs that have an
+outline and carries each glyph's scale. All of them therefore agree, and a run that the primary font
+covers completely performs exactly the arithmetic of the single-font walker that existed before (frozen
+by a digest test over the measured widths and the drawn pixels). Ascent and descent are always those of
+the primary font. Glyphs without outlines still advance the pen and take part in kerning.
+
+##### Glyph fallback behavior
+
+The fallback is deterministic and machine independent: no installed font is consulted. It is regular
+style only (a bold or italic request is not synthesized for a fallback glyph), there is no shaping or
+combining-mark attachment (as before), and a character that no bundled font covers draws the primary
+font's missing-glyph outline. `TextRenderer` has no diagnostics channel; a caller that must report such
+characters uses `GlyphFallback.FindMissing`.
 
 #### Error Handling
 
@@ -122,7 +145,8 @@ advance the pen and take part in kerning.
 
 `TextRenderer` depends on this subsystem's own `Canvas` unit, the `Fonts` subsystem's
 `TrueTypeFont` unit (glyph outlines, advance widths, kerning, and `Ascender`/`Descender`/
-`UnitsPerEm` metrics), the `Geometry` subsystem's `Path` and `PathBuilder` units
+`UnitsPerEm` metrics) and `GlyphFallback` unit (the bundled fallback chain), the `Geometry` subsystem's `Path` and
+`PathBuilder` units
 (`PathBuilder.AppendPath` places each outline in `CreateTextPath`), the `Drawing` subsystem's
 `PathFiller` unit, and `System.Numerics.Matrix3x2`/`System.Text.Rune` from the .NET Base Class
 Library.

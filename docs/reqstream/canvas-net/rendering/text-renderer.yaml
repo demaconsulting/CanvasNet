@@ -156,3 +156,26 @@ sections:
                   - TextRenderer_TruncateToWidth_NullFont_ThrowsArgumentNullException
                   - TextRenderer_TruncateToWidth_NullEllipsis_ThrowsArgumentNullException
                   - TextRenderer_TruncateToWidth_NonPositiveSize_ThrowsArgumentOutOfRangeException
+
+              - id: CanvasNet-Rendering-TextRenderer-GlyphFallback
+                title: >-
+                  The TextRenderer class shall take a character that the chosen font has no glyph
+                  for from the bundled fallback fonts of GlyphFallback, scaled by the em size of the
+                  font that supplies the glyph and kerned only against a neighbor from the same
+                  font, shall measure, draw, convert to a path, and truncate text with that one
+                  placement so that the operations agree and are deterministic across calls and
+                  threads, and shall lay text that the chosen font covers completely out exactly as
+                  it was before the fallback existed.
+                justification: |
+                  Measurement, drawing, and the text path must never disagree about where a glyph
+                  goes, whichever font supplied it, and existing output must not change for text
+                  that never needed a fallback.
+                tests:
+                  - TextRenderer_MeasureText_CharacterMissingInPrimary_UsesFallbackAdvance
+                  - TextRenderer_MeasureText_MixedRun_IsSumOfPartsWithoutCrossFontKerning
+                  - TextRenderer_DrawText_CharacterMissingInPrimary_DrawsFallbackGlyphNotNotdefBox
+                  - TextRenderer_CreateTextPath_CharacterCoveredByNoFont_UsesPrimaryNotdefOutline
+                  - TextRenderer_CreateTextPath_MixedText_AgreesWithMeasureAndDraw
+                  - TextRenderer_TruncateToWidth_FallbackCharacters_UseFallbackAdvances
+                  - TextRenderer_MeasureText_MixedText_IsDeterministicAcrossThreads
+                  - TextRenderer_DrawText_LiberationOnlyText_IsBitIdenticalToPreFallbackDigest

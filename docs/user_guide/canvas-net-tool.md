@@ -455,7 +455,10 @@ error). With `--strict` it is a failure instead
 A model's `text()` is drawn with the Liberation Sans font that is bundled with the library, so lettering looks the same
 on every machine; a model that names another font with `font = "..."` finds it among the fonts installed on the
 machine that runs the tool (then among the bundled Liberation families; a family that is nowhere gives a warning), so
-such a drawing can differ from machine to machine. The tool has no option for font folders.
+such a drawing can differ from machine to machine. The tool has no option for font folders. A character that the font
+lacks (`∝`, `≫`, arrows, math signs) is taken from the bundled Noto fonts, so it does not depend on the machine; a
+character that no bundled font covers draws the missing-glyph box and gives one warning for that `text()` (and, in a Vega-Lite
+chart, the warning `vl-text-missing-glyph`, which never fails the render).
 
 ```bash
 canvasnet render part.scad --view top -D width=30 -o part-top.png --json

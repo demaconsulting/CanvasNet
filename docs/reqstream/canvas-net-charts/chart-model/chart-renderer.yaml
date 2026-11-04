@@ -180,13 +180,17 @@ sections:
                 title: >-
                   The ChartRenderer class shall, for a series whose ChartSeries.PointLabels is
                   supplied, paint each point's label text near that point, and shall paint no
-                  label text at all for a series whose PointLabels is null.
+                  label text at all for a series whose PointLabels is null, taking a label
+                  character that the Liberation font lacks from the bundled fallback fonts of
+                  the core text renderer (the charts have no diagnostics channel, so a character
+                  that no bundled font covers silently draws the font's missing-glyph box).
                 justification: |
                   Data labels are an opt-in decoration (not every chart needs every value spelled
                   out on top of its shapes); the renderer must honor that opt-in/opt-out choice
                   precisely per series.
                 tests:
                   - Render_PointWithDataLabel_PaintsVisibleTextNearPoint
+                  - Render_PointLabelWithCharacterOutsideLiberation_PaintsFallbackGlyphNotTheBox
                   - Render_PointWithoutDataLabel_RendersDeterministicallyWithNoLabelArtifacts
 
               - id: CanvasNetCharts-ChartModel-ChartRenderer-SinglePointSeries

@@ -249,7 +249,8 @@ null or false, or one without fields, keeps the order of the data. The step budg
 `m * ceil(log2(max(m, 2)))` before the sort of `m` rows.
 
 **Text mark** (`MarkBuilder.Text.cs`; Vega-Lite's `text.ts` and `encode/text.ts` and Vega's text mark). One `SceneText`
-(role `mark-text`) per row.
+(role `mark-text`) per row. Each item records the location of the mark in the specification as its `Source`, which the
+`vl-text-missing-glyph` warning of `VegaLiteDocument` points at.
 
 - _Position._ The position is that of the `x` and `y` channels (the middle of the data rectangle for an absent channel)
   plus the **polar offset** when the mark has a `radius` or a `theta` (a channel, or the mark property of the same name

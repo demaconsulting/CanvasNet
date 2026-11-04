@@ -280,7 +280,15 @@ public sealed partial class PptxDocument
 
             var fallbackFont = ResolveFallbackFont(bold, italic);
             var fallbackGlyphIndex = fallbackFont.GetGlyphIndex(codepoint);
-            return fallbackGlyphIndex != 0 ? (fallbackFont, fallbackGlyphIndex) : (primaryFont, glyphIndex);
+            if (fallbackGlyphIndex != 0)
+            {
+                return (fallbackFont, fallbackGlyphIndex);
+            }
+
+            // Last step: the bundled Noto chain (math operators, arrows, symbols). A character none
+            // of the fonts covers keeps the primary font's own notdef glyph.
+            var (chainFont, chainGlyphIndex) = GlyphFallback.Resolve(fallbackFont, codepoint);
+            return chainGlyphIndex != 0 ? (chainFont, chainGlyphIndex) : (primaryFont, glyphIndex);
         }
 
         var paragraphs = textBody.Paragraphs

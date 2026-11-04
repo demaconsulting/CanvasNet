@@ -194,7 +194,14 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   warnings (`vl-data-parse-failed`), the warnings of a lookup source (the loader's warnings that arose while the
   transforms ran), and then the transform warnings (`vl-expr-runtime`, `vl-transform-runtime`); they are recorded in the
   report sink as soon as they exist (a `finally` block around the parameters and transforms), so a later failure still
-  delivers them, and the `BuildPlan` step records them after the reports of the specification. The only I/O of the
+  delivers them, and the `BuildPlan` step records them after the reports of the specification, followed by the
+  missing-glyph warnings of the scene (`ReportMissingGlyphs`: the scene is walked in drawing order; for every
+  `SceneText` with a fill, `TextMeasurer.FindMissingGlyphs` lists the code points that neither the face nor the core
+  `GlyphFallback` covers, and one `vl-text-missing-glyph` warning goes to the sink at `SceneText.Source` (the text
+  mark), listing the first eight; the sink de-duplicates identical message and location, so a set is reported once
+  per mark location; text that the chart builds itself, such as axis labels, legends, and titles, has no source and
+  is reported at the unknown location; a warning is never an unsupported feature, so strict mode does not throw).
+  The only I/O of the
   pipeline happens here, on the calling thread. `BuildChart` iterates the guides of the **cell** (`BuildCellGuides`: the
   axes, then the legends) and the layout at most three passes (each pass builds the axes and the legends again for the
   data rectangle, the legends are placed by `LegendLayout` against the axes and their reach joins the extents of the

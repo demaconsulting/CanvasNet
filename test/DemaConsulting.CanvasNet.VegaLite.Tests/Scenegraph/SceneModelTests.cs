@@ -128,6 +128,7 @@ public class SceneModelTests
         // Assert: Vega's defaults for text and symbols
         Assert.Equal((11.0, "left", "alphabetic", 0.0, 0.0), (text.FontSize, text.Align, text.Baseline, text.Limit, text.Angle));
         Assert.Equal("\u2026", text.Ellipsis);
+        Assert.False(text.Source.IsKnown);
         Assert.Equal(("circle", 64.0), (symbol.Shape, symbol.Size));
 
         // Assert: a with-copy changes only what it names

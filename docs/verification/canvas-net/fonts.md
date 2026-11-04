@@ -177,3 +177,13 @@ asserts the order of the sources and the style choice end to end. The unit-level
 concurrency, family classification and list splitting) is verified by the `FontResolver` and
 `GenericFontFamilies` units' own verification designs (`fonts/font-resolver.md` and
 `fonts/generic-font-families.md`).
+
+#### CanvasNet-Fonts-GlyphFallback: Characters The Font Lacks Resolve To The Bundled Noto Chain
+
+**Test**: `GlyphFallback_Resolve_CharacterMissingInPrimary_UsesNotoSansMath`
+
+Resolves U+221D and U+226B against the real bundled Liberation Sans and asserts that Noto Sans Math
+supplies a non-zero glyph with contours, and (in the other unit scenarios) that covered characters are
+not replaced, that characters nothing covers keep the primary font's missing glyph, and that
+`FindMissing` lists them. The unit-level behavior is verified by the `GlyphFallback` unit's own
+verification design (`fonts/glyph-fallback.md`).

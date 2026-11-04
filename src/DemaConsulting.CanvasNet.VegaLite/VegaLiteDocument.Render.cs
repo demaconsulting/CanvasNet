@@ -1,6 +1,7 @@
 // Portions derived from Vega-Lite (BSD-3-Clause): the default view size and padding come from the configuration; see third-party/README.md
+using System.Globalization;
 using DemaConsulting.CanvasNet.Canvas;
-using DemaConsulting.CanvasNet.VegaLite.Data;
+using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.VegaLite.Expressions;
 using DemaConsulting.CanvasNet.VegaLite.Guides;
 using DemaConsulting.CanvasNet.VegaLite.Layout;
@@ -551,8 +552,52 @@ public sealed partial class VegaLiteDocument
             sink.Warn($"{warning.Id}: {warning.Message}", warning.Location);
         }
 
+        ReportMissingGlyphs(plan, sink, cancellationToken);
         return plan;
     }
+
+    /// <summary>
+    ///     Reports the visible characters of the scene's text that no font has a glyph for, one warning per mark
+    ///     location and distinct set of characters.
+    /// </summary>
+    /// <remarks>
+    ///     A character the chosen font lacks is first looked up in the bundled fallback fonts
+    ///     (<see cref="GlyphFallback"/>); only a character that none covers is drawn as the font's missing-glyph
+    ///     box and reported here as <c>vl-text-missing-glyph</c>. The scene is walked in drawing order, so the
+    ///     warnings come in a deterministic order. Text without a fill is not drawn and is not reported; text the
+    ///     chart builds itself (axis labels, legends, titles) has no location in the specification and is reported
+    ///     at the unknown location, once per distinct set of characters.
+    /// </remarks>
+    /// <param name="plan">The plan whose scene is checked.</param>
+    /// <param name="sink">The sink that records the warnings.</param>
+    /// <param name="cancellationToken">The token that stops the work.</param>
+    private static void ReportMissingGlyphs(ChartPlan plan, VegaLiteReportSink sink, CancellationToken cancellationToken)
+    {
+        foreach (var entry in plan.Scene.Enumerate())
+        {
+            if (entry.Item is not SceneText { Fill: not null } text)
+            {
+                continue;
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            var missing = plan.Measurer.FindMissingGlyphs(text);
+            if (missing.Count == 0)
+            {
+                continue;
+            }
+
+            var list = string.Join(", ", missing.Take(MaxReportedMissingGlyphs).Select(c => string.Create(CultureInfo.InvariantCulture, $"U+{c:X4}")));
+            var more = missing.Count > MaxReportedMissingGlyphs ? ", ..." : string.Empty;
+            sink.Warn(
+                $"vl-text-missing-glyph: no font has a glyph for {list}{more} (the bundled fonts do not cover them); the font's missing-glyph box is drawn instead.",
+                text.Source);
+        }
+    }
+
+    /// <summary>The most code points that one <c>vl-text-missing-glyph</c> warning lists.</summary>
+    private const int MaxReportedMissingGlyphs = 8;
+
 
     /// <summary>
     ///     Paints the plan onto a new surface of the given size.

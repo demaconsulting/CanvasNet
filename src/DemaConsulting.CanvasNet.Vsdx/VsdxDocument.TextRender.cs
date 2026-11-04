@@ -91,7 +91,8 @@ public sealed partial class VsdxDocument
 
     /// <summary>
     ///     Default per-glyph fallback: finds an installed font (preferred symbol/Unicode families
-    ///     first, then every other catalog face, then the bundled Liberation faces) that has a
+    ///     first, then every other catalog face, then the bundled Liberation faces, then the bundled Noto
+    ///     chain of <see cref="GlyphFallback"/>) that has a
     ///     glyph for <paramref name="codePoint"/>, preferring the requested bold/italic style.
     ///     Results are cached; <see langword="null"/> means no font covers the code point.
     /// </summary>
@@ -152,7 +153,14 @@ public sealed partial class VsdxDocument
         }
 
         var bundled = SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold, italic);
-        return bundled.GetGlyphIndex(codePoint) != 0 ? bundled : null;
+        if (bundled.GetGlyphIndex(codePoint) != 0)
+        {
+            return bundled;
+        }
+
+        // Last step: the bundled Noto chain (math operators, arrows, symbols); null only when it misses too.
+        var (chainFont, chainGlyph) = GlyphFallback.Resolve(bundled, codePoint);
+        return chainGlyph != 0 ? chainFont : null;
     }
 
     /// <summary>

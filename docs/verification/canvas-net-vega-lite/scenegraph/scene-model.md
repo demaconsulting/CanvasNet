@@ -79,7 +79,8 @@ throw `NotSupportedException` when changed through a cast, so that a scene never
 
 Asserts the defaults (no paint, full opacity, fill opacity, and stroke opacity, the default stroke width unset, a corner
 radius of 0; text of 11 pixels, left aligned, with an alphabetic baseline, no limit, no angle, and the ellipsis
-character; a circle symbol of size 64) and that a `with` copy changes only what it names and leaves the original
+character; no source location for text; a circle symbol of size 64) and that a `with` copy changes only what it
+names and leaves the original
 unchanged.
 
 ##### Invalid Arguments

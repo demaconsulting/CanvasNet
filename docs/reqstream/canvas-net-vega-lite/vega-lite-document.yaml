@@ -142,6 +142,23 @@ sections:
               - VegaLiteDiagnostic_ToString_UnknownLocation_IsMessageOnly
               - VegaLiteUnsupportedFeature_ToString_IncludesFeatureAndLocation
 
+          - id: CanvasNetVegaLite-VegaLiteDocument-MissingGlyphDiagnostic
+            title: >-
+              The VegaLiteDocument unit shall deliver, for the visible text of a chart whose characters
+              neither the font nor the bundled fallback fonts cover, one warning with the stable identifier
+              vl-text-missing-glyph per mark location and distinct set of characters, at the location of the
+              text mark (or the unknown location for axis, legend, and title text), listing the first eight
+              code points, from a measure and a render alike, never as an unsupported feature (so that strict
+              mode does not throw), and shall not report characters that a bundled fallback font draws.
+            justification: |
+              A character that is drawn as a missing-glyph box is a defect that the author can fix by
+              choosing other text or another font; it must be named, once, where it is, and a chart with it
+              must still render.
+            tests:
+              - CanvasNetVegaLite_SystemIntegration_TextMissingGlyph_FallbackCoveredCharactersAreSilentAndDrawn
+              - CanvasNetVegaLite_SystemIntegration_TextMissingGlyph_UncoveredCharactersWarnOnceAtTheMark
+              - CanvasNetVegaLite_SystemIntegration_TextMissingGlyph_OneWarningPerLocationAndSet
+
           - id: CanvasNetVegaLite-VegaLiteDocument-UnsupportedStrictness
             title: >-
               The VegaLiteDocument unit shall, when ThrowOnUnsupportedFeature is set, record the first
