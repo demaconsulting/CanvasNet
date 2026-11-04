@@ -45,7 +45,7 @@ public class InspectCommandSourceTests
     {
         // Arrange: a chart with a channel that its mark does not draw
         using var directory = new TempDirectory();
-        var input = FixtureFactory.WriteText(directory.Path, "shape.vl.json", FixtureFactory.ShapeOnLineChart);
+        var input = FixtureFactory.WriteText(directory.Path, "shape.vl.json", FixtureFactory.ShapeOnBarChart);
         string[] args = subcommand == "colors" ? ["inspect", "colors", input] : ["inspect", "pixel", input, "3,4"];
 
         // Act

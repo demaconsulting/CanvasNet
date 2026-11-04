@@ -193,12 +193,12 @@ public class RenderCommandVegaLiteTests
     [Fact]
     public void RenderCommand_Run_VegaLiteDiagnostics_AreWrittenToStandardErrorInTextMode()
     {
-        // Arrange: a line chart with a shape channel the line mark does not draw, and an unknown property
+        // Arrange: a bar chart with a shape channel the bar mark does not draw, and an unknown property
         using var directory = new TempDirectory();
         var input = FixtureFactory.WriteText(
             directory.Path,
             "shape.vl.json",
-            "{\"bogus\": 4, \"data\": {\"values\": [{\"x\": 1, \"y\": 2, \"c\": \"a\"}, {\"x\": 2, \"y\": 3, \"c\": \"b\"}]}, \"mark\": \"line\", \"encoding\": {\"x\": {\"field\": \"x\", \"type\": \"quantitative\"}, \"y\": {\"field\": \"y\", \"type\": \"quantitative\"}, \"shape\": {\"field\": \"c\", \"type\": \"nominal\"}}}");
+            "{\"bogus\": 4, \"data\": {\"values\": [{\"x\": 1, \"y\": 2, \"c\": \"a\"}, {\"x\": 2, \"y\": 3, \"c\": \"b\"}]}, \"mark\": \"bar\", \"encoding\": {\"x\": {\"field\": \"x\", \"type\": \"quantitative\"}, \"y\": {\"field\": \"y\", \"type\": \"quantitative\"}, \"shape\": {\"field\": \"c\", \"type\": \"nominal\"}}}");
         var output = directory.Combine("o.png");
 
         // Act
