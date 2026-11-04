@@ -34,7 +34,10 @@ dialect is deliberately simple and is CanvasNetScad's own: no shaping or ligatur
 accepted and ignored, simple vertical directions, `size` as the ink height of `H`, and alignment by the measured
 ink extents; unusable mapped glyph outlines are reported rather than silently dropped, and the scan of explicit font
 directories is bounded and cancellable; `textmetrics()` and `fontmetrics()` stay unsupported (see _ScadTextGeometry
-Unit Design_).
+Unit Design_). A later delivery added `projection()` (the exact shadow or cross-section of solids as a 2D shape, so
+that a drawing sheet can be assembled from views of a model), the viewport variables `$vpt`, `$vpr`, `$vpd`, and
+`$vpf` (the document can read the camera and steer it), and a flat top-down default view for a model that is
+entirely 2D (see _Supported And Deferred Features_ and _Design Constraints_).
 
 `CanvasNetScad` consists of one direct unit and three subsystems:
 
@@ -45,8 +48,10 @@ Unit Design_).
   types are `ScadOpenOptions` (immutable, validated open options), `ScadSourceLocation` (file, line, column),
   `ScadSyntaxException` (the parse error type, a `FormatException`), `ScadDirective`, `ScadDirectiveKind`,
   the evaluation contract (`ScadEvaluationOptions`, `ScadEvaluationResult`, `ScadLimits`, `ScadDiagnostic`,
-  `ScadUnsupportedFeature`, `ScadUnsupportedFeatureException`, and `ScadEvaluationException`), and the render
-  options `ScadRenderOptions`. See _ScadDocument Unit Design_ (`canvas-net-scad/scad-document.md`).
+  `ScadUnsupportedFeature`, `ScadUnsupportedFeatureException`, and `ScadEvaluationException`), the render
+  options `ScadRenderOptions`, and the view report `ScadResolvedView` with its `ScadViewSource`. The camera
+  choice of `Render`, including the viewport variables, is part of this unit (internal `ScadViewport`).
+  See _ScadDocument Unit Design_ (`canvas-net-scad/scad-document.md`).
 - **ScadLanguage** (internal subsystem; namespace `DemaConsulting.CanvasNet.Scad.Language`, folder
   `Language/`): the language front end, with two units. `ScadLexer` converts source text into a token
   list (the internal `ScadLexer`, `ScadToken`, `ScadTokenKind`). `ScadParser` converts the tokens into
@@ -64,7 +69,8 @@ Unit Design_).
 - **ScadGeometry** (internal subsystem; namespace `DemaConsulting.CanvasNet.Scad.Geometry`, folder
   `Geometry/`): the geometry builder, with five units. `ScadGeometryBuilder` walks the instantiation tree
   iteratively and combines it into a `Scene` (implicit unions, modifiers, booleans, the `hull` and `minkowski`
-  convex combinations of `ScadHulls`, the triangle budget, reporting, and the node-to-location map).
+  convex combinations of `ScadHulls`, the `projection` shadows and cross-sections of `ScadProjections`, the
+  triangle budget, reporting, and the node-to-location map).
   `ScadPrimitives` builds `cube`, `sphere`, `cylinder`, `polyhedron`,
   `square`, `circle`, and `polygon` and resolves `$fn`, `$fa`, and `$fs`. `ScadTransforms` applies `translate`,
   `rotate`, `scale`, `mirror`, `multmatrix`, `resize`, and `color`. `ScadExtrusions` builds `linear_extrude` and
@@ -94,15 +100,23 @@ The system exposes the following public API in the `DemaConsulting.CanvasNet.Sca
   `Scene`; and `Render(int width, int height, ScadRenderOptions?, CancellationToken)`, which returns a new
   `Surface` that the caller owns and disposes.
 - **`ScadRenderOptions`** (sealed): init-only `Evaluation` (the `ScadEvaluationOptions` that steer evaluation,
-  reporting, and strict mode for every stage), `Camera` (null fits the view to the model),
-  `ViewAzimuthDegrees` and `ViewElevationDegrees` (the fitted view; the isometric angles by default),
-  `Projection` (the fitted view; perspective by default), `SceneOptions` (the renderer's look-and-feel and
+  reporting, and strict mode for every stage), `Camera` (null fits the view to the model; an explicit camera also
+  defines the viewport variables the document sees),
+  `ViewAzimuthDegrees` and `ViewElevationDegrees` (the fitted view; the isometric angles by default; setting either,
+  even to its default, makes the view explicit),
+  `Projection` (the fitted view; perspective by default, orthographic for a model that is entirely 2D with no
+  explicit view), `ResolvedViewHandler` (an `Action<ScadResolvedView>?` that `Render` calls once with the view it
+  used), `SceneOptions` (the renderer's look-and-feel and
   performance settings; its handler and strict flag are ignored), `FlatShapeThickness` (the slab thickness
   of a 2D shape that is not extruded; 0.1 by default), and the Phase 8 properties `HighlightColor` (the color of
   the translucent copy that `#` draws; `(255, 64, 128, 110)` by default) and `GhostColor` (the color of the
   translucent ghost that `%` draws; `(128, 128, 128, 80)` by default), both accepting any alpha, and the text
   property `FontResolution` (a `ScadFontResolutionOptions`, or `null` for the defaults; it controls where an
   explicitly named `text()` font is found). Every numeric value is validated when set.
+- **`ScadResolvedView`** (sealed record) and **`ScadViewSource`** (enumeration: `Default`, `FlatDefault`, `Options`,
+  `Document`, `Camera`): the view that `Render` used (the azimuth and elevation of the direction from the target to
+  the eye, the projection, whether the whole model is 2D, and where the view came from). They are **public API**,
+  additive, and the command-line tool uses them to report the view of a picture.
 - **`ScadFontResolutionOptions`** (sealed, immutable): `UseSystemFonts` (whether installed fonts are searched
   for an explicitly named font; `true` by default) and `AdditionalDirectories` (extra directories scanned
   before the installed fonts; empty by default, copied and validated when set).
@@ -139,9 +153,11 @@ The system exposes the following public API in the `DemaConsulting.CanvasNet.Sca
 | `ScadOpenOptions` properties | Inbound | Text, list, delegate | Each value validated when initialized (text null or non-whitespace; library paths a non-null list without null or whitespace entries, copied); instance therefore always valid |
 | `ScadDocument` properties | Outbound | Names, read-only lists | `Directives`, `ModuleNames`, and `FunctionNames` are file-scope only, in source order, read-only |
 | `ScadDocument.Evaluate(...)` | Inbound and outbound | `ScadEvaluationOptions`, a `CancellationToken`; a `ScadEvaluationResult` | Synchronous; thread-safe on a shared document; options validated when set; handlers run on the calling thread after evaluation; the file resolver callback runs only on the calling thread |
-| `ScadDocument.BuildScene(...)` | Inbound and outbound | `ScadRenderOptions`, a `CancellationToken`; a Render3D `Scene` | Synchronous; thread-safe on a shared document; every call returns a new scene; events delivered once, in order, on the calling thread; bounded by `ScadLimits` including `MaxTriangles`; never recurses, so it is safe on any caller stack |
-| `ScadDocument.Render(...)` | Inbound and outbound | Width and height, `ScadRenderOptions`, a `CancellationToken`; a `Surface` | Width and height from 1 to `Surface.MaxDimension` and a valid camera, validated before anything is evaluated; the caller owns the surface; byte-identical output for identical input |
-| `ScadRenderOptions` properties | Inbound | Numbers, an enumeration, `ScadEvaluationOptions`, `Camera`, `SceneRenderOptions`, two `Rgba32` colors | View angles finite, projection defined, thickness finite and positive, overlay colors of any alpha; instance immutable |
+| `ScadDocument.BuildScene(...)` | Inbound and outbound | `ScadRenderOptions` (its camera and view angles also define the viewport variables the model sees), a `CancellationToken`; a Render3D `Scene` | Synchronous; thread-safe on a shared document; every call returns a new scene; events delivered once, in order, on the calling thread; bounded by `ScadLimits` including `MaxTriangles`; never recurses, so it is safe on any caller stack |
+| `ScadDocument.Render(...)` | Inbound and outbound | Width and height, `ScadRenderOptions`, a `CancellationToken`; a `Surface` | Width and height from 1 to `Surface.MaxDimension` and a valid camera, validated before anything is evaluated; the caller owns the surface; byte-identical output for identical input; the camera is chosen after the build (see _Design Constraints_) |
+| `ScadRenderOptions` properties | Inbound | Numbers, an enumeration, `ScadEvaluationOptions`, `Camera`, `SceneRenderOptions`, two `Rgba32` colors, a handler | View angles finite, projection defined, thickness finite and positive, overlay colors of any alpha; instance immutable |
+| `ScadRenderOptions.ResolvedViewHandler` | Outbound | `Action<ScadResolvedView>` | Called by `Render` once, on the calling thread, after the build and before drawing; never called by `BuildScene`; an exception it throws propagates |
+| Viewport variables `$vpt`, `$vpr`, `$vpd`, `$vpf` | Inbound and outbound | Special variables of the model (a vector, a vector, a number, a number) | Defined for every document; set by an explicit camera or view angles, a `-D` override, or a top-level assignment, in that order of precedence; an unusable value is a warning and is ignored |
 | `ScadEvaluationOptions.Variables` | Inbound | Name to value dictionary | Names match an optional `$` then ASCII letters, digits, and underscores (not starting with a digit); values are null, booleans, numeric types, strings, or non-string sequences of these (nested at most 256 levels, at most 1,000,000 elements in total); invalid entries throw `ArgumentException` when set |
 | `ScadOpenOptions.FileResolver` | Inbound | `Func<string, Stream?>` | Receives only normalized logical paths, only on the calling thread; a null result means "not found"; the stream is disposed after reading |
 | `ScadEvaluationResult` | Outbound | Read-only lists and a count | Cannot be turned into mutable collections |
@@ -159,7 +175,7 @@ and only inside the sandbox described in _Risk Control Measures_. The types of t
 `ScadEvaluation`, and `ScadGeometry` subsystems are internal and visible only to the test assembly through
 `InternalsVisibleTo`. The unsupported-feature identifiers that the geometry phase adds (`scad-module-*`,
 `scad-modifier-*` (a `#` or `%` on a 2D shape that is not extruded only), `scad-csg-*`, the Phase 7 `scad-hull-*`
-and `scad-minkowski-*`, and the
+and `scad-minkowski-*`, the `scad-projection-too-complex` and `scad-projection-open-mesh` of `projection`, and the
 others) are listed with their triggers in
 _ScadGeometry Subsystem Design_ and in the user guide. See the unit and subsystem design documents
 for every type's complete constructor, property, and exception detail.
@@ -315,6 +331,11 @@ Design_, `canvas-net-scad/scad-evaluation.md`):
   convex parts of a `minkowski` fold (made only for the sum that needs them; a lone child needs none) while they live
   (the pairwise sums of a Minkowski sum are bounded by
   `MinkowskiSum.MaxPairwiseSums`).
+  A `projection` counts the triangles and the vertices of its children before it allocates anything and refuses a
+  total above 2^23 triangle visits (`scad-projection-too-complex`), checks that the slabs its footprints could need (8
+  triangles per candidate triangle) fit the remaining budget (the same located error), and charges every pass (the
+  children, the grouping and footprints of a silhouette, every slice of a classification or cut) to a work meter
+  with the same 2^23 ceiling before the pass runs; over the ceiling the projection is omitted and never approximated.
   The renderer's per-tile fragment budget is mapped to the same exception.
 - **Recursion-free geometry building.** `ScadGeometryBuilder` walks the instantiation tree, and every 2D
   shape-tree walk, with explicit stacks; no code in the `Geometry` namespace recurses, so a model nested
@@ -376,20 +397,27 @@ Design_, `canvas-net-scad/scad-evaluation.md`):
 
 1. **Validate** (`Render` only): the width and height (1 to `Surface.MaxDimension`) and the camera (rejected by
    rendering an empty scene with it, so the renderer's own rules decide), then the token; `BuildScene` checks
-   only the token.
-2. **Evaluate**: steps 2 to 4 of the evaluate path, into a fresh sink that is kept open (nothing is delivered
-   yet).
+   only the token (a camera the renderer would reject is ignored, not thrown).
+2. **Plan the viewport and evaluate**: `ScadViewport.Plan` derives from the render options the values that the
+   document sees in `$vpt`, `$vpr`, `$vpd`, and `$vpf` and the variables an explicit option fixes (these override a
+   `-D` override of the same name); `BuildScene` lets the plan use the camera only when it passes the same rule as
+   in step 1; then steps 2 to 4 of the evaluate path run, into a fresh sink that is kept open
+   (nothing is delivered yet). The evaluator reads back the viewport variables that the main file (or an override)
+   defined.
 3. **Build geometry**: `ScadGeometryBuilder.Build` receives the roots, the triangle limit, the flat-shape
    thickness, strict mode, and the token, and the **same** sink. It finds the `!` roots, walks the tree
    iteratively, dispatches each instance to the primitive, transform, color, boolean, or extrusion builder (or
-   reports it as unsupported), and returns the `Scene` and the node-to-location map. A model without geometry is a
-   scene with an empty root.
-4. **Fit the camera and render** (`Render` only): the camera is the caller's, or fitted to the bounds of the
-   scene with the configured azimuth, elevation, and projection (an unusable box, which the coordinate guard
+   reports it as unsupported), and returns the `Scene`, the node-to-location map, and whether the whole result
+   is 2D. A model without geometry is a scene with an empty root.
+4. **Choose the camera and render** (`Render` only): the camera is the caller's; or the manual camera that a
+   defined `$vpt`, `$vpd`, or `$vpf` describes; or fitted to the bounds of the
+   scene from the explicit angles, the model's `$vpr`, the flat top view of a model that is entirely 2D, or the
+   configured azimuth and elevation, in that order (an unusable box, which the coordinate guard
    of the geometry builder makes impossible, falls back to the unit-cube framing instead of throwing); the
-   renderer options are the caller's scene
+   `ResolvedViewHandler` is told the view; the renderer options are the caller's scene
    options copied with a handler that maps the renderer's operand reports into the sink (installed only when a
-   handler or strict mode exists); `SceneRenderer.Render` draws the scene with the token. The renderer's
+   handler or strict mode exists) and, for the flat default view, ambient light only; `SceneRenderer.Render` draws
+   the scene with the token. The renderer's
    fragment-budget overflow becomes a `ScadEvaluationException`.
 5. **Deliver**: the sink replays the events of all stages to the caller's handlers, in order, once, on the
    calling thread (on a failure too, with a handler exception on that path ignored so that the failure wins; on
@@ -421,7 +449,34 @@ Design_, `canvas-net-scad/scad-evaluation.md`):
   converts the tree to a scene and reports geometry-level unsupported features through the same channel
 - **Geometry by construction, not by kernel**: There is no 2D boolean kernel and no mesh-boolean kernel in this
   system; 2D results are symbolic trees that extrusion distributes over, and solid booleans are scene nodes that
-  the renderer resolves per pixel, so the system never needs to repair or classify a mesh itself
+  the renderer resolves per pixel, so the system never needs to repair a mesh or evaluate a boolean into a mesh.
+  `projection` stays within this rule: its result is a symbolic 2D tree computed exactly from the sections of the
+  meshes (the classification of a boolean subtree only decides which part of each face footprint is kept), and a
+  projection that would need more work than its documented ceiling is reported and omitted, never approximated
+- **Viewport variables** (`$vpt`, `$vpr`, `$vpd`, `$vpf`): they follow the documented meaning of the OpenSCAD
+  viewport variables. `$vpr` is the camera rotation in degrees composed like `rotate()`, so `rotate($vpr)` faces
+  the camera; the orbit view of azimuth `az` and elevation `el` is `$vpr = [90 - el, 0, az]` (wrapped to 0 to 360);
+  an arbitrary camera is decomposed as `Rz(c) * Ry(b) * Rx(a)`; `$vpt` is the target, `$vpd` the distance of the eye,
+  `$vpf` the vertical field of view, and the orthographic height is `2 * $vpd * tan($vpf / 2)`. The precedence per
+  variable, highest first, is: an explicit render option (`Camera` fixes all four; explicit view angles fix `$vpr`
+  only; `Projection` fixes none), a variable override, a top-level assignment in the main file or its `include`s
+  (not a `use`d library, not a nested scope), and the default (`$vpt = [0, 0, 0]`, `$vpd = 140`, `$vpf = 22.5`,
+  `$vpr` from the requested or default view, which is `[54.7356, 0, 45]`; `Evaluate`, which has no view, shows the
+  literal `[55, 0, 25]`). Only `$vpr` defined means the orientation comes from it and the framing stays automatic; any
+  of `$vpt`, `$vpd`, `$vpf` defined means a manual camera (the others default) and no fitting. An unusable value
+  (not a vector of two or three numbers for `$vpt` and `$vpr`, not a finite number above 0 for `$vpd`, not a number
+  between 0 and 180 exclusive for `$vpf`) is a warning and is ignored.
+- **Circularity of the camera (documented, accepted)**: the camera is chosen **after** the build, from the bounds of
+  the built scene, so the document sees only the defaults of the viewport variables it does not assign, and the
+  automatic fit includes geometry that those variables placed. The document also cannot see that the model turned out
+  to be entirely 2D: it sees the default 3D `$vpr`, and the flat top view is applied afterwards. A second evaluation
+  pass that would remove this is out of scope.
+- **Flat default view**: a model whose whole result is 2D (a union that mixes 2D and 3D is a 3D model) with no
+  explicit camera, no explicit view angles, and no `$vpr` from the document or an override is drawn from the top
+  (azimuth 0, elevation 90), orthographic unless `Projection` was set explicitly, fitted with the 5 % margin, and lit
+  by ambient light of intensity 1 only (unless `SceneOptions.Lights` is set), so every shape is exactly its
+  `color()` or the default neutral gray 180. The thickness of the slabs is unchanged; a mixed 2D and 3D model keeps the
+  isometric view and the warning.
 - **Fail-visible**: Nothing the model asks for may disappear without a report; see _Event Classification_ in
   _ScadEvaluation Subsystem Design_ and _ScadGeometry Subsystem Design_
 - **Event classification**: A mistake in a model that still allows a meaningful result is a warning, a
@@ -525,7 +580,10 @@ fixture README, and the purpose of each unit design, and every `CanvasNetScad` r
 | `minkowski` (convex 3D children) | Supported (Phase 7) | Folded from the left, unions distribute; `convexity` ignored; a non-convex operand is `scad-minkowski-nonconvex`, too much work is `scad-minkowski-too-complex`, mixed dimensions are `scad-minkowski-mixed-dimensions` |
 | `minkowski` of 2D children | Deferred | Reported as `scad-minkowski-2d`; omitted |
 | `text` (`text`, `size`, `font`, `halign`, `valign`, `spacing`, `direction`; `language` and `script` accepted and ignored) | Supported (text delivery) | See _ScadTextGeometry Unit Design_; flat 2D glyph shapes (holes kept) laid out left to right, right to left, top to bottom, or bottom to top without shaping; `size` is the ink height of `H`; alignment by the measured ink extents; the default font is the bundled Liberation Sans; an unusable outline is `scad-text-invalid-outline` or `scad-text-overlapping-contours` |
-| `import`, `offset`, `projection`, `surface`, `roof` | Not supported | Reported as `scad-module-<name>`; omitted |
+| `import`, `offset`, `surface`, `roof` | Not supported | Reported as `scad-module-<name>`; omitted |
+| `projection` (`cut = false`: the shadow on the XY plane; `cut = true`: the cross-section at `z = 0`) | Supported (projection delivery) | See _ScadGeometryBuilder Unit Design_ (_Projection_); exact for solids with booleans below it, symbolic 2D result; `convexity` ignored, 2D children ignored with a warning, colors inside dropped with a warning; too much work is `scad-projection-too-complex`, a mesh that is not a closed solid where a section is needed is `scad-projection-open-mesh`, and the projection is omitted; the identifier `scad-module-projection` is retired |
+| Viewport variables `$vpt`, `$vpr`, `$vpd`, `$vpf` | Supported (projection delivery) | Defined for every document; mapped to the camera of `Render` (see _Design Constraints_ and _ScadDocument Unit Design_); `rotate($vpr)` faces the camera; a document that assigns `$vpt`, `$vpd`, or `$vpf` gets a manual camera instead of the automatic fit |
+| A model that is entirely 2D | Supported (projection delivery) | Drawn from the top, orthographic, with ambient light only, unless a view is chosen; reported through `ScadRenderOptions.ResolvedViewHandler` (public `ScadResolvedView`) |
 | Multiple error reporting and error recovery | Not planned | Additive later, for example as an errors list |
 <!-- markdownlint-enable MD013 -->
 
@@ -616,8 +674,16 @@ _ScadGeometry Subsystem Design_ and the unit designs:
     A `%` that is a child of `hull` or `minkowski` is not part of the hull or the sum (and a highlight there is
     not drawn). The triangles of a `#` copy count against `ScadLimits.MaxTriangles` a second time.
  8. Rendering is deterministic (byte-identical images for any degree of parallelism) and uses a neutral gray on
-    a white background, with a view fitted to the model by default, unless the model or the options say
-    otherwise.
+    a white background, with a view fitted to the model by default (a flat top view for a model that is entirely
+    2D), unless the model or the options say otherwise.
+ 9. `projection` follows the documented semantics of the module: `cut = false` is the shadow (the union of the XY
+    footprints of the upward faces, with every non-vertical face of an open mesh), `cut = true` the cross-section at
+    `z = 0`; a section that touches the plane at a vertex is closed-set (the union of the sections just below and
+    just above), which is a documented divergence from backends that treat vertices on the plane asymmetrically (not
+    verified against any other implementation). `cut` honored only when boolean; `convexity` ignored; `%` children
+    skipped; the result takes the enclosing color.
+10. The viewport variables, their precedence, and the circularity of choosing the camera after the build are those
+    of _Design Constraints_; `ScadResolvedView` and `ScadViewSource` are public API.
 
 ### Determinism And Immutability
 
@@ -674,6 +740,14 @@ requirements, design, verification, and tests for its own scope.
    `scad-text-overlapping-contours` identifiers; a new original fixture, `render-text.scad`, and analytic system
    tests; and the complete companion documentation. No core API was added: the text unit uses the public `Fonts`
    and `Geometry` API of the core package only. `textmetrics()` and `fontmetrics()` remain unsupported.
-7. **Later — External-file import.**
+7. **Projection and viewport (delivered).** `projection` in `ScadGeometryBuilder` (the internal `ScadProjections`,
+   not a new unit), the `scad-projection-too-complex` and `scad-projection-open-mesh` identifiers (and the retirement
+   of `scad-module-projection`), the viewport variables `$vpt`, `$vpr`, `$vpd`, and `$vpf` (the internal
+   `ScadViewport` of `ScadDocument`, the defaults scope and read-back of `ScadEvaluator`), the flat top-down default
+   view of a model that is entirely 2D, the additive public `ScadRenderOptions.ResolvedViewHandler`,
+   `ScadResolvedView`, and `ScadViewSource`, original fixtures (`render-projection-sheet.scad`,
+   `render-projection-views.scad`, `render-viewport-hud.scad`) and analytic tests, and the companion documentation.
+   `offset`, `surface`, `import`, and `roof` remain unsupported.
+8. **Later — External-file import.**
 
 Every later phase adds members and types rather than changing the signatures delivered here.

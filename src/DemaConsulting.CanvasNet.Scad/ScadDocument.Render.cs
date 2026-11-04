@@ -34,11 +34,31 @@ public sealed partial class ScadDocument
     ///         cannot overflow the stack of the calling thread whatever its size.
     ///     </para>
     ///     <para>
+    ///         The viewport special variables <c>$vpt</c>, <c>$vpr</c>, <c>$vpd</c> and <c>$vpf</c> are defined while the
+    ///         document is evaluated, with the values that follow from <paramref name="options"/>: an explicit
+    ///         <see cref="ScadRenderOptions.Camera"/>, or explicit <see cref="ScadRenderOptions.ViewAzimuthDegrees"/> and
+    ///         <see cref="ScadRenderOptions.ViewElevationDegrees"/>, set them (they win over an
+    ///         <see cref="ScadEvaluationOptions.Variables"/> override and a top-level assignment of the document);
+    ///         otherwise they have the defaults of the default view. An explicit camera that the renderer would reject
+    ///         (for example eye equal to target) is ignored like an absent camera: it defines none of the four
+    ///         variables, and <see cref="BuildScene"/> never throws for it, whereas <see cref="Render"/> does. A model that reads them (for example to size or place
+    ///         geometry) therefore builds a different scene for a different camera or view angle, exactly as
+    ///         <see cref="Render"/> does for the same options. The build chooses no camera and never calls
+    ///         <see cref="ScadRenderOptions.ResolvedViewHandler"/>; <see cref="ScadRenderOptions.Projection"/> and the size of
+    ///         a surface do not change the scene.
+    ///     </para>
+    ///     <para>
     ///         The document is immutable and holds no state between calls, so it can be built from several threads
     ///         at once; every call returns a new scene.
     ///     </para>
     /// </remarks>
-    /// <param name="options">Optional render options; <see langword="null"/> uses the defaults. Only the evaluation options and the flat-shape thickness matter here.</param>
+    /// <param name="options">
+    ///     Optional render options; <see langword="null"/> uses the defaults. The scene depends on the evaluation options,
+    ///     the camera and the view angles (they define the viewport variables, see the remarks; a camera the renderer
+    ///     would reject defines none), the flat-shape
+    ///     thickness, the highlight and ghost colors, and the font resolution; the projection and the resolved-view
+    ///     handler have no effect.
+    /// </param>
     /// <param name="cancellationToken">A token that stops the evaluation and the build.</param>
     /// <returns>The scene.</returns>
     /// <exception cref="OperationCanceledException">Thrown when the token is canceled before or during the build.</exception>
@@ -63,7 +83,7 @@ public sealed partial class ScadDocument
         ScadBuiltScene built;
         try
         {
-            built = BuildGeometry(effective, evaluation, sink, cancellationToken);
+            built = BuildGeometry(effective, evaluation, sink, ScadViewport.Plan(effective, IsUsableCamera(effective.Camera)), cancellationToken).Built;
         }
         catch
         {
@@ -85,7 +105,12 @@ public sealed partial class ScadDocument
     ///         Without a <see cref="ScadRenderOptions.Camera"/> the view is fitted to the model: an isometric view
     ///         by default (<see cref="ScadRenderOptions.ViewAzimuthDegrees"/>,
     ///         <see cref="ScadRenderOptions.ViewElevationDegrees"/>, <see cref="ScadRenderOptions.Projection"/>),
-    ///         which equals <see cref="SceneRenderer.RenderFitted"/> for the same scene. Surfaces are neutral gray
+    ///         which equals <see cref="SceneRenderer.RenderFitted"/> for the same scene. A model that is entirely 2D
+    ///         (no 3D object at the top level, for example a <c>projection()</c> drawing sheet) with no explicit view
+    ///         is drawn as a flat top-down orthographic drawing instead, lit by ambient light only so that a shape has
+    ///         exactly its own color. The document can steer the view with the viewport variables <c>$vpt</c>,
+    ///         <c>$vpr</c>, <c>$vpd</c> and <c>$vpf</c> (see <see cref="ScadRenderOptions.Camera"/> for the order of
+    ///         precedence). Surfaces are neutral gray
     ///         on a white background unless the model uses <c>color()</c> or
     ///         <see cref="ScadRenderOptions.SceneOptions"/> says otherwise. Rendering is deterministic: two renders
     ///         of the same document and options are byte-identical, for every degree of parallelism.
@@ -182,11 +207,17 @@ public sealed partial class ScadDocument
     /// <param name="options">The render options.</param>
     /// <param name="evaluation">The effective evaluation options.</param>
     /// <param name="sink">The sink that records the events of both stages.</param>
+    /// <param name="plan">The viewport plan that tells the document what <c>$vpt</c>, <c>$vpr</c>, <c>$vpd</c> and <c>$vpf</c> are.</param>
     /// <param name="cancellationToken">The token that stops the work.</param>
-    /// <returns>The scene and its location map.</returns>
-    private ScadBuiltScene BuildGeometry(ScadRenderOptions options, ScadEvaluationOptions evaluation, ScadEvaluationSink sink, CancellationToken cancellationToken)
+    /// <returns>The scene and its location map, and the viewport variables the document defined.</returns>
+    private (ScadBuiltScene Built, ScadDocumentViewport Viewport) BuildGeometry(
+        ScadRenderOptions options,
+        ScadEvaluationOptions evaluation,
+        ScadEvaluationSink sink,
+        ScadViewportPlan plan,
+        CancellationToken cancellationToken)
     {
-        var output = RunEvaluation(evaluation, cancellationToken, sink);
+        var output = RunEvaluation(evaluation, cancellationToken, sink, plan);
         var settings = new ScadGeometrySettings(
             evaluation.Limits.MaxTriangles,
             options.FlatShapeThickness,
@@ -195,7 +226,7 @@ public sealed partial class ScadDocument
             options.HighlightColor,
             options.GhostColor,
             options.FontResolution);
-        return ScadGeometryBuilder.Build(output.Roots, settings, sink);
+        return (ScadGeometryBuilder.Build(output.Roots, settings, sink), output.Viewport ?? ScadDocumentViewport.None);
     }
 
     /// <summary>
@@ -210,7 +241,8 @@ public sealed partial class ScadDocument
     /// <returns>The rendered surface.</returns>
     private Surface BuildAndDraw(ScadRenderOptions options, ScadEvaluationOptions evaluation, ScadEvaluationSink sink, int width, int height, CancellationToken cancellationToken)
     {
-        var built = BuildGeometry(options, evaluation, sink, cancellationToken);
+        var plan = ScadViewport.Plan(options);
+        var (built, viewport) = BuildGeometry(options, evaluation, sink, plan, cancellationToken);
 
         // The renderer only checks CSG operands when a handler is present, so install ours only when someone listens
         Action<SceneRenderUnsupportedFeature>? handler = null;
@@ -223,38 +255,46 @@ public sealed partial class ScadDocument
                 built.Map.Find(report.Node));
         }
 
-        var sceneOptions = ScadSceneOptions.Create(options.SceneOptions, handler);
-        var camera = options.Camera ?? FitCamera(built.Scene, options, width / (double)height);
+        // The camera is chosen after the build (it needs the bounds and whether the model is flat); a model that is
+        // entirely 2D with no chosen view is drawn flat: ambient light only, so a shape has exactly its own color
+        var camera = ScadViewport.ChooseCamera(plan, viewport, built.IsFlatModel, built.Scene, width / (double)height, out var view);
+        options.ResolvedViewHandler?.Invoke(view);
+        var sceneOptions = ScadSceneOptions.Create(options.SceneOptions, handler, view.Source == ScadViewSource.FlatDefault);
         return SceneRenderer.Render(built.Scene, camera, width, height, sceneOptions, cancellationToken);
     }
 
     /// <summary>
-    ///     Fits the default camera to the scene; it never throws for a scene the build returned.
+    ///     Fits the default camera to the scene with the view angles and the projection of the options; it never throws
+    ///     for a scene the build returned.
     /// </summary>
-    /// <remarks>
-    ///     The build keeps every coordinate finite and within <see cref="ScadGeo.MaxCoordinate"/>, so the fit
-    ///     normally succeeds. Should the bounds still be unusable (not finite or out of range) or the fit be
-    ///     rejected, the camera frames the unit cube around the origin instead of failing the render.
-    /// </remarks>
     /// <param name="scene">The scene.</param>
     /// <param name="options">The render options.</param>
     /// <param name="aspectRatio">The width divided by the height.</param>
     /// <returns>The camera.</returns>
-    internal static Camera FitCamera(Scene scene, ScadRenderOptions options, double aspectRatio)
+    internal static Camera FitCamera(Scene scene, ScadRenderOptions options, double aspectRatio) =>
+        ScadViewport.FitScene(scene, options.ViewAzimuthDegrees, options.ViewElevationDegrees, aspectRatio, options.Projection);
+
+    /// <summary>
+    ///     Tells whether the renderer accepts a camera, by the same probe <see cref="Render"/> validates with, so there
+    ///     is one definition of an invalid camera; it never throws.
+    /// </summary>
+    /// <param name="camera">The camera, or <see langword="null"/> for none.</param>
+    /// <returns><see langword="true"/> when there is no camera to reject, or the renderer accepts it.</returns>
+    private static bool IsUsableCamera(Camera? camera)
     {
-        var bounds = scene.ComputeBounds();
-        if (!ScadGeo.IsSafe(bounds))
+        if (camera is null)
         {
-            bounds = BoundingBox3D.Empty;
+            return true;
         }
 
         try
         {
-            return Camera.FitToBounds(bounds, options.ViewAzimuthDegrees, options.ViewElevationDegrees, aspectRatio, options.Projection);
+            ValidateCamera(camera);
+            return true;
         }
         catch (ArgumentException)
         {
-            return Camera.FitToBounds(BoundingBox3D.Empty, options.ViewAzimuthDegrees, options.ViewElevationDegrees, aspectRatio, options.Projection);
+            return false;
         }
     }
 

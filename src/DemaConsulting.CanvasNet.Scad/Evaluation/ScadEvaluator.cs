@@ -416,6 +416,7 @@ internal sealed partial class ScadEvaluator
         try
         {
             var fileScope = BuildMainScope();
+            var viewport = ReadViewport(fileScope);
             var roots = new List<ScadInstance>();
             ExecuteStatements(_unit.Statements, fileScope, roots);
             return new ScadEvaluationOutput(
@@ -425,7 +426,8 @@ internal sealed partial class ScadEvaluator
                 _sink.UnsupportedFeatures.ToArray(),
                 _instances,
                 _steps,
-                _loopIterations);
+                _loopIterations,
+                viewport);
         }
         catch (InsufficientExecutionStackException) when (stackShortageIsRecursionError)
         {

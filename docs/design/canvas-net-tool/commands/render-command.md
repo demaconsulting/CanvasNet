@@ -47,7 +47,8 @@ or `<border>`), the summary, a description of the operand, and the examples; `Ve
 it.
 
 The command's name is `render`, its alias is `convert`, and its usage text has examples, says how the pipeline options
-combine, and says how an OpenSCAD model is drawn (the views, the 800 by 800 default size, `-D`) and where its
+combine, and says how an OpenSCAD model is drawn (the views, a model that is entirely 2D drawn from the top unless a
+view is chosen, the 800 by 800 default size, `-D`) and where its
 `include` and `use` files are read from, and how a Vega-Lite chart is drawn (at its laid-out size over its own
 background, with UTC dates and the bundled fonts; its local CSV, TSV, DSV (`format.delimiter`), and JSON data files are
 read from the folder of the specification
@@ -82,8 +83,11 @@ loader uses for the resize of a raster that `--scale`, `--width`, or `--height` 
 of the output (`--output`, `--format`, `--quality`, `--no-clobber`, `--all-pages`) are not read here.
 
 **ReadScadOptions(reader)**: when none of the model options was given, returns `null` (the loader then uses the
-defaults: the `iso` view, orthographic). Otherwise reads `--view` (one of the names in `SourceLoader.ScadViews`, in
-any case; another name is a `usage-error` whose hint lists the views), `--azimuth` with `ArgumentReader.ParseDegrees`
+defaults: the view is chosen by the library - isometric, a flat top view for a model that is entirely 2D, or the
+view the model sets - and the projection is orthographic). Otherwise reads `--view` (one of the names in
+`SourceLoader.ScadViews`, in any case; another name is a `usage-error` whose hint lists the views; `ViewGiven` is set
+whenever `--view` is present, even for `iso`, which is how `--view iso` asks for the isometric view of a model that
+is entirely 2D), `--azimuth` with `ArgumentReader.ParseDegrees`
 (normalized to 0 up to 360), `--elevation` as a number from -90 to 90 (read as a number, not as an angle to
 normalize, so that -90 is the bottom view), `--projection` (`ortho` or `orthographic`, or `perspective`; another word
 is a `usage-error`), every `--define` with `ArgumentReader.ParseDefines` (numbers, `true` and `false`, and text; a
@@ -91,7 +95,8 @@ later definition of a name wins), `--time` as a number from -1e9 to 1e9, `--max-
 up to 2,147,483,647, and `--default-color` with `ParseColor`. The result is a `ScadViewOptions`. `ReadScadOptions` and
 the table `ScadOptionNames` are `internal` so that `CompareCommand` and `MontageCommand` read the model options with the
 same code; the view name is checked by the `internal` method `ParseScadView`, which they use for `--a-view` and
-`--b-view` too.
+`--b-view` too. The option help of `--view` says that `iso` is the default and that a model that is entirely 2D is
+drawn from the top (`top`) unless a view is chosen; the usage text of `render` says the same.
 
 **SpecsFor(names)**: `internal`; returns the declarations of `OptionTable` with the given long names, in that order
 (`ArgumentException` for a name the table does not declare), so that another command accepts an option with the same
@@ -164,7 +169,7 @@ fields after the envelope, in this order:
 | --- | ----- |
 | `tool` | object: `name` (`canvasnet`), `version` |
 | `input` | object: `path`, `format`, for a PDF, PPTX, or VSDX also `page` (omitted with `--all-pages`) and `pageCount`, and `natural` (object: `width`, `height`; the stored or intrinsic size, or the size of the first page rendered at the resolution) |
-| `operations` | array of objects in order, for every page: `op` and the operation's parameters. `render` (`width`, `height`) for an SVG, `render` (`page`, `dpi`, `width`, `height`, `background`) for a document page, `render` (`view`, `azimuth`, `elevation`, `projection`, `width`, `height`, `background`, and when given `defines` as a list of `name=value`, `time`, `maxTriangles`, `defaultColor`) for a model, `render` (`width`, `height`, `timeZone` (`UTC`), and `background` when one was given) for a Vega-Lite chart, `fit` (`width`, `height`) when a page was fitted inside a box, `auto-orient` (`orientation`), `resize` (`width`, `height`, and `filter` when `--filter` was given), `flatten` (`background`) when transparency was flattened by the loader or for JPEG output; then the operations of the image pipeline in the order written: `crop` (`x`, `y`, `width`, `height`, `clamped`), `resize` (`width`, `height`, `filter`), `fit` (`width`, `height`, `boxWidth`, `boxHeight`, `filter`, `allowUpscale`, `scaled`), `rotate` (`degrees`, `width`, `height`; for an angle that is not a multiple of 90 also `fill` and `filter`), `flip` (`axis`, `width`, `height`), `pad` (`left`, `top`, `right`, `bottom`, `color`, `width`, `height`), and the photo operations `grayscale` and `invert` (`width`, `height`), `threshold` (`auto`, `level`, `width`, `height`), `levels` (`black`, `white`, `gamma`, `width`, `height`), `brightness` and `contrast` (`amount`, `width`, `height`), `auto-levels` (`clip`, `black`, `white`, `applied`, `width`, `height`), `deskew` (`skewDegrees`, `rotateDegrees`, `confidence`, `applied`, `fill`, `filter`, `width`, `height`), `trim` (`tolerance`, `x`, `y`, `width`, `height`, `trimmed`, `empty`), and `grid` (`spacing`, `color`, `verticalLines`, `horizontalLines`, `labels`, `width`, `height`); a JPEG's `flatten` comes last; with `--all-pages` of a document every operation also has `page` |
+| `operations` | array of objects in order, for every page: `op` and the operation's parameters. `render` (`width`, `height`) for an SVG, `render` (`page`, `dpi`, `width`, `height`, `background`) for a document page, `render` (`view`, `azimuth`, `elevation`, `projection`, `width`, `height`, `background`, and when given `defines` as a list of `name=value`, `time`, `maxTriangles`, `defaultColor`) for a model (the `view`, `azimuth`, and `elevation` are those asked for when a view was chosen explicitly, otherwise those the library used: `iso`, 45, 35.264... for a 3D model, `top`, 0, 90 for a model that is entirely 2D, and `custom` with the angles for a view the model set with its viewport variables), `render` (`width`, `height`, `timeZone` (`UTC`), and `background` when one was given) for a Vega-Lite chart, `fit` (`width`, `height`) when a page was fitted inside a box, `auto-orient` (`orientation`), `resize` (`width`, `height`, and `filter` when `--filter` was given), `flatten` (`background`) when transparency was flattened by the loader or for JPEG output; then the operations of the image pipeline in the order written: `crop` (`x`, `y`, `width`, `height`, `clamped`), `resize` (`width`, `height`, `filter`), `fit` (`width`, `height`, `boxWidth`, `boxHeight`, `filter`, `allowUpscale`, `scaled`), `rotate` (`degrees`, `width`, `height`; for an angle that is not a multiple of 90 also `fill` and `filter`), `flip` (`axis`, `width`, `height`), `pad` (`left`, `top`, `right`, `bottom`, `color`, `width`, `height`), and the photo operations `grayscale` and `invert` (`width`, `height`), `threshold` (`auto`, `level`, `width`, `height`), `levels` (`black`, `white`, `gamma`, `width`, `height`), `brightness` and `contrast` (`amount`, `width`, `height`), `auto-levels` (`clip`, `black`, `white`, `applied`, `width`, `height`), `deskew` (`skewDegrees`, `rotateDegrees`, `confidence`, `applied`, `fill`, `filter`, `width`, `height`), `trim` (`tolerance`, `x`, `y`, `width`, `height`, `trimmed`, `empty`), and `grid` (`spacing`, `color`, `verticalLines`, `horizontalLines`, `labels`, `width`, `height`); a JPEG's `flatten` comes last; with `--all-pages` of a document every operation also has `page` |
 | `outputs` | array with one object per page written: `path`, `format`, `width`, `height`, `bytes`, and for a document `page` |
 | `diagnostics` | array of objects: `source` (`pptx`, `vsdx`, `scad`, or `vega-lite`), `severity` (`unsupported`, or `warning` for a model or a chart), `code` (the feature token, or `scad-warning` or `vega-lite-warning`), `message`, and `page` (documents only) |
 | `echo` | array of strings: the `echo` output of a model as the SCAD library prints it, with its `ECHO:` prefix (empty for every other source) |

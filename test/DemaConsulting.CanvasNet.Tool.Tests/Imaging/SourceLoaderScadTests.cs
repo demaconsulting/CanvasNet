@@ -957,4 +957,48 @@ public class SourceLoaderScadTests
         // Assert
         Assert.Equal(ErrorCodes.ScadError, exception.Code);
     }
+
+    /// <summary>
+    ///     Test which options make the view of a model explicit: a viewpoint given on the command line, an azimuth, an
+    ///     elevation, or a viewpoint other than the default; nothing else does.
+    /// </summary>
+    [Fact]
+    public void ScadViewOptions_IsViewExplicit_FollowsTheRules()
+    {
+        // Arrange / Act / Assert
+        Assert.False(new ScadViewOptions().IsViewExplicit);
+        Assert.False(new ScadViewOptions { View = "ISO" }.IsViewExplicit);
+        Assert.False(new ScadViewOptions { Perspective = true }.IsViewExplicit);
+        Assert.True(new ScadViewOptions { ViewGiven = true }.IsViewExplicit);
+        Assert.True(new ScadViewOptions { Azimuth = 0 }.IsViewExplicit);
+        Assert.True(new ScadViewOptions { Elevation = 0 }.IsViewExplicit);
+        Assert.True(new ScadViewOptions { View = "top" }.IsViewExplicit);
+    }
+
+    /// <summary>
+    ///     Test that a model that is entirely 2D is drawn from the top without a view and from the chosen view with one,
+    ///     and that the operation reports the view the library used.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_FlatModel_UsesTheTopViewUnlessAViewIsChosen()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var path = FixtureFactory.WriteText(directory.Path, "flat.scad", "square([20, 10], center = true);");
+
+        // Act
+        using var defaults = Load(path);
+        using var isoGiven = Load(path, new ScadViewOptions { ViewGiven = true });
+        using var front = Load(path, new ScadViewOptions { View = "front" });
+
+        // Assert: the default is the top view in the flat gray, and an explicit iso or front view is another picture
+        var operation = defaults.Operations[0];
+        Assert.Equal("top", operation.Fields[0].Value);
+        Assert.Equal(0.0, operation.Fields[1].Value);
+        Assert.Equal(90.0, operation.Fields[2].Value);
+        Assert.Equal(new Rgba32(180, 180, 180, 255), defaults.Surface[32, 32]);
+        Assert.Equal("iso", isoGiven.Operations[0].Fields[0].Value);
+        Assert.NotEqual(Pixels(defaults.Surface), Pixels(isoGiven.Surface));
+        Assert.Equal("front", front.Operations[0].Fields[0].Value);
+    }
 }

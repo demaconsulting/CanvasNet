@@ -405,6 +405,45 @@ sections:
                   - ScadEvaluatorSpecialVariable_OverrideOfSpecial_ReplacesDefault
                   - ScadEvaluatorIncludeUse_Overrides_ReplaceIncludedAssignmentsButNotLibraries
 
+              - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-ViewportDefaults
+                title: >-
+                  The ScadEvaluator unit shall define the viewport special variables $vpt, $vpr, $vpd, and
+                  $vpf in the defaults of every evaluation, with the values that the evaluation
+                  settings supply for them and the viewer defaults ($vpt = [0, 0, 0], $vpr = [55, 0, 25],
+                  $vpd = 140, $vpf = 22.5) when it supplies none, as ordinary special variables (dynamically
+                  scoped, overridable like the others, and not reported as unknown when read), so that a
+                  model can read them and can rebind them for its children without changing the viewport.
+                justification: |
+                  A model that places lettering or a marker by the view needs the variables to hold the
+                  numbers of the view it is drawn in; making them ordinary special variables gives them the
+                  scoping and override rules that models already rely on.
+                tests:
+                  - ScadEvaluatorViewport_Defaults_AreTheViewerDefaults
+                  - ScadEvaluatorViewport_SuppliedValues_AreVisibleToTheDocument
+                  - ScadEvaluatorViewport_ReboundInAModule_IsVisibleToChildrenOnly
+                  - ScadEvaluatorViewport_Override_WinsOverTheAssignment
+
+              - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-ViewportAssignments
+                title: >-
+                  The ScadEvaluator unit shall report, in its output, which of the viewport variables the
+                  main file (and the files it includes, but not used libraries or nested scopes) assigns
+                  at the top level, or that a variable override supplies, with the value that results after
+                  evaluation - $vpt and $vpr as a vector of three numbers (a vector of two being extended
+                  with a zero), $vpd as a finite number greater than zero, and $vpf as a number between 0
+                  and 180 exclusive - letting an assignment use the animation time and other variables,
+                  never failing on a self-referential assignment, and ignoring a value that is not valid
+                  with one warning at the assignment that gives the value.
+                justification: |
+                  The camera is chosen after the model is built, so the renderer needs to know what the
+                  model asked for; an invalid value must not abort the evaluation or be silently dropped.
+                tests:
+                  - ScadEvaluatorViewport_TopLevelAssignments_AreReadBack
+                  - ScadEvaluatorViewport_OnlyRotation_IsNotManual
+                  - ScadEvaluatorViewport_InvalidValue_WarnsOnceAndIsIgnored
+                  - ScadEvaluatorViewport_Override_WinsOverTheAssignment
+                  - ScadEvaluatorViewport_Assignment_CanUseTheAnimationTimeAndOtherVariables
+                  - ScadEvaluatorViewport_IncludeCountsAndUseAndNestedScopesDoNot
+
               - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-Warnings
                 title: >-
                   The ScadEvaluator unit shall report a recoverable problem - an unknown variable,

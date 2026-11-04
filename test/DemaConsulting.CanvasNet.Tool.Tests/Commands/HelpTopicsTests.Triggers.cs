@@ -25,7 +25,8 @@ public partial class HelpTopicsTests
     private static readonly IReadOnlyList<Trigger> Triggers =
     [
         new("scad-module-offset", "scad-module-offset", false, "offset(r=1) square(2);"),
-        new("scad-module-projection", "scad-module-projection", false, "projection() cube(1);"),
+        new("scad-projection-too-complex", "scad-projection-too-complex", false, "projection() difference() { sphere(r = 10, $fn = 100); cube(5, center = true); }"),
+        new("scad-projection-open-mesh", "scad-projection-open-mesh", false, "projection(cut = true) polyhedron(points = [[0,0,-1],[4,0,-1],[0,4,-1],[0,0,3]], faces = [[0,2,1],[0,1,3],[1,2,3]]);"),
         new("scad-module-surface", "scad-module-surface", false, "surface(\"x.dat\");"),
         new("scad-module-import", "scad-module-import", false, "import(\"x.stl\");"),
         new("scad-module-roof", "scad-module-roof", false, "roof() square(2);"),

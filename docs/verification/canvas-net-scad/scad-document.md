@@ -1,6 +1,6 @@
 ## ScadDocument Unit Verification Design
 
-<!-- cspell:ignore Underflowing -->
+<!-- cspell:ignore Underflowing unlit supersampling gimbal -->
 
 This document describes the unit-level verification strategy for the `ScadDocument` unit: the public types in
 the `DemaConsulting.CanvasNet.Scad` namespace — `ScadDocument` (the `Parse` and `Open` entry points, the
@@ -8,7 +8,8 @@ the `DemaConsulting.CanvasNet.Scad` namespace — `ScadDocument` (the `Parse` an
 `Render` methods), `ScadOpenOptions`, `ScadSourceLocation`, `ScadSyntaxException`, `ScadDirective`,
 `ScadDirectiveKind`, the evaluation contract `ScadEvaluationOptions`, `ScadEvaluationResult`, `ScadLimits`,
 `ScadDiagnostic`, `ScadUnsupportedFeature`, `ScadUnsupportedFeatureException`, and `ScadEvaluationException`,
-and the render options `ScadRenderOptions`.
+and the render options `ScadRenderOptions`, the public view report `ScadResolvedView` with `ScadViewSource`, and the
+internal viewport mapping and camera choice `ScadViewport` (with `ScadViewportPlan`).
 
 ### Verification Approach
 
@@ -43,11 +44,25 @@ Unit tests reside in `ScadDocumentTests.cs`, `ScadOpenOptionsTests.cs`, `ScadSou
 `ScadEvaluationOptionsTests.cs`, `ScadLimitsTests.cs`, `ScadDiagnosticTests.cs`,
 `ScadUnsupportedFeatureTests.cs`, `ScadEvaluationExceptionTests.cs`, `ScadFixtureEvaluationTests.cs`,
 `ScadRenderOptionsTests.cs`, `ScadDocumentBuildSceneTests.cs`, `ScadDocumentRenderTests.cs`,
-`ScadDocumentRenderCsgTests.cs`, `ScadDocumentRenderExtrusionTests.cs`, and `ScadDocumentRenderReportTests.cs`
+`ScadDocumentRenderCsgTests.cs`, `ScadDocumentRenderExtrusionTests.cs`, `ScadDocumentRenderReportTests.cs`,
+`ScadViewportTests.cs`, and `ScadDocumentViewportRenderTests.cs`
 within the `DemaConsulting.CanvasNet.Scad.Tests` project; the shared fixture and syntax-error helpers are in
 `ScadTestHelpers.cs`. The rendering scenarios use the real Render3D renderer and read pixels back from the
 returned surface, with flat, ambient-only lighting and orthographic cameras wherever an exact pixel count is
 asserted.
+
+The viewport variables and the choice of the camera are verified at two tiers. `ScadViewportTests.cs` calls the
+internal `ScadViewport` directly, with no document and no renderer: the mapping of the orbit view and of a general
+camera to `$vpr` is compared with closed-form values (`[90 - elevation, 0, azimuth]` and the rotation matrices of
+`rotate()`), the round trip from a camera to the variables and back is compared eye by eye and up vector by up
+vector (with a roll and in the gimbal-lock orientation), and `ChooseCamera` is called with hand-built plans,
+`ScadDocumentViewport` values, and small scenes (a box away from the origin, and a thin slab for a flat model), whose
+fitted cameras are compared with `Camera.FitToBounds` of the same bounds. `ScadDocumentViewportRenderTests.cs` goes
+through the public API: a model echoes the four variables to show what the document sees for every source, drawing
+sheets and a head-up display are rendered, a view handler records the view that was used, and the picture is read back
+(a flat gray, an exact color, or a count of covered pixels) with `Supersampling = 1` where an exact pixel is asserted.
+The facing of `translate($vpt) rotate($vpr)` is verified numerically on the built scene (the extent of the text along
+the view direction and along the up direction of the picture), never by eye.
 
 ### Test Environment
 
@@ -391,11 +406,24 @@ message with it, leaves the message bare for an unknown location, provides the s
 **Tests**: `ScadDocumentBuildSceneTests.ScadDocument_BuildScene_DefaultOptions_BuildsSceneOfTheModel`,
 `ScadDocumentBuildSceneTests.ScadDocument_BuildScene_VariablesAndTime_ChangeTheGeometry`,
 `ScadDocumentBuildSceneTests.ScadDocument_BuildScene_FlatShapeThickness_SetsSlabHeight`,
+`ScadDocumentBuildSceneTests.ScadDocument_BuildScene_CameraAndViewAngles_SteerTheViewportVariables`,
+`ScadDocumentBuildSceneTests.ScadDocument_BuildScene_InvalidCamera_DefinesNoViewportVariables`,
+`ScadDocumentBuildSceneTests.ScadDocument_BuildScene_Projection_DoesNotChangeTheScene`,
 `ScadDocumentBuildSceneTests.ScadDocument_BuildScene_ConcurrentBuilds_AreEqual`
 
 Builds small programs with the default options and asserts the mesh nodes and bounds of the scene; builds with
 variable overrides and a different animation time and asserts that the geometry changes; builds a 2D shape with
-two thicknesses and asserts the slab height; and builds one document from several threads at once, asserting
+two thicknesses and asserts the slab height; builds a cube sized by `$vpd` and one sized by `$vpr[2]` and asserts
+that the scene follows the viewport variables that the options define (the default distance 140 without options, the
+distance 50 of an explicit camera even when an override of `$vpd` is also given, the override 70 alone, and the azimuth
+of the default view and of an explicit azimuth of 90 degrees); builds the cube sized by `$vpd` with a camera whose eye
+equals its target and with an orthographic camera that has no height (both are rejected by the renderer) and asserts
+that the build does not throw, that the scene has the default distance 140 (not the distance of the rejected camera),
+that no warning about a zero distance is delivered, that an explicit azimuth of 90 degrees still defines `$vpr` beside
+the rejected camera while the default azimuth applies without it, and that `Render` still throws `ArgumentException`
+for the same cameras (its behavior is unchanged); builds the cube sized by `$vpd` with an orthographic
+and with a perspective projection and asserts that the scene is the same as with the default options (the projection
+changes no viewport variable); and builds one document from several threads at once, asserting
 that every scene has the same bounds and the same meshes.
 
 #### CanvasNetScad-ScadDocument-Render: Render Validates, Fits, And Draws
@@ -406,15 +434,18 @@ that every scene has the same bounds and the same meshes.
 `ScadDocumentRenderTests.ScadDocument_Render_DefaultFittedView_EqualsRenderFittedOfSameMesh`,
 `ScadDocumentRenderTests.ScadDocument_Render_ExplicitOrthographicTopCamera_CoversExactFootprint`,
 `ScadDocumentRenderTests.ScadDocument_Render_FittedViewOptions_ChangeTheImage`,
-`ScadDocumentRenderTests.ScadDocument_Render_DefaultColorOption_IsHonored`
+`ScadDocumentRenderTests.ScadDocument_Render_DefaultColorOption_IsHonored`,
+`ScadDocumentViewportRenderTests.ScadDocumentViewport_DefaultThreeDimensionalView_IsUnchangedAndReportedOnce`
 
 Asserts, for sizes outside the permitted range, that `ArgumentOutOfRangeException` is thrown with the parameter
 name **before** the document is evaluated (a resolver that records its calls is never asked), and that an
 invalid camera throws `ArgumentException` the same way; that a document without geometry renders a background-only
 surface of the requested size; that the default render is byte-identical to `SceneRenderer.RenderFitted` of the
 same hand-built mesh; that an explicit orthographic top camera covers exactly the analytic footprint of a cube;
-that the azimuth, elevation, and projection options change the fitted image; and that the default color of the
-scene options is used for geometry without a `color()`.
+that the azimuth, elevation, and projection options change the fitted image; that the default color of the
+scene options is used for geometry without a `color()`; and that a cube drawn with the default options is drawn
+exactly as with the default angles set explicitly (nothing changes for a model with 3D objects), the picture being
+reported once as the view `(45, 35.26 degrees, perspective, not flat, Default)`.
 
 #### CanvasNetScad-ScadDocument-RenderOptions: ScadRenderOptions Is Immutable And Validated
 
@@ -422,6 +453,7 @@ scene options is used for geometry without a `color()`.
 `ScadRenderOptionsTests.ScadRenderOptions_Initialization_AcceptsValidValues`,
 `ScadRenderOptionsTests.ScadRenderOptions_HighlightColorAndGhostColor_DefaultsAndOverrideChangeTheLook`,
 `ScadRenderOptionsTests.ScadRenderOptions_ViewAngles_NonFinite_Throw`,
+`ScadRenderOptionsTests.ScadRenderOptions_ViewProperties_RecordWhetherTheyWereSet`,
 `ScadRenderOptionsTests.ScadRenderOptions_Projection_Undefined_Throws`,
 `ScadRenderOptionsTests.ScadRenderOptions_FlatShapeThickness_MustBeFiniteAndPositive`,
 `ScadRenderOptionsTests.ScadRenderOptions_Properties_AreInitOnly`,
@@ -430,8 +462,8 @@ scene options is used for geometry without a `color()`.
 `ScadRenderOptionsTests.ScadRenderOptions_FontResolution_InvalidDirectoriesAreRejected`
 
 Asserts the documented defaults (including the translucent pink highlight `(255, 64, 128, 110)`, the translucent
-gray ghost `(128, 128, 128, 80)`, and no font resolution options), that valid values are kept (overlay colors of any
-alpha), that a non-finite
+gray ghost `(128, 128, 128, 80)`, no font resolution options, and no `ResolvedViewHandler`), that valid values are
+kept (overlay colors of any alpha), that a non-finite
 angle (NaN and both infinities), an
 undefined projection, and a thickness that is zero, negative, or not finite are rejected with
 `ArgumentOutOfRangeException` when set, that every writable property is init-only (by reflection), that the
@@ -441,7 +473,12 @@ evaluation options are kept by reference, may be omitted, and may be shared betw
 options default to using the installed fonts and no additional directories, copy the caller's directory list (a
 later change has no effect and the exposed list is read-only), reject a null list and a null, empty, or white-space
 directory when set, are init-only, and reach the geometry through the public render options (a text whose font
-family is found only in an additional directory differs from the bundled one, with the system fonts disabled).
+family is found only in an additional directory differs from the bundled one, with the system fonts disabled); and
+that an options object with nothing set has no explicit view and no explicit projection (the explicit-view flag is
+false, and so is the explicit-projection flag), while setting the azimuth to its default value, setting the
+elevation to its default value, and setting the projection to its default value each make exactly that property
+explicit (an azimuth or an elevation makes the view explicit but not the projection, and the projection makes the
+projection explicit but not the view).
 
 #### CanvasNetScad-ScadDocument-RenderReporting: Events Of Every Stage Are Delivered Once, In Order
 
@@ -524,3 +561,132 @@ the analytic pixel count, a 2D difference shows its hole, a 2D intersection only
 by a cube, a colored difference is drawn in its color, an extruded ring is an annulus, and a revolved vase has
 the profile's radius at every row), and that an extruded or revolved 2D difference is pixel-identical to the
 hand-built Render3D difference of the extruded or revolved parts.
+
+#### CanvasNetScad-ScadDocument-ViewportVariables: The Camera And The Four Variables
+
+**Tests**: `ScadViewportTests.ScadViewport_Wrap_GivesTheAngleInZeroToThreeSixty`,
+`ScadViewportTests.ScadViewport_FromOrbit_MapsAzimuthAndElevationToViewportRotation`,
+`ScadViewportTests.ScadViewport_Defaults_AreTheIsometricViewAndTheViewerDefaults`,
+`ScadViewportTests.ScadViewport_FromCamera_OfAnOrbitView_DescribesTheSameRotationAsTheOrbitMapping`,
+`ScadViewportTests.ScadViewport_ToCamera_RoundTripsAGeneralCamera`,
+`ScadViewportTests.ScadViewport_ToCamera_PlacesTheEyeAlongTheRotatedZAxis`,
+`ScadViewportTests.ScadViewport_CameraToWorld_ToViewerAxisPointsFromTheTargetToTheEye`,
+`ScadViewportTests.ScadViewport_ChooseCamera_DocumentRotation_SteersTheFit`,
+`ScadViewportTests.ScadViewport_ChooseCamera_AssignedTargetDistanceOrFieldOfView_GiveAManualCamera`,
+`ScadViewportTests.ScadViewport_ChooseCamera_ManualCameraOnAFlatModel_LooksDown`,
+`ScadViewportTests.ScadViewport_ChooseCamera_OnlyRotationAssigned_StaysFitted`,
+`ScadDocumentViewportRenderTests.ScadDocumentViewport_Evaluate_ShowsTheViewerDefaults`,
+`ScadDocumentViewportRenderTests.ScadDocumentViewport_Variables_FollowTheDocumentedPrecedence`,
+`ScadDocumentViewportRenderTests.ScadDocumentViewport_HudAsWritten_EvaluatesAndIsPlacedByItsRotations`,
+`ScadDocumentViewportRenderTests.ScadDocumentViewport_RotateVpr_FacesTheCamera`,
+`ScadDocumentViewportRenderTests.ScadDocumentViewport_AssignedDistance_GivesAManualCamera`
+
+Asserts that an angle wraps into 0 to 360 (`-10` gives 350, `360` and `-360` give 0, `720.5` gives 0.5) and that
+noise of
+a billionth of a degree around a full turn becomes exactly 0, never a negative zero; that the orbit views map to
+`$vpr = [90 - elevation, 0, azimuth]` (front `[90, 0, 0]`, right `[90, 0, 90]`, back `[90, 0, 180]`, top
+`[0, 0, 0]`, bottom
+`[180, 0, 0]`, azimuth -45 at elevation 30 `[60, 0, 315]`) with the target at the origin, the distance 140, and the
+field of view 22.5; that the library default view is `[90 - 35.26, 0, 45]` and the viewer's own default is
+`[55, 0, 25]`; that
+the camera that `Camera.FitToBounds` fits for eight orbit views (including straight down and straight up, where the
+angles are not unique) describes the same rotation of the camera axes as the orbit mapping, with its target, its
+distance, and its field of view; that five general cameras (tilted up hints, and a horizontal camera rolled a
+quarter turn either way, which is the gimbal-lock orientation) rebuilt from their variables have the same eye, the
+same target, and the same
+up direction to 1e-8; that the rotation `[90, 0, 0]` with the target `(1, 2, 3)` and the distance 200 puts the eye at
+`(1, -198, 3)` with the up vector +Z and, for an orthographic camera, the height `2 * 200 * tan(15 degrees)`; and that
+`rotate($vpr)` turns +Z into the direction from the target to the eye and +Y into an up direction across it for four
+orbit views.
+
+Asserts that a `$vpr` that the document defined steers the fitted view (an orbit rotation `[90, 0, 0]` on a flat model
+gives the front fit, and a roll `[60, 20, 10]` gives the eye along the rotated +Z and the up vector along the rotated
++Y, both reported as `Document`); that assigning `$vpt`, `$vpd`, and `$vpf` gives the manual camera with the eye at
+`(1, -198, 3)`, the target `(1, 2, 3)`, the orthographic height `2 * 200 * tan(15 degrees)`, and a view azimuth and
+elevation of 0,
+and that assigning only `$vpd` of 50 keeps the target at the origin, puts the eye 50 away, and is reported as
+`Document`;
+that a flat model with a manual camera and no `$vpr` has its eye 80 above the origin and a top view; and that a
+document assigning only `$vpr` keeps the fitted camera, which looks at the center of the scene bounds and not at the
+default `$vpt`.
+
+Asserts through the public API that `Evaluate` shows `[0, 0, 0]`, `[55, 0, 25]`, `140`, and `22.5` and no diagnostic;
+that a model which echoes the four variables sees `ECHO: [0, 0, 0], [54.7356, 0, 45], 140, 22.5` by default; that
+the head-up
+display of `render-viewport-hud.scad` evaluates without a warning, builds its text, and lies in the plane that its
+three negated rotations give (thin along that normal, not facing the viewer for the default view, which is the
+documented meaning of `$vpr`); that `translate($vpt) rotate($vpr) linear_extrude(0.1) text("H", size = 5)` is as
+thick as
+0.1 along the direction to the viewer and between 4.5 and 5.5 along the up direction of the picture for the default
+view, the explicit views (0, 0), (0, 90), (30, 20), and (200, -35), and a `$vpr` of `[60, 0, 20]` set by the document;
+and that a model with `$vpd = 30`, `$vpr = [0, 0, 0]`, and a cube 500 units to the side draws nothing (a fitted view
+would have framed it), looking straight down, with the view reported as `Document`.
+
+#### CanvasNetScad-ScadDocument-ViewportPrecedence: Option, Override, Assignment, Default
+
+**Tests**: `ScadViewportTests.ScadViewport_Plan_DefaultOptions_HasNothingExplicit`,
+`ScadViewportTests.ScadViewport_Plan_ExplicitAnglesAndProjection_AreRecorded`,
+`ScadViewportTests.ScadViewport_Plan_ExplicitCamera_SuppliesAllFourVariables`,
+`ScadViewportTests.ScadViewport_MergeOverrides_TheOptionWinsOverTheCallerOverride`,
+`ScadViewportTests.ScadViewport_ChooseCamera_ExplicitCamera_IsUsedAsGiven`,
+`ScadViewportTests.ScadViewport_ChooseCamera_ExplicitAngles_WinOverTheFlatViewAndTheDocument`,
+`ScadDocumentViewportRenderTests.ScadDocumentViewport_Variables_FollowTheDocumentedPrecedence`,
+`ScadDocumentViewportRenderTests.ScadDocumentViewport_FlatModel_ExplicitViewsOverrideTheFlatDefault`
+
+Asserts that the plan of default options has no override, no explicit angles, no explicit projection, no camera, and the
+perspective projection; that explicit angles (an azimuth equal to its default included) override `$vpr` only (a
+view of azimuth 30 and elevation 20 has the rotation `[70, 0, 30]`), and that an explicit projection overrides nothing;
+that an explicit camera overrides `$vpd`, `$vpf`, `$vpr`, and `$vpt` and makes its target the default; that merging
+replaces a caller's `$vpr` override by the option's (the other override stays) and returns the caller's dictionary
+itself when the plan adds nothing; that an explicit camera is used as given, whatever the document says, reported with
+its direction and the source `Camera`; and that explicit angles win over the flat view and over a `$vpr` of the document
+(the fit of azimuth 30 and elevation 20, source `Options`).
+
+Asserts, with ten programs that echo the variables, that the document sees for each source exactly the documented
+value: the default view, the angles `[70, 0, 30]`, an explicit camera (`[1, 2, 3]`, `[90, 0, 0]`, `50`, `22.5`, also
+over an assignment of `$vpd` and over a variable override), an assignment (`$vpd = 60`), a variable override over the
+assignment (`$vpd` 70 and `$vpr` `[10, 20, 30]`), explicit angles over an assigned `$vpr`, and a two-component `$vpt`
+assignment printed as `[4, 5]`, always with no warning; and that for a model that is entirely 2D explicit angles
+(source `Options`, azimuth 30), an explicit camera (`Camera`), and an assigned `$vpr` (`Document`, azimuth and elevation
+30) each win over the flat default, while an explicit projection alone leaves the flat view (`FlatDefault`) and
+changes only the projection.
+
+#### CanvasNetScad-ScadDocument-FlatModelView: A Model Of Only 2D Objects
+
+**Tests**: `ScadViewportTests.ScadViewport_ChooseCamera_DefaultAndFlat_FitTheModel`,
+`ScadDocumentViewportRenderTests.ScadDocumentViewport_ProjectionSheet_IsDrawnFlatFromTheTop`,
+`ScadDocumentViewportRenderTests.ScadDocumentViewport_ProjectionSheet_ShowsBothViewsTheBorderAndTheText`,
+`ScadDocumentViewportRenderTests.ScadDocumentViewport_ProjectionViews_ShowTheHolesTheStepsAndTheSection`,
+`ScadDocumentViewportRenderTests.ScadDocumentViewport_MixedTwoAndThreeDimensions_KeepsTheThreeDimensionalView`,
+`ScadDocumentViewportRenderTests.ScadDocumentViewport_FlatModel_ExplicitViewsOverrideTheFlatDefault`,
+`ScadDocumentViewportRenderTests.ScadDocumentViewport_FlatDrawing_IsUnlitUnlessLightsAreChosen`,
+`ScadDocumentViewportRenderTests.ScadDocumentViewport_FlatModelWithDocumentView_IsShaded`
+
+Asserts that, with nothing chosen, a scene with a box is fitted at the isometric angles (source `Default`, not flat)
+and a flat scene is fitted from the top (azimuth 0, elevation 90) and orthographically (`FlatDefault`, flat), and with
+the projection set explicitly to perspective still from the top but in perspective; that the drawing sheet
+`render-projection-sheet.scad` renders with no warning and no unsupported feature, reports exactly one view (a top view,
+orthographic, flat, `FlatDefault`), has every pixel white or exactly the default gray (with supersampling off), covers
+more than 10,000 pixels, and spans the picture to within its margin (the first covered column between 15 and 25 and the
+last between 774 and 785 of 800); that, sampled with a known mapping, the two projections of the cube are 30 by 20 and
+30 by 15 around their centers, the two-unit border and the title text are drawn, and everything else is white; that the
+bushing sheet `render-projection-views.scad` shows the bore and the mounting holes in the top view, the plate and the
+boss in the front view, and the bore and the walls in the section; that a model with a square and a cube keeps the
+isometric view (`Default`, not flat), reports the usual warning, and equals the picture of the cube alone; that a
+flat square is exactly the default gray at its center, a red square exactly `(255, 0, 0)`, and a square under an
+ambient light of 0.5 set by the caller `(90, 90, 90)`; and that a flat model that sets `$vpr = [45, 0, 0]` is lit
+like any other (its center is neither white nor the flat gray).
+
+#### CanvasNetScad-ScadDocument-ResolvedView: The View That A Render Reports
+
+**Tests**: `ScadDocumentViewportRenderTests.ScadDocumentViewport_DefaultThreeDimensionalView_IsUnchangedAndReportedOnce`,
+`ScadDocumentViewportRenderTests.ScadDocumentViewport_ProjectionSheet_IsDrawnFlatFromTheTop`,
+`ScadDocumentViewportRenderTests.ScadDocumentViewport_FlatModel_ExplicitViewsOverrideTheFlatDefault`,
+`ScadDocumentViewportRenderTests.ScadDocumentViewport_ExplicitCamera_IsReportedAsTheSource`,
+`ScadDocumentViewportRenderTests.ScadDocumentViewport_BuildScene_DoesNotCallTheViewHandler`
+
+Asserts that `Render` calls the handler exactly once with the view it used: `(45, 35.26, perspective, not flat, Default)`
+for a cube drawn with the default options, the top view of the drawing sheet as `FlatDefault`, and, for a flat model, `Options`,
+`Camera`, and `Document` for the explicit angles, the camera, and the assigned `$vpr`; that a camera looking from `(0, -40,
+0)` at the origin is reported with azimuth 0, elevation 0, and the source `Camera`; and that `BuildScene` with a handler
+never calls it.

@@ -27,7 +27,8 @@ Attributes this filter reads (all optional; "all" means every input type above):
     page         .vsdx, .pptx, .pdf: the page or slide, counted from 1 (default 1)
     dpi          .vsdx, .pptx, .pdf: the resolution of the page in dots per inch, above 0 up to 2400
                  (default 96; a whole number for .vsdx)
-    view         .scad: iso (default), front, back, left, right, top or bottom
+    view         .scad: iso, front, back, left, right, top or bottom (default: the model's own view, iso, or
+                 top for a model that is entirely 2D)
     azimuth      .scad: degrees about the Z axis, 0 from the front
     elevation    .scad: degrees above the XY plane, -90 to 90
     projection   .scad: ortho (default) or perspective

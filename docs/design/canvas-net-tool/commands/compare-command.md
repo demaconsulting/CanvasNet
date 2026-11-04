@@ -32,6 +32,10 @@ variables chosen for that input alone), the shared page and resolution, the shar
 background, strict and auto-orient, the filter, the `ResizeTarget` (`a`, `b`, or an explicit size) or `null`, the
 `FitMode`, the tolerance, the grid, the thresholds in the order written, the three picture paths, the `DiffStyle`, the
 gain, the overlay weight, and the `WriteOptions` (the background is also the color a JPEG picture is flattened over).
+The `ScadViewOptions` of one input is the shared options with that input's own view and variables; a view chosen
+for one input alone (`--a-view`, `--b-view`) counts as an explicit view for that input (`ViewGiven` is set), while
+an input with no view chosen leaves the choice to the library (isometric, or a flat top view for a model that is
+entirely 2D).
 
 **Side** (private class): one loaded input - its label, `SourceInfo`, page, the pixels at the size that is compared
 (owned by the side, disposed with it), that size (kept after the pixels are disposed, because the failure document of a

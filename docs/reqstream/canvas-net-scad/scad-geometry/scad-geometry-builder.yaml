@@ -5,12 +5,13 @@
 # These requirements describe the design-level behavior of the ScadGeometryBuilder unit: the internal engine
 # that walks the instantiation tree of an evaluation iteratively and converts it into a Render3D scene
 # (ScadGeometryBuilder and its Walk, Modifiers, and Unsupported partial files, ScadGeo, ScadGeometryContext,
-# ScadSceneMap, ScadReporter, ScadSceneOptions, ScadFeatureIds, ScadBooleans, and ScadHulls) in the
-# DemaConsulting.CanvasNet.Scad.Geometry namespace.
+# ScadSceneMap, ScadReporter, ScadSceneOptions, ScadFeatureIds, ScadBooleans, ScadHulls, and ScadProjections) in
+# the DemaConsulting.CanvasNet.Scad.Geometry namespace.
 #
 # The unit owns the walk, the implicit union, the three modifiers, the CSG booleans and their dimension rules,
 # the hull and minkowski modules (the convex combinations built from the Render3D ConvexHull and MinkowskiSum
-# units), the table of modules that are recognized but not built, the triangle budget, cancellation, the single
+# units), the projection module (the shadow of 3D children on the XY plane and their cross-section at z = 0 as
+# 2D shapes), the table of modules that are recognized but not built, the triangle budget, cancellation, the single
 # reporting channel, the location map of the built scene, and the copy of the renderer options. The primitives,
 # the transforms, and the extrusions are separate units that the engine dispatches to. Each "tests" entry cites
 # an existing test method in the DemaConsulting.CanvasNet.Scad.Tests project; see
@@ -182,15 +183,17 @@ sections:
               - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-UnsupportedModules
                 title: >-
                   The ScadGeometryBuilder unit shall report each of the recognized modules offset,
-                  projection, surface, import, and roof as an unsupported feature scad-module-{name} at
-                  the module's location, omit the module and its children without visiting them, keep its
-                  supported siblings, and let a user module of the same name shadow the built-in so that
-                  its geometry is built and nothing is reported.
+                  surface, import, and roof as an unsupported feature scad-module-{name} at the module's
+                  location, omit the module and its children without visiting them, keep its supported
+                  siblings, and let a user module of the same name shadow the built-in so that its
+                  geometry is built and nothing is reported.
                 justification: |
                   Nothing may be skipped silently: a module that is recognized but not built must be
                   named, with its location, while a module the author defined is always theirs. The hull
                   and minkowski modules are built and report their own identifiers (see the Hull and
-                  Minkowski requirements), and the text module is built by the ScadTextGeometry unit.
+                  Minkowski requirements), the projection module is built and reports its own identifiers
+                  (see the Projection requirements), and the text module is built by the ScadTextGeometry
+                  unit.
                 tests:
                   - ScadUnsupportedModule_Module_IsReportedAndOmittedWithItsChildren
                   - ScadUnsupportedModule_RealisticArguments_AreReportedOnce
@@ -394,6 +397,158 @@ sections:
                 tests:
                   - ScadGeometryBuilder_HullAndMinkowski_SameModelTwice_BuildsIdenticalMeshes
 
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-Projection
+                title: >-
+                  The ScadGeometryBuilder unit shall build projection (with cut false, the default) over
+                  3D children as the 2D shape that is the exact shadow of the children on the XY plane,
+                  looking down the Z axis, in the frame of the module: the union of the footprints of every
+                  upward-facing face, so that a cube gives its footprint rectangle, a rotated solid gives
+                  the outline of its own transformed shape, a solid with a through hole gives a shape with
+                  the hole, a blind pocket (cut from above or from below) gives no hole, a tube gives an
+                  annulus, and the children of a union overlap into one outline; shall also accept an open
+                  mesh (every triangle that is not vertical
+                  contributes its footprint, whichever way it faces) and give nothing for faces that are
+                  vertical or degenerate; shall treat each 2D transform and color around the module as
+                  applying to the resulting shape, and let every consumer of 2D shapes (linear_extrude,
+                  the 2D booleans, hull, the transforms, and the slab of a top-level shape) take the
+                  result; shall ignore the convexity argument, honor a boolean cut argument, and report an
+                  invalid cut (not true or false) with a warning counting it as false and an unknown
+                  argument as for any module; shall ignore 2D children with one warning at the module;
+                  shall skip a child marked with the background modifier and project a child marked with
+                  the highlight modifier once; shall not keep the colors inside the projection (one
+                  warning), the result taking the enclosing color; shall yield nothing, with no report,
+                  for a module with no children; and shall build a deeply nested projection on a small
+                  caller stack without recursion; and shall decide with tolerances that follow the size of
+                  each solid and the rounding error of its coordinates, never its distance from the origin
+                  or the size of another solid, so that a small solid translated far from the origin
+                  projects exactly as it does at the origin, a tiny solid is not treated as degenerate, and
+                  a tiny solid beside a huge one is judged by its own size.
+                justification: |
+                  The projection module is how a 3D part becomes the 2D outline of a technical drawing; its
+                  shadow must be the true silhouette (holes included), not an approximation, and a model
+                  that nests it in other 2D modules and extrusions must work like any other 2D shape.
+                tests:
+                  - ScadGeometryBuilderProjection_Cube_IsItsFootprint
+                  - ScadGeometryBuilderProjection_CubeTurnedAboutX_IsItsFrontView
+                  - ScadGeometryBuilderProjection_CubeTurnedAboutZ_IsADiamond
+                  - ScadGeometryBuilderProjection_Cylinder_IsThePolygonOfItsCap
+                  - ScadGeometryBuilderProjection_Sphere_IsADisc
+                  - ScadGeometryBuilderProjection_PlateWithThroughHole_HasTheHole
+                  - ScadGeometryBuilderProjection_BlindPocket_HasNoHole
+                  - ScadGeometryBuilderProjection_PocketFromBelow_HasNoHole
+                  - ScadGeometryBuilderProjection_FlushTube_IsAnAnnulus
+                  - ScadGeometryBuilderProjection_ExtrudedRing_IsTheRing
+                  - ScadGeometryBuilderProjection_UnionOfOverlappingFootprints_IsTheUnionOfTheOutlines
+                  - ScadGeometryBuilderProjection_TransformsOutsideAndInside_ApplyToTheirOwnDimension
+                  - ScadGeometryBuilderProjection_Result_IsConsumedByOtherModules
+                  - ScadGeometryBuilderProjection_OverlayChildren_AreNotProjectedTwice
+                  - ScadGeometryBuilderProjection_TwoDimensionalAndNoChildren_WarnOrStaySilent
+                  - ScadGeometryBuilderProjection_Arguments_AreValidated
+                  - ScadGeometryBuilderProjection_Colors_AreNotKeptInsideAndApplyOutside
+                  - ScadGeometryBuilderProjection_OpenMesh_ProjectsItsTriangles
+                  - ScadGeometryBuilderProjection_VerticalFaces_HaveNoFootprint
+                  - ScadGeometryBuilderProjection_CoplanarFaces_AreMergedIntoOneRegion
+                  - ScadGeometryBuilderProjection_FaceWithATouchingHole_FallsBackToTriangles
+                  - ScadGeometryBuilderProjection_DeepNesting_BuildsOnASmallStack
+                  - ScadGeometryBuilderProjection_FarTranslatedSmallCube_StillProjects
+                  - ScadGeometryBuilderProjection_FarTranslatedDifference_KeepsTheHole
+                  - ScadGeometryBuilderProjection_SmallScaleCube_Projects
+                  - ScadGeometryBuilderProjection_SmallScaleDifference_KeepsTheHole
+                  - ScadGeometryBuilderProjection_SmallDifferenceBesideAHugeSolid_KeepsASliver
+                  - ScadGeometryBuilderProjection_SmallDifferenceBesideAHugeSolid_KeepsAThroughHole
+                  - ScadGeometryBuilderProjection_SmallPartBesideAFarCutter_IsNotAffectedByTheCutterPlane
+
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ProjectionCut
+                title: >-
+                  The ScadGeometryBuilder unit shall build projection with cut true over 3D children as
+                  the 2D shape that is the cross-section of the children with the plane z = 0 of the
+                  module's frame: a solid that spans the plane gives its section, a solid that merely
+                  touches the plane from above or from below with a face on it gives that face (a section
+                  includes its boundary), a plane that misses the solid gives an empty result without any
+                  report, a tube gives an annulus, a difference is the difference of the sections of its
+                  operands, solids that are separate are united, a tilted or rotated solid gives its oblique
+                  section, a vertex on the plane is handled exactly, and the result can be extruded like any
+                  2D shape; and shall report a mesh whose section does not close (an open mesh) as the
+                  unsupported feature scad-projection-open-mesh at the module's location and omit the
+                  module; and shall decide whether a vertex is on the plane with a tolerance that follows
+                  the size of the solid it belongs to and the rounding error of its coordinates, never its
+                  distance from the origin or the size of another solid.
+                justification: |
+                  A cross-section is the other half of a technical drawing; the cases at the boundary of
+                  the plane (a face lying on it, a vertex on it) must be decided by a single rule so that
+                  a model does not change when it is moved by an infinitesimal amount, and a mesh whose
+                  section cannot be stated must be reported, not guessed.
+                tests:
+                  - ScadGeometryBuilderProjectionCut_CubeSpanningThePlane_IsItsFootprint
+                  - ScadGeometryBuilderProjectionCut_CubeTouchingThePlane_IsCutByTheFaceOnIt
+                  - ScadGeometryBuilderProjectionCut_PlaneMissesTheSolid_IsEmptyAndSilent
+                  - ScadGeometryBuilderProjectionCut_Tube_IsAnAnnulus
+                  - ScadGeometryBuilderProjectionCut_Difference_IsTheDifferenceOfTheSections
+                  - ScadGeometryBuilderProjectionCut_SeveralSolids_AreUnited
+                  - ScadGeometryBuilderProjectionCut_Sphere_IsADisc
+                  - ScadGeometryBuilderProjectionCut_TiltedCube_IsALongerRectangle
+                  - ScadGeometryBuilderProjectionCut_VerticesOnThePlane_GiveTheEquatorSquare
+                  - ScadGeometryBuilderProjectionCut_OpenMesh_IsReportedAndOmitted
+                  - ScadGeometryBuilderProjectionCut_Result_CanBeExtruded
+                  - ScadGeometryBuilderProjectionCut_FarTranslatedCube_IsItsFootprint
+                  - ScadGeometryBuilderProjectionCut_SmallSolidJustOffThePlane_IsEmpty
+                  - ScadGeometryBuilderProjectionCut_SmallSolidJustOffThePlaneBesideAHugeSolid_IsEmpty
+                  - ScadGeometryBuilderProjectionCut_SmallSolidOnThePlaneBesideAHugeSolid_IsCut
+
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ProjectionClassification
+                title: >-
+                  The ScadGeometryBuilder unit shall give the shadow of a difference or an intersection of
+                  3D children the exact silhouette of the resulting solid and not that of its operands:
+                  a cutter that passes through the part leaves a hole (however much taller than the part
+                  it is), a blind pocket cut from above or from below leaves none, a cutter that lies
+                  beside the part leaves the outline unchanged, a tube of two cylinders of one height
+                  (whose end faces are flush) is an annulus, and an intersection is the overlap of the
+                  solids, each case decided on the solid as it is built and not on the number of
+                  triangles.
+                justification: |
+                  A drawing of a part with holes must show exactly the holes that go through; a hole or a
+                  pocket that is only drawn because its cutter exists, or missing because the cutter is
+                  tall, would make every drawing of a drilled part wrong.
+                tests:
+                  - ScadGeometryBuilderProjection_PlateWithThroughHole_HasTheHole
+                  - ScadGeometryBuilderProjection_BlindPocket_HasNoHole
+                  - ScadGeometryBuilderProjection_PocketFromBelow_HasNoHole
+                  - ScadGeometryBuilderProjection_FlushTube_IsAnAnnulus
+                  - ScadGeometryBuilderProjection_TallAndFarCutters_GiveTheRemainingOutline
+                  - ScadGeometryBuilderProjection_Intersection_IsTheOverlap
+                  - ScadGeometryBuilderProjectionBudget_OrdinaryBoolean_IsClassified
+
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ProjectionBudget
+                title: >-
+                  The ScadGeometryBuilder unit shall bound the work of a projection before allocating
+                  it: shall count the triangles and the vertices of its children and every pass over them
+                  (the transformation of the children, the grouping and footprints of a silhouette, the
+                  classification and the cut) against one work ceiling of 8,388,608 (2^23) triangle
+                  visits, report a projection that would go over it as the unsupported feature
+                  scad-projection-too-complex at the module's location and omit the module (throwing in
+                  strict mode), charging nothing beyond the children it consumed; shall check the slabs
+                  that the footprints could need (at most eight triangles per candidate face) against the
+                  triangle budget before building any region, failing with a ScadEvaluationException that
+                  names the module's location and the limit; and shall charge exactly the triangles of
+                  the meshes it creates.
+                justification: |
+                  The cost of a silhouette grows with the product of the sizes of the operands of a
+                  boolean, with the number of faces of a flat one, and with the number of points of a
+                  polyhedron whose faces use few of them; a hostile model must not be able to exhaust
+                  the host through any of them, and the author must be told which module is too complex
+                  instead of getting an approximation.
+                tests:
+                  - ScadGeometryBuilderProjectionBudget_TooComplexClassification_IsReportedAndOmitted
+                  - ScadGeometryBuilderProjectionBudget_TooComplexClassification_ThrowsInStrictMode
+                  - ScadGeometryBuilderProjectionBudget_SlabsOverTheBudget_FailBeforeAllocating
+                  - ScadGeometryBuilderProjectionBudget_Charge_EqualsTheMeshesCreated
+                  - ScadGeometryBuilderProjectionBudget_RoomyBudget_BuildsTheShadow
+                  - ScadGeometryBuilderProjectionBudget_SilhouetteOverTheWorkCeiling_IsReportedAndOmitted
+                  - ScadGeometryBuilderProjectionBudget_SilhouetteWithinTheWorkCeiling_IsBuilt
+                  - ScadGeometryBuilderProjectionBudget_SilhouetteFootprintPass_IsCharged
+                  - ScadGeometryBuilderProjectionBudget_PolyhedronWithManyPoints_IsBoundedByItsVertices
+                  - ScadGeometryBuilderProjectionBudget_PolyhedronWithManyPoints_ProjectsItsFace
+
               - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-Reporting
                 title: >-
                   The ScadGeometryBuilder unit shall report every warning and unsupported feature through
@@ -579,7 +734,8 @@ sections:
               - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-Cancellation
                 title: >-
                   The ScadGeometryBuilder unit shall honor cancellation by polling the token at a fixed
-                  interval of visited instances and before each tessellation, throwing
+                  interval of visited instances and before each tessellation (and, inside a projection, at
+                  the same interval over the triangles and contour points of its long loops), throwing
                   OperationCanceledException without wrapping it, and keeping the events reported before
                   the cancellation in the sink.
                 justification: |
@@ -592,6 +748,9 @@ sections:
                   - ScadGeometryBuilder_Build_Canceled_KeepsEarlierEventsInSink
                   - ScadGeometryBuilder_Build_AlreadyCanceled_StopsTheShowOnlyPrePass
                   - ScadGeometryBuilder_Build_NotCanceled_ShowOnlyPrePassCompletes
+                  - ScadGeometryBuilderProjectionCancellation_PreCanceledLargeMesh_Throws
+                  - ScadGeometryBuilderProjectionCancellation_PreCanceledSmallMesh_CompletesBelowTheInterval
+                  - ScadGeometryBuilderProjectionCancellation_LargeMeshNotCanceled_Completes
 
               - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-SceneMap
                 title: >-

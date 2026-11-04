@@ -13,8 +13,9 @@ from several threads at once), each call giving the same result for the same opt
 independent, clean-room implementation of the language, not affiliated with the OpenSCAD project; it follows its
 own documented dialect (described below) and does not aim for pixel or tessellation parity with any other
 implementation. It parses, evaluates, and renders `.scad` models - primitives, transforms, booleans, extrusions,
-`hull`, `minkowski`, `text` (with a deterministic bundled font), `color` with alpha, the `%` ghost and `#`
-highlight modifiers, and `-D`-style variable overrides - straight to a `Surface`, and reports every unsupported
+`hull`, `minkowski`, `projection`, `text` (with a deterministic bundled font), `color` with alpha, the `%` ghost
+and `#` highlight modifiers, the viewport variables `$vpt`, `$vpr`, `$vpd`, and `$vpf`, and `-D`-style variable
+overrides - straight to a `Surface`, and reports every unsupported
 construct instead of silently ignoring it (see *Unsupported Features and Strict Mode*).
 
 ```csharp
@@ -54,12 +55,18 @@ public sealed partial class ScadDocument
 - `BuildScene` evaluates the program and returns a Render3D `Scene` in right-handed, Z-up model space, so you can
   measure it (`scene.ComputeBounds()`), combine it with other scenes, or render it with your own camera and
   `SceneRenderer`. Every call returns a new scene; a model without geometry gives a scene that renders as the
-  background.
+  background. The model sees the viewport variables `$vpt`, `$vpr`, `$vpd`, and `$vpf` as the `Camera` and the view
+  angles of the options define them (see *Viewport Variables*), so a model that reads them builds a different scene
+  for a different camera or view angle, and `BuildScene` and `Render` of one document with the same options build the
+  same scene; the `Projection` and the surface size do not change the scene, and `BuildScene` chooses no camera.
 - `Render` evaluates, builds, and draws the model onto a new `Surface` of exactly `width` by `height` pixels. The
   caller owns, and must dispose, the returned surface. Without a camera the view is **fitted to the model**: an
   isometric perspective view (azimuth 45 degrees, elevation about 35.26 degrees) on a white background, with
-  neutral gray surfaces unless the model uses `color()`. The result is the same as `SceneRenderer.RenderFitted`
-  of the scene `BuildScene` returns, and rendering is deterministic: two renders of one document with the same
+  neutral gray surfaces unless the model uses `color()`. A model that is entirely 2D (a `projection()` drawing
+  sheet, see *Drawing Sheets with projection()*) is drawn instead as a flat top-down orthographic picture, and a
+  model can choose its own view with the viewport variables (see *Viewport Variables*); *Choosing the View* below
+  gives the order of precedence. For the default view the result is the same as `SceneRenderer.RenderFitted` of
+  the scene `BuildScene` returns, and rendering is deterministic: two renders of one document with the same
   options are byte-identical, for every degree of parallelism.
 
 **Exceptions** (`BuildScene` and `Render`; `Evaluate` throws the same, except the render-only ones):
@@ -95,10 +102,11 @@ be shared between threads and calls.
 | Property | Default | Meaning |
 | -------- | ------- | ------- |
 | `Evaluation` | `null` (default `ScadEvaluationOptions`) | The options of the evaluation: `-D`-style `Variables`, `Time` (`$t`), `Limits`, the `EchoHandler`, `WarningHandler`, and `UnsupportedFeatureHandler`, and `ThrowOnUnsupportedFeature`. It is the single place that decides how problems are reported, for evaluation, geometry building, and rendering alike |
-| `Camera` | `null` | A Render3D `Camera`; `null` fits the view to the model. An invalid camera is rejected by `Render` before evaluation. `BuildScene` ignores it |
-| `ViewAzimuthDegrees` | 45 | Azimuth of the fitted view (rotation about +Z); finite. Used only without a `Camera` |
-| `ViewElevationDegrees` | about 35.26 | Elevation of the fitted view; finite. Used only without a `Camera` |
-| `Projection` | `Perspective` | Projection of the fitted view (`CameraProjection.Perspective` or `Orthographic`). Used only without a `Camera` |
+| `Camera` | `null` | A Render3D `Camera`; `null` fits the view to the model. An invalid camera is rejected by `Render` before evaluation. `BuildScene` never throws for it: it is ignored and defines no viewport variable (the model sees the view angles or the defaults). An explicit valid camera also defines all four viewport variables for the model (see *Viewport Variables*) |
+| `ViewAzimuthDegrees` | 45 | Azimuth of the fitted view (rotation about +Z); finite. Used only without a `Camera`. **Setting it, even to the default value, makes the view explicit** (see *Choosing the View*) |
+| `ViewElevationDegrees` | about 35.26 | Elevation of the fitted view; finite. Used only without a `Camera`. Setting it, even to the default value, makes the view explicit |
+| `Projection` | `Perspective`; `Orthographic` for a flat model | Projection of the fitted view (`CameraProjection.Perspective` or `Orthographic`). Used only without a `Camera`. Setting it changes only the projection: it does not make the view angles explicit |
+| `ResolvedViewHandler` | `null` | An `Action<ScadResolvedView>` that `Render` calls once, on the calling thread, after the model was built and before it draws, to report the view that was used (see *Choosing the View*). `BuildScene` never calls it; an exception thrown by the handler propagates to the caller |
 | `SceneOptions` | `null` (Render3D defaults) | The `SceneRenderOptions` of the renderer: background color (white by default), default surface color (neutral gray), lights, supersampling, parallelism, and fragment budget. Its `UnsupportedFeatureHandler` and `ThrowOnUnsupportedFeature` are **ignored**; reporting always goes through `Evaluation` |
 | `FlatShapeThickness` | 0.1 | Thickness in model units of the slab that represents a 2D shape (`square`, `circle`, `polygon`) rendered without an extrusion; finite and greater than zero |
 | `HighlightColor` | `(255, 64, 128, 110)`, a translucent pink | The color of the translucent copy that the `#` modifier draws over a highlighted solid (see *Transparency, Ghosts, and Highlights*). Any alpha is accepted: 255 draws an opaque copy and 0 an invisible one |
@@ -121,6 +129,55 @@ in the document (and creates the variable when it is absent), including special 
 may be `null`, booleans, numbers, strings, or sequences of these (a sequence becomes a vector). Names must be
 ordinary identifiers (optionally starting with `$`).
 
+#### Choosing the View
+
+`Render` picks the view of a picture from the first of these sources that applies:
+
+1. An explicit `Camera`, used as given (no fitting).
+2. An explicit `ViewAzimuthDegrees` or `ViewElevationDegrees`. Setting either one (even to its default value) makes
+   the view explicit, and the other angle keeps its default. An explicit view is used for every model, including one
+   that is entirely 2D.
+3. The model itself: a top-level assignment of `$vpr`, `$vpt`, `$vpd`, or `$vpf`, or a `-D` override of one of them
+   (see *Viewport Variables*).
+4. A flat top view, when the model is entirely 2D at the top level (see *Drawing Sheets with projection()*).
+5. The isometric default.
+
+An explicit `Projection` only changes the projection of the fitted view; it does not make the angles explicit, so a
+flat model drawn with `Projection = CameraProjection.Perspective` is still looked at from above.
+
+To find out which view a render used, set `ResolvedViewHandler`. It receives a `ScadResolvedView`, an immutable
+record that `Render` reports once, after the model was built and before it is drawn (`BuildScene` chooses no camera
+and never calls the handler):
+
+```csharp
+public sealed record ScadResolvedView(
+    double AzimuthDegrees,
+    double ElevationDegrees,
+    CameraProjection Projection,
+    bool IsFlatModel,
+    ScadViewSource Source);
+
+public enum ScadViewSource { Default, FlatDefault, Options, Document, Camera }
+```
+
+- `AzimuthDegrees` and `ElevationDegrees` give the direction from the target to the eye in the orbit convention of
+  the renderer (the azimuth is a rotation about +Z that is counter-clockwise seen from above, 0 looks from -Y;
+  the elevation is the angle above the XY plane), whichever way the camera was chosen. A flat model with no chosen
+  view reports 0 and 90.
+- `IsFlatModel` is `true` when the model is entirely 2D at the top level, not a mix of 2D and 3D.
+- `Source` tells where the view came from: `Default` (the requested or isometric angles, fitted to the model),
+  `FlatDefault` (the flat top view of a 2D-only model), `Options` (explicit angles), `Document` (the model, or a
+  variable override, set a viewport variable), or `Camera` (the caller's `Camera`). Treat a value you do not know
+  defensively, as the members may grow.
+
+```csharp
+var sheet = ScadDocument.Parse("projection() cube([30, 20, 15], center = true);");
+ScadResolvedView? used = null;
+using var image = sheet.Render(800, 600, new ScadRenderOptions { ResolvedViewHandler = view => used = view });
+Console.WriteLine($"{used!.Source} {used.ElevationDegrees} {used.Projection}");
+// Output: FlatDefault 90 Orthographic
+```
+
 ### Supported OpenSCAD Subset
 
 Everything below is built to a Render3D scene by `BuildScene` and `Render`. Arguments follow the OpenSCAD-language
@@ -134,7 +191,7 @@ forms (positional or named); an unknown, surplus, or repeated argument is a warn
 | `sphere` | `sphere(r)` or `sphere(d = ...)` | `d` overrides `r`; the number of fragments follows `$fn`, `$fa`, and `$fs`, except that a radius of 1e-8 or less always gives 3 fragments, even with `$fn` set |
 | `cylinder` | `cylinder(h, r, r1, r2, d, d1, d2, center)` | Cones and frusta with `r1`/`r2` (per-end values override `r`/`d`); `d1`/`d2` are strongest |
 | `polyhedron` | `polyhedron(points, faces, convexity)`, or the legacy `triangles` when `faces` is absent | Faces list their points **clockwise seen from outside**; a solid supplied counter-clockwise is reversed with a warning. Concave planar faces are triangulated; an open shape is kept |
-| `square`, `circle`, `polygon` | `square(size, center)`, `circle(r)` or `circle(d = ...)`, `polygon(points, paths)` | 2D shapes; `paths` gives holes and islands (nesting parity), in either winding. A 2D shape that is not extruded is drawn as a thin slab (`FlatShapeThickness`) |
+| `square`, `circle`, `polygon` | `square(size, center)`, `circle(r)` or `circle(d = ...)`, `polygon(points, paths)` | 2D shapes; `paths` gives holes and islands (nesting parity), in either winding. A 2D shape that is not extruded is drawn as a thin slab (`FlatShapeThickness`); a model that is entirely 2D is drawn flat from above (see *Drawing Sheets with projection()*) |
 | `text` | `text(text, size, font, halign, valign, spacing, direction, language, script)` | A 2D shape of glyph outlines; see *Text* below for the size, font, alignment, and direction rules and the limits of the dialect |
 | `translate`, `scale`, `mirror` | `translate(v)`, `scale(v)` with a number or vector, `mirror(v)` (reflection through the plane with normal `v`) | Work on solids and 2D shapes |
 | `rotate` | `rotate([x, y, z])` (degrees; X first, then Y, then Z), `rotate(a)` (about Z), `rotate(a, v)` (about an axis) | |
@@ -146,6 +203,7 @@ forms (positional or named); an unknown, surplus, or repeated argument is a warn
 | `hull` | `hull() { ... }` of 3D children or of 2D children | The convex hull of every vertex of the children, in their transformed positions (a union of children, whether groups, loops, or user modules, is one point set). 3D children give one closed convex solid that is a valid operand of later booleans; 2D children give a convex shape that `linear_extrude`, `rotate_extrude`, and the top-level slab consume. Colors inside are dropped with a warning (the hull takes the enclosing `color`). A `difference` or `intersection` among the children is `scad-hull-csg-operand`, mixed 2D and 3D children are `scad-hull-mixed-dimensions`, and points that span no volume (or area) are `scad-hull-degenerate`; the hull is omitted in each case, never approximated |
 | `minkowski` | `minkowski(convexity) { ... }` of convex 3D children | The Minkowski sum of the children, folded from the left: `minkowski() { cube([10, 6, 4]); sphere(1); }` is the block with rounded edges and corners. A union among the children distributes over the sum. Every child must be **convex**: a block, a sphere, a cylinder, a `hull`, a convex `polyhedron`, or a union of those; a `difference`, an `intersection`, or a hollow, notched, or otherwise non-convex mesh is `scad-minkowski-nonconvex` (also for a single child), and the module is omitted. A sum of 2D children is deferred (`scad-minkowski-2d`), mixed 2D and 3D children are `scad-minkowski-mixed-dimensions`, and more than 4,096 convex parts or sums, or more than 2,097,152 pairwise vertex sums for two parts or in total for the whole module, is `scad-minkowski-too-complex`. `convexity` is ignored; colors inside are dropped with a warning (also for a lone child, so an enclosing `color` applies) |
 | `rotate_extrude` | `rotate_extrude(angle, convexity)` | Profile X is the radius; the sweep starts at +X and runs counter-clockwise; `angle` defaults to 360, larger values are clamped, negative values sweep clockwise; a profile on the negative side of the axis is swept where it lies (a point at `(-4, 0)` with `angle = 90` sweeps from 180 to 270 degrees); a profile with vertices on both sides of the axis is `scad-rotate-extrude-axis-crossing` |
+| `projection` | `projection(cut)` over 3D children; `cut` is `false` (default) or `true` | A flat 2D shape that every 2D module, extrusion, and 2D boolean accepts. `cut = false` is the **shadow** of the children on the XY plane (an exact silhouette of the tessellated meshes: a through hole stays a hole, a blind pocket leaves none, a tube gives an annulus); `cut = true` is their **cross-section at z = 0** (a face that lies exactly in that plane belongs to the section). A `cut` that is not a boolean is a warning and counts as `false`; `convexity` is ignored; 2D children are ignored with a warning, `%` children are skipped, and colors inside are not kept (a warning). A projection that needs more than 2^23 triangle visits (counting the triangles and the vertices of the children and each pass over them; for example a very fine curved solid, or a model with a huge number of points) is `scad-projection-too-complex`, and a mesh whose cross-section does not close (not a closed solid) is `scad-projection-open-mesh`; the projection is omitted in both cases. The footprints are checked against `MaxTriangles` before any is built. See *Drawing Sheets with projection()* |
 | `!` (show only) | `!cube(5);` | The marked subtree becomes the new root of the design, **without** the transforms and colors of its ancestors: `translate([10, 0, 0]) { !cube(1); }` renders the cube at the origin |
 | `*` (disable) | `*cube(5);` | The subtree is ignored |
 | `#` (highlight) | `#cube(5);` | The subtree is rendered normally **and** as a translucent copy in `HighlightColor`; it still takes part in the booleans around it. On a 2D shape that is not extruded it is reported as `scad-modifier-highlight` (see the next section) |
@@ -280,6 +338,148 @@ The number of segments of a circle of radius `r` follows a public, deterministic
 cylinder the larger of its two radii, and `rotate_extrude` and a twisted `linear_extrude` the largest radius of
 their profile. Increase `$fn` for smooth curves, for example `$fn = 64`; the triangle limit bounds the cost.
 
+#### Drawing Sheets with projection()
+
+`projection()` turns 3D children into a flat 2D shape on the XY plane, so a model can draw its own parts as a
+technical sheet: outlines, sections, a frame, and lettering, all 2D, all in one `.scad` file. The behavior is aligned
+with the documented semantics of OpenSCAD; this package's own tests are the reference, and no parity or
+compatibility with any other implementation is claimed.
+
+- `projection()` (that is, `cut = false`) is the **shadow** of the children seen from above: every point of the XY
+  plane that some part of the children lies over. It is an exact silhouette of the tessellated meshes, so a curved
+  solid projects to its polygon. A through hole in the solid is a hole in the shadow, a blind pocket leaves none, and
+  a tube gives an annulus.
+- `projection(cut = true)` is the **cross-section** of the children at `z = 0`. A face that lies exactly in the plane
+  `z = 0` belongs to the section. Move the part with `translate([0, 0, -z])` to cut it at height `z`.
+- The result is an ordinary 2D shape: `translate`, `rotate`, `scale`, `mirror`, `color`, 2D booleans, `hull`,
+  `linear_extrude`, and `rotate_extrude` all accept it.
+- A `cut` that is not a boolean is a warning and counts as `false`. `convexity` is ignored. 2D children are ignored
+  with a warning, `%` children are skipped, and a `color()` inside is not kept (a warning): color the projection
+  itself instead. Two problems are reported and omit the projection: `scad-projection-too-complex` and
+  `scad-projection-open-mesh` (see *Unsupported Features and Strict Mode*). The footprints of the children are
+  checked against `ScadLimits.MaxTriangles` before any of them is built.
+
+A drawing sheet is a model that is entirely 2D: a frame, the views of a part, and a title block. This one shows the
+part from above and from the front, inside a frame:
+
+```openscad
+union() {
+    translate([0, 40]) projection() my_model();
+    translate([0, 0]) projection() rotate([90, 0, 0]) my_model();
+    difference() { square([120, 80]); translate([2, 2]) square([116, 76]); }
+    translate([5, 5]) text("SCALE: 1:1", size = 3);
+    translate([40, 5]) text("TITLE: PROJECTION SHEET", size = 4, font = "Liberation Sans:style=Bold");
+}
+module my_model() { cube([30, 20, 15], center = true); }
+```
+
+The same idea gives the classic three-view sheet: one `projection()` of the part for the plan, one of the part
+turned about X for the front elevation, and one of the part turned a further quarter turn about Z for the side
+elevation, each moved to its own place on the sheet. For the front view of a part that is not symmetric, turn it with
+`rotate([-90, 0, 0])` (the part stays upright); `rotate([90, 0, 0])` shows it upside down, which the cube above
+cannot tell.
+
+A section and a shadow differ whenever the part is hollow inside:
+
+```openscad
+module block() difference() {
+    cube([40, 30, 20], center = true);
+    translate([0, 0, -3]) cylinder(r = 8, h = 20);  // a blind pocket from the top, down to z = -3
+}
+
+projection() block();                                // the shadow: a plain rectangle, the pocket is not visible
+translate([50, 0]) projection(cut = true) block();   // the section at z = 0: a rectangle with a round hole
+```
+
+**Flat drawing default.** A model that is entirely 2D at the top level (no mix with 3D) is not a scene to look at from
+a corner: with no explicit `Camera`, no explicit view angles, and no `$vpr`, `Render` draws it as a flat, top-down,
+orthographic picture fitted to the shape with a 5% margin, lit by ambient light only, so that every shape shows
+exactly its `color()` or the default neutral gray (a flat shape has no shading). Mixed 2D and 3D models, 3D models,
+and explicit views behave as before. Lights chosen in `SceneOptions.Lights` are respected, and so is an explicit
+`Projection` (for example `Perspective`). `ResolvedViewHandler` reports `FlatDefault` for such a picture.
+
+For a stronger drawing, set `SceneOptions.DefaultColor` (for example black; its alpha is ignored), color the shape in
+the model with `color("black")` outside the `projection()` (the colors inside `projection()` are dropped; a `color()`
+wins over `DefaultColor` and its alpha is honored), and choose the paper with `SceneOptions.BackgroundColor` (a
+transparent color keeps the alpha of the picture).
+
+```csharp
+using var sheet = ScadDocument.Open("sheet.scad").Render(1200, 900);
+PngCodec.Save(sheet, "sheet.png");
+```
+
+#### Viewport Variables
+
+The model sees the camera of its own picture in four special variables, so it can place geometry relative to it:
+
+<!-- markdownlint-disable MD013 -->
+| Variable | Meaning | Default |
+| -------- | ------- | ------- |
+| `$vpt` | The target: the point the camera looks at | `[0, 0, 0]` |
+| `$vpr` | The rotation of the camera in degrees, as `[x, y, z]` angles composed like `rotate($vpr)` | From the requested view: about `[54.7356, 0, 45]` for the default isometric view |
+| `$vpd` | The distance from the eye to the target | `140` |
+| `$vpf` | The vertical field of view in degrees | `22.5` |
+<!-- markdownlint-enable MD013 -->
+
+A `ScadDocument.Evaluate()` call without render options has no picture, so it shows the literal defaults of a fresh
+viewer instead, with `$vpr = [55, 0, 25]`.
+
+**Mapping.** The orbit view that `ViewAzimuthDegrees` and `ViewElevationDegrees` describe (azimuth `az`, elevation
+`el`) is `$vpr = [90 - el, 0, az]`, with every angle wrapped into 0 to 360. The view from straight above is
+`[0, 0, 0]`, the front view is `[90, 0, 0]`, and the default isometric view is about `[54.7356, 0, 45]`.
+
+**Precedence.** Each variable takes the first value that exists, highest first:
+
+<!-- markdownlint-disable MD013 -->
+| Source | Applies to |
+| ------ | ---------- |
+| An explicit render option | An explicit `Camera` supplies all four variables; explicit `ViewAzimuthDegrees` or `ViewElevationDegrees` sets `$vpr` only |
+| A variable override (`-D`, `ScadEvaluationOptions.Variables`) | Any of the four; a vector needs a sequence in `Variables`, as `-D` cannot define vectors (a scalar such as `-D '$vpd=200'` works) |
+| An assignment at the top level of the model file and its `include`s | Any of the four; not a `use`d library and not a nested scope |
+| The default | See the table above |
+<!-- markdownlint-enable MD013 -->
+
+**What the variables do to the picture.** Assigning only `$vpr` sets the orientation of the view, while the framing
+stays automatic (the view is still fitted to the model). Assigning any of `$vpt`, `$vpd`, or `$vpf` selects a
+**manual camera**: the eye sits at `$vpd` from `$vpt` along the rotated Z axis, the vertical field of view is `$vpf`,
+and nothing is fitted (an orthographic view is `2 * $vpd * tan($vpf / 2)` high). A manual camera on a model that is
+entirely 2D and assigns no `$vpr` still looks straight down. A value that cannot be converted gives a warning, for
+example `Unable to convert $vpr=... to a vec3 or vec2 of numbers; the viewport variable is ignored`, and the variable
+keeps the value of the next source.
+
+```openscad
+$vpr = [60, 0, 20];   // look from 30 degrees above the horizon, azimuth 20; the framing stays automatic
+$vpd = 200;           // a manual camera: 200 units from the target, no automatic fit
+cube(20);
+```
+
+**Circularity.** The camera is chosen after the model is built, so the model only sees the defaults for the
+variables it does not assign, and it cannot see that it turned out to be entirely 2D. In the other direction, the
+automatic fit includes the geometry that the variables placed, so a label placed with `$vpt` is framed too.
+
+**Facing the camera.** `$vpr` is the rotation that takes the camera's own axes (right is +X, up is +Y, toward the
+viewer is +Z) into the model, composed like `rotate($vpr)`. An object that lies in the XY plane and faces +Z is
+therefore turned to face the camera by `rotate($vpr)`, and it is placed at the target by `translate($vpt)`. This
+labels the view with its own rotation:
+
+```openscad
+cube([20, 20, 20], center = true);
+translate($vpt) rotate($vpr) linear_extrude(0.1) text(str("Cam View: ", $vpr), size = 2);
+```
+
+In the default isometric view the label reads about `Cam View: [54.7356, 0, 45]`. It sits at `$vpt`, which is the
+origin and so inside the cube; move it toward the camera along the rotated Z axis (for example
+`translate($vpt) rotate($vpr) translate([0, 0, 20])`) to see it in front of the cube.
+
+A chain of negated single-axis rotations, `translate($vpt) rotate([0, 0, -$vpr[2]]) rotate([0, -$vpr[1], 0])
+rotate([-$vpr[0], 0, 0]) ...`, is **not** the same rotation: it turns about X first, then Y, then Z (the same order as
+`rotate($vpr)`), but by the opposite angles, which is neither `rotate($vpr)` nor its inverse (an inverse would also
+reverse the order). It faces the camera only for a top view, and for a general view it evaluates without a warning
+and places the text exactly as its rotations say, which is not toward the camera. Use `rotate($vpr)`.
+
+The behavior of the viewport variables is aligned with the documented semantics of OpenSCAD; no parity or
+compatibility with any other implementation is claimed.
+
 ### Unsupported Features and Strict Mode
 
 A construct the package recognizes but cannot build is reported as a `ScadUnsupportedFeature` with a stable,
@@ -290,7 +490,9 @@ module in a loop is reported once. The identifiers are part of the documented be
 <!-- markdownlint-disable MD013 -->
 | Identifier | Trigger | Effect |
 | ---------- | ------- | ------ |
-| `scad-module-offset`, `scad-module-projection`, `scad-module-surface`, `scad-module-import`, `scad-module-roof` | The module is recognized but not implemented | The module and its children are omitted |
+| `scad-module-offset`, `scad-module-surface`, `scad-module-import`, `scad-module-roof` | The module is recognized but not implemented | The module and its children are omitted |
+| `scad-projection-too-complex` | A `projection` needs more work than the ceiling of 2^23 triangle visits (counting the vertices of the children and each pass over them), for example a very fine curved solid, or a model with a huge number of points | The projection is omitted; simplify the solid, lower `$fn`, or project the parts separately |
+| `scad-projection-open-mesh` | A `projection` meets a mesh whose cross-section does not close, that is, a mesh that is not a closed solid (for example an open `polyhedron`) | The projection is omitted; close the polyhedron |
 | `scad-text-invalid-outline` | A glyph outline of a `text()` is damaged, or a contour of a glyph crosses itself or has no area | The whole text is omitted |
 | `scad-text-overlapping-contours` | The contours of one glyph of a `text()` overlap or touch each other, other than as a hole, an island, or the overlapping solids of a composite glyph | The whole text is omitted |
 | `scad-hull-csg-operand` | A `hull` has a `difference` or an `intersection` among its children (3D or 2D, at any depth) | The hull is omitted |
@@ -319,7 +521,9 @@ Pass a handler to receive the reports (and the warnings) as they are delivered, 
 `ThrowOnUnsupportedFeature` to refuse a partial result: the first unsupported feature of any stage, after the
 earlier events were delivered, is thrown as a `ScadUnsupportedFeatureException` that carries the `Feature` and the
 `Location`. See Examples 23 to 25. The former identifier `scad-color-alpha` no longer exists: a color with an alpha
-below 1 is rendered as a translucent surface (see *Transparency, Ghosts, and Highlights*).
+below 1 is rendered as a translucent surface (see *Transparency, Ghosts, and Highlights*). The identifier
+`scad-module-projection` no longer exists either: `projection` is implemented (see *Drawing Sheets with
+projection()*).
 
 ### OpenSCAD Include Sandbox
 

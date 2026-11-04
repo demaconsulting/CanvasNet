@@ -18,7 +18,8 @@ subsystem is **internal**: its types are visible only to the `ScadDocument` unit
 
 - **ScadGeometryBuilder** — the engine and everything common to all modules: the iterative walk, the dispatch
   tables, implicit unions, the `!`, `#`, and `%` modifiers, the difference and intersection combiners and the
-  dimension rules, the `hull` and `minkowski` convex combinations (`ScadHulls`), the unsupported-module table,
+  dimension rules, the `hull` and `minkowski` convex combinations (`ScadHulls`), the `projection` shadows and
+  cross-sections (`ScadProjections`), the unsupported-module table,
   the triangle budget, cancellation, the reporting channel, the
   node-to-location map, and the copy of the renderer options; see _ScadGeometryBuilder Unit Design_
   (`scad-geometry/scad-geometry-builder.md`)
@@ -46,13 +47,17 @@ The subsystem's namespace documentation is in `Geometry/NamespaceDoc.cs`. Its be
   `OperationCanceledException`.
 - `ScadGeometrySettings` — `MaxTriangles` (a `long`), `FlatShapeThickness`, `ThrowOnUnsupportedFeature`, the
   `CancellationToken`, the optional (`Rgba32?`) `HighlightColor` and `GhostColor` (null: the defaults
-  `(255, 64, 128, 110)` and `(128, 128, 128, 80)`), and the optional `ScadFontResolutionOptions` that `text`
-  uses for an explicitly named font (null: the defaults).
-- `ScadBuiltScene` — the `Scene` (an empty group when nothing was built) and the `ScadSceneMap` from every
-  `MeshNode` to the source location of the module that produced it.
+  `(255, 64, 128, 110)` and `(128, 128, 128, 80)`), the optional `ScadFontResolutionOptions` that `text`
+  uses for an explicitly named font (null: the defaults), and the internal `MaxProjectionWork` (the work ceiling
+  of one `projection`, in triangle visits; the default is the documented 2^23 and other values exist for tests).
+- `ScadBuiltScene` — the `Scene` (an empty group when nothing was built), the `ScadSceneMap` from every
+  `MeshNode` to the source location of the module that produced it, and `IsFlatModel` (true when the whole result
+  of the model is a 2D shape; a union that mixes 2D and 3D is a 3D model), which `ScadDocument.Render` uses to
+  choose the flat top view.
 - `ScadSceneOptions.Create` and `ScadSceneOptions.MapFeature` — the copy of the renderer options with a
-  substituted unsupported-feature handler, and the mapping of a Render3D report identifier to a `scad-`
-  identifier.
+  substituted unsupported-feature handler (and, for a flat drawing whose caller set no lights, ambient light of
+  intensity 1 only, so that a shape shows exactly its own color), and the mapping of a Render3D report identifier
+  to a `scad-` identifier.
 - `ScadFeatureIds` — the stable unsupported-feature identifiers (see the table in _Design_).
 
 **Consumed**: from the `ScadEvaluation` subsystem, the instantiation tree (`ScadInstance`, `ScadInstanceKind`,
@@ -137,7 +142,9 @@ identifiers of the evaluation subsystem (`scad-function-<name>`, `scad-search-fo
 <!-- markdownlint-disable MD013 -->
 | Identifier | Trigger | Effect |
 | ---------- | ------- | ------ |
-| `scad-module-offset`, `scad-module-projection`, `scad-module-surface`, `scad-module-import`, `scad-module-roof` | The module is recognized but not implemented | The module and its children are omitted |
+| `scad-module-offset`, `scad-module-surface`, `scad-module-import`, `scad-module-roof` | The module is recognized but not implemented | The module and its children are omitted |
+| `scad-projection-too-complex` | A `projection` has children with more than 2^23 triangle visits (their triangles plus their vertices), or any pass of its silhouette, classification, or cut (the grouping and footprints of the faces, every slice) would take the total over 2^23 (counted before each pass runs) | The projection is omitted, never approximated |
+| `scad-projection-open-mesh` | The cross-section of a mesh below a `projection` that has to be sliced (a `cut = true`, or a mesh below a difference or an intersection) does not close, so the mesh is not a closed solid | The projection is omitted |
 | `scad-text-invalid-outline` | A glyph outline of a `text` is damaged, a mapped glyph has only subpaths without an area (unlike an empty glyph such as a space), or a contour of a glyph crosses or touches itself or is degenerate | The whole `text` is omitted |
 | `scad-text-overlapping-contours` | The contours of one glyph of a `text` overlap or touch each other, other than as a hole, an island, or the overlapping solids of a composite glyph | The whole `text` is omitted |
 | `scad-hull-csg-operand` | A `hull` has a difference or an intersection among its children (3D, or 2D, at any depth below it) | The hull is omitted |
@@ -157,7 +164,7 @@ identifiers of the evaluation subsystem (`scad-function-<name>`, `scad-search-fo
 | `scad-linear-extrude-apex-multiple-contours` | `scale = 0` over a profile with holes or islands in one leaf | The extrusion is omitted |
 | `scad-rotate-extrude-axis-crossing` | The profile lies on both sides of the axis (also a union or a boolean operand that does) | The extrusion is omitted |
 | `scad-rotate-extrude-axis-contact` | The profile touches the axis at an isolated vertex | The extrusion is omitted |
-| `scad-geometry-rejected` | Any other `ArgumentException` of a Render3D tessellator or extruder, or an instance whose coordinates are not finite or exceed 1e100 in magnitude (including hidden difference operands) | The affected instance is omitted; the message is kept |
+| `scad-geometry-rejected` | Any other `ArgumentException` of a Render3D tessellator or extruder (including a cross-section of a `projection` that the polygon validator rejects, which omits the projection), or an instance whose coordinates are not finite or exceed 1e100 in magnitude (including hidden difference operands) | The affected instance is omitted; the message is kept |
 | `scad-csg-open-mesh`, `scad-csg-non-manifold-edge`, `scad-csg-inconsistent-winding`, `scad-csg-degenerate-triangle`, `scad-csg-inverted-mesh`, `scad-csg-singular-transform` | The renderer's operand check of a difference or an intersection (only `Render`, only when a handler or strict mode is set), mapped from `render3d-csg-*` | Reported at the producing module; the image is still drawn |
 <!-- markdownlint-enable MD013 -->
 
@@ -226,6 +233,17 @@ designs.
     glyph whose outline has no area is reported as `scad-text-invalid-outline` rather than dropped (an empty glyph
     such as a space just advances), and the scan of the additional font directories is bounded, does not follow
     links, and honors cancellation.
+13. **Projection.** `projection(cut = false)` is the shadow of the 3D children on the XY plane (`cut = true`: their
+    cross-section at `z = 0`), computed exactly and kept as a symbolic 2D shape, so every consumer of 2D shapes
+    accepts it; the algorithm, the tie rule of the cut, and the budgets are in _ScadGeometryBuilder Unit Design_
+    (_Projection_). `cut` is honored when it is a boolean (anything else warns and counts as `false`),
+    `convexity` is ignored, 2D children are ignored with a warning, a `%` overlay is not projected, a `#` copy is not
+    counted twice, and a color inside is dropped with a warning. The identifier `scad-module-projection` of earlier
+    releases is **retired**; a projection that cannot be computed is `scad-projection-too-complex` or
+    `scad-projection-open-mesh` and is omitted whole. `offset`, `surface`, `import`, and `roof` remain unsupported.
+14. **Flat models.** A model whose whole result is 2D is flagged (`ScadBuiltScene.IsFlatModel`) so that
+    `ScadDocument.Render` can draw it as a flat top-down drawing (see _ScadDocument Unit Design_); the slab of the
+    shape and its thickness are not affected, so a scene built with `BuildScene` is the same either way.
 
 #### Fragment Rule
 
@@ -255,7 +273,14 @@ charged and only the meshes of the result remain. The budget accumulates across 
 loops. The convexity-verification hulls for Minkowski members and the transient distinct-point set used by the hull
 budget check are temporary working storage bounded by the size of operand meshes that are already charged, and are
 not separately charged against the triangle budget; precise accounting of transient storage is a planned hardening
-follow-up. The renderer's own resource
+follow-up. A `projection` counts the triangles and the vertices of its children first and refuses a total above 2^23
+triangle visits before
+anything is allocated, then requires that the slabs its footprints could need (8 triangles per candidate triangle)
+fit the triangle budget, with the normal located error otherwise, and bounds every pass of its silhouette,
+classification, or cut (not only the slices) by a work meter with the same ceiling (see _ScadGeometryBuilder Unit
+Design_, _Projection_); the transformed copies
+of the vertices it makes are transient storage bounded by the size of meshes that are already charged, like those of
+`hull`. The renderer's own resource
 limit (`SceneRenderOptions.MaxFragmentsPerTile`) is reported by `ScadDocument.Render` as a
 `ScadEvaluationException` without a location.
 

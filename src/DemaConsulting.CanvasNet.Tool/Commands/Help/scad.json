@@ -14,6 +14,8 @@
         { "text": "color(): CSS names, #RGB, #RGBA, #RRGGBB, #RRGGBBAA, [r, g, b] and [r, g, b, a]. An alpha below 1 makes the surface translucent." },
         { "text": "Booleans: union, difference, intersection, render, intersection_for." },
         { "text": "linear_extrude (twist, slices, scale), rotate_extrude, hull of 3D or 2D children, minkowski of convex 3D children." },
+        { "text": "projection(): the shadow of 3D children on the XY plane (cut = false, the default) or their cross-section at z = 0 (cut = true), as a flat shape that 2D modules and extrusions use like any other. A model that is entirely 2D, for example a projection() drawing sheet, is drawn as a flat top-down view (orthographic) unless a view is chosen; its shapes are flat gray unless colored. For a stronger drawing use --default-color black, or color the shape in the model outside the projection (color(\"black\") projection() ...; colors inside projection() are dropped), and --background to choose the paper (white by default, transparent keeps alpha)." },
+        { "text": "The viewport variables $vpt, $vpr, $vpd, and $vpf hold the camera of the picture, so a model can place geometry relative to it: translate($vpt) rotate($vpr) faces the camera. Assigning them at the top level of the model sets the view; --view, --azimuth, and --elevation win over the model." },
         { "text": "Modifiers: ! (show only), * (disable), # (highlight, a translucent copy), % (background, a translucent ghost)." },
         { "text": "The language: variables, functions, modules with children(), for, if, let, comprehensions, echo, assert, include and use, and the built-in functions." },
         { "text": "Curve resolution from $fn, $fa, and $fs." },
@@ -25,7 +27,7 @@
       "id": "unsupported",
       "title": "Unsupported",
       "items": [
-        { "text": "Modules offset, projection, surface, import, and roof: they are left out and reported." },
+        { "text": "Modules offset, surface, import, and roof: they are left out and reported." },
         { "text": "Functions parent_module, textmetrics, and fontmetrics (they evaluate to undef and are reported), and some argument forms of search()." },
         { "text": "minkowski of 2D children, of mixed 2D and 3D children, or of non-convex children (a difference, an intersection, a hollow mesh)." },
         { "text": "hull with a difference or an intersection among its children, or with mixed 2D and 3D children." },
@@ -38,16 +40,16 @@
       "id": "options",
       "title": "Render options",
       "items": [
-        { "term": "--view <name>", "text": "The viewpoint: iso (default), front, back, left, right, top, or bottom." },
+        { "term": "--view <name>", "text": "The viewpoint: iso (default; a model that is entirely 2D defaults to top), front, back, left, right, top, or bottom." },
         { "term": "--azimuth <degrees>", "text": "Replace the azimuth of the view: degrees about the Z axis, 0 from the front." },
         { "term": "--elevation <degrees>", "text": "Replace the elevation of the view: degrees above the XY plane, -90 to 90." },
         { "term": "--projection <type>", "text": "ortho (default) or perspective." },
         { "term": "--define <name=value>", "text": "Set a variable of the model; -D is the short form. Repeatable; the later definition wins." },
         { "term": "--time <T>", "text": "The value of $t (default 0)." },
-        { "term": "--default-color <color>", "text": "The color of surfaces the model does not color (default gray)." },
+        { "term": "--default-color <color>", "text": "The color of surfaces the model does not color (default gray); the alpha is ignored. A flat 2D drawing is gray by default, so --default-color black gives a high-contrast drawing; a color() in the model overrides it." },
         { "term": "--max-triangles <N>", "text": "The most triangles the model may produce (default {{scadMaxTriangles}})." },
         { "term": "--size <WxH>", "text": "The picture is 800x800 pixels unless a size option is given; --width, --height, and --scale also size it. The camera fits the picture; nothing is stretched." },
-        { "term": "--background <color>", "text": "The color the picture is flattened over (default white); transparent keeps alpha." },
+        { "term": "--background <color>", "text": "The color the picture is flattened over (default white; black, #RRGGBB, or #RRGGBBAA); transparent keeps alpha." },
         { "term": "--strict", "text": "Fail with unsupported-feature instead of leaving a construct out." }
       ]
     },
@@ -57,7 +59,9 @@
       "items": [
         { "text": "Without --strict an unsupported construct is left out and listed in diagnostics[] of the JSON result as {source: scad, severity: unsupported, code: <id>} (without --json, as an 'Unsupported: <id>: <message>' line on standard error). With --strict the first one fails with unsupported-feature and no file is written." },
         { "text": "The output of echo() is in echo[] of the JSON result as 'ECHO: <text>' lines; without --json it is written to standard error in the same form." },
-        { "term": "scad-module-offset", "text": "Also scad-module-projection, scad-module-surface, scad-module-import, and scad-module-roof: the module and its children are omitted." },
+        { "term": "scad-module-offset", "text": "Also scad-module-surface, scad-module-import, and scad-module-roof: the module and its children are omitted." },
+        { "term": "scad-projection-too-complex", "text": "A projection needs more work than one projection may do (too many triangles, or a difference or an intersection whose silhouette costs too much to classify): the projection is omitted." },
+        { "term": "scad-projection-open-mesh", "text": "A projection found a mesh that is not a closed solid (its cross-section does not close): the projection is omitted." },
         { "term": "scad-hull-csg-operand", "text": "A hull has a difference or an intersection among its children." },
         { "term": "scad-hull-mixed-dimensions", "text": "A hull has both 2D and 3D children." },
         { "term": "scad-minkowski-nonconvex", "text": "A minkowski has a child that is not convex." },
@@ -83,8 +87,10 @@
         { "text": "Indexing is lenient: v[i] is undef for a negative or non-finite index, and a fractional index is truncated." },
         { "text": "text() is laid out one character at a time without shaping or ligatures; language and script are ignored; size is the height of the glyph H. A generic name (sans, serif, mono, sans-serif, monospace, ...) is a bundled Liberation font; any other family is looked up in the installed fonts (so it can differ between machines), then among the bundled Liberation families, and a family found nowhere is drawn with the bundled Liberation Sans and a warning. For each character the chosen font lacks, the glyph comes from the bundled Noto Sans, Noto Sans Math, or Noto Sans Symbols 2 (never an installed font), with no kerning across fonts; characters nothing covers are listed in one warning per text()." },
         { "text": "The semantics of the # highlight and the % ghost are this package's documented choices; a ghost is part of the fitted bounds but not of the model." },
-        { "text": "hull and minkowski constructs they cannot handle are omitted and reported, never approximated." },
-        { "text": "The result is a static picture from a named view (iso, orthographic by default), not an interactive camera." }
+        { "text": "hull and minkowski constructs they cannot handle are omitted and reported, never approximated; so is a projection that is too complex or whose mesh is not closed." },
+        { "text": "projection(cut = true) includes a face that lies exactly in the z = 0 plane (a closed section); the silhouette and the section are computed from the tessellated meshes, so a curved solid projects to its polygon." },
+        { "text": "The viewport variables follow the documented meaning of the OpenSCAD ones ($vpr is the rotation of the camera, so rotate($vpr) turns an object to face it). The model sees the default $vpt = [0, 0, 0], $vpd = 140, and $vpf = 22.5 and the $vpr of the requested view, because the camera is fitted after the model is built; only an assignment of $vpt, $vpd, or $vpf turns off the automatic framing." },
+        { "text": "The result is a static picture from a named view (iso by default, top for a model that is entirely 2D; orthographic by default), not an interactive camera." }
       ]
     }
   ],

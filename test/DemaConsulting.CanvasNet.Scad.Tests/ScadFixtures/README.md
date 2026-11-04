@@ -38,6 +38,13 @@ OpenSCAD's source code, test corpus, manual text, manual examples, or rendering 
 `#` modifiers in CanvasNet (a ghost that is not part of the model, a highlight that still takes part in the booleans)
 are written down in `docs/design/canvas-net-scad.md` as CanvasNet's own decisions.
 
+`render-projection-views.scad` (the `projection()` feature) is an original work of the same kind: the flanged bushing, its
+four views and the sheet were designed for these tests, and every expected shape is computed by the test from the
+dimensions in the file. `render-projection-sheet.scad` and `render-viewport-hud.scad` are the two sample models that
+the requester of the feature supplied; they are the requester's own text, used as given, and no OpenSCAD source or manual
+example was consulted for them or for the expectations of their tests, which are computed from the documented meaning
+of the viewport variables of CanvasNet (see `docs/design/canvas-net-scad.md`) and from plain rotation matrices.
+
 `.scad` files are not spell-checked by the repository lint, and the repository normalizes text files to LF line
 endings on checkout. Tests that depend on other line-ending conventions build their input in code instead.
 
@@ -101,6 +108,9 @@ named after the topic, not after any other implementation's behavior.
 | `render-transparency.scad` | Color alpha (vector, hex, `alpha=`), a translucent cube alone and over an opaque plate, a translucent difference with a blind cavity, a `%` ghost that passes through a solid without cutting it, a `#` on a subtracted cylinder, and a `%` of an extruded circle |
 | `render-hull.scad` | `hull` of two cubes (a hexagonal prism), of 2D squares (extruded), of two spheres (a capsule), and as a cutter in a difference |
 | `render-minkowski.scad` | `minkowski` of a block and a ball (a rounded box), of a union of blocks (distributed), and of a hull and a cube |
+| `render-projection-sheet.scad` | A drawing sheet of 2D shapes only: two `projection()` views of a cube, a border and two lines of text; drawn flat from the top |
+| `render-projection-views.scad` | A flanged bushing drawn as top, front and side `projection()` shadows and a `projection(cut = true)` section on one sheet |
+| `render-viewport-hud.scad` | A cube and a line of text placed with `$vpt`, `$vpr` and `$vpd` (a head-up display written with negated single-axis rotations) |
 | `libs/defs.scad`, `libs/nested/inner.scad`, `libs/shapes.scad` | Files included or used by `eval-include-main.scad`; they are not enumerated by the parse tests |
 
 ## Expected Outputs

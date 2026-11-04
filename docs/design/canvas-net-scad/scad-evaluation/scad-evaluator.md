@@ -21,6 +21,8 @@ source files in the `DemaConsulting.CanvasNet.Scad.Evaluation` namespace, all `i
 - `ScadBuiltinModules.cs` — the recognized built-in module names
 - `ScadEvaluationSettings.cs` — the evaluation settings
 - `ScadEvaluationOutput.cs` — the result of one evaluation
+- `ScadViewportValues.cs` — `ScadViewportValues` (the values of `$vpt`, `$vpr`, `$vpd`, and `$vpf`) and
+  `ScadDocumentViewport` (the viewport variables the document defined)
 - `ScadEvaluationSink.cs` — the buffer for echo lines, warnings, and unsupported-feature reports
 
 #### Purpose
@@ -71,9 +73,18 @@ the result expression, the scope the function closes over, and the definition lo
 children, modifiers, fragment settings, and location.
 
 **Settings and output.** `ScadEvaluationSettings` carries `Limits`, `Time`, `Overrides` (a dictionary of
-name to value; a name beginning with `$` becomes a special binding), `ThrowOnUnsupportedFeature`, and
-`Cancellation`, with safe defaults. `ScadEvaluationOutput` carries the root instances, snapshots of the sink,
-the instance count, and the step and loop-iteration counts.
+name to value; a name beginning with `$` becomes a special binding), `Viewport` (a nullable `ScadViewportValues`:
+the defaults of the viewport variables, `ScadViewportValues.OpenScadDefaults` when null), `ThrowOnUnsupportedFeature`,
+and `Cancellation`, with safe defaults. `ScadEvaluationOutput` carries the root instances, snapshots of the sink,
+the instance count, the step and loop-iteration counts, and `Viewport` (a `ScadDocumentViewport`: the viewport
+variables the main file or an override defined, each `null` when it was not defined or its value was unusable).
+
+**Viewport values.** `ScadViewportValues` is a readonly record struct of `Target` (`$vpt`), `Rotation` (`$vpr`,
+degrees), `Distance` (`$vpd`), and `FieldOfView` (`$vpf`, degrees), with the variable names as constants. Its
+`OpenScadDefaults` are `[0, 0, 0]`, `[55, 0, 25]`, `140`, and `22.5`; `ScadDocument.Render` and `BuildScene` supply
+the values of the requested view instead (see _ScadDocument Unit Design_). `ScadDocumentViewport` (sealed record)
+holds the four nullable valid values and `IsManual`, true when `$vpt`, `$vpd`, or `$vpf` was defined (which selects
+a manual camera instead of the automatic framing).
 
 **Sink (`ScadEvaluationSink`).** Buffers the echo lines (checking the cumulative output limit), the warnings
 (de-duplicated by message and location, capped at `MaxDiagnostics` real warnings **plus** one
@@ -106,7 +117,8 @@ test reaches the fallback path deterministically instead of depending on how sma
   far (phase A's), runs the pass **inline**, and, only when the pass throws
   `InsufficientExecutionStackException`, resets the sink, re-records the snapshot, and runs the pass again on
   the large-stack thread (`RunOnEvaluatorThread`).
-- `RunPass(stackShortageIsRecursionError)` — builds the root scope, executes the file's statements, and
+- `RunPass(stackShortageIsRecursionError)` — builds the root scope, **reads the viewport variables of the main
+  file** (`ReadViewport`, see _Normative Semantics: Viewport Variables_), executes the file's statements, and
   assembles the output. On the large-stack thread a tripped guard is reported as the recursion-limit error
   (defense in depth), located at the last frame entered.
 - `EnterFrame`, `LeaveFrame`, `Charge`, `ChargeLoopTurn`, `CheckLoopBudget`, `ChargeHops` — the accounting
@@ -125,7 +137,9 @@ assignment**; duplicate functions and modules are handled alike (`Function 'f' i
 `Module 'm' is defined more than once…`, last definition wins). Definitions are **hoisted**: they are visible
 throughout the scope wherever they are written, which makes the rules position independent. The root layer
 below the file scope defines `PI` and the special variables `$fn = 0`, `$fa = 12`, `$fs = 2`, `$t` (the
-`Time` setting), and `$preview = true`.
+`Time` setting), `$preview = true`, and the viewport variables `$vpt`, `$vpr`, `$vpd`, and `$vpf` (the values of
+`ScadEvaluationSettings.Viewport`, the `ScadViewportValues.OpenScadDefaults` `[0, 0, 0]`, `[55, 0, 25]`, `140`, and
+`22.5` when the setting is null).
 
 **Variable lookup** walks from the innermost scope outward; the first scope that defines the name wins. The
 same variable may be assigned in different scopes without a warning (the inner one shadows the outer one).
@@ -300,6 +314,28 @@ includes — **without evaluating their right-hand sides**, and creates the cell
 override. Overrides are applied in ordinal key order, and an override is not applied to a `use`d library or to
 assignments nested in modules or blocks.
 
+##### Normative Semantics: Viewport Variables
+
+The viewport variables `$vpt` (the point the camera looks at), `$vpr` (the camera rotation in degrees), `$vpd` (the
+distance from the camera to the target), and `$vpf` (the vertical field of view in degrees) are ordinary special
+variables as far as scoping is concerned: the root defaults scope defines them (see _Scoping_), a top-level
+assignment in the main file or an `include`d file replaces the default, and a `-D` override replaces the
+assignment. The evaluator does not interpret them while it evaluates; the renderer gives them meaning afterwards.
+
+After the file scope of the main unit was built and its assignments forced, and before its statements run,
+`ReadViewport` reads the cells that the **main file scope itself** defines (the frame of that scope; a scope owns a
+frame only when it binds a `$` name, so a document that assigns none gives `ScadDocumentViewport.None`). The
+variables of nested scopes, and of `use`d libraries (which never run their top-level assignments), are not read.
+`$vpt` and `$vpr` must be lists of two or three finite numbers (a missing third component is 0), `$vpd` a finite
+number greater than 0, and `$vpf` a finite number greater than 0 and less than 180. A value that does not qualify
+produces one warning at the location of the assignment, for example
+`Unable to convert $vpr=... to a vec3 or vec2 of numbers; the viewport variable is ignored` (or `... to a finite
+number greater than 0; ...`, `... to a number between 0 and 180 (exclusive); ...`), and the variable counts as not
+defined. A value that is valid is returned in `ScadEvaluationOutput.Viewport`; the model's own use of the variable
+(for example `translate($vpt)`) is unaffected by whether the value is valid. Because the cell is read from the final
+state of the file scope, an override or an explicit render option that supplied the value is seen exactly as an
+assignment would be.
+
 ##### Accounting: Frames, Steps, Loops, Instances
 
 **Frames.** Entering a frame costs one count of `MaxRecursionDepth`; leaving it gives the count back. A frame
@@ -470,7 +506,9 @@ _ScadEvaluation Subsystem Design_ (`scad-evaluation.md`, _Event Classification_)
 #### Callers
 
 `ScadDocument.Evaluate` is the only production caller: it builds `ScadEvaluationSettings` from the public
-options (converting the `Variables`), creates the `ScadEvaluationSink`, calls `ScadEvaluator.Evaluate`, and
+options (converting the `Variables`, merging the overrides that an explicit camera or explicit view angles fix
+for the viewport variables, and supplying the viewport defaults of the plan; see _ScadDocument Unit Design_),
+creates the `ScadEvaluationSink`, calls `ScadEvaluator.Evaluate`, and
 delivers the sink on the calling thread in both the success and the failure path. The tests in
 `test/DemaConsulting.CanvasNet.Scad.Tests/Evaluation/ScadEvaluator*Tests.cs` and
 `ScadEvaluationSinkTests.cs` call the entry points directly through `InternalsVisibleTo`, using

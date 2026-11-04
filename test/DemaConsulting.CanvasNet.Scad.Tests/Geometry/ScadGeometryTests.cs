@@ -183,10 +183,10 @@ public class ScadGeometryTests
 
         // Act
         var exception = Assert.Throws<ScadUnsupportedFeatureException>(
-            () => Build("cube(1);\nprojection() cube(1);\nsurface(\"a\");", settings));
+            () => Build("cube(1);\nroof() cube(1);\nsurface(\"a\");", settings));
 
         // Assert
-        Assert.Equal("scad-module-projection", exception.Feature);
+        Assert.Equal("scad-module-roof", exception.Feature);
         Assert.Equal(2, exception.Location.Line);
     }
 

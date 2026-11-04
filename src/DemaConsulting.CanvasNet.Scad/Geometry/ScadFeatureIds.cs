@@ -8,8 +8,8 @@ namespace DemaConsulting.CanvasNet.Scad.Geometry;
 /// <remarks>
 ///     The identifiers are lower-case and stable so callers can match on them; they are part of the documented
 ///     behavior of the package. The prefix of a module that is recognized but not built is
-///     <see cref="ModulePrefix"/> followed by the module name; <c>hull</c> and <c>minkowski</c> are built and
-///     report the specific <c>scad-hull-*</c> and <c>scad-minkowski-*</c> identifiers instead.
+///     <see cref="ModulePrefix"/> followed by the module name; <c>hull</c>, <c>minkowski</c> and <c>projection</c> are built and
+///     report the specific <c>scad-hull-*</c>, <c>scad-minkowski-*</c> and <c>scad-projection-*</c> identifiers instead.
 /// </remarks>
 internal static class ScadFeatureIds
 {
@@ -93,6 +93,12 @@ internal static class ScadFeatureIds
 
     /// <summary>A <c>minkowski</c> needs more pairwise vertex sums or convex combinations than the documented bounds.</summary>
     public const string MinkowskiTooComplex = "scad-minkowski-too-complex";
+
+    /// <summary>A <c>projection</c> needs more work than the documented ceiling (too many triangles, or a boolean subtree whose classification would cost more); it is omitted.</summary>
+    public const string ProjectionTooComplex = "scad-projection-too-complex";
+
+    /// <summary>A <c>projection</c> found a mesh whose cross-section does not close (the mesh is not a closed solid); the projection is omitted.</summary>
+    public const string ProjectionOpenMesh = "scad-projection-open-mesh";
 
     /// <summary>
     ///     Gets the identifier of a module that is recognized but not built.

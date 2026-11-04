@@ -1,10 +1,10 @@
 ### ScadGeometryBuilder Unit Verification Design
 
-<!-- cspell:ignore minuend subtrahend subtrahends minkowski multmatrix -->
+<!-- cspell:ignore minuend subtrahend subtrahends minkowski multmatrix coplanar octahedron tetrahedron -->
 
 This document describes the unit-level verification strategy for the `ScadGeometryBuilder` unit: the internal
 iterative engine and its supporting types (`ScadGeometryBuilder`, `ScadGeo`, `ScadGeometryContext`, `ScadSceneMap`,
-`ScadReporter`, `ScadSceneOptions`, `ScadFeatureIds`, `ScadBooleans`, and `ScadHulls`) in the
+`ScadReporter`, `ScadSceneOptions`, `ScadFeatureIds`, `ScadBooleans`, `ScadHulls`, and `ScadProjections`) in the
 `DemaConsulting.CanvasNet.Scad.Geometry` namespace.
 
 #### Verification Approach
@@ -50,12 +50,28 @@ token driven both through `Build` and directly through `ScadHulls` with already 
 builders' own polls are reached), determinism by comparing two builds vertex for vertex, and the stack by
 hand-built chains of nested instances on a 64 KiB caller thread.
 
+Projection is verified from the geometry, never from reference images. The areas and the holes of a 2D result are
+measured by drawing the program straight from above with an orthographic camera over a known window, in flat colors
+(the helpers `Area` and `Covers` of `ScadProjectionTestSupport`: the number of covered pixels divided by the square of
+the pixels per unit, and whether a model point is covered), so every expected value is a closed-form area (a
+rectangle, `0.5 * n * r^2 * sin(2 pi / n)` for a regular polygon, the difference of two such areas for a ring, the
+overlap of two boxes) and the tolerance is the anti-aliasing of the edges (exact when every pixel edge falls on a
+model coordinate). The merging of faces is observed through the number of slabs a result becomes (a cube top and a
+cylinder cap are one slab each), the reports by feature, message, and location, the budgets by the triangles
+charged and by the located error, and the stack by a model nested 3,000 levels deep built on a 64 KiB caller thread.
+The classification is verified against the cases that decide whether it is exact: through holes, blind pockets from
+above and from below, a tube whose cutter is flush with it, cutters that are taller or far away, and an
+intersection.
+
 Unit tests reside in `ScadGeometryBuilderWalkTests.cs`, `ScadGeometryBuilderStackTests.cs`,
 `ScadGeometryBuilderCancellationTests.cs`, `ScadGeometryBuilderLimitTests.cs`, `ScadGeometryBuilderBooleanTests.cs`,
 `ScadGeometryBuilderHullTests.cs`, `ScadGeometryBuilderMinkowskiTests.cs`,
+`ScadGeometryBuilderProjectionTests.cs`, `ScadGeometryBuilderProjectionCutTests.cs`,
+`ScadGeometryBuilderProjectionBudgetTests.cs`,
 `ScadGeometryBuilderTransformDepthTests.cs`, `ScadSceneOptionsTests.cs`, and `ScadUnsupportedModuleTests.cs` within
 the `DemaConsulting.CanvasNet.Scad.Tests` project, in the `Geometry` folder, with the shared helpers
-(`ScadGeometryTestSupport`, `ScadBuildResult`, and `SceneLeaf`) in `ScadGeometryTestSupport.cs`.
+(`ScadGeometryTestSupport`, `ScadBuildResult`, and `SceneLeaf`) in `ScadGeometryTestSupport.cs` and the projection
+helpers (`ScadProjectionTestSupport`) in `ScadProjectionTestSupport.cs`.
 
 #### Test Environment
 
@@ -229,14 +245,15 @@ strict mode does not throw for `#` and `%` on solids or a color alpha.
 `ScadGeometryBuilderWalkTests.ScadGeometryBuilder_Build_UnsupportedModule_ReportsFeatureWithLocation`,
 `ScadGeometryBuilderWalkTests.ScadGeometryBuilder_Build_UserModuleShadowingBuiltin_IsBuiltNotReported`
 
-Asserts, for each of the five modules `offset`, `projection`, `surface`, `import`, and `roof`, that the
+Asserts, for each of the four modules `offset`, `surface`, `import`, and `roof`, that the
 report is `scad-module-{name}` at the module's location with a message naming it, that no
 mesh is built, and that an invalid child (a cube that would warn) is never visited; that realistic arguments make
 no difference and three modules in one program are reported in order at their own lines; that supported siblings
-still build; that, of every module the evaluator recognizes, exactly the five are reported (`hull`, `minkowski`,
-and `text` are built, and without children or arguments they yield nothing or at most a warning and report no
-unsupported feature, so a module added to
-the evaluator cannot be silently dropped); that an unsupported module under transforms yields nothing, as a
+still build; that, of every module the evaluator recognizes, exactly the four are reported (`hull`, `minkowski`,
+`projection`, and `text` are built, and without children or arguments they yield nothing or at most a warning and
+report no unsupported feature, so a module added to the evaluator cannot be silently dropped; the table of built
+modules in `ScadGeometryBuilderWalkTests` lists `projection`, and the retired `scad-module-projection` is never
+reported); that an unsupported module under transforms yields nothing, as a
 minuend it empties the difference, and as a subtrahend it vanishes after being reported; and that a user module of
 the same name builds its own geometry without a report.
 
@@ -412,6 +429,190 @@ Asserts that a canceled token stops a hull and a sum through `Build`, and that `
 Asserts that a model with a hull of a sphere and a rotated cube, a distributed sum with a union, and an extruded
 2D hull builds twice to the same four meshes vertex for vertex and index for index with the same charge.
 
+##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-Projection: Shadow Of Solids
+
+**Tests**: `ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_Cube_IsItsFootprint`,
+`ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_CubeTurnedAboutX_IsItsFrontView`,
+`ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_CubeTurnedAboutZ_IsADiamond`,
+`ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_Cylinder_IsThePolygonOfItsCap`,
+`ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_Sphere_IsADisc`,
+`ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_ExtrudedRing_IsTheRing`,
+`ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_UnionOfOverlappingFootprints_IsTheUnionOfTheOutlines`,
+`ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_TransformsOutsideAndInside_ApplyToTheirOwnDimension`,
+`ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_Result_IsConsumedByOtherModules`,
+`ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_OverlayChildren_AreNotProjectedTwice`,
+`ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_TwoDimensionalAndNoChildren_WarnOrStaySilent`,
+`ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_Arguments_AreValidated`,
+`ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_Colors_AreNotKeptInsideAndApplyOutside`,
+`ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_OpenMesh_ProjectsItsTriangles`,
+`ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_VerticalFaces_HaveNoFootprint`,
+`ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_CoplanarFaces_AreMergedIntoOneRegion`,
+`ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_FaceWithATouchingHole_FallsBackToTriangles`,
+`ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_DeepNesting_BuildsOnASmallStack`,
+`ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_FarTranslatedSmallCube_StillProjects`,
+`ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_FarTranslatedDifference_KeepsTheHole`,
+`ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_SmallScaleCube_Projects`,
+`ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_SmallScaleDifference_KeepsTheHole`,
+`ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_SmallDifferenceBesideAHugeSolid_KeepsASliver`,
+`ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_SmallDifferenceBesideAHugeSolid_KeepsAThroughHole`,
+`ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_SmallPartBesideAFarCutter_IsNotAffectedByTheCutterPlane`
+
+Asserts, by drawing the result from above, that the shadow of a cube of 30 by 20 by 15 is exactly 600 square units and
+that the same cube turned 90 degrees about X (a front view) is exactly 450 (30 by 15); that a cube of side 10 turned
+45 degrees about Z has an area of 100 (within 1.5) and covers the points (0, 0), (6, 0), and (0, 6) but not (4.9, 4.9)
+or (6.5, 6.5) (a diamond); that a cylinder of radius 5 with 64 fragments has the area of the regular 64-gon within 1
+and a sphere of radius 5 with 48 fragments has an area between 97 percent of the circle and the circle; that the
+extrusion of a ring (a 2D difference of two circles) projects to the area of the 64-gon of radius 8 minus that of radius
+5 within 1.5; that two 10 by 10 squares 5 apart in X and 7 apart in Z project to 150 square units (the union of the
+outlines, 100 plus 100 minus the 50 of the overlap); and that a cube of side 2 moved 5 in X before the projection and
+the result moved 3 in Y after it lands at the square x 5..7, y 3..5 (covering (6, 4) and (5.5, 3.5) but not (6, 1) or
+(1, 4)), so the transforms apply to their own dimension.
+
+Asserts that the 2D result is an ordinary shape: the extrusion of the projection of a cube of side 2 is a closed mesh of
+volume 12 (3 times 4) with no warning, a square of side 10 minus the projection of a centered cube of side 2 has an area
+of 96, and the hull of two such projections 6 apart has an area of 16.
+
+Asserts the children and arguments: a `%` child has no shadow (a cube beside a ghost projects to an area of 4) and a `#`
+child is projected once (no warning and one slab); a 2D child next to a cube produces exactly one warning,
+`1:1: projection: only 3D children can be projected; the 2D children are ignored`, and the cube is still projected (one
+slab), while a lone 2D child gives one warning and no slab and an empty `projection() {}` gives nothing at all (no
+warning, no report, no mesh); `convexity` is accepted silently, `cut = 2` gives the warning `1:1: projection: 'cut'
+must be true or false; false is used` and the shadow is still projected, and an unknown argument `wat` gives the usual
+`Ignoring unknown argument 'wat' of projection` warning; a color inside the projection gives the one warning that it is
+not kept and the leaf has no appearance, while a color around it gives no warning and the leaf takes it.
+
+Asserts the faces: a lone triangle tilted out of the plane (an open mesh, one face) projects to the triangle with legs 4
+and 4, an area of 8 within 0.5, because the shadow of every non-vertical face of an open mesh counts; a triangle
+standing on the X axis (vertical) has no footprint, so it produces no slab, no warning, and no report; a cube and a
+cylinder of 64 fragments each become one slab, which shows that the triangles of one coplanar face are merged into one
+region; a face of six triangles whose hole touches its outline at a vertex (a boundary that cannot be chained into one
+contour) falls back to one region per triangle, six slabs, with the exact area of 13 within 0.2; and a recursive module
+that nests 3,000 translations around a cube, built under a projection on a thread with a 64 KiB stack, gives one slab
+(nothing recurses).
+
+Asserts that the tolerances do not depend on the translation or the absolute scale, by the doubles of the built slab
+rather than a picture (a single-precision rendering could not resolve them): a cube of side 1 translated by 1e9 in X,
+by 1e9 in Z, and by (-1e9, 1e9) in X and Y projects to one slab with exactly the bounds of its unit footprint, no
+warning, and no report; a 10 by 10 by 10 plate with a 4 by 4 through hole translated by 1e7 in X and Y still gives
+several slabs (the hole survives) between x = 1e7 and 1e7 + 10; a cube of side 1e-4 projects to one slab of that size; and
+a plate of side 1e-3 with a through hole keeps the hole.
+
+Asserts that every solid is judged by its own tolerance, not by the largest one, again by the doubles of the built slabs.
+A plate of side 1e-3 whose cutter ends 5e-10 below the top of the plate leaves a sliver over the cutter, so its
+footprint is complete: the part of the plate (the slabs whose largest X is below 1) is one slab with the bounds of the
+unit square scaled to 1e-3, beside a cube of side 1e4 (a tolerance of about 1e-5) and beside one of side 1e6 (about
+1e-3). The control, a cutter that ends 5e-10 above the top, keeps its through hole (several slabs) beside the same
+cubes. A plate of side 1e-3 beside a cutter of side 1e6 at 1e9 projects to one slab of its own footprint (it also exercises
+a far plane against a tiny mesh, whose key quotient would not fit a long; the reach test runs before the key is built).
+
+##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ProjectionClassification: Shadow Of Differences And Intersections
+
+**Tests**: `ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_PlateWithThroughHole_HasTheHole`,
+`ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_BlindPocket_HasNoHole`,
+`ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_PocketFromBelow_HasNoHole`,
+`ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_FlushTube_IsAnAnnulus`,
+`ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_TallAndFarCutters_GiveTheRemainingOutline`,
+`ScadGeometryBuilderProjectionTests.ScadGeometryBuilderProjection_Intersection_IsTheOverlap`,
+`ScadGeometryBuilderProjectionBudgetTests.ScadGeometryBuilderProjectionBudget_OrdinaryBoolean_IsClassified`
+
+Asserts, by drawing the result from above, that the exact silhouette of a boolean is found where the shadow of its
+operands would be wrong: a 20 by 20 by 10 plate with a cylinder of radius 4 (64 fragments) through it has the area of
+the plate minus the 64-gon within 1.5, covers (6, 0) and (9, 9), and leaves (0, 0) and (3, 0) empty; a cutter that stops
+in the middle of the plate, entering from the top or from below, leaves the whole outline (area exactly 400, no hole);
+a tube made of two cylinders of the same height (the end faces of the cutter flush with those of the tube) is an annulus
+whose area is that of the 64-gon of radius 10 minus that of radius 6 within 2 and which covers (8, 0) but not (0, 0),
+(4, 0), or (11, 0); a cutter that is much taller than the plate gives the plate minus the cutter (100 minus the
+32-gon of
+radius 2 within 1), and a cutter 30 units away gives the whole 10 by 10 square (100); the shadow of the intersection of
+a 10 by 10 by 10 cube and a 10 by 10 by 2 slab shifted by 4 in X is the overlap, 6 by 10 (60); and a cylinder with a
+coaxial smaller cylinder subtracted, at an ordinary level of detail, is classified within the ceiling, with no
+unsupported report and a non-empty result.
+
+##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ProjectionCut: Cross-Section At z = 0
+
+**Tests**: `ScadGeometryBuilderProjectionCutTests.ScadGeometryBuilderProjectionCut_CubeSpanningThePlane_IsItsFootprint`,
+`ScadGeometryBuilderProjectionCutTests.ScadGeometryBuilderProjectionCut_CubeTouchingThePlane_IsCutByTheFaceOnIt`,
+`ScadGeometryBuilderProjectionCutTests.ScadGeometryBuilderProjectionCut_PlaneMissesTheSolid_IsEmptyAndSilent`,
+`ScadGeometryBuilderProjectionCutTests.ScadGeometryBuilderProjectionCut_Tube_IsAnAnnulus`,
+`ScadGeometryBuilderProjectionCutTests.ScadGeometryBuilderProjectionCut_Difference_IsTheDifferenceOfTheSections`,
+`ScadGeometryBuilderProjectionCutTests.ScadGeometryBuilderProjectionCut_SeveralSolids_AreUnited`,
+`ScadGeometryBuilderProjectionCutTests.ScadGeometryBuilderProjectionCut_Sphere_IsADisc`,
+`ScadGeometryBuilderProjectionCutTests.ScadGeometryBuilderProjectionCut_TiltedCube_IsALongerRectangle`,
+`ScadGeometryBuilderProjectionCutTests.ScadGeometryBuilderProjectionCut_VerticesOnThePlane_GiveTheEquatorSquare`,
+`ScadGeometryBuilderProjectionCutTests.ScadGeometryBuilderProjectionCut_OpenMesh_IsReportedAndOmitted`,
+`ScadGeometryBuilderProjectionCutTests.ScadGeometryBuilderProjectionCut_Result_CanBeExtruded`,
+`ScadGeometryBuilderProjectionCutTests.ScadGeometryBuilderProjectionCut_FarTranslatedCube_IsItsFootprint`,
+`ScadGeometryBuilderProjectionCutTests.ScadGeometryBuilderProjectionCut_SmallSolidJustOffThePlane_IsEmpty`,
+`ScadGeometryBuilderProjectionCutTests.ScadGeometryBuilderProjectionCut_SmallSolidJustOffThePlaneBesideAHugeSolid_IsEmpty`,
+`ScadGeometryBuilderProjectionCutTests.ScadGeometryBuilderProjectionCut_SmallSolidOnThePlaneBesideAHugeSolid_IsCut`
+
+Asserts that a centered cube of 30 by 20 by 15 is cut to exactly its footprint of 600; that a cube of side 10 that
+rests on the plane from above and one that hangs from it (the plane in its underside or top face) are both cut to the
+whole 100 square units (a face on the plane belongs to the section: the closed-set tie rule, a documented behavior of
+this package that is not claimed to match any other implementation); that a plane that misses every solid, above or
+below, gives no slab, no warning, and no report; that the section of a tube (a cylinder of radius 10 with one of
+radius 6
+removed) is an annulus of the area of the 64-gon of radius 10 minus that of radius 6 within 2 with an empty middle;
+that a
+cube of side 10 with a cube of side 4 removed has the area 84 (100 minus 16); that a cube of side 4 and a cube of
+side 2 ten units away are
+united to 20; that a sphere of radius 5 with 48 fragments is cut to between 97 percent of the circle and the circle;
+that a cube of side 10 turned 30 degrees about X is cut to a rectangle of the area `100 / cos(30 degrees)` within 1;
+that an
+octahedron whose four equator vertices are exactly on the plane is cut to its equator square (a diamond of
+diagonals 6, the
+area 18 within 0.5, covering the center and (2.6, 0) and not (2, 2)); that a tetrahedron without one face is reported
+as `scad-projection-open-mesh` at the module's location (1:1) and nothing is built; and that the section is a flat
+shape like any other, so extruding the section of a centered cube of side 3 by 2 gives a closed mesh of volume 18 with
+no warning.
+
+Asserts that the cut does not depend on the translation or the scale: a cube of side 1 at x = 1e9 that spans the plane
+is cut to one slab with exactly the bounds of its unit footprint (no vertex of it counts as on the plane), and a cube of
+side 1e-3 whose underside is 5e-10 above the plane, or whose top is 5e-10 below it, is not cut at all (no slab, no
+warning, no report).
+
+Asserts that the cut judges every solid by its own tolerance: the same two small cubes (underside 5e-10 above the
+plane, top 5e-10 below it) are still not cut when a cube of side 1e4 (a tolerance of about 1e-5) or 1e6 (about 1e-3)
+stands wholly above the plane beside them, as they are not cut alone; and a cube of side 1e-3 that sits on the plane,
+or 5e-13 above it (inside its own tolerance of about 1e-12), is still cut to one slab with exactly its footprint beside
+the cube of side 1e6.
+
+##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ProjectionBudget: Work Ceiling And Triangle Budget
+
+**Tests**: `ScadGeometryBuilderProjectionBudgetTests.ScadGeometryBuilderProjectionBudget_TooComplexClassification_IsReportedAndOmitted`,
+`ScadGeometryBuilderProjectionBudgetTests.ScadGeometryBuilderProjectionBudget_TooComplexClassification_ThrowsInStrictMode`,
+`ScadGeometryBuilderProjectionBudgetTests.ScadGeometryBuilderProjectionBudget_SlabsOverTheBudget_FailBeforeAllocating`,
+`ScadGeometryBuilderProjectionBudgetTests.ScadGeometryBuilderProjectionBudget_Charge_EqualsTheMeshesCreated`,
+`ScadGeometryBuilderProjectionBudgetTests.ScadGeometryBuilderProjectionBudget_RoomyBudget_BuildsTheShadow`,
+`ScadGeometryBuilderProjectionBudgetTests.ScadGeometryBuilderProjectionBudget_SilhouetteOverTheWorkCeiling_IsReportedAndOmitted`,
+`ScadGeometryBuilderProjectionBudgetTests.ScadGeometryBuilderProjectionBudget_SilhouetteWithinTheWorkCeiling_IsBuilt`,
+`ScadGeometryBuilderProjectionBudgetTests.ScadGeometryBuilderProjectionBudget_SilhouetteFootprintPass_IsCharged`,
+`ScadGeometryBuilderProjectionBudgetTests.ScadGeometryBuilderProjectionBudget_PolyhedronWithManyPoints_IsBoundedByItsVertices`,
+`ScadGeometryBuilderProjectionBudgetTests.ScadGeometryBuilderProjectionBudget_PolyhedronWithManyPoints_ProjectsItsFace`
+
+Asserts that the projection of a sphere of 100 fragments with a cube subtracted, whose classification costs more than the
+work ceiling, is reported as exactly one `scad-projection-too-complex` at the module's location (1:1) whose message says
+that the projection is omitted, that no slab is built, and that the triangles charged equal those of the children alone
+(nothing was charged for the omitted projection); that strict mode turns the same report into a
+`ScadUnsupportedFeatureException` with that feature; that a triangle budget that holds a sphere of 24 fragments but not
+the eight triangles per candidate that the slabs of its footprints could need fails with a `ScadEvaluationException`
+that says `Triangle limit exceeded` and names the location 2:3 of the projection, before any region is built; that the
+triangles charged for a projection of a cube are the 12 of the cube plus those of the one slab that is left; and that a
+budget of 1,000 triangles builds the shadow of a cube with one slab and no warning.
+
+The work ceiling is lowered through the internal settings member of the tests, so no huge model is needed. Asserts that
+a plain silhouette (a sphere of 24 fragments with no boolean, so no slice) is reported as exactly one
+`scad-projection-too-complex` at the module, with no slab built and only the children charged, when the ceiling holds
+the children (their triangles plus their vertices) and one more visit, because the passes that group and merge its faces
+are charged; that the same silhouette is built with no report under the default ceiling and under a ceiling of 64 times
+the work of the children (an ordinary render is not affected); that the footprint pass of a cylinder cap of 200
+fragments is charged exactly, being reported one visit short of the cost of the children, the scan, the merge, and the
+footprint (each derived from the built mesh), and built at exactly that cost; that a polyhedron of 2,003 distinct points
+with one face is reported as too complex under a ceiling of 1,000, naming the vertices, because the vertices of the
+children count (not only the triangles); and that a polyhedron of 200,000 points whose one face uses the three highest
+indices projects to the triangle (area 50) with nothing reported, which proves that the sparse vertex remap maps
+unreferenced and high vertex indices correctly.
+
 ##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-Reporting: One Reporting Channel
 
 **Tests**: `ScadGeometryBuilderWalkTests.ScadGeometryBuilder_Build_SharedSink_KeepsEvaluationBeforeGeometryEvents`,
@@ -432,7 +633,7 @@ inside a used library carries the file name `lib.scad` with the line and column 
 
 Asserts that strict mode throws at the first unsupported module with its feature and location while the sink keeps
 exactly that one report, that `#` on a 2D shape throws `scad-modifier-highlight`, and that through the public options the
-handler sees `projection`, `surface`, `import`, and `offset` at lines 1 to 4 in order and strict mode throws the
+handler sees `roof`, `surface`, `import`, and `offset` at lines 1 to 4 in order and strict mode throws the
 first.
 
 ##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-Difference: Position-Preserving Difference
@@ -585,7 +786,10 @@ of height 2.5 and volume `4 * 2.5` (this last scenario resides in the `ScadPrimi
 `ScadGeometryBuilderCancellationTests.ScadGeometryBuilder_Build_NothingToDo_IgnoresCanceledToken`,
 `ScadGeometryBuilderCancellationTests.ScadGeometryBuilder_Build_Canceled_KeepsEarlierEventsInSink`,
 `ScadGeometryBuilderCancellationTests.ScadGeometryBuilder_Build_AlreadyCanceled_StopsTheShowOnlyPrePass`,
-`ScadGeometryBuilderCancellationTests.ScadGeometryBuilder_Build_NotCanceled_ShowOnlyPrePassCompletes`
+`ScadGeometryBuilderCancellationTests.ScadGeometryBuilder_Build_NotCanceled_ShowOnlyPrePassCompletes`,
+`ScadGeometryBuilderProjectionCancellationTests.ScadGeometryBuilderProjectionCancellation_PreCanceledLargeMesh_Throws`,
+`ScadGeometryBuilderProjectionCancellationTests.ScadGeometryBuilderProjectionCancellation_PreCanceledSmallMesh_CompletesBelowTheInterval`,
+`ScadGeometryBuilderProjectionCancellationTests.ScadGeometryBuilderProjectionCancellation_LargeMeshNotCanceled_Completes`
 
 Asserts that a canceled token throws `OperationCanceledException` before the first tessellation, that a walk over
 1,000 instances is stopped at the polling schedule, that an empty model completes even with a canceled token and an
@@ -593,6 +797,18 @@ uncanceled token never interferes, that the warning reported by the first instan
 the build is canceled (the show-only pre-pass of about 140 instances and the build share one 256-instance schedule), and
 that a canceled token stops the `!` pre-pass over 1,000 unmarked instances before the marked (unsupported) module is
 built or reported, while an uncanceled token lets the same model complete.
+
+Asserts, through `ScadProjections.Projection` called directly with a token canceled up front (the tessellation of a
+primitive would poll first in a whole build), that the projection of a prism whose caps are two faces of about 5,000
+triangles each throws `OperationCanceledException` for the shadow and for the cut (the few face groups mean that only the
+per-triangle polls of the grouping, merging, footprint, and slicing loops can stop the shadow), that a cube, which costs
+fewer polls than one interval, completes its shadow with a canceled token (the counted schedule; the cut is not used
+there because it polls before every slice), and that the same prism completes with a live token. The loops are verified
+deterministically by the pre-canceled large mesh; a test that pins the exact loop in which the 256th poll falls would
+depend on the order of the polls and is deliberately not written, so each individual loop is verified by review. This
+applies to the walk of the nodes of a subtree (`Descendants`) and to the node loop of a section (`SectionTree`) as well:
+every earlier pass polls once per node, so the 256th poll of a count always falls in an earlier loop and a canceled
+token cannot isolate these two.
 
 ##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-SceneMap: Location Map
 

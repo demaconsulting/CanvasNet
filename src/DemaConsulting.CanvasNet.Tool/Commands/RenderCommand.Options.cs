@@ -36,7 +36,7 @@ internal sealed partial class RenderCommand
         new("--background", [], true, "Color to flatten transparency over: white (default for vector sources), black, #RRGGBB, #RRGGBBAA, transparent", "color"),
         new("--no-auto-orient", [], false, "Do not turn a JPEG upright according to its EXIF orientation"),
         new("--strict", [], false, "Fail with unsupported-feature instead of skipping a picture or shape the library cannot draw"),
-        new("--view", [], true, "SCAD model: the viewpoint - iso (default), front, back, left, right, top, or bottom", "name"),
+        new("--view", [], true, "SCAD model: the viewpoint - iso (default; top for a model that is entirely 2D), front, back, left, right, top, or bottom", "name"),
         new("--azimuth", [], true, "SCAD model: replace the azimuth of the view, in degrees about the Z axis (0 = from the front)", "degrees"),
         new("--elevation", [], true, "SCAD model: replace the elevation of the view, in degrees above the XY plane (-90 to 90)", "degrees"),
         new("--projection", [], true, "SCAD model: ortho (default) or perspective", "type"),
@@ -259,6 +259,7 @@ internal sealed partial class RenderCommand
         return new ScadViewOptions
         {
             View = view,
+            ViewGiven = reader.Has("--view"),
             Azimuth = reader.Get("--azimuth") is { } azimuthText ? ArgumentReader.ParseDegrees(azimuthText, "--azimuth") : null,
             Elevation = reader.GetDouble("--elevation", -90, 90),
             Perspective = perspective,

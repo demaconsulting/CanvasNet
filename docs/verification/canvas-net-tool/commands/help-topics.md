@@ -106,7 +106,10 @@ placeholder) must be a string literal in one of the library assemblies (the asse
 **HelpTopics_DiagnosticTriggers_ProduceTheCitedIds**: a theory over the trigger table: for each cited identifier, a tiny
 model or chart is run through the real pipeline and the identifier is reported in the diagnostics (a Vega-Lite warning
 has the code `vega-lite-warning` and the identifier at the start of its message). This proves that the identifiers the
-topics cite are the ones the tool reports.
+topics cite are the ones the tool reports. The table includes `scad-projection-too-complex` (a `projection()` of a
+sphere of 100 fragments with a cube subtracted, whose classification is over the work ceiling) and
+`scad-projection-open-mesh` (a `projection(cut = true)` of a tetrahedron that lacks a face); the retired
+`scad-module-projection` is no longer in it.
 
 **HelpTopics_DiagnosticTriggers_Strict_FailsWithUnsupportedFeature**: the tiny model that triggers `scad-module-offset`
 and the tiny chart that triggers `vl-mark-<type>` fail with the error `unsupported-feature` under `--strict`, which is

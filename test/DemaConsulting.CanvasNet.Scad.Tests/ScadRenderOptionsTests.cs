@@ -32,6 +32,30 @@ public class ScadRenderOptionsTests
         Assert.Equal(new Rgba32(255, 64, 128, 110), options.HighlightColor);
         Assert.Equal(new Rgba32(128, 128, 128, 80), options.GhostColor);
         Assert.Null(options.FontResolution);
+        Assert.Null(options.ResolvedViewHandler);
+    }
+
+    /// <summary>
+    ///     Validates that setting a view angle or the projection marks it explicit, even when the value is the default,
+    ///     and that an options object with none of them set has nothing explicit.
+    /// </summary>
+    [Fact]
+    public void ScadRenderOptions_ViewProperties_RecordWhetherTheyWereSet()
+    {
+        // Arrange / Act
+        var none = new ScadRenderOptions();
+        var azimuth = new ScadRenderOptions { ViewAzimuthDegrees = Camera.DefaultAzimuthDegrees };
+        var elevation = new ScadRenderOptions { ViewElevationDegrees = Camera.DefaultElevationDegrees };
+        var projection = new ScadRenderOptions { Projection = CameraProjection.Perspective };
+
+        // Assert
+        Assert.False(none.IsViewExplicit);
+        Assert.False(none.IsProjectionExplicit);
+        Assert.True(azimuth.IsViewExplicit);
+        Assert.False(azimuth.IsProjectionExplicit);
+        Assert.True(elevation.IsViewExplicit);
+        Assert.True(projection.IsProjectionExplicit);
+        Assert.False(projection.IsViewExplicit);
     }
 
     /// <summary>

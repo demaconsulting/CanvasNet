@@ -22,13 +22,20 @@ internal static class ScadSceneOptions
     /// <summary>The prefix of the identifiers this package reports for them.</summary>
     private const string ScadPrefix = "scad-";
 
+    /// <summary>The lights of a flat drawing: ambient light of intensity 1 only (the unshaded base color).</summary>
+    private static readonly Light[] FlatLights = [new AmbientLight { Intensity = 1.0f }];
+
     /// <summary>
     ///     Copies scene options, substituting the unsupported-feature handler and switching strict mode off.
     /// </summary>
     /// <param name="source">The caller's options, or <see langword="null"/> for the Render3D defaults.</param>
     /// <param name="handler">The handler for operand reports, or <see langword="null"/> to request none.</param>
+    /// <param name="flat">
+    ///     <see langword="true"/> for a flat drawing: unless the caller chose lights, the copy is lit by ambient light of
+    ///     intensity 1 only, so a face shows exactly its own color instead of being shaded.
+    /// </param>
     /// <returns>The copy.</returns>
-    public static SceneRenderOptions Create(SceneRenderOptions? source, Action<SceneRenderUnsupportedFeature>? handler)
+    public static SceneRenderOptions Create(SceneRenderOptions? source, Action<SceneRenderUnsupportedFeature>? handler, bool flat = false)
     {
         var options = source ?? SceneRenderOptions.Default;
         return new SceneRenderOptions
@@ -36,7 +43,7 @@ internal static class ScadSceneOptions
             BackgroundColor = options.BackgroundColor,
             DefaultColor = options.DefaultColor,
             BackFaceColor = options.BackFaceColor,
-            Lights = options.Lights,
+            Lights = flat && options.Lights is null ? FlatLights : options.Lights,
             SpecularStrength = options.SpecularStrength,
             SpecularPower = options.SpecularPower,
             Supersampling = options.Supersampling,

@@ -8,8 +8,9 @@ namespace DemaConsulting.CanvasNet.Scad.Tests.Geometry;
 
 /// <summary>
 ///     Tests of the modules the geometry builder recognizes but does not support: <c>offset</c>,
-///     <c>projection</c>, <c>surface</c>, <c>import</c> and <c>roof</c> (<c>hull</c> and <c>minkowski</c> are
-///     built; see the hull and minkowski tests, and <c>text</c> is built; see the text tests). Each is
+///     <c>surface</c>, <c>import</c> and <c>roof</c> (<c>hull</c> and <c>minkowski</c> are
+///     built; see the hull and minkowski tests, <c>projection</c> is built; see the projection tests, and <c>text</c>
+///     is built; see the text tests). Each is
 ///     reported as <c>scad-module-{name}</c> at its source location, omitted together with its children, and honors
 ///     strict mode, the handlers and the modifiers.
 /// </summary>
@@ -17,7 +18,7 @@ public class ScadUnsupportedModuleTests
 {
     /// <summary>Gets the names of the unsupported modules as theory data.</summary>
     public static TheoryData<string> Modules =>
-        ["offset", "projection", "surface", "import", "roof"];
+        ["offset", "surface", "import", "roof"];
 
     /// <summary>
     ///     Validates that each module is reported with its identifier, location and a message naming it, and that
@@ -72,8 +73,9 @@ public class ScadUnsupportedModuleTests
     }
 
     /// <summary>
-    ///     Validates the whole table: of every recognized built-in module, exactly the five unsupported ones are
-    ///     reported as unsupported features, so a module added to the evaluator's list cannot be silently dropped.
+    ///     Validates the whole table: of every recognized built-in module, exactly the four unsupported ones are
+    ///     reported as unsupported features, so a module added to the evaluator's list cannot be silently dropped
+    ///     (<c>projection</c> with no children is built and reports nothing).
     /// </summary>
     [Fact]
     public void ScadUnsupportedModule_Table_CoversExactlyTheDocumentedModules()
@@ -93,7 +95,7 @@ public class ScadUnsupportedModuleTests
 
         // Assert
         Assert.Equal(
-            new[] { "import", "offset", "projection", "roof", "surface" },
+            new[] { "import", "offset", "roof", "surface" },
             reported.ToArray());
     }
 
@@ -202,7 +204,7 @@ public class ScadUnsupportedModuleTests
         // Arrange
         var features = new List<string>();
         var options = new ScadRenderOptions { Evaluation = new ScadEvaluationOptions { UnsupportedFeatureHandler = u => features.Add($"{u.Feature}@{u.Location}") } };
-        var document = ScadDocument.Parse("projection() cube(1);\nsurface(\"f.dat\");\nimport(\"f.stl\");\noffset(1) square(1);");
+        var document = ScadDocument.Parse("roof() cube(1);\nsurface(\"f.dat\");\nimport(\"f.stl\");\noffset(1) square(1);");
 
         // Act
         document.BuildScene(options, TestContext.Current.CancellationToken);
@@ -210,7 +212,7 @@ public class ScadUnsupportedModuleTests
             () => document.BuildScene(new ScadRenderOptions { Evaluation = new ScadEvaluationOptions { ThrowOnUnsupportedFeature = true } }, TestContext.Current.CancellationToken));
 
         // Assert
-        Assert.Equal(["scad-module-projection@1:1", "scad-module-surface@2:1", "scad-module-import@3:1", "scad-module-offset@4:1"], features);
-        Assert.Equal("scad-module-projection", strict.Feature);
+        Assert.Equal(["scad-module-roof@1:1", "scad-module-surface@2:1", "scad-module-import@3:1", "scad-module-offset@4:1"], features);
+        Assert.Equal("scad-module-roof", strict.Feature);
     }
 }

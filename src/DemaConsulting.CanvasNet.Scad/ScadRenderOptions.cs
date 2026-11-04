@@ -44,6 +44,15 @@ public sealed class ScadRenderOptions
     /// <summary>The backing field of <see cref="FlatShapeThickness"/>.</summary>
     private readonly double _flatShapeThickness = DefaultFlatShapeThickness;
 
+    /// <summary>Whether <see cref="ViewAzimuthDegrees"/> was set explicitly.</summary>
+    private readonly bool _azimuthExplicit;
+
+    /// <summary>Whether <see cref="ViewElevationDegrees"/> was set explicitly.</summary>
+    private readonly bool _elevationExplicit;
+
+    /// <summary>Whether <see cref="Projection"/> was set explicitly.</summary>
+    private readonly bool _projectionExplicit;
+
     /// <summary>
     ///     Gets the options of the evaluation that precedes geometry building (variable overrides, <c>$t</c>, limits,
     ///     handlers and strict mode), or <see langword="null"/> for a default <see cref="ScadEvaluationOptions"/>.
@@ -58,12 +67,24 @@ public sealed class ScadRenderOptions
 
     /// <summary>
     ///     Gets the camera used by <see cref="ScadDocument.Render(int, int, ScadRenderOptions?, CancellationToken)"/>,
-    ///     or <see langword="null"/> (default) to fit the view to the model with <see cref="ViewAzimuthDegrees"/>,
-    ///     <see cref="ViewElevationDegrees"/> and <see cref="Projection"/>.
+    ///     or <see langword="null"/> (default) to fit the view to the model (see the remarks).
     /// </summary>
     /// <remarks>
-    ///     An invalid camera is rejected with an <see cref="ArgumentException"/> from the renderer before the model is
-    ///     evaluated. <see cref="ScadDocument.BuildScene(ScadRenderOptions?, CancellationToken)"/> ignores the camera.
+    ///     <para>
+    ///         An explicit camera is the highest-precedence source of the view: it is used as given (no fitting) and
+    ///         it also defines the viewport variables <c>$vpt</c>, <c>$vpr</c>, <c>$vpd</c> and <c>$vpf</c> that the
+    ///         document sees. Without a camera the view is fitted to the model from, in order of precedence: the
+    ///         explicitly set <see cref="ViewAzimuthDegrees"/> and <see cref="ViewElevationDegrees"/>; the document
+    ///         (a top-level assignment of the viewport variables, or a <see cref="ScadEvaluationOptions.Variables"/>
+    ///         override of them, which wins over the assignment); a flat top view for a model that is entirely 2D; the
+    ///         isometric default.
+    ///     </para>
+    ///     <para>
+    ///         An invalid camera is rejected with an <see cref="ArgumentException"/> from the renderer before the model
+    ///         is evaluated. <see cref="ScadDocument.BuildScene(ScadRenderOptions?, CancellationToken)"/> chooses no view,
+    ///         but a valid camera still defines the viewport variables for the document; an invalid one never makes it
+    ///         throw and defines none, and the build proceeds as without a camera.
+    ///     </para>
     /// </remarks>
     public Camera? Camera { get; init; }
 
@@ -72,27 +93,42 @@ public sealed class ScadRenderOptions
     ///     default elevation gives the isometric view of the renderer. Used only when <see cref="Camera"/> is
     ///     <see langword="null"/>.
     /// </summary>
+    /// <remarks>
+    ///     Setting the azimuth or the elevation (even to the default value) makes the view explicit: it is then used
+    ///     for every model, including one that is entirely 2D (which is drawn from the top when no view is chosen),
+    ///     and it defines <c>$vpr</c> for the document (<c>[90 - elevation, 0, azimuth]</c>, wrapped to 0 to 360).
+    /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is not finite.</exception>
     public double ViewAzimuthDegrees
     {
         get => _viewAzimuthDegrees;
-        init => _viewAzimuthDegrees = RequireFinite(value);
+        init
+        {
+            _viewAzimuthDegrees = RequireFinite(value);
+            _azimuthExplicit = true;
+        }
     }
 
     /// <summary>
     ///     Gets the elevation in degrees of the fitted view (angle above the XY plane); about 35.26 by default
     ///     (isometric). Used only when <see cref="Camera"/> is <see langword="null"/>.
     /// </summary>
+    /// <remarks>See <see cref="ViewAzimuthDegrees"/> for how an explicit value is treated.</remarks>
     /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is not finite.</exception>
     public double ViewElevationDegrees
     {
         get => _viewElevationDegrees;
-        init => _viewElevationDegrees = RequireFinite(value);
+        init
+        {
+            _viewElevationDegrees = RequireFinite(value);
+            _elevationExplicit = true;
+        }
     }
 
     /// <summary>
-    ///     Gets the projection of the fitted view; <see cref="CameraProjection.Perspective"/> by default. Used only
-    ///     when <see cref="Camera"/> is <see langword="null"/>.
+    ///     Gets the projection of the fitted view; <see cref="CameraProjection.Perspective"/> by default, except for a
+    ///     model that is entirely 2D with no explicit view, which defaults to <see cref="CameraProjection.Orthographic"/>.
+    ///     Used only when <see cref="Camera"/> is <see langword="null"/>.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is not a defined <see cref="CameraProjection"/>.</exception>
     public CameraProjection Projection
@@ -106,8 +142,27 @@ public sealed class ScadRenderOptions
             }
 
             _projection = value;
+            _projectionExplicit = true;
         }
     }
+
+    /// <summary>
+    ///     Gets the handler that is told which view a render used, or <see langword="null"/> (default) for none.
+    /// </summary>
+    /// <remarks>
+    ///     <see cref="ScadDocument.Render(int, int, ScadRenderOptions?, CancellationToken)"/> calls it once, on the
+    ///     calling thread, after the model was built and before it draws, with the resolved azimuth, elevation and
+    ///     projection (a model that is entirely 2D reports <see cref="ScadViewSource.FlatDefault"/> with a top view).
+    ///     An exception thrown by the handler propagates to the caller. <see cref="ScadDocument.BuildScene(ScadRenderOptions?, CancellationToken)"/>
+    ///     does not choose a camera and never calls it.
+    /// </remarks>
+    public Action<ScadResolvedView>? ResolvedViewHandler { get; init; }
+
+    /// <summary>Gets a value indicating whether the azimuth or the elevation was set explicitly.</summary>
+    internal bool IsViewExplicit => _azimuthExplicit || _elevationExplicit;
+
+    /// <summary>Gets a value indicating whether the projection was set explicitly.</summary>
+    internal bool IsProjectionExplicit => _projectionExplicit;
 
     /// <summary>
     ///     Gets the look-and-feel and performance settings of the renderer (background, default color, lights,

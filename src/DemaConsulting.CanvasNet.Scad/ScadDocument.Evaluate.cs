@@ -89,14 +89,17 @@ public sealed partial class ScadDocument
     /// <param name="options">The evaluation options.</param>
     /// <param name="cancellationToken">The token that stops the evaluation.</param>
     /// <param name="sink">The sink that records echo lines, warnings and unsupported features.</param>
+    /// <param name="viewport">The viewport plan: the values the document sees in <c>$vpt</c>, <c>$vpr</c>, <c>$vpd</c> and <c>$vpf</c>, or <see langword="null"/> for the defaults of a fresh viewer.</param>
     /// <returns>The evaluation output, including the instantiation tree.</returns>
-    private ScadEvaluationOutput RunEvaluation(ScadEvaluationOptions options, CancellationToken cancellationToken, ScadEvaluationSink sink)
+    private ScadEvaluationOutput RunEvaluation(ScadEvaluationOptions options, CancellationToken cancellationToken, ScadEvaluationSink sink, ScadViewportPlan? viewport = null)
     {
+        var plan = viewport ?? ScadViewport.ForEvaluation();
         var settings = new ScadEvaluationSettings
         {
             Limits = options.Limits,
             Time = options.Time,
-            Overrides = options.Overrides,
+            Overrides = ScadViewport.MergeOverrides(options.Overrides, plan),
+            Viewport = plan.Defaults,
             ThrowOnUnsupportedFeature = options.ThrowOnUnsupportedFeature,
             Cancellation = cancellationToken,
         };

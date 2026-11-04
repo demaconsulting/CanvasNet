@@ -11,7 +11,10 @@
 # ScadUnsupportedFeature, ScadUnsupportedFeatureException, and ScadEvaluationException - and the Phase 6
 # geometry and rendering contract: the BuildScene and Render methods (ScadDocument.Render.cs) and the
 # ScadRenderOptions class (camera, view, scene options, flat-shape thickness, composed evaluation
-# options); ScadLimits additionally bounds the generated geometry (MaxTriangles).
+# options, and the resolved-view handler); ScadLimits additionally bounds the generated geometry
+# (MaxTriangles). The unit also owns the viewport special variables ($vpt, $vpr, $vpd, $vpf), the choice of the
+# camera (explicit camera, explicit angles, the model's own viewport, the flat top view of a 2D-only model, or the
+# fitted default), and the public ScadResolvedView record and ScadViewSource enumeration that report the choice.
 #
 # Delivery status: Phase 4 delivered parsing; Phase 5 added Evaluate (headless evaluation: echo,
 # diagnostics, unsupported features, and the number of module instances; no geometry); Phase 6 adds
@@ -420,17 +423,27 @@ sections:
               The ScadDocument BuildScene method shall evaluate the document and return a Render3D
               scene of its geometry - the implicit union of the top-level instances, or of the marked
               subtrees when the program uses the show-only modifier - using the variable overrides and
-              animation time of the supplied evaluation options, applying the flat-shape thickness to
-              2D shapes that are not extruded, returning a scene with an empty root for a model without
-              geometry, and returning a new, independent scene from each call, including when called
-              concurrently.
+              animation time of the supplied evaluation options and the viewport variables that follow
+              from the camera and the view angles of the supplied render options (an explicit camera
+              or explicit view angles define them, beating an override, and the projection does not
+              change them; an explicit camera that the renderer would reject defines none of them and
+              does not make the method throw), applying the flat-shape thickness to 2D shapes that are not extruded,
+              returning a scene with an empty root for a model without geometry, and returning a new,
+              independent scene from each call, including when called concurrently.
             justification: |
               The scene is the interchange form between the language front end and the renderer; a
               caller that wants to inspect, measure, or render the model itself needs it without a
-              surface, and the result must depend only on the document and the options.
+              surface, and the result must depend only on the document and the options. A document may
+              use the viewport variables to size or place geometry, so the options that define them
+              are part of what the scene depends on, exactly as for a render. A camera that the renderer
+              rejects has no meaningful distance or rotation (an eye equal to the target gives a zero
+              distance), so it defines nothing, and the build stays free of an exception for the camera.
             tests:
               - ScadDocument_BuildScene_DefaultOptions_BuildsSceneOfTheModel
               - ScadDocument_BuildScene_VariablesAndTime_ChangeTheGeometry
+              - ScadDocument_BuildScene_CameraAndViewAngles_SteerTheViewportVariables
+              - ScadDocument_BuildScene_InvalidCamera_DefinesNoViewportVariables
+              - ScadDocument_BuildScene_Projection_DoesNotChangeTheScene
               - ScadDocument_BuildScene_FlatShapeThickness_SetsSlabHeight
               - ScadDocument_BuildScene_ConcurrentBuilds_AreEqual
 
@@ -444,7 +457,9 @@ sections:
               view by default, equal to the renderer's fitted view of the same scene, adjustable by
               azimuth, elevation, and projection), with the supplied camera otherwise, and with a
               white background and neutral gray surfaces unless the model or the scene options say
-              otherwise - and a model without geometry shall render as the background only.
+              otherwise - and a model without geometry shall render as the background only; a model
+              whose whole result is 2D shall, unless a view is chosen (see the flat model view
+              requirement), be drawn as a flat top-down drawing instead.
             justification: |
               Rendering a model to pixels in one call is the purpose of the package; invalid
               arguments must fail before any expensive work, and the default view must show the whole
@@ -457,17 +472,22 @@ sections:
               - ScadDocument_Render_ExplicitOrthographicTopCamera_CoversExactFootprint
               - ScadDocument_Render_FittedViewOptions_ChangeTheImage
               - ScadDocument_Render_DefaultColorOption_IsHonored
+              - ScadDocumentViewport_DefaultThreeDimensionalView_IsUnchangedAndReportedOnce
 
           - id: CanvasNetScad-ScadDocument-RenderOptions
             title: >-
               The ScadRenderOptions class shall be immutable with init-only properties Evaluation,
               Camera, ViewAzimuthDegrees, ViewElevationDegrees, Projection, SceneOptions,
-              FlatShapeThickness, HighlightColor, GhostColor, and FontResolution, shall default to no evaluation options
+              FlatShapeThickness, HighlightColor, GhostColor, FontResolution, and
+              ResolvedViewHandler, shall default to no
+              evaluation options
               (the defaults apply), a fitted view at the isometric azimuth and elevation with a
               perspective projection, the default scene options, a flat-shape thickness of 0.1, a
               translucent pink highlight (255, 64, 128, alpha 110), a translucent gray ghost (128,
-              128, 128, alpha 80), and no font resolution options (the installed fonts are searched
-              for an explicitly named font), shall accept any alpha for the two overlay colors and use them for
+              128, 128, alpha 80), no font resolution options (the installed fonts are searched
+              for an explicitly named font), and no view handler, shall record whether each of the view
+              azimuth, the view elevation, and the projection was set explicitly (even to its default value),
+              shall accept any alpha for the two overlay colors and use them for
               the  # and % overlays, shall pass the font resolution options (the use of installed fonts
               and a copied, validated list of additional font directories, rejecting a null, empty, or
               white-space directory when it is set) to the text module, and shall reject a non-finite view angle,
@@ -478,12 +498,15 @@ sections:
               the evaluation options keeps one definition of variables, limits, handlers, and strict
               mode; the look of the two modifier overlays is a look-and-feel setting like the others;
               the font resolution options let a build that needs reproducible lettering control where
-              explicitly named fonts come from.
+              explicitly named fonts come from; knowing which view settings the caller chose lets the
+              document choose the rest (a model's own viewport, a flat view for a drawing) without
+              overriding the caller.
             tests:
               - ScadRenderOptions_New_HasDocumentedDefaults
               - ScadRenderOptions_Initialization_AcceptsValidValues
               - ScadRenderOptions_HighlightColorAndGhostColor_DefaultsAndOverrideChangeTheLook
               - ScadRenderOptions_ViewAngles_NonFinite_Throw
+              - ScadRenderOptions_ViewProperties_RecordWhetherTheyWereSet
               - ScadRenderOptions_Projection_Undefined_Throws
               - ScadRenderOptions_FlatShapeThickness_MustBeFiniteAndPositive
               - ScadRenderOptions_Properties_AreInitOnly
@@ -491,6 +514,109 @@ sections:
               - ScadRenderOptions_FontResolution_DefaultsAndCopiesDirectories
               - ScadRenderOptions_FontResolution_InvalidDirectoriesAreRejected
 
+          - id: CanvasNetScad-ScadDocument-ViewportVariables
+            title: >-
+              The ScadDocument Evaluate, BuildScene, and Render methods shall define the viewport
+              special variables $vpt (the translation of the view, [0, 0, 0] by default), $vpr (its
+              rotation in degrees), $vpd (the distance of the camera from the target, 140 by default), and
+              $vpf (the field of view in degrees, 22.5 by default) for the document, so that reading them
+              reports no unknown-variable warning; shall give $vpr the value that matches the view of a
+              render - for an orbit view of azimuth az and elevation el, [90 - el, 0, az] with the
+              angles wrapped into 0 to 360 degrees, so that rotate($vpr) turns a flat object to face the
+              camera, [54.7356, 0, 45] for the default view, and the explicit camera of the options as
+              all four variables - and [55, 0, 25] when the document is only evaluated; shall read the
+              top-level assignments of $vpt, $vpr, $vpd, and $vpf of the main file and of the files it
+              includes (not of used libraries), after evaluating them with the other variables and the
+              animation time; shall steer the orientation of a fitted view with an assigned $vpr alone,
+              and place a manual camera (the eye at $vpt plus the rotated distance, the given field of
+              view, and an orthographic height from the distance and the field of view) when any of $vpt,
+              $vpd, or $vpf is assigned; and shall ignore an invalid value with one warning.
+            justification: |
+              A model that draws a head-up display or a title that faces the viewer, or that sets its
+              own view, needs the viewport variables of the language to hold the values of the view it
+              is drawn in; they must be the same numbers the camera uses, whichever way the view was
+              chosen.
+            tests:
+              - ScadDocumentViewport_Evaluate_ShowsTheViewerDefaults
+              - ScadDocumentViewport_Variables_FollowTheDocumentedPrecedence
+              - ScadDocumentViewport_HudAsWritten_EvaluatesAndIsPlacedByItsRotations
+              - ScadDocumentViewport_RotateVpr_FacesTheCamera
+              - ScadDocumentViewport_AssignedDistance_GivesAManualCamera
+              - ScadViewport_Wrap_GivesTheAngleInZeroToThreeSixty
+              - ScadViewport_FromOrbit_MapsAzimuthAndElevationToViewportRotation
+              - ScadViewport_Defaults_AreTheIsometricViewAndTheViewerDefaults
+              - ScadViewport_FromCamera_OfAnOrbitView_DescribesTheSameRotationAsTheOrbitMapping
+              - ScadViewport_ToCamera_RoundTripsAGeneralCamera
+              - ScadViewport_ToCamera_PlacesTheEyeAlongTheRotatedZAxis
+              - ScadViewport_CameraToWorld_ToViewerAxisPointsFromTheTargetToTheEye
+              - ScadViewport_ChooseCamera_DocumentRotation_SteersTheFit
+              - ScadViewport_ChooseCamera_AssignedTargetDistanceOrFieldOfView_GiveAManualCamera
+              - ScadViewport_ChooseCamera_ManualCameraOnAFlatModel_LooksDown
+              - ScadViewport_ChooseCamera_OnlyRotationAssigned_StaysFitted
+
+          - id: CanvasNetScad-ScadDocument-ViewportPrecedence
+            title: >-
+              The ScadDocument Render method shall decide each of the four viewport variables, and the
+              camera, from the highest of these sources that supplies it: the explicit render options (an
+              explicit Camera supplies all four variables, an explicit view azimuth or elevation supplies
+              $vpr only), a variable override of the evaluation options, a top-level assignment in the
+              main file or its includes, and the defaults (the requested or default view for $vpr, and
+              $vpt = [0, 0, 0], $vpd = 140, $vpf = 22.5); an explicit camera or explicit view angles
+              shall therefore win over the model's own assignments, and an override over an assignment.
+            justification: |
+              The caller, the command line, and the model can all choose a view; a fixed order lets each
+              of them predict what wins, and a caller that asks for a view must get it whatever the
+              model says.
+            tests:
+              - ScadDocumentViewport_Variables_FollowTheDocumentedPrecedence
+              - ScadViewport_Plan_DefaultOptions_HasNothingExplicit
+              - ScadViewport_Plan_ExplicitAnglesAndProjection_AreRecorded
+              - ScadViewport_Plan_ExplicitCamera_SuppliesAllFourVariables
+              - ScadViewport_MergeOverrides_TheOptionWinsOverTheCallerOverride
+              - ScadViewport_ChooseCamera_ExplicitCamera_IsUsedAsGiven
+              - ScadViewport_ChooseCamera_ExplicitAngles_WinOverTheFlatViewAndTheDocument
+              - ScadDocumentViewport_FlatModel_ExplicitViewsOverrideTheFlatDefault
+
+          - id: CanvasNetScad-ScadDocument-FlatModelView
+            title: >-
+              The ScadDocument Render method shall draw a model whose whole result is 2D (it has 2D
+              objects and no 3D objects, and projection counts as 2D) and that is given no explicit
+              camera, view angles, or $vpr, as a flat drawing seen straight from above - a top-down
+              view fitted to the drawing, orthographic unless a projection is set explicitly - lit by
+              ambient light alone unless the scene options set lights, so that a shape shows its exact
+              color (neutral gray by default) and text and lines are legible, while a model that mixes 2D
+              and 3D objects keeps the isometric view and the normal lighting, and an explicit view, an
+              explicit camera, or a model that sets $vpr gives its own view with the normal lighting.
+            justification: |
+              A drawing sheet (outlines, projections, sections, and lettering) is read from above and
+              needs its colors unshaded; an isometric view of a flat model hides what it shows, while
+              a model that has solids, or a caller who asked for a view, must see no change.
+            tests:
+              - ScadDocumentViewport_ProjectionSheet_IsDrawnFlatFromTheTop
+              - ScadDocumentViewport_ProjectionSheet_ShowsBothViewsTheBorderAndTheText
+              - ScadDocumentViewport_ProjectionViews_ShowTheHolesTheStepsAndTheSection
+              - ScadDocumentViewport_MixedTwoAndThreeDimensions_KeepsTheThreeDimensionalView
+              - ScadDocumentViewport_FlatModel_ExplicitViewsOverrideTheFlatDefault
+              - ScadDocumentViewport_FlatDrawing_IsUnlitUnlessLightsAreChosen
+              - ScadDocumentViewport_FlatModelWithDocumentView_IsShaded
+              - ScadViewport_ChooseCamera_DefaultAndFlat_FitTheModel
+
+          - id: CanvasNetScad-ScadDocument-ResolvedView
+            title: >-
+              The ScadDocument Render method shall, when the ResolvedViewHandler of the render options
+              is set, call it once with the view that was drawn - the azimuth and elevation in degrees,
+              the projection, whether the model is flat, and the source of the view (the default view,
+              the flat default, the render options, the document's own viewport, or an explicit camera) -
+              and BuildScene, which chooses no camera, shall not call it.
+            justification: |
+              The view is chosen after the model is built, so a caller (the command-line tool, for one)
+              can learn what was drawn only from the render itself.
+            tests:
+              - ScadDocumentViewport_DefaultThreeDimensionalView_IsUnchangedAndReportedOnce
+              - ScadDocumentViewport_ProjectionSheet_IsDrawnFlatFromTheTop
+              - ScadDocumentViewport_FlatModel_ExplicitViewsOverrideTheFlatDefault
+              - ScadDocumentViewport_ExplicitCamera_IsReportedAsTheSource
+              - ScadDocumentViewport_BuildScene_DoesNotCallTheViewHandler
           - id: CanvasNetScad-ScadDocument-RenderReporting
             title: >-
               The ScadDocument BuildScene and Render methods shall deliver the echo lines, warnings,

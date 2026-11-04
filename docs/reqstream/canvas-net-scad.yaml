@@ -32,9 +32,12 @@
 # hull module (3D and 2D) and the minkowski module of convex 3D children, built on the Render3D convex
 # hull and Minkowski sum. Phase 8 renders transparency: the alpha of a color, the
 # background modifier (a translucent ghost that is not part of the model), and the highlight modifier
-# (a translucent copy), on the Render3D transparency and overlay support. The text module (this delivery)
-# builds glyph outlines of a TrueType font into flat 2D shapes; the 2D Minkowski sum, offset,
-# projection, surface, import, and roof modules, the textmetrics and fontmetrics functions, and the two
+# (a translucent copy), on the Render3D transparency and overlay support. The text module
+# builds glyph outlines of a TrueType font into flat 2D shapes. The projection module (this delivery) turns 3D
+# children into the 2D shape of their shadow on the XY plane or of their cross-section at z = 0, and the viewport
+# special variables $vpt, $vpr, $vpd, and $vpf (this delivery) let a model read and set the view it is drawn in,
+# with a model that is entirely 2D drawn as a flat top-down sheet; the 2D Minkowski sum, offset, surface, import, and
+# roof modules, the textmetrics and fontmetrics functions, and the two
 # modifiers on a 2D shape that is not
 # extruded, are not supported yet and are reported as unsupported features (see
 # docs/design/canvas-net-scad.md, Supported And Deferred Features). The package is packable; packaging
@@ -363,7 +366,8 @@ sections:
         title: >-
           The library shall render a document to a new surface of exactly the requested size, fitting
           the view to the model by default (an isometric perspective view that shows the whole model,
-          adjustable by azimuth, elevation, and projection) or using a caller-supplied camera, drawing
+          adjustable by azimuth, elevation, and projection, or a top-down flat view for a model that
+          is entirely 2D) or using a caller-supplied camera, drawing
           booleans, extrusions, and revolved profiles as their solids (a difference shows its cut-out,
           an intersection only the overlap), and shall reject an invalid size or camera before
           evaluating anything.
@@ -387,8 +391,8 @@ sections:
         title: >-
           The library shall let a caller supply immutable, validated render options (evaluation
           options, camera, fitted-view angles and projection, scene options such as background color,
-          default surface color, lights, and supersampling, the thickness of flat shapes, and where
-          explicitly named fonts are found) with
+          default surface color, lights, and supersampling, the thickness of flat shapes, where
+          explicitly named fonts are found, and a handler that is told which view was drawn) with
           documented defaults - a white background, neutral gray surfaces that a model color
           overrides, and shaded lighting - rejecting invalid values when they are set and never
           changing an options instance afterwards.
@@ -529,10 +533,84 @@ sections:
           - ScadRenderSystem_Text_BundledFontMetricsAreStableWhenSystemFontsAreDisabled
           - ScadRenderSystem_Text_RepeatedRendersAreDeterministic
 
+      - id: CanvasNetScad-Projection
+        title: >-
+          The library shall build the projection module over 3D children into the 2D shape of their
+          exact shadow on the XY plane (holes that pass through the part included, pockets not) or, with
+          cut true, of their cross-section at z = 0, so that the result takes part in the 2D modules,
+          extrusions, and the drawing of a flat sheet like any 2D shape, reporting a model whose
+          silhouette is too costly to classify, or whose section does not close, with a stable
+          identifier and omitting it instead of approximating it, and bounding the work and the triangles
+          it needs before allocating them.
+        tags: [system]
+        justification: |
+          Technical drawings are made of the views and sections of a part; projection is how an
+          OpenSCAD model produces them, and a silhouette that is only approximately right would
+          make every drawing of a drilled part wrong.
+        children:
+          - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-Projection
+          - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ProjectionCut
+          - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ProjectionClassification
+          - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ProjectionBudget
+        tests:
+          - ScadDocumentViewport_ProjectionSheet_ShowsBothViewsTheBorderAndTheText
+          - ScadDocumentViewport_ProjectionViews_ShowTheHolesTheStepsAndTheSection
+          - ScadRenderSystem_Fixtures_RenderWithoutWarnings
+          - ScadRenderSystem_Fixtures_RenderDeterministically
+          - ScadRenderSystem_Unsupported_EveryConstructIsReportedOnceAtItsLocation
+
+      - id: CanvasNetScad-FlatDrawing
+        title: >-
+          The library shall draw a model whose whole result is 2D, and for which no camera, view angle,
+          or $vpr is given, as a flat top-down drawing fitted to the model, lit so that every shape
+          shows its exact color, while leaving a model that mixes 2D and 3D objects, and any view that
+          the caller or the model chose, as it was.
+        tags: [system]
+        justification: |
+          A drawing sheet of outlines, projections, and lettering is read from above and must be legible
+          in its own colors; solids and requested views must not change.
+        children:
+          - CanvasNetScad-ScadDocument-FlatModelView
+        tests:
+          - ScadDocumentViewport_ProjectionSheet_IsDrawnFlatFromTheTop
+          - ScadDocumentViewport_MixedTwoAndThreeDimensions_KeepsTheThreeDimensionalView
+          - ScadDocumentViewport_FlatModel_ExplicitViewsOverrideTheFlatDefault
+          - ScadDocumentViewport_FlatDrawing_IsUnlitUnlessLightsAreChosen
+          - ScadDocumentViewport_FlatModelWithDocumentView_IsShaded
+
+      - id: CanvasNetScad-Viewport
+        title: >-
+          The library shall define the viewport special variables $vpt, $vpr, $vpd, and $vpf for a
+          model with the values of the view it is drawn in (the explicit camera or view angles of the
+          render options, then a variable override, then the model's own top-level assignment, then the
+          defaults), so that rotate($vpr) turns a flat object to face the camera, shall let a model
+          steer its view by assigning them (the rotation alone steers a fitted view; the target, the
+          distance, or the field of view place a manual camera), shall ignore an invalid value with a
+          warning, and shall report to a caller who asks which view was drawn and where it came from.
+        tags: [system]
+        justification: |
+          Head-up lettering, titles that face the viewer, and models that set their own view are all
+          written against the viewport variables; they must hold the real numbers of the view, with a
+          fixed rule for who wins.
+        children:
+          - CanvasNetScad-ScadDocument-ViewportVariables
+          - CanvasNetScad-ScadDocument-ViewportPrecedence
+          - CanvasNetScad-ScadDocument-ResolvedView
+          - CanvasNetScad-ScadEvaluation-ScadEvaluator-ViewportDefaults
+          - CanvasNetScad-ScadEvaluation-ScadEvaluator-ViewportAssignments
+        tests:
+          - ScadDocumentViewport_Evaluate_ShowsTheViewerDefaults
+          - ScadDocumentViewport_Variables_FollowTheDocumentedPrecedence
+          - ScadDocumentViewport_HudAsWritten_EvaluatesAndIsPlacedByItsRotations
+          - ScadDocumentViewport_RotateVpr_FacesTheCamera
+          - ScadDocumentViewport_AssignedDistance_GivesAManualCamera
+          - ScadDocumentViewport_DefaultThreeDimensionalView_IsUnchangedAndReportedOnce
+          - ScadDocumentViewport_ExplicitCamera_IsReportedAsTheSource
+
       - id: CanvasNetScad-GeometryUnsupported
         title: >-
           The library shall report every construct it recognizes but cannot build or draw faithfully -
-          the offset, projection, surface, import, and roof modules, a hull or a minkowski whose
+          the offset, surface, import, and roof modules, a hull or a minkowski whose
           operands have no hull or sum (the scad-hull-* and scad-minkowski-* identifiers), a highlight
           or background modifier on a 2D shape that is not extruded, and the other documented cases - as
           an unsupported-feature report with a stable identifier, a message, and the source location,

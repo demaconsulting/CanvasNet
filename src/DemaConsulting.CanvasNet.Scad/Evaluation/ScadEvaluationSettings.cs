@@ -22,6 +22,13 @@ internal sealed class ScadEvaluationSettings
     /// </summary>
     public IReadOnlyDictionary<string, ScadValue> Overrides { get; init; } = new Dictionary<string, ScadValue>();
 
+    /// <summary>
+    ///     Gets the values the viewport special variables (<c>$vpt</c>, <c>$vpr</c>, <c>$vpd</c>, <c>$vpf</c>) have
+    ///     when the document does not assign them, or <see langword="null"/> for the documented defaults of a fresh
+    ///     viewer (<see cref="ScadViewportValues.OpenScadDefaults"/>).
+    /// </summary>
+    public ScadViewportValues? Viewport { get; init; }
+
     /// <summary>Gets a value indicating whether an unsupported feature aborts evaluation instead of being reported.</summary>
     public bool ThrowOnUnsupportedFeature { get; init; }
 
