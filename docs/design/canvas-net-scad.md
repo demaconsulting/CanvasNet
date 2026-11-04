@@ -331,11 +331,11 @@ Design_, `canvas-net-scad/scad-evaluation.md`):
   convex parts of a `minkowski` fold (made only for the sum that needs them; a lone child needs none) while they live
   (the pairwise sums of a Minkowski sum are bounded by
   `MinkowskiSum.MaxPairwiseSums`).
-  A `projection` counts the triangles of its children before it allocates anything and refuses more than 2^23 of
-  them (`scad-projection-too-complex`), checks that the slabs its footprints could need (8 triangles per candidate
-  triangle) fit the remaining budget (the same located error), and charges every slice of its classification or cut to
-  a work meter with the same 2^23 ceiling before the slice runs, polling cancellation as it goes; over the ceiling the
-  projection is omitted and never approximated.
+  A `projection` counts the triangles and the vertices of its children before it allocates anything and refuses a
+  total above 2^23 triangle visits (`scad-projection-too-complex`), checks that the slabs its footprints could need (8
+  triangles per candidate triangle) fit the remaining budget (the same located error), and charges every pass (the
+  children, the grouping and footprints of a silhouette, every slice of a classification or cut) to a work meter
+  with the same 2^23 ceiling before the pass runs; over the ceiling the projection is omitted and never approximated.
   The renderer's per-tile fragment budget is mapped to the same exception.
 - **Recursion-free geometry building.** `ScadGeometryBuilder` walks the instantiation tree, and every 2D
   shape-tree walk, with explicit stacks; no code in the `Geometry` namespace recurses, so a model nested
@@ -397,10 +397,11 @@ Design_, `canvas-net-scad/scad-evaluation.md`):
 
 1. **Validate** (`Render` only): the width and height (1 to `Surface.MaxDimension`) and the camera (rejected by
    rendering an empty scene with it, so the renderer's own rules decide), then the token; `BuildScene` checks
-   only the token.
+   only the token (a camera the renderer would reject is ignored, not thrown).
 2. **Plan the viewport and evaluate**: `ScadViewport.Plan` derives from the render options the values that the
    document sees in `$vpt`, `$vpr`, `$vpd`, and `$vpf` and the variables an explicit option fixes (these override a
-   `-D` override of the same name); then steps 2 to 4 of the evaluate path run, into a fresh sink that is kept open
+   `-D` override of the same name); `BuildScene` lets the plan use the camera only when it passes the same rule as
+   in step 1; then steps 2 to 4 of the evaluate path run, into a fresh sink that is kept open
    (nothing is delivered yet). The evaluator reads back the viewport variables that the main file (or an override)
    defined.
 3. **Build geometry**: `ScadGeometryBuilder.Build` receives the roots, the triangle limit, the flat-shape

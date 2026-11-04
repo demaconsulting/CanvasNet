@@ -583,7 +583,12 @@ the cube of side 1e6.
 `ScadGeometryBuilderProjectionBudgetTests.ScadGeometryBuilderProjectionBudget_TooComplexClassification_ThrowsInStrictMode`,
 `ScadGeometryBuilderProjectionBudgetTests.ScadGeometryBuilderProjectionBudget_SlabsOverTheBudget_FailBeforeAllocating`,
 `ScadGeometryBuilderProjectionBudgetTests.ScadGeometryBuilderProjectionBudget_Charge_EqualsTheMeshesCreated`,
-`ScadGeometryBuilderProjectionBudgetTests.ScadGeometryBuilderProjectionBudget_RoomyBudget_BuildsTheShadow`
+`ScadGeometryBuilderProjectionBudgetTests.ScadGeometryBuilderProjectionBudget_RoomyBudget_BuildsTheShadow`,
+`ScadGeometryBuilderProjectionBudgetTests.ScadGeometryBuilderProjectionBudget_SilhouetteOverTheWorkCeiling_IsReportedAndOmitted`,
+`ScadGeometryBuilderProjectionBudgetTests.ScadGeometryBuilderProjectionBudget_SilhouetteWithinTheWorkCeiling_IsBuilt`,
+`ScadGeometryBuilderProjectionBudgetTests.ScadGeometryBuilderProjectionBudget_SilhouetteFootprintPass_IsCharged`,
+`ScadGeometryBuilderProjectionBudgetTests.ScadGeometryBuilderProjectionBudget_PolyhedronWithManyPoints_IsBoundedByItsVertices`,
+`ScadGeometryBuilderProjectionBudgetTests.ScadGeometryBuilderProjectionBudget_PolyhedronWithManyPoints_ProjectsItsFace`
 
 Asserts that the projection of a sphere of 100 fragments with a cube subtracted, whose classification costs more than the
 work ceiling, is reported as exactly one `scad-projection-too-complex` at the module's location (1:1) whose message says
@@ -594,6 +599,19 @@ the eight triangles per candidate that the slabs of its footprints could need fa
 that says `Triangle limit exceeded` and names the location 2:3 of the projection, before any region is built; that the
 triangles charged for a projection of a cube are the 12 of the cube plus those of the one slab that is left; and that a
 budget of 1,000 triangles builds the shadow of a cube with one slab and no warning.
+
+The work ceiling is lowered through the internal settings member of the tests, so no huge model is needed. Asserts that
+a plain silhouette (a sphere of 24 fragments with no boolean, so no slice) is reported as exactly one
+`scad-projection-too-complex` at the module, with no slab built and only the children charged, when the ceiling holds
+the children (their triangles plus their vertices) and one more visit, because the passes that group and merge its faces
+are charged; that the same silhouette is built with no report under the default ceiling and under a ceiling of 64 times
+the work of the children (an ordinary render is not affected); that the footprint pass of a cylinder cap of 200
+fragments is charged exactly, being reported one visit short of the cost of the children, the scan, the merge, and the
+footprint (each derived from the built mesh), and built at exactly that cost; that a polyhedron of 2,003 distinct points
+with one face is reported as too complex under a ceiling of 1,000, naming the vertices, because the vertices of the
+children count (not only the triangles); and that a polyhedron of 200,000 points whose one face uses the three highest
+indices projects to the triangle (area 50) with nothing reported, which proves that the sparse vertex remap maps
+unreferenced and high vertex indices correctly.
 
 ##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-Reporting: One Reporting Channel
 

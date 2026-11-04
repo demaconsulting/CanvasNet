@@ -72,7 +72,8 @@ The unit's behavior is specified by the `CanvasNetScad-ScadGeometry-ScadGeometry
 `GhostColor` (`Rgba32?`; null means the defaults `(255, 64, 128, 110)` and `(128, 128, 128, 80)`, which the
 context exposes as `HighlightColor` and `GhostColor`), and the optional `FontResolution`
 (`ScadFontResolutionOptions?`; null means the defaults; the context creates the `ScadFontResolver` of the build
-from it on first use). **`ScadBuiltScene`** (record) is the
+from it on first use), and the internal `MaxProjectionWork` (the work ceiling of one `projection`, in triangle visits;
+the default is the documented 2^23, other values exist for tests). **`ScadBuiltScene`** (record) is the
 outcome: the `Scene` (an empty group when nothing was built), the `ScadSceneMap`, the triangles charged (the
 meshes created plus the copies of `#` overlays), and `IsFlatModel` (true when the result of the whole forest is a
 2D shape, `ScadGeoKind.Flat`, so that a union that mixes 2D and 3D, which keeps its 3D members, is a 3D model; the
@@ -517,16 +518,29 @@ silent result.
 
 **Budget and cost.** Everything is bounded before it is allocated:
 
-1. The triangles of the children are counted first (an iterative walk that skips overlays). More than
-   `MaxProjectionWork` (2^23) is `scad-projection-too-complex`, the module is omitted, and nothing was allocated.
+1. The triangles **and the vertices** of the children are counted first (an iterative walk that skips overlays). A
+   total above the work ceiling (a settings member, `ScadGeometryContext.MaxProjectionWork`; the default is
+   `ScadProjections.MaxProjectionWork`, 2^23, and other values exist only for tests) is `scad-projection-too-complex`,
+   the module is omitted, and nothing was allocated. The vertices count because the per-vertex storage of the
+   transformation and the lazy closedness test of the Render3D mesh (`Mesh.IsClosed`, which welds every vertex of
+   the mesh) are sized by the vertices of the mesh, not by the triangles that use them; a polyhedron with a huge
+   point list and one face is bounded by that charge. The vertex remap of `FrameMesh.Create` is itself a dictionary
+   over the **referenced** vertices, so its storage is at most three times the triangles.
 2. `context.EnsureTriangles(8 * candidates)` then checks that the slabs the footprints could need (8 triangles per
    candidate triangle, an upper bound) fit the triangle budget, with the located triangle-limit
    `ScadEvaluationException` otherwise, before any region is built. The check is repeated for the leaves created so
    far after the footprints of each mesh, after each classified face group, and after the cut (8 triangles per leaf).
-3. Every slice, and every walk of a section tree, charges a **work meter** (`State.Charge`: the triangles and
-   vertices of the mesh, or the number of nodes of the subtree) _before_ it runs. A total above
-   `MaxProjectionWork` is `scad-projection-too-complex` and the projection is omitted, **never approximated**.
-   `Charge` also polls cancellation, so a canceled build stops per slice. Between the charges the long loops poll with
+3. Every pass charges a **work meter** (`State.Charge`) _before_ it runs, in triangle visits: the children
+   (triangles plus vertices, charged before they are transformed), the scan of `GroupFaces` (the triangles of the
+   mesh), its merge and collection (twice the wanted triangles), the footprint of a group (twice its triangles for the
+   merged region, plus its triangles for the per-triangle fallback), every slice (the triangles and vertices of the
+   mesh), and every walk of a section tree (the number of nodes of the subtree). The constants are one visit per
+   triangle per pass: an upper-bound proxy, not a profile. A total above the ceiling is `scad-projection-too-complex`,
+   the pass does not run, no leaf is built from a partial pass, and the projection is omitted, **never approximated**.
+   Under the default limits an ordinary projection stays below the ceiling (the slab check of step 2 limits the
+   candidates to an eighth of the triangle budget, and a plain silhouette costs about eight visits per candidate);
+   the ceiling fires when `MaxTriangles` is raised. A slice and a section walk also poll cancellation as they charge,
+   so a canceled build stops per slice. Between the charges the long loops poll with
    `context.Tick()` (the same 256-step schedule): the transformation of the triangles and vertices of each mesh
    (`FrameMesh.Create`), the grouping, merging, and collecting of the faces, the footprint of a group (the edge
    passes, the chaining of the contour, and the triangle fallback), the walk of the nodes of a subtree (`Descendants`)
@@ -534,7 +548,8 @@ silent result.
    triangles, the segments of the section, and the walk of its contours), so a mesh with one huge flat face can still be
    abandoned.
 4. The transformed vertex copies and the section caches are transient storage bounded by the size of meshes that
-   are already charged; like the transient storage of `ScadHulls` they are not charged separately.
+   are already charged (the welded vertices of a `FrameMesh` are the referenced ones only, at most three times its
+   triangles); like the transient storage of `ScadHulls` they are not charged separately.
 
 **Failure modes.** A section that does not close (the segments do not balance at a point) means that the mesh is not a
 closed solid: `scad-projection-open-mesh`. A section that the polygon validator rejects (contours that touch or

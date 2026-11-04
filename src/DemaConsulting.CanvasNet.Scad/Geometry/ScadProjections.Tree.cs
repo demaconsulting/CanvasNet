@@ -116,8 +116,7 @@ internal static partial class ScadProjections
         /// <returns>The mesh in the frame.</returns>
         public static FrameMesh Create(Mesh mesh, Matrix4x4D matrix, ScadGeometryContext context)
         {
-            var remap = new int[mesh.VertexCount];
-            Array.Fill(remap, -1);
+            var remap = new Dictionary<int, int>(Math.Min(mesh.VertexCount, mesh.TriangleIndices.Count));
             var welded = new Dictionary<Vector3D, int>();
             var vertices = new List<Vector3D>();
             var source = mesh.TriangleIndices;
@@ -155,15 +154,15 @@ internal static partial class ScadProjections
         /// <param name="mesh">The mesh.</param>
         /// <param name="matrix">The matrix.</param>
         /// <param name="source">The index of the vertex in the mesh.</param>
-        /// <param name="remap">The index of each mesh vertex among the welded ones, or -1 when it was not met yet.</param>
+        /// <param name="remap">The index among the welded vertices of each mesh vertex met so far (only referenced vertices have an entry).</param>
         /// <param name="welded">The welded vertices by position.</param>
         /// <param name="vertices">The welded vertices in order.</param>
         /// <returns>The index of the welded vertex.</returns>
-        private static int Weld(Mesh mesh, Matrix4x4D matrix, int source, int[] remap, Dictionary<Vector3D, int> welded, List<Vector3D> vertices)
+        private static int Weld(Mesh mesh, Matrix4x4D matrix, int source, Dictionary<int, int> remap, Dictionary<Vector3D, int> welded, List<Vector3D> vertices)
         {
-            if (remap[source] >= 0)
+            if (remap.TryGetValue(source, out var known))
             {
-                return remap[source];
+                return known;
             }
 
             var point = matrix.TransformPoint(mesh.Vertices[source]);
@@ -385,22 +384,30 @@ internal static partial class ScadProjections
         public void Fail(string feature, string message) => Failure ??= (feature, message);
 
         /// <summary>
-        ///     Charges work and records the too-complex failure when the ceiling is passed; also polls cancellation.
+        ///     Charges work and records the too-complex failure when the ceiling is passed; optionally polls cancellation.
         /// </summary>
         /// <param name="cost">The triangle visits.</param>
-        /// <returns><see langword="true"/> when the work is still within <see cref="MaxProjectionWork"/>.</returns>
-        public bool Charge(long cost)
+        /// <param name="poll">
+        ///     Whether to poll cancellation: a slice does (it has no counted loop of its own before the charge); a pass over
+        ///     triangles does not, because its own loop polls on the counted interval.
+        /// </param>
+        /// <returns><see langword="true"/> when the work is still within <see cref="ScadGeometryContext.MaxProjectionWork"/>.</returns>
+        public bool Charge(long cost, bool poll = true)
         {
-            Context.Poll();
+            if (poll)
+            {
+                Context.Poll();
+            }
+
             _work += cost;
-            if (_work <= MaxProjectionWork)
+            if (_work <= Context.MaxProjectionWork)
             {
                 return true;
             }
 
             Fail(
                 ScadFeatureIds.ProjectionTooComplex,
-                $"projection: the classification needs more than the {MaxProjectionWork} triangle visits one projection may do; the projection is omitted");
+                $"projection: the projection needs more than the {Context.MaxProjectionWork} triangle visits one projection may do; the projection is omitted");
             return false;
         }
 

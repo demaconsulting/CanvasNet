@@ -426,7 +426,8 @@ sections:
               animation time of the supplied evaluation options and the viewport variables that follow
               from the camera and the view angles of the supplied render options (an explicit camera
               or explicit view angles define them, beating an override, and the projection does not
-              change them), applying the flat-shape thickness to 2D shapes that are not extruded,
+              change them; an explicit camera that the renderer would reject defines none of them and
+              does not make the method throw), applying the flat-shape thickness to 2D shapes that are not extruded,
               returning a scene with an empty root for a model without geometry, and returning a new,
               independent scene from each call, including when called concurrently.
             justification: |
@@ -434,11 +435,14 @@ sections:
               caller that wants to inspect, measure, or render the model itself needs it without a
               surface, and the result must depend only on the document and the options. A document may
               use the viewport variables to size or place geometry, so the options that define them
-              are part of what the scene depends on, exactly as for a render.
+              are part of what the scene depends on, exactly as for a render. A camera that the renderer
+              rejects has no meaningful distance or rotation (an eye equal to the target gives a zero
+              distance), so it defines nothing, and the build stays free of an exception for the camera.
             tests:
               - ScadDocument_BuildScene_DefaultOptions_BuildsSceneOfTheModel
               - ScadDocument_BuildScene_VariablesAndTime_ChangeTheGeometry
               - ScadDocument_BuildScene_CameraAndViewAngles_SteerTheViewportVariables
+              - ScadDocument_BuildScene_InvalidCamera_DefinesNoViewportVariables
               - ScadDocument_BuildScene_Projection_DoesNotChangeTheScene
               - ScadDocument_BuildScene_FlatShapeThickness_SetsSlabHeight
               - ScadDocument_BuildScene_ConcurrentBuilds_AreEqual

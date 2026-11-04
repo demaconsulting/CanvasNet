@@ -81,8 +81,9 @@ public sealed class ScadRenderOptions
     ///     </para>
     ///     <para>
     ///         An invalid camera is rejected with an <see cref="ArgumentException"/> from the renderer before the model
-    ///         is evaluated. <see cref="ScadDocument.BuildScene(ScadRenderOptions?, CancellationToken)"/> ignores the
-    ///         camera, but the document still sees the viewport variables.
+    ///         is evaluated. <see cref="ScadDocument.BuildScene(ScadRenderOptions?, CancellationToken)"/> chooses no view,
+    ///         but a valid camera still defines the viewport variables for the document; an invalid one never makes it
+    ///         throw and defines none, and the build proceeds as without a camera.
     ///     </para>
     /// </remarks>
     public Camera? Camera { get; init; }

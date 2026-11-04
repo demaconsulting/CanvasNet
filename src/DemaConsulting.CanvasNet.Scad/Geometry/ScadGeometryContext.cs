@@ -15,6 +15,7 @@ namespace DemaConsulting.CanvasNet.Scad.Geometry;
 /// <param name="HighlightColor">The color of the <c>#</c> overlay, or <see langword="null"/> for <see cref="ScadGeometryContext.DefaultHighlightColor"/>.</param>
 /// <param name="GhostColor">The color of the <c>%</c> overlay, or <see langword="null"/> for <see cref="ScadGeometryContext.DefaultGhostColor"/>.</param>
 /// <param name="FontResolution">Where <c>text()</c> finds an explicitly named font, or <see langword="null"/> for the defaults of <see cref="ScadFontResolutionOptions"/>.</param>
+/// <param name="MaxProjectionWork">The work ceiling of one <c>projection</c>, in triangle visits; the default is the documented 2^23 (<see cref="ScadProjections.MaxProjectionWork"/>), other values exist for tests.</param>
 internal sealed record ScadGeometrySettings(
     long MaxTriangles,
     double FlatShapeThickness,
@@ -22,7 +23,8 @@ internal sealed record ScadGeometrySettings(
     CancellationToken Cancellation,
     Rgba32? HighlightColor = null,
     Rgba32? GhostColor = null,
-    ScadFontResolutionOptions? FontResolution = null);
+    ScadFontResolutionOptions? FontResolution = null,
+    long MaxProjectionWork = ScadProjections.MaxProjectionWork);
 
 /// <summary>
 ///     The outcome of building a model: the scene and the map from its mesh nodes back to source locations.
@@ -137,6 +139,9 @@ internal sealed class ScadGeometryContext
 
     /// <summary>Gets the triangle budget of the model (<see cref="ScadLimits.MaxTriangles"/>).</summary>
     public long MaxTriangles => _settings.MaxTriangles;
+
+    /// <summary>Gets the work ceiling of one <c>projection</c>, in triangle visits.</summary>
+    public long MaxProjectionWork => _settings.MaxProjectionWork;
 
     /// <summary>Gets the token polled while building, for the long-running Render3D operations (hull, Minkowski sum).</summary>
     public CancellationToken Cancellation => _settings.Cancellation;

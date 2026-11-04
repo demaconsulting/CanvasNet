@@ -251,6 +251,39 @@ public class ScadDocumentBuildSceneTests
     }
 
     /// <summary>
+    ///     Validates that a camera the renderer would reject defines no viewport variable and does not make the build
+    ///     throw: the model sees the view angles or the defaults, while <c>Render</c> still rejects the same camera.
+    /// </summary>
+    [Fact]
+    public void ScadDocument_BuildScene_InvalidCamera_DefinesNoViewportVariables()
+    {
+        // Arrange: the eye equals the target; and an orthographic camera without its height (it has a distance of 50)
+        var distance = ScadDocument.Parse("cube($vpd);");
+        var azimuth = ScadDocument.Parse("cube($vpr[2]);");
+        var sameEye = new Camera { Eye = new Vector3D(1, 1, 1), Target = new Vector3D(1, 1, 1), Up = Vector3D.UnitZ };
+        var noHeight = new Camera { Eye = new Vector3D(0, -50, 0), Target = Vector3D.Zero, Up = Vector3D.UnitZ, Projection = CameraProjection.Orthographic };
+        var warnings = new List<string>();
+        var evaluation = new ScadEvaluationOptions { WarningHandler = w => warnings.Add(w.Message) };
+
+        // Act
+        var byEye = distance.BuildScene(new ScadRenderOptions { Camera = sameEye, Evaluation = evaluation }, TestContext.Current.CancellationToken);
+        var byHeight = distance.BuildScene(new ScadRenderOptions { Camera = noHeight, Evaluation = evaluation }, TestContext.Current.CancellationToken);
+        var withAngle = azimuth.BuildScene(new ScadRenderOptions { Camera = sameEye, ViewAzimuthDegrees = 90 }, TestContext.Current.CancellationToken);
+        var withoutAngle = azimuth.BuildScene(new ScadRenderOptions { Camera = sameEye }, TestContext.Current.CancellationToken);
+
+        // Assert: the defaults of the default view, no warning about a zero distance, the explicit angle still applies
+        Assert.Equal(140.0, byEye.ComputeBounds().Max.X, 1e-9);
+        Assert.Equal(140.0, byHeight.ComputeBounds().Max.X, 1e-9);
+        Assert.Empty(warnings);
+        Assert.Equal(90.0, withAngle.ComputeBounds().Max.X, 1e-9);
+        Assert.Equal(Camera.DefaultAzimuthDegrees, withoutAngle.ComputeBounds().Max.X, 1e-9);
+
+        // Render rejects the same cameras, so the pair is pinned together
+        Assert.Throws<ArgumentException>(() => distance.Render(8, 8, new ScadRenderOptions { Camera = sameEye }, TestContext.Current.CancellationToken));
+        Assert.Throws<ArgumentException>(() => distance.Render(8, 8, new ScadRenderOptions { Camera = noHeight }, TestContext.Current.CancellationToken));
+    }
+
+    /// <summary>
     ///     Validates that the projection of the render options does not change the scene: it changes no viewport
     ///     variable, and a build chooses no camera.
     /// </summary>

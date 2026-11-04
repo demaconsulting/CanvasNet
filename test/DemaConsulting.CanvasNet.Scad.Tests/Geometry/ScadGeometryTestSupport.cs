@@ -103,13 +103,15 @@ internal static class ScadGeometryTestSupport
     /// <param name="strict">Whether unsupported features throw.</param>
     /// <param name="thickness">The slab thickness of flat shapes.</param>
     /// <param name="cancellation">The cancellation token.</param>
+    /// <param name="maxProjectionWork">The work ceiling of one <c>projection</c>, in triangle visits.</param>
     /// <returns>The settings.</returns>
     public static ScadGeometrySettings Settings(
         long maxTriangles = 5_000_000,
         bool strict = false,
         double thickness = 0.1,
-        CancellationToken? cancellation = null) =>
-        new(maxTriangles, thickness, strict, cancellation ?? TestContext.Current.CancellationToken);
+        CancellationToken? cancellation = null,
+        long maxProjectionWork = ScadProjections.MaxProjectionWork) =>
+        new(maxTriangles, thickness, strict, cancellation ?? TestContext.Current.CancellationToken, MaxProjectionWork: maxProjectionWork);
 
     /// <summary>
     ///     Evaluates a program and builds its geometry.

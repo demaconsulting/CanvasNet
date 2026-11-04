@@ -47,8 +47,9 @@ The subsystem's namespace documentation is in `Geometry/NamespaceDoc.cs`. Its be
   `OperationCanceledException`.
 - `ScadGeometrySettings` — `MaxTriangles` (a `long`), `FlatShapeThickness`, `ThrowOnUnsupportedFeature`, the
   `CancellationToken`, the optional (`Rgba32?`) `HighlightColor` and `GhostColor` (null: the defaults
-  `(255, 64, 128, 110)` and `(128, 128, 128, 80)`), and the optional `ScadFontResolutionOptions` that `text`
-  uses for an explicitly named font (null: the defaults).
+  `(255, 64, 128, 110)` and `(128, 128, 128, 80)`), the optional `ScadFontResolutionOptions` that `text`
+  uses for an explicitly named font (null: the defaults), and the internal `MaxProjectionWork` (the work ceiling
+  of one `projection`, in triangle visits; the default is the documented 2^23 and other values exist for tests).
 - `ScadBuiltScene` — the `Scene` (an empty group when nothing was built), the `ScadSceneMap` from every
   `MeshNode` to the source location of the module that produced it, and `IsFlatModel` (true when the whole result
   of the model is a 2D shape; a union that mixes 2D and 3D is a 3D model), which `ScadDocument.Render` uses to
@@ -142,7 +143,7 @@ identifiers of the evaluation subsystem (`scad-function-<name>`, `scad-search-fo
 | Identifier | Trigger | Effect |
 | ---------- | ------- | ------ |
 | `scad-module-offset`, `scad-module-surface`, `scad-module-import`, `scad-module-roof` | The module is recognized but not implemented | The module and its children are omitted |
-| `scad-projection-too-complex` | A `projection` has more than 2^23 triangles among its children, or its classification or cut would visit more than 2^23 triangles in total (counted before every slice runs) | The projection is omitted, never approximated |
+| `scad-projection-too-complex` | A `projection` has children with more than 2^23 triangle visits (their triangles plus their vertices), or any pass of its silhouette, classification, or cut (the grouping and footprints of the faces, every slice) would take the total over 2^23 (counted before each pass runs) | The projection is omitted, never approximated |
 | `scad-projection-open-mesh` | The cross-section of a mesh below a `projection` that has to be sliced (a `cut = true`, or a mesh below a difference or an intersection) does not close, so the mesh is not a closed solid | The projection is omitted |
 | `scad-text-invalid-outline` | A glyph outline of a `text` is damaged, a mapped glyph has only subpaths without an area (unlike an empty glyph such as a space), or a contour of a glyph crosses or touches itself or is degenerate | The whole `text` is omitted |
 | `scad-text-overlapping-contours` | The contours of one glyph of a `text` overlap or touch each other, other than as a hole, an island, or the overlapping solids of a composite glyph | The whole `text` is omitted |
@@ -272,10 +273,12 @@ charged and only the meshes of the result remain. The budget accumulates across 
 loops. The convexity-verification hulls for Minkowski members and the transient distinct-point set used by the hull
 budget check are temporary working storage bounded by the size of operand meshes that are already charged, and are
 not separately charged against the triangle budget; precise accounting of transient storage is a planned hardening
-follow-up. A `projection` counts the triangles of its children first and refuses more than 2^23 of them before
+follow-up. A `projection` counts the triangles and the vertices of its children first and refuses a total above 2^23
+triangle visits before
 anything is allocated, then requires that the slabs its footprints could need (8 triangles per candidate triangle)
-fit the triangle budget, with the normal located error otherwise, and bounds every slice of its classification or cut
-by a work meter with the same ceiling (see _ScadGeometryBuilder Unit Design_, _Projection_); the transformed copies
+fit the triangle budget, with the normal located error otherwise, and bounds every pass of its silhouette,
+classification, or cut (not only the slices) by a work meter with the same ceiling (see _ScadGeometryBuilder Unit
+Design_, _Projection_); the transformed copies
 of the vertices it makes are transient storage bounded by the size of meshes that are already charged, like those of
 `hull`. The renderer's own resource
 limit (`SceneRenderOptions.MaxFragmentsPerTile`) is reported by `ScadDocument.Render` as a

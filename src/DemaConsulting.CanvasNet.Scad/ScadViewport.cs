@@ -58,7 +58,8 @@ internal sealed class ScadViewportPlan
 ///         <see cref="ScadRenderOptions"/>; an override from <see cref="ScadEvaluationOptions.Variables"/>; the
 ///         top-level assignment in the document; the default (<c>$vpt = [0, 0, 0]</c>, <c>$vpd = 140</c>,
 ///         <c>$vpf = 22.5</c>, and <c>$vpr</c> from the requested or default view). The first two are injected as
-///         variable overrides, the explicit option replacing an override of the same name.
+///         variable overrides, the explicit option replacing an override of the same name. A camera that the renderer
+///         would reject defines nothing: the plan is then the one of options without a camera.
 ///     </para>
 ///     <para>
 ///         <b>Circularity.</b> The camera is chosen after the document was built, from the bounds of the built
@@ -79,15 +80,20 @@ internal static class ScadViewport
     ///     Plans the viewport of a document for the given render options.
     /// </summary>
     /// <param name="options">The render options, or <see langword="null"/> for the defaults.</param>
+    /// <param name="useCamera">
+    ///     <see langword="false"/> when the camera of <paramref name="options"/> was rejected by the renderer's rules:
+    ///     the plan is then the one of an options object without a camera (explicit view angles still define <c>$vpr</c>).
+    /// </param>
     /// <returns>The plan.</returns>
-    public static ScadViewportPlan Plan(ScadRenderOptions? options)
+    public static ScadViewportPlan Plan(ScadRenderOptions? options, bool useCamera = true)
     {
         var effective = options ?? new ScadRenderOptions();
         var azimuth = effective.ViewAzimuthDegrees;
         var elevation = effective.ViewElevationDegrees;
         var defaults = FromOrbit(azimuth, elevation);
         var overrides = new Dictionary<string, ScadValue>(StringComparer.Ordinal);
-        if (effective.Camera is { } camera)
+        var explicitCamera = useCamera ? effective.Camera : null;
+        if (explicitCamera is { } camera)
         {
             var values = FromCamera(camera);
             overrides[ScadViewportValues.TargetName] = values.TargetValue();
@@ -105,7 +111,7 @@ internal static class ScadViewport
         {
             Defaults = defaults,
             ExplicitOverrides = overrides,
-            Camera = effective.Camera,
+            Camera = explicitCamera,
             AnglesExplicit = effective.IsViewExplicit,
             ProjectionExplicit = effective.IsProjectionExplicit,
             Azimuth = azimuth,

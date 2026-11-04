@@ -521,23 +521,33 @@ sections:
               - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-ProjectionBudget
                 title: >-
                   The ScadGeometryBuilder unit shall bound the work of a projection before allocating
-                  it: shall report a shadow whose classification would visit more than 8,388,608 (2^23)
-                  triangles as the unsupported feature scad-projection-too-complex at the module's
-                  location and omit the module (throwing in strict mode), charging nothing beyond the
-                  children it consumed; shall check the slabs that the footprints could need (at most
-                  eight triangles per candidate face) against the triangle budget before building any
-                  region, failing with a ScadEvaluationException that names the module's location and the
-                  limit; and shall charge exactly the triangles of the meshes it creates.
+                  it: shall count the triangles and the vertices of its children and every pass over them
+                  (the transformation of the children, the grouping and footprints of a silhouette, the
+                  classification and the cut) against one work ceiling of 8,388,608 (2^23) triangle
+                  visits, report a projection that would go over it as the unsupported feature
+                  scad-projection-too-complex at the module's location and omit the module (throwing in
+                  strict mode), charging nothing beyond the children it consumed; shall check the slabs
+                  that the footprints could need (at most eight triangles per candidate face) against the
+                  triangle budget before building any region, failing with a ScadEvaluationException that
+                  names the module's location and the limit; and shall charge exactly the triangles of
+                  the meshes it creates.
                 justification: |
                   The cost of a silhouette grows with the product of the sizes of the operands of a
-                  boolean; a hostile model must not be able to exhaust the host through it, and the author
-                  must be told which module is too complex instead of getting an approximation.
+                  boolean, with the number of faces of a flat one, and with the number of points of a
+                  polyhedron whose faces use few of them; a hostile model must not be able to exhaust
+                  the host through any of them, and the author must be told which module is too complex
+                  instead of getting an approximation.
                 tests:
                   - ScadGeometryBuilderProjectionBudget_TooComplexClassification_IsReportedAndOmitted
                   - ScadGeometryBuilderProjectionBudget_TooComplexClassification_ThrowsInStrictMode
                   - ScadGeometryBuilderProjectionBudget_SlabsOverTheBudget_FailBeforeAllocating
                   - ScadGeometryBuilderProjectionBudget_Charge_EqualsTheMeshesCreated
                   - ScadGeometryBuilderProjectionBudget_RoomyBudget_BuildsTheShadow
+                  - ScadGeometryBuilderProjectionBudget_SilhouetteOverTheWorkCeiling_IsReportedAndOmitted
+                  - ScadGeometryBuilderProjectionBudget_SilhouetteWithinTheWorkCeiling_IsBuilt
+                  - ScadGeometryBuilderProjectionBudget_SilhouetteFootprintPass_IsCharged
+                  - ScadGeometryBuilderProjectionBudget_PolyhedronWithManyPoints_IsBoundedByItsVertices
+                  - ScadGeometryBuilderProjectionBudget_PolyhedronWithManyPoints_ProjectsItsFace
 
               - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-Reporting
                 title: >-

@@ -42,9 +42,15 @@ internal static partial class ScadProjections
     /// <param name="mesh">The mesh.</param>
     /// <param name="facing">Which faces are wanted.</param>
     /// <param name="state">The shared state (work meter and cancellation).</param>
-    /// <returns>The groups in the order of their first triangle.</returns>
+    /// <returns>The groups in the order of their first triangle; empty when the work meter failed (the state records it).</returns>
     private static List<FaceGroup> GroupFaces(FrameMesh mesh, Facing facing, State state)
     {
+        // Each pass is charged before it runs, one triangle visit per triangle it looks at
+        if (!state.Charge(mesh.TriangleCount, poll: false))
+        {
+            return [];
+        }
+
         var kept = new List<int>();
         var normals = new List<Vector3D>();
         for (var t = 0; t < mesh.TriangleCount; t++)
@@ -61,6 +67,12 @@ internal static partial class ScadProjections
 
             kept.Add(t);
             normals.Add(cross / cross.Length);
+        }
+
+        // The merge and the collection visit each wanted triangle once (the edge table adds a constant factor)
+        if (!state.Charge(2L * kept.Count, poll: false))
+        {
+            return [];
         }
 
         var parent = new int[kept.Count];
@@ -220,14 +232,20 @@ internal static partial class ScadProjections
     /// </remarks>
     /// <param name="mesh">The mesh.</param>
     /// <param name="group">The group.</param>
-    /// <param name="state">The shared state (cancellation is polled per triangle).</param>
-    /// <returns>The regions; their union is the footprint.</returns>
+    /// <param name="state">The shared state (work meter and cancellation).</param>
+    /// <returns>The regions; their union is the footprint; empty when the work meter failed (the state records it).</returns>
     private static List<PolygonRegion> Footprint(FrameMesh mesh, FaceGroup group, State state)
     {
         var merged = TryMerged(mesh, group, state);
         if (merged is not null)
         {
             return [merged];
+        }
+
+        // The per-triangle fallback is one more pass over the group
+        if (state.Failed || !state.Charge(group.Triangles.Count, poll: false))
+        {
+            return [];
         }
 
         var regions = new List<PolygonRegion>(group.Triangles.Count);
@@ -253,11 +271,17 @@ internal static partial class ScadProjections
     /// </summary>
     /// <param name="mesh">The mesh.</param>
     /// <param name="group">The group.</param>
-    /// <param name="state">The shared state (cancellation is polled per triangle).</param>
-    /// <returns>The region, or <see langword="null"/> when the boundary cannot be chained cleanly.</returns>
+    /// <param name="state">The shared state (work meter and cancellation).</param>
+    /// <returns>The region, or <see langword="null"/> when the boundary cannot be chained cleanly or the work meter failed.</returns>
     private static PolygonRegion? TryMerged(FrameMesh mesh, FaceGroup group, State state)
     {
         if (group.Triangles.Count == 1)
+        {
+            return null;
+        }
+
+        // The edge pass and the successor pass each visit every triangle of the group
+        if (!state.Charge(2L * group.Triangles.Count, poll: false))
         {
             return null;
         }

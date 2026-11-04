@@ -197,7 +197,12 @@ listed. Directives are only legal at file scope, so `Directives` is the complete
   so only the defaults and the explicit options of the plan apply). The plan is derived from the render options: an
   explicit `Camera` sets all four variables, explicit view angles set `$vpr`, both beating an override of the
   evaluation options and a top-level assignment of the document, and otherwise the defaults of the default view
-  apply. A model that reads these variables (to size or place geometry) therefore builds a different scene for a
+  apply. An explicit `Camera` counts only when the renderer's own rules accept it (the same empty 1 by 1 scene probe
+  that `Render` uses, so there is one definition of an invalid camera; `IsUsableCamera`): a camera that is rejected
+  (for example eye equal to target) defines none of the four variables, the plan is built as without a camera
+  (explicit view angles still define `$vpr`, otherwise the defaults apply), and `BuildScene` never throws for it,
+  whereas `Render` throws `ArgumentException`. A model that reads these variables (to size or place geometry)
+  therefore builds a different scene for a
   different camera or view angle, as `Render` does for the same options. Besides the evaluation options, the
   flat-shape thickness, the highlight and ghost colors, and the font resolution, the camera and the view angles
   therefore matter to `BuildScene`; `Projection` and the surface size do not (they change no variable). On success it
@@ -224,7 +229,9 @@ listed. Directives are only legal at file scope, so `Directives` is the complete
   advising to raise `SceneOptions.MaxFragmentsPerTile` or to simplify the model. Events are delivered as for
   `BuildScene`; when a handler throws after a successful drawing, the surface is disposed before the exception
   propagates. The caller owns and disposes the returned surface.
-- `ScadViewport.Plan(ScadRenderOptions?)` (internal static) — derives the `ScadViewportPlan` from the options.
+- `ScadViewport.Plan(ScadRenderOptions?, bool useCamera = true)` (internal static) — derives the `ScadViewportPlan`
+  from the options; `useCamera` is false when the renderer rejected the camera, and the plan is then the one of an
+  options object without a camera.
   `Defaults` are the values of the requested view (`FromOrbit(azimuth, elevation)`: `$vpt = [0, 0, 0]`,
   `$vpr = [90 - elevation, 0, azimuth]` with every angle wrapped into 0 to 360 (an angle within 1e-9 of a full turn
   becomes 0, so rounding noise never shows as 359.999999999), `$vpd = 140`, `$vpf = 22.5`), or, for an explicit
@@ -248,7 +255,8 @@ listed. Directives are only legal at file scope, so `Directives` is the complete
   the eye is `$vpt + R * (0, 0, 1) * $vpd`, the target `$vpt`, the up vector `R * (0, 1, 0)`, the field of view
   `$vpf`, and the orthographic height `2 * $vpd * tan($vpf / 2)`.
 - **Precedence** (per variable, highest first). (1) An explicit option of `ScadRenderOptions`: `Camera` supplies all
-  four variables; explicitly set `ViewAzimuthDegrees` or `ViewElevationDegrees` set `$vpr` only; `Projection` only
+  four variables (only when the renderer accepts it; a camera it would reject supplies nothing); explicitly set
+  `ViewAzimuthDegrees` or `ViewElevationDegrees` set `$vpr` only; `Projection` only
   changes the projection. (2) An override from `ScadEvaluationOptions.Variables` (a `-D` of the command line). (3) A
   top-level assignment in the main file and its `include`d files (not in a `use`d library and not in a nested
   scope). (4) The defaults above. The first two are injected into the evaluator as overrides, so they also win

@@ -39,7 +39,9 @@ public sealed partial class ScadDocument
     ///         <see cref="ScadRenderOptions.Camera"/>, or explicit <see cref="ScadRenderOptions.ViewAzimuthDegrees"/> and
     ///         <see cref="ScadRenderOptions.ViewElevationDegrees"/>, set them (they win over an
     ///         <see cref="ScadEvaluationOptions.Variables"/> override and a top-level assignment of the document);
-    ///         otherwise they have the defaults of the default view. A model that reads them (for example to size or place
+    ///         otherwise they have the defaults of the default view. An explicit camera that the renderer would reject
+    ///         (for example eye equal to target) is ignored like an absent camera: it defines none of the four
+    ///         variables, and <see cref="BuildScene"/> never throws for it, whereas <see cref="Render"/> does. A model that reads them (for example to size or place
     ///         geometry) therefore builds a different scene for a different camera or view angle, exactly as
     ///         <see cref="Render"/> does for the same options. The build chooses no camera and never calls
     ///         <see cref="ScadRenderOptions.ResolvedViewHandler"/>; <see cref="ScadRenderOptions.Projection"/> and the size of
@@ -52,7 +54,8 @@ public sealed partial class ScadDocument
     /// </remarks>
     /// <param name="options">
     ///     Optional render options; <see langword="null"/> uses the defaults. The scene depends on the evaluation options,
-    ///     the camera and the view angles (they define the viewport variables, see the remarks), the flat-shape
+    ///     the camera and the view angles (they define the viewport variables, see the remarks; a camera the renderer
+    ///     would reject defines none), the flat-shape
     ///     thickness, the highlight and ghost colors, and the font resolution; the projection and the resolved-view
     ///     handler have no effect.
     /// </param>
@@ -80,7 +83,7 @@ public sealed partial class ScadDocument
         ScadBuiltScene built;
         try
         {
-            built = BuildGeometry(effective, evaluation, sink, ScadViewport.Plan(effective), cancellationToken).Built;
+            built = BuildGeometry(effective, evaluation, sink, ScadViewport.Plan(effective, IsUsableCamera(effective.Camera)), cancellationToken).Built;
         }
         catch
         {
@@ -270,6 +273,30 @@ public sealed partial class ScadDocument
     /// <returns>The camera.</returns>
     internal static Camera FitCamera(Scene scene, ScadRenderOptions options, double aspectRatio) =>
         ScadViewport.FitScene(scene, options.ViewAzimuthDegrees, options.ViewElevationDegrees, aspectRatio, options.Projection);
+
+    /// <summary>
+    ///     Tells whether the renderer accepts a camera, by the same probe <see cref="Render"/> validates with, so there
+    ///     is one definition of an invalid camera; it never throws.
+    /// </summary>
+    /// <param name="camera">The camera, or <see langword="null"/> for none.</param>
+    /// <returns><see langword="true"/> when there is no camera to reject, or the renderer accepts it.</returns>
+    private static bool IsUsableCamera(Camera? camera)
+    {
+        if (camera is null)
+        {
+            return true;
+        }
+
+        try
+        {
+            ValidateCamera(camera);
+            return true;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+    }
 
     /// <summary>
     ///     Validates a camera by rendering an empty scene with it, so the renderer's own rules decide.

@@ -44,15 +44,18 @@ namespace DemaConsulting.CanvasNet.Scad.Geometry;
 ///         not close is reported (<see cref="ScadFeatureIds.ProjectionOpenMesh"/>) and the projection is omitted.
 ///     </para>
 ///     <para>
-///         <b>Budget and cost.</b> Everything is bounded before it is allocated: the triangles of the children are
-///         counted first (a model over <see cref="MaxProjectionWork"/> is reported as
-///         <see cref="ScadFeatureIds.ProjectionTooComplex"/>) and the slabs the footprints could need (8 triangles per
-///         candidate triangle, an upper bound) must fit the triangle budget (the located triangle-limit error otherwise);
-///         every slice of the classification and the cut charges its triangles to a work meter with the same ceiling before it
-///         runs, so a classification that would cost more is reported and the projection omitted, never approximated.
-///         The transformed copies of the vertices are transient storage bounded by the size of meshes that are already
-///         charged and are not charged separately, like the transient storage of <see cref="ScadHulls"/>. Everything
-///         iterates over explicit stacks (no recursion), and cancellation is polled per slice.
+///         <b>Budget and cost.</b> Everything is bounded before it is allocated: the triangles and the vertices of the
+///         children are counted first (a model whose total is over the work ceiling, 2^23 triangle visits by default
+///         and <see cref="MaxProjectionWork"/> in the code, is reported as <see cref="ScadFeatureIds.ProjectionTooComplex"/>)
+///         and the slabs the footprints could need (8 triangles per candidate triangle, an upper bound) must fit the
+///         triangle budget (the located triangle-limit error otherwise). Every pass is charged to one work meter with
+///         the same ceiling before it runs: the transformation of the children, the grouping and merging of the faces
+///         of a silhouette, the footprints of a group, and every slice of the classification and the cut. A projection
+///         that would cost more is reported and omitted, never approximated. The vertex remap of a mesh is sparse
+///         (storage proportional to the vertices a triangle references, not to the vertices of the mesh), and the
+///         transient storage of the transformed vertices is bounded by the size of meshes that are already charged, like
+///         the transient storage of <see cref="ScadHulls"/>. Everything iterates over explicit stacks (no recursion), and
+///         cancellation is polled per charge and per slice.
 ///     </para>
 ///     <para>
 ///         The methods are stateless and thread-safe.
@@ -61,8 +64,9 @@ namespace DemaConsulting.CanvasNet.Scad.Geometry;
 internal static partial class ScadProjections
 {
     /// <summary>
-    ///     The most work, in triangle visits, that one <c>projection</c> may do (2^23): the triangles of its children
-    ///     and the triangles every slice of the classification or the cut visits.
+    ///     The default of the most work, in triangle visits, that one <c>projection</c> may do (2^23): the triangles and
+    ///     the vertices of its children, and the triangles every later pass visits. The ceiling in effect is
+    ///     <see cref="ScadGeometryContext.MaxProjectionWork"/>; other values exist for tests.
     /// </summary>
     internal const long MaxProjectionWork = 1L << 23;
 
@@ -93,26 +97,35 @@ internal static partial class ScadProjections
             return ScadGeo.Empty;
         }
 
-        // Count first, then check the budget, and only then allocate anything
-        var candidates = CountTriangles(solids, context);
-        if (candidates > MaxProjectionWork)
+        // Count first, then check the budget, and only then allocate anything: the triangles bound the slabs, and the
+        // triangles plus the vertices bound the work of transforming and welding the children
+        var (candidates, vertices) = CountChildren(solids, context);
+        if (candidates + vertices > context.MaxProjectionWork)
         {
-            ReportTooComplex(instance, context, $"its children have {candidates} triangles");
+            ReportTooComplex(instance, context, $"its children have {candidates} triangles and {vertices} vertices");
             return ScadGeo.Empty;
         }
 
         context.EnsureTriangles(8L * candidates, instance.Location);
+
+        // The meter is the single source of truth for the work: the children are charged before they are transformed
+        var state = new State(context, instance);
+        if (!state.Charge(candidates + vertices, poll: false))
+        {
+            ReportFailure(state, instance, context);
+            return ScadGeo.Empty;
+        }
+
         var tree = Collect(solids, context);
         if (tree.HasAppearance)
         {
             context.Reporter.Warn("projection: colors inside projection() are not kept; the result takes the enclosing color", instance.Location);
         }
 
-        var state = new State(context, instance);
         var shape = cut ? Cut(tree, state) : Silhouette(tree, state);
-        if (state.Failure is { } failure)
+        if (state.Failed)
         {
-            context.Reporter.Unsupported(failure.Feature, failure.Message, instance.Location);
+            ReportFailure(state, instance, context);
             return ScadGeo.Empty;
         }
 
@@ -158,18 +171,35 @@ internal static partial class ScadProjections
     private static void ReportTooComplex(ScadInstance node, ScadGeometryContext context, string detail) =>
         context.Reporter.Unsupported(
             ScadFeatureIds.ProjectionTooComplex,
-            $"projection: {detail}, which is more than the {MaxProjectionWork} triangle visits one projection may do; the projection is omitted",
+            $"projection: {detail}, which is more than the {context.MaxProjectionWork} triangle visits one projection may do; the projection is omitted",
             node.Location);
 
     /// <summary>
-    ///     Counts the triangles of the meshes below solid children (overlays excluded), walking iteratively.
+    ///     Reports the first failure of the work meter at the module.
+    /// </summary>
+    /// <param name="state">The state with the failure.</param>
+    /// <param name="node">The instance.</param>
+    /// <param name="context">The build context.</param>
+    private static void ReportFailure(State state, ScadInstance node, ScadGeometryContext context)
+    {
+        if (state.Failure is { } failure)
+        {
+            context.Reporter.Unsupported(failure.Feature, failure.Message, node.Location);
+        }
+    }
+
+    /// <summary>
+    ///     Counts the triangles and the vertices of the meshes below solid children (overlays excluded), walking
+    ///     iteratively. The vertices count because the per-vertex storage of the transformation, and the lazy closedness
+    ///     test of the mesh, are sized by the vertices of a mesh, not by the triangles that use them.
     /// </summary>
     /// <param name="solids">The solid children.</param>
     /// <param name="context">The build context (cancellation is polled per node).</param>
-    /// <returns>The number of triangles.</returns>
-    private static long CountTriangles(List<ScadGeo> solids, ScadGeometryContext context)
+    /// <returns>The number of triangles and the number of vertices.</returns>
+    private static (long Triangles, long Vertices) CountChildren(List<ScadGeo> solids, ScadGeometryContext context)
     {
-        long total = 0;
+        long triangles = 0;
+        long vertices = 0;
         var stack = new Stack<SceneNode>();
         foreach (var solid in solids)
         {
@@ -182,7 +212,8 @@ internal static partial class ScadProjections
             switch (stack.Pop())
             {
                 case MeshNode meshNode:
-                    total += meshNode.Mesh.TriangleCount;
+                    triangles += meshNode.Mesh.TriangleCount;
+                    vertices += meshNode.Mesh.VertexCount;
                     break;
                 case GroupNode group:
                     PushAll(stack, group.Children);
@@ -195,7 +226,7 @@ internal static partial class ScadProjections
             }
         }
 
-        return total;
+        return (triangles, vertices);
     }
 
     /// <summary>

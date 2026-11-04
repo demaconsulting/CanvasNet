@@ -123,10 +123,23 @@ internal static partial class ScadProjections
     /// <exception cref="ScadEvaluationException">Thrown when the footprints could not fit the triangle budget.</exception>
     private static void AddFootprints(FrameMesh mesh, Facing facing, List<ScadShape2D> leaves, State state)
     {
-        foreach (var group in GroupFaces(mesh, facing, state))
+        var groups = GroupFaces(mesh, facing, state);
+        if (state.Failed)
+        {
+            // No leaves from a partial pass
+            return;
+        }
+
+        foreach (var group in groups)
         {
             state.Context.Tick();
-            foreach (var region in Footprint(mesh, group, state))
+            var regions = Footprint(mesh, group, state);
+            if (state.Failed)
+            {
+                return;
+            }
+
+            foreach (var region in regions)
             {
                 leaves.Add(state.NewLeaf(region));
             }
@@ -142,8 +155,8 @@ internal static partial class ScadProjections
     ///     For every face group of a mesh below the node (the upward faces of the added operands, the downward faces of
     ///     the subtracted ones) the part of its footprint where the solid is just below the face and not just above it is
     ///     part of the silhouette; the two conditions are cross-sections of the subtree by the plane of the face, shifted
-    ///     down and up (see <c>ScadProjections.Slice.cs</c>). The work of every slice is charged to the meter before it
-    ///     runs.
+    ///     down and up (see <c>ScadProjections.Slice.cs</c>). The work of every slice and of every pass (the grouping of
+    ///     the faces and their footprints) is charged to the meter before it runs.
     /// </remarks>
     /// <param name="tree">The tree.</param>
     /// <param name="root">The index of the root of the subtree.</param>
@@ -157,7 +170,13 @@ internal static partial class ScadProjections
         {
             var node = tree.Nodes[index];
             var mesh = node.Mesh!;
-            foreach (var group in GroupFaces(mesh, FacingOf(node, mesh), state))
+            var groups = GroupFaces(mesh, FacingOf(node, mesh), state);
+            if (state.Failed)
+            {
+                return;
+            }
+
+            foreach (var group in groups)
             {
                 if (state.Failed)
                 {
@@ -204,7 +223,7 @@ internal static partial class ScadProjections
     {
         var mesh = tree.Nodes[meshIndex].Mesh!;
         var footprint = Footprint(mesh, group, state);
-        if (footprint.Count == 0)
+        if (footprint.Count == 0 || state.Failed)
         {
             return;
         }
