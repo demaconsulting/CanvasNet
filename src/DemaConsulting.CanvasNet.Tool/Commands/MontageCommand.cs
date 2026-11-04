@@ -133,6 +133,11 @@ internal sealed partial class MontageCommand : ICommand
         else
         {
             context.WriteLine(RenderText(layout, written));
+            context.WriteDiagnostics(
+                placed.SelectMany(cell => cell.Diagnostics.Select(d => (
+                    (string?)cell.Info.Path,
+                    cell.Info.Format.IsDocument() ? d with { Page = d.Page ?? cell.Page } : d))),
+                placed.SelectMany(cell => cell.Echo));
         }
     }
 

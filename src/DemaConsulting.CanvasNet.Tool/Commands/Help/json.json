@@ -31,7 +31,7 @@
       "title": "Fields of the other commands",
       "items": [
         { "term": "info", "text": "input {path, format, bytes} and one of image, document {pageCount, pages[]}, model {modules, functions, directives}, or chart (after an image object with the laid-out size)." },
-        { "term": "formats", "text": "tool, library, inputs[], outputs[], quality {min, max, default}, and maxDimension." },
+        { "term": "formats", "text": "tool, library, inputs[], outputs[], quality {min, max, default}, and maxDimension. Each inputs[] entry has format, kind, extensions, multiPage, vector, and helpTopic: the topic of 'canvasnet help <topic>' that describes the format (raster for png, jpeg, bmp, tiff, gif, and jpeg2000)." },
         { "term": "compare, montage, inspect", "text": "Described in their own help: run 'canvasnet help compare', 'canvasnet help montage', or 'canvasnet help inspect'." },
         { "term": "help", "text": "kind is index, command, topic, examples, or example; see the help section below." }
       ]
@@ -44,7 +44,8 @@
         { "term": "severity", "text": "unsupported for a feature that was left out, or warning for a questionable construct that still rendered." },
         { "term": "code", "text": "The stable identifier of the feature, for example scad-module-surface or vl-mark-geoshape. A warning of a SCAD model has the code scad-warning; a warning of a Vega-Lite chart has the code vega-lite-warning and carries its vl-* identifier at the start of the message text." },
         { "term": "message", "text": "A description; for a model or chart it gives file, line, and column." },
-        { "term": "page", "text": "The page of a document the report belongs to." }
+        { "term": "page", "text": "The page of a document the report belongs to." },
+        { "text": "Without --json the same reports are written to standard error as 'Unsupported: <code>: <message>' or 'Warning: <code>: <message>' lines (and echo as 'ECHO: <text>'); with --json standard error carries none of them, so standard output stays one JSON document." }
       ]
     },
     {

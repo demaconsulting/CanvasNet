@@ -152,6 +152,10 @@ internal sealed partial class CompareCommand : ICommand
             {
                 context.WriteLine(line);
             }
+
+            context.WriteDiagnostics(
+                new[] { a, b }.SelectMany(side => side.Diagnostics.Select(d => ((string?)$"input {side.Label}", d))),
+                a.Echo.Concat(b.Echo));
         }
 
         if (failed.Count > 0)

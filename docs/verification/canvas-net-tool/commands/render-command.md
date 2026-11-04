@@ -165,6 +165,11 @@ uses `surface` has the echo line and two diagnostics (source `scad`; severity `w
 no file; `--max-triangles 1` is a `budget-exceeded` error of one line with the limit and a hint that names the option,
 and no file.
 
+**RenderCommand_Run_ScadDiagnosticsAndEcho_AreWrittenToStandardErrorInTextMode**: the same model without `--json`
+writes the result line to standard output and exactly three lines to standard error (`ECHO: "hello"`, then a
+`Warning: scad-warning: ...` line, then an `Unsupported: scad-module-surface: ...` line) with exit code 0; with
+`--silent` nothing is written at all; with `--json` standard error is empty.
+
 **RenderCommand_Run_ScadSizeOptions_FollowTheNaturalSize**, **RenderCommand_Run_ScadBackground_IsAppliedAndFlattenedForJpeg**,
 **RenderCommand_Run_ScadToEachOutputFormat_WritesDecodableFile**, and **RenderCommand_Run_ScadTwice_WritesIdenticalBytes**:
 a scale of 0.25, a width of 100, a height of 60, and `--size 90x50` give 200x200, 100x100, 60x60, and 90x50; a blue
@@ -200,6 +205,12 @@ diagnostics in the JSON result (source `vega-lite`; the `vega-lite-warning` warn
 `vl-channel-geo` unsupported notes, with no page); with `--strict` it is an `unsupported-feature` error and no file; a
 malformed chart is a `vega-lite-error` of one line that names the file, and plain Vega named like a chart is a
 `vega-lite-error` with exit code 1 and the code in the failure document, through the entry point, with no output.
+
+**RenderCommand_Run_VegaLiteDiagnostics_AreWrittenToStandardErrorInTextMode**: a line chart with a `shape` channel
+and an unknown property, rendered without `--json` through the entry point, writes the result line to standard output
+and a `Warning: vega-lite-warning: ...` line and an `Unsupported: vl-channel-shape: ...` line to standard error with
+exit code 0; with `--silent` nothing is written; with `--json` standard error is empty and the JSON result lists
+`vl-channel-shape`.
 
 **RenderCommand_Run_VegaLiteWithPageTwoOrModelOption_Fails** and **RenderCommand_Usage_NamesVegaLite**: page 2 of a
 chart is

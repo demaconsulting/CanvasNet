@@ -181,6 +181,37 @@ public class RenderCommandScadTests
     }
 
     /// <summary>
+    ///     Test that, without --json, the echo output and the notes of a model are written to standard error, and
+    ///     --silent and --json write none.
+    /// </summary>
+    [Fact]
+    public void RenderCommand_Run_ScadDiagnosticsAndEcho_AreWrittenToStandardErrorInTextMode()
+    {
+        // Arrange: a model that echoes, warns, and uses an unsupported module
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteText(directory.Path, "noisy.scad", "echo(\"hello\");\nmissing();\nsurface(\"A\");\ncube(1);\n");
+        var output = directory.Combine("o.png");
+
+        // Act
+        var (exitCode, stdOut, stdErr) = ToolHost.Invoke("render", input, "--size", "32x32", "-o", output);
+        var silent = ToolHost.Invoke("render", input, "--size", "32x32", "-o", output, "--silent");
+        var json = ToolHost.Invoke("render", input, "--size", "32x32", "-o", output, "--json");
+
+        // Assert: the echo as OpenSCAD prints it, then the warning and the unsupported module
+        Assert.Equal(0, exitCode);
+        Assert.StartsWith("wrote ", stdOut, StringComparison.Ordinal);
+        var lines = stdErr.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal("ECHO: \"hello\"", lines[0]);
+        Assert.StartsWith("Warning: scad-warning: ", lines[1], StringComparison.Ordinal);
+        Assert.StartsWith("Unsupported: scad-module-surface: ", lines[2], StringComparison.Ordinal);
+        Assert.Equal(3, lines.Length);
+
+        // Assert: --silent writes nothing, and --json leaves standard error empty
+        Assert.Equal((0, string.Empty, string.Empty), silent);
+        Assert.Equal(string.Empty, json.StdErr);
+    }
+
+    /// <summary>
     ///     Test that strict mode turns an unsupported feature into an error and writes nothing.
     /// </summary>
     [Fact]

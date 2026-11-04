@@ -178,6 +178,11 @@ internal sealed partial class RenderCommand : ICommand
                     context.WriteWarning(warning);
                 }
             }
+
+            // What the loader left out of the picture is not silent: it goes to standard error after the result line
+            context.WriteDiagnostics(
+                outputs.SelectMany(o => o.Diagnostics).Select(d => ((string?)null, d)),
+                outputs.SelectMany(o => o.Echo));
         }
     }
 

@@ -80,6 +80,21 @@ sections:
           - Context_WriteError_NotSilent_WritesToConsole
           - Context_WriteWarning_NotSilent_WritesToConsoleWithoutError
 
+      - id: CanvasNetTool-Context-Diagnostics
+        title: >-
+          The Context class shall write the notes of a successful command and the echoed text of a model to
+          standard error, one line each, as Unsupported or Warning lines with the code and message (limited
+          to a fixed number, the rest counted in one line), without setting the error state, and shall write
+          none of them when the JSON option or the silent flag is set.
+        justification: |
+          A feature that was left out of a picture must not be silent in text mode, or an agent that reads
+          only the output believes the picture is complete. With the JSON option the same notes are in the
+          result, and standard output and error must stay clean for the program that parses it.
+        tests:
+          - Context_WriteDiagnostics_NotJson_WritesNotesAndEchoToStandardError
+          - Context_WriteDiagnostics_JsonOrSilent_WritesNothing
+          - Context_WriteDiagnostics_ManyNotes_WritesLimitAndCountsTheRest
+
       - id: CanvasNetTool-Context-Silent
         title: The Context class shall suppress console output when the silent flag is set.
         justification: |

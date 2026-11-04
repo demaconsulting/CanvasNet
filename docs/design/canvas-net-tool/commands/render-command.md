@@ -109,8 +109,9 @@ result is encoded to a temporary file next to its target, and no target is touch
 and encoded; then all the outputs are published together (`ImageWriter.PublishAll`, overwriting unless
 `--no-clobber`), and a `finally` block deletes every temporary file that was not committed. The result is
 written through `context.WriteLine`: as one text line per output when `context.Json` is false, or as one JSON
-document. The diagnostics and the echo of a model are part of the JSON document only; the text result is the one
-line, so a caller that needs them uses `--json`.
+document. The diagnostics and the echo of a model are part of the JSON document; without `--json` they are written
+to standard error after the result lines by `context.WriteDiagnostics`, so a feature that was left out is not silent
+(the exit code stays 0, and `--silent` suppresses them).
 
 **TransformAndStage(loaded, target, settings, isDocument)**: when there are operations, calls `ImagePipeline.Apply` on
 the loaded surface (the loaded surface stays untouched and is disposed with the loaded source; the transformed one is

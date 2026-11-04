@@ -504,6 +504,81 @@ public class ContextTests
     }
 
     /// <summary>
+    ///     Test that WriteDiagnostics writes echo lines and notes to standard error in the documented form, with the
+    ///     origin and page, without setting the error state.
+    /// </summary>
+    [Fact]
+    public void Context_WriteDiagnostics_NotJson_WritesNotesAndEchoToStandardError()
+    {
+        // Arrange: a non-silent text context and one note of each severity
+        using var context = Context.Create([]);
+        var notes = new (string? Origin, DemaConsulting.CanvasNet.Tool.Imaging.ImageDiagnostic Diagnostic)[]
+        {
+            (null, new("scad", "warning", "scad-warning", "m.scad:1:1: careless")),
+            ("deck.pptx", new("pptx", "unsupported", "pptx-picture-emf", "a metafile was skipped", 2))
+        };
+
+        // Act
+        var (stdOut, stdErr) = ToolHost.Capture(() => context.WriteDiagnostics(notes, ["ECHO: \"hi\""]));
+
+        // Assert: the echo line as printed, then the notes; nothing on standard output; the exit code stays 0
+        Assert.Equal(string.Empty, stdOut);
+        Assert.Equal(
+            ["ECHO: \"hi\"", "Warning: scad-warning: m.scad:1:1: careless", "Unsupported: pptx-picture-emf: a metafile was skipped (deck.pptx, page 2)"],
+            stdErr.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries));
+        Assert.Equal(0, context.ExitCode);
+    }
+
+    /// <summary>
+    ///     Test that WriteDiagnostics writes nothing with --json or --silent, so standard output stays one JSON document.
+    /// </summary>
+    /// <param name="option">The global option.</param>
+    [Theory]
+    [InlineData("--json")]
+    [InlineData("--silent")]
+    public void Context_WriteDiagnostics_JsonOrSilent_WritesNothing(string option)
+    {
+        // Arrange
+        using var context = Context.Create([option]);
+        var notes = new (string? Origin, DemaConsulting.CanvasNet.Tool.Imaging.ImageDiagnostic Diagnostic)[]
+        {
+            (null, new("vega-lite", "unsupported", "vl-channel-shape", "ignored"))
+        };
+
+        // Act
+        var (stdOut, stdErr) = ToolHost.Capture(() => context.WriteDiagnostics(notes, ["ECHO: 1"]));
+
+        // Assert
+        Assert.Equal(string.Empty, stdOut);
+        Assert.Equal(string.Empty, stdErr);
+    }
+
+    /// <summary>
+    ///     Test that WriteDiagnostics writes a limited number of notes and echo lines and counts the rest.
+    /// </summary>
+    [Fact]
+    public void Context_WriteDiagnostics_ManyNotes_WritesLimitAndCountsTheRest()
+    {
+        // Arrange: five more notes and echo lines than the limit
+        using var context = Context.Create([]);
+        var count = Context.MaxReportedLines + 5;
+        var notes = Enumerable.Range(0, count)
+            .Select(i => ((string?)null, new DemaConsulting.CanvasNet.Tool.Imaging.ImageDiagnostic("vega-lite", "warning", "vega-lite-warning", $"note {i}")))
+            .ToList();
+        var echo = Enumerable.Range(0, count).Select(i => $"ECHO: {i}").ToList();
+
+        // Act
+        var (_, stdErr) = ToolHost.Capture(() => context.WriteDiagnostics(notes, echo));
+
+        // Assert: the limit of each is written, and one closing line for each counts the rest
+        var lines = stdErr.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal((2 * Context.MaxReportedLines) + 2, lines.Length);
+        Assert.Contains("... and 5 more echo lines (use --json for all)", lines);
+        Assert.Contains("... and 5 more diagnostics (use --json for all)", lines);
+        Assert.DoesNotContain("Warning: vega-lite-warning: note 20", lines);
+    }
+
+    /// <summary>
     ///     Test that WriteWarning writes nothing to the console when silent, but still reaches the log file.
     /// </summary>
     [Fact]

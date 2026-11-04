@@ -55,7 +55,8 @@
       "id": "diagnostics",
       "title": "Diagnostics and --strict",
       "items": [
-        { "text": "Without --strict an unsupported construct is left out and listed in diagnostics[] of the JSON result as {source: scad, severity: unsupported, code: <id>}. With --strict the first one fails with unsupported-feature and no file is written." },
+        { "text": "Without --strict an unsupported construct is left out and listed in diagnostics[] of the JSON result as {source: scad, severity: unsupported, code: <id>} (without --json, as an 'Unsupported: <id>: <message>' line on standard error). With --strict the first one fails with unsupported-feature and no file is written." },
+        { "text": "The output of echo() is in echo[] of the JSON result as 'ECHO: <text>' lines; without --json it is written to standard error in the same form." },
         { "term": "scad-module-offset", "text": "Also scad-module-projection, scad-module-surface, scad-module-import, and scad-module-roof: the module and its children are omitted." },
         { "term": "scad-hull-csg-operand", "text": "A hull has a difference or an intersection among its children." },
         { "term": "scad-hull-mixed-dimensions", "text": "A hull has both 2D and 3D children." },

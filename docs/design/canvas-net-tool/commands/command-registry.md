@@ -79,7 +79,10 @@ the command list (each command's name and aliases aligned with its summary, omit
 registered), the pointer to `canvasnet <command> --help`, the `Help topics:` list (each topic's name and summary, then
 the aliases, then the pointer to `canvasnet help <topic>` and `canvasnet help topics`, wrapped as topic text is), and
 the global options. The text help of a command is `Usage:` plus the command's usage text, the summary, the command's
-options, and the global options; an option is listed as its aliases and name followed by `<value name>` when it takes
+options, and the global options, then a `See also:` paragraph (`CommandRegistry.SeeAlso`, wrapped as topic text is) that
+names `canvasnet help <topic>`, every topic name, and `canvasnet help topics`, so that the help of every command
+(`render --help`, `formats --help`, `info --help`, ...) leads to the format topics. An option is listed as its aliases
+and name followed by `<value name>` when it takes
 a value, with the descriptions aligned. The help text of a topic is `HelpTopics.RenderText`.
 
 With `json` the document is written with `ResultWriter.Success("help", ...)`, and its `kind` field names the shape:

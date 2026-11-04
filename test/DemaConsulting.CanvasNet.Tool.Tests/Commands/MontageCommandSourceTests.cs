@@ -256,6 +256,32 @@ public class MontageCommandSourceTests
     }
 
     /// <summary>
+    ///     Test that, without --json, a note about an unsupported feature is written to standard error with its input
+    ///     and page, and with --json standard error stays empty.
+    /// </summary>
+    [Fact]
+    public void MontageCommand_Run_DiagnosticsInTextMode_AreWrittenToStandardError()
+    {
+        // Arrange: a presentation whose first slide has a picture the renderer skips
+        using var directory = new TempDirectory();
+        var deck = WritePptx(directory, withMetafile: true);
+        var png = CompareCommandTests.SaveSolid(directory, "a.png", 8, 6, MontageCommandTests.Red);
+        var output = directory.Combine("sheet.png");
+
+        // Act
+        var (exitCode, stdOut, stdErr) = ToolHost.Invoke("montage", png, deck, "--cell", "64x64", "-o", output);
+        var json = ToolHost.Invoke("montage", png, deck, "--cell", "64x64", "-o", output, "--json");
+
+        // Assert: one prefixed line that ends with the input and the page; nothing extra with --json
+        Assert.Equal(0, exitCode);
+        Assert.StartsWith("wrote ", stdOut, StringComparison.Ordinal);
+        var line = Assert.Single(stdErr.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries));
+        Assert.StartsWith("Unsupported: ", line, StringComparison.Ordinal);
+        Assert.EndsWith($"({deck}, page 1)", line, StringComparison.Ordinal);
+        Assert.Equal(string.Empty, json.StdErr);
+    }
+
+    /// <summary>
     ///     Test that the labels of document pages and of images are the file name, and the page of a document.
     /// </summary>
     [Fact]

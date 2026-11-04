@@ -78,6 +78,16 @@ not an option (or the value of an option) is the command name.
   printed (the exit code 1 still tells that the command failed), and with `--log` it is also written to the log
   file. The exceptions are a failure of the global options themselves, such as a malformed option or a log file that
   cannot be opened: no log or silent setting is in force yet, so it is always printed.
+- **Diagnostics of a successful command** are also written to standard error, one line each, when the command is
+  not run with `--json`. A feature the picture was drawn without is `Unsupported: <code>: <message>`, a questionable
+  construct is `Warning: <code>: <message>`, and a line a SCAD model printed with `echo` is written as OpenSCAD prints
+  it, `ECHO: <text>`. A note about a page of a document, an input of `montage`, or a side of `compare` ends with the
+  place in parentheses, such as `(deck.pptx, page 2)` or `(input b)`. At most 20 notes, and 20 echo lines, are written;
+  the rest are counted in one line, `... and N more diagnostics (use --json for all)`. They do not change the exit
+  code, which stays 0 (`--strict` turns an unsupported feature into an error instead), and standard output keeps only
+  the result. `--silent` suppresses them like all other console output (`--log` still records them). With
+  `--json` none are written to standard error, because the same notes are in the `diagnostics` and `echo` of the JSON
+  document, and standard output stays that one document.
 - **Exit codes** are the same for every command: **0** for success and **1** for any failure. The finer distinction
   is the stable error code, which is available only in the `Error:` line on standard error and in the `--json`
   failure document (see _Error Codes_); there is no other exit code to interpret.
@@ -173,18 +183,19 @@ pixels**; a larger size is refused with `size-limit` before any pixels are alloc
 canvasnet formats [--json]
 ```
 
-Lists the input formats (with their kind, extensions, whether they have several pages, and whether they are
-scalable), the output formats, the limits, and the versions of the tool and of the library. Use it to discover what
-the installed version supports.
+Lists the input formats (with their kind, extensions, whether they have several pages, whether they are
+scalable, and the help topic that describes each), the output formats, the limits, and the versions of the tool and
+of the library. Use it to discover what the installed version supports; the last line points to the help topics
+(`canvasnet help <topic>`), which say what each format supports, with examples and known differences.
 
 ```text
 $ canvasnet formats
 Input formats:
-  Format    Kind      Extensions      Pages     Scalable
-  png       raster    .png            single    no
+  Format    Kind      Extensions      Pages     Scalable  Help
+  png       raster    .png            single    no        help raster
   ...
-  scad      model     .scad           single    yes
-  vega-lite chart     .vl.json .vl    single    yes
+  scad      model     .scad           single    yes       help scad
+  vega-lite chart     .vl.json .vl    single    yes       help vega-lite
 
 Output formats:
   Format  Extensions  Alpha  Quality
@@ -199,7 +210,12 @@ Limits:
 Versions:
   canvasnet tool: <version>
   CanvasNet library: <version>
+
+Run 'canvasnet help <topic>' for supported features, examples, and known differences (for example 'canvasnet help vega-lite').
 ```
+
+The `--help` of every command (for example `canvasnet render --help` and `canvasnet formats --help`) ends with a
+_See also_ line that names `canvasnet help <topic>`, the topics, and `canvasnet help topics`.
 
 ### info
 
@@ -428,8 +444,10 @@ file, line, and column of the mistake. A model that would produce more triangles
 `budget-exceeded`.
 
 A construct the model uses but the renderer does not support (for example `import`, `surface`, or `offset`) is left
-out and reported in the `diagnostics` of the JSON result. With `--strict` it is a failure instead
-(`unsupported-feature`). The `echo` output of a model is returned in the `echo` list of the JSON result.
+out and reported in the `diagnostics` of the JSON result (and, without `--json`, as an `Unsupported:` line on standard
+error). With `--strict` it is a failure instead
+(`unsupported-feature`). The `echo` output of a model is returned in the `echo` list of the JSON result (and, without
+`--json`, written to standard error as `ECHO: <text>`).
 
 A model's `text()` is drawn with the Liberation Sans font that is bundled with the library, so lettering looks the same
 on every machine; a model that names another font with `font = "..."` finds it among the fonts installed on the
@@ -479,7 +497,8 @@ the same data files. See _Vega-Lite Data_ in the CanvasNet User Guide for the CS
 `format.parse` rules, and the limits (at most 64 files, 64 MiB per file, and 1,000,000 rows).
 
 The library draws a defined subset of Vega-Lite. A construct it recognizes but cannot draw yet (for example a mark or
-channel it has not implemented) is left out and reported in the `diagnostics` of the JSON result, with the stable `vl-*`
+channel it has not implemented) is left out and reported in the `diagnostics` of the JSON result (without `--json`, as a
+line on standard error such as `Unsupported: vl-channel-shape: <message>`), with the stable `vl-*`
 identifier of the feature as the `code` and the file, line, column, and JSON pointer of the construct in the message;
 `--strict` makes the first such construct a failure (`unsupported-feature`) instead. Questionable but harmless input (a
 property Vega-Lite does not define, a `$schema` of another version) is a `vega-lite-warning` diagnostic.
@@ -505,7 +524,9 @@ canvasnet render chart.vl.json --strict -o chart.png
 
 PPTX and VSDX documents, OpenSCAD models, and Vega-Lite charts report every picture, shape, or feature the library
 recognizes but cannot
-draw. By default the page is drawn without it and the report is returned in `diagnostics` in the JSON result.
+draw. By default the page is drawn without it and the report is returned in `diagnostics` in the JSON result and, without
+`--json`, written to standard error as `Unsupported: <code>: <message>` and `Warning: <code>: <message>` lines (see
+_Output, Errors, and Exit Codes_), so a feature that was left out is never silent.
 `--strict` turns the report into a failure (`unsupported-feature`) and writes no output. SVG and PDF have no such
 report: whatever the library cannot draw is simply not drawn, and `--strict` has no effect on them.
 
@@ -1058,7 +1079,8 @@ starts with the same envelope.
 ### Success Documents
 
 `formats --json` adds `tool` and `library` (`{"name","version"}`), `inputs` (one `{"format","kind","extensions",
-"multiPage","vector"}` per input format), `outputs` (`{"format","extensions","alpha","lossy"}`), `quality`
+"multiPage","vector","helpTopic"}` per input format; `helpTopic` is the topic of `canvasnet help <topic>` that
+describes the format), `outputs` (`{"format","extensions","alpha","lossy"}`), `quality`
 (`{"min","max","default"}`), and `maxDimension`.
 
 <!-- markdownlint-disable MD013 -->

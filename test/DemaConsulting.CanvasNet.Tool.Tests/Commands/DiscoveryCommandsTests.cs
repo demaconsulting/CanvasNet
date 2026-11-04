@@ -20,18 +20,18 @@ public class DiscoveryCommandsTests
         + "\"tool\":{\"name\":\"canvasnet\",\"version\":\"1.2.3\"},"
         + "\"library\":{\"name\":\"DemaConsulting.CanvasNet\",\"version\":\"4.5.6\"},"
         + "\"inputs\":["
-        + "{\"format\":\"png\",\"kind\":\"raster\",\"extensions\":[\".png\"],\"multiPage\":false,\"vector\":false},"
-        + "{\"format\":\"jpeg\",\"kind\":\"raster\",\"extensions\":[\".jpg\",\".jpeg\"],\"multiPage\":false,\"vector\":false},"
-        + "{\"format\":\"bmp\",\"kind\":\"raster\",\"extensions\":[\".bmp\"],\"multiPage\":false,\"vector\":false},"
-        + "{\"format\":\"tiff\",\"kind\":\"raster\",\"extensions\":[\".tif\",\".tiff\"],\"multiPage\":false,\"vector\":false},"
-        + "{\"format\":\"gif\",\"kind\":\"raster\",\"extensions\":[\".gif\"],\"multiPage\":false,\"vector\":false},"
-        + "{\"format\":\"jpeg2000\",\"kind\":\"raster\",\"extensions\":[\".jp2\",\".j2k\",\".j2c\"],\"multiPage\":false,\"vector\":false},"
-        + "{\"format\":\"svg\",\"kind\":\"vector\",\"extensions\":[\".svg\"],\"multiPage\":false,\"vector\":true},"
-        + "{\"format\":\"pdf\",\"kind\":\"document\",\"extensions\":[\".pdf\"],\"multiPage\":true,\"vector\":true},"
-        + "{\"format\":\"pptx\",\"kind\":\"document\",\"extensions\":[\".pptx\"],\"multiPage\":true,\"vector\":true},"
-        + "{\"format\":\"vsdx\",\"kind\":\"document\",\"extensions\":[\".vsdx\"],\"multiPage\":true,\"vector\":true},"
-        + "{\"format\":\"scad\",\"kind\":\"model\",\"extensions\":[\".scad\"],\"multiPage\":false,\"vector\":true},"
-        + "{\"format\":\"vega-lite\",\"kind\":\"chart\",\"extensions\":[\".vl.json\",\".vl\"],\"multiPage\":false,\"vector\":true}],"
+        + "{\"format\":\"png\",\"kind\":\"raster\",\"extensions\":[\".png\"],\"multiPage\":false,\"vector\":false,\"helpTopic\":\"raster\"},"
+        + "{\"format\":\"jpeg\",\"kind\":\"raster\",\"extensions\":[\".jpg\",\".jpeg\"],\"multiPage\":false,\"vector\":false,\"helpTopic\":\"raster\"},"
+        + "{\"format\":\"bmp\",\"kind\":\"raster\",\"extensions\":[\".bmp\"],\"multiPage\":false,\"vector\":false,\"helpTopic\":\"raster\"},"
+        + "{\"format\":\"tiff\",\"kind\":\"raster\",\"extensions\":[\".tif\",\".tiff\"],\"multiPage\":false,\"vector\":false,\"helpTopic\":\"raster\"},"
+        + "{\"format\":\"gif\",\"kind\":\"raster\",\"extensions\":[\".gif\"],\"multiPage\":false,\"vector\":false,\"helpTopic\":\"raster\"},"
+        + "{\"format\":\"jpeg2000\",\"kind\":\"raster\",\"extensions\":[\".jp2\",\".j2k\",\".j2c\"],\"multiPage\":false,\"vector\":false,\"helpTopic\":\"raster\"},"
+        + "{\"format\":\"svg\",\"kind\":\"vector\",\"extensions\":[\".svg\"],\"multiPage\":false,\"vector\":true,\"helpTopic\":\"svg\"},"
+        + "{\"format\":\"pdf\",\"kind\":\"document\",\"extensions\":[\".pdf\"],\"multiPage\":true,\"vector\":true,\"helpTopic\":\"pdf\"},"
+        + "{\"format\":\"pptx\",\"kind\":\"document\",\"extensions\":[\".pptx\"],\"multiPage\":true,\"vector\":true,\"helpTopic\":\"pptx\"},"
+        + "{\"format\":\"vsdx\",\"kind\":\"document\",\"extensions\":[\".vsdx\"],\"multiPage\":true,\"vector\":true,\"helpTopic\":\"vsdx\"},"
+        + "{\"format\":\"scad\",\"kind\":\"model\",\"extensions\":[\".scad\"],\"multiPage\":false,\"vector\":true,\"helpTopic\":\"scad\"},"
+        + "{\"format\":\"vega-lite\",\"kind\":\"chart\",\"extensions\":[\".vl.json\",\".vl\"],\"multiPage\":false,\"vector\":true,\"helpTopic\":\"vega-lite\"}],"
         + "\"outputs\":["
         + "{\"format\":\"png\",\"extensions\":[\".png\"],\"alpha\":true,\"lossy\":false},"
         + "{\"format\":\"jpeg\",\"extensions\":[\".jpg\",\".jpeg\"],\"alpha\":false,\"lossy\":true},"
@@ -105,6 +105,55 @@ public class DiscoveryCommandsTests
 
         // Assert: exactly the golden document and a line ending
         Assert.Equal(GoldenFormatsJson + Environment.NewLine, stdOut);
+    }
+
+    /// <summary>
+    ///     Test that every input format names a help topic that exists, in the text listing (with the footer) and in the
+    ///     JSON document (<c>helpTopic</c>).
+    /// </summary>
+    [Fact]
+    public void DiscoveryCommands_Formats_HelpTopics_ResolveAndAreListed()
+    {
+        // Arrange / Act
+        var text = RunFormats([]);
+        using var document = JsonDocument.Parse(RunFormats([], "--json"));
+
+        // Assert: every format has a topic that the help command resolves, in the table and in JSON
+        var rows = document.RootElement.GetProperty("inputs").EnumerateArray().ToList();
+        Assert.Equal(DiscoveryCommands.InputFormats.Count, rows.Count);
+        foreach (var row in rows)
+        {
+            var topic = row.GetProperty("helpTopic").GetString();
+            Assert.NotNull(HelpTopics.Find(topic!));
+            Assert.Contains(HelpTopics.FormatTopicNames, name => name == topic);
+            Assert.Matches($@"{Regex.Escape(row.GetProperty("format").GetString()!)}\s+\S+\s+.*\s+help {Regex.Escape(topic!)}(\r?\n|$)", text);
+        }
+
+        // Assert: the text ends with the footer
+        Assert.EndsWith(DiscoveryCommands.Formats.HelpFooter, text.TrimEnd(), StringComparison.Ordinal);
+        Assert.Contains("canvasnet help vega-lite", text);
+    }
+
+    /// <summary>
+    ///     Test that the help of the formats, render, convert, and info commands points to the help topics.
+    /// </summary>
+    /// <param name="subject">The command, as typed after <c>help</c>.</param>
+    [Theory]
+    [InlineData("formats")]
+    [InlineData("render")]
+    [InlineData("convert")]
+    [InlineData("info")]
+    public void CommandHelp_SeeAlso_PointsToTheHelpTopics(string subject)
+    {
+        // Arrange / Act: the help of the command as a user reads it with --help
+        var (exitCode, stdOut, _) = ToolHost.Invoke(subject, "--help");
+
+        // Assert: one "See also" paragraph that names the topics command and every topic (whitespace may wrap)
+        var text = Regex.Replace(stdOut, @"\s+", " ");
+        Assert.Equal(0, exitCode);
+        Assert.Contains("See also: 'canvasnet help <topic>'", text);
+        Assert.Contains("'canvasnet help topics' to list them", text);
+        Assert.All(HelpTopics.TopicNames, name => Assert.Contains(name, text));
     }
 
     /// <summary>

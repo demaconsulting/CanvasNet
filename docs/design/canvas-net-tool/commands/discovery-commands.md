@@ -19,7 +19,9 @@ provides two commands, `formats` and `info`, implemented as the nested classes `
 rendered at any requested size; `model`: a 3D model rendered from a viewpoint; `chart`: a Vega-Lite chart rendered at
 any requested size), `Extensions` (lower case, with the
 dot), `MultiPage` (one file holds pages or slides that can be chosen), and `Vector` (rendered at the requested size
-rather than decoded at its own size). The rows are the `SourceKind` members in order, and their extensions are those
+rather than decoded at its own size), and `HelpTopic` (the help topic that describes the format: `raster` for the six
+raster formats, otherwise the name of the format). The rows are the `SourceKind` members in order, and their
+extensions are those
 that `SourceLoader.ExtensionKinds` maps to the kind (the `vega-lite` row lists `.vl.json` and `.vl`: `.vl.json` is
 the two-part suffix `SourceLoader.VegaLiteJsonSuffix`, which is checked on the file name and cannot be an
 extension); a test keeps the table consistent with the enumeration and the
@@ -47,9 +49,12 @@ maximum image dimension, which is `Surface.MaxDimension` (8192).
 requires no positional arguments, so a stray argument or an unknown option is a `usage-error`. Then writes either
 the JSON document (when `context.Json`) or the text listing, through `context.WriteLine`.
 
-**Text listing**: the sections _Input formats_ (a table of format, kind, extensions, pages, and scalable),
-_Output formats_ (format, extensions, alpha, quality), _Limits_ (maximum image dimension, JPEG quality range and
-default), and _Versions_ (tool and library). Columns are aligned and the last column is not padded.
+**Text listing**: the sections _Input formats_ (a table of format, kind, extensions, pages, scalable, and the help
+topic as `help <topic>`), _Output formats_ (format, extensions, alpha, quality), _Limits_ (maximum image dimension,
+JPEG quality range and default), and _Versions_ (tool and library), then a blank line and the footer
+`Run 'canvasnet help <topic>' for supported features, examples, and known differences (for example
+'canvasnet help vega-lite').` Columns are aligned and the last column is not padded. The help topic of a format is
+the `HelpTopic` of its `InputFormat` row: `raster` for the six raster formats, otherwise the name of the format.
 
 **JSON document**: written through `ResultWriter.Success("formats", ...)` with these fields after the envelope, in
 this order:
@@ -59,7 +64,7 @@ this order:
 | --- | ----- |
 | `tool` | object: `name` (`canvasnet`), `version` |
 | `library` | object: `name` (`DemaConsulting.CanvasNet`), `version` |
-| `inputs` | array of objects: `format`, `kind`, `extensions` (array), `multiPage` (bool), `vector` (bool) |
+| `inputs` | array of objects: `format`, `kind`, `extensions` (array), `multiPage` (bool), `vector` (bool), `helpTopic` (the name of the help topic that describes the format) |
 | `outputs` | array of objects: `format`, `extensions` (array), `alpha` (bool), `lossy` (bool) |
 | `quality` | object: `min`, `max`, `default` |
 | `maxDimension` | number |

@@ -94,6 +94,17 @@ code stays 0.
 **Context_WriteWarning_SilentWithLog_WritesOnlyToLogFile**: a silent context writes nothing to standard error, but the
 warning reaches the log file.
 
+**Context_WriteDiagnostics_NotJson_WritesNotesAndEchoToStandardError**: an echo line is written as given, a warning as
+`Warning: <code>: <message>`, and an unsupported note with an origin and a page as
+`Unsupported: <code>: <message> (deck.pptx, page 2)`, in that order, on standard error only, with exit code 0.
+
+**Context_WriteDiagnostics_JsonOrSilent_WritesNothing**: with `--json` or `--silent` nothing is written to either
+stream.
+
+**Context_WriteDiagnostics_ManyNotes_WritesLimitAndCountsTheRest**: with five more notes and echo lines than the limit
+of 20, exactly 20 of each are written, followed by `... and 5 more echo lines (use --json for all)` and
+`... and 5 more diagnostics (use --json for all)`.
+
 **Context_WriteError_SetsErrorExitCode**: after `WriteError` the exit code is 1 even when the message was
 suppressed.
 

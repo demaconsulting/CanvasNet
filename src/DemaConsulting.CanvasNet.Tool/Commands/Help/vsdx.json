@@ -42,7 +42,7 @@
       "id": "diagnostics",
       "title": "Diagnostics and --strict",
       "items": [
-        { "text": "Each report is listed in diagnostics[] as {source: vsdx, severity: unsupported, code: <token>}, once per distinct feature per page. With --strict the first report fails with unsupported-feature." },
+        { "text": "Each report is listed in diagnostics[] as {source: vsdx, severity: unsupported, code: <token>} (without --json, also as an 'Unsupported: <token>: <message>' line on standard error), once per distinct feature per page. With --strict the first report fails with unsupported-feature." },
         { "term": "vsdx-themed-color", "text": "A themed color was drawn neutral gray." },
         { "term": "vsdx-geometry-spline-approximated", "text": "A curve was approximated by a polyline." },
         { "term": "vsdx-geometry-row-<Type>", "text": "A geometry row was skipped." }

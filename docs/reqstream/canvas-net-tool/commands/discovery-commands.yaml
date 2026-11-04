@@ -12,28 +12,31 @@ sections:
       - id: CanvasNetTool-Commands-DiscoveryCommands-Formats
         title: >-
           The formats command shall list the input formats (with kind, extensions, page and scaling
-          capabilities), the output formats (with extensions, alpha, and quality capabilities), the
-          maximum image dimension, the JPEG quality range, and the tool and library versions as
-          text.
+          capabilities, and the help topic that describes each), the output formats (with extensions,
+          alpha, and quality capabilities), the maximum image dimension, the JPEG quality range, and
+          the tool and library versions as text, followed by a line that points to the help topics.
         justification: |
           A person or an agent must be able to ask the tool what it can read and write instead of
-          guessing from documentation that may belong to another version.
+          guessing from documentation that may belong to another version, and must be led from the
+          listing to the help topics that say what each format supports.
         tests:
           - DiscoveryCommands_Formats_Metadata_DescribesCommand
           - DiscoveryCommands_Formats_TextOutput_ListsFormatsLimitsAndVersions
+          - DiscoveryCommands_Formats_HelpTopics_ResolveAndAreListed
           - DiscoveryCommands_Formats_DefaultVersions_ReportsRunningVersions
           - DiscoveryCommands_FormatTables_AreWellFormed
 
       - id: CanvasNetTool-Commands-DiscoveryCommands-FormatsJson
         title: >-
           The formats command shall write the same information as one JSON success document with
-          the keys `tool`, `library`, `inputs`, `outputs`, `quality`, and `maxDimension` when the
-          JSON option is given.
+          the keys `tool`, `library`, `inputs` (each with the `helpTopic` that describes the
+          format), `outputs`, `quality`, and `maxDimension` when the JSON option is given.
         justification: |
           Agents consume the listing programmatically; the document layout is part of the tool's
           machine contract and is verified byte for byte.
         tests:
           - DiscoveryCommands_Formats_JsonOutput_MatchesGoldenDocument
+          - DiscoveryCommands_Formats_HelpTopics_ResolveAndAreListed
 
       - id: CanvasNetTool-Commands-DiscoveryCommands-FormatsArguments
         title: >-

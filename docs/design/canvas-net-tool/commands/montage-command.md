@@ -73,7 +73,8 @@ page of a document, for example `deck.pptx p2`; `ContactSheet` cuts it to the wi
 top-left corner of its image area -, `input`, `format`, for a document `page` and `pageCount`, `loadedWidth`,
 `loadedHeight`, and `label` only with `--labels`); `outputs` (one object: `path`, `format`, `width`, `height`,
 `bytes`); `diagnostics` (the notes of the loader, each with its `input`, for a document its `page`, `source`,
-`severity`, `code`, and `message`); and `echo`.
+`severity`, `code`, and `message`); and `echo`. Without `--json` the same notes and the echo are written to standard
+error by `context.WriteDiagnostics`, each note ending with its input and, for a document, its page.
 
 #### Error Handling
 
