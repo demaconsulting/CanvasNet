@@ -61,7 +61,8 @@ contains no control characters.
 setting the error state, so the exit code stays 0. The message is colored yellow only when standard error is not
 redirected.
 
-**WriteDiagnostics**: Writes the notes of a successful render (and the `echo` lines of a model) to standard error so
+**WriteDiagnostics**: Writes the notes of a successful command - `render`/`convert` and the verbs, `inspect`, `montage`,
+and `compare` (also before a failed `compare` threshold is reported) - and the `echo` lines of a model to standard error so
 that a feature left out of the picture is not silent in text mode. It writes nothing when `Json` is true (the JSON
 result carries the same notes and standard output stays one document) and, like every other output, nothing to the
 console when silent (the log file still receives it). Each echo line is written as the model printed it
