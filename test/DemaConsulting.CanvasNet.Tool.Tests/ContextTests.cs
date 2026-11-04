@@ -504,6 +504,136 @@ public class ContextTests
     }
 
     /// <summary>
+    ///     Test that WriteDiagnostics writes echo lines and notes to standard error in the documented form, with the
+    ///     origin and page, without setting the error state.
+    /// </summary>
+    [Fact]
+    public void Context_WriteDiagnostics_NotJson_WritesNotesAndEchoToStandardError()
+    {
+        // Arrange: a non-silent text context and one note of each severity
+        using var context = Context.Create([]);
+        var notes = new (string? Origin, DemaConsulting.CanvasNet.Tool.Imaging.ImageDiagnostic Diagnostic)[]
+        {
+            (null, new("scad", "warning", "scad-warning", "m.scad:1:1: careless")),
+            ("deck.pptx", new("pptx", "unsupported", "pptx-picture-emf", "a metafile was skipped", 2))
+        };
+
+        // Act
+        var (stdOut, stdErr) = ToolHost.Capture(() => context.WriteDiagnostics(notes, ["ECHO: \"hi\""]));
+
+        // Assert: the echo line as printed, then the notes; nothing on standard output; the exit code stays 0
+        Assert.Equal(string.Empty, stdOut);
+        Assert.Equal(
+            ["ECHO: \"hi\"", "Warning: scad-warning: m.scad:1:1: careless", "Unsupported: pptx-picture-emf: a metafile was skipped (deck.pptx, page 2)"],
+            stdErr.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries));
+        Assert.Equal(0, context.ExitCode);
+    }
+
+    /// <summary>
+    ///     Test that WriteDiagnostics escapes control characters (ESC, NUL, C1, line separators, and bidirectional
+    ///     controls) in echo lines, messages, and origins, and leaves other text unchanged.
+    /// </summary>
+    [Fact]
+    public void Context_WriteDiagnostics_ControlCharacters_AreEscaped()
+    {
+        // Arrange: an echo with ESC, a message with NUL and a bidirectional override, and an origin with a C1 control
+        using var context = Context.Create([]);
+        var notes = new (string? Origin, DemaConsulting.CanvasNet.Tool.Imaging.ImageDiagnostic Diagnostic)[]
+        {
+            ("in\u0085put", new("scad", "warning", "scad-warning", "a\0b \u202e evil\tok caf\u00e9 \\ done"))
+        };
+
+        // Act
+        var (_, stdErr) = ToolHost.Capture(() => context.WriteDiagnostics(notes, ["ECHO: \u001b[31m red \u001b[0m"]));
+
+        // Assert: nothing but printable text reaches standard error, and the escapes are \\uXXXX (\\t as in OpenSCAD)
+        var lines = stdErr.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal(
+            [
+                "ECHO: \\u001b[31m red \\u001b[0m",
+                "Warning: scad-warning: a\\u0000b \\u202e evil\\tok caf\u00e9 \\ done (in\\u0085put)"
+            ],
+            lines);
+        Assert.DoesNotContain(stdErr, c => c == '\u001b' || c == '\0' || c == '\u202e' || c == '\u0085');
+    }
+
+    /// <summary>
+    ///     Test that every Unicode bidirectional control character (U+061C, U+200E, U+200F, U+202A to U+202E, and
+    ///     U+2066 to U+2069) is escaped.
+    /// </summary>
+    /// <param name="code">The code point.</param>
+    [Theory]
+    [InlineData(0x061C)]
+    [InlineData(0x200E)]
+    [InlineData(0x200F)]
+    [InlineData(0x202A)]
+    [InlineData(0x202B)]
+    [InlineData(0x202C)]
+    [InlineData(0x202D)]
+    [InlineData(0x202E)]
+    [InlineData(0x2066)]
+    [InlineData(0x2067)]
+    [InlineData(0x2068)]
+    [InlineData(0x2069)]
+    public void Context_EscapeControlCharacters_BidirectionalControl_IsEscaped(int code)
+    {
+        // Arrange / Act
+        var escaped = Context.EscapeControlCharacters($"a{(char)code}b");
+
+        // Assert
+        Assert.Equal($"a\\u{code:x4}b", escaped);
+    }
+
+    /// <summary>
+    ///     Test that WriteDiagnostics writes nothing with --json or --silent, so standard output stays one JSON document.
+    /// </summary>
+    /// <param name="option">The global option.</param>
+    [Theory]
+    [InlineData("--json")]
+    [InlineData("--silent")]
+    public void Context_WriteDiagnostics_JsonOrSilent_WritesNothing(string option)
+    {
+        // Arrange
+        using var context = Context.Create([option]);
+        var notes = new (string? Origin, DemaConsulting.CanvasNet.Tool.Imaging.ImageDiagnostic Diagnostic)[]
+        {
+            (null, new("vega-lite", "unsupported", "vl-channel-shape", "ignored"))
+        };
+
+        // Act
+        var (stdOut, stdErr) = ToolHost.Capture(() => context.WriteDiagnostics(notes, ["ECHO: 1"]));
+
+        // Assert
+        Assert.Equal(string.Empty, stdOut);
+        Assert.Equal(string.Empty, stdErr);
+    }
+
+    /// <summary>
+    ///     Test that WriteDiagnostics writes a limited number of notes and echo lines and counts the rest.
+    /// </summary>
+    [Fact]
+    public void Context_WriteDiagnostics_ManyNotes_WritesLimitAndCountsTheRest()
+    {
+        // Arrange: five more notes and echo lines than the limit
+        using var context = Context.Create([]);
+        var count = Context.MaxReportedLines + 5;
+        var notes = Enumerable.Range(0, count)
+            .Select(i => ((string?)null, new DemaConsulting.CanvasNet.Tool.Imaging.ImageDiagnostic("vega-lite", "warning", "vega-lite-warning", $"note {i}")))
+            .ToList();
+        var echo = Enumerable.Range(0, count).Select(i => $"ECHO: {i}").ToList();
+
+        // Act
+        var (_, stdErr) = ToolHost.Capture(() => context.WriteDiagnostics(notes, echo));
+
+        // Assert: the limit of each is written, and one closing line for each counts the rest
+        var lines = stdErr.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal((2 * Context.MaxReportedLines) + 2, lines.Length);
+        Assert.Contains("... and 5 more echo lines (use --json for all)", lines);
+        Assert.Contains("... and 5 more diagnostics (use --json for all)", lines);
+        Assert.DoesNotContain("Warning: vega-lite-warning: note 20", lines);
+    }
+
+    /// <summary>
     ///     Test that WriteWarning writes nothing to the console when silent, but still reaches the log file.
     /// </summary>
     [Fact]

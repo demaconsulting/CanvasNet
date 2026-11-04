@@ -407,6 +407,49 @@ public class CompareCommandSourceTests
     }
 
     /// <summary>
+    ///     Test that, without --json, the notes of both sides are written to standard error with the side, also when a
+    ///     threshold fails (the notes come before the error), and that --json and --silent write none.
+    /// </summary>
+    [Fact]
+    public void CompareCommand_Run_DiagnosticsInTextMode_AreWrittenToStandardError()
+    {
+        // Arrange: two charts of the same size, each with a channel that its mark does not draw, one with a red line
+        using var directory = new TempDirectory();
+        var a = FixtureFactory.WriteText(directory.Path, "a.vl.json", FixtureFactory.ShapeOnLineChart);
+        var b = FixtureFactory.WriteText(
+            directory.Path,
+            "b.vl.json",
+            FixtureFactory.ShapeOnLineChart.Replace("\"mark\": \"line\"", "\"mark\": { \"type\": \"line\", \"color\": \"red\" }", StringComparison.Ordinal));
+
+        // Act
+        var (exitCode, stdOut, stdErr) = ToolHost.Invoke("compare", a, b);
+        var json = ToolHost.Invoke("compare", a, b, "--json");
+        var silent = ToolHost.Invoke("compare", a, b, "--silent");
+        var failed = ToolHost.Invoke("compare", a, b, "--threshold", "rmse=0");
+
+        // Assert: one line for each side, and the result on standard output
+        Assert.Equal(0, exitCode);
+        Assert.DoesNotContain("vl-channel-shape", stdOut, StringComparison.Ordinal);
+        var lines = stdErr.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal(2, lines.Length);
+        Assert.All(lines, l => Assert.StartsWith("Unsupported: vl-channel-shape: ", l, StringComparison.Ordinal));
+        Assert.EndsWith("(input a)", lines[0], StringComparison.Ordinal);
+        Assert.EndsWith("(input b)", lines[1], StringComparison.Ordinal);
+
+        // Assert: nothing with --json or --silent
+        Assert.Equal(0, json.ExitCode);
+        Assert.Equal(string.Empty, json.StdErr);
+        Assert.Equal((0, string.Empty, string.Empty), silent);
+
+        // Assert: a failed threshold is exit code 1, and the notes are written before its error
+        Assert.Equal(1, failed.ExitCode);
+        var failedLines = failed.StdErr.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+        Assert.StartsWith("Unsupported: vl-channel-shape: ", failedLines[0], StringComparison.Ordinal);
+        Assert.StartsWith("Unsupported: vl-channel-shape: ", failedLines[1], StringComparison.Ordinal);
+        Assert.StartsWith("Error: threshold-failed: ", failedLines[2], StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Test that a note about an unsupported feature is listed with its side, and that strict mode fails.
     /// </summary>
     [Fact]

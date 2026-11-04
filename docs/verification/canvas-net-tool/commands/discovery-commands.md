@@ -44,7 +44,16 @@ rows (PNG as a single-page raster, PDF as a multi-page scalable document, JPEG a
 limits, and both versions, and contains no JSON.
 
 **DiscoveryCommands_Formats_JsonOutput_MatchesGoldenDocument**: with `--json` the output is exactly the golden
-document followed by a line ending.
+document (each input format with its `helpTopic`) followed by a line ending.
+
+**DiscoveryCommands_Formats_HelpTopics_ResolveAndAreListed**: every input format of the JSON document has a
+`helpTopic` that `HelpTopics.Find` resolves and that is a format topic; the text table lists the same topic as
+`help <topic>` on the row of the format; and the text ends with the footer that names `canvasnet help <topic>` and
+the example `canvasnet help vega-lite`.
+
+**CommandHelp_SeeAlso_PointsToTheHelpTopics**: `formats --help`, `render --help`, `convert --help`, and `info --help`
+exit with 0 and end with a See also paragraph that names `canvasnet help <topic>`, every topic, and
+`canvasnet help topics`.
 
 **DiscoveryCommands_Formats_DefaultVersions_ReportsRunningVersions**: the default constructor reports
 `Program.Version` and a non-empty library version.

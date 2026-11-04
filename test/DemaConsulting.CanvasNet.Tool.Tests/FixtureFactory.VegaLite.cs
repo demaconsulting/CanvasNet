@@ -42,6 +42,25 @@ internal static partial class FixtureFactory
     public const string TwoBarCsv = "k,v\na,3\nb,5\n";
 
     /// <summary>
+    ///     A line chart with a <c>shape</c> channel that a line mark does not draw: it renders with exactly one
+    ///     diagnostic, the unsupported <c>vl-channel-shape</c>.
+    /// </summary>
+    public const string ShapeOnLineChart =
+        """
+        {
+          "width": 120,
+          "height": 80,
+          "data": { "values": [ { "x": 1, "y": 2, "c": "a" }, { "x": 2, "y": 3, "c": "b" } ] },
+          "mark": "line",
+          "encoding": {
+            "x": { "field": "x", "type": "quantitative" },
+            "y": { "field": "y", "type": "quantitative" },
+            "shape": { "field": "c", "type": "nominal" }
+          }
+        }
+        """;
+
+    /// <summary>
     ///     The same chart as <see cref="TwoBarChart"/> with its rows in the file <c>bars.csv</c> beside the specification,
     ///     so it renders identically when the file is found.
     /// </summary>

@@ -70,12 +70,15 @@ sections:
         title: >-
           The CommandRegistry class shall render top-level help (usage, commands with aliases and
           summaries, and the global options), per-command help (usage, summary, the command's
-          options, and the global options), and run the built-in help command.
+          options, the global options, and a See also line that points to the help topics), and run
+          the built-in help command.
         justification: |
           Generating help from the registered commands and their option tables keeps the help
-          consistent with the commands.
+          consistent with the commands, and the See also line leads a reader of any command's help to
+          the topics that describe the formats, which are not commands.
         tests:
           - CommandRegistry_Run_HelpCommandWithName_PrintsCommandHelp
+          - CommandHelp_SeeAlso_PointsToTheHelpTopics
           - CommandRegistry_Run_HelpCommandWithoutName_PrintsTopLevelHelp
           - CommandRegistry_RenderHelp_NoCommand_ListsCommandsAndGlobalOptions
           - CommandRegistry_RenderHelp_EmptyRegistry_OmitsCommandSection

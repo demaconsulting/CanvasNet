@@ -9,7 +9,7 @@
       "title": "How failures are reported",
       "items": [
         { "text": "The exit code is 0 for success and 1 for every failure. The finer distinction is the stable error code." },
-        { "text": "Standard error carries 'Error: <code>: <message>' and, when there is advice, a 'Hint: <advice>' line. There is no stack trace for an expected failure." },
+        { "text": "Standard error carries 'Error: <code>: <message>' and, when there is advice, a 'Hint: <advice>' line. There is no stack trace for an expected failure. A successful command writes its diagnostics there too (see 'Diagnostics are not errors')." },
         { "text": "Exception: a malformed global option (such as --depth abc) or a --log file that cannot be opened fails before the command line is fully read; it prints 'Error: <message>' with no code and no JSON document, and the exit code is still 1." },
         { "text": "With --json (and without --silent) the failure is also written to standard output as a JSON failure document with error.code, error.message, and error.hint; see 'canvasnet help json'." },
         { "text": "'Unexpected error: <message>' is a defect of the tool, not a mistake of the user: no JSON document is written and the exit code is the runtime's own non-zero code. Please report it." },
@@ -44,6 +44,8 @@
       "title": "Diagnostics are not errors",
       "items": [
         { "text": "A diagnostic is a note in diagnostics[] of a successful result: the picture was drawn without a feature (severity unsupported) or with a questionable construct (severity warning). Read diagnostics even when ok is true." },
+        { "text": "Without --json each diagnostic is also written to standard error, one line each: 'Unsupported: <code>: <message>' for severity unsupported and 'Warning: <code>: <message>' for severity warning, with the input and page (or the side of a comparison) in parentheses at the end. The exit code stays 0 and standard output keeps only the result. At most 20 are written, then '... and N more diagnostics (use --json for all)'." },
+        { "text": "A SCAD model's echo output is written to standard error as the model printed it ('ECHO: <text>'), at most 20 lines. --silent suppresses all of these lines; with --json none are written (standard output is one JSON document and diagnostics[] and echo[] carry the same notes)." },
         { "text": "Only SCAD models, Vega-Lite charts, PPTX documents (skipped EMF and WMF pictures), and VSDX documents report diagnostics. SVG, PDF, and raster images do not." },
         { "text": "The warning codes are scad-warning for a model and vega-lite-warning for a chart." }
       ]

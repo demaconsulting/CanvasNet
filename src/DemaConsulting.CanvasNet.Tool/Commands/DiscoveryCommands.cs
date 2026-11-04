@@ -28,18 +28,18 @@ internal static class DiscoveryCommands
     /// </remarks>
     internal static readonly IReadOnlyList<InputFormat> InputFormats =
     [
-        new("png", "raster", [".png"], false, false),
-        new("jpeg", "raster", [".jpg", ".jpeg"], false, false),
-        new("bmp", "raster", [".bmp"], false, false),
-        new("tiff", "raster", [".tif", ".tiff"], false, false),
-        new("gif", "raster", [".gif"], false, false),
-        new("jpeg2000", "raster", [".jp2", ".j2k", ".j2c"], false, false),
-        new("svg", "vector", [".svg"], false, true),
-        new("pdf", "document", [".pdf"], true, true),
-        new("pptx", "document", [".pptx"], true, true),
-        new("vsdx", "document", [".vsdx"], true, true),
-        new("scad", "model", [".scad"], false, true),
-        new("vega-lite", "chart", [".vl.json", ".vl"], false, true)
+        new("png", "raster", [".png"], false, false, "raster"),
+        new("jpeg", "raster", [".jpg", ".jpeg"], false, false, "raster"),
+        new("bmp", "raster", [".bmp"], false, false, "raster"),
+        new("tiff", "raster", [".tif", ".tiff"], false, false, "raster"),
+        new("gif", "raster", [".gif"], false, false, "raster"),
+        new("jpeg2000", "raster", [".jp2", ".j2k", ".j2c"], false, false, "raster"),
+        new("svg", "vector", [".svg"], false, true, "svg"),
+        new("pdf", "document", [".pdf"], true, true, "pdf"),
+        new("pptx", "document", [".pptx"], true, true, "pptx"),
+        new("vsdx", "document", [".vsdx"], true, true, "vsdx"),
+        new("scad", "model", [".scad"], false, true, "scad"),
+        new("vega-lite", "chart", [".vl.json", ".vl"], false, true, "vega-lite")
     ];
 
     /// <summary>
@@ -61,7 +61,9 @@ internal static class DiscoveryCommands
     /// <param name="Extensions">The file name extensions, including the dot, in lower case.</param>
     /// <param name="MultiPage"><see langword="true"/> when one file holds several pages or slides that can be chosen.</param>
     /// <param name="Vector"><see langword="true"/> when the content is rendered at the requested size rather than decoded at its own size.</param>
-    internal sealed record InputFormat(string Name, string Kind, IReadOnlyList<string> Extensions, bool MultiPage, bool Vector);
+    /// <param name="HelpTopic">The name of the help topic (see <c>canvasnet help</c>) that describes the format.</param>
+    internal sealed record InputFormat(
+        string Name, string Kind, IReadOnlyList<string> Extensions, bool MultiPage, bool Vector, string HelpTopic);
 
     /// <summary>
     ///     Describes an output format.
@@ -470,6 +472,11 @@ internal static class DiscoveryCommands
     /// </summary>
     internal sealed class Formats : ICommand
     {
+        /// <summary>
+        ///     The last line of the text listing, which points to the help topics.
+        /// </summary>
+        internal const string HelpFooter =
+            "Run 'canvasnet help <topic>' for supported features, examples, and known differences (for example 'canvasnet help vega-lite').";
         /// <summary>The smallest JPEG quality setting.</summary>
         internal const int MinQuality = ImageWriter.MinQuality;
 
@@ -583,6 +590,7 @@ internal static class DiscoveryCommands
                 WriteExtensions(writer, input.Extensions);
                 writer.WriteBoolean("multiPage", input.MultiPage);
                 writer.WriteBoolean("vector", input.Vector);
+                writer.WriteString("helpTopic", input.HelpTopic);
                 writer.WriteEndObject();
             }
 
@@ -636,14 +644,15 @@ internal static class DiscoveryCommands
             builder.AppendLine("Input formats:");
             AppendTable(
                 builder,
-                ["Format", "Kind", "Extensions", "Pages", "Scalable"],
+                ["Format", "Kind", "Extensions", "Pages", "Scalable", "Help"],
                 InputFormats.Select(f => new[]
                 {
                     f.Name,
                     f.Kind,
                     string.Join(' ', f.Extensions),
                     f.MultiPage ? "multiple" : "single",
-                    f.Vector ? "yes" : "no"
+                    f.Vector ? "yes" : "no",
+                    $"help {f.HelpTopic}"
                 }).ToList());
 
             builder.AppendLine();
@@ -666,7 +675,9 @@ internal static class DiscoveryCommands
             builder.AppendLine();
             builder.AppendLine("Versions:");
             builder.AppendLine($"  canvasnet tool: {_toolVersion}");
-            builder.Append($"  CanvasNet library: {_libraryVersion}");
+            builder.AppendLine($"  CanvasNet library: {_libraryVersion}");
+            builder.AppendLine();
+            builder.Append(HelpFooter);
             return builder.ToString();
         }
 

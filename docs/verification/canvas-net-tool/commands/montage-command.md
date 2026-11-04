@@ -93,6 +93,9 @@ and the presentation are loaded at the 96x72 cell size and the small PNG at its 
 **MontageCommand_Run_ScadOptionsWithoutModel_ThrowsUsageError**: `--view` with only a PNG is a usage error, and with a
 PNG and a model it is applied to the model.
 
-**MontageCommand_Run_Diagnostics_AreListedWithTheirInputAndPage** and
+**MontageCommand_Run_Diagnostics_AreListedWithTheirInputAndPage**,
+**MontageCommand_Run_DiagnosticsInTextMode_AreWrittenToStandardError**, and
 **MontageCommand_Run_AllPagesWithLabels_LabelsNamePages**: the skipped picture of slide 1 is listed with its input, page,
-source `pptx`, and severity `unsupported`; the labels are `a.png`, `deck.pptx p1`, and `deck.pptx p2`.
+source `pptx`, and severity `unsupported`; without `--json` it is one `Unsupported: ...` line on standard error that ends
+with `(<input>, page 1)` and exit code 0, and with `--json` standard error is empty; the labels are `a.png`,
+`deck.pptx p1`, and `deck.pptx p2`.

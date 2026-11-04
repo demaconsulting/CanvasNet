@@ -187,6 +187,48 @@ public class RenderCommandVegaLiteTests
     }
 
     /// <summary>
+    ///     Test that, without --json, the notes of a chart are written to standard error as <c>Unsupported:</c> and
+    ///     <c>Warning:</c> lines after the result line, the exit code stays 0, and --silent and --json write none.
+    /// </summary>
+    [Fact]
+    public void RenderCommand_Run_VegaLiteDiagnostics_AreWrittenToStandardErrorInTextMode()
+    {
+        // Arrange: a line chart with a shape channel the line mark does not draw, and an unknown property
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteText(
+            directory.Path,
+            "shape.vl.json",
+            "{\"bogus\": 4, \"data\": {\"values\": [{\"x\": 1, \"y\": 2, \"c\": \"a\"}, {\"x\": 2, \"y\": 3, \"c\": \"b\"}]}, \"mark\": \"line\", \"encoding\": {\"x\": {\"field\": \"x\", \"type\": \"quantitative\"}, \"y\": {\"field\": \"y\", \"type\": \"quantitative\"}, \"shape\": {\"field\": \"c\", \"type\": \"nominal\"}}}");
+        var output = directory.Combine("o.png");
+
+        // Act
+        var (exitCode, stdOut, stdErr) = ToolHost.Invoke("render", input, "-o", output);
+        var silent = ToolHost.Invoke("render", input, "-o", output, "--silent");
+        var json = ToolHost.Invoke("render", input, "-o", output, "--json");
+
+        // Assert: the result line is on standard output, each note is a prefixed line on standard error, and the exit code is 0
+        Assert.Equal(0, exitCode);
+        Assert.StartsWith("wrote ", stdOut, StringComparison.Ordinal);
+        Assert.DoesNotContain("vl-", stdOut, StringComparison.Ordinal);
+        var lines = stdErr.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+        Assert.Contains(lines, l => l.StartsWith("Warning: vega-lite-warning: ", StringComparison.Ordinal) && l.EndsWith($"({input})", StringComparison.Ordinal));
+        Assert.Contains(
+            lines,
+            l => l.StartsWith("Unsupported: vl-channel-shape: ", StringComparison.Ordinal)
+                 && l.Contains("'shape'", StringComparison.Ordinal)
+                 && l.EndsWith($"({input})", StringComparison.Ordinal));
+
+        // Assert: --silent writes nothing, and --json keeps standard output one document and standard error empty
+        Assert.Equal((0, string.Empty, string.Empty), silent);
+        Assert.Equal(0, json.ExitCode);
+        Assert.Equal(string.Empty, json.StdErr);
+        using var document = JsonDocument.Parse(json.StdOut);
+        Assert.Contains(
+            document.RootElement.GetProperty("diagnostics").EnumerateArray(),
+            d => d.GetProperty("code").GetString() == "vl-channel-shape");
+    }
+
+    /// <summary>
     ///     Test that a chart with an error is a <c>vega-lite-error</c> with the location, through the entry point, and
     ///     that no output is written.
     /// </summary>

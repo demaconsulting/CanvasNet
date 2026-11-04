@@ -37,7 +37,8 @@ sections:
           option when neither input is a model, and a page that does not exist (naming the side) as errors
           before any pixel is decoded, shall flatten both inputs over an opaque background (white by default)
           and reject a background that is not opaque, and shall report the notes of the loader with the side
-          they belong to, or fail with unsupported-feature when strict is given.
+          they belong to (in the result, and without the JSON option on standard error, before an error for a
+          failed threshold), or fail with unsupported-feature when strict is given.
         justification: |
           An agent compares a redraw with a reference of another kind (a raster, a drawing, a page of a
           document, a model); the options must reach the right input, a mistake that would otherwise be
@@ -54,6 +55,7 @@ sections:
           - CompareCommand_Run_Background_FlattensTransparencyBothSides
           - CompareCommand_Run_TransparentBackground_ThrowsUsageError
           - CompareCommand_Run_Strict_UnsupportedFeature_Fails
+          - CompareCommand_Run_DiagnosticsInTextMode_AreWrittenToStandardError
 
       - id: CanvasNetTool-Commands-CompareCommand-Sizing
         title: >-

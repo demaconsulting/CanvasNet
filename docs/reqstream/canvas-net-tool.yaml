@@ -747,17 +747,23 @@ sections:
           The tool shall report the pictures and constructs of a PPTX or VSDX file that its libraries
           skip or approximate, the warnings, unsupported features, and echoed text of an OpenSCAD
           model, and the warnings and unsupported features of a Vega-Lite chart, in the `diagnostics`
-          and `echo` of the JSON result, and with `--strict` shall fail
+          and `echo` of the JSON result and, without `--json`, as Unsupported and Warning lines (and
+          ECHO lines) on standard error that leave the exit code unchanged, and with `--strict` shall fail
           with the error code unsupported-feature and write no output instead of skipping an
           unsupported feature.
         tags: [system]
         justification: |
           An image that silently lacks part of the document misleads the agent that looks at it; the
-          note says what is missing, and strict mode is for callers that cannot accept the gap.
+          note says what is missing, also in text mode where nobody reads a JSON document, and strict
+          mode is for callers that cannot accept the gap.
+        children:
+          - CanvasNetTool-Context-Diagnostics
         tests:
           - CanvasNetTool_Documents_UnsupportedFeature_ReportedAndStrictFails
           - CanvasNetTool_Scad_Diagnostics_AreReportedInJson
           - CanvasNetTool_VegaLite_DetectionDiagnosticsAndErrors_FollowTheContract
+          - RenderCommand_Run_VegaLiteDiagnostics_AreWrittenToStandardErrorInTextMode
+          - RenderCommand_Run_ScadDiagnosticsAndEcho_AreWrittenToStandardErrorInTextMode
 
       - id: CanvasNetTool-System-OutputFormats
         title: >-

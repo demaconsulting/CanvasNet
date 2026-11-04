@@ -29,7 +29,8 @@ sections:
           option, shall skip the page, dpi, and model options for an input they do not concern, shall report
           a model option when no input is a model, both page options together, and a page beyond the end of
           a document (naming the file) as errors before any pixel is decoded, and shall accept images,
-          drawings, documents, and models together.
+          drawings, documents, and models together, and shall write the notes of the loaders (and the echoed
+          text of a model) to standard error, with the input and page of each, when the JSON option is not given.
         justification: |
           A contact sheet is how an agent or a person looks at many things at once; one run over a mixed set
           of inputs, with the pages of a deck expanded in place, spares a loop and a second tool.
@@ -43,6 +44,7 @@ sections:
           - MontageCommand_Run_MixedKinds_PngSvgPdfPptxScad_EachCellDrawn
           - MontageCommand_Run_ScadOptionsWithoutModel_ThrowsUsageError
           - MontageCommand_Run_Diagnostics_AreListedWithTheirInputAndPage
+          - MontageCommand_Run_DiagnosticsInTextMode_AreWrittenToStandardError
 
       - id: CanvasNetTool-Commands-MontageCommand-Layout
         title: >-

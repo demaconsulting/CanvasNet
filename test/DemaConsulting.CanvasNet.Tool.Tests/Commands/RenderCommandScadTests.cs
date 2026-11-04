@@ -181,6 +181,61 @@ public class RenderCommandScadTests
     }
 
     /// <summary>
+    ///     Test that, without --json, the echo output and the notes of a model are written to standard error, and
+    ///     --silent and --json write none.
+    /// </summary>
+    [Fact]
+    public void RenderCommand_Run_ScadDiagnosticsAndEcho_AreWrittenToStandardErrorInTextMode()
+    {
+        // Arrange: a model that echoes, warns, and uses an unsupported module
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteText(directory.Path, "noisy.scad", "echo(\"hello\");\nmissing();\nsurface(\"A\");\ncube(1);\n");
+        var output = directory.Combine("o.png");
+
+        // Act
+        var (exitCode, stdOut, stdErr) = ToolHost.Invoke("render", input, "--size", "32x32", "-o", output);
+        var silent = ToolHost.Invoke("render", input, "--size", "32x32", "-o", output, "--silent");
+        var json = ToolHost.Invoke("render", input, "--size", "32x32", "-o", output, "--json");
+
+        // Assert: the echo as OpenSCAD prints it, then the warning and the unsupported module
+        Assert.Equal(0, exitCode);
+        Assert.StartsWith("wrote ", stdOut, StringComparison.Ordinal);
+        var lines = stdErr.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal("ECHO: \"hello\"", lines[0]);
+        Assert.StartsWith("Warning: scad-warning: ", lines[1], StringComparison.Ordinal);
+        Assert.StartsWith("Unsupported: scad-module-surface: ", lines[2], StringComparison.Ordinal);
+        Assert.EndsWith($"({input})", lines[1], StringComparison.Ordinal);
+        Assert.EndsWith($"({input})", lines[2], StringComparison.Ordinal);
+        Assert.Equal(3, lines.Length);
+
+        // Assert: --silent writes nothing, and --json leaves standard error empty
+        Assert.Equal((0, string.Empty, string.Empty), silent);
+        Assert.Equal(string.Empty, json.StdErr);
+    }
+
+    /// <summary>
+    ///     Test that a control character in the echo of a model is escaped on standard error, and unchanged in --json.
+    /// </summary>
+    [Fact]
+    public void RenderCommand_Run_ScadEchoWithEscape_IsEscapedOnStandardErrorOnly()
+    {
+        // Arrange: a model whose echo text holds a raw ESC character
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteText(directory.Path, "esc.scad", "echo(\"a\u001b[31mb\");\ncube(1);\n");
+        var output = directory.Combine("o.png");
+
+        // Act
+        var (_, _, stdErr) = ToolHost.Invoke("render", input, "--size", "32x32", "-o", output);
+        var json = ToolHost.Invoke("render", input, "--size", "32x32", "-o", output, "--json");
+
+        // Assert: the text form shows the escape as text, and the JSON value is the echo as it was
+        Assert.DoesNotContain('\u001b', stdErr);
+        Assert.Contains("a\\u001b[31mb", stdErr, StringComparison.Ordinal);
+        using var document = JsonDocument.Parse(json.StdOut);
+        Assert.Contains("\u001b", document.RootElement.GetProperty("echo")[0].GetString(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Test that strict mode turns an unsupported feature into an error and writes nothing.
     /// </summary>
     [Fact]

@@ -34,6 +34,55 @@ public class InspectCommandSourceTests
     }
 
     /// <summary>
+    ///     Test that, without --json, the notes of a chart are written to standard error by <c>inspect colors</c> and
+    ///     <c>inspect pixel</c> with the input, and with --json or --silent standard error stays empty.
+    /// </summary>
+    /// <param name="subcommand">The subcommand and its point.</param>
+    [Theory]
+    [InlineData("colors")]
+    [InlineData("pixel")]
+    public void InspectCommand_Run_DiagnosticsInTextMode_AreWrittenToStandardError(string subcommand)
+    {
+        // Arrange: a chart with a channel that its mark does not draw
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteText(directory.Path, "shape.vl.json", FixtureFactory.ShapeOnLineChart);
+        string[] args = subcommand == "colors" ? ["inspect", "colors", input] : ["inspect", "pixel", input, "3,4"];
+
+        // Act
+        var (exitCode, stdOut, stdErr) = ToolHost.Invoke(args);
+        var json = ToolHost.Invoke([.. args, "--json"]);
+        var silent = ToolHost.Invoke([.. args, "--silent"]);
+
+        // Assert: the result is on standard output, the note is one line on standard error that ends with the input
+        Assert.Equal(0, exitCode);
+        Assert.DoesNotContain("vl-channel-shape", stdOut, StringComparison.Ordinal);
+        var line = Assert.Single(stdErr.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries));
+        Assert.StartsWith("Unsupported: vl-channel-shape: ", line, StringComparison.Ordinal);
+        Assert.EndsWith($"({input})", line, StringComparison.Ordinal);
+        Assert.Equal(0, json.ExitCode);
+        Assert.Equal(string.Empty, json.StdErr);
+        Assert.Equal((0, string.Empty, string.Empty), silent);
+    }
+
+    /// <summary>
+    ///     Test that the echo of a model is written to standard error by <c>inspect colors</c> without --json.
+    /// </summary>
+    [Fact]
+    public void InspectCommand_Run_ScadEchoInTextMode_IsWrittenToStandardError()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteText(directory.Path, "echo.scad", "echo(\"hello\");\ncube(1);\n");
+
+        // Act
+        var (exitCode, _, stdErr) = ToolHost.Invoke("inspect", "colors", input, "--size", "32x32");
+
+        // Assert
+        Assert.Equal(0, exitCode);
+        Assert.Equal("ECHO: \"hello\"", Assert.Single(stdErr.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries)));
+    }
+
+    /// <summary>
     ///     Test that a JPEG with an EXIF orientation is analyzed upright unless the orientation is disabled.
     /// </summary>
     [Fact]

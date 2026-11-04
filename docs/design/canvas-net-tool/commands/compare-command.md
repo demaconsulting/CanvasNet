@@ -105,7 +105,9 @@ the envelope, in this order: `tool` (`name`, `version`); `a` and `b` (`path`, `f
 `worstCells` (up to three, `column`, `row`, `rmse`, the largest first, only cells with an error); `thresholds`
 (`passed`, and `checks` of `metric`, `comparison` as `<=` or `>=`, `limit`, `value` - `null` for infinity -, and
 `passed`); `outputs` (`kind`, `path`, `format`, `width`, `height`, `bytes`); `diagnostics` (the loader's notes with the
-`side`); and `echo`. MAE, RMSE, and PSNR are rounded to four decimals; the normalized RMSE, SSIM, the ratios, and the
+`side`); and `echo`. Without `--json` the same notes and the echo are written to standard error by
+`context.WriteDiagnostics` after the text result (each note ending with `(input a)` or `(input b)`), also when a
+threshold fails. MAE, RMSE, and PSNR are rounded to four decimals; the normalized RMSE, SSIM, the ratios, and the
 values of the checks to six.
 
 #### Error Handling

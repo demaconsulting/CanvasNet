@@ -1,3 +1,5 @@
+using DemaConsulting.CanvasNet.Tool.Imaging;
+
 namespace DemaConsulting.CanvasNet.Tool;
 
 /// <summary>
@@ -10,6 +12,11 @@ namespace DemaConsulting.CanvasNet.Tool;
 /// </remarks>
 internal sealed class Context : IDisposable
 {
+    /// <summary>
+    ///     The most notes, and the most echo lines, <see cref="WriteDiagnostics"/> writes before it counts the rest.
+    /// </summary>
+    internal const int MaxReportedLines = 20;
+
     /// <summary>
     ///     Log file stream writer (if logging is enabled).
     /// </summary>
@@ -377,6 +384,146 @@ internal sealed class Context : IDisposable
             {
                 var previousColor = Console.ForegroundColor;
                 Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.Error.WriteLine(message);
+                Console.ForegroundColor = previousColor;
+            }
+        }
+
+        _logWriter?.WriteLine(message);
+    }
+
+    /// <summary>
+    ///     Writes the notes of a successful command (render, convert, inspect, montage, or compare) to the error
+    ///     console, so that a feature that was left out of the
+    ///     picture, and the <c>echo</c> output of a model, are not silent in the text output.
+    /// </summary>
+    /// <param name="diagnostics">
+    ///     The notes reported while loading, each with where it came from (an input path or a side name, or
+    ///     <see langword="null"/>); the page of a note that has one is added to its origin.
+    /// </param>
+    /// <param name="echo">The lines a model printed while it was evaluated.</param>
+    /// <remarks>
+    ///     <para>
+    ///         Nothing is written with <see cref="Json"/>: the JSON result carries the same notes in its
+    ///         <c>diagnostics</c> and <c>echo</c>, and standard output must stay one JSON document. The notes do not
+    ///         set the error state, so the exit code stays 0.
+    ///     </para>
+    ///     <para>
+    ///         An <c>unsupported</c> note is written as <c>Unsupported: &lt;code&gt;: &lt;message&gt;</c> and any other
+    ///         severity as <c>Warning: &lt;code&gt;: &lt;message&gt;</c>, followed by <c>(origin)</c> when there is one. An echo
+    ///         line is written as the model printed it (<c>ECHO: ...</c>). Every control character of a note or an echo
+    ///         line (ESC, NUL, and the rest of C0 and C1, line separators, bidirectional controls) is escaped as
+    ///         <c>\uXXXX</c> (<c>\n</c>, <c>\r</c>, and <c>\t</c> as in OpenSCAD), so that a model cannot drive the terminal.
+    ///         At most <see cref="MaxReportedLines"/>
+    ///         notes and as many echo lines are written; the rest are counted in one closing line.
+    ///     </para>
+    /// </remarks>
+    public void WriteDiagnostics(IEnumerable<(string? Origin, ImageDiagnostic Diagnostic)> diagnostics, IEnumerable<string> echo)
+    {
+        ArgumentNullException.ThrowIfNull(diagnostics);
+        ArgumentNullException.ThrowIfNull(echo);
+        if (Json)
+        {
+            return;
+        }
+
+        var lines = echo.ToList();
+        foreach (var line in lines.Take(MaxReportedLines))
+        {
+            WriteNote(line, null);
+        }
+
+        if (lines.Count > MaxReportedLines)
+        {
+            WriteNote($"... and {lines.Count - MaxReportedLines} more echo lines (use --json for all)", null);
+        }
+
+        var notes = diagnostics.ToList();
+        foreach (var (origin, diagnostic) in notes.Take(MaxReportedLines))
+        {
+            var prefix = diagnostic.Severity == "unsupported" ? "Unsupported" : "Warning";
+            var where = string.Join(
+                ", ",
+                new[] { origin, diagnostic.Page is { } page ? $"page {page}" : null }.Where(part => !string.IsNullOrEmpty(part)));
+            WriteNote($"{prefix}: {diagnostic.Code}: {diagnostic.Message}{(where.Length > 0 ? $" ({where})" : string.Empty)}", ConsoleColor.Yellow);
+        }
+
+        if (notes.Count > MaxReportedLines)
+        {
+            WriteNote($"... and {notes.Count - MaxReportedLines} more diagnostics (use --json for all)", ConsoleColor.Yellow);
+        }
+    }
+
+    /// <summary>
+    ///     Escapes the characters of a note that could drive a terminal or disguise the text.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <returns>
+    ///     The text with each control character (C0, DEL, and C1, such as ESC and NUL), line and paragraph separator,
+    ///     and bidirectional control written as <c>\n</c>, <c>\r</c>, <c>\t</c>, or <c>\uXXXX</c>; every other
+    ///     character, including a backslash, is unchanged.
+    /// </returns>
+    internal static string EscapeControlCharacters(string text)
+    {
+        if (!text.Any(NeedsEscape))
+        {
+            return text;
+        }
+
+        var builder = new System.Text.StringBuilder(text.Length + 16);
+        foreach (var c in text)
+        {
+            if (!NeedsEscape(c))
+            {
+                builder.Append(c);
+                continue;
+            }
+
+            builder.Append(c switch
+            {
+                '\n' => "\\n",
+                '\r' => "\\r",
+                '\t' => "\\t",
+                _ => string.Create(System.Globalization.CultureInfo.InvariantCulture, $"\\u{(int)c:x4}")
+            });
+        }
+
+        return builder.ToString();
+    }
+
+    /// <summary>
+    ///     Determines whether a character is escaped by <see cref="EscapeControlCharacters"/>.
+    /// </summary>
+    /// <param name="c">The character.</param>
+    /// <returns><see langword="true"/> for a control, a line or paragraph separator, or a bidirectional control.</returns>
+    private static bool NeedsEscape(char c)
+    {
+        return char.IsControl(c)
+               || c is '\u2028' or '\u2029' or '\u061c' or '\u200e' or '\u200f'
+               || c is >= '\u202a' and <= '\u202e'
+               || c is >= '\u2066' and <= '\u2069';
+    }
+
+    /// <summary>
+    ///     Writes a line to the error console (unless silent) and to the log file (if logging is enabled), without
+    ///     setting the error state.
+    /// </summary>
+    /// <param name="message">The line.</param>
+    /// <param name="color">The color to use when standard error is an interactive console, or <see langword="null"/> for none.</param>
+    private void WriteNote(string message, ConsoleColor? color)
+    {
+        // A model or a file can put anything in a note, so nothing that could drive the terminal is written as it is
+        message = EscapeControlCharacters(message);
+        if (!Silent)
+        {
+            if (color is not { } noteColor || Console.IsErrorRedirected)
+            {
+                Console.Error.WriteLine(message);
+            }
+            else
+            {
+                var previousColor = Console.ForegroundColor;
+                Console.ForegroundColor = noteColor;
                 Console.Error.WriteLine(message);
                 Console.ForegroundColor = previousColor;
             }

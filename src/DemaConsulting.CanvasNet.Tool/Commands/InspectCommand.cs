@@ -118,6 +118,8 @@ internal sealed partial class InspectCommand : ICommand
             {
                 RunPixel(context, settings, loaded, surface, operations);
             }
+
+            context.WriteDiagnostics(loaded.Diagnostics.Select(d => ((string?)settings.Input, d)), loaded.Echo);
         }
         finally
         {

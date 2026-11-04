@@ -113,7 +113,8 @@ sections:
           source loader for an OpenSCAD model, shall describe what it drew (the view, angles, projection,
           size, background, definitions, and limits) in the render operation of the result, shall report
           the warnings, unsupported features, and echoed text of the model in the diagnostics and echo of
-          the result, shall reject a view or projection that does not exist, a value that is malformed or
+          the result (and, without the JSON option, on standard error), shall reject a view or projection
+          that does not exist, a value that is malformed or
           out of range, and a model option given for an input that is not a model, and shall write no
           output for a model that fails.
         justification: |
@@ -127,6 +128,7 @@ sections:
           - RenderCommand_Run_Defines_ChangeTheImageAndAreReported
           - RenderCommand_Run_TimeDefaultColorAndMaxTriangles_AreReported
           - RenderCommand_Run_ScadDiagnosticsAndEcho_AreInTheJsonResult
+          - RenderCommand_Run_ScadDiagnosticsAndEcho_AreWrittenToStandardErrorInTextMode
           - RenderCommand_Run_StrictWithUnsupportedFeature_FailsWithoutOutput
           - RenderCommand_Run_MaxTrianglesExceeded_FailsWithBudgetExceeded
           - RenderCommand_Run_ScadSizeOptions_FollowTheNaturalSize
@@ -148,7 +150,8 @@ sections:
           only, with no option for another data folder and no network access; shall describe what it drew (the
           size, the time zone, and the background when given) in the
           render operation and the natural size in the input of the result; shall report the warnings and
-          unsupported features of the chart in the diagnostics of the result and, with the strict switch, fail
+          unsupported features of the chart in the diagnostics of the result (and, without the JSON option, on
+          standard error) and, with the strict switch, fail
           with unsupported-feature and write no output; shall report an invalid chart as vega-lite-error; and
           shall name Vega-Lite charts in its usage text.
         justification: |
@@ -162,6 +165,7 @@ sections:
           - RenderCommand_Run_VegaLiteToEachOutputFormat_WritesDecodableFile
           - RenderCommand_Run_VegaLiteTwice_WritesIdenticalBytes
           - RenderCommand_Run_VegaLiteDiagnosticsAndStrict_AreReportedOrFail
+          - RenderCommand_Run_VegaLiteDiagnostics_AreWrittenToStandardErrorInTextMode
           - RenderCommand_Run_VegaLiteError_UsesStableErrorCode
           - RenderCommand_Run_VegaLiteWithPageTwoOrModelOption_Fails
           - RenderCommand_Run_VegaLiteLocalDataResolvesRelativeToSpecFolder
@@ -220,13 +224,15 @@ sections:
       - id: CanvasNetTool-Commands-RenderCommand-Strict
         title: >-
           The render command shall report the notes about pictures and constructs the libraries skip or
-          approximate in the diagnostics of the result, with the page of each, and with the strict
+          approximate in the diagnostics of the result, with the page of each (and, without the JSON option, on
+          standard error, each ending with the input and page), and with the strict
           option shall fail with the error code unsupported-feature instead and write no output.
         justification: |
           A caller must be able to choose between an image that is drawn as well as it can be, with a
           list of what is missing, and no image at all.
         tests:
           - RenderCommand_Run_UnsupportedFeature_IsReportedOrFailsWhenStrict
+          - RenderCommand_Run_DocumentDiagnosticsInTextMode_NameTheInputAndPage
           - RenderCommand_Run_StrictWithUnsupportedFeature_FailsWithoutOutput
 
       - id: CanvasNetTool-Commands-RenderCommand-Output

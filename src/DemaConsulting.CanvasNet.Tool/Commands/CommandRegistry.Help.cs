@@ -198,8 +198,18 @@ internal sealed partial class CommandRegistry
         builder.AppendLine();
         builder.AppendLine("Global options:");
         AppendOptions(builder, GlobalOptions);
+        builder.AppendLine();
+        HelpTopics.AppendWrapped(builder, SeeAlso, string.Empty, "  ");
         return builder.ToString().TrimEnd();
     }
+
+    /// <summary>
+    ///     The line at the end of the help of every command that points to the help topics.
+    /// </summary>
+    internal static string SeeAlso { get; } =
+        "See also: 'canvasnet help <topic>' for what a format supports, examples, and known differences (topics: "
+        + string.Join(", ", HelpTopics.TopicNames)
+        + "), and 'canvasnet help topics' to list them.";
 
     /// <summary>
     ///     Appends an aligned option table.

@@ -61,6 +61,20 @@ contains no control characters.
 setting the error state, so the exit code stays 0. The message is colored yellow only when standard error is not
 redirected.
 
+**WriteDiagnostics**: Writes the notes of a successful render (and the `echo` lines of a model) to standard error so
+that a feature left out of the picture is not silent in text mode. It writes nothing when `Json` is true (the JSON
+result carries the same notes and standard output stays one document) and, like every other output, nothing to the
+console when silent (the log file still receives it). Each echo line is written as the model printed it
+(`ECHO: <text>`), then each note as `Unsupported: <code>: <message>` for severity `unsupported` or
+`Warning: <code>: <message>` for any other severity, followed by `(<origin>, page <n>)` with whichever of the origin
+(an input path or `input a`/`input b`) and the page there is. At most `MaxReportedLines` (20) echo lines and 20 notes are
+written; one closing line each counts the rest (`... and N more echo lines (use --json for all)` and
+`... and N more diagnostics (use --json for all)`). Every line is escaped first (`EscapeControlCharacters`): a control
+character (C0, DEL, C1, such as ESC and NUL), a line or paragraph separator, or a bidirectional control is written as
+`\n`, `\r`, `\t`, or `\uXXXX`, so that a model cannot inject terminal sequences; the same text is unchanged in the
+JSON result. Notes are colored yellow, echo lines are not colored, and neither
+sets the error state.
+
 **Dispose**: Disposes the log file writer, flushing buffered content.
 
 ### Error Handling
@@ -69,17 +83,19 @@ redirected.
 before the command name, a missing option value, or an out-of-range or non-integer `--depth`; the messages are
 concise and carry no parameter-name suffix. It throws `InvalidOperationException` ("Failed to open log file
 '{path}': {detail}") when the log file cannot be opened. These exceptions propagate to `Program.Execute`, which
-reports them as expected failures. `WriteLine`, `WriteWarning`, and `WriteError` do not throw. `Dispose` is idempotent.
+reports them as expected failures. `WriteLine`, `WriteWarning`, `WriteDiagnostics`, and `WriteError` do not throw
+(except `WriteDiagnostics` for a null argument). `Dispose` is idempotent.
 
 ### Dependencies
 
-- **.NET BCL** - `Console`, `StreamWriter`, and `Path` are the only dependencies. No other tool units are used.
+- **.NET BCL** - `Console`, `StreamWriter`, and `Path` are the only dependencies. `WriteDiagnostics` takes the
+  `ImageDiagnostic` record of the imaging subsystem as data; no other tool unit is used.
 
 ### Callers
 
 - **Program** - creates `Context` via `Context.Create` and reads the flags, the command name, and the exit code.
 - **CommandRegistry** - reads `Command` and `CommandArguments` to dispatch.
-- **Commands** - receive the `Context` and call `WriteLine` and `WriteError`, and read `Json` to choose the output
-  form.
+- **Commands** - receive the `Context` and call `WriteLine`, `WriteDiagnostics`, and `WriteError`, and read `Json` to
+  choose the output form.
 - **Validation** - receives the `Context` from `Program` and calls `WriteLine`, `WriteError`, and reads
   `ResultsFile` and `HeadingDepth`; it also creates short-lived contexts to run the tool in-process.

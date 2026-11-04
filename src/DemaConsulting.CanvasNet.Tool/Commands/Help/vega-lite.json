@@ -55,7 +55,7 @@
       "id": "diagnostics",
       "title": "Diagnostics and --strict",
       "items": [
-        { "text": "Identifiers have the form vl-<area>-<detail>, in lower case. An unsupported construct is listed in diagnostics[] as {source: vega-lite, severity: unsupported, code: <id>}; the message gives file, line, column, and JSON pointer. With --strict the first one fails with unsupported-feature." },
+        { "text": "Identifiers have the form vl-<area>-<detail>, in lower case. An unsupported construct is listed in diagnostics[] as {source: vega-lite, severity: unsupported, code: <id>} (without --json, also as an 'Unsupported: <id>: <message>' line on standard error); the message gives file, line, column, and JSON pointer. With --strict the first one fails with unsupported-feature." },
         { "term": "vl-mark-<type>", "text": "A mark that is not drawn, for example vl-mark-geoshape; the view is drawn without marks." },
         { "term": "vl-channel-geo", "text": "A longitude or latitude channel." },
         { "term": "vl-data-remote-url", "text": "A url with a scheme, a drive letter, or an absolute path: never fetched, empty dataset." },
