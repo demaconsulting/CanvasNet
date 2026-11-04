@@ -173,6 +173,26 @@ public class MarkBuilderOverlayTests
         Assert.Equal([Blue, Orange], points.Select(p => p.Fill));
     }
 
+    /// <summary>
+    ///     Validates the <c>"transparent"</c> point of the configuration the way Vega-Lite's <c>getPointOverlay</c> reads it: only the <c>point</c> of the mark definition is the transparent
+    ///     overlay (<c>{"opacity": 0}</c>); a truthy value of <c>config.&lt;mark&gt;.point</c> that is not an object, the text <c>"transparent"</c> included, enables the default overlay (opaque points).
+    /// </summary>
+    [Fact]
+    public void MarkBuilder_Build_TransparentPointOfTheConfigurationEnablesTheDefaultOverlay()
+    {
+        // Act
+        var line = ChartTestHelpers.Of<SceneSymbol>(ChartTestHelpers.Marks(Chart("\"line\"", XY, Basic, """{ "line": { "point": "transparent" } }"""), 300, 200), "mark-point");
+        var area = ChartTestHelpers.Of<SceneSymbol>(ChartTestHelpers.Marks(Chart("\"area\"", XY, Basic, """{ "area": { "point": "transparent" } }"""), 300, 200), "mark-point");
+        var mark = ChartTestHelpers.Of<SceneSymbol>(ChartTestHelpers.Marks(Chart("""{ "type": "line", "point": "transparent" }""", XY, Basic, """{ "line": { "point": true } }"""), 300, 200), "mark-point");
+
+        // Assert: the configuration enables points that are drawn (as for a configuration of true); the mark definition decides over it and makes them transparent
+        Assert.Equal(3, line.Count);
+        Assert.Equal(3, area.Count);
+        Assert.All(line.Concat(area), p => Assert.Equal(1.0, p.Opacity));
+        Assert.Equal(3, mark.Count);
+        Assert.All(mark, p => Assert.Equal(0.0, p.Opacity));
+    }
+
     /// <summary>The rows of two groups, a and b, of two points each.</summary>
     private const string TwoGroups = """[ { "x": 0, "y": 1, "g": "a" }, { "x": 1, "y": 2, "g": "a" }, { "x": 0, "y": 3, "g": "b" }, { "x": 1, "y": 4, "g": "b" } ]""";
 

@@ -421,6 +421,7 @@ sections:
                   - MarkBuilder_Build_ShapeChannelOfAnAreaShapesTheOverlayPoints
                   - MarkBuilder_Build_PointChannelsOfThePathMarkReachTheOverlayPoints
                   - MarkBuilder_Build_LineOverlayOfAnAreaDrawsTheSizeAndTheDashOfTheEncoding
+                  - MarkBuilder_Build_TransparentPointOfTheConfigurationEnablesTheDefaultOverlay
 
               - id: CanvasNetVegaLite-Marks-MarkBuilder-DrawOrder
                 title: >-

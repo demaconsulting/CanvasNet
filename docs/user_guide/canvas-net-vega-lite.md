@@ -1468,7 +1468,10 @@ with the warning `vl-mark-invalid-domains`. A mark that is not a path drops the 
 **Overlays.** A `line`, `area`, `trail`, or `rule` can draw **points** over its marks with `"point": true`, an object of
 point mark properties (`{"size": 100, "fill": "white"}`), or `"transparent"` (points with the opacity 0), and an `area`
 can stroke its top edge with `"line": true` or an object of line properties. `"point": false` or `null` switches off
-what `config.<mark>.point` enables. The overlays use the scales and the stack of the mark, and a stacked area's line
+what `config.<mark>.point` enables. Only the `point` of the mark itself can be `"transparent"` (Vega-Lite's
+`getPointOverlay` reads a configuration value that is not an object as the default overlay, so
+`config.line.point: "transparent"` draws opaque points). The overlays use the scales and the stack of the mark, and a
+stacked area's line
 is drawn at the top of its layer. The overlay points draw the channels of a `point` mark that the path itself does not,
 as Vega-Lite's path overlay does: the `shape` channel gives them their shapes (a circle, a square, and so on, by group),
 and an `encoding.shape` also **turns the points on** when the mark has no `point` property and `config.<mark>.point`

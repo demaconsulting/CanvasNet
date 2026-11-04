@@ -145,7 +145,9 @@ sentinel unsupported channel), where `arc` and `theta` were before. The identifi
   `VegaLiteDocument.ReportsFor`), and `Visit(tree)` reads the configuration of the specification alone. The channels of
   the overlays are `SpecNormalizer.OverlayDrawsChannel` (a point draws shape, angle, size and dash; the line overlay of
   an area draws size and dash); the message names the overlay that draws it ("only its point overlay", "its line overlay",
-  "its point and line overlays"). A `shape` is reported only when there is no point overlay, whatever the configuration
+  "its point and line overlays"). The definition of a channel that an overlay draws is still visited (its own unsupported
+  properties and constructs are reported); only the path-specific report is replaced. A `shape` is reported only when
+  there is no point overlay, whatever the configuration
   (the shape itself switches the overlay on).
 - `vl-encoding-impute` is narrowed to a channel other than `x` and `y`: the impute of a position channel is run by the
   pipeline, and the impute of any other channel is ignored and reported.
