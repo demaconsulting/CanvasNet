@@ -196,8 +196,10 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   report sink as soon as they exist (a `finally` block around the parameters and transforms), so a later failure still
   delivers them, and the `BuildPlan` step records them after the reports of the specification, followed by the
   missing-glyph warnings of the scene (`ReportMissingGlyphs`: the scene is walked in drawing order; for every
-  `SceneText` with a fill, `TextMeasurer.FindMissingGlyphs` lists the code points that neither the face nor the core
-  `GlyphFallback` covers, and one `vl-text-missing-glyph` warning goes to the sink at `SceneText.Source` (the text
+  `SceneText` whose fill `CssPaint.TryResolvePaint` resolves to a visible paint (the painter's rule: not none, valid,
+  and a non-zero fill opacity times opacity), `TextMeasurer.FindMissingGlyphs` lists the code points that neither the
+  face nor the core `GlyphFallback` covers, and one `vl-text-missing-glyph` warning goes to the sink at
+  `SceneText.Source` (the text
   mark), listing the first eight; the sink de-duplicates identical message and location, so a set is reported once
   per mark location; text that the chart builds itself, such as axis labels, legends, and titles, has no source and
   is reported at the unknown location; a warning is never an unsupported feature, so strict mode does not throw).

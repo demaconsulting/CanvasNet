@@ -195,14 +195,17 @@ that strict mode throws at the first unsupported feature while warnings never st
 
 **Tests**: `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_TextMissingGlyph_FallbackCoveredCharactersAreSilentAndDrawn`,
 `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_TextMissingGlyph_UncoveredCharactersWarnOnceAtTheMark`,
-`VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_TextMissingGlyph_OneWarningPerLocationAndSet`
+`VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_TextMissingGlyph_OneWarningPerLocationAndSet`,
+`VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_TextMissingGlyph_InvisibleTextIsNotReported`
 
 Asserts, for the chart of the report (`"a ∝ b ≫ c"` in a text mark), that no `vl-text-missing-glyph` warning is
 delivered and that the pixels differ from the same chart with private-use characters (the missing-glyph boxes); that a
 text mark with `"a \uE000 \u4E2D \uE000"` delivers exactly one warning that starts with the identifier, lists
 `U+4E2D, U+E000`, and points at `/mark`, also with `ThrowOnUnsupportedFeature` set (a warning never throws); and that two
 layers with the same text and a nominal axis whose label has the character give one warning for each of the two
-marks (`/layer/0/mark`, `/layer/1/mark`) and one at the unknown location for the axis label, the same for a `Measure`.
+marks (`/layer/0/mark`, `/layer/1/mark`) and one at the unknown location for the axis label, the same for a `Measure`;
+and that a text mark with a missing character gives one warning with the default fill but none with the fill `none`, an
+invalid fill color, a fill opacity of 0, or an opacity of 0 (text that is not painted is not reported).
 The `Help topics` trigger table of the tool tests also renders a chart with the character and expects the warning
 with this identifier in the diagnostics.
 

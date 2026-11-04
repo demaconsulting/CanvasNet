@@ -564,7 +564,7 @@ public sealed partial class VegaLiteDocument
     ///     A character the chosen font lacks is first looked up in the bundled fallback fonts
     ///     (<see cref="GlyphFallback"/>); only a character that none covers is drawn as the font's missing-glyph
     ///     box and reported here as <c>vl-text-missing-glyph</c>. The scene is walked in drawing order, so the
-    ///     warnings come in a deterministic order. Text without a fill is not drawn and is not reported; text the
+    ///     warnings come in a deterministic order. Text whose fill is not visibly painted (none, invalid, or zero opacity) is not drawn and is not reported; text the
     ///     chart builds itself (axis labels, legends, titles) has no location in the specification and is reported
     ///     at the unknown location, once per distinct set of characters.
     /// </remarks>
@@ -575,7 +575,8 @@ public sealed partial class VegaLiteDocument
     {
         foreach (var entry in plan.Scene.Enumerate())
         {
-            if (entry.Item is not SceneText { Fill: not null } text)
+            if (entry.Item is not SceneText text
+                || !CssPaint.TryResolvePaint(text.Fill, text.FillOpacity * text.Opacity, out _))
             {
                 continue;
             }

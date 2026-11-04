@@ -1036,6 +1036,33 @@ public class VegaLiteSystemIntegrationTests
     }
 
     /// <summary>
+    ///     Validates that text whose fill is not visibly painted (none, an invalid color, zero fill opacity or zero
+    ///     opacity) is not reported, while the same text with the default fill is reported once.
+    /// </summary>
+    /// <param name="property">The mark properties that make the text invisible, or empty for the visible control.</param>
+    /// <param name="expected">The number of warnings.</param>
+    [Theory]
+    [InlineData("", 1)]
+    [InlineData(",\"fill\":\"none\"", 0)]
+    [InlineData(",\"fill\":\"not-a-color\"", 0)]
+    [InlineData(",\"fillOpacity\":0", 0)]
+    [InlineData(",\"opacity\":0", 0)]
+    public void CanvasNetVegaLite_SystemIntegration_TextMissingGlyph_InvisibleTextIsNotReported(string property, int expected)
+    {
+        // Arrange
+        var document = VegaLiteDocument.Parse(
+            "{\"width\":200,\"height\":60,\"data\":{\"values\":[{\"x\":1,\"y\":1}]},\"mark\":{\"type\":\"text\",\"text\":\"\\uE000\""
+            + property + "},\"encoding\":{\"x\":{\"field\":\"x\",\"type\":\"quantitative\"},\"y\":{\"field\":\"y\",\"type\":\"quantitative\"}}}");
+        var warnings = new List<VegaLiteDiagnostic>();
+
+        // Act
+        using var surface = document.Render(new VegaLiteRenderOptions { WarningHandler = warnings.Add }, Ct);
+
+        // Assert
+        Assert.Equal(expected, warnings.Count(w => w.Message.StartsWith("vl-text-missing-glyph:", StringComparison.Ordinal)));
+    }
+
+    /// <summary>
     ///     Parses a chart with one text mark that shows a constant text.
     /// </summary>
     /// <param name="text">The text, which must not need JSON escaping other than what it contains literally.</param>

@@ -37,6 +37,41 @@ public class TextMeasurerTests
         Assert.Equal(new[] { 0x4E2D, 0xE000 }, missingUncovered);
         Assert.Empty(measurer.FindMissingGlyphs(new SceneText("mark-text", 0, 0, [])));
     }
+
+    /// <summary>
+    ///     Validates that only the text that is drawn is checked: a missing character that the truncation at the
+    ///     limit cuts off is not reported, one within the limit is, and a missing ellipsis is (it is drawn).
+    /// </summary>
+    [Fact]
+    public void TextMeasurer_FindMissingGlyphs_ChecksOnlyTheTruncatedTextThatIsDrawn()
+    {
+        // Arrange
+        var measurer = new TextMeasurer();
+        var font = new TextFont(null, 20);
+        const double limit = 60;
+        var cutOff = new string('a', 26) + "\uE000";
+        var within = "a\uE000" + new string('b', 25);
+        var truncated = new SceneText("mark-text", 0, 0, [cutOff]) { FontSize = 20, Limit = limit };
+        var unlimited = new SceneText("mark-text", 0, 0, [cutOff]) { FontSize = 20 };
+        var inside = new SceneText("mark-text", 0, 0, [within]) { FontSize = 20, Limit = limit };
+        var ellipsis = new SceneText("mark-text", 0, 0, [cutOff]) { FontSize = 20, Limit = limit, Ellipsis = "\uE001" };
+
+        // Act
+        var drawn = measurer.TextValue(cutOff, font, limit);
+        var missingTruncated = measurer.FindMissingGlyphs(truncated);
+        var missingUnlimited = measurer.FindMissingGlyphs(unlimited);
+        var missingInside = measurer.FindMissingGlyphs(inside);
+        var missingEllipsis = measurer.FindMissingGlyphs(ellipsis);
+
+        // Assert: the limit really truncates, so the cut-off character is not drawn and not reported
+        Assert.True(drawn.Length < cutOff.Length);
+        Assert.DoesNotContain('\uE000', drawn);
+        Assert.Empty(missingTruncated);
+        Assert.Equal(new[] { 0xE000 }, missingUnlimited);
+        Assert.Equal(new[] { 0xE000 }, missingInside);
+        Assert.Equal(new[] { 0xE001 }, missingEllipsis);
+    }
+
     /// <summary>
     ///     Validates that every default and generic family resolves to the bundled Liberation fonts, whatever is installed.
     /// </summary>

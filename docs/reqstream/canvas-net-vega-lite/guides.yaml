@@ -45,6 +45,7 @@ sections:
               - CanvasNetVegaLite-Guides-TextMeasurer-MissingGlyphs
             tests:
               - TextMeasurer_FindMissingGlyphs_AndMeasureWidth_UseTheBundledFallbackChain
+              - TextMeasurer_FindMissingGlyphs_ChecksOnlyTheTruncatedTextThatIsDrawn
 
           - id: CanvasNetVegaLite-Guides-Titles
             title: >-

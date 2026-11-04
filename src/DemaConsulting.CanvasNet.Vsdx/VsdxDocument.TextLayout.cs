@@ -232,7 +232,7 @@ public sealed partial class VsdxDocument
         {
             ReportUnsupported(
                 "vsdx-text-missing-glyph",
-                $"No installed font has a glyph for U+{rune.Value:X4}; the font's missing-glyph box is drawn instead.");
+                $"No available font (installed or bundled) has a glyph for U+{rune.Value:X4}; the font's missing-glyph box is drawn instead.");
             return primary;
         }
 

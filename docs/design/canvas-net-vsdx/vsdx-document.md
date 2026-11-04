@@ -420,8 +420,8 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
   transiently (not through that cache) so an uncovered code point cannot pin every installed font,
   and a sweep hit is then obtained through `SystemFontCatalog.Load` (loaded again and cached) so
   results never hold private duplicate copies. `ResolveTextFont` also uses `SystemFontCatalog.Load`,
-  and falls back to the bundled font when the matched file cannot be loaded. When no font covers the code point
-  (including the Noto chain, which covers mathematical operators, arrows, and many symbols),
+  and falls back to the bundled font when the matched file cannot be loaded. When no available font, installed or
+  bundled, covers the code point (the bundled Noto chain covers mathematical operators, arrows, and many symbols),
   `SelectGlyphFont` reports `vsdx-text-missing-glyph` through the unsupported-feature handler and
   keeps the run's own font. A code point for which `GlyphFallback.IsIgnorable` is true (a variation
   selector, a zero-width joiner, a bidirectional mark) is skipped by the width measurement and the glyph

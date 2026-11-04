@@ -364,11 +364,12 @@ internal sealed class TextMeasurer
     }
 
     /// <summary>
-    ///     Finds the characters of a text item that neither its font nor the bundled fallback fonts cover, so
-    ///     that they are drawn as the font's missing-glyph box.
+    ///     Finds the characters of the text that is drawn for a text item (each line trimmed and truncated at the
+    ///     limit, with its ellipsis) that neither its font nor the bundled fallback fonts cover, so that they are
+    ///     drawn as the font's missing-glyph box.
     /// </summary>
     /// <param name="text">The text item.</param>
-    /// <returns>The distinct code points in ascending order; empty when every visible character is covered.</returns>
+    /// <returns>The distinct code points in ascending order; empty when every drawn character is covered.</returns>
     public IReadOnlyList<int> FindMissingGlyphs(SceneText text)
     {
         ArgumentNullException.ThrowIfNull(text);
@@ -377,9 +378,12 @@ internal sealed class TextMeasurer
             return [];
         }
 
-        // The ellipsis of a truncation is not part of the author's text, so only the lines are checked
+        // Only the text that the painter draws is checked: the same TextValue (trimmed, truncated at the clamped limit)
+        var textFont = new TextFont(text.FontFamily, text.FontSize, text.FontWeight, text.FontStyle);
+        var limit = Math.Min(text.Limit, ScenePainter.MaxMagnitude);
+        var drawn = string.Concat(text.Lines.Select(l => TextValue(l, textFont, limit, text.Ellipsis)));
         var font = Resolve(text.FontFamily, text.FontWeight, text.FontStyle).Font;
-        return GlyphFallback.FindMissing(font, string.Concat(text.Lines));
+        return GlyphFallback.FindMissing(font, drawn);
     }
 
     /// <summary>

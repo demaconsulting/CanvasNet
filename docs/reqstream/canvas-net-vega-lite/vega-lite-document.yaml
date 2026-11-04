@@ -144,7 +144,8 @@ sections:
 
           - id: CanvasNetVegaLite-VegaLiteDocument-MissingGlyphDiagnostic
             title: >-
-              The VegaLiteDocument unit shall deliver, for the visible text of a chart whose characters
+              The VegaLiteDocument unit shall deliver, for the text of a chart that is painted (it has a
+              visible fill) and whose characters
               neither the font nor the bundled fallback fonts cover, one warning with the stable identifier
               vl-text-missing-glyph per mark location and distinct set of characters, at the location of the
               text mark (or the unknown location for axis, legend, and title text), listing the first eight
@@ -158,6 +159,7 @@ sections:
               - CanvasNetVegaLite_SystemIntegration_TextMissingGlyph_FallbackCoveredCharactersAreSilentAndDrawn
               - CanvasNetVegaLite_SystemIntegration_TextMissingGlyph_UncoveredCharactersWarnOnceAtTheMark
               - CanvasNetVegaLite_SystemIntegration_TextMissingGlyph_OneWarningPerLocationAndSet
+              - CanvasNetVegaLite_SystemIntegration_TextMissingGlyph_InvisibleTextIsNotReported
 
           - id: CanvasNetVegaLite-VegaLiteDocument-UnsupportedStrictness
             title: >-
