@@ -48,11 +48,34 @@ same answer.
 ##### CanvasNet-Fonts-GlyphFallback-NeedsGlyph: Characters Without A Visible Glyph
 
 **Tests**: `GlyphFallback_NeedsGlyph_InvisibleCharacter_ReturnsFalse`,
-`GlyphFallback_NeedsGlyph_VisibleAndPrivateUse_ReturnsTrueAndInvalidReturnsFalse`
+`GlyphFallback_NeedsGlyph_VisibleAndPrivateUse_ReturnsTrueAndInvalidReturnsFalse`,
+`GlyphFallback_NeedsGlyph_EveryCodePoint_MatchesUnicodeCategoryDefinition`
 
 Asserts `false` for NUL, tab, space, zero-width joiner, left-to-right mark, a variation selector (in the
 BMP and the supplement), the line separator, and a non-character; `true` for `A`, U+221D, and U+E000; and
-`false` for a negative value, a value above U+10FFFF, and a surrogate.
+`false` for a negative value, a value above U+10FFFF, and a surrogate. A sweep of every code point from
+-2 to U+110002 proves that `NeedsGlyph` (now built on `IsIgnorable`) gives the same answer as the
+Unicode-category definition it replaced, so `Resolve` and `FindMissing` are unchanged.
+
+##### CanvasNet-Fonts-GlyphFallback-IsIgnorable: Invisible Zero-Width Characters
+
+**Tests**: `GlyphFallback_IsIgnorable_InvisibleOrInvalidCharacter_ReturnsTrue`,
+`GlyphFallback_IsIgnorable_VisibleCharacterOrWhiteSpace_ReturnsFalse`,
+`GlyphFallback_NeedsGlyph_EveryCodePoint_MatchesUnicodeCategoryDefinition`
+
+Asserts `true` for NUL, BEL, the soft hyphen, the zero-width space, non-joiner and joiner, the
+left-to-right mark, the word joiner, U+FEFF, the variation selectors (BMP and supplement, both ends),
+non-characters, a surrogate, a negative value, and a value above U+10FFFF; and `false` for `A`, space,
+tab, line feed, the no-break space (white space is handled by the layouts), U+221D, and U+E000. The
+code-point sweep also asserts that no ignorable code point needs a glyph.
+
+##### CanvasNet-Fonts-GlyphFallback-BundledFonts: Read-Only Chain
+
+**Tests**: `GlyphFallback_BundledFonts_IsReadOnlyWrapper_CannotBeMutated`,
+`GlyphFallback_BundledFonts_IsTheNotoTrioInOrder`
+
+Asserts that the published list is not a `TrueTypeFont[]`, is a read-only `IList<TrueTypeFont>` whose
+element assignment throws `NotSupportedException`, and is the same instance on every access.
 
 ##### CanvasNet-Fonts-GlyphFallback-FindMissing: Reporting What Stays Missing
 
@@ -66,6 +89,7 @@ surrogate is judged as the replacement character; and that a `null` font or text
 
 #### Requirements Coverage
 
-The three unit requirements are verified by the scenarios above; the subsystem requirement
+The five unit requirements are verified by the scenarios above; the subsystem requirement
 `CanvasNet-Fonts-GlyphFallback` is verified through them and through the `TextRenderer` scenarios
-(`CanvasNet-Rendering-TextRenderer-GlyphFallback`) that use the chain.
+(`CanvasNet-Rendering-TextRenderer-GlyphFallback`, `CanvasNet-Rendering-TextRenderer-IgnorableCharacters`)
+that use the chain.

@@ -21,8 +21,11 @@ namespace DemaConsulting.CanvasNet.Rendering;
 ///     deterministic: it never consults an installed font, it is regular style only, kerning is applied
 ///     only between glyphs of the same font, and ascent and descent stay those of the chosen font. A
 ///     character that no bundled font covers draws the chosen font's missing-glyph box (the renderer has
-///     no diagnostics channel; callers report it with <see cref="GlyphFallback.FindMissing"/>). Text the
-///     chosen font covers completely is laid out exactly as it was without the fallback.
+///     no diagnostics channel; callers report it with <see cref="GlyphFallback.FindMissing"/>). An
+///     invisible character (<see cref="GlyphFallback.IsIgnorable"/>: variation selector, zero-width
+///     joiner, bidirectional mark) is skipped: it takes no glyph and no advance and does not break
+///     kerning between its neighbors. Text the chosen font covers completely is laid out exactly as it
+///     was without the fallback.
 ///     </para>
 /// </remarks>
 public static class TextRenderer
@@ -291,7 +294,8 @@ public static class TextRenderer
     ///     different fonts are unrelated. For text the primary font covers completely, the arithmetic
     ///     (kerning before advance, one accumulation order) is that of a single-font run, so the result
     ///     is bit-identical to the layout before fallback existed. Ascent and descent are always those of
-    ///     the primary font.
+    ///     the primary font. A character for which <see cref="GlyphFallback.IsIgnorable"/> is true is
+    ///     skipped entirely: no glyph, no advance, and the kerning pair around it is preserved.
     /// </remarks>
     private static IEnumerable<(TrueTypeFont GlyphFont, int GlyphIndex, float Scale, float Pen)> EnumerateRun(string text, TrueTypeFont font, float size, float startPen)
     {
@@ -299,9 +303,12 @@ public static class TextRenderer
         TrueTypeFont? previousFont = null;
         var previousGlyph = 0;
 
-        foreach (var rune in text.EnumerateRunes())
+        // An invisible zero-width character (variation selector, joiner, bidirectional mark) takes no glyph and
+        // no advance; filtering it out before the previous-glyph state is touched keeps the kerning pair
+        // on either side of it intact.
+        foreach (var codePoint in text.EnumerateRunes().Select(rune => rune.Value).Where(value => !GlyphFallback.IsIgnorable(value)))
         {
-            var (glyphFont, glyphIndex) = GlyphFallback.Resolve(font, rune.Value);
+            var (glyphFont, glyphIndex) = GlyphFallback.Resolve(font, codePoint);
             var scale = size / glyphFont.UnitsPerEm;
             if (ReferenceEquals(previousFont, glyphFont))
             {

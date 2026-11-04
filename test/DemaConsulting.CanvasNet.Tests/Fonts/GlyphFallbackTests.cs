@@ -138,6 +138,115 @@ public class GlyphFallbackTests
     }
 
     /// <summary>
+    ///     Proves that invisible, zero-width, and invalid code points are ignorable.
+    /// </summary>
+    [Theory]
+    [InlineData(0x0000)]
+    [InlineData(0x0007)]
+    [InlineData(0x00AD)]
+    [InlineData(0x200B)]
+    [InlineData(0x200C)]
+    [InlineData(0x200D)]
+    [InlineData(0x200E)]
+    [InlineData(0x2060)]
+    [InlineData(0xFEFF)]
+    [InlineData(0xFE00)]
+    [InlineData(0xFE0F)]
+    [InlineData(0xE0100)]
+    [InlineData(0xE01EF)]
+    [InlineData(0xFFFE)]
+    [InlineData(0xFDD0)]
+    [InlineData(0xD800)]
+    [InlineData(-1)]
+    [InlineData(0x110000)]
+    public void GlyphFallback_IsIgnorable_InvisibleOrInvalidCharacter_ReturnsTrue(int codePoint)
+    {
+        // Act / Assert
+        Assert.True(GlyphFallback.IsIgnorable(codePoint));
+    }
+
+    /// <summary>
+    ///     Proves that visible characters and white space (which a layout handles itself) are not ignorable.
+    /// </summary>
+    [Theory]
+    [InlineData('A')]
+    [InlineData(0x0020)]
+    [InlineData(0x0009)]
+    [InlineData(0x000A)]
+    [InlineData(0x00A0)]
+    [InlineData(0x221D)]
+    [InlineData(0xE000)]
+    public void GlyphFallback_IsIgnorable_VisibleCharacterOrWhiteSpace_ReturnsFalse(int codePoint)
+    {
+        // Act / Assert
+        Assert.False(GlyphFallback.IsIgnorable(codePoint));
+    }
+
+    /// <summary>
+    ///     Proves that NeedsGlyph, now built on IsIgnorable, gives the same answer for every code point as
+    ///     the Unicode-category definition it replaced (no control, format, separator, or surrogate; no
+    ///     variation selector or non-character; inside the Unicode range).
+    /// </summary>
+    [Fact]
+    public void GlyphFallback_NeedsGlyph_EveryCodePoint_MatchesUnicodeCategoryDefinition()
+    {
+        // Act / Assert: sweep the invalid ranges and the whole Unicode range
+        for (var codePoint = -2; codePoint <= 0x110002; codePoint++)
+        {
+            Assert.True(
+                ExpectedNeedsGlyph(codePoint) == GlyphFallback.NeedsGlyph(codePoint),
+                $"U+{codePoint:X4}");
+            if (GlyphFallback.IsIgnorable(codePoint))
+            {
+                Assert.False(GlyphFallback.NeedsGlyph(codePoint), $"U+{codePoint:X4}");
+            }
+        }
+    }
+
+    /// <summary>
+    ///     The category-based definition of "needs a glyph" that predates IsIgnorable.
+    /// </summary>
+    /// <param name="codePoint">The code point.</param>
+    /// <returns><see langword="true"/> when the character is expected to draw.</returns>
+    private static bool ExpectedNeedsGlyph(int codePoint)
+    {
+        if (codePoint < 0 || codePoint > 0x10FFFF || codePoint is >= 0xD800 and <= 0xDFFF)
+        {
+            return false;
+        }
+
+        if (codePoint is >= 0xFE00 and <= 0xFE0F or >= 0xE0100 and <= 0xE01EF
+            || codePoint is >= 0xFDD0 and <= 0xFDEF || (codePoint & 0xFFFE) == 0xFFFE)
+        {
+            return false;
+        }
+
+        return System.Text.Rune.GetUnicodeCategory(new System.Text.Rune(codePoint)) is not (
+            System.Globalization.UnicodeCategory.Control
+            or System.Globalization.UnicodeCategory.Format
+            or System.Globalization.UnicodeCategory.SpaceSeparator
+            or System.Globalization.UnicodeCategory.LineSeparator
+            or System.Globalization.UnicodeCategory.ParagraphSeparator);
+    }
+
+    /// <summary>
+    ///     Proves that the published chain is a read-only wrapper that cannot be cast back to a mutable array.
+    /// </summary>
+    [Fact]
+    public void GlyphFallback_BundledFonts_IsReadOnlyWrapper_CannotBeMutated()
+    {
+        // Act
+        var fonts = GlyphFallback.BundledFonts;
+
+        // Assert: not an array, rejects writes, and is the same instance on every access
+        Assert.False(fonts is TrueTypeFont[]);
+        var list = Assert.IsAssignableFrom<IList<TrueTypeFont>>(fonts);
+        Assert.True(list.IsReadOnly);
+        Assert.Throws<NotSupportedException>(() => list[0] = fonts[1]);
+        Assert.Same(fonts, GlyphFallback.BundledFonts);
+    }
+
+    /// <summary>
     ///     Proves that an invisible character the primary font lacks is not looked up in the chain.
     /// </summary>
     [Fact]

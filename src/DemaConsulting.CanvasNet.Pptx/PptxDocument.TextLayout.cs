@@ -606,9 +606,10 @@ public sealed partial class PptxDocument
         Func<TrueTypeFont, int, bool, bool, (TrueTypeFont Font, int GlyphIndex)> resolveGlyph)
     {
         var total = 0f;
-        foreach (var rune in text.EnumerateRunes())
+        // An invisible zero-width character (variation selector, joiner, bidirectional mark) has no glyph and no advance
+        foreach (var codePoint in text.EnumerateRunes().Select(rune => rune.Value).Where(value => !GlyphFallback.IsIgnorable(value)))
         {
-            var (resolvedFont, glyphIndex) = resolveGlyph(font, rune.Value, bold, italic);
+            var (resolvedFont, glyphIndex) = resolveGlyph(font, codePoint, bold, italic);
             total += resolvedFont.GetAdvanceWidth(glyphIndex) / (float)resolvedFont.UnitsPerEm * sizeEmu;
         }
 
@@ -889,9 +890,10 @@ public sealed partial class PptxDocument
         // supplementary-plane character (codepoint above U+FFFF, e.g. an emoji)
         // is measured/placed as one logical glyph unit instead of being split
         // into two mis-measured surrogate halves.
-        foreach (var rune in token.Text.EnumerateRunes())
+        // An invisible zero-width character (variation selector, joiner, bidirectional mark) draws no glyph and has no advance
+        foreach (var codePoint in token.Text.EnumerateRunes().Select(rune => rune.Value).Where(value => !GlyphFallback.IsIgnorable(value)))
         {
-            var (resolvedFont, glyphIndex) = resolveGlyph(token.Font, rune.Value, token.RunProperties.Bold, token.RunProperties.Italic);
+            var (resolvedFont, glyphIndex) = resolveGlyph(token.Font, codePoint, token.RunProperties.Bold, token.RunProperties.Italic);
             var advance = resolvedFont.GetAdvanceWidth(glyphIndex) / (float)resolvedFont.UnitsPerEm * token.RunProperties.SizeEmu;
             if (!token.IsWhitespace)
             {
@@ -1107,11 +1109,12 @@ public sealed partial class PptxDocument
         // Enumerate by Unicode scalar value (Rune), not UTF-16 char, so a supplementary-plane
         // bullet character (e.g. an <a:buChar char="..."/> emoji) is measured/placed as one
         // logical glyph unit instead of two mis-measured surrogate halves.
-        foreach (var rune in bulletText.EnumerateRunes())
+        // An invisible zero-width character (variation selector, joiner, bidirectional mark) draws no glyph and has no advance
+        foreach (var codePoint in bulletText.EnumerateRunes().Select(rune => rune.Value).Where(value => !GlyphFallback.IsIgnorable(value)))
         {
             // Bullets are never bold/italic (see this method's own remarks), so the fallback
             // lookup is always keyed (false, false), matching resolveFont's own call above.
-            var (resolvedFont, glyphIndex) = resolveGlyph(font, rune.Value, false, false);
+            var (resolvedFont, glyphIndex) = resolveGlyph(font, codePoint, false, false);
             var advance = resolvedFont.GetAdvanceWidth(glyphIndex) / (float)resolvedFont.UnitsPerEm * sizeEmu;
             glyphs.Add(new LineGlyph(resolvedFont, glyphIndex, cursorX, sizeEmu, bullet.Color));
             cursorX += advance;

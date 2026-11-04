@@ -119,7 +119,10 @@ sections:
                   from the same font) without a report, shall draw a character that no bundled font covers with
                   the font's .notdef glyph, or skip it and draw no region when .notdef has no outline, in
                   both cases with exactly one located warning per text instance that lists the code points,
-                  shall skip control characters silently, and shall let a glyph without an outline
+                  shall skip control characters silently, shall skip an invisible zero-width character (a
+                  variation selector, a zero-width joiner, a bidirectional mark: GlyphFallback.IsIgnorable)
+                  without a glyph, an advance, or a report and without breaking the kerning of its
+                  neighbors, and shall let a glyph without an outline
                   (a space) advance the pen without drawing.
                 justification: |
                   A missing character must neither crash the model nor vanish or turn into a box
@@ -129,6 +132,7 @@ sections:
                   - ScadTextGeometry_Build_MissingGlyph_DrawsNotdefWithOneWarningAndSkipsControls
                   - ScadTextGeometry_Build_MissingGlyph_WarnsOnceAndDrawsNothingWhenNotdefIsEmpty
                   - ScadTextGeometry_Build_CharacterInBundledFallback_DrawsFallbackGlyphWithoutWarning
+                  - ScadTextGeometry_Build_IgnorableCharacters_DrawNothingAndKeepKerning
                   - ScadTextGeometry_Build_PrivateUseCharacterAfterFallbackCharacter_WarnsOnceWithItsCodePoint
                   - ScadTextGeometry_Build_EmptyString_ReturnsEmptyWithoutWarnings
 

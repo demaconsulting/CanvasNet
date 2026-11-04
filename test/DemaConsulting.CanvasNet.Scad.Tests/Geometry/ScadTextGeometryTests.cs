@@ -521,6 +521,29 @@ public class ScadTextGeometryTests
     }
 
     /// <summary>
+    ///     Validates that invisible zero-width characters (a variation selector, a zero-width joiner) take no glyph
+    ///     and no advance, do not break kerning between their neighbors, and are not reported as missing.
+    /// </summary>
+    [Fact]
+    public void ScadTextGeometry_Build_IgnorableCharacters_DrawNothingAndKeepKerning()
+    {
+        // Arrange
+        var (first, second) = FindKernedPair();
+
+        // Act
+        var plain = Run("text(\"AA\");");
+        var withSelector = Run("text(\"A\uFE0FA\u200D\");");
+        var kerned = Run($"text(\"{first}{second}\");");
+        var kernedAcrossJoiner = Run($"text(\"{first}\u200D{second}\");");
+
+        // Assert: same geometry as the text without them, and no warning
+        AssertSameVertices(plain, withSelector);
+        AssertSameVertices(kerned, kernedAcrossJoiner);
+        Assert.Empty(withSelector.Warnings);
+        Assert.Empty(kernedAcrossJoiner.Warnings);
+    }
+
+    /// <summary>
     ///     Validates that a character the primary font lacks but a bundled fallback font maps is drawn with the
     ///     fallback glyph, silently, at a size consistent with the primary font's rule (another em size).
     /// </summary>

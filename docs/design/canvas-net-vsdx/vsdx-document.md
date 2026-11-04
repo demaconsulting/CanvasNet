@@ -423,7 +423,10 @@ from the leaf up to the page, with no separate `chOff`/`chExt`-style remap step.
   and falls back to the bundled font when the matched file cannot be loaded. When no font covers the code point
   (including the Noto chain, which covers mathematical operators, arrows, and many symbols),
   `SelectGlyphFont` reports `vsdx-text-missing-glyph` through the unsupported-feature handler and
-  keeps the run's own font. Tests inject their own resolver.
+  keeps the run's own font. A code point for which `GlyphFallback.IsIgnorable` is true (a variation
+  selector, a zero-width joiner, a bidirectional mark) is skipped by the width measurement and the glyph
+  placement: no glyph, no advance, no fallback lookup, and no report; `SelectGlyphFont` skips fallback for
+  every code point that `GlyphFallback.NeedsGlyph` rejects. Tests inject their own resolver.
 
 ### Error Handling
 

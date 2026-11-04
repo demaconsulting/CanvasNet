@@ -8000,6 +8000,31 @@ public class PdfDocumentTests
     }
 
     /// <summary>
+    ///     Proves that the Noto chain is consulted lazily: the substitute list for an ordinary non-embedded font
+    ///     is exactly the primary match and the plain Liberation Sans, with none of the bundled Noto fonts
+    ///     listed, so a page whose text those two fonts cover never loads (or touches) the Noto chain. The chain
+    ///     is only reached on a miss, which
+    ///     <see cref="PdfDocument_BuildResolvedFont_CharacterOutsideLiberation_FallsBackToBundledNotoMath"/>
+    ///     proves, and a fully covered render is unaffected.
+    /// </summary>
+    [Fact]
+    public void PdfDocument_ResolveFallbackFont_OrdinaryFont_DoesNotMaterializeNotoChain()
+    {
+        // Arrange
+        using var stream = new MemoryStream(BuildSinglePagePdf(100, 100, "BT ET"));
+        using var document = PdfDocument.Open(stream);
+        var generic = SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold: false, italic: false);
+
+        // Act
+        var fonts = document.ResolveFallbackFont("TotallyUnlikelyFontFamilyXyzzyMono", PdfDocument.PdfObject.NullValue);
+
+        // Assert: [primary, plain Liberation Sans] only, and none is a bundled Noto font
+        Assert.Equal(2, fonts.Count);
+        Assert.Same(generic, fonts[1]);
+        Assert.DoesNotContain(fonts, font => GlyphFallback.BundledFonts.Contains(font));
+    }
+
+    /// <summary>
     ///     Proves <c>PdfDocument.ResolveFallbackFont</c>'s new per-character
     ///     glyph-coverage fallback for an ordinary (non-<c>Symbol</c>/<c>ZapfDingbats</c>)
     ///     non-embedded font: an unmatched, fixed-pitch <c>/BaseFont</c> family's primary

@@ -292,6 +292,8 @@ sections:
             children:
               - CanvasNet-Fonts-GlyphFallback-Resolve
               - CanvasNet-Fonts-GlyphFallback-NeedsGlyph
+              - CanvasNet-Fonts-GlyphFallback-IsIgnorable
+              - CanvasNet-Fonts-GlyphFallback-BundledFonts
               - CanvasNet-Fonts-GlyphFallback-FindMissing
             tests:
               - GlyphFallback_Resolve_CharacterMissingInPrimary_UsesNotoSansMath

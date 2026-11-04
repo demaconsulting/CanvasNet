@@ -195,6 +195,12 @@ public sealed partial class VsdxDocument
         var total = 0d;
         foreach (var rune in text.EnumerateRunes())
         {
+            // An invisible zero-width character (variation selector, joiner, bidirectional mark) has no glyph and no advance
+            if (GlyphFallback.IsIgnorable(rune.Value))
+            {
+                continue;
+            }
+
             var glyphFont = SelectGlyphFont(font, rune, run, fallback, out var glyphIndex);
             total += glyphFont.GetAdvanceWidth(glyphIndex) / (double)glyphFont.UnitsPerEm * run.SizeInches;
         }
@@ -216,8 +222,7 @@ public sealed partial class VsdxDocument
         out int glyphIndex)
     {
         glyphIndex = primary.GetGlyphIndex(rune.Value);
-        if (glyphIndex != 0 || fallback is null || Rune.IsControl(rune) || Rune.IsWhiteSpace(rune) ||
-            Rune.GetUnicodeCategory(rune) == System.Globalization.UnicodeCategory.Format)
+        if (glyphIndex != 0 || fallback is null || !GlyphFallback.NeedsGlyph(rune.Value))
         {
             return primary;
         }
@@ -382,6 +387,12 @@ public sealed partial class VsdxDocument
 
         foreach (var rune in token.Text.EnumerateRunes())
         {
+            // An invisible zero-width character (variation selector, joiner, bidirectional mark) draws no glyph and has no advance
+            if (GlyphFallback.IsIgnorable(rune.Value))
+            {
+                continue;
+            }
+
             var glyphFont = SelectGlyphFont(token.Font, rune, token.Run, glyphFallback, out var glyphIndex);
             lineGlyphs.Add(new LineGlyph(glyphFont, glyphIndex, x, token.Run.SizeInches, token.Run.Color));
             x += glyphFont.GetAdvanceWidth(glyphIndex) / (double)glyphFont.UnitsPerEm * token.Run.SizeInches;

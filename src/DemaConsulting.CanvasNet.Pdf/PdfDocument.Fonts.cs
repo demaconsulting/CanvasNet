@@ -95,9 +95,21 @@ public sealed partial class PdfDocument
         ///     this type's pre-union single-<c>Font</c> behavior; only the bundled Noto
         ///     <c>Symbol</c>/<c>ZapfDingbats</c> substitute path (see
         ///     <c>PdfDocument.FontFallback.cs</c>'s <c>ResolveSymbolicNotoFallback</c>) produces
-        ///     more than one, in a fixed glyph-lookup priority order - see <see cref="Resolve"/>.
+        ///     more than one, in a fixed glyph-lookup priority order - see <see cref="Resolve"/>. An
+        ///     ordinary non-embedded substitute lists exactly two (the primary match and the plain
+        ///     Liberation Sans); the Noto chain of <see cref="GlyphFallback"/> is not listed but
+        ///     consulted lazily on a miss, see <see cref="UseGlyphFallbackChain"/>.
         /// </summary>
         internal required IReadOnlyList<TrueTypeFont> Fonts { get; init; }
+
+        /// <summary>
+        ///     Gets a value indicating whether a code point that none of <see cref="Fonts"/> covers is
+        ///     then looked up in the bundled Noto chain of <see cref="GlyphFallback"/>. Set only for an
+        ///     ordinary non-embedded font (the <c>Symbol</c>/<c>ZapfDingbats</c> lists already carry the
+        ///     Noto fonts, and an embedded font never falls back). The chain is consulted lazily, on a
+        ///     miss only, so a page whose text every listed font covers never loads it.
+        /// </summary>
+        internal bool UseGlyphFallbackChain { get; init; }
 
         /// <summary>A simple font always decodes exactly one byte per character code.</summary>
         int IResolvedFont.CodeByteWidth => 1;
@@ -140,7 +152,10 @@ public sealed partial class PdfDocument
         ///     first one whose <see cref="TrueTypeFont.GetGlyphIndex"/> returns a non-zero
         ///     glyph index wins; when none cover the codepoint, the first font's glyph <c>0</c>
         ///     (<c>.notdef</c>) is returned instead, exactly matching a single-font resolution's
-        ///     own "no match" behavior.
+        ///     own "no match" behavior. Before returning that .notdef, when
+        ///     <see cref="UseGlyphFallbackChain"/> is set and the codepoint is expected to draw
+        ///     (<see cref="GlyphFallback.NeedsGlyph"/>), the bundled Noto chain is consulted - the
+        ///     only point at which it is loaded.
         /// </summary>
         public (TrueTypeFont? Font, int GlyphIndex, double Width) Resolve(int code)
         {
@@ -156,6 +171,19 @@ public sealed partial class PdfDocument
                     winningFont = candidate;
                     glyphIndex = candidateGlyphIndex;
                     break;
+                }
+            }
+
+            // Lazy chain: only a code point every listed font missed (and that is expected to draw) touches
+            // the bundled Noto chain. Fonts[^1] is the plain Liberation Sans, already a miss, so this
+            // yields the first Noto font that covers it; a total miss keeps the first font's .notdef.
+            if (glyphIndex == 0 && UseGlyphFallbackChain && GlyphFallback.NeedsGlyph(codepoint))
+            {
+                var (chainFont, chainGlyphIndex) = GlyphFallback.Resolve(Fonts[^1], codepoint);
+                if (chainGlyphIndex != 0)
+                {
+                    winningFont = chainFont;
+                    glyphIndex = chainGlyphIndex;
                 }
             }
 
@@ -344,6 +372,7 @@ public sealed partial class PdfDocument
         var fontFileEntry = descriptor.Get("FontFile");
         IReadOnlyList<TrueTypeFont> fonts;
         int[]? defaultBaseTable = null;
+        var useGlyphFallbackChain = false;
 
         // Captured before loading any embedded font program (not after - see this method's own
         // remarks) so a /FontFile or /FontFile3 program's synthetic cmap-equivalent lookup (built
@@ -383,6 +412,9 @@ public sealed partial class PdfDocument
                 "ZapfDingbats" => ZapfDingbatsEncodingTable,
                 _ => null,
             };
+
+            // Symbol/ZapfDingbats already list the Noto fonts; any other substitute consults the chain on a miss
+            useGlyphFallbackChain = baseFontName is not ("Symbol" or "ZapfDingbats");
         }
 
         var encoding = ResolveEncoding(fontDict.Get("Encoding"), defaultBaseTable);
@@ -391,6 +423,7 @@ public sealed partial class PdfDocument
         return new ResolvedSimpleFont
         {
             Fonts = fonts,
+            UseGlyphFallbackChain = useGlyphFallbackChain,
             Encoding = encoding,
             Widths = widths,
             MissingWidth = missingWidth,

@@ -1241,17 +1241,22 @@ its own distinguishable `Feature` token.
   an otherwise-fully-resolved ordinary font whose own coverage is merely incomplete), instead of
   painting `.notdef` outright. Primary-font-first ordering means a font with full coverage is
   completely unaffected - the bundled fallback is only ever consulted on an actual per-codepoint
-  glyph-0 miss. **The list is now `[primaryMatch, LoadBundledFallback(plain Liberation Sans), ..GlyphFallback.BundledFonts]`**
-  (five elements): the three bundled Noto fonts of the core `GlyphFallback` (Noto Sans, Noto Sans Math,
-  Noto Sans Symbols 2) are appended, so a character that neither the primary match nor Liberation Sans covers (for
-  example U+221D) still reaches a real glyph through the same first-non-zero-glyph-wins search; the glyph width
-  still comes from `/Widths` when declared. Output changes only where a code point was `.notdef` before. The
-  Symbol/ZapfDingbats lists are unchanged.
+  glyph-0 miss. **The list stays `[primaryMatch, LoadBundledFallback(plain Liberation Sans)]`**
+  (two elements); the three bundled Noto fonts of the core `GlyphFallback` (Noto Sans, Noto Sans Math,
+  Noto Sans Symbols 2) are deliberately **not** listed. Instead `ResolvedSimpleFont.UseGlyphFallbackChain`
+  (set by `BuildResolvedSimpleFont` only for an ordinary non-embedded `/BaseFont` that is not `Symbol` or
+  `ZapfDingbats`, whose lists already carry the Noto fonts) makes `Resolve` consult the chain lazily: only
+  when both listed fonts return glyph 0 for a code point that `GlyphFallback.NeedsGlyph` accepts does it call
+  `GlyphFallback.Resolve(Fonts[^1], codepoint)`, so a character that neither the primary match nor Liberation
+  Sans covers (for example U+221D) still reaches a real glyph through the same Noto order, and a document whose
+  text the two fonts cover completely never loads the Noto chain. The glyph width still comes from `/Widths`
+  when declared. Output changes only where a code point was `.notdef` before. The Symbol/ZapfDingbats lists
+  are unchanged.
 
   `BuildResolvedSimpleFont`'s `ResolvedSimpleFont.Fonts` property (plural, renamed from the
   earlier single `Font` property) is an ordered, non-empty `IReadOnlyList<Fonts.TrueTypeFont>` -
   a single-element list only for the embedded `/FontFile2` resolution path now, and multi-element
-  for every fallback-substitution path (the ordinary 5-element primary/Liberation/Noto-chain list
+  for every fallback-substitution path (the ordinary 2-element primary/Liberation list
   above, and the Symbol Noto-substitute union below). `ResolvedSimpleFont.Resolve(code)` (the sole
   `IResolvedFont.Resolve` implementation this concerns) tries each font in `Fonts` in priority
   order, returning the first one whose `GetGlyphIndex` for the code's mapped codepoint is

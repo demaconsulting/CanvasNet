@@ -1916,6 +1916,7 @@ silently ignored like the CMap's own PostScript resource-management wrapper keyw
 `PdfDocument_BuildResolvedFont_SymbolicFlagWithoutEmbeddedFont_ThrowsSymbolicNotEmbeddedException`,
 `PdfDocument_BuildResolvedFont_PrimaryMatchMissesCodepoint_FallsBackToBundledLiberationSans`,
 `PdfDocument_BuildResolvedFont_CharacterOutsideLiberation_FallsBackToBundledNotoMath`,
+`PdfDocument_ResolveFallbackFont_OrdinaryFont_DoesNotMaterializeNotoChain`,
 `CanvasNetPdf_SystemIntegration_RenderStandard14HelveticaWithoutEmbeddedFont_PaintsVisibleGlyphInk`,
 `CanvasNetPdf_SystemIntegration_RenderOtherSymbolicFontWithoutEmbeddedFont_ThrowsUnsupportedImageFeatureException`
 
@@ -1942,7 +1943,8 @@ fail-closed policy for any other symbolic font.
 
 `PdfDocument_BuildResolvedFont_PrimaryMatchMissesCodepoint_FallsBackToBundledLiberationSans`
 proves the ordinary (non-Symbol/non-ZapfDingbats) substitution path's extended candidate
-list (primary match, then the bundled Liberation fallback, then the bundled Noto chain) actually resolves a codepoint the
+list (primary match, then the bundled Liberation fallback; the bundled Noto chain is consulted lazily on a
+miss) actually resolves a codepoint the
 primary match itself does not cover, rather than painting `.notdef`. Renders two fixtures and
 asserts pixel-identity between them - "any pixel was painted" is deliberately **not** sufficient
 here, since a real/synthetic `.notdef` glyph commonly has its own non-empty (visible box) outline,
@@ -1968,6 +1970,14 @@ TO), a code point that neither the host's monospace substitute nor Liberation Sa
 the fixture, a fixture with U+E000 (the missing-glyph box that nothing covers), and a reference
 fixture that embeds the bundled `NotoSansMath-Regular.ttf` bytes as its `/FontFile2`, and asserts that
 the U+221D render is pixel-identical to the Noto Sans Math reference and not equal to the box render.
+
+`PdfDocument_ResolveFallbackFont_OrdinaryFont_DoesNotMaterializeNotoChain` proves the lazy loading: the
+substitute list that `ResolveFallbackFont` returns for an ordinary non-embedded font has exactly two
+elements (the primary match and the plain Liberation Sans) and none of them is one of the bundled Noto fonts
+of `GlyphFallback.BundledFonts`, so a document whose text those two fonts cover never lists, and so never
+consults or loads, the Noto chain (it is reached only through `ResolvedSimpleFont.UseGlyphFallbackChain` on a
+miss, which the Noto Sans Math render above exercises). The process-wide chain cannot be observed through a
+load counter without a test seam in the core assembly, so the test asserts the structure instead.
 
 #### CanvasNetPdf-PdfDocument-SymbolZapfDingbatsFallback: Symbol/ZapfDingbats Resolve via a Bundled Noto Union
 

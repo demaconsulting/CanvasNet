@@ -50,20 +50,21 @@ public sealed partial class PdfDocument
     ///     <see cref="SystemFontCatalog.LoadBundledFallback"/> when no system font matches, or
     ///     the matched one cannot be loaded by <see cref="SystemFontCatalog.Load"/>), and
     ///     appends a second, always-present, plain (non-serif, non-fixed-pitch, non-bold,
-    ///     non-italic) bundled Liberation Sans candidate and then the bundled Noto chain of
-    ///     <see cref="GlyphFallback"/> - a per-character glyph-coverage
-    ///     fallback, consulted by <see cref="ResolvedSimpleFont.Resolve"/>'s existing first-
-    ///     non-zero-glyph-wins candidate search only when the primary match's own font actually
-    ///     lacks a given codepoint, mirroring <c>PptxDocument.TextLayout.cs</c>'s own
-    ///     per-character fallback for the parallel PPTX text-rendering path.
+    ///     non-italic) bundled Liberation Sans candidate. The bundled Noto chain of
+    ///     <see cref="GlyphFallback"/> - a per-character glyph-coverage fallback - is deliberately not
+    ///     listed here: <see cref="ResolvedSimpleFont.Resolve"/> consults it lazily, only for a
+    ///     codepoint that neither listed font covers (see
+    ///     <see cref="ResolvedSimpleFont.UseGlyphFallbackChain"/>), so a document whose text the two
+    ///     Liberation fonts cover completely never loads the Noto fonts. This mirrors
+    ///     <c>PptxDocument.TextLayout.cs</c>'s own per-character fallback for the parallel PPTX
+    ///     text-rendering path.
     /// </summary>
     /// <param name="baseFontName">The font dictionary's <c>/BaseFont</c> name.</param>
     /// <param name="descriptor">The font dictionary's resolved <c>/FontDescriptor</c>.</param>
     /// <returns>
     ///     The ordered, non-empty list of candidate substitute <see cref="Fonts.TrueTypeFont"/>
-    ///     instances - every non-<c>Symbol</c>/<c>ZapfDingbats</c> case returns a five-element
-    ///     list (primary match, the generic bundled Liberation Sans coverage fallback, then the three
-    ///     bundled Noto fonts of <see cref="GlyphFallback"/>); see
+    ///     instances - every non-<c>Symbol</c>/<c>ZapfDingbats</c> case returns a two-element
+    ///     list (primary match, the generic bundled Liberation Sans coverage fallback); see
     ///     <see cref="ResolveSymbolicNotoFallback"/> for the (three- or one-element)
     ///     <c>Symbol</c>/<c>ZapfDingbats</c> case.
     /// </returns>
@@ -75,7 +76,7 @@ public sealed partial class PdfDocument
     ///     or bundled font. <c>Symbol</c>/<c>ZapfDingbats</c> itself no longer throws this - see
     ///     <see cref="ResolveSymbolicNotoFallback"/>.
     /// </exception>
-    private IReadOnlyList<TrueTypeFont> ResolveFallbackFont(string baseFontName, PdfObject descriptor)
+    internal IReadOnlyList<TrueTypeFont> ResolveFallbackFont(string baseFontName, PdfObject descriptor)
     {
         if (baseFontName is "Symbol" or "ZapfDingbats")
         {
@@ -110,10 +111,11 @@ public sealed partial class PdfDocument
         // Symbol/ZapfDingbats branch above. Listing the primary match first preserves existing
         // behavior for every font whose primary match already has full coverage: the bundled
         // fallback is only ever consulted on an actual glyph-0 miss.
-        // After those two, the bundled Noto chain of GlyphFallback is appended so a character that
-        // neither covers (a math operator, an arrow) still gets a real glyph instead of the .notdef box.
+        // The bundled Noto chain of GlyphFallback is NOT appended: ResolvedSimpleFont.Resolve consults
+        // it lazily, for a character neither font covers (a math operator, an arrow), so a fully
+        // covered document never loads the Noto fonts.
         var genericFallback = SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold: false, italic: false);
-        return [primary, genericFallback, .. GlyphFallback.BundledFonts];
+        return [primary, genericFallback];
     }
 
     /// <summary>

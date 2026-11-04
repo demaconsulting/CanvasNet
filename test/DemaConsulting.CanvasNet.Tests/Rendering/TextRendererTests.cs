@@ -838,6 +838,125 @@ public class TextRendererTests
     }
 
     /// <summary>
+    ///     Proves that an invisible variation selector, zero-width joiner, or bidirectional mark between two
+    ///     letters takes no advance and does not break their kerning pair: the width equals the plain text's.
+    /// </summary>
+    [Theory]
+    [InlineData("A\uFE0FA", "AA")]
+    [InlineData("A\u200DA", "AA")]
+    [InlineData("A\u200EA", "AA")]
+    [InlineData("A\uFE0F\u200DA", "AA")]
+    public void TextRenderer_MeasureText_VariationSelectorBetweenLetters_EqualsPlainText(string text, string plain)
+    {
+        // Arrange: the synthetic font kerns (A, A) by -50 and gives the missing glyph zero advance, so a
+        // layout that drew .notdef would break the kerning pair (100) and one that kept it gives 95
+        var font = NewFont();
+
+        // Act
+        var width = TextRenderer.MeasureText(text, font, 100f).Width;
+
+        // Assert
+        Assert.Equal(95f, width, 3);
+        Assert.Equal(TextRenderer.MeasureText(plain, font, 100f).Width, width);
+    }
+
+    /// <summary>
+    ///     Proves the same with a real font and a real kerning pair, with the exact same float result.
+    /// </summary>
+    [Theory]
+    [InlineData("A\uFE0FV")]
+    [InlineData("A\u200DV")]
+    public void TextRenderer_MeasureText_RealKerningPairAcrossIgnorable_EqualsPlainText(string text)
+    {
+        // Arrange
+        var font = RealFont();
+
+        // Act
+        var width = TextRenderer.MeasureText(text, font, 20f).Width;
+
+        // Assert: exact equality, and the pair really kerns (narrower than the two advances)
+        Assert.Equal(TextRenderer.MeasureText("AV", font, 20f).Width, width);
+        Assert.True(width < (font.GetAdvanceWidth(font.GetGlyphIndex('A')) + font.GetAdvanceWidth(font.GetGlyphIndex('V'))) * (20f / font.UnitsPerEm));
+    }
+
+    /// <summary>
+    ///     Proves that text of only ignorable characters has no width.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_MeasureText_OnlyIgnorableCharacters_IsZero()
+    {
+        // Act / Assert
+        Assert.Equal(0f, TextRenderer.MeasureText("\uFE0F\u200D\u200B\u2060\uFEFF\u00AD", RealFont(), 20f).Width);
+    }
+
+    /// <summary>
+    ///     Proves that a variation selector draws nothing (no missing-glyph box) and that a zero-width joiner
+    ///     sequence between two emoji-range characters draws exactly the characters without a box in between.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_DrawText_VariationSelectorAndZwj_DrawNothing()
+    {
+        // Arrange
+        var font = RealFont();
+        var black = new Rgba32(0, 0, 0, 255);
+        Assert.Empty(GlyphFallback.FindMissing(font, "\u2764"));
+
+        // Act
+        var variation = DrawOnNewSurface("A\uFE0FA", font, black);
+        var plain = DrawOnNewSurface("AA", font, black);
+        var zwj = DrawOnNewSurface("\u2764\u200D\u2764", font, black);
+        var zwjPlain = DrawOnNewSurface("\u2764\u2764", font, black);
+        var zwjPath = TextRenderer.CreateTextPath("\u2764\u200D\u2764", font, 32f, 10f, 40f);
+        var zwjPlainPath = TextRenderer.CreateTextPath("\u2764\u2764", font, 32f, 10f, 40f);
+
+        // Assert: pixel-identical to the text without the invisible characters, with no .notdef subpaths
+        Assert.True(CountInk(plain) > 0);
+        Assert.True(CountInk(zwjPlain) > 0);
+        for (var y = 0; y < plain.Height; y++)
+        {
+            Assert.True(variation.GetRowSpanBytes(y).SequenceEqual(plain.GetRowSpanBytes(y)), $"variation row {y}");
+            Assert.True(zwj.GetRowSpanBytes(y).SequenceEqual(zwjPlain.GetRowSpanBytes(y)), $"zwj row {y}");
+        }
+
+        Assert.Equal(zwjPlainPath.Subpaths.Count, zwjPath.Subpaths.Count);
+        Assert.Equal(
+            TextRenderer.CreateTextPath("AA", font, 32f, 10f, 40f).Subpaths.Count,
+            TextRenderer.CreateTextPath("A\uFE0FA", font, 32f, 10f, 40f).Subpaths.Count);
+    }
+
+    /// <summary>
+    ///     Proves that truncation skips invisible characters exactly like measurement does.
+    /// </summary>
+    [Fact]
+    public void TextRenderer_TruncateToWidth_IgnorableCharacters_TakeNoWidth()
+    {
+        // Arrange: a budget that fits exactly the plain text of two kerned pairs
+        var font = RealFont();
+        var budget = TextRenderer.MeasureText("AV" + "AV", font, 20f).Width;
+        const string text = "A\uFE0FV\u200DAV";
+
+        // Act
+        var result = TextRenderer.TruncateToWidth(text, font, 20f, budget);
+
+        // Assert: the whole text fits, ignorable characters included
+        Assert.Equal(text, result);
+    }
+
+    /// <summary>
+    ///     Draws text on a fresh 128 x 64 surface at a fixed position and size.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <param name="font">The font.</param>
+    /// <param name="color">The text color.</param>
+    /// <returns>The drawn surface.</returns>
+    private static Surface DrawOnNewSurface(string text, TrueTypeFont font, Rgba32 color)
+    {
+        var surface = new Surface(128, 64);
+        new RenderCanvas(surface).DrawText(text, 10, 40, TextAlign.Left, font, 32f, color);
+        return surface;
+    }
+
+    /// <summary>
     ///     Proves that mixed-font layout is deterministic across repeated and concurrent runs.
     /// </summary>
     [Fact]

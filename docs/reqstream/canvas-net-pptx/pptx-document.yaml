@@ -1143,7 +1143,10 @@ sections:
               alone painting
               from
               whichever font actually resolved a non-.notdef glyph for it, independent of any
-              neighboring character's own resolution.
+              neighboring character's own resolution. A character for which the core
+              GlyphFallback.IsIgnorable is true (a variation selector, a zero-width joiner, a
+              bidirectional mark) shall be skipped, with no glyph and no advance, in the text
+              measure and in the glyph placement alike, including in a bullet character.
             justification: |
               Painting resolved glyph ink onto a Surface is this phase's terminal, user-visible
               output; reusing the already-verified core PathFiller/SystemFontCatalog building
@@ -1175,6 +1178,9 @@ sections:
               - ResolveTextLayout_PlusMinusFollowedByDegree_BothNeitherInPrimary_BothIndependentlyResolveFallback
               - ResolveTextLayout_PlusMinusAlone_ResolvesFallbackGlyph
               - ResolveTextLayout_CharacterOutsideBothFonts_ResolvesBundledNotoChainGlyph
+              - ResolveTextLayout_VariationSelectorBetweenLetters_SameGlyphsAndPositionsAsPlainText
+              - ResolveTextLayout_ZeroWidthJoinerBetweenLetters_DoesNotConsultFallbackAndAddsNoGlyph
+              - ResolveTextLayout_BulletCharacterWithVariationSelector_AddsNoGlyphForTheSelector
               - ResolveTextLayout_PlusMinusFollowedByDegree_PrimaryCoversOnlyDegree_DegreeStaysOnPrimaryFont
               - CanvasNetPptx_SystemIntegration_TextLayoutAndRender_TitlePlaceholderResolvesMasterTitleStyleEndToEnd
               - CanvasNetPptx_SystemIntegration_TextLayoutAndRender_NonPlaceholderShapeResolvesMasterOtherStyleEndToEnd

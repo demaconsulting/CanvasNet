@@ -39,11 +39,23 @@ diagnostics channel).
 
 - **`BundledFonts`** - the chain as a read-only list; built lazily on first access with
   `SystemFontCatalog.LoadBundledFallbackCore` (a `Lazy<T>` with `ExecutionAndPublication`, over the
-  existing locked, process-wide cache of bundled fonts, so each file is loaded once per process).
-- **`NeedsGlyph(codePoint)`** - `false` for values outside the Unicode range, surrogates,
-  non-characters, variation selectors, and the Unicode categories control, format, space separator,
-  line separator, and paragraph separator; `true` otherwise (private-use and unassigned code points
-  included).
+  existing locked, process-wide cache of bundled fonts, so each file is loaded once per process). It
+  is published through `Array.AsReadOnly`, so the array never escapes and a caller can neither
+  replace a font nor cast the list back to an array.
+- **`IsIgnorable(codePoint)`** - `true` for a character with no visible form and no width: a value
+  outside the Unicode range, a surrogate, a non-character, a variation selector (U+FE00-U+FE0F,
+  U+E0100-U+E01EF), a format character (zero-width joiners, bidirectional marks, the soft hyphen
+  U+00AD, U+FEFF), and a control character that is not white space. White space (the tab and the
+  line-break controls included) is not ignorable: a layout handles it itself. Every text layout
+  (`TextRenderer`, `ScadTextGeometry`, Pptx, Vsdx) skips an ignorable character before it resolves a
+  glyph and before it touches the pen or the previous-glyph state, so such a character takes no
+  glyph, no advance, and does not separate a kerning pair. A soft hyphen is therefore invisible
+  (none of these layouts break lines at it).
+- **`NeedsGlyph(codePoint)`** - `!IsIgnorable(codePoint)` and not white space: `false` for values
+  outside the Unicode range, surrogates, non-characters, variation selectors, and the Unicode
+  categories control, format, space separator, line separator, and paragraph separator; `true`
+  otherwise (private-use and unassigned code points included). It decides whether a missing glyph is
+  looked up in the chain and reported.
 - **`Resolve(primary, codePoint)`** - the primary font and its glyph when it maps the code point
   (the fast path: nothing is loaded and no category lookup is made, so text the primary font covers
   is unaffected); otherwise, when `NeedsGlyph` accepts the code point, the first chain font, skipping
@@ -69,7 +81,9 @@ embedded resource would be a packaging defect and surfaces as the `InvalidOperat
   Svg, Charts, Vega-Lite, and the tool's contact sheet and grid overlay.
 - `ScadTextGeometry` (OpenSCAD `text()`), which warns for the characters that stay missing.
 - Vega-Lite's `TextMeasurer.FindMissingGlyphs`, behind the `vl-text-missing-glyph` warning.
-- The Pdf, Pptx, and Vsdx renderers, which append the chain to their own candidate lists.
+- The Pdf, Pptx, and Vsdx renderers. Pdf consults the chain lazily, only for a character that neither
+  its primary substitute nor the plain Liberation Sans covers; Pptx and Vsdx append it to their own
+  candidate lists.
 
 #### Thread Safety
 

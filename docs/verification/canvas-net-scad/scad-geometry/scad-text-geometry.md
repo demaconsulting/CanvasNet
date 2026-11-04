@@ -147,6 +147,7 @@ direction, and spacing.
 **Tests**: `ScadTextGeometryTests.ScadTextGeometry_Build_MissingGlyph_DrawsNotdefWithOneWarningAndSkipsControls`,
 `ScadTextGeometryTests.ScadTextGeometry_Build_MissingGlyph_WarnsOnceAndDrawsNothingWhenNotdefIsEmpty`,
 `ScadTextGeometryTests.ScadTextGeometry_Build_CharacterInBundledFallback_DrawsFallbackGlyphWithoutWarning`,
+`ScadTextGeometryTests.ScadTextGeometry_Build_IgnorableCharacters_DrawNothingAndKeepKerning`,
 `ScadTextGeometryTests.ScadTextGeometry_Build_PrivateUseCharacterAfterFallbackCharacter_WarnsOnceWithItsCodePoint`,
 `ScadTextGeometryTests.ScadTextGeometry_Build_EmptyString_ReturnsEmptyWithoutWarnings`
 
@@ -161,7 +162,9 @@ that names only `U+E000`. For the branch in which `.notdef` has no outline, a cl
 `.notdef`, only `H` and `D` mapped) shows that a character that no bundled font maps (`U+E000`) is skipped with
 exactly one warning per text instance (naming `U+E000` and saying the characters are skipped, also for two of them
 and for `H`, `U+E000`, `H`), draws no region (the character alone is empty, `H\uE000H`
-has two regions), and leaves the mapped characters unaffected.
+has two regions), and leaves the mapped characters unaffected. Finally, `"A\uFE0FA\u200D"` has exactly the vertices
+of `"AA"` and a kerned pair separated by a zero-width joiner has exactly the vertices of the pair, both without a
+warning: invisible zero-width characters take no glyph, no advance, and do not break kerning.
 
 ##### CanvasNetScad-ScadGeometry-ScadTextGeometry-Contours: Holes, Composite Glyphs, And Rejections
 

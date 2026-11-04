@@ -107,7 +107,11 @@ shared default is the single character U+2026, a pure API-design choice.
 ##### Run walker (private, `EnumerateRun` and `EnumerateGlyphPlacements`)
 
 `EnumerateRun` is the single home of the rune iteration, the glyph fallback, the
-kerning-before-advance order, and the float accumulation order. For each rune it asks
+kerning-before-advance order, and the float accumulation order. A rune for which
+`GlyphFallback.IsIgnorable` is true (a variation selector, a zero-width joiner, a bidirectional mark,
+the soft hyphen, ...) is skipped first, before a glyph is resolved and before the pen or the
+previous-glyph state is touched: it takes no glyph and no advance, and the two characters on either
+side of it are still kerned as neighbors. For every other rune it asks
 `GlyphFallback.Resolve(font, rune)` for the font and glyph that draw it. For a character the primary
 font maps this is the primary font itself with its own glyph, and nothing else is loaded; for a
 character it lacks it is the first bundled Noto font that has a glyph (or the primary font's glyph 0,

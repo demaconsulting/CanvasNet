@@ -321,8 +321,10 @@ internal static partial class ScadTextGeometry
         long vertices = 0;
         foreach (var scalar in scalars)
         {
-            // Control characters (line feeds, tabs, ...) have no shape in a single line of text
-            if (Rune.IsControl(new Rune(scalar)))
+            // Control characters (line feeds, tabs, ...) have no shape in a single line of text; invisible
+            // zero-width characters (variation selectors, joiners, bidirectional marks) take no glyph and no advance,
+            // and skipping them before the previous-glyph state is touched keeps the kerning pair intact
+            if (GlyphFallback.IsIgnorable(scalar) || Rune.IsControl(new Rune(scalar)))
             {
                 continue;
             }

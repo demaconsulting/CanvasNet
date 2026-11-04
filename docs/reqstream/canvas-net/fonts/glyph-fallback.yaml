@@ -47,6 +47,37 @@ sections:
                 tests:
                   - GlyphFallback_NeedsGlyph_InvisibleCharacter_ReturnsFalse
                   - GlyphFallback_NeedsGlyph_VisibleAndPrivateUse_ReturnsTrueAndInvalidReturnsFalse
+                  - GlyphFallback_NeedsGlyph_EveryCodePoint_MatchesUnicodeCategoryDefinition
+
+              - id: CanvasNet-Fonts-GlyphFallback-IsIgnorable
+                title: >-
+                  The GlyphFallback type shall tell which code points are invisible and zero width
+                  (values outside the Unicode range, surrogates, non-characters, variation selectors,
+                  format characters such as zero-width joiners, bidirectional marks, the soft hyphen
+                  and U+FEFF, and control characters that are not white space) so that a text layout
+                  can skip them without a glyph or an advance, shall not count white space as
+                  ignorable, and shall define NeedsGlyph in terms of it.
+                justification: |
+                  One shared definition keeps every text layout (the core renderer, SCAD, PPTX,
+                  VSDX) from drawing the missing-glyph box for, or advancing over, a character that
+                  has no visible form, and keeps the answer to "does it need a glyph" identical to
+                  what the layouts skip.
+                tests:
+                  - GlyphFallback_IsIgnorable_InvisibleOrInvalidCharacter_ReturnsTrue
+                  - GlyphFallback_IsIgnorable_VisibleCharacterOrWhiteSpace_ReturnsFalse
+                  - GlyphFallback_NeedsGlyph_EveryCodePoint_MatchesUnicodeCategoryDefinition
+
+              - id: CanvasNet-Fonts-GlyphFallback-BundledFonts
+                title: >-
+                  The GlyphFallback type shall publish its bundled fallback chain as a read-only
+                  collection that cannot be cast back to a mutable array, with the same font
+                  instances on every access.
+                justification: |
+                  The chain is process-wide shared state; a caller that could replace an element
+                  would change the text layout of every other caller.
+                tests:
+                  - GlyphFallback_BundledFonts_IsReadOnlyWrapper_CannotBeMutated
+                  - GlyphFallback_BundledFonts_IsTheNotoTrioInOrder
 
               - id: CanvasNet-Fonts-GlyphFallback-FindMissing
                 title: >-

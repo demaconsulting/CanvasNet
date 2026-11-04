@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Text;
 
@@ -46,14 +47,15 @@ public static class GlyphFallback
     ///     The lazily built chain; <see cref="LazyThreadSafetyMode.ExecutionAndPublication"/> so concurrent
     ///     first users share one construction.
     /// </summary>
-    private static readonly Lazy<TrueTypeFont[]> LazyChain =
+    private static readonly Lazy<ReadOnlyCollection<TrueTypeFont>> LazyChain =
         new(BuildChain, LazyThreadSafetyMode.ExecutionAndPublication);
 
     /// <summary>
     ///     Gets the ordered bundled fallback fonts: Noto Sans, Noto Sans Math, Noto Sans Symbols 2.
     /// </summary>
     /// <value>
-    ///     The same three font instances on every access for the lifetime of the process. Reading this
+    ///     The same three font instances on every access for the lifetime of the process, in a read-only
+    ///     collection that a caller cannot mutate (it cannot be cast back to an array). Reading this
     ///     property loads them if they are not loaded yet.
     /// </value>
     public static IReadOnlyList<TrueTypeFont> BundledFonts => LazyChain.Value;
@@ -69,36 +71,61 @@ public static class GlyphFallback
     /// </returns>
     public static bool NeedsGlyph(int codePoint)
     {
+        // Ignorable characters never have a glyph; checking them first also guarantees that no Rune is
+        // built for an invalid code point. Every remaining white-space character (Unicode White_Space is
+        // exactly the Control, SpaceSeparator, LineSeparator, and ParagraphSeparator members) is invisible
+        // too, so what is left is a character that is expected to draw.
+        return !IsIgnorable(codePoint) && !Rune.IsWhiteSpace(new Rune(codePoint));
+    }
+
+    /// <summary>
+    ///     Tells whether a code point is invisible and zero width, so that a text layout must skip it
+    ///     without drawing a glyph, without advancing the pen, and without breaking kerning.
+    /// </summary>
+    /// <param name="codePoint">The Unicode code point.</param>
+    /// <returns>
+    ///     <see langword="true"/> for an out-of-range value, a surrogate, a non-character, a variation
+    ///     selector (U+FE00-U+FE0F, U+E0100-U+E01EF), a format character (zero-width joiners, bidirectional
+    ///     marks, U+00AD soft hyphen, U+FEFF), or a control character that is not white space; otherwise
+    ///     <see langword="false"/>. White space (including the tab and line-break controls) is
+    ///     <em>not</em> ignorable: a layout handles it itself.
+    /// </returns>
+    /// <remarks>
+    ///     This is the single definition shared by <see cref="NeedsGlyph"/> and the text layouts, so an
+    ///     invisible character is never drawn as the missing-glyph box (<c>.notdef</c>) and never
+    ///     reported as missing. Pure and thread-safe.
+    /// </remarks>
+    public static bool IsIgnorable(int codePoint)
+    {
+        // Out-of-range values are not Unicode scalar values at all.
         if (codePoint < 0 || codePoint > 0x10FFFF)
         {
-            return false;
-        }
-
-        // Variation selectors modify the previous character and have no glyph of their own.
-        if (codePoint is >= 0xFE00 and <= 0xFE0F or >= 0xE0100 and <= 0xE01EF)
-        {
-            return false;
-        }
-
-        // Non-characters are never assigned.
-        if (codePoint is >= 0xFDD0 and <= 0xFDEF || (codePoint & 0xFFFE) == 0xFFFE)
-        {
-            return false;
+            return true;
         }
 
         // Rune.GetUnicodeCategory rejects surrogates, so they are handled before constructing a Rune.
         if (codePoint is >= 0xD800 and <= 0xDFFF)
         {
-            return false;
+            return true;
         }
 
-        var category = Rune.GetUnicodeCategory(new Rune(codePoint));
-        return category is not (UnicodeCategory.Control
-            or UnicodeCategory.Format
-            or UnicodeCategory.SpaceSeparator
-            or UnicodeCategory.LineSeparator
-            or UnicodeCategory.ParagraphSeparator
-            or UnicodeCategory.Surrogate);
+        // Variation selectors modify the previous character and have no glyph of their own.
+        if (codePoint is >= 0xFE00 and <= 0xFE0F or >= 0xE0100 and <= 0xE01EF)
+        {
+            return true;
+        }
+
+        // Non-characters are never assigned.
+        if (codePoint is >= 0xFDD0 and <= 0xFDEF || (codePoint & 0xFFFE) == 0xFFFE)
+        {
+            return true;
+        }
+
+        // Format characters (joiners, bidirectional marks, soft hyphen, BOM) are invisible; a control character is
+        // too unless it is white space, which a layout treats as a space or line break itself.
+        var rune = new Rune(codePoint);
+        return Rune.GetUnicodeCategory(rune) == UnicodeCategory.Format
+            || (Rune.IsControl(rune) && !Rune.IsWhiteSpace(rune));
     }
 
     /// <summary>
@@ -178,8 +205,8 @@ public static class GlyphFallback
     /// <summary>
     ///     Loads the chain from the embedded resources.
     /// </summary>
-    /// <returns>The chain fonts in lookup order.</returns>
-    private static TrueTypeFont[] BuildChain()
+    /// <returns>The chain fonts in lookup order, wrapped read-only; the array never escapes.</returns>
+    private static ReadOnlyCollection<TrueTypeFont> BuildChain()
     {
         var fonts = new TrueTypeFont[ChainFileNames.Length];
         for (var i = 0; i < fonts.Length; i++)
@@ -187,6 +214,6 @@ public static class GlyphFallback
             fonts[i] = SystemFontCatalog.LoadBundledFallbackCore(ChainFileNames[i]);
         }
 
-        return fonts;
+        return Array.AsReadOnly(fonts);
     }
 }

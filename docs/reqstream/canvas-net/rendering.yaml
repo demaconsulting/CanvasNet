@@ -72,6 +72,7 @@ sections:
               - CanvasNet-Rendering-TextRenderer-TruncateToWidth
               - CanvasNet-Rendering-TextRenderer-TruncateToWidthValidation
               - CanvasNet-Rendering-TextRenderer-GlyphFallback
+              - CanvasNet-Rendering-TextRenderer-IgnorableCharacters
 
           - id: CanvasNet-Rendering-Shapes
             title: >-

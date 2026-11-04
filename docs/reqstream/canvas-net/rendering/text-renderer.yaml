@@ -179,3 +179,21 @@ sections:
                   - TextRenderer_TruncateToWidth_FallbackCharacters_UseFallbackAdvances
                   - TextRenderer_MeasureText_MixedText_IsDeterministicAcrossThreads
                   - TextRenderer_DrawText_LiberationOnlyText_IsBitIdenticalToPreFallbackDigest
+
+              - id: CanvasNet-Rendering-TextRenderer-IgnorableCharacters
+                title: >-
+                  The TextRenderer class shall skip an invisible zero-width character (a variation
+                  selector, a zero-width joiner, a bidirectional mark, or another character for which
+                  GlyphFallback.IsIgnorable is true) when measuring, drawing, converting to a path, and
+                  truncating text, so that it takes no glyph, no advance, and does not break the
+                  kerning pair of the characters on either side of it.
+                justification: |
+                  Such a character has no visible form; drawing the missing-glyph box for it, or
+                  letting it separate a kerning pair, would change the look and width of text that
+                  merely carries an emoji presentation selector or a joiner.
+                tests:
+                  - TextRenderer_MeasureText_VariationSelectorBetweenLetters_EqualsPlainText
+                  - TextRenderer_MeasureText_RealKerningPairAcrossIgnorable_EqualsPlainText
+                  - TextRenderer_MeasureText_OnlyIgnorableCharacters_IsZero
+                  - TextRenderer_DrawText_VariationSelectorAndZwj_DrawNothing
+                  - TextRenderer_TruncateToWidth_IgnorableCharacters_TakeNoWidth

@@ -192,6 +192,23 @@ before the fallback existed, proves that text the font covers is bit-identical. 
 test now compares only texts the oracle (which has no fallback) can reproduce: texts the font covers or
 no bundled font covers (private-use characters).
 
+#### CanvasNet-Rendering-TextRenderer-IgnorableCharacters: Invisible Characters Take No Glyph, Advance, Or Kerning
+
+**Tests**: `TextRenderer_MeasureText_VariationSelectorBetweenLetters_EqualsPlainText`,
+`TextRenderer_MeasureText_RealKerningPairAcrossIgnorable_EqualsPlainText`,
+`TextRenderer_MeasureText_OnlyIgnorableCharacters_IsZero`,
+`TextRenderer_DrawText_VariationSelectorAndZwj_DrawNothing`,
+`TextRenderer_TruncateToWidth_IgnorableCharacters_TakeNoWidth`
+
+Verifies that `"A\uFE0FA"`, `"A\u200DA"`, `"A\u200EA"`, and a selector plus joiner measure exactly like `"AA"`
+in the synthetic font (whose `(A, A)` kerning pair and zero-advance missing glyph would give a different
+width if the invisible character were drawn or separated the pair); that `"A\uFE0FV"` and `"A\u200DV"` measure
+bit-identically to `"AV"` with the real Liberation Sans kerning pair; that text of only ignorable characters has
+zero width; that drawing `"A\uFE0FA"` and the emoji-range sequence `"\u2764\u200D\u2764"` is pixel-identical to
+the text without the invisible characters and that their text paths have the same number of subpaths (no
+missing-glyph box); and that truncation fits text with ignorable characters exactly as measurement does. The
+Liberation-only digest test of the glyph-fallback scenario above passes unchanged.
+
 ### Traceability
 
 Every requirement in `docs/reqstream/canvas-net/rendering/text-renderer.yaml` links to one or

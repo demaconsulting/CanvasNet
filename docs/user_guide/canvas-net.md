@@ -1691,6 +1691,7 @@ public static class GlyphFallback
 {
     public static IReadOnlyList<TrueTypeFont> BundledFonts { get; }
     public static bool NeedsGlyph(int codePoint);
+    public static bool IsIgnorable(int codePoint);
     public static (TrueTypeFont Font, int GlyphIndex) Resolve(TrueTypeFont primary, int codePoint);
     public static IReadOnlyList<int> FindMissing(TrueTypeFont primary, string text);
 }
@@ -1704,11 +1705,19 @@ public static class GlyphFallback
 - `NeedsGlyph` is `false` for characters that have no visible glyph - controls, white space, format
   characters such as the zero-width joiner, variation selectors, surrogates, non-characters, and values
   outside the Unicode range - which are never replaced and never reported.
+- `IsIgnorable` is `true` for the invisible, zero-width characters a text layout must skip: format characters
+  (zero-width joiner and non-joiner, bidirectional marks, the soft hyphen, U+FEFF), variation selectors,
+  non-printing control characters, surrogates, non-characters, and values outside the Unicode range. White space is
+  not ignorable (a layout handles it itself). `TextRenderer`, OpenSCAD `text()`, and the Pptx and Vsdx text
+  layouts skip such a character: it draws nothing (not even the missing-glyph box), takes no space, and does not
+  break kerning between its neighbors, so `"A\uFE0FA"` measures exactly like `"AA"`. A soft hyphen is therefore
+  invisible. `NeedsGlyph` is defined as "not ignorable and not white space".
 - `FindMissing` returns the distinct code points of a text, in ascending order, that neither `primary`
   nor the bundled fonts cover (empty when there are none), so a caller can warn about them. A lone
   surrogate is judged as U+FFFD, as it is when drawn.
 - `BundledFonts` is the chain itself, in lookup order: Noto Sans, Noto Sans Math, Noto Sans Symbols 2.
-  Reading it loads the fonts.
+  Reading it loads the fonts. The list is read-only: it cannot be cast back to an array or modified, and it is
+  the same instance on every access.
 
 The fallback is deterministic and does not depend on the machine: only the bundled fonts are used, never an
 installed font. It is the regular style (a bold or italic request is not synthesized for a fallback

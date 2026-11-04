@@ -69,6 +69,37 @@ public class VsdxGlyphFallbackTests
         Assert.Equal(1.5, layout.Glyphs[2].OriginXInches, 6);
     }
 
+    /// <summary>
+    ///     Proves that a variation selector or zero-width joiner takes no glyph and no advance: a word with
+    ///     one between two letters has the same two glyphs at the same positions as the plain word.
+    /// </summary>
+    [Fact]
+    public void GlyphFallback_IgnorableCharacter_HasNoGlyphAndNoAdvance()
+    {
+        var primary = NewFont((65, 500));
+        var plain = Layout("AA", primary, null);
+
+        var withSelector = Layout("A\uFE0FA\u200D", primary, null);
+
+        Assert.Equal(2, withSelector.Glyphs.Count);
+        Assert.All(withSelector.Glyphs, g => Assert.NotEqual(0, g.GlyphIndex));
+        Assert.Equal(plain.Glyphs[1].OriginXInches, withSelector.Glyphs[1].OriginXInches);
+        Assert.Equal(0.5, withSelector.Glyphs[1].OriginXInches - withSelector.Glyphs[0].OriginXInches, 6);
+    }
+
+    /// <summary>An ignorable character is not reported as a missing glyph and never consults the fallback.</summary>
+    [Fact]
+    public void GlyphFallback_IgnorableCharacter_IsNotReportedMissingAndDoesNotConsultFallback()
+    {
+        var primary = NewFont((65, 500));
+        var calls = 0;
+
+        var layout = Layout("A\uFE0F\u200DA", primary, (_, _, _) => { calls++; return null; });
+
+        Assert.Equal(2, layout.Glyphs.Count);
+        Assert.Equal(0, calls);
+    }
+
     /// <summary>A glyph the primary font has never consults the fallback.</summary>
     [Fact]
     public void GlyphFallback_CoveredCodePoint_DoesNotConsultFallback()

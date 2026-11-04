@@ -1130,6 +1130,49 @@ public class PptxTextLayoutTests
     }
 
     /// <summary>
+    ///     Proves that an invisible variation selector between two letters draws no glyph and has no advance:
+    ///     the layout has the same two glyphs at the same positions as the plain text, and the word measures
+    ///     the same (so wrapping is unchanged).
+    /// </summary>
+    [Fact]
+    public void ResolveTextLayout_VariationSelectorBetweenLetters_SameGlyphsAndPositionsAsPlainText()
+    {
+        // Arrange
+        var plain = Layout(BuildSingleRunTextBody("AA"), 500000f, 500000f);
+
+        // Act
+        var withSelector = Layout(BuildSingleRunTextBody("A\uFE0FA\u200D"), 500000f, 500000f);
+
+        // Assert: two glyphs (no .notdef for the selector or the joiner), same x origins
+        Assert.Equal(2, withSelector.Glyphs.Count);
+        Assert.All(withSelector.Glyphs, g => Assert.NotEqual(0, g.GlyphIndex));
+        Assert.Equal(plain.Glyphs[0].OriginXEmu, withSelector.Glyphs[0].OriginXEmu);
+        Assert.Equal(plain.Glyphs[1].OriginXEmu, withSelector.Glyphs[1].OriginXEmu);
+        Assert.Equal(plain.Glyphs[1].OriginYEmu, withSelector.Glyphs[1].OriginYEmu);
+    }
+
+    /// <summary>
+    ///     Proves that an ignorable character is not treated as a missing glyph that needs fallback: the
+    ///     fallback resolver is never asked for it.
+    /// </summary>
+    [Fact]
+    public void ResolveTextLayout_ZeroWidthJoinerBetweenLetters_DoesNotConsultFallbackAndAddsNoGlyph()
+    {
+        // Arrange
+        var primaryFont = NewFont();
+        var fallbackFont = NewFallbackFontCoveringPlusMinusAndDegree();
+
+        // Act
+        var layout = LayoutWithFallback(BuildSingleRunTextBody("A\u200DA"), primaryFont, fallbackFont);
+        var plain = LayoutWithFallback(BuildSingleRunTextBody("AA"), primaryFont, fallbackFont);
+
+        // Assert: two glyphs from the primary font at the plain text's positions
+        Assert.Equal(2, layout.Glyphs.Count);
+        Assert.All(layout.Glyphs, g => Assert.Same(primaryFont, g.Font));
+        Assert.Equal(plain.Glyphs[1].OriginXEmu, layout.Glyphs[1].OriginXEmu);
+    }
+
+    /// <summary>
     ///     Proves that a character that neither the run's primary font nor the bundled Liberation fallback font
     ///     covers (the proportional-to sign) resolves to a real glyph from the bundled Noto chain of
     ///     <see cref="GlyphFallback"/>, while a character nothing covers keeps the primary font's own
