@@ -135,7 +135,18 @@ sentinel unsupported channel), where `arc` and `theta` were before. The identifi
   `angle` by `point`, `circle`, `square`, and `text`, `strokeDash` by every mark but `rect`, `area`, `trail`, `text`, and
   `arc`, and `size` by every mark but `rect`, `area`, `arc`, and `image` (so `size` on an `area` or an `arc` is newly
   reported; the `rect` size stays unreported as before). `vl-channel-x2` and `vl-channel-y2` are narrowed too: a bar,
-  rect, rule, and (new) area that has the channel they extend accepts them.
+  rect, rule, and (new) area that has the channel they extend accepts them. A `shape` of a `line`, `area`, `trail`, or
+  `rule` that has a point overlay (`SpecNormalizer.HasPointOverlay`: an `encoding.shape` switches the overlay on unless
+  `point` is `false` or null) is **not** reported, because the overlay points draw it and Vega-Lite drops it from the path
+  layer before it checks the channels; an `angle`, a `strokeDash` or a `size` that the path mark does not draw but its
+  overlay points do is still reported (the path layer warns about it in Vega-Lite) with the message that only the point
+  overlay draws it. The catalog reads `config.<mark>.point` and `config.area.line` from the effective configuration:
+  `FeatureCatalog.Visit(tree, config)` takes it (the renderer passes the configuration with the caller's, see
+  `VegaLiteDocument.ReportsFor`), and `Visit(tree)` reads the configuration of the specification alone. The channels of
+  the overlays are `SpecNormalizer.OverlayDrawsChannel` (a point draws shape, angle, size and dash; the line overlay of
+  an area draws size and dash); the message names the overlay that draws it ("only its point overlay", "its line overlay",
+  "its point and line overlays"). A `shape` is reported only when there is no point overlay, whatever the configuration
+  (the shape itself switches the overlay on).
 - `vl-encoding-impute` is narrowed to a channel other than `x` and `y`: the impute of a position channel is run by the
   pipeline, and the impute of any other channel is ignored and reported.
 - `vl-encoding-bandposition` no longer reports the `bandPosition` of the **stacked** `theta` or `radius` of a text mark

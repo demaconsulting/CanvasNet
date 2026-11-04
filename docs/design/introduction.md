@@ -1225,7 +1225,8 @@ src/DemaConsulting.CanvasNet.VegaLite/
 │   ├── SpecNormalizer.Repeat.cs   — SpecNormalizer: repeat expansion and repeat references
 │   ├── SpecNormalizer.Composite.cs — SpecNormalizer: Expand and the composite-mark expansion into layers
 │   ├── SpecNormalizer.BoxPlot.cs  — SpecNormalizer: the boxplot expansion
-│   └── SpecNormalizer.ErrorBar.cs — SpecNormalizer: the errorbar and errorband expansion
+│   ├── SpecNormalizer.ErrorBar.cs — SpecNormalizer: the errorbar and errorband expansion
+│   └── SpecNormalizer.PathOverlay.cs — SpecNormalizer: the point overlay decision of the path marks
 ├── Data/                          — Data subsystem (internal)
 │   ├── NamespaceDoc.cs            — Data: namespace-level XML documentation
 │   ├── DataTable.cs               — DataTable: DataValue, JsNumber, FieldPath, and DataTable

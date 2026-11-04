@@ -1644,7 +1644,7 @@ public class FeatureCatalogTests
 
     /// <summary>
     ///     Validates which channels the path marks accept and which they report: <c>x2</c> and <c>y2</c> for an area with the channel they extend, <c>size</c> not for an area,
-    ///     <c>strokeDash</c> not for an area and a trail, <c>shape</c> and <c>angle</c> never, and <c>order</c> and <c>detail</c> always.
+    ///     <c>strokeDash</c> not for an area and a trail, <c>shape</c> not for a path mark whose point overlay is off, <c>angle</c> never, and <c>order</c> and <c>detail</c> always.
     /// </summary>
     [Fact]
     public void FeatureCatalog_Report_ChannelGatingFollowsTheSupportTable()
@@ -1662,7 +1662,7 @@ public class FeatureCatalogTests
             ("line", ", \"strokeDash\": { \"field\": \"c\", \"type\": \"nominal\" }", []),
             ("area", ", \"strokeDash\": { \"field\": \"c\", \"type\": \"nominal\" }", ["vl-channel-strokedash"]),
             ("trail", ", \"strokeDash\": { \"field\": \"c\", \"type\": \"nominal\" }", ["vl-channel-strokedash"]),
-            ("line", ", \"shape\": { \"field\": \"c\", \"type\": \"nominal\" }", ["vl-channel-shape"]),
+            ("line", ", \"shape\": { \"field\": \"c\", \"type\": \"nominal\" }", []),
             ("area", ", \"angle\": { \"field\": \"c\", \"type\": \"quantitative\" }", ["vl-channel-angle"]),
             ("line", ", \"detail\": [ { \"field\": \"c\" } ], \"order\": { \"field\": \"d\" }", []),
             ("area", ", \"detail\": { \"field\": \"c\" }, \"order\": [ { \"field\": \"d\" } ]", []),

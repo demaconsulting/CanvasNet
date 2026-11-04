@@ -399,3 +399,19 @@ Asserts, as a theory over the channel combinations, that a range or error channe
 observations) the continuous channel, and that a mark that cannot be decided reports the problem without throwing from
 `TryOrientation`; that an explicit `orient` decides observations whose channels are both continuous but not a range or
 errors; and that a range channel that is not a field is a specification error located at the mark.
+
+##### The Point Overlay Decision Of The Path Marks
+
+**Tests**: `MarkBuilderOverlayTests.MarkBuilder_Build_ShapeChannelEnablesThePointOverlayUnlessSwitchedOff`,
+`MarkChannelGatingTests.ScaleResolver_Resolve_PointOverlayBuildsTheScalesOfThePointChannels`,
+`MarkChannelGatingTests.FeatureCatalog_Visit_ShapeOfAPathMarkWithAPointOverlayIsNotReported`
+
+`SpecNormalizer.HasPointOverlay` and `HasLineOverlay` have no test of their own; their callers pin them (the line overlay
+by `MarkChannelGatingTests.ScaleResolver_Resolve_PointOverlayBuildsTheScalesOfThePointChannels` and
+`MarkBuilderOverlayTests.MarkBuilder_Build_LineOverlayOfAnAreaDrawsTheSizeAndTheDashOfTheEncoding`). Asserts that a line,
+a trail, and an
+area with a `shape` and no `point` have the overlay points, that `point: false` and null leave none, that
+`"transparent"`, an
+object, and `true` have them, that a falsy `config.<mark>.point` leaves the decision to the shape while a truthy one
+enables the overlay, that a mark that is not a line, area, trail, or rule (a bar, an arc) has no overlay, and that the
+scales and the reports follow the decision.

@@ -157,6 +157,30 @@ public sealed partial class VegaLiteDocument
     internal IReadOnlyList<FeatureReport> Reports { get; }
 
     /// <summary>
+    ///     Gets the findings about the text for a rendering with the given options.
+    /// </summary>
+    /// <remarks>
+    ///     Without a caller's <see cref="VegaLiteRenderOptions.Config"/> these are <see cref="Reports"/>. With one, the catalog is visited again with the effective configuration, so that the
+    ///     findings that depend on the configuration (whether a path mark has a point overlay, which says whether its <c>shape</c> is drawn) are those of what the renderer draws.
+    /// </remarks>
+    /// <param name="options">The effective options.</param>
+    /// <returns>The reports in document order.</returns>
+    internal IReadOnlyList<FeatureReport> ReportsFor(VegaLiteRenderOptions options)
+    {
+        if (options.Config is null)
+        {
+            return Reports;
+        }
+
+        return _tree.Warnings
+            .Concat(FeatureCatalog.Visit(_tree, ConfigResolver.Resolve(_tree, options.Config)))
+            .OrderBy(r => r.Location.Line)
+            .ThenBy(r => r.Location.Column)
+            .ToList()
+            .AsReadOnly();
+    }
+
+    /// <summary>
     ///     Parses Vega-Lite specification text.
     /// </summary>
     /// <remarks>

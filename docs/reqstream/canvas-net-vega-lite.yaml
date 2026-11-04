@@ -1343,14 +1343,21 @@ sections:
         title: >-
           The library shall draw the point overlay of a line, area, trail, or rule (a symbol at every row)
           and the line overlay of an area (a line along its top edge), from the mark definition or the
-          configuration, with the base encoding and the documented default opacity.
+          configuration, with the base encoding and the documented default opacity; and shall give the overlay
+          points the shape channel of the mark (which switches the overlay on unless the point property is
+          false or null) without a report, and the legend of that shape with filled symbols; shall give the line
+          overlay of an area the dash and the width of its encoding; and shall report what it draws, also when
+          the caller's configuration decides the overlays.
         tags: [system]
         justification: |
-          A line with points and an area with a line are common forms of the path marks.
+          A line with points and an area with a line are common forms of the path marks, and Vega-Lite draws
+          the points of a line by group with the shape channel.
         children:
           - CanvasNetVegaLite-Marks-MarkBuilder-Overlays
         tests:
           - CanvasNetVegaLite_SystemIntegration_Overlays_LinePointsAndAreaLineAreDrawn
+          - CanvasNetVegaLite_SystemIntegration_Overlays_ShapeChannelShapesTheOverlayPointsInStrictMode
+          - CanvasNetVegaLite_SystemIntegration_Overlays_CallerConfigurationAndLineOverlayAgreeWithTheReports
 
       - id: CanvasNetVegaLite-InvalidData
         title: >-

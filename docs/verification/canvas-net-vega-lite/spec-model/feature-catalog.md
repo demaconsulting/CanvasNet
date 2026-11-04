@@ -111,7 +111,9 @@ and that the location of a mark report is the value of the `mark` property, with
 `FeatureCatalogTests.FeatureCatalog_Visit_ChannelsReportExceptSupportedAndIgnored`,
 `FeatureCatalogTests.FeatureCatalog_Visit_ShapeAngleAndDashChannelsAreReportedForMarksThatDoNotDrawThem`,
 `FeatureCatalogTests.FeatureCatalog_Visit_UnknownChannelIsNotReported`,
-`MarkChannelGatingTests.FeatureCatalog_Visit_ReportsChannelsThatTheMarkDoesNotDraw`
+`MarkChannelGatingTests.FeatureCatalog_Visit_ReportsChannelsThatTheMarkDoesNotDraw`,
+`MarkChannelGatingTests.FeatureCatalog_Visit_ShapeOfAPathMarkWithAPointOverlayIsNotReported`,
+`MarkChannelGatingTests.FeatureCatalog_Visit_ReportsFollowTheEffectiveConfiguration`
 
 Asserts, as a theory over seventeen mark types, that `bar`, `rect`, `point`, `circle`, `square`, `rule`, `tick`, `arc`,
 `area`, `line`, `text`, `trail`, `boxplot`, `errorbar`, and `errorband` are silent (written as a string and as a definition,
@@ -131,10 +133,19 @@ a `rect`; that an unknown channel name is not reported
 again by the catalog (the parser warns about it once); and that the channels that a mark does not draw are reported at
 the channel and ignored, by the table of the marks that draw each channel: a `size` on an `area` (a field) or on an
 `arc` (a value) reports `vl-channel-size`, a `strokeDash` on a `trail`, on a `text`, and on an `area` reports
-`vl-channel-strokedash`, a `shape` or an `angle` on a `line` reports `vl-channel-shape` and `vl-channel-angle`, while
+`vl-channel-strokedash`, a `shape` on a `line` with `point: false` (the overlay off) reports `vl-channel-shape` and an
+`angle` on a `line` reports `vl-channel-angle` (with a message that says that only a point overlay would draw it, when
+the line has one), while a `shape` on a `line`, `trail`, `rule`, or `area` that has a point overlay (`point` true, an
+object, or `"transparent"`, an `area` with a `line` overlay, the `config.line.point` of the specification, or no `point`
+at all, which the shape switches on) is silent, and a `shape` on a `bar` or an `arc` is reported
+(`FeatureCatalog_Visit_ShapeOfAPathMarkWithAPointOverlayIsNotReported`);
 the drawn channels are silent (a `size` and a `strokeDash` on a `line`, a `size` and an `angle` on a `text`, a `size` on
 a `trail`, a `size` and a `strokeDash` on a `bar`, and a `size` on a `rect`, which is the long-standing exception that
-the catalog does not report).
+the catalog does not report). The overlay of an area is counted too: a size or a dash on an area with a `line` overlay names
+the line overlay, with both overlays "point and line overlays", and a trail or an area without overlay says that the
+channel is ignored. With the effective configuration (`FeatureCatalog.Visit(tree, config)`, with the caller's
+`config.line.point` or `config.area.line`) the messages follow what is drawn, the specification alone reports the
+channels as ignored, and a shape is silent either way (`FeatureCatalog_Visit_ReportsFollowTheEffectiveConfiguration`).
 
 ##### Data
 

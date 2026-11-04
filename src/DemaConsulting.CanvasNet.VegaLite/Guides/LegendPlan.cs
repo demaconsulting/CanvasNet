@@ -208,20 +208,31 @@ internal sealed class LegendMarkFacts
             _ => string.Empty,
         };
         var def = markNode is { IsObject: true } ? markNode : null;
-        var styleNames = new List<string> { type };
-        if (def?["style"] is { } style)
+        var encoding = view["encoding"] is { IsObject: true } e ? e : null;
+
+        // The symbols of a path mark with a point overlay are those of the overlay points: Vega-Lite normalizes the mark into the path and a filled point layer, and the legend merge
+        // prefers the circle of the points to the stroke of the path (mergeSymbolType), so the legend shows filled symbols (the overlay definition replaces the mark definition)
+        var overlay = SpecNormalizer.PointOverlayDefinition(type, def, encoding, config.VegaLite[type]?["point"]);
+        var definition = overlay ?? (def is null ? null : ConfigNode.FromSpec(def));
+        if (overlay is not null)
         {
-            if (style.IsString)
+            type = "point";
+        }
+
+        var styleNames = new List<string> { type };
+        if (definition?["style"] is { } style)
+        {
+            if (style.Kind == ConfigNodeKind.String)
             {
                 styleNames.Add(style.StringValue!);
             }
-            else if (style.IsArray)
+            else if (style.Kind == ConfigNodeKind.Array)
             {
-                styleNames.AddRange(style.Items.Where(i => i.IsString).Select(i => i.StringValue!));
+                styleNames.AddRange(style.Items.Where(i => i.Kind == ConfigNodeKind.String).Select(i => i.StringValue!));
             }
         }
 
-        ConfigNode? Def(string name) => def?[name] is { } node ? ConfigNode.FromSpec(node) : null;
+        ConfigNode? Def(string name) => definition?[name];
         ConfigNode? Vl(string name)
         {
             var vl = config.VegaLite;
@@ -276,8 +287,6 @@ internal sealed class LegendMarkFacts
         {
             opacity = Vl("opacity")?.AsNumber();
         }
-
-        var encoding = view["encoding"] is { IsObject: true } e ? e : null;
 
         // A color channel that no field drives gives the symbols its first conditional value, else its value (Vega-Lite's getFirstConditionValue)
         if (ChannelDefinitions.FirstValue(encoding?["fill"] ?? (filled ? encoding?["color"] : null))?.AsString() is { } channelFill)

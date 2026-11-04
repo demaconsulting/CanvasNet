@@ -264,11 +264,15 @@ sections:
                   explicitly not merged but given a legend each, the
                   channels of different layers whose domains agree merging into one legend, the symbols of a
                   member drawn as the mark of the layer that the member comes from, and a disabled legend of
-                  the layer honored; and shall give a view with one layer the same plan as the plan of that view.
+                  the layer honored; shall give a view with one layer the same plan as the plan of that view; and
+                  shall plan the shape of a path mark that has a point overlay as the points draw it, in one legend
+                  with the color of the same field (with filled symbols, those of the overlay points) and in a
+                  legend of its own for another field.
                 justification: |
                   A color that two layers share must give one legend, not two, and a legend that a layer keeps
                   apart must stay apart; a single view must not change.
                 tests:
+                  - LegendPlan_Create_ShapeOfALineWithAPointOverlayHasALegendMergedWithTheColorOfTheSameField
                   - LegendPlan_Create_SameFieldInTwoLayersIsOneLegend
                   - LegendPlan_Create_TitlesOfDifferentFieldsJoin
                   - LegendPlan_Create_WrittenTitleOfAnyLayerWinsOverDerivedTitles

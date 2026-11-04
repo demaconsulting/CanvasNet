@@ -37,7 +37,11 @@ unit's behavior is specified by the `CanvasNetVegaLite-Guides-LegendBuilder-*` r
 - `LegendMarkFacts` - what the symbols stand for: whether the mark is filled (a **trail is never filled for its legend**,
   see the paragraph on the path, area, arc, and text marks below), its fixed fill and stroke (the same rules
   the marks use), the opacity (0.7 for point-like marks, or the constant opacity channel), the fixed shape, the stroke
-  width, dash, fill and stroke opacity, and whether a field drives the fill or the stroke.
+  width, dash, fill and stroke opacity, and whether a field drives the fill or the stroke. For a path mark with a **point
+  overlay** (`SpecNormalizer.PointOverlayDefinition`) the facts are those of the overlay mark, a filled `point` with an
+  opacity of 1 (whatever the overlay object replaces): Vega-Lite normalizes the mark into the path and a filled point
+  layer, and the merge of the legends prefers the circle of the points to the stroke of the path (`mergeSymbolType`), so
+  the legend of a line with points shows filled symbols (the color is their fill), not the hollow symbols of the line.
 - `LegendSettings` - property lookup: the `legend` objects of the members (the first member that has a property wins,
   which is Vega-Lite's explicit-over-implicit and first-channel rule), then `config.legend` with the Vega-Lite and Vega
   defaults, then the `guide-label` and `guide-title` styles.

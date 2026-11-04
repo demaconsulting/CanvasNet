@@ -206,6 +206,7 @@ sections:
               - CanvasNetVegaLite-SpecModel-SpecNormalizer-ErrorBar
               - CanvasNetVegaLite-SpecModel-SpecNormalizer-ErrorBand
               - CanvasNetVegaLite-SpecModel-SpecNormalizer-CompositeErrors
+              - CanvasNetVegaLite-SpecModel-SpecNormalizer-PathOverlay
             tests:
               - SpecNormalizer_Layers_LayersAreUnitsInDocumentOrder
               - SpecNormalizer_Layers_EncodingIsMergedInPlace

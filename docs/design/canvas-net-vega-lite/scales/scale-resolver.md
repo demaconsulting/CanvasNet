@@ -177,7 +177,12 @@ transform) for a
   <!-- markdownlint-enable MD013 -->
 
   A channel that a mark does not draw has no scale: `ResolveChannel` returns none for it, and the feature catalog
-  reports it (see _FeatureCatalog_).
+  reports it (see _FeatureCatalog_). The exception is a `line`, `area`, `trail`, or `rule` with an **overlay**
+  (`SpecNormalizer.HasPointOverlay` and `HasLineOverlay`, held in `Context.PointOverlay` and `Context.LineOverlay`): its
+  overlay marks draw the channels that they draw (`SpecNormalizer.OverlayDrawsChannel`), so `ResolveChannel` builds the
+  scale of a `shape`, an `angle`, a `strokeDash`, or a `size` for the points (`ChannelIsDrawn(channel, "point")`), and the
+  `strokeDash` and `size` of an `area` for its line overlay (`ChannelIsDrawn(channel, "line")`). The size range of an
+  `area` is that of the stroke widths when it has a line overlay (the line layer comes first), else that of a point.
 - **Domain.** The fields a channel reads come from the `EncodingPlan`. A linear domain is the extent of the valid values
   (numbers, booleans as 1 and 0, numeric strings; null and
   NaN are ignored; an empty extent is 0 to 1) of the **Main** table, over the channel's field and its second field: for
