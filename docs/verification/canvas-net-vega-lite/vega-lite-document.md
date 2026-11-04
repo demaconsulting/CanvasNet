@@ -200,6 +200,7 @@ that strict mode throws at the first unsupported feature while warnings never st
 `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_TextMissingGlyph_UncoveredCharactersWarnOnceAtTheMark`,
 `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_TextMissingGlyph_OneWarningPerLocationAndSet`,
 `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_TextMissingGlyph_InvisibleTextIsNotReported`,
+`VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_TextMissingGlyph_UsesThePlacementScale`,
 `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_TextMissingGlyph_SetsSharingTheFirstEightCodePointsAreBothReported`
 
 Asserts, for the chart of the report (`"a ∝ b ≫ c"` in a text mark), that no `vl-text-missing-glyph` warning is
@@ -210,7 +211,11 @@ layers with the same text and a nominal axis whose label has the character give 
 marks (`/layer/0/mark`, `/layer/1/mark`) and one at the unknown location for the axis label, the same for a `Measure`;
 and that a text mark with a missing character gives one warning with the default fill but none with the fill `none`, an
 invalid fill color, a fill opacity of 0, an opacity of 0, or a font size of 0, 1e-300, or 1e300 (text that is not drawn
-is not reported: the report uses the painter's own rule, `ScenePainter.IsDrawable`); and that a text mark driven by data
+is not reported: the report uses the painter's own rule, `ScenePainter.IsDrawable`); and that the rule is applied at
+the real placement scale, not at the scale 1: a font size of 20000 is reported at the scale 1 but not at the scale 2
+(render or measure) nor when fitted to 2100 by 700 pixels, and a font size of 40000 (which the mark builder never puts in
+the scene) is not reported at the scale 1, at the scale 0.5 (measure), or when fitted to 20 by 6 pixels; and that a text
+mark driven by data
 whose two rows lack nine code points that differ only in the ninth give two warnings at `/mark`, both listing the same
 first eight code points, while two identical rows give one.
 The `Help topics` trigger table of the tool tests also renders a chart with the character and expects the warning

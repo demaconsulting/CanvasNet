@@ -26,6 +26,14 @@ internal readonly record struct ScenePlacement(double Scale, double OffsetX, dou
     public static ScenePlacement Uniform(double scale) => new(scale, 0, 0);
 
     /// <summary>
+    ///     Gets the scale as the painter uses it: the single-precision factor of every transform and of the test whether text is drawn.
+    /// </summary>
+    /// <remarks>
+    ///     The painter and the missing-glyph report both read the scale here, so they cannot disagree about whether an item is drawn.
+    /// </remarks>
+    public float PaintScale => (float)Scale;
+
+    /// <summary>
     ///     Fits the scene into a target: scaled uniformly by the largest factor that fits, and centered.
     /// </summary>
     /// <param name="sceneWidth">The scene width.</param>
@@ -183,8 +191,8 @@ internal sealed partial class ScenePainter
         }
 
         surface.Clear(CssColor.TryParse(scene.Background, out var background) ? background : new Rgba32(0, 0, 0, 0));
-        var transform = Matrix3x2.CreateScale((float)placement.Scale) * Matrix3x2.CreateTranslation((float)placement.OffsetX, (float)placement.OffsetY);
-        PaintGroup(scene.Root, new Context(surface, transform, (float)placement.Scale), cancellationToken);
+        var transform = Matrix3x2.CreateScale(placement.PaintScale) * Matrix3x2.CreateTranslation((float)placement.OffsetX, (float)placement.OffsetY);
+        PaintGroup(scene.Root, new Context(surface, transform, placement.PaintScale), cancellationToken);
     }
 
     /// <summary>The names of the symbol shapes that <see cref="SymbolPath"/> draws; any other name is drawn as a circle.</summary>

@@ -198,8 +198,10 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   report sink as soon as they exist (a `finally` block around the parameters and transforms), so a later failure still
   delivers them, and the `BuildPlan` step records them after the reports of the specification, followed by the
   missing-glyph warnings of the scene (`ReportMissingGlyphs`: the scene is walked in drawing order; for every
-  `SceneText` that the painter draws (`ScenePainter.IsDrawable`, the painter's own rule at the scale 1, because the
-  placement scale is not known at plan time: a visible fill, a positive font size that is still a positive single, and
+  `SceneText` that the painter draws (`ScenePainter.IsDrawable`, the painter's own rule at the placement scale of the
+  call: `Scale` of the options for `Measure` and `Render`, the fit scale for the size overload, which `Run` receives as
+  the placement and passes through `BuildPlan` as `ScenePlacement.PaintScale`; it is a visible fill, a positive font
+  size that is still a positive single at that scale, and
   a bounded position, offset, angle, and line height), `TextMeasurer.FindMissingGlyphs` lists the code points that
   neither the face nor the core `GlyphFallback` covers, and one `vl-text-missing-glyph` warning goes to the sink at
   `SceneText.Source` (the text

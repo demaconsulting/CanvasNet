@@ -1067,6 +1067,56 @@ public class VegaLiteSystemIntegrationTests
     }
 
     /// <summary>
+    ///     Validates that the report decides whether text is drawn at the real placement scale, the one the painter uses
+    ///     (the scale of the options for a measure and a render, the fit scale for the size overload): a font size that is
+    ///     drawable at the scale 1 but not at the real scale is not reported, for a measure and a render alike. A font size
+    ///     that is not drawable at the scale 1 is never in the scene (the mark builder drops it), so it is not reported at
+    ///     a smaller scale either, and the reverse (drawable only at the real scale) cannot be built through the public API.
+    /// </summary>
+    /// <param name="fontSize">The font size of the text.</param>
+    /// <param name="mode">The call: <c>render</c> (options), <c>measure</c> (options) or <c>fit</c> (the size overload).</param>
+    /// <param name="scale">The scale of the options (ignored for <c>fit</c>).</param>
+    /// <param name="width">The target width of <c>fit</c> (ignored otherwise).</param>
+    /// <param name="height">The target height of <c>fit</c> (ignored otherwise).</param>
+    /// <param name="expected">The number of warnings.</param>
+    [Theory]
+    [InlineData(20000, "render", 1.0, 0, 0, 1)]
+    [InlineData(20000, "render", 2.0, 0, 0, 0)]
+    [InlineData(20000, "measure", 2.0, 0, 0, 0)]
+    [InlineData(20000, "fit", 1.0, 2100, 700, 0)]
+    [InlineData(40000, "render", 1.0, 0, 0, 0)]
+    [InlineData(40000, "measure", 0.5, 0, 0, 0)]
+    [InlineData(40000, "fit", 1.0, 20, 6, 0)]
+    public void CanvasNetVegaLite_SystemIntegration_TextMissingGlyph_UsesThePlacementScale(
+        int fontSize, string mode, double scale, int width, int height, int expected)
+    {
+        // Arrange: the scene is laid out at the scale 1, so only the placement scale differs between the cases
+        var document = VegaLiteDocument.Parse(
+            "{\"width\":200,\"height\":60,\"data\":{\"values\":[{\"x\":1,\"y\":1}]},\"mark\":{\"type\":\"text\",\"text\":\"\\uE000\",\"fontSize\":"
+            + fontSize.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            + "},\"encoding\":{\"x\":{\"field\":\"x\",\"type\":\"quantitative\"},\"y\":{\"field\":\"y\",\"type\":\"quantitative\"}}}");
+        var warnings = new List<VegaLiteDiagnostic>();
+        var options = new VegaLiteRenderOptions { Scale = scale, WarningHandler = warnings.Add };
+
+        // Act
+        switch (mode)
+        {
+            case "measure":
+                _ = document.Measure(options, Ct);
+                break;
+            case "fit":
+                document.Render(width, height, options, Ct).Dispose();
+                break;
+            default:
+                document.Render(options, Ct).Dispose();
+                break;
+        }
+
+        // Assert
+        Assert.Equal(expected, warnings.Count(w => w.Message.StartsWith("vl-text-missing-glyph:", StringComparison.Ordinal)));
+    }
+
+    /// <summary>
     ///     Validates that two sets of characters that share the first eight code points listed in the warning are both
     ///     reported at the same mark (the de-duplication uses the complete set), and that identical sets are reported once.
     /// </summary>

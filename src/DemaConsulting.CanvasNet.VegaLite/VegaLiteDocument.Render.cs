@@ -68,7 +68,8 @@ public sealed partial class VegaLiteDocument
         var size = ValidateScaledSize(plan.Size, effective);
         ValidateParameters(effective);
         cancellationToken.ThrowIfCancellationRequested();
-        return Run(effective, cancellationToken, plan, _ => size);
+        var placement = ScenePlacement.Uniform(effective.Scale);
+        return Run(effective, cancellationToken, plan, placement, _ => size);
     }
 
     /// <summary>
@@ -110,7 +111,8 @@ public sealed partial class VegaLiteDocument
         var size = ValidateScaledSize(plan.Size, effective);
         ValidateParameters(effective);
         cancellationToken.ThrowIfCancellationRequested();
-        return Run(effective, cancellationToken, plan, p => Paint(p, size.Width, size.Height, ScenePlacement.Uniform(effective.Scale), cancellationToken));
+        var placement = ScenePlacement.Uniform(effective.Scale);
+        return Run(effective, cancellationToken, plan, placement, p => Paint(p, size.Width, size.Height, placement, cancellationToken));
     }
 
     /// <summary>
@@ -160,7 +162,7 @@ public sealed partial class VegaLiteDocument
         cancellationToken.ThrowIfCancellationRequested();
         var plan = PrepareChartOrReport(effective, cancellationToken);
         var placement = ScenePlacement.Fit(plan.Size.Width, plan.Size.Height, width, height);
-        return Run(effective, cancellationToken, plan, p => Paint(p, width, height, placement, cancellationToken));
+        return Run(effective, cancellationToken, plan, placement, p => Paint(p, width, height, placement, cancellationToken));
     }
 
     /// <summary>
@@ -175,15 +177,16 @@ public sealed partial class VegaLiteDocument
     /// <param name="options">The effective options.</param>
     /// <param name="cancellationToken">The token that stops the work.</param>
     /// <param name="plan">The plan of the chart.</param>
+    /// <param name="placement">Where the scene goes on the surface; the missing-glyph report uses its scale, the same one the painter uses.</param>
     /// <param name="finish">Produces the result from the plan of the chart.</param>
     /// <returns>The result.</returns>
-    private T Run<T>(VegaLiteRenderOptions options, CancellationToken cancellationToken, ChartPlan plan, Func<ChartPlan, T> finish)
+    private T Run<T>(VegaLiteRenderOptions options, CancellationToken cancellationToken, ChartPlan plan, ScenePlacement placement, Func<ChartPlan, T> finish)
     {
         var sink = new VegaLiteReportSink(options.Limits.MaxDiagnostics, options.ThrowOnUnsupportedFeature);
         T result;
         try
         {
-            result = finish(BuildPlan(plan, options, sink, cancellationToken));
+            result = finish(BuildPlan(plan, options, placement, sink, cancellationToken));
         }
         catch
         {
@@ -538,10 +541,11 @@ public sealed partial class VegaLiteDocument
     /// </remarks>
     /// <param name="plan">The prepared plan.</param>
     /// <param name="options">The effective options (the caller's configuration decides the reports that depend on it).</param>
+    /// <param name="placement">Where the scene goes on the surface; its scale decides which text is drawn.</param>
     /// <param name="sink">The sink that records the reports.</param>
     /// <param name="cancellationToken">The token that stops the work.</param>
     /// <returns>The plan.</returns>
-    private ChartPlan BuildPlan(ChartPlan plan, VegaLiteRenderOptions options, VegaLiteReportSink sink, CancellationToken cancellationToken)
+    private ChartPlan BuildPlan(ChartPlan plan, VegaLiteRenderOptions options, ScenePlacement placement, VegaLiteReportSink sink, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         RecordReports(options, sink, cancellationToken);
@@ -552,7 +556,7 @@ public sealed partial class VegaLiteDocument
             sink.Warn($"{warning.Id}: {warning.Message}", warning.Location);
         }
 
-        ReportMissingGlyphs(plan, sink, cancellationToken);
+        ReportMissingGlyphs(plan, placement.PaintScale, sink, cancellationToken);
         return plan;
     }
 
@@ -566,22 +570,23 @@ public sealed partial class VegaLiteDocument
     ///     box and reported here as <c>vl-text-missing-glyph</c>. The scene is walked in drawing order, so the
     ///     warnings come in a deterministic order. Text that the painter does not draw (see
     ///     <see cref="ScenePainter.IsDrawable(SceneText, float, out Rgba32)"/>: a fill that is not visibly painted, or a
-    ///     font size, position or offset that is not drawable) is not reported; the check uses the scale 1 because the
-    ///     placement scale is not known when the plan is built, so a size that is only not drawable at an extreme
-    ///     placement scale is still reported. Text the chart builds itself (axis labels, legends, titles) has no
+    ///     font size, position or offset that is not drawable) is not reported; the check uses the placement scale of the
+    ///     call (<see cref="VegaLiteRenderOptions.Scale"/> for <c>Measure</c> and <c>Render</c>, the fit scale for the size overload),
+    ///     the scale the painter draws with, so <c>Measure</c> delivers the same warnings as <c>Render</c>. Text the chart builds itself (axis labels, legends, titles) has no
     ///     location in the specification and is reported at the unknown location, once per distinct set of
     ///     characters. The warning lists at most <see cref="MaxReportedMissingGlyphs"/> code points, but the
     ///     de-duplication uses the complete set, so two sets that share the listed prefix are both reported.
     /// </remarks>
     /// <param name="plan">The plan whose scene is checked.</param>
+    /// <param name="scale">The scale the painter draws with (<see cref="ScenePlacement.PaintScale"/>).</param>
     /// <param name="sink">The sink that records the warnings.</param>
     /// <param name="cancellationToken">The token that stops the work.</param>
-    private static void ReportMissingGlyphs(ChartPlan plan, VegaLiteReportSink sink, CancellationToken cancellationToken)
+    private static void ReportMissingGlyphs(ChartPlan plan, float scale, VegaLiteReportSink sink, CancellationToken cancellationToken)
     {
         foreach (var entry in plan.Scene.Enumerate())
         {
             if (entry.Item is not SceneText text
-                || !ScenePainter.IsDrawable(text, 1f, out _))
+                || !ScenePainter.IsDrawable(text, scale, out _))
             {
                 continue;
             }
