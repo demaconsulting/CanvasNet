@@ -37,7 +37,7 @@ namespace DemaConsulting.CanvasNet.Tool.Imaging;
 ///         and the page size of a vector source) happens before the first operation of the pipeline.
 ///     </para>
 /// </remarks>
-internal static class ImagePipeline
+internal static partial class ImagePipeline
 {
     /// <summary>
     ///     The name of the option that crops.

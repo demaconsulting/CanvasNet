@@ -755,3 +755,37 @@ sections:
               - ScadImageSource_Render_Include_ResolvesFromDirectoryOfRequest
               - ScadImageSource_Render_InvalidInput_Throws
               - ScadImageSource_Properties_NameExtensionAndNoSchemes
+              - ScadImageSource_Render_ModelWithAnchors_DrawsTheSamePictureAndEchoesTheDeclaration
+
+          - id: CanvasNetScad-ScadDocument-Anchors
+            title: >-
+              ScadDocument.Render shall give the AnchorHandler of the render options, once per anchor in echo
+              order (duplicate names included) on the calling thread after the resolved-view handler and before
+              drawing, the name, the world point, the continuous pixel position in the rendered image (origin at
+              the top-left corner, projected with exactly the camera the image is drawn with: an explicit camera,
+              the fitted camera with its margin, the flat default view, or the view of the model's own viewport
+              variables; orthographic or perspective), whether that pixel is inside the image, and the location
+              of the declaring echo, with no pixel for a point that has no projection; shall never call the
+              handler from BuildScene or for a model without anchors; shall not change the pixels drawn; and shall
+              let an exception of the handler propagate with the echo and warning output still delivered once.
+            justification: |
+              Callouts and leader lines are drawn on the picture by a later step; it needs the pixel the
+              rasterizer would give the point, which only the render knows after it chose the camera and the size.
+            tests:
+              - ScadDocumentAnchor_TopOrthographicBox_CornersMatchTheRenderedImage
+              - ScadDocumentAnchor_ExplicitOrthographicCamera_GivesTheAnalyticPixel
+              - ScadDocumentAnchor_PerspectiveFront_CornersMatchTheRenderedImage
+              - ScadDocumentAnchor_AutoFitIsometric_CornersMatchTheExtentAndStayInside
+              - ScadDocumentAnchor_FlatModel_CornersMatchTheRenderedImage
+              - ScadDocumentAnchor_DocumentViewport_TargetIsAtTheImageCenter
+              - ScadDocumentAnchor_OutsideAndBehindTheEye_AreFlagged
+              - ScadDocumentAnchor_DuplicatesAndPlainEchoes_FollowTheEchoOrder
+              - ScadDocumentAnchor_Handler_RunsAfterTheResolvedViewHandler
+              - ScadDocumentAnchor_BuildScene_NeverCallsTheHandler
+              - ScadDocumentAnchor_Declarations_DoNotChangeThePixels
+              - ScadDocumentAnchor_Malformed_WarnsOnceAndTheRestAreDelivered
+              - ScadDocumentAnchor_HandlerException_Propagates
+              - ScadDocumentAnchor_NoDeclaration_NeverCallsTheHandler
+              - ScadAnchor_Constructor_KeepsTheValuesAndComparesByValue
+              - ScadAnchor_Pixel_CanBeAbsent
+              - ScadAnchor_RenderOptionsHandler_IsNullByDefault

@@ -107,6 +107,7 @@ be shared between threads and calls.
 | `ViewElevationDegrees` | about 35.26 | Elevation of the fitted view; finite. Used only without a `Camera`. Setting it, even to the default value, makes the view explicit |
 | `Projection` | `Perspective`; `Orthographic` for a flat model | Projection of the fitted view (`CameraProjection.Perspective` or `Orthographic`). Used only without a `Camera`. Setting it changes only the projection: it does not make the view angles explicit |
 | `ResolvedViewHandler` | `null` | An `Action<ScadResolvedView>` that `Render` calls once, on the calling thread, after the model was built and before it draws, to report the view that was used (see *Choosing the View*). `BuildScene` never calls it; an exception thrown by the handler propagates to the caller |
+| `AnchorHandler` | `null` | An `Action<ScadAnchor>` that `Render` calls once per anchor the model declares with `echo("anchor", "name", [x, y, z])`, in echo order, on the calling thread, after `ResolvedViewHandler` and before it draws (see *Anchors*). `BuildScene` never calls it; an exception thrown by the handler propagates to the caller |
 | `SceneOptions` | `null` (Render3D defaults) | The `SceneRenderOptions` of the renderer: background color (white by default), default surface color (neutral gray), lights, supersampling, parallelism, and fragment budget. Its `UnsupportedFeatureHandler` and `ThrowOnUnsupportedFeature` are **ignored**; reporting always goes through `Evaluation` |
 | `FlatShapeThickness` | 0.1 | Thickness in model units of the slab that represents a 2D shape (`square`, `circle`, `polygon`) rendered without an extrusion; finite and greater than zero |
 | `HighlightColor` | `(255, 64, 128, 110)`, a translucent pink | The color of the translucent copy that the `#` modifier draws over a highlighted solid (see *Transparency, Ghosts, and Highlights*). Any alpha is accepted: 255 draws an opaque copy and 0 an invisible one |
@@ -480,6 +481,80 @@ and places the text exactly as its rotations say, which is not toward the camera
 
 The behavior of the viewport variables is aligned with the documented semantics of OpenSCAD; no parity or
 compatibility with any other implementation is claimed.
+
+#### Anchors (Callout Points)
+
+A model can name points of interest with the statement `echo("anchor", "name", [x, y, z]);`, so that a caller can put
+a callout or a leader line on the picture. The statement is an ordinary `echo` for every other OpenSCAD tool (the
+line is still printed), and `Render` reports each declaration to `ScadRenderOptions.AnchorHandler` as a `ScadAnchor`:
+
+<!-- markdownlint-disable MD013 -->
+| Member | Meaning |
+| ------ | ------- |
+| `Name` | The non-empty name, the second argument |
+| `Point` | The **world point**: the `[x, y, z]` after every enclosing `translate`, `rotate`, `scale`, `mirror`, and `multmatrix` is applied (innermost first) |
+| `Pixel` | The continuous position in the rendered image, `Vector2D?`: origin at the top-left corner, pixel `i` spans `[i, i + 1)` (the center of the first pixel is `0.5`), x to the right, y down. `null` when the point cannot be projected (behind a perspective camera) |
+| `IsInsideImage` | `Pixel` is not `null` and lies within `0 <= x < width`, `0 <= y < height` |
+| `Location` | The line and column of the declaring `echo` |
+<!-- markdownlint-enable MD013 -->
+
+The pixel is computed with exactly the camera that drew the image (`Camera.TryProject` of the Render3D package, with the
+fit margin, the flat default view, an explicit `Camera`, or the model's own `$vpt`, `$vpr`, and `$vpd` all included), so
+it is where the rasterizer put the point, in orthographic and in perspective projection.
+
+```csharp
+var document = ScadDocument.Parse("""
+    difference() {
+        cube([30, 20, 5]);
+        translate([15, 10, -1]) cylinder(h = 7, r = 4, $fn = 48);
+    }
+    echo("anchor", "corner", [0, 0, 5]);
+    translate([15, 10, 5]) {
+        echo("anchor", "hole-center", [0, 0, 0]);
+        rotate([0, 0, 45]) echo("anchor", "hole-edge", [4, 0, 0]);
+    }
+    """);
+
+var anchors = new List<ScadAnchor>();
+var options = new ScadRenderOptions
+{
+    ViewAzimuthDegrees = 0,
+    ViewElevationDegrees = 90,                    // looking straight down
+    AnchorHandler = anchors.Add,
+};
+using var image = document.Render(600, 400, options);
+
+foreach (var anchor in anchors)
+{
+    // "corner" (0, 0, 5) is at the lower left of the plate; "hole-center" is in the middle of the hole
+    Console.WriteLine($"{anchor.Name}: world {anchor.Point}, pixel {anchor.Pixel}, inside {anchor.IsInsideImage}");
+}
+```
+
+The rules:
+
+- **Statement form only.** An `echo` used as an expression, or inside a function, is a plain echo and never an anchor.
+  The first argument must be the string `"anchor"`.
+- **A valid declaration** has exactly three unnamed arguments: the tag, a non-empty string name, and a vector of exactly
+  three finite numbers. Anything else with the tag `"anchor"` (a wrong number of arguments, a named argument, a name that
+  is not a non-empty string, a point that is not three finite numbers) is skipped with **one warning that starts with
+  `scad-anchor-invalid:`** (an ordinary `ScadDiagnostic`, delivered to the `WarningHandler`); the echo line is still
+  printed.
+- **Duplicates are kept**, in echo order; the library does not require names to be unique.
+- **Where an anchor may sit.** Inside groups, user modules, `for`, `if`, `union`, `difference`, `intersection`,
+  `render`, `color`, `hull`, `minkowski`, and the `#` and `%` modifiers the point passes through unchanged; the matrix
+  transforms above apply to it. A model with `!` reports only the anchors of the marked subtrees (without the
+  transforms of their ancestors), like the geometry. An anchor inside `resize`, `linear_extrude`, `rotate_extrude`,
+  `projection`, or a module that is left out as unsupported cannot be placed exactly and is skipped with a
+  `scad-anchor-invalid` warning that names the module. An anchor below a transform that is itself invalid (and so drops
+  its children) is dropped without a second warning.
+- **No occlusion.** The position says where the point projects, not whether it can be seen: an anchor hidden behind
+  other geometry still has a `Pixel` and `IsInsideImage` true (the renderer keeps no depth buffer once it has drawn).
+- An anchor never changes the picture or the geometry; `BuildScene` ignores anchors (there is no image to project
+  into) and never calls the handler.
+
+The `canvasnet render` tool lists the anchors of a model in the `anchors` array of its `--json` result and moves their
+pixels through the pixel steps of the command line (see the Tool user guide).
 
 ### Unsupported Features and Strict Mode
 

@@ -336,6 +336,27 @@ defined. A value that is valid is returned in `ScadEvaluationOutput.Viewport`; t
 state of the file scope, an override or an explicit render option that supplied the value is seen exactly as an
 assignment would be.
 
+##### Normative Semantics: Anchor Declarations
+
+`echo("anchor", "name", [x, y, z]);` declares a named point of the model. The evaluator only **recognizes** the
+declaration; it cannot place it, because evaluation has no transform context (a `translate` is an ordinary
+instance with evaluated arguments, and the matrices are applied later by the geometry phase). `DoEcho` evaluates
+the arguments once, records the echo line exactly as for any other echo, and then, **only for the statement form**
+(the call from `Execute`, which has an instance list; the expression forms and the tail-call path pass no list and
+can never declare an anchor), checks whether the first argument is the unnamed string `anchor`:
+
+- **Valid**: exactly three unnamed arguments, the second a non-empty string and the third a vector of exactly
+  three finite numbers. `EmitAnchor` adds an `Anchor` instance (`Name` is the anchor name, the single argument is the
+  vector, no children) to the instance list at the position of the statement, counted like every instance against
+  `MaxInstances`. The children of the echo statement (`echo(...) cube();`) are placed after it, in the same list.
+- **Malformed** (another argument count, a named argument, a name that is not a non-empty string, a point that is not
+  three finite numbers): one warning whose message starts with `scad-anchor-invalid:` (the stable identifier is the
+  internal constant `ScadEvaluator.AnchorInvalidCode`) and no instance. The echo line stays.
+- Any other echo (another tag, a tag that is computed to something else, a named first argument) is a plain echo.
+
+A statement that is not executed (the false branch of an `if`, a `*` statement) declares nothing, because the
+evaluator never runs it.
+
 ##### Accounting: Frames, Steps, Loops, Instances
 
 **Frames.** Entering a frame costs one count of `MaxRecursionDepth`; leaving it gives the count back. A frame

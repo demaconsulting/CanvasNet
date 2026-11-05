@@ -413,6 +413,10 @@ var named = ScadDocument.Parse("text(\"Hello\", font = \"Liberation Serif:style=
 using var serif = named.Render(640, 480, fonts);
 ```
 
+A model can name points of interest with `echo("anchor", "name", [x, y, z]);`; `ScadRenderOptions.AnchorHandler` (and
+the `anchors` array of `canvasnet render model.scad --json`) reports each with its pixel position in the picture, for
+callouts and leader lines.
+
 Render a Vega-Lite chart (the `DemaConsulting.CanvasNet.VegaLite` package implements a defined subset of the
 language for static pictures: it never touches the network, reads local data files only from a sandbox, uses only the
 bundled fonts unless told otherwise, and

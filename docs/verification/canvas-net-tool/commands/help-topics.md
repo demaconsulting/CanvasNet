@@ -102,7 +102,10 @@ and has no file name; a source example or snippet has a file name with the exten
 **HelpTopics_SourceExamples_RenderStrictWithoutDiagnostics**: a theory over every text example (the OpenSCAD models, the
 Vega-Lite charts, and the SVG drawings; not the snippet): the example is saved under its file name and rendered with
 `render <file> --strict --json -o <png>` (a model at 64x64 to stay fast); the exit code is 0, `ok` is true, there is no
-diagnostic, and the picture is written.
+diagnostic, and the picture is written. The `scad` topic's `anchors.scad` example (three valid anchors, one inside a
+`translate` and a `rotate`) is covered by this theory, so an anchor example that warned would fail it; the
+`scad-anchor-invalid` identifier the topic cites is a string literal of the Scad library, so the cited-identifier
+drift test finds it without a trigger entry.
 
 **HelpTopics_SvgTopic_ImageHrefFileTypes_MatchTheResolverExtensions**: the extensions found in the `href file types`
 item of the `image-links` section of the `svg` topic have no duplicate, are all in `CanvasNetViewer.Extensions`,

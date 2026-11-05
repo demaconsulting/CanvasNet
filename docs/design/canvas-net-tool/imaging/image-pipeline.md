@@ -15,7 +15,8 @@ first. The arithmetic of the pixel operations lives in the core `Surface` class 
 adjustments, rotation by any angle, and skew estimation) and in the unit `GridOverlay`;
 the pipeline parses their options, decides which surface they work on, maps a refusal to a `ToolException`, and
 reports what they did. The unit is the
-static class `ImagePipeline` (`ImagePipeline.cs`) and the operation types in `ImageOperations.cs`.
+static class `ImagePipeline` (`ImagePipeline.cs`, and `ImagePipeline.Anchors.cs` for the mapping of the anchors of a
+model through the applied steps) and the operation types in `ImageOperations.cs`.
 
 #### Data Model
 
@@ -160,6 +161,28 @@ not filled, because a new surface already is; pixels are stored with straight al
 **Flip** is `Surface.FlipHorizontal`, `FlipVertical`, or `Rotate180` (both axes); a rotation by 180 degrees is
 `Rotate180` too, while the quarter turns stay in the pipeline.
 
+**MapAnchors(anchors, width, height, applied)** (`ImagePipeline.Anchors.cs`, a partial of the class): follows the
+pixel positions of the anchors of a model through the operations that were applied, from what each
+`AppliedOperation` reported, so the report stays the single contract between the steps and the mapping. For each
+anchor with a position, step by step, the current width and height are those the step reported, and the position
+(continuous, pixel `i` spanning `[i, i + 1)`) changes as follows:
+
+<!-- markdownlint-disable MD013 -->
+| Step | New position |
+| ---- | ------------ |
+| `crop`, `trim` | `(x - x0, y - y0)` with the reported `x` and `y` of the box |
+| `resize`, `fit` | `(x * newWidth / width, y * newHeight / height)` |
+| `pad` | `(x + left, y + top)` |
+| `flip` | `horizontal`: `(width - x, y)`; `vertical`: `(x, height - y)`; `both`: `(width - x, height - y)` |
+| `rotate` | clockwise by the reported `degrees`: `u = x - width / 2`, `v = y - height / 2`, then `(u cos a - v sin a + newWidth / 2, u sin a + v cos a + newHeight / 2)`, the inverse of the sampling of `Surface.RotateArbitrary`; a right angle uses the exact sine and cosine, so 90 gives `(height - y, x)` with no rounding noise |
+| `grayscale`, `invert`, `threshold`, `levels`, `brightness`, `contrast`, `auto-levels`, `grid`, a `deskew` that did not correct | unchanged (the size does not change) |
+| a `deskew` that corrected (`applied: true`), and any other step whose reported size differs from the current size | the position is lost: `null` |
+<!-- markdownlint-enable MD013 -->
+
+A lost position stays lost, so a step the mapping does not know (a future geometry step) gives no position rather
+than a wrong one. `inside` is not computed here: it depends on the size of the written image, so
+`RenderCommand` computes it. The method does not modify the list it is given.
+
 #### Error Handling
 
 `ToolException` with `usage-error` (malformed or out-of-range value, crop outside the image or empty, a setting
@@ -182,6 +205,7 @@ argument throws `ArgumentNullException`; an unknown verb name, or a verb without
 #### Callers
 
 - **RenderCommand** - parses the operations while reading its settings (so a mistake is reported before anything is
-  decoded) and applies them between the load and the write of every page, passing the background the user gave.
+  decoded) and applies them between the load and the write of every page, passing the background the user gave; maps
+  the anchors of a model through the applied steps with `MapAnchors`.
 - **InspectCommand** - parses and applies the same pipeline before it analyzes the image.
 - **SourceLoader** - uses `FilterName` to report the filter of a raster resize.

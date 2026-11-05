@@ -1001,4 +1001,35 @@ public class SourceLoaderScadTests
         Assert.NotEqual(Pixels(defaults.Surface), Pixels(isoGiven.Surface));
         Assert.Equal("front", front.Operations[0].Fields[0].Value);
     }
+
+    /// <summary>
+    ///     Test that the anchors a model declares are collected with their world points and pixel positions in the
+    ///     loaded image (the center of the model at the center of a top view), that a malformed one is a warning
+    ///     instead, and that a model without anchors has none.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_ModelWithAnchors_CollectsThemWithPixelPositions()
+    {
+        // Arrange: the anchor at the middle of the top face, a duplicate, and a malformed declaration
+        using var directory = new TempDirectory();
+        var anchored = FixtureFactory.WriteText(
+            directory.Path,
+            "anchored.scad",
+            "cube([20, 20, 4], center = true);\necho(\"anchor\", \"middle\", [0, 0, 2]);\necho(\"anchor\", \"middle\", [1, 0, 2]);\necho(\"anchor\", \"bad\", [0, 0]);\n");
+        var plain = FixtureFactory.WriteText(directory.Path, "plain.scad", "cube(5);");
+
+        // Act
+        using var loaded = Load(anchored, new ScadViewOptions { View = "top" }, 100);
+        using var without = Load(plain, new ScadViewOptions { View = "top" }, 100);
+
+        // Assert
+        Assert.Equal(["middle", "middle"], loaded.Anchors.Select(a => a.Name));
+        var first = loaded.Anchors[0];
+        Assert.Equal((0.0, 0.0, 2.0), (first.X, first.Y, first.Z));
+        Assert.InRange(first.PixelX!.Value, 49.9, 50.1);
+        Assert.InRange(first.PixelY!.Value, 49.9, 50.1);
+        Assert.True(loaded.Anchors[1].PixelX > first.PixelX);
+        Assert.Single(loaded.Diagnostics, d => d.Code == "scad-warning" && d.Message.Contains("scad-anchor-invalid:", StringComparison.Ordinal));
+        Assert.Empty(without.Anchors);
+    }
 }

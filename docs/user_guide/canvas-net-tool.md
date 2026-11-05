@@ -508,6 +508,41 @@ canvasnet render sheet.scad --default-color black --background white -o sheet.pn
 canvasnet render sheet.scad --default-color black --background transparent -o sheet.png
 ```
 
+**Anchors: where are the named points in the picture?** A model can name points with
+`echo("anchor", "name", [x, y, z]);` (see the Scad user guide for the rules). With `--json`, the result of rendering a
+model has an `anchors` array (no other kind of input has one, and the text output is unchanged: the declarations are
+ordinary `ECHO:` lines on standard error):
+
+```json
+"anchors": [
+  { "name": "corner", "point": [0, 0, 5], "pixel": [96.5, 304], "inside": true },
+  { "name": "hole-center", "point": [15, 10, 5], "pixel": [300, 200.25], "inside": true }
+]
+```
+
+`point` is the world point (the enclosing transforms of the model applied). `pixel` is the position in the **written**
+image in pixels from its top-left corner, projected with the camera that drew the picture (perspective included),
+rounded to three decimals; it is continuous: pixel `i` spans `[i, i + 1)`, so the center of the first pixel is
+`[0.5, 0.5]` and the lower right corner of a 600 by 400 image is `[600, 400]`. `inside` is true when `pixel` lies in the
+written image. The anchors are in echo order and duplicate names are kept; a malformed declaration is not in the array
+but a `scad-warning` diagnostic whose message starts with `scad-anchor-invalid`.
+
+The pixel follows the pixel steps of the command line, so it stays on the same spot of the processed picture:
+`--crop`, `--trim`, `--resize`, `--fit`, `--pad`, `--flip`, and `--rotate` (an angle that is not a multiple of 90
+rotates about the center onto the larger canvas), and `--scale`, `--size`, `--width`, and `--height` change the size
+of the render itself. A crop can leave an anchor outside the picture: its `pixel` is still given, with `inside` false.
+`pixel` is `null` (and `inside` false) for a point behind a perspective camera, and after a `--deskew` that corrected the
+image, because the correction moved the pixels in a way that is not followed. `pixel` says where a point projects, not
+whether it is visible: a point behind other geometry still has one.
+
+A callout workflow: render the model with `--json`, read the `anchors`, and draw leader lines and labels in an SVG that
+embeds the PNG (or draw them with the pixel positions in any drawing tool), for example a text at `pixel + [20, -20]`
+connected to `pixel` with a line.
+
+```bash
+canvasnet render part.scad --view top --size 600x400 -o part.png --json
+```
+
 #### Vega-Lite Charts
 
 A Vega-Lite chart (`.vl.json` or `.vl`, or a `.json` file with a Vega-Lite `$schema`) is drawn as a still image at the
@@ -1276,6 +1311,8 @@ describes the format), `outputs` (`{"format","extensions","alpha","lossy"}`), `q
   `scad-module-surface` or `vl-mark-geoshape`, `vega-lite-warning` for a warning of the chart library, or
   `svg-image-unresolved` or `svg-image-too-large` for an SVG `image` that was not drawn).
 - `echo`: the text a SCAD model printed with `echo`.
+- `anchors`: only for a SCAD model, after `echo`: the points it declared with `echo("anchor", "name", [x, y, z])`, in
+  echo order, each `{"name","point":[x,y,z],"pixel":[x,y] or null,"inside"}` (see _Anchors_ under _OpenSCAD Models_).
 
 | `op` | Fields besides `op` |
 | --- | --- |

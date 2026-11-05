@@ -45,7 +45,10 @@ public sealed partial class ScadDocument
     ///         geometry) therefore builds a different scene for a different camera or view angle, exactly as
     ///         <see cref="Render"/> does for the same options. The build chooses no camera and never calls
     ///         <see cref="ScadRenderOptions.ResolvedViewHandler"/>; <see cref="ScadRenderOptions.Projection"/> and the size of
-    ///         a surface do not change the scene.
+    ///         a surface do not change the scene. Declared anchors (<c>echo("anchor", "name", [x, y, z])</c>) never
+    ///         change the scene either; they are reported by <see cref="Render"/> only (see
+    ///         <see cref="ScadRenderOptions.AnchorHandler"/>), a malformed one produces a warning that starts with
+    ///         <c>scad-anchor-invalid</c> here as well.
     ///     </para>
     ///     <para>
     ///         The document is immutable and holds no state between calls, so it can be built from several threads
@@ -121,6 +124,12 @@ public sealed partial class ScadDocument
     ///         on the calling thread, once, before the method returns or throws; a renderer report is mapped back to
     ///         the source location of the module that produced the mesh. The size and the camera are validated
     ///         before anything is evaluated. The caller owns and must dispose the returned surface.
+    ///     </para>
+    ///     <para>
+    ///         Declared anchors (<c>echo("anchor", "name", [x, y, z])</c>, with the enclosing transforms applied) are
+    ///         delivered to <see cref="ScadRenderOptions.AnchorHandler"/> after the view is chosen and before the
+    ///         drawing, projected with the camera that is rendered with. A malformed anchor produces a warning that
+    ///         starts with <c>scad-anchor-invalid</c> and is skipped.
     ///     </para>
     ///     <para>
     ///         The document is immutable and holds no state between calls, so it can be rendered from several
@@ -259,8 +268,37 @@ public sealed partial class ScadDocument
         // entirely 2D with no chosen view is drawn flat: ambient light only, so a shape has exactly its own color
         var camera = ScadViewport.ChooseCamera(plan, viewport, built.IsFlatModel, built.Scene, width / (double)height, out var view);
         options.ResolvedViewHandler?.Invoke(view);
+        ReportAnchors(options, built, camera, width, height);
         var sceneOptions = ScadSceneOptions.Create(options.SceneOptions, handler, view.Source == ScadViewSource.FlatDefault);
         return SceneRenderer.Render(built.Scene, camera, width, height, sceneOptions, cancellationToken);
+    }
+
+    /// <summary>
+    ///     Delivers the declared anchors, projected with the camera the render uses, to the anchor handler.
+    /// </summary>
+    /// <remarks>
+    ///     The pixel comes from <see cref="Camera.TryProject"/> with the final camera and the output size, so it is
+    ///     exactly the position the rasterizer gives the point. Nothing is computed when no handler is installed.
+    /// </remarks>
+    /// <param name="options">The render options.</param>
+    /// <param name="built">The built scene with its anchors.</param>
+    /// <param name="camera">The camera the render draws with.</param>
+    /// <param name="width">The output width in pixels.</param>
+    /// <param name="height">The output height in pixels.</param>
+    private static void ReportAnchors(ScadRenderOptions options, ScadBuiltScene built, Camera camera, int width, int height)
+    {
+        if (options.AnchorHandler is not { } handler || built.Anchors is null)
+        {
+            return;
+        }
+
+        foreach (var anchor in built.Anchors)
+        {
+            // A point that cannot be projected (behind a perspective eye) has no pixel and is not inside the image
+            var projected = camera.TryProject(anchor.Point, width, height, out var pixel);
+            var inside = projected && pixel.X >= 0.0 && pixel.X < width && pixel.Y >= 0.0 && pixel.Y < height;
+            handler(new ScadAnchor(anchor.Name, anchor.Point, projected ? pixel : null, inside, anchor.Location));
+        }
     }
 
     /// <summary>

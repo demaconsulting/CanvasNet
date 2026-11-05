@@ -59,7 +59,9 @@ from the -Y side (the front) and positive azimuth moves the eye toward +X.
 
 **LoadedSource** (record, `IDisposable`): the `Surface` (disposed with the record), the `Info` (for a document page,
 sized at the natural size of that page at the requested resolution), the 1-based `Page`, `IsVector`, `Diagnostics`
-(`ImageDiagnostic` records: source, severity, code, message, and the page), `Echo` (text printed by a model), and
+(`ImageDiagnostic` records: source, severity, code, message, and the page), `Echo` (text printed by a model),
+`Anchors` (`SourceAnchor` records, an init property that is empty for every kind but a model: the name, the world
+point `X`, `Y`, `Z`, and the nullable continuous pixel position `PixelX` and `PixelY` in the loaded surface), and
 `Operations` (`AppliedOperation` records: an operation name and its parameters in order; a parameter is a string, a
 number, a flag, or a list of strings).
 
@@ -213,7 +215,10 @@ viewport variables of the model. The projection is orthographic unless `Perspect
 `ScadRenderOptions` carry the evaluation options (the
 `Defines` as the variables, `Time` as `$t`, the limits with `MaxTriangles` when given, `ThrowOnUnsupportedFeature`
 from `Strict`, and handlers that collect the `echo` lines, the warnings, and the unsupported features), a
-`ResolvedViewHandler` that receives the view the library used, and a
+`ResolvedViewHandler` that receives the view the library used, an `AnchorHandler` that adds a `SourceAnchor` (the name,
+the world point, and the pixel the library projected with the camera of this very render, or none) to the list that
+becomes `LoadedSource.Anchors` for every anchor the model declares with `echo("anchor", "name", [x, y, z])` (both
+option constructions, with and without an explicit view, install it), and a
 `SceneRenderOptions` whose `BackgroundColor` is the background option (white by default; zero alpha is a
 transparent picture) and whose `DefaultColor` is the default color when one is given, so no flatten step is needed.
 A warning becomes a note (`scad`, `warning`, `scad-warning`, the library's `file:line:column: message`); an

@@ -281,3 +281,20 @@ while an `alpha` of 0.2 overriding an opaque vector gives 51; that an alpha with
 color` at the instance and colors nothing, while an alpha with a color but no children is silent; that the
 innermost color wins with its alpha in both nesting orders; that the alpha of a color on a 2D shape reaches the
 extruded solid and the slab of a bare shape; and that strict mode does not throw for an alpha.
+
+##### CanvasNetScad-ScadGeometry-ScadTransforms-MatrixAccess: One Matrix Definition
+
+**Tests**: `ScadTransformsTests.ScadTransforms_TryGetMatrix_MatchesTheMatrixOfTheBuiltGeometry`,
+`ScadTransformsTests.ScadTransforms_TryGetMatrix_AbsentArgument_IsTheIdentity`,
+`ScadTransformsTests.ScadTransforms_TryGetMatrix_InvalidOrProjective_IsRefusedAndReportedOnce`,
+`ScadTransformsTests.ScadTransforms_TryGetMatrix_OtherInstances_AreRefused`,
+`ScadTransformsTests.ScadTransforms_Collapses_SingularAndNonFiniteMatrices`
+
+Asserts that, for eight forms of the five transforms (`translate`, Euler and axis-angle and scalar `rotate`, a
+uniform negative and a per-axis `scale`, `mirror`, and `multmatrix`), the matrix of `TryGetMatrix` takes a probe point
+to the same place as the world transform of the geometry the builder produced (the parity of the two readers of one
+definition); that a transform without its argument is the identity and succeeds; that seven invalid or projective
+forms are refused, leave the identity, and report exactly one warning or unsupported feature to the reporter that was
+given; that a non-transform instance and a user module named `translate` are refused; and which matrices collapse
+solid geometry (identity and a negative scale do not; a zero scale and an infinite one do). The existing transform,
+resize, and builder tests are the regression net that the extraction changed nothing the builders produce.

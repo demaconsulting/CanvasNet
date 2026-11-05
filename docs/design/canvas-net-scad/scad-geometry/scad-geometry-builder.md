@@ -152,7 +152,8 @@ in one place.
 
 The only entry point. It rejects `null` arguments, creates the context and reporter, then finds the show-only
 roots. A model that contains `!` is just the marked subtrees; otherwise it is the union of the top-level
-instances. It builds that forest, converts the result to the scene root, and returns the
+instances. It builds that forest, converts the result to the scene root, resolves the anchors of the **same**
+forest (see _Anchors_), and returns the
 `ScadBuiltScene`. The root is the solid itself, a group of **slabs** for a flat model (made by
 `ScadExtrusions.MakeSlabs` with the configured `FlatShapeThickness`, each slab charged against the triangle
 budget and mapped to the location of its 2D leaf), or an empty group. The builder is created per call, holds
@@ -163,11 +164,43 @@ only the per-build state, and is not thread-safe; independent builds can run con
 The engine is a loop over an explicit `List<Frame>`. A `Frame` holds the instance (or `null` for the top-level
 forest), its children, the index of the next child, the results gathered so far (one per child, empty ones
 included), and the **combiner** that turns the results into the result of the node. For each child the engine
-ticks the context (the cancellation schedule), calls `Enter`, and either records the immediate result (a leaf,
+ticks the context (the cancellation schedule), **skips an `Anchor` instance** (it is never a result, so it
+cannot displace the first operand of a `difference`, and an anchor named like a module is not looked up in the
+tables), calls `Enter`, and either records the immediate result (a leaf,
 an unsupported module, an omitted background subtree) or pushes a frame for the container's children. When a
 frame has visited all its children it is popped, combined, and its result handed to the parent frame; the
 result of the last frame is the result of the forest. Children of primitives, unsupported modules, and `%`
 subtrees are never pushed.
+
+##### Anchors — `CollectAnchors(forest, settings)`
+
+`ScadGeometryBuilder.Anchors.cs`. The evaluator leaves `Anchor` leaves in the tree but cannot place them (it has no
+transform context), and the builder bakes each transform into the geometry results rather than keeping a matrix
+per node, so the world point is computed by a separate **iterative pre-order pass** over the same forest, with an
+explicit stack of `(instance, accumulated matrix of the parent, blocker, dropped)`:
+
+- A matrix transform (`translate`, `rotate`, `scale`, `mirror`, `multmatrix`) contributes the matrix of
+  `ScadTransforms.TryGetMatrix` (the single definition the builders use too; see _ScadTransforms_), multiplied
+  **in front of** the parent's (row-vector convention: the instance's own matrix applies first, so the
+  innermost transform is applied first). The matrix helpers report to a throw-away silent context, so a bad
+  transform is not warned about a second time; the builder's own warning stays the only one.
+- A group (a user module, `for`, `group`, an `intersection_for` iteration) and the containers `union`, `render`,
+  `difference`, `intersection`, `color`, `hull`, and `minkowski` pass the matrix through unchanged. The modifiers
+  `#` and `%` change nothing.
+- A matrix transform whose `TryGetMatrix` fails, or whose matrix collapses solid geometry (`ScadTransforms.Collapses`),
+  drops its whole subtree **silently**: its geometry is dropped and already reported.
+- Any other module (`resize`, `linear_extrude`, `rotate_extrude`, `projection`, `offset`, a primitive with children,
+  and so on) marks the subtree with a **blocker**: each anchor below it is skipped with one
+  `scad-anchor-invalid` warning that names the module, because its coordinates are changed in a way the pass cannot
+  follow (for `resize` the factor depends on the bounds of the children; an extrusion and `projection` change the
+  dimension).
+- An anchor resolves to `matrix.TransformPoint(vector)`; a result that is not finite or exceeds `ScadGeo.MaxCoordinate`
+  is skipped with the same warning. The anchors are returned in document order, which is the order of the echo
+  lines, duplicates included, as `ScadWorldAnchor(Name, Point, Location)` in `ScadBuiltScene.Anchors`.
+
+Because the pass runs over the forest the build used, a model with `!` reports only the anchors of the marked
+subtrees, and without the transforms of their ancestors, exactly like the geometry. The pass ticks the context
+for cancellation like every walk of the builder.
 
 ##### `Guard(node, geo)` — the coordinate range
 

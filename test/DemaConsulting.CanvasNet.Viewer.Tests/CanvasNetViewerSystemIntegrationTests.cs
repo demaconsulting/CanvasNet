@@ -75,6 +75,32 @@ public class CanvasNetViewerSystemIntegrationTests
     }
 
     /// <summary>
+    ///     Proves that a model that declares anchors is embedded exactly like the same model without them: the cell shows
+    ///     the same picture and nothing is reported for the valid declaration (the viewer does not use anchors).
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_SystemIntegration_SvgEmbeddingModelWithAnchors_DrawsTheSamePicture()
+    {
+        // Arrange: the cube twice, once with a valid anchor declaration, each in its own file
+        using var folder = new ViewerTestFolder();
+        folder.WriteText("part.scad", ViewerFixtures.Cube);
+        folder.WriteText("anchored.scad", ViewerFixtures.Cube + "\necho(\"anchor\", \"top\", [0, 0, 5]);\n");
+        var resolver = CanvasNetViewer.CreateImageResolver(folder.Path);
+
+        // Act
+        using var plain = ViewerFixtures.RenderSvg(ViewerFixtures.Svg(ViewerFixtures.Cell("part.scad", 0)), resolver);
+        using var anchored = ViewerFixtures.RenderSvg(ViewerFixtures.Svg(ViewerFixtures.Cell("anchored.scad", 0)), resolver);
+
+        // Assert: the same pixels in the cell, and the declaration is not a diagnostic
+        for (var y = 0; y < plain.Height; y++)
+        {
+            Assert.True(plain.GetRowSpanBytes(y).SequenceEqual(anchored.GetRowSpanBytes(y)), $"Row {y} differs.");
+        }
+
+        Assert.Empty(resolver.Diagnostics);
+    }
+
+    /// <summary>
     ///     Proves that an SVG document may link files with a query and a fragment (<c>logo.png?v=2#top</c>): they are not
     ///     part of the file name, the picture is drawn, and the embedded image reports the link as written.
     /// </summary>

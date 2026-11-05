@@ -34,7 +34,10 @@ namespace DemaConsulting.CanvasNet.Scad.Geometry;
 ///         does not take part in the booleans and contributes no propagated bounds, so <c>resize</c> and the bounds of
 ///         enclosing geometry ignore it, yet it is part of <c>Scene.ComputeBounds()</c>, which fits the default
 ///         camera); on a 2D shape that is not extruded both are
-///         reported (see <c>ScadGeometryBuilder.Modifiers.cs</c>).
+///         reported (see <c>ScadGeometryBuilder.Modifiers.cs</c>). An anchor instance (a declared
+///         <c>echo("anchor", name, [x, y, z])</c>) is never geometry: the build skips it, so it cannot become the
+///         first operand of a <c>difference</c>, and a separate pass (<c>ScadGeometryBuilder.Anchors.cs</c>) turns
+///         it into a world point with the enclosing matrix transforms applied.
 ///     </para>
 ///     <para>
 ///         <b>Dimensions.</b> A 2D result is a symbolic <see cref="ScadShape2D"/> tree (booleans, planar transforms and
@@ -91,9 +94,13 @@ internal sealed partial class ScadGeometryBuilder
 
         // A model that contains '!' is just the marked subtrees; otherwise it is the union of the top-level instances
         var showOnly = FindShowOnlyRoots(roots, context);
-        var geo = builder.BuildForest(showOnly.Count > 0 ? showOnly : roots);
+        var forest = showOnly.Count > 0 ? showOnly : roots;
+        var geo = builder.BuildForest(forest);
         var root = builder.ToSceneRoot(geo);
-        return new ScadBuiltScene(new Scene(root), context.Map, context.TrianglesCharged, geo.Kind == ScadGeoKind.Flat);
+
+        // Anchors are resolved over the same forest, so a '!' model reports only the anchors of the marked subtrees
+        var anchors = builder.CollectAnchors(forest, settings);
+        return new ScadBuiltScene(new Scene(root), context.Map, context.TrianglesCharged, geo.Kind == ScadGeoKind.Flat, anchors);
     }
 
     /// <summary>

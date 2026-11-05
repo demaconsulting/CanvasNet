@@ -321,3 +321,26 @@ sections:
           - RenderCommand_Run_TruncatedDocument_ThrowsCorruptInputAndWritesNothing
           - RenderCommand_Run_CommandLineMistakes_ThrowUsageError
           - RenderCommand_Run_NullArguments_ThrowsArgumentNullException
+
+      - id: CanvasNetTool-Commands-RenderCommand-ScadAnchors
+        title: >-
+          The render command shall write, in the JSON result of an OpenSCAD model only, an anchors array with
+          the name, the world point, the pixel (rounded to three decimals, or null when unknown), and the
+          inside flag of every anchor in echo order, with the pixels of the written image (moved through the
+          pipeline steps and scaling with the size of the render) and inside tested against the size of the
+          written image, an empty array for a model without anchors and no member for any other input, and
+          shall leave the text output unchanged, with the echo lines on standard error only.
+        justification: |
+          The written image is what a callout is drawn on, so the numbers are given for it, and a result that
+          is not a model keeps exactly the document it had.
+        tests:
+          - RenderCommand_Run_ScadAnchors_JsonListsAnchorsThatMatchTheWrittenImage
+          - RenderCommand_Run_ScadWithoutAnchorsAndOtherSources_EmptyArrayOrNoMember
+          - RenderCommand_Run_ScadMalformedAnchor_IsADiagnosticAndNotInTheArray
+          - RenderCommand_Run_ScadAnchorsInTextMode_StdOutIsUnchangedAndEchoGoesToStdErr
+          - RenderCommand_Run_ScadAnchorsWithLargerSize_ScalePixels
+          - RenderCommand_Run_ScadAnchorsThroughPipelineSteps_MoveWithThePixels
+          - RenderCommand_Run_ScadAnchorsThroughRightAngleRotation_MoveWithThePixels
+          - RenderCommand_Run_ScadAnchorsThroughArbitraryRotation_StayOnTheExpandedCanvas
+          - RenderCommand_Run_ScadAnchorOutsideTheCrop_IsNotInside
+          - RenderCommand_Run_ScadAnchorBehindThePerspectiveEye_HasNullPixel

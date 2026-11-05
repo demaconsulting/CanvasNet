@@ -198,13 +198,15 @@ internal sealed partial class RenderCommand : ICommand
     /// <param name="Echo">The text a model printed while it was evaluated.</param>
     /// <param name="Operations">What was done to the source to produce the output.</param>
     /// <param name="Result">What was written.</param>
+    /// <param name="Anchors">The anchors a model declared, with their pixel positions in the written image.</param>
     private sealed record PageOutput(
         int Page,
         SourceInfo Info,
         IReadOnlyList<ImageDiagnostic> Diagnostics,
         IReadOnlyList<string> Echo,
         IReadOnlyList<AppliedOperation> Operations,
-        WriteResult Result)
+        WriteResult Result,
+        IReadOnlyList<SourceAnchor> Anchors)
     {
         /// <summary>
         ///     Initializes a new instance of the <see cref="PageOutput"/> record from a loaded page.
@@ -212,8 +214,9 @@ internal sealed partial class RenderCommand : ICommand
         /// <param name="loaded">The loaded page.</param>
         /// <param name="operations">What was done to the source to produce the output.</param>
         /// <param name="result">What was written.</param>
-        public PageOutput(LoadedSource loaded, IReadOnlyList<AppliedOperation> operations, WriteResult result)
-            : this(loaded.Page, loaded.Info, loaded.Diagnostics, loaded.Echo, operations, result)
+        /// <param name="anchors">The anchors of the loaded page, already mapped through the pipeline.</param>
+        public PageOutput(LoadedSource loaded, IReadOnlyList<AppliedOperation> operations, WriteResult result, IReadOnlyList<SourceAnchor> anchors)
+            : this(loaded.Page, loaded.Info, loaded.Diagnostics, loaded.Echo, operations, result, anchors)
         {
         }
     }
@@ -305,7 +308,12 @@ internal sealed partial class RenderCommand : ICommand
 
             var staged = ImageWriter.Stage(surface, target, settings.Input, settings.Write);
             var result = staged.Result;
-            return (new PageOutput(loaded, CollectOperations(loaded, applied, result, settings, isDocument), result), staged);
+
+            // The anchors of a model follow the pixels through the pipeline; the loaded image is the starting point
+            var anchors = settings.Operations.Count > 0
+                ? ImagePipeline.MapAnchors(loaded.Anchors, loaded.Surface.Width, loaded.Surface.Height, applied)
+                : loaded.Anchors;
+            return (new PageOutput(loaded, CollectOperations(loaded, applied, result, settings, isDocument), result, anchors), staged);
         }
         finally
         {
@@ -395,7 +403,7 @@ internal sealed partial class RenderCommand : ICommand
     ///     The <c>input</c> object has <c>page</c> and <c>pageCount</c> for a document (<c>page</c> only when one page
     ///     was rendered), and <c>natural</c> is the size of the first page rendered. <c>operations</c>,
     ///     <c>outputs</c>, and <c>diagnostics</c> list every page; each output and each note of a document names its
-    ///     page.
+    ///     page. For an OpenSCAD model (and only for one) <c>anchors</c> follows <c>echo</c> (see <see cref="WriteAnchors"/>).
     /// </remarks>
     private static void WriteJsonFields(Utf8JsonWriter writer, SourceInfo source, Settings settings, IReadOnlyList<PageOutput> outputs)
     {
@@ -482,6 +490,58 @@ internal sealed partial class RenderCommand : ICommand
         foreach (var line in outputs.SelectMany(o => o.Echo))
         {
             writer.WriteStringValue(line);
+        }
+
+        writer.WriteEndArray();
+
+        // Only a model declares anchors, so every other kind keeps its document exactly as it was
+        if (source.Format.IsModel())
+        {
+            WriteAnchors(writer, outputs);
+        }
+    }
+
+    /// <summary>
+    ///     Writes the <c>anchors</c> array: the anchors a model declared, with their positions in the written image.
+    /// </summary>
+    /// <param name="writer">The writer positioned inside the document's top-level object.</param>
+    /// <param name="outputs">The pages that were written; a model has one.</param>
+    /// <remarks>
+    ///     Each anchor has <c>name</c>, <c>point</c> (the world <c>[x, y, z]</c>), <c>pixel</c> (the continuous
+    ///     <c>[x, y]</c> in the written image, origin top-left, rounded to three decimals, or <see langword="null"/>
+    ///     when the point cannot be located) and <c>inside</c> (whether the pixel lies within the written image). The
+    ///     anchors are in echo order, duplicates included; the array is empty when the model declares none.
+    /// </remarks>
+    private static void WriteAnchors(Utf8JsonWriter writer, IReadOnlyList<PageOutput> outputs)
+    {
+        writer.WriteStartArray("anchors");
+        foreach (var output in outputs)
+        {
+            foreach (var anchor in output.Anchors)
+            {
+                writer.WriteStartObject();
+                writer.WriteString("name", anchor.Name);
+                writer.WriteStartArray("point");
+                writer.WriteNumberValue(anchor.X);
+                writer.WriteNumberValue(anchor.Y);
+                writer.WriteNumberValue(anchor.Z);
+                writer.WriteEndArray();
+                if (anchor.PixelX is { } x && anchor.PixelY is { } y)
+                {
+                    writer.WriteStartArray("pixel");
+                    writer.WriteNumberValue(Math.Round(x, 3));
+                    writer.WriteNumberValue(Math.Round(y, 3));
+                    writer.WriteEndArray();
+                    writer.WriteBoolean("inside", x >= 0 && x < output.Result.Width && y >= 0 && y < output.Result.Height);
+                }
+                else
+                {
+                    writer.WriteNull("pixel");
+                    writer.WriteBoolean("inside", false);
+                }
+
+                writer.WriteEndObject();
+            }
         }
 
         writer.WriteEndArray();

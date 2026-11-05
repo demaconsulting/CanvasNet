@@ -30,7 +30,7 @@ the skew estimation (_SurfaceGeometry Unit Design_), the comparison of two surfa
 it. The
 supporting
 types shared by the units (`SourceKind`, `OutputFormat`, `SourceInfo`, `SourceOptions`, `ScadViewOptions`, `ChartFacts`,
-`LoadedSource`, `AppliedOperation`, `ImageDiagnostic`, and `SourcePage`) are
+`LoadedSource`, `SourceAnchor`, `AppliedOperation`, `ImageDiagnostic`, and `SourcePage`) are
 documented in the design of the unit that owns them; the operation records of the pipeline are documented with
 `ImagePipeline`.
 
@@ -47,8 +47,11 @@ several of its pages.
 **ImagePipeline.Parse(reader, verb, verbOperand)** and **ImagePipeline.Apply(input, operations, defaultPadColor,
 out applied, userBackground)** (provided to the commands): read the ordered operations of a command line (the operation
 of a verb command first), and apply them to a surface (calling the core `Surface` adjustments, flip, pad, trim, rotation,
-and skew estimation and the unit `GridOverlay` for the photo operations), giving a new surface and the list of what was
 done.
+
+**ImagePipeline.MapAnchors(anchors, width, height, applied)** (provided to the commands): follow the pixel positions of
+the anchors an OpenSCAD model declared (`LoadedSource.Anchors`) through the list of what the pipeline did, so that a
+position stays on the same spot of the processed picture (and is lost, rather than wrong, for a step it cannot follow).
 
 **ImageWriter.ResolveFormat**, **ImageWriter.CheckTarget**, **ImageWriter.CheckTargets**, and **ImageWriter.Write**
 (provided to the commands): choose the output format, check an output (or all the outputs of a command against all its

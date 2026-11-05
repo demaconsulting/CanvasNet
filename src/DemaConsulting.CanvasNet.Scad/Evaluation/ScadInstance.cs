@@ -12,6 +12,12 @@ internal enum ScadInstanceKind
 
     /// <summary>The implicit union of its children (a user module, a <c>for</c> loop or a modifier wrapper).</summary>
     Group,
+
+    /// <summary>
+    ///     A declared anchor (<c>echo("anchor", "name", [x, y, z])</c>): <c>Name</c> is the anchor name,
+    ///     <c>Arguments[0].Value</c> is the <c>[x, y, z]</c> vector and there are no children. It is never geometry.
+    /// </summary>
+    Anchor,
 }
 
 /// <summary>
@@ -41,7 +47,7 @@ internal readonly record struct ScadFragmentSettings(double Fn, double Fa, doubl
 ///     <list type="bullet">
 ///         <item><description><c>for</c> produces <c>Group("for")</c>; <c>intersection_for</c> produces the built-in <c>intersection</c> whose children are one <c>Group("intersection_for")</c> per iteration.</description></item>
 ///         <item><description>A user module call produces <c>Group(moduleName)</c> holding the instances of its body.</description></item>
-///         <item><description><c>if</c>, braces, <c>let</c>, <c>echo</c>, <c>assert</c> and <c>children()</c> splice their instances into the parent and have no node.</description></item>
+///         <item><description><c>if</c>, braces, <c>let</c>, <c>echo</c>, <c>assert</c> and <c>children()</c> splice their instances into the parent and have no node; the one exception is a valid statement-form <c>echo("anchor", name, [x, y, z])</c>, which also leaves an <see cref="ScadInstanceKind.Anchor"/> leaf at its position so that the geometry phase can apply the enclosing transforms.</description></item>
 ///         <item><description><c>!</c>, <c>#</c> and <c>%</c> are OR-ed onto the instance they modify (several instances are wrapped in <c>Group("group")</c>); <c>*</c> removes the statement before evaluation.</description></item>
 ///     </list>
 /// </remarks>

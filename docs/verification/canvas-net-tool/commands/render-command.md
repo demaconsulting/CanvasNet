@@ -370,3 +370,36 @@ result; the JSON of `rotate` names the command `rotate` and lists the one `rotat
 **RenderCommand_Verb_MissingOrExtraArguments_AreUsageErrors**: a verb without its operand, with two operands, or
 without an input, and without `-o`, are usage errors that name the verb and the operand and show an example, and write
 nothing.
+
+**RenderCommand_Run_ScadAnchors_JsonListsAnchorsThatMatchTheWrittenImage**: a box with anchors on two corners and its
+center is rendered from the top at 400 by 200 with `--json`; the `anchors` array lists them in order with their world
+points and `inside` true, and the pixels of the corners and the center are the corners and the center of the
+non-white rectangle of the **written PNG** (within one pixel).
+
+**RenderCommand_Run_ScadWithoutAnchorsAndOtherSources_EmptyArrayOrNoMember**: a model without anchors has an empty
+array and a PNG input has no `anchors` member.
+
+**RenderCommand_Run_ScadMalformedAnchor_IsADiagnosticAndNotInTheArray**: a malformed declaration is one `scad-warning`
+diagnostic whose message contains `scad-anchor-invalid:`, the valid one is in the array, and both echo lines are
+reported.
+
+**RenderCommand_Run_ScadAnchorsInTextMode_StdOutIsUnchangedAndEchoGoesToStdErr**: the standard output is exactly the one
+`wrote` line and the three `ECHO:` lines are on standard error.
+
+**RenderCommand_Run_ScadAnchorsWithLargerSize_ScalePixels**: twice the `--size` and half the `--scale` give twice and
+half the pixel position.
+
+**RenderCommand_Run_ScadAnchorsThroughPipelineSteps_MoveWithThePixels**: for `--resize` (also to another aspect ratio),
+`--fit`, `--crop`, `--pad` (one and four values), `--flip` (three axes), `--grayscale`, `--invert` with `--brightness`,
+a crop followed by a resize, and a pad followed by a flip, the written size is the expected one and every anchor is at
+the position the same arithmetic gives from the unprocessed render, with `inside` true exactly when that position is
+in the written image.
+
+**RenderCommand_Run_ScadAnchorsThroughRightAngleRotation_MoveWithThePixels** and
+**RenderCommand_Run_ScadAnchorsThroughArbitraryRotation_StayOnTheExpandedCanvas**: a right-angle rotation sends
+`(x, y)` to the position of the clockwise convention; a rotation by 30 degrees puts the center anchor at the center of
+the larger canvas.
+
+**RenderCommand_Run_ScadAnchorOutsideTheCrop_IsNotInside** and
+**RenderCommand_Run_ScadAnchorBehindThePerspectiveEye_HasNullPixel**: a corner that a crop cuts away keeps its position
+and has `inside` false, and a point behind a perspective eye has a `null` pixel, `inside` false, and its world point.

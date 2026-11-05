@@ -16,7 +16,8 @@ type:
 `Camera` describes the viewpoint and projection and offers two convenient ways to obtain one:
 `LookAt`, and `FitToBounds`, which frames a bounding box from a chosen azimuth and elevation
 without the caller computing a camera distance. `ViewTransform` turns a `Camera` plus an aspect
-ratio into the matrices the renderer applies in double precision.
+ratio into the matrices the renderer applies in double precision. `TryProject` exposes the same
+projection for a single world point, so a caller can find where the renderer draws it.
 
 #### Data Model
 
@@ -79,6 +80,18 @@ camera looking down -Z and +Y up.
   the factors that map view-space X and Y to normalized device coordinates (the reciprocal of
   `tan(fov/2)` times the aspect ratio, or of the orthographic half-height times the aspect ratio, for
   X; the same without the aspect ratio for Y).
+- `Camera.TryProject(worldPoint, width, height, out pixel)`: locates a world point in the image the
+  renderer draws for this camera and size, so that callers (callout and leader-line placement)
+  never re-derive the camera math. It validates the size (`ArgumentOutOfRangeException`) and builds a
+  `ViewTransform` with aspect `width / height` (which validates the camera, `ArgumentException`),
+  returns `false` for a non-finite point, transforms the point with `WorldToView` in double precision,
+  narrows it to single precision exactly as `SceneRenderer` narrows every vertex, returns `false`
+  when a perspective point is not in front of the eye (view depth `-z <= 0`; an orthographic point
+  behind the eye still has a position), and maps the result with the same `SampleProjection.ToSample`
+  the rasterizer uses, at a supersampling factor of 1 (the factor cancels, because the sample grid is
+  the pixel grid times it). The pixel is continuous: origin at the top-left corner of the image, pixel
+  `i` spanning `[i, i + 1)`, x to the right, y downward; it may lie outside the image (no visibility or
+  occlusion test is made). There is no renderer change and no state.
 
 The near and far clip distances are **not** computed in this unit: a `null` `NearPlane` or
 `FarPlane` means "automatic", and `SceneRenderer` derives the values from the scene's depth range
@@ -100,4 +113,5 @@ library (`System.Math`).
 #### Callers
 
 `SceneRenderer` constructs a `ViewTransform` from the camera for every render and calls
-`Camera.FitToBounds` from `RenderFitted`; callers construct cameras directly.
+`Camera.FitToBounds` from `RenderFitted`; callers construct cameras directly. The Scad library calls
+`Camera.TryProject` to locate model anchors in the image it rendered.

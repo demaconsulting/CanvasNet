@@ -37,7 +37,9 @@ directories is bounded and cancellable; `textmetrics()` and `fontmetrics()` stay
 Unit Design_). A later delivery added `projection()` (the exact shadow or cross-section of solids as a 2D shape, so
 that a drawing sheet can be assembled from views of a model), the viewport variables `$vpt`, `$vpr`, `$vpd`, and
 `$vpf` (the document can read the camera and steer it), and a flat top-down default view for a model that is
-entirely 2D (see _Supported And Deferred Features_ and _Design Constraints_).
+entirely 2D (see _Supported And Deferred Features_ and _Design Constraints_). The anchor delivery added
+`echo("anchor", "name", [x, y, z])` declarations whose world point and rendered pixel position a render reports to
+`ScadRenderOptions.AnchorHandler`, so that callouts and leader lines can be placed on the picture.
 
 `CanvasNetScad` consists of one direct unit and three subsystems:
 
@@ -49,7 +51,8 @@ entirely 2D (see _Supported And Deferred Features_ and _Design Constraints_).
   `ScadSyntaxException` (the parse error type, a `FormatException`), `ScadDirective`, `ScadDirectiveKind`,
   the evaluation contract (`ScadEvaluationOptions`, `ScadEvaluationResult`, `ScadLimits`, `ScadDiagnostic`,
   `ScadUnsupportedFeature`, `ScadUnsupportedFeatureException`, and `ScadEvaluationException`), the render
-  options `ScadRenderOptions`, and the view report `ScadResolvedView` with its `ScadViewSource`. The camera
+  options `ScadRenderOptions`, the view report `ScadResolvedView` with its `ScadViewSource`, and the anchor report
+  `ScadAnchor`. The camera
   choice of `Render`, including the viewport variables, is part of this unit (internal `ScadViewport`).
   See _ScadDocument Unit Design_ (`canvas-net-scad/scad-document.md`).
 - **ScadLanguage** (internal subsystem; namespace `DemaConsulting.CanvasNet.Scad.Language`, folder
@@ -157,6 +160,8 @@ The system exposes the following public API in the `DemaConsulting.CanvasNet.Sca
 | `ScadDocument.Render(...)` | Inbound and outbound | Width and height, `ScadRenderOptions`, a `CancellationToken`; a `Surface` | Width and height from 1 to `Surface.MaxDimension` and a valid camera, validated before anything is evaluated; the caller owns the surface; byte-identical output for identical input; the camera is chosen after the build (see _Design Constraints_) |
 | `ScadRenderOptions` properties | Inbound | Numbers, an enumeration, `ScadEvaluationOptions`, `Camera`, `SceneRenderOptions`, two `Rgba32` colors, a handler | View angles finite, projection defined, thickness finite and positive, overlay colors of any alpha; instance immutable |
 | `ScadRenderOptions.ResolvedViewHandler` | Outbound | `Action<ScadResolvedView>` | Called by `Render` once, on the calling thread, after the build and before drawing; never called by `BuildScene`; an exception it throws propagates |
+| `ScadRenderOptions.AnchorHandler` | Outbound | `Action<ScadAnchor>` | Called by `Render` once per declared anchor, in echo order (duplicates kept), on the calling thread, after `ResolvedViewHandler` and before drawing; never called by `BuildScene`; an exception it throws propagates |
+| Anchor declaration `echo("anchor", "name", [x, y, z]);` | Inbound | A statement of the model | Statement form only; a non-empty string name and exactly three finite numbers, all unnamed; the echo line is still printed; anything else with the tag `"anchor"` is skipped with one `scad-anchor-invalid` warning (the identifier starts the message); the point is a world point (the enclosing `translate`, `rotate`, `scale`, `mirror`, and `multmatrix` applied) |
 | Viewport variables `$vpt`, `$vpr`, `$vpd`, `$vpf` | Inbound and outbound | Special variables of the model (a vector, a vector, a number, a number) | Defined for every document; set by an explicit camera or view angles, a `-D` override, or a top-level assignment, in that order of precedence; an unusable value is a warning and is ignored |
 | `ScadEvaluationOptions.Variables` | Inbound | Name to value dictionary | Names match an optional `$` then ASCII letters, digits, and underscores (not starting with a digit); values are null, booleans, numeric types, strings, or non-string sequences of these (nested at most 256 levels, at most 1,000,000 elements in total); invalid entries throw `ArgumentException` when set |
 | `ScadOpenOptions.FileResolver` | Inbound | `Func<string, Stream?>` | Receives only normalized logical paths, only on the calling thread; a null result means "not found"; the stream is disposed after reading |
@@ -414,7 +419,10 @@ Design_, `canvas-net-scad/scad-evaluation.md`):
    thickness, strict mode, and the token, and the **same** sink. It finds the `!` roots, walks the tree
    iteratively, dispatches each instance to the primitive, transform, color, boolean, or extrusion builder (or
    reports it as unsupported), and returns the `Scene`, the node-to-location map, and whether the whole result
-   is 2D. A model without geometry is a scene with an empty root.
+   is 2D. A model without geometry is a scene with an empty root. A valid anchor declaration (an `Anchor`
+   instance) is never built: the walk skips it, and a separate pass over the same forest (the `!` roots, or all
+   roots) resolves each anchor to a world point by the matrices of its enclosing transforms, which is why the
+   anchors are resolved here and not in the evaluator (see _ScadGeometryBuilder Unit Design_).
 4. **Choose the camera and render** (`Render` only): the camera is the caller's; or the manual camera that a
    defined `$vpt`, `$vpd`, or `$vpf` describes; or fitted to the bounds of the
    scene from the explicit angles, the model's `$vpr`, the flat top view of a model that is entirely 2D, or the
@@ -424,7 +432,10 @@ Design_, `canvas-net-scad/scad-evaluation.md`):
    options copied with a handler that maps the renderer's operand reports into the sink (installed only when a
    handler or strict mode exists) and, for the flat default view, ambient light only; `SceneRenderer.Render` draws
    the scene with the token. The renderer's
-   fragment-budget overflow becomes a `ScadEvaluationException`.
+   fragment-budget overflow becomes a `ScadEvaluationException`. The `AnchorHandler`, when there is one, is
+   called after the `ResolvedViewHandler` with each anchor projected through `Camera.TryProject` with the
+   **same** camera and size the renderer is given, so the pixel is the position the rasterizer draws the
+   point at (the margin and fit, `$vp*`, and the flat default are already in the camera).
 5. **Deliver**: the sink replays the events of all stages to the caller's handlers, in order, once, on the
    calling thread (on a failure too, with a handler exception on that path ignored so that the failure wins; on
    success a handler exception propagates and `Render` disposes its surface first).
@@ -590,6 +601,7 @@ fixture README, and the purpose of each unit design, and every `CanvasNetScad` r
 | `projection` (`cut = false`: the shadow on the XY plane; `cut = true`: the cross-section at `z = 0`) | Supported (projection delivery) | See _ScadGeometryBuilder Unit Design_ (_Projection_); exact for solids with booleans below it, symbolic 2D result; `convexity` ignored, 2D children ignored with a warning, colors inside dropped with a warning; too much work is `scad-projection-too-complex`, a mesh that is not a closed solid where a section is needed is `scad-projection-open-mesh`, and the projection is omitted; the identifier `scad-module-projection` is retired |
 | Viewport variables `$vpt`, `$vpr`, `$vpd`, `$vpf` | Supported (projection delivery) | Defined for every document; mapped to the camera of `Render` (see _Design Constraints_ and _ScadDocument Unit Design_); `rotate($vpr)` faces the camera; a document that assigns `$vpt`, `$vpd`, or `$vpf` gets a manual camera instead of the automatic fit |
 | A model that is entirely 2D | Supported (projection delivery) | Drawn from the top, orthographic, with ambient light only, unless a view is chosen; reported through `ScadRenderOptions.ResolvedViewHandler` (public `ScadResolvedView`) |
+| Anchors: `echo("anchor", "name", [x, y, z])` | Supported (anchor delivery) | World point under `translate`, `rotate`, `scale`, `mirror`, `multmatrix` and through groups and the combining containers; reported with the pixel position by `ScadRenderOptions.AnchorHandler` (public `ScadAnchor`); malformed or inside `resize`, an extrusion, `projection`, or an unsupported module is `scad-anchor-invalid` (a warning, the identifier starts the message); no occlusion flag (the renderer keeps no depth buffer) |
 | Multiple error reporting and error recovery | Not planned | Additive later, for example as an errors list |
 <!-- markdownlint-enable MD013 -->
 

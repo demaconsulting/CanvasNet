@@ -1,3 +1,4 @@
+using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Render3D.SceneModel;
 
 namespace DemaConsulting.CanvasNet.Render3D.SceneRendering;
@@ -300,6 +301,81 @@ public sealed class Camera
     /// <exception cref="ArgumentException">Thrown when the eye equals the target or the up vector is zero.</exception>
     public Matrix4x4D GetViewMatrix() =>
         Matrix4x4D.CreateTranslation(-Eye) * CreateViewRotation();
+
+    /// <summary>
+    ///     Projects a world-space point to continuous output-pixel coordinates using exactly the
+    ///     projection <see cref="SceneRenderer"/> uses when it renders with this camera.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This exists so callers (for example callout and leader-line placement) can locate a
+    ///         world point in a rendered image without re-deriving the camera math: the point goes
+    ///         through the same camera-relative view transform, is narrowed to single precision like
+    ///         the renderer's vertices, and is mapped by the same sample projection.
+    ///     </para>
+    ///     <para>
+    ///         The pixel convention is continuous with the origin at the top-left corner of the
+    ///         image: pixel <c>i</c> spans <c>[i, i + 1)</c> and its center is at <c>i + 0.5</c>, x
+    ///         grows to the right and y grows downward. The result may lie outside
+    ///         <c>[0, width) x [0, height)</c> when the point is outside the visible volume; no
+    ///         visibility or occlusion test is made. Pure and thread-safe.
+    ///     </para>
+    /// </remarks>
+    /// <param name="worldPoint">The world-space point to project.</param>
+    /// <param name="width">The output width in pixels, between 1 and <see cref="Surface.MaxDimension"/>.</param>
+    /// <param name="height">The output height in pixels, between 1 and <see cref="Surface.MaxDimension"/>.</param>
+    /// <param name="pixel">
+    ///     When the method returns <see langword="true"/>, the continuous pixel position; otherwise
+    ///     <see cref="Vector2D.Zero"/>.
+    /// </param>
+    /// <returns>
+    ///     <see langword="false"/> when the point is not finite, or (perspective only) is not in
+    ///     front of the eye; otherwise <see langword="true"/>.
+    /// </returns>
+    /// <exception cref="ArgumentException">Thrown when the camera is invalid (see <see cref="Validate"/>).</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="width"/> or <paramref name="height"/> is out of range.</exception>
+    public bool TryProject(Vector3D worldPoint, int width, int height, out Vector2D pixel)
+    {
+        // Validate the size and the camera exactly as a render would, so bad input fails the same way
+        if (width < 1 || width > Surface.MaxDimension)
+        {
+            throw new ArgumentOutOfRangeException(nameof(width), width, $"The width must be between 1 and {Surface.MaxDimension}.");
+        }
+
+        if (height < 1 || height > Surface.MaxDimension)
+        {
+            throw new ArgumentOutOfRangeException(nameof(height), height, $"The height must be between 1 and {Surface.MaxDimension}.");
+        }
+
+        var view = new ViewTransform(this, width / (double)height);
+        pixel = Vector2D.Zero;
+
+        // A non-finite point cannot be placed in the image
+        if (!double.IsFinite(worldPoint.X) || !double.IsFinite(worldPoint.Y) || !double.IsFinite(worldPoint.Z))
+        {
+            return false;
+        }
+
+        // Transform to view space in double precision, then narrow to single precision like the renderer does
+        var f = view.WorldToView.TransformPoint(worldPoint).ToVector3();
+        var vertex = new ClipVertex(f.X, f.Y, f.Z);
+
+        // A perspective point at or behind the eye has no defined projection
+        if (!view.IsOrthographic && !(vertex.Depth > 0.0))
+        {
+            return false;
+        }
+
+        // Map with the same sample projection the rasterizer uses (supersampling factor 1)
+        var (x, y) = SampleProjection.Create(view, width, height, 1.0).ToSample(vertex);
+        if (!double.IsFinite(x) || !double.IsFinite(y))
+        {
+            return false;
+        }
+
+        pixel = new Vector2D(x, y);
+        return true;
+    }
 
     /// <summary>
     ///     Checks the cross-property rules that cannot be enforced by the individual initializers.

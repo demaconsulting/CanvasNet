@@ -121,7 +121,8 @@ The unit's behavior is specified by the `CanvasNetScad-ScadDocument-*` requireme
   geometry builder through `ScadGeometrySettings`), and `FontResolution` (`ScadFontResolutionOptions?`, default
   null: the defaults of that type; handed to the geometry builder through `ScadGeometrySettings.FontResolution`
   for the `text` module), and the view reporting hook `ResolvedViewHandler` (`Action<ScadResolvedView>?`, default
-  null). The options also **record whether the caller set** `ViewAzimuthDegrees`, `ViewElevationDegrees`, and
+  null) and its sibling `AnchorHandler` (`Action<ScadAnchor>?`, default null; see `ScadAnchor`). The options also
+  **record whether the caller set** `ViewAzimuthDegrees`, `ViewElevationDegrees`, and
   `Projection` (set in the `init` accessors; the internal `IsViewExplicit` is true when either angle was set, even to
   its default value, and `IsProjectionExplicit` when the projection was set), because an explicit value takes
   precedence over everything the model says about the view, whereas a default does not. The options **compose**
@@ -136,6 +137,13 @@ The unit's behavior is specified by the `CanvasNetScad-ScadDocument-*` requireme
   entirely 2D and nothing chose a view: a top-down orthographic drawing), `Options` (the view angles were set in
   `ScadRenderOptions`), `Document` (the document or an override defined a viewport variable), and `Camera` (the
   caller supplied `ScadRenderOptions.Camera`).
+- **`ScadAnchor`** (sealed record, public) — a declared anchor as `Render` reports it to
+  `ScadRenderOptions.AnchorHandler`: `Name`, `Point` (the world `Vector3D`, after the enclosing transforms),
+  `Pixel` (`Vector2D?`, the continuous output-pixel position, origin at the top-left corner of the image, pixel
+  `i` spanning `[i, i + 1)`; `null` when the point cannot be projected, which only happens for a point at or behind
+  a perspective eye), `IsInsideImage` (`Pixel` is not null and `0 <= x < width`, `0 <= y < height`), and `Location`
+  (the declaring `echo`). There is no occlusion or visibility flag: the renderer keeps no depth buffer after it
+  has drawn, and the position says where the point projects, not whether it can be seen.
 - **`ScadViewportPlan`** (internal sealed class, in `ScadViewport.cs`) — the viewport decisions made before any
   evaluation, derived from the options alone: `Defaults` (the `ScadViewportValues` the document sees in the
   variables it does not assign), `ExplicitOverrides` (the variables an explicit option fixes), `Camera`,
@@ -222,13 +230,21 @@ listed. Directives are only legal at file scope, so `Directives` is the complete
   location of the module that produced the mesh (through the node-to-location map), chooses the camera with
   `ScadViewport.ChooseCamera` (see below), calls `ResolvedViewHandler` once with the view that was chosen (on the
   calling thread, after the build and before drawing; an exception of the handler propagates after the events were
-  delivered, like any failure), copies the scene options with that handler (`ScadSceneOptions.Create`, which
+  delivered, like any failure), then calls `ReportAnchors` (below), copies the scene options with that handler
+  (`ScadSceneOptions.Create`, which
   substitutes ambient light of intensity 1 when the view is the flat default and the caller set no lights), and
   draws with `SceneRenderer.Render` and the token. The
   renderer's fragment-budget overflow (`RenderBudgetExceededException`) becomes a `ScadEvaluationException`
   advising to raise `SceneOptions.MaxFragmentsPerTile` or to simplify the model. Events are delivered as for
   `BuildScene`; when a handler throws after a successful drawing, the surface is disposed before the exception
   propagates. The caller owns and disposes the returned surface.
+- `ReportAnchors(options, built, camera, width, height)` (private static) — does nothing without an
+  `AnchorHandler` or without anchors. Otherwise, for each anchor of the built scene in order, it asks
+  `camera.TryProject(point, width, height, out pixel)` with the **final** camera and the output size (so the
+  pixel is exactly where the rasterizer draws the point), sets `IsInsideImage` from the pixel and the size, and calls
+  the handler with a `ScadAnchor`. It runs on the calling thread after `ResolvedViewHandler` and before drawing;
+  `BuildScene` never runs it because there is no image to project into. An exception of the handler propagates
+  like any other failure of `Render`, after the buffered events were delivered.
 - `ScadViewport.Plan(ScadRenderOptions?, bool useCamera = true)` (internal static) — derives the `ScadViewportPlan`
   from the options; `useCamera` is false when the renderer rejected the camera, and the plan is then the one of an
   options object without a camera.
@@ -344,7 +360,8 @@ document, the options, and the files the options make reachable.
   renderer's fragment-budget overflow. Invalid arguments of a model are warnings, constructs that are not
   supported are unsupported-feature reports (see _ScadGeometry_, `scad-geometry.md`), and neither stops the
   build. A viewport variable with an unusable value is a warning of the evaluator and is ignored (see
-  _ScadEvaluator Unit Design_); `ResolvedViewHandler` runs on the calling thread and an exception it throws
+  _ScadEvaluator Unit Design_); `ResolvedViewHandler` and `AnchorHandler` run on the calling thread and an exception
+  they throw
   propagates like any other failure. Cancellation is never wrapped.
 
 ### Dependencies
@@ -385,7 +402,8 @@ the unit tests in `ScadDocumentTests.cs`, `ScadOpenOptionsTests.cs`, `ScadSource
 `ScadUnsupportedFeatureTests.cs`, `ScadEvaluationExceptionTests.cs`, `ScadFixtureEvaluationTests.cs`,
 `ScadRenderOptionsTests.cs`, `ScadDocumentBuildSceneTests.cs`, `ScadDocumentRenderTests.cs`,
 `ScadDocumentRenderCsgTests.cs`, `ScadDocumentRenderExtrusionTests.cs`, `ScadDocumentRenderReportTests.cs`,
-`ScadViewportTests.cs`, and `ScadDocumentViewportRenderTests.cs` verify the individual types and the geometry and
+`ScadViewportTests.cs`, `ScadDocumentViewportRenderTests.cs`, `ScadDocumentAnchorTests.cs`, and `ScadAnchorTests.cs`
+verify the individual types and the geometry and
 rendering entry points. The command-line tool reads `ScadRenderOptions.ResolvedViewHandler` and
 `ScadResolvedView` to report the view it used (see _SourceLoader Unit Design_ in `canvas-net-tool`).
 

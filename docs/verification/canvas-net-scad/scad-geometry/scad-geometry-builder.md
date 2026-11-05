@@ -836,3 +836,45 @@ Asserts that `render3d-csg-open-mesh`, `render3d-csg-non-manifold-edge`, and `re
 become the `scad-csg-` identifiers and that an identifier without the prefix gets `scad-` prepended. The remaining
 `render3d-csg-` identifiers use the same rule and are exercised end to end in the `ScadDocument` render-report
 tests.
+
+##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-AnchorWorldPoints: World Points Of Anchors
+
+**Tests**: `ScadGeometryBuilderAnchorTests.ScadGeometryBuilderAnchor_MatrixTransform_AppliesToThePoint`,
+`ScadGeometryBuilderAnchorTests.ScadGeometryBuilderAnchor_NestedTransforms_ApplyInnermostFirst`,
+`ScadGeometryBuilderAnchorTests.ScadGeometryBuilderAnchor_ThroughUserModule_AppliesCallerAndBodyTransforms`,
+`ScadGeometryBuilderAnchorTests.ScadGeometryBuilderAnchor_PassThroughContainer_KeepsTheEnclosingMatrix`,
+`ScadGeometryBuilderAnchorTests.ScadGeometryBuilderAnchor_UnderHighlightAndBackground_KeepsTheMatrix`,
+`ScadGeometryBuilderAnchorTests.ScadGeometryBuilderAnchor_ShowOnlyModifier_UsesTheMarkedSubtreeWithoutAncestorTransforms`,
+`ScadGeometryBuilderAnchorTests.ScadGeometryBuilderAnchor_UnsupportedContext_SkipsWithWarning`,
+`ScadGeometryBuilderAnchorTests.ScadGeometryBuilderAnchor_UnderCollapsingTransform_IsDroppedWithoutExtraWarnings`,
+`ScadGeometryBuilderAnchorTests.ScadGeometryBuilderAnchor_OutOfRangeAfterTransforms_IsSkippedWithWarning`
+
+Asserts the world point of an anchor under `translate`, both forms of `rotate` (Euler and axis-angle), `scale`,
+`mirror`, and `multmatrix` (four rows, three rows, and a quarter turn) against analytic values; that `translate`,
+`rotate`, and `scale` nested apply innermost first (scale, then turn, then move); that the transforms around a user
+module call and inside its body both apply; that `union`, `difference`, `intersection`, `hull`, `minkowski`, `color`,
+`render`, `for`, and `intersection_for` keep the enclosing matrix (and warn about nothing); that `#` and `%` do not
+move an anchor; that a model with `!` reports only the anchor of the marked subtree, under its own transform alone;
+that an anchor inside `resize`, `linear_extrude`, `rotate_extrude`, `projection`, `offset` (an unsupported module),
+and a primitive's children is skipped with one `scad-anchor-invalid` warning that names the module and the anchor; that
+under `scale([0, 1, 1])`, `translate("x")`, and a projective `multmatrix` the anchor is dropped and the warnings and
+unsupported features are exactly those of the same model without the anchor (not duplicated); and that a point scaled
+beyond 1e100 is skipped with the warning.
+
+##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-AnchorsNeverAlterGeometry: Anchors Are Not Geometry
+
+**Tests**: `ScadGeometryBuilderAnchorTests.ScadGeometryBuilderAnchor_FirstChildOfDifference_DoesNotChangeTheScene`,
+`ScadGeometryBuilderAnchorTests.ScadGeometryBuilderAnchor_NamedLikeAModule_IsNotGeometry`,
+`ScadGeometryBuilderAnchorTests.ScadGeometryBuilderAnchor_NoDeclaration_ReportsNone`
+
+Asserts that a `difference` with an anchor as its first child (and another as its last) builds the same triangle
+count and the same bounds as the one without anchors and reports nothing; that anchors named `cube`, `translate`,
+`difference`, and an unknown name produce no mesh, no warning, and no unsupported feature; and that a model without
+declarations has no anchors.
+
+##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-AnchorOrder: Echo Order
+
+**Tests**: `ScadGeometryBuilderAnchorTests.ScadGeometryBuilderAnchor_Order_IsTheEchoOrder`
+
+Asserts, with the echo lines of the same evaluation, that the anchors of a model with transforms, a module, a loop,
+and a duplicate come in the order of their echo lines, and spot-checks the world points of three of them.

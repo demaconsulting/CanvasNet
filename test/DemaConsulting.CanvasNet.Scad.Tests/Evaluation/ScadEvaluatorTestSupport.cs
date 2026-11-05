@@ -235,6 +235,10 @@ internal static class ScadInstanceDumper
         {
             text.Append("group<").Append(instance.Name).Append('>');
         }
+        else if (instance.Kind == ScadInstanceKind.Anchor)
+        {
+            text.Append("anchor<").Append(instance.Name).Append(">(").Append(string.Join(", ", instance.Arguments.Select(Describe))).Append(')');
+        }
         else
         {
             text.Append(instance.Name).Append('(').Append(string.Join(", ", instance.Arguments.Select(Describe))).Append(')');

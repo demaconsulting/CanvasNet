@@ -15,13 +15,20 @@ namespace DemaConsulting.CanvasNet.Scad.Tests.Geometry;
 /// <param name="Warnings">The warnings, in order.</param>
 /// <param name="Unsupported">The unsupported-feature reports, in order.</param>
 /// <param name="TrianglesCharged">The triangles charged against the budget by the build.</param>
+/// <param name="DeclaredAnchors">The anchors the build resolved, or <see langword="null"/> for none.</param>
 internal sealed record ScadBuildResult(
     Scene Scene,
     ScadSceneMap Map,
     IReadOnlyList<ScadDiagnostic> Warnings,
     IReadOnlyList<ScadUnsupportedFeature> Unsupported,
-    long TrianglesCharged)
+    long TrianglesCharged,
+    IReadOnlyList<ScadWorldAnchor>? DeclaredAnchors = null)
 {
+    /// <summary>
+    ///     Gets the anchors the build resolved, in order; empty when the model declares none.
+    /// </summary>
+    public IReadOnlyList<ScadWorldAnchor> Anchors => DeclaredAnchors ?? [];
+
     /// <summary>
     ///     Gets the total triangle count of the mesh nodes of the scene.
     /// </summary>
@@ -133,7 +140,7 @@ internal static class ScadGeometryTestSupport
         var effectiveSink = sink ?? new ScadEvaluationSink(effectiveEvaluation.Limits);
         var output = ScadEvaluatorTestSupport.Run(source, effectiveEvaluation, files, effectiveSink);
         var built = ScadGeometryBuilder.Build(output.Roots, settings ?? Settings(cancellation: TestContext.Current.CancellationToken), effectiveSink);
-        return new ScadBuildResult(built.Scene, built.Map, [.. effectiveSink.Diagnostics], [.. effectiveSink.UnsupportedFeatures], built.TrianglesCharged);
+        return new ScadBuildResult(built.Scene, built.Map, [.. effectiveSink.Diagnostics], [.. effectiveSink.UnsupportedFeatures], built.TrianglesCharged, built.Anchors);
     }
 
     /// <summary>

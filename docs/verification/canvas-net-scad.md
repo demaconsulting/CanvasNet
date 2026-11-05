@@ -479,6 +479,22 @@ source `Document`); that the default 3D view
 is reported once as `Default` with the angles 45 and the isometric elevation and gives the picture that the same
 explicit angles give; and that an explicit camera is reported as the source `Camera` with its own direction.
 
+### Anchors: Declared Points In The Picture
+
+**Tests**: `ScadDocumentAnchor_TopOrthographicBox_CornersMatchTheRenderedImage`,
+`ScadDocumentAnchor_PerspectiveFront_CornersMatchTheRenderedImage`,
+`ScadDocumentAnchor_AutoFitIsometric_CornersMatchTheExtentAndStayInside`,
+`ScadDocumentAnchor_Declarations_DoNotChangeThePixels`,
+`ScadDocumentAnchor_Malformed_WarnsOnceAndTheRestAreDelivered`
+
+Asserts, through the public API only, that the anchors of a box (the eight corners, declared with
+`echo("anchor", ...)`) are reported with pixels that agree, within one pixel, with the extent of the pixels the
+renderer really covered, in a top orthographic view at three aspect ratios, in a front perspective view, and in the
+auto-fitted isometric view in both projections with every anchor inside the image; that declaring anchors does not
+change a single pixel of the picture; and that a malformed declaration is one warning that starts with
+`scad-anchor-invalid:` while the valid anchors are still delivered. The unit scenarios behind it are in the
+_ScadDocument_, _ScadEvaluator_, _ScadGeometryBuilder_, and _ScadTransforms_ verification designs.
+
 ### Text: Analytic Bounds, Coverage, And Composition
 
 **Tests**: `ScadRenderSystem_Text_FlatDefaultFontHasAnalyticBoundsAndCoverage`,

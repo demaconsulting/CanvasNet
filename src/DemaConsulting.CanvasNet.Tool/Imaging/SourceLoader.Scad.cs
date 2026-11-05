@@ -27,7 +27,9 @@ namespace DemaConsulting.CanvasNet.Tool.Imaging;
 ///         error (<c>scad-error</c>), because the model would otherwise be drawn without what it asked for.
 ///         Warnings, unsupported features, and <c>echo</c> output of the model are returned as diagnostics and echo
 ///         lines; with <see cref="SourceOptions.Strict"/> an unsupported feature is an <c>unsupported-feature</c>
-///         error instead.
+///         error instead. The anchors the model declares with <c>echo("anchor", "name", [x, y, z])</c> are collected
+///         with their pixel positions in the render (<see cref="LoadedSource.Anchors"/>); a malformed anchor is a
+///         <c>scad-warning</c> whose message starts with <c>scad-anchor-invalid</c>.
 ///     </para>
 /// </remarks>
 internal static partial class SourceLoader
@@ -177,8 +179,9 @@ internal static partial class SourceLoader
             var echo = new List<string>();
             var notes = new List<ImageDiagnostic>();
             var missingInclude = new List<ScadDiagnostic>();
+            var anchors = new List<SourceAnchor>();
             ScadResolvedView? resolved = null;
-            var renderOptions = CreateRenderOptions(view, azimuth, elevation, background, echo, notes, missingInclude, v => resolved = v);
+            var renderOptions = CreateRenderOptions(view, azimuth, elevation, background, echo, notes, missingInclude, anchors, v => resolved = v);
 
             var surface = Read(Info.Path, SourceKind.Scad, () => _document.Render(width, height, renderOptions));
             if (missingInclude.Count > 0)
@@ -195,7 +198,7 @@ internal static partial class SourceLoader
             {
                 Operation("render", DescribeRender(view, azimuth, elevation, resolved, width, height, background))
             };
-            return new LoadedSource(surface, Info, 1, true, notes, echo, operations);
+            return new LoadedSource(surface, Info, 1, true, notes, echo, operations) { Anchors = anchors };
         }
 
         /// <summary>
@@ -224,6 +227,7 @@ internal static partial class SourceLoader
         /// <param name="echo">The list the <c>echo</c> lines of the model are added to.</param>
         /// <param name="notes">The list the warnings and unsupported features of the model are added to.</param>
         /// <param name="missingInclude">The list the warnings about an <c>include</c> or <c>use</c> that cannot be opened are added to.</param>
+        /// <param name="anchors">The list the declared anchors (with their pixel positions in the render) are added to.</param>
         /// <param name="resolvedView">Receives the view the library used.</param>
         /// <returns>The options.</returns>
         /// <exception cref="ToolException">Thrown with code <c>usage-error</c> when a variable has a name the library does not accept.</exception>
@@ -235,6 +239,7 @@ internal static partial class SourceLoader
             List<string> echo,
             List<ImageDiagnostic> notes,
             List<ScadDiagnostic> missingInclude,
+            List<SourceAnchor> anchors,
             Action<ScadResolvedView> resolvedView)
         {
             try
@@ -263,6 +268,8 @@ internal static partial class SourceLoader
                     ? new SceneRenderOptions { BackgroundColor = background, DefaultColor = color }
                     : new SceneRenderOptions { BackgroundColor = background };
                 var projection = view.Perspective ? CameraProjection.Perspective : CameraProjection.Orthographic;
+                Action<ScadAnchor> anchorHandler = a => anchors.Add(
+                    new SourceAnchor(a.Name, a.Point.X, a.Point.Y, a.Point.Z, a.Pixel?.X, a.Pixel?.Y));
 
                 // Without a chosen view the library picks it: isometric for a 3D model, a flat top view for a 2D one
                 return view.IsViewExplicit
@@ -273,14 +280,16 @@ internal static partial class SourceLoader
                         ViewElevationDegrees = elevation,
                         Projection = projection,
                         SceneOptions = scene,
-                        ResolvedViewHandler = resolvedView
+                        ResolvedViewHandler = resolvedView,
+                        AnchorHandler = anchorHandler
                     }
                     : new ScadRenderOptions
                     {
                         Evaluation = evaluation,
                         Projection = projection,
                         SceneOptions = scene,
-                        ResolvedViewHandler = resolvedView
+                        ResolvedViewHandler = resolvedView,
+                        AnchorHandler = anchorHandler
                     };
             }
             catch (ArgumentException ex)

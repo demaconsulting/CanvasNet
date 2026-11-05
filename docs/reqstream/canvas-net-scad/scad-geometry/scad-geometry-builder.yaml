@@ -788,3 +788,54 @@ sections:
                   Callers match on the package's own stable identifiers, never on those of the renderer.
                 tests:
                   - ScadSceneOptions_MapFeature_RewritesPrefix
+
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-AnchorWorldPoints
+                title: >-
+                  The ScadGeometryBuilder unit shall resolve each anchor instance to a world point by
+                  applying the matrices of its enclosing translate, rotate, scale, mirror, and
+                  multmatrix instances (innermost first, through user modules, loops, and the
+                  union, difference, intersection, render, color, hull, and minkowski containers and
+                  the highlight and background modifiers), shall resolve the anchors of only the marked
+                  subtrees when the model uses the show-only modifier, shall skip with one warning that
+                  starts with scad-anchor-invalid an anchor inside resize, an extrusion, projection, or
+                  any other module whose coordinate change it cannot follow or whose point leaves the
+                  safe coordinate range, and shall drop silently, without repeating the builder's own
+                  warning, an anchor below an invalid or collapsing transform.
+                justification: |
+                  A callout is only useful at the right place in the picture; the point must be
+                  expressed in the same world coordinates as the geometry, and a context that cannot be
+                  located exactly must be reported rather than guessed.
+                tests:
+                  - ScadGeometryBuilderAnchor_MatrixTransform_AppliesToThePoint
+                  - ScadGeometryBuilderAnchor_NestedTransforms_ApplyInnermostFirst
+                  - ScadGeometryBuilderAnchor_ThroughUserModule_AppliesCallerAndBodyTransforms
+                  - ScadGeometryBuilderAnchor_PassThroughContainer_KeepsTheEnclosingMatrix
+                  - ScadGeometryBuilderAnchor_UnderHighlightAndBackground_KeepsTheMatrix
+                  - ScadGeometryBuilderAnchor_ShowOnlyModifier_UsesTheMarkedSubtreeWithoutAncestorTransforms
+                  - ScadGeometryBuilderAnchor_UnsupportedContext_SkipsWithWarning
+                  - ScadGeometryBuilderAnchor_UnderCollapsingTransform_IsDroppedWithoutExtraWarnings
+                  - ScadGeometryBuilderAnchor_OutOfRangeAfterTransforms_IsSkippedWithWarning
+
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-AnchorsNeverAlterGeometry
+                title: >-
+                  The ScadGeometryBuilder unit shall never let an anchor instance become geometry or a
+                  child result, so that a scene is identical with and without anchor declarations,
+                  including an anchor as the first child of a difference and an anchor named like a
+                  module.
+                justification: |
+                  An anchor is metadata about the model; it must not change the model, whose first
+                  difference operand and unknown-module reports are decided by the real children.
+                tests:
+                  - ScadGeometryBuilderAnchor_FirstChildOfDifference_DoesNotChangeTheScene
+                  - ScadGeometryBuilderAnchor_NamedLikeAModule_IsNotGeometry
+                  - ScadGeometryBuilderAnchor_NoDeclaration_ReportsNone
+
+              - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-AnchorOrder
+                title: >-
+                  The ScadGeometryBuilder unit shall return the anchors in document order, which is the
+                  order of their echo lines, keeping duplicate names.
+                justification: |
+                  Callers match anchors to the echo output and may rely on a name's first or last
+                  declaration; a stable order makes that unambiguous.
+                tests:
+                  - ScadGeometryBuilderAnchor_Order_IsTheEchoOrder

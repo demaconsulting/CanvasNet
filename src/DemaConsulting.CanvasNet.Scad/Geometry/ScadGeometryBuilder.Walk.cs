@@ -63,6 +63,13 @@ internal sealed partial class ScadGeometryBuilder
             {
                 var child = top.Children[top.Next++];
                 _context.Tick();
+
+                // An anchor is not geometry: it never becomes a result, so it cannot displace the first operand of a difference
+                if (child.Kind == ScadInstanceKind.Anchor)
+                {
+                    continue;
+                }
+
                 var combiner = Enter(child, out var immediate);
                 if (combiner is null)
                 {

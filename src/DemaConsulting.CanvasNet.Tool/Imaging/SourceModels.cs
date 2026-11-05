@@ -424,9 +424,32 @@ internal sealed record LoadedSource(
     IReadOnlyList<string> Echo,
     IReadOnlyList<AppliedOperation> Operations) : IDisposable
 {
+    /// <summary>
+    ///     Gets the anchors a model declared with <c>echo("anchor", name, [x, y, z])</c>, with their positions in
+    ///     <see cref="Surface"/> (the image the model was drawn into, before any pipeline step); empty for every other
+    ///     kind and for a model without anchors.
+    /// </summary>
+    public IReadOnlyList<SourceAnchor> Anchors { get; init; } = [];
+
     /// <inheritdoc />
     public void Dispose()
     {
         Surface.Dispose();
     }
 }
+
+/// <summary>
+///     An anchor declared by an OpenSCAD model, with the position the library projected it to.
+/// </summary>
+/// <remarks>
+///     The pixel position is continuous, with the origin at the top-left corner of the image and pixel <c>i</c>
+///     spanning <c>[i, i + 1)</c>. Whether it is inside the image is not stored: it depends on the size of the image
+///     after the pipeline, so the writer computes it.
+/// </remarks>
+/// <param name="Name">The anchor name.</param>
+/// <param name="X">The world X of the anchor point.</param>
+/// <param name="Y">The world Y of the anchor point.</param>
+/// <param name="Z">The world Z of the anchor point.</param>
+/// <param name="PixelX">The horizontal pixel position, or <see langword="null"/> when the point cannot be projected.</param>
+/// <param name="PixelY">The vertical pixel position, or <see langword="null"/> when the point cannot be projected.</param>
+internal sealed record SourceAnchor(string Name, double X, double Y, double Z, double? PixelX, double? PixelY);

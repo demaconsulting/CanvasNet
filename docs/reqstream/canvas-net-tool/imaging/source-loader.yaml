@@ -557,3 +557,15 @@ sections:
         tests:
           - SourceLoader_PublicMethods_NullArguments_ThrowArgumentNullException
           - SourceLoader_OpenPages_NullArguments_ThrowArgumentNullException
+
+      - id: CanvasNetTool-Imaging-SourceLoader-ScadAnchors
+        title: >-
+          The SourceLoader class shall collect the anchors an OpenSCAD model declares during the render, in
+          echo order and with duplicates, as the name, the world point, and the pixel position in the loaded
+          image (absent when the point cannot be projected) of each, report a malformed declaration as a
+          scad-warning note, and return none for a model without anchors.
+        justification: |
+          The pixel positions are only meaningful for the image that was rendered, so they are taken from the
+          library during the same render and handed on with the loaded image.
+        tests:
+          - SourceLoader_Load_ModelWithAnchors_CollectsThemWithPixelPositions

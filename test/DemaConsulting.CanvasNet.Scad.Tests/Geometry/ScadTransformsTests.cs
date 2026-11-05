@@ -1,5 +1,8 @@
 // cspell:ignore multmatrix
 using DemaConsulting.CanvasNet.Render3D.SceneModel;
+using DemaConsulting.CanvasNet.Scad.Evaluation;
+using DemaConsulting.CanvasNet.Scad.Geometry;
+using DemaConsulting.CanvasNet.Scad.Tests.Evaluation;
 using static DemaConsulting.CanvasNet.Scad.Tests.Geometry.ScadGeometryTestSupport;
 
 namespace DemaConsulting.CanvasNet.Scad.Tests.Geometry;
@@ -707,5 +710,125 @@ public class ScadTransformsTests
         var mesh = result.WorldMesh;
         AssertSolidVolume(mesh, 12.0 * 0.1);
         AssertBounds(mesh.Bounds, new Vector3D(10, 0, 0), new Vector3D(14, 4, 0.1));
+    }
+
+    /// <summary>
+    ///     Reads the matrix of the first instance of a program with <see cref="ScadTransforms.TryGetMatrix"/>.
+    /// </summary>
+    /// <param name="source">The program.</param>
+    /// <param name="reporter">The reporter that receives the problems, or <see langword="null"/> for a silent one.</param>
+    /// <param name="matrix">The matrix.</param>
+    /// <returns>The result of <see cref="ScadTransforms.TryGetMatrix"/>.</returns>
+    private static bool TryMatrix(string source, ScadEvaluationSink? reporter, out Matrix4x4D matrix)
+    {
+        var sink = reporter ?? new ScadEvaluationSink(ScadLimits.Default);
+        var output = ScadEvaluatorTestSupport.Run(source);
+        var context = new ScadGeometryContext(Settings(), new ScadReporter(sink, false));
+        return ScadTransforms.TryGetMatrix(output.Roots[0], context, out matrix);
+    }
+
+    /// <summary>
+    ///     Validates that <see cref="ScadTransforms.TryGetMatrix"/> gives the matrix the builder bakes into the geometry,
+    ///     for every transform and argument form (one definition shared by the builders and the anchor pass).
+    /// </summary>
+    /// <param name="call">The transform call.</param>
+    [Theory]
+    [InlineData("translate([10, 20, 30])")]
+    [InlineData("rotate([10, 20, 30])")]
+    [InlineData("rotate(a = 33, v = [1, 2, 3])")]
+    [InlineData("rotate(45)")]
+    [InlineData("scale([2, 3, 4])")]
+    [InlineData("scale(-2)")]
+    [InlineData("mirror([1, 1, 0])")]
+    [InlineData("multmatrix([[1, 2, 0, 5], [0, 1, 0, 6], [0, 0, 3, 7], [0, 0, 0, 1]])")]
+    public void ScadTransforms_TryGetMatrix_MatchesTheMatrixOfTheBuiltGeometry(string call)
+    {
+        // Arrange / Act
+        var read = TryMatrix($"{call} {Box}", null, out var matrix);
+        var leaf = Assert.Single(Build($"{call} {Box}").Leaves);
+
+        // Assert: both transform a probe point to the same place
+        Assert.True(read);
+        var probe = new Vector3D(1.5, -2.25, 4.0);
+        var expected = leaf.World.TransformPoint(probe);
+        var actual = matrix.TransformPoint(probe);
+        Assert.Equal(expected.X, actual.X, 1e-9);
+        Assert.Equal(expected.Y, actual.Y, 1e-9);
+        Assert.Equal(expected.Z, actual.Z, 1e-9);
+    }
+
+    /// <summary>
+    ///     Validates that a transform without its argument is the identity and succeeds.
+    /// </summary>
+    /// <param name="call">The transform call without an argument.</param>
+    [Theory]
+    [InlineData("translate()")]
+    [InlineData("rotate()")]
+    [InlineData("scale()")]
+    [InlineData("mirror()")]
+    [InlineData("multmatrix()")]
+    public void ScadTransforms_TryGetMatrix_AbsentArgument_IsTheIdentity(string call)
+    {
+        // Arrange / Act
+        var read = TryMatrix($"{call} {Box}", null, out var matrix);
+
+        // Assert
+        Assert.True(read);
+        Assert.Equal(Matrix4x4D.Identity, matrix);
+    }
+
+    /// <summary>
+    ///     Validates that an invalid or projective transform reports once, to the reporter it was given, and is refused.
+    /// </summary>
+    /// <param name="call">The transform call.</param>
+    [Theory]
+    [InlineData("translate(\"x\")")]
+    [InlineData("rotate(\"x\")")]
+    [InlineData("rotate(30, [1, 2])")]
+    [InlineData("scale([1, \"y\"])")]
+    [InlineData("mirror(true)")]
+    [InlineData("multmatrix([[1, 2, 3]])")]
+    [InlineData("multmatrix([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [1, 0, 0, 1]])")]
+    public void ScadTransforms_TryGetMatrix_InvalidOrProjective_IsRefusedAndReportedOnce(string call)
+    {
+        // Arrange
+        var sink = new ScadEvaluationSink(ScadLimits.Default);
+
+        // Act
+        var read = TryMatrix($"{call} {Box}", sink, out var matrix);
+
+        // Assert
+        Assert.False(read);
+        Assert.Equal(Matrix4x4D.Identity, matrix);
+        Assert.Equal(1, sink.Diagnostics.Count + sink.UnsupportedFeatures.Count);
+    }
+
+    /// <summary>
+    ///     Validates that an instance that is not a matrix transform is refused, whether it is another module or a user
+    ///     module that happens to be called <c>translate</c>.
+    /// </summary>
+    [Fact]
+    public void ScadTransforms_TryGetMatrix_OtherInstances_AreRefused()
+    {
+        // Arrange / Act
+        var cube = TryMatrix(Box, null, out _);
+        var userModule = TryMatrix("module translate(v) { cube(1); } translate([1, 2, 3]);", null, out _);
+
+        // Assert
+        Assert.False(cube);
+        Assert.False(userModule);
+    }
+
+    /// <summary>
+    ///     Validates which matrices collapse solid geometry.
+    /// </summary>
+    [Fact]
+    public void ScadTransforms_Collapses_SingularAndNonFiniteMatrices()
+    {
+        // Arrange / Act / Assert
+        Assert.False(ScadTransforms.Collapses(Matrix4x4D.Identity));
+        Assert.False(ScadTransforms.Collapses(Matrix4x4D.CreateScale(new Vector3D(2, 3, -4))));
+        Assert.True(ScadTransforms.Collapses(Matrix4x4D.CreateScale(new Vector3D(0, 1, 1))));
+        Assert.True(ScadTransforms.Collapses(Matrix4x4D.CreateScale(double.PositiveInfinity)));
     }
 }

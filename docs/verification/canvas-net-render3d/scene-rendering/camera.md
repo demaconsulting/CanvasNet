@@ -98,6 +98,25 @@ the near plane must be less than the far plane. The undefined-projection scenari
 Asserts that a view direction parallel to the up hint selects an alternate up vector rather than
 failing, and that a 90-degree elevation `FitToBounds` returns a usable camera.
 
+##### CanvasNetRender3D-SceneRendering-Camera-ProjectPoint: A World Point Is Located Where The Renderer Draws It
+
+**Tests**: `CameraTests.Camera_TryProject_OrthographicTop_MapsTargetToCenterAndEdgesToImageEdges`,
+`CameraTests.Camera_TryProject_Perspective_MatchesAnalyticValue`,
+`CameraTests.Camera_TryProject_BehindEye_ReturnsFalseOnlyForPerspective`,
+`CameraTests.Camera_TryProject_NonFinitePoint_ReturnsFalse`,
+`CameraTests.Camera_TryProject_InvalidCameraOrSize_Throws`,
+`CameraTests.Camera_TryProject_MatchesRasterizer`
+
+Asserts the pixel convention with an orthographic top camera (the target at the image center, the
+visible-height edge at the top of the image, +X to the right), the perspective projection against the
+analytic value `W/2 + X / (d tan(fov/2) aspect) W/2`, that a perspective point behind or at the eye
+returns `false` and an orthographic one does not, that a non-finite point returns `false` with a zero
+pixel, and the documented exceptions for an invalid camera and a size outside the range. The rasterizer
+scenario renders a flat box without antialiasing with an orthographic and a perspective camera on a non-square image
+and requires the extent of the covered pixels to match the extremes of the eight projected corners within
+one pixel, which ties `TryProject` to the pixels the renderer really writes rather than to a second
+implementation of the math.
+
 #### Acceptance Criteria
 
 A unit-level test run passes when every scenario above passes without error or exception beyond

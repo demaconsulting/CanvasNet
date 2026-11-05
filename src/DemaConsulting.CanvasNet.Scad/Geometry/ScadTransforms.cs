@@ -72,18 +72,79 @@ internal static partial class ScadTransforms
     /// <param name="results">The results of the children.</param>
     /// <param name="context">The build context.</param>
     /// <returns>The translated union of the children.</returns>
-    public static ScadGeo Translate(ScadInstance? node, List<ScadGeo> results, ScadGeometryContext context)
+    public static ScadGeo Translate(ScadInstance? node, List<ScadGeo> results, ScadGeometryContext context) =>
+        TryGetMatrix(node!, context, out var matrix) ? Apply(node!, results, context, matrix) : ScadGeo.Empty;
+
+    /// <summary>
+    ///     Computes the matrix of a <c>translate</c>, <c>rotate</c>, <c>scale</c>, <c>mirror</c> or <c>multmatrix</c>
+    ///     instance: the single definition shared by the builders and the anchor pass of the geometry builder.
+    /// </summary>
+    /// <remarks>
+    ///     Problems are reported through <paramref name="context"/> exactly as the builders always did (an invalid
+    ///     argument warns and the instance is ignored; a projective <c>multmatrix</c> is an unsupported feature; a
+    ///     zero rotation axis or mirror normal warns and keeps the identity). A caller that must not duplicate those
+    ///     reports passes a context with a throw-away reporter. The matrix is in the row-vector convention
+    ///     Render3D uses. A transform without its argument is the identity.
+    /// </remarks>
+    /// <param name="node">The instance; its name selects the transform.</param>
+    /// <param name="context">The build context that receives warnings and unsupported-feature reports.</param>
+    /// <param name="matrix">The matrix when the method returns <see langword="true"/>; otherwise the identity.</param>
+    /// <returns>
+    ///     <see langword="true"/> when the instance is a valid, non-projective transform; <see langword="false"/> when
+    ///     it is invalid or projective, or is not a matrix transform at all (it is then ignored by the builders).
+    /// </returns>
+    internal static bool TryGetMatrix(ScadInstance node, ScadGeometryContext context, out Matrix4x4D matrix)
     {
-        var instance = node!;
+        matrix = Matrix4x4D.Identity;
+        if (node.Kind != ScadInstanceKind.BuiltinModule)
+        {
+            return false;
+        }
+
+        return node.Name switch
+        {
+            "translate" => TryTranslateMatrix(node, context, out matrix),
+            "rotate" => TryRotateMatrix(node, context, out matrix),
+            "scale" => TryScaleMatrix(node, context, out matrix),
+            "mirror" => TryMirrorMatrix(node, context, out matrix),
+            "multmatrix" => TryMultmatrixMatrix(node, context, out matrix),
+            _ => false,
+        };
+    }
+
+    /// <summary>
+    ///     Decides whether a transform matrix collapses solid geometry (not finite or singular), in which case the
+    ///     builders drop the children.
+    /// </summary>
+    /// <param name="matrix">The matrix in the row-vector convention.</param>
+    /// <returns><see langword="true"/> when the matrix is not finite or collapses space.</returns>
+    internal static bool Collapses(Matrix4x4D matrix) =>
+        !matrix.IsFinite || IsSingular(Determinant3(matrix), RowNorms(matrix));
+
+    /// <summary>
+    ///     Computes the matrix of <c>translate(v)</c>.
+    /// </summary>
+    /// <param name="instance">The instance.</param>
+    /// <param name="context">The build context.</param>
+    /// <param name="matrix">The matrix.</param>
+    /// <returns><see langword="false"/> when <c>v</c> is invalid (reported).</returns>
+    private static bool TryTranslateMatrix(ScadInstance instance, ScadGeometryContext context, out Matrix4x4D matrix)
+    {
+        matrix = Matrix4x4D.Identity;
         var args = ScadArguments.Bind(instance, VectorParameters, context);
         var state = ReadVector(args, "v", 0.0, out var v);
         if (state == ReadState.Invalid)
         {
-            return Invalid(instance, context, "v must be a vector of one to three numbers");
+            Invalid(instance, context, "v must be a vector of one to three numbers");
+            return false;
         }
 
-        var matrix = state == ReadState.Absent ? Matrix4x4D.Identity : Matrix4x4D.CreateTranslation(new Vector3D(v[0], v[1], v[2]));
-        return Apply(instance, results, context, matrix);
+        if (state == ReadState.Valid)
+        {
+            matrix = Matrix4x4D.CreateTranslation(new Vector3D(v[0], v[1], v[2]));
+        }
+
+        return true;
     }
 
     /// <summary>
@@ -93,30 +154,43 @@ internal static partial class ScadTransforms
     /// <param name="results">The results of the children.</param>
     /// <param name="context">The build context.</param>
     /// <returns>The rotated union of the children.</returns>
-    public static ScadGeo Rotate(ScadInstance? node, List<ScadGeo> results, ScadGeometryContext context)
+    public static ScadGeo Rotate(ScadInstance? node, List<ScadGeo> results, ScadGeometryContext context) =>
+        TryGetMatrix(node!, context, out var matrix) ? Apply(node!, results, context, matrix) : ScadGeo.Empty;
+
+    /// <summary>
+    ///     Computes the matrix of <c>rotate(a, v)</c>.
+    /// </summary>
+    /// <param name="instance">The instance.</param>
+    /// <param name="context">The build context.</param>
+    /// <param name="matrix">The matrix.</param>
+    /// <returns><see langword="false"/> when <c>a</c> or <c>v</c> is invalid (reported).</returns>
+    private static bool TryRotateMatrix(ScadInstance instance, ScadGeometryContext context, out Matrix4x4D matrix)
     {
-        var instance = node!;
+        matrix = Matrix4x4D.Identity;
         var args = ScadArguments.Bind(instance, RotateParameters, context);
         var hasAxis = args.TryGet("v", out var axisValue);
         if (!args.TryGet("a", out var angleValue))
         {
-            return Apply(instance, results, context, Matrix4x4D.Identity);
+            return true;
         }
 
         double[]? axis = null;
         if (hasAxis && !ScadArguments.TryNumbers(axisValue, 3, out axis))
         {
-            return Invalid(instance, context, "v must be a vector of three numbers");
+            Invalid(instance, context, "v must be a vector of three numbers");
+            return false;
         }
 
         if (ScadArguments.TryNumber(angleValue, out var degrees))
         {
-            return Apply(instance, results, context, RotateScalar(instance, context, degrees, axis));
+            matrix = RotateScalar(instance, context, degrees, axis);
+            return true;
         }
 
         if (!TryReadVector(angleValue, 0.0, out var angles))
         {
-            return Invalid(instance, context, "a must be a number or a vector of one to three numbers");
+            Invalid(instance, context, "a must be a number or a vector of one to three numbers");
+            return false;
         }
 
         // The Euler form ignores an axis; say so instead of dropping it silently
@@ -126,8 +200,8 @@ internal static partial class ScadTransforms
         }
 
         // Row-vector convention: the left factor is applied first, so this is X, then Y, then Z
-        var euler = Matrix4x4D.CreateRotationX(ReduceAngle(angles[0])) * Matrix4x4D.CreateRotationY(ReduceAngle(angles[1])) * Matrix4x4D.CreateRotationZ(ReduceAngle(angles[2]));
-        return Apply(instance, results, context, euler);
+        matrix = Matrix4x4D.CreateRotationX(ReduceAngle(angles[0])) * Matrix4x4D.CreateRotationY(ReduceAngle(angles[1])) * Matrix4x4D.CreateRotationZ(ReduceAngle(angles[2]));
+        return true;
     }
 
     /// <summary>
@@ -137,26 +211,39 @@ internal static partial class ScadTransforms
     /// <param name="results">The results of the children.</param>
     /// <param name="context">The build context.</param>
     /// <returns>The scaled union of the children.</returns>
-    public static ScadGeo Scale(ScadInstance? node, List<ScadGeo> results, ScadGeometryContext context)
+    public static ScadGeo Scale(ScadInstance? node, List<ScadGeo> results, ScadGeometryContext context) =>
+        TryGetMatrix(node!, context, out var matrix) ? Apply(node!, results, context, matrix) : ScadGeo.Empty;
+
+    /// <summary>
+    ///     Computes the matrix of <c>scale(v)</c>.
+    /// </summary>
+    /// <param name="instance">The instance.</param>
+    /// <param name="context">The build context.</param>
+    /// <param name="matrix">The matrix.</param>
+    /// <returns><see langword="false"/> when <c>v</c> is invalid (reported).</returns>
+    private static bool TryScaleMatrix(ScadInstance instance, ScadGeometryContext context, out Matrix4x4D matrix)
     {
-        var instance = node!;
+        matrix = Matrix4x4D.Identity;
         var args = ScadArguments.Bind(instance, VectorParameters, context);
         if (!args.TryGet("v", out var value))
         {
-            return Apply(instance, results, context, Matrix4x4D.Identity);
+            return true;
         }
 
         if (ScadArguments.TryNumber(value, out var factor))
         {
-            return Apply(instance, results, context, Matrix4x4D.CreateScale(factor));
+            matrix = Matrix4x4D.CreateScale(factor);
+            return true;
         }
 
         if (!TryReadVector(value, 1.0, out var v))
         {
-            return Invalid(instance, context, "v must be a number or a vector of one to three numbers");
+            Invalid(instance, context, "v must be a number or a vector of one to three numbers");
+            return false;
         }
 
-        return Apply(instance, results, context, Matrix4x4D.CreateScale(new Vector3D(v[0], v[1], v[2])));
+        matrix = Matrix4x4D.CreateScale(new Vector3D(v[0], v[1], v[2]));
+        return true;
     }
 
     /// <summary>
@@ -166,29 +253,41 @@ internal static partial class ScadTransforms
     /// <param name="results">The results of the children.</param>
     /// <param name="context">The build context.</param>
     /// <returns>The mirrored union of the children.</returns>
-    public static ScadGeo Mirror(ScadInstance? node, List<ScadGeo> results, ScadGeometryContext context)
+    public static ScadGeo Mirror(ScadInstance? node, List<ScadGeo> results, ScadGeometryContext context) =>
+        TryGetMatrix(node!, context, out var matrix) ? Apply(node!, results, context, matrix) : ScadGeo.Empty;
+
+    /// <summary>
+    ///     Computes the matrix of <c>mirror(v)</c>.
+    /// </summary>
+    /// <param name="instance">The instance.</param>
+    /// <param name="context">The build context.</param>
+    /// <param name="matrix">The matrix.</param>
+    /// <returns><see langword="false"/> when <c>v</c> is invalid (reported).</returns>
+    private static bool TryMirrorMatrix(ScadInstance instance, ScadGeometryContext context, out Matrix4x4D matrix)
     {
-        var instance = node!;
+        matrix = Matrix4x4D.Identity;
         var args = ScadArguments.Bind(instance, VectorParameters, context);
         var state = ReadVector(args, "v", 0.0, out var v);
         if (state == ReadState.Invalid)
         {
-            return Invalid(instance, context, "v must be a vector of one to three numbers");
+            Invalid(instance, context, "v must be a vector of one to three numbers");
+            return false;
         }
 
         if (state == ReadState.Absent)
         {
-            return Apply(instance, results, context, Matrix4x4D.Identity);
+            return true;
         }
 
         var normal = new Vector3D(v[0], v[1], v[2]);
         if (IsZero(normal))
         {
             context.Reporter.Warn("mirror: the normal v is zero; the children are not mirrored", instance.Location);
-            return Apply(instance, results, context, Matrix4x4D.Identity);
+            return true;
         }
 
-        return Apply(instance, results, context, Matrix4x4D.CreateMirror(normal));
+        matrix = Matrix4x4D.CreateMirror(normal);
+        return true;
     }
 
     /// <summary>
@@ -198,19 +297,30 @@ internal static partial class ScadTransforms
     /// <param name="results">The results of the children.</param>
     /// <param name="context">The build context.</param>
     /// <returns>The transformed union of the children, or nothing when the matrix is invalid or projective.</returns>
-    public static ScadGeo Multmatrix(ScadInstance? node, List<ScadGeo> results, ScadGeometryContext context)
+    public static ScadGeo Multmatrix(ScadInstance? node, List<ScadGeo> results, ScadGeometryContext context) =>
+        TryGetMatrix(node!, context, out var matrix) ? Apply(node!, results, context, matrix) : ScadGeo.Empty;
+
+    /// <summary>
+    ///     Computes the matrix of <c>multmatrix(m)</c>.
+    /// </summary>
+    /// <param name="instance">The instance.</param>
+    /// <param name="context">The build context.</param>
+    /// <param name="matrix">The matrix.</param>
+    /// <returns><see langword="false"/> when <c>m</c> is invalid or projective (reported).</returns>
+    private static bool TryMultmatrixMatrix(ScadInstance instance, ScadGeometryContext context, out Matrix4x4D matrix)
     {
-        var instance = node!;
+        matrix = Matrix4x4D.Identity;
         var args = ScadArguments.Bind(instance, MultmatrixParameters, context);
         if (!args.TryGet("m", out var value))
         {
-            return Apply(instance, results, context, Matrix4x4D.Identity);
+            return true;
         }
 
         var rows = ReadMatrixRows(value);
         if (rows is null)
         {
-            return Invalid(instance, context, "m must be a 4x4 matrix (or its first three rows) of finite numbers");
+            Invalid(instance, context, "m must be a 4x4 matrix (or its first three rows) of finite numbers");
+            return false;
         }
 
         // A bottom row other than [0, 0, 0, 1] is a perspective transform, which the renderer cannot represent
@@ -220,7 +330,7 @@ internal static partial class ScadTransforms
                 ScadFeatureIds.MultmatrixProjective,
                 "multmatrix: a matrix whose bottom row is not [0, 0, 0, 1] is a projective transform, which is not supported; the children are omitted",
                 instance.Location);
-            return ScadGeo.Empty;
+            return false;
         }
 
         // The language multiplies column vectors; Render3D multiplies row vectors, so the matrix is transposed
@@ -231,7 +341,8 @@ internal static partial class ScadTransforms
             rows[0][2], rows[1][2], rows[2][2], 0.0,
             rows[0][3], rows[1][3], rows[2][3], 1.0,
         ];
-        return Apply(instance, results, context, Matrix4x4D.FromRowMajor(elements));
+        matrix = Matrix4x4D.FromRowMajor(elements);
+        return true;
     }
 
     /// <summary>
@@ -265,7 +376,7 @@ internal static partial class ScadTransforms
     /// <returns>The transformed solid, or nothing when the matrix is singular or not finite.</returns>
     private static ScadGeo ApplySolid(ScadInstance node, ScadGeometryContext context, ScadGeo solid, Matrix4x4D matrix)
     {
-        if (!matrix.IsFinite || IsSingular(Determinant3(matrix), RowNorms(matrix)))
+        if (Collapses(matrix))
         {
             return Invalid(node, context, "the transformation is singular or not finite and collapses the children");
         }

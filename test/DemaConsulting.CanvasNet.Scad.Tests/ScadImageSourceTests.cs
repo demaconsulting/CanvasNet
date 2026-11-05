@@ -199,6 +199,30 @@ public class ScadImageSourceTests
     }
 
     /// <summary>
+    ///     Test that a model that declares anchors is embedded exactly as the same model without them, and that the
+    ///     anchor statement is an ordinary echo line (the embedded picture does not use anchors).
+    /// </summary>
+    [Fact]
+    public void ScadImageSource_Render_ModelWithAnchors_DrawsTheSamePictureAndEchoesTheDeclaration()
+    {
+        // Arrange
+        const string plain = "cube([30, 10, 5]);";
+        const string anchored = "cube([30, 10, 5]);\necho(\"anchor\", \"tip\", [30, 10, 5]);\necho(\"anchor\", \"bad\", [1]);\n";
+        var source = new ScadImageSource();
+
+        // Act
+        var withoutAnchors = source.Render(Request(plain, 80, 80));
+        var withAnchors = source.Render(Request(anchored, 80, 80));
+        using var plainSurface = withoutAnchors.Surface;
+        using var anchoredSurface = withAnchors.Surface;
+
+        // Assert: the same picture, the declaration echoed, the malformed one reported like any warning
+        Assert.True(AreIdentical(plainSurface, anchoredSurface));
+        Assert.Equal(2, withAnchors.Echo.Count(line => line.Contains("anchor", StringComparison.Ordinal)));
+        Assert.Contains(withAnchors.Diagnostics, d => d.Message.Contains("scad-anchor-invalid:", StringComparison.Ordinal));
+    }
+
+    /// <summary>
     ///     Gets the first and last pixel column of a row that are not transparent.
     /// </summary>
     /// <param name="surface">The surface.</param>

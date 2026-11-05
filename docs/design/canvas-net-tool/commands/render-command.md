@@ -40,7 +40,9 @@ their options from the table by name (`SpecsFor`) and so do not inherit them (`c
 the `Operations` of the image pipeline, produced by `ReadSettings`.
 
 **PageOutput** (private record): one page that was loaded, transformed, and written - its page number, the
-`SourceInfo` of the loaded page, its diagnostics, echo, and operations, and the `WriteResult`.
+`SourceInfo` of the loaded page, its diagnostics, echo, and operations, the `WriteResult`, and the `SourceAnchor`
+list of a
+model already mapped through the pipeline.
 
 **VerbTexts** (private table): for each verb, the operand placeholder (`<geometry>`, `<WxH>`, `<degrees>`, `<axis>`,
 or `<border>`), the summary, a description of the operand, and the examples; `VerbUsage` builds the usage text from
@@ -127,7 +129,10 @@ of its own gets the default: the `--background` color when given (also a transpa
 vector source (SVG, document page, model, chart, which the loader flattened over white) and
 transparent for a raster. The `--background` color the user gave is also passed to `ImagePipeline.Apply` as the fill of
 a rotation (a rotation without `--rotate-fill` fills its corners with it; without a background the pipeline's rule
-applies: opaque white for an image with no transparent pixel, else transparent). Everything the pipeline does happens
+applies: opaque white for an image with no transparent pixel, else transparent). The anchors of a model
+(`LoadedSource.Anchors`, positions in the loaded image) are mapped through the applied steps with
+`ImagePipeline.MapAnchors` when there are operations, and used as loaded otherwise; the page's report carries the
+mapped list. Everything the pipeline does happens
 before the output is published, so a failing operation
 (for example a crop that starts outside the image after an earlier crop) writes nothing and leaves an existing output
 untouched.
@@ -173,7 +178,12 @@ fields after the envelope, in this order:
 | `outputs` | array with one object per page written: `path`, `format`, `width`, `height`, `bytes`, and for a document `page` |
 | `diagnostics` | array of objects: `source` (`pptx`, `vsdx`, `scad`, or `vega-lite`), `severity` (`unsupported`, or `warning` for a model or a chart), `code` (the feature token, or `scad-warning` or `vega-lite-warning`), `message`, and `page` (documents only) |
 | `echo` | array of strings: the `echo` output of a model as the SCAD library prints it, with its `ECHO:` prefix (empty for every other source) |
+| `anchors` | **only for a model** (no member for any other input), after `echo`: an array of objects in echo order, duplicates included, `name`, `point` (the world `[x, y, z]`), `pixel` (`[x, y]` in the written image, continuous with the origin at the top-left corner, rounded to three decimals, or `null` when the position is unknown: a point behind a perspective eye or after a deskew that corrected the image) and `inside` (the pixel lies in `0 <= x < width`, `0 <= y < height` of the written image; `false` for a `null` pixel); `[]` when the model declares none (`WriteAnchors`) |
 <!-- markdownlint-enable MD013 -->
+
+The text result does not change for a model with anchors: the one `wrote` line is on standard output and the `ECHO:`
+lines of the declarations (and the `scad-anchor-invalid` warnings) are on standard error like any other echo and
+warning.
 
 #### Error Handling
 

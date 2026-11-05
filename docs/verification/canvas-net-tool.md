@@ -291,6 +291,13 @@ module `block`, the function `half`, and no directives.
 an unsupported module renders with exit code 0; the JSON result has the echo line and, in order, the `scad-warning` and
 `scad-module-surface` diagnostics.
 
+**CanvasNetTool_Scad_Anchors_AreReportedInJsonAndFollowThePixelSteps**: a model with an anchor on the upper left corner
+of
+a box (and a malformed declaration) is rendered in-process from the top at 400 by 200 with `--json`, again with
+`--flip h --pad 10`, and once in text mode; the first document has the one anchor `corner` and the
+`scad-anchor-invalid` diagnostic, the second has the pixel at `(400 - x + 10, y + 10)` of the first with `inside` true,
+and the text mode writes no anchor on standard output.
+
 **CanvasNetTool_Scad_Includes_AreReadFromTheModelFolderOnly**: a model that includes and uses files in a subfolder
 renders without notes; a model that includes a file that does not exist and a model that includes a file outside its
 folder (which exists) each return exit code 1 with a `scad-error` message and document and write no output.

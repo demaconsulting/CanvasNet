@@ -727,3 +727,43 @@ for a cube drawn with the default options, the top view of the drawing sheet as 
 `Camera`, and `Document` for the explicit angles, the camera, and the assigned `$vpr`; that a camera looking from `(0, -40,
 0)` at the origin is reported with azimuth 0, elevation 0, and the source `Camera`; and that `BuildScene` with a handler
 never calls it.
+
+#### CanvasNetScad-ScadDocument-Anchors: Anchors Reported With Their Pixel Positions
+
+**Tests**: `ScadDocumentAnchorTests.ScadDocumentAnchor_TopOrthographicBox_CornersMatchTheRenderedImage`,
+`ScadDocumentAnchorTests.ScadDocumentAnchor_ExplicitOrthographicCamera_GivesTheAnalyticPixel`,
+`ScadDocumentAnchorTests.ScadDocumentAnchor_PerspectiveFront_CornersMatchTheRenderedImage`,
+`ScadDocumentAnchorTests.ScadDocumentAnchor_AutoFitIsometric_CornersMatchTheExtentAndStayInside`,
+`ScadDocumentAnchorTests.ScadDocumentAnchor_FlatModel_CornersMatchTheRenderedImage`,
+`ScadDocumentAnchorTests.ScadDocumentAnchor_DocumentViewport_TargetIsAtTheImageCenter`,
+`ScadDocumentAnchorTests.ScadDocumentAnchor_OutsideAndBehindTheEye_AreFlagged`,
+`ScadDocumentAnchorTests.ScadDocumentAnchor_DuplicatesAndPlainEchoes_FollowTheEchoOrder`,
+`ScadDocumentAnchorTests.ScadDocumentAnchor_Handler_RunsAfterTheResolvedViewHandler`,
+`ScadDocumentAnchorTests.ScadDocumentAnchor_BuildScene_NeverCallsTheHandler`,
+`ScadDocumentAnchorTests.ScadDocumentAnchor_Declarations_DoNotChangeThePixels`,
+`ScadDocumentAnchorTests.ScadDocumentAnchor_Malformed_WarnsOnceAndTheRestAreDelivered`,
+`ScadDocumentAnchorTests.ScadDocumentAnchor_HandlerException_Propagates`,
+`ScadDocumentAnchorTests.ScadDocumentAnchor_NoDeclaration_NeverCallsTheHandler`,
+`ScadAnchorTests.ScadAnchor_Constructor_KeepsTheValuesAndComparesByValue`,
+`ScadAnchorTests.ScadAnchor_Pixel_CanBeAbsent`,
+`ScadAnchorTests.ScadAnchor_RenderOptionsHandler_IsNullByDefault`,
+`ScadImageSourceTests.ScadImageSource_Render_ModelWithAnchors_DrawsTheSamePictureAndEchoesTheDeclaration`
+
+The pixel positions are verified **against the rendered image**, never against a second implementation of the camera.
+The scenarios render a `cube([40, 20, 10])` with anchors on its eight corners and compare each anchor with the extent
+of the covered pixels (the left, top, right, and bottom edges of the non-white pixels; pixel `i` spans `[i, i + 1)`),
+within one pixel: a top orthographic view at 400 by 300, 800 by 400, and 300 by 600 (the high and low corners of the
+same column project to the same pixel); a front perspective view (the near face is the silhouette, and its width is
+larger than the far face's); the auto-fitted isometric view in orthographic and perspective projection and in square,
+wide, and tall images, where the extremes of the projected corners equal the extremes of the covered pixels, every
+corner is inside the image, and the 5 percent fit margin keeps the model off the edges; and a flat 2D model drawn with
+the flat default view (reported as `FlatDefault`). An explicit orthographic camera with a known mapping (10 pixels per
+unit) gives the analytic pixels and the world point after a `translate`, and the location of the declaring echo. The
+target of a document's own `$vpt`, `$vpr`, and `$vpd` is at the exact center of the image. A far point has a pixel
+outside the image with `IsInsideImage` false, and a point behind a perspective eye has no pixel and is not inside.
+Duplicates and plain echoes keep the echo order and the echo lines; the handler runs after the resolved-view handler
+and before drawing; `BuildScene` and a model without anchors never call it; the pixels of a `difference` are
+byte-identical with and without anchor statements (and the echo lines are delivered once); a malformed anchor is one
+warning starting with `scad-anchor-invalid:` at its line while the valid one is delivered; and an exception of the
+handler propagates with the echo delivered. The image-source scenario embeds a model with anchors and requires the same
+picture as the model without them, the declaration among the echo lines, and the malformed one among the notes.
