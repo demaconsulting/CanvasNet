@@ -47,6 +47,10 @@ includes:
   - docs/reqstream/canvas-net/fonts/glyph-fallback.yaml
   - docs/reqstream/canvas-net/files.yaml
   - docs/reqstream/canvas-net/files/sandboxed-file-resolver.yaml
+  - docs/reqstream/canvas-net/image-sources.yaml
+  - docs/reqstream/canvas-net/image-sources/image-source-contract.yaml
+  - docs/reqstream/canvas-net/image-sources/folder-image-resolver.yaml
+  - docs/reqstream/canvas-net/image-sources/raster-image-source.yaml
   - docs/reqstream/canvas-net/rendering.yaml
   - docs/reqstream/canvas-net/rendering/canvas.yaml
   - docs/reqstream/canvas-net/rendering/text-renderer.yaml
@@ -161,6 +165,9 @@ includes:
   - docs/reqstream/canvas-net-vega-lite/scenegraph/scene-painter.yaml
   - docs/reqstream/canvas-net-vega-lite/scenegraph/arc-geometry.yaml
   - docs/reqstream/canvas-net-vega-lite/scenegraph/css-paint.yaml
+  - docs/reqstream/canvas-net-viewer.yaml
+  - docs/reqstream/canvas-net-viewer/canvas-net-viewer.yaml
+  - docs/reqstream/canvas-net-viewer/platform-requirements.yaml
   - docs/reqstream/canvas-net-tool.yaml
   - docs/reqstream/canvas-net-tool/platform-requirements.yaml
   - docs/reqstream/canvas-net-tool/program.yaml

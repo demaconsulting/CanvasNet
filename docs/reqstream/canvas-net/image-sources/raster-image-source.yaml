@@ -1,0 +1,64 @@
+---
+# Software Unit Requirements for RasterImageSource
+#
+# These requirements describe the design-level behavior of the RasterImageSource unit of the ImageSources subsystem
+# (namespace DemaConsulting.CanvasNet.ImageSources): the source for raster pictures that the core library decodes.
+# Each "tests" entry cites an existing test method in the DemaConsulting.CanvasNet.Tests project; see
+# docs/verification/canvas-net/image-sources/raster-image-source.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNet Requirements
+    sections:
+      - title: ImageSources Requirements
+        sections:
+          - title: RasterImageSource Requirements
+            requirements:
+              - id: CanvasNet-ImageSources-RasterImageSource-Formats
+                title: >-
+                  The RasterImageSource class shall claim the extensions of the PNG, JPEG, BMP, TIFF, GIF, and
+                  JPEG 2000 formats and no scheme, decide the format of the bytes from their content (not from the
+                  name), return the picture at its natural size with its transparency and the detected format name,
+                  and return no notes and no printed text.
+                justification: |
+                  A mislabeled file still loads, and the renderer that draws the picture resamples it once at the size
+                  of its placement.
+                tests:
+                  - RasterImageSource_Render_Format_IsDecidedByContentNotName
+                  - RasterImageSource_Render_GifAndJpeg2000Fixtures_AreDecoded
+                  - RasterImageSource_Properties_NameExtensionsAndNoSchemes
+                  - RasterImageSource_Properties_ExtensionsAndSchemesAreReadOnly
+
+              - id: CanvasNet-ImageSources-RasterImageSource-Orientation
+                title: >-
+                  The RasterImageSource class shall turn a JPEG upright by its Exif orientation and return a JPEG
+                  without an orientation as it is.
+                justification: |
+                  A picture that was stored sideways must look the way a viewer shows it.
+                tests:
+                  - RasterImageSource_Render_JpegWithExifOrientation_IsTurnedUpright
+
+              - id: CanvasNet-ImageSources-RasterImageSource-Budget
+                title: >-
+                  The RasterImageSource class shall read the size a file declares in its header (without decoding any
+                  pixel data, for PNG, JPEG, BMP, TIFF and JPEG 2000 through the codecs' header probes, and for GIF
+                  from the Logical Screen Descriptor) and charge it to the budget of the request
+                  (EnsureWithinBudget, once) before it
+                  decodes, refusing with ImageSourceBudgetException a picture that does not fit, however small the
+                  file is and also when the header declares more than the codecs decode.
+                justification: |
+                  A file of a few dozen bytes can declare a picture that takes hundreds of megabytes to decode; the
+                  decision must be made from the header, before the allocation.
+                tests:
+                  - RasterImageSource_Render_RemainingPixels_IsCheckedFromHeaderForEveryFormat
+                  - RasterImageSource_Render_HeaderOnlyHugePicture_IsRefusedWithoutDecoding
+              - id: CanvasNet-ImageSources-RasterImageSource-Failures
+                title: >-
+                  The RasterImageSource class shall fail with InvalidDataException for content that is not a
+                  recognized raster or that its codec rejects, with InvalidOperationException for a request without
+                  file content, with ArgumentNullException for a null request, and with OperationCanceledException for
+                  a canceled request.
+                justification: |
+                  A broken file is reported with the exception of the codec so a caller can map it.
+                tests:
+                  - RasterImageSource_Render_CorruptOrUnknownContent_ThrowsInvalidDataException
+                  - RasterImageSource_Render_InvalidRequests_Throw

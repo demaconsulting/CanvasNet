@@ -19,7 +19,8 @@ untrusted text can apply exactly the rules those two packages use.
 The subsystem has no dependency on any other CanvasNet subsystem and uses only the .NET base class library. It is
 deliberately small: it does not decode text, choose a search policy beyond "directory of the referring
 file, then base directory, then search paths", or compare file names case-insensitively beyond the one platform rule
-needed to compare file keys (see _SandboxedFileResolver Unit Design_). Its only resource limits are the byte limit of one
+needed to compare file keys (see _SandboxedFileResolver Unit Design_). Its only resource limits are the byte limit of
+one
 file (`MaxFileBytes`) and an optional limit on the number of distinct files one resolver reads (`MaxFiles`, off by
 default), which refuses a new file beyond it before the file is opened or requested; any other limit (include depth,
 cycles, text length) belongs to the caller.
@@ -36,14 +37,20 @@ cycles, text length) belongs to the caller.
 
 The `Files` subsystem depends only on the .NET base class library (`System.IO` and `System.Collections.Generic`),
 available on every CanvasNet target framework, and has no runtime NuGet dependency. It has no dependency on the
-`Canvas`, `Codecs`, `Geometry`, `Drawing`, `Fonts`, or `Rendering` subsystems, and none of the core subsystems depends on
-it. Its consumers are outside the core package: the `CanvasNetVegaLite` and `CanvasNetScad` systems depend on it through
-its public API (see _Callers_).
+`Canvas`, `Codecs`, `Geometry`, `Drawing`, `Fonts`, or `Rendering` subsystems. Its only core consumer is the
+`ImageSources`
+subsystem (its `FolderImageResolver` unit confines every link of a document to a folder with it); its other consumers
+are
+outside the core package: the `CanvasNetVegaLite` and `CanvasNetScad` systems depend on it through its public API (see
+_Callers_).
 
 ### Callers
 
 `SandboxedFileResolver` is a public API entry point, invoked directly by consumers of the CanvasNet package. It is
-also used internally, through its public API only (no `InternalsVisibleTo` entry exists for it), by two satellite
-packages: `CanvasNetVegaLite`'s `DataFileResolver` unit (every local data file of a chart) and `CanvasNetScad`'s
+also used internally, through its public API only (no `InternalsVisibleTo` entry exists for it), by the
+`ImageSources` subsystem (the `FolderImageResolver` unit resolves every file link of a document through a sandbox rooted
+at
+its folder, and maps each `SandboxException` to an unresolved-link warning) and by two satellite packages:
+`CanvasNetVegaLite`'s `DataFileResolver` unit (every local data file of a chart) and `CanvasNetScad`'s
 `ScadFileResolver` unit (every `include` and `use`). Each of those units keeps its own exception types, message
 wording, locations, limits, and text decoding and translates every `SandboxException` it receives.

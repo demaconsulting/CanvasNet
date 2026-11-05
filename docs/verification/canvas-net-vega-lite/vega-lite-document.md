@@ -44,7 +44,8 @@ Unit tests reside in `VegaLiteOpenOptionsTests.cs` (the open options and, in the
 `VegaLiteRecordsAndExceptionsTests.cs`, `VegaLiteReportSinkTests.cs`, `VegaLiteDocumentLayoutTests.cs`, and
 `SpecModel/VegaLiteDocumentSpecModelTests.cs`, and, for the time zone option, `VegaLiteTemporalScaleTests.cs` and
 `Data/DataLoaderCalendarTests.cs`, and, for the layers and the composite marks of Phase 10, the system-level tests
-`VegaLiteLayerIntegrationTests.cs` and `VegaLiteCompositeMarkIntegrationTests.cs`, and, for the label expressions and the
+`VegaLiteLayerIntegrationTests.cs` and `VegaLiteCompositeMarkIntegrationTests.cs`, and, for the label expressions and
+the
 offset channels, `VegaLiteLabelExprIntegrationTests.cs` and `VegaLiteOffsetIntegrationTests.cs` (the document's pipeline
 is verified
 through the public API: its stages are internal and are exercised for real) within the
@@ -68,6 +69,32 @@ asserted. Any unexpected exception, wrong exception type, wrong parameter name, 
 identifier, or measured size that differs from the rendered size constitutes a failure.
 
 ### Unit-Level Test Scenarios
+
+#### CanvasNetVegaLite-VegaLiteDocument-ImageSource: The Image Source For `.vl` And `.vl.json` Files
+
+**Tests**: `VegaLiteImageSource_Render_NoRequestedSize_DrawsNaturalSizeOnChartBackground`,
+`VegaLiteImageSource_Render_RequestedSize_DrawsAtThatSize`,
+`VegaLiteImageSource_Render_SizeBeyondRemainingPixels_IsRefusedBeforeDrawing`,
+`VegaLiteImageSource_Render_DataFile_ResolvesFromDirectoryOfRequest`,
+`VegaLiteImageSource_Render_UnsupportedFeature_ReturnsDiagnosticOrThrowsWhenStrict`,
+`VegaLiteImageSource_Render_InvalidInput_Throws`,
+`VegaLiteImageSource_Properties_NameExtensionsAndNoSchemes`
+
+`VegaLiteImageSourceTests.cs` calls `VegaLiteImageSource.Render` with requests built by hand. Asserts that a chart
+without a
+requested size has the size `Measure` reports and keeps its opaque white background, that a requested box is exactly
+that size and
+one dimension keeps the aspect ratio, that a 4000 by 4000 size against a budget of 1000 pixels is refused with
+`ImageSourceBudgetException` (16,000,000 and 1000 on the exception) before the chart is drawn, with an allocation far
+below the 64 MB of the picture, while a budget of exactly 120 by 80 pixels draws, that a data file is found in the
+request's folder and a request without a folder
+fails, that
+an unsupported feature (a binned time unit) is returned as an `Unsupported` note of the source `vega-lite` and throws
+`VegaLiteUnsupportedFeatureException` when strict, that an invalid specification is `VegaLiteSpecException`, a request
+without a file
+`InvalidOperationException`, a null request `ArgumentNullException`, a canceled request `OperationCanceledException`,
+and that the
+source claims `.vl` and `.vl.json` but not `.json` and no scheme.
 
 #### Open Options: Defaults, Validation, And Copying
 
@@ -160,7 +187,8 @@ location known; and that two locations with the same values are equal.
 `VegaLiteRecordsAndExceptionsTests.VegaLiteUnsupportedFeatureException_Constructors_CarryFeatureAndLocation`
 
 Asserts that a diagnostic and an unsupported-feature report display as the location, a colon and a space, and the
-message (for example `s.json:2:5 /mark: vl-mark-geoshape: not yet`), and as the message alone without a location; that sizes
+message (for example `s.json:2:5 /mark: vl-mark-geoshape: not yet`), and as the message alone without a location; that
+sizes
 and data references have value equality; that `VegaLiteSpecException` is a `FormatException` whose message is prefixed
 with its location, that `VegaLiteRenderException` is an `InvalidOperationException` and
 `VegaLiteUnsupportedFeatureException` is an `IOException`, that each carries its location (and the feature
@@ -198,7 +226,8 @@ that strict mode throws at the first unsupported feature while warnings never st
 
 #### Text: Missing Glyphs Are Warned About Once Per Mark Location And Set
 
-**Tests**: `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_TextMissingGlyph_FallbackCoveredCharactersAreSilentAndDrawn`,
+**Tests**:
+`VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_TextMissingGlyph_FallbackCoveredCharactersAreSilentAndDrawn`,
 `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_TextMissingGlyph_UncoveredCharactersWarnOnceAtTheMark`,
 `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_TextMissingGlyph_OneWarningPerLocationAndSet`,
 `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_TextMissingGlyph_InvisibleTextIsNotReported`,
@@ -208,14 +237,16 @@ that strict mode throws at the first unsupported feature while warnings never st
 Asserts, for the chart of the report (`"a ∝ b ≫ c"` in a text mark), that no `vl-text-missing-glyph` warning is
 delivered and that the pixels differ from the same chart with private-use characters (the missing-glyph boxes); that a
 text mark with `"a \uE000 \u4E2D \uE000"` delivers exactly one warning that starts with the identifier, lists
-`U+4E2D, U+E000`, and points at `/mark`, also with `ThrowOnUnsupportedFeature` set (a warning never throws); and that two
+`U+4E2D, U+E000`, and points at `/mark`, also with `ThrowOnUnsupportedFeature` set (a warning never throws); and that
+two
 layers with the same text and a nominal axis whose label has the character give one warning for each of the two
 marks (`/layer/0/mark`, `/layer/1/mark`) and one at the unknown location for the axis label, the same for a `Measure`;
 and that a text mark with a missing character gives one warning with the default fill but none with the fill `none`, an
 invalid fill color, a fill opacity of 0, an opacity of 0, or a font size of 0, 1e-300, or 1e300 (text that is not drawn
 is not reported: the report uses the painter's own rule, `ScenePainter.IsDrawable`); and that the rule is applied at
 the real placement scale, not at the scale 1: a font size of 20000 is reported at the scale 1 but not at the scale 2
-(render or measure) nor when fitted to 2100 by 700 pixels, and a font size of 40000 (which the mark builder never puts in
+(render or measure) nor when fitted to 2100 by 700 pixels, and a font size of 40000 (which the mark builder never puts
+in
 the scene) is not reported at the scale 1, at the scale 0.5 (measure), or when fitted to 20 by 6 pixels; and that a text
 mark driven by data
 whose two rows lack nine code points that differ only in the ninth give two warnings at `/mark`, both listing the same
@@ -262,12 +293,14 @@ influence).
 The public option contracts of the data stage are verified through the public API, because the unit's job here is to
 create one loader per call and to hand it the effective open options, the caller's datasets, and the limits; the units
 behind it are verified under their own designs. Asserts that a document opened by path reads its relative file from the
-file's folder and that the base directory, a data path, and a callback find the same file for a document without a folder
+file's folder and that the base directory, a data path, and a callback find the same file for a document without a
+folder
 (all drawing the inline chart's pixels); that a document from a string or a stream with no file source fails every
 `Measure` and `Render`, lenient or strict, with a located `VegaLiteRenderException`; that a missing file, a path
 outside the
 sandbox, and invalid UTF-8 are located failures in both modes; that the caller's datasets, the specification's datasets,
-and sequences render without a report; that the data warnings follow the specification's reports; that each call reads the
+and sequences render without a report; that the data warnings follow the specification's reports; that each call reads
+the
 file again; that a data limit fails before the scene limit; and that a remote URL is reported, never fetched, and never
 given to the callback. The pure option contracts (the validation and copying of `BaseDirectory`, `DataPaths`,
 `FileResolver`, and `Datasets`, and the default and ceilings of `MaxDataFiles` and `MaxDataBytes`) are the scenarios
@@ -275,7 +308,8 @@ _Open Options_, _Render Options: Parameters And Datasets Are Copied And Validate
 
 #### Parameters, Expressions, And Transforms: Open-Time Errors, Stages, And Warning Order
 
-**Tests**: `VegaLiteChartIntegrationTests.CanvasNetVegaLite_SystemIntegration_Parameters_DefaultsOverridesAndFilterParam`,
+**Tests**:
+`VegaLiteChartIntegrationTests.CanvasNetVegaLite_SystemIntegration_Parameters_DefaultsOverridesAndFilterParam`,
 `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Parameters_OverridesReachTheTransforms`,
 `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Parameters_InvalidDefinitionsFailWhenTheDocumentIsOpened`,
 `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Expressions_ErrorsAndLimitsFailWhenTheDocumentIsOpened`,
@@ -327,7 +361,8 @@ wall-clock time (10:00 on March 5, 2024), one written with an explicit `Z` offse
 offset is read as UTC), while with `TimeZone` set to a zone five hours ahead the row without an offset is the instant
 five hours earlier (05:00Z) and its point is to the left of the other; a `parse` of `date:'%d/%m/%Y'` renders in strict
 mode (a custom date format is not an unsupported feature) and the 5th of March, written `05/03/2024`, is to the left of
-the 15th. The temporal scale scenarios derive the positions of dates on a 200 pixel data rectangle: January 1, 6, and 11,
+the 15th. The temporal scale scenarios derive the positions of dates on a 200 pixel data rectangle: January 1, 6, and
+11,
 2024 are five days apart, so the three points are 100 pixels apart (to six decimals); a range of two temporal fields
 (January 1 to 11 and January 6 to 11, `x` and `x2`) is a bar from its start to its end on the time scale whose domain
 holds both, so the bars are 200 and 100 pixels wide, end at the same right edge, and the second starts 100 pixels after
@@ -338,7 +373,8 @@ mattering), and the calendar and data details by the _TimeCalendar_ and _DataLoa
 
 #### Layers And Composite Marks: Inherited Data, Transforms, Guides, And Limits
 
-**Tests**: `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_TopLevelCalculateIsAppliedAndNotReported`,
+**Tests**:
+`VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_TopLevelCalculateIsAppliedAndNotReported`,
 `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_TransformsApplyTopLevelFirstThenPerLayer`,
 `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_LineAndPointShareOneAxisPair`,
 `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_BarsWithMeanRuleShareTheYScale`,
@@ -376,7 +412,8 @@ mattering), and the calendar and data details by the _TimeCalendar_ and _DataLoa
 `VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_ErrorBar_ExpandedViewsAreLimitedByMaxViews`,
 `VegaLiteCompositeMarkIntegrationTests.CanvasNetVegaLite_CompositeMark_ErrorBand_TwoDimensionalBandIsAnAreaWithLineBorders`
 
-The document's pipeline for layered views is verified through the public API, because its stages (the layer tree, the data
+The document's pipeline for layered views is verified through the public API, because its stages (the layer tree, the
+data
 walk, the scales of the layers, the axis planning, and the legend scopes) are internal and meaningful only together. The
 scenarios assert, with positions derived by hand, that the data is loaded where the nearest `data` is and that a layer's
 own
@@ -397,7 +434,8 @@ with a
 located error at the exact boundary; that a composite mark is computed from the rows that the transforms of the views
 above it
 left, draws its parts as layers that share the scale of the measure, and counts its views against `MaxViews`; and that
-`Measure` equals `Render` and the render is deterministic. The numbers of every scenario are listed in the _CanvasNetVegaLite
+`Measure` equals `Render` and the render is deterministic. The numbers of every scenario are listed in the
+_CanvasNetVegaLite
 System Verification Design_ (the layer and composite mark scenarios); the structure that they rely on is verified in the
 _SpecNormalizer_, _ScaleResolver_, _AxisBuilder_, and _LegendBuilder_ unit designs.
 
@@ -416,9 +454,11 @@ _SpecNormalizer_, _ScaleResolver_, _AxisBuilder_, and _LegendBuilder_ unit desig
 A single or layered view with `autosize` `fit`, `fit-x`, or `fit-y`, or a `"container"` width or height (Vega-Lite's
 fit to the container with `contains: padding`), goes through the iteration of the guides with the layout that a
 `"container"` size already used (up to three passes until the data rectangle is stable; the extents of the legends are
-combined with those of the axes counting only the legends' extent across their side). The layout takes the title into the
+combined with those of the axes counting only the legends' extent across their side). The layout takes the title into
+the
 fit and rounds the reach of each side up to whole pixels, so the canvas is the size, whatever the guides need. The
-numbers of every scenario are listed in the _CanvasNetVegaLite System Verification Design_ (the autosize scenario) and in
+numbers of every scenario are listed in the _CanvasNetVegaLite System Verification Design_ (the autosize scenario) and
+in
 the _ViewLayout_ and _LegendLayout_ unit designs; the scenarios also verify that a step size drops the fit with the
 warning `vl-layout-fit-step` (delivered after the data stage's own reports), that `Measure` equals `Render`, and that a
 composition ignores a fit and a container size with `vl-composition-property-ignored`. A fit that does not settle in the
@@ -457,7 +497,8 @@ deliberate change of the output is captured again by running the test with the e
 
 #### Compositions: Concatenation And Repeat Are Drawn Cell By Cell
 
-**Tests**: `VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_HConcat_TwoChartsAreLaidOutWithTheirOwnAxes`,
+**Tests**:
+`VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_HConcat_TwoChartsAreLaidOutWithTheirOwnAxes`,
 `VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_HConcat_SecondChartStartsAfterFirstBoundsPlusSpacing`,
 `VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_VConcat_ChartsStackWithTwentyPixelsBetween`,
 `VegaLiteConcatIntegrationTests.CanvasNetVegaLite_SystemIntegration_Concat_ColumnsWrapsAndAlignsEach`,
@@ -511,13 +552,16 @@ in the second row, 102 pixels down and back at the first column), `spacing` is a
 (`101 + 40 + 1` and `81 + 10 + 1`), `bounds: "flush"` places the data rectangles exactly 100 + 20 apart whatever the
 axes, and `center` moves a 60 pixel wide chart 20 pixels right of a 100 pixel wide one in a column. The charts of a
 concatenation keep their own axes (an `hconcat` of two charts with axes draws four axes and the titles `a`, `v`, `w`,
-`v`; `resolve.axis` set to `shared` is the warning `vl-concat-axis-shared`, delivered once, and the axes stay), the second
+`v`; `resolve.axis` set to `shared` is the warning `vl-concat-axis-shared`, delivered once, and the axes stay), the
+second
 axis of a layered chart goes to the opposite side only within that chart (the chart next to it keeps its axis at the
 left), `resolve.scale.x` set to `shared` gives both charts the domain of the union (the label `100` on both axes) while
 `resolve.scale.color` set to `independent` keeps a legend in each chart (between the charts) and the default shares the
 color scale, so a color that the charts share is one legend with the entries of the union of their domains at
-`ceil(222.5) + 18` = 241 pixels from the origin of the concatenation and at its top; when a nested concatenation owns the
-legend (an outer `resolve.legend.color` of `independent`) it is beside that concatenation and the next chart starts below
+`ceil(222.5) + 18` = 241 pixels from the origin of the concatenation and at its top; when a nested concatenation owns
+the
+legend (an outer `resolve.legend.color` of `independent`) it is beside that concatenation and the next chart starts
+below
 it. A chart's title stays in its cell and is centered over its data rectangle, and the title of the concatenation is
 anchored at the start and drawn after the cells. A chart or a concatenation with data and transforms of its own, and the
 data and transform of the concatenation that its charts inherit (`w = 10 v` makes bars 40, 80 and 60 pixels high), a
@@ -533,7 +577,8 @@ references give the field and the axis title, the data of the repeated `spec` is
 enough for four copies), the product of the rows and the columns is checked against `MaxViews` before any copy is made
 (40 by 40 is refused), a reference that the repeat does not define is the warning `vl-repeat-ref-unresolved` (delivered
 once, the channel is dropped; a facet whose field is such a reference is dropped, and its `spec` is drawn without a
-facet, at the size of the `spec`), `columns` next to rows and columns is the warning `vl-composition-columns-ignored` (once,
+facet, at the size of the `spec`), `columns` next to rows and columns is the warning `vl-composition-columns-ignored`
+(once,
 and the grid stays two columns wide), and the color scale of the copies is shared, with one legend beside the grid. A
 `"container"` width and a `fit` autosize of a concatenation are the warning `vl-composition-property-ignored` and the
 canvas is the content plus the padding. The limits of the views, the nesting, and the scene items are enforced with a
@@ -542,7 +587,8 @@ when several threads render one document.
 
 #### Compositions: Facets Are Drawn Cell By Cell With Headers, Footers, And Shared Axes
 
-**Tests**: `VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_ColumnChannelDrawsOneCellPerValueWithHeaderLabels`,
+**Tests**:
+`VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_ColumnChannelDrawsOneCellPerValueWithHeaderLabels`,
 `VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_RowAndColumnCrossProductDrawsEmptyCells`,
 `VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_WrapFacetUsesColumnsAndCellLabelTitles`,
 `VegaLiteFacetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Facet_WrapWithoutColumnsIsOneRowAndRowAloneIsOneColumn`,
@@ -613,7 +659,8 @@ field is ignored with `vl-composition-columns-ignored`, `spacing` of 40 puts the
 `bounds: "flush"` lays out the data rectangles (120 apart whatever the axes). The limit on the number of views is
 checked from the number of cells before any is made (six cells and the facet are seven views; refused at six, located at
 the `row` field), a facet with unsupported parts reports `vl-facet-field-transform`, `vl-facet-sort`,
-`vl-header-orient`, the unsupported function of a header `labelExpr` (`vl-expr-function-luminance`; `vl-expr-label` is retired)
+`vl-header-orient`, the unsupported function of a header `labelExpr` (`vl-expr-function-luminance`; `vl-expr-label` is
+retired)
 and `vl-format-type-custom` and draws the rest, strict mode has nothing to throw for
 a facet that uses only what is drawn, the scene item limit (charged once for each header, so a 5 by 5 grid renders under
 exactly the limit of its own scene's item count, and one less fails) and a canceled token stop the work, `Measure`
@@ -623,7 +670,8 @@ unsupported mark draws its empty cells and reports the mark once.
 
 #### Label Expressions: Axes, Legends, And Headers Are Labeled By Their Expressions
 
-**Tests**: `VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_AxisLabelsAreReplacedAndStrictModeHasNothingToReport`,
+**Tests**:
+`VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_AxisLabelsAreReplacedAndStrictModeHasNothingToReport`,
 `VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_TemporalAxisUsesTheDateValue`,
 `VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_LegendLabelsAreReplaced`,
 `VegaLiteLabelExprIntegrationTests.CanvasNetVegaLite_SystemIntegration_LabelExpr_HeaderLabelsAreReplacedWithPrecedence`,
@@ -647,7 +695,8 @@ the channel and over `config.header`, and the cell titles of a wrapped facet tak
 (`a!a` and `b!b`); an expression reads a variable parameter (`20 kg`) and the labels under `tr-TR` are those of the
 invariant culture. The array result of a header expression is several lines of the header: `[datum.label, 'n=' +
 datum.value]` on the column header of a facet gives the lines `a`, `n=a` and `b`, `n=b`, `[datum.label, 'r']` on the
-row header gives `2020`, `r` and so on, while a string result with a line feed stays one line (`a\na`); the cell title of
+row header gives `2020`, `r` and so on, while a string result with a line feed stays one line (`a\na`); the cell title
+of
 a wrapped facet with `headerFacet.labelExpr` `[datum.label, '#' + datum.value]` has the lines `a`, `#a` and `b`, `#b`;
 and the chart with a two-line column header is more than 8 pixels taller than the one with a one-line header (the
 layout measures the lines). An expression that needs more than the step budget is a `VegaLiteRenderException` located at
@@ -657,13 +706,16 @@ with a `VegaLiteUnsupportedFeatureException`. The functions `format` and `timeFo
 the y labels `format(datum.value * 1000, ',.0f')` include `20,000`, the x label `timeFormat(datum.value, '%b %Y')` is
 `Jan 2021`, the legend `format(datum.value, '+d')` gives `+2020`, `+2021`, and `+2022`, the column headers
 `format(..., '03d')` give `001` and `002`, strict mode has nothing to throw, and the specifier `.2.3f` is a located
-`VegaLiteRenderException` ("invalid format: .2.3f"). The command line renders the same kinds of chart in strict mode with
-no diagnostics (`RenderCommandVegaLiteTests.RenderCommand_Run_VegaLiteOffsetAndLabelExpr_AreDrawnWithStrictAndNoDiagnostics`,
+`VegaLiteRenderException` ("invalid format: .2.3f"). The command line renders the same kinds of chart in strict mode
+with
+no diagnostics
+(`RenderCommandVegaLiteTests.RenderCommand_Run_VegaLiteOffsetAndLabelExpr_AreDrawnWithStrictAndNoDiagnostics`,
 which also draws a chart whose labels use `format` and `timeFormat` and a `yearmonth` bar chart with an `xOffset`).
 
 #### Offset Channels: Grouped Bars, Strips, And Shared Offset Scales
 
-**Tests**: `VegaLiteOffsetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Offset_GroupedBarsHaveTwentyPixelBarsAndReportNothing`,
+**Tests**:
+`VegaLiteOffsetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Offset_GroupedBarsHaveTwentyPixelBarsAndReportNothing`,
 `VegaLiteOffsetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Offset_AxisIsCenteredOnTheBandAndLegendListsTheGroups`,
 `VegaLiteOffsetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Offset_YOffsetDrawsHorizontalGroupedBars`,
 `VegaLiteOffsetIntegrationTests.CanvasNetVegaLite_SystemIntegration_Offset_ScalePaddingOfTheOffsetLeavesAGapInsideTheGroup`,
@@ -678,7 +730,8 @@ which also draws a chart whose labels use `format` and `timeFormat` and a `yearm
 
 A grouped bar chart of three categories and two groups through the whole pipeline is 160 pixels wide, has bars 20 pixels
 wide at 10, 30, 60, 80, and 110 from the left of the view (the position step 20 x 2 / 0.8 = 50, the nested paddings
-0.2), and reports nothing, so strict mode has nothing to throw. The x axis has one tick for each category centered in its
+0.2), and reports nothing, so strict mode has nothing to throw. The x axis has one tick for each category centered in
+its
 band (the offset does not move the axis) and the legend lists the groups; `yOffset` draws the horizontal variant (160
 pixels high, bars 20 high at y = 10, 30, 60, 80, and 110); an offset padding makes the view 140 wide with bars of 15 and
 a gap of 5 inside the group; a width of 200 gives bars of 25 from 12.5. The offset scales of the children of a
@@ -691,7 +744,9 @@ a grouped bar chart over months (`month` unit, width 300, three months of two gr
 of the leap year 2012, 91 days, so a day is 300 / 91 pixels and the reference month of 31 days is 31 x 300 / 91 =
 102.2 pixels) has six bars 0.4 of a month (40.9 pixels) wide, the first two touching at 0.1 and 0.5 of a month from the
 left of the view and the next two at one month plus 0.1 and 0.5 of a month, with a legend `a`, `b` and nothing
-reported in strict mode, a grouped bar chart over a nominal `x` with the `month` unit (an ordinary band parent: width 300,
-three bands with the nested paddings 0.2, the step 300 / 3.2 = 93.75) has six bars 37.5 wide at 18.75, 56.25, 112.5, 150,
+reported in strict mode, a grouped bar chart over a nominal `x` with the `month` unit (an ordinary band parent: width
+300,
+three bands with the nested paddings 0.2, the step 300 / 3.2 = 93.75) has six bars 37.5 wide at 18.75, 56.25, 112.5,
+150,
 206.25, and 243.75 and nothing reported, and the three boxes of a boxplot with an offset
 channel sit side by side with equal widths.

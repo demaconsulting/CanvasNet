@@ -1,5 +1,6 @@
 // cspell:ignore svg
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.ImageSources;
 using DemaConsulting.CanvasNet.Svg;
 
 namespace DemaConsulting.CanvasNet.Tool.Imaging;
@@ -30,15 +31,34 @@ internal static partial class SourceLoader
     /// <remarks>
     ///     A vector source is rendered directly at the target size, which is sharper than rendering at the natural
     ///     size and resampling. Transparent areas are flattened over white unless another background color is given;
-    ///     a background with zero alpha keeps the transparency.
+    ///     a background with zero alpha keeps the transparency. An <c>image</c> that refers to another file (a raster,
+    ///     an SVG file, a model, a chart, or a page of a document) is loaded through the image resolver of
+    ///     <c>CanvasNetViewer</c> (see <see cref="SvgImages"/>), confined to the folder of the SVG file; what it reports
+    ///     is part of the result.
     /// </remarks>
     private static LoadedSource LoadSvg(SourceInfo info, SourceOptions options)
     {
         var (width, height) = ComputeTargetSize(info.Path, info.Width, info.Height, options);
         var operations = new List<AppliedOperation> { Operation("render", ("width", width), ("height", height)) };
-        var surface = Read(info.Path, SourceKind.Svg, () => SvgCodec.Load(info.Path, width, height));
+        var images = new SvgImages(info.Path, options);
+        var loadOptions = new SvgLoadOptions { ImageResolver = images.Resolver };
+        Surface surface;
         try
         {
+            surface = Read(info.Path, SourceKind.Svg, () => SvgCodec.LoadWithFontFaces(info.Path, width, height, null, loadOptions));
+        }
+        catch (ImageSourceException ex)
+        {
+            throw images.Map(ex);
+        }
+
+        try
+        {
+            if (options.Strict)
+            {
+                images.ThrowForUnresolved();
+            }
+
             var background = options.Background ?? new Rgba32(255, 255, 255, 255);
             if (background.A > 0)
             {
@@ -46,7 +66,8 @@ internal static partial class SourceLoader
                 operations.Add(Operation("flatten", ("background", FormatColor(background))));
             }
 
-            return new LoadedSource(surface, info, 1, true, [], [], operations);
+            operations.AddRange(images.Operations());
+            return new LoadedSource(surface, info, 1, true, images.Notes(), [.. images.Resolver.Echo], operations);
         }
         catch
         {

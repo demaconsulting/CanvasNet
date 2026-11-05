@@ -15,5 +15,6 @@ package CanvasNet {
         dependency usesGeometry from CanvasNetPdfSystem to Geometry;
         dependency usesDrawing from CanvasNetPdfSystem to Drawing;
         dependency usesFonts from CanvasNetPdfSystem to Fonts;
+        dependency usesImageSources from CanvasNetPdfSystem to ImageSources;
     }
 }

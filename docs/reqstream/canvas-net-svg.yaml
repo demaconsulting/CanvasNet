@@ -215,10 +215,12 @@ sections:
           existing codec and drawing the decoded raster into the element's own placement rect per
           preserveAspectRatio, integrated with the same clip-path/mask/filter/opacity effects
           pipeline every other renderable element already uses, while treating an external
-          (non-data:) href or a nested data:image/svg+xml document as a documented,
-          security-conscious no-op, and bounding image-related resource use with the same
-          tolerant-fallback, work-budget conventions already established for filter/clip-path/
-          mask/pattern support.
+          (non-data:) href as a no-op unless the caller opts in with an explicit image resolver
+          (the IImageResolver contract of the core package; the library itself performing no file or network I/O)
+          and treating a nested
+          data:image/svg+xml document as a documented, security-conscious no-op, and bounding
+          image-related resource use, including resolver calls, with the same tolerant-fallback,
+          work-budget conventions already established for filter/clip-path/mask/pattern support.
         tags: [system]
         justification: |
           image is a common SVG authoring mechanism for embedding a raster asset (an icon, a
@@ -226,16 +228,23 @@ sections:
           discarded entirely as an explicit out-of-scope simplification; callers relying on this
           common element need its base64-embedded raster payload actually decoded and drawn, with
           the same effects-pipeline integration and work-budget resource-safety behavior already
-          established for this library's other paint-server and effect support, while
-          external-href resolution and nested-SVG recursion remain deliberately out of scope
-          rather than introducing an unbounded or security-sensitive capability.
+          established for this library's other paint-server and effect support. External
+          references are loaded only through a resolver the caller supplies, so the library never
+          introduces an unbounded or security-sensitive capability on its own, while a host such
+          as the CanvasNet tool or viewer can embed models, charts, nested SVG files, and rasters in a
+          diagram, and the package supplies the image source that lets an SVG file be embedded in another document.
         children:
           - CanvasNetSvg-SvgCodec-ImageRendering
           - CanvasNetSvg-SvgCodec-ImageSmoothResample
           - CanvasNetSvg-SvgCodec-ImageExternalHrefScope
+          - CanvasNetSvg-SvgCodec-ImageResolver
+          - CanvasNetSvg-SvgCodec-ImageResolverBudget
+          - CanvasNetSvg-SvgCodec-SvgImageSource
           - CanvasNetSvg-SvgCodec-ImageResourceSafety
         tests:
           - CanvasNetSvg_SystemIntegration_SvgImageRendering_RendersEmbeddedRasterImage
+          - CanvasNetSvg_SystemIntegration_SvgImageResolver_RendersResolvedImage
+          - SvgImageSource_Render_NestedImage_UsesResolverOfRequest
           - SvgCodec_Load_ImageDataUriPng_RendersDecodedPixelsAtPlacementRect
           - SvgCodec_Load_ImageDataUriJpeg_RendersDecodedPixelsAtPlacementRect
           - SvgCodec_Load_ImagePreserveAspectRatioMeet_LettersOrPillarboxesNonMatchingAspect

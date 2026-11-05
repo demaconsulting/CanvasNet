@@ -86,6 +86,41 @@ wrong reported name or list constitutes a failure.
 
 ### Unit-Level Test Scenarios
 
+#### CanvasNetScad-ScadDocument-ImageSource: The Image Source For `.scad` Files
+
+**Tests**: `ScadImageSource_Render_NoRequestedSize_DrawsNaturalSizeOnTransparentBackground`,
+`ScadImageSource_Render_RequestedSize_DrawsAtThatSize`,
+`ScadImageSource_Render_FlatModel_DrawsFilledTopDownShape`,
+`ScadImageSource_Render_ModelWithViewport_UsesTheViewTheLibraryPicks`,
+`ScadImageSource_Render_SizeBeyondRemainingPixels_IsRefusedBeforeDrawing`,
+`ScadImageSource_Render_ModelWithEchoAndUnsupportedFeature_ReturnsEchoAndDiagnostics`,
+`ScadImageSource_Render_UnsupportedFeatureWhenStrict_ThrowsUnsupportedFeatureException`,
+`ScadImageSource_Render_Include_ResolvesFromDirectoryOfRequest`, `ScadImageSource_Render_InvalidInput_Throws`,
+`ScadImageSource_Properties_NameExtensionAndNoSchemes`
+
+`ScadImageSourceTests.cs` calls `ScadImageSource.Render` with requests built by hand (the bytes of a model, a requested
+size, a
+folder, the strictness switch), so the source is verified without any resolver. Asserts that a model without a requested
+size is
+800 by 800 pixels with a transparent corner and a drawn model, that a requested box is exactly that size and one
+dimension keeps
+the square aspect ratio, that a flat 2D model (`square(20, center = true)`) is drawn top-down as an axis-aligned
+rectangle with the same drawn extent on every row, centered on the picture, with the far corners transparent, that a
+3D model with a `$vpr` assignment is drawn exactly as `ScadDocument.Render` draws it with no view chosen (byte-identical
+at the same size, transparent background, and orthographic projection) and differently from the same model without
+the assignment, that a 4000 by 4000 size against a budget of 1000 pixels is refused with
+`ImageSourceBudgetException` (16,000,000 and 1000 on the exception) before the model is parsed, with an allocation far
+below the 64 MB of the picture, while a budget of exactly 60 by 40 pixels draws, that `echo` output and an
+unsupported feature (`offset`) are returned as echo lines and an
+`Unsupported` note of the source `scad`, that the strict request throws `ScadUnsupportedFeatureException`, that an
+`include` is
+found in the request's folder, is a `scad-warning` note when the folder lacks the file, and fails with
+`ScadEvaluationException` when the request has no folder, that a syntax error is `ScadSyntaxException`, a request
+without a file
+`InvalidOperationException`, a null request `ArgumentNullException`, a canceled request `OperationCanceledException`,
+and the name,
+extension, and absence of schemes.
+
 #### CanvasNetScad-ScadDocument-ParseString: Parse Handles Null, Empty, And BOM Source
 
 **Tests**: `ScadDocumentTests.ScadDocument_Parse_NullSource_ThrowsArgumentNullException`,
@@ -346,7 +381,8 @@ that exceeds a tiny instance limit fails, and a model whose geometry exceeds a t
 
 #### CanvasNetScad-ScadDocument-StackSafety: Evaluate Does Not Overflow A Small Stack
 
-**Tests**: `ScadDocumentEvaluateSafetyTests.ScadDocument_Evaluate_DeepRecursionOnSmallStack_AtLimitSucceedsAndOverLimitFailsIdentically`,
+**Tests**:
+`ScadDocumentEvaluateSafetyTests.ScadDocument_Evaluate_DeepRecursionOnSmallStack_AtLimitSucceedsAndOverLimitFailsIdentically`,
 `ScadDocumentEvaluateSafetyTests.ScadDocument_Evaluate_MaximumRecursionLimitOnSmallStack_Succeeds`,
 `ScadDocumentEvaluateSafetyTests.ScadDocument_Evaluate_SmallAndNormalStack_ProduceIdenticalResults`
 
@@ -503,7 +539,8 @@ renderer's fragment budget is a `ScadEvaluationException`.
 
 #### CanvasNetScad-ScadDocument-RenderOperandReports: Renderer Reports Map Back To The Source
 
-**Tests**: `ScadDocumentRenderReportTests.ScadDocumentRenderReport_OpenPolyhedronInDifference_IsReportedAtThePolyhedron`,
+**Tests**:
+`ScadDocumentRenderReportTests.ScadDocumentRenderReport_OpenPolyhedronInDifference_IsReportedAtThePolyhedron`,
 `ScadDocumentRenderReportTests.ScadDocumentRenderReport_MeshDefects_AreMappedWithTheirFeature`,
 `ScadDocumentRenderReportTests.ScadDocumentRenderReport_InvertedShellNextToCorrectShell_IsReported`,
 `ScadDocumentRenderReportTests.ScadDocumentRenderReport_UnderflowingWorldTransform_IsReportedPerOperand`,

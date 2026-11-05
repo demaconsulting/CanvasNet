@@ -885,6 +885,84 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Tests/Files/SandboxExceptionTests.cs"           # unit tests (exception)
       - "test/DemaConsulting.CanvasNet.Tests/Files/SandboxTestSupport.cs"              # shared test support
 
+  # CanvasNet-ImageSources Review (one per subsystem)
+  - id: CanvasNet-ImageSources
+    title: Review that CanvasNet ImageSources Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/image-sources.yaml"                # subsystem requirements
+      - "docs/design/canvas-net/image-sources.md"                    # subsystem design
+      - "docs/verification/canvas-net/image-sources.md"              # subsystem verification
+      - "docs/sysml2/model/canvas-net/image-sources.sysml"           # subsystem model
+      - "src/DemaConsulting.CanvasNet/ImageSources/NamespaceDoc.cs"  # namespace documentation
+
+  # CanvasNet-ImageSources-ImageSourceContract Review (one per unit)
+  - id: CanvasNet-ImageSources-ImageSourceContract
+    title: Review that CanvasNet ImageSources ImageSourceContract Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+      - "docs/design/canvas-net/image-sources.md"
+      - "docs/reqstream/canvas-net/image-sources.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/image-sources/image-source-contract.yaml"  # unit requirements
+      - "docs/design/canvas-net/image-sources/image-source-contract.md"      # unit design
+      - "docs/verification/canvas-net/image-sources/image-source-contract.md"  # unit verification
+      - "docs/sysml2/model/canvas-net/image-sources/image-source-contract.sysml"  # unit model
+      - "src/DemaConsulting.CanvasNet/ImageSources/IImageSource.cs"            # unit source (source contract)
+      - "src/DemaConsulting.CanvasNet/ImageSources/ImageSourceRequest.cs"      # unit source (request)
+      - "src/DemaConsulting.CanvasNet/ImageSources/ImageBudget.cs"             # unit source (live pixel budget)
+      - "src/DemaConsulting.CanvasNet/ImageSources/ImageSourceResult.cs"       # unit source (result)
+      - "src/DemaConsulting.CanvasNet/ImageSources/ImageSourceDiagnostic.cs"   # unit source (note)
+      - "src/DemaConsulting.CanvasNet/ImageSources/ImageDiagnosticSeverity.cs"  # unit source (severity)
+      - "src/DemaConsulting.CanvasNet/ImageSources/IImageResolver.cs"          # unit source (resolver contract)
+      - "src/DemaConsulting.CanvasNet/ImageSources/EmbeddedImage.cs"           # unit source (embedded image)
+      - "src/DemaConsulting.CanvasNet/ImageSources/ImageSourceException.cs"    # unit source (failure)
+      - "src/DemaConsulting.CanvasNet/ImageSources/ImageSourceBudgetException.cs"  # unit source (budget refusal)
+      - "src/DemaConsulting.CanvasNet/ImageSources/ImageSourceSet.cs"          # unit source (set of sources)
+      - "test/DemaConsulting.CanvasNet.Tests/ImageSources/ImageSourceSetTests.cs"       # unit tests (set)
+      - "test/DemaConsulting.CanvasNet.Tests/ImageSources/ImageSourceContractTests.cs"  # unit tests (request, result)
+      - "test/DemaConsulting.CanvasNet.Tests/ImageSources/ImageSourceTestSupport.cs"    # shared test support
+
+  # CanvasNet-ImageSources-FolderImageResolver Review (one per unit)
+  - id: CanvasNet-ImageSources-FolderImageResolver
+    title: Review that CanvasNet ImageSources FolderImageResolver Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+      - "docs/design/canvas-net/image-sources.md"
+      - "docs/reqstream/canvas-net/image-sources.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/image-sources/folder-image-resolver.yaml"  # unit requirements
+      - "docs/design/canvas-net/image-sources/folder-image-resolver.md"      # unit design
+      - "docs/verification/canvas-net/image-sources/folder-image-resolver.md"  # unit verification
+      - "docs/sysml2/model/canvas-net/image-sources/folder-image-resolver.sysml"  # unit model
+      - "src/DemaConsulting.CanvasNet/ImageSources/FolderImageResolver*.cs"  # unit source (resolver, options)
+      - "test/DemaConsulting.CanvasNet.Tests/ImageSources/FolderImageResolverTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/ImageSources/FolderImageResolverHrefTests.cs"    # unit tests (links)
+      - "test/DemaConsulting.CanvasNet.Tests/ImageSources/FolderImageResolverBudgetTests.cs"  # unit tests (budget)
+      - "test/DemaConsulting.CanvasNet.Tests/ImageSources/PngHeaderFixtures.cs"  # test support (header-only PNG)
+      - "test/DemaConsulting.CanvasNet.Tests/ImageSources/ImageSourceTestSupport.cs"    # shared test support
+
+  # CanvasNet-ImageSources-RasterImageSource Review (one per unit)
+  - id: CanvasNet-ImageSources-RasterImageSource
+    title: Review that CanvasNet ImageSources RasterImageSource Implementation is Correct
+    context:
+      - "docs/design/canvas-net.md"
+      - "docs/reqstream/canvas-net.yaml"
+      - "docs/design/canvas-net/image-sources.md"
+      - "docs/reqstream/canvas-net/image-sources.yaml"
+    paths:
+      - "docs/reqstream/canvas-net/image-sources/raster-image-source.yaml"  # unit requirements
+      - "docs/design/canvas-net/image-sources/raster-image-source.md"      # unit design
+      - "docs/verification/canvas-net/image-sources/raster-image-source.md"  # unit verification
+      - "docs/sysml2/model/canvas-net/image-sources/raster-image-source.sysml"  # unit model
+      - "src/DemaConsulting.CanvasNet/ImageSources/RasterImageSource.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Tests/ImageSources/RasterImageSourceTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tests/ImageSources/PngHeaderFixtures.cs"       # test support (header-only PNG)
+
   # CanvasNet-Rendering-WordWrap Review (one per unit)
   - id: CanvasNet-Rendering-WordWrap
     title: Review that CanvasNet Rendering WordWrap Implementation is Correct
@@ -1021,6 +1099,8 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Svg/NamespaceDoc.cs"            # Svg namespace documentation
       - "test/DemaConsulting.CanvasNet.Svg.Tests/SvgCodecTests.cs"    # unit tests
       - "test/DemaConsulting.CanvasNet.Svg.Tests/SvgImageResamplingTests.cs"  # image resampling unit tests
+      - "test/DemaConsulting.CanvasNet.Svg.Tests/SvgImageResolverTests.cs"  # image resolver unit tests
+      - "test/DemaConsulting.CanvasNet.Svg.Tests/SvgImageSourceTests.cs"  # image source (SvgImageSource) unit tests
       - "test/DemaConsulting.CanvasNet.Svg.Tests/SvgPatternTileSmoothingTests.cs"  # pattern tile sampling unit tests
       - "test/DemaConsulting.CanvasNet.Svg.Tests/SvgDefaultFontTests.cs"  # default font resolution unit tests
       - "test/DemaConsulting.CanvasNet.Svg.Tests/SvgFixtureTests.cs"  # fixture conformance tests
@@ -1081,6 +1161,7 @@ reviews:
       - "docs/verification/canvas-net-pdf/pdf-document.md"            # unit verification
       - "docs/sysml2/model/canvas-net-pdf/pdf-document.sysml"         # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.cs"              # phase 1 unit source (public API)
+      - "src/DemaConsulting.CanvasNet.Pdf/PdfImageSource.cs"           # unit source (image source)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Tokenizer.cs"    # phase 1 unit source (tokenizer)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.ObjectModel.cs"  # phase 1 unit source (object model)
       - "src/DemaConsulting.CanvasNet.Pdf/PdfDocument.Xref.cs"         # phase 1 unit source (xref resolution)
@@ -1114,6 +1195,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Pdf/PdfRenderOptions.cs"         # supporting options type (background color)
       - "src/DemaConsulting.CanvasNet.Pdf/NamespaceDoc.cs"             # Pdf namespace documentation
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfImageSourceTests.cs"  # unit tests (image source)
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentMeshShadingTests.cs"  # mesh shading unit tests
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentColorSpaceTests.cs"  # calibrated color tests
       - "test/DemaConsulting.CanvasNet.Pdf.Tests/PdfDocumentTintTests.cs"  # Separation/DeviceN/Type 4 tests
@@ -1188,6 +1270,7 @@ reviews:
       - "docs/verification/canvas-net-pptx/pptx-document.md"          # unit verification
       - "docs/sysml2/model/canvas-net-pptx/pptx-document.sysml"       # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.Pptx/PptxDocument.cs"  # phase 1a unit source (public API)
+      - "src/DemaConsulting.CanvasNet.Pptx/PptxImageSource.cs"  # unit source (image source)
       - "src/DemaConsulting.CanvasNet.Pptx/PptxDocument.Package.cs"  # phase 1a unit source (package layer)
       - "src/DemaConsulting.CanvasNet.Pptx/NamespaceDoc.cs"  # Pptx namespace documentation
       - "src/DemaConsulting.CanvasNet.Pptx/PptxDocument.Presentation.cs"  # phase 1b unit source (presentation)
@@ -1230,6 +1313,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Pptx/PptxDocument.Charts.cs"  # phase 4 unit source (chart frame integration)
       - "src/DemaConsulting.CanvasNet.Pptx/DemaConsulting.CanvasNet.Pptx.csproj"  # project file (phase 4: Charts ref)
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxDocumentTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxImageSourceTests.cs"  # unit tests (image source)
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxGeometryTests.cs"  # phase 1c unit tests (geometry)
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxPaintTests.cs"  # phase 1c unit tests (paint)
       - "test/DemaConsulting.CanvasNet.Pptx.Tests/PptxTextTests.cs"  # phase 1d unit tests (text parsing)
@@ -1422,6 +1506,67 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Vsdx/DemaConsulting.CanvasNet.Vsdx.csproj"  # project file
       - "test/DemaConsulting.CanvasNet.Vsdx.Tests/**/*.cs"             # unit/integration tests
       - "test/DemaConsulting.CanvasNet.Vsdx.Tests/VsdxFixtures/**"      # fixture corpus (promoted)
+
+  # CanvasNetViewer-Architecture Review (one per system)
+  - id: CanvasNetViewer-Architecture
+    title: Review that CanvasNetViewer Architecture Satisfies Requirements
+    context:
+      - "README.md"
+      - "docs/user_guide/**/*.md"
+    paths:
+      - "docs/reqstream/canvas-net-viewer.yaml"                       # system requirements
+      - "docs/design/introduction.md"                                 # design introduction
+      - "docs/design/canvas-net-viewer.md"                            # system design
+      - "docs/verification/introduction.md"                           # verification introduction
+      - "docs/verification/canvas-net-viewer.md"                      # system verification
+      - "test/DemaConsulting.CanvasNet.Viewer.Tests/CanvasNetViewerSystemIntegrationTests.cs"  # integration tests
+      - "src/DemaConsulting.CanvasNet.Viewer/DemaConsulting.CanvasNet.Viewer.csproj"  # package project file
+      - "test/DemaConsulting.CanvasNet.Viewer.Tests/DemaConsulting.CanvasNet.Viewer.Tests.csproj"  # test project
+
+  # CanvasNetViewer-Design Review (one per system)
+  - id: CanvasNetViewer-Design
+    title: Review that CanvasNetViewer Design is Consistent and Complete
+    context:
+      - "docs/reqstream/canvas-net-viewer.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-viewer/platform-requirements.yaml"  # platform requirements
+      - "docs/design/introduction.md"                                 # design introduction
+      - "docs/design/canvas-net-viewer.md"                            # system design
+      - "docs/design/canvas-net-viewer/**/*.md"                       # all system design documents
+
+  # CanvasNetViewer-Verification Review (one per system)
+  - id: CanvasNetViewer-Verification
+    title: Review that CanvasNetViewer Verification is Consistent and Complete
+    context:
+      - "docs/reqstream/canvas-net-viewer.yaml"
+    paths:
+      - "docs/verification/introduction.md"                           # verification introduction
+      - "docs/verification/canvas-net-viewer.md"                      # system verification
+      - "docs/verification/canvas-net-viewer/**/*.md"                 # all verification documents
+
+  # CanvasNetViewer-AllRequirements Review (one per system)
+  - id: CanvasNetViewer-AllRequirements
+    title: Review that All CanvasNetViewer Requirements are Complete
+    context:
+      - "docs/design/canvas-net-viewer.md"
+      - "docs/reqstream/canvas-net-viewer.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-viewer/**/*.yaml"                  # all requirements files
+
+  # CanvasNetViewer-CanvasNetViewer Review (one per direct unit)
+  - id: CanvasNetViewer-CanvasNetViewer
+    title: Review that CanvasNetViewer CanvasNetViewer Implementation is Correct
+    context:
+      - "docs/design/canvas-net-viewer.md"
+      - "docs/reqstream/canvas-net-viewer.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-viewer/canvas-net-viewer.yaml"     # unit requirements
+      - "docs/design/canvas-net-viewer/canvas-net-viewer.md"          # unit design
+      - "docs/verification/canvas-net-viewer/canvas-net-viewer.md"    # unit verification
+      - "docs/sysml2/model/canvas-net-viewer.sysml"                   # system SysML2 model
+      - "docs/sysml2/model/canvas-net-viewer/canvas-net-viewer.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Viewer/**/*.cs"                 # unit source
+      - "test/DemaConsulting.CanvasNet.Viewer.Tests/**/*.cs"          # unit/integration tests
 
   # CanvasNetRender3D-Architecture Review (one per system)
   - id: CanvasNetRender3D-Architecture
@@ -1891,7 +2036,9 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Scad/ScadViewport.cs"           # unit source
       - "src/DemaConsulting.CanvasNet.Scad/ScadResolvedView.cs"       # unit source
       - "src/DemaConsulting.CanvasNet.Scad/ScadViewSource.cs"         # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/ScadImageSource.cs"        # unit source (image source)
       - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadDocumentTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadImageSourceTests.cs"  # unit tests (image source)
       - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadOpenOptionsTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadSourceLocationTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadSyntaxExceptionTests.cs"  # unit tests
@@ -2303,7 +2450,9 @@ reviews:
       - "src/DemaConsulting.CanvasNet.VegaLite/VegaLiteRenderException.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.VegaLite/VegaLiteUnsupportedFeatureException.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.VegaLite/VegaLiteReportSink.cs"  # unit source (internal report sink)
+      - "src/DemaConsulting.CanvasNet.VegaLite/VegaLiteImageSource.cs"  # unit source (image source)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteDocumentLayoutTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteImageSourceTests.cs"  # unit tests (image source)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteRefactorSnapshotTests.cs"  # unit tests (scene snapshots)
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/SpecModel/VegaLiteDocumentSpecModelTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.VegaLite.Tests/VegaLiteOpenOptionsTests.cs"  # unit tests

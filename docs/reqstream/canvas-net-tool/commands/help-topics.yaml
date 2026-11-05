@@ -43,17 +43,21 @@ sections:
 
       - id: CanvasNetTool-Commands-HelpTopics-Examples
         title: >-
-          The HelpTopics class shall give each example of a topic a unique name, a kind (source text, or a command
-          line), and a description, shall return the source text of an example exactly as it ships, or the command line
-          of a command example, and the list of the examples of a topic, shall report an unknown example name as a
-          usage error listing the names of the examples, and shall ship source examples that render with the strict
-          option without any diagnostic and command examples that use known commands and options.
+          The HelpTopics class shall give each example of a topic a unique name, a kind (source text, a command line,
+          or a snippet), and a description, shall return the source text of an example exactly as it ships, or the
+          command line of a command example, and the list of the examples of a topic, shall report an unknown example
+          name as a usage error listing the names of the examples, and shall ship source examples that render with the
+          strict option without any diagnostic, snippets (text that refers to sibling files and so is not rendered
+          alone) that render with the strict option without any diagnostic once their sibling files exist, and command
+          examples that use known commands and options.
         justification: |
           A tiny example that is known to work is the fastest way to start with a format; an example that is printed
-          alone can be saved to a file and used as it is, and an example that is verified cannot mislead.
+          alone can be saved to a file and used as it is, and an example that is verified cannot mislead. A diagram
+          that links other files cannot stand alone, so it is a snippet that is verified together with its siblings.
         tests:
           - HelpTopics_Examples_NamesUniqueKindsValidAndSourcesNonEmpty
           - HelpTopics_SourceExamples_RenderStrictWithoutDiagnostics
+          - HelpTopics_SvgTopic_EmbedSnippet_RendersStrictWithItsSiblingFiles
           - HelpTopics_CommandExamples_UseKnownCommandsAndOptions
           - HelpTopics_RenderExample_UnknownName_ThrowsUsageErrorListingNames
           - HelpTopics_RenderExample_Source_ReturnsExactEmbeddedContent
@@ -90,3 +94,21 @@ sections:
           - HelpTopics_DiagnosticTriggers_ProduceTheCitedIds
           - HelpTopics_DiagnosticTriggers_Strict_FailsWithUnsupportedFeature
           - HelpTopics_Text_HasNoUnresolvedTokens
+
+      - id: CanvasNetTool-Commands-HelpTopics-SvgImageLinks
+        title: >-
+          The HelpTopics class shall state in the svg topic, in a section of its own, which file types an image element
+          may link (the list shall be exactly the file name extensions the SVG image resolver of the tool accepts, and
+          the same extensions the formats command lists), that a linked model, chart, document page, or SVG file is
+          drawn at the size of the placement, the folder rule (relative to the folder of the SVG file, with no absolute
+          path, escape, symbolic link, or network URL; a query or fragment after the file name is ignored), the
+          diagnostic codes svg-image-unresolved and svg-image-too-large, and an example, and
+          the scad and vega-lite topics, the formats listing, and the render usage shall point to that topic.
+        justification: |
+          An agent that wants a model or a chart inside a diagram must find out that an image element can link it, and
+          what it may link, without reading the source; a list of file types that is compared with the resolver in both
+          directions cannot omit a type that works or promise one that does not.
+        tests:
+          - HelpTopics_SvgTopic_ImageHrefFileTypes_MatchTheResolverExtensions
+          - HelpTopics_SvgTopic_ImageLinksSection_StatesSizeFolderRuleDiagnosticAndExample
+          - HelpTopics_ImageHrefLinking_IsCrossReferencedFromScadVegaLiteFormatsAndRender

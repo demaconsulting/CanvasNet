@@ -242,6 +242,27 @@ sections:
           - RenderCommand_Run_UnsupportedFeature_IsReportedOrFailsWhenStrict
           - RenderCommand_Run_DocumentDiagnosticsInTextMode_NameTheInputAndPage
           - RenderCommand_Run_StrictWithUnsupportedFeature_FailsWithoutOutput
+          - RenderCommand_Run_SvgEmbeddingOutsideFolder_WarnsAndDrawsTheRest
+          - RenderCommand_Run_SvgEmbeddingMissingFile_WritesWarningLineToStandardError
+          - RenderCommand_Run_SvgEmbeddingStrictUnresolved_FailsWithUnsupportedFeature
+          - RenderCommand_Run_SvgEmbeddingModelWithUnsupportedFeature_IsNoteThenStrictError
+          - RenderCommand_Run_SvgEmbeddingTooLargePicture_WarnsWithTooLargeCodeAndDrawsTheRest
+          - RenderCommand_Run_SvgEmbeddingStrictTooLargePicture_FailsWithUnsupportedFeature
+
+      - id: CanvasNetTool-Commands-RenderCommand-SvgEmbed
+        title: >-
+          The render command shall render an SVG file whose image elements name a model, a chart, another SVG
+          file, a document page, or a raster in the folder of the SVG file or below it, list each embedded file
+          as an embed operation of the result, and fail with the error code of an embedded file that is found
+          but broken (naming both files) and with no output written.
+        justification: |
+          The picture of a diagram is rendered by one command from the files beside it, and a broken part
+          fails the whole picture with a message that says which file is at fault.
+        tests:
+          - RenderCommand_Run_SvgEmbeddingModelChartAndPicture_DrawsAllAndListsEmbeds
+          - RenderCommand_Run_SvgEmbeddingHrefWithQueryAndFragment_DrawsTheFile
+          - RenderCommand_Run_SvgEmbeddingBrokenModel_FailsWithScadErrorNamingBothFiles
+          - RenderCommand_Run_SvgWithoutEmbeddedFiles_IsUnchangedAndStrictSafe
 
       - id: CanvasNetTool-Commands-RenderCommand-Output
         title: >-

@@ -1338,31 +1338,85 @@ sections:
 
           - id: CanvasNetSvg-SvgCodec-ImageExternalHrefScope
             title: >-
-              The SvgCodec class shall treat an image element's non-data: href (an external
-              file path or URL) and a data:image/svg+xml data URI (a nested SVG document,
-              whether base64-encoded or not) as a tolerant no-op - rendering nothing for that
-              element, without opening any file, making any network request, or attempting to
-              recursively parse a second SVG document - and shall likewise tolerate a
-              malformed or truncated base64 payload, or a raster payload that its own decoder
-              rejects, as the same kind of tolerant per-element no-op.
+              The SvgCodec class shall, unless the caller supplied an SvgLoadOptions.ImageResolver,
+              treat an image element's non-data: href (an external file path or URL) as a tolerant
+              no-op - rendering nothing for that element, without opening any file or making any
+              network request - and shall always treat a data:image/svg+xml data URI (a nested SVG
+              document, whether base64-encoded or not) as a tolerant no-op without attempting to
+              recursively parse a second SVG document, and shall likewise tolerate a malformed or
+              truncated base64 payload, or a raster payload that its own decoder rejects, as the
+              same kind of tolerant per-element no-op. The codec itself shall never perform file or
+              network I/O for an image reference; the only I/O is the caller-supplied resolver.
             justification: |
-              Resolving an external href would require introducing a base-path/resolver
-              mechanism that does not otherwise exist anywhere in SvgCodec.Load, and doing so
-              without one would mean either silently failing in a less predictable way or
-              opening arbitrary caller-influenced file paths/URLs from untrusted document
-              data - a security-sensitive capability this codec deliberately does not
-              introduce for this phase. Recursively parsing a nested SVG document is likewise
-              out of scope, for the same recursive-parsing-complexity reasoning that already
-              excludes feImage's own referenced-element case. Both are documented, deliberate
-              scope boundaries rather than oversights, and a malformed/truncated/undecodable
-              raster payload must fail the same tolerant, per-element way every other
-              dangling-reference case in this codec already does, rather than aborting the
-              whole document's rendering.
+              Resolving an external href from untrusted document data without the caller's
+              explicit consent would mean opening arbitrary caller-influenced file paths/URLs -
+              a security-sensitive capability this codec deliberately does not provide by default.
+              The default (no resolver) therefore stays a documented, deliberate scope boundary,
+              and a nested data: SVG document remains out of scope for the same
+              recursive-parsing-complexity reasoning that already excludes feImage's own
+              referenced-element case. A malformed/truncated/undecodable raster payload must fail
+              the same tolerant, per-element way every other dangling-reference case in this codec
+              already does, rather than aborting the whole document's rendering.
             tests:
               - SvgCodec_Load_ImageExternalFileHref_RendersNothingWithoutFileAccess
               - SvgCodec_Load_ImageNestedSvgDataUri_RendersNothingWithoutRecursion
               - SvgCodec_Load_ImageMalformedBase64_SkipsElementWithoutThrowing
               - SvgCodec_Load_ImageTruncatedPngData_SkipsElementWithoutThrowing
+              - SvgCodec_Load_ImageResolverNullByDefault_ExternalHrefStillRendersNothing
+
+          - id: CanvasNetSvg-SvgCodec-ImageResolver
+            title: >-
+              The SvgCodec class shall, when the caller supplies SvgLoadOptions.ImageResolver, pass
+              an image element's raw trimmed href/xlink:href and its placement size in device
+              pixels after the composed transform (rounded up, from 1 to the maximum surface
+              dimension) to the resolver, draw a returned surface through the same
+              preserveAspectRatio fit, image-rendering, and clip-path/mask/filter/opacity effects
+              pipeline as a decoded data URI raster, dispose the returned surface, treat a null
+              result as a tolerant no-op, never pass a data: URI, a same-document fragment, or an
+              empty href to the resolver, call the resolver again for every image element and every
+              load (never caching a picture), and let an exception of the resolver propagate
+              unchanged (a FormatException wrapped in an InvalidOperationException).
+            justification: |
+              Hosts such as the CanvasNet tool and viewer need to embed models, charts, nested SVG
+              files and rasters in an SVG diagram. An explicit resolver (the IImageResolver contract
+              of the core package) keeps the codec free of file and network I/O and of every other
+              format (the host decides what may be reached), and the device size lets the host draw
+              a vector source sharply at the size it is shown. A resolver backed by a live source
+              must be asked again each time, so nothing is cached. The resolver is trusted host
+              code, so its failures are surfaced rather than hidden, while untrusted document
+              content stays tolerant.
+            tests:
+              - SvgCodec_Load_ImageResolverSet_ReceivesRawHrefAndXlinkHref
+              - SvgCodec_Load_ImageResolverSet_ReceivesPixelSizeAfterTransform
+              - SvgCodec_Load_ImageResolverReturnsSurface_IsPlacedLikeADataUri
+              - SvgCodec_Load_ImageResolverReturnsSurface_HonorsPreserveAspectRatio
+              - SvgCodec_Load_ImageResolverReturnsSurface_AppliesOpacityAndClipPath
+              - SvgCodec_Load_ImageResolverReturnsSurface_ImageRenderingPixelatedUsesNearest
+              - SvgCodec_Load_ImageResolverReturnsNull_RendersNothingWithoutThrowing
+              - SvgCodec_Load_ImageResolverSet_DataUriAndFragmentAndEmptyHrefNeverCallResolver
+              - SvgCodec_Load_ImageResolverThrows_ExceptionPropagatesUnchanged
+              - SvgCodec_Load_ImageResolverThrows_PropagatesTheSameException
+              - SvgCodec_Load_ImageResolverThrowsFormatException_IsNotReportedAsInvalidSvgData
+              - SvgCodec_Load_ImageResolverReturnsSurface_IsDisposedByCodec
+              - SvgCodec_Load_ImageResolverSet_FeImageExternalHrefDoesNotCallResolver
+              - SvgCodec_Load_ImageResolverSet_SameHrefTwiceAndTwoRenders_CallsResolverEachTime
+
+          - id: CanvasNetSvg-SvgCodec-ImageResolverBudget
+            title: >-
+              The SvgCodec class shall bound the work a resolver can cause by charging the
+              placement's pixel area plus a fixed per-call overhead against the shared cumulative
+              filter-evaluation work budget before each resolver call (skipping the call when the
+              charge is declined), and by charging the extra pixels of a returned surface that is
+              larger than requested (disposing it and drawing nothing when that charge is declined).
+            justification: |
+              The resolver is invoked once per image element, and a document can repeat an image
+              many times (for example through use fan-out). Charging before the call, with a fixed
+              overhead per call, bounds the number of calls and the pixels a hostile document can
+              request or receive, mirroring this codec's existing "charge before allocate"
+              convention for data URI images.
+            tests:
+              - SvgCodec_Load_ImageResolverBudget_ChargedBeforeCallAndFanOutDeclined
+              - SvgCodec_Load_ImageResolverReturnsOversizedSurface_ChargedAndDeclinedOverBudget
 
           - id: CanvasNetSvg-SvgCodec-ImageResourceSafety
             title: >-
@@ -1576,3 +1630,36 @@ sections:
               - SampleTileIntoRegion_MagnifiedTile_IsSmooth
               - SampleTileIntoRegion_MinifiedTile_IsAreaAveraged
               - SampleTileIntoRegion_OneToOneTile_IsExactCopy
+
+          - id: CanvasNetSvg-SvgCodec-SvgImageSource
+            title: >-
+              The Svg package shall provide an image source for .svg files (claiming that extension and
+              no URI scheme) that draws an SVG file another document links to at the size its placement asks
+              for (the natural size when none is asked for, the exact box when both dimensions are asked for)
+              over a transparent background, charges the surface it will allocate to the live pixel budget of the
+              request before drawing anything and before it loads any nested picture (refusing with
+              ImageSourceBudgetException a size that exceeds the pixels the budget still has), resolves the image
+              elements of that file through
+              the resolver
+              scoped to the request (so that its relative links resolve against its own folder and the
+              limits of the whole render apply, and a nested picture sees only the budget its own canvas left) and
+              draws nothing for them when there is none, returns a new
+              surface on every call, and fails with InvalidDataException for content that is not an SVG
+              document, InvalidOperationException for a request without a file, and
+              OperationCanceledException for a canceled request.
+            justification: |
+              A diagram that embeds another diagram needs the SVG format to be one of the sources of the
+              shared image resolver, without the SVG package referencing any other format package: the nested
+              file recurses through the resolver of the core package, which owns the limits.
+            tests:
+              - SvgImageSource_Render_NoRequestedSize_DrawsNaturalSizeOnTransparentBackground
+              - SvgImageSource_Render_RequestedSize_DrawsAtThatSize
+              - SvgImageSource_Render_SizeBeyondRemainingPixels_IsRefusedBeforeDrawing
+              - SvgImageSource_Render_DirectNaturalSize_NestedPictureBeyondLiveRemaining_IsRefusedBeforeItsSource
+              - SvgImageSource_Render_DirectNaturalSize_NestedPictureWithinLiveRemaining_IsDrawnAndCharged
+              - SvgImageSource_Render_NestedImage_UsesResolverOfRequest
+              - SvgImageSource_Render_NestedImageWithoutResolver_DrawsNothing
+              - SvgImageSource_Render_TwiceForSameRequest_ReturnsDistinctSurfaces
+              - SvgImageSource_Render_InvalidInput_Throws
+              - SvgImageSource_Properties_NameExtensionAndNoSchemes
+              - SvgImageSource_Properties_ExtensionsAndSchemesAreReadOnly

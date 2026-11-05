@@ -92,6 +92,63 @@ sections:
         tests:
           - SourceLoader_Load_Svg_RendersNaturalSizeOverWhite
           - SourceLoader_Load_SvgWithSizeOptions_RendersAtRequestedSize
+          - SourceLoader_Load_SvgWithoutEmbeddedFiles_ReportsNothingExtra
+
+      - id: CanvasNetTool-Imaging-SourceLoader-SvgEmbedding
+        title: >-
+          The SourceLoader class shall, when it loads an SVG file, hand the SVG library the image resolver that
+          CanvasNetViewer creates for the folder of the SVG file the user named (so that an image element with a
+          relative href draws a raster, an SVG file, an OpenSCAD model, a Vega-Lite chart, or the first page of
+          a PDF, PPTX, or VSDX document from that folder and below only, decided by the file name extension, with
+          the sandbox, nesting, and count limits of the core library); shall not pass the outer sizing, page,
+          resolution, and model options on to an embedded file; shall add the notes and printed lines of an
+          embedded file to the result, each note starting with the href; and shall list each file that the SVG
+          file itself embeds, and no file embedded further down, as an embed operation.
+        justification: |
+          A diagram is often the place where a model, a chart, and a picture belong together; the tool wires in
+          the one resolver the library provides, so rendering a diagram from an untrusted source cannot read other
+          folders, the behavior is the same as for an application that uses the library, and the tool carries no
+          second copy of the rules.
+        tests:
+          - SourceLoader_Load_SvgEmbeddingPng_DrawsPictureAndListsEmbedOperation
+          - SourceLoader_Load_SvgEmbeddingScad_DrawsModelOverTransparentBackground
+          - SourceLoader_Load_SvgEmbeddingVegaLite_KeepsChartBackgroundOpaque
+          - SourceLoader_Load_SvgEmbeddingNestedSvg_ListsOnlyTheOuterEmbedOperation
+          - SourceLoader_Load_SvgEmbeddingByFileName_DrawsListedTypesAndSkipsOthers
+          - SourceLoader_Load_SvgEmbeddingSymbolicLink_IsUnresolvedWarning
+          - SourceLoader_Load_SvgEmbeddingModelWithNotes_MergesDiagnosticsAndEcho
+          - SourceLoader_Load_SvgEmbeddingOuterOptions_DoNotReachEmbeddedFiles
+
+      - id: CanvasNetTool-Imaging-SourceLoader-SvgEmbeddingUnresolved
+        title: >-
+          The SourceLoader class shall report an image href of an SVG file that is not drawn (a file that
+          is missing, outside the folder, behind a link, or of an unknown format, a network URL, a cycle, or a
+          limit) as the warning svg-image-unresolved naming the href and the reason, and a picture that is too
+          large for the pixel budget of the render (refused by the resolver before it is decoded) as the warning
+          svg-image-too-large, leaving the rest of the drawing unchanged, and in strict mode either as an
+          unsupported-feature error instead.
+        justification: |
+          An image that silently lacks part of the diagram misleads the agent that looks at it; the warning
+          says which reference was left out and why, and strict mode is for callers that cannot accept the
+          gap.
+        tests:
+          - SourceLoader_Load_SvgEmbeddingEscapingReference_IsUnresolvedWarning
+          - SourceLoader_Load_SvgEmbeddingMissingAndUnknownFiles_AreWarnings
+          - SourceLoader_Load_SvgEmbeddingStrict_UnresolvedAndUnsupportedAreErrors
+          - SourceLoader_Load_SvgEmbeddingTooLargePicture_IsWarningThenStrictError
+
+      - id: CanvasNetTool-Imaging-SourceLoader-SvgEmbeddingErrors
+        title: >-
+          The SourceLoader class shall report an embedded file that is found but cannot be loaded (a corrupt
+          picture, a model with a syntax error, or a chart with an invalid specification) as an error with the
+          code of that failure and a message that names both the embedding file (the SVG file itself or the
+          embedded SVG file that contains the href) and the embedded href.
+        justification: |
+          A broken part must not be mistaken for a missing one: the caller needs the same stable code as when
+          the file is rendered alone, and the message must say which file of the diagram is at fault.
+        tests:
+          - SourceLoader_Load_SvgEmbeddingBrokenFile_FailsWithItsCodeNamingBothFiles
+          - SourceLoader_Load_SvgEmbeddingBrokenFileInNestedSvg_NamesTheNestedFile
 
       - id: CanvasNetTool-Imaging-SourceLoader-Documents
         title: >-
@@ -139,7 +196,8 @@ sections:
         title: >-
           The SourceLoader class shall report, with the loaded page, a note (source, severity, stable
           code, message, and page) for each picture of a PPTX slide and each construct of a VSDX page
-          that the library skips or approximates, and shall report no notes for a PDF, whose library has
+          that the library skips or approximates, for each image href of an SVG file that is not drawn
+          (and the notes of the files it embeds), and shall report no notes for a PDF, whose library has
           no such channel.
         justification: |
           A page that is drawn with something missing must say so; otherwise an agent trusts an image
@@ -148,6 +206,7 @@ sections:
           - SourceLoader_Load_PptxMetafilePicture_IsSkippedAndReported
           - SourceLoader_Load_VsdxUnsupportedRow_IsReportedAndStrictRefuses
           - SourceLoader_Load_PdfStrict_HasNoDiagnostics
+          - SourceLoader_Load_SvgEmbeddingModelWithNotes_MergesDiagnosticsAndEcho
 
       - id: CanvasNetTool-Imaging-SourceLoader-Strict
         title: >-
@@ -160,6 +219,7 @@ sections:
           - SourceLoader_Load_PptxMetafilePictureStrict_ThrowsUnsupportedFeature
           - SourceLoader_Load_PptxUnsupportedShape_ThrowsUnsupportedFeature
           - SourceLoader_Load_VsdxUnsupportedRow_IsReportedAndStrictRefuses
+          - SourceLoader_Load_SvgEmbeddingStrict_UnresolvedAndUnsupportedAreErrors
 
       - id: CanvasNetTool-Imaging-SourceLoader-Scad
         title: >-

@@ -14,7 +14,8 @@ transform, and never uses the
 network**; it does compile the expressions of the specification (so a broken expression fails when the document is
 opened). A document can then be
 **measured** (`Measure`) and **rendered** (`Render`, at its natural size times a scale or at an exact size): both run
-the same internal pipeline, which drives the `SpecModel`, `Data`, `Expressions`, `Transforms`, `Scales`, `Guides`, `Layout`,
+the same internal pipeline, which drives the `SpecModel`, `Data`, `Expressions`, `Transforms`, `Scales`, `Guides`,
+`Layout`,
 `Marks`, and
 `Scenegraph` subsystems and delivers the warnings and unsupported-feature reports to the caller's handlers. **Only
 `Measure` and `Render` read data and run the parameters and the row transforms over it:** inline rows, named datasets,
@@ -23,7 +24,8 @@ and sequences need no I/O, and a relative local
 used is a `VegaLiteRenderException`, and a remote URL is reported and never fetched.
 
 The unit covers the files `VegaLiteDocument.cs` (the entry points and the descriptive properties),
-`VegaLiteDocument.Render.cs` (`Measure`, `Render`, and the pipeline), `VegaLiteDocument.Layers.cs` (the layers of a view:
+`VegaLiteDocument.Render.cs` (`Measure`, `Render`, and the pipeline), `VegaLiteDocument.Layers.cs` (the layers of a
+view:
 the data walk, the axis planning, and the legend scopes), `VegaLiteDocument.Composition.cs` (the cell: the guides and
 the marks of one unit or layered view, built independently of the view that holds it, and the `Composer` that draws a
 concatenation, a repeat or a facet from its cells), the options `VegaLiteOpenOptions.cs`,
@@ -50,7 +52,8 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   calls: it is safe for concurrent use, including concurrent `Measure` and `Render` calls. The public properties are
   `SourceName`, `SchemaUrl` (as written), `SchemaMajorVersion` (the version in the URL, or null), `Title` (plain text,
   lines joined by a line feed; null for none or an expression), `MarkTypes` (in document order, nested views included),
-  `DataReferences` (a view without a `data` object contributes none), and `ParameterNames` (distinct, in document order).
+  `DataReferences` (a view without a `data` object contributes none), and `ParameterNames` (distinct, in document
+  order).
 - **`VegaLiteOpenOptions`** (sealed class, init-only) - `BaseDirectory` (`string?`), `DataPaths`
   (`IReadOnlyList<string>`, empty by default, copied), `FileResolver` (`Func<string, Stream?>?`), `SourceName`
   (`string?`), and `Limits` (`VegaLiteLimits?`; the defaults when null). Every property is validated in its `init`
@@ -87,16 +90,20 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   `MaxEvaluationSteps`, `MaxStringLength`, and `MaxDiagnostics`, with the `Default` instance; a value outside its range
   throws `ArgumentOutOfRangeException` when set. The defaults and the stage that enforces each are listed in
   _CanvasNetVegaLite System Design_. The three expression limits (`MaxExpressionLength`, `MaxExpressionDepth`, and
-  `MaxEvaluationSteps`) are active since phase 5, and `MaxDataRows` and `MaxFieldCount` also bound the tables that the row
-  and aggregating transforms and the implicit pipeline derive; since phase 6 `MaxEvaluationSteps` also bounds the work of
+  `MaxEvaluationSteps`) are active since phase 5, and `MaxDataRows` and `MaxFieldCount` also bound the tables that the
+  row
+  and aggregating transforms and the implicit pipeline derive; since phase 6 `MaxEvaluationSteps` also bounds the work
+  of
   the aggregating transforms and `MaxScaleDomainSize` the number of bins. No limit was added. Phase 8 (time) added no
-  limit either: time ticks are bounded by `MaxTicks`, formatted dates by `MaxStringLength`, date sequences, discrete date
+  limit either: time ticks are bounded by `MaxTicks`, formatted dates by `MaxStringLength`, date sequences, discrete
+  date
   domains, and the `maxbins` of a time unit by `MaxScaleDomainSize`, the work of the time-unit transform and of the date
   functions by `MaxEvaluationSteps`, and the number of derived fields and rows by `MaxFieldCount` and `MaxDataRows`.
   Phase 9 (the line, area, trail, text, and arc marks) added none either: the segments of a path, the overlay points,
   the arcs, and the lines of a label are charged to `MaxSceneItems`, a label and the labels of a mark to
   `MaxStringLength`, the rows that an impute adds to `MaxDataRows`, and the work of the path marks to
-  `MaxEvaluationSteps`. Phase 10 (layers and composite marks) activates the two composition limits: `MaxViews` bounds the
+  `MaxEvaluationSteps`. Phase 10 (layers and composite marks) activates the two composition limits: `MaxViews` bounds
+  the
   views of the specification (the layers, and the views that a composite mark expands to) and `MaxCompositionDepth` the
   nesting of `layer`, both enforced by `SpecNormalizer` before any data is read; the data, the tables of the
   expansion, and the marks of the layers are charged to the existing limits. Phase 11 (concatenation and repeat) counts
@@ -126,11 +133,13 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   features in order, de-duplicated by value (a warning also by an optional key, so that a message that lists only a
   prefix of what identifies it, such as the missing-glyph warning, does not hide a different set), capped at
   `MaxDiagnostics`, with the strict-mode switch (strict mode always
-  records the first unsupported feature, even beyond the cap, so the handler receives it before the exception is thrown).
+  records the first unsupported feature, even beyond the cap, so the handler receives it before the exception is
+  thrown).
 
 ### Key Methods
 
-- `Parse(string json, VegaLiteOpenOptions? options)` - requires a non-null string, uses the default options when none are
+- `Parse(string json, VegaLiteOpenOptions? options)` - requires a non-null string, uses the default options when none
+  are
   given, and delegates to the internal `Create`.
 - `Open(string path, VegaLiteOpenOptions? options)` - requires a non-blank path, fills in the effective options (the
   path names the source and its folder is the base directory, unless overridden), opens the file, reads it with
@@ -142,14 +151,16 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   byte-order mark (no input that long can fit the limit), so a stream that never ends cannot consume unbounded memory.
   The exact character count and the strict UTF-8 decoding are done by `SpecParser.Parse(byte[], ...)`, so a malformed
   byte sequence is a located `VegaLiteSpecException` and is never replaced by U+FFFD.
-- `Create(source, options)` - calls `SpecParser.Parse(source, sourceName, limits)` (for a string or for the bytes of a file
+- `Create(source, options)` - calls `SpecParser.Parse(source, sourceName, limits)` (for a string or for the bytes of a
+  file
   or stream) and wraps the tree in a document
   whose constructor reads the metadata and merges the reports.
 - `Measure(options, token)` - prepares the chart (`PrepareChartOrReport`), validates the scaled size
   (`ValidateScaledSize`: each side of the natural size times the scale, rounded half away from zero, must be 1 to
   `Surface.MaxDimension`), validates the parameter names, checks the token, and runs the pipeline with a finish step
   that returns the size.
-- `Render(options, token)` - the same checks, with a finish step that paints the scene at `ScenePlacement.Uniform(scale)`
+- `Render(options, token)` - the same checks, with a finish step that paints the scene at
+  `ScenePlacement.Uniform(scale)`
   onto a new surface of the scaled size.
 - `Render(width, height, options, token)` - validates the width and height first (`ArgumentOutOfRangeException`), then
   the parameter names and the token, prepares the chart, and paints at `ScenePlacement.Fit` onto a surface of exactly
@@ -268,10 +279,12 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   order, between the axes behind and in front of the marks; each `MarkBuilder` call reads the layer's own scales and
   table. A layer with a mark that is not drawn (`geoshape`, `image`) is reported by the catalog and not drawn; the other
   layers are. A layered view with no layer draws its title and background only.
-- **Cells** (phase 11, `VegaLiteDocument.Composition.cs`). A cell is the guides and the marks of one unit or layered view
+- **Cells** (phase 11, `VegaLiteDocument.Composition.cs`). A cell is the guides and the marks of one unit or layered
+  view
   for a data rectangle of a given size, built independently of the view that holds it. `CreateCell` gathers a cell's
   inputs (its layers, the axes planned for them, the legends planned for them, and the axis and legend builders);
-  `BuildCellGuides` builds the axes (`BuildAxes`) and places the legends outside them (`BuildLegends`); `BuildCell` builds
+  `BuildCellGuides` builds the axes (`BuildAxes`) and places the legends outside them (`BuildLegends`); `BuildCell`
+  builds
   the content in Vega-Lite's order (grids, back axes, one marks group for each layer, front axes, legends) from guides
   that the caller passes or, for a cell of a composition whose size is fixed, builds them for the same rectangle.
   `PlanAxes` plans over all the layers of the tree and records, for each `AxisPlan`, the layers that share the axis
@@ -289,7 +302,8 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   background, and the canvas is the bounds of the content plus the padding (`ViewLayout.Measure` with the content bounds
   as the guides of a root of size zero). The `Composer` is built from the drawn layers with their scales and plans the
   guides of the whole tree once: the axes (`PlanAxes`, each given to the chart that owns it) and, for each owner in
-  `LegendPlan.Owners`, the legends of that owner over the layers below it (a chart's own legends go to its cell, those of
+  `LegendPlan.Owners`, the legends of that owner over the layers below it (a chart's own legends go to its cell, those
+  of
   a concatenation to the concatenation). It then builds the views of the tree **bottom up with an explicit stack**
   (children before parents, so the nesting cannot overflow the call stack): a **chart** (a unit or layered view that is
   a child of a concatenation or the root) resolves its own size (`ViewLayout.ResolveSize` with the step hints of its own
@@ -387,7 +401,8 @@ throws after a successful call propagates its exception (the surface is disposed
 - **`SpecModel` subsystem** - `SpecParser`, `SpecTree`, `SpecMetadata`, `FeatureCatalog`, `FeatureReport`,
   `ConfigResolver`, `ResolvedConfig`, `SpecNormalizer`, `LayerTree`, `LayerNode`
 - **`Data` subsystem** - `DataLoader` (one instance per call; reads local files through `DataFileResolver` and
-  delimited text through `DelimitedTextParser`, and carries the row budget of the call), `DataTable`, `DataFileResolver`,
+  delimited text through `DelimitedTextParser`, and carries the row budget of the call), `DataTable`,
+  `DataFileResolver`,
   `DelimitedTextParser`, and `TimeCalendar` (created once per call from `VegaLiteRenderOptions.TimeZone` and passed to
   the loader and the evaluator; see _Time Calendar Design_)
 - **`Expressions` subsystem** - `ExpressionEvaluator` (one instance per call, with the parameter dictionary and the
@@ -415,3 +430,25 @@ The consumers are applications and libraries that render charts. Within this rep
 calls `Measure` and `Render`, mapping the exceptions to its stable error codes. The tests in
 `test/DemaConsulting.CanvasNet.VegaLite.Tests/` call the public API and, through `InternalsVisibleTo`, the internal
 pipeline types.
+
+### Image Source
+
+`VegaLiteImageSource` (`VegaLiteImageSource.cs`) is the `IImageSource` of the package for `.vl` and `.vl.json` files
+(not `.json`: a plain JSON file is not assumed to be a chart), so that a document can link to a chart through the shared
+`FolderImageResolver`. `Render(request)` parses the chart with `VegaLiteDocument.Open(request.OpenContent(), new
+VegaLiteOpenOptions { BaseDirectory = request.Directory, SourceName = request.FileName })`, so the data files resolve in
+the folder of the file and are confined there by the library; measures it (`Measure`, with options that have no
+handlers, so a note is reported once) for the natural size; lays it out afresh with `Render(width, height, options)` at
+the size `request.SizeFor` gives (checked first with `request.EnsureWithinBudget(width, height)`: a size that does not
+fit in the budget of the request is refused with `ImageSourceBudgetException` before the chart is drawn), with
+`TimeZone = UTC` and
+only the bundled fonts so the result is deterministic, and
+with **no** background override, because a chart carries its own paper; and passes the cancellation token to both calls.
+The warnings of the library become `vega-lite-warning` notes and its unsupported features notes with the feature name as
+the code (the request's `ThrowOnUnsupportedFeature` makes the library throw instead). The class is stateless,
+thread-safe, claims no URI scheme, and references only the core package.
+
+The behavior of the class is specified by the `CanvasNetVegaLite-VegaLiteDocument-ImageSource` requirement and verified
+by `VegaLiteImageSourceTests.cs`. Its **callers** are the shared `FolderImageResolver` of the core package (through
+`IImageSource`), the `CanvasNetViewer` system, which lists it with the other built-in sources, and applications. The
+unit depends on the core package only through the `ImageSources` contract types.

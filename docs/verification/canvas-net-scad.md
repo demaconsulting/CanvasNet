@@ -301,7 +301,8 @@ formatted fractions (`0.1, 0.5, 1.5, -2.5, 0.333333, 0.666667, 3.14159, 12345.7`
 
 Builds the scene of `render-transforms.scad` with `ScadDocument.BuildScene` and asserts that its `ComputeBounds()`
 equal the analytic extent of the translate, rotate, scale, mirror, `multmatrix`, and resize chain of the
-fixture. Also exercised, at the fixture level, by `ScadRenderSystemTests`: `ScadRenderSystem_Transforms_BoundsAreAnalytic`,
+fixture. Also exercised, at the fixture level, by `ScadRenderSystemTests`:
+`ScadRenderSystem_Transforms_BoundsAreAnalytic`,
 `ScadRenderSystem_Extrusions_BoundsAreAnalytic`, `ScadRenderSystem_ModulesScene_TopViewShowsStairsAndPostRing`,
 and the two `ScadRenderSystem_Parametric_*` scenarios, which build the parametric fixture with its defaults and
 with variable overrides and assert the peg count and the silhouette.
@@ -349,8 +350,10 @@ sphere, the analytic heights and widths, and the silhouettes of a pyramid, an oc
 
 ### Transforms: Placement, Shear, Resize, And Mirror
 
-**Tests**: `ScadRenderSystem_Transforms_BoundsAreAnalytic`, `ScadRenderSystem_Transforms_TopViewShowsEachPartOverItsRectangle`,
-`ScadRenderSystem_Transforms_FrontViewShowsShearAndResize`, `ScadRenderSystem_Mirror_RendersIdenticallyToTheHandPlacedSolid`
+**Tests**: `ScadRenderSystem_Transforms_BoundsAreAnalytic`,
+`ScadRenderSystem_Transforms_TopViewShowsEachPartOverItsRectangle`,
+`ScadRenderSystem_Transforms_FrontViewShowsShearAndResize`,
+`ScadRenderSystem_Mirror_RendersIdenticallyToTheHandPlacedSolid`
 
 Renders `render-transforms.scad` and asserts the exact pixel count of each transformed part, the parallelogram of
 a sheared part, the height of a resized part, and that a mirrored solid renders pixel-identical, flat and
@@ -358,7 +361,8 @@ shaded, to the same solid placed by hand.
 
 ### Booleans: Cut-Outs And Overlaps
 
-**Tests**: `ScadRenderSystem_BracketCsg_TopViewShowsThroughHolesAndSlot`, `ScadRenderSystem_BracketCsg_FrontViewIsTheFullPlate`,
+**Tests**: `ScadRenderSystem_BracketCsg_TopViewShowsThroughHolesAndSlot`,
+`ScadRenderSystem_BracketCsg_FrontViewIsTheFullPlate`,
 `ScadRenderSystem_Intersection_TopViewLosesTheCorners`, `ScadRenderSystem_Intersection_FrontViewIsTheFullRectangle`,
 `ScadRenderSystem_TwoDCsg_RingIsAnAnnulusAndSymmetric`, `ScadRenderSystem_TwoDCsg_PlateHasTrimmedCornersAndTwoHoles`,
 `ScadRenderSystem_TwoDCsg_RingFrontViewIsTheFullRectangle`
@@ -371,7 +375,8 @@ cut-outs and are symmetric about both axes.
 ### Extrusions: Outlines, Twist, Scale, And Revolution
 
 **Tests**: `ScadRenderSystem_Extrusions_StarWithHoleCoversItsPolygonMinusTheHole`,
-`ScadRenderSystem_Extrusions_ScaledExtrusionIsAFrustum`, `ScadRenderSystem_Extrusions_TwistedBarTurnsAQuarterTurnAndIsCentered`,
+`ScadRenderSystem_Extrusions_ScaledExtrusionIsAFrustum`,
+`ScadRenderSystem_Extrusions_TwistedBarTurnsAQuarterTurnAndIsCentered`,
 `ScadRenderSystem_Extrusions_VaseSilhouetteFollowsTheProfile`, `ScadRenderSystem_Extrusions_RevolvedRingIsAnAnnulus`,
 `ScadRenderSystem_Symmetry_StarIsSymmetricAboutItsAxis`
 
@@ -383,7 +388,8 @@ annulus, and that the star is symmetric about its axis.
 ### Hull And Minkowski: Convex Outlines, Rounded Blocks, And Reports
 
 **Tests**: `ScadRenderSystem_Hull_TopViewIsTheConvexOutlineOfTheParts`,
-`ScadRenderSystem_Hull_TwoDimensionalHullExtrudesToItsOutline`, `ScadRenderSystem_Hull_CutsAsAValidCsgOperandWithoutReports`,
+`ScadRenderSystem_Hull_TwoDimensionalHullExtrudesToItsOutline`,
+`ScadRenderSystem_Hull_CutsAsAValidCsgOperandWithoutReports`,
 `ScadRenderSystem_Minkowski_RoundsTheCubeAndKeepsItsExtents`,
 `ScadRenderSystem_Minkowski_NonConvexChildIsReportedAtItsLocationAndOmitted`,
 `ScadRenderSystem_HullAndMinkowski_StrictModeThrowsTheNewFeatureIds`
@@ -403,7 +409,8 @@ omitted.
 
 **Tests**: `CanvasNetScad_SystemIntegration_Render_UnsupportedFeaturesAreReportedOrThrown`,
 `ScadRenderSystem_Unsupported_EveryConstructIsReportedOnceAtItsLocation`,
-`ScadRenderSystem_Unsupported_OnlySupportedGeometryIsDrawn`, `ScadRenderSystem_Unsupported_StrictModeThrowsTheFirstFeature`,
+`ScadRenderSystem_Unsupported_OnlySupportedGeometryIsDrawn`,
+`ScadRenderSystem_Unsupported_StrictModeThrowsTheFirstFeature`,
 `ScadRenderSystem_Strict_SupportedFixturesDoNotThrow`
 
 Renders `render-unsupported.scad` with a handler and asserts nine reports (a `surface` on line 4, the other
@@ -501,7 +508,8 @@ bounded, link-safe, cancellable scan of explicit font directories are covered by
 
 **Tests**: `CanvasNetScad_SystemIntegration_Render_TransparencyFixtureRendersWithoutReports`,
 `ScadRenderSystem_Modifiers_DrawNormalAndHighlightedAndOmitDisabledAndBackground`,
-`ScadRenderSystem_Modifiers_HighlightAndBackgroundAreNotReported`, `ScadRenderSystem_RootModifier_DrawsOnlyTheMarkedSubtree`,
+`ScadRenderSystem_Modifiers_HighlightAndBackgroundAreNotReported`,
+`ScadRenderSystem_RootModifier_DrawsOnlyTheMarkedSubtree`,
 `ScadRenderSystem_Transparency_TranslucentCubeBlendsOverBackgroundAtAnalyticPixels`,
 `ScadRenderSystem_Transparency_TranslucentDifferenceShowsCavity`,
 `ScadRenderSystem_Transparency_GhostIsTranslucentGrayAndNotSubtracted`,
@@ -536,7 +544,8 @@ located at the line of the sphere, and that the same document builds with a limi
 
 ### Geometry Stack Safety, Cancellation, And Determinism
 
-**Tests**: `ScadRenderSystem_DeepScene_RendersFromASmallStack`, `ScadRenderSystem_DeepScene_DeepDifferenceRendersFromASmallStack`,
+**Tests**: `ScadRenderSystem_DeepScene_RendersFromASmallStack`,
+`ScadRenderSystem_DeepScene_DeepDifferenceRendersFromASmallStack`,
 `ScadRenderSystem_Cancellation_StopsTheWork`, `ScadRenderSystem_Fixtures_RenderDeterministically`,
 `ScadRenderSystem_Fixtures_RenderWithoutWarnings`
 
@@ -547,6 +556,15 @@ it and nowhere else; the block with its hole); asserts that a canceled token sto
 rendering raises no warning and no echo (only the fixture that exercises unsupported features reports
 them) and draws the model, and that two default renders and renders with one and with four degrees of
 parallelism are byte-identical.
+
+### Integration: Image Source Draws A model At The Size Of Its Placement
+
+**Test**: `ScadImageSource_Render_RequestedSize_DrawsAtThatSize`
+
+Exercises end-to-end system behavior of `ScadImageSource`, the package's source for the shared image resolver of the
+core package: it renders a model from the bytes of a hand-built request with a requested size and asserts that the
+picture has the documented size. The full set of scenarios (natural size, transparency, notes, strict mode, the folder
+of the request, and invalid input) is in the unit verification design (`canvas-net-scad/scad-document.md`).
 
 ## Acceptance Criteria
 

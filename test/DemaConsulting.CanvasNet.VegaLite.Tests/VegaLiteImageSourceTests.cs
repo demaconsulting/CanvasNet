@@ -1,0 +1,200 @@
+// cspell:ignore vega
+using System.Text;
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.ImageSources;
+
+namespace DemaConsulting.CanvasNet.VegaLite.Tests;
+
+/// <summary>
+///     Tests of <see cref="VegaLiteImageSource"/>: a Vega-Lite chart as an embedded picture - laid out at the size of
+///     its placement, keeping its own background, data files confined to the folder of the file, and notes as
+///     diagnostics.
+/// </summary>
+public class VegaLiteImageSourceTests
+{
+    /// <summary>A small bar chart with inline data.</summary>
+    private const string BarChart =
+        "{\"data\": {\"values\": [{\"a\": \"A\", \"b\": 3}, {\"a\": \"B\", \"b\": 5}]}, \"mark\": \"bar\", "
+        + "\"encoding\": {\"x\": {\"field\": \"a\", \"type\": \"nominal\"}, \"y\": {\"field\": \"b\", \"type\": \"quantitative\"}}}";
+
+    /// <summary>A bar chart whose data comes from a file next to it.</summary>
+    private const string FileChart =
+        "{\"data\": {\"url\": \"data.csv\"}, \"mark\": \"bar\", "
+        + "\"encoding\": {\"x\": {\"field\": \"a\", \"type\": \"nominal\"}, \"y\": {\"field\": \"b\", \"type\": \"quantitative\"}}}";
+
+    /// <summary>
+    ///     Creates a request for a chart.
+    /// </summary>
+    /// <param name="json">The specification.</param>
+    /// <param name="width">The requested width, or <see langword="null"/>.</param>
+    /// <param name="height">The requested height, or <see langword="null"/>.</param>
+    /// <param name="directory">The folder of the file, or <see langword="null"/>.</param>
+    /// <param name="remaining">The pixels the source may allocate.</param>
+    /// <returns>The request.</returns>
+    private static ImageSourceRequest Request(string json, int? width = null, int? height = null, string? directory = null, long remaining = long.MaxValue)
+    {
+        return new ImageSourceRequest
+        {
+            Href = "chart.vl.json",
+            FileName = "chart.vl.json",
+            Content = Encoding.UTF8.GetBytes(json),
+            Directory = directory,
+            PixelWidth = width,
+            PixelHeight = height,
+            Budget = new ImageBudget(remaining)
+        };
+    }
+
+    /// <summary>
+    ///     Test that a chart without a requested size is drawn at its own layout size, on its own opaque background.
+    /// </summary>
+    [Fact]
+    public void VegaLiteImageSource_Render_NoRequestedSize_DrawsNaturalSizeOnChartBackground()
+    {
+        // Arrange: the natural size as the library measures it
+        var expected = VegaLiteDocument.Parse(BarChart).Measure(
+            new VegaLiteRenderOptions { TimeZone = TimeZoneInfo.Utc, Fonts = new VegaLiteFontOptions { UseSystemFonts = false } },
+            TestContext.Current.CancellationToken);
+
+        // Act
+        var result = new VegaLiteImageSource().Render(Request(BarChart));
+        using var surface = result.Surface;
+
+        // Assert: the chart keeps its own white paper, so the corner is opaque
+        Assert.Equal((expected.Width, expected.Height), (surface.Width, surface.Height));
+        Assert.Equal(new Rgba32(255, 255, 255, 255), surface[0, 0]);
+        Assert.Empty(result.Diagnostics);
+    }
+
+    /// <summary>
+    ///     Test that the chart is laid out afresh at the requested box, and that one requested dimension keeps the
+    ///     aspect ratio of the natural size.
+    /// </summary>
+    [Fact]
+    public void VegaLiteImageSource_Render_RequestedSize_DrawsAtThatSize()
+    {
+        // Arrange
+        var source = new VegaLiteImageSource();
+
+        // Act
+        using var boxed = source.Render(Request(BarChart, 120, 80)).Surface;
+        using var widthOnly = source.Render(Request(BarChart, 150)).Surface;
+
+        // Assert
+        Assert.Equal((120, 80), (boxed.Width, boxed.Height));
+        Assert.Equal(150, widthOnly.Width);
+    }
+
+    /// <summary>
+    ///     Test that a size beyond <see cref="ImageSourceRequest.RemainingPixels"/> is refused with
+    ///     <see cref="ImageSourceBudgetException"/> before the chart is drawn (the allocation stays far below the 64 MB
+    ///     of the picture), and that a size that exactly fits is drawn.
+    /// </summary>
+    [Fact]
+    public void VegaLiteImageSource_Render_SizeBeyondRemainingPixels_IsRefusedBeforeDrawing()
+    {
+        // Arrange
+        var source = new VegaLiteImageSource();
+
+        // Act: a 4000 by 4000 picture against a budget of 1000 pixels
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        var ex = Assert.Throws<ImageSourceBudgetException>(() => source.Render(Request(BarChart, 4000, 4000, remaining: 1000)));
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        using var fits = source.Render(Request(BarChart, 120, 80, remaining: 9600)).Surface;
+
+        // Assert
+        Assert.Equal((16_000_000L, 1000L), (ex.RequestedPixels, ex.RemainingPixels));
+        Assert.True(allocated < 32 * 1024 * 1024, $"{allocated} bytes were allocated before the refusal.");
+        Assert.Equal((120, 80), (fits.Width, fits.Height));
+    }
+
+    /// <summary>
+    ///     Test that the data file of a chart is looked up in the folder of the file and that a missing data file fails.
+    /// </summary>
+    [Fact]
+    public void VegaLiteImageSource_Render_DataFile_ResolvesFromDirectoryOfRequest()
+    {
+        // Arrange: a data file next to the chart
+        var folder = Path.Combine(Path.GetTempPath(), "vl-image-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        try
+        {
+            File.WriteAllText(Path.Combine(folder, "data.csv"), "a,b\nA,3\nB,5\n");
+            var source = new VegaLiteImageSource();
+
+            // Act
+            using var found = source.Render(Request(FileChart, 100, 80, folder)).Surface;
+
+            // Assert: drawn with the data, and failing without a folder to find it in
+            Assert.Equal((100, 80), (found.Width, found.Height));
+            Assert.ThrowsAny<Exception>(() => source.Render(Request(FileChart, 100, 80)));
+        }
+        finally
+        {
+            Directory.Delete(folder, true);
+        }
+    }
+
+    /// <summary>
+    ///     Test that a part of the chart that is not drawn is returned as an unsupported note with the source
+    ///     <c>vega-lite</c>, reported once (the library may add warnings of its own), and that the strict request turns it into an exception.
+    /// </summary>
+    [Fact]
+    public void VegaLiteImageSource_Render_UnsupportedFeature_ReturnsDiagnosticOrThrowsWhenStrict()
+    {
+        // Arrange: a binned time unit is reported as unsupported
+        var unsupported = BarChart.Replace("\"type\": \"nominal\"", "\"type\": \"nominal\", \"timeUnit\": \"binnedyearmonth\"", StringComparison.Ordinal);
+        var source = new VegaLiteImageSource();
+
+        // Act
+        var result = source.Render(Request(unsupported, 100, 80));
+        using var surface = result.Surface;
+        var strict = new ImageSourceRequest
+        {
+            Href = "chart.vl.json",
+            FileName = "chart.vl.json",
+            Content = Encoding.UTF8.GetBytes(unsupported),
+            ThrowOnUnsupportedFeature = true
+        };
+
+        // Assert
+        var note = Assert.Single(result.Diagnostics, d => d.Severity == ImageDiagnosticSeverity.Unsupported);
+        Assert.Equal(("vega-lite", ImageDiagnosticSeverity.Unsupported, "vl-timeunit-binned"), (note.Source, note.Severity, note.Code));
+        Assert.Throws<VegaLiteUnsupportedFeatureException>(() => source.Render(strict));
+    }
+
+    /// <summary>
+    ///     Test that an invalid specification and a request without file content fail.
+    /// </summary>
+    [Fact]
+    public void VegaLiteImageSource_Render_InvalidInput_Throws()
+    {
+        // Arrange
+        var source = new VegaLiteImageSource();
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        // Act / Assert
+        Assert.Throws<VegaLiteSpecException>(() => source.Render(Request("{ not json")));
+        Assert.Throws<InvalidOperationException>(() => source.Render(new ImageSourceRequest { Href = "camera:front" }));
+        Assert.Throws<ArgumentNullException>(() => source.Render(null!));
+        Assert.Throws<OperationCanceledException>(() => source.Render(new ImageSourceRequest { Href = "a", FileName = "a.vl.json", CancellationToken = cts.Token }));
+    }
+
+    /// <summary>
+    ///     Test the identity of the source: its name, its two extensions (and not <c>.json</c>), and that it claims no
+    ///     scheme.
+    /// </summary>
+    [Fact]
+    public void VegaLiteImageSource_Properties_NameExtensionsAndNoSchemes()
+    {
+        // Arrange
+        var source = new VegaLiteImageSource();
+
+        // Act / Assert
+        Assert.Equal("vega-lite", source.Name);
+        Assert.Equal([".vl", ".vl.json"], source.Extensions);
+        Assert.DoesNotContain(".json", source.Extensions);
+        Assert.Empty(source.Schemes);
+    }
+}

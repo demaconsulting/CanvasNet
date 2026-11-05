@@ -100,10 +100,15 @@ namespace DemaConsulting.CanvasNet.Svg;
 ///     <c>xlink:href</c> decoded via this codec's own sibling raster codecs - <see cref="PngCodec"/>,
 ///     <see cref="JpegCodec"/>, <see cref="BmpCodec"/>, <see cref="TiffCodec"/>, and
 ///     <see cref="GifCodec"/> - fully integrated with the same <c>filter</c>/<c>clip-path</c>/
-///     <c>mask</c>/<c>opacity</c> pipeline every other shape/text element uses; a non-<c>data:</c>
-///     href (a file path or URL) and any nested SVG reference (<c>data:image/svg+xml</c> or an
-///     external <c>.svg</c> file) are both a deliberate, documented, security-conscious no-op -
-///     see <c>SvgCodec.Image.cs</c>'s remarks for the full rationale).
+///     <c>mask</c>/<c>opacity</c> pipeline every other shape/text element uses; any other
+///     <b>external</b> (non-<c>data:</c>) href (a file path or URL, including an external
+///     <c>.svg</c> file) renders nothing unless the caller opted in through
+///     <see cref="SvgLoadOptions.ImageResolver"/>, which loads it (a model, a chart, another SVG,
+///     a raster) as an already rendered <see cref="Surface"/> - the codec itself never reads a
+///     file or the network. A <c>data:</c> URI is never passed to the resolver, so a nested SVG
+///     data URI (<c>data:image/svg+xml</c>), a <c>data:</c> URI with an unsupported MIME type and a
+///     <c>data:</c> URI without <c>;base64</c> stay unsupported and render nothing, even when a
+///     resolver is set; see <c>SvgCodec.Image.cs</c>'s remarks for the full rationale).
 ///     </para>
 ///     <para>
 ///     <b>Out of scope (silently ignored, per element).</b>
@@ -459,6 +464,25 @@ public static partial class SvgCodec
     }
 
     /// <summary>
+    ///     Internal test seam: identical to <see cref="LoadWithDiagnostics(Stream, int, int, RenderDiagnostics)"/>
+    ///     but with explicit <see cref="SvgLoadOptions"/>, so tests can observe the work charged for
+    ///     <see cref="SvgLoadOptions.ImageResolver"/> calls.
+    /// </summary>
+    /// <param name="stream">The stream to read the SVG document from.</param>
+    /// <param name="width">The width, in pixels, of the returned surface.</param>
+    /// <param name="height">The height, in pixels, of the returned surface.</param>
+    /// <param name="options">The load options; must not be null.</param>
+    /// <param name="diagnostics">The per-call work-counter sink; must not be null.</param>
+    /// <returns>A new <see cref="Surface"/> containing the rasterized document.</returns>
+    internal static Surface LoadWithDiagnostics(
+        Stream stream, int width, int height, SvgLoadOptions options, RenderDiagnostics diagnostics)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(diagnostics);
+        return LoadCore(stream, width, height, fonts: null, options, diagnostics);
+    }
+
+    /// <summary>
     ///     Shared implementation of the stream-based load entry points.
     /// </summary>
     /// <param name="stream">The stream to read the SVG document from.</param>
@@ -479,8 +503,39 @@ public static partial class SvgCodec
         ArgumentNullException.ThrowIfNull(stream);
 
         var surface = new Surface(width, height);
-        var root = LoadRootElement(stream);
 
+        // Any exceptional exit (including a host image resolver's exception, which propagates with its own
+        // type) must release the surface that was allocated above
+        try
+        {
+            var root = LoadRootElement(stream);
+            RenderRoot(root, surface, fonts, options, diagnostics);
+        }
+        catch
+        {
+            surface.Dispose();
+            throw;
+        }
+
+        return surface;
+    }
+
+    /// <summary>
+    ///     Renders the parsed root element onto <paramref name="surface"/>, translating a
+    ///     <see cref="FormatException"/> into an <see cref="InvalidDataException"/>.
+    /// </summary>
+    /// <param name="root">The parsed root element.</param>
+    /// <param name="surface">The surface to render onto.</param>
+    /// <param name="fonts">The optional font-face registry.</param>
+    /// <param name="options">The optional load options.</param>
+    /// <param name="diagnostics">The optional work-counter sink.</param>
+    private static void RenderRoot(
+        XElement root,
+        Surface surface,
+        IReadOnlyDictionary<string, IReadOnlyList<SvgFontFace>>? fonts,
+        SvgLoadOptions? options,
+        RenderDiagnostics? diagnostics)
+    {
         try
         {
             var (origin, size) = ResolveViewBoxOrSize(root);
@@ -504,7 +559,8 @@ public static partial class SvgCodec
             var stylesheet = BuildStylesheet(root);
             var context = new RenderContext(surface, idIndex, fonts, stylesheet)
             {
-                UseSystemFonts = options?.UseSystemFonts ?? true
+                UseSystemFonts = options?.UseSystemFonts ?? true,
+                ImageResolver = options?.ImageResolver
             };
             RenderDocument(root, fitTransform, size, context, diagnostics);
         }
@@ -512,8 +568,6 @@ public static partial class SvgCodec
         {
             throw new InvalidDataException("The SVG document contains invalid numeric data.", ex);
         }
-
-        return surface;
     }
 
     /// <summary>

@@ -41,6 +41,40 @@ default font resolution tests) within the `DemaConsulting.CanvasNet.Svg.Tests` p
 
 ### Unit-Level Test Scenarios
 
+#### CanvasNetSvg-SvgCodec-SvgImageSource: The Image Source For `.svg` Files
+
+**Tests**: `SvgImageSource_Render_NoRequestedSize_DrawsNaturalSizeOnTransparentBackground`,
+`SvgImageSource_Render_RequestedSize_DrawsAtThatSize`,
+`SvgImageSource_Render_SizeBeyondRemainingPixels_IsRefusedBeforeDrawing`,
+`SvgImageSource_Render_DirectNaturalSize_NestedPictureBeyondLiveRemaining_IsRefusedBeforeItsSource`,
+`SvgImageSource_Render_DirectNaturalSize_NestedPictureWithinLiveRemaining_IsDrawnAndCharged`,
+`SvgImageSource_Render_NestedImage_UsesResolverOfRequest`,
+`SvgImageSource_Render_NestedImageWithoutResolver_DrawsNothing`,
+`SvgImageSource_Render_TwiceForSameRequest_ReturnsDistinctSurfaces`,
+`SvgImageSource_Render_InvalidInput_Throws`, `SvgImageSource_Properties_NameExtensionAndNoSchemes`,
+`SvgImageSource_Properties_ExtensionsAndSchemesAreReadOnly`
+
+`SvgImageSourceTests.cs` calls `SvgImageSource.Render` with requests built by hand over a 40 by 30 document. Asserts the
+natural size
+and a transparent background, that a requested 80 by 60 box and a requested width of 80 both give 80 by 60, that the
+`image` element of
+the document is resolved through the resolver of the request (a recording resolver sees the link and the 20 by 10
+placement and its
+green surface is drawn), that a 4000 by 4000 size against an `ImageBudget` of 1000 pixels is refused with
+`ImageSourceBudgetException` before the document is drawn (16,000,000 and 1000 on the exception, an allocation far below
+the 64 MB of the picture) while a budget of exactly 80 by 60 draws; that a natural-size direct render through a real
+`FolderImageResolver` of a 100 by 100 SVG file that embeds a 50 by 50 picture charges its own canvas (10,000 pixels)
+before the nested picture is resolved, so with a budget of 10,100 the nested picture (2,500) is refused with
+`svg-image-too-large` and its counting source is never called (100 pixels remain live) while the outer file is still
+drawn, and with a budget of 12,500 the nested picture is drawn through its source and both are charged; that without a
+resolver the nested link draws
+nothing, that two calls return two surfaces, that
+text that is
+not an SVG document is `InvalidDataException`, a request without a file `InvalidOperationException`, a null request
+`ArgumentNullException`, a canceled request `OperationCanceledException`, the name, extension, and absence of
+schemes, and that the extension and scheme lists are read-only (not a `string[]`; `Add` through `IList<string>` throws
+`NotSupportedException`).
+
 #### CanvasNetSvg-SvgCodec-LoadBasicShapes: Basic Shapes Rasterize Correctly
 
 **Tests**: `SvgCodec_Load_Rect_RendersFilledRectangle`,
@@ -1061,7 +1095,8 @@ saw them.
 A third regression test closes a further code-review finding in the same bounds pre-pass: a
 descendant that itself carries its own `filter` attribute whose own filter region extends beyond
 its raw geometry (an `feFlood` combined with a deliberately enlarged filter
-`x`/`y`/`width`/`height` region, in `SvgCodec_Load_GroupFilterWithNestedFilteredChildExpandingBeyondOwnBounds_PreservesFullNestedFilterOutput`)
+`x`/`y`/`width`/`height` region, in
+`SvgCodec_Load_GroupFilterWithNestedFilteredChildExpandingBeyondOwnBounds_PreservesFullNestedFilterOutput`)
 used to have only its raw geometry bounds folded into the pre-pass, not its own filter's actual
 (larger) output extent. A tiny 4x4 rect carries an `innerFlood` filter whose region is expanded to
 roughly cover the whole 100x100 canvas, wrapped in an outer `<g>` with an identity
@@ -1634,13 +1669,17 @@ only changes pixels at or beside a source-pixel boundary; interior pixels are st
 `SvgCodec_Load_ImageNestedSvgDataUri_RendersNothingWithoutRecursion`,
 `SvgCodec_Load_ImageMalformedBase64_SkipsElementWithoutThrowing`,
 `SvgCodec_Load_ImageTruncatedPngData_SkipsElementWithoutThrowing`,
-`SvgCodec_Load_ImageInterlacedPngData_SkipsElementWithoutThrowing`
+`SvgCodec_Load_ImageInterlacedPngData_SkipsElementWithoutThrowing`,
+`SvgCodec_Load_ImageResolverNullByDefault_ExternalHrefStillRendersNothing`
 
 Asserts an `image` element whose `href` is a relative file path (never a `data:` URI) renders
-nothing at all, and - since this codec never constructs a `File`/`FileStream` for anything but a
+nothing at all when the caller supplied no `ImageResolver` (the default) and - since this codec
+never constructs a `File`/`FileStream` for anything but a
 `data:` URI's own in-memory payload - throws no exception even though the referenced path does
-not exist on disk, directly proving the external-href-as-no-op security decision (no
-base-path/resolver mechanism is introduced); asserts an `image` element whose `href` is a
+not exist on disk, directly proving the external-href-as-no-op security decision;
+`SvgCodec_Load_ImageResolverNullByDefault_ExternalHrefStillRendersNothing` proves the default
+`SvgLoadOptions` has a `null` resolver and that default options render exactly the same pixels as
+the overload without options; asserts an `image` element whose `href` is a
 well-formed nested SVG document embedded as a `data:image/svg+xml;base64,...` URI likewise renders
 nothing, proving the nested-SVG-out-of-scope decision (this codec never attempts to re-parse it
 as a second document, mirroring the same recursive-parsing-complexity reasoning that already
@@ -1655,6 +1694,56 @@ Adam7-interlaced fixture - a well-formed PNG that `PngCodec.Load` deliberately r
 tolerant per-element no-op, with sibling elements before and after the skipped `image` still
 rendering correctly, directly proving the well-formed-but-unsupported-raster-feature failure path
 is caught alongside the malformed-payload cases above rather than propagating out of `Load`.
+
+#### CanvasNetSvg-SvgCodec-ImageResolver: Opt-In `ImageResolver`
+
+**Tests**: `SvgCodec_Load_ImageResolverSet_ReceivesRawHrefAndXlinkHref`,
+`SvgCodec_Load_ImageResolverSet_ReceivesPixelSizeAfterTransform`,
+`SvgCodec_Load_ImageResolverReturnsSurface_IsPlacedLikeADataUri`,
+`SvgCodec_Load_ImageResolverReturnsSurface_HonorsPreserveAspectRatio`,
+`SvgCodec_Load_ImageResolverReturnsSurface_AppliesOpacityAndClipPath`,
+`SvgCodec_Load_ImageResolverReturnsSurface_ImageRenderingPixelatedUsesNearest`,
+`SvgCodec_Load_ImageResolverReturnsNull_RendersNothingWithoutThrowing`,
+`SvgCodec_Load_ImageResolverSet_DataUriAndFragmentAndEmptyHrefNeverCallResolver`,
+`SvgCodec_Load_ImageResolverThrows_ExceptionPropagatesUnchanged`,
+`SvgCodec_Load_ImageResolverThrows_PropagatesTheSameException`,
+`SvgCodec_Load_ImageResolverThrowsFormatException_IsNotReportedAsInvalidSvgData`,
+`SvgCodec_Load_ImageResolverReturnsSurface_IsDisposedByCodec`,
+`SvgCodec_Load_ImageResolverSet_FeImageExternalHrefDoesNotCallResolver`,
+`SvgCodec_Load_ImageResolverSet_SameHrefTwiceAndTwoRenders_CallsResolverEachTime`
+
+`SvgImageResolverTests.cs` renders small documents (a 10 by 10 viewBox with a red background) with a
+resolver and asserts: the request holds the raw `href` of both the `href` and the `xlink:href` forms,
+trimmed (`ReceivesRawHrefAndXlinkHref`); the pixel size is the edge length of the placement after the
+composed transform, rounded up and at least 1, for the viewBox scale, a group `scale`, a `rotate(90)`,
+a fractional size, and a tiny size (`ReceivesPixelSizeAfterTransform`); a returned surface is drawn
+exactly like the same picture as a PNG data URI, pixel for pixel (`IsPlacedLikeADataUri`, which proves
+the placement and the shared pipeline at once); `preserveAspectRatio` meet, slice, and none fit a 2:1
+picture into a square placement (the top edge is drawn only for slice and none); `opacity` and a
+`clip-path` apply (the clipped half still shows the background and the other half is a blend);
+`image-rendering='pixelated'` gives at most two gray levels and the default more; a `null` result and
+every `href` the codec handles itself (a valid `data:` URI, a malformed one, an SVG one, a text one, one
+with leading whitespace, a `#fragment`, an empty, a blank, and an absent `href`) never reach or
+silently pass through the resolver (`NeverCallResolver` asserts zero calls); a resolver exception
+propagates as the same instance (`PropagatesTheSameException` repeats this for an `ImageSourceException`, an
+`ImageSourceBudgetException`, an `IOException`, an `OperationCanceledException`, and an `InvalidOperationException`;
+`Load` releases its output surface on every such exit), and a `FormatException` becomes an `InvalidOperationException` that
+keeps it as the inner exception (not an `InvalidDataException` about numeric data); the codec disposes
+a returned surface after drawing it (the surface throws `ObjectDisposedException`); and an external
+`feImage` `href` does not call the resolver, documenting the scope boundary. Two `image` elements with the same `href`,
+rendered twice, call the resolver four times (nothing is cached).
+
+#### CanvasNetSvg-SvgCodec-ImageResolverBudget: Resolver Work Is Bounded
+
+**Tests**: `SvgCodec_Load_ImageResolverBudget_ChargedBeforeCallAndFanOutDeclined`,
+`SvgCodec_Load_ImageResolverReturnsOversizedSurface_ChargedAndDeclinedOverBudget`
+
+Through the internal `LoadWithDiagnostics` seam, a thousand one-pixel `image` elements call a resolver
+fewer than 500 times (50,000,000 units, at least 100,000 each): `BudgetRejections` is greater than zero,
+`WorkCharged` covers every call and stays within the ceiling, and the remaining elements draw nothing.
+Four one-pixel placements each answered with a 4000 by 4000 surface are charged for the extra 16 million
+pixels: the first three are drawn, the fourth is declined (the background shows) and every returned
+surface is disposed.
 
 #### CanvasNetSvg-SvgCodec-ImageResourceSafety: Image Resource-Safety Bounds
 
@@ -1923,7 +2012,8 @@ A closely related but distinct case is a gradient radius (`r`/`fr`) that parses 
 **negative** value: `GetGradientCoordinateOrDefault`'s existing tolerant fallback above already
 guarantees finiteness, but a radius is the only gradient-geometry attribute with an additional
 sign constraint (`Drawing.RadialGradient`'s constructor requires `startRadius`/`endRadius` to be
-"finite and greater than or equal to zero"). `SvgCodec_Load_RadialGradientRNegative_FallsBackToDefaultRadiusWithoutThrowing`
+"finite and greater than or equal to zero").
+`SvgCodec_Load_RadialGradientRNegative_FallsBackToDefaultRadiusWithoutThrowing`
 and `SvgCodec_Load_RadialGradientFrNegative_FallsBackToDefaultFocalRadiusWithoutThrowing` prove a
 negative `r`/`fr` falls back to the same default used for an absent attribute rather than
 reaching that constructor and throwing an uncaught `ArgumentOutOfRangeException`, matching the
@@ -2209,7 +2299,8 @@ behavior, confirming the cache introduces no observable rendering change.
 
 That pixel-rendering test alone cannot distinguish cached-and-correct output from
 always-re-parsed-and-still-correct output, since both produce identical pixels - it would still
-pass even if the caching fix were fully reverted. `SvgCodec_ResolveGradientStops_SameGradientElementResolvedTwice_ReturnsCachedListInstance`
+pass even if the caching fix were fully reverted.
+`SvgCodec_ResolveGradientStops_SameGradientElementResolvedTwice_ReturnsCachedListInstance`
 closes that gap by invoking `ResolveGradientStops` directly (via reflection, the same idiom
 already used by e.g. `CmapTable_Format4_GlyphIndexAddressArithmeticOverflow_ReturnsZero`) and
 asserting the second call for the same gradient element returns the identical cached

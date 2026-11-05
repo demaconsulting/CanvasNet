@@ -64,6 +64,10 @@ load/crop/resize/save workflows.
 - 🔣 **Glyph Fallback** - A character a font lacks (`∝`, `≫`, arrows, math signs) is drawn from bundled Noto fonts,
   the same on every machine; `GlyphFallback.FindMissing` lists the rest
 - 🛡️ **Sandboxed File Resolver** - Resolve untrusted relative paths to files inside chosen directories, no escapes
+- 🖼️ **Linked Pictures** - SVG `<image href>` can embed 3D models, charts, other SVG files, document pages, and
+  pictures from the document's own folder; the `Viewer` package lists every format, and you can add your own source
+- 🔭 **Viewer** - `CanvasNetViewer.Render` draws any file CanvasNet can read, and `CreateImageResolver` makes SVG
+  documents embed all of them
 - 🎬 **Rendering** - Transform-aware canvas with text and shape drawing
 - 📦 **Package Reading** - `OpcPackage` and `SafeXml` read untrusted `.pptx`/`.vsdx` packages and XML safely
 - ⚡ **Span-Based** - Fast, allocation-conscious pixel and row access
@@ -98,6 +102,7 @@ the ones you need, the same way as above:
 | `DemaConsulting.CanvasNet.Render3D` | 3D mesh/scene rasterization                      |
 | `DemaConsulting.CanvasNet.Scad`     | OpenSCAD-language model rendering                |
 | `DemaConsulting.CanvasNet.VegaLite` | Vega-Lite static chart rendering                 |
+| `DemaConsulting.CanvasNet.Viewer`   | Render any file; SVG documents embed all formats |
 | `DemaConsulting.CanvasNet.Tool`     | The `canvasnet` command-line tool (dotnet tool)  |
 
 ## Command-Line Tool
@@ -110,6 +115,10 @@ so installing it needs no other CanvasNet package:
 dotnet tool install --global DemaConsulting.CanvasNet.Tool
 canvasnet --help
 ```
+
+An SVG drawing can also embed files that sit beside it with `<image href="part.scad" .../>` (a 3D model, a Vega-Lite
+chart, another SVG file, a document page, or a picture), so a diagram can show a part and a chart beside boxes and
+arrows; run `canvasnet help svg` for the file types and rules.
 
 The tool succeeds with exit code 0 and fails with exit code 1. An expected failure is reported as a one-line
 message on standard error with a stable error code (for example `Error: usage-error: Unknown command 'x'.`), and
@@ -440,6 +449,26 @@ using var picture = chart.Render(options);
 PngCodec.Save(picture, "crates.png");
 ```
 
+Embed models, charts, and pictures in an SVG diagram, or render any file, with the `DemaConsulting.CanvasNet.Viewer`
+package. Links are confined to the folder of the document, and nothing is read from the network:
+
+```csharp
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.Svg;
+using DemaConsulting.CanvasNet.Viewer;
+
+// diagrams/overview.svg links <image href="part.scad" .../> and <image href="sales.vl.json" .../> beside it
+var resolver = CanvasNetViewer.CreateImageResolver("diagrams");   // one per render; notes are in resolver.Diagnostics
+using var diagram = SvgCodec.Load(
+    "diagrams/overview.svg", 800, 480, null, new SvgLoadOptions { ImageResolver = resolver });
+PngCodec.Save(diagram, "overview.png");
+
+// Or draw any single file the library can read (SVG, PDF, PPTX, VSDX, OpenSCAD, Vega-Lite, or a raster)
+using var image = CanvasNetViewer.Render("diagrams/part.scad", new ViewerRenderOptions { Width = 512 });
+PngCodec.Save(image.Surface, "part.png");
+```
+
+See the Viewer chapter of the User Guide for adding your own image source (a new file type or a live source).
 See the [User Guide][link-releases] for the full API reference and additional worked examples,
 including stroking, gradients, tile paint, font loading/metadata, chart building, OOXML chart
 parsing, PDF, PowerPoint and Visio rendering, 3D scene rendering, OpenSCAD-language model rendering,

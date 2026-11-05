@@ -414,3 +414,17 @@ sections:
           - CanvasNetPptx-PptxDocument-SlideRendering
         tests:
           - CanvasNetPptx_SystemIntegration_Render_PixelAndDpiOverloadsProduceConsistentOutputEndToEnd
+
+      - id: CanvasNetPptx-ImageSource
+        title: >-
+          The library shall provide an image source for .pptx files, for the image resolver of the core package,
+          that draws the first slide fitted inside the size its placement asks for over a transparent background
+          and reports the pictures it skipped.
+        tags: [system]
+        justification: |
+          A diagram that links to a presentation (an SVG image element, for example) needs the PowerPoint renderer
+          as one of the pluggable sources of the shared image resolver.
+        children:
+          - CanvasNetPptx-PptxDocument-ImageSource
+        tests:
+          - PptxImageSource_Render_RequestedSize_FitsSlideInsideBoxKeepingAspectRatio

@@ -20,9 +20,12 @@ autofit, bullets and numbering. The slide's own background fill (falling back to
 its master's) is painted before the shapes. Footer, date and slide-number placeholders inherit from
 the master like any other placeholder, and a master's non-placeholder date or slide-number text box
 honors its own list style, so its size is not replaced by the 18 pt default. Text is drawn per character: a
-character that a run's font lacks is first looked up in a bundled Liberation font and then in the bundled Noto Sans, Noto
-Sans Math, and Noto Sans Symbols 2 of the core `GlyphFallback` (so `∝` and `≫` are drawn, never from another installed font);
-a character that no bundled font covers is drawn as the run's own missing-glyph box, silently (there is no diagnostics channel
+character that a run's font lacks is first looked up in a bundled Liberation font and then in the bundled Noto Sans,
+Noto
+Sans Math, and Noto Sans Symbols 2 of the core `GlyphFallback` (so `∝` and `≫` are drawn, never from another installed
+font);
+a character that no bundled font covers is drawn as the run's own missing-glyph box, silently (there is no diagnostics
+channel
 for it). `PptxDocument` is not
 thread-safe: open one instance per thread, or synchronize access externally.
 
@@ -98,6 +101,21 @@ var options = new PptxRenderOptions
     OnUnsupportedPictureSkipped = ex => Console.WriteLine($"Skipped picture: {ex.Message}"),
 };
 using var surface = document.Render(0, 96f, options);
+```
+
+### Using As An Embedded Image
+
+`PptxImageSource` is the image source of this package for `.pptx` files. With it a document that links to a presentation
+draws its **first slide** through a `FolderImageResolver` of the core package (or `CanvasNetViewer.CreateImageResolver`
+of the Viewer package). The slide is fitted, without distortion, inside the size of its placement (its natural size is
+the slide size at 96 dots per inch) over a transparent background; a picture the renderer skips is returned as a note of
+the source `pptx`, or fails when `ThrowOnUnsupportedFeature` is set.
+
+```csharp
+// An SVG document that links to files of this kind, drawn through the resolver
+var resolver = new FolderImageResolver("assets", [new PptxImageSource()]);
+var options = new SvgLoadOptions { ImageResolver = resolver };
+using var surface = SvgCodec.Load("assets/diagram.svg", 800, 600, fonts: null, options);
 ```
 
 ## Examples

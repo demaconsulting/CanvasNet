@@ -86,6 +86,8 @@ internal sealed partial class RenderCommand : ICommand
         + "the folder of the specification and below it only, and one that is missing is an error; there is" + Environment.NewLine
         + "no data-folder option, and nothing is read from the network. Delimited text is not type-inferred" + Environment.NewLine
         + "unless its format.parse is \"auto\". A feature that is not supported yet is reported (an error with --strict)." + Environment.NewLine
+        + "An SVG drawing can embed a picture, model, chart, SVG file, or document page that sits beside it with" + Environment.NewLine
+        + "<image href=\"part.scad\" .../>; run 'canvasnet help svg' for the file types, the folder rule, and an example." + Environment.NewLine
         + "The operations --crop, --resize, --fit, --rotate, --flip, --pad, and the photo tools --grayscale, --invert," + Environment.NewLine
         + "--threshold, --levels, --brightness, --contrast, --auto-levels, --deskew, --trim, and --grid (repeatable) are" + Environment.NewLine
         + "applied in the order written, after the source is loaded and sized; crop, resize, rotate, flip, and pad are" + Environment.NewLine

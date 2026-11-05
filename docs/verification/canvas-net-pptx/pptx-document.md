@@ -63,6 +63,32 @@ actually fail if the implementation is wrong.
 
 ### Unit-Level Test Scenarios
 
+#### CanvasNetPptx-PptxDocument-ImageSource: The Image Source For `.pptx` Files
+
+**Tests**: `PptxImageSource_Render_NoRequestedSize_DrawsNaturalSizeOnTransparentBackground`,
+`PptxImageSource_Render_RequestedSize_FitsSlideInsideBoxKeepingAspectRatio`,
+`PptxImageSource_Render_SizeBeyondRemainingPixels_IsRefusedBeforeDrawing`,
+`PptxImageSource_Render_SkippedPicture_ReturnsDiagnosticOrThrowsWhenStrict`,
+`PptxImageSource_Render_InvalidInput_Throws`,
+`PptxImageSource_Properties_NameExtensionAndNoSchemes`
+
+`PptxImageSourceTests.cs` calls `PptxImageSource.Render` with requests built by hand over a one-slide presentation
+assembled by the
+test (480 by 360 pixels at 96 dots per inch, a red rectangle over the left half, optionally a metafile picture that the
+renderer
+skips). Asserts the natural size, the red pixel and a transparent pixel on the right half, that a requested 240 by 240
+box gives
+240 by 180 and so does a requested width of 240, that a 4000 by 4000 box against a budget of 1000 pixels is refused with
+`ImageSourceBudgetException` (12,000,000 and 1000 on the exception) before drawing, with an allocation far below the
+64 MB of the picture, while a budget of exactly 240 by 180 pixels draws, that the skipped picture is an `Unsupported`
+note of the source `pptx`
+and throws
+`PptxUnsupportedFeatureException` when strict, that content that is not a presentation is `InvalidDataException`, a
+request without
+a file `InvalidOperationException`, a null request `ArgumentNullException`, a canceled request
+`OperationCanceledException`, and the
+name, extension, and absence of schemes.
+
 #### CanvasNetPptx-PptxDocument-OpenStream: Open(Stream) Buffers Input and Validates Null Argument
 
 **Tests**: `PptxDocument_Open_WellFormedMinimalPackage_Succeeds`,
@@ -307,7 +333,8 @@ master placeholder whose own `type` is literally `"body"`.
 
 #### CanvasNetPptx-PptxDocument-EffectivePlaceholderTypeForTextStyle: Omitted-Type Resolves to Idx-Matched Layout Type
 
-**Tests**: `ResolveEffectiveRunProperties_SectionHeaderTitlePlaceholderWithOmittedType_ResolvesMasterTitleStyleNotBodyStyle`,
+**Tests**:
+`ResolveEffectiveRunProperties_SectionHeaderTitlePlaceholderWithOmittedType_ResolvesMasterTitleStyleNotBodyStyle`,
 `Render_SectionHeaderTitleWithOmittedType_PaintsIdenticallyToExplicitTitleType`
 
 Proves a "Section Header" layout's title placeholder whose slide-level `<p:ph idx="0"/>` omits
@@ -798,7 +825,8 @@ renders pixel-identical to a reference shape, proving only the field's own run c
 `ResolveEffectiveRunProperties_PlaceholderLevelStyleOnly_WinsWhenRunAndParagraphDeclareNothing`,
 `ResolveEffectiveRunProperties_NoneDeclared_ResolvesHardCodedDefaults`,
 `ResolveEffectiveRunProperties_UnderlineAttribute_ResolvesExpectedBoolean` (a `[Theory]` covering
-`"1"`/`"true"`/`"0"`/`"false"` underline values), `ResolveEffectiveRunProperties_RunSolidFillSrgbClr_ResolvesExplicitColor`,
+`"1"`/`"true"`/`"0"`/`"false"` underline values),
+`ResolveEffectiveRunProperties_RunSolidFillSrgbClr_ResolvesExplicitColor`,
 `ResolveEffectiveParagraphProperties_NoneDeclared_ResolvesHardCodedDefaults`,
 `ResolveEffectiveParagraphProperties_Alignment_NormalizesJustificationToLeft` (a `[Theory]`
 covering `just`/`justLow`), `ResolveEffectiveParagraphProperties_FixedLineSpacing_ResolvesPointsToEmu`,
@@ -1082,7 +1110,8 @@ ignored, the text falls back to 18pt, wraps to a second line, and the two surfac
 #### CanvasNetPptx-PptxDocument-PictureSmoothResample: Pictures Are Resampled Smoothly
 
 **Tests**: `PaintPicture_EnlargedPicture_IsSmooth`, `PaintPicture_EnlargedCrop_DoesNotBleedPixelsOutsideCrop`,
-`PaintPicture_RotatedCrop_DoesNotBleedPixelsOutsideCrop`, `PaintPicture_FractionalCrop_PartiallyCoveredBorderPixelContributes`,
+`PaintPicture_RotatedCrop_DoesNotBleedPixelsOutsideCrop`,
+`PaintPicture_FractionalCrop_PartiallyCoveredBorderPixelContributes`,
 `PaintPicture_FractionalCropOnIntegerBoundary_NoContaminationFromExcludedColumn`,
 `PaintPicture_FractionalCropAtOffset_PaintsOnlyInsideFootprint`,
 `PaintPicture_WithNegativeSrcRectEdges_ReplicatesEdgePixelsIntoOverhang`

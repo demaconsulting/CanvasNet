@@ -19,5 +19,6 @@ package CanvasNet {
         dependency usesFonts from CanvasNetScadSystem to Fonts;
         dependency usesGeometry from CanvasNetScadSystem to Geometry;
         dependency usesRender3D from CanvasNetScadSystem to CanvasNetRender3DSystem;
+        dependency usesImageSources from CanvasNetScadSystem to ImageSources;
     }
 }

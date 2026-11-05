@@ -147,6 +147,13 @@ object) is the single exception this constraint anticipates — see _CanvasNetSv
 own Dependencies section (`canvas-net-svg.md`), which already names `CanvasNetVsdx` as a future,
 one-directional consumer, identical to how `CanvasNetPptx` depends on `CanvasNetSvg` today.
 
+**Image sources.** The package also ships `VsdxImageSource`, an implementation of the core `ImageSources` subsystem's
+`IImageSource` for `.vsdx` files (the first page), so that a document can link to a Visio drawing through the shared
+`FolderImageResolver` (see _ImageSources Subsystem Design_, `canvas-net/image-sources.md`). It uses only the public
+contract types of the core package, so the package still references no other format package; the separate
+`CanvasNetViewer` system references this package one-way, to list the source with the other built-in ones, and nothing
+in this package refers to it.
+
 ## Risk Control Measures
 
 `VsdxDocument.Open`/`Render` parse an externally-supplied, potentially untrusted `.vsdx` package —

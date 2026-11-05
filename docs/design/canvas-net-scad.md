@@ -234,6 +234,12 @@ Item nor a Shared Package (that category is scoped to a package produced by a _d
 repository). `CanvasNetScad` introduces no new OTS Software Item — see _OTS Integration Design_
 (`docs/design/ots.md`).
 
+**Image sources.** The package also ships `ScadImageSource`, an implementation of the core `ImageSources` subsystem's
+`IImageSource` for `.scad` files, so that a document can link to a model through the shared `FolderImageResolver` (see
+_ImageSources Subsystem Design_, `canvas-net/image-sources.md`). It uses only the public contract types of the core
+package, so the package still references no other format package; the separate `CanvasNetViewer` system references this
+package one-way, to list the source with the other built-in ones, and nothing in this package refers to it.
+
 ## Risk Control Measures
 
 `CanvasNetScad` has no segregation requirement for safety. Because OpenSCAD-language source may come

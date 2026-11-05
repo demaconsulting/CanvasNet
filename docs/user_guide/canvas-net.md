@@ -1663,7 +1663,8 @@ could not be loaded` for a face that was found but has vanished or is damaged (i
 spent: the later sources are not tried for it, but the next family of the list is). A font that is
 loaded stays in memory for the life of the resolver for a face of `AdditionalDirectories` and for the life of the
 process for an installed face (`SystemFontCatalog.Load`). Generic keywords always resolve to the bundled fonts first
-(CSS reserves those names), so a family literally named `serif` or `monospace` is never looked up. The token given to the
+(CSS reserves those names), so a family literally named `serif` or `monospace` is never looked up. The token given to
+the
 constructor cancels the scan of `AdditionalDirectories`, which runs once on the first lookup that
 needs it; a canceled scan makes `Resolve` throw `OperationCanceledException`.
 
@@ -2233,10 +2234,210 @@ catch (SandboxException ex)
 
 - `ArgumentNullException`: Thrown by the constructor when `options` or its `SearchPaths` is null, and by `Resolve`
   when `path` is null.
-- `ArgumentOutOfRangeException`: Thrown by the constructor when `MaxFileBytes` is not positive or `MaxFiles` is negative.
+- `ArgumentOutOfRangeException`: Thrown by the constructor when `MaxFileBytes` is not positive or `MaxFiles` is
+  negative.
 - `ArgumentException`: Thrown by `Resolve` when `relativeTo` was not resolved through one of this resolver's own roots.
 - `SandboxException`: Thrown by `Resolve` for every refusal and read failure described above.
 - `OperationCanceledException`: Thrown by `Resolve` when the token is canceled.
+
+### Linked Images (ImageSources)
+
+The `DemaConsulting.CanvasNet.ImageSources` namespace lets a document that links to other pictures (an SVG
+`<image href="...">`, for example) draw them without the program that draws the document knowing any format. The
+core package supplies the contract, one safe resolver for folders, and a raster source; each format package supplies
+a source for its own format (`SvgImageSource`, `ScadImageSource`, `VegaLiteImageSource`, `PdfImageSource`,
+`PptxImageSource`, `VsdxImageSource`), and the `DemaConsulting.CanvasNet.Viewer` package lists them all. Nothing is
+registered globally and nothing is discovered: a source is used only when you pass it in.
+
+```csharp
+public interface IImageResolver { Surface? Resolve(string href, int pixelWidth, int pixelHeight); }
+
+public interface IImageSource
+{
+    string Name { get; }                        // "raster", "svg", "scad", ...
+    IReadOnlyList<string> Extensions { get; }   // file-based claims, lower case with the dot: ".png", ".vl.json"
+    IReadOnlyList<string> Schemes { get; }      // scheme claims, lower case, no colon: "camera"
+    ImageSourceResult Render(ImageSourceRequest request);
+}
+
+public sealed class FolderImageResolver : IImageResolver
+{
+    public FolderImageResolver(string? rootFolder, IEnumerable<IImageSource> sources,
+        FolderImageResolverOptions? options = null);
+    public IReadOnlyList<string> Extensions { get; }
+    public IReadOnlyList<string> Schemes { get; }
+    public IReadOnlyList<ImageSourceDiagnostic> Diagnostics { get; }   // warnings and notes, in render order
+    public IReadOnlyList<string> Echo { get; }
+    public IReadOnlyList<EmbeddedImage> Embedded { get; }              // every image that was drawn
+    public Surface? Resolve(string href, int pixelWidth, int pixelHeight);
+    public ImageSourceResult Render(string path, int? pixelWidth = null, int? pixelHeight = null);
+    public ImageSourceResult Render(Stream content, string fileName, int? pixelWidth = null, int? pixelHeight = null);
+}
+
+public sealed record FolderImageResolverOptions
+{
+    // MaxDepth 4, MaxImages 64, MaxDecodedPixels 64_000_000, ThrowOnUnsupportedFeature, CancellationToken
+}
+```
+
+#### What a link may point to
+
+`FolderImageResolver` confines every link to its folder. A link without a URI scheme is a path relative to the folder
+(relative to the folder of the file that contains the link, for a link inside an embedded file). It is refused, with a
+warning and without reading anything, when it is absolute, a drive or UNC path, an alternate data stream, contains a
+control character, leaves the folder (also as `%2e%2e`), or goes through a symbolic link or junction; a `file:` URI is
+accepted only when it names a file inside the folder, and `%20` and similar encodings are decoded. A link is read as a
+URI reference (RFC 3986): **a query (`?cache=1`) and a fragment (`#view`) are not part of the file name** and are cut
+off before the decoding, so `image.png?v=2` and `part.scad#view` name `image.png` and `part.scad`, while an encoded
+`%23` or `%3F` stays a literal `#` or `?` in the file name (the file `a#b.png` is linked as `a%23b.png`); a link that is
+only a query or a fragment is unresolved, and the source still receives the link as written in `request.Href`. A link
+with another
+URI scheme (`http:`, `https:`, `ftp:`, ...) is never fetched: it is an unresolved warning unless a source you supply
+claims
+the scheme (then the source gets the link exactly as written, `?` and `#` included). A link that cannot be drawn is a
+warning (code `svg-image-unresolved`) in `Diagnostics` and draws nothing; a
+file
+that is found but is broken (a corrupt picture, a model with a syntax error) throws `ImageSourceException`, which names
+the
+link and the embedding file and keeps the original exception as its `InnerException`.
+
+The file name extension chooses the source (the longest claimed extension wins, ignoring case, so `.vl.json` beats
+`.json`; a file nobody claims is a warning). Nesting is limited to `MaxDepth` levels, a file that embeds itself is cut
+as
+a cycle, and at most `MaxImages` images are loaded; each is a warning and the render carries on. Notes of the sources
+are
+forwarded in `Diagnostics` with the link in front of each message.
+
+**The pixel budget.** A small placement can ask for a huge picture: a raster is decoded at its own size, so an 8192 by
+8192 PNG placed in a 1 by 1 rectangle would allocate about 256 MiB, again for every link. `MaxDecodedPixels` (default
+64,000,000) limits the pixels (width times height) that all the sources of one resolver may allocate, at every level of
+nesting. The limit is one live counter: each source charges the surface it is about to allocate (the raster source reads
+the declared size from the file header and charges it before it decodes anything; every vector source charges the size
+it is about to draw at), and a source that draws nested pictures charges its own surface before it loads them, so they
+see only what is left. The resolver clamps the requested size of each link to 1 through 8192 per side and refuses it,
+before it calls a source, when it does not fit in what is left; whatever a source returns beyond what it charged is
+charged afterwards, so a source that does not check cannot overspend, and a source that fails gives back what it
+charged. A picture that does not fit is not
+drawn and is a warning with the code **`svg-image-too-large`** (the render carries on, there is no exception; a direct
+`Render` throws `ImageSourceBudgetException`). Pictures are disposed after use, so the budget caps the total work, not
+the memory held at one time.
+
+**One resolver per render.** The resolver counts the images of one render and accumulates the lists, and it is not
+thread-safe, so create a new one for every top-level render (it is cheap). It **never caches** a picture: every call
+asks the
+source again, so a live source gives a fresh picture each time.
+
+#### Precedence: the later source wins
+
+```csharp
+var builtIn = new IImageSource[] { new RasterImageSource() /* and the sources of the format packages */ };
+var sources = new ImageSourceSet(builtIn).Add(new MySource());   // MySource is listed last, so it wins
+var resolver = new FolderImageResolver(folder, sources);
+```
+
+When several sources claim the same extension or scheme, **the later one in the sequence wins**, so a source you add
+after
+the built-in ones can add a new file type or replace how a built-in one is drawn. `FolderImageResolver` accepts any
+`IEnumerable<IImageSource>` (an `ImageSourceSet` is used as it is). `ImageSourceSet` is immutable: `Add` returns a new
+set.
+Claims are validated when the set is built: an extension must be a dot followed by a name (`.png`, `.vl.json`), a scheme
+must
+be two or more characters of letters, digits, `+`, `-` and `.` starting with a letter, and `file` and `data` can never
+be
+claimed (`file:` is always a path inside the folder; `data:` is decoded by the SVG codec). A single letter followed by a
+colon
+is a Windows drive, not a scheme.
+
+#### Writing your own source
+
+A source can be written outside this repository; every type in its signature is public.
+
+```csharp
+// A file-based source for a made-up ".dots" file: the text of the file is the number of dots to draw.
+sealed class DotsSource : IImageSource
+{
+    public string Name => "dots";
+    public IReadOnlyList<string> Extensions => [".dots"];
+    public IReadOnlyList<string> Schemes => [];
+
+    public ImageSourceResult Render(ImageSourceRequest request)
+    {
+        using var reader = new StreamReader(request.OpenContent());
+        var count = int.Parse(reader.ReadToEnd().Trim());
+
+        // The size to draw at: the requested size of the placement, or 200 x 100 when none is requested
+        var (width, height) = request.SizeFor(200, 100);
+        request.EnsureWithinBudget(width, height);   // charge BEFORE allocating; throws ImageSourceBudgetException
+        var surface = new Surface(width, height);
+        // ... draw `count` dots ...
+        return new ImageSourceResult(surface) { Format = "dots" };
+    }
+}
+
+// A scheme-claimed source: "camera:front" is handed to it as written, with no file and no sandbox.
+sealed class CameraSource : IImageSource
+{
+    public string Name => "camera";
+    public IReadOnlyList<string> Extensions => [];
+    public IReadOnlyList<string> Schemes => ["camera"];
+
+    public ImageSourceResult Render(ImageSourceRequest request)
+    {
+        // request.Href is "camera:front"; request.HasContent is false; request.Content is empty;
+        // FileName and Directory are null; OpenContent() throws. The source owns access and security.
+        return new ImageSourceResult(GrabFrame(request.Href));   // a NEW surface every call
+    }
+}
+```
+
+The contract, in short (every member is documented in the XML documentation):
+
+- **Claims.** `Extensions` select file-based links: the file is found through the sandbox and the source receives its
+  bytes
+  (`request.Content` or `request.OpenContent()`), its path relative to the folder (`FileName`), and its folder
+  (`Directory`, the base for the files the format itself includes). `Schemes` select links such as `camera:front`: the
+  source
+  receives only `Href`, exactly as written, and must treat it as untrusted. A source may claim either or both.
+- **Size.** `PixelWidth` and `PixelHeight` are the size, in device pixels, of the placement of the picture, or `null`
+  for the
+  natural size. A vector source should draw at that size so it is sharp; `request.SizeFor(naturalWidth, naturalHeight)`
+  turns
+  the natural size and the request into the size to draw at (one dimension keeps the aspect ratio; with
+  `fitInside: true`, which suits a page of a document, the picture is fitted into the box). A raster simply returns its
+  natural
+  size; the renderer resamples it once.
+- **Notes.** Return notes in `ImageSourceResult.Diagnostics` (source, severity, code, message) and printed text in
+  `Echo`; the
+  resolver forwards them with the embedding link in front. When `ThrowOnUnsupportedFeature` is set, throw instead of
+  drawing
+  without a feature.
+- **Cancellation and limits.** The resolver checks `CancellationToken` before every render and enforces the depth, cycle
+  and
+  image-count limits before it calls you; observe the token during long work and throw `OperationCanceledException`.
+- **Pixel budget.** One live budget (`MaxDecodedPixels`) is shared by every picture of the render, nested ones
+  included, and `request.RemainingPixels` always reads what is free right now. **Charge each surface you are about to
+  allocate**: call `request.EnsureWithinBudget(width, height)` once per surface, before allocating it, with the size you
+  will allocate (a vector source the size it draws at; a raster source the size its header declares, before decoding;
+  the sizes of several calls add up). The call takes the pixels from the budget and records them in
+  `request.ChargedPixels`, or, when they do not fit, throws `ImageSourceBudgetException` and charges nothing, which the
+  resolver turns into the warning `svg-image-too-large` and no picture (you can also throw that exception yourself). If
+  you draw a document with nested pictures, charge your own surface first, then load them through `request.Resolver`:
+  they see only what is left. The resolver reserves nothing for you: it refuses a link early when its requested size
+  cannot fit, charges whatever surface you return beyond `ChargedPixels` (a surface that does not fit is discarded, but
+  only after you have allocated it, so charge first), and gives back what you charged when you throw or are refused.
+  To give a hand-built request (a test of your source) a limit, set `Budget = new ImageBudget(maxPixels)` and read
+  `Budget.Remaining` afterwards. The full contract is in the XML documentation of `ImageSourceRequest`. After a render,
+  `FolderImageResolver.RemainingPixels` is the live part of `MaxDecodedPixels` that is still free.
+- **Ownership.** The surface you return is owned by the caller and disposed after drawing: never return a surface you
+  keep or
+  reuse, and produce a new picture on every call (nothing is cached).
+- **Nested links.** A source that draws a document with links of its own (like the SVG source) passes `request.Resolver`
+  on to
+  that document. It is scoped to the request: for a file-based request relative links resolve against the folder of the
+  file;
+  for a scheme-claimed request, which has no folder of its own, they resolve against the folder of the resolver. It
+  shares the
+  limits and lists of the whole render, so recursion is bounded without any state in your source.
 
 ## Examples
 

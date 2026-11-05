@@ -275,3 +275,17 @@ sections:
           - CanvasNetVsdx_SystemIntegration_Render_PixelDimensionsOverload_PaintsExpectedSurface
           - CanvasNetVsdx_SystemIntegration_Render_DpiOverload_ComputesExpectedPixelDimensions
           - CanvasNetVsdx_SystemIntegration_Render_InvalidDimensionsThrowsArgumentOutOfRangeException
+
+      - id: CanvasNetVsdx-ImageSource
+        title: >-
+          The library shall provide an image source for .vsdx files, for the image resolver of the core package,
+          that draws the first page fitted inside the size its placement asks for over a transparent background
+          and reports the features it does not draw.
+        tags: [system]
+        justification: |
+          A diagram that links to a Visio drawing (an SVG image element, for example) needs the Visio renderer as
+          one of the pluggable sources of the shared image resolver.
+        children:
+          - CanvasNetVsdx-VsdxDocument-ImageSource
+        tests:
+          - VsdxImageSource_Render_RequestedBox_FitsPageInsideBox

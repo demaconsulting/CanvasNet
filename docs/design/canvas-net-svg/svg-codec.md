@@ -172,12 +172,15 @@ control of tile resampling beyond the automatic magnified/minified smoothing des
 `image` feature itself, the following are explicitly
 out of scope (see _Image_ below for the full rationale behind each): an `href`/`xlink:href` that
 is not a base64-encoded `data:` URI - an external file path or URL is tolerantly rendered as
-nothing, since resolving it would require introducing a base-path/resolver mechanism that does
-not otherwise exist anywhere in `SvgCodec.Load`, and doing so would mean opening arbitrary
-caller-influenced file paths/URLs from untrusted document data; a `data:image/svg+xml` payload (a
+nothing unless the caller opts in with `SvgLoadOptions.ImageResolver` (an `IImageResolver`; see _Image Resolver_ below):
+the codec itself never opens a file or the network, since a base path inferred from the document
+would be an arbitrary-file-read vector, and what a resolver may reach is the caller's decision; a
+`data:image/svg+xml` payload (a
 nested SVG document, whether base64-encoded or not) - tolerantly rendered as nothing, for the
 same recursive-parsing-complexity reasoning that already excludes `feImage`'s own
-referenced-element case; auto-sizing from the decoded raster's own intrinsic dimensions when
+referenced-element case (an external `.svg` reference can be embedded only through a resolver); an
+external `feImage` `href`, which never uses the resolver; auto-sizing from the decoded raster's own intrinsic
+dimensions when
 `width`/`height` are absent (both default to `0`, rendering nothing, rather than inferring a size
 from the decoded content); and `image-rendering` values other than the recognized keywords
 (`auto`, `optimizeQuality`, `smooth` and `high-quality` select smooth sampling; `pixelated`,
@@ -244,9 +247,11 @@ represents, modeled directly on `ImageInfo`'s "plain immutable data carrier" sty
 three-way `normal`/`italic`/`oblique` keyword set — the reported use case, "bold titles and
 italic keywords", never needs to distinguish a true italic face from a mechanically-slanted
 `oblique` one, so `SvgCodec`'s `font-style` parser maps both keywords onto `Italic`), and
-`SvgLoadOptions` (a sealed record of optional, additive load settings; today only
-`UseSystemFonts`, default `true`, which can be set to `false` for reproducible text output - see
-_Text_ below). Internally,
+`SvgLoadOptions` (a sealed record of optional, additive load settings: `UseSystemFonts`, default
+`true`, which can be set to `false` for reproducible text output - see _Text_ below - and
+`ImageResolver`, default `null`, the opt-in `IImageResolver` of the core `ImageSources` subsystem that loads external
+`image` references - see _Image Resolver_ below), and `SvgImageSource` (the `IImageSource` for `.svg` files - see
+_Image Source_ below). Internally,
 it defines a private `RenderState` record capturing the cascading presentation state (fill,
 stroke, fill-opacity, stroke-opacity, opacity, fill-rule, stroke-width, stroke-linecap,
 stroke-linejoin, stroke-miterlimit, stroke-dasharray, stroke-dashoffset, font-family, font-size,
@@ -254,7 +259,7 @@ font-weight, font-style, text-anchor, and the three marker-start/marker-mid/mark
 specifications) that is threaded down through the element tree alongside an accumulated
 `System.Numerics.Matrix3x2` transform, plus a private `RenderContext` capturing fixed per-document
 state (the id→`XElement` index, the caller's font-family-to-`SvgFontFace`-list dictionary, the
-`UseSystemFonts` setting, the per-render resolved-font cache, and the
+`UseSystemFonts` setting, the optional `ImageResolver`, the per-render resolved-font cache, and the
 resolved fit transform).
 
 ### XML Parsing Hardening (XXE)
@@ -1193,11 +1198,53 @@ renderable element, and integrated through `RenderShapeEffectsPipeline`'s own ge
 point so `clip-path`/`mask`/`filter`/opacity apply automatically with no special-casing - unlike
 every other effects-capable element, `RenderImageWithEffects` has no "no effects present" fast
 path, since an `image` element always needs its own region-sized decode-and-sample pass
-regardless of whether any effect is present. Only an `href` of the form
-`data:<mime-type>;base64,<payload>` is supported; `TryParseDataUri` requires the literal
-`;base64,` token and rejects a percent-encoded or plain-text `data:` payload, an external file
-path/URL, or a `data:image/svg+xml` payload as an out-of-scope no-op (see the out-of-scope list
-above for the full rationale behind each).
+regardless of whether any effect is present. The codec itself decodes only an `href` of the form
+`data:<mime-type>;base64,<payload>`; `TryParseDataUri` requires the literal
+`;base64,` token and rejects a percent-encoded or plain-text `data:` payload, or a
+`data:image/svg+xml` payload, as an out-of-scope no-op, and an external file
+path/URL is a no-op unless the caller supplied an `ImageResolver` (see _Image Resolver_ below and
+the out-of-scope list above for the full rationale behind each).
+
+_Image Resolver._ `SvgLoadOptions.ImageResolver` (`IImageResolver?`, default `null`) is the only way an
+external reference is ever loaded, so the codec itself still performs no I/O: a host that opts in decides
+what the resolver may reach (`FolderImageResolver` of the core package confines it to a folder with
+`SandboxedFileResolver`). The codec never caches a picture: every element and every load calls the
+resolver again, so a resolver backed by a live source gets a fresh request each time. `RenderImageWithEffects` first
+validates the placement size, then
+`ClassifyImageHref` classifies the trimmed `href`: empty or a same-document `#fragment` is a no-op; a
+`data:` URI (valid or not - a malformed one is never passed on) takes the data path; anything else
+takes the resolver path when a resolver was supplied and is a no-op otherwise. Both paths converge on
+a deferred `ImageLoad` (extra work units plus a loader), so the work-budget charge, the
+fit/sample/effects pipeline, and the disposal of the loaded surface (`using`) are shared.
+
+The resolver path computes the pixel size, which `Resolve(href, pixelWidth, pixelHeight)` receives, as the edge lengths
+of
+the placement rectangle after the composed transform - `width` times the length of the transform's
+first basis row, `height` times that of the second, so rotation and skew are covered - rounded up
+(with a 0.001 tolerance against floating-point noise) and clamped to 1 through
+`Surface.MaxDimension`; this is the size at which a vector source should be drawn to look crisp. The
+charge against the shared `FilterWorkBudget` is the effects-pipeline units plus the requested pixel
+area plus `ResolverCallOverheadUnits` (100,000), made _before_ the call; a declined charge skips the
+call. With the 50,000,000-unit cumulative budget that allows fewer than 500 calls per document, which
+bounds `use` fan-out. After the call, a returned surface larger than requested is charged for the
+extra pixels; a declined charge disposes it and draws nothing. That after-the-fact charge is only the defense
+against a resolver that returns more than it was asked for: it cannot undo the allocation. The memory is protected by
+the resolver, which refuses a picture that exceeds its own pixel budget (`FolderImageResolverOptions.MaxDecodedPixels`)
+before it is allocated (a raster is checked from its header), reporting `svg-image-too-large` and returning `null`
+here; the requested size passed to it never exceeds `Surface.MaxDimension` per side. The surface then follows the data-URI
+route (`preserveAspectRatio`, `image-rendering`, clip/mask/filter/opacity) and is disposed by the
+codec.
+
+_Error policy._ A `null` result is a tolerant no-op, exactly like an undecodable data URI. An
+exception thrown by the resolver propagates to the caller unchanged: the codec's tolerance is for
+untrusted _document_ content, while the resolver is trusted _host_ code whose failures would
+otherwise be hidden (and the tool needs a `ToolException` to reach the user intact). The one guard is
+`FormatException`, which `LoadCore` converts to "invalid numeric data" for the document; the resolver
+call wraps it in an `InvalidOperationException` so a host error is not mislabelled as bad SVG data. `LoadCore`
+disposes the output `Surface` it allocated on every exceptional exit (the resolver's exception included) and
+rethrows, so the exception type is preserved and no surface is leaked.
+`feImage` does not use the resolver: its primitive-subregion path is separate, and an external
+`feImage` href stays a no-op (a possible follow-up).
 
 _Decode dispatch._ `ResolveRasterDecoder` maps the parsed MIME type through the core
 `ImageFormats.FromMediaType` recognizer to one of the five existing raster codecs, decoded with
@@ -1631,3 +1678,26 @@ CanvasNetSvg's target frameworks with no new runtime NuGet dependency.
 (the sole unit of `CanvasNetSvg`). It calls into the `CanvasNet` system's `Canvas.Surface`,
 `Geometry`, `Drawing`, and `Fonts` (see _Dependencies_ above) but nothing in `CanvasNet` calls
 into it.
+
+### Image Source
+
+`SvgImageSource` (`SvgImageSource.cs`) is the `IImageSource` of the package for `.svg` files, so that an SVG file can be
+linked from another document (another SVG, a presentation, anything that draws through the shared
+`FolderImageResolver`). It claims `.svg` and no URI scheme. `Render(request)` reads the natural size of the file with
+`SvgCodec.GetInfo(request.OpenContent())`, asks `request.SizeFor(naturalWidth, naturalHeight)` for the size to draw at
+(the exact box when both dimensions are requested; the codec fits the drawing into it by the `preserveAspectRatio` of
+the file's own root element), charges that size with `request.EnsureWithinBudget(width, height)` **before** the nested
+links are loaded (a size that does not fit in the live budget is refused with `ImageSourceBudgetException` before the
+document is drawn; the codec allocates its own canvas before it resolves any image, so the nested pictures see only
+what is left; the contract is on `ImageSourceRequest`), and draws
+with
+`SvgCodec.LoadWithFontFaces(stream, width, height, null, new SvgLoadOptions
+{ ImageResolver = request.Resolver })`. The background stays transparent so the embedding document shows through.
+Passing the **scoped resolver of the request** on is what makes nesting work with no state in the source: the `image`
+elements of the nested file resolve against the folder of that file, and the depth, cycle, and count limits of the whole
+render apply. When the request has no resolver the nested file's external links are not drawn. The SVG library neither
+reports unsupported features nor can fail on them, so the request's strictness switch has no effect and the result has
+no notes. Content that is not an SVG document is `InvalidDataException` (from `GetInfo`), a request without a file
+`InvalidOperationException`, and a canceled request `OperationCanceledException`. The class is stateless, thread-safe,
+and references only the core package. Its requirement is `CanvasNetSvg-SvgCodec-SvgImageSource`, verified by
+`SvgImageSourceTests.cs`.

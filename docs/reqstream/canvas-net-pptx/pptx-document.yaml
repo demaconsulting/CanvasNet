@@ -2309,3 +2309,26 @@ sections:
               one line at 12pt.
             tests:
               - Render_MasterNonPlaceholderTextBoxWithOwnLstStyle_HonorsListStyleFontSize
+
+          - id: CanvasNetPptx-PptxDocument-ImageSource
+            title: >-
+              The Pptx package shall provide an image source for .pptx files (claiming that extension and no URI
+              scheme) that opens the presentation from the bytes of the request and draws its first slide over a
+              transparent background at its natural size (the presentation size at 96 dots per inch), or fitted
+              inside the requested box keeping the aspect ratio, refuses with ImageSourceBudgetException, before
+              drawing anything, a size that exceeds the pixels the request allows, returns each skipped picture as
+              an unsupported note of the source pptx (and fails with PptxUnsupportedFeatureException when the
+              request is strict),
+              and fails with InvalidDataException for content that is not a readable presentation,
+              InvalidOperationException for a request without a file, and OperationCanceledException for a canceled
+              request.
+            justification: |
+              The first slide stands for a presentation linked from a diagram; fitting without distortion keeps the
+              slide recognizable at any placement size.
+            tests:
+              - PptxImageSource_Render_NoRequestedSize_DrawsNaturalSizeOnTransparentBackground
+              - PptxImageSource_Render_RequestedSize_FitsSlideInsideBoxKeepingAspectRatio
+              - PptxImageSource_Render_SizeBeyondRemainingPixels_IsRefusedBeforeDrawing
+              - PptxImageSource_Render_SkippedPicture_ReturnsDiagnosticOrThrowsWhenStrict
+              - PptxImageSource_Render_InvalidInput_Throws
+              - PptxImageSource_Properties_NameExtensionAndNoSchemes

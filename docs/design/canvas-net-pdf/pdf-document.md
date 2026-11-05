@@ -64,7 +64,8 @@ procedures rather than an outline/CFF program) is also resolved and rendered, vi
 dedicated resolution and glyph-painting path (see _Type 3 Font Resolution_/_Type 3 Glyph Painting_
 below). As of Phase 16 (this phase), a document encrypted with the PDF "Standard" security
 handler (`/Filter /Standard`) using RC4 (40 to 128-bit), AES-128 (`/CFM /AESV2`), or AES-256 using
-the R5 or R6 (hardened hash) key derivation (`/CFM /AESV3`/`/R 5` or `/R 6`) and an empty user password is also opened and
+the R5 or R6 (hardened hash) key derivation (`/CFM /AESV3`/`/R 5` or `/R 6`) and an empty user password is also opened
+and
 rendered transparently, with every indirect object's strings and every stream's raw bytes
 decrypted before any other parsing logic observes them (see _Encryption (Standard Security
 Handler)_ below); every other encrypted-document shape (a non-`/Standard` security handler,
@@ -446,7 +447,8 @@ truncation rule.
   `ComputeHashAlgorithm2B(passwordBytes, /U`'s 8-byte key salt`)` as the key, yielding the 32-byte file
   encryption key directly — used as-is for every string/stream, with no further per-object
   derivation (unlike RC4/AESV2).
-- **`TryComputeFileKeyAlgorithm2AOwnerPassword(byte[] passwordBytes, byte[] oBytes, byte[] oeBytes, byte[] uBytes, int revision)`**
+- **`TryComputeFileKeyAlgorithm2AOwnerPassword(byte[] passwordBytes, byte[] oBytes, byte[] oeBytes, byte[] uBytes, int
+  revision)`**
   (owner-password variant of ISO 32000-2 Algorithm 2.A, R5/R6 AESV3 only) — hashes/encrypts over
   `passwordBytes ‖ salt ‖ U` where `U` is the **full 48-byte** `/U` value (not a sub-slice):
   compares `ComputeHashAlgorithm2B(passwordBytes, /O`'s 8-byte validation salt, fullU`)` against `/O`'s own
@@ -1332,7 +1334,8 @@ its own distinguishable `Feature` token.
 - **Sampled Function Evaluation (`PdfDocument.Functions.cs`, added in Phase 1 of the `/Pattern`
   color-space roadmap)** — `ResolveFunction` resolves a `/Function` entry restricted to
   `/FunctionType 0` (sampled function) with exactly 1 input (a 2-element `/Domain`) into a
-  `SampledFunction`, parsing `/Size` (a single element, since this is a 1-input function; every `/Size` entry, in this and
+  `SampledFunction`, parsing `/Size` (a single element, since this is a 1-input function; every `/Size` entry, in this
+  and
   the multi-input parser, and `/FunctionType`/`/BitsPerSample` must be an exact integer - a fractional
   or non-finite value is malformed and throws `InvalidDataException` instead of being truncated),
   `/BitsPerSample` (`8` or `16` only), `/Encode` (defaulting to `[0, Size[0] - 1]` when absent),
@@ -1564,7 +1567,8 @@ its own distinguishable `Feature` token.
   (function-based shadings)
   remain unsupported/unchanged, reachable through two paths — `scn`/`SCN` + `/Pattern` and
   `sh` — both throwing the identical `Codecs.UnsupportedImageFeatureException` (shared code, not
-  a reimplementation); a `/Pattern` color space nested inside another `/Pattern`'s own `PatternBase` is out of scope (the
+  a reimplementation); a `/Pattern` color space nested inside another `/Pattern`'s own `PatternBase` is out of scope
+  (the
   `ComponentCount` arm for `Family.Pattern` throws `InvalidOperationException` as a fail-closed
   backstop, since no caller is expected to reach it); deep nested-tiling-pattern recursion is
   bounded only by the shared, reused `MaxFormNestingDepth` guard (no dedicated correctness test of
@@ -1872,3 +1876,24 @@ change behavior for any document within normal real-world limits.
 
 None yet - `PdfDocument` is `CanvasNetPdf`'s sole unit and its system's only public entry point;
 no other unit or subsystem in this repository calls into it.
+
+### Image Source
+
+`PdfImageSource` (`PdfImageSource.cs`) is the `IImageSource` of the package for `.pdf` files, so that a document can
+link to a PDF file through the shared `FolderImageResolver`; it draws the **first page**. `Render(request)` opens the
+document with `PdfDocument.Open(request.OpenContent())`, takes the displayed (rotation-adjusted) size of page 0 from
+`GetPageInfo` at 96 dots per inch as the natural size (points times 96/72, rounded), asks `request.SizeFor(naturalWidth,
+naturalHeight, fitInside: true)` for the largest size of the aspect ratio of the page inside the requested box, charges
+that size with `request.EnsureWithinBudget(width, height)` (a size that does not fit in the live budget is
+refused with
+`ImageSourceBudgetException` before any surface is allocated; the contract is on `ImageSourceRequest`), and
+draws it with `Render(0, width, height, new PdfRenderOptions { BackgroundColor = transparent })`, so the page is sharp
+at the size of its placement, not distorted, and the embedding document shows through. The PDF library has no
+diagnostics channel and cannot be canceled while it draws, so the result has no notes (the strictness switch has no
+effect) and the cancellation token is checked before the document is opened and before it is drawn. The class is
+stateless, thread-safe, claims no URI scheme, and references only the core package.
+
+The behavior of the class is specified by the `CanvasNetPdf-PdfDocument-ImageSource` requirement and verified by
+`PdfImageSourceTests.cs`. Its **callers** are the shared `FolderImageResolver` of the core package (through
+`IImageSource`), the `CanvasNetViewer` system, which lists it with the other built-in sources, and applications. The
+unit depends on the core package only through the `ImageSources` contract types.

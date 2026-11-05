@@ -390,6 +390,7 @@ jobs:
               'DemaConsulting.CanvasNet.Render3D.dll',
               'DemaConsulting.CanvasNet.Scad.dll',
               'DemaConsulting.CanvasNet.VegaLite.dll',
+              'DemaConsulting.CanvasNet.Viewer.dll',
               'DemaConsulting.TestResults.dll',
               'System.Numerics.Tensors.dll'
             )

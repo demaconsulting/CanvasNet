@@ -381,3 +381,16 @@ sections:
           - CanvasNetPdf_SystemIntegration_AxialShadingPatternFill_PaintsVisiblyVaryingColors
           - CanvasNetPdf_SystemIntegration_MeshShadingWithNonlinearFunction_AppliesFunctionToInterpolatedParameter
           - CanvasNetPdf_SystemIntegration_ColoredTilingPatternFill_PaintsRepeatingTileColors
+
+      - id: CanvasNetPdf-ImageSource
+        title: >-
+          The library shall provide an image source for .pdf files, for the image resolver of the core package,
+          that draws the first page fitted inside the size its placement asks for over a transparent background.
+        tags: [system]
+        justification: |
+          A diagram that links to a document (an SVG image element, for example) needs the PDF renderer as one of
+          the pluggable sources of the shared image resolver.
+        children:
+          - CanvasNetPdf-PdfDocument-ImageSource
+        tests:
+          - PdfImageSource_Render_RequestedSize_FitsPageInsideBoxKeepingAspectRatio

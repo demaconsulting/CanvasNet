@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Pdf;
 using DemaConsulting.CanvasNet.Pptx;
@@ -11,6 +12,7 @@ using DemaConsulting.CanvasNet.Svg;
 using DemaConsulting.CanvasNet.Tool.Commands;
 using DemaConsulting.CanvasNet.Tool.Imaging;
 using DemaConsulting.CanvasNet.VegaLite;
+using DemaConsulting.CanvasNet.Viewer;
 using DemaConsulting.CanvasNet.Vsdx;
 
 namespace DemaConsulting.CanvasNet.Tool.Tests.Commands;
@@ -31,7 +33,13 @@ public partial class HelpTopicsTests
     ///     Matches the diagnostic identifiers a topic may cite.
     /// </summary>
     private static readonly Regex IdentifierPattern =
-        new(@"\b(?:scad|vl|pptx|vsdx|pdf)-[A-Za-z0-9<>-]+", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(5));
+        new(@"\b(?:scad|vl|pptx|vsdx|pdf|svg)-[A-Za-z0-9<>-]+", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(5));
+
+    /// <summary>
+    ///     Matches a file name extension (lower case, with the dot, and the two-part <c>.vl.json</c>) in a sentence.
+    /// </summary>
+    private static readonly Regex ExtensionToken =
+        new(@"(?<=^|[\s(,])\.[a-z0-9]+(?:\.json)?(?=$|[\s),;.])", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(5));
 
     /// <summary>
     ///     The names of the global options, which every command accepts.
@@ -209,7 +217,7 @@ public partial class HelpTopicsTests
                     continue;
                 }
 
-                Assert.Equal(HelpTopics.SourceKind, example.Kind);
+                Assert.True(HelpTopics.SourceKind == example.Kind || HelpTopics.SnippetKind == example.Kind);
                 Assert.NotNull(example.FileName);
                 if (extensions.TryGetValue(topic.Name, out var extension))
                 {
@@ -250,6 +258,131 @@ public partial class HelpTopicsTests
         Assert.True(document.RootElement.GetProperty("ok").GetBoolean());
         Assert.Empty(document.RootElement.GetProperty("diagnostics").EnumerateArray());
         Assert.True(File.Exists(output));
+    }
+
+    /// <summary>
+    ///     Test that the file types the <c>svg</c> topic lists for <c>&lt;image href&gt;</c> are exactly the extensions
+    ///     the sources of <c>CanvasNetViewer</c> claim (both directions), that a plain <c>.json</c> file is not
+    ///     linkable, and that the <c>formats</c> command lists the same extensions.
+    /// </summary>
+    [Fact]
+    public void HelpTopics_SvgTopic_ImageHrefFileTypes_MatchTheResolverExtensions()
+    {
+        // Arrange: the extensions the topic lists, and the ones the resolver supports
+        var topic = HelpTopics.Find("svg")!;
+        var item = Assert.Single(
+            topic.Sections.First(s => s.Id == "image-links").Items,
+            i => i.Term == "href file types");
+        var listed = ExtensionToken.Matches(item.Text).Select(m => m.Value).ToList();
+        var supported = CanvasNetViewer.Extensions;
+        var registered = CanvasNetViewer.ImageSources.SelectMany(s => s.Extensions).ToList();
+        var formatted = DiscoveryCommands.InputFormats.SelectMany(f => f.Extensions).ToList();
+
+        // Assert: the registered sources of the viewer are the ones the tool wires in, and a plain .json is not linkable
+        Assert.Equal(supported.Order(StringComparer.Ordinal), registered.Order(StringComparer.Ordinal));
+        Assert.DoesNotContain(".json", supported);
+        Assert.Contains(".vl.json", supported);
+
+        // Assert: nothing is listed twice, nothing is listed that is unsupported, and nothing supported is missing
+        Assert.Equal(listed.Count, listed.Distinct(StringComparer.Ordinal).Count());
+        Assert.Empty(listed.Except(supported, StringComparer.Ordinal));
+        Assert.Empty(supported.Except(listed, StringComparer.Ordinal));
+
+        // Assert: the formats command lists the same extensions, so the two tables cannot drift apart
+        Assert.Equal(formatted.Order(StringComparer.Ordinal), listed.Order(StringComparer.Ordinal));
+    }
+
+    /// <summary>
+    ///     Test that the dedicated <c>image-links</c> section of the <c>svg</c> topic states the size rule, the
+    ///     folder rule, the diagnostic code, and the example for a linked file.
+    /// </summary>
+    [Fact]
+    public void HelpTopics_SvgTopic_ImageLinksSection_StatesSizeFolderRuleDiagnosticAndExample()
+    {
+        // Arrange: the section and its text
+        var topic = HelpTopics.Find("svg")!;
+        var section = topic.Sections.First(s => s.Id == "image-links");
+        var text = string.Join("\n", section.Items.Select(i => $"{i.Term} {i.Text}"));
+
+        // Assert: the rules, the code, and the example are there, and the example can be printed
+        Assert.Contains("size of the image element", text);
+        Assert.Contains("relative to the folder of the SVG file", text);
+        Assert.Contains("network URL", text);
+        Assert.Contains("absolute path", text);
+        Assert.Contains("--strict", text);
+        Assert.Contains(section.Items, i => i.Term == "svg-image-unresolved");
+        Assert.Contains(section.Items, i => i.Term == "svg-image-too-large");
+        Assert.Contains("<image href=\"part.scad\" x=\"10\" y=\"10\" width=\"120\" height=\"120\"/>", text);
+        Assert.Contains("canvasnet help svg --example embed", text);
+        Assert.Contains("<image href=\"part.scad\"", HelpTopics.RenderExample(topic, "embed"));
+    }
+
+    /// <summary>
+    ///     Test that the <c>embed</c> snippet of the <c>svg</c> topic, which is skipped by the render drift test
+    ///     because it refers to sibling files, is well formed, links only supported file types, and renders under
+    ///     <c>--strict</c> without a diagnostic once its sibling files exist (the examples of the other topics).
+    /// </summary>
+    [Fact]
+    public void HelpTopics_SvgTopic_EmbedSnippet_RendersStrictWithItsSiblingFiles()
+    {
+        // Arrange: the snippet, which is not a source example, and its links
+        var topic = HelpTopics.Find("svg")!;
+        var snippet = Assert.Single(topic.Examples, e => e.Kind == HelpTopics.SnippetKind);
+        Assert.DoesNotContain(HelpTopics.SourceExamples(), e => e.Example == snippet);
+        var links = XDocument.Parse(snippet.Content).Descendants()
+            .Where(e => e.Name.LocalName == "image")
+            .Select(e => (string)e.Attribute("href")!)
+            .ToList();
+        Assert.NotEmpty(links);
+
+        // Arrange: save the snippet and, for each link, a sibling file taken from the examples of that format
+        using var directory = new TempDirectory();
+        var input = directory.Combine(snippet.FileName!);
+        File.WriteAllText(input, snippet.Content);
+        var siblingTopics = new Dictionary<string, string> { [".scad"] = "scad", [".vl.json"] = "vega-lite", [".svg"] = "svg" };
+        foreach (var href in links)
+        {
+            Assert.Contains(CanvasNetViewer.Extensions, e => href.EndsWith(e, StringComparison.OrdinalIgnoreCase));
+            var (extension, topicName) = siblingTopics.First(p => href.EndsWith(p.Key, StringComparison.OrdinalIgnoreCase));
+            var sibling = HelpTopics.SourceExamples().First(e => e.Topic.Name == topicName && e.Example.FileName!.EndsWith(extension, StringComparison.Ordinal));
+            File.WriteAllText(directory.Combine(href), sibling.Example.Content);
+        }
+
+        // Act: render with --strict
+        var output = directory.Combine("out.png");
+        var (exitCode, stdOut, stdErr) = ToolHost.Invoke("render", input, "--strict", "--json", "-o", output);
+
+        // Assert: it succeeded without a diagnostic and wrote the picture
+        Assert.True(exitCode == 0, stdErr + stdOut);
+        using var document = JsonDocument.Parse(stdOut);
+        Assert.True(document.RootElement.GetProperty("ok").GetBoolean());
+        Assert.Empty(document.RootElement.GetProperty("diagnostics").EnumerateArray());
+        Assert.Equal(links.Count, document.RootElement.GetProperty("operations").EnumerateArray().Count(o => o.GetProperty("op").GetString() == "embed"));
+        Assert.True(File.Exists(output));
+    }
+
+    /// <summary>
+    ///     Test that an agent can discover the <c>&lt;image href&gt;</c> linking from the <c>scad</c> and
+    ///     <c>vega-lite</c> topics, the <c>formats</c> listing, and the <c>render</c> usage.
+    /// </summary>
+    [Fact]
+    public void HelpTopics_ImageHrefLinking_IsCrossReferencedFromScadVegaLiteFormatsAndRender()
+    {
+        // Arrange: the places that point to the svg topic
+        var pointers = new Dictionary<string, string>
+        {
+            ["scad topic"] = string.Join("\n", HelpTopics.Find("scad")!.Sections.SelectMany(s => s.Items).Select(i => i.Text)),
+            ["vega-lite topic"] = string.Join("\n", HelpTopics.Find("vega-lite")!.Sections.SelectMany(s => s.Items).Select(i => i.Text)),
+            ["formats footer"] = DiscoveryCommands.Formats.HelpFooter,
+            ["render usage"] = CommandRegistry.CreateDefault().Find("render")!.Usage
+        };
+
+        // Assert: each names the element and the topic that explains it
+        foreach (var (place, text) in pointers)
+        {
+            Assert.True(text.Contains("<image href", StringComparison.Ordinal), $"The {place} does not mention <image href>.");
+            Assert.True(text.Contains("canvasnet help svg", StringComparison.Ordinal), $"The {place} does not point to 'canvasnet help svg'.");
+        }
     }
 
     /// <summary>
@@ -327,13 +460,14 @@ public partial class HelpTopicsTests
 
     /// <summary>
     ///     Test that every diagnostic identifier a topic cites exists: it is covered by the trigger table (which
-    ///     the trigger test proves), is an error code, or is a literal in one of the libraries.
+    ///     the trigger test proves), is an error code, is a warning code that a render test triggers
+    ///     (<c>svg-image-unresolved</c> and <c>svg-image-too-large</c> by <c>RenderCommandSvgEmbedTests</c>), or is a literal in one of the libraries.
     /// </summary>
     [Fact]
     public void HelpTopics_CitedDiagnosticIds_ExistInTheLibraries()
     {
         // Arrange: what a cited identifier may be, and the text of the libraries to search for literals
-        var allowed = Triggers.SelectMany(t => new[] { t.Cited, t.Code }).Concat(["scad-warning", "vega-lite-warning", NamingRule]).Concat(ErrorCodeValues()).ToHashSet(StringComparer.Ordinal);
+        var allowed = Triggers.SelectMany(t => new[] { t.Cited, t.Code }).Concat(["scad-warning", "vega-lite-warning", "svg-image-unresolved", "svg-image-too-large", NamingRule]).Concat(ErrorCodeValues()).ToHashSet(StringComparer.Ordinal);
         var literals = LibraryAssemblies.Select(a => File.ReadAllBytes(a.Location)).ToList();
         var cited = HelpTopics.All.SelectMany(AllStrings).SelectMany(s => IdentifierPattern.Matches(s).Select(m => m.Value)).Distinct().Order(StringComparer.Ordinal).ToList();
 
@@ -429,7 +563,7 @@ public partial class HelpTopicsTests
         Assert.All(examples, e =>
         {
             Assert.False(string.IsNullOrEmpty(e.GetProperty("name").GetString()));
-            Assert.Contains(e.GetProperty("kind").GetString(), new[] { "source", "command" });
+            Assert.Contains(e.GetProperty("kind").GetString(), new[] { "source", "command", "snippet" });
             Assert.False(string.IsNullOrEmpty(e.GetProperty("language").GetString()));
             Assert.False(string.IsNullOrEmpty(e.GetProperty("description").GetString()));
         });
@@ -475,7 +609,7 @@ public partial class HelpTopicsTests
         // Assert: the content is exact; the list has one line per example; the JSON list has no content, the one example has it
         Assert.Equal(expected, content);
         Assert.StartsWith("// A plate with a round hole", content);
-        Assert.Equal(topic.Examples.Count, list.Split('\n').Count(l => l.Contains("[source]") || l.Contains("[command]")));
+        Assert.Equal(topic.Examples.Count, list.Split('\n').Count(l => l.Contains("[source]") || l.Contains("[command]") || l.Contains("[snippet]")));
         Assert.Equal("examples", listJson.RootElement.GetProperty("kind").GetString());
         Assert.All(listJson.RootElement.GetProperty("examples").EnumerateArray(), e => Assert.False(e.TryGetProperty("content", out _)));
         Assert.Equal("example", oneJson.RootElement.GetProperty("kind").GetString());

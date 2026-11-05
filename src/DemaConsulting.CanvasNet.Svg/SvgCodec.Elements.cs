@@ -13,6 +13,7 @@ using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Drawing;
 using DemaConsulting.CanvasNet.Fonts;
 using DemaConsulting.CanvasNet.Geometry;
+using DemaConsulting.CanvasNet.ImageSources;
 using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
 namespace DemaConsulting.CanvasNet.Svg;
@@ -209,6 +210,13 @@ public static partial class SvgCodec
         ///     <see cref="SvgLoadOptions.UseSystemFonts"/>). Set once by <c>LoadCore</c>.
         /// </summary>
         public bool UseSystemFonts { get; init; } = true;
+
+        /// <summary>
+        ///     The host resolver that loads the picture of an <c>image</c> element whose <c>href</c> is
+        ///     neither a <c>data:</c> URI nor a fragment (see <see cref="SvgLoadOptions.ImageResolver"/>),
+        ///     or <see langword="null"/> when the host did not opt in. Set once by <c>LoadCore</c>.
+        /// </summary>
+        public IImageResolver? ImageResolver { get; init; }
 
         /// <summary>
         ///     Resolves each default font (see <see cref="ResolveFont"/>) for the lifetime of one

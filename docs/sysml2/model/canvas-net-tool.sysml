@@ -8,7 +8,7 @@ package CanvasNet {
         comment designRef /* Design: docs/design/canvas-net-tool.md */
         comment verificationRef /* Verification: docs/verification/canvas-net-tool.md */
         comment reqRef /* Requirements: docs/reqstream/canvas-net-tool.yaml */
-        comment /* CanvasNetTool uses the CanvasNet libraries (the core Canvas, Codecs, Fonts, and Rendering subsystems and the sibling Svg, Pdf, Pptx, Vsdx, Render3D, Scad, and VegaLite systems) through ProjectReferences that are private assets of the tool package: the library assemblies are bundled into the tool package rather than declared as NuGet dependencies, so installing the tool never requires the sibling packages. They are modeled below as non-owning dependency relationships, since all systems live in this same git repository rather than being third-party (OTS) or Shared Package dependencies. Charts is used transitively through Pptx. The tool's only OTS runtime dependency is DemaConsulting.TestResults, documented in docs/design/ots/test-results.md. */
+        comment /* CanvasNetTool uses the CanvasNet libraries (the core Canvas, Codecs, Fonts, and Rendering subsystems and the sibling Svg, Pdf, Pptx, Vsdx, Render3D, Scad, VegaLite, and Viewer systems) through ProjectReferences that are private assets of the tool package: the library assemblies are bundled into the tool package rather than declared as NuGet dependencies, so installing the tool never requires the sibling packages. They are modeled below as non-owning dependency relationships, since all systems live in this same git repository rather than being third-party (OTS) or Shared Package dependencies. Charts is used transitively through Pptx. The tool's only OTS runtime dependency is DemaConsulting.TestResults, documented in docs/design/ots/test-results.md. */
 
         part program : Program;
         part context : Context;
@@ -30,5 +30,6 @@ package CanvasNet {
         dependency usesRender3D from CanvasNetToolSystem to CanvasNetRender3DSystem;
         dependency usesScad from CanvasNetToolSystem to CanvasNetScadSystem;
         dependency usesVegaLite from CanvasNetToolSystem to CanvasNetVegaLiteSystem;
+        dependency usesViewer from CanvasNetToolSystem to CanvasNetViewerSystem;
     }
 }

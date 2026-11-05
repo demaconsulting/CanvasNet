@@ -47,6 +47,10 @@ input-files:
   - docs/verification/canvas-net/rendering/shapes.md
   - docs/verification/canvas-net/files.md
   - docs/verification/canvas-net/files/sandboxed-file-resolver.md
+  - docs/verification/canvas-net/image-sources.md
+  - docs/verification/canvas-net/image-sources/image-source-contract.md
+  - docs/verification/canvas-net/image-sources/folder-image-resolver.md
+  - docs/verification/canvas-net/image-sources/raster-image-source.md
   - docs/verification/canvas-net/rendering/word-wrap.md
   - docs/verification/canvas-net/packaging.md
   - docs/verification/canvas-net/packaging/opc-package.md
@@ -149,6 +153,8 @@ input-files:
   - docs/verification/canvas-net-vega-lite/scenegraph/scene-painter.md
   - docs/verification/canvas-net-vega-lite/scenegraph/css-paint.md
   - docs/verification/canvas-net-vega-lite/scenegraph/arc-geometry.md
+  - docs/verification/canvas-net-viewer.md
+  - docs/verification/canvas-net-viewer/canvas-net-viewer.md
   - docs/verification/canvas-net-tool.md
   - docs/verification/canvas-net-tool/program.md
   - docs/verification/canvas-net-tool/context.md

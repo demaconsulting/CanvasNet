@@ -476,7 +476,9 @@ internal static class DiscoveryCommands
         ///     The last line of the text listing, which points to the help topics.
         /// </summary>
         internal const string HelpFooter =
-            "Run 'canvasnet help <topic>' for supported features, examples, and known differences (for example 'canvasnet help vega-lite').";
+            "Run 'canvasnet help <topic>' for supported features, examples, and known differences (for example 'canvasnet help vega-lite')."
+            + " An SVG drawing can embed files of these formats with <image href>; see 'canvasnet help svg'.";
+
         /// <summary>The smallest JPEG quality setting.</summary>
         internal const int MinQuality = ImageWriter.MinQuality;
 

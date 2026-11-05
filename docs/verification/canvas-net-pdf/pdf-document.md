@@ -86,6 +86,27 @@ established for a private static field.
 
 ### Unit-Level Test Scenarios
 
+#### CanvasNetPdf-PdfDocument-ImageSource: The Image Source For `.pdf` Files
+
+**Tests**: `PdfImageSource_Render_NoRequestedSize_DrawsNaturalSizeOnTransparentBackground`,
+`PdfImageSource_Render_RequestedSize_FitsPageInsideBoxKeepingAspectRatio`,
+`PdfImageSource_Render_SizeBeyondRemainingPixels_IsRefusedBeforeDrawing`, `PdfImageSource_Render_InvalidInput_Throws`,
+`PdfImageSource_Properties_NameExtensionAndNoSchemes`
+
+`PdfImageSourceTests.cs` calls `PdfImageSource.Render` with requests built by hand over a one-page PDF written by the
+test (144 by
+96 points, a red rectangle top-left and a blue one bottom-right, no text and no font). Asserts the natural size of 192
+by 128
+pixels (96 dots per inch), the red and blue pixels and a transparent pixel, that a requested 96 by 96 box gives 96 by 64
+and so does
+a requested width of 96, that a 4000 by 4000 box against a budget of 1000 pixels is refused with
+`ImageSourceBudgetException` (the pixels of the fitted size and the remainder on the exception) before drawing, with
+an allocation far below the 64 MB of the picture, while a budget of exactly 96 by 64 pixels draws, that content that is
+not a PDF file is `InvalidDataException`, a request without a file
+`InvalidOperationException`, a null request `ArgumentNullException`, a canceled request `OperationCanceledException`,
+and the name,
+extension, and absence of schemes.
+
 #### CanvasNetPdf-PdfDocument-Tokenizer: Tokenizer Recognizes Every Lexical Construct
 
 **Tests**: `PdfDocument_Tokenizer_Numbers_ParsesIntegerAndRealForms`,
@@ -127,7 +148,8 @@ before ever being narrowed to `int`: the test entry declares the real page objec
 offset plus 2^32 (still representable in the ten fixed-width digits the classic cross-reference
 format allows), chosen specifically because narrowing it to `int` via an unchecked, wraparound
 cast recovers the exact original, in-bounds offset - a bug that validated the already-narrowed
-value would wrongly accept and use. `PdfDocument_Open_ClassicXref_EntryPointingAtWrongObjectHeader_ThrowsInvalidDataException`
+value would wrongly accept and use.
+`PdfDocument_Open_ClassicXref_EntryPointingAtWrongObjectHeader_ThrowsInvalidDataException`
 confirms that an entry's declared offset must lead to a header whose own declared object number
 matches the number being resolved: the test corrupts the page object's entry to point at a
 second, independently well-formed and shape-compatible `/Type /Page` object appended after the
@@ -831,7 +853,8 @@ rectangles into one path and clips with `W*`, asserting the overlap (which `W*`'
 interpretation folds to a hole) is not painted by a subsequent full-page fill while each
 rectangle's own non-overlapping region is - mirroring
 `PathFiller_Fill_OverlappingSameWoundRectangles_NonZeroVsEvenOddDiverge`'s technique, but applied
-to clip-path interpretation rather than ordinary fill. `PdfDocument_Clipping_NestedWOperators_IntersectRatherThanReplace`
+to clip-path interpretation rather than ordinary fill.
+`PdfDocument_Clipping_NestedWOperators_IntersectRatherThanReplace`
 issues two sequential `re W n` clips (no intervening `q`/`Q`) with partially overlapping
 rectangles, asserting only their geometric overlap is painted by a following full-page fill -
 proving successive clips intersect rather than replace one another. Finally,
@@ -967,7 +990,8 @@ operands, asserting the painted pixel matches exactly what `DeviceRGB` would pai
 3` resolves as `DeviceRGB` (including that `scn`'s own operand-count validation reused
 `ComponentCount` correctly for the resolved space, not the array's own shape). Repeats with
 object `5`'s dictionary as `<< /N 3 /Alternate /DeviceRGB >>` (matching component count):
-`scn` with 3 operands succeeds and paints red via the alternate. Declares object `5`'s dictionary as `<< /N 2 >>` (no `/Alternate`,
+`scn` with 3 operands succeeds and paints red via the alternate. Declares object `5`'s dictionary as `<< /N 2 >>` (no
+`/Alternate`,
 and `2` maps to no device color space); asserts `cs` throws
 `Codecs.UnsupportedImageFeatureException`.
 

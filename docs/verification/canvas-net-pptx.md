@@ -177,6 +177,16 @@ it through both the explicit pixel-dimension `Render` overload and the DPI-based
 overload. Confirms both overloads dispatch to the same shape-tree walk and painter pipeline, and
 that the DPI overload's own documented EMU-to-pixel conversion produces the expected surface size.
 
+### Integration: Image Source Draws The first slide of a presentation At The Size Of Its Placement
+
+**Test**: `PptxImageSource_Render_RequestedSize_FitsSlideInsideBoxKeepingAspectRatio`
+
+Exercises end-to-end system behavior of `PptxImageSource`, the package's source for the shared image resolver of the
+core package: it renders the first slide of a presentation from the bytes of a hand-built request with a requested size
+and asserts that the picture has the documented size. The full set of scenarios (natural size, transparency, notes,
+strict mode, the folder of the request, and invalid input) is in the unit verification design
+(`canvas-net-pptx/pptx-document.md`).
+
 ## Acceptance Criteria
 
 A system-level test run passes when all scenarios above pass without error or exception beyond

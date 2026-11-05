@@ -16,5 +16,6 @@ package CanvasNet {
         dependency usesFonts from CanvasNetVsdxSystem to Fonts;
         dependency usesPackaging from CanvasNetVsdxSystem to Packaging;
         dependency usesRendering from CanvasNetVsdxSystem to Rendering;
+        dependency usesImageSources from CanvasNetVsdxSystem to ImageSources;
     }
 }

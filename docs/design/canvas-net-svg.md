@@ -60,6 +60,20 @@ class:
   (default `true`) controls whether text not satisfied by a caller-registered font may use fonts
   installed on the host. Setting it to `false` makes text output reproducible across hosts. Same
   exception contract as above, plus `ArgumentNullException` for a null `options`.
+- **SvgLoadOptions.ImageResolver** (`IImageResolver?` of the core `ImageSources` subsystem, default `null`): An
+  opt-in resolver, set through the options overloads above, that loads the picture an `image` element's
+  external `href` names - a model, a chart, another SVG, a raster - and returns it as a `Surface`
+  (which the codec draws through the same placement and effects pipeline as a `data:` raster and
+  then disposes) or `null` (a no-op). `Resolve(href, pixelWidth, pixelHeight)` receives the raw `href` and
+  the placement size in device pixels after the transform. Default `null` is exactly the previous
+  behavior: only `data:` URIs are drawn and the library performs no file or network I/O; with a
+  resolver, the only I/O is whatever the resolver does (`FolderImageResolver` of the core package confines
+  it to a folder). The codec never caches a picture: the resolver is asked again for every element and every
+  load. A resolver exception propagates unchanged; its calls are bounded by the shared work budget.
+- **SvgImageSource** (`IImageSource`, claims `.svg`): The Svg package's image source, so that an SVG file can
+  be embedded in another document through the shared `FolderImageResolver`: it draws the file at the size of its
+  placement over a transparent background and resolves the file's own `image` elements through the resolver
+  scoped to the request (see _SvgCodec Design_, _Image Source_).
 - **Text font resolution**: A `text` element is rendered even when the caller registers no font:
   caller-registered fonts first, then (per family in the `font-family` list) generic keywords
   mapped to the bundled Liberation fonts and installed fonts matched by exact family name, then
@@ -126,6 +140,14 @@ Software Item beyond those already used to build and verify the `CanvasNet` syst
 FileAssert, Pandoc, ReqStream, ReviewMark, SarifMark, SonarMark, VersionMark, WeasyPrint, xUnit)
 — see _OTS Integration Design_ (`docs/design/ots.md`).
 
+**Image sources.** The package takes the core `ImageSources` subsystem's `IImageResolver` in
+`SvgLoadOptions.ImageResolver` and ships `SvgImageSource`, an `IImageSource` for `.svg` files (see _ImageSources
+Subsystem Design_, `canvas-net/image-sources.md`). It uses only the public contract types of the core package, so the
+package still references no other format package: a nested SVG file recurses through the resolver of the request, which
+the core `FolderImageResolver` bounds, and models, charts, documents, and rasters are drawn by the sources of their own
+packages. The separate `CanvasNetViewer` system references this package one-way, and nothing in this package refers to
+it.
+
 ## Risk Control Measures
 
 `SvgCodec`'s `Load`/`LoadWithFontFaces` operations parse externally-supplied, potentially
@@ -137,8 +159,10 @@ own consistently-applied behavior:
 - **Tolerantly skipped, no-effect constructs** — a document containing one of these continues to
   render the rest of its content rather than failing outright: a dangling `url(#id)` reference
   (gradient, pattern, filter, clip-path, or mask) that resolves to no element, a well-formed but
-  out-of-scope/unrecognized element or filter primitive, an external (non-`data:`) `image` `href`,
-  and a nested `data:image/svg+xml` document.
+  out-of-scope/unrecognized element or filter primitive, an external (non-`data:`) `image` `href`
+  when the caller supplied no `ImageResolver` (the library itself never performs file or network
+  I/O: the resolver is an explicit, opt-in `IImageResolver` whose calls are charged against the shared
+  work budget before they are made), and a nested `data:image/svg+xml` document.
 - **Rejected reference cycles** — an unbounded self- or mutually-referencing chain (a `use`
   element referencing itself directly or indirectly, a `marker` referencing a marker that
   eventually references it again, a `mask`/`pattern` whose own content resolves back to itself)

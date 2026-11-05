@@ -388,3 +388,28 @@ the unit tests in `ScadDocumentTests.cs`, `ScadOpenOptionsTests.cs`, `ScadSource
 `ScadViewportTests.cs`, and `ScadDocumentViewportRenderTests.cs` verify the individual types and the geometry and
 rendering entry points. The command-line tool reads `ScadRenderOptions.ResolvedViewHandler` and
 `ScadResolvedView` to report the view it used (see _SourceLoader Unit Design_ in `canvas-net-tool`).
+
+### Image Source
+
+`ScadImageSource` (`ScadImageSource.cs`) is the `IImageSource` of the package for `.scad` files, so that a document can
+link to a model (an SVG `image`, for example) through the shared `FolderImageResolver`. `Render(request)` parses the
+model with `ScadDocument.Open(request.OpenContent(), new ScadOpenOptions { BaseDirectory = request.Directory, SourceName
+= request.FileName })`, so the `include` and `use` directives resolve in the folder of the file and are confined there
+by the library; draws it with `ScadDocument.Render` at the size `request.SizeFor(800, 800)` gives (a model has no
+natural size, so 800 by 800 pixels, the `NaturalSize` constant, when none is requested), checking that size first with
+`request.EnsureWithinBudget(width, height)` (a size that does not fit in the budget of the request is refused with `ImageSourceBudgetException`
+before the model is parsed or any surface is allocated), with the view the library chooses for the model (it sets no
+azimuth or elevation: the fitted isometric view for a model with 3D objects, the flat top-down view for a model that
+is entirely 2D, or the view of the model's own `$vpr`, `$vpt`, `$vpd`, and `$vpf` assignments) and an orthographic
+projection, with a transparent `SceneRenderOptions.BackgroundColor` so the embedding document shows
+through; and passes the cancellation token to the render. The warnings of the library become `scad-warning` notes, its
+unsupported features notes with the feature name as the code (the request's `ThrowOnUnsupportedFeature` makes the
+library throw instead), and its `echo` output the echo lines of the result. A missing `include` file is a `scad-warning`
+note, not an error, and a request without a folder fails a model that uses `include` with `ScadEvaluationException`. The
+class is stateless, thread-safe, and claims no URI scheme; it references only the core package (and the Render3D types
+the package already uses).
+
+The behavior of the class is specified by the `CanvasNetScad-ScadDocument-ImageSource` requirement and verified by
+`ScadImageSourceTests.cs`. Its **callers** are the shared `FolderImageResolver` of the core package (through
+`IImageSource`), the `CanvasNetViewer` system, which lists it with the other built-in sources, and applications. The
+unit depends on the core package only through the `ImageSources` contract types.

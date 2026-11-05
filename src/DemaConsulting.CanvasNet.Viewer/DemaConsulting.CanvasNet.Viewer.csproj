@@ -1,0 +1,85 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+    <!-- NuGet Package Configuration -->
+    <PackageId>DemaConsulting.CanvasNet.Viewer</PackageId>
+    <Version>0.0.0</Version>
+    <Authors>DEMA Consulting</Authors>
+    <Company>DEMA Consulting</Company>
+    <Description>DemaConsulting.CanvasNet.Viewer renders any file the CanvasNet format packages can read (SVG, PDF, PPTX, VSDX, OpenSCAD, Vega-Lite and raster images) in one call, and lets SVG documents embed all of them with a safe, pluggable image resolver.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/demaconsulting/CanvasNet</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/demaconsulting/CanvasNet</RepositoryUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>Icon.png</PackageIcon>
+    <PackageTags>canvas;dotnet-library;viewer</PackageTags>
+    <Copyright>Copyright DEMA Consulting</Copyright>
+    <Title>CanvasNet.Viewer</Title>
+    <Product>DemaConsulting.CanvasNet.Viewer</Product>
+
+    <!-- Symbol Package Configuration -->
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+
+    <!-- Code Quality Configuration -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
+
+    <!-- SBOM Configuration -->
+    <GenerateSBOM>true</GenerateSBOM>
+    <SBOMPackageName>$(PackageId)</SBOMPackageName>
+    <SBOMPackageVersion>$(Version)</SBOMPackageVersion>
+    <SBOMPackageSupplier>Organization: $(Company)</SBOMPackageSupplier>
+
+    <!-- API Documentation Configuration -->
+    <ApiMarkPackDocs>true</ApiMarkPackDocs>
+  </PropertyGroup>
+
+  <!-- Build Tool Dependencies -->
+  <ItemGroup>
+    <PackageReference Include="DemaConsulting.ApiMark.MSBuild" Version="0.5.11" PrivateAssets="All" />
+    <PackageReference Include="Microsoft.Sbom.Targets" Version="4.1.13" PrivateAssets="All" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.403" PrivateAssets="All" />
+  </ItemGroup>
+
+  <!-- Code Analysis Dependencies -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="10.0.403">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="SonarAnalyzer.CSharp" Version="10.35.0.4138">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <!-- Project References: the core package and every format package whose image source the viewer lists.
+       Render3D and Charts arrive transitively through Scad and Pptx. -->
+  <ItemGroup>
+    <ProjectReference Include="..\DemaConsulting.CanvasNet\DemaConsulting.CanvasNet.csproj" />
+    <ProjectReference Include="..\DemaConsulting.CanvasNet.Svg\DemaConsulting.CanvasNet.Svg.csproj" />
+    <ProjectReference Include="..\DemaConsulting.CanvasNet.Pdf\DemaConsulting.CanvasNet.Pdf.csproj" />
+    <ProjectReference Include="..\DemaConsulting.CanvasNet.Pptx\DemaConsulting.CanvasNet.Pptx.csproj" />
+    <ProjectReference Include="..\DemaConsulting.CanvasNet.Vsdx\DemaConsulting.CanvasNet.Vsdx.csproj" />
+    <ProjectReference Include="..\DemaConsulting.CanvasNet.Scad\DemaConsulting.CanvasNet.Scad.csproj" />
+    <ProjectReference Include="..\DemaConsulting.CanvasNet.VegaLite\DemaConsulting.CanvasNet.VegaLite.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    <None Include="..\..\Icon.png" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>

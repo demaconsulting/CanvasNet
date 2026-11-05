@@ -243,6 +243,13 @@ Software Item beyond those already used to build and verify the `CanvasNet` syst
 FileAssert, Pandoc, ReqStream, ReviewMark, SarifMark, SonarMark, VersionMark, WeasyPrint, xUnit)
 — see _OTS Integration Design_ (`docs/design/ots.md`).
 
+**Image sources.** The package also ships `PdfImageSource`, an implementation of the core `ImageSources` subsystem's
+`IImageSource` for `.pdf` files (the first page), so that a document can link to a PDF file through the shared
+`FolderImageResolver` (see _ImageSources Subsystem Design_, `canvas-net/image-sources.md`). It uses only the public
+contract types of the core package, so the package still references no other format package; the separate
+`CanvasNetViewer` system references this package one-way, to list the source with the other built-in ones, and nothing
+in this package refers to it.
+
 ## Risk Control Measures
 
 `PdfDocument.Open` parses an externally-supplied, potentially untrusted PDF document (a binary
@@ -348,7 +355,8 @@ non-empty one is genuinely required), `pdf-encrypted-incorrect-password`,
 (a `Separation`/`DeviceN` alternate of an unsupported family), `pdf-colorspace-Pattern-nested`, `pdf-image-lab-decode`,
 `pdf-image-tint-budget`, `pdf-colorspace-Pattern`,
 `pdf-colorspace-ICCBased`, `pdf-filter-{name}` (any unrecognized filter),
-`pdf-tiff-predictor-bitdepth-{n}`, `pdf-image-bitdepth-{n}` (a depth other than 1/2/4/8/16, or a 16-bit `/Indexed` image),
+`pdf-tiff-predictor-bitdepth-{n}`, `pdf-image-bitdepth-{n}` (a depth other than 1/2/4/8/16, or a 16-bit `/Indexed`
+image),
 `pdf-jpx-colorspace` (a JPX image of a channel count with no device color space without `/ColorSpace`),
 `pdf-jpx-palette-colorspace` (a `/ColorSpace` override on JP2 data with its own palette),
 `pdf-jpx-indexed-bit-depth` (an `/Indexed` space over non-8-bit JPX samples),
