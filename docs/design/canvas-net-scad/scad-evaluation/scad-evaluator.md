@@ -355,8 +355,9 @@ can never declare an anchor), checks whether the first argument is the unnamed s
   `MaxInstances`. The children of the echo statement (`echo(...) cube();`) are placed after it, in the same list.
   It also sets `ScadEvaluationSink.AnchorsDeclared`, which tells the geometry phase that the anchor pass is needed.
 - **Malformed** (another argument count, a named argument, a name that is not a non-empty string, a point that is not
-  three finite numbers): one warning whose message starts with `scad-anchor-invalid:` (the stable identifier is the
-  internal constant `ScadEvaluator.AnchorInvalidCode`) and no instance. The echo line stays.
+  three finite numbers): one warning whose message starts with `scad-anchor-invalid:` (kept for compatibility; the
+  stable identifier is the warning's `ScadDiagnostic.Code`, which is `ScadDiagnosticCodes.AnchorInvalid`) and no
+  instance. The echo line stays.
 - Any other echo (another tag, a tag that is computed to something else, a named first argument) is a plain echo.
 
 A statement that is not executed (the false branch of an `if`, a `*` statement) declares nothing, because the

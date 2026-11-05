@@ -144,7 +144,8 @@ Windows and macOS (the platform comparer is used for the file keys and the root 
 
 - **Warning**: a file that cannot be found (in any candidate) is `Can't open include file 'p'` — the same
   text for `include` and `use` — located at the directive; the directive is dropped, and no library unit is
-  created for a missing `use`.
+  created for a missing `use`. The warning carries the code `ScadDiagnosticCodes.IncludeNotFound`
+  (`ScadDiagnostic.Code`), so callers can recognize it without matching the message text.
 - **`ScadEvaluationException`** (located at the directive): sandbox violations (including a link, a failed link check,
   a file that exists but cannot be read, and an invalid configured directory), cycles, the depth, count, and
   statement limits, and `Cannot resolve 'p': the document has no base directory, library path or file resolver`

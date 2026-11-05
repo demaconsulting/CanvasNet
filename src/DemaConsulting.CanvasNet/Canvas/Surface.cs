@@ -485,6 +485,10 @@ public sealed partial class Surface : IDisposable
     ///     </code>
     ///     Blend a semi-transparent tile at (10, 20) instead of replacing the pixels under it:
     ///     <code language="csharp">
+    ///     using DemaConsulting.CanvasNet.Canvas;
+    ///
+    ///     using var sheet = new Surface(100, 100);
+    ///     using var tile = new Surface(16, 16);
     ///     using var layer = new Surface(sheet.Width, sheet.Height);   // new surfaces are fully transparent
     ///     layer.CopyFrom(tile, 10, 20);
     ///     sheet.CompositeOver(layer);                                 // blends the layer over the sheet
