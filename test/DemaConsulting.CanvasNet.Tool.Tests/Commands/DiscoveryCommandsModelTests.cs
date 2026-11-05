@@ -1,7 +1,6 @@
 // cspell:ignore canvasnet scad openscad
 using System.Text.Json;
 using DemaConsulting.CanvasNet.Tool.Commands;
-using DemaConsulting.CanvasNet.Tool.Imaging;
 
 namespace DemaConsulting.CanvasNet.Tool.Tests.Commands;
 
@@ -117,8 +116,8 @@ public class DiscoveryCommandsModelTests
         var command = new DiscoveryCommands.Info();
 
         // Act
-        var syntax = Assert.Throws<ToolException>(() => command.Run(context, [broken]));
-        var page = Assert.Throws<ToolException>(() => command.Run(context, [good, "--page", "2"]));
+        var syntax = ToolHost.ExpectFailure(() => command.Run(context, [broken]));
+        var page = ToolHost.ExpectFailure(() => command.Run(context, [good, "--page", "2"]));
 
         // Assert
         Assert.Equal(ErrorCodes.ScadError, syntax.Code);

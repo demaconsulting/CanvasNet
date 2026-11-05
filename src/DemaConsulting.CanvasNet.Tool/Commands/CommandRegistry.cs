@@ -1,5 +1,5 @@
 // cspell:ignore canvasnet
-using DemaConsulting.CanvasNet.Tool.Imaging;
+using DemaConsulting.CanvasNet.Viewer;
 
 namespace DemaConsulting.CanvasNet.Tool.Commands;
 
@@ -63,7 +63,7 @@ internal sealed partial class CommandRegistry
         registry.Register(new DiscoveryCommands.Formats());
         registry.Register(new DiscoveryCommands.Info());
         registry.Register(new RenderCommand());
-        foreach (var verb in ImagePipeline.VerbNames)
+        foreach (var verb in ImagePipelineParser.VerbNames)
         {
             registry.Register(new RenderCommand(verb));
         }
@@ -126,7 +126,9 @@ internal sealed partial class CommandRegistry
     /// <exception cref="ToolException">
     ///     Thrown with code <c>usage-error</c> when no command was given or the command is unknown (the
     ///     message suggests the closest command name), and with the command's own code when the command
-    ///     fails; <see cref="ToolException.Command"/> is filled in when the command left it empty.
+    ///     fails; <see cref="ToolException.Command"/> is filled in when the command left it empty. A
+    ///     <see cref="ViewerException"/> of the library is reported as a <see cref="ToolException"/> with the same code,
+    ///     message, and hint, so that the error report names the command.
     /// </exception>
     /// <remarks>
     ///     Any other exception thrown by a command propagates unchanged: it is a defect, and the entry
@@ -162,6 +164,11 @@ internal sealed partial class CommandRegistry
             // Record which command failed so the error report can name it, then let it propagate
             ex.Command ??= command.Name;
             throw;
+        }
+        catch (ViewerException ex)
+        {
+            // An expected failure of the Viewer library: the same code, message, and hint, now naming the command
+            throw new ToolException(ex.Code, ex.Message, ex.Hint, ex.InnerException) { Command = command.Name };
         }
     }
 

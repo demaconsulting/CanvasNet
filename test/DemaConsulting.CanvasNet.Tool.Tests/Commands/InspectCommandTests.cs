@@ -42,7 +42,7 @@ public class InspectCommandTests
     {
         using var context = Context.Create([]);
         var command = new InspectCommand();
-        return Assert.Throws<ToolException>(() => command.Run(context, args));
+        return ToolHost.ExpectFailure(() => command.Run(context, args));
     }
 
     /// <summary>

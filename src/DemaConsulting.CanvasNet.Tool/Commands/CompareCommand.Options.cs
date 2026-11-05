@@ -1,6 +1,7 @@
 // cspell:ignore canvasnet psnr rmse ssim
 using DemaConsulting.CanvasNet.Canvas;
-using DemaConsulting.CanvasNet.Tool.Imaging;
+using DemaConsulting.CanvasNet.Viewer;
+using DemaConsulting.CanvasNet.Viewer.Imaging;
 
 namespace DemaConsulting.CanvasNet.Tool.Commands;
 
@@ -35,7 +36,7 @@ internal sealed partial class CompareCommand
         new("--b-define", [], true, "SCAD model: set a variable of the second input (repeatable; wins over -D of the same name)", "name=value"),
         new("--resize-to", [], true, "Bring both inputs to one size: a (the size of the first input), b (the second), or WxH", "a|b|WxH"),
         new("--fit", [], true, "How a raster input is fitted to --resize-to: contain (default; keeps the aspect ratio, with margins) or stretch", "mode"),
-        .. RenderCommand.SpecsFor(ImagePipeline.FilterOption),
+        .. RenderCommand.SpecsFor(ImagePipelineParser.FilterOption),
         new("--tolerance", [], true, $"A pixel differs when a channel differs by more than this, 0-255 (default {ImageComparison.DefaultTolerance})", "0-255"),
         new("--grid", [], true, $"Report the error of each cell of a grid, columns x rows, each 1-{ComparisonResult.MaxGridSide} (default {ImageComparison.DefaultGridColumns}x{ImageComparison.DefaultGridRows})", "CxR"),
         new("--threshold", [], true, "Fail (exit code 1) unless a metric is within a limit: mae, rmse, max-diff, diff-ratio, or cell-rmse at most; psnr or ssim at least (repeatable)", "metric=value"),
@@ -64,15 +65,6 @@ internal sealed partial class CompareCommand
         float? Dpi,
         string? View,
         IReadOnlyDictionary<string, object?> Defines);
-
-    /// <summary>
-    ///     How the two inputs are brought to one size.
-    /// </summary>
-    /// <param name="Text">What was written: <c>a</c>, <c>b</c>, or <c>WxH</c> (with the numbers as parsed).</param>
-    /// <param name="Side">The side whose size is the target (<c>a</c> or <c>b</c>), or <see langword="null"/> for an explicit size.</param>
-    /// <param name="Width">The target width for an explicit size; 0 otherwise.</param>
-    /// <param name="Height">The target height for an explicit size; 0 otherwise.</param>
-    internal sealed record ResizeTarget(string Text, string? Side, int Width, int Height);
 
     /// <summary>
     ///     The settings of one invocation, read from the command line.
@@ -205,8 +197,8 @@ internal sealed partial class CompareCommand
             background,
             reader.Has("--strict"),
             !reader.Has("--no-auto-orient"),
-            reader.Get(ImagePipeline.FilterOption) is { } filterText
-                ? ImagePipeline.ParseFilter(filterText, ImagePipeline.FilterOption)
+            reader.Get(ImagePipelineParser.FilterOption) is { } filterText
+                ? ImagePipelineParser.ParseFilter(filterText, ImagePipelineParser.FilterOption)
                 : ResamplingMode.Auto,
             reader.Get("--resize-to") is { } resizeText ? ParseResizeTo(resizeText) : null,
             reader.Get("--fit") is { } fitText ? ParseFit(fitText, "--fit") : FitMode.Contain,
@@ -281,11 +273,11 @@ internal sealed partial class CompareCommand
         if (string.Equals(text, "a", StringComparison.OrdinalIgnoreCase) || string.Equals(text, "b", StringComparison.OrdinalIgnoreCase))
         {
             var side = text.ToLowerInvariant();
-            return new ResizeTarget(side, side, 0, 0);
+            return new ResizeTarget(side, 0, 0);
         }
 
         var (width, height) = ArgumentReader.ParseSize(text, "--resize-to");
-        return new ResizeTarget(string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{width}x{height}"), null, width, height);
+        return new ResizeTarget(null, width, height);
     }
 
     /// <summary>

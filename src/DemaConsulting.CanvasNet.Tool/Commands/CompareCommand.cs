@@ -2,7 +2,8 @@
 using System.Globalization;
 using System.Text.Json;
 using DemaConsulting.CanvasNet.Canvas;
-using DemaConsulting.CanvasNet.Tool.Imaging;
+using DemaConsulting.CanvasNet.Viewer;
+using DemaConsulting.CanvasNet.Viewer.Imaging;
 
 namespace DemaConsulting.CanvasNet.Tool.Commands;
 
@@ -92,52 +93,31 @@ internal sealed partial class CompareCommand : ICommand
         var optionsA = PrepareSide(settings, settings.A, infoA, out var pageA);
         var optionsB = PrepareSide(settings, settings.B, infoB, out var pageB);
 
-        var requested = new List<(string Kind, string Path)>();
-        if (settings.DiffPath != null)
-        {
-            requested.Add(("diff", settings.DiffPath));
-        }
-
-        if (settings.SideBySidePath != null)
-        {
-            requested.Add(("sideBySide", settings.SideBySidePath));
-        }
-
-        if (settings.OverlayPath != null)
-        {
-            requested.Add(("overlay", settings.OverlayPath));
-        }
-
-        foreach (var (_, path) in requested)
-        {
-            ImageWriter.ResolveFormat(path, null);
-        }
-
-        ImageWriter.CheckTargets(requested.Select(r => r.Path).ToList(), [settings.A.Path, settings.B.Path], settings.Write.NoClobber);
-
-        using var a = new Side(settings.A.Label, infoA, pageA);
-        using var b = new Side(settings.B.Label, infoB, pageB);
-        LoadSides(settings, a, optionsA, b, optionsB);
-        if (a.Width != b.Width || a.Height != b.Height)
-        {
-            throw new ToolException(
-                ErrorCodes.SizeMismatch,
-                $"The inputs have different sizes: '{a.Info.Path}' is {a.Width}x{a.Height} and '{b.Info.Path}' is {b.Width}x{b.Height}.",
-                "Use --resize-to a (or b, or WxH) to bring them to one size.");
-        }
-
-        if (settings.GridColumns > a.Width || settings.GridRows > a.Height)
-        {
-            throw new ToolException(
-                ErrorCodes.UsageError,
-                $"The grid {settings.GridColumns}x{settings.GridRows} is larger than the images ({a.Width}x{a.Height}).",
-                "Use a grid with at most one cell per pixel.");
-        }
-
-        var result = a.Surface!.Compare(b.Surface!, settings.Tolerance, settings.GridColumns, settings.GridRows);
-        var checks = ImageComparison.Evaluate(result, settings.Thresholds);
-
-        var outputs = WriteOutputs(settings, requested, a.Surface, b.Surface!);
+        // The operation reports the mistakes about the outputs before any pixels are decoded, then loads both inputs,
+        // compares them, and writes the pictures; everything below only formats what it returns
+        var comparison = ImageComparer.Execute(new CompareRequest(
+            new CompareInput(settings.A.Label, infoA, pageA, optionsA),
+            new CompareInput(settings.B.Label, infoB, pageB, optionsB),
+            settings.Resize,
+            settings.Fit,
+            settings.Filter,
+            settings.Background,
+            settings.Tolerance,
+            settings.GridColumns,
+            settings.GridRows,
+            settings.Thresholds,
+            settings.DiffPath,
+            settings.SideBySidePath,
+            settings.OverlayPath,
+            settings.DiffStyle,
+            settings.Gain,
+            settings.OverlayWeight,
+            settings.Write));
+        var a = comparison.A;
+        var b = comparison.B;
+        var result = comparison.Metrics;
+        var checks = comparison.Checks;
+        var outputs = comparison.Pictures;
 
         var failed = checks.Where(check => !check.Passed).ToList();
         if (context.Json && failed.Count == 0)
@@ -171,72 +151,6 @@ internal sealed partial class CompareCommand : ICommand
             };
         }
     }
-
-    /// <summary>
-    ///     One input after it was loaded, with what is reported about it.
-    /// </summary>
-    private sealed class Side : IDisposable
-    {
-        /// <summary>
-        ///     Initializes a new instance of the <see cref="Side"/> class.
-        /// </summary>
-        /// <param name="label">The name of the side: <c>a</c> or <c>b</c>.</param>
-        /// <param name="info">The facts about the file.</param>
-        /// <param name="page">The 1-based page that is loaded.</param>
-        public Side(string label, SourceInfo info, int page)
-        {
-            Label = label;
-            Info = info;
-            Page = page;
-        }
-
-        /// <summary>Gets the name of the side: <c>a</c> or <c>b</c>.</summary>
-        public string Label { get; }
-
-        /// <summary>Gets the facts about the file.</summary>
-        public SourceInfo Info { get; }
-
-        /// <summary>Gets the 1-based page that is loaded.</summary>
-        public int Page { get; }
-
-        /// <summary>Gets or sets the pixels at the size that is compared; the side owns them.</summary>
-        public Surface? Surface { get; set; }
-
-        /// <summary>Gets or sets the width of <see cref="Surface"/>; it stays when the pixels are disposed, for the failure document.</summary>
-        public int Width { get; set; }
-
-        /// <summary>Gets or sets the height of <see cref="Surface"/>; it stays when the pixels are disposed, for the failure document.</summary>
-        public int Height { get; set; }
-
-        /// <summary>Gets or sets the width of the input as it was loaded, before it was fitted to the target size.</summary>
-        public int LoadedWidth { get; set; }
-
-        /// <summary>Gets or sets the height of the input as it was loaded, before it was fitted to the target size.</summary>
-        public int LoadedHeight { get; set; }
-
-        /// <summary>Gets or sets what was done to the input to produce the pixels.</summary>
-        public IReadOnlyList<AppliedOperation> Operations { get; set; } = [];
-
-        /// <summary>Gets or sets the notes reported while loading.</summary>
-        public IReadOnlyList<ImageDiagnostic> Diagnostics { get; set; } = [];
-
-        /// <summary>Gets or sets the text a model printed while it was evaluated.</summary>
-        public IReadOnlyList<string> Echo { get; set; } = [];
-
-        /// <inheritdoc />
-        public void Dispose()
-        {
-            Surface?.Dispose();
-            Surface = null;
-        }
-    }
-
-    /// <summary>
-    ///     One picture that was written.
-    /// </summary>
-    /// <param name="Kind">The kind used in JSON: <c>diff</c>, <c>sideBySide</c>, or <c>overlay</c>.</param>
-    /// <param name="Result">What was written.</param>
-    private sealed record PictureOutput(string Kind, WriteResult Result);
 
     /// <summary>
     ///     Requires that the options of an OpenSCAD model are not given when neither input is a model.
@@ -280,7 +194,7 @@ internal sealed partial class CompareCommand : ICommand
         {
             SourceLoader.CheckPage(info, page);
         }
-        catch (ToolException ex) when (ex.Code == ErrorCodes.PageOutOfRange)
+        catch (ViewerException ex) when (ex.Code == ErrorCodes.PageOutOfRange)
         {
             throw new ToolException(ErrorCodes.PageOutOfRange, $"Input {side.Label}: {ex.Message}", ex.Hint, ex);
         }
@@ -342,167 +256,6 @@ internal sealed partial class CompareCommand : ICommand
     }
 
     /// <summary>
-    ///     Loads both inputs at the size that is compared.
-    /// </summary>
-    /// <param name="settings">The settings.</param>
-    /// <param name="a">The first input; its pixels are set.</param>
-    /// <param name="optionsA">The loading options of the first input.</param>
-    /// <param name="b">The second input; its pixels are set.</param>
-    /// <param name="optionsB">The loading options of the second input.</param>
-    /// <remarks>
-    ///     Without <c>--resize-to</c> both are loaded at their natural size. With <c>a</c> or <c>b</c> the reference side is
-    ///     loaded first, at its natural size, and the other is loaded into that size; with <c>WxH</c> both are loaded into
-    ///     the size.
-    /// </remarks>
-    private static void LoadSides(Settings settings, Side a, SourceOptions optionsA, Side b, SourceOptions optionsB)
-    {
-        var resize = settings.Resize;
-        if (resize == null)
-        {
-            LoadSide(settings, a, optionsA, null);
-            LoadSide(settings, b, optionsB, null);
-        }
-        else if (resize.Side == "a")
-        {
-            LoadSide(settings, a, optionsA, null);
-            LoadSide(settings, b, optionsB, (a.Width, a.Height));
-        }
-        else if (resize.Side == "b")
-        {
-            LoadSide(settings, b, optionsB, null);
-            LoadSide(settings, a, optionsA, (b.Width, b.Height));
-        }
-        else
-        {
-            LoadSide(settings, a, optionsA, (resize.Width, resize.Height));
-            LoadSide(settings, b, optionsB, (resize.Width, resize.Height));
-        }
-    }
-
-    /// <summary>
-    ///     Loads one input, optionally into a box.
-    /// </summary>
-    /// <param name="settings">The settings.</param>
-    /// <param name="side">The input; its pixels, sizes, operations, and notes are set.</param>
-    /// <param name="options">The loading options.</param>
-    /// <param name="box">The size to bring the input to, or <see langword="null"/> to keep its size.</param>
-    /// <remarks>
-    ///     A vector input is rendered at the box (see <see cref="SourceLoader.BoxOptions"/>); a raster input is fitted into
-    ///     it with <see cref="Surface.FitInto"/> unless it already has that size.
-    /// </remarks>
-    private static void LoadSide(Settings settings, Side side, SourceOptions options, (int Width, int Height)? box)
-    {
-        var effective = box is { } target ? SourceLoader.BoxOptions(side.Info, options, target.Width, target.Height) : options;
-        using var pages = SourceLoader.OpenPages(side.Info, effective);
-        var loaded = pages.ReadPage(side.Page);
-
-        // The side takes the surface of the loaded source: it owns it from here on
-        var surface = loaded.Surface;
-        try
-        {
-            var operations = loaded.Operations.ToList();
-            side.LoadedWidth = surface.Width;
-            side.LoadedHeight = surface.Height;
-            side.Diagnostics = loaded.Diagnostics;
-            side.Echo = loaded.Echo;
-            if (box is { } size && (surface.Width != size.Width || surface.Height != size.Height))
-            {
-                var fitted = surface.FitInto(size.Width, size.Height, settings.Fit, settings.Background, settings.Filter);
-                surface.Dispose();
-                surface = fitted;
-                operations.Add(settings.Fit == FitMode.Contain
-                    ? SourceLoader.Operation(
-                        "fit",
-                        ("mode", "contain"),
-                        ("width", size.Width),
-                        ("height", size.Height),
-                        ("background", SourceLoader.FormatColor(settings.Background)))
-                    : SourceLoader.Operation(
-                        "resize",
-                        ("width", size.Width),
-                        ("height", size.Height),
-                        ("filter", ImagePipeline.FilterName(settings.Filter))));
-            }
-
-            side.Operations = operations;
-            side.Width = surface.Width;
-            side.Height = surface.Height;
-            side.Surface = surface;
-        }
-        catch
-        {
-            surface.Dispose();
-            throw;
-        }
-    }
-
-    /// <summary>
-    ///     Creates, stages, and publishes the requested pictures.
-    /// </summary>
-    /// <param name="settings">The settings.</param>
-    /// <param name="requested">The kind and path of each requested picture, in the order they are written.</param>
-    /// <param name="a">The first image.</param>
-    /// <param name="b">The second image.</param>
-    /// <returns>What was written, in the order of <paramref name="requested"/>.</returns>
-    /// <remarks>
-    ///     Every picture is encoded to a temporary file before any is moved into place, so a failure while creating or
-    ///     encoding one leaves no new or partial output and every existing output untouched. Each picture is disposed as
-    ///     soon as it is encoded.
-    /// </remarks>
-    private static List<PictureOutput> WriteOutputs(Settings settings, List<(string Kind, string Path)> requested, Surface a, Surface b)
-    {
-        var outputs = new List<PictureOutput>();
-        var staged = new List<ImageWriter.StagedOutput>();
-        try
-        {
-            foreach (var (kind, path) in requested)
-            {
-                using var picture = CreatePicture(settings, kind, a, b);
-                var pending = ImageWriter.Stage(picture, path, settings.A.Path, settings.Write);
-                staged.Add(pending);
-                outputs.Add(new PictureOutput(kind, pending.Result));
-            }
-
-            ImageWriter.PublishAll(staged);
-        }
-        finally
-        {
-            // Disposing removes the temporary file of every output that was not moved into place
-            foreach (var pending in staged)
-            {
-                pending.Dispose();
-            }
-        }
-
-        return outputs;
-    }
-
-    /// <summary>
-    ///     Creates one picture.
-    /// </summary>
-    /// <param name="settings">The settings.</param>
-    /// <param name="kind">The kind: <c>diff</c>, <c>sideBySide</c>, or <c>overlay</c>.</param>
-    /// <param name="a">The first image.</param>
-    /// <param name="b">The second image.</param>
-    /// <returns>The picture; the caller disposes it.</returns>
-    private static Surface CreatePicture(Settings settings, string kind, Surface a, Surface b)
-    {
-        switch (kind)
-        {
-            case "diff":
-                return a.CreateDiff(b, settings.DiffStyle, settings.Gain);
-            case "overlay":
-                return a.CreateOverlay(b, settings.OverlayWeight);
-            default:
-                // The third panel of a side-by-side picture is always the heat map
-                using (var heat = a.CreateDiff(b, DiffStyle.Heat, settings.Gain))
-                {
-                    return a.CreateSideBySide(b, heat);
-                }
-        }
-    }
-
-    /// <summary>
     ///     Describes a threshold that was not met.
     /// </summary>
     /// <param name="check">The failed check.</param>
@@ -557,7 +310,7 @@ internal sealed partial class CompareCommand : ICommand
     ///     (not for identical inputs), one line per picture, and one line per threshold.
     /// </returns>
     private static List<string> RenderText(
-        Side a, Side b, ComparisonResult result, IReadOnlyList<ThresholdCheck> checks, IReadOnlyList<PictureOutput> outputs)
+        CompareSide a, CompareSide b, ComparisonResult result, IReadOnlyList<ThresholdCheck> checks, IReadOnlyList<ComparedPicture> outputs)
     {
         var metrics = result.Metrics;
         var lines = new List<string>();
@@ -603,7 +356,7 @@ internal sealed partial class CompareCommand : ICommand
     /// </summary>
     /// <param name="side">The input.</param>
     /// <returns>The path as given, followed by <c>page N</c> for a document.</returns>
-    private static string Describe(Side side)
+    private static string Describe(CompareSide side)
     {
         return side.Info.Format.IsDocument() ? $"{side.Info.Path} page {side.Page}" : side.Info.Path;
     }
@@ -626,11 +379,11 @@ internal sealed partial class CompareCommand : ICommand
     private static void WriteJsonFields(
         Utf8JsonWriter writer,
         Settings settings,
-        Side a,
-        Side b,
+        CompareSide a,
+        CompareSide b,
         ComparisonResult result,
         IReadOnlyList<ThresholdCheck> checks,
-        IReadOnlyList<PictureOutput> outputs)
+        IReadOnlyList<ComparedPicture> outputs)
     {
         writer.WriteStartObject("tool");
         writer.WriteString("name", "canvasnet");
@@ -648,7 +401,7 @@ internal sealed partial class CompareCommand : ICommand
         if (settings.Resize != null)
         {
             writer.WriteStartObject("resize");
-            writer.WriteString("to", settings.Resize.Text);
+            writer.WriteString("to", settings.Resize.Side ?? string.Create(CultureInfo.InvariantCulture, $"{settings.Resize.Width}x{settings.Resize.Height}"));
             writer.WriteString("fit", settings.Fit.ToString().ToLowerInvariant());
             writer.WriteEndObject();
         }
@@ -793,7 +546,7 @@ internal sealed partial class CompareCommand : ICommand
     /// <param name="writer">The writer.</param>
     /// <param name="name">The property name: <c>a</c> or <c>b</c>.</param>
     /// <param name="side">The input.</param>
-    private static void WriteSide(Utf8JsonWriter writer, string name, Side side)
+    private static void WriteSide(Utf8JsonWriter writer, string name, CompareSide side)
     {
         writer.WriteStartObject(name);
         writer.WriteString("path", side.Info.Path);

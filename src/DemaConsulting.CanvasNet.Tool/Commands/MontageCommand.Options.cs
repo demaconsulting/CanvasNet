@@ -1,6 +1,7 @@
 // cspell:ignore canvasnet
 using DemaConsulting.CanvasNet.Canvas;
-using DemaConsulting.CanvasNet.Tool.Imaging;
+using DemaConsulting.CanvasNet.Viewer;
+using DemaConsulting.CanvasNet.Viewer.Imaging;
 
 namespace DemaConsulting.CanvasNet.Tool.Commands;
 
@@ -41,7 +42,7 @@ internal sealed partial class MontageCommand
         new("--all-pages", [], false, "Add every page or slide of a document, in order, instead of one"),
         .. RenderCommand.SpecsFor("--dpi", "--no-auto-orient", "--strict"),
         .. RenderCommand.SpecsFor(RenderCommand.ScadOptionNames),
-        .. RenderCommand.SpecsFor(ImagePipeline.FilterOption, "--quality", "--no-clobber")
+        .. RenderCommand.SpecsFor(ImagePipelineParser.FilterOption, "--quality", "--no-clobber")
     ];
 
     /// <summary>
@@ -120,8 +121,8 @@ internal sealed partial class MontageCommand
             }
         }
 
-        var filter = reader.Get(ImagePipeline.FilterOption) is { } filterText
-            ? ImagePipeline.ParseFilter(filterText, ImagePipeline.FilterOption)
+        var filter = reader.Get(ImagePipelineParser.FilterOption) is { } filterText
+            ? ImagePipelineParser.ParseFilter(filterText, ImagePipelineParser.FilterOption)
             : ResamplingMode.Auto;
         var sheet = new SheetOptions(
             reader.GetInt("--columns", 1, ContactSheet.MaxColumns) ?? 0,

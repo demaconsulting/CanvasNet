@@ -3,7 +3,6 @@ using System.Text.Json;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.Tool.Commands;
-using DemaConsulting.CanvasNet.Tool.Imaging;
 
 namespace DemaConsulting.CanvasNet.Tool.Tests.Commands;
 
@@ -39,7 +38,7 @@ public class RenderCommandPipelineTests
     {
         using var context = Context.Create([]);
         var command = new RenderCommand(verb);
-        return Assert.Throws<ToolException>(() => command.Run(context, args));
+        return ToolHost.ExpectFailure(() => command.Run(context, args));
     }
 
     /// <summary>
@@ -753,7 +752,7 @@ public class RenderCommandPipelineTests
             Assert.Contains(option, renderHelp);
         }
 
-        foreach (var verb in ImagePipeline.VerbNames)
+        foreach (var verb in ImagePipelineParser.VerbNames)
         {
             Assert.Contains($"  {verb}", topHelp);
             Assert.Contains($"canvasnet {verb} <input>", registry.RenderHelp(verb));

@@ -1,6 +1,7 @@
 // cspell:ignore href scad pdf
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.ImageSources;
+using DemaConsulting.CanvasNet.Viewer.Imaging;
 
 namespace DemaConsulting.CanvasNet.Viewer.Tests;
 
@@ -284,5 +285,91 @@ public class CanvasNetViewerSystemIntegrationTests
         Assert.Equal("svg", diagram.Format);
         Assert.Equal(LiveFrameSource.ColorOf(1), diagram.Surface[50, 50]);
         Assert.Equal("live-frame", Assert.Single(diagram.Embedded).Format);
+    }
+
+    /// <summary>
+    ///     Proves that a library user can do what the canvasnet commands do through the public types alone: report the
+    ///     facts of a file, render it with a transformation, inspect the written picture, compare it with the original,
+    ///     and put both on a contact sheet.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_SystemIntegration_ImageOperations_ProbeRenderInspectCompareMontage()
+    {
+        // Arrange: the sketch fixture as an SVG file
+        using var folder = new ViewerTestFolder();
+        var source = FixtureFactory.WriteSource(folder.Path, "svg");
+        var write = WriteOptions.Default;
+
+        // Act: probe, render flipped, inspect the output, compare with an unflipped render, and compose a sheet of both
+        var info = SourceLoader.Probe(source);
+        var flipped = ImageRenderer.Execute(
+            info,
+            new RenderRequest(folder.Combine("flipped.png"), false, new SourceOptions(), write, [new FlipOperation(FlipAxis.Horizontal)]));
+        var plain = ImageRenderer.Execute(
+            info, new RenderRequest(folder.Combine("plain.png"), false, new SourceOptions(), write, []));
+        var inspected = ImageInspector.Execute(
+            SourceLoader.Probe(flipped.Pages[0].Result.Path),
+            new InspectRequest(new SourceOptions(), [], InspectKind.Colors, 4, 0, null));
+        var compared = ImageComparer.Execute(
+            new CompareRequest(
+                new CompareInput("a", SourceLoader.Probe(plain.Pages[0].Result.Path), 1, new SourceOptions()),
+                new CompareInput("b", SourceLoader.Probe(flipped.Pages[0].Result.Path), 1, new SourceOptions()),
+                null,
+                FitMode.Contain,
+                ResamplingMode.Auto,
+                new Rgba32(255, 255, 255, 255),
+                ImageComparison.DefaultTolerance,
+                ImageComparison.DefaultGridColumns,
+                ImageComparison.DefaultGridRows,
+                [],
+                null,
+                null,
+                null,
+                DiffStyle.Heat,
+                ImageComparison.DefaultGain,
+                ImageComparison.DefaultOverlayWeight,
+                write));
+        var sheet = MontageBuilder.Execute(
+            [SourceLoader.Probe(plain.Pages[0].Result.Path), SourceLoader.Probe(flipped.Pages[0].Result.Path)],
+            new MontageRequest(
+                folder.Combine("sheet.png"),
+                null,
+                false,
+                null,
+                null,
+                false,
+                true,
+                new SheetOptions(0, 32, 32, 4, 4, new Rgba32(255, 255, 255, 255), false, FitMode.Contain, ResamplingMode.Auto),
+                write));
+
+        // Assert: every operation produced its result, and the flip is a real difference between the two renders
+        Assert.Equal(SourceKind.Svg, info.Format);
+        Assert.Equal(plain.Pages[0].Result.Width, flipped.Pages[0].Result.Width);
+        Assert.NotEmpty(inspected.Colors!.Colors);
+        Assert.False(compared.Metrics.Metrics.Identical);
+        Assert.Equal(2, sheet.Cells.Count);
+        Assert.True(File.Exists(folder.Combine("sheet.png")));
+    }
+
+    /// <summary>
+    ///     Proves that an operation that cannot be done fails with the one exception type of the library and a stable code
+    ///     that a program can act on, naming nothing of the command line it came from in the type.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_SystemIntegration_FailedOperation_IsViewerExceptionWithStableCode()
+    {
+        // Arrange: a file that is not an image, and a file that does not exist
+        using var folder = new ViewerTestFolder();
+        folder.WriteText("note.txt", "not an image");
+
+        // Act
+        var unsupported = Assert.Throws<ViewerException>(() => SourceLoader.Probe(folder.Combine("note.txt")));
+        var missing = Assert.Throws<ViewerException>(() => SourceLoader.Probe(folder.Combine("missing.png")));
+
+        // Assert: the documented codes, a message, and a type that is an InvalidOperationException
+        Assert.Equal(ErrorCodes.UnsupportedFormat, unsupported.Code);
+        Assert.Equal(ErrorCodes.InputNotFound, missing.Code);
+        Assert.All([unsupported, missing], e => Assert.False(string.IsNullOrEmpty(e.Message)));
+        Assert.IsAssignableFrom<InvalidOperationException>(unsupported);
     }
 }

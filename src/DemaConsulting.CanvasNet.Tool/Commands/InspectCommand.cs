@@ -2,7 +2,8 @@
 using System.Globalization;
 using System.Text.Json;
 using DemaConsulting.CanvasNet.Canvas;
-using DemaConsulting.CanvasNet.Tool.Imaging;
+using DemaConsulting.CanvasNet.Viewer;
+using DemaConsulting.CanvasNet.Viewer.Imaging;
 
 namespace DemaConsulting.CanvasNet.Tool.Commands;
 
@@ -94,62 +95,44 @@ internal sealed partial class InspectCommand : ICommand
                 "Remove them, or inspect a .scad file.");
         }
 
-        SourceLoader.CheckPage(info, settings.Source.Page);
-
-        using var loaded = SourceLoader.Load(info, settings.Source);
-        Surface? transformed = null;
-        try
+        // The operation reports the mistakes about the page before any pixels are decoded, then loads the page, runs the
+        // pipeline, and analyzes the pixels; everything below only formats what it returns
+        var result = ImageInspector.Execute(
+            info,
+            new InspectRequest(
+                settings.Source,
+                settings.Operations,
+                settings.Subcommand == "colors" ? InspectKind.Colors : InspectKind.Pixel,
+                settings.Count,
+                settings.Radius,
+                settings.Point is { } point ? new PixelPoint(point.X, point.Y) : null));
+        if (settings.Subcommand == "colors")
         {
-            var surface = loaded.Surface;
-            IReadOnlyList<AppliedOperation> applied = [];
-            if (settings.Operations.Count > 0)
-            {
-                var defaultPad = settings.Source.Background ?? (loaded.IsVector ? new Rgba32(255, 255, 255, 255) : new Rgba32(0, 0, 0, 0));
-                transformed = ImagePipeline.Apply(surface, settings.Operations, defaultPad, out applied, settings.Source.Background);
-                surface = transformed;
-            }
-
-            var operations = loaded.Operations.Concat(applied).ToList();
-            if (settings.Subcommand == "colors")
-            {
-                RunColors(context, settings, loaded, surface, operations);
-            }
-            else
-            {
-                RunPixel(context, settings, loaded, surface, operations);
-            }
-
-            context.WriteDiagnostics(loaded.Diagnostics.Select(d => ((string?)settings.Input, d)), loaded.Echo);
+            RunColors(context, result);
         }
-        finally
+        else
         {
-            transformed?.Dispose();
+            RunPixel(context, result);
         }
+
+        context.WriteDiagnostics(result.Diagnostics.Select(d => ((string?)settings.Input, d)), result.Echo);
     }
 
     /// <summary>
-    ///     Runs <c>inspect colors</c> and reports the result.
+    ///     Reports <c>inspect colors</c>.
     /// </summary>
     /// <param name="context">The context that receives the output.</param>
-    /// <param name="settings">The settings.</param>
-    /// <param name="loaded">The loaded page.</param>
-    /// <param name="surface">The pixels after the pipeline.</param>
-    /// <param name="operations">What was done to the source to produce the pixels.</param>
-    private static void RunColors(Context context, Settings settings, LoadedSource loaded, Surface surface, IReadOnlyList<AppliedOperation> operations)
+    /// <param name="result">What the inspection found.</param>
+    private static void RunColors(Context context, InspectResult result)
     {
-        var background = AnalysisBackground(settings.Source.Background);
-
-        // The loader and the pipeline have already composited the picture over the --background (a raster source is flattened
-        // over it, a drawing or a model is rendered onto it, and a rotation or a border is filled with it), so what is still
-        // translucent here is analyzed over white: the reported background (a translucent one flattened over white) is then
-        // exactly what a fully transparent pixel of the surface counts as, and no pixel is composited twice.
-        var statistics = surface.Analyze(new Rgba32(255, 255, 255, 255), settings.Count);
+        var background = result.Background;
+        var statistics = result.Colors!;
 
         if (context.Json)
         {
             context.WriteLine(ResultWriter.Success(CommandName, writer =>
             {
-                WriteCommonFields(writer, "colors", loaded, surface, operations);
+                WriteCommonFields(writer, "colors", result);
                 writer.WriteString("background", SourceLoader.FormatColor(background));
                 writer.WriteStartArray("colors");
                 foreach (var color in statistics.Colors)
@@ -166,7 +149,7 @@ internal sealed partial class InspectCommand : ICommand
 
                 writer.WriteEndArray();
                 WriteLuma(writer, statistics.Luma);
-                WriteTail(writer, loaded);
+                WriteTail(writer, result);
             }));
         }
         else
@@ -174,7 +157,7 @@ internal sealed partial class InspectCommand : ICommand
             var colors = string.Join(
                 ", ",
                 statistics.Colors.Select(c => string.Create(CultureInfo.InvariantCulture, $"{SourceLoader.FormatColor(c.Color)} {c.Fraction * 100:0.00}%")));
-            context.WriteLine(string.Create(CultureInfo.InvariantCulture, $"colors of {loaded.Info.Path} ({surface.Width}x{surface.Height}): {colors}"));
+            context.WriteLine(string.Create(CultureInfo.InvariantCulture, $"colors of {result.Info.Path} ({result.Width}x{result.Height}): {colors}"));
             var luma = statistics.Luma;
             context.WriteLine(string.Create(
                 CultureInfo.InvariantCulture,
@@ -183,35 +166,21 @@ internal sealed partial class InspectCommand : ICommand
     }
 
     /// <summary>
-    ///     Runs <c>inspect pixel</c> and reports the result.
+    ///     Reports <c>inspect pixel</c>.
     /// </summary>
     /// <param name="context">The context that receives the output.</param>
-    /// <param name="settings">The settings.</param>
-    /// <param name="loaded">The loaded page.</param>
-    /// <param name="surface">The pixels after the pipeline.</param>
-    /// <param name="operations">What was done to the source to produce the pixels.</param>
-    private static void RunPixel(Context context, Settings settings, LoadedSource loaded, Surface surface, IReadOnlyList<AppliedOperation> operations)
+    /// <param name="result">What the inspection found.</param>
+    private static void RunPixel(Context context, InspectResult result)
     {
-        var (x, y) = settings.Point!.Value;
-
-        // A point outside the image is a usage error with its own code and hint, so it is checked here, before the
-        // library would refuse it with an ArgumentOutOfRangeException
-        if (x < 0 || y < 0 || x >= surface.Width || y >= surface.Height)
-        {
-            throw new ToolException(
-                ErrorCodes.UsageError,
-                $"The point {x},{y} is outside the {surface.Width}x{surface.Height} image.",
-                $"Use a point from 0,0 to {surface.Width - 1},{surface.Height - 1}.");
-        }
-
-        var sample = surface.Sample(x, y, settings.Radius);
+        var sample = result.Pixel!;
+        var (x, y) = (sample.X, sample.Y);
         var pixel = sample.Pixel;
 
         if (context.Json)
         {
             context.WriteLine(ResultWriter.Success(CommandName, writer =>
             {
-                WriteCommonFields(writer, "pixel", loaded, surface, operations);
+                WriteCommonFields(writer, "pixel", result);
                 writer.WriteStartObject("point");
                 writer.WriteNumber("x", x);
                 writer.WriteNumber("y", y);
@@ -248,14 +217,14 @@ internal sealed partial class InspectCommand : ICommand
                     writer.WriteEndObject();
                 }
 
-                WriteTail(writer, loaded);
+                WriteTail(writer, result);
             }));
         }
         else
         {
             context.WriteLine(string.Create(
                 CultureInfo.InvariantCulture,
-                $"pixel {x},{y} of {loaded.Info.Path} ({surface.Width}x{surface.Height}): {SourceLoader.FormatColor(pixel)} rgb({pixel.R},{pixel.G},{pixel.B}) alpha {pixel.A} luma {sample.Luma}"));
+                $"pixel {x},{y} of {result.Info.Path} ({result.Width}x{result.Height}): {SourceLoader.FormatColor(pixel)} rgb({pixel.R},{pixel.G},{pixel.B}) alpha {pixel.A} luma {sample.Luma}"));
             if (sample.Window is { } window)
             {
                 context.WriteLine(string.Create(
@@ -266,55 +235,15 @@ internal sealed partial class InspectCommand : ICommand
     }
 
     /// <summary>
-    ///     Gets the color that translucent pixels are flattened over before they are analyzed.
-    /// </summary>
-    /// <param name="background">The <c>--background</c> color, or <see langword="null"/> when none was given.</param>
-    /// <returns>
-    ///     The background when it is opaque; white when there is none; and a translucent background flattened over white
-    ///     (<c>(c * a + 255 * (255 - a) + 127) / 255</c> for each channel, so a transparent background is white).
-    /// </returns>
-    private static Rgba32 AnalysisBackground(Rgba32? background)
-    {
-        if (background is not { } color)
-        {
-            return new Rgba32(255, 255, 255, 255);
-        }
-
-        if (color.A == 255)
-        {
-            return color;
-        }
-
-        return new Rgba32(
-            FlattenOverWhite(color.R, color.A),
-            FlattenOverWhite(color.G, color.A),
-            FlattenOverWhite(color.B, color.A),
-            255);
-    }
-
-    /// <summary>
-    ///     Flattens one channel over white.
-    /// </summary>
-    /// <param name="channel">The channel.</param>
-    /// <param name="alpha">The alpha.</param>
-    /// <returns>The channel of the flattened color.</returns>
-    private static byte FlattenOverWhite(int channel, int alpha)
-    {
-        return (byte)(((channel * alpha) + (255 * (255 - alpha)) + 127) / 255);
-    }
-
-    /// <summary>
     ///     Writes the fields that start the JSON document of both subcommands: the subcommand, the tool, the input, the
     ///     operations, and the size of the analyzed image.
     /// </summary>
     /// <param name="writer">The writer positioned inside the document's top-level object.</param>
     /// <param name="subcommand">The subcommand.</param>
-    /// <param name="loaded">The loaded page.</param>
-    /// <param name="surface">The pixels after the pipeline.</param>
-    /// <param name="operations">What was done to the source to produce the pixels.</param>
-    private static void WriteCommonFields(Utf8JsonWriter writer, string subcommand, LoadedSource loaded, Surface surface, IReadOnlyList<AppliedOperation> operations)
+    /// <param name="result">What the inspection found.</param>
+    private static void WriteCommonFields(Utf8JsonWriter writer, string subcommand, InspectResult result)
     {
-        var info = loaded.Info;
+        var info = result.Info;
         writer.WriteString("subcommand", subcommand);
 
         writer.WriteStartObject("tool");
@@ -327,7 +256,7 @@ internal sealed partial class InspectCommand : ICommand
         writer.WriteString("format", info.Format.ToFormatName());
         if (info.Format.IsDocument())
         {
-            writer.WriteNumber("page", loaded.Page);
+            writer.WriteNumber("page", result.Page);
             writer.WriteNumber("pageCount", info.PageCount);
         }
 
@@ -338,7 +267,7 @@ internal sealed partial class InspectCommand : ICommand
         writer.WriteEndObject();
 
         writer.WriteStartArray("operations");
-        foreach (var operation in operations)
+        foreach (var operation in result.Operations)
         {
             writer.WriteStartObject();
             writer.WriteString("op", operation.Op);
@@ -353,9 +282,9 @@ internal sealed partial class InspectCommand : ICommand
         writer.WriteEndArray();
 
         writer.WriteStartObject("image");
-        writer.WriteNumber("width", surface.Width);
-        writer.WriteNumber("height", surface.Height);
-        writer.WriteNumber("pixels", (long)surface.Width * surface.Height);
+        writer.WriteNumber("width", result.Width);
+        writer.WriteNumber("height", result.Height);
+        writer.WriteNumber("pixels", (long)result.Width * result.Height);
         writer.WriteEndObject();
     }
 
@@ -388,11 +317,11 @@ internal sealed partial class InspectCommand : ICommand
     ///     Writes the diagnostics and the echo, the last fields of the JSON document of both subcommands.
     /// </summary>
     /// <param name="writer">The writer.</param>
-    /// <param name="loaded">The loaded page.</param>
-    private static void WriteTail(Utf8JsonWriter writer, LoadedSource loaded)
+    /// <param name="result">What the inspection found.</param>
+    private static void WriteTail(Utf8JsonWriter writer, InspectResult result)
     {
         writer.WriteStartArray("diagnostics");
-        foreach (var diagnostic in loaded.Diagnostics)
+        foreach (var diagnostic in result.Diagnostics)
         {
             writer.WriteStartObject();
             writer.WriteString("source", diagnostic.Source);
@@ -410,7 +339,7 @@ internal sealed partial class InspectCommand : ICommand
         writer.WriteEndArray();
 
         writer.WriteStartArray("echo");
-        foreach (var line in loaded.Echo)
+        foreach (var line in result.Echo)
         {
             writer.WriteStringValue(line);
         }

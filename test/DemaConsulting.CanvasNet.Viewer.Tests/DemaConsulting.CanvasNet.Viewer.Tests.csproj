@@ -19,9 +19,11 @@
     <AnalysisLevel>latest</AnalysisLevel>
   </PropertyGroup>
 
-  <!-- Implicit Usings -->
+  <!-- Implicit Usings: the neutral namespace of the test support (fixture factory, surface assertions) that lives in
+       this project and is linked into the Tool tests -->
   <ItemGroup>
     <Using Include="Xunit" />
+    <Using Include="DemaConsulting.CanvasNet.TestSupport" />
   </ItemGroup>
 
   <!-- Test Framework Dependencies -->
@@ -65,6 +67,11 @@
   <!-- Project References: the viewer package only; the format packages and the core package arrive through it -->
   <ItemGroup>
     <ProjectReference Include="..\..\src\DemaConsulting.CanvasNet.Viewer\DemaConsulting.CanvasNet.Viewer.csproj" />
+  </ItemGroup>
+
+  <!-- Original-work test fixtures, copied next to the test assembly. The Tool tests link the same files. -->
+  <ItemGroup>
+    <None Include="Fixtures\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

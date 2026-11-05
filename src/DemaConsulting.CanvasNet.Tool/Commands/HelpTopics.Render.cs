@@ -1,6 +1,7 @@
 // cspell:ignore canvasnet
 using System.Text;
 using System.Text.Json;
+using DemaConsulting.CanvasNet.Viewer;
 
 namespace DemaConsulting.CanvasNet.Tool.Commands;
 

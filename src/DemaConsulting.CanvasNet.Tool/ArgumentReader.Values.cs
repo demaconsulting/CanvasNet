@@ -1,6 +1,8 @@
 // cspell:ignore canvasnet rgba dpi rrggbbaa
 using System.Globalization;
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Viewer;
+using DemaConsulting.CanvasNet.Viewer.Imaging;
 
 namespace DemaConsulting.CanvasNet.Tool;
 

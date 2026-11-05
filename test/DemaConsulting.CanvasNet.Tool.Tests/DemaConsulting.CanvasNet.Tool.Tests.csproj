@@ -19,9 +19,14 @@
     <AnalysisLevel>latest</AnalysisLevel>
   </PropertyGroup>
 
-  <!-- Implicit Usings -->
+  <!-- Implicit Usings: the neutral namespace of the test support (fixture factory, surface assertions) that lives in
+       the Viewer tests and is linked below, and the Viewer library the tool is a shell over (its error codes and the
+       imaging records that the commands exchange with it) -->
   <ItemGroup>
     <Using Include="Xunit" />
+    <Using Include="DemaConsulting.CanvasNet.TestSupport" />
+    <Using Include="DemaConsulting.CanvasNet.Viewer" />
+    <Using Include="DemaConsulting.CanvasNet.Viewer.Imaging" />
   </ItemGroup>
 
   <!-- Test Framework Dependencies -->
@@ -80,9 +85,13 @@
     <ProjectReference Include="..\..\src\DemaConsulting.CanvasNet.Viewer\DemaConsulting.CanvasNet.Viewer.csproj" />
   </ItemGroup>
 
-  <!-- Original-work test fixtures, copied next to the test assembly -->
+  <!-- Shared test support: the fixture factory, the surface assertions, and the original-work fixture files live in the
+       Viewer tests (the larger consumer) and are compiled into this assembly too, so that both test projects build and
+       run on their own. The types are internal, so the two assemblies do not see each other's copy. -->
   <ItemGroup>
-    <None Include="Fixtures\**" CopyToOutputDirectory="PreserveNewest" />
+    <Compile Include="..\DemaConsulting.CanvasNet.Viewer.Tests\FixtureFactory*.cs" Link="TestSupport\%(Filename)%(Extension)" />
+    <Compile Include="..\DemaConsulting.CanvasNet.Viewer.Tests\SurfaceAssert.cs" Link="TestSupport\%(Filename)%(Extension)" />
+    <None Include="..\DemaConsulting.CanvasNet.Viewer.Tests\Fixtures\**" Link="Fixtures\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

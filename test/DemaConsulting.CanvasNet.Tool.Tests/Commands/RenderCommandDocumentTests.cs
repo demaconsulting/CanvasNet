@@ -36,7 +36,7 @@ public class RenderCommandDocumentTests
     {
         using var context = Context.Create([]);
         var command = new RenderCommand();
-        return Assert.Throws<ToolException>(() => command.Run(context, args));
+        return ToolHost.ExpectFailure(() => command.Run(context, args));
     }
 
     /// <summary>

@@ -50,6 +50,25 @@ internal static class ToolHost
     }
 
     /// <summary>
+    ///     Runs an action that is expected to fail with an expected, user-correctable error, and asserts that it does.
+    /// </summary>
+    /// <param name="action">The action, typically <c>command.Run(context, args)</c>.</param>
+    /// <returns>
+    ///     The failure as a <see cref="ToolException"/>: the exception itself when the command line code threw it, and the
+    ///     same code, message, and hint in a <see cref="ToolException"/> when the Viewer library threw a
+    ///     <see cref="ViewerException"/> (which the command registry does for every command that runs through it).
+    /// </returns>
+    /// <remarks>
+    ///     A command that is run directly (not through the registry) lets a library failure escape as it is, so the
+    ///     tests of the commands accept either type and look at the stable code that both carry.
+    /// </remarks>
+    public static ToolException ExpectFailure(Action action)
+    {
+        var failure = Assert.ThrowsAny<ViewerException>(action);
+        return failure as ToolException ?? new ToolException(failure.Code, failure.Message, failure.Hint, failure.InnerException);
+    }
+
+    /// <summary>
     ///     Runs an action while capturing standard output and standard error.
     /// </summary>
     /// <param name="action">The action to run.</param>

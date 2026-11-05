@@ -2,7 +2,6 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using DemaConsulting.CanvasNet.Tool.Commands;
-using DemaConsulting.CanvasNet.Tool.Imaging;
 
 namespace DemaConsulting.CanvasNet.Tool.Tests.Commands;
 
@@ -326,7 +325,7 @@ public class DiscoveryCommandsTests
     {
         using var context = Context.Create([]);
         var command = new DiscoveryCommands.Info();
-        return Assert.Throws<ToolException>(() => command.Run(context, args));
+        return ToolHost.ExpectFailure(() => command.Run(context, args));
     }
 
     /// <summary>

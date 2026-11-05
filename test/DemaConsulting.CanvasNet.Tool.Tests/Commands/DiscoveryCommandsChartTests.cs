@@ -1,6 +1,5 @@
 using System.Text.Json;
 using DemaConsulting.CanvasNet.Tool.Commands;
-using DemaConsulting.CanvasNet.Tool.Imaging;
 
 namespace DemaConsulting.CanvasNet.Tool.Tests.Commands;
 
@@ -141,8 +140,8 @@ public class DiscoveryCommandsChartTests
         // Act
         var json = RunInfo(true, bare);
         var text = RunInfo(false, bare);
-        var syntax = Assert.Throws<ToolException>(() => command.Run(context, [broken]));
-        var page = Assert.Throws<ToolException>(() => command.Run(context, [good, "--page", "2"]));
+        var syntax = ToolHost.ExpectFailure(() => command.Run(context, [broken]));
+        var page = ToolHost.ExpectFailure(() => command.Run(context, [good, "--page", "2"]));
 
         // Assert: no title and no schema version, empty lists, and zero counts in the text
         using var document = JsonDocument.Parse(json);
