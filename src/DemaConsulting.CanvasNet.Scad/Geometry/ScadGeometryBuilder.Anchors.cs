@@ -127,7 +127,8 @@ internal sealed partial class ScadGeometryBuilder
         if (blocker is not null)
         {
             _context.Reporter.Warn(
-                $"{ScadEvaluator.AnchorInvalidCode}: the anchor '{node.Name}' is inside {blocker}, whose coordinate change is not supported; the anchor is skipped",
+                ScadDiagnosticCodes.AnchorInvalid,
+                $"{ScadDiagnosticCodes.AnchorInvalid}: the anchor '{node.Name}' is inside {blocker}, whose coordinate change is not supported; the anchor is skipped",
                 node.Location);
             return;
         }
@@ -138,7 +139,8 @@ internal sealed partial class ScadGeometryBuilder
         if (!(Math.Abs(point.X) <= ScadGeo.MaxCoordinate && Math.Abs(point.Y) <= ScadGeo.MaxCoordinate && Math.Abs(point.Z) <= ScadGeo.MaxCoordinate))
         {
             _context.Reporter.Warn(
-                $"{ScadEvaluator.AnchorInvalidCode}: the anchor '{node.Name}' is not finite or exceeds 1e100 in magnitude after the transforms; the anchor is skipped",
+                ScadDiagnosticCodes.AnchorInvalid,
+                $"{ScadDiagnosticCodes.AnchorInvalid}: the anchor '{node.Name}' is not finite or exceeds 1e100 in magnitude after the transforms; the anchor is skipped",
                 node.Location);
             return;
         }

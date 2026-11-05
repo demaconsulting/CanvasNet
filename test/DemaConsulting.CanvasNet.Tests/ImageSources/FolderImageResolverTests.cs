@@ -417,6 +417,149 @@ public class FolderImageResolverTests
     }
 
     /// <summary>
+    ///     Test that a note about a link of the top-level document has an empty origin, and that a note a source reported
+    ///     for a file embedded by another file lists the chain of files, outermost first.
+    /// </summary>
+    [Fact]
+    public void FolderImageResolver_Resolve_NestedSourceNote_OriginListsEmbeddingChain()
+    {
+        // Arrange: a.stub embeds sub/b.stub, whose source reports a note; missing.stub does not exist
+        using var folder = new ImageTestFolder();
+        folder.WriteText("a.stub", "sub/b.stub");
+        folder.WriteText("sub/b.stub", "");
+        var stub = new StubImageSource(
+            "stub",
+            [Ext],
+            null,
+            request =>
+            {
+                var next = Encoding.UTF8.GetString(request.Content.Span).Trim();
+                if (next.Length > 0)
+                {
+                    request.Resolver!.Resolve(next, 10, 10)?.Dispose();
+                }
+
+                return new ImageSourceResult(StubImageSource.Solid(4, 4, StubImageSource.Green))
+                {
+                    Diagnostics = [new ImageSourceDiagnostic("stub", ImageDiagnosticSeverity.Warning, "stub-note", "careful")]
+                };
+            });
+        var resolver = new FolderImageResolver(folder.Path, [stub]);
+
+        // Act
+        resolver.Resolve("missing.stub", 10, 10)?.Dispose();
+        resolver.Resolve("a.stub", 10, 10)?.Dispose();
+
+        // Assert: the top-level miss has no origin; b's note is origin [a, b] and a's note is origin [a]
+        Assert.Empty(resolver.Diagnostics[0].Origin);
+        var notes = resolver.Diagnostics.Where(d => d.Code == "stub-note").ToList();
+        Assert.Equal(2, notes.Count);
+        Assert.Equal(["a.stub", "sub/b.stub"], notes[0].Origin);
+        Assert.Equal("sub/b.stub: careful", notes[0].Message);
+        Assert.Equal(["a.stub"], notes[1].Origin);
+        Assert.Equal("a.stub: careful", notes[1].Message);
+    }
+
+    /// <summary>
+    ///     Test that a link that is not drawn, found inside an embedded file, names that file as its origin.
+    /// </summary>
+    [Fact]
+    public void FolderImageResolver_Resolve_UnresolvedLinkInEmbeddedFile_OriginIsTheContainingFile()
+    {
+        // Arrange: a.stub links a file that does not exist
+        using var folder = new ImageTestFolder();
+        folder.WriteText("a.stub", "nothing-here.stub");
+        var resolver = new FolderImageResolver(folder.Path, [Chaining(Ext)]);
+
+        // Act
+        resolver.Resolve("a.stub", 10, 10)?.Dispose();
+
+        // Assert
+        var note = Assert.Single(resolver.Diagnostics);
+        Assert.Equal(FolderImageResolver.UnresolvedCode, note.Code);
+        Assert.Equal(["a.stub"], note.Origin);
+    }
+
+    /// <summary>
+    ///     Test that a link whose picture does not fit in the pixel budget, found inside an embedded file, names that
+    ///     file as its origin.
+    /// </summary>
+    [Fact]
+    public void FolderImageResolver_Resolve_TooLargeLinkInEmbeddedFile_OriginIsTheContainingFile()
+    {
+        // Arrange: a.stub links b.stub at a size that cannot fit in the small budget
+        using var folder = new ImageTestFolder();
+        folder.WriteText("a.stub", "b.stub");
+        folder.WriteText("b.stub", "");
+        var stub = new StubImageSource(
+            "stub",
+            [Ext],
+            null,
+            request =>
+            {
+                if (request.FileName == "a.stub")
+                {
+                    request.Resolver!.Resolve("b.stub", 100, 100)?.Dispose();
+                }
+
+                return new ImageSourceResult(StubImageSource.Solid(4, 4, StubImageSource.Green));
+            });
+        var resolver = new FolderImageResolver(folder.Path, [stub], new FolderImageResolverOptions { MaxDecodedPixels = 1000 });
+
+        // Act
+        resolver.Resolve("a.stub", 10, 10)?.Dispose();
+
+        // Assert
+        var note = Assert.Single(resolver.Diagnostics);
+        Assert.Equal(FolderImageResolver.TooLargeCode, note.Code);
+        Assert.Equal(["a.stub"], note.Origin);
+    }
+
+    /// <summary>
+    ///     Test that a note a source reported for a scheme link names the link as written as its origin.
+    /// </summary>
+    [Fact]
+    public void FolderImageResolver_Resolve_SchemeLinkNote_OriginIsTheLinkAsWritten()
+    {
+        // Arrange: a source that claims a scheme and reports a note
+        var live = new StubImageSource(
+            "live",
+            null,
+            ["test-scheme"],
+            _ => new ImageSourceResult(StubImageSource.Solid(4, 4, StubImageSource.Green))
+            {
+                Diagnostics = [new ImageSourceDiagnostic("live", ImageDiagnosticSeverity.Warning, "live-note", "stale")]
+            });
+        var resolver = new FolderImageResolver(null, [live]);
+
+        // Act
+        resolver.Resolve("test-scheme:feed", 10, 10)?.Dispose();
+
+        // Assert
+        var note = Assert.Single(resolver.Diagnostics);
+        Assert.Equal(["test-scheme:feed"], note.Origin);
+        Assert.Equal("test-scheme:feed: stale", note.Message);
+    }
+
+    /// <summary>
+    ///     Test that the origin takes part in value equality of a note, compared entry by entry, and defaults to empty.
+    /// </summary>
+    [Fact]
+    public void ImageSourceDiagnostic_Origin_DefaultsToEmptyAndIsComparedByEntries()
+    {
+        // Arrange
+        var plain = new ImageSourceDiagnostic("svg", ImageDiagnosticSeverity.Warning, "code", "message");
+        var withOrigin = plain with { Origin = ["a.svg", "b.svg"] };
+        var sameOrigin = plain with { Origin = new List<string> { "a.svg", "b.svg" } };
+
+        // Act / Assert
+        Assert.Empty(plain.Origin);
+        Assert.Equal(withOrigin, sameOrigin);
+        Assert.Equal(withOrigin.GetHashCode(), sameOrigin.GetHashCode());
+        Assert.NotEqual(plain, withOrigin);
+        Assert.NotEqual(withOrigin, plain with { Origin = ["a.svg"] });
+    }
+    /// <summary>
     ///     Test that a failure of a source is an <see cref="ImageSourceException"/> that names the link, has no embedder at
     ///     the top level and keeps the original exception as its inner exception.
     /// </summary>

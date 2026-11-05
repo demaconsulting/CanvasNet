@@ -28,6 +28,21 @@ sections:
           - ImageComparer_Execute_ResizeToA_FitsTheSecondInputAndReportsIt
           - ImageComparer_Execute_Pictures_AreWrittenInOrder
 
+      - id: CanvasNetViewer-Imaging-ImageComparer-ResultShape
+        title: >-
+          The ImageComparer class shall return a result whose measures are read directly (the metrics of the
+          comparison without an intermediate member) and whose full measurement (the grid cells, the worst cells,
+          and the tolerance) is a separate member, and shall let a caller name the size to compare at as the size
+          of either input or an explicit size, bringing both inputs to that size.
+        justification: |
+          The measures are what a caller reads first (an RMSE of a comparison against a limit), so reading them must
+          not take a chain of members, and the three ways to choose the common size must be as easy to write as the
+          command-line option they stand for.
+        tests:
+          - ImageComparer_Execute_Result_MetricsIsShortcutToComparisonMetrics
+          - ResizeTarget_Helpers_CreateTheThreeShapes
+          - ImageComparer_Execute_ResizeHelper_BringsInputsToTheNamedSize
+
       - id: CanvasNetViewer-Imaging-ImageComparer-OutputFormat
         title: >-
           The ImageComparer class shall take the format of every picture from the format of the write options when it

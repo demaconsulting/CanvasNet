@@ -143,7 +143,20 @@ internal sealed class ScadEvaluationSink
     /// </remarks>
     /// <param name="message">The warning text, without location or severity prefix.</param>
     /// <param name="location">The location the warning is about.</param>
-    public void Warn(string message, ScadSourceLocation location)
+    public void Warn(string message, ScadSourceLocation location) => Warn(ScadDiagnosticCodes.Warning, message, location);
+
+    /// <summary>
+    ///     Records a categorized warning unless an identical one (same message and location) was already recorded or
+    ///     the diagnostics cap has been reached.
+    /// </summary>
+    /// <remarks>
+    ///     The duplicate check ignores the code, so categorizing a call site never changes which warnings are
+    ///     de-duplicated or capped; see <see cref="Warn(string, ScadSourceLocation)"/> for the cap behavior.
+    /// </remarks>
+    /// <param name="code">The stable warning code, one of the <see cref="ScadDiagnosticCodes"/> constants.</param>
+    /// <param name="message">The warning text, without location or severity prefix.</param>
+    /// <param name="location">The location the warning is about.</param>
+    public void Warn(string code, string message, ScadSourceLocation location)
     {
         // Duplicates are dropped without counting against the cap
         if (_seenWarnings.Contains((message, location)))
@@ -158,7 +171,7 @@ internal sealed class ScadEvaluationSink
         }
 
         _seenWarnings.Add((message, location));
-        AddWarning(new ScadDiagnostic(message, location));
+        AddWarning(new ScadDiagnostic(message, location) { Code = code });
     }
 
     /// <summary>
@@ -236,7 +249,7 @@ internal sealed class ScadEvaluationSink
         }
 
         _suppressionReported = true;
-        AddWarning(new ScadDiagnostic(string.Create(CultureInfo.InvariantCulture, $"Further diagnostics suppressed (limit {_limits.MaxDiagnostics})"), location));
+        AddWarning(new ScadDiagnostic(string.Create(CultureInfo.InvariantCulture, $"Further diagnostics suppressed (limit {_limits.MaxDiagnostics})"), location) { Code = ScadDiagnosticCodes.DiagnosticsSuppressed });
     }
 
     /// <summary>

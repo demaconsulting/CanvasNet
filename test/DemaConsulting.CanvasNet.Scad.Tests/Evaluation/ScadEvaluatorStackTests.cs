@@ -281,6 +281,23 @@ public class ScadEvaluatorStackTests
     }
 
     /// <summary>
+    ///     Validates that the code of a warning recorded while loading files survives the restart: the replayed warning
+    ///     is not downgraded to the default code.
+    /// </summary>
+    [Fact]
+    public void ScadEvaluatorStack_Evaluate_Restart_KeepsFileLoadingWarningCode()
+    {
+        // Arrange
+        var files = new ScadVirtualFiles();
+        var source = "include <missing.scad>\n" + Shapes["function"].Make(2000);
+
+        // Act
+        var output = OnForcedFallback(() => Run(source, null, files));
+
+        // Assert
+        Assert.Equal(ScadDiagnosticCodes.IncludeNotFound, Assert.Single(output.Diagnostics).Code);
+    }
+    /// <summary>
     ///     Validates that the file resolver callback runs only on the calling thread and once per file even when the
     ///     evaluation restarts on the evaluator thread.
     /// </summary>

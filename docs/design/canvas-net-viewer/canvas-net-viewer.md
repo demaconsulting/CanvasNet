@@ -43,7 +43,10 @@ arguments and return `new FolderImageResolver(folder, sources, options)`, where 
 by the extra sources in the second overload. A new resolver is created on every call and nothing is shared between
 calls, because a resolver counts the images and collects the notes of one render and never caches a picture. The
 precedence rule is the `ImageSourceSet` rule: when several sources claim the same extension or scheme, the later one
-wins, so an extra source overrides a built-in one.
+wins, so an extra source overrides a built-in one. `Render` does not use this method: it builds its own resolver from
+the built-in sources plus `ViewerRenderOptions.ExtraSources`, so `ExtraSources` is for a picture of one file made by
+`Render`, and `CreateImageResolver` is for a render that the caller drives (for example `SvgCodec.Load` with
+`SvgLoadOptions.ImageResolver`) and that needs the resolver and its notes.
 
 **`Render(path, options)`**: validate the options (see _Error Handling_), resolve the sandbox folder (`options.Folder`,
 or the folder of the file), refuse a file outside it with `ArgumentException`, express the file as a path relative to the

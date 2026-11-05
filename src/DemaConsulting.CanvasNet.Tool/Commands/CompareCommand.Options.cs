@@ -182,11 +182,13 @@ internal sealed partial class CompareCommand
             thresholds.Add(threshold);
         }
 
-        var write = new WriteOptions(
-            null,
-            reader.GetInt("--quality", ImageWriter.MinQuality, ImageWriter.MaxQuality) ?? ImageWriter.DefaultQuality,
-            reader.Has("--no-clobber"),
-            background);
+        var write = new WriteOptions
+        {
+            Format = null,
+            Quality = reader.GetInt("--quality", ImageWriter.MinQuality, ImageWriter.MaxQuality) ?? ImageWriter.DefaultQuality,
+            NoClobber = reader.Has("--no-clobber"),
+            FlattenBackground = background
+        };
 
         return new Settings(
             ReadSide(reader, "a", reader.Positionals[0]),

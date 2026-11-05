@@ -109,8 +109,9 @@ which writes one parameter of an operation to a JSON object, is `internal` for `
 unreadable, unsupported, or corrupt header; for a model, a syntax error), checks that model options were given only for
 a model (a model option with another kind of input is a `usage-error` naming the kind, rather than being ignored; the
 message names the options of the tool, which is why the check is here and not in the library), and then calls
-`ImageRenderer.Execute(info, request)` of the Viewer library with a `RenderRequest` built from the settings (the output,
-`--all-pages`, the `SourceOptions`, the `WriteOptions`, and the operations read by `ImagePipelineParser`). The library
+`ImageRenderer.Execute(info, request)` of the Viewer library with a `RenderRequest` built from the settings (the output
+as the positional member, and `--all-pages`, the `SourceOptions`, the `WriteOptions`, and the operations read by
+`ImagePipelineParser` set explicitly as `init` properties). The library
 reports every mistake about the pages and the outputs before decoding anything, renders every page, and publishes all the
 outputs together or none (see _ImageRenderer Unit Design_). The command then writes the result through
 `context.WriteLine`: as one text line per

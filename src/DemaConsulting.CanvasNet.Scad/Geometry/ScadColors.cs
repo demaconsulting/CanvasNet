@@ -61,7 +61,7 @@ internal static class ScadColors
             }
             else
             {
-                context.Reporter.Warn("color: c must be a color name, a hex string such as \"#ff8800\" or a vector [r, g, b] or [r, g, b, a] of numbers from 0 to 1; the color is ignored", instance.Location);
+                context.Reporter.Warn(ScadDiagnosticCodes.InvalidArgument, "color: c must be a color name, a hex string such as \"#ff8800\" or a vector [r, g, b] or [r, g, b, a] of numbers from 0 to 1; the color is ignored", instance.Location);
             }
         }
 
@@ -74,12 +74,12 @@ internal static class ScadColors
                 // An alpha has nothing to apply to when no color was given at all
                 if (!args.TryGet("c", out _))
                 {
-                    context.Reporter.Warn("color: alpha needs a color c; it is ignored", instance.Location);
+                    context.Reporter.Warn(ScadDiagnosticCodes.InvalidArgument, "color: alpha needs a color c; it is ignored", instance.Location);
                 }
             }
             else
             {
-                context.Reporter.Warn("color: alpha must be a number from 0 to 1; it is ignored", instance.Location);
+                context.Reporter.Warn(ScadDiagnosticCodes.InvalidArgument, "color: alpha must be a number from 0 to 1; it is ignored", instance.Location);
             }
         }
 

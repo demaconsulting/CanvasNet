@@ -237,13 +237,13 @@ internal sealed partial class ScadEvaluator
             case ScadValueKind.Range:
                 if (source.AsRange.IsInvalid)
                 {
-                    Warn("Ignoring a range with a zero step or a non-finite bound", location);
+                    Warn(ScadDiagnosticCodes.TypeMismatch, "Ignoring a range with a zero step or a non-finite bound", location);
                     return new Iteration(source, 0);
                 }
 
                 return new Iteration(source, source.AsRange.Count);
             case ScadValueKind.Undef:
-                Warn("Cannot iterate over undef", location);
+                Warn(ScadDiagnosticCodes.TypeMismatch, "Cannot iterate over undef", location);
                 return new Iteration(source, 0);
             default:
                 return new Iteration(source, 1);

@@ -42,7 +42,7 @@ public class ImageInspectorTests
     /// <returns>The request.</returns>
     private static InspectRequest CreateRequest(InspectKind kind, PixelPoint? point = null, int radius = 0)
     {
-        return new InspectRequest(new SourceOptions(), [], kind, 8, radius, point);
+        return new InspectRequest(kind) { Radius = radius, Point = point };
     }
 
     /// <summary>
@@ -120,13 +120,10 @@ public class ImageInspectorTests
         using var directory = new TempDirectory();
         var info = CreateSolid(directory, 10, 6, Red);
         var blue = new Rgba32(0, 0, 255, 255);
-        var request = new InspectRequest(
-            new SourceOptions(),
-            [new PadOperation(new PadSpec(2, 2, 2, 2), blue)],
-            InspectKind.Pixel,
-            8,
-            0,
-            new PixelPoint(0, 0));
+        var request = InspectRequest.ForPixel(new PixelPoint(0, 0)) with
+        {
+            Operations = [new PadOperation(new PadSpec(2, 2, 2, 2), blue)]
+        };
 
         // Act
         var result = ImageInspector.Execute(info, request);
@@ -146,7 +143,7 @@ public class ImageInspectorTests
         // Arrange
         using var directory = new TempDirectory();
         var info = CreateSolid(directory, 4, 4, Red);
-        var request = new InspectRequest(new SourceOptions { Background = new Rgba32(0, 0, 0, 128) }, [], InspectKind.Colors, 4, 0, null);
+        var request = InspectRequest.ForColors(4) with { Source = new SourceOptions { Background = new Rgba32(0, 0, 0, 128) } };
 
         // Act
         var result = ImageInspector.Execute(info, request);

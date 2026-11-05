@@ -471,12 +471,23 @@ public sealed partial class Surface : IDisposable
     ///     the part of <paramref name="source"/> that falls outside it is ignored, and a source that lies entirely
     ///     outside leaves this surface unchanged. Whole rows are copied with one <see cref="Span{T}.CopyTo"/> call
     ///     each. A surface cannot be copied onto itself, because overlapping regions would make the result depend on
-    ///     the copy order.
+    ///     the copy order. <b>There is no positioned alpha blend in the library</b>: <see cref="CompositeOver(Surface)"/>
+    ///     needs two surfaces of equal size. To blend a tile at a position, copy it onto a transparent surface of the
+    ///     destination's size and composite that layer over the destination (see the second example).
     /// </remarks>
     /// <example>
-    ///     <code>
-    ///     var sheet = new Surface(100, 100);
-    ///     sheet.CopyFrom(tile, 10, 20);   // tile's top-left pixel lands at (10, 20)
+    ///     <code language="csharp">
+    ///     using DemaConsulting.CanvasNet.Canvas;
+    ///
+    ///     using var sheet = new Surface(100, 100);
+    ///     using var tile = new Surface(16, 16);
+    ///     sheet.CopyFrom(tile, 10, 20);   // tile's top-left pixel lands at (10, 20), replacing what was there
+    ///     </code>
+    ///     Blend a semi-transparent tile at (10, 20) instead of replacing the pixels under it:
+    ///     <code language="csharp">
+    ///     using var layer = new Surface(sheet.Width, sheet.Height);   // new surfaces are fully transparent
+    ///     layer.CopyFrom(tile, 10, 20);
+    ///     sheet.CompositeOver(layer);                                 // blends the layer over the sheet
     ///     </code>
     /// </example>
     public void CopyFrom(Surface source, int destX, int destY)

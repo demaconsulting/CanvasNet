@@ -46,11 +46,6 @@ public static partial class SourceLoader
     internal const int DefaultScadSize = 800;
 
     /// <summary>
-    ///     The beginning of the warning the library reports for an <c>include</c> or <c>use</c> it cannot open.
-    /// </summary>
-    private const string MissingIncludeWarning = "Can't open include file";
-
-    /// <summary>
     ///     The named viewpoints, in the order they are listed in the help.
     /// </summary>
     /// <remarks>
@@ -254,7 +249,7 @@ public static partial class SourceLoader
                     EchoHandler = echo.Add,
                     WarningHandler = warning =>
                     {
-                        if (warning.Message.StartsWith(MissingIncludeWarning, StringComparison.Ordinal))
+                        if (warning.Code == ScadDiagnosticCodes.IncludeNotFound)
                         {
                             missingInclude.Add(warning);
                         }

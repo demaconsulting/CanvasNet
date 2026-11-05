@@ -59,7 +59,8 @@ public sealed class ScadUnsupportedFeatureException : IOException
     }
 
     /// <summary>
-    ///     Gets the stable identifier of the unsupported feature; empty when not specified.
+    ///     Gets the stable identifier of the unsupported feature; empty when not specified. This is the code of this
+    ///     exception: test it, never the message.
     /// </summary>
     public string Feature { get; }
 

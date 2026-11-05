@@ -121,6 +121,7 @@ sections:
               sources; direct rendering of a file uses the same rules as embedding.
             children:
               - CanvasNet-ImageSources-FolderImageResolver-Diagnostics
+              - CanvasNet-ImageSources-FolderImageResolver-DiagnosticOrigin
               - CanvasNet-ImageSources-FolderImageResolver-Failures
               - CanvasNet-ImageSources-FolderImageResolver-NoCaching
               - CanvasNet-ImageSources-FolderImageResolver-DirectRender
@@ -128,6 +129,7 @@ sections:
               - CanvasNet-ImageSources-ImageSourceContract-FailureReporting
             tests:
               - FolderImageResolver_Resolve_SourceWithNotes_ForwardsDiagnosticsEchoAndEmbedded
+              - FolderImageResolver_Resolve_NestedSourceNote_OriginListsEmbeddingChain
               - FolderImageResolver_Resolve_SourceThrows_WrapsInImageSourceException
               - FolderImageResolver_Resolve_SameLinkTwice_InvokesSourceEachTimeWithoutCaching
               - FolderImageResolver_RenderPath_File_ReturnsResultWithFormat

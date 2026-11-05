@@ -41,6 +41,18 @@ documented in the design of the unit that owns them; the operation records of th
 `GeometrySpec`, `PadSpec`, and `FlipAxis` values they carry) are documented with `ImagePipeline`, and the request and
 result records of an operation with the operation unit.
 
+**Record style.** One rule applies to every request and option record of the subsystem (`RenderRequest`,
+`InspectRequest`, `CompareRequest`, `CompareInput`, `MontageRequest`, `SheetOptions`, and `WriteOptions`, like the
+existing `SourceOptions` and `ViewerRenderOptions`): the positional members are exactly the required data, and every
+optional member is an `init` property whose default is the default of the corresponding `canvasnet` command-line
+option, with the numeric defaults published as constants (`ImageInspector.DefaultColors`, `ContactSheet.DefaultCellSize`,
+`DefaultSpacing`, `DefaultPadding`, `ImageWriter.DefaultQuality`, and the defaults of `ImageComparison`). A request built
+from its required members alone therefore does what the command does without options, `with` copies a request with
+one member changed, and an optional member can be added later without breaking a caller. Optional constructor parameters
+are not used because the defaults (colors, lists, nested records) are not compile-time constants. The result records
+are built by the library only and stay positional. The tool passes every value explicitly, so its output does not depend
+on these defaults. Pages are numbered from 1 throughout this subsystem (the format packages count from 0).
+
 ### Interfaces
 
 **SourceLoader.Detect(path)**, **SourceLoader.Probe(path)**, **SourceLoader.Load(path, options)**,

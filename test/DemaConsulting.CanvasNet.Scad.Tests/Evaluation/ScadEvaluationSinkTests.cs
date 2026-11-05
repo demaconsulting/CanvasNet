@@ -84,6 +84,26 @@ public class ScadEvaluationSinkTests
     }
 
     /// <summary>
+    ///     Validates that a categorized warning keeps its code, that the plain overload uses the default code, and that
+    ///     de-duplication ignores the code.
+    /// </summary>
+    [Fact]
+    public void ScadEvaluationSink_Warn_WithCode_RecordsCodeAndDeduplicatesByMessageAndLocation()
+    {
+        // Arrange
+        var sink = new ScadEvaluationSink(ScadLimits.Default);
+
+        // Act
+        sink.Warn(ScadDiagnosticCodes.UnknownVariable, "w", Here);
+        sink.Warn(ScadDiagnosticCodes.TypeMismatch, "w", Here);
+        sink.Warn("plain", Here);
+
+        // Assert
+        Assert.Equal(2, sink.Diagnostics.Count);
+        Assert.Equal(new ScadDiagnostic("w", Here) { Code = ScadDiagnosticCodes.UnknownVariable }, sink.Diagnostics[0]);
+        Assert.Equal(ScadDiagnosticCodes.Warning, sink.Diagnostics[1].Code);
+    }
+    /// <summary>
     ///     Validates the diagnostics cap: the real warnings up to the cap are kept, then exactly one notice.
     /// </summary>
     [Fact]

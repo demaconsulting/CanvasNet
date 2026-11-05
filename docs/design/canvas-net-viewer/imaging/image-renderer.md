@@ -15,9 +15,10 @@ The unit is the static class `ImageRenderer` (`ImageRenderer.cs`) with the reque
 
 #### Data Model
 
-**RenderRequest** (record): `Output` (the output path; with every page it names a directory, or contains `{page}`),
-`AllPages`, `Source` (the `SourceOptions` for the load), `Write` (the `WriteOptions`), and `Operations` (the list of
-`IImageOperation` applied in order).
+**RenderRequest** (record): the required `Output` (positional; the output path; with every page it names a directory, or
+contains `{page}`, replaced by the page number counted from 1) and the `init` properties `AllPages` (off), `Source` (the
+`SourceOptions` for the load; default), `Write` (the `WriteOptions`; `WriteOptions.Default`), and `Operations` (the list
+of `IImageOperation` applied in order; none).
 
 **RenderedPage** (record): `Page` (from 1), `Info` (the facts of the source), `Diagnostics`, `Echo` (the text a model
 printed), `Operations` (what the loader, the pipeline, and the writer did, as `AppliedOperation` values; for every page

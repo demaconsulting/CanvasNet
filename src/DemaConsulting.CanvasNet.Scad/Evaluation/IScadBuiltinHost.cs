@@ -37,6 +37,13 @@ internal interface IScadBuiltinHost
     void Warn(string message);
 
     /// <summary>
+    ///     Reports a categorized warning at <see cref="Location"/>.
+    /// </summary>
+    /// <param name="code">The stable warning code, one of the <see cref="ScadDiagnosticCodes"/> constants.</param>
+    /// <param name="message">The warning text.</param>
+    void Warn(string code, string message);
+
+    /// <summary>
     ///     Reports an unsupported feature at <see cref="Location"/>.
     /// </summary>
     /// <param name="feature">The stable feature identifier.</param>

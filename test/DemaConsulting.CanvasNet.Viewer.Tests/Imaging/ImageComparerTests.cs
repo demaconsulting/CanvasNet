@@ -31,7 +31,7 @@ public class ImageComparerTests
         using var surface = new Surface(width, height);
         surface.Clear(color);
         PngCodec.Save(surface, path);
-        return new CompareInput(label, SourceLoader.Probe(path), 1, new SourceOptions());
+        return new CompareInput(label, SourceLoader.Probe(path));
     }
 
     /// <summary>
@@ -42,24 +42,7 @@ public class ImageComparerTests
     /// <returns>The request, which the caller adjusts with <see langword="with"/>.</returns>
     private static CompareRequest CreateRequest(CompareInput a, CompareInput b)
     {
-        return new CompareRequest(
-            a,
-            b,
-            null,
-            FitMode.Contain,
-            ResamplingMode.Auto,
-            White,
-            ImageComparison.DefaultTolerance,
-            ImageComparison.DefaultGridColumns,
-            ImageComparison.DefaultGridRows,
-            [],
-            null,
-            null,
-            null,
-            DiffStyle.Heat,
-            ImageComparison.DefaultGain,
-            ImageComparison.DefaultOverlayWeight,
-            WriteOptions.Default);
+        return new CompareRequest(a, b);
     }
 
     /// <summary>
@@ -77,7 +60,7 @@ public class ImageComparerTests
         var result = ImageComparer.Execute(request);
 
         // Assert
-        Assert.True(result.Metrics.Metrics.Identical);
+        Assert.True(result.Metrics.Identical);
         Assert.Empty(result.Checks);
         Assert.Empty(result.Pictures);
         Assert.Equal((20, 10), (result.A.Width, result.A.Height));
@@ -104,7 +87,7 @@ public class ImageComparerTests
         var result = ImageComparer.Execute(request);
 
         // Assert: not identical, and the one check failed with its measured value
-        Assert.False(result.Metrics.Metrics.Identical);
+        Assert.False(result.Metrics.Identical);
         var check = Assert.Single(result.Checks);
         Assert.False(check.Passed);
         Assert.Equal(ThresholdMetric.Mae, check.Metric);
@@ -360,5 +343,76 @@ public class ImageComparerTests
         // Assert: the member is named, and nothing but the two inputs is in the folder
         Assert.Contains(member, error.ParamName);
         Assert.Equal(2, Directory.GetFileSystemEntries(directory.Path).Length);
+    }
+
+    /// <summary>
+    ///     Test that the metrics of the result are the metrics of the comparison, so the RMSE reads one level less deep,
+    ///     and that the grid and the tolerance stay on the comparison.
+    /// </summary>
+    [Fact]
+    public void ImageComparer_Execute_Result_MetricsIsShortcutToComparisonMetrics()
+    {
+        // Arrange: black against white
+        using var directory = new TempDirectory();
+        var request = CreateRequest(
+            CreateInput(directory, "a", 20, 10, new Rgba32(0, 0, 0, 255)),
+            CreateInput(directory, "b", 20, 10, White));
+
+        // Act
+        var result = ImageComparer.Execute(request);
+
+        // Assert: the same numbers, on the 0 to 255 scale, and the grid is on the comparison
+        Assert.Equal(result.Comparison.Metrics, result.Metrics);
+        Assert.Equal(255.0, result.Metrics.Rmse, 6);
+        Assert.Equal(ImageComparison.DefaultTolerance, result.Comparison.Tolerance);
+        Assert.Equal(ImageComparison.DefaultGridColumns * ImageComparison.DefaultGridRows, result.Comparison.Cells.Count);
+    }
+
+    /// <summary>
+    ///     Test that the resize targets that the helpers create are the ones the library understands: the size of one
+    ///     input, or an explicit size.
+    /// </summary>
+    [Fact]
+    public void ResizeTarget_Helpers_CreateTheThreeShapes()
+    {
+        // Arrange / Act / Assert
+        Assert.Equal(new ResizeTarget("a", 0, 0), ResizeTarget.ToInputA);
+        Assert.Equal(new ResizeTarget("b", 0, 0), ResizeTarget.ToInputB);
+        Assert.Equal(new ResizeTarget(null, 30, 20), ResizeTarget.To(30, 20));
+    }
+
+    /// <summary>
+    ///     Test that each helper brings both inputs to the size it names.
+    /// </summary>
+    /// <param name="mode">Which target: <c>a</c>, <c>b</c>, or <c>size</c>.</param>
+    /// <param name="width">The expected compared width.</param>
+    /// <param name="height">The expected compared height.</param>
+    [Theory]
+    [InlineData("a", 20, 10)]
+    [InlineData("b", 40, 30)]
+    [InlineData("size", 30, 12)]
+    public void ImageComparer_Execute_ResizeHelper_BringsInputsToTheNamedSize(string mode, int width, int height)
+    {
+        // Arrange: a 20 x 10 raster against a 40 x 30 raster
+        using var directory = new TempDirectory();
+        var target = mode switch
+        {
+            "a" => ResizeTarget.ToInputA,
+            "b" => ResizeTarget.ToInputB,
+            _ => ResizeTarget.To(30, 12)
+        };
+        var request = CreateRequest(
+            CreateInput(directory, "a", 20, 10, White),
+            CreateInput(directory, "b", 40, 30, White)) with
+        {
+            Resize = target
+        };
+
+        // Act
+        var result = ImageComparer.Execute(request);
+
+        // Assert
+        Assert.Equal((width, height), (result.A.Width, result.A.Height));
+        Assert.Equal((width, height), (result.B.Width, result.B.Height));
     }
 }

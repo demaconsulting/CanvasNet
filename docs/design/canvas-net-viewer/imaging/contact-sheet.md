@@ -13,14 +13,17 @@ and the records `SheetOptions` and `SheetLayout`.
 
 #### Data Model
 
-**SheetOptions** (record): `Columns` (0 for automatic), `CellWidth`, `CellHeight` (the image area of a cell),
-`Spacing` (between cells), `Padding` (around the sheet), `Background` (opaque), `Labels`, `Fit` (`FitMode`), and
-`Filter` (`ResamplingMode`).
+**SheetOptions** (record, no positional members): `Columns` (0 for automatic, the ceiling of the square root of the
+count), `CellWidth`, `CellHeight` (the image area of a cell; `DefaultCellSize`, 256), `Spacing` (between cells;
+`DefaultSpacing`, 8), `Padding` (around the sheet; `DefaultPadding`, 8), `Background` (opaque; white), `Labels` (off),
+`Fit` (`FitMode`; contain), and `Filter` (`ResamplingMode`; auto), all `init` properties with the defaults of the
+`montage` command. The label of a cell is the file name of its input followed by `p{page}` for a page of a document.
 
 **SheetLayout** (record struct): `Count`, `Columns`, `Rows`, `CellWidth`, `CellHeight`, `LabelHeight`, `Spacing`,
 `Padding`, `Width`, and `Height`; `CellOrigin(index)` gives the top-left corner of a cell's image area.
 
-The constants are `LabelHeight` (22), `LabelFontSize` (14), `MinCell` (16), and `MaxColumns` (64).
+The constants are `LabelHeight` (22), `LabelFontSize` (14), `MinCell` (16), `MaxColumns` (64), and the command defaults
+`DefaultCellSize` (256), `DefaultSpacing` (8), and `DefaultPadding` (8).
 
 #### Key Methods
 

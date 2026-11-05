@@ -213,14 +213,15 @@ sections:
       - id: CanvasNetScad-Diagnostics
         title: >-
           The library shall report a recoverable problem in a model - for example an unknown
-          variable, function, or module - as a warning with a message and a source location,
-          continuing the evaluation instead of failing it.
+          variable, function, or module - as a warning with a message, a stable code that identifies
+          its kind, and a source location, continuing the evaluation instead of failing it.
         tags: [system]
         justification: |
           Authors need precise feedback on mistakes, and a model with a mistake should still produce
           whatever it can.
         children:
           - CanvasNetScad-ScadDocument-Diagnostic
+          - CanvasNetScad-ScadDocument-DiagnosticCode
           - CanvasNetScad-ScadEvaluation-Diagnostics
         tests:
           - CanvasNetScad_SystemIntegration_Diagnostics_UnknownNamesAreWarnings

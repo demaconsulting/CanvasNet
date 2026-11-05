@@ -25,25 +25,68 @@ public readonly record struct PixelPoint(int X, int Y);
 /// <summary>
 ///     What to inspect: how the source is loaded, which operations run first, and what is reported.
 /// </summary>
-/// <param name="Source">How the source is loaded (page, resolution, size, background, model view, and so on).</param>
-/// <param name="Operations">The image pipeline: the operations in the order they are applied before the analysis; empty for none.</param>
+/// <remarks>
+///     The kind is the only required member; the other members are optional init properties whose defaults are what the
+///     <c>canvasnet inspect</c> command uses. Prefer <see cref="ForColors"/> and <see cref="ForPixel"/>: a pixel
+///     inspection needs a point, which the factory requires and the constructor cannot.
+/// </remarks>
 /// <param name="Kind">What is reported.</param>
-/// <param name="Count">For <see cref="InspectKind.Colors"/>, the number of dominant colors, <see cref="SurfaceStatistics.MinColors"/> to <see cref="SurfaceStatistics.MaxColors"/>.</param>
-/// <param name="Radius">For <see cref="InspectKind.Pixel"/>, the radius of the window around the point, 0 to <see cref="PixelSample.MaxRadius"/>; 0 reports the pixel only.</param>
-/// <param name="Point">For <see cref="InspectKind.Pixel"/>, the point, in the coordinates of the image after the operations; it is required there and ignored for colors.</param>
-public sealed record InspectRequest(
-    SourceOptions Source,
-    IReadOnlyList<IImageOperation> Operations,
-    InspectKind Kind,
-    int Count,
-    int Radius,
-    PixelPoint? Point);
+public sealed record InspectRequest(InspectKind Kind)
+{
+    /// <summary>
+    ///     Gets how the source is loaded (page, resolution, size, background, model view, and so on); the library
+    ///     defaults unless set.
+    /// </summary>
+    public SourceOptions Source { get; init; } = new();
+
+    /// <summary>
+    ///     Gets the image pipeline: the operations in the order they are applied before the analysis; empty (the
+    ///     default) for none.
+    /// </summary>
+    public IReadOnlyList<IImageOperation> Operations { get; init; } = [];
+
+    /// <summary>
+    ///     Gets, for <see cref="InspectKind.Colors"/>, the number of dominant colors,
+    ///     <see cref="SurfaceStatistics.MinColors"/> to <see cref="SurfaceStatistics.MaxColors"/>; the default is
+    ///     <see cref="ImageInspector.DefaultColors"/>.
+    /// </summary>
+    public int Count { get; init; } = ImageInspector.DefaultColors;
+
+    /// <summary>
+    ///     Gets, for <see cref="InspectKind.Pixel"/>, the radius of the window around the point, 0 to
+    ///     <see cref="PixelSample.MaxRadius"/>; 0 (the default) reports the pixel only.
+    /// </summary>
+    public int Radius { get; init; }
+
+    /// <summary>
+    ///     Gets, for <see cref="InspectKind.Pixel"/>, the point, in the coordinates of the image after the operations; it
+    ///     is required there and ignored for colors. <see langword="null"/> by default.
+    /// </summary>
+    public PixelPoint? Point { get; init; }
+
+    /// <summary>
+    ///     Creates a request for the dominant colors and the luma statistics of an image.
+    /// </summary>
+    /// <param name="count">The number of dominant colors; <see cref="ImageInspector.DefaultColors"/> by default.</param>
+    /// <returns>The request, with every other member at its default.</returns>
+    public static InspectRequest ForColors(int count = ImageInspector.DefaultColors) =>
+        new(InspectKind.Colors) { Count = count };
+
+    /// <summary>
+    ///     Creates a request for the pixel at a point and, optionally, the pixels around it.
+    /// </summary>
+    /// <param name="point">The point, in the coordinates of the image after the operations.</param>
+    /// <param name="radius">The radius of the window around the point; 0 (the default) reports the pixel only.</param>
+    /// <returns>The request, with every other member at its default.</returns>
+    public static InspectRequest ForPixel(PixelPoint point, int radius = 0) =>
+        new(InspectKind.Pixel) { Point = point, Radius = radius };
+}
 
 /// <summary>
 ///     What an inspection found.
 /// </summary>
 /// <param name="Info">The facts about the source file.</param>
-/// <param name="Page">The 1-based page that was loaded (1 for a single-image source).</param>
+/// <param name="Page">The 1-based page that was loaded (the first page is 1; 1 for a single-image source).</param>
 /// <param name="Operations">What was done to the source to produce the analyzed pixels.</param>
 /// <param name="Diagnostics">The notes reported while loading.</param>
 /// <param name="Echo">The text a model printed while it was evaluated.</param>
@@ -52,6 +95,10 @@ public sealed record InspectRequest(
 /// <param name="Background">The opaque color a translucent <see cref="SourceOptions.Background"/> was reduced to (white when none was given); it is what the report names as the background.</param>
 /// <param name="Colors">The dominant colors and luma statistics for <see cref="InspectKind.Colors"/>; otherwise <see langword="null"/>.</param>
 /// <param name="Pixel">The sampled pixel (and window) for <see cref="InspectKind.Pixel"/>; otherwise <see langword="null"/>.</param>
+/// <remarks>
+///     The result reports the <paramref name="Diagnostics"/> and the <paramref name="Echo"/> of the loaded source but not
+///     the anchors of a model; only <see cref="ImageRenderer"/> and <see cref="SourceLoader"/> report anchors.
+/// </remarks>
 public sealed record InspectResult(
     SourceInfo Info,
     int Page,
@@ -83,6 +130,10 @@ public sealed record InspectResult(
 /// </remarks>
 public static class ImageInspector
 {
+    /// <summary>
+    ///     The default number of dominant colors an inspection of <see cref="InspectKind.Colors"/> reports: 8.
+    /// </summary>
+    public const int DefaultColors = 8;
     /// <summary>
     ///     Inspects a source.
     /// </summary>

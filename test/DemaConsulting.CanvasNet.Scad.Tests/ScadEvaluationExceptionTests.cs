@@ -72,4 +72,18 @@ public class ScadEvaluationExceptionTests
         Assert.Equal(0, withMessage.Location.Line);
         Assert.Equal(0, withInner.Location.Line);
     }
+
+    /// <summary>
+    ///     Validates that the exception exposes its constant code.
+    /// </summary>
+    [Fact]
+    public void ScadEvaluationException_Code_IsScadEvaluationError()
+    {
+        // Arrange / Act
+        var ex = new ScadEvaluationException("bad", new ScadSourceLocation("x.scad", 1, 1));
+
+        // Assert
+        Assert.Equal("scad-evaluation-error", ex.Code);
+        Assert.Equal(ScadDiagnosticCodes.EvaluationError, new ScadEvaluationException().Code);
+    }
 }

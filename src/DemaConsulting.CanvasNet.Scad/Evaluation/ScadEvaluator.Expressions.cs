@@ -102,7 +102,7 @@ internal sealed partial class ScadEvaluator
     /// <returns><c>undef</c>.</returns>
     private ScadValue EvaluateStrayElement(ScadExpression expression)
     {
-        Warn("A list comprehension element is only valid inside a vector", expression.Location);
+        Warn(ScadDiagnosticCodes.TypeMismatch, "A list comprehension element is only valid inside a vector", expression.Location);
         return ScadValue.Undef;
     }
 
@@ -138,7 +138,7 @@ internal sealed partial class ScadEvaluator
         var result = ScadValue.Binary(binary.Operator, left, right, out var typeError, this);
         if (typeError)
         {
-            Warn($"Cannot apply operator '{OperatorText(binary.Operator)}' to {left.KindDescription} and {right.KindDescription}", binary.Location);
+            Warn(ScadDiagnosticCodes.TypeMismatch, $"Cannot apply operator '{OperatorText(binary.Operator)}' to {left.KindDescription} and {right.KindDescription}", binary.Location);
         }
 
         return result;
@@ -157,7 +157,7 @@ internal sealed partial class ScadEvaluator
         var result = ScadValue.Unary(unary.Operator, operand, out var typeError);
         if (typeError)
         {
-            Warn($"Cannot apply operator '{(unary.Operator == ScadUnaryOperator.Plus ? "+" : "-")}' to {operand.KindDescription}", unary.Location);
+            Warn(ScadDiagnosticCodes.TypeMismatch, $"Cannot apply operator '{(unary.Operator == ScadUnaryOperator.Plus ? "+" : "-")}' to {operand.KindDescription}", unary.Location);
         }
 
         return result;
@@ -176,7 +176,7 @@ internal sealed partial class ScadEvaluator
         var end = Evaluate(range.End, scope);
         if (start.Kind != ScadValueKind.Number || step.Kind != ScadValueKind.Number || end.Kind != ScadValueKind.Number)
         {
-            Warn("Range bounds and step must be numbers", range.Location);
+            Warn(ScadDiagnosticCodes.TypeMismatch, "Range bounds and step must be numbers", range.Location);
             return ScadValue.Undef;
         }
 

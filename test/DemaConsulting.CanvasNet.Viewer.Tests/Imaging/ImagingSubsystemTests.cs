@@ -544,7 +544,7 @@ public class ImagingSubsystemTests
         // Arrange: an SVG, a page of a PDF, and a PNG, in cells of 64x64 with labels
         using var directory = new TempDirectory();
         var paths = new[] { "svg", "pdf", "png" }.Select(key => FixtureFactory.WriteSource(directory.Path, key)).ToList();
-        var options = new SheetOptions(2, 64, 64, 4, 4, new Rgba32(255, 255, 255, 255), true, FitMode.Contain, ResamplingMode.Auto);
+        var options = new SheetOptions { Columns = 2, CellWidth = 64, CellHeight = 64, Spacing = 4, Padding = 4, Labels = true };
 
         // Act: each source is opened, loaded into its cell, added to the sheet, and disposed in turn
         using var sheet = new ContactSheet(paths.Count, options);
@@ -591,8 +591,7 @@ public class ImagingSubsystemTests
         var pdf = FixtureFactory.WriteSource(directory.Path, "pdf");
         var info = SourceLoader.Probe(pdf);
         var folder = directory.Combine("pages") + Path.DirectorySeparatorChar;
-        var request = new RenderRequest(
-            folder, true, new SourceOptions(), WriteOptions.Default, [new RotateOperation(90)]);
+        var request = new RenderRequest(folder) { AllPages = true, Operations = [new RotateOperation(90)] };
 
         // Act
         var result = ImageRenderer.Execute(info, request);
@@ -626,8 +625,8 @@ public class ImagingSubsystemTests
         var info = SourceLoader.Probe(path);
 
         // Act
-        var colors = ImageInspector.Execute(info, new InspectRequest(new SourceOptions(), [], InspectKind.Colors, 4, 0, null));
-        var pixel = ImageInspector.Execute(info, new InspectRequest(new SourceOptions(), [], InspectKind.Pixel, 4, 0, new PixelPoint(3, 2)));
+        var colors = ImageInspector.Execute(info, InspectRequest.ForColors(4));
+        var pixel = ImageInspector.Execute(info, InspectRequest.ForPixel(new PixelPoint(3, 2)));
 
         // Assert: the one color covers the image, and the sample is that color
         Assert.Equal((12, 8), (colors.Width, colors.Height));
@@ -648,31 +647,18 @@ public class ImagingSubsystemTests
         var svg = SourceLoader.Probe(FixtureFactory.WriteSource(directory.Path, "svg"));
         var png = SourceLoader.Probe(FixtureFactory.WriteSource(directory.Path, "png"));
         var diff = directory.Combine("diff.png");
-        var request = new CompareRequest(
-            new CompareInput("a", png, 1, new SourceOptions()),
-            new CompareInput("b", svg, 1, new SourceOptions()),
-            new ResizeTarget("a", 0, 0),
-            FitMode.Contain,
-            ResamplingMode.Auto,
-            new Rgba32(255, 255, 255, 255),
-            ImageComparison.DefaultTolerance,
-            ImageComparison.DefaultGridColumns,
-            ImageComparison.DefaultGridRows,
-            [],
-            diff,
-            null,
-            null,
-            DiffStyle.Heat,
-            ImageComparison.DefaultGain,
-            ImageComparison.DefaultOverlayWeight,
-            WriteOptions.Default);
+        var request = new CompareRequest(new CompareInput("a", png), new CompareInput("b", svg))
+        {
+            Resize = ResizeTarget.ToInputA,
+            DiffPath = diff
+        };
 
         // Act
         var result = ImageComparer.Execute(request);
 
         // Assert: one size, a measure, and the picture that was asked for
         Assert.Equal((result.A.Width, result.A.Height), (result.B.Width, result.B.Height));
-        Assert.NotNull(result.Metrics);
+        Assert.NotNull(result.Comparison);
         var picture = Assert.Single(result.Pictures);
         Assert.Equal(diff, picture.Result.Path);
         Assert.True(File.Exists(diff));
@@ -689,12 +675,12 @@ public class ImagingSubsystemTests
         var infos = new[] { "svg", "pdf", "png" }
             .Select(key => SourceLoader.Probe(FixtureFactory.WriteSource(directory.Path, key)))
             .ToList();
-        var sheet = new SheetOptions(2, 64, 64, 4, 4, new Rgba32(255, 255, 255, 255), true, FitMode.Contain, ResamplingMode.Auto);
+        var sheet = new SheetOptions { Columns = 2, CellWidth = 64, CellHeight = 64, Spacing = 4, Padding = 4, Labels = true };
         var output = directory.Combine("sheet.png");
 
         // Act
         var result = MontageBuilder.Execute(
-            infos, new MontageRequest(output, null, false, null, null, false, true, sheet, WriteOptions.Default));
+            infos, new MontageRequest(output) { Sheet = sheet });
 
         // Assert: the layout of the sheet and a file of that size
         Assert.Equal((3, 2, 2), (result.Layout.Count, result.Layout.Columns, result.Layout.Rows));
@@ -784,5 +770,158 @@ public class ImagingSubsystemTests
             firstApplied.SelectMany(a => a.Fields).Select(f => $"{f.Key}={f.Value}"),
             secondApplied.SelectMany(a => a.Fields).Select(f => $"{f.Key}={f.Value}"));
         Assert.Equal(File.ReadAllBytes(firstPath), File.ReadAllBytes(secondPath));
+    }
+
+    /// <summary>
+    ///     Test that a comparison request built from its two inputs alone carries every default of the compare command.
+    /// </summary>
+    [Fact]
+    public void Imaging_RequestDefaults_CompareRequestFromInputsAlone_CarriesCommandDefaults()
+    {
+        // Arrange: two inputs of one file, with no other member given
+        using var directory = new TempDirectory();
+        var path = directory.Combine("a.png");
+        using (var surface = new Surface(4, 4))
+        {
+            PngCodec.Save(surface, path);
+        }
+
+        var info = SourceLoader.Probe(path);
+
+        // Act
+        var request = new CompareRequest(new CompareInput("a", info), new CompareInput("b", info));
+
+        // Assert: the required members are kept, and everything else is the command default
+        Assert.Equal(("a", info, 1), (request.A.Label, request.A.Info, request.A.Page));
+        Assert.Equal(new SourceOptions(), request.A.Source);
+        Assert.Null(request.Resize);
+        Assert.Equal((FitMode.Contain, ResamplingMode.Auto), (request.Fit, request.Filter));
+        Assert.Equal(new Rgba32(255, 255, 255, 255), request.Background);
+        Assert.Equal(ImageComparison.DefaultTolerance, request.Tolerance);
+        Assert.Equal((ImageComparison.DefaultGridColumns, ImageComparison.DefaultGridRows), (request.GridColumns, request.GridRows));
+        Assert.Empty(request.Thresholds);
+        Assert.Equal((null, null, null), (request.DiffPath, request.SideBySidePath, request.OverlayPath));
+        Assert.Equal((DiffStyle.Heat, ImageComparison.DefaultGain, ImageComparison.DefaultOverlayWeight), (request.DiffStyle, request.Gain, request.OverlayWeight));
+        Assert.Equal(WriteOptions.Default, request.Write);
+    }
+
+    /// <summary>
+    ///     Test that the render, inspect, and montage requests, the sheet options, and the write options built from their
+    ///     required members alone carry the defaults of the commands.
+    /// </summary>
+    [Fact]
+    public void Imaging_RequestDefaults_OptionalMembers_CarryCommandDefaults()
+    {
+        // Arrange / Act
+        var render = new RenderRequest("out.png");
+        var colors = InspectRequest.ForColors();
+        var pixel = InspectRequest.ForPixel(new PixelPoint(3, 2), 1);
+        var montage = new MontageRequest("sheet.png");
+        var sheet = new SheetOptions();
+        var write = new WriteOptions();
+
+        // Assert
+        Assert.Equal("out.png", render.Output);
+        Assert.False(render.AllPages);
+        Assert.Equal(new SourceOptions(), render.Source);
+        Assert.Equal(WriteOptions.Default, render.Write);
+        Assert.Empty(render.Operations);
+
+        Assert.Equal(InspectKind.Colors, colors.Kind);
+        Assert.Equal(ImageInspector.DefaultColors, colors.Count);
+        Assert.Null(colors.Point);
+        Assert.Empty(colors.Operations);
+        Assert.Equal((InspectKind.Pixel, new PixelPoint(3, 2), 1), (pixel.Kind, pixel.Point, pixel.Radius));
+        Assert.Equal(new SourceOptions(), pixel.Source);
+
+        Assert.Equal("sheet.png", montage.Output);
+        Assert.Equal((null, false, null, null, false, true), (montage.Page, montage.AllPages, montage.Dpi, montage.Scad, montage.Strict, montage.AutoOrient));
+        Assert.Equal(sheet, montage.Sheet);
+        Assert.Equal(WriteOptions.Default, montage.Write);
+
+        Assert.Equal(
+            (0, ContactSheet.DefaultCellSize, ContactSheet.DefaultCellSize, ContactSheet.DefaultSpacing, ContactSheet.DefaultPadding),
+            (sheet.Columns, sheet.CellWidth, sheet.CellHeight, sheet.Spacing, sheet.Padding));
+        Assert.Equal((new Rgba32(255, 255, 255, 255), false, FitMode.Contain, ResamplingMode.Auto), (sheet.Background, sheet.Labels, sheet.Fit, sheet.Filter));
+
+        Assert.Equal(WriteOptions.Default, write);
+        Assert.Equal((null, ImageWriter.DefaultQuality, false, new Rgba32(255, 255, 255, 255)), (write.Format, write.Quality, write.NoClobber, write.FlattenBackground));
+    }
+
+    /// <summary>
+    ///     Test that the published default values are the ones the commands document: 8 colors, a 256 pixel cell, and a
+    ///     spacing and padding of 8.
+    /// </summary>
+    [Fact]
+    public void Imaging_RequestDefaults_PublishedConstants_AreTheCommandDefaults()
+    {
+        // Arrange / Act / Assert
+        Assert.Equal(8, ImageInspector.DefaultColors);
+        Assert.Equal(256, ContactSheet.DefaultCellSize);
+        Assert.Equal(8, ContactSheet.DefaultSpacing);
+        Assert.Equal(8, ContactSheet.DefaultPadding);
+    }
+
+    /// <summary>
+    ///     Test that the optional members of a request are init properties: they can be set in an initializer and copied
+    ///     with <see langword="with"/>, without touching the required members.
+    /// </summary>
+    [Fact]
+    public void Imaging_RequestDefaults_InitProperties_CanBeSetAndCopied()
+    {
+        // Arrange
+        var request = new MontageRequest("sheet.png") { AllPages = true, Sheet = new SheetOptions { Labels = true, Columns = 3 } };
+
+        // Act
+        var copy = request with { Strict = true };
+
+        // Assert
+        Assert.True(copy.AllPages);
+        Assert.True(copy.Strict);
+        Assert.True(copy.Sheet.Labels);
+        Assert.Equal(3, copy.Sheet.Columns);
+        Assert.Equal("sheet.png", copy.Output);
+        Assert.False(request.Strict);
+    }
+
+    /// <summary>
+    ///     Test that the inspect factories give the same requests as the constructor with the members set, and that the
+    ///     operation defaults are the command defaults.
+    /// </summary>
+    [Fact]
+    public void Imaging_RequestDefaults_OperationDefaults_AreTheCommandDefaults()
+    {
+        // Arrange / Act
+        var levels = new AutoLevelsOperation();
+        var resize = new ResizeOperation(10, 20);
+        var fit = new FitOperation(10, 20);
+
+        // Assert
+        Assert.Equal(Surface.DefaultAutoLevelsClipPercent, levels.ClipPercent);
+        Assert.Equal(ResamplingMode.Auto, resize.Filter);
+        Assert.False(fit.AllowUpscale);
+        Assert.Equal(ResamplingMode.Auto, fit.Filter);
+        Assert.Equal(new Dimension(20, false), Dimension.Pixels(20));
+        Assert.Equal(new Dimension(5, true), Dimension.Percent(5));
+        Assert.Equal(InspectRequest.ForColors(4), new InspectRequest(InspectKind.Colors) { Count = 4 });
+    }
+
+    /// <summary>
+    ///     Test that a note's origin takes part in value equality, compared entry by entry, and is empty by default.
+    /// </summary>
+    [Fact]
+    public void Imaging_Diagnostics_Origin_DefaultsToEmptyAndIsComparedByEntries()
+    {
+        // Arrange
+        var plain = new ImageDiagnostic("svg", "warning", "code", "message", 2);
+        var withOrigin = plain with { Origin = ["a.svg", "b.scad"] };
+
+        // Act / Assert
+        Assert.Empty(plain.Origin);
+        Assert.Equal(withOrigin, plain with { Origin = new List<string> { "a.svg", "b.scad" } });
+        Assert.Equal(withOrigin.GetHashCode(), (plain with { Origin = new List<string> { "a.svg", "b.scad" } }).GetHashCode());
+        Assert.NotEqual(plain, withOrigin);
+        Assert.NotEqual(withOrigin, plain with { Origin = ["a.svg"] });
+        Assert.NotEqual(plain, plain with { Page = 3 });
     }
 }

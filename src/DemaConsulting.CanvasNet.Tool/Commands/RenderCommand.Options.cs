@@ -157,7 +157,13 @@ internal sealed partial class RenderCommand
         var formatOption = reader.Get("--format");
         var format = formatOption == null ? (OutputFormat?)null : ImageWriter.ResolveFormat(output, formatOption);
         var flattenBackground = source.Background is { A: > 0 } color ? color : WriteOptions.Default.FlattenBackground;
-        var write = new WriteOptions(format, quality, reader.Has("--no-clobber"), flattenBackground);
+        var write = new WriteOptions
+        {
+            Format = format,
+            Quality = quality,
+            NoClobber = reader.Has("--no-clobber"),
+            FlattenBackground = flattenBackground
+        };
 
         // The operand of a verb is the second positional (the first is the input); every operation is parsed now so
         // that a malformed one is reported before anything is loaded

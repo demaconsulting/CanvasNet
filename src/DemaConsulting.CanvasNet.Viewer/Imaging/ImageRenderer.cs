@@ -8,31 +8,86 @@ namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 ///     What to render: where to write, which pages, how to load the source and write the pictures, and which
 ///     operations to apply in between.
 /// </summary>
+/// <remarks>
+///     The output path is the only required member; every other member is an optional init property whose default is
+///     what the <c>canvasnet render</c> command uses when the option is not given.
+/// </remarks>
 /// <param name="Output">
-///     The output path. With <paramref name="AllPages"/> it names a directory (an existing directory, or a path that ends
-///     with a directory separator) or contains <c>{page}</c>, which is replaced by the page number.
+///     The output path. With <see cref="AllPages"/> it names a directory (an existing directory, or a path that ends
+///     with a directory separator) or contains <c>{page}</c>, which is replaced by the 1-based page number: the first
+///     page is <c>1</c>, so <c>out-{page}.png</c> gives <c>out-1.png</c>, <c>out-2.png</c>, and so on.
 /// </param>
-/// <param name="AllPages"><see langword="true"/> to render every page of a document; otherwise only <see cref="SourceOptions.Page"/> of <paramref name="Source"/>.</param>
-/// <param name="Source">How the source is loaded (page, resolution, size, background, model view, and so on).</param>
-/// <param name="Write">How each picture is written (format, quality, overwrite policy, JPEG background).</param>
-/// <param name="Operations">The image pipeline: the operations in the order they are applied; empty for none.</param>
-public sealed record RenderRequest(
-    string Output,
-    bool AllPages,
-    SourceOptions Source,
-    WriteOptions Write,
-    IReadOnlyList<IImageOperation> Operations);
+/// <example>
+///     Render page 2 of a document at 150 dots per inch, cropped to the 400 x 300 pixel region at its top-left corner:
+///     <code language="csharp">
+///     using DemaConsulting.CanvasNet.Viewer;
+///     using DemaConsulting.CanvasNet.Viewer.Imaging;
+///
+///     try
+///     {
+///         var info = SourceLoader.Probe("slides.pdf");
+///         var request = new RenderRequest("page-{page}.png")
+///         {
+///             Source = new SourceOptions { Page = 2, Dpi = 150 },
+///             Operations = [new CropOperation(new GeometrySpec(
+///                 Dimension.Pixels(0), Dimension.Pixels(0), Dimension.Pixels(400), Dimension.Pixels(300)))]
+///         };
+///         var result = ImageRenderer.Execute(info, request);
+///         Console.WriteLine(result.Pages[0].Result.Path);
+///     }
+///     catch (ViewerException ex) when (ex.Code == ErrorCodes.PageOutOfRange)
+///     {
+///         Console.WriteLine(ex.Message);
+///     }
+///     </code>
+/// </example>
+public sealed record RenderRequest(string Output)
+{
+    /// <summary>
+    ///     Gets a value indicating whether every page of a document is rendered; <see langword="false"/> (the default)
+    ///     renders only <see cref="SourceOptions.Page"/> of <see cref="Source"/>.
+    /// </summary>
+    public bool AllPages { get; init; }
+
+    /// <summary>
+    ///     Gets how the source is loaded (page, resolution, size, background, model view, and so on); the library
+    ///     defaults unless set.
+    /// </summary>
+    public SourceOptions Source { get; init; } = new();
+
+    /// <summary>
+    ///     Gets how each picture is written (format, quality, overwrite policy, JPEG background);
+    ///     <see cref="WriteOptions.Default"/> unless set.
+    /// </summary>
+    public WriteOptions Write { get; init; } = WriteOptions.Default;
+
+    /// <summary>
+    ///     Gets the image pipeline: the operations in the order they are applied; empty (the default) for none.
+    /// </summary>
+    public IReadOnlyList<IImageOperation> Operations { get; init; } = [];
+}
 
 /// <summary>
 ///     One page that was loaded and written, with what is reported about it.
 /// </summary>
-/// <param name="Page">The 1-based page number.</param>
+/// <remarks>
+///     This is the one viewer result that carries all three kinds of report of a model: <see cref="Diagnostics"/> (the
+///     notes), <see cref="Echo"/> (the text it printed), and <see cref="Anchors"/> (the points it declared, mapped to
+///     pixels of the written image). The echo and the notes are those of the page itself and of the files it embeds; they
+///     are reported here once, by the page that produced them. The results of the other operations (<c>InspectResult</c>,
+///     <c>CompareSide</c>, <c>MontageCell</c>) carry <c>Diagnostics</c> and <c>Echo</c> only.
+/// </remarks>
+/// <param name="Page">The 1-based page number (the first page is 1).</param>
 /// <param name="Info">The facts about the source; the size is the natural size of the page.</param>
 /// <param name="Diagnostics">The notes reported while loading.</param>
 /// <param name="Echo">The text a model printed while it was evaluated.</param>
 /// <param name="Operations">What was done to the source to produce the output.</param>
 /// <param name="Result">What was written.</param>
-/// <param name="Anchors">The anchors a model declared, with their pixel positions in the written image.</param>
+/// <param name="Anchors">
+///     The anchors a model declared with <c>echo("anchor", name, [x, y, z])</c>, with their pixel positions in the written
+///     image (after the pipeline); empty for every other kind. An anchor that cannot be read is a <c>scad-warning</c>
+///     note in <paramref name="Diagnostics"/> whose <c>ScadDiagnostic.Code</c> is <c>scad-anchor-invalid</c>.
+/// </param>
 public sealed record RenderedPage(
     int Page,
     SourceInfo Info,
@@ -86,7 +141,7 @@ public sealed record RenderResult(SourceInfo Info, IReadOnlyList<RenderedPage> P
 public static class ImageRenderer
 {
     /// <summary>
-    ///     The text in an output name that is replaced by the page number.
+    ///     The text in an output name that is replaced by the 1-based page number (1, 2, ...).
     /// </summary>
     private const string PagePlaceholder = "{page}";
 
@@ -179,7 +234,7 @@ public static class ImageRenderer
     ///     each of them.
     /// </exception>
     /// <remarks>
-    ///     <c>{page}</c> in the output is replaced by the page number. With all pages an output that is an
+    ///     <c>{page}</c> in the output is replaced by the 1-based page number (1, 2, ...). With all pages an output that is an
     ///     existing directory, or ends with a directory separator, names a directory: each page is written there as
     ///     the input's file name without extension, a dash, and the page number, with the extension of the format.
     /// </remarks>

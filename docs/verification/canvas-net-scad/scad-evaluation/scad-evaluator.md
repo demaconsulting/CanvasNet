@@ -434,6 +434,17 @@ Asserts the exact text and location of each warning kind, that a warning in a lo
 problem at two locations is reported twice, that locations carry the source name, the unknown-variable and
 non-function-call warnings, and the sink's de-duplication.
 
+##### CanvasNetScad-ScadEvaluation-ScadEvaluator-WarningCodes: Warnings Keep Their Codes
+
+**Tests**: `ScadEvaluationSinkTests.ScadEvaluationSink_Warn_WithCode_RecordsCodeAndDeduplicatesByMessageAndLocation`,
+`ScadEvaluatorStackTests.ScadEvaluatorStack_Evaluate_Restart_KeepsFileLoadingWarningCode`
+
+Asserts that a warning recorded with a code keeps it, that the plain overload records the default code, and that
+de-duplication ignores the code (the same message at the same location with another code is dropped). The restart
+scenario forces the evaluation onto the large-stack thread after a warning was recorded while a file was loaded
+(a missing include of a long program), and requires the replayed warning to keep its include-not-found code instead of
+the default.
+
 ##### CanvasNetScad-ScadEvaluation-ScadEvaluator-DiagnosticCap: Bounded Warnings
 
 **Tests**: `ScadEvaluatorLimitTests.ScadEvaluatorLimit_Diagnostics_AreCappedWithNotice`,

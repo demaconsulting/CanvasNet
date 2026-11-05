@@ -6,27 +6,35 @@ namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 /// <summary>
 ///     A measure that a comparison can be required to meet.
 /// </summary>
+/// <remarks>
+///     The scales are those of <c>ComparisonMetrics</c> in the core <c>DemaConsulting.CanvasNet.Canvas</c> namespace,
+///     which is why a limit is written in them: the error measures (<see cref="Mae"/>, <see cref="Rmse"/>,
+///     <see cref="MaxDiff"/>, <see cref="CellRmse"/>) are on the <b>0 to 255 channel scale, not 0 to 1</b>, with 0 meaning
+///     identical (a limit of 10 is about 4% of full scale); <see cref="DiffRatio"/> is a fraction from 0 to 1, not a
+///     percent; <see cref="Psnr"/> is in decibels; <see cref="Ssim"/> is from -1 to 1. <see cref="ImageComparison.Range"/>
+///     returns the limits each measure accepts.
+/// </remarks>
 public enum ThresholdMetric
 {
-    /// <summary>The mean absolute error; it must be at most the limit.</summary>
+    /// <summary>The mean absolute error, on the 0 to 255 channel scale; it must be at most the limit.</summary>
     Mae,
 
-    /// <summary>The root mean square error; it must be at most the limit.</summary>
+    /// <summary>The root mean square error, on the 0 to 255 channel scale (0 is identical, 255 the largest possible); it must be at most the limit.</summary>
     Rmse,
 
-    /// <summary>The peak signal-to-noise ratio; it must be at least the limit.</summary>
+    /// <summary>The peak signal-to-noise ratio in decibels (higher is better; infinite for identical images); it must be at least the limit.</summary>
     Psnr,
 
-    /// <summary>The structural similarity; it must be at least the limit.</summary>
+    /// <summary>The structural similarity, from -1 to 1 (1 is identical); it must be at least the limit.</summary>
     Ssim,
 
-    /// <summary>The fraction of differing pixels; it must be at most the limit.</summary>
+    /// <summary>The fraction of differing pixels, from 0 to 1 (not a percent; 0.01 is 1%), counted with <see cref="CompareRequest.Tolerance"/>; it must be at most the limit.</summary>
     DiffRatio,
 
-    /// <summary>The largest channel difference; it must be at most the limit.</summary>
+    /// <summary>The largest channel difference of any pixel, on the 0 to 255 channel scale; it must be at most the limit.</summary>
     MaxDiff,
 
-    /// <summary>The largest root mean square error of any grid cell; it must be at most the limit.</summary>
+    /// <summary>The largest root mean square error of any grid cell, on the 0 to 255 channel scale; it must be at most the limit.</summary>
     CellRmse
 }
 
@@ -34,7 +42,12 @@ public enum ThresholdMetric
 ///     A requirement that one measure of a comparison is within a limit.
 /// </summary>
 /// <param name="Metric">The measure.</param>
-/// <param name="Limit">The limit: a maximum for an error measure, a minimum for a similarity measure.</param>
+/// <param name="Limit">
+///     The limit, in the unit of <paramref name="Metric"/> (the 0 to 255 channel scale for MAE, RMSE, maximum difference,
+///     and worst cell RMSE; a fraction from 0 to 1 for the differing-pixel ratio; decibels for PSNR; -1 to 1 for SSIM; see
+///     <see cref="ThresholdMetric"/> and <see cref="ImageComparison.Range"/>): a maximum for an error measure, a minimum
+///     for a similarity measure.
+/// </param>
 public readonly record struct ComparisonThreshold(ThresholdMetric Metric, double Limit);
 
 /// <summary>
@@ -86,7 +99,9 @@ public static class ImageComparison
     /// <remarks>
     ///     An error measure (MAE, RMSE, differing-pixel ratio, maximum channel difference, worst cell RMSE) passes when it is
     ///     at most the limit; a similarity measure (PSNR, SSIM) passes when it is at least the limit. The PSNR of identical
-    ///     images is infinite, so it passes every minimum.
+    ///     images is infinite, so it passes every minimum. <paramref name="thresholds"/> are used as given: the limits are
+    ///     neither clamped nor validated here (see <see cref="Range"/> for the sensible limits and
+    ///     <see cref="ThresholdMetric"/> for the scale of each measure, for example 0 to 255 for RMSE, not 0 to 1).
     /// </remarks>
     public static IReadOnlyList<ThresholdCheck> Evaluate(ComparisonResult result, IReadOnlyList<ComparisonThreshold> thresholds)
     {

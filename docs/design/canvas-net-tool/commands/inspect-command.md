@@ -50,8 +50,9 @@ decoded). The point is not checked against the image here; that needs the pixels
 **Run(context, args)**: parses the arguments with the table, reads the settings, then reports every mistake about the
 input before decoding: `SourceLoader.Probe` and the check that model options were given only for a model (the message of
 `render`). It then calls `ImageInspector.Execute(info, request)` of the Viewer library with an `InspectRequest` built
-from the settings (the `SourceOptions`, the operations, the subcommand as `InspectKind`, the count, the radius, and the
-point), which checks the page, loads it (`SourceLoader.Load`, which honors `--page`, the size options, the background,
+from the settings (the kind is the positional member; the `SourceOptions`, the operations, the count, the radius, and
+the point are set explicitly as `init` properties), which checks the page, loads it (`SourceLoader.Load`, which honors
+`--page`, the size options, the background,
 and the EXIF orientation), runs the pipeline when there are operations (with the default border color of `render`: the
 `--background`, else white for a vector source, else transparent, and the `--background` also as the fill of a
 rotation), and analyzes the result (see _ImageInspector Unit Design_). The command reports the `InspectResult`. The

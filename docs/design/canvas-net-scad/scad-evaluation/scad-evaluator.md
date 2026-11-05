@@ -86,9 +86,12 @@ the values of the requested view instead (see _ScadDocument Unit Design_). `Scad
 holds the four nullable valid values and `IsManual`, true when `$vpt`, `$vpd`, or `$vpf` was defined (which selects
 a manual camera instead of the automatic framing).
 
-**Sink (`ScadEvaluationSink`).** Buffers the echo lines (checking the cumulative output limit), the warnings
-(de-duplicated by message and location, capped at `MaxDiagnostics` real warnings **plus** one
-`Further diagnostics suppressed (limit N)` notice located at the first dropped warning, and bounded in memory
+**Sink (`ScadEvaluationSink`).** Buffers the echo lines (checking the cumulative output limit), the warnings (each
+with its `ScadDiagnosticCodes` code, set by `Warn(code, message, location)`; the two-argument overload records the
+default `scad-warning`; warnings are de-duplicated by message and location only, so the code never changes what is
+reported; the buffer is capped at `MaxDiagnostics` real warnings **plus** one
+`Further diagnostics suppressed (limit N)` notice, code `scad-diagnostics-suppressed`, located at the first dropped
+warning, and bounded in memory
 however many distinct warnings are produced), and the unsupported-feature reports (de-duplicated by feature and
 location; `Unsupported` returns whether the report was new so the evaluator can throw on the first one).
 `Reset` clears everything for a restart, and `Deliver` replays all three kinds **chronologically** (not
@@ -115,7 +118,8 @@ test reaches the fallback path deterministically instead of depending on how sma
   the unit overload.
 - `Evaluate(ScadSourceUnit, ScadEvaluationSettings, ScadEvaluationSink)` — snapshots the warnings recorded so
   far (phase A's), runs the pass **inline**, and, only when the pass throws
-  `InsufficientExecutionStackException`, resets the sink, re-records the snapshot, and runs the pass again on
+  `InsufficientExecutionStackException`, resets the sink, re-records the snapshot (each warning with its own code, so
+  a replayed warning keeps its code), and runs the pass again on
   the large-stack thread (`RunOnEvaluatorThread`).
 - `RunPass(stackShortageIsRecursionError)` — builds the root scope, **reads the viewport variables of the main
   file** (`ReadViewport`, see _Normative Semantics: Viewport Variables_), executes the file's statements, and

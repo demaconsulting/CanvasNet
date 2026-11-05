@@ -52,6 +52,28 @@ public class ScadDocumentBuildSceneTests
     }
 
     /// <summary>
+    ///     Validates that the warnings of the geometry stage carry their category code: an invalid argument, an unknown
+    ///     argument and a duplicate argument.
+    /// </summary>
+    /// <param name="source">The program.</param>
+    /// <param name="expectedCode">The code of the single warning the build produces.</param>
+    [Theory]
+    [InlineData("color(\"not-a-color\") cube(1);", "scad-invalid-argument")]
+    [InlineData("cube(size = 1, bogus = 2);", "scad-unknown-argument")]
+    [InlineData("cube(size = 1, size = 2);", "scad-duplicate-argument")]
+    public void ScadDocument_BuildScene_GeometryWarning_CarriesItsCategoryCode(string source, string expectedCode)
+    {
+        // Arrange
+        var warnings = new List<ScadDiagnostic>();
+        var options = new ScadRenderOptions { Evaluation = new ScadEvaluationOptions { WarningHandler = warnings.Add } };
+
+        // Act
+        ScadDocument.Parse(source).BuildScene(options, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(expectedCode, Assert.Single(warnings).Code);
+    }
+    /// <summary>
     ///     Validates that the flat-shape thickness of the options sets the slab height.
     /// </summary>
     [Fact]

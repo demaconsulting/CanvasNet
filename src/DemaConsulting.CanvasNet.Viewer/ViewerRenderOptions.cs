@@ -49,6 +49,14 @@ public sealed record ViewerRenderOptions
     ///     so <b>one that claims the same extension or URI scheme as a built-in source wins</b>, and a file type that only
     ///     an extra source claims can be rendered and embedded.
     /// </summary>
+    /// <remarks>
+    ///     These sources are used by <see cref="CanvasNetViewer.Render(string, ViewerRenderOptions?)"/> (and its stream
+    ///     overload), which builds its own resolver from the built-in sources plus these - you never create a resolver for
+    ///     a <c>Render</c> call. To embed files in a render that <b>you</b> drive yourself (for example
+    ///     <c>SvgCodec.Load</c> with <c>SvgLoadOptions.ImageResolver</c>), call
+    ///     <see cref="CanvasNetViewer.CreateImageResolver(string, IEnumerable{IImageSource}, FolderImageResolverOptions?)"/>
+    ///     with the same extra sources instead; the precedence is the same (later wins).
+    /// </remarks>
     public IEnumerable<IImageSource>? ExtraSources { get; init; }
 
     /// <summary>

@@ -61,7 +61,8 @@ from the -Y side (the front) and positive azimuth moves the eye toward +X.
 
 **LoadedSource** (record, `IDisposable`): the `Surface` (disposed with the record), the `Info` (for a document page,
 sized at the natural size of that page at the requested resolution), the 1-based `Page`, `IsVector`, `Diagnostics`
-(`ImageDiagnostic` records: source, severity, code, message, and the page), `Echo` (text printed by a model),
+(`ImageDiagnostic` records: source, severity, code, message, and the page, with the `Origin`: the embedded files,
+outermost first, that the note is about, empty by default and compared entry by entry), `Echo` (text printed by a model),
 `Anchors` (`SourceAnchor` records, an init property that is empty for every kind but a model: the name, the world
 point `X`, `Y`, `Z`, and the nullable continuous pixel position `PixelX` and `PixelY` in the loaded surface), and
 `Operations` (`AppliedOperation` records: an operation name and its parameters in order; a parameter is a string, a
@@ -164,7 +165,9 @@ plug-in mechanism: it never passes extra sources, so the supported types are exa
 `SvgImages` is the thin wiring around that resolver and keeps only the tool's own policy:
 
 - **Mapping.** After the render, `Notes()` maps each `ImageSourceDiagnostic` to an `ImageDiagnostic` (the severity
-  `Info`, `Warning`, and `Unsupported` become `info`, `warning`, and `unsupported`), the printed text becomes the echo,
+  `Info`, `Warning`, and `Unsupported` become `info`, `warning`, and `unsupported`; the `Origin` chain of the core
+  diagnostic is carried over unchanged, and the message and the code are not touched, so the output of the tool does
+  not change), the printed text becomes the echo,
   and `Operations()` maps each `EmbeddedImage` with `Depth == 0` (a file the SVG file itself embeds; files that an
   embedded SVG file embeds are not listed, as before) to an `embed` operation (`href`, `format`, `width`, `height`).
   The outer sizing, page, resolution, and model options are not passed on: the resolver draws an embedded file from
@@ -266,8 +269,8 @@ that leaves the folder, an include cycle, nesting that is too deep, and a syntax
 of the library. A directive whose file does not exist is only a *warning* in the library (as in OpenSCAD itself);
 the loader treats that warning as an error, because a picture drawn without a file the model asked for would be
 wrong without saying so: after the render the picture is discarded and a `scad-error` ("SCAD include not found: ...")
-with a hint about where files are looked up is thrown. The match is on the library's warning text ("Can't open include
-file"), which a test pins.
+with a hint about where files are looked up is thrown. The loader recognizes that warning by its code
+(`ScadDiagnosticCodes.IncludeNotFound`, `scad-include-not-found`), not by its text, which a test pins.
 
 Each step that changed the pixels is recorded in `Operations` (`auto-orient` with the orientation,
 `resize` with the size, `render` with the size - and for a document the page, the dots per inch, and the

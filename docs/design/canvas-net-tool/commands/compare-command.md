@@ -61,7 +61,10 @@ given for an input of the wrong kind is a `usage-error` naming the kind, in term
 options are skipped for an input they do not concern; `SourceLoader.CheckPage`, whose `page-out-of-range` is
 re-thrown with `Input a:` or `Input b:` in front, and the `SourceOptions` of the side). It then calls
 `ImageComparer.Execute(request)` of the Viewer library with a `CompareRequest` built from the settings and the two
-`CompareInput` values, and reports the result. The library reports every mistake about the pictures before decoding
+`CompareInput` values (the inputs are the positional members; every other value is set explicitly as an `init`
+property, so the result does not depend on the defaults of the record), and reports the result (the metrics are
+`result.Comparison.Metrics`, the full measurement is `result.Comparison`). The library reports every mistake about the
+pictures before decoding
 anything, loads and sizes the sides, compares, evaluates the thresholds, and writes the pictures (see _ImageComparer Unit
 Design_), so the behavior described below for loading and writing is the library's, called with the values read here. A
 threshold that is not met is data in the library's result: the command writes the result and then throws

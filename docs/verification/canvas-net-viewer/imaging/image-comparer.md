@@ -61,3 +61,14 @@ says `Unknown output format`.
 **ImageComparer_Execute_NullRequestMember_ThrowsArgumentNullException**: a request without the first or second input,
 the label, facts, or options of either, the thresholds, or the write options throws `ArgumentNullException` that names
 the member, and nothing is written.
+
+**ImageComparer_Execute_Result_MetricsIsShortcutToComparisonMetrics**: a comparison of a white image with a black one
+reports `result.Metrics` equal to `result.Comparison.Metrics` (an RMSE of 255 on the 0 to 255 scale), and the grid cells
+and the tolerance are read from `result.Comparison`.
+
+**ResizeTarget_Helpers_CreateTheThreeShapes**: `ResizeTarget.ToInputA` and `ToInputB` are the targets with the side `a`
+and `b` and sizes of 0, and `ResizeTarget.To(width, height)` is the target with no side and that size.
+
+**ImageComparer_Execute_ResizeHelper_BringsInputsToTheNamedSize**: for each helper (the size of the first input, the
+size of the second input, and an explicit size) two inputs of different sizes are compared at the size the helper names,
+and both sides report that size.

@@ -6,69 +6,210 @@ namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 /// <summary>
 ///     One input of a comparison: which file, which page of it, and how it is loaded.
 /// </summary>
+/// <remarks>
+///     The label and the probed file are required; the page and the load options default to what the
+///     <c>canvasnet compare</c> command uses when the input has no options (page 1, default load options).
+/// </remarks>
 /// <param name="Label">The name of the side, <c>a</c> or <c>b</c>, used in messages and results.</param>
 /// <param name="Info">The facts about the file, from <see cref="SourceLoader.Probe"/>.</param>
-/// <param name="Page">The 1-based page that is compared (1 for a single-image source); it must exist in <paramref name="Info"/>.</param>
-/// <param name="Source">
-///     How the input is loaded, without a target size: the size is set by <see cref="CompareRequest.Resize"/>. The
-///     caller leaves out what does not concern the kind of the input (for example a model view for a raster).
-/// </param>
-public sealed record CompareInput(string Label, SourceInfo Info, int Page, SourceOptions Source);
+public sealed record CompareInput(string Label, SourceInfo Info)
+{
+    /// <summary>
+    ///     Gets the 1-based page that is compared (the first page is 1, which is also the page of a single-image source
+    ///     and the default); it must exist in <see cref="Info"/>. The format packages count pages from 0; do not pass them
+    ///     this number unchanged.
+    /// </summary>
+    public int Page { get; init; } = 1;
+
+    /// <summary>
+    ///     Gets how the input is loaded, without a target size: the size is set by <see cref="CompareRequest.Resize"/>.
+    ///     The default loads the input with the library defaults. The caller leaves out what does not concern the kind of
+    ///     the input (for example a model view for a raster).
+    /// </summary>
+    public SourceOptions Source { get; init; } = new();
+}
 
 /// <summary>
 ///     How the two inputs of a comparison are brought to one size.
 /// </summary>
-/// <param name="Side">The side whose size is the target (<c>a</c> or <c>b</c>), or <see langword="null"/> for an explicit size.</param>
-/// <param name="Width">The target width in pixels for an explicit size; 0 otherwise.</param>
-/// <param name="Height">The target height in pixels for an explicit size; 0 otherwise.</param>
-public sealed record ResizeTarget(string? Side, int Width, int Height);
+/// <remarks>
+///     <para>
+///         Use <see cref="ToInputA"/>, <see cref="ToInputB"/> or <see cref="To(int, int)"/> instead of the constructor: they
+///         name the three valid shapes. There are exactly two meanings:
+///     </para>
+///     <list type="bullet">
+///         <item>
+///             <description>
+///                 <paramref name="Side"/> is <c>"a"</c> or <c>"b"</c> (lower case, compared exactly): the <b>other</b>
+///                 input is loaded at the natural size of that input. <paramref name="Width"/> and
+///                 <paramref name="Height"/> are then ignored; they are <c>0</c> by convention.
+///             </description>
+///         </item>
+///         <item>
+///             <description>
+///                 Any other <paramref name="Side"/>, normally <see langword="null"/>: <b>both</b> inputs are loaded at
+///                 <paramref name="Width"/> x <paramref name="Height"/>, each 1 to <see cref="Surface.MaxDimension"/>
+///                 pixels. A vector input (SVG, a document page, a model) is rendered at that size; a raster input is
+///                 fitted into it with <see cref="CompareRequest.Fit"/> and <see cref="CompareRequest.Filter"/>.
+///             </description>
+///         </item>
+///     </list>
+///     <para>
+///         The library does not check <paramref name="Side"/> or the size when the request is built: a misspelled side
+///         such as <c>"A"</c> is taken for an explicit size, and a size outside the range makes the comparison fail
+///         when it runs. The command line does check both.
+///     </para>
+/// </remarks>
+/// <param name="Side">The side whose size is the target: <c>"a"</c> (bring B to the size of A) or <c>"b"</c> (bring A to the size of B), lower case; <see langword="null"/> for an explicit size.</param>
+/// <param name="Width">The target width in pixels of an explicit size (1 to <see cref="Surface.MaxDimension"/>); 0, and ignored, when <paramref name="Side"/> is <c>"a"</c> or <c>"b"</c>.</param>
+/// <param name="Height">The target height in pixels of an explicit size (1 to <see cref="Surface.MaxDimension"/>); 0, and ignored, when <paramref name="Side"/> is <c>"a"</c> or <c>"b"</c>.</param>
+public sealed record ResizeTarget(string? Side, int Width, int Height)
+{
+    /// <summary>
+    ///     Gets the target that brings input B to the size of input A.
+    /// </summary>
+    public static ResizeTarget ToInputA { get; } = new("a", 0, 0);
+
+    /// <summary>
+    ///     Gets the target that brings input A to the size of input B.
+    /// </summary>
+    public static ResizeTarget ToInputB { get; } = new("b", 0, 0);
+
+    /// <summary>
+    ///     Creates the target that brings both inputs to an explicit size.
+    /// </summary>
+    /// <param name="width">The width in pixels, 1 to <see cref="Surface.MaxDimension"/>.</param>
+    /// <param name="height">The height in pixels, 1 to <see cref="Surface.MaxDimension"/>.</param>
+    /// <returns>The target; the size is checked when the comparison runs.</returns>
+    public static ResizeTarget To(int width, int height) => new(null, width, height);
+}
 
 /// <summary>
 ///     What to compare: the two inputs, how they are brought to one size, what is measured and drawn, and where the
 ///     pictures are written.
 /// </summary>
+/// <remarks>
+///     The two inputs are required; every other member is an optional init property whose default is the value the
+///     <c>canvasnet compare</c> command uses when the option is not given.
+/// </remarks>
+/// <example>
+///     Compare a reference picture with a redraw of it, bring the redraw to the size of the reference, require an RMSE of at
+///     most 10 (on the 0 to 255 channel scale, so about 4% of full scale), and write the difference picture:
+///     <code language="csharp">
+///     using DemaConsulting.CanvasNet.Viewer;
+///     using DemaConsulting.CanvasNet.Viewer.Imaging;
+///
+///     var request = new CompareRequest(
+///         new CompareInput("a", SourceLoader.Probe("reference.png")),
+///         new CompareInput("b", SourceLoader.Probe("redraw.svg")))
+///     {
+///         Resize = ResizeTarget.ToInputA,
+///         Thresholds = [new ComparisonThreshold(ThresholdMetric.Rmse, 10)],
+///         DiffPath = "diff.png"
+///     };
+///
+///     var result = ImageComparer.Execute(request);
+///     Console.WriteLine($"RMSE {result.Metrics.Rmse:F2}, passed: {result.Checks.All(check => check.Passed)}");
+///     </code>
+/// </example>
 /// <param name="A">The first input.</param>
 /// <param name="B">The second input.</param>
-/// <param name="Resize">How the inputs are brought to one size, or <see langword="null"/> to compare them at their own sizes (which must then be equal).</param>
-/// <param name="Fit">How a raster input is fitted to <paramref name="Resize"/>.</param>
-/// <param name="Filter">The resampling filter of a fit.</param>
-/// <param name="Background">The opaque color transparency is flattened over, and the margin of a contained raster.</param>
-/// <param name="Tolerance">The largest channel difference that does not make a pixel differ, 0 to 255.</param>
-/// <param name="GridColumns">The number of grid columns, 1 to <see cref="ComparisonResult.MaxGridSide"/>.</param>
-/// <param name="GridRows">The number of grid rows, 1 to <see cref="ComparisonResult.MaxGridSide"/>.</param>
-/// <param name="Thresholds">The requirements the result is checked against, in the order given; empty for none.</param>
-/// <param name="DiffPath">The output of the difference picture, or <see langword="null"/> for none.</param>
-/// <param name="SideBySidePath">The output of the side-by-side picture, or <see langword="null"/> for none.</param>
-/// <param name="OverlayPath">The output of the overlay, or <see langword="null"/> for none.</param>
-/// <param name="DiffStyle">How a difference is drawn in the difference picture.</param>
-/// <param name="Gain">The amplification of a difference in the pictures, 0.1 to 255.</param>
-/// <param name="OverlayWeight">The weight of the second input in the overlay, 0 to 1.</param>
-/// <param name="Write">How the pictures are written.</param>
-public sealed record CompareRequest(
-    CompareInput A,
-    CompareInput B,
-    ResizeTarget? Resize,
-    FitMode Fit,
-    ResamplingMode Filter,
-    Rgba32 Background,
-    int Tolerance,
-    int GridColumns,
-    int GridRows,
-    IReadOnlyList<ComparisonThreshold> Thresholds,
-    string? DiffPath,
-    string? SideBySidePath,
-    string? OverlayPath,
-    DiffStyle DiffStyle,
-    double Gain,
-    double OverlayWeight,
-    WriteOptions Write);
+public sealed record CompareRequest(CompareInput A, CompareInput B)
+{
+    /// <summary>
+    ///     Gets how the inputs are brought to one size, or <see langword="null"/> (the default) to compare them at their
+    ///     own sizes, which must then be equal.
+    /// </summary>
+    public ResizeTarget? Resize { get; init; }
 
+    /// <summary>
+    ///     Gets how a raster input is fitted to <see cref="Resize"/>; <see cref="FitMode.Contain"/> by default.
+    /// </summary>
+    public FitMode Fit { get; init; } = FitMode.Contain;
+
+    /// <summary>
+    ///     Gets the resampling filter of a fit; <see cref="ResamplingMode.Auto"/> by default.
+    /// </summary>
+    public ResamplingMode Filter { get; init; } = ResamplingMode.Auto;
+
+    /// <summary>
+    ///     Gets the opaque color transparency is flattened over, and the margin of a contained raster; opaque white by
+    ///     default.
+    /// </summary>
+    public Rgba32 Background { get; init; } = new(255, 255, 255, 255);
+
+    /// <summary>
+    ///     Gets the largest channel difference that does not make a pixel differ, 0 to 255; the default is
+    ///     <see cref="ImageComparison.DefaultTolerance"/>.
+    /// </summary>
+    /// <remarks>
+    ///     A pixel differs when any of its red, green, or blue channels differs by <b>more</b> than the tolerance. It
+    ///     changes only the count and ratio of differing pixels (<see cref="ThresholdMetric.DiffRatio"/>, and the same
+    ///     ratio of each grid cell); it does not change MAE, RMSE, PSNR, SSIM, or the maximum difference, which always
+    ///     use every pixel.
+    /// </remarks>
+    public int Tolerance { get; init; } = ImageComparison.DefaultTolerance;
+
+    /// <summary>
+    ///     Gets the number of grid columns, 1 to <see cref="ComparisonResult.MaxGridSide"/>; the default is
+    ///     <see cref="ImageComparison.DefaultGridColumns"/>.
+    /// </summary>
+    public int GridColumns { get; init; } = ImageComparison.DefaultGridColumns;
+
+    /// <summary>
+    ///     Gets the number of grid rows, 1 to <see cref="ComparisonResult.MaxGridSide"/>; the default is
+    ///     <see cref="ImageComparison.DefaultGridRows"/>.
+    /// </summary>
+    public int GridRows { get; init; } = ImageComparison.DefaultGridRows;
+
+    /// <summary>
+    ///     Gets the requirements the result is checked against, in the order given; empty (the default) for none.
+    /// </summary>
+    public IReadOnlyList<ComparisonThreshold> Thresholds { get; init; } = [];
+
+    /// <summary>
+    ///     Gets the output of the difference picture, or <see langword="null"/> (the default) for none.
+    /// </summary>
+    public string? DiffPath { get; init; }
+
+    /// <summary>
+    ///     Gets the output of the side-by-side picture, or <see langword="null"/> (the default) for none.
+    /// </summary>
+    public string? SideBySidePath { get; init; }
+
+    /// <summary>
+    ///     Gets the output of the overlay, or <see langword="null"/> (the default) for none.
+    /// </summary>
+    public string? OverlayPath { get; init; }
+
+    /// <summary>
+    ///     Gets how a difference is drawn in the difference picture; <see cref="DiffStyle.Heat"/> by default.
+    /// </summary>
+    public DiffStyle DiffStyle { get; init; } = DiffStyle.Heat;
+
+    /// <summary>
+    ///     Gets the amplification of a difference in the pictures, 0.1 to 255; the default is
+    ///     <see cref="ImageComparison.DefaultGain"/>.
+    /// </summary>
+    public double Gain { get; init; } = ImageComparison.DefaultGain;
+
+    /// <summary>
+    ///     Gets the weight of the second input in the overlay, 0 to 1; the default is
+    ///     <see cref="ImageComparison.DefaultOverlayWeight"/>.
+    /// </summary>
+    public double OverlayWeight { get; init; } = ImageComparison.DefaultOverlayWeight;
+
+    /// <summary>
+    ///     Gets how the pictures are written; <see cref="WriteOptions.Default"/> by default.
+    /// </summary>
+    public WriteOptions Write { get; init; } = WriteOptions.Default;
+}
 /// <summary>
 ///     One input after it was loaded, with what is reported about it.
 /// </summary>
 /// <param name="Label">The name of the side: <c>a</c> or <c>b</c>.</param>
 /// <param name="Info">The facts about the file.</param>
-/// <param name="Page">The 1-based page that was loaded.</param>
+/// <param name="Page">The 1-based page that was loaded (the first page is 1).</param>
 /// <param name="LoadedWidth">The width of the input as it was loaded, before it was fitted to the target size.</param>
 /// <param name="LoadedHeight">The height of the input as it was loaded, before it was fitted to the target size.</param>
 /// <param name="Width">The width of the pixels that were compared.</param>
@@ -76,6 +217,10 @@ public sealed record CompareRequest(
 /// <param name="Operations">What was done to the input to produce the compared pixels.</param>
 /// <param name="Diagnostics">The notes reported while loading.</param>
 /// <param name="Echo">The text a model printed while it was evaluated.</param>
+/// <remarks>
+///     A side reports its <paramref name="Diagnostics"/> and <paramref name="Echo"/> but not the anchors of a model: the
+///     anchors are reported only by <see cref="ImageRenderer"/> and <see cref="SourceLoader"/>.
+/// </remarks>
 public sealed record CompareSide(
     string Label,
     SourceInfo Info,
@@ -100,7 +245,7 @@ public sealed record ComparedPicture(string Kind, WriteResult Result);
 /// </summary>
 /// <param name="A">The first input as it was compared.</param>
 /// <param name="B">The second input as it was compared.</param>
-/// <param name="Metrics">The measures, the grid, and the tolerance, from <see cref="Surface.Compare"/>.</param>
+/// <param name="Comparison">The measures, the grid, and the tolerance, from <see cref="Surface.Compare"/>; <see cref="CompareResult.Metrics"/> is a shortcut to its metrics.</param>
 /// <param name="Checks">
 ///     The outcome of each requested threshold, in the order given. A threshold that is not met is data here
 ///     (<see cref="ThresholdCheck.Passed"/> is <see langword="false"/>), not an exception: the pictures were written
@@ -110,9 +255,20 @@ public sealed record ComparedPicture(string Kind, WriteResult Result);
 public sealed record CompareResult(
     CompareSide A,
     CompareSide B,
-    ComparisonResult Metrics,
+    ComparisonResult Comparison,
     IReadOnlyList<ThresholdCheck> Checks,
-    IReadOnlyList<ComparedPicture> Pictures);
+    IReadOnlyList<ComparedPicture> Pictures)
+{
+    /// <summary>
+    ///     Gets the whole-image measures of <see cref="Comparison"/>: MAE, RMSE, maximum difference and the differing
+    ///     pixels on the 0 to 255 channel scale (0 means identical), PSNR in decibels, and SSIM from -1 to 1.
+    /// </summary>
+    /// <remarks>
+    ///     This is the shortcut for <c>Comparison.Metrics</c>, so the RMSE reads <c>result.Metrics.Rmse</c>. The grid
+    ///     (<c>Cells</c>, <c>WorstCells</c>, <c>MaxCellRmse</c>) and the tolerance are on <see cref="Comparison"/>.
+    /// </remarks>
+    public ComparisonMetrics Metrics => Comparison.Metrics;
+}
 
 /// <summary>
 ///     The compare operation: measures how much two images differ and can write pictures of the differences - the

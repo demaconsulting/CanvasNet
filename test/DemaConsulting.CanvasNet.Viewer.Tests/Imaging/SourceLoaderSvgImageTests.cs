@@ -458,4 +458,48 @@ public class SourceLoaderSvgImageTests
         Assert.Empty(loaded.Echo);
         Assert.DoesNotContain(loaded.Operations, o => o.Op == "embed");
     }
+
+    /// <summary>
+    ///     Test that a note of an embedded model lists the model as its origin, and that a reference of the document
+    ///     itself that is not drawn has no origin.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_SvgEmbeddingModelWithNotes_NotesCarryTheEmbeddedFileAsOrigin()
+    {
+        // Arrange: a model with an unsupported feature, and a document that also links a missing file
+        using var directory = new TempDirectory();
+        FixtureFactory.WriteText(directory.Path, "part.scad", "offset(r = 1) square(2);\ncube(5);\n");
+        var path = WriteSvg(
+            directory.Path,
+            "diagram.svg",
+            "<image href='part.scad' x='0' y='0' width='20' height='20'/><image href='nothing.png' x='20' y='20' width='10' height='10'/>");
+
+        // Act
+        using var loaded = Load(path);
+
+        // Assert: the note of the model names the model, the miss of the document names nothing
+        var modelNote = Assert.Single(loaded.Diagnostics, d => d.Source == "scad" && d.Severity == "unsupported");
+        Assert.Equal(["part.scad"], modelNote.Origin);
+        Assert.StartsWith("part.scad: ", modelNote.Message, StringComparison.Ordinal);
+        Assert.Empty(Assert.Single(Unresolved(loaded)).Origin);
+    }
+
+    /// <summary>
+    ///     Test that a link that is not drawn, found inside an embedded SVG file, lists that file as its origin.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_SvgEmbeddingNestedSvgWithMissingFile_OriginIsTheNestedFile()
+    {
+        // Arrange: outer.svg embeds inner.svg, which links a file that does not exist
+        using var directory = new TempDirectory();
+        WriteSvg(directory.Path, "inner.svg", "<image href='gone.png' x='0' y='0' width='10' height='10'/>");
+        var path = WriteSvg(directory.Path, "outer.svg", "<image href='inner.svg' x='0' y='0' width='40' height='40'/>");
+
+        // Act
+        using var loaded = Load(path);
+
+        // Assert
+        var note = Assert.Single(Unresolved(loaded));
+        Assert.Equal(["inner.svg"], note.Origin);
+    }
 }

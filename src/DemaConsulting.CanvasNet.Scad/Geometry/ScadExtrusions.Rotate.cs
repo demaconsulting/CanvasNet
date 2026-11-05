@@ -59,13 +59,13 @@ internal static partial class ScadExtrusions
         var angle = FullTurn;
         if (args.TryGet("angle", out var angleValue) && !ScadArguments.TryNumber(angleValue, out angle))
         {
-            context.Reporter.Warn("rotate_extrude: angle must be a number; the instance is ignored", instance.Location);
+            context.Reporter.Warn(ScadDiagnosticCodes.InvalidArgument, "rotate_extrude: angle must be a number; the instance is ignored", instance.Location);
             return ScadGeo.Empty;
         }
 
         if (angle == 0.0)
         {
-            context.Reporter.Warn("rotate_extrude: angle must not be zero; the instance is ignored", instance.Location);
+            context.Reporter.Warn(ScadDiagnosticCodes.InvalidArgument, "rotate_extrude: angle must not be zero; the instance is ignored", instance.Location);
             return ScadGeo.Empty;
         }
 

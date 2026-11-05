@@ -95,27 +95,30 @@ internal sealed partial class CompareCommand : ICommand
 
         // The operation reports the mistakes about the outputs before any pixels are decoded, then loads both inputs,
         // compares them, and writes the pictures; everything below only formats what it returns
+        // Every value is passed explicitly, so the command never depends on the defaults of the request
         var comparison = ImageComparer.Execute(new CompareRequest(
-            new CompareInput(settings.A.Label, infoA, pageA, optionsA),
-            new CompareInput(settings.B.Label, infoB, pageB, optionsB),
-            settings.Resize,
-            settings.Fit,
-            settings.Filter,
-            settings.Background,
-            settings.Tolerance,
-            settings.GridColumns,
-            settings.GridRows,
-            settings.Thresholds,
-            settings.DiffPath,
-            settings.SideBySidePath,
-            settings.OverlayPath,
-            settings.DiffStyle,
-            settings.Gain,
-            settings.OverlayWeight,
-            settings.Write));
+            new CompareInput(settings.A.Label, infoA) { Page = pageA, Source = optionsA },
+            new CompareInput(settings.B.Label, infoB) { Page = pageB, Source = optionsB })
+        {
+            Resize = settings.Resize,
+            Fit = settings.Fit,
+            Filter = settings.Filter,
+            Background = settings.Background,
+            Tolerance = settings.Tolerance,
+            GridColumns = settings.GridColumns,
+            GridRows = settings.GridRows,
+            Thresholds = settings.Thresholds,
+            DiffPath = settings.DiffPath,
+            SideBySidePath = settings.SideBySidePath,
+            OverlayPath = settings.OverlayPath,
+            DiffStyle = settings.DiffStyle,
+            Gain = settings.Gain,
+            OverlayWeight = settings.OverlayWeight,
+            Write = settings.Write
+        });
         var a = comparison.A;
         var b = comparison.B;
-        var result = comparison.Metrics;
+        var result = comparison.Comparison;
         var checks = comparison.Checks;
         var outputs = comparison.Pictures;
 

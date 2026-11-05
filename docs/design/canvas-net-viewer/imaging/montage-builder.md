@@ -14,12 +14,13 @@ geometry and the pixels of the sheet are those of `ContactSheet`, the loading is
 
 #### Data Model
 
-**MontageRequest** (record): `Output`, `Page` (of each document; `null` for the first), `AllPages`, `Dpi`, `Scad`
-(`ScadViewOptions?`), `Strict`, `AutoOrient`, `Sheet` (the `SheetOptions`), and `Write`.
+**MontageRequest** (record): the required `Output` (positional) and the `init` properties `Page` (of each document,
+counted from 1; `null` for the first), `AllPages` (off), `Dpi` (none), `Scad` (`ScadViewOptions?`; none), `Strict`
+(off), `AutoOrient` (on), `Sheet` (the `SheetOptions`; default), and `Write` (`WriteOptions.Default`).
 
-**MontageCell** (record): `Index`, `InputIndex`, `Info`, `Page`, `X` and `Y` (of the cell's image area), `LoadedWidth`
-and `LoadedHeight`, `Label`, `Diagnostics`, and `Echo`. **MontageResult** (record): `Layout` (the `SheetLayout`),
-`Written` (the `WriteResult`), and `Cells`.
+**MontageCell** (record): `Index` and `InputIndex` (positions in a list, from 0), `Info`, `Page` (from 1), `X` and `Y`
+(of the cell's image area), `LoadedWidth` and `LoadedHeight`, `Label`, `Diagnostics`, and `Echo`. **MontageResult**
+(record): `Layout` (the `SheetLayout`), `Written` (the `WriteResult`), and `Cells`.
 
 #### Key Methods
 

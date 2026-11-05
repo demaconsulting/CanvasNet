@@ -258,8 +258,13 @@ public static partial class SourceLoader
     ///     Checks that a page exists in a source.
     /// </summary>
     /// <param name="info">The facts about the file.</param>
-    /// <param name="page">The 1-based page number.</param>
+    /// <param name="page">The 1-based page number (the first page is 1).</param>
     /// <exception cref="ViewerException">Thrown with code <c>page-out-of-range</c> when the source has no such page.</exception>
+    /// <remarks>
+    ///     <see cref="Load(SourceInfo, SourceOptions)"/> and the operations of this namespace check the page themselves
+    ///     before they decode anything; call this method first only to get the same <c>page-out-of-range</c> error earlier,
+    ///     for example before you create an output folder.
+    /// </remarks>
     public static void CheckPage(SourceInfo info, int page)
     {
         ArgumentNullException.ThrowIfNull(info);

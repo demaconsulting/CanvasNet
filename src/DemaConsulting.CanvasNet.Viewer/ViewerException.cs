@@ -69,7 +69,9 @@ public static class ErrorCodes
 ///     every expected failure (a missing or corrupt input, an unsupported feature, a size limit, an output that cannot
 ///     be written, and so on) with one <c>catch</c> and still branch on <see cref="Code"/>, one of the
 ///     <see cref="ErrorCodes"/> constants. The command-line tool derives from it to add what only a command line
-///     needs. The class is not sealed for that reason.
+///     needs. The class is not sealed for that reason. <see cref="ViewerException"/> and <see cref="ErrorCodes"/> are in the
+///     <c>DemaConsulting.CanvasNet.Viewer</c> namespace, while the operations that throw them are in
+///     <c>DemaConsulting.CanvasNet.Viewer.Imaging</c>: an example that catches one needs both <c>using</c> directives.
 /// </remarks>
 public class ViewerException : InvalidOperationException
 {

@@ -7,38 +7,85 @@ namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 /// <summary>
 ///     What to compose: where to write, how the inputs are loaded, and the options of the sheet.
 /// </summary>
+/// <remarks>
+///     The output path is the only required member; every other member is an optional init property whose default is
+///     what the <c>canvasnet montage</c> command uses when the option is not given.
+/// </remarks>
+/// <example>
+///     A sheet of three inputs in two columns with the file names as labels:
+///     <code language="csharp">
+///     using DemaConsulting.CanvasNet.Viewer.Imaging;
+///
+///     string[] files = ["logo.png", "diagram.svg", "deck.pptx"];
+///     var infos = files.Select(SourceLoader.Probe).ToList();
+///     var request = new MontageRequest("sheet.png") { Sheet = new SheetOptions { Columns = 2, Labels = true } };
+///     var result = MontageBuilder.Execute(infos, request);
+///     Console.WriteLine($"{result.Cells.Count} cells: {string.Join(", ", result.Cells.Select(cell => cell.Label))}");
+///     </code>
+/// </example>
 /// <param name="Output">The path of the contact sheet; its extension selects the format unless <c>Write.Format</c> is set.</param>
-/// <param name="Page">The page of each document, or <see langword="null"/> for the first; ignored with <paramref name="AllPages"/>.</param>
-/// <param name="AllPages"><see langword="true"/> to add every page of each document, in order, instead of one.</param>
-/// <param name="Dpi">The resolution of a document in dots per inch, or <see langword="null"/> for the default.</param>
-/// <param name="Scad">The options of an OpenSCAD model, or <see langword="null"/> when none were given.</param>
-/// <param name="Strict"><see langword="true"/> to fail on a feature the library cannot draw.</param>
-/// <param name="AutoOrient"><see langword="false"/> to leave a JPEG as stored.</param>
-/// <param name="Sheet">The options of the sheet: columns, cell size, spacing, padding, background, labels, fit, and filter.</param>
-/// <param name="Write">How the sheet is written.</param>
-public sealed record MontageRequest(
-    string Output,
-    int? Page,
-    bool AllPages,
-    double? Dpi,
-    ScadViewOptions? Scad,
-    bool Strict,
-    bool AutoOrient,
-    SheetOptions Sheet,
-    WriteOptions Write);
+public sealed record MontageRequest(string Output)
+{
+    /// <summary>
+    ///     Gets the 1-based page of each document (the first page is 1), or <see langword="null"/> (the default) for page 1;
+    ///     ignored with <see cref="AllPages"/>. A page that a document does not have is refused with the code
+    ///     <c>page-out-of-range</c>. The format packages count from 0; do not pass them this number.
+    /// </summary>
+    public int? Page { get; init; }
+
+    /// <summary>
+    ///     Gets a value indicating whether every page of each document is added, in order, instead of one;
+    ///     <see langword="false"/> by default.
+    /// </summary>
+    public bool AllPages { get; init; }
+
+    /// <summary>
+    ///     Gets the resolution of a document in dots per inch, or <see langword="null"/> (the default) for the library
+    ///     default.
+    /// </summary>
+    public double? Dpi { get; init; }
+
+    /// <summary>
+    ///     Gets the options of an OpenSCAD model, or <see langword="null"/> (the default) when none were given.
+    /// </summary>
+    public ScadViewOptions? Scad { get; init; }
+
+    /// <summary>
+    ///     Gets a value indicating whether a feature the library cannot draw is an error; <see langword="false"/> by
+    ///     default.
+    /// </summary>
+    public bool Strict { get; init; }
+
+    /// <summary>
+    ///     Gets a value indicating whether a JPEG is rotated to its EXIF orientation; <see langword="true"/> by default,
+    ///     <see langword="false"/> leaves a JPEG as stored.
+    /// </summary>
+    public bool AutoOrient { get; init; } = true;
+
+    /// <summary>
+    ///     Gets the options of the sheet: columns, cell size, spacing, padding, background, labels, fit, and filter; a
+    ///     <see cref="SheetOptions"/> with its defaults unless set.
+    /// </summary>
+    public SheetOptions Sheet { get; init; } = new();
+
+    /// <summary>
+    ///     Gets how the sheet is written; <see cref="WriteOptions.Default"/> unless set.
+    /// </summary>
+    public WriteOptions Write { get; init; } = WriteOptions.Default;
+}
 
 /// <summary>
 ///     One cell of the sheet after it was drawn.
 /// </summary>
-/// <param name="Index">The 0-based index of the cell.</param>
-/// <param name="InputIndex">The index of the input in the list that was given.</param>
+/// <param name="Index">The 0-based index of the cell, in row-major order (the first cell is 0).</param>
+/// <param name="InputIndex">The 0-based index of the input in the list that was given to <see cref="MontageBuilder.Execute"/>; a document with all pages gives several cells the same input index.</param>
 /// <param name="Info">The facts about the input.</param>
-/// <param name="Page">The 1-based page of the input.</param>
+/// <param name="Page">The 1-based page of the input (the first page is 1; 1 for a single image).</param>
 /// <param name="X">The x position of the cell's image area.</param>
 /// <param name="Y">The y position of the cell's image area.</param>
 /// <param name="LoadedWidth">The width of the input as it was loaded into the cell.</param>
 /// <param name="LoadedHeight">The height of the input as it was loaded into the cell.</param>
-/// <param name="Label">The label of the cell.</param>
+/// <param name="Label">The label of the cell: the file name of the input, followed by <c> p</c> and the 1-based page number for a page of a document. It is drawn only when <see cref="SheetOptions.Labels"/> is set.</param>
 /// <param name="Diagnostics">The notes reported while loading.</param>
 /// <param name="Echo">The text a model printed while it was evaluated.</param>
 public sealed record MontageCell(

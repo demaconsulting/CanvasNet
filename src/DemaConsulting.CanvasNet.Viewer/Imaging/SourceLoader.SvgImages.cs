@@ -77,7 +77,7 @@ public static partial class SourceLoader
         /// <returns>The notes, in the order they were reported.</returns>
         public List<ImageDiagnostic> Notes()
         {
-            return [.. Resolver.Diagnostics.Select(d => new ImageDiagnostic(d.Source, SeverityName(d.Severity), d.Code, d.Message))];
+            return [.. Resolver.Diagnostics.Select(d => new ImageDiagnostic(d.Source, SeverityName(d.Severity), d.Code, d.Message) { Origin = d.Origin })];
         }
 
         /// <summary>

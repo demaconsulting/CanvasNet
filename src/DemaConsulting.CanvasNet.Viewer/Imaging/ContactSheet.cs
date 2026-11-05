@@ -8,25 +8,71 @@ namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 /// <summary>
 ///     The options of a contact sheet.
 /// </summary>
-/// <param name="Columns">The number of columns, 1 to <see cref="ContactSheet.MaxColumns"/>, or 0 for the ceiling of the square root of the number of images.</param>
-/// <param name="CellWidth">The width in pixels of the image area of a cell, at least <see cref="ContactSheet.MinCell"/>.</param>
-/// <param name="CellHeight">The height in pixels of the image area of a cell, at least <see cref="ContactSheet.MinCell"/>.</param>
-/// <param name="Spacing">The space in pixels between cells (and between a label strip and the next row), 0 or more.</param>
-/// <param name="Padding">The space in pixels around the sheet, 0 or more.</param>
-/// <param name="Background">The opaque color of the sheet, of the margin of a contained image, and of the label strips.</param>
-/// <param name="Labels"><see langword="true"/> to reserve a label strip below each cell image and draw the labels.</param>
-/// <param name="Fit">How an image is fitted into its cell.</param>
-/// <param name="Filter">The resampling filter of a fit.</param>
-public sealed record SheetOptions(
-    int Columns,
-    int CellWidth,
-    int CellHeight,
-    int Spacing,
-    int Padding,
-    Rgba32 Background,
-    bool Labels,
-    FitMode Fit,
-    ResamplingMode Filter);
+/// <remarks>
+///     Every member is an optional init property whose default is what the <c>canvasnet montage</c> command uses when the
+///     option is not given, so <c>new SheetOptions()</c> is the command's default sheet.
+/// </remarks>
+public sealed record SheetOptions
+{
+    /// <summary>
+    ///     Gets the number of columns, 1 to <see cref="ContactSheet.MaxColumns"/>, or 0 (the default) for the ceiling of
+    ///     the square root of the number of images.
+    /// </summary>
+    public int Columns { get; init; }
+
+    /// <summary>
+    ///     Gets the width in pixels of the image area of a cell, at least <see cref="ContactSheet.MinCell"/>; the default
+    ///     is <see cref="ContactSheet.DefaultCellSize"/>.
+    /// </summary>
+    public int CellWidth { get; init; } = ContactSheet.DefaultCellSize;
+
+    /// <summary>
+    ///     Gets the height in pixels of the image area of a cell, at least <see cref="ContactSheet.MinCell"/>; the
+    ///     default is <see cref="ContactSheet.DefaultCellSize"/>.
+    /// </summary>
+    public int CellHeight { get; init; } = ContactSheet.DefaultCellSize;
+
+    /// <summary>
+    ///     Gets the space in pixels between cells (and between a label strip and the next row), 0 or more; the default is
+    ///     <see cref="ContactSheet.DefaultSpacing"/>.
+    /// </summary>
+    public int Spacing { get; init; } = ContactSheet.DefaultSpacing;
+
+    /// <summary>
+    ///     Gets the space in pixels around the sheet, 0 or more; the default is <see cref="ContactSheet.DefaultPadding"/>.
+    /// </summary>
+    public int Padding { get; init; } = ContactSheet.DefaultPadding;
+
+    /// <summary>
+    ///     Gets the opaque color of the sheet, of the margin of a contained image, and of the label strips; opaque white
+    ///     by default.
+    /// </summary>
+    public Rgba32 Background { get; init; } = new(255, 255, 255, 255);
+
+    /// <summary>
+    ///     Gets a value indicating whether a label strip is reserved below each cell image and the labels are drawn;
+    ///     <see langword="false"/> by default.
+    /// </summary>
+    /// <remarks>
+    ///     <see cref="MontageBuilder"/> labels a cell with the file name of its input (without the folder), followed by
+    ///     <c> p</c> and the 1-based page number for a page of a document (<c>deck.pptx p3</c>); the label is also reported
+    ///     as <see cref="MontageCell.Label"/>. It is drawn centered below the cell in the bundled Liberation Sans at
+    ///     <see cref="ContactSheet.LabelFontSize"/> pixels, black on a light background and white on a dark one, and cut with
+    ///     <c>...</c> when it is wider than the cell. With <see cref="ContactSheet"/> directly, the label is whatever
+    ///     text you pass to <see cref="ContactSheet.Add(Surface, string?)"/>.
+    /// </remarks>
+    public bool Labels { get; init; }
+
+    /// <summary>
+    ///     Gets how an image is fitted into its cell; <see cref="FitMode.Contain"/> by default.
+    /// </summary>
+    public FitMode Fit { get; init; } = FitMode.Contain;
+
+    /// <summary>
+    ///     Gets the resampling filter of a fit; <see cref="ResamplingMode.Auto"/> by default.
+    /// </summary>
+    public ResamplingMode Filter { get; init; } = ResamplingMode.Auto;
+}
 
 /// <summary>
 ///     The geometry of a contact sheet, derived from the number of images and the options.
@@ -101,6 +147,15 @@ public sealed class ContactSheet : IDisposable
 
     /// <summary>The largest number of columns.</summary>
     public const int MaxColumns = 64;
+
+    /// <summary>The default width and height in pixels of the image area of a cell: 256.</summary>
+    public const int DefaultCellSize = 256;
+
+    /// <summary>The default space in pixels between cells: 8.</summary>
+    public const int DefaultSpacing = 8;
+
+    /// <summary>The default space in pixels around the sheet: 8.</summary>
+    public const int DefaultPadding = 8;
 
     /// <summary>The text that replaces the end of a label that is too wide.</summary>
     private const string Ellipsis = "...";

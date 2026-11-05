@@ -130,7 +130,14 @@ internal sealed partial class RenderCommand : ICommand
         // The operation reports the mistakes about the pages and the outputs before any pixels are decoded, then
         // loads, transforms, and writes every page; everything below only formats what it returns
         var result = ImageRenderer.Execute(
-            info, new RenderRequest(settings.Output, settings.AllPages, settings.Source, settings.Write, settings.Operations));
+            info,
+            new RenderRequest(settings.Output)
+            {
+                AllPages = settings.AllPages,
+                Source = settings.Source,
+                Write = settings.Write,
+                Operations = settings.Operations
+            });
         var outputs = result.Pages;
 
         if (context.Json)

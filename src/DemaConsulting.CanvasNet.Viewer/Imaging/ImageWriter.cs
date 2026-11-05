@@ -8,16 +8,38 @@ namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 /// <summary>
 ///     How an image is written.
 /// </summary>
-/// <param name="Format">The output format, or <see langword="null"/> to take it from the output file's extension.</param>
-/// <param name="Quality">The JPEG quality, 1 to 100; ignored by the lossless formats.</param>
-/// <param name="NoClobber"><see langword="true"/> to refuse to overwrite an existing file.</param>
-/// <param name="FlattenBackground">The color a JPEG is flattened over, because JPEG has no transparency.</param>
-public sealed record WriteOptions(OutputFormat? Format, int Quality, bool NoClobber, Rgba32 FlattenBackground)
+/// <remarks>
+///     Every member is an optional init property whose default is what the <c>canvasnet</c> commands use when the option
+///     is not given, so <c>new WriteOptions()</c> equals <see cref="Default"/>.
+/// </remarks>
+public sealed record WriteOptions
 {
     /// <summary>
     ///     Gets the options with every default: format from the extension, quality 90, overwrite, flatten over white.
     /// </summary>
-    public static WriteOptions Default { get; } = new(null, ImageWriter.DefaultQuality, false, new Rgba32(255, 255, 255, 255));
+    public static WriteOptions Default { get; } = new();
+
+    /// <summary>
+    ///     Gets the output format, or <see langword="null"/> (the default) to take it from the output file's extension.
+    /// </summary>
+    public OutputFormat? Format { get; init; }
+
+    /// <summary>
+    ///     Gets the JPEG quality, 1 to 100; ignored by the lossless formats. The default is
+    ///     <see cref="ImageWriter.DefaultQuality"/>.
+    /// </summary>
+    public int Quality { get; init; } = ImageWriter.DefaultQuality;
+
+    /// <summary>
+    ///     Gets a value indicating whether an existing file is refused instead of overwritten; <see langword="false"/> by
+    ///     default.
+    /// </summary>
+    public bool NoClobber { get; init; }
+
+    /// <summary>
+    ///     Gets the color a JPEG is flattened over, because JPEG has no transparency; opaque white by default.
+    /// </summary>
+    public Rgba32 FlattenBackground { get; init; } = new(255, 255, 255, 255);
 }
 
 /// <summary>

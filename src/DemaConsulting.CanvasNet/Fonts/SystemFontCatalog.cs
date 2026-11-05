@@ -232,7 +232,11 @@ public static class SystemFontCatalog
     /// </param>
     /// <param name="bold">Whether the bold style is requested.</param>
     /// <param name="italic">Whether the italic style is requested.</param>
-    /// <returns>The loaded (or cached) bundled <see cref="TrueTypeFont"/>.</returns>
+    /// <returns>
+    ///     The loaded (or cached) bundled <see cref="TrueTypeFont"/>: a shared instance that is cached for the lifetime of
+    ///     the process. <see cref="TrueTypeFont"/> is not <see cref="IDisposable"/>, so there is nothing to dispose; reuse
+    ///     the returned font for any number of renders and never try to release it.
+    /// </returns>
     /// <exception cref="InvalidOperationException">
     ///     Thrown only when the expected embedded resource is unexpectedly absent - a defensive,
     ///     effectively-unreachable packaging-integrity guard under normal operation, since all 12

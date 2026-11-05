@@ -99,13 +99,14 @@ internal sealed partial class InspectCommand : ICommand
         // pipeline, and analyzes the pixels; everything below only formats what it returns
         var result = ImageInspector.Execute(
             info,
-            new InspectRequest(
-                settings.Source,
-                settings.Operations,
-                settings.Subcommand == "colors" ? InspectKind.Colors : InspectKind.Pixel,
-                settings.Count,
-                settings.Radius,
-                settings.Point is { } point ? new PixelPoint(point.X, point.Y) : null));
+            new InspectRequest(settings.Subcommand == "colors" ? InspectKind.Colors : InspectKind.Pixel)
+            {
+                Source = settings.Source,
+                Operations = settings.Operations,
+                Count = settings.Count,
+                Radius = settings.Radius,
+                Point = settings.Point is { } point ? new PixelPoint(point.X, point.Y) : null
+            });
         if (settings.Subcommand == "colors")
         {
             RunColors(context, result);

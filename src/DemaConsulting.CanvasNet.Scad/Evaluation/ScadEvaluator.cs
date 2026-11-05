@@ -266,7 +266,7 @@ internal sealed partial class ScadEvaluator
                 sink.Reset();
                 foreach (var warning in loadWarnings)
                 {
-                    sink.Warn(warning.Message, warning.Location);
+                    sink.Warn(warning.Code, warning.Message, warning.Location);
                 }
             }
 
@@ -536,4 +536,12 @@ internal sealed partial class ScadEvaluator
     /// <param name="message">The message.</param>
     /// <param name="location">The location.</param>
     private void Warn(string message, ScadSourceLocation location) => _sink.Warn(message, location);
+
+    /// <summary>
+    ///     Records a categorized warning.
+    /// </summary>
+    /// <param name="code">The stable warning code, one of the <see cref="ScadDiagnosticCodes"/> constants.</param>
+    /// <param name="message">The message.</param>
+    /// <param name="location">The location.</param>
+    private void Warn(string code, string message, ScadSourceLocation location) => _sink.Warn(code, message, location);
 }

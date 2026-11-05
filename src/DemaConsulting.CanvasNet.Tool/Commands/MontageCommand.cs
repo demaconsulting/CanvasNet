@@ -90,16 +90,17 @@ internal sealed partial class MontageCommand : ICommand
         // and writes the sheet; everything below only formats what it returns
         var montage = MontageBuilder.Execute(
             infos,
-            new MontageRequest(
-                settings.Output,
-                settings.Page,
-                settings.AllPages,
-                settings.Dpi,
-                settings.Scad,
-                settings.Strict,
-                settings.AutoOrient,
-                settings.Sheet,
-                settings.Write));
+            new MontageRequest(settings.Output)
+            {
+                Page = settings.Page,
+                AllPages = settings.AllPages,
+                Dpi = settings.Dpi,
+                Scad = settings.Scad,
+                Strict = settings.Strict,
+                AutoOrient = settings.AutoOrient,
+                Sheet = settings.Sheet,
+                Write = settings.Write
+            });
         var layout = montage.Layout;
         var placed = montage.Cells;
         var written = montage.Written;

@@ -168,6 +168,69 @@ public class ScadDocumentEvaluateTests
     }
 
     /// <summary>
+    ///     Validates that each categorized warning of the evaluator carries its stable code, and that a warning without a
+    ///     specific category carries the default one.
+    /// </summary>
+    /// <param name="source">The program.</param>
+    /// <param name="expectedCode">The code of the single warning the program produces.</param>
+    [Theory]
+    [InlineData("echo(nope);", "scad-unknown-variable")]
+    [InlineData("echo(nofunc(1));", "scad-unknown-function")]
+    [InlineData("nomodule();", "scad-unknown-module")]
+    [InlineData("a = 1;\na = 2;\necho(a);", "scad-duplicate-definition")]
+    [InlineData("echo(1 + \"a\");", "scad-type-mismatch")]
+    [InlineData("module m(a) { }\nm(1, b = 2);", "scad-unknown-argument")]
+    [InlineData("echo(\"anchor\", \"x\");", "scad-anchor-invalid")]
+    [InlineData("$vpr = \"x\";", "scad-viewport-variable")]
+    [InlineData("children();", "scad-warning")]
+    public void ScadDocument_Evaluate_Warning_CarriesItsCategoryCode(string source, string expectedCode)
+    {
+        // Arrange
+        var document = ScadDocument.Parse(source);
+
+        // Act
+        var result = document.Evaluate(cancellationToken: TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(expectedCode, Assert.Single(result.Diagnostics).Code);
+    }
+
+    /// <summary>
+    ///     Validates that the code of a missing include is delivered to the warning handler as well.
+    /// </summary>
+    [Fact]
+    public void ScadDocument_Evaluate_MissingInclude_WarningHandlerReceivesIncludeNotFoundCode()
+    {
+        // Arrange
+        var files = new ScadVirtualFiles();
+        var document = ScadDocument.Parse("include <gone.scad>\ncube(1);", new ScadOpenOptions { FileResolver = files.Resolve });
+        var codes = new List<string>();
+
+        // Act
+        document.Evaluate(new ScadEvaluationOptions { WarningHandler = warning => codes.Add(warning.Code) }, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal([ScadDiagnosticCodes.IncludeNotFound], codes);
+    }
+
+    /// <summary>
+    ///     Validates that the notice that replaces the warnings beyond the cap has its own code.
+    /// </summary>
+    [Fact]
+    public void ScadDocument_Evaluate_BeyondDiagnosticsCap_NoticeHasSuppressedCode()
+    {
+        // Arrange
+        var document = ScadDocument.Parse("echo(a);\necho(b);\necho(c);");
+
+        // Act
+        var result = document.Evaluate(new ScadEvaluationOptions { Limits = new ScadLimits { MaxDiagnostics = 1 } }, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(2, result.Diagnostics.Count);
+        Assert.Equal(ScadDiagnosticCodes.UnknownVariable, result.Diagnostics[0].Code);
+        Assert.Equal(ScadDiagnosticCodes.DiagnosticsSuppressed, result.Diagnostics[1].Code);
+    }
+    /// <summary>
     ///     Validates that a syntax error in an included file propagates with that file's name.
     /// </summary>
     [Fact]

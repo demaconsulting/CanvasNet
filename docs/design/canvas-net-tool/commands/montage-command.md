@@ -47,7 +47,9 @@ to 64), `--spacing` and `--padding` (0 to the maximum image size), `--fit` (with
 input is opened (the refusal mentions the options of the tool, which is why the call is made here); then probes every
 input (`SourceLoader.Probe`), checks that model options were given only when an
 input is a model, and calls `MontageBuilder.Execute(infos, request)` of the Viewer library with a `MontageRequest`
-built from the settings. The library plans the cells, calculates the layout (again, with the real count, so that with
+built from the settings (the output is the positional member; every other value, with the `SheetOptions` and the
+`WriteOptions`, is set explicitly, so the defaults of the records do not matter to the command). The library plans the
+cells, calculates the layout (again, with the real count, so that with
 `--all-pages` the check happens after the page counts were read from the headers), checks the output against every input,
 composes the sheet one input at a time, and publishes it (see _MontageBuilder Unit Design_). The command reports the
 `MontageResult`.

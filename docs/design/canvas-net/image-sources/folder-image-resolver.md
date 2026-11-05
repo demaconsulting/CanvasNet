@@ -47,7 +47,10 @@ chain of
 identities (full paths for files, `scheme:` plus the link for scheme-claimed pictures) for the cycle check, the `Depth`
 (levels of embedded files above the links of the scope: 0 at the top level, also for a direct render, which puts its
 file on
-the chain but not in the depth), and the name of the embedding file or link for failures. A scope is the
+the chain but not in the depth), the name of the embedding file or link for failures, and the `Origin` (the names of the
+embedded files and scheme links above the scope, outermost first: empty for the root scope and for a direct render, and
+for a child scope the origin of its parent followed by the file name relative to the folder or by the link as written
+for a scheme link). A scope is the
 `IImageResolver`
 that a source receives in its request; it shares the owner's counts and lists.
 
@@ -109,7 +112,8 @@ its own after a render (the viewer's resized final picture) compares its size wi
 **Calling a source** (`Invoke`/`Run`/`Draw`): check the token; call `Render`; on any exception other than
 `OperationCanceledException`, `ImageSourceException`, and `ImageSourceBudgetException` throw `ImageSourceException`
 with the link, the embedder, and the original exception inside; settle the pixel budget as above; add each note with
-the message `"{href}: {message}"`; add the printed text; add an `EmbeddedImage` with the format the source reported (or
+the message `"{href}: {message}"` (the origin of the note becomes the origin of the child scope followed by the origin the
+source set on the note); add the printed text; add an `EmbeddedImage` with the format the source reported (or
 its name), the size of the returned surface, and the depth; return the surface, which the caller now owns. Nothing is
 cached.
 
@@ -127,7 +131,8 @@ resolver, and the scope has no file.
 An unresolved link is never an exception: it is a warning with the code `svg-image-unresolved` and the message
 `image '{href}' was not drawn: {reason}`. A picture that does not fit in the pixel budget is the warning
 `svg-image-too-large` with the message `image '{href}' was not drawn: it needs {n} pixels but only {m} of the budget of
-{budget} pixels remain`. A found file that its source cannot draw is `ImageSourceException`.
+{budget} pixels remain`. Both carry the origin of the scope that contains the link (the file that holds it). A found file
+that its source cannot draw is `ImageSourceException`.
 Cancellation
 (from the resolver's own checks, the sandbox, or a source) passes through as `OperationCanceledException`. A direct
 render

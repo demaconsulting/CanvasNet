@@ -51,6 +51,13 @@ public sealed partial class ScadDocument
     ///         <c>scad-anchor-invalid</c> here as well.
     ///     </para>
     ///     <para>
+    ///         <see cref="BuildScene"/> evaluates the program itself and delivers its echo, warnings, and unsupported
+    ///         features through the handlers of <see cref="ScadRenderOptions.Evaluation"/>, once. Do not call
+    ///         <see cref="Evaluate"/> first to "check" the program: it only runs the program (and its handlers), so
+    ///         calling both runs everything twice. Use <see cref="Evaluate"/> alone when you need only the echo and
+    ///         the diagnostics without a scene.
+    ///     </para>
+    ///     <para>
     ///         The document is immutable and holds no state between calls, so it can be built from several threads
     ///         at once; every call returns a new scene.
     ///     </para>
@@ -130,6 +137,13 @@ public sealed partial class ScadDocument
     ///         delivered to <see cref="ScadRenderOptions.AnchorHandler"/> after the view is chosen and before the
     ///         drawing, projected with the camera that is rendered with. A malformed anchor produces a warning that
     ///         starts with <c>scad-anchor-invalid</c> and is skipped.
+    ///     </para>
+    ///     <para>
+    ///         <see cref="Render"/> evaluates the program itself (evaluation, geometry, and drawing in one call), so do
+    ///         not call <see cref="Evaluate"/> first: it would run the program and its handlers a second time. The echo
+    ///         and the warnings of the render arrive once, through <see cref="ScadRenderOptions.Evaluation"/>, and the
+    ///         anchors through <see cref="ScadRenderOptions.AnchorHandler"/>. Use <see cref="Evaluate"/> alone when you
+    ///         need only the echo and the diagnostics without drawing.
     ///     </para>
     ///     <para>
     ///         The document is immutable and holds no state between calls, so it can be rendered from several

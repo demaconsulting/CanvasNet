@@ -109,8 +109,24 @@ sections:
           - CanvasNetViewer-Imaging-Compare
           - CanvasNetViewer-Imaging-Montage
           - CanvasNetViewer-Imaging-Write
+          - CanvasNetViewer-Imaging-RequestDefaults
+          - CanvasNetViewer-Imaging-DiagnosticOrigin
         tests:
           - CanvasNetViewer_SystemIntegration_ImageOperations_ProbeRenderInspectCompareMontage
+
+      - id: CanvasNetViewer-UserGuideExamples
+        title: >-
+          Every C# example of the user guide of the library that is marked as compiled shall be a complete program
+          (its own using directives and declared variables) that compiles without an error against the current
+          public API of the library, and every C# block of the guide shall be marked as compiled or as a signature
+          listing, so that an example cannot silently drift from the API or escape the check.
+        tags: [system]
+        justification: |
+          A user guide whose examples no longer compile misleads the library users and agents that copy them; the
+          examples are the documentation of the API, so they are held to the API by a test and not by review alone.
+        tests:
+          - CanvasNetViewer_UserGuideExamples_Compile
+          - CanvasNetViewer_UserGuideExamples_NegativeControl_ReportsErrors
 
       - id: CanvasNetViewer-ErrorContract
         title: >-

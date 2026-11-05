@@ -411,6 +411,29 @@ expected output.
 Asserts that the message and location are exposed with value equality, that `ToString` renders the location, a
 colon, and the message, and that the text is identical under other cultures.
 
+#### CanvasNetScad-ScadDocument-DiagnosticCode: Every Warning And Failure Carries A Stable Code
+
+**Tests**: `ScadDiagnosticTests.ScadDiagnostic_Code_DefaultsToScadWarning`,
+`ScadDiagnosticTests.ScadDiagnostic_Code_IsPartOfEqualityAndNotOfToString`,
+`ScadDiagnosticTests.ScadDiagnosticCodes_Values_AreUniqueKebabCase`,
+`ScadDiagnosticTests.ScadDiagnosticCodes_ContractValues_AreStable`,
+`ScadDocumentEvaluateTests.ScadDocument_Evaluate_Warning_CarriesItsCategoryCode`,
+`ScadDocumentEvaluateTests.ScadDocument_Evaluate_MissingInclude_WarningHandlerReceivesIncludeNotFoundCode`,
+`ScadDocumentEvaluateTests.ScadDocument_Evaluate_BeyondDiagnosticsCap_NoticeHasSuppressedCode`,
+`ScadDocumentBuildSceneTests.ScadDocument_BuildScene_GeometryWarning_CarriesItsCategoryCode`,
+`ScadSyntaxExceptionTests.ScadSyntaxException_Code_IsScadSyntaxError`,
+`ScadEvaluationExceptionTests.ScadEvaluationException_Code_IsScadEvaluationError`
+
+Asserts that a diagnostic built from a message and a location has the default code `scad-warning`, that the code takes
+part in value equality and not in `ToString`, and that every published code (found by reflection over
+`ScadDiagnosticCodes`) is unique, lower-case kebab-case, and starts with `scad-`, while the documented values are
+pinned, so a rename fails. A theory runs a program for each category of the evaluator (an unknown variable, function,
+and module, a duplicate definition, a type mismatch, an unknown argument, an invalid anchor, a viewport variable, and a
+warning without a category) and requires the one warning to carry the expected code with its message unchanged; a
+second theory does the same for the geometry stage (an invalid, unknown, and duplicate argument).
+A missing include reaches the warning handler with the include-not-found code, the notice that replaces the warnings
+beyond the cap has the suppressed code, and the syntax and evaluation exceptions expose their constant codes.
+
 #### CanvasNetScad-ScadDocument-UnsupportedFeature: Unsupported Features Are Typed
 
 **Tests**: `ScadUnsupportedFeatureTests.ScadUnsupportedFeature_Record_ExposesMembersAndFormats`,

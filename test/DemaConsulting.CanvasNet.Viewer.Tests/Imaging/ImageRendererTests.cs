@@ -34,7 +34,7 @@ public class ImageRendererTests
     /// <returns>The request.</returns>
     private static RenderRequest CreateRequest(string output, bool allPages = false, params IImageOperation[] operations)
     {
-        return new RenderRequest(output, allPages, new SourceOptions(), WriteOptions.Default, operations);
+        return new RenderRequest(output) { AllPages = allPages, Operations = operations };
     }
 
     /// <summary>

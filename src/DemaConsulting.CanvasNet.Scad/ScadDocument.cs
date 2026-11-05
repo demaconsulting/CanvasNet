@@ -89,6 +89,13 @@ public sealed partial class ScadDocument
     /// <summary>
     ///     Parses OpenSCAD-language source text.
     /// </summary>
+    /// <remarks>
+    ///     Source text has no folder, so the document has no base directory unless you set one: without
+    ///     <see cref="ScadOpenOptions.BaseDirectory"/>, <see cref="ScadOpenOptions.LibraryPaths"/>, or a
+    ///     <see cref="ScadOpenOptions.FileResolver"/> in <paramref name="options"/>, a relative <c>include</c> or
+    ///     <c>use</c> cannot be resolved and evaluating the document fails with a <see cref="ScadEvaluationException"/>.
+    ///     <see cref="Open(string, ScadOpenOptions?)"/> defaults the base directory to the folder of the file.
+    /// </remarks>
     /// <param name="source">The source text. Empty, whitespace-only and comment-only text is a valid empty document; a leading U+FEFF is ignored.</param>
     /// <param name="options">Optional open options; <see langword="null"/> uses the defaults.</param>
     /// <returns>The parsed document.</returns>
@@ -107,7 +114,9 @@ public sealed partial class ScadDocument
     /// </summary>
     /// <remarks>
     ///     The file is read as UTF-8 (a byte-order mark is detected and removed). Unless overridden, the source
-    ///     name is <paramref name="path"/> exactly as supplied and the base directory is the folder of the full path.
+    ///     name is <paramref name="path"/> exactly as supplied and the base directory is the folder of the full path, so
+    ///     a relative <c>include</c> or <c>use</c> is found next to the file (and cannot leave that folder); set
+    ///     <see cref="ScadOpenOptions.BaseDirectory"/> to use another folder.
     /// </remarks>
     /// <param name="path">The path of the file. Must not be null, empty or whitespace.</param>
     /// <param name="options">Optional open options; <see langword="null"/> uses the defaults.</param>
@@ -137,7 +146,11 @@ public sealed partial class ScadDocument
     /// <remarks>
     ///     The stream is read from its current position to its end as UTF-8 (a byte-order mark is detected and
     ///     removed) and is left open. Reading stops as soon as the size limit is exceeded, so a stream that never
-    ///     ends cannot consume unbounded memory.
+    ///     ends cannot consume unbounded memory. Unlike <see cref="Open(string, ScadOpenOptions?)"/>, a stream has no
+    ///     folder, so the document has no base directory unless you set one: without
+    ///     <see cref="ScadOpenOptions.BaseDirectory"/>, <see cref="ScadOpenOptions.LibraryPaths"/>, or a
+    ///     <see cref="ScadOpenOptions.FileResolver"/> in <paramref name="options"/>, a relative <c>include</c> or
+    ///     <c>use</c> cannot be resolved and evaluating the document fails with a <see cref="ScadEvaluationException"/>.
     /// </remarks>
     /// <param name="stream">A readable stream. Must not be null.</param>
     /// <param name="options">Optional open options; <see langword="null"/> uses the defaults.</param>

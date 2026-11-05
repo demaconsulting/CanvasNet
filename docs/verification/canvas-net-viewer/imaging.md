@@ -117,3 +117,26 @@ present, and the one difference picture that was asked for is written.
 **Imaging_Montage_BuilderComposesSeveralKinds_AndWritesOneSheet**: `MontageBuilder` composes an SVG, the PDF, and a PNG
 into a labeled sheet of two columns: the layout has three cells in two rows, and the file decodes to the size of the
 layout.
+
+**Imaging_RequestDefaults_CompareRequestFromInputsAlone_CarriesCommandDefaults**: a `CompareRequest` built from its two
+inputs alone has no resize, the contain fit, the automatic filter, an opaque white background, the default tolerance,
+grid, gain, and overlay weight, no thresholds and no output paths, the heat style, and the default write options, and
+the inputs carry page 1 and default source options.
+
+**Imaging_RequestDefaults_OptionalMembers_CarryCommandDefaults**: a `RenderRequest`, an `InspectRequest`, and a
+`MontageRequest` built from their required members alone, and a `SheetOptions` and a `WriteOptions` with no member set,
+carry the defaults of the render, inspect, and montage commands (a single page, no operations, 8 colors, a radius of 0,
+automatic orientation, a 256 pixel cell with a spacing and a padding of 8, no labels, and a JPEG quality of 90).
+
+**Imaging_RequestDefaults_PublishedConstants_AreTheCommandDefaults**: the published constants are 8 colors, a 256 pixel
+cell, and a spacing and a padding of 8.
+
+**Imaging_RequestDefaults_InitProperties_CanBeSetAndCopied**: the optional members are set in an initializer and
+copied with `with` while the required members stay as they were.
+
+**Imaging_RequestDefaults_OperationDefaults_AreTheCommandDefaults**: `InspectRequest.ForColors` and `ForPixel` equal the
+requests built with the constructor, the auto-levels operation clips 1 percent by default, resize and fit use the
+automatic filter, and `Dimension.Pixels` and `Dimension.Percent` build the two kinds of dimension.
+
+**Imaging_Diagnostics_Origin_DefaultsToEmptyAndIsComparedByEntries**: an `ImageDiagnostic` has an empty origin by
+default, and two diagnostics are equal exactly when their fields and their origin entries are equal.

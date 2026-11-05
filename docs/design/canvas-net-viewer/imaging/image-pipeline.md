@@ -21,7 +21,11 @@ rotation fill, the clip of auto-levels, and the trim tolerance) that the records
 static class `ImagePipeline` (`ImagePipeline.cs`, `ImagePipeline.Validation.cs` for the check of the operation values, and
 `ImagePipeline.Anchors.cs` for the mapping of the anchors of a
 model through the applied steps) and the operation types in `ImageOperations.cs`, which also holds the value types
-`Dimension`, `GeometrySpec` (a rectangle in pixels or percent), `PadSpec`, and `FlipAxis` that the records carry.
+`Dimension` (with the helpers `Dimension.Pixels(value)` and `Dimension.Percent(value)`), `GeometrySpec` (a rectangle in
+pixels or percent), `PadSpec`, and `FlipAxis` that the records carry. Every value of a crop region is non-negative
+(there is no inset form: x and y are 0 or more, the size more than 0, a percentage at most 100, all refused as
+`usage-error` by the check of the operation values), a percentage is of the size at that step of the pipeline, and a
+region past the right or bottom edge is cut at the edge.
 
 #### Data Model
 
@@ -32,8 +36,8 @@ implement it are plain descriptions of what to do:
 | Record | Name | Parameters |
 | ------ | ---- | ---------- |
 | `CropOperation` | `crop` | `Region` (a `GeometrySpec`: origin and size, each in pixels or percent) |
-| `ResizeOperation` | `resize` | `Width`, `Height`, `Filter` |
-| `FitOperation` | `fit` | `Width`, `Height` (the box), `AllowUpscale`, `Filter` |
+| `ResizeOperation` | `resize` | `Width`, `Height`, `Filter` (default auto) |
+| `FitOperation` | `fit` | `Width`, `Height` (the box), `AllowUpscale` (default off), `Filter` (default auto) |
 | `RotateOperation` | `rotate` | `Degrees` (a `double` from 0 up to 360, clockwise), `Fill` (`Rgba32?`; `null` for the default rule), `Filter` |
 | `FlipOperation` | `flip` | `Axis` (`FlipAxis`: horizontal, vertical, or both) |
 | `PadOperation` | `pad` | `Border` (a `PadSpec`: left, top, right, bottom) and `Color` (`Rgba32?`; `null` for the caller's default) |
@@ -43,7 +47,7 @@ implement it are plain descriptions of what to do:
 | `LevelsOperation` | `levels` | `Black` (0 to 254), `White` (1 to 255, above black), `Gamma` (0.1 to 10) |
 | `BrightnessOperation` | `brightness` | `Amount` (-255 to 255) |
 | `ContrastOperation` | `contrast` | `Amount` (-100 to 100) |
-| `AutoLevelsOperation` | `auto-levels` | `ClipPercent` (0 to 20) |
+| `AutoLevelsOperation` | `auto-levels` | `ClipPercent` (0 to 20; default `Surface.DefaultAutoLevelsClipPercent`, 1) |
 | `DeskewOperation` | `deskew` | `Fill` (`Rgba32?`), `Filter` |
 | `TrimOperation` | `trim` | `Tolerance` (0 to 255) |
 | `GridOperation` | `grid` | `Spacing` (8 to 4096), `Color` (`Rgba32?`; `null` for `GridOverlay.DefaultColor`) |

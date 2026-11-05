@@ -153,14 +153,24 @@ The unit's behavior is specified by the `CanvasNetScad-ScadDocument-*` requireme
   null, empty, or white-space entry an `ArgumentException`, both on initialization; a private copy is taken and
   exposed read-only). Where an explicitly named `text` font is found is specified in _ScadTextGeometry Unit
   Design_.
-- **`ScadDiagnostic`** (sealed record) — `Message` and `Location`; `ToString()` is `{Location}: {Message}` with
-  the invariant culture. **`ScadUnsupportedFeature`** (sealed record) — `Feature` (an identifier such as
-  `scad-function-textmetrics`), `Message`, and `Location`.
+- **`ScadDiagnostic`** (sealed record) — `Message` and `Location`, plus the init property `Code` (default
+  `ScadDiagnosticCodes.Warning`, `scad-warning`): the stable kind of the warning, part of the value equality and not of
+  `ToString()`, which is `{Location}: {Message}` with the invariant culture. There is no severity: a diagnostic is a
+  warning, an error is an exception, and an unsupported feature has its own record. **`ScadDiagnosticCodes`** (static
+  class in `ScadDiagnostic.cs`) — the `const string` codes, `scad-` plus the kebab-case name (the warning kinds
+  `AnchorInvalid`, `IncludeNotFound`, `UnknownVariable`, `UnknownFunction`, `UnknownModule`, `UnknownArgument`,
+  `DuplicateArgument`, `ArgumentCount`, `InvalidArgument`, `DuplicateDefinition`, `TypeMismatch`, `CircularReference`,
+  `ViewportVariable`, and `DiagnosticsSuppressed`, the default `Warning`, and the failures `SyntaxError` and
+  `EvaluationError`); the values are never renamed, only added, and a test pins them. The message of an
+  anchor-invalid warning still starts with its code, for compatibility. **`ScadUnsupportedFeature`** (sealed record) —
+  `Feature` (an identifier such as `scad-function-textmetrics`, which is its code), `Message`, and `Location`.
 - **`ScadEvaluationException`** (sealed, derives from `InvalidOperationException`) and
   **`ScadUnsupportedFeatureException`** (sealed, derives from `IOException`, with a `Feature` property) — each
   carries a `Location`, builds the message `{location}: {description}` when the location is known, and has the
-  standard constructors. `InvalidDataException` is sealed in the base class library, which is why these types
-  derive from other base classes (the same reason `ScadSyntaxException` is a `FormatException`).
+  standard constructors. `ScadEvaluationException` has the constant `Code` `scad-evaluation-error` and
+  `ScadSyntaxException` the constant `Code` `scad-syntax-error`. `InvalidDataException` is sealed in the base class
+  library, which is why these types derive from other base classes (the same reason `ScadSyntaxException` is a
+  `FormatException`).
 
 **Invariants**: a `ScadDocument` exists only for source that tokenized and parsed without error, so
 `Directives`, `ModuleNames`, and `FunctionNames` are always consistent with a valid program. The

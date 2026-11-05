@@ -12,9 +12,10 @@ records `WriteOptions` and `WriteResult`.
 
 #### Data Model
 
-**WriteOptions** (record): `Format` (an `OutputFormat?`; `null` means from the extension), `Quality` (JPEG, 1 to
-100), `NoClobber`, and `FlattenBackground` (the color a JPEG is flattened over). `WriteOptions.Default` is format
-from the extension, quality 90, overwrite, and white.
+**WriteOptions** (record, no positional members): the `init` properties `Format` (an `OutputFormat?`; `null` means from
+the extension), `Quality` (JPEG, 1 to 100; `ImageWriter.DefaultQuality`, 90), `NoClobber` (off), and
+`FlattenBackground` (the color a JPEG is flattened over; opaque white). `WriteOptions.Default` is a default instance:
+format from the extension, quality 90, overwrite, and white.
 
 **WriteResult** (record): `Path` (as given), `Format`, `Width`, `Height`, `Bytes` (the size of the file written),
 and `Flattened` (transparency was flattened for JPEG).

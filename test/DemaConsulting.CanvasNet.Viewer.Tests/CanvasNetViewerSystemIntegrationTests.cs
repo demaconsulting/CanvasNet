@@ -1,7 +1,9 @@
-// cspell:ignore href scad pdf
+// cspell:ignore href scad pdf slnx
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.ImageSources;
 using DemaConsulting.CanvasNet.Viewer.Imaging;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 
 namespace DemaConsulting.CanvasNet.Viewer.Tests;
 
@@ -304,49 +306,32 @@ public class CanvasNetViewerSystemIntegrationTests
         var info = SourceLoader.Probe(source);
         var flipped = ImageRenderer.Execute(
             info,
-            new RenderRequest(folder.Combine("flipped.png"), false, new SourceOptions(), write, [new FlipOperation(FlipAxis.Horizontal)]));
+            new RenderRequest(folder.Combine("flipped.png")) { Write = write, Operations = [new FlipOperation(FlipAxis.Horizontal)] });
         var plain = ImageRenderer.Execute(
-            info, new RenderRequest(folder.Combine("plain.png"), false, new SourceOptions(), write, []));
+            info, new RenderRequest(folder.Combine("plain.png")) { Write = write });
         var inspected = ImageInspector.Execute(
             SourceLoader.Probe(flipped.Pages[0].Result.Path),
-            new InspectRequest(new SourceOptions(), [], InspectKind.Colors, 4, 0, null));
+            InspectRequest.ForColors(4));
         var compared = ImageComparer.Execute(
             new CompareRequest(
-                new CompareInput("a", SourceLoader.Probe(plain.Pages[0].Result.Path), 1, new SourceOptions()),
-                new CompareInput("b", SourceLoader.Probe(flipped.Pages[0].Result.Path), 1, new SourceOptions()),
-                null,
-                FitMode.Contain,
-                ResamplingMode.Auto,
-                new Rgba32(255, 255, 255, 255),
-                ImageComparison.DefaultTolerance,
-                ImageComparison.DefaultGridColumns,
-                ImageComparison.DefaultGridRows,
-                [],
-                null,
-                null,
-                null,
-                DiffStyle.Heat,
-                ImageComparison.DefaultGain,
-                ImageComparison.DefaultOverlayWeight,
-                write));
+                new CompareInput("a", SourceLoader.Probe(plain.Pages[0].Result.Path)),
+                new CompareInput("b", SourceLoader.Probe(flipped.Pages[0].Result.Path)))
+            {
+                Write = write
+            });
         var sheet = MontageBuilder.Execute(
             [SourceLoader.Probe(plain.Pages[0].Result.Path), SourceLoader.Probe(flipped.Pages[0].Result.Path)],
-            new MontageRequest(
-                folder.Combine("sheet.png"),
-                null,
-                false,
-                null,
-                null,
-                false,
-                true,
-                new SheetOptions(0, 32, 32, 4, 4, new Rgba32(255, 255, 255, 255), false, FitMode.Contain, ResamplingMode.Auto),
-                write));
+            new MontageRequest(folder.Combine("sheet.png"))
+            {
+                Sheet = new SheetOptions { CellWidth = 32, CellHeight = 32, Spacing = 4, Padding = 4 },
+                Write = write
+            });
 
         // Assert: every operation produced its result, and the flip is a real difference between the two renders
         Assert.Equal(SourceKind.Svg, info.Format);
         Assert.Equal(plain.Pages[0].Result.Width, flipped.Pages[0].Result.Width);
         Assert.NotEmpty(inspected.Colors!.Colors);
-        Assert.False(compared.Metrics.Metrics.Identical);
+        Assert.False(compared.Metrics.Identical);
         Assert.Equal(2, sheet.Cells.Count);
         Assert.True(File.Exists(folder.Combine("sheet.png")));
     }
@@ -372,4 +357,165 @@ public class CanvasNetViewerSystemIntegrationTests
         Assert.All([unsupported, missing], e => Assert.False(string.IsNullOrEmpty(e.Message)));
         Assert.IsAssignableFrom<InvalidOperationException>(unsupported);
     }
+
+    /// <summary>
+    ///     Proves that every C# example of the Viewer user guide that follows a <c>&lt;!-- compile --&gt;</c> line is a complete
+    ///     program that compiles without an error against the current API (the examples are compiled, never run), that
+    ///     every C# block of the guide is classified (compiled, or a signature listing), and that the guide shows the
+    ///     namespace of <c>ViewerException</c> next to the namespace of the operations.
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_UserGuideExamples_Compile()
+    {
+        // Arrange: the guide, and its C# blocks
+        var guide = Path.Combine(FindRepositoryRoot(), "docs", "user_guide", "canvas-net-viewer.md");
+        var blocks = ExtractCSharpBlocks(File.ReadAllLines(guide));
+        var examples = blocks.Where(b => b.Marker == CompileMarker).ToList();
+
+        // Act: compile every marked example on its own
+        var failures = examples
+            .Select(e => (Example: e, Errors: CompileErrors(e.Code)))
+            .Where(r => r.Errors.Count > 0)
+            .Select(r => $"Example at line {r.Example.Line} ({FirstLine(r.Example.Code)}):{Environment.NewLine}  "
+                + string.Join($"{Environment.NewLine}  ", r.Errors))
+            .ToList();
+
+        // Assert: nothing is unclassified, enough examples exist, none fails, and the namespaces are shown
+        Assert.All(
+            blocks,
+            b => Assert.True(
+                b.Marker is CompileMarker or SignatureMarker,
+                $"The C# block at line {b.Line} of the guide has no '{CompileMarker}' or '{SignatureMarker}' marker."));
+        Assert.True(examples.Count >= 15, $"Only {examples.Count} compile-checked examples were found in the guide.");
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+        var usingViewerException = examples.Where(e => e.Code.Contains("ViewerException", StringComparison.Ordinal)).ToList();
+        Assert.NotEmpty(usingViewerException);
+        Assert.All(usingViewerException, e =>
+        {
+            Assert.Contains("using DemaConsulting.CanvasNet.Viewer;", e.Code, StringComparison.Ordinal);
+            Assert.Contains("using DemaConsulting.CanvasNet.Viewer.Imaging;", e.Code, StringComparison.Ordinal);
+        });
+    }
+
+    /// <summary>
+    ///     Proves that the harness of the guide test can fail: a program that does not compile is reported with its error,
+    ///     and a program that does compile is reported with none (so a passing guide test is not an empty check).
+    /// </summary>
+    [Fact]
+    public void CanvasNetViewer_UserGuideExamples_NegativeControl_ReportsErrors()
+    {
+        // Arrange: a program with an unknown member of the API, a program with an unknown namespace, and a good program
+        const string unknownMember =
+            "using DemaConsulting.CanvasNet.Viewer.Imaging;\nvar result = ImageComparer.NoSuchMethod(null!);";
+        const string unknownNamespace = "using DemaConsulting.CanvasNet.NoSuchNamespace;\nConsole.WriteLine(1);";
+        const string good =
+            "using DemaConsulting.CanvasNet.Viewer.Imaging;\nvar request = new RenderRequest(\"out.png\");\nConsole.WriteLine(request.Output);";
+
+        // Act
+        var memberErrors = CompileErrors(unknownMember);
+        var namespaceErrors = CompileErrors(unknownNamespace);
+        var goodErrors = CompileErrors(good);
+
+        // Assert
+        Assert.Contains(memberErrors, e => e.Contains("NoSuchMethod", StringComparison.Ordinal));
+        Assert.Contains(namespaceErrors, e => e.Contains("NoSuchNamespace", StringComparison.Ordinal));
+        Assert.Empty(goodErrors);
+    }
+
+    /// <summary>The marker that precedes a C# block of the guide that is a complete program and is compiled.</summary>
+    private const string CompileMarker = "<!-- compile -->";
+
+    /// <summary>The marker that precedes a C# block of the guide that is only a signature listing.</summary>
+    private const string SignatureMarker = "<!-- signature -->";
+
+    /// <summary>The namespaces that the implicit usings of a .NET console project provide to the guide's programs.</summary>
+    private const string ImplicitUsings =
+        "global using System;\nglobal using System.Collections.Generic;\nglobal using System.IO;\nglobal using System.Linq;\n"
+        + "global using System.Net.Http;\nglobal using System.Threading;\nglobal using System.Threading.Tasks;\n";
+
+    /// <summary>
+    ///     The references of every compilation: all assemblies of the running test host, which include the platform
+    ///     libraries and the viewer package with the packages it uses.
+    /// </summary>
+    private static readonly Lazy<IReadOnlyList<MetadataReference>> References = new(() =>
+        ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
+            .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
+            .Select(path => (MetadataReference)MetadataReference.CreateFromFile(path))
+            .ToList());
+
+    /// <summary>A C# block of the guide: the marker that precedes it, its first line number, and its text.</summary>
+    /// <param name="Marker">The HTML comment on the line before the block, or an empty string.</param>
+    /// <param name="Line">The 1-based line number of the opening fence.</param>
+    /// <param name="Code">The text between the fences.</param>
+    private sealed record GuideBlock(string Marker, int Line, string Code);
+
+    /// <summary>Finds the folder that contains the solution file by walking up from the test output folder.</summary>
+    /// <returns>The repository root.</returns>
+    private static string FindRepositoryRoot()
+    {
+        for (var folder = new DirectoryInfo(AppContext.BaseDirectory); folder != null; folder = folder.Parent)
+        {
+            if (File.Exists(Path.Combine(folder.FullName, "CanvasNet.slnx")))
+            {
+                return folder.FullName;
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"The repository root (the folder with CanvasNet.slnx) was not found above {AppContext.BaseDirectory}.");
+    }
+
+    /// <summary>Extracts the fenced C# blocks of a markdown file with the marker that precedes each.</summary>
+    /// <param name="lines">The lines of the file.</param>
+    /// <returns>The blocks in file order.</returns>
+    private static List<GuideBlock> ExtractCSharpBlocks(string[] lines)
+    {
+        var blocks = new List<GuideBlock>();
+        var next = 0;
+        while (next < lines.Length)
+        {
+            var i = next++;
+            if (!lines[i].StartsWith("```csharp", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var end = Array.FindIndex(lines, i + 1, l => l.StartsWith("```", StringComparison.Ordinal));
+            Assert.True(end > i, $"The C# block at line {i + 1} of the guide is not closed.");
+            var before = i - 1;
+            while (before >= 0 && string.IsNullOrWhiteSpace(lines[before]))
+            {
+                before--;
+            }
+
+            var marker = before >= 0 && lines[before].StartsWith("<!-- ", StringComparison.Ordinal) ? lines[before].Trim() : string.Empty;
+            blocks.Add(new GuideBlock(marker, i + 1, string.Join('\n', lines[(i + 1)..end])));
+            next = end + 1;
+        }
+
+        return blocks;
+    }
+
+    /// <summary>Compiles one program (top-level statements, then types) and returns its errors, not its warnings.</summary>
+    /// <param name="code">The C# source of the program.</param>
+    /// <returns>One line for each error; empty when the program compiles.</returns>
+    private static List<string> CompileErrors(string code)
+    {
+        var parse = new CSharpParseOptions(LanguageVersion.Latest);
+        var compilation = CSharpCompilation.Create(
+            "GuideExample",
+            [CSharpSyntaxTree.ParseText(ImplicitUsings, parse), CSharpSyntaxTree.ParseText(code, parse)],
+            References.Value,
+            new CSharpCompilationOptions(OutputKind.ConsoleApplication, nullableContextOptions: NullableContextOptions.Enable));
+        return compilation.GetDiagnostics()
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .Select(d => d.ToString())
+            .ToList();
+    }
+
+    /// <summary>Gets the first non-empty line of a program, for the failure message.</summary>
+    /// <param name="code">The C# source.</param>
+    /// <returns>The first line that is not blank.</returns>
+    private static string FirstLine(string code) =>
+        code.Split('\n').FirstOrDefault(l => !string.IsNullOrWhiteSpace(l))?.Trim() ?? string.Empty;
 }

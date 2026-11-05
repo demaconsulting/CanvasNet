@@ -241,6 +241,7 @@ sections:
               it can.
             children:
               - CanvasNetScad-ScadEvaluation-ScadEvaluator-Warnings
+              - CanvasNetScad-ScadEvaluation-ScadEvaluator-WarningCodes
             tests:
               - ScadEvaluatorDiagnostics_Warning_HasExpectedTextAndLocation
               - ScadEvaluatorDiagnostics_Location_CarriesTheSourceName

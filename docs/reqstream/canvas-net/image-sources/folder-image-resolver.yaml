@@ -221,6 +221,25 @@ sections:
                   - FolderImageResolver_Resolve_EscapingReference_IsUnresolvedWarning
                   - FolderImageResolver_Resolve_TooDeep_TerminatesWithWarning
 
+              - id: CanvasNet-ImageSources-FolderImageResolver-DiagnosticOrigin
+                title: >-
+                  The FolderImageResolver class shall give every note it collects an origin: the embedded files,
+                  outermost first, that the note is about - for a note a source reported, the file that reported it
+                  preceded by the files that embedded it, and for a link that was not drawn or was refused as too
+                  large, the file that contains the link - naming a file link by its file name relative to the folder
+                  and a scheme link by the link as written, leaving the origin empty for a note about the top-level
+                  document, keeping the message of the note unchanged, and shall treat two notes with the same fields
+                  and the same origin entries as equal.
+                justification: |
+                  A note that only says which link failed cannot be traced when the link sits several files deep; the
+                  chain of files lets an author or a tool find the file to fix without parsing message text.
+                tests:
+                  - FolderImageResolver_Resolve_NestedSourceNote_OriginListsEmbeddingChain
+                  - FolderImageResolver_Resolve_UnresolvedLinkInEmbeddedFile_OriginIsTheContainingFile
+                  - FolderImageResolver_Resolve_TooLargeLinkInEmbeddedFile_OriginIsTheContainingFile
+                  - FolderImageResolver_Resolve_SchemeLinkNote_OriginIsTheLinkAsWritten
+                  - ImageSourceDiagnostic_Origin_DefaultsToEmptyAndIsComparedByEntries
+
               - id: CanvasNet-ImageSources-FolderImageResolver-Failures
                 title: >-
                   The FolderImageResolver class shall report a file that is found but cannot be drawn as an

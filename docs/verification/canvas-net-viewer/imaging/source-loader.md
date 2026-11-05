@@ -471,3 +471,10 @@ a model without anchors has none.
 views, and the default `Defines` of a `ScadViewOptions` are not a `Dictionary`, an array, or a `List`; adding, replacing,
 removing, and clearing through `IDictionary` or `IList` throw `NotSupportedException`; and the table and the list are
 unchanged afterwards (`.PNG` still means PNG, and there are still seven views).
+
+**SourceLoader_Load_SvgEmbeddingModelWithNotes_NotesCarryTheEmbeddedFileAsOrigin**: an SVG file that embeds a model
+that reports a note has that note with the origin `["part.scad"]` (the model file), and a link of the SVG file itself
+that is not drawn has an empty origin.
+
+**SourceLoader_Load_SvgEmbeddingNestedSvgWithMissingFile_OriginIsTheNestedFile**: an SVG file that embeds a second SVG
+file whose own link does not resolve reports a note with the origin `["inner.svg"]`, the file that holds the link.

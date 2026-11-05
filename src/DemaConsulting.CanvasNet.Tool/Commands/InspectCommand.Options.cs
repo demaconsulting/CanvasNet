@@ -12,7 +12,7 @@ namespace DemaConsulting.CanvasNet.Tool.Commands;
 internal sealed partial class InspectCommand
 {
     /// <summary>The default number of dominant colors of <c>inspect colors</c>.</summary>
-    internal const int DefaultColors = 8;
+    internal const int DefaultColors = ImageInspector.DefaultColors;
 
     /// <summary>The names of the subcommands, in the order they are listed.</summary>
     internal static readonly IReadOnlyList<string> SubcommandNames = ["colors", "pixel"];

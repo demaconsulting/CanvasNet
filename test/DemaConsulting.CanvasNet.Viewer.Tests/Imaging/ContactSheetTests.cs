@@ -44,16 +44,18 @@ public class ContactSheetTests
         bool stretch = false,
         Rgba32? background = null)
     {
-        return new SheetOptions(
-            columns,
-            cellWidth,
-            cellHeight,
-            spacing,
-            padding,
-            background ?? Background,
-            labels,
-            stretch ? FitMode.Stretch : FitMode.Contain,
-            ResamplingMode.Nearest);
+        return new SheetOptions
+        {
+            Columns = columns,
+            CellWidth = cellWidth,
+            CellHeight = cellHeight,
+            Spacing = spacing,
+            Padding = padding,
+            Background = background ?? Background,
+            Labels = labels,
+            Fit = stretch ? FitMode.Stretch : FitMode.Contain,
+            Filter = ResamplingMode.Nearest
+        };
     }
 
     /// <summary>

@@ -464,6 +464,21 @@ sections:
                   - ScadEvaluatorFunction_CallingNonFunction_WarnsAndYieldsUndef
                   - ScadEvaluationSink_Warn_DuplicatesAreDropped
 
+              - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-WarningCodes
+                title: >-
+                  The ScadEvaluator unit shall record every warning with the code of its kind, keeping the default
+                  code for a warning without a more specific kind, shall decide that two warnings are the same by
+                  message and location alone (so the code never changes what is reported once), and shall keep the
+                  code of a warning raised while files were loaded when it replays that warning after it restarts the
+                  evaluation on a larger stack.
+                justification: |
+                  A code that is lost on the way to the caller, or that changes which warnings are reported, would
+                  make the code untrustworthy; the restart on a larger stack replays warnings and must not reset them
+                  to the default.
+                tests:
+                  - ScadEvaluationSink_Warn_WithCode_RecordsCodeAndDeduplicatesByMessageAndLocation
+                  - ScadEvaluatorStack_Evaluate_Restart_KeepsFileLoadingWarningCode
+
               - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-DiagnosticCap
                 title: >-
                   The ScadEvaluator unit shall record at most the configured number of warnings and

@@ -18,7 +18,7 @@ namespace DemaConsulting.CanvasNet.ImageSources;
 ///         after the built-in ones overrides them.
 ///     </para>
 ///     <para>
-///         <b>Rendering.</b> <see cref="Render(ImageSourceRequest)"/> receives an <see cref="ImageSourceRequest"/> and
+///         <b>Rendering.</b> The method <see cref="Render(ImageSourceRequest)"/> receives an <see cref="ImageSourceRequest"/> and
 ///         returns an <see cref="ImageSourceResult"/>. The size to draw at, how to report notes, how to honor
 ///         cancellation and budgets, and how a source that draws a document which itself links to other pictures asks
 ///         the resolver to load them, are documented on <see cref="ImageSourceRequest"/>. The surface returned is owned by

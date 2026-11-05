@@ -62,6 +62,7 @@ internal sealed class ScadArguments
                 if (positional >= names.Length)
                 {
                     context.Reporter.Warn(
+                        ScadDiagnosticCodes.UnknownArgument,
                         string.Create(CultureInfo.InvariantCulture, $"Ignoring extra argument {positional + 1} of {node.Name}"),
                         node.Location);
                     positional++;
@@ -80,14 +81,14 @@ internal sealed class ScadArguments
                 index = Array.IndexOf(names, argument.Name);
                 if (index < 0)
                 {
-                    context.Reporter.Warn($"Ignoring unknown argument '{argument.Name}' of {node.Name}", node.Location);
+                    context.Reporter.Warn(ScadDiagnosticCodes.UnknownArgument, $"Ignoring unknown argument '{argument.Name}' of {node.Name}", node.Location);
                     continue;
                 }
             }
 
             if (assigned[index])
             {
-                context.Reporter.Warn($"Argument '{names[index]}' of {node.Name} is given more than once; using the last value", node.Location);
+                context.Reporter.Warn(ScadDiagnosticCodes.DuplicateArgument, $"Argument '{names[index]}' of {node.Name} is given more than once; using the last value", node.Location);
             }
 
             assigned[index] = true;

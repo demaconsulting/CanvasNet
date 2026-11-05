@@ -66,7 +66,7 @@ internal sealed partial class ScadEvaluator
                 return new ResolvedCall(null, identifier.Name);
             }
 
-            Warn($"Ignoring unknown function '{identifier.Name}'", identifier.Location);
+            Warn(ScadDiagnosticCodes.UnknownFunction, $"Ignoring unknown function '{identifier.Name}'", identifier.Location);
             return default;
         }
 
@@ -76,7 +76,7 @@ internal sealed partial class ScadEvaluator
             return new ResolvedCall(closure, null);
         }
 
-        Warn("Cannot call a value that is not a function", call.Location);
+        Warn(ScadDiagnosticCodes.TypeMismatch, "Cannot call a value that is not a function", call.Location);
         return default;
     }
 
@@ -299,7 +299,7 @@ internal sealed partial class ScadEvaluator
             }
             else
             {
-                Warn(name is null ? $"Ignoring extra argument for {site.Label}" : $"Ignoring unknown argument '{name}' for {site.Label}", site.Location);
+                Warn(ScadDiagnosticCodes.UnknownArgument, name is null ? $"Ignoring extra argument for {site.Label}" : $"Ignoring unknown argument '{name}' for {site.Label}", site.Location);
             }
         }
 

@@ -16,8 +16,11 @@ the library form of the `inspect` command of the `canvasnet` tool. The unit is t
 
 **InspectKind** (enum): `Colors` or `Pixel`. **PixelPoint** (record struct): `X` and `Y`, from the top left.
 
-**InspectRequest** (record): `Source` (the `SourceOptions`), `Operations` (applied before the analysis), `Kind`, `Count`
-(the number of dominant colors), `Radius` (the window around a pixel), and `Point` (required for a pixel).
+**InspectRequest** (record): the required `Kind` (positional) and the `init` properties `Source` (the `SourceOptions`;
+default), `Operations` (applied before the analysis; none), `Count` (the number of dominant colors; the constant
+`ImageInspector.DefaultColors`, 8), `Radius` (the window around a pixel; 0), and `Point` (required for a pixel). The
+factories `InspectRequest.ForColors(count)` and `ForPixel(point, radius)` build the two kinds, so that a pixel request
+cannot be built without its point by mistake.
 
 **InspectResult** (record): `Info`, `Page`, `Operations`, `Diagnostics`, `Echo`, `Width` and `Height` (of the analyzed
 pixels), `Background` (the opaque color a translucent background was reduced to; white when none), `Colors`

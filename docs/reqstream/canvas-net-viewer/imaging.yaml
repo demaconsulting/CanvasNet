@@ -157,6 +157,7 @@ sections:
           - CanvasNetViewer-Imaging-ImageComparer-Measure
           - CanvasNetViewer-Imaging-ImageComparer-Checks
           - CanvasNetViewer-Imaging-ImageComparer-OutputFormat
+          - CanvasNetViewer-Imaging-ImageComparer-ResultShape
         tests:
           - Imaging_Compare_LoadedSourcesAreComparedAndVisualized
           - Imaging_Compare_ComparerLoadsAndMeasuresTwoKinds_AndWritesThePicture
@@ -259,3 +260,35 @@ sections:
         tests:
           - Imaging_Convert_CorruptInput_LeavesNoOutput
           - Imaging_Convert_PageOutOfRange_LeavesNoOutput
+
+      - id: CanvasNetViewer-Imaging-RequestDefaults
+        title: >-
+          The Imaging subsystem shall let a request or an option value be built from its required members alone,
+          every optional member of it carrying the default of the corresponding canvasnet command-line option (so
+          that a request with nothing but its required members does what the command does without options), shall
+          let each optional member be set individually and the value be copied with a changed member, and shall
+          publish the numeric defaults of the commands as constants.
+        justification: |
+          A request with seventeen positional values cannot be written or read; one in which only the required
+          members are positional and every other member is a named option with the default of the command is as
+          easy to use as the command line, and a caller that sets nothing gets the behavior the documentation of the
+          command promises.
+        tests:
+          - Imaging_RequestDefaults_CompareRequestFromInputsAlone_CarriesCommandDefaults
+          - Imaging_RequestDefaults_OptionalMembers_CarryCommandDefaults
+          - Imaging_RequestDefaults_PublishedConstants_AreTheCommandDefaults
+          - Imaging_RequestDefaults_InitProperties_CanBeSetAndCopied
+          - Imaging_RequestDefaults_OperationDefaults_AreTheCommandDefaults
+
+      - id: CanvasNetViewer-Imaging-DiagnosticOrigin
+        title: >-
+          The Imaging subsystem shall give every note it reports about a file that embeds other files an origin, the
+          embedded files that the note is about, outermost first, empty by default, and shall compare two notes as
+          equal when their fields and their origin entries are equal.
+        justification: |
+          When files embed files, a note must say which file to fix; reporting it as data lets a program find the
+          file without parsing the message, and value equality keeps the notes usable in assertions and sets.
+        children:
+          - CanvasNetViewer-Imaging-SourceLoader-DiagnosticOrigin
+        tests:
+          - Imaging_Diagnostics_Origin_DefaultsToEmptyAndIsComparedByEntries

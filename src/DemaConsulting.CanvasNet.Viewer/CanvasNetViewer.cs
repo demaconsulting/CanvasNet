@@ -16,7 +16,7 @@ namespace DemaConsulting.CanvasNet.Viewer;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         <b>The built-in sources.</b> <see cref="ImageSources"/> lists one <see cref="IImageSource"/> per format:
+///         <b>The built-in sources.</b> The <see cref="ImageSources"/> property lists one <see cref="IImageSource"/> per format:
 ///         raster (PNG, JPEG, BMP, TIFF, GIF, JPEG 2000), SVG, PDF, PPTX, VSDX, OpenSCAD and Vega-Lite. The list is fixed
 ///         and explicit: there is no discovery, no reflection and no global registry that can be changed. To support
 ///         another format, or to replace how a built-in one is drawn, implement <see cref="IImageSource"/> and pass it
@@ -24,13 +24,15 @@ namespace DemaConsulting.CanvasNet.Viewer;
 ///         (the later source in the sequence takes precedence).
 ///     </para>
 ///     <para>
-///         <b>Embedding.</b> <see cref="CreateImageResolver(string, FolderImageResolverOptions?)"/> returns a
-///         <see cref="FolderImageResolver"/> for <c>SvgLoadOptions.ImageResolver</c>. Create one for <b>every</b> top-level
-///         render (it is cheap): it counts the images of one render, accumulates the diagnostics, and never caches a
-///         picture, so a live source is asked again every time.
+///         <b>Embedding.</b> The overload <see cref="CreateImageResolver(string, FolderImageResolverOptions?)"/> returns a
+///         <see cref="FolderImageResolver"/> for <c>SvgLoadOptions.ImageResolver</c>, for a render that you drive
+///         yourself. Create one for <b>every</b> top-level render (it is cheap): it counts the images of one render,
+///         accumulates the diagnostics, and never caches a picture, so a live source is asked again every time. Your
+///         own sources go in the overload with <c>extraSources</c>; the <c>Render</c> methods below need no resolver
+///         from you and take your sources from <see cref="ViewerRenderOptions.ExtraSources"/>.
 ///     </para>
 ///     <para>
-///         <b>Rendering.</b> <see cref="Render(string, ViewerRenderOptions?)"/> and
+///         <b>Rendering.</b> The methods <see cref="Render(string, ViewerRenderOptions?)"/> and
 ///         <see cref="Render(Stream, string, ViewerRenderOptions?)"/> draw one file with the same sources, the same
 ///         folder sandbox and the same limits as embedding does. The class is static and stateless: the shared source
 ///         instances are stateless and thread-safe, and every call builds its own resolver, so the methods are safe to
@@ -94,6 +96,12 @@ public static class CanvasNetViewer
     /// <summary>
     ///     Creates a resolver that embeds every built-in format and your own sources from a folder.
     /// </summary>
+    /// <remarks>
+    ///     Use this for a render that you drive yourself (for example <c>SvgCodec.Load</c> with
+    ///     <c>SvgLoadOptions.ImageResolver</c>). <see cref="Render(string, ViewerRenderOptions?)"/> does not need it: it
+    ///     builds its own resolver from the built-in sources plus <see cref="ViewerRenderOptions.ExtraSources"/>, so pass
+    ///     your sources there instead. The precedence is the same in both: a later source wins.
+    /// </remarks>
     /// <param name="folder">The folder the links are confined to. Must not be null, empty or only white space.</param>
     /// <param name="extraSources">
     ///     Your own sources. They are placed <b>after</b> the built-in ones, so one that claims the same extension or URI

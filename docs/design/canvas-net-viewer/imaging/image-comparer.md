@@ -15,18 +15,30 @@ request and result records.
 
 #### Data Model
 
-**CompareInput** (record): `Label` (`a` or `b`), `Info`, `Page`, and `Source` (the `SourceOptions` without a target size).
+**CompareInput** (record): the required `Label` (`a` or `b`) and `Info`; the optional `Page` (1) and `Source` (the
+`SourceOptions` without a target size; a default `SourceOptions`).
 
-**ResizeTarget** (record): `Side` (`a` or `b`, or `null` for an explicit size), `Width`, and `Height`.
+**ResizeTarget** (record): `Side` (`a` or `b`, lower case, to load the other input at the size of that input, in which
+case `Width` and `Height` are 0 and ignored; anything else, including `null`, is an explicit size), `Width`, and
+`Height`; the static `ToInputA`, `ToInputB`, and `To(width, height)` build the three shapes. The library does not
+validate `Side` or a 0 x 0 explicit target; the tool does.
 
-**CompareRequest** (record): the two inputs `A` and `B`, `Resize` (`ResizeTarget?`; `null` compares at the inputs' own
-sizes), `Fit`, `Filter`, `Background`, `Tolerance`, `GridColumns`, `GridRows`, `Thresholds`, the optional output paths
-`DiffPath`, `SideBySidePath`, and `OverlayPath`, `DiffStyle`, `Gain`, `OverlayWeight`, and `Write`.
+**CompareRequest** (record): the required two inputs `A` and `B` (positional) and the optional members as `init`
+properties with the defaults of the `compare` command: `Resize` (`ResizeTarget?`; `null` compares at the inputs' own
+sizes), `Fit` (contain), `Filter` (auto), `Background` (opaque white), `Tolerance`, `GridColumns`, `GridRows`,
+`Thresholds` (none), the optional output paths `DiffPath`, `SideBySidePath`, and `OverlayPath` (none), `DiffStyle`
+(heat), `Gain`, `OverlayWeight`, and `Write` (`WriteOptions.Default`). The numeric defaults are the constants of
+`ImageComparison`. The same rule applies to every request and option record of the subsystem: the positional members
+are exactly the required data and everything optional is an `init` property with the default of the command, so a
+request built from its required members alone does what the command does without options. The tool passes every value
+explicitly, so its behavior does not depend on these defaults.
 
 **CompareSide** (record): `Label`, `Info`, `Page`, `LoadedWidth` and `LoadedHeight` (before the fit), `Width` and
 `Height` (compared), `Operations`, `Diagnostics`, and `Echo`. **ComparedPicture** (record): `Kind` (`diff`,
-`sideBySide`, or `overlay`) and the `WriteResult`. **CompareResult** (record): `A`, `B`, `Metrics` (the core
-`ComparisonResult`), `Checks` (one `ThresholdCheck` per threshold), and `Pictures`.
+`sideBySide`, or `overlay`) and the `WriteResult`. **CompareResult** (record): `A`, `B`, `Comparison` (the core
+`ComparisonResult`: the metrics, the grid cells, the worst cells, and the tolerance), `Checks` (one `ThresholdCheck`
+per threshold), and `Pictures`; the property `Metrics` is the shortcut for `Comparison.Metrics` (the numbers: MAE, RMSE,
+and the maximum difference on the 0 to 255 scale, the differing-pixel ratio as a fraction, PSNR in decibels, and SSIM).
 
 #### Key Methods
 

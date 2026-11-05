@@ -26,6 +26,9 @@ internal sealed partial class ScadEvaluator : IScadBuiltinHost
     void IScadBuiltinHost.Warn(string message) => Warn(message, _hostLocation);
 
     /// <inheritdoc />
+    void IScadBuiltinHost.Warn(string code, string message) => Warn(code, message, _hostLocation);
+
+    /// <inheritdoc />
     void IScadBuiltinHost.Unsupported(string feature, string message)
     {
         // The first report of a feature at a location may abort evaluation; repeats are silent

@@ -34,9 +34,8 @@ public class MontageBuilderTests
     /// <returns>The request.</returns>
     private static MontageRequest CreateRequest(string output, bool labels = false, int columns = 0, int cell = 32)
     {
-        var sheet = new SheetOptions(
-            columns, cell, cell, 4, 4, new Rgba32(255, 255, 255, 255), labels, FitMode.Contain, ResamplingMode.Auto);
-        return new MontageRequest(output, null, false, null, null, false, true, sheet, WriteOptions.Default);
+        var sheet = new SheetOptions { Columns = columns, CellWidth = cell, CellHeight = cell, Spacing = 4, Padding = 4, Labels = labels };
+        return new MontageRequest(output) { Sheet = sheet };
     }
 
     /// <summary>

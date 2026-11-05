@@ -57,7 +57,8 @@ The system exposes the following public API:
 - **`CanvasNetViewer.CreateImageResolver(folder, options)`** / **`CreateImageResolver(folder, extraSources, options)`**:
   a new `FolderImageResolver` for one render, over the built-in sources followed by the extra ones; assign it to
   `SvgLoadOptions.ImageResolver`. Throws `ArgumentException` for a null, empty or white-space folder and
-  `ArgumentNullException` for null extra sources.
+  `ArgumentNullException` for null extra sources. Use it for a render that you drive yourself; `Render` builds its own
+  resolver and takes extra sources from `ViewerRenderOptions.ExtraSources` instead.
 - **`CanvasNetViewer.Render(path, options)`** / **`Render(stream, fileName, options)`**: draw one file as a
   `ViewerImage` (the picture, its format, the notes, the printed text, and the embedded images). Throw
   `FileNotFoundException`, `NotSupportedException` (no source claims the extension), `ArgumentException` (the file is
@@ -167,6 +168,12 @@ again on every render. The shape contains this risk control inherently (IEC 6230
 - **No command-line concerns**: the library knows nothing of a command line, a console, or a result document; the
   tool parses and prints. The text of some messages and hints still names the options of the tool
 - **Not a tool plug-in point**: the command-line tool wires the viewer in for its commands and offers no plug-in mechanism
+- **Documented examples compile**: the C# examples of the Viewer user guide are complete programs that are compiled
+  (never run) against the public API by a system test; a block is marked `<!-- compile -->` (a program) or
+  `<!-- signature -->` (a listing), and an unmarked block fails the test. The test project, not the library, depends on
+  the compiler package for this
+- **Request records**: required data is positional, everything optional is an `init` property with the default of the
+  command-line option (see _Imaging Subsystem Design_)
 
 ### Platform Support
 

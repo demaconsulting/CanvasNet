@@ -95,7 +95,7 @@ internal static partial class ScadBuiltinFunctions
         var text = ScadText.FromCodePoint(value.AsNumber);
         if (text is null)
         {
-            host.Warn("Function 'chr' was given a value that is not a valid Unicode code point");
+            host.Warn(ScadDiagnosticCodes.InvalidArgument, "Function 'chr' was given a value that is not a valid Unicode code point");
             return;
         }
 

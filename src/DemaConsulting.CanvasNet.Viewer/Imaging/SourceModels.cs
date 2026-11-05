@@ -140,17 +140,77 @@ public static class SourceKindExtensions
 /// <summary>
 ///     A note about a source that did not stop it from being loaded, such as a feature that was skipped.
 /// </summary>
+/// <remarks>
+///     The viewer reports notes in two shapes: this record (a string <see cref="Severity"/>) for the loaders and the
+///     operations of this namespace (<c>RenderedPage</c>, <c>InspectResult</c>, <c>CompareSide</c>, <c>MontageCell</c>,
+///     <see cref="LoadedSource"/>), and the core <c>ImageSourceDiagnostic</c> (an enum severity) for the
+///     <c>ViewerImage</c> of <c>CanvasNetViewer.Render</c>. The <see cref="Code"/> of a note of an OpenSCAD model is
+///     <c>scad-warning</c>; the finer <c>ScadDiagnostic.Code</c> is not carried here, so branch on the
+///     <see cref="Code"/> and never on the <see cref="Message"/>.
+/// </remarks>
 /// <param name="Source">The part of the tool or library that reported the note, for example <c>svg</c>.</param>
 /// <param name="Severity">The severity: <c>info</c>, <c>warning</c>, or <c>unsupported</c>.</param>
 /// <param name="Code">A stable, machine-readable code.</param>
 /// <param name="Message">A human-readable description.</param>
 /// <param name="Page">The 1-based page the note is about, or <see langword="null"/> when it is not about one page.</param>
-public sealed record ImageDiagnostic(string Source, string Severity, string Code, string Message, int? Page = null);
+public sealed record ImageDiagnostic(string Source, string Severity, string Code, string Message, int? Page = null)
+{
+    /// <summary>
+    ///     Gets the embedded files, outermost first, that the note is about; empty (the default) for a note about the
+    ///     source itself.
+    /// </summary>
+    /// <remarks>
+    ///     It is the <see cref="DemaConsulting.CanvasNet.ImageSources.ImageSourceDiagnostic.Origin"/> of a note that was
+    ///     reported for a file an SVG document embeds, copied unchanged: for a note a source reported, the file that
+    ///     reported it preceded by the files that embedded it; for a link that was not drawn, the file that contains the
+    ///     link. Each entry is the folder-relative file name of a file link and the link as written for a scheme link.
+    ///     <see cref="Message"/> keeps its <c>"{href}: "</c> prefix unchanged. The list is compared by its entries.
+    /// </remarks>
+    public IReadOnlyList<string> Origin { get; init; } = [];
+
+    /// <summary>
+    ///     Determines whether another note has the same values, comparing <see cref="Origin"/> entry by entry.
+    /// </summary>
+    /// <param name="other">The note to compare with.</param>
+    /// <returns><see langword="true"/> when every member, including each origin entry in order, is equal.</returns>
+    public bool Equals(ImageDiagnostic? other) =>
+        other is not null
+        && Source == other.Source
+        && Severity == other.Severity
+        && Code == other.Code
+        && Message == other.Message
+        && Page == other.Page
+        && Origin.SequenceEqual(other.Origin);
+
+    /// <summary>
+    ///     Gets a hash code that is consistent with <see cref="Equals(ImageDiagnostic?)"/>.
+    /// </summary>
+    /// <returns>The hash code, combining the members and every origin entry.</returns>
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(Source);
+        hash.Add(Severity);
+        hash.Add(Code);
+        hash.Add(Message);
+        hash.Add(Page);
+        foreach (var entry in Origin)
+        {
+            hash.Add(entry);
+        }
+
+        return hash.ToHashCode();
+    }
+}
 
 /// <summary>
 ///     One page or slide of a multi-page source.
 /// </summary>
-/// <param name="Number">The 1-based page number.</param>
+/// <param name="Number">
+///     The 1-based page number (the first page is 1). The format packages count from 0 (<c>pageIndex</c> of
+///     <c>PdfDocument.Render</c>, <c>slideIndex</c> of <c>PptxDocument.Render</c>); the viewer converts, so never pass
+///     this number to them unchanged.
+/// </param>
 /// <param name="Width">The natural width in pixels at 96 dots per inch.</param>
 /// <param name="Height">The natural height in pixels at 96 dots per inch.</param>
 /// <param name="Name">The page name, or <see langword="null"/> when it has none.</param>
@@ -180,7 +240,7 @@ public sealed record SourcePage(
 /// <param name="FrameCount">The number of frames (more than one only for an animated GIF).</param>
 /// <param name="PageCount">The number of pages or slides; <c>1</c> for a single-image source.</param>
 /// <param name="ExifOrientation">The EXIF orientation (1 to 8) of a JPEG, or <see langword="null"/> when it has none.</param>
-/// <param name="Pages">The pages of a multi-page source; empty for a single-image source.</param>
+/// <param name="Pages">The pages of a multi-page source in page order (the first entry is page 1); empty for a single-image source.</param>
 /// <param name="Modules">The module names of an OpenSCAD model; empty for every other kind.</param>
 /// <param name="Functions">The function names of an OpenSCAD model; empty for every other kind.</param>
 public sealed record SourceInfo(
@@ -341,7 +401,10 @@ public sealed record ScadViewOptions
 public sealed record SourceOptions
 {
     /// <summary>
-    ///     Gets the 1-based page (or slide) to load. A single-image source has only page 1.
+    ///     Gets the 1-based page (or slide) to load; the first page is 1, and the default. A single-image source has only
+    ///     page 1. The format packages count from 0 (<c>pageIndex</c> of <c>PdfDocument.Render</c>, <c>slideIndex</c> of
+    ///     <c>PptxDocument.Render</c>); the viewer converts, so do not mix the two bases. A page that does not exist is
+    ///     refused with the code <c>page-out-of-range</c>.
     /// </summary>
     public int Page { get; init; } = 1;
 
@@ -417,13 +480,17 @@ public sealed record AppliedOperation(string Op, IReadOnlyList<KeyValuePair<stri
 ///     The facts about the source file; for a page of a document, <see cref="SourceInfo.Width"/> and
 ///     <see cref="SourceInfo.Height"/> are the natural size of the loaded page at the requested resolution.
 /// </param>
-/// <param name="Page">The 1-based page that was loaded; <c>1</c> for a single-image source.</param>
+/// <param name="Page">The 1-based page that was loaded (the first page is 1); <c>1</c> for a single-image source.</param>
 /// <param name="IsVector"><see langword="true"/> when the source was rendered at the requested size rather than decoded.</param>
 /// <param name="Diagnostics">The notes reported while loading; empty when there are none.</param>
 /// <param name="Echo">The text a model printed while it was evaluated; empty for every other kind.</param>
 /// <param name="Operations">What was done to the source to produce <paramref name="Surface"/>, in order.</param>
 /// <remarks>
-///     The loaded source owns its surface: disposing the loaded source disposes the surface.
+///     The loaded source owns its surface: disposing the loaded source disposes the surface. Of every viewer result,
+///     only this record (through <see cref="Anchors"/>) and <c>RenderedPage</c> report the anchors of a model; the
+///     <c>ViewerImage</c> of <c>CanvasNetViewer.Render</c>, <c>InspectResult</c>, <c>CompareSide</c>, and
+///     <c>MontageCell</c> carry <c>Diagnostics</c> and <c>Echo</c> but no anchors. An anchor that cannot be read is
+///     reported as a <c>scad-warning</c> note whose <c>ScadDiagnostic.Code</c> is <c>scad-anchor-invalid</c>.
 /// </remarks>
 public sealed record LoadedSource(
     Surface Surface,

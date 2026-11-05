@@ -209,6 +209,19 @@ sections:
           - SourceLoader_Load_PdfStrict_HasNoDiagnostics
           - SourceLoader_Load_SvgEmbeddingModelWithNotes_MergesDiagnosticsAndEcho
 
+      - id: CanvasNetViewer-Imaging-SourceLoader-DiagnosticOrigin
+        title: >-
+          The SourceLoader class shall give every note it reports for an SVG file that embeds other files an origin:
+          the embedded files, outermost first, that the note is about (the file that contains a link that was not
+          drawn, or the embedded file that reported the note preceded by the files that embedded it), empty for a
+          note about the file that was loaded, with the message and the code of the note unchanged.
+        justification: |
+          A note about a link several files deep is of no use to the author or the agent that reads it unless it
+          says which file to fix; the chain is data, so the program does not parse the message.
+        tests:
+          - SourceLoader_Load_SvgEmbeddingModelWithNotes_NotesCarryTheEmbeddedFileAsOrigin
+          - SourceLoader_Load_SvgEmbeddingNestedSvgWithMissingFile_OriginIsTheNestedFile
+
       - id: CanvasNetViewer-Imaging-SourceLoader-Strict
         title: >-
           The SourceLoader class shall, in strict mode, report a picture or construct that the library
