@@ -667,3 +667,25 @@ native digits with native digit substitution), and assert that the text is ident
 the documented message. Honest scope: for non-negative integers .NET output does not vary between cultures, so the
 scenarios are a regression guard; the invariance itself is guaranteed by construction (the invariant-culture
 formatting of every numeric message, audited site by site).
+
+##### CanvasNetScad-ScadEvaluation-ScadEvaluator-Anchors: Anchor Declarations
+
+**Tests**: `ScadEvaluatorAnchorTests.ScadEvaluatorAnchor_ValidDeclaration_LeavesAnchorInstanceAndEchoLine`,
+`ScadEvaluatorAnchorTests.ScadEvaluatorAnchor_InsideTransformAndWithChildren_IsKeptInOrder`,
+`ScadEvaluatorAnchorTests.ScadEvaluatorAnchor_MalformedDeclaration_WarnsOnceAndLeavesNoInstance`,
+`ScadEvaluatorAnchorTests.ScadEvaluatorAnchor_NotAStatementFormAnchor_IsPlainEcho`,
+`ScadEvaluatorAnchorTests.ScadEvaluatorAnchor_NotExecuted_IsNotDeclared`,
+`ScadEvaluatorAnchorTests.ScadEvaluatorAnchor_DuplicatesAndLoops_AreDeclaredInOrder`,
+`ScadEvaluatorAnchorTests.ScadEvaluatorAnchor_CountsAgainstTheInstanceLimit`
+
+Asserts, with the instance dump (an anchor is `anchor<name>([x, y, z])`), that a valid statement-form declaration
+leaves an anchor between its sibling solids while the echo line is recorded unchanged and nothing is reported; that
+an anchor keeps its place inside a transform and before the children of the echo statement; that thirteen malformed
+declarations (the tag alone, two arguments, four arguments, a numeric name, an empty name, a point with two, four, or
+a non-numeric element, a number instead of a vector, an infinite and a NaN coordinate, a named name, and a named
+point) each give exactly one warning that starts with `scad-anchor-invalid:` at the line of the statement, no
+instance, and the echo line; that the expression forms (a top-level and a function `echo`), another tag, a different
+case, a named tag, and a tag in second place are plain echoes with no warning and no instance; that the false branch
+of an `if` and a `*` statement declare nothing; that duplicates and the iterations of a loop are declared in order
+with the name and vector evaluated per iteration; and that an anchor counts as one instance against `MaxInstances`
+(a loop of three anchors needs four).

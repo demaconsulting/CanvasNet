@@ -1,3 +1,4 @@
+using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Render3D.SceneModel;
 using DemaConsulting.CanvasNet.Render3D.SceneRendering;
 
@@ -45,6 +46,193 @@ public class CameraTests
                 (i & 2) == 0 ? -half.Y : half.Y,
                 (i & 4) == 0 ? -half.Z : half.Z);
         }
+    }
+
+    /// <summary>
+    ///     Finds the first and last columns and rows of the pixels that differ from the background.
+    /// </summary>
+    /// <param name="surface">The rendered surface.</param>
+    /// <param name="background">The background color.</param>
+    /// <returns>The first column, the last column, the first row and the last row that are covered.</returns>
+    private static (int MinX, int MaxX, int MinY, int MaxY) CoveredBounds(Surface surface, Rgba32 background)
+    {
+        int minX = int.MaxValue, maxX = -1, minY = int.MaxValue, maxY = -1;
+        for (var y = 0; y < surface.Height; y++)
+        {
+            for (var x = 0; x < surface.Width; x++)
+            {
+                if (surface[x, y] != background)
+                {
+                    minX = Math.Min(minX, x);
+                    maxX = Math.Max(maxX, x);
+                    minY = Math.Min(minY, y);
+                    maxY = Math.Max(maxY, y);
+                }
+            }
+        }
+
+        return (minX, maxX, minY, maxY);
+    }
+
+    /// <summary>
+    ///     Validates that an orthographic camera maps its target to the image center and the visible-height edge
+    ///     to the top of the image, with y growing downward.
+    /// </summary>
+    [Fact]
+    public void Camera_TryProject_OrthographicTop_MapsTargetToCenterAndEdgesToImageEdges()
+    {
+        // Arrange: a top view that shows 10 units of height; at 64x48 it shows 13.33 units of width
+        var camera = new Camera
+        {
+            Eye = new Vector3D(0, 0, 100),
+            Target = Vector3D.Zero,
+            Up = Vector3D.UnitY,
+            Projection = CameraProjection.Orthographic,
+            OrthographicHeight = 10.0,
+        };
+
+        // Act
+        var center = camera.TryProject(Vector3D.Zero, 64, 48, out var centerPixel);
+        var top = camera.TryProject(new Vector3D(0, 5, 0), 64, 48, out var topPixel);
+        var right = camera.TryProject(new Vector3D(10.0 / 3.0 * 2.0, 0, 0), 64, 48, out var rightPixel);
+
+        // Assert: the target is the center, +Y is up the image and +X is to the right
+        Assert.True(center);
+        Assert.True(top);
+        Assert.True(right);
+        Assert.Equal(32.0, centerPixel.X, 1e-6);
+        Assert.Equal(24.0, centerPixel.Y, 1e-6);
+        Assert.Equal(0.0, topPixel.Y, 1e-6);
+        Assert.Equal(64.0, rightPixel.X, 1e-6);
+    }
+
+    /// <summary>
+    ///     Validates the perspective projection against the analytic value <c>W/2 + X / (d tan(fov/2) aspect) W/2</c>.
+    /// </summary>
+    [Fact]
+    public void Camera_TryProject_Perspective_MatchesAnalyticValue()
+    {
+        // Arrange: a front view from 10 units away with the default field of view
+        var camera = Camera.LookAt(new Vector3D(0, -10, 0), Vector3D.Zero, Vector3D.UnitZ);
+        var tan = Math.Tan(camera.FieldOfViewDegrees * Math.PI / 360.0);
+
+        // Act: a point 1 unit to the right and 1 unit up, 10 units in front of the eye, then one 5 units nearer
+        var far = camera.TryProject(new Vector3D(1, 0, 1), 80, 40, out var farPixel);
+        var near = camera.TryProject(new Vector3D(1, -5, 1), 80, 40, out var nearPixel);
+
+        // Assert
+        Assert.True(far);
+        Assert.True(near);
+        Assert.Equal(40.0 + (1.0 / (10.0 * tan * 2.0) * 40.0), farPixel.X, 1e-4);
+        Assert.Equal(20.0 - (1.0 / (10.0 * tan) * 20.0), farPixel.Y, 1e-4);
+        Assert.Equal(40.0 + (1.0 / (5.0 * tan * 2.0) * 40.0), nearPixel.X, 1e-4);
+        Assert.Equal(20.0 - (1.0 / (5.0 * tan) * 20.0), nearPixel.Y, 1e-4);
+    }
+
+    /// <summary>
+    ///     Validates that a perspective point at or behind the eye has no projection, while an orthographic one does.
+    /// </summary>
+    [Fact]
+    public void Camera_TryProject_BehindEye_ReturnsFalseOnlyForPerspective()
+    {
+        // Arrange
+        var perspective = Camera.LookAt(new Vector3D(0, -10, 0), Vector3D.Zero, Vector3D.UnitZ);
+        var orthographic = new Camera
+        {
+            Eye = perspective.Eye,
+            Target = perspective.Target,
+            Up = perspective.Up,
+            Projection = CameraProjection.Orthographic,
+            OrthographicHeight = 4.0,
+        };
+
+        // Act
+        var behind = perspective.TryProject(new Vector3D(0, -20, 0), 64, 64, out var behindPixel);
+        var atEye = perspective.TryProject(perspective.Eye, 64, 64, out _);
+        var orthographicBehind = orthographic.TryProject(new Vector3D(0, -20, 0), 64, 64, out var orthographicPixel);
+
+        // Assert
+        Assert.False(behind);
+        Assert.Equal(Vector2D.Zero, behindPixel);
+        Assert.False(atEye);
+        Assert.True(orthographicBehind);
+        Assert.Equal(32.0, orthographicPixel.X, 1e-6);
+    }
+
+    /// <summary>
+    ///     Validates that a point that is not finite cannot be projected.
+    /// </summary>
+    [Fact]
+    public void Camera_TryProject_NonFinitePoint_ReturnsFalse()
+    {
+        // Arrange
+        var camera = Camera.LookAt(new Vector3D(0, -10, 0), Vector3D.Zero, Vector3D.UnitZ);
+
+        // Act
+        var nan = camera.TryProject(new Vector3D(double.NaN, 0, 0), 32, 32, out var nanPixel);
+        var infinite = camera.TryProject(new Vector3D(0, 0, double.PositiveInfinity), 32, 32, out _);
+
+        // Assert
+        Assert.False(nan);
+        Assert.Equal(Vector2D.Zero, nanPixel);
+        Assert.False(infinite);
+    }
+
+    /// <summary>
+    ///     Validates that an invalid camera and a bad size fail the way a render fails.
+    /// </summary>
+    [Fact]
+    public void Camera_TryProject_InvalidCameraOrSize_Throws()
+    {
+        // Arrange: an eye equal to the target has no view direction
+        var degenerate = new Camera { Eye = new Vector3D(1, 1, 1), Target = new Vector3D(1, 1, 1), Up = Vector3D.UnitZ };
+        var camera = Camera.LookAt(new Vector3D(0, -10, 0), Vector3D.Zero, Vector3D.UnitZ);
+
+        // Act / Assert
+        Assert.Throws<ArgumentException>(() => degenerate.TryProject(Vector3D.Zero, 8, 8, out _));
+        Assert.Throws<ArgumentOutOfRangeException>(() => camera.TryProject(Vector3D.Zero, 0, 8, out _));
+        Assert.Throws<ArgumentOutOfRangeException>(() => camera.TryProject(Vector3D.Zero, 8, 0, out _));
+        Assert.Throws<ArgumentOutOfRangeException>(() => camera.TryProject(Vector3D.Zero, Surface.MaxDimension + 1, 8, out _));
+    }
+
+    /// <summary>
+    ///     Validates that the projected corners of a box agree with the extent of the pixels the rasterizer covers,
+    ///     for both projections and a non-square image.
+    /// </summary>
+    /// <param name="perspective"><see langword="true"/> for a perspective camera, <see langword="false"/> for orthographic.</param>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Camera_TryProject_MatchesRasterizer(bool perspective)
+    {
+        // Arrange: a box seen obliquely, drawn flat and without antialiasing so that the covered pixels are exact
+        var min = new Vector3D(-3, -2, -1);
+        var size = new Vector3D(6, 4, 2);
+        var scene = new Scene(Render3DTestHelpers.ColoredBox(min, size, new Rgba32(180, 180, 180, 255)));
+        var background = new Rgba32(255, 255, 255, 255);
+        var options = new SceneRenderOptions { Lights = [new AmbientLight { Intensity = 1.0f }], Supersampling = 1, BackgroundColor = background };
+        var camera = new Camera
+        {
+            Eye = new Vector3D(14, -18, 12),
+            Target = Vector3D.Zero,
+            Up = Vector3D.UnitZ,
+            Projection = perspective ? CameraProjection.Perspective : CameraProjection.Orthographic,
+            OrthographicHeight = perspective ? null : 16.0,
+        };
+        const int Width = 96;
+        const int Height = 64;
+
+        // Act
+        using var surface = SceneRenderer.Render(scene, camera, Width, Height, options, TestContext.Current.CancellationToken);
+        var corners = Corners(min + (size * 0.5), size * 0.5).ToList();
+        var pixels = corners.Select(c => camera.TryProject(c, Width, Height, out var pixel) ? pixel : throw new InvalidOperationException("The corner could not be projected.")).ToList();
+        var (minX, maxX, minY, maxY) = CoveredBounds(surface, background);
+
+        // Assert: the covered columns and rows span the projected extremes within a pixel (pixel i covers [i, i + 1))
+        Assert.InRange(minX, pixels.Min(p => p.X) - 1.0, pixels.Min(p => p.X) + 1.0);
+        Assert.InRange(maxX + 1, pixels.Max(p => p.X) - 1.0, pixels.Max(p => p.X) + 1.0);
+        Assert.InRange(minY, pixels.Min(p => p.Y) - 1.0, pixels.Min(p => p.Y) + 1.0);
+        Assert.InRange(maxY + 1, pixels.Max(p => p.Y) - 1.0, pixels.Max(p => p.Y) + 1.0);
     }
 
     /// <summary>

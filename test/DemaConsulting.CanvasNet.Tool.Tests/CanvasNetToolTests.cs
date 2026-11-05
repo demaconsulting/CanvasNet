@@ -1315,6 +1315,47 @@ public partial class CanvasNetToolTests
     }
 
     /// <summary>
+    ///     Test that the anchors of a model are listed in the JSON result of the tool, in echo order, with pixels that
+    ///     follow the pixel steps of the command line, and that no other input and no text output gets them.
+    /// </summary>
+    [Fact]
+    public void CanvasNetTool_Scad_Anchors_AreReportedInJsonAndFollowThePixelSteps()
+    {
+        // Arrange: a box seen from the top with an anchor on its upper left corner, and a malformed declaration
+        using var directory = new TempDirectory();
+        var input = FixtureFactory.WriteText(
+            directory.Path,
+            "part.scad",
+            "cube([40, 20, 10]);\necho(\"anchor\", \"corner\", [0, 20, 10]);\necho(\"anchor\", \"bad\", [1]);\n");
+
+        // Act: the plain render, the same render flipped and padded, and the text mode
+        var plain = ToolHost.Invoke("render", input, "--view", "top", "--size", "400x200", "-o", directory.Combine("a.png"), "--json");
+        var moved = ToolHost.Invoke("render", input, "--view", "top", "--size", "400x200", "--flip", "h", "--pad", "10", "-o", directory.Combine("b.png"), "--json");
+        var text = ToolHost.Invoke("render", input, "--view", "top", "--size", "400x200", "-o", directory.Combine("c.png"));
+
+        // Assert: the corner is on the left of the box in the plain render and on the right after the flip, shifted by the border
+        Assert.Equal(0, plain.ExitCode);
+        Assert.Equal(0, moved.ExitCode);
+        using var plainDocument = JsonDocument.Parse(plain.StdOut);
+        using var movedDocument = JsonDocument.Parse(moved.StdOut);
+        var plainAnchor = Assert.Single(plainDocument.RootElement.GetProperty("anchors").EnumerateArray());
+        var movedAnchor = Assert.Single(movedDocument.RootElement.GetProperty("anchors").EnumerateArray());
+        Assert.Equal("corner", plainAnchor.GetProperty("name").GetString());
+        var x = plainAnchor.GetProperty("pixel")[0].GetDouble();
+        var y = plainAnchor.GetProperty("pixel")[1].GetDouble();
+        Assert.Equal(400 - x + 10, movedAnchor.GetProperty("pixel")[0].GetDouble(), 0.01);
+        Assert.Equal(y + 10, movedAnchor.GetProperty("pixel")[1].GetDouble(), 0.01);
+        Assert.True(movedAnchor.GetProperty("inside").GetBoolean());
+        Assert.Contains(
+            plainDocument.RootElement.GetProperty("diagnostics").EnumerateArray(),
+            d => d.GetProperty("message").GetString()!.Contains("scad-anchor-invalid:", StringComparison.Ordinal));
+
+        // Text mode writes its one line and nothing about anchors on standard output
+        Assert.Equal(0, text.ExitCode);
+        Assert.DoesNotContain("anchor", text.StdOut, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Test that include and use are read from the folder of the model and below it, and that nothing outside is read.
     /// </summary>
     [Fact]

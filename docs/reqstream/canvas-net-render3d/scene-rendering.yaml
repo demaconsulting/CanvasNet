@@ -16,8 +16,9 @@ sections:
           - id: CanvasNetRender3D-SceneRendering-CameraModel
             title: >-
               The SceneRendering subsystem shall provide a validated perspective or orthographic
-              camera with LookAt, a double-precision view matrix, tight FitToBounds framing, and
-              graceful handling of a view direction parallel to the up vector.
+              camera with LookAt, a double-precision view matrix, tight FitToBounds framing,
+              graceful handling of a view direction parallel to the up vector, and a projection of
+              a world point to the output pixel the renderer would draw it at.
             justification: |
               The camera defines what the renderer sees; precise, validated framing makes renders
               predictable and lets callers obtain a good default view of an arbitrary scene.
@@ -28,6 +29,7 @@ sections:
               - CanvasNetRender3D-SceneRendering-Camera-FitToBounds
               - CanvasNetRender3D-SceneRendering-Camera-Validation
               - CanvasNetRender3D-SceneRendering-Camera-DegenerateUp
+              - CanvasNetRender3D-SceneRendering-Camera-ProjectPoint
             tests:
               - SceneRendering_FittedCamera_RendersObjectInsideFrame
 

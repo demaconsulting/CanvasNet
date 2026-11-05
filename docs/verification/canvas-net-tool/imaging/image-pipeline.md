@@ -173,3 +173,27 @@ time; a border that makes 8200 pixels is `size-limit` naming `8200x201`; one tha
 and **ImagePipeline_Parse_UnknownVerb_ThrowsArgumentException**: an empty list gives an independent copy, a failing
 chain leaves the input usable, the same chain twice gives equal pixels, and a verb that does not exist or has no
 operand is a defect of the caller.
+
+**ImagePipeline_MapAnchors_CropTrimResizeFitPad_FollowTheirReports**, **ImagePipeline_MapAnchors_Flip_MirrorsTheNamedAxis**,
+**ImagePipeline_MapAnchors_RightAngleRotate_IsAnExactMove**, and
+**ImagePipeline_MapAnchors_ColorOnlyStepsAndNoSteps_KeepThePosition**: the arithmetic of the mapping from the reports
+of each step on a 400 by 200 image: a crop of `20,10` and a trim of `7,3` subtract their origin, a resize and a fit
+scale by the size ratio (`(100, 50)` becomes `(50, 100)` and `(25, 12.5)`), a pad adds `left` and `top`, the three
+flips mirror the named axis, the right-angle rotations give `(150, 100)`, `(300, 150)`, and `(50, 300)` exactly, and
+grayscale, grid, a deskew that did not correct, and an empty list leave the position (and the world point and name)
+untouched.
+
+**ImagePipeline_MapAnchors_StepsNotFollowed_LoseThePositionForGood** and
+**ImagePipeline_MapAnchors_ManyAnchors_KeepsOrderAndInput**: a deskew that corrected the image and a step of unknown
+name that changed the size give a `null` position that stays `null` through a later crop, a `null` position stays
+`null`, and several anchors keep their order and names, are mapped each, and leave the input list unmodified; null
+arguments throw.
+
+**ImagePipeline_MapAnchors_FollowsAMarkedBlockInARealImage** and
+**ImagePipeline_MapAnchors_RealReports_CarryTheFieldsTheMappingReads**: the mapping is checked against **real
+pixels**: a 7 by 7 red block in a 100 by 60 white image is run through the real pipeline (nearest filters, white fill
+and border) for each of three flips, a pad, two resizes, a fit, the three right angles, rotations by 30, -30, 45, 100,
+and 215.5 degrees, and two chains of five steps, and the center of the red pixels of the result is within one pixel of
+the mapped position of the block's center; the second scenario runs a trim, a pad, a flip, a rotate, and a resize
+and requires that every step's real report gives a known position inside the final image, which pins the field names
+the mapping reads.

@@ -228,3 +228,25 @@ sections:
           - ImagePipeline_Parse_UnknownVerb_ThrowsArgumentException
           - ImagePipeline_Apply_Input_IsNeverModifiedOrDisposed
           - ImagePipeline_Apply_SameInputTwice_GivesIdenticalPixels
+
+      - id: CanvasNetTool-Imaging-ImagePipeline-AnchorMapping
+        title: >-
+          The ImagePipeline class shall map the pixel position of an anchor through the steps it applied from
+          what each step reported (crop and trim subtract their origin, resize and fit scale by the size
+          ratio, pad adds the border, flip mirrors the named axis, rotate turns clockwise about the center
+          onto the expanded canvas with an exact move for a right angle, and steps that only change colors keep
+          the position), shall lose the position (null, for good) at a deskew that corrected the image and at
+          any other step that changed the size without being known, and shall place the position where a
+          marked block really lands in the processed image.
+        justification: |
+          A position that is reported for the file that was written must follow every step that moved the
+          pixels, and a step the mapping does not understand must give no position rather than a wrong one.
+        tests:
+          - ImagePipeline_MapAnchors_CropTrimResizeFitPad_FollowTheirReports
+          - ImagePipeline_MapAnchors_Flip_MirrorsTheNamedAxis
+          - ImagePipeline_MapAnchors_RightAngleRotate_IsAnExactMove
+          - ImagePipeline_MapAnchors_ColorOnlyStepsAndNoSteps_KeepThePosition
+          - ImagePipeline_MapAnchors_StepsNotFollowed_LoseThePositionForGood
+          - ImagePipeline_MapAnchors_ManyAnchors_KeepsOrderAndInput
+          - ImagePipeline_MapAnchors_FollowsAMarkedBlockInARealImage
+          - ImagePipeline_MapAnchors_RealReports_CarryTheFieldsTheMappingReads

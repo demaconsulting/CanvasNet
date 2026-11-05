@@ -743,6 +743,26 @@ public sealed class Camera
         double fieldOfViewDegrees = DefaultFieldOfViewDegrees,
         double marginFraction = 0.05);
     public Matrix4x4D GetViewMatrix();
+    public bool TryProject(Vector3D worldPoint, int width, int height, out Vector2D pixel);
+}
+```
+
+`TryProject` finds where the renderer draws a world point for this camera in a `width` by `height` image, with exactly
+the projection the renderer uses (so it agrees with the pixels of a rendered image for any framing, orthographic or
+perspective). The position is continuous: the origin is the top-left corner of the image, pixel `i` spans
+`[i, i + 1)` (the center of the first pixel is `0.5`), x grows to the right and y grows downward. It may lie outside the
+image when the point is outside the view; no visibility or occlusion test is made. It returns `false` (and a zero
+`pixel`) for a point that is not finite or, for a perspective camera, is not in front of the eye. Use it to place
+callouts and leader lines on a rendered picture:
+
+```csharp
+var camera = Camera.LookAt(new Vector3D(0, -100, 30), Vector3D.Zero, Vector3D.UnitZ);
+using var picture = SceneRenderer.Render(scene, camera, 640, 480);
+
+// Where is the point (10, 0, 5) in the picture?
+if (camera.TryProject(new Vector3D(10, 0, 5), 640, 480, out var pixel))
+{
+    Console.WriteLine($"({pixel.X:F1}, {pixel.Y:F1})");   // draw the label here
 }
 ```
 
@@ -762,8 +782,9 @@ so a camera inside or beside a model works.
   initialization) when the eye equals the target, an orthographic camera has no `OrthographicHeight`,
   or `NearPlane` is not less than `FarPlane`.
 - `ArgumentOutOfRangeException`: Thrown for a field of view outside (0, 180), a non-positive
-  or non-finite height or clip distance, and by `FitToBounds` for a non-finite angle, a non-positive
-  aspect ratio, or a negative margin.
+  or non-finite height or clip distance, by `FitToBounds` for a non-finite angle, a non-positive
+  aspect ratio, or a negative margin, and by `TryProject` for a width or height outside 1 to
+  `Surface.MaxDimension` (`TryProject` also throws `ArgumentException` for an invalid camera, as a render does).
 
 ### Lights
 

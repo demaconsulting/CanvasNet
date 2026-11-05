@@ -122,9 +122,9 @@ union).
 <!-- markdownlint-disable MD013 -->
 | Member of `ScadInstance` | Meaning |
 | ------------------------ | ------- |
-| `Kind` | `BuiltinModule`, or `Group` (the implicit union of its children) |
-| `Name` | The built-in module name; for a group, `for`, `intersection_for`, `group`, or the user module's name |
-| `Arguments` | The **evaluated** arguments in call order, each with an optional name; empty for a group |
+| `Kind` | `BuiltinModule`; `Group` (the implicit union of its children); or `Anchor` (a declared anchor, a leaf that is never geometry) |
+| `Name` | The built-in module name; for a group, `for`, `intersection_for`, `group`, or the user module's name; for an anchor, the anchor name |
+| `Arguments` | The **evaluated** arguments in call order, each with an optional name; empty for a group; for an anchor, the single `[x, y, z]` vector |
 | `Children` | The child instances in order |
 | `Modifiers` | Only `ShowOnly`, `Highlight`, and `Background` can be set; a disabled statement is never evaluated and never appears |
 | `Fragments` | The effective `$fn`, `$fa`, and `$fs` for the instance: the dynamically scoped values, overridden by a named argument of the same name on the instance |
@@ -148,7 +148,9 @@ Shape rules (each is pinned by a test):
 - **`for`** produces one `Group("for")`, always, even with zero iterations. **`intersection_for`** produces
   `BuiltinModule("intersection")` whose children are one `Group("intersection_for")` per iteration.
 - **Splicing constructs** — `if`, a braced block, `let`, `echo`, `assert`, and `children()` — place their result
-  instances directly into the parent's child list and have no node of their own.
+  instances directly into the parent's child list and have no node of their own. The one exception is a valid
+  statement-form `echo("anchor", "name", [x, y, z])`, which also leaves an `Anchor` leaf at its position (the
+  geometry phase applies the enclosing transforms to it; see _ScadEvaluator Unit Design_, _Anchor Declarations_).
 - **Modifiers**: `*` skips the statement entirely (no evaluation, no side effects, no budget use); `!`, `#`,
   and `%` are OR-ed onto the single instance the statement produced, or onto a `Group("group")` that wraps
   several. The evaluator does not interpret `!`.

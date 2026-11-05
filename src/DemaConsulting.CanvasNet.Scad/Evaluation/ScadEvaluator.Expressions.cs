@@ -191,7 +191,7 @@ internal sealed partial class ScadEvaluator
     /// <returns>The value of the body.</returns>
     private ScadValue EvaluateEchoExpression(ScadEchoExpression echo, ScadScope scope)
     {
-        DoEcho(echo.Arguments, scope, echo.Location);
+        DoEcho(echo.Arguments, scope, echo.Location, null);
         return Evaluate(echo.Body, scope);
     }
 

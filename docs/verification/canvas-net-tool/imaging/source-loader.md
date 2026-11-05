@@ -459,3 +459,9 @@ raise an `InvalidOperationException`, which is a defect and not an expected erro
 
 **SourceLoader_PublicMethods_NullArguments_ThrowArgumentNullException** and
 **SourceLoader_OpenPages_NullArguments_ThrowArgumentNullException**: each null argument throws.
+
+**SourceLoader_Load_ModelWithAnchors_CollectsThemWithPixelPositions**: a 20 by 20 by 4 box centered on the origin, with
+two anchors at `[0, 0, 2]` and `[1, 0, 2]` and a malformed one, is loaded from the top at 100 by 100; the loaded source
+has the two anchors in order with their world points, the first at the pixel `(50, 50)` (the center of the picture) and
+the second to its right, and the malformed declaration is a `scad-warning` note that contains `scad-anchor-invalid:`;
+a model without anchors has none.

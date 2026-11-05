@@ -79,6 +79,19 @@
       ]
     },
     {
+      "id": "anchors",
+      "title": "Anchors (callout points)",
+      "items": [
+        { "text": "echo(\"anchor\", \"name\", [x, y, z]); declares a named point of the model, for a callout or a leader line drawn on the picture later. The echo line is still printed. The point is in the coordinate system where the statement stands: every enclosing translate, rotate, scale, mirror, and multmatrix is applied, so the anchor is a world point. Only the statement form counts; an echo used as an expression, or inside a function, is a plain echo." },
+        { "text": "A module, for, if, union, difference, intersection, render, color, hull, or minkowski does not move its children, so the point passes through unchanged. An anchor inside resize, linear_extrude, rotate_extrude, projection, or another module that cannot give its children a position is skipped with a scad-anchor-invalid warning." },
+        { "term": "scad-anchor-invalid", "text": "Severity warning (code scad-warning, the identifier starts the message): a malformed declaration (a name that is not a non-empty string, a point that is not three finite numbers, a named or an extra argument) or an anchor in an unsupported context. The anchor is skipped; the echo line stays." },
+        { "text": "The same name may be declared more than once; every declaration is kept, in echo order." },
+        { "text": "With --json, render adds anchors[] for a model: {name, point: [x, y, z], pixel: [x, y], inside}. pixel is the position in the written picture in pixels from its top-left corner (continuous: pixel i spans [i, i+1), so the center of the first pixel is 0.5), projected with the camera that drew the picture, perspective included. inside is true when pixel lies within the picture. Without --json nothing is added." },
+        { "text": "The pixel steps move the anchors with the picture: --crop, --trim, --resize, --fit, --pad, --flip, and --rotate are applied to pixel, and inside is tested against the final picture. After a --deskew that corrects the image, pixel is null; it is also null for a point behind a perspective camera (inside is then false)." },
+        { "text": "pixel says where a point projects, not whether it can be seen: an anchor hidden behind other geometry still has a pixel and inside true." }
+      ]
+    },
+    {
       "id": "differences",
       "title": "Known differences from OpenSCAD",
       "items": [
@@ -100,9 +113,11 @@
     { "name": "posts", "kind": "source", "language": "openscad", "fileName": "posts.scad", "description": "A row of posts built from a module and a for loop; -D width=30 changes the spacing." },
     { "name": "torus", "kind": "source", "language": "openscad", "fileName": "torus.scad", "description": "A torus made by rotate_extrude of a circle." },
     { "name": "hull-ghost", "kind": "source", "language": "openscad", "fileName": "hull-ghost.scad", "description": "A colored hull of two spheres and a translucent ghost." },
+    { "name": "anchors", "kind": "source", "language": "openscad", "fileName": "anchors.scad", "description": "A plate with a hole and three callout anchors, one of them inside translate and rotate." },
     { "name": "render-top", "kind": "command", "language": "shell", "description": "Draw plate.scad from above at 400x400 and print the JSON result.", "content": "canvasnet render plate.scad --view top --size 400x400 -o plate-top.png --json" },
     { "name": "define-width", "kind": "command", "language": "shell", "description": "Draw posts.scad with the variable width set to 30.", "content": "canvasnet render posts.scad -D width=30 -o posts.png" },
     { "name": "free-view", "kind": "command", "language": "shell", "description": "Draw plate.scad from a free viewpoint with a perspective camera.", "content": "canvasnet render plate.scad --azimuth 30 --elevation 20 --projection perspective -o plate.png" },
-    { "name": "strict-check", "kind": "command", "language": "shell", "description": "Fail instead of leaving an unsupported construct out.", "content": "canvasnet render plate.scad --strict -o plate.png --json" }
+    { "name": "strict-check", "kind": "command", "language": "shell", "description": "Fail instead of leaving an unsupported construct out.", "content": "canvasnet render plate.scad --strict -o plate.png --json" },
+    { "name": "render-anchors", "kind": "command", "language": "shell", "description": "Draw anchors.scad from above and list its anchors with their pixel positions in the JSON result.", "content": "canvasnet render anchors.scad --view top --size 600x400 -o anchors.png --json" }
   ]
 }

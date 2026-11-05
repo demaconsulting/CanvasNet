@@ -715,3 +715,27 @@ sections:
                   - ScadEvaluatorStack_Evaluate_Restart_RandsWithoutSeedAreReproducible
                   - ScadEvaluatorCulture_LimitMessages_AreIdenticalInEveryCulture
                   - ScadEvaluatorCulture_ParserAndLimitsMessages_AreIdenticalInEveryCulture
+
+              - id: CanvasNetScad-ScadEvaluation-ScadEvaluator-Anchors
+                title: >-
+                  The ScadEvaluator unit shall turn a statement-form echo whose first argument is the
+                  unnamed string "anchor" and whose other two are a non-empty string name and a vector
+                  of exactly three finite numbers (all unnamed) into an anchor instance, at the position
+                  of the statement and counted against the instance limit, while still recording the echo
+                  line unchanged; shall skip a malformed declaration with exactly one warning that starts
+                  with the identifier scad-anchor-invalid; shall never make an anchor of an echo used as
+                  an expression, of a different first argument, or of a statement that is not executed;
+                  and shall keep duplicate names, each in order.
+                justification: |
+                  The anchor is declared with the language's own echo so that a model stays valid for
+                  every other OpenSCAD tool; the evaluator has no transform context, so it leaves a leaf
+                  at the statement for the geometry phase to place, and a stable warning identifier lets
+                  callers find a mistake in a declaration.
+                tests:
+                  - ScadEvaluatorAnchor_ValidDeclaration_LeavesAnchorInstanceAndEchoLine
+                  - ScadEvaluatorAnchor_InsideTransformAndWithChildren_IsKeptInOrder
+                  - ScadEvaluatorAnchor_MalformedDeclaration_WarnsOnceAndLeavesNoInstance
+                  - ScadEvaluatorAnchor_NotAStatementFormAnchor_IsPlainEcho
+                  - ScadEvaluatorAnchor_NotExecuted_IsNotDeclared
+                  - ScadEvaluatorAnchor_DuplicatesAndLoops_AreDeclaredInOrder
+                  - ScadEvaluatorAnchor_CountsAgainstTheInstanceLimit

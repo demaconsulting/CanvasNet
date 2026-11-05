@@ -704,6 +704,29 @@ sections:
           - CanvasNetTool_Scad_ModelMistakes_AreReportedAsExpectedErrors
           - CanvasNetTool_VegaLite_DetectionDiagnosticsAndErrors_FollowTheContract
 
+      - id: CanvasNetTool-System-ModelAnchors
+        title: >-
+          The tool shall list in the `anchors` of the JSON result of rendering an OpenSCAD model (and of no
+          other input) the points the model declares with `echo("anchor", "name", [x, y, z])`, in echo order,
+          each with its name, its world point, its pixel position in the written image (projected with the
+          camera that drew the image and moved through the crop, trim, resize, fit, pad, flip, and rotate
+          steps, and `null` for a point behind a perspective camera or after a deskew that corrected the
+          image), and whether that position is inside the written image, report a malformed declaration as
+          a `scad-warning` diagnostic that starts with `scad-anchor-invalid`, and leave the text output
+          unchanged.
+        tags: [system]
+        justification: |
+          An agent that adds callouts to the picture of a part needs to know where the named points of the
+          model are in the file it wrote; the numbers must follow the pixel steps it asked for, and text
+          output and every other input must stay as they were.
+        children:
+          - CanvasNetTool-Imaging-SourceLoader-ScadAnchors
+          - CanvasNetTool-Imaging-ImagePipeline-AnchorMapping
+          - CanvasNetTool-Commands-RenderCommand-ScadAnchors
+        tests:
+          - CanvasNetTool_Scad_Anchors_AreReportedInJsonAndFollowThePixelSteps
+          - RenderCommand_Run_ScadAnchors_JsonListsAnchorsThatMatchTheWrittenImage
+
       - id: CanvasNetTool-System-VegaLite
         title: >-
           The tool shall render a Vega-Lite chart (a `.vl.json` or `.vl` file, or a `.json` file with a

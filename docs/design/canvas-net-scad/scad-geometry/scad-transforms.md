@@ -67,7 +67,18 @@ colors plus `transparent` (0, 0, 0, 0)), which is immutable and thread-safe.
 
 ##### Transform modules
 
-Each module reads its arguments, builds a `Matrix4x4D`, and hands it to `Apply`:
+Each module reads its arguments, builds a `Matrix4x4D`, and hands it to `Apply`. The reading of the arguments is
+**one definition**, `TryGetMatrix(node, context, out matrix)` (internal): it dispatches on the name of a built-in
+instance to a private `TryTranslateMatrix`, `TryRotateMatrix`, `TryScaleMatrix`, `TryMirrorMatrix`, or
+`TryMultmatrixMatrix`, reports problems exactly as the modules always did (an invalid argument is an `Invalid`
+warning, a projective matrix is `scad-multmatrix-projective`, a zero axis or normal is a warning that keeps the
+identity), and returns `false` for an invalid or projective instance, and for anything that is not a built-in
+matrix transform (a user module called `translate` is a group, not a transform). The public builders are thin:
+`TryGetMatrix` then `Apply`, or `ScadGeo.Empty`. The anchor pass of `ScadGeometryBuilder` calls the same method
+with a throw-away reporter, so an anchor sits exactly where the geometry sits and the transform math is never
+copied. `Collapses(matrix)` (internal) is the not-finite-or-singular test `ApplySolid` uses, and
+`CollapsesPlanar(matrix)` the not-finite-or-singular-in-XY test `ApplyFlat` uses; both are shared for the same
+reason.
 
 - **`Translate`** — `v` is a vector of one to three finite numbers; missing components are 0. An absent `v` is
   the identity.

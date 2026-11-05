@@ -215,7 +215,7 @@ internal sealed partial class ScadEvaluator
                     break;
                 case ScadEchoExpression echo:
                     Charge(1);
-                    DoEcho(echo.Arguments, scope, echo.Location);
+                    DoEcho(echo.Arguments, scope, echo.Location, null);
                     expression = echo.Body;
                     break;
                 case ScadAssertExpression assert:

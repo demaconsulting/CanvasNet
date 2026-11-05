@@ -23,7 +23,8 @@
         { "term": "operations", "text": "Every step that was applied, in order; each has an op key (render, embed, auto-orient, resize, fit, flatten, crop, rotate, flip, pad, and the photo operations) and its own fields. With --all-pages every operation also carries its page. The verbs are crop, resize, rotate, flip, and pad." },
         { "term": "outputs", "text": "One entry per file written: {path, format, width, height, bytes} and page for a document." },
         { "term": "diagnostics", "text": "The features that were left out of the picture; see the diagnostics section below." },
-        { "term": "echo", "text": "The text an OpenSCAD model printed with echo." }
+        { "term": "echo", "text": "The text an OpenSCAD model printed with echo." },
+        { "term": "anchors", "text": "Only for an OpenSCAD model: the points it declared with echo(\"anchor\", \"name\", [x, y, z]), in echo order, each {name, point: [x, y, z], pixel: [x, y] or null, inside}. pixel is the position in the written picture, from its top-left corner, after the pixel steps; see 'canvasnet help scad'." }
       ]
     },
     {

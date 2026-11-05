@@ -40,7 +40,9 @@
 # roof modules, the textmetrics and fontmetrics functions, and the two
 # modifiers on a 2D shape that is not
 # extruded, are not supported yet and are reported as unsupported features (see
-# docs/design/canvas-net-scad.md, Supported And Deferred Features). The package is packable; packaging
+# docs/design/canvas-net-scad.md, Supported And Deferred Features). Anchors (this delivery) let a model declare
+# named points with echo("anchor", "name", [x, y, z]) whose world point and rendered pixel position
+# ScadRenderOptions.AnchorHandler reports. The package is packable; packaging
 # is verified by the build, which packs it, and is not a behavioral requirement.
 
 sections:
@@ -606,6 +608,35 @@ sections:
           - ScadDocumentViewport_AssignedDistance_GivesAManualCamera
           - ScadDocumentViewport_DefaultThreeDimensionalView_IsUnchangedAndReportedOnce
           - ScadDocumentViewport_ExplicitCamera_IsReportedAsTheSource
+
+      - id: CanvasNetScad-Anchors
+        title: >-
+          The library shall let a model declare named anchor points with the statement
+          echo("anchor", "name", [x, y, z]) (the echo line is still printed), place each at the world point
+          that the enclosing translate, rotate, scale, mirror, and multmatrix give it, skip a malformed
+          declaration or an anchor in a context that cannot be located with a warning that starts with
+          scad-anchor-invalid, and report to a caller who renders the model each anchor, in echo order, with
+          its name, its world point, its pixel position in the image projected with exactly the camera the
+          image was drawn with, and whether that pixel is inside the image, without changing the geometry or
+          the picture.
+        tags: [system]
+        justification: |
+          Callouts and leader lines on the picture of a part need to know where named points of the model are
+          in the image; declaring them in the model keeps the model valid for other tools and the numbers
+          come from the same camera and transforms as the picture, so they cannot drift from it.
+        children:
+          - CanvasNetScad-ScadEvaluation-ScadEvaluator-Anchors
+          - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-AnchorWorldPoints
+          - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-AnchorsNeverAlterGeometry
+          - CanvasNetScad-ScadGeometry-ScadGeometryBuilder-AnchorOrder
+          - CanvasNetScad-ScadGeometry-ScadTransforms-MatrixAccess
+          - CanvasNetScad-ScadDocument-Anchors
+        tests:
+          - ScadDocumentAnchor_TopOrthographicBox_CornersMatchTheRenderedImage
+          - ScadDocumentAnchor_PerspectiveFront_CornersMatchTheRenderedImage
+          - ScadDocumentAnchor_AutoFitIsometric_CornersMatchTheExtentAndStayInside
+          - ScadDocumentAnchor_Declarations_DoNotChangeThePixels
+          - ScadDocumentAnchor_Malformed_WarnsOnceAndTheRestAreDelivered
 
       - id: CanvasNetScad-GeometryUnsupported
         title: >-

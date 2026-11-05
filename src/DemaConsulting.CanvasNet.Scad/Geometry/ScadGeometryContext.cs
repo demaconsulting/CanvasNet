@@ -33,7 +33,16 @@ internal sealed record ScadGeometrySettings(
 /// <param name="Map">The location map of the scene's mesh nodes.</param>
 /// <param name="TrianglesCharged">The triangles charged against the budget: the triangles of all the meshes created plus those of every <c>#</c> copy (which the renderer draws a second time).</param>
 /// <param name="IsFlatModel">Whether the model is entirely two-dimensional: its result at the top level is a 2D shape (a mix of 2D and 3D is a 3D model).</param>
-internal sealed record ScadBuiltScene(Scene Scene, ScadSceneMap Map, long TrianglesCharged, bool IsFlatModel = false);
+/// <param name="Anchors">The declared anchors with their world points, in echo order; <see langword="null"/> is the same as none.</param>
+internal sealed record ScadBuiltScene(Scene Scene, ScadSceneMap Map, long TrianglesCharged, bool IsFlatModel = false, IReadOnlyList<ScadWorldAnchor>? Anchors = null);
+
+/// <summary>
+///     A declared anchor after the enclosing transforms were applied.
+/// </summary>
+/// <param name="Name">The anchor name.</param>
+/// <param name="Point">The point in world coordinates.</param>
+/// <param name="Location">The location of the declaring <c>echo</c>.</param>
+internal readonly record struct ScadWorldAnchor(string Name, Vector3D Point, ScadSourceLocation Location);
 
 /// <summary>
 ///     The services every geometry builder uses: reporting, the triangle budget, cancellation and the node map.

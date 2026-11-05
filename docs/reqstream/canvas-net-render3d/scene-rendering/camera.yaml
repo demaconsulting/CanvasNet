@@ -99,3 +99,24 @@ sections:
                 tests:
                   - Camera_LookAt_ForwardParallelToUp_SubstitutesAlternateUp
                   - Camera_FitToBounds_Elevation90_DoesNotThrow
+
+              - id: CanvasNetRender3D-SceneRendering-Camera-ProjectPoint
+                title: >-
+                  The Camera TryProject method shall map a world point to continuous output-pixel
+                  coordinates (origin at the top-left corner, pixel i spanning [i, i + 1), y growing
+                  downward) with exactly the projection the renderer uses for that camera and size,
+                  so that the projected corners of a box agree with the extent of the pixels the
+                  renderer covers; shall return false for a point that is not finite or, with a
+                  perspective camera, is not in front of the eye; and shall reject an invalid camera
+                  and a size outside 1 to the maximum surface dimension as a render does.
+                justification: |
+                  Callers that place callouts or leader lines on a rendered picture must locate a
+                  world point in it without re-deriving the camera math; sharing the renderer's
+                  projection is the only way to stay pixel-accurate for every framing.
+                tests:
+                  - Camera_TryProject_OrthographicTop_MapsTargetToCenterAndEdgesToImageEdges
+                  - Camera_TryProject_Perspective_MatchesAnalyticValue
+                  - Camera_TryProject_BehindEye_ReturnsFalseOnlyForPerspective
+                  - Camera_TryProject_NonFinitePoint_ReturnsFalse
+                  - Camera_TryProject_InvalidCameraOrSize_Throws
+                  - Camera_TryProject_MatchesRasterizer

@@ -11,6 +11,13 @@ internal sealed partial class ScadEvaluator
 {
     /// <summary>The text every echo line starts with; it does not count against the string length limit.</summary>
     private const string EchoPrefix = "ECHO: ";
+
+    /// <summary>The first echo argument that turns a statement-form <c>echo</c> into an anchor declaration.</summary>
+    private const string AnchorEchoTag = "anchor";
+
+    /// <summary>The stable identifier that starts the message of every warning about a malformed or unsupported anchor.</summary>
+    internal const string AnchorInvalidCode = "scad-anchor-invalid";
+
     /// <summary>
     ///     Executes the statements of a list that produce instances; assignments and definitions were already
     ///     bound when the list's scope was built.
@@ -84,7 +91,7 @@ internal sealed partial class ScadEvaluator
                 ExecuteBlock(let.Body, BuildLetScope(let.Assignments, scope), output);
                 break;
             case ScadEchoStatement echo:
-                DoEcho(echo.Arguments, scope, echo.Location);
+                DoEcho(echo.Arguments, scope, echo.Location, output);
                 ExecuteBlock(echo.Children, scope, output);
                 break;
             case ScadAssertStatement assert:
@@ -232,14 +239,25 @@ internal sealed partial class ScadEvaluator
     }
 
     /// <summary>
-    ///     Performs the side effect of <c>echo</c>: records one <c>ECHO: </c> line.
+    ///     Performs the side effect of <c>echo</c>: records one <c>ECHO: </c> line and, for a statement-form
+    ///     <c>echo("anchor", ...)</c>, declares an anchor.
     /// </summary>
+    /// <remarks>
+    ///     The arguments are evaluated once; the same values feed the echo text and the anchor check. The echo line is
+    ///     recorded exactly as for any other echo, whether or not the anchor is valid, so the declaration stays
+    ///     visible in the echo output.
+    /// </remarks>
     /// <param name="arguments">The arguments.</param>
     /// <param name="scope">The scope.</param>
     /// <param name="location">The location of the echo.</param>
-    private void DoEcho(IReadOnlyList<ScadArgument> arguments, ScadScope scope, ScadSourceLocation location)
+    /// <param name="output">
+    ///     The instance list that receives an <see cref="ScadInstanceKind.Anchor"/> instance, or <see langword="null"/>
+    ///     for the expression form, which has no instance list and therefore never declares an anchor.
+    /// </param>
+    private void DoEcho(IReadOnlyList<ScadArgument> arguments, ScadScope scope, ScadSourceLocation location, List<ScadInstance>? output)
     {
         var line = new StringBuilder(EchoPrefix);
+        var values = new List<(string? Name, ScadValue Value)>(arguments.Count);
         for (var i = 0; i < arguments.Count; i++)
         {
             if (i > 0)
@@ -249,6 +267,7 @@ internal sealed partial class ScadEvaluator
 
             var value = Evaluate(arguments[i].Value, scope);
             ChargeDeep(value);
+            values.Add((arguments[i].Name, value));
             if (arguments[i].Name is { } name)
             {
                 line.Append(name).Append(" = ");
@@ -263,7 +282,64 @@ internal sealed partial class ScadEvaluator
         }
 
         _sink.Echo(line.ToString(), location);
+
+        // A statement-form echo whose first argument is the unnamed string "anchor" declares an anchor
+        if (output is not null && values.Count > 0 && values[0].Name is null
+            && values[0].Value.Kind == ScadValueKind.String && values[0].Value.AsString == AnchorEchoTag)
+        {
+            EmitAnchor(values, scope, location, output);
+        }
     }
+
+    /// <summary>
+    ///     Turns the arguments of an <c>echo("anchor", name, [x, y, z])</c> statement into an anchor instance, or
+    ///     reports why they are malformed.
+    /// </summary>
+    /// <remarks>
+    ///     A valid anchor has exactly three unnamed arguments: the tag, a non-empty string name and a vector of exactly
+    ///     three finite numbers. Anything else produces one <see cref="AnchorInvalidCode"/> warning and no instance;
+    ///     the evaluation continues.
+    /// </remarks>
+    /// <param name="values">The evaluated arguments (name and value), the first being the tag.</param>
+    /// <param name="scope">The scope the echo executes in.</param>
+    /// <param name="location">The location of the echo.</param>
+    /// <param name="output">The instance list that receives the anchor.</param>
+    private void EmitAnchor(IReadOnlyList<(string? Name, ScadValue Value)> values, ScadScope scope, ScadSourceLocation location, List<ScadInstance> output)
+    {
+        // Check the shape of the call first: tag, name and point, all positional
+        if (values.Count != 3 || values[1].Name is not null || values[2].Name is not null)
+        {
+            Warn($"{AnchorInvalidCode}: expected echo(\"anchor\", \"name\", [x, y, z]) with exactly three unnamed arguments; the anchor is skipped", location);
+            return;
+        }
+
+        // The name must be a non-empty string
+        var nameValue = values[1].Value;
+        if (nameValue.Kind != ScadValueKind.String || nameValue.AsString.Length == 0)
+        {
+            Warn($"{AnchorInvalidCode}: the anchor name must be a non-empty string; the anchor is skipped", location);
+            return;
+        }
+
+        // The point must be a vector of exactly three finite numbers
+        var point = values[2].Value;
+        if (point.Kind != ScadValueKind.Vector || point.AsVector.Count != 3 || !IsFiniteNumber(point.AsVector[0])
+            || !IsFiniteNumber(point.AsVector[1]) || !IsFiniteNumber(point.AsVector[2]))
+        {
+            Warn($"{AnchorInvalidCode}: the anchor '{nameValue.AsString}' needs a point [x, y, z] of three finite numbers; the anchor is skipped", location);
+            return;
+        }
+
+        _sink.AnchorsDeclared = true;
+        output.Add(NewInstance(ScadInstanceKind.Anchor, nameValue.AsString, [new ScadInstanceArgument(null, point)], [], ScadModifiers.None, scope, location));
+    }
+
+    /// <summary>
+    ///     Determines whether a value is a finite number.
+    /// </summary>
+    /// <param name="value">The value.</param>
+    /// <returns><see langword="true"/> when the value is a number that is neither NaN nor infinite.</returns>
+    private static bool IsFiniteNumber(ScadValue value) => value.Kind == ScadValueKind.Number && double.IsFinite(value.AsNumber);
 
     /// <summary>
     ///     Performs the check of <c>assert</c>.

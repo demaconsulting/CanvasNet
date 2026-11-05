@@ -158,6 +158,20 @@ public sealed class ScadRenderOptions
     /// </remarks>
     public Action<ScadResolvedView>? ResolvedViewHandler { get; init; }
 
+    /// <summary>
+    ///     Gets the handler that receives the declared anchors of a render, or <see langword="null"/> (default) for none.
+    /// </summary>
+    /// <remarks>
+    ///     <see cref="ScadDocument.Render(int, int, ScadRenderOptions?, CancellationToken)"/> calls it once per anchor
+    ///     (<c>echo("anchor", "name", [x, y, z]);</c>), in echo order, on the calling thread, after
+    ///     <see cref="ResolvedViewHandler"/> and before it draws; the anchor carries the world point and the pixel
+    ///     position in the image of that render (see <see cref="ScadAnchor"/>). Duplicate names are all delivered. An
+    ///     exception thrown by the handler propagates to the caller.
+    ///     <see cref="ScadDocument.BuildScene(ScadRenderOptions?, CancellationToken)"/> has no image to project into and
+    ///     never calls it.
+    /// </remarks>
+    public Action<ScadAnchor>? AnchorHandler { get; init; }
+
     /// <summary>Gets a value indicating whether the azimuth or the elevation was set explicitly.</summary>
     internal bool IsViewExplicit => _azimuthExplicit || _elevationExplicit;
 

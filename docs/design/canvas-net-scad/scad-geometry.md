@@ -84,7 +84,8 @@ A recursive user module nests as deeply as `ScadLimits.MaxRecursionDepth` allows
 frames), so a recursive tree walk could overflow the stack of a caller with a small stack, and a stack overflow
 cannot be caught. `ScadGeometryBuilder` therefore walks the instantiation tree in post-order with an explicit
 `List<Frame>`, exactly as the renderer's CSG compiler does, and **no code in the `Geometry` namespace recurses**:
-the `!` pre-pass, the 2D shape-tree walks of the extrusions, the bounds propagation, and the location map are
+the `!` pre-pass, the anchor pass, the 2D shape-tree walks of the extrusions, the bounds propagation, and the
+location map are
 all iterative. The build behaves identically on any caller stack, including 64 KiB, and needs no stack-guard
 thread (the evaluator keeps its own bounded large-stack restart). This is proven by tests that build and render
 models nested thousands of levels deep, and hand-built trees 100,000 levels deep, from 64 KiB and 256 KiB
@@ -133,6 +134,17 @@ of a feature at a location throws `ScadUnsupportedFeatureException`). `ScadDocum
 the events of evaluation, geometry building, and the renderer's operand checks are ordered, de-duplicated by
 (message or feature, location), capped like the evaluator's diagnostics, and delivered on the calling thread,
 and strict mode behaves identically at every stage.
+
+#### Anchors
+
+An anchor (`echo("anchor", "name", [x, y, z])`) is an `Anchor` instance, never geometry: `BuildForest` skips it
+before dispatch, so a scene is the same with and without anchor statements. A separate iterative pass resolves each
+anchor to a world point with the matrices of its enclosing `translate`, `rotate`, `scale`, `mirror`, and
+`multmatrix` (the same matrix code as the builders, through `ScadTransforms.TryGetMatrix`), over the same forest
+the build used, and reports an anchor it cannot place (inside `resize`, an extrusion, `projection`, or an
+unsupported module, or out of the coordinate range) with a `scad-anchor-invalid` warning (an identifier at the
+start of the message of an ordinary warning, not an unsupported feature). The pass is documented under
+_ScadGeometryBuilder Unit Design_, _Anchors_.
 
 #### Unsupported-Feature Identifiers
 

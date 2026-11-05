@@ -2035,6 +2035,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Scad/ScadFontResolutionOptions.cs"  # unit source
       - "src/DemaConsulting.CanvasNet.Scad/ScadViewport.cs"           # unit source
       - "src/DemaConsulting.CanvasNet.Scad/ScadResolvedView.cs"       # unit source
+      - "src/DemaConsulting.CanvasNet.Scad/ScadAnchor.cs"             # unit source
       - "src/DemaConsulting.CanvasNet.Scad/ScadViewSource.cs"         # unit source
       - "src/DemaConsulting.CanvasNet.Scad/ScadImageSource.cs"        # unit source (image source)
       - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadDocumentTests.cs"  # unit tests
@@ -2058,6 +2059,8 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadDocumentRenderReportTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadViewportTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadDocumentViewportRenderTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadDocumentAnchorTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadAnchorTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Scad.Tests/ScadFixtures/**"    # original fixtures, goldens, provenance README
 
   # CanvasNetScad-ScadLanguage Review (one per subsystem)
@@ -3678,9 +3681,9 @@ reviews:
       - "docs/design/canvas-net-tool/imaging/image-pipeline.md"       # unit design
       - "docs/verification/canvas-net-tool/imaging/image-pipeline.md"  # unit verification
       - "docs/sysml2/model/canvas-net-tool/imaging/image-pipeline.sysml"  # unit SysML2 model
-      - "src/DemaConsulting.CanvasNet.Tool/Imaging/ImagePipeline.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Tool/Imaging/ImagePipeline*.cs"  # unit source (including the anchor mapping)
       - "src/DemaConsulting.CanvasNet.Tool/Imaging/ImageOperations.cs"  # unit source (operation records)
-      - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/ImagePipelineTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/ImagePipeline*Tests.cs"  # unit tests
 
   # CanvasNetTool-Imaging-ImageComparison Review (one per unit)
   - id: CanvasNetTool-Imaging-ImageComparison

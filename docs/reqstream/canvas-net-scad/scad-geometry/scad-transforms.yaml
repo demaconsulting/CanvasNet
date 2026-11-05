@@ -292,3 +292,22 @@ sections:
                   - ScadColors_NestedColor_InnermostAlphaWins
                   - ScadColors_AlphaOn2DShape_ReachesTheExtrusion
                   - ScadColors_AlphaBelowOne_DoesNotThrowInStrictMode
+
+              - id: CanvasNetScad-ScadGeometry-ScadTransforms-MatrixAccess
+                title: >-
+                  The ScadTransforms unit shall expose the matrix of a translate, rotate, scale,
+                  mirror, or multmatrix instance through one definition that the builders and the
+                  anchor pass share (the identity for a missing argument, a refusal with the usual
+                  report for an invalid or projective one, a refusal of any other instance, including a
+                  user module of the same name), and shall decide which matrices collapse solid
+                  geometry (solid and 2D), without changing what the builders produce.
+                justification: |
+                  If the anchor pass had its own copy of the transform math it could drift from the
+                  geometry; a single definition keeps the anchor exactly where the geometry is.
+                tests:
+                  - ScadTransforms_TryGetMatrix_MatchesTheMatrixOfTheBuiltGeometry
+                  - ScadTransforms_TryGetMatrix_AbsentArgument_IsTheIdentity
+                  - ScadTransforms_TryGetMatrix_InvalidOrProjective_IsRefusedAndReportedOnce
+                  - ScadTransforms_TryGetMatrix_OtherInstances_AreRefused
+                  - ScadTransforms_Collapses_SingularAndNonFiniteMatrices
+                  - ScadTransforms_CollapsesPlanar_OnlyTheInPlanePartCounts
