@@ -439,15 +439,26 @@ public sealed partial class PdfDocument : IDisposable
             throw new ArgumentOutOfRangeException(nameof(pageIndex), pageIndex, "Page index is out of range.");
         }
 
+        // The surface is owned by this method until it is returned; page resolution and content
+        // execution can throw (malformed page tree, content stream, or image), so a failure after
+        // allocation must release the surface before the original exception propagates unchanged
         var surface = new Surface(width, height);
-        surface.Clear((options ?? PdfRenderOptions.Default).BackgroundColor);
-        var pageInfo = _pages[pageIndex];
-        var (pageNode, x0, y0, boxWidth, boxHeight, resources) = ResolvePageDetails(pageIndex);
-        var baseCtm = BuildBaseCtm(x0, y0, boxWidth, boxHeight, pageInfo.Rotation, width, height);
-        var contentBytes = ResolvePageContentBytes(pageNode);
-        var resolvedResources = resources is null ? null : Resolve(resources);
-        ExecuteContentStream(contentBytes, surface, baseCtm, resolvedResources);
-        return surface;
+        try
+        {
+            surface.Clear((options ?? PdfRenderOptions.Default).BackgroundColor);
+            var pageInfo = _pages[pageIndex];
+            var (pageNode, x0, y0, boxWidth, boxHeight, resources) = ResolvePageDetails(pageIndex);
+            var baseCtm = BuildBaseCtm(x0, y0, boxWidth, boxHeight, pageInfo.Rotation, width, height);
+            var contentBytes = ResolvePageContentBytes(pageNode);
+            var resolvedResources = resources is null ? null : Resolve(resources);
+            ExecuteContentStream(contentBytes, surface, baseCtm, resolvedResources);
+            return surface;
+        }
+        catch
+        {
+            surface.Dispose();
+            throw;
+        }
     }
 
     /// <summary>
