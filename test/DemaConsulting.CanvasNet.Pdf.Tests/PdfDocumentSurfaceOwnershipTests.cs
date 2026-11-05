@@ -93,9 +93,9 @@ public class PdfDocumentSurfaceOwnershipTests
         Assert.Throws<InvalidDataException>(() => Render(pdf));
     }
 
-    /// <summary>Proves a render that failed after allocating its surface leaves the document usable for a later render.</summary>
+    /// <summary>Proves a render that failed after allocating its surface leaves the document usable: a retry repeats the original failure rather than an invalid-state error.</summary>
     [Fact]
-    public void PdfDocument_Render_AfterFailedRender_SucceedsOnSameDocument()
+    public void PdfDocument_Render_AfterFailedRender_RepeatsOriginalFailure()
     {
         // Arrange: a document whose content stream fails after the output surface is allocated
         var failing = BuildPdf("/Missing Do", "/XObject << >>");
