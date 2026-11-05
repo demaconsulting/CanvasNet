@@ -799,12 +799,17 @@ sections:
                   subtrees when the model uses the show-only modifier, shall skip with one warning that
                   starts with scad-anchor-invalid an anchor inside resize, an extrusion, projection, or
                   any other module whose coordinate change it cannot follow or whose point leaves the
-                  safe coordinate range, and shall drop silently, without repeating the builder's own
-                  warning, an anchor below an invalid or collapsing transform.
+                  safe coordinate range, shall drop silently, without repeating the builder's own
+                  warning, an anchor below an invalid transform or one that collapses both solids and
+                  2D shapes, and shall keep an anchor below a transform that collapses only one of them
+                  (for example scale([1, 1, 0])), because an anchor cannot know the dimension of its
+                  siblings, and shall run the anchor pass only for a model whose evaluation declared an
+                  anchor.
                 justification: |
                   A callout is only useful at the right place in the picture; the point must be
                   expressed in the same world coordinates as the geometry, and a context that cannot be
-                  located exactly must be reported rather than guessed.
+                  located exactly must be reported rather than guessed. A model without anchors should
+                  not pay for a second walk of its instance tree.
                 tests:
                   - ScadGeometryBuilderAnchor_MatrixTransform_AppliesToThePoint
                   - ScadGeometryBuilderAnchor_NestedTransforms_ApplyInnermostFirst
@@ -814,6 +819,9 @@ sections:
                   - ScadGeometryBuilderAnchor_ShowOnlyModifier_UsesTheMarkedSubtreeWithoutAncestorTransforms
                   - ScadGeometryBuilderAnchor_UnsupportedContext_SkipsWithWarning
                   - ScadGeometryBuilderAnchor_UnderCollapsingTransform_IsDroppedWithoutExtraWarnings
+                  - ScadGeometryBuilderAnchor_ZOnlyCollapse_KeepsTheAnchorAndTheFlatSibling
+                  - ScadGeometryBuilderAnchor_ZOnlyCollapseOfASolid_KeepsTheAnchorWithoutExtraWarnings
+                  - ScadGeometryBuilderAnchor_Pass_RunsOnlyWhenAnAnchorWasDeclared
                   - ScadGeometryBuilderAnchor_OutOfRangeAfterTransforms_IsSkippedWithWarning
 
               - id: CanvasNetScad-ScadGeometry-ScadGeometryBuilder-AnchorsNeverAlterGeometry

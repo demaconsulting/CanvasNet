@@ -40,8 +40,10 @@ internal sealed partial class ScadGeometryBuilder
     ///     <para>
     ///         An anchor inside any other module (<c>resize</c>, the extrusions, <c>projection</c>, an unsupported
     ///         module) cannot be located exactly and is reported with a <c>scad-anchor-invalid</c> warning and
-    ///         skipped; an anchor inside an invalid or collapsing transform is dropped silently, because its geometry
-    ///         is dropped and already reported. Matrix problems are reported to a throw-away reporter so the builders'
+    ///         skipped; an anchor inside a transform that is not finite or collapses both solids and 2D shapes is
+    ///         dropped silently, because its geometry is dropped and already reported (an anchor cannot tell 2D
+    ///         siblings from solid ones, so a transform that only collapses Z, or only the XY plane, keeps it, projected
+    ///         by the transform). Matrix problems are reported to a throw-away reporter so the builders'
     ///         own warnings are not duplicated. The walk is iterative like the build itself and returns the anchors in
     ///         document (echo) order.
     ///     </para>
@@ -82,7 +84,10 @@ internal sealed partial class ScadGeometryBuilder
                 {
                     // Row-vector convention: the instance's own matrix applies first, then its ancestors'
                     matrix = own * parent;
-                    dropped = ScadTransforms.Collapses(own);
+                    // An anchor cannot know whether its siblings are 2D or solid, so it is dropped only when the
+                    // transform would drop geometry of either dimension (solid: singular in 3D; 2D: singular in XY).
+                    // One that only loses Z (scale([1,1,0])) or only the XY plane (rotate([90,0,0])) is kept, projected
+                    dropped = ScadTransforms.Collapses(own) && ScadTransforms.CollapsesPlanar(own);
                 }
                 else if (node.Kind == ScadInstanceKind.BuiltinModule && IsMatrixTransform(node.Name))
                 {

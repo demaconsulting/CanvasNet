@@ -349,6 +349,7 @@ can never declare an anchor), checks whether the first argument is the unnamed s
   three finite numbers. `EmitAnchor` adds an `Anchor` instance (`Name` is the anchor name, the single argument is the
   vector, no children) to the instance list at the position of the statement, counted like every instance against
   `MaxInstances`. The children of the echo statement (`echo(...) cube();`) are placed after it, in the same list.
+  It also sets `ScadEvaluationSink.AnchorsDeclared`, which tells the geometry phase that the anchor pass is needed.
 - **Malformed** (another argument count, a named argument, a name that is not a non-empty string, a point that is not
   three finite numbers): one warning whose message starts with `scad-anchor-invalid:` (the stable identifier is the
   internal constant `ScadEvaluator.AnchorInvalidCode`) and no instance. The echo line stays.

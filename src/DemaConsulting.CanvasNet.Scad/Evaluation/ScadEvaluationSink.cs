@@ -63,6 +63,17 @@ internal sealed class ScadEvaluationSink
         _limits = limits;
     }
 
+    /// <summary>
+    ///     Gets or sets a value indicating whether the evaluation created at least one anchor instance, so the geometry
+    ///     phase only walks the forest for anchors when there is something to find.
+    /// </summary>
+    public bool AnchorsDeclared { get; set; }
+
+    /// <summary>
+    ///     Gets or sets the number of anchor passes the geometry phase ran with this sink (a test hook for the skip).
+    /// </summary>
+    public int AnchorPasses { get; set; }
+
     /// <summary>The kind of a buffered event.</summary>
     private enum EventKind
     {

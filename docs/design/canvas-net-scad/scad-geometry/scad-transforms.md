@@ -76,7 +76,8 @@ identity), and returns `false` for an invalid or projective instance, and for an
 matrix transform (a user module called `translate` is a group, not a transform). The public builders are thin:
 `TryGetMatrix` then `Apply`, or `ScadGeo.Empty`. The anchor pass of `ScadGeometryBuilder` calls the same method
 with a throw-away reporter, so an anchor sits exactly where the geometry sits and the transform math is never
-copied. `Collapses(matrix)` (internal) is the not-finite-or-singular test `ApplySolid` uses, shared for the same
+copied. `Collapses(matrix)` (internal) is the not-finite-or-singular test `ApplySolid` uses, and
+`CollapsesPlanar(matrix)` the not-finite-or-singular-in-XY test `ApplyFlat` uses; both are shared for the same
 reason.
 
 - **`Translate`** — `v` is a vector of one to three finite numbers; missing components are 0. An absent `v` is

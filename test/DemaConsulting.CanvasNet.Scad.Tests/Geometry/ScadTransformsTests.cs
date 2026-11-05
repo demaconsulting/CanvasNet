@@ -831,4 +831,17 @@ public class ScadTransformsTests
         Assert.True(ScadTransforms.Collapses(Matrix4x4D.CreateScale(new Vector3D(0, 1, 1))));
         Assert.True(ScadTransforms.Collapses(Matrix4x4D.CreateScale(double.PositiveInfinity)));
     }
+
+    /// <summary>
+    ///     Validates which matrices collapse a 2D shape: only a singular or non-finite XY part.
+    /// </summary>
+    [Fact]
+    public void ScadTransforms_CollapsesPlanar_OnlyTheInPlanePartCounts()
+    {
+        // Arrange / Act / Assert
+        Assert.False(ScadTransforms.CollapsesPlanar(Matrix4x4D.Identity));
+        Assert.False(ScadTransforms.CollapsesPlanar(Matrix4x4D.CreateScale(new Vector3D(1, 1, 0))));
+        Assert.True(ScadTransforms.CollapsesPlanar(Matrix4x4D.CreateScale(new Vector3D(1, 0, 1))));
+        Assert.True(ScadTransforms.CollapsesPlanar(Matrix4x4D.CreateScale(double.PositiveInfinity)));
+    }
 }

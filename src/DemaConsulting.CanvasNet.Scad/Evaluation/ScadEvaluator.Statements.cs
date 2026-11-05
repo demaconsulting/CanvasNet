@@ -330,6 +330,7 @@ internal sealed partial class ScadEvaluator
             return;
         }
 
+        _sink.AnchorsDeclared = true;
         output.Add(NewInstance(ScadInstanceKind.Anchor, nameValue.AsString, [new ScadInstanceArgument(null, point)], [], ScadModifiers.None, scope, location));
     }
 

@@ -847,6 +847,9 @@ tests.
 `ScadGeometryBuilderAnchorTests.ScadGeometryBuilderAnchor_ShowOnlyModifier_UsesTheMarkedSubtreeWithoutAncestorTransforms`,
 `ScadGeometryBuilderAnchorTests.ScadGeometryBuilderAnchor_UnsupportedContext_SkipsWithWarning`,
 `ScadGeometryBuilderAnchorTests.ScadGeometryBuilderAnchor_UnderCollapsingTransform_IsDroppedWithoutExtraWarnings`,
+`ScadGeometryBuilderAnchorTests.ScadGeometryBuilderAnchor_ZOnlyCollapse_KeepsTheAnchorAndTheFlatSibling`,
+`ScadGeometryBuilderAnchorTests.ScadGeometryBuilderAnchor_ZOnlyCollapseOfASolid_KeepsTheAnchorWithoutExtraWarnings`,
+`ScadGeometryBuilderAnchorTests.ScadGeometryBuilderAnchor_Pass_RunsOnlyWhenAnAnchorWasDeclared`,
 `ScadGeometryBuilderAnchorTests.ScadGeometryBuilderAnchor_OutOfRangeAfterTransforms_IsSkippedWithWarning`
 
 Asserts the world point of an anchor under `translate`, both forms of `rotate` (Euler and axis-angle), `scale`,
@@ -858,7 +861,10 @@ move an anchor; that a model with `!` reports only the anchor of the marked subt
 that an anchor inside `resize`, `linear_extrude`, `rotate_extrude`, `projection`, `offset` (an unsupported module),
 and a primitive's children is skipped with one `scad-anchor-invalid` warning that names the module and the anchor; that
 under `scale([0, 1, 1])`, `translate("x")`, and a projective `multmatrix` the anchor is dropped and the warnings and
-unsupported features are exactly those of the same model without the anchor (not duplicated); and that a point scaled
+unsupported features are exactly those of the same model without the anchor (not duplicated); that under
+`scale([1, 1, 0])` the anchor is kept (flattened to Z = 0) next to a surviving square and next to a dropped cube
+(with no extra warning), while `scale([1, 0, 1])` drops the anchor with its square; that the anchor pass runs only
+for a model that declared a valid anchor; and that a point scaled
 beyond 1e100 is skipped with the warning.
 
 ##### CanvasNetScad-ScadGeometry-ScadGeometryBuilder-AnchorsNeverAlterGeometry: Anchors Are Not Geometry

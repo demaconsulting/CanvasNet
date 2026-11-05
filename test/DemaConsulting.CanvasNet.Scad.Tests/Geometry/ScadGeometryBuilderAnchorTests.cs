@@ -289,6 +289,65 @@ public class ScadGeometryBuilderAnchorTests
     }
 
     /// <summary>
+    ///     Validates that a transform that only collapses Z keeps the anchor (flattened by the transform), matching a
+    ///     2D sibling that survives it, while a collapse of the XY plane drops the anchor with its 2D sibling.
+    /// </summary>
+    [Fact]
+    public void ScadGeometryBuilderAnchor_ZOnlyCollapse_KeepsTheAnchorAndTheFlatSibling()
+    {
+        // Act
+        var flat = Build("scale([1, 1, 0]) { square(1); echo(\"anchor\", \"a\", [2, 3, 4]); }");
+        var inPlane = Build("scale([1, 0, 1]) { square(1); echo(\"anchor\", \"a\", [2, 3, 4]); }");
+
+        // Assert: the square is kept and the anchor lands in the plane; with the plane collapsed both are dropped
+        AssertAnchor(Assert.Single(flat.Anchors), "a", 2, 3, 0);
+        Assert.NotEmpty(flat.Meshes);
+        Assert.Empty(inPlane.Anchors);
+        Assert.Empty(inPlane.Meshes);
+    }
+
+    /// <summary>
+    ///     Validates the solid case of a Z-only collapse: the solid is dropped with its warning, the anchor stays
+    ///     because it cannot tell its siblings are solid, and no extra warning is added for it.
+    /// </summary>
+    [Fact]
+    public void ScadGeometryBuilderAnchor_ZOnlyCollapseOfASolid_KeepsTheAnchorWithoutExtraWarnings()
+    {
+        // Arrange
+        var plain = Build("scale([1, 1, 0]) { cube(1); }");
+
+        // Act
+        var anchored = Build("scale([1, 1, 0]) { cube(1); echo(\"anchor\", \"a\", [2, 3, 4]); }");
+
+        // Assert
+        Assert.Empty(anchored.Meshes);
+        Assert.NotEmpty(plain.WarningTexts);
+        Assert.Equal(plain.WarningTexts, anchored.WarningTexts);
+        AssertAnchor(Assert.Single(anchored.Anchors), "a", 2, 3, 0);
+    }
+
+    /// <summary>
+    ///     Validates that the anchor pass only runs for a model that declared an anchor.
+    /// </summary>
+    /// <param name="source">The program.</param>
+    /// <param name="passes">The expected number of anchor passes.</param>
+    [Theory]
+    [InlineData("cube(1); echo(\"not an anchor\");", 0)]
+    [InlineData("cube(1); echo(\"anchor\", \"bad\");", 0)]
+    [InlineData("cube(1); echo(\"anchor\", \"a\", [0, 0, 0]);", 1)]
+    public void ScadGeometryBuilderAnchor_Pass_RunsOnlyWhenAnAnchorWasDeclared(string source, int passes)
+    {
+        // Arrange
+        var sink = new ScadEvaluationSink(ScadLimits.Default);
+
+        // Act
+        _ = Build(source, sink: sink);
+
+        // Assert
+        Assert.Equal(passes, sink.AnchorPasses);
+    }
+
+    /// <summary>
     ///     Validates that a model without anchors reports none.
     /// </summary>
     [Fact]

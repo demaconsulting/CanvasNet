@@ -153,7 +153,8 @@ in one place.
 The only entry point. It rejects `null` arguments, creates the context and reporter, then finds the show-only
 roots. A model that contains `!` is just the marked subtrees; otherwise it is the union of the top-level
 instances. It builds that forest, converts the result to the scene root, resolves the anchors of the **same**
-forest (see _Anchors_), and returns the
+forest (see _Anchors_; only when the evaluation set `ScadEvaluationSink.AnchorsDeclared`, so a model without
+anchors does not pay for the extra walk), and returns the
 `ScadBuiltScene`. The root is the solid itself, a group of **slabs** for a flat model (made by
 `ScadExtrusions.MakeSlabs` with the configured `FlatShapeThickness`, each slab charged against the triangle
 budget and mapped to the location of its 2D leaf), or an empty group. The builder is created per call, holds
@@ -187,8 +188,11 @@ explicit stack of `(instance, accumulated matrix of the parent, blocker, dropped
 - A group (a user module, `for`, `group`, an `intersection_for` iteration) and the containers `union`, `render`,
   `difference`, `intersection`, `color`, `hull`, and `minkowski` pass the matrix through unchanged. The modifiers
   `#` and `%` change nothing.
-- A matrix transform whose `TryGetMatrix` fails, or whose matrix collapses solid geometry (`ScadTransforms.Collapses`),
-  drops its whole subtree **silently**: its geometry is dropped and already reported.
+- A matrix transform whose `TryGetMatrix` fails, or whose matrix collapses **both** solid geometry
+  (`ScadTransforms.Collapses`) and 2D shapes (`ScadTransforms.CollapsesPlanar`, the in-plane rule of `ApplyFlat`),
+  drops its whole subtree **silently**: its geometry is dropped and already reported. An anchor cannot know whether
+  its siblings are 2D or solid, so a matrix that collapses only one of them (`scale([1, 1, 0])`,
+  `rotate([90, 0, 0])` for a 2D shape) keeps the anchor, projected by the matrix.
 - Any other module (`resize`, `linear_extrude`, `rotate_extrude`, `projection`, `offset`, a primitive with children,
   and so on) marks the subtree with a **blocker**: each anchor below it is skipped with one
   `scad-anchor-invalid` warning that names the module, because its coordinates are changed in a way the pass cannot

@@ -122,6 +122,24 @@ internal static partial class ScadTransforms
         !matrix.IsFinite || IsSingular(Determinant3(matrix), RowNorms(matrix));
 
     /// <summary>
+    ///     Decides whether the in-plane (XY) part of a transform matrix collapses a 2D shape (not finite or singular),
+    ///     which is the only collapse that drops 2D geometry.
+    /// </summary>
+    /// <param name="matrix">The matrix in the row-vector convention.</param>
+    /// <returns><see langword="true"/> when the matrix is not finite or its 2x2 in-plane part is singular.</returns>
+    internal static bool CollapsesPlanar(Matrix4x4D matrix)
+    {
+        if (!matrix.IsFinite)
+        {
+            return true;
+        }
+
+        var determinant = (matrix.M11 * matrix.M22) - (matrix.M12 * matrix.M21);
+        var norms = Math.Sqrt((matrix.M11 * matrix.M11) + (matrix.M12 * matrix.M12)) * Math.Sqrt((matrix.M21 * matrix.M21) + (matrix.M22 * matrix.M22));
+        return IsSingular(determinant, norms);
+    }
+
+    /// <summary>
     ///     Computes the matrix of <c>translate(v)</c>.
     /// </summary>
     /// <param name="instance">The instance.</param>
@@ -414,9 +432,7 @@ internal static partial class ScadTransforms
             matrix.M41, matrix.M42, 0.0, 1.0,
         ];
         var planar = Matrix4x4D.FromRowMajor(elements);
-        var determinant = (matrix.M11 * matrix.M22) - (matrix.M12 * matrix.M21);
-        var norms = Math.Sqrt((matrix.M11 * matrix.M11) + (matrix.M12 * matrix.M12)) * Math.Sqrt((matrix.M21 * matrix.M21) + (matrix.M22 * matrix.M22));
-        if (IsSingular(determinant, norms))
+        if (CollapsesPlanar(matrix))
         {
             return Invalid(node, context, "the transformation is singular or not finite and collapses the shape");
         }

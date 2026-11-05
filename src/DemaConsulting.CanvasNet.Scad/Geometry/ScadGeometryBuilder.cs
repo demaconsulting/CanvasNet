@@ -98,8 +98,15 @@ internal sealed partial class ScadGeometryBuilder
         var geo = builder.BuildForest(forest);
         var root = builder.ToSceneRoot(geo);
 
-        // Anchors are resolved over the same forest, so a '!' model reports only the anchors of the marked subtrees
-        var anchors = builder.CollectAnchors(forest, settings);
+        // Anchors are resolved over the same forest, so a '!' model reports only the anchors of the marked subtrees;
+        // a model that declared none (the evaluation says so) skips the extra walk
+        var anchors = new List<ScadWorldAnchor>();
+        if (sink.AnchorsDeclared)
+        {
+            sink.AnchorPasses++;
+            anchors = builder.CollectAnchors(forest, settings);
+        }
+
         return new ScadBuiltScene(new Scene(root), context.Map, context.TrianglesCharged, geo.Kind == ScadGeoKind.Flat, anchors);
     }
 
