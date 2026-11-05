@@ -68,8 +68,7 @@ load/crop/resize/save workflows.
   pictures from the document's own folder; the `Viewer` package lists every format, and you can add your own source
 - 🔭 **Viewer** - `CanvasNetViewer.Render` draws any file CanvasNet can read, `CreateImageResolver` makes SVG
   documents embed all of them, and its `Imaging` operations do everything the `canvasnet` tool does (probe, render with
-  a
-  transformation pipeline, inspect, compare, and make a contact sheet) as library calls
+  a transformation pipeline, inspect, compare, and make a contact sheet) as library calls
 - 🎬 **Rendering** - Transform-aware canvas with text and shape drawing
 - 📦 **Package Reading** - `OpcPackage` and `SafeXml` read untrusted `.pptx`/`.vsdx` packages and XML safely
 - ⚡ **Span-Based** - Fast, allocation-conscious pixel and row access
