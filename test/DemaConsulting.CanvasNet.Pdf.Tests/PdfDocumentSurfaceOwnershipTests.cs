@@ -93,6 +93,26 @@ public class PdfDocumentSurfaceOwnershipTests
         Assert.Throws<InvalidDataException>(() => Render(pdf));
     }
 
+    /// <summary>Proves the document keeps no reference to a per-render surface after a render, whether it succeeded (the caller owns the result) or failed (the surface was released).</summary>
+    [Fact]
+    public void PdfDocument_Render_AfterSuccessOrFailure_KeepsNoReferenceToTheSurface()
+    {
+        // Arrange: one document that renders and one whose content stream fails after allocation
+        var field = typeof(PdfDocument).GetField("_surface", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        using var goodStream = new MemoryStream(BuildPdf("0 0 1 rg 10 10 50 50 re f", string.Empty));
+        using var good = PdfDocument.Open(goodStream);
+        using var badStream = new MemoryStream(BuildPdf("/Missing Do", "/XObject << >>"));
+        using var bad = PdfDocument.Open(badStream);
+
+        // Act
+        using var surface = good.Render(0, 100, 100);
+        Assert.Throws<InvalidDataException>(() => bad.Render(0, 100, 100));
+
+        // Assert
+        Assert.Null(field.GetValue(good));
+        Assert.Null(field.GetValue(bad));
+    }
+
     /// <summary>Proves a render that failed after allocating its surface leaves the document usable: a retry repeats the original failure rather than an invalid-state error.</summary>
     [Fact]
     public void PdfDocument_Render_AfterFailedRender_RepeatsOriginalFailure()

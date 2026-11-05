@@ -420,6 +420,7 @@ sections:
               - PdfDocument_ConvertSamplesToSurface_TruncatedGraySamples_ThrowsInvalidDataException
               - PdfDocument_ConvertSamplesToSurface_TruncatedDeviceNSamples_ThrowsInvalidDataException
               - PdfDocument_ConvertSamplesToSurface_CompleteGraySamples_ReturnsConvertedSurface
+              - PdfDocument_Render_AfterSuccessOrFailure_KeepsNoReferenceToTheSurface
           - id: CanvasNetPdf-PdfDocument-RenderWithDpi
             title: >-
               The PdfDocument class shall provide a Render overload that renders a page at a

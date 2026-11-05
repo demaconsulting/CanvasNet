@@ -627,7 +627,8 @@ options parameter was added.
 `PdfDocument_Render_TruncatedImageSamples_ThrowsInvalidDataException`,
 `PdfDocument_ConvertSamplesToSurface_TruncatedGraySamples_ThrowsInvalidDataException`,
 `PdfDocument_ConvertSamplesToSurface_TruncatedDeviceNSamples_ThrowsInvalidDataException`,
-`PdfDocument_ConvertSamplesToSurface_CompleteGraySamples_ReturnsConvertedSurface`
+`PdfDocument_ConvertSamplesToSurface_CompleteGraySamples_ReturnsConvertedSurface`,
+`PdfDocument_Render_AfterSuccessOrFailure_KeepsNoReferenceToTheSurface`
 
 Exercise the paths on which `Render` releases a surface it allocated: a content stream that fails
 after the output surface is allocated (an undefined XObject) must throw `InvalidDataException`
@@ -636,7 +637,10 @@ unwrapped, and a second render of the same document must repeat that failure rat
 `InvalidDataException` through `Render`; an image drawn twice must paint both placements (each
 decoded image is released after compositing); and the private sample-conversion helper, invoked via
 reflection, must rethrow `InvalidDataException` unwrapped for truncated gray and DeviceN samples
-while still converting complete samples. `Surface` exposes no disposed indicator, so the release
+while still converting complete samples; and after both a successful and a failed render the
+document's private per-render surface field, read via reflection, must be null, so neither the
+caller's surface nor a released one stays reachable through the document. `Surface` exposes no
+disposed indicator, so the release
 itself is verified by code review; these tests pin the observable behavior around the release
 handlers.
 

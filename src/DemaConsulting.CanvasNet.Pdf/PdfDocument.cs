@@ -459,6 +459,12 @@ public sealed partial class PdfDocument : IDisposable
             surface.Dispose();
             throw;
         }
+        finally
+        {
+            // The per-render target is never kept by the document: neither a returned surface (now
+            // owned by the caller) nor a failed, disposed one stays reachable through this instance
+            _surface = null!;
+        }
     }
 
     /// <summary>
