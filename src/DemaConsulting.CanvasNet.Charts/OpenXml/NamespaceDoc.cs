@@ -37,7 +37,24 @@ namespace DemaConsulting.CanvasNet.Charts.OpenXml;
 ///     scope (mirroring <c>DemaConsulting.CanvasNet.Pptx</c>'s own documented
 ///     <c>&lt;a:fld&gt;</c> "paint the cached value, never recompute" convention).
 ///     </para>
+///     <para>
+///     See <see cref="OpenXmlChartParser"/> for the entry point and <see cref="DemaConsulting.CanvasNet.Charts"/> for the
+///     <see cref="Chart"/> model it produces and <see cref="DemaConsulting.CanvasNet.Charts.ChartRenderer"/>, which draws
+///     it. <c>DemaConsulting.CanvasNet.Pptx</c> uses this parser for the charts on a slide.
+///     </para>
 /// </remarks>
+/// <example>
+///     Parse a chart part that was read from an Office document, and draw it:
+///     <code language="csharp">
+///     using System.Xml.Linq;
+///     using DemaConsulting.CanvasNet.Charts;
+///     using DemaConsulting.CanvasNet.Charts.OpenXml;
+///
+///     var chartPart = XDocument.Load("chart1.xml");   // the c:chartSpace part of an OOXML package
+///     var chart = OpenXmlChartParser.Parse(chartPart);
+///     using var surface = ChartRenderer.Render(chart, 480, 320);
+///     </code>
+/// </example>
 internal static class NamespaceDoc
 {
 }

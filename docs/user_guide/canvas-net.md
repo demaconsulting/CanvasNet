@@ -180,6 +180,16 @@ copy is opaque (every source pixel, alpha included, replaces the pixel underneat
 `CompositeOver` to blend) and clipped to this surface (the part of `source` outside it is ignored,
 and a source entirely outside changes nothing).
 
+There is no positioned or clipped alpha blend in the library: `CompositeOver(Surface)` needs two surfaces of
+the same size. To blend a tile at a position, copy it with `CopyFrom` onto a same-size transparent layer, then
+composite the layer over the destination:
+
+```csharp
+using var layer = new Surface(destination.Width, destination.Height);   // transparent
+layer.CopyFrom(tile, 40, 20);                                           // the tile, opaque, at (40, 20)
+destination.CompositeOver(layer);                                       // blended with the tile's own alpha
+```
+
 **Exceptions:**
 
 - `ArgumentNullException`: Thrown when `source` is null.
@@ -1566,6 +1576,10 @@ var font = (match is { } info ? SystemFontCatalog.Load(info) : null)
 
 `SystemFontCatalog` is thread-safe: every member may be called concurrently.
 
+The font that `LoadBundledFallback` returns is a shared instance that is cached for the lifetime of the
+process, and `TrueTypeFont` is not `IDisposable`: there is nothing to dispose, and the same font can be kept
+and passed to any number of renders and threads.
+
 ### FontDirectoryScanner
 
 The `FontDirectoryScanner` static class scans directory trees for font files and reports a
@@ -2307,6 +2321,14 @@ as
 a cycle, and at most `MaxImages` images are loaded; each is a warning and the render carries on. Notes of the sources
 are
 forwarded in `Diagnostics` with the link in front of each message.
+
+Every `ImageSourceDiagnostic` also has an `Origin`: the embedded files, outermost first, that the note is about. For a
+note a source reported it is the file that reported it preceded by the files that embedded it, and for a link that was
+not drawn it is the file that contains the link. An entry is the root-relative file name for a file link and the href as
+written for a scheme link; the `Origin` is empty for a note about the top-level document, and the link stays in front of
+the `Message` as before. For `sub/b.scad` embedded by `a.svg` it is `["a.svg", "sub/b.scad"]`, and for a link inside
+`a.svg` that was not drawn it is `["a.svg"]`. Two diagnostics are equal when all their fields, `Origin` entries
+included, are equal.
 
 **The pixel budget.** A small placement can ask for a huge picture: a raster is decoded at its own size, so an 8192 by
 8192 PNG placed in a 1 by 1 rectangle would allocate about 256 MiB, again for every link. `MaxDecodedPixels` (default

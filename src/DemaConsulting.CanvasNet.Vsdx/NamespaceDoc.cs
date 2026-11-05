@@ -50,7 +50,27 @@ namespace DemaConsulting.CanvasNet.Vsdx;
 ///         unsupported gradient <c>FillPattern</c> value (<c>"36"</c>) affecting a single
 ///         rack-diagram frame, and minor UML text/border padding differences.
 ///     </para>
+///     <para>
+///         See <see cref="VsdxDocument"/> for opening a diagram and rendering a page (<see cref="VsdxRenderOptions"/> for
+///         the options) and <see cref="DemaConsulting.CanvasNet.Codecs"/> for saving the result. Page numbers here are
+///         <b>0-based</b> (<c>pageIndex</c>); the <c>DemaConsulting.CanvasNet.Viewer</c> package, which reads VSDX through
+///         the same code, numbers pages from 1. The package layer is
+///         <see cref="DemaConsulting.CanvasNet.Packaging"/>; to embed a page in an SVG document, see
+///         <c>VsdxImageSource</c> and <see cref="DemaConsulting.CanvasNet.ImageSources"/>.
+///     </para>
 /// </remarks>
+/// <example>
+///     Render the first page of a diagram at 96 dots per inch and save it:
+///     <code language="csharp">
+///     using DemaConsulting.CanvasNet.Codecs;
+///     using DemaConsulting.CanvasNet.Vsdx;
+///
+///     using var document = VsdxDocument.Open("network.vsdx");
+///     using var page = document.Render(0, 96);   // the first page is index 0
+///     PngCodec.Save(page, "page-1.png");
+///     Console.WriteLine($"{document.PageCount} pages");
+///     </code>
+/// </example>
 internal static class NamespaceDoc
 {
 }

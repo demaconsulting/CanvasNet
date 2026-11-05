@@ -34,6 +34,31 @@ namespace DemaConsulting.CanvasNet.Drawing;
 ///     concept becoming part of this namespace's public surface. Transform-aware fills and
 ///     font/text rendering remain reserved for later phases.
 /// </summary>
+/// <remarks>
+///     See <see cref="PathFiller"/> to fill a <see cref="DemaConsulting.CanvasNet.Geometry.Path"/> with a color, a
+///     <see cref="Gradient"/>, or a <see cref="TilePaint"/>, and <see cref="PathStroker"/> with <see cref="StrokeStyle"/>
+///     to turn a stroke into a fillable outline. For a transform stack, text, and rectangle, rounded-rectangle, and circle
+///     helpers over the same pipeline, see <see cref="DemaConsulting.CanvasNet.Rendering"/>; paths come from
+///     <see cref="DemaConsulting.CanvasNet.Geometry"/>, glyph outlines from <see cref="DemaConsulting.CanvasNet.Fonts"/>,
+///     and the pixels from <see cref="DemaConsulting.CanvasNet.Canvas"/>.
+/// </remarks>
+/// <example>
+///     Fill a triangle, then draw its dashed outline on a new surface:
+///     <code language="csharp">
+///     using System.Numerics;
+///     using DemaConsulting.CanvasNet.Canvas;
+///     using DemaConsulting.CanvasNet.Drawing;
+///     using DemaConsulting.CanvasNet.Geometry;
+///
+///     using var surface = new Surface(64, 64);
+///     var triangle = new PathBuilder()
+///         .MoveTo(new Vector2(8, 56)).LineTo(new Vector2(56, 56)).LineTo(new Vector2(32, 8)).Close()
+///         .Build();
+///     PathFiller.Fill(surface, triangle, new Rgba32(0, 128, 255, 255));
+///     var outline = PathStroker.Stroke(triangle, new StrokeStyle(width: 3f, dashArray: [6f, 3f]));
+///     PathFiller.Fill(surface, outline, new Rgba32(0, 0, 0, 255));
+///     </code>
+/// </example>
 internal static class NamespaceDoc
 {
 }

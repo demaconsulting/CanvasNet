@@ -47,7 +47,28 @@ namespace DemaConsulting.CanvasNet.Pptx;
 ///         overflow, nested tables, and table auto-sizing/banding remain explicitly deferred -
 ///         see <see cref="PptxDocument"/>'s own remarks for the exact, current scope boundary.
 ///     </para>
+///     <para>
+///         See <see cref="PptxDocument"/> for opening a presentation and rendering a slide (<see cref="PptxRenderOptions"/>
+///         for the options) and <see cref="DemaConsulting.CanvasNet.Codecs"/> for saving the result. Slide numbers here are
+///         <b>0-based</b> (<c>slideIndex</c>); the <c>DemaConsulting.CanvasNet.Viewer</c> package, which reads PPTX
+///         through the same code, numbers pages from 1. Charts on a slide are parsed with
+///         <see cref="DemaConsulting.CanvasNet.Charts.OpenXml"/> and drawn with
+///         <see cref="DemaConsulting.CanvasNet.Charts"/>; to embed a slide in an SVG document, see
+///         <c>PptxImageSource</c> and <see cref="DemaConsulting.CanvasNet.ImageSources"/>.
+///     </para>
 /// </remarks>
+/// <example>
+///     Render the first slide of a presentation at 150 dots per inch and save it:
+///     <code language="csharp">
+///     using DemaConsulting.CanvasNet.Codecs;
+///     using DemaConsulting.CanvasNet.Pptx;
+///
+///     using var document = PptxDocument.Open("deck.pptx");
+///     using var slide = document.Render(0, 150f);   // the first slide is index 0
+///     PngCodec.Save(slide, "slide-1.png");
+///     Console.WriteLine($"{document.SlideCount} slides");
+///     </code>
+/// </example>
 internal static class NamespaceDoc
 {
 }
