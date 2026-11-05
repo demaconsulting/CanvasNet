@@ -70,6 +70,7 @@ sections:
           - ImagePipeline_Apply_FitSmallerImage_IsUnchangedUnlessUpscaleAllowed
           - ImagePipeline_ParseFilter_NamesAnyCase_RoundTripThroughFilterName
           - ImagePipeline_TryParseFilter_NamesAnyCase_RoundTripThroughFilterName
+          - ImagePipeline_FilterNames_CannotBeChangedThroughACast
 
       - id: CanvasNetViewer-Imaging-ImagePipeline-Rotate
         title: >-
@@ -239,6 +240,23 @@ sections:
           - ImagePipeline_Apply_EmptyList_GivesIndependentCopyAndNeverTouchesInput
           - ImagePipeline_Apply_CropOutsideImage_ThrowsViewerExceptionAndKeepsInput
           - ImagePipeline_Apply_SameInputTwice_GivesIdenticalPixels
+
+      - id: CanvasNetViewer-Imaging-ImagePipeline-OperationValues
+        title: >-
+          The ImagePipeline class shall validate every operation record before it applies any operation, and shall
+          report a value that is out of range, not finite, or not a member of its enumeration as a usage error (and a
+          size or border above 8192 pixels as size-limit), with the position and name of the operation in the message,
+          and a missing operation in the list as a defect of the caller.
+        justification: |
+          A record built by hand, copied with a with expression, or taken as a default value can hold a value that
+          no command line could produce; one check at the single choke point, before the first operation runs, gives
+          every caller the same stable codes as the command line and leaves nothing decoded or half applied.
+        tests:
+          - ImagePipeline_Apply_InvalidOperationValue_ThrowsUsageError
+          - ImagePipeline_Apply_SizeBeyondMaxDimension_ThrowsSizeLimit
+          - ImagePipeline_Apply_InvalidOperationAfterValidOnes_FailsBeforeAnyWork
+          - ImagePipeline_Apply_NullOperationElement_ThrowsArgumentNullException
+          - ImagePipeline_Apply_BoundaryValues_AreAccepted
 
       - id: CanvasNetViewer-Imaging-ImagePipeline-AnchorMapping
         title: >-

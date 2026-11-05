@@ -777,4 +777,18 @@ public class ImageWriterTests
         });
         Assert.Equal(Enum.GetValues<OutputFormat>().Order(), extensions.Values.Distinct().Order());
     }
+
+    /// <summary>
+    ///     Test that the table of extensions cannot be changed through a cast, and still resolves an extension.
+    /// </summary>
+    [Fact]
+    public void ImageWriter_ExtensionFormats_CannotBeChangedThroughACast()
+    {
+        // Arrange / Act / Assert: every way of changing the table is refused
+        ViewerFixtures.AssertReadOnlyDictionary(ImageWriter.ExtensionFormats, ".xyz", OutputFormat.Png);
+
+        // The table is unchanged, and the lookup is still case-insensitive
+        Assert.False(ImageWriter.ExtensionFormats.ContainsKey(".xyz"));
+        Assert.Equal(OutputFormat.Png, ImageWriter.ExtensionFormats[".PNG"]);
+    }
 }

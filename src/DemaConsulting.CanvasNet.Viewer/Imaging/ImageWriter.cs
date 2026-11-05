@@ -1,4 +1,5 @@
 // cspell:ignore canvasnet jpeg jpg tiff tif
+using System.Collections.ObjectModel;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 
@@ -67,9 +68,10 @@ public static class ImageWriter
     /// </summary>
     /// <remarks>
     ///     The <c>formats</c> command of the tool lists the same extensions; a test keeps the two tables consistent.
+    ///     The table cannot be changed, not even through a cast.
     /// </remarks>
     public static readonly IReadOnlyDictionary<string, OutputFormat> ExtensionFormats =
-        new Dictionary<string, OutputFormat>(StringComparer.OrdinalIgnoreCase)
+        new ReadOnlyDictionary<string, OutputFormat>(new Dictionary<string, OutputFormat>(StringComparer.OrdinalIgnoreCase)
         {
             [".png"] = OutputFormat.Png,
             [".jpg"] = OutputFormat.Jpeg,
@@ -77,7 +79,7 @@ public static class ImageWriter
             [".bmp"] = OutputFormat.Bmp,
             [".tif"] = OutputFormat.Tiff,
             [".tiff"] = OutputFormat.Tiff
-        };
+        });
 
     /// <summary>
     ///     The names accepted by the <c>--format</c> option.

@@ -42,3 +42,11 @@ reported as the opaque color 127,127,127.
 
 **ImageInspector_Execute_PixelWithoutPoint_ThrowsArgumentException**: a pixel request without a point throws
 `ArgumentException`.
+
+**ImageInspector_Execute_NullRequestMember_ThrowsArgumentNullException** and
+**ImageInspector_Execute_NullOperationElement_ThrowsArgumentNullException**: a request without the source options or the
+operations throws `ArgumentNullException` that names the member, and so does a null operation in the list (for
+`operations`).
+
+**ImageInspector_Execute_InvalidOperationValue_ThrowsUsageError**: a resize to 0x0 is a `usage-error` naming the
+operation even though the probed file was deleted, so the check happens before the source is decoded.

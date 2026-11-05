@@ -106,6 +106,46 @@ internal static class ViewerFixtures
     }
 
     /// <summary>
+    ///     Asserts that a list given out as read-only cannot be changed through a cast.
+    /// </summary>
+    /// <typeparam name="T">The type of an element.</typeparam>
+    /// <param name="list">The list.</param>
+    /// <param name="sample">An element that is used to try to add and to replace.</param>
+    public static void AssertReadOnlyList<T>(IReadOnlyList<T> list, T sample)
+    {
+        // Neither an array nor a List can be handed out: both can be changed through a cast
+        Assert.IsNotType<T[]>(list);
+        Assert.False(list is List<T>);
+        var mutable = Assert.IsAssignableFrom<IList<T>>(list);
+        Assert.True(mutable.IsReadOnly);
+        Assert.Throws<NotSupportedException>(() => mutable.Add(sample));
+        Assert.Throws<NotSupportedException>(() => mutable[0] = sample);
+        Assert.Throws<NotSupportedException>(() => mutable.RemoveAt(0));
+        Assert.Throws<NotSupportedException>(() => mutable.Clear());
+    }
+
+    /// <summary>
+    ///     Asserts that a dictionary given out as read-only cannot be changed through a cast.
+    /// </summary>
+    /// <typeparam name="TKey">The type of a key.</typeparam>
+    /// <typeparam name="TValue">The type of a value.</typeparam>
+    /// <param name="table">The dictionary.</param>
+    /// <param name="key">A key that is used to try to add and to replace.</param>
+    /// <param name="value">A value that is used to try to add and to replace.</param>
+    public static void AssertReadOnlyDictionary<TKey, TValue>(IReadOnlyDictionary<TKey, TValue> table, TKey key, TValue value)
+        where TKey : notnull
+    {
+        // A Dictionary can be changed through a cast; the read-only wrapper cannot
+        Assert.False(table is Dictionary<TKey, TValue>);
+        var mutable = Assert.IsAssignableFrom<IDictionary<TKey, TValue>>(table);
+        Assert.True(mutable.IsReadOnly);
+        Assert.Throws<NotSupportedException>(() => mutable.Add(key, value));
+        Assert.Throws<NotSupportedException>(() => mutable[key] = value);
+        Assert.Throws<NotSupportedException>(() => mutable.Remove(key));
+        Assert.Throws<NotSupportedException>(() => mutable.Clear());
+    }
+
+    /// <summary>
     ///     Encodes a solid-color PNG.
     /// </summary>
     /// <param name="width">The width.</param>

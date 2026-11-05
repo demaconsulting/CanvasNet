@@ -39,6 +39,7 @@ sections:
           - SourceLoader_Detect_OtherSignatures_ReturnsKind
           - SourceLoader_Detect_TextStartingWithBm_IsNotBmp
           - SourceLoader_ExtensionKinds_AreWellFormed
+          - SourceLoader_ExtensionKinds_CannotBeChangedThroughACast
 
       - id: CanvasNetViewer-Imaging-SourceLoader-DetectErrors
         title: >-
@@ -249,6 +250,8 @@ sections:
           - SourceLoader_Load_DefaultOptions_MatchesTheLibraryRender
           - SourceLoader_Load_EachNamedView_IsDistinctAndDeterministic
           - SourceLoader_ScadViews_HaveTheDocumentedAngles
+          - SourceLoader_ScadViews_CannotBeChangedThroughACast
+          - SourceLoader_ScadViewOptionsDefaultDefines_CannotBeChangedThroughACast
           - SourceLoader_Load_OppositeViews_HaveMirroredSilhouettes
           - SourceLoader_Load_AzimuthAndElevationOverride_ReplaceTheViewAngles
           - SourceLoader_Load_ViewName_IsCaseInsensitiveAndValidated

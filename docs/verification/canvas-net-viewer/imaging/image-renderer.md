@@ -52,3 +52,15 @@ and nothing is written.
 **ImageRenderer_Execute_OperationFails_LeavesNothingBehind**: a crop that starts outside the image is `usage-error`, an
 existing output keeps its old content, and the directory holds nothing but the input and that output (no temporary
 file).
+
+**ImageRenderer_Execute_ExplicitFormatAndExtensionlessOutput_WritesThatFormat**: with JPEG in the write options an output
+named `out` is written as a JPEG (it starts with FF D8) and reported as one.
+
+**ImageRenderer_Execute_NullRequestMember_ThrowsArgumentNullException** and
+**ImageRenderer_Execute_NullOperationElement_ThrowsArgumentNullException**: a request without the output, the source
+options, the write options, or the operations throws `ArgumentNullException` that names the member, and so does a null
+operation in the list (for `operations`); the folder holds nothing but the input.
+
+**ImageRenderer_Execute_InvalidOperationValue_ThrowsUsageErrorBeforeDecodeOrWrite**: a resize to 0x0 is a `usage-error`
+naming the operation even though the probed file was deleted (so decoding would fail with another code), and nothing is
+written.

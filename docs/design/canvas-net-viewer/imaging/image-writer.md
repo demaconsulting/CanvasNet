@@ -20,7 +20,8 @@ from the extension, quality 90, overwrite, and white.
 and `Flattened` (transparency was flattened for JPEG).
 
 **ExtensionFormats**: the output format of each extension (`.png`, `.jpg`, `.jpeg`, `.bmp`, `.tif`, `.tiff`,
-case-insensitive); the `formats` command lists the same extensions and a test keeps the two consistent. The
+case-insensitive; a read-only view that cannot be changed, not even through a cast); the `formats` command lists the
+same extensions and a test keeps the two consistent. The
 `--format` option accepts `png`, `jpeg`, `jpg`, `bmp`, `tiff`, and `tif`. The constants `MinQuality` (1),
 `MaxQuality` (100), and `DefaultQuality` (90) are the quality range.
 

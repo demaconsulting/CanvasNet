@@ -18,7 +18,8 @@ reports what they did. The reading of the operations from the text of a command 
 the `ImagePipelineParser` type of the `canvasnet` tool (documented with the `RenderCommand` unit of the `CanvasNetTool`
 system), which builds the operation records described below and the settings (the filter, the border color, the
 rotation fill, the clip of auto-levels, and the trim tolerance) that the records carry. The unit is the
-static class `ImagePipeline` (`ImagePipeline.cs`, and `ImagePipeline.Anchors.cs` for the mapping of the anchors of a
+static class `ImagePipeline` (`ImagePipeline.cs`, `ImagePipeline.Validation.cs` for the check of the operation values, and
+`ImagePipeline.Anchors.cs` for the mapping of the anchors of a
 model through the applied steps) and the operation types in `ImageOperations.cs`, which also holds the value types
 `Dimension`, `GeometrySpec` (a rectangle in pixels or percent), `PadSpec`, and `FlipAxis` that the records carry.
 
@@ -56,23 +57,35 @@ command line (the last occurrence applies to every step it concerns). This readi
 the tool; this unit receives the finished records.
 
 **Filters**: `auto`, `nearest`, `bilinear`, `bicubic`, `lanczos3`, and `area`, in any case, mapped to the core library's
-`ResamplingMode` by `TryParseFilter` (the names are listed by `FilterNames`); `FilterName` gives the lower-case name used
+`ResamplingMode` by `TryParseFilter` (the names are listed by `FilterNames`, a list that cannot be changed, not even
+through a cast); `FilterName` gives the lower-case name used
 in results. A rotation uses only two kernels: `nearest`
 copies pixels and every other filter interpolates bilinearly.
 
 #### Key Methods
 
-**The values of the operations** (checked by the tool's parser for the text a user types; `Apply` refuses a record whose
-size or border exceeds the maximum):
+**The values of the operations** (checked by the tool's parser for the text a user types, and again by
+`ImagePipeline.Validate` in `ImagePipeline.Validation.cs`, which `Apply` runs on the whole list before it applies the
+first operation and which `ImageRenderer` and `ImageInspector` also run before they decode anything, so a record built by
+hand, copied with `with`, or taken as a default value is refused like the same text would be). A violation is a `usage-error`
+(`size-limit` for a size or border above `Surface.MaxDimension`) whose message names the position (from 1) and the
+operation: `Operation 2 (resize): the width must be at least 1 pixel, not 0.` The rules:
 
+- A crop region has finite values, an origin of 0 or more, a width and height above 0, and a percentage of at most 100;
+  what depends on the image (a region outside it) is decided when the step is applied.
+- A resize or fit has a width and height of at least 1 (and at most `Surface.MaxDimension`, else `size-limit`) and a
+  defined filter; a pad has sides of 0 or more (at most `Surface.MaxDimension`, else `size-limit`; the total size is
+  still checked when the border is applied); a flip has a defined axis; a deskew has a defined filter.
 - A rotation is an angle in degrees, any finite number, normalized to 0 up to 360 (so `-90` is 270 and `390` is 30); a
-  full turn is 0. There is no angle that is refused.
+  full turn is 0. Only a value that is not finite (NaN or an infinity) is refused.
 - A threshold is a whole number from 0 to 255 or automatic; levels are a black point (a whole number from 0 to 254), a
-  white point (from 1 to 255 and above black), and a gamma (a number from 0.1 to 10, default 1); brightness is a whole
-  number from -255 to 255; contrast a number from -100 to 100; a grid has a spacing (a whole number from 8 to 4096) and
-  an optional color.
+  white point (from 1 to 255 and above black), and a gamma (a finite number from 0.1 to 10, default 1); brightness is a
+  whole number from -255 to 255; contrast a finite number from -100 to 100; auto-levels a clip from 0 to 20; trim a
+  tolerance from 0 to 255; a grid has a spacing (a whole number from 8 to 4096) and an optional color.
+- A null element of the list is a defect of the caller (`ArgumentNullException`), not a value error.
 
-**Apply(input, operations, defaultPadColor, out applied, userBackground)**: runs the steps in order. The input is never
+**Apply(input, operations, defaultPadColor, out applied, userBackground)**: validates the list (see above), then runs the
+steps in order. The input is never
 modified or disposed, and the result is always a surface different from the input - for an empty list a copy - which
 the caller disposes. `userBackground` is the background color the user gave (or `null`) and only decides the fill of a
 rotation. Each step adds an `AppliedOperation` to `applied`.
@@ -181,10 +194,12 @@ than a wrong one. `inside` is not computed here: it depends on the size of the w
 
 #### Error Handling
 
-`ViewerException` with `usage-error` (crop outside the image or empty, an operation value out of range) and `size-limit`
-(a size, box, or border, or an explicitly requested rotated canvas, above the
-maximum). An oversized automatic deskew is copied unchanged and reported as a non-fatal operation reason. A null
-argument throws `ArgumentNullException`. Any other exception is a defect and propagates. The errors in the text of a
+`ViewerException` with `usage-error` (an operation value out of range, not finite, or not a member of its enumeration,
+found before the first step runs; a crop outside the image or empty) and `size-limit` (a size, box, or border above the
+maximum, found before the first step runs; a border or an explicitly requested rotated canvas that would make the image
+larger than the maximum). An oversized automatic deskew is copied unchanged and reported as a non-fatal operation
+reason. A null argument, or a null element of the list of operations, throws `ArgumentNullException`. Any other
+exception is a defect and propagates. The errors in the text of a
 command line (a malformed value, a setting without its operation, an unknown verb) are reported by the tool's parser
 as the same `usage-error`.
 

@@ -54,8 +54,11 @@ several of its pages.
 
 **ImagePipeline.Apply(input, operations, defaultPadColor, out applied, userBackground)** (provided to the operation units
 and to library users): apply an ordered list of operation records to a surface (calling the core `Surface`
-adjustments, flip, pad, trim, rotation, and skew estimation) and report what was done. **ImagePipeline.TryParseFilter**,
-**ImagePipeline.FilterName**, and **ImagePipeline.FilterNames** name the resampling filters. The text of the operations
+adjustments, flip, pad, trim, rotation, and skew estimation) and report what was done; the values of the records are
+validated first, so an invalid value is a `usage-error` (or `size-limit`) before any step runs. **ImagePipeline.TryParseFilter**,
+**ImagePipeline.FilterName**, and **ImagePipeline.FilterNames** name the resampling filters (the public tables of the
+imaging units, such as `FilterNames`, `ExtensionFormats`, `ExtensionKinds`, and `ScadViews`, are read-only and cannot
+be changed through a cast). The text of the operations
 of a command line is read by the tool, not by this unit.
 
 **ImagePipeline.MapAnchors(anchors, width, height, applied)** (provided to the operation units): follow the pixel

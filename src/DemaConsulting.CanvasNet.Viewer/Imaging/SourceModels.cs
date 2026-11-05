@@ -1,4 +1,5 @@
 // cspell:ignore jpeg tiff pptx vsdx scad jpeg2000 Visio
+using System.Collections.ObjectModel;
 using DemaConsulting.CanvasNet.Canvas;
 
 namespace DemaConsulting.CanvasNet.Viewer.Imaging;
@@ -261,6 +262,11 @@ public sealed record ScadView(string Name, double Azimuth, double Elevation);
 public sealed record ScadViewOptions
 {
     /// <summary>
+    ///     The default of <see cref="Defines"/>: an empty dictionary that cannot be changed.
+    /// </summary>
+    private static readonly ReadOnlyDictionary<string, object?> NoDefines = new(new Dictionary<string, object?>());
+
+    /// <summary>
     ///     Gets the name of the viewpoint: one of <see cref="SourceLoader.ScadViews"/>; <c>iso</c> by default.
     /// </summary>
     public string View { get; init; } = SourceLoader.DefaultScadView;
@@ -303,7 +309,11 @@ public sealed record ScadViewOptions
     ///     Gets the variables that replace the assignments of the same name in the model: each value is a
     ///     <see cref="double"/>, a <see cref="bool"/>, or a <see cref="string"/>.
     /// </summary>
-    public IReadOnlyDictionary<string, object?> Defines { get; init; } = new Dictionary<string, object?>();
+    /// <remarks>
+    ///     The default is one shared empty dictionary that cannot be changed, not even through a cast, so sharing it
+    ///     between instances is safe.
+    /// </remarks>
+    public IReadOnlyDictionary<string, object?> Defines { get; init; } = NoDefines;
 
     /// <summary>
     ///     Gets the value of <c>$t</c> (the animation time), or <see langword="null"/> for 0.

@@ -168,4 +168,65 @@ public class ImageInspectorTests
         // Act / Assert
         Assert.Throws<ArgumentException>(() => ImageInspector.Execute(info, CreateRequest(InspectKind.Pixel)));
     }
+
+    /// <summary>
+    ///     Test that a request with a missing member is a caller error.
+    /// </summary>
+    /// <param name="member">The member that is <see langword="null"/>.</param>
+    [Theory]
+    [InlineData("Source")]
+    [InlineData("Operations")]
+    public void ImageInspector_Execute_NullRequestMember_ThrowsArgumentNullException(string member)
+    {
+        // Arrange: a valid request with one member removed
+        using var directory = new TempDirectory();
+        var info = CreateSolid(directory, 4, 4, Red);
+        var request = CreateRequest(InspectKind.Colors);
+        request = member == "Source" ? request with { Source = null! } : request with { Operations = null! };
+
+        // Act
+        var error = Assert.Throws<ArgumentNullException>(() => ImageInspector.Execute(info, request));
+
+        // Assert: the member is named
+        Assert.Contains(member, error.ParamName);
+    }
+
+    /// <summary>
+    ///     Test that a missing operation in the list is a caller error.
+    /// </summary>
+    [Fact]
+    public void ImageInspector_Execute_NullOperationElement_ThrowsArgumentNullException()
+    {
+        // Arrange: a list whose only operation is missing
+        using var directory = new TempDirectory();
+        var info = CreateSolid(directory, 4, 4, Red);
+        IImageOperation[] operations = [null!];
+        var request = CreateRequest(InspectKind.Colors) with { Operations = operations };
+
+        // Act
+        var error = Assert.Throws<ArgumentNullException>(() => ImageInspector.Execute(info, request));
+
+        // Assert: the list is named
+        Assert.Equal("operations", error.ParamName);
+    }
+
+    /// <summary>
+    ///     Test that an operation with an invalid value is refused before the source is decoded.
+    /// </summary>
+    [Fact]
+    public void ImageInspector_Execute_InvalidOperationValue_ThrowsUsageError()
+    {
+        // Arrange: a probed source whose file is gone, so that decoding it would fail with another code
+        using var directory = new TempDirectory();
+        var info = CreateSolid(directory, 4, 4, Red);
+        File.Delete(info.Path);
+        var request = CreateRequest(InspectKind.Colors) with { Operations = [new ResizeOperation(0, 0, ResamplingMode.Auto)] };
+
+        // Act
+        var error = Assert.Throws<ViewerException>(() => ImageInspector.Execute(info, request));
+
+        // Assert: the usage error of the operation
+        Assert.Equal(ErrorCodes.UsageError, error.Code);
+        Assert.Contains("resize", error.Message);
+    }
 }

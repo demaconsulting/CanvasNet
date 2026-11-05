@@ -29,8 +29,10 @@ sections:
       - id: CanvasNetViewer-Imaging-ImageRenderer-Checks
         title: >-
           The ImageRenderer class shall refuse, with the stable error code and before any page is decoded, a page that
-          does not exist, an output whose format cannot be told, an output that is the input, and an output that
-          exists when overwriting is not allowed.
+          does not exist, an output whose format cannot be told (the format of the write options wins over the
+          extension), an output that is the input, an output that
+          exists when overwriting is not allowed, an operation with an invalid value, and a request with a missing
+          member or operation (as a defect of the caller).
         justification: |
           A mistake that is visible from the request alone must fail early and clearly, so that an input is
           never replaced by its own output and a long decode is not wasted.
@@ -39,6 +41,10 @@ sections:
           - ImageRenderer_Execute_UnknownExtension_ThrowsUsageError
           - ImageRenderer_Execute_NoClobberExistingOutput_ThrowsOutputExists
           - ImageRenderer_Execute_PageOutOfRange_ThrowsPageOutOfRange
+          - ImageRenderer_Execute_ExplicitFormatAndExtensionlessOutput_WritesThatFormat
+          - ImageRenderer_Execute_NullRequestMember_ThrowsArgumentNullException
+          - ImageRenderer_Execute_NullOperationElement_ThrowsArgumentNullException
+          - ImageRenderer_Execute_InvalidOperationValue_ThrowsUsageErrorBeforeDecodeOrWrite
 
       - id: CanvasNetViewer-Imaging-ImageRenderer-AllOrNothing
         title: >-

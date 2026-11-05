@@ -187,4 +187,19 @@ public class ImagePipelineApplyTests
         Assert.Equal(3.0, anchor.PixelX);
         Assert.Equal(3.0, anchor.PixelY);
     }
+
+    /// <summary>
+    ///     Test that the list of filter names cannot be changed through a cast, and still names the filters.
+    /// </summary>
+    [Fact]
+    public void ImagePipeline_FilterNames_CannotBeChangedThroughACast()
+    {
+        // Arrange / Act / Assert: every way of changing the list is refused
+        ViewerFixtures.AssertReadOnlyList(ImagePipeline.FilterNames, "other");
+
+        // The list is unchanged, and the lookups that use it still work
+        Assert.Equal(["auto", "nearest", "bilinear", "bicubic", "lanczos3", "area"], ImagePipeline.FilterNames);
+        Assert.True(ImagePipeline.TryParseFilter("lanczos3", out var mode));
+        Assert.Equal("lanczos3", ImagePipeline.FilterName(mode));
+    }
 }

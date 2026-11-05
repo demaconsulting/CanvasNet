@@ -30,8 +30,10 @@ sizes), `Fit`, `Filter`, `Background`, `Tolerance`, `GridColumns`, `GridRows`, `
 
 #### Key Methods
 
-**Execute(request)**: first checks what needs no pixels: the pictures' formats and paths (`ImageWriter.ResolveFormat`
-and `CheckTargets` against both inputs, and two pictures may not be the same file). It then loads both inputs, a vector
+**Execute(request)**: first refuses a request with a missing member (`ArgumentNullException`: the inputs with their label,
+facts, and options, the thresholds, and the write options). It then checks what needs no pixels: the pictures' formats
+(`ImageWriter.ResolveFormat`, with the format of the write options when set, else the extension of each output) and paths
+(`CheckTargets` against both inputs, and two pictures may not be the same file). It then loads both inputs, a vector
 input at the size of the target and a raster input at its own size fitted into it with `Surface.FitInto` (flattened
 over the background); inputs of different sizes without a resize are `size-mismatch`, and a grid with more cells than
 pixels in a direction is a `usage-error`. It then measures with `Surface.Compare` (tolerance and grid of the request),
@@ -44,7 +46,8 @@ the caller decides what the miss means (the tool fails with the code `threshold-
 
 `ViewerException` with `usage-error`, `size-mismatch`, `same-input-output`, `output-exists`, `output-write-failed`, and
 the
-codes of `SourceLoader`. A null request is a defect (`ArgumentNullException`). Any other exception propagates; staged
+codes of `SourceLoader`. A null request, or a request with a missing member, is a defect (`ArgumentNullException`).
+Any other exception propagates; staged
 files are removed on every path, so a failure leaves no picture behind.
 
 #### Dependencies

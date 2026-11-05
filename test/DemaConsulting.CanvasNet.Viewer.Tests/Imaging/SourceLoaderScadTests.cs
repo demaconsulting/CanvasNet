@@ -1032,4 +1032,34 @@ public class SourceLoaderScadTests
         Assert.Single(loaded.Diagnostics, d => d.Code == "scad-warning" && d.Message.Contains("scad-anchor-invalid:", StringComparison.Ordinal));
         Assert.Empty(without.Anchors);
     }
+
+    /// <summary>
+    ///     Test that the list of named viewpoints cannot be changed through a cast.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_ScadViews_CannotBeChangedThroughACast()
+    {
+        // Arrange / Act / Assert: every way of changing the list is refused
+        ViewerFixtures.AssertReadOnlyList(SourceLoader.ScadViews, new ScadView("other", 1, 2));
+
+        // The list is unchanged
+        Assert.Equal(7, SourceLoader.ScadViews.Count);
+        Assert.Equal(SourceLoader.DefaultScadView, SourceLoader.ScadViews[0].Name);
+    }
+
+    /// <summary>
+    ///     Test that the default variables of a view cannot be changed through a cast, so sharing them is safe.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_ScadViewOptionsDefaultDefines_CannotBeChangedThroughACast()
+    {
+        // Arrange: the default options of two views
+        var first = new ScadViewOptions();
+        var second = new ScadViewOptions();
+
+        // Act / Assert: every way of changing the variables is refused
+        ViewerFixtures.AssertReadOnlyDictionary(first.Defines, "width", (object?)20.0);
+        Assert.Empty(first.Defines);
+        Assert.Empty(second.Defines);
+    }
 }

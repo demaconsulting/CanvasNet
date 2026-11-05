@@ -1,4 +1,5 @@
 // cspell:ignore canvasnet jpeg tiff jpeg2000 pptx vsdx scad jfif Visio
+using System.Collections.ObjectModel;
 using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
@@ -21,9 +22,10 @@ public static partial class SourceLoader
     /// </summary>
     /// <remarks>
     ///     The <c>formats</c> command of the tool lists the same extensions; a test keeps the two tables consistent.
+    ///     The table cannot be changed, not even through a cast.
     /// </remarks>
     public static readonly IReadOnlyDictionary<string, SourceKind> ExtensionKinds =
-        new Dictionary<string, SourceKind>(StringComparer.OrdinalIgnoreCase)
+        new ReadOnlyDictionary<string, SourceKind>(new Dictionary<string, SourceKind>(StringComparer.OrdinalIgnoreCase)
         {
             [".png"] = SourceKind.Png,
             [".jpg"] = SourceKind.Jpeg,
@@ -41,7 +43,7 @@ public static partial class SourceLoader
             [".vsdx"] = SourceKind.Vsdx,
             [".scad"] = SourceKind.Scad,
             [".vl"] = SourceKind.VegaLite
-        };
+        });
 
     /// <summary>
     ///     The file name suffix of a Vega-Lite chart that <see cref="ExtensionKinds"/> cannot express, because the

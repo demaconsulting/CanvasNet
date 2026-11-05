@@ -69,9 +69,9 @@ public static partial class ImagePipeline
     /// <remarks>
     ///     The names are the stable spelling used by <see cref="TryParseFilter"/>, by <see cref="FilterName"/>, and in
     ///     the <c>operations</c> of a result: <c>auto</c>, <c>nearest</c>, <c>bilinear</c>, <c>bicubic</c>,
-    ///     <c>lanczos3</c>, and <c>area</c>.
+    ///     <c>lanczos3</c>, and <c>area</c>. The list cannot be changed, not even through a cast.
     /// </remarks>
-    public static IReadOnlyList<string> FilterNames { get; } = Filters.Select(f => f.Name).ToArray();
+    public static IReadOnlyList<string> FilterNames { get; } = Array.AsReadOnly(Filters.Select(f => f.Name).ToArray());
 
     /// <summary>
     ///     Parses a resampling filter name.
@@ -122,15 +122,18 @@ public static partial class ImagePipeline
     ///     A new surface, which the caller owns and disposes. It is always a different surface than
     ///     <paramref name="input"/>, even for an empty list of operations (then a copy).
     /// </returns>
-    /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when an argument, or an element of <paramref name="operations"/>, is <see langword="null"/>.</exception>
     /// <exception cref="ViewerException">
-    ///     Thrown with code <c>usage-error</c> when a crop region lies entirely outside the image or is empty at that
-    ///     point of the pipeline, and with code <c>size-limit</c> when a border or a rotation would make the image
-    ///     larger than <see cref="Surface.MaxDimension"/>.
+    ///     Thrown with code <c>usage-error</c> when a value of an operation is out of range, not finite, or not a
+    ///     member of its enumeration, or when a crop region lies entirely outside the image or is empty at that
+    ///     point of the pipeline, and with code <c>size-limit</c> when a size or border is larger than
+    ///     <see cref="Surface.MaxDimension"/> or a border or a rotation would make the image larger than that.
     /// </exception>
     /// <remarks>
-    ///     Every intermediate surface is disposed as soon as the next one has been made, and also when an operation
-    ///     fails, so a failure leaves nothing behind but the input. An operation that changes pixels in place is given
+    ///     The values of all the operations are checked first (see <see cref="Validate"/>), so an invalid list is
+    ///     refused before the first operation runs. Every intermediate surface is disposed as soon as the next one has
+    ///     been made, and also when an operation fails, so a failure leaves nothing behind but the input. An
+    ///     operation that changes pixels in place is given
     ///     the current surface when the pipeline owns it and a copy of the input otherwise, and returns that surface.
     ///     The fill of a rotation (or deskew) is its own color, else <paramref name="userBackground"/>, else opaque
     ///     white when the surface being rotated has no pixel that is not opaque, else transparent.
@@ -144,6 +147,9 @@ public static partial class ImagePipeline
     {
         ArgumentNullException.ThrowIfNull(input);
         ArgumentNullException.ThrowIfNull(operations);
+
+        // Refuse an invalid list before any work is done, so nothing is copied or partly applied
+        Validate(operations);
 
         var results = new List<AppliedOperation>();
         var current = input;

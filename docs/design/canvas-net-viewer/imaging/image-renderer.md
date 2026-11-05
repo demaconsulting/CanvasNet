@@ -29,9 +29,13 @@ through the pipeline).
 
 #### Key Methods
 
-**Execute(info, request)**: checks everything that needs no pixels first and in a fixed order - the page
+**Execute(info, request)**: first refuses a request with a missing member (`Output`, `Source`, `Write`, or `Operations`,
+or a null operation) as `ArgumentNullException`, and an operation with an invalid value as a `usage-error` or
+`size-limit` (`ImagePipeline.Validate`), so nothing is decoded for such a request. It then checks everything else that
+needs no pixels in a fixed order - the page
 (`SourceLoader.CheckPage`), the plan of the outputs (a directory output names each page after the input, a name without
-`{page}` for several pages is a `usage-error`), the output format (`ImageWriter.ResolveFormat`), and every output path
+`{page}` for several pages is a `usage-error`), the output format (`ImageWriter.ResolveFormat`, with the format of the
+write options when set, else the extension), and every output path
 (`ImageWriter.CheckTarget` against the input and the overwrite policy). It then opens the source once
 (`SourceLoader.OpenPages`) and, for each page, loads it, applies the operations with `ImagePipeline.Apply` (the default
 color of a border is the background the user gave, else white for a vector source, else transparent), stages the result
@@ -42,8 +46,10 @@ in every case. The input is never modified.
 #### Error Handling
 
 Every expected failure is a `ViewerException`: `page-out-of-range`, `usage-error` (format, one output for several pages,
-an operation that does not fit the image), `same-input-output`, `output-exists`, `output-write-failed`, and the codes of
-`SourceLoader` and `ImagePipeline`. A null argument throws `ArgumentNullException`. Any other exception is a defect and
+an operation value out of range, an operation that does not fit the image), `size-limit` (an operation size above the
+maximum), `same-input-output`, `output-exists`, `output-write-failed`, and the codes of
+`SourceLoader` and `ImagePipeline`. A null argument or request member throws `ArgumentNullException`. Any other
+exception is a defect and
 propagates; the staged files are removed on every path, so a failure leaves no new or partial output and every existing
 output untouched.
 

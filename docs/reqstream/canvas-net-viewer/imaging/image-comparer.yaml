@@ -28,16 +28,32 @@ sections:
           - ImageComparer_Execute_ResizeToA_FitsTheSecondInputAndReportsIt
           - ImageComparer_Execute_Pictures_AreWrittenInOrder
 
+      - id: CanvasNetViewer-Imaging-ImageComparer-OutputFormat
+        title: >-
+          The ImageComparer class shall take the format of every picture from the format of the write options when it
+          is set, else from the extension of the output, and shall refuse a format that cannot be told with the
+          usage-error code before anything is written.
+        justification: |
+          A caller that names the format must be able to write to a path without an extension or with a custom one,
+          and a format that cannot be told is a mistake that must be found before any input is decoded.
+        tests:
+          - ImageComparer_Execute_ExplicitFormatAndExtensionlessPath_WritesThatFormat
+          - ImageComparer_Execute_ExplicitFormatAndCustomExtension_FormatWinsOverExtension
+          - ImageComparer_Execute_NoFormatAndNoExtension_ThrowsUsageErrorBeforeWriting
+          - ImageComparer_Execute_UnknownExplicitFormat_ThrowsUsageError
+
       - id: CanvasNetViewer-Imaging-ImageComparer-Checks
         title: >-
           The ImageComparer class shall refuse, with the stable error code and before anything is written, inputs of
           different sizes when no resize was asked for (size-mismatch, with a hint), a grid with more cells than the
-          image has pixels in a direction (usage-error), and a picture to write that is one of the inputs
-          (same-input-output).
+          image has pixels in a direction (usage-error), a picture to write that is one of the inputs
+          (same-input-output), and a request with a missing member as a defect of the caller.
         justification: |
           Two images of different sizes have no pixel-by-pixel difference, and a picture must never replace an
-          input; both are mistakes that must be found before any work is done and any file is touched.
+          input; both are mistakes that must be found before any work is done and any file is touched, and a
+          request that lacks a member cannot be carried out at all.
         tests:
           - ImageComparer_Execute_DifferentSizesWithoutResize_ThrowsSizeMismatch
           - ImageComparer_Execute_GridLargerThanImage_ThrowsUsageError
           - ImageComparer_Execute_PictureIsAnInput_ThrowsSameInputOutput
+          - ImageComparer_Execute_NullRequestMember_ThrowsArgumentNullException

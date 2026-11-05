@@ -89,18 +89,28 @@ public static class ImageInspector
     /// <param name="info">The facts about the source, from <see cref="SourceLoader.Probe"/>.</param>
     /// <param name="request">What to inspect.</param>
     /// <returns>What was found; <see cref="InspectResult.Colors"/> or <see cref="InspectResult.Pixel"/> is set, by the kind.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when an argument is <see langword="null"/>, when <see cref="InspectRequest.Source"/> or
+    ///     <see cref="InspectRequest.Operations"/> is <see langword="null"/>, or when an element of the operations is
+    ///     <see langword="null"/>.
+    /// </exception>
     /// <exception cref="ArgumentException">Thrown when the kind is <see cref="InspectKind.Pixel"/> and the request has no point.</exception>
     /// <exception cref="ViewerException">
     ///     Thrown with code <c>page-out-of-range</c> when the page does not exist, with code <c>usage-error</c> when the
-    ///     point lies outside the image after the operations or an operation does not fit the image, and with the codes
-    ///     of <see cref="SourceLoader.Load(SourceInfo, SourceOptions)"/> and <see cref="ImagePipeline.Apply"/> when the
-    ///     source cannot be loaded or transformed.
+    ///     point lies outside the image after the operations, a value of an operation is out of range, or an operation
+    ///     does not fit the image, with code <c>size-limit</c> when a size or border of an operation is larger than the
+    ///     maximum, and with the codes of <see cref="SourceLoader.Load(SourceInfo, SourceOptions)"/> and
+    ///     <see cref="ImagePipeline.Apply"/> when the source cannot be loaded or transformed.
     /// </exception>
     public static InspectResult Execute(SourceInfo info, InspectRequest request)
     {
         ArgumentNullException.ThrowIfNull(info);
         ArgumentNullException.ThrowIfNull(request);
+
+        // Refuse a request with a missing member, and an operation with an invalid value, before anything is loaded
+        ArgumentNullException.ThrowIfNull(request.Source);
+        ArgumentNullException.ThrowIfNull(request.Operations);
+        ImagePipeline.Validate(request.Operations);
         if (request.Kind == InspectKind.Pixel && request.Point == null)
         {
             throw new ArgumentException("A pixel inspection needs a point.", nameof(request));

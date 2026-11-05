@@ -210,4 +210,96 @@ public class ImageRendererTests
             new[] { path, output }.Order(StringComparer.Ordinal),
             Directory.GetFileSystemEntries(directory.Path).Order(StringComparer.Ordinal));
     }
+
+    /// <summary>
+    ///     Test that an explicit format writes a picture to an output without an extension.
+    /// </summary>
+    [Fact]
+    public void ImageRenderer_Execute_ExplicitFormatAndExtensionlessOutput_WritesThatFormat()
+    {
+        // Arrange: an output without an extension, with JPEG asked for in the write options
+        using var directory = new TempDirectory();
+        var (_, info) = CreatePng(directory, "in.png");
+        var output = directory.Combine("out");
+        var request = CreateRequest(output) with { Write = WriteOptions.Default with { Format = OutputFormat.Jpeg } };
+
+        // Act
+        var result = ImageRenderer.Execute(info, request);
+
+        // Assert: the file is a JPEG, which starts with FF D8
+        Assert.Equal(OutputFormat.Jpeg, Assert.Single(result.Pages).Result.Format);
+        Assert.Equal(new byte[] { 0xFF, 0xD8 }, File.ReadAllBytes(output).Take(2));
+    }
+
+    /// <summary>
+    ///     Test that a request with a missing member is a caller error, and nothing is written.
+    /// </summary>
+    /// <param name="member">The member that is <see langword="null"/>.</param>
+    [Theory]
+    [InlineData("Output")]
+    [InlineData("Source")]
+    [InlineData("Write")]
+    [InlineData("Operations")]
+    public void ImageRenderer_Execute_NullRequestMember_ThrowsArgumentNullException(string member)
+    {
+        // Arrange: a valid request with one member removed
+        using var directory = new TempDirectory();
+        var (path, info) = CreatePng(directory, "in.png");
+        var request = CreateRequest(directory.Combine("out.png"));
+        request = member switch
+        {
+            "Output" => request with { Output = null! },
+            "Source" => request with { Source = null! },
+            "Write" => request with { Write = null! },
+            _ => request with { Operations = null! }
+        };
+
+        // Act
+        var error = Assert.Throws<ArgumentNullException>(() => ImageRenderer.Execute(info, request));
+
+        // Assert: the member is named, and nothing but the input is in the folder
+        Assert.Contains(member, error.ParamName);
+        Assert.Equal([path], Directory.GetFileSystemEntries(directory.Path));
+    }
+
+    /// <summary>
+    ///     Test that a missing operation in the list is a caller error, and nothing is written.
+    /// </summary>
+    [Fact]
+    public void ImageRenderer_Execute_NullOperationElement_ThrowsArgumentNullException()
+    {
+        // Arrange: a list whose second operation is missing
+        using var directory = new TempDirectory();
+        var (path, info) = CreatePng(directory, "in.png");
+        IImageOperation[] operations = [new InvertOperation(), null!];
+        var request = CreateRequest(directory.Combine("out.png")) with { Operations = operations };
+
+        // Act
+        var error = Assert.Throws<ArgumentNullException>(() => ImageRenderer.Execute(info, request));
+
+        // Assert: the list is named, and nothing but the input is in the folder
+        Assert.Equal("operations", error.ParamName);
+        Assert.Equal([path], Directory.GetFileSystemEntries(directory.Path));
+    }
+
+    /// <summary>
+    ///     Test that an operation with an invalid value is refused before the source is decoded or anything is written.
+    /// </summary>
+    [Fact]
+    public void ImageRenderer_Execute_InvalidOperationValue_ThrowsUsageErrorBeforeDecodeOrWrite()
+    {
+        // Arrange: a probed source whose file is gone, so that decoding it would fail with another code
+        using var directory = new TempDirectory();
+        var (path, info) = CreatePng(directory, "in.png");
+        File.Delete(path);
+
+        // Act
+        var error = Assert.Throws<ViewerException>(
+            () => ImageRenderer.Execute(info, CreateRequest(directory.Combine("out.png"), false, new ResizeOperation(0, 0, ResamplingMode.Auto))));
+
+        // Assert: the usage error of the operation, and nothing written
+        Assert.Equal(ErrorCodes.UsageError, error.Code);
+        Assert.Contains("resize", error.Message);
+        Assert.Empty(Directory.GetFileSystemEntries(directory.Path));
+    }
 }

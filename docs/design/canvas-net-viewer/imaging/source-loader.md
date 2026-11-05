@@ -49,9 +49,11 @@ model that is entirely 2D; for `compare` the per-input views set it too), `Azimu
 and `Elevation` (nullable; they replace the angles of the view), `IsViewExplicit` (computed: `ViewGiven`, or an
 `Azimuth` or an `Elevation` was given, or `View` is a name other than `iso`), `Perspective` (default `false`),
 `Defines` (the
-variables as a dictionary of `double`, `bool`, and `string` values), `Time` (nullable, the value of `$t`),
+variables as a dictionary of `double`, `bool`, and `string` values; by default one shared empty read-only dictionary),
+`Time` (nullable, the value of `$t`),
 `MaxTriangles` (nullable, the library default of 5,000,000 when absent), and `DefaultColor` (nullable). **ScadView**
-(record): a view's `Name`, `Azimuth`, and `Elevation`. **SourceLoader.ScadViews** is the table of the views, in the
+(record): a view's `Name`, `Azimuth`, and `Elevation`. **SourceLoader.ScadViews** is the read-only table of the views (it
+cannot be changed, not even through a cast), in the
 order the help lists them: `iso` (45 and the library's isometric elevation, about 35.26), `front` (0, 0), `back`
 (180, 0), `left` (270, 0), `right` (90, 0), `top` (0, 90), and `bottom` (0, -90). The camera convention is the
 library's: the eye is at `(sin az cos el, -cos az cos el, sin el)` looking at the model, Z up, so azimuth 0 looks
@@ -68,7 +70,8 @@ number, a flag, or a list of strings).
 **PageSource** (abstract, `IDisposable`): a source opened for loading its pages; `ReadPage(page)` loads one. It is
 what `OpenPages` returns.
 
-**ExtensionKinds**: the table of file name extensions (lower case, with the dot) and their kinds (`.vl` is the
+**ExtensionKinds**: the read-only table (it cannot be changed, not even through a cast) of file name extensions (lower
+case, with the dot) and their kinds (`.vl` is the
 chart extension); the `formats` command lists the same extensions and a test keeps the two consistent. The two-part
 suffix of a chart, `.vl.json` (`VegaLiteJsonSuffix`), cannot be an extension (the extension of such a file is `.json`),
 so it is checked on the file name and the `formats` listing adds it to the extensions of the `vega-lite` row.

@@ -219,3 +219,29 @@ gives a different surface with the same pixels, and a crop outside the image is 
 in
 any case and round-trips through `FilterName`, an unknown name is refused without an exception, and an anchor after a
 crop loses the origin of the crop.
+
+**ImagePipeline_Apply_InvalidOperationValue_ThrowsUsageError** (`ImagePipelineValidationTests.cs`): one row for each
+kind of invalid value of a record built by hand: a size of 0 or less, a negative border side, an undefined filter or flip
+axis, a rotation of NaN or infinity, a threshold, level, gamma, brightness, contrast, clip, tolerance, or grid spacing
+outside its range, a black point not below the white point, and a crop region with a zero or negative size, a negative or
+NaN origin, a percentage above 100, or the `default` region; each is a `usage-error` whose message starts with the
+position and name of the operation and ends in a period, and whose hint is not empty.
+
+**ImagePipeline_Apply_SizeBeyondMaxDimension_ThrowsSizeLimit** (`ImagePipelineValidationTests.cs`): a resize, a fit, and
+a pad one pixel above 8192 are `size-limit`, and the message names 8192.
+
+**ImagePipeline_Apply_InvalidOperationAfterValidOnes_FailsBeforeAnyWork** and
+**ImagePipeline_Apply_NullOperationElement_ThrowsArgumentNullException** (`ImagePipelineValidationTests.cs`): an invert
+followed by a resize to a width of 0 fails with the exact message `Operation 2 (resize): the width must be at least 1
+pixel, not 0.` before any step runs, and the input is neither changed nor disposed; a null operation in the list throws
+`ArgumentNullException` for the list and names the position.
+
+**ImagePipeline_Apply_BoundaryValues_AreAccepted** (`ImagePipelineValidationTests.cs`): the smallest and the largest valid
+value of every range (a size of 1, grid spacings of 8 and 4096, levels from 0 to 1 with a gamma of 0.1 and from 254 to 255
+with a gamma of 10, brightness of 255 and -255, contrast of 100 and -100, clips of 0 and 20, tolerances of 0 and 255, every
+threshold, a pad of 0, rotations of -90, 450, and 1000000 degrees, a crop of the whole image in percent) are applied, so
+the validation is not stricter than the command line.
+
+**ImagePipeline_FilterNames_CannotBeChangedThroughACast** (`ImagePipelineApplyTests.cs`): the list of filter names is
+neither an array nor a `List`, adding, replacing, removing, and clearing through `IList` throw `NotSupportedException`,
+and the names and the lookups that use them are unchanged.

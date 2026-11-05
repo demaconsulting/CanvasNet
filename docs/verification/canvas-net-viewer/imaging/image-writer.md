@@ -91,3 +91,7 @@ output, because the temporary file does not take its name from the target.
 
 **ImageWriter_Write_SamePixelsTwice_WritesIdenticalBytes**: the same image written twice as each format gives the
 same bytes.
+
+**ImageWriter_ExtensionFormats_CannotBeChangedThroughACast**: the table of extensions is not a `Dictionary`, adding,
+replacing, removing, and clearing through `IDictionary` throw `NotSupportedException`, and the table still resolves
+`.PNG` to PNG.

@@ -23,6 +23,7 @@ sections:
           - ImageWriter_ResolveFormat_FormatOption_WinsOverExtension
           - ImageWriter_ResolveFormat_UnknownFormat_ThrowsUsageError
           - ImageWriter_ExtensionFormats_AreWellFormed
+          - ImageWriter_ExtensionFormats_CannotBeChangedThroughACast
           - ImageWriter_Write_FormatOption_EncodesThatFormat
 
       - id: CanvasNetViewer-Imaging-ImageWriter-Lossless

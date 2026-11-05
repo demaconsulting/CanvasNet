@@ -147,9 +147,14 @@ public static class ImageComparer
     /// </summary>
     /// <param name="request">What to compare.</param>
     /// <returns>The measures, the threshold checks, and the pictures that were written.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="request"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when <paramref name="request"/> is <see langword="null"/>, or when one of its members that the
+    ///     operation needs (the inputs with their label, facts, and options, the thresholds, and the write options) is
+    ///     <see langword="null"/>.
+    /// </exception>
     /// <exception cref="ViewerException">
-    ///     Thrown with code <c>usage-error</c> when an output format cannot be told, two outputs are the same file, or the
+    ///     Thrown with code <c>usage-error</c> when an output format cannot be told (<see cref="WriteOptions.Format"/>
+    ///     wins over the extension of the output), two outputs are the same file, or the
     ///     grid is larger than the images; with code <c>size-mismatch</c> when the inputs have different sizes and no
     ///     resize was requested; with codes <c>same-input-output</c>, <c>output-exists</c>, or <c>output-write-failed</c>
     ///     when a picture cannot be written; and with the codes of
@@ -158,6 +163,18 @@ public static class ImageComparer
     public static CompareResult Execute(CompareRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
+
+        // Refuse a request with a missing member before anything is checked, loaded, or written
+        ArgumentNullException.ThrowIfNull(request.A);
+        ArgumentNullException.ThrowIfNull(request.B);
+        ArgumentNullException.ThrowIfNull(request.A.Label);
+        ArgumentNullException.ThrowIfNull(request.B.Label);
+        ArgumentNullException.ThrowIfNull(request.A.Info);
+        ArgumentNullException.ThrowIfNull(request.B.Info);
+        ArgumentNullException.ThrowIfNull(request.A.Source);
+        ArgumentNullException.ThrowIfNull(request.B.Source);
+        ArgumentNullException.ThrowIfNull(request.Thresholds);
+        ArgumentNullException.ThrowIfNull(request.Write);
 
         // Report every mistake about the outputs before any pixels are decoded
         var requested = new List<(string Kind, string Path)>();
@@ -176,9 +193,11 @@ public static class ImageComparer
             requested.Add(("overlay", request.OverlayPath));
         }
 
+        // The format is the explicit one when given, else the one the extension says
+        var format = request.Write.Format?.ToFormatName();
         foreach (var (_, path) in requested)
         {
-            ImageWriter.ResolveFormat(path, null);
+            ImageWriter.ResolveFormat(path, format);
         }
 
         ImageWriter.CheckTargets(

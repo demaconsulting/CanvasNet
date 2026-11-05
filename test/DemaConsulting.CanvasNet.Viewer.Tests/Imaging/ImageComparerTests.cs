@@ -221,4 +221,144 @@ public class ImageComparerTests
         // Assert
         Assert.Equal(ErrorCodes.SameInputOutput, error.Code);
     }
+
+    /// <summary>
+    ///     Test that an explicit format writes a picture to an output without an extension.
+    /// </summary>
+    [Fact]
+    public void ImageComparer_Execute_ExplicitFormatAndExtensionlessPath_WritesThatFormat()
+    {
+        // Arrange: a difference picture named without an extension, with the format given in the write options
+        using var directory = new TempDirectory();
+        var request = CreateRequest(
+            CreateInput(directory, "a", 20, 10, new Rgba32(0, 0, 0, 255)),
+            CreateInput(directory, "b", 20, 10, White)) with
+        {
+            DiffPath = directory.Combine("diff"),
+            Write = WriteOptions.Default with { Format = OutputFormat.Png }
+        };
+
+        // Act
+        var result = ImageComparer.Execute(request);
+
+        // Assert: the file exists, is reported as a PNG, and starts with the PNG signature
+        var picture = Assert.Single(result.Pictures);
+        Assert.Equal(OutputFormat.Png, picture.Result.Format);
+        Assert.Equal(new byte[] { 0x89, 0x50, 0x4E, 0x47 }, File.ReadAllBytes(directory.Combine("diff")).Take(4));
+    }
+
+    /// <summary>
+    ///     Test that an explicit format wins over a custom extension.
+    /// </summary>
+    [Fact]
+    public void ImageComparer_Execute_ExplicitFormatAndCustomExtension_FormatWinsOverExtension()
+    {
+        // Arrange: a picture named diff.dat with JPEG asked for
+        using var directory = new TempDirectory();
+        var request = CreateRequest(
+            CreateInput(directory, "a", 20, 10, new Rgba32(0, 0, 0, 255)),
+            CreateInput(directory, "b", 20, 10, White)) with
+        {
+            DiffPath = directory.Combine("diff.dat"),
+            Write = WriteOptions.Default with { Format = OutputFormat.Jpeg }
+        };
+
+        // Act
+        var result = ImageComparer.Execute(request);
+
+        // Assert: a JPEG, which starts with FF D8
+        Assert.Equal(OutputFormat.Jpeg, Assert.Single(result.Pictures).Result.Format);
+        Assert.Equal(new byte[] { 0xFF, 0xD8 }, File.ReadAllBytes(directory.Combine("diff.dat")).Take(2));
+    }
+
+    /// <summary>
+    ///     Test that an output whose format cannot be told is refused before anything is written.
+    /// </summary>
+    [Fact]
+    public void ImageComparer_Execute_NoFormatAndNoExtension_ThrowsUsageErrorBeforeWriting()
+    {
+        // Arrange: no explicit format and no extension
+        using var directory = new TempDirectory();
+        var request = CreateRequest(
+            CreateInput(directory, "a", 20, 10, new Rgba32(0, 0, 0, 255)),
+            CreateInput(directory, "b", 20, 10, White)) with
+        {
+            DiffPath = directory.Combine("diff")
+        };
+
+        // Act
+        var error = Assert.Throws<ViewerException>(() => ImageComparer.Execute(request));
+
+        // Assert: a usage error, and nothing but the two inputs in the folder
+        Assert.Equal(ErrorCodes.UsageError, error.Code);
+        Assert.Equal(2, Directory.GetFileSystemEntries(directory.Path).Length);
+    }
+
+    /// <summary>
+    ///     Test that an explicit format that is not a known one is a usage error.
+    /// </summary>
+    [Fact]
+    public void ImageComparer_Execute_UnknownExplicitFormat_ThrowsUsageError()
+    {
+        // Arrange: a format value that no member has
+        using var directory = new TempDirectory();
+        var request = CreateRequest(
+            CreateInput(directory, "a", 20, 10, White),
+            CreateInput(directory, "b", 20, 10, White)) with
+        {
+            DiffPath = directory.Combine("diff.png"),
+            Write = WriteOptions.Default with { Format = (OutputFormat)99 }
+        };
+
+        // Act
+        var error = Assert.Throws<ViewerException>(() => ImageComparer.Execute(request));
+
+        // Assert
+        Assert.Equal(ErrorCodes.UsageError, error.Code);
+        Assert.Contains("Unknown output format", error.Message);
+    }
+
+    /// <summary>
+    ///     Test that a request with a missing member is a caller error, and nothing is written.
+    /// </summary>
+    /// <param name="member">The member that is <see langword="null"/>.</param>
+    [Theory]
+    [InlineData("A")]
+    [InlineData("B")]
+    [InlineData("A.Label")]
+    [InlineData("B.Label")]
+    [InlineData("A.Info")]
+    [InlineData("B.Info")]
+    [InlineData("A.Source")]
+    [InlineData("B.Source")]
+    [InlineData("Thresholds")]
+    [InlineData("Write")]
+    public void ImageComparer_Execute_NullRequestMember_ThrowsArgumentNullException(string member)
+    {
+        // Arrange: a valid request that writes a picture, with one member removed
+        using var directory = new TempDirectory();
+        var a = CreateInput(directory, "a", 20, 10, White);
+        var b = CreateInput(directory, "b", 20, 10, White);
+        var request = CreateRequest(a, b) with { DiffPath = directory.Combine("diff.png") };
+        request = member switch
+        {
+            "A" => request with { A = null! },
+            "B" => request with { B = null! },
+            "A.Label" => request with { A = a with { Label = null! } },
+            "B.Label" => request with { B = b with { Label = null! } },
+            "A.Info" => request with { A = a with { Info = null! } },
+            "B.Info" => request with { B = b with { Info = null! } },
+            "A.Source" => request with { A = a with { Source = null! } },
+            "B.Source" => request with { B = b with { Source = null! } },
+            "Thresholds" => request with { Thresholds = null! },
+            _ => request with { Write = null! }
+        };
+
+        // Act
+        var error = Assert.Throws<ArgumentNullException>(() => ImageComparer.Execute(request));
+
+        // Assert: the member is named, and nothing but the two inputs is in the folder
+        Assert.Contains(member, error.ParamName);
+        Assert.Equal(2, Directory.GetFileSystemEntries(directory.Path).Length);
+    }
 }

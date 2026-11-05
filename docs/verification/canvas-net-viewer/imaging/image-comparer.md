@@ -47,3 +47,17 @@ overlay, the difference picture has the size of the images, and the side-by-side
 
 **ImageComparer_Execute_PictureIsAnInput_ThrowsSameInputOutput**: a difference picture whose path is an input is
 `same-input-output` and the input is unchanged.
+
+**ImageComparer_Execute_ExplicitFormatAndExtensionlessPath_WritesThatFormat** and
+**ImageComparer_Execute_ExplicitFormatAndCustomExtension_FormatWinsOverExtension**: with a format in the write options,
+a difference picture named `diff` is a PNG (the signature bytes and the reported format) and one named `diff.dat` is a
+JPEG (it starts with FF D8), so the format of the options wins over the extension.
+
+**ImageComparer_Execute_NoFormatAndNoExtension_ThrowsUsageErrorBeforeWriting** and
+**ImageComparer_Execute_UnknownExplicitFormat_ThrowsUsageError**: without a format in the options a picture named `diff`
+is a `usage-error` and the folder holds only the two inputs; a format value that no member has is a `usage-error` that
+says `Unknown output format`.
+
+**ImageComparer_Execute_NullRequestMember_ThrowsArgumentNullException**: a request without the first or second input,
+the label, facts, or options of either, the thresholds, or the write options throws `ArgumentNullException` that names
+the member, and nothing is written.

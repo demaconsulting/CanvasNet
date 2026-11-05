@@ -465,3 +465,9 @@ two anchors at `[0, 0, 2]` and `[1, 0, 2]` and a malformed one, is loaded from t
 has the two anchors in order with their world points, the first at the pixel `(50, 50)` (the center of the picture) and
 the second to its right, and the malformed declaration is a `scad-warning` note that contains `scad-anchor-invalid:`;
 a model without anchors has none.
+
+**SourceLoader_ExtensionKinds_CannotBeChangedThroughACast**, **SourceLoader_ScadViews_CannotBeChangedThroughACast**, and
+**SourceLoader_ScadViewOptionsDefaultDefines_CannotBeChangedThroughACast**: the table of extensions, the list of the seven
+views, and the default `Defines` of a `ScadViewOptions` are not a `Dictionary`, an array, or a `List`; adding, replacing,
+removing, and clearing through `IDictionary` or `IList` throw `NotSupportedException`; and the table and the list are
+unchanged afterwards (`.PNG` still means PNG, and there are still seven views).

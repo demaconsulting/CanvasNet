@@ -96,11 +96,17 @@ public static class ImageRenderer
     /// <param name="info">The facts about the source, from <see cref="SourceLoader.Probe"/>.</param>
     /// <param name="request">What to render.</param>
     /// <returns>What was written, page by page.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when an argument is <see langword="null"/>, when <see cref="RenderRequest.Output"/>,
+    ///     <see cref="RenderRequest.Source"/>, <see cref="RenderRequest.Write"/>, or <see cref="RenderRequest.Operations"/>
+    ///     is <see langword="null"/>, or when an element of the operations is <see langword="null"/>.
+    /// </exception>
     /// <exception cref="ViewerException">
     ///     Thrown with code <c>page-out-of-range</c> when a page does not exist; with code <c>usage-error</c> when the
-    ///     format cannot be told from the output, every page would be written to the same file, or an operation does not
-    ///     fit the image; with codes <c>same-input-output</c>, <c>output-exists</c>, or <c>output-write-failed</c> when an
+    ///     format cannot be told from the output (<see cref="WriteOptions.Format"/> wins over the extension), every page
+    ///     would be written to the same file, a value of an operation is out of range, or an operation does not
+    ///     fit the image; with code <c>size-limit</c> when a size or border of an operation is larger than the maximum;
+    ///     with codes <c>same-input-output</c>, <c>output-exists</c>, or <c>output-write-failed</c> when an
     ///     output cannot be written; and with the codes of <see cref="SourceLoader.Load(SourceInfo, SourceOptions)"/> and
     ///     <see cref="ImagePipeline.Apply"/> when the source cannot be loaded or transformed.
     /// </exception>
@@ -108,6 +114,14 @@ public static class ImageRenderer
     {
         ArgumentNullException.ThrowIfNull(info);
         ArgumentNullException.ThrowIfNull(request);
+
+        // Refuse a request with a missing member, and an operation with an invalid value, before anything else
+        // happens: nothing is probed, decoded, or written for a request that cannot be carried out
+        ArgumentNullException.ThrowIfNull(request.Output);
+        ArgumentNullException.ThrowIfNull(request.Source);
+        ArgumentNullException.ThrowIfNull(request.Write);
+        ArgumentNullException.ThrowIfNull(request.Operations);
+        ImagePipeline.Validate(request.Operations);
 
         // Report every mistake about the pages and the outputs before any pixels are decoded
         var pages = request.AllPages ? Enumerable.Range(1, info.PageCount).ToList() : [request.Source.Page];

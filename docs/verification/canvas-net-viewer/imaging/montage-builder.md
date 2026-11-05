@@ -41,3 +41,13 @@ written.
 **MontageBuilder_Execute_OutputIsAnInput_ThrowsSameInputOutput**: a sheet whose path is an input is `same-input-output`.
 
 **MontageBuilder_Execute_NoInputs_ThrowsArgumentException**: an empty list of inputs throws `ArgumentException`.
+
+**MontageBuilder_Execute_ExplicitFormatAndExtensionlessOutput_WritesThatFormat** and
+**MontageBuilder_Execute_NoFormatAndNoExtension_ThrowsUsageError**: with JPEG in the write options a sheet named `sheet`
+is written as a JPEG (it starts with FF D8); without a format a sheet named `sheet` is a `usage-error` and nothing is
+written.
+
+**MontageBuilder_Execute_NullRequestMember_ThrowsArgumentNullException** and
+**MontageBuilder_Execute_NullInfoElement_ThrowsArgumentNullException**: a request without the output, the sheet options,
+or the write options throws `ArgumentNullException` that names the member; a missing input in the list throws it for
+`infos` with the position; nothing is written.

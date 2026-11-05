@@ -274,6 +274,13 @@ catch (ViewerException ex) when (ex.Code == ErrorCodes.PageOutOfRange)
 }
 ```
 
+The operation records you build yourself are checked up front: a value that no command line could produce (a resize to
+0x0, a levels black point above the white point, a rotation of NaN) is a `usage-error` `ViewerException` (`size-limit`
+above 8192 pixels) whose message names the position and the operation, raised before anything is decoded or written. A
+request with a missing member, or a null element in a list, is a defect of the caller and throws
+`ArgumentNullException`. The format in `WriteOptions.Format` is used for every output, also for one without an extension
+or with a custom one; without it the extension decides.
+
 A note about the two ways to draw a file: `CanvasNetViewer.Render` (above) is the simple way to get a picture of a file
 (transparent background for vector files, the fit of a raster into a box, the image-source sandbox, and its own
 exceptions), and the `Imaging` operations are the way the `canvasnet` tool works (document pages and resolution, EXIF

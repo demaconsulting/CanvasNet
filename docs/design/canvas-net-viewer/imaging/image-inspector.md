@@ -25,7 +25,10 @@ pixels), `Background` (the opaque color a translucent background was reduced to;
 
 #### Key Methods
 
-**Execute(info, request)**: refuses a pixel request without a point as a defect of the caller, checks the page, loads the
+**Execute(info, request)**: refuses a request with a missing member (`Source`, `Operations`, or a null operation) as
+`ArgumentNullException`, an operation with an invalid value as a `usage-error` or `size-limit`
+(`ImagePipeline.Validate`, before anything is decoded), and a pixel request without a point as a defect of the caller,
+checks the page, loads the
 page with `SourceLoader.Load`, applies the operations with `ImagePipeline.Apply` (the default color of a border as in
 `ImageRenderer`), and then analyzes the result: `Surface.Analyze` over opaque white for the colors (the loader and the
 pipeline have already composited the picture over the background, so what is still translucent is analyzed over white
@@ -35,8 +38,10 @@ translucent one flattened over white; white when none was given.
 
 #### Error Handling
 
-`ViewerException` with `page-out-of-range`, `usage-error` (the point outside the image, an operation that does not fit),
-and the codes of `SourceLoader` and `ImagePipeline`. A null argument or a pixel request without a point is a defect
+`ViewerException` with `page-out-of-range`, `usage-error` (the point outside the image, an operation value out of range,
+an operation that does not fit), `size-limit` (an operation size above the maximum),
+and the codes of `SourceLoader` and `ImagePipeline`. A null argument, a request with a missing member, or a pixel
+request without a point is a defect
 (`ArgumentNullException`, `ArgumentException`). Any other exception propagates. The intermediate surface of the
 pipeline is disposed on every path.
 

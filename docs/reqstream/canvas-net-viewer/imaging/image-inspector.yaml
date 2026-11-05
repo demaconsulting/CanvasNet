@@ -29,11 +29,17 @@ sections:
 
       - id: CanvasNetViewer-Imaging-ImageInspector-Arguments
         title: >-
-          The ImageInspector class shall refuse a point outside the pixels it analyzes with the usage-error code, and
-          shall report a request for a pixel without a point as a defect of the caller.
+          The ImageInspector class shall refuse a point outside the pixels it analyzes with the usage-error code, shall
+          refuse an operation with an invalid value (usage-error, or size-limit above the maximum size) before the
+          source is decoded, and shall report a request for a pixel without a point, a request with a missing member,
+          and a missing operation as a defect of the caller.
         justification: |
-          A position outside the picture is a mistake of the user that must be reported with the size it was
-          compared to; a missing point is a mistake of the program that must fail fast.
+          A position outside the picture or a value out of range is a mistake of the user that must be reported
+          with the size or range it was compared to; a missing point or member is a mistake of the program that
+          must fail fast.
         tests:
           - ImageInspector_Execute_PointOutsideImage_ThrowsUsageError
           - ImageInspector_Execute_PixelWithoutPoint_ThrowsArgumentException
+          - ImageInspector_Execute_NullRequestMember_ThrowsArgumentNullException
+          - ImageInspector_Execute_NullOperationElement_ThrowsArgumentNullException
+          - ImageInspector_Execute_InvalidOperationValue_ThrowsUsageError

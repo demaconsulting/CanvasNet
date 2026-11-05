@@ -152,4 +152,90 @@ public class MontageBuilderTests
         Assert.Throws<ArgumentException>(() => MontageBuilder.Execute([], CreateRequest("sheet.png")));
         Assert.Throws<ArgumentNullException>(() => MontageBuilder.Execute(null!, CreateRequest("sheet.png")));
     }
+
+    /// <summary>
+    ///     Test that an explicit format writes a sheet to an output without an extension.
+    /// </summary>
+    [Fact]
+    public void MontageBuilder_Execute_ExplicitFormatAndExtensionlessOutput_WritesThatFormat()
+    {
+        // Arrange: a sheet named without an extension, with JPEG asked for in the write options
+        using var directory = new TempDirectory();
+        var output = directory.Combine("sheet");
+        var request = CreateRequest(output) with { Write = WriteOptions.Default with { Format = OutputFormat.Jpeg } };
+
+        // Act
+        var result = MontageBuilder.Execute([CreatePng(directory, "a.png")], request);
+
+        // Assert: the sheet is a JPEG, which starts with FF D8
+        Assert.Equal(output, result.Written.Path);
+        Assert.Equal(OutputFormat.Jpeg, result.Written.Format);
+        Assert.Equal(new byte[] { 0xFF, 0xD8 }, File.ReadAllBytes(output).Take(2));
+    }
+
+    /// <summary>
+    ///     Test that an output whose format cannot be told is refused before anything is written.
+    /// </summary>
+    [Fact]
+    public void MontageBuilder_Execute_NoFormatAndNoExtension_ThrowsUsageError()
+    {
+        // Arrange: no explicit format and no extension
+        using var directory = new TempDirectory();
+        var output = directory.Combine("sheet");
+
+        // Act
+        var error = Assert.Throws<ViewerException>(() => MontageBuilder.Execute([CreatePng(directory, "a.png")], CreateRequest(output)));
+
+        // Assert
+        Assert.Equal(ErrorCodes.UsageError, error.Code);
+        Assert.False(File.Exists(output));
+    }
+
+    /// <summary>
+    ///     Test that a request with a missing member is a caller error, and nothing is written.
+    /// </summary>
+    /// <param name="member">The member that is <see langword="null"/>.</param>
+    [Theory]
+    [InlineData("Output")]
+    [InlineData("Sheet")]
+    [InlineData("Write")]
+    public void MontageBuilder_Execute_NullRequestMember_ThrowsArgumentNullException(string member)
+    {
+        // Arrange: a valid request with one member removed
+        using var directory = new TempDirectory();
+        var info = CreatePng(directory, "a.png");
+        var request = CreateRequest(directory.Combine("sheet.png"));
+        request = member switch
+        {
+            "Output" => request with { Output = null! },
+            "Sheet" => request with { Sheet = null! },
+            _ => request with { Write = null! }
+        };
+
+        // Act
+        var error = Assert.Throws<ArgumentNullException>(() => MontageBuilder.Execute([info], request));
+
+        // Assert: the member is named, and nothing was written
+        Assert.Contains(member, error.ParamName);
+        Assert.False(File.Exists(directory.Combine("sheet.png")));
+    }
+
+    /// <summary>
+    ///     Test that a missing input in the list is a caller error, and nothing is written.
+    /// </summary>
+    [Fact]
+    public void MontageBuilder_Execute_NullInfoElement_ThrowsArgumentNullException()
+    {
+        // Arrange: a list whose second element is missing
+        using var directory = new TempDirectory();
+        SourceInfo[] infos = [CreatePng(directory, "a.png"), null!];
+
+        // Act
+        var error = Assert.Throws<ArgumentNullException>(() => MontageBuilder.Execute(infos, CreateRequest(directory.Combine("sheet.png"))));
+
+        // Assert: the list is named with the position, and nothing was written
+        Assert.Equal("infos", error.ParamName);
+        Assert.Contains("2", error.Message);
+        Assert.False(File.Exists(directory.Combine("sheet.png")));
+    }
 }

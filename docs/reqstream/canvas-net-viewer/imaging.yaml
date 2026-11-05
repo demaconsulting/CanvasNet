@@ -136,6 +136,7 @@ sections:
           - CanvasNetViewer-Imaging-ImagePipeline-Ownership
           - CanvasNetViewer-Imaging-ImagePipeline-SizeLimit
           - CanvasNetViewer-Imaging-ImagePipeline-Arguments
+          - CanvasNetViewer-Imaging-ImagePipeline-OperationValues
         tests:
           - Imaging_Pipeline_LoadedSource_TransformedAndWrittenOnce
           - Imaging_Photo_SameInputsTwice_WriteIdenticalBytes
@@ -155,6 +156,7 @@ sections:
           - CanvasNetViewer-Imaging-ImageComparison-Defaults
           - CanvasNetViewer-Imaging-ImageComparer-Measure
           - CanvasNetViewer-Imaging-ImageComparer-Checks
+          - CanvasNetViewer-Imaging-ImageComparer-OutputFormat
         tests:
           - Imaging_Compare_LoadedSourcesAreComparedAndVisualized
           - Imaging_Compare_ComparerLoadsAndMeasuresTwoKinds_AndWritesThePicture
@@ -179,6 +181,7 @@ sections:
           - CanvasNetViewer-Imaging-ContactSheet-Deterministic
           - CanvasNetViewer-Imaging-MontageBuilder-Compose
           - CanvasNetViewer-Imaging-MontageBuilder-Checks
+          - CanvasNetViewer-Imaging-MontageBuilder-OutputFormat
         tests:
           - Imaging_Montage_LoadedSourcesAreComposedAndWritten
           - Imaging_Montage_BuilderComposesSeveralKinds_AndWritesOneSheet

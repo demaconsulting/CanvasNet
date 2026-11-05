@@ -7,7 +7,7 @@ namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 /// <summary>
 ///     What to compose: where to write, how the inputs are loaded, and the options of the sheet.
 /// </summary>
-/// <param name="Output">The path of the contact sheet; its extension selects the format.</param>
+/// <param name="Output">The path of the contact sheet; its extension selects the format unless <c>Write.Format</c> is set.</param>
 /// <param name="Page">The page of each document, or <see langword="null"/> for the first; ignored with <paramref name="AllPages"/>.</param>
 /// <param name="AllPages"><see langword="true"/> to add every page of each document, in order, instead of one.</param>
 /// <param name="Dpi">The resolution of a document in dots per inch, or <see langword="null"/> for the default.</param>
@@ -101,12 +101,17 @@ public static class MontageBuilder
     /// <param name="infos">The facts about the inputs, from <see cref="SourceLoader.Probe"/>, in the order they appear on the sheet.</param>
     /// <param name="request">What to compose.</param>
     /// <returns>The layout of the sheet, what was written, and what is reported about each cell.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentNullException">
+    ///     Thrown when an argument is <see langword="null"/>, when <see cref="MontageRequest.Output"/>,
+    ///     <see cref="MontageRequest.Sheet"/>, or <see cref="MontageRequest.Write"/> is <see langword="null"/>, or when an
+    ///     element of <paramref name="infos"/> is <see langword="null"/>.
+    /// </exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="infos"/> is empty.</exception>
     /// <exception cref="ViewerException">
     ///     Thrown with code <c>page-out-of-range</c> when the page is not a page of a document, with code
     ///     <c>size-limit</c> when the sheet would be too large, with code <c>usage-error</c> when the output format cannot
-    ///     be told, with codes <c>same-input-output</c>, <c>output-exists</c>, or <c>output-write-failed</c> when the
+    ///     be told (<see cref="WriteOptions.Format"/> wins over the extension of the output), with codes
+    ///     <c>same-input-output</c>, <c>output-exists</c>, or <c>output-write-failed</c> when the
     ///     sheet cannot be written, and with the codes of <see cref="SourceLoader.Load(SourceInfo, SourceOptions)"/> when
     ///     an input cannot be loaded.
     /// </exception>
@@ -119,11 +124,23 @@ public static class MontageBuilder
             throw new ArgumentException("A montage needs at least one input.", nameof(infos));
         }
 
+        // Refuse a request with a missing member, or a missing input, before anything is planned or loaded
+        ArgumentNullException.ThrowIfNull(request.Output);
+        ArgumentNullException.ThrowIfNull(request.Sheet);
+        ArgumentNullException.ThrowIfNull(request.Write);
+        for (var i = 0; i < infos.Count; i++)
+        {
+            if (infos[i] is null)
+            {
+                throw new ArgumentNullException(nameof(infos), $"Input {i + 1} of the list must not be null.");
+            }
+        }
+
         // Report every mistake about the pages and the output before any pixels are decoded
         var inputs = infos.Select(info => info.Path).ToList();
         var cells = PlanCells(request, infos);
         var layout = ContactSheet.CalculateLayout(cells.Count, request.Sheet);
-        ImageWriter.ResolveFormat(request.Output, null);
+        ImageWriter.ResolveFormat(request.Output, request.Write.Format?.ToFormatName());
         ImageWriter.CheckTargets([request.Output], inputs, request.Write.NoClobber);
 
         var placed = new List<MontageCell>();

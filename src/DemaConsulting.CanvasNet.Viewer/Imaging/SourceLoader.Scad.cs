@@ -1,4 +1,5 @@
 // cspell:ignore scad openscad
+using System.Collections.ObjectModel;
 using System.Globalization;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Render3D.SceneRendering;
@@ -55,9 +56,9 @@ public static partial class SourceLoader
     /// <remarks>
     ///     The camera of a view is on the side of the model its name says, looking at the model; the Z axis is up. A
     ///     front view looks along +Y from the -Y side, a right view looks along -X from the +X side, and a top view
-    ///     looks down along -Z.
+    ///     looks down along -Z. The list cannot be changed, not even through a cast.
     /// </remarks>
-    public static readonly IReadOnlyList<ScadView> ScadViews =
+    public static readonly IReadOnlyList<ScadView> ScadViews = new ReadOnlyCollection<ScadView>(
     [
         new(DefaultScadView, Camera.DefaultAzimuthDegrees, Camera.DefaultElevationDegrees),
         new("front", 0, 0),
@@ -66,7 +67,7 @@ public static partial class SourceLoader
         new("right", 90, 0),
         new("top", 0, 90),
         new("bottom", 0, -90)
-    ];
+    ]);
 
     /// <summary>
     ///     Reads what the source of a model declares, by parsing it; the model is not evaluated.

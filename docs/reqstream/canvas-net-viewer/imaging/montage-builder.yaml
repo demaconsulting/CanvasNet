@@ -24,15 +24,30 @@ sections:
           - MontageBuilder_Execute_Labels_AreTheFileNames
           - MontageBuilder_Execute_DocumentPage_IsLabeledWithThePageNumber
 
+      - id: CanvasNetViewer-Imaging-MontageBuilder-OutputFormat
+        title: >-
+          The MontageBuilder class shall take the format of the sheet from the format of the write options when it is
+          set, else from the extension of the output, and shall refuse a format that cannot be told with the
+          usage-error code before anything is written.
+        justification: |
+          A caller that names the format must be able to write to a path without an extension or with a custom one,
+          and a format that cannot be told is a mistake that must be found before any input is decoded.
+        tests:
+          - MontageBuilder_Execute_ExplicitFormatAndExtensionlessOutput_WritesThatFormat
+          - MontageBuilder_Execute_NoFormatAndNoExtension_ThrowsUsageError
+
       - id: CanvasNetViewer-Imaging-MontageBuilder-Checks
         title: >-
           The MontageBuilder class shall refuse a sheet larger than the maximum image size with the size-limit code
           before any source is opened, shall refuse an output that is one of the inputs (same-input-output), and
-          shall report a request without sources as a defect of the caller.
+          shall report a request without sources, a request with a missing member, and a missing source in the list
+          as a defect of the caller.
         justification: |
           A sheet that cannot exist must be found from the numbers alone, an input must never be replaced by the
-          sheet, and nothing can be composed from no sources.
+          sheet, and nothing can be composed from no sources or from a request that lacks a member.
         tests:
           - MontageBuilder_Execute_SheetTooLarge_ThrowsSizeLimit
           - MontageBuilder_Execute_OutputIsAnInput_ThrowsSameInputOutput
           - MontageBuilder_Execute_NoInputs_ThrowsArgumentException
+          - MontageBuilder_Execute_NullRequestMember_ThrowsArgumentNullException
+          - MontageBuilder_Execute_NullInfoElement_ThrowsArgumentNullException
