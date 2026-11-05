@@ -4,7 +4,9 @@
 #
 # The MontageCommand class is the montage command: it composes images, and the pages of documents, into one contact
 # sheet with a cell for each, fitted into cells of one size and optionally labeled with the file name, and reports the
-# sheet as one text line or one JSON document.
+# sheet as one text line or one JSON document. The command is a shell: it parses the options and prints the result,
+# and the layout, the loading, and the writing of the sheet are done by the MontageBuilder unit of the Viewer
+# library.
 
 sections:
   - title: MontageCommand Unit Requirements

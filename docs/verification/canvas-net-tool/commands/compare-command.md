@@ -9,7 +9,8 @@ result, and the errors), `CompareCommandSourceTests.cs` (the sizes and the size 
 documents and models, the background, and strict mode), and `CompareCommandOutputTests.cs` (the pictures, the formats,
 and the checks of the output paths). The command is run in-process: the tests create a `Context` (with `--json` when the
 JSON document is wanted), call `Run`, and capture the console with the `ToolHost` helper; failures are asserted as the
-`ToolException` the command throws, and for a threshold that is not met also what the command wrote before it failed and
+exception the command lets escape (a `ViewerException` of the library, or the `ToolException` of a threshold that is not
+met), and for a threshold that is not met also what the command wrote before it failed and
 the failure document that `ResultWriter.Failure` builds from the exception. Inputs are generated in a temporary
 directory: flat-colored PNG images, in which the metrics are known exactly (gray against the same gray with one channel
 10 higher has an MAE of 10/3, an RMSE of the square root of 100/3, a PSNR of 32.90 dB, and every pixel above the default

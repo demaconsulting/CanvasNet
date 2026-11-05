@@ -1,0 +1,571 @@
+---
+# cspell:ignore scad openscad
+# Software Unit Requirements for the SourceLoader Class
+#
+# The SourceLoader class turns a path into facts (probe) or into pixels (load) for the file formats the
+# tool reads: PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX, VSDX, OpenSCAD (SCAD) models, and Vega-Lite
+# charts. It
+# recognizes the format, applies the size policy (including the maximum image size), the page and
+# resolution of a document, the view and variables of a model, the EXIF orientation of a JPEG, and the
+# background color, collects the notes about features the libraries cannot draw, and maps the library
+# exceptions that mean "bad input" to expected errors. The EXIF orientation is read by the core JpegCodec and
+# applied by the core Surface; the fit, flatten, and transparency helpers that used to be here are core
+# Surface methods as well.
+
+sections:
+  - title: SourceLoader Unit Requirements
+    requirements:
+      - id: CanvasNetViewer-Imaging-SourceLoader-Detect
+        title: >-
+          The SourceLoader class shall recognize the format of a file from its signature bytes (PNG,
+          JPEG, GIF, TIFF, JPEG 2000, PDF, and BMP), then from the entries of a ZIP package
+          (a presentation or a drawing; any other archive is not supported), then from SVG text, then
+          from its file name extension (a file named .scad is a model whatever its text mentions), so
+          that the content wins over the extension and a damaged file
+          with a known extension is still attributed to its format.
+        justification: |
+          Agents rename and mislabel files; trusting the content first avoids decoding a file with the
+          wrong codec, and falling back to the extension lets an empty or truncated file be reported as
+          corrupt rather than as an unknown format. A model is text without a signature, so only its
+          extension identifies it.
+        tests:
+          - SourceLoader_Detect_EachKind_ReturnsKind
+          - SourceLoader_Detect_SignatureAndExtensionDisagree_TrustsSignature
+          - SourceLoader_Detect_SvgTextWithoutExtension_ReturnsSvg
+          - SourceLoader_Detect_ScadMentioningSvg_ReturnsScad
+          - SourceLoader_Detect_UnrecognizedContent_FallsBackToExtension
+          - SourceLoader_Detect_ZipPackage_UsesExtension
+          - SourceLoader_Detect_ZipPackages_UsesEntriesOverExtension
+          - SourceLoader_Detect_OtherSignatures_ReturnsKind
+          - SourceLoader_Detect_TextStartingWithBm_IsNotBmp
+          - SourceLoader_ExtensionKinds_AreWellFormed
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-DetectErrors
+        title: >-
+          The SourceLoader class shall report a missing file as input-not-found, a directory as
+          input-unreadable, and a file in an unrecognized format as unsupported-format.
+        justification: |
+          Each cause needs its own stable error code so that a caller can tell a typo from an
+          unsupported file and act on it.
+        tests:
+          - SourceLoader_Detect_UnknownFormat_ThrowsUnsupportedFormat
+          - SourceLoader_Detect_MissingFileOrDirectory_ThrowsInputError
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-Probe
+        title: >-
+          The SourceLoader class shall report the format, file size, pixel size, channels, transparency,
+          decodability, and frame count of a file from its header, and the EXIF orientation of a JPEG,
+          without rendering it; for a PDF, PPTX, or VSDX document the number of pages and, for every
+          page, its size in points and in pixels at 96 dots per inch, the rotation of a PDF page, and
+          the name of a VSDX page; and for an OpenSCAD model, by parsing it without evaluating it, the
+          names of its modules and functions and its include and use directives with their lines.
+        justification: |
+          Knowing what a file is before committing to rendering it lets an agent choose sizes and
+          options, and keeps the information commands cheap.
+        tests:
+          - SourceLoader_Probe_EachKind_ReportsHeaderFacts
+          - SourceLoader_Probe_PngAndSvg_ReportChannelsAndAlpha
+          - SourceLoader_Probe_JpegWithExif_ReportsOrientation
+          - SourceLoader_Probe_Pdf_ListsPagesWithSizeAndRotation
+          - SourceLoader_Probe_Pptx_ListsSlidesWithPresentationSize
+          - SourceLoader_Probe_Vsdx_ListsPagesWithNamesAndSizes
+          - SourceLoader_Probe_ModelWithDirectives_ListsModulesFunctionsAndDirectives
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-Raster
+        title: >-
+          The SourceLoader class shall decode a PNG, JPEG, BMP, TIFF, GIF, or JPEG 2000 file at its own
+          size with the pixels its codec decodes.
+        justification: |
+          The loader must add nothing to and take nothing from the pixels of a raster source unless an
+          option asks for it.
+        tests:
+          - SourceLoader_Load_LosslessRaster_KeepsEveryPixel
+          - SourceLoader_Load_GifJpegAndJpeg2000_MatchTheCodecs
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-Svg
+        title: >-
+          The SourceLoader class shall render an SVG file directly at the target size, over white by
+          default, at its intrinsic size when no size is given.
+        justification: |
+          A vector drawing is sharper rendered at its final size than resampled, and a transparent
+          drawing is shown on black by many viewers, so white is the default background.
+        tests:
+          - SourceLoader_Load_Svg_RendersNaturalSizeOverWhite
+          - SourceLoader_Load_SvgWithSizeOptions_RendersAtRequestedSize
+          - SourceLoader_Load_SvgWithoutEmbeddedFiles_ReportsNothingExtra
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-SvgEmbedding
+        title: >-
+          The SourceLoader class shall, when it loads an SVG file, hand the SVG library the image resolver that
+          CanvasNetViewer creates for the folder of the SVG file the user named (so that an image element with a
+          relative href draws a raster, an SVG file, an OpenSCAD model, a Vega-Lite chart, or the first page of
+          a PDF, PPTX, or VSDX document from that folder and below only, decided by the file name extension, with
+          the sandbox, nesting, and count limits of the core library); shall not pass the outer sizing, page,
+          resolution, and model options on to an embedded file; shall add the notes and printed lines of an
+          embedded file to the result, each note starting with the href; and shall list each file that the SVG
+          file itself embeds, and no file embedded further down, as an embed operation.
+        justification: |
+          A diagram is often the place where a model, a chart, and a picture belong together; the tool wires in
+          the one resolver the library provides, so rendering a diagram from an untrusted source cannot read other
+          folders, the behavior is the same as for an application that uses the library, and the tool carries no
+          second copy of the rules.
+        tests:
+          - SourceLoader_Load_SvgEmbeddingPng_DrawsPictureAndListsEmbedOperation
+          - SourceLoader_Load_SvgEmbeddingScad_DrawsModelOverTransparentBackground
+          - SourceLoader_Load_SvgEmbeddingVegaLite_KeepsChartBackgroundOpaque
+          - SourceLoader_Load_SvgEmbeddingNestedSvg_ListsOnlyTheOuterEmbedOperation
+          - SourceLoader_Load_SvgEmbeddingByFileName_DrawsListedTypesAndSkipsOthers
+          - SourceLoader_Load_SvgEmbeddingSymbolicLink_IsUnresolvedWarning
+          - SourceLoader_Load_SvgEmbeddingModelWithNotes_MergesDiagnosticsAndEcho
+          - SourceLoader_Load_SvgEmbeddingOuterOptions_DoNotReachEmbeddedFiles
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-SvgEmbeddingUnresolved
+        title: >-
+          The SourceLoader class shall report an image href of an SVG file that is not drawn (a file that
+          is missing, outside the folder, behind a link, or of an unknown format, a network URL, a cycle, or a
+          limit) as the warning svg-image-unresolved naming the href and the reason, and a picture that is too
+          large for the pixel budget of the render (refused by the resolver before it is decoded) as the warning
+          svg-image-too-large, leaving the rest of the drawing unchanged, and in strict mode either as an
+          unsupported-feature error instead.
+        justification: |
+          An image that silently lacks part of the diagram misleads the agent that looks at it; the warning
+          says which reference was left out and why, and strict mode is for callers that cannot accept the
+          gap.
+        tests:
+          - SourceLoader_Load_SvgEmbeddingEscapingReference_IsUnresolvedWarning
+          - SourceLoader_Load_SvgEmbeddingMissingAndUnknownFiles_AreWarnings
+          - SourceLoader_Load_SvgEmbeddingStrict_UnresolvedAndUnsupportedAreErrors
+          - SourceLoader_Load_SvgEmbeddingTooLargePicture_IsWarningThenStrictError
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-SvgEmbeddingErrors
+        title: >-
+          The SourceLoader class shall report an embedded file that is found but cannot be loaded (a corrupt
+          picture, a model with a syntax error, or a chart with an invalid specification) as an error with the
+          code of that failure and a message that names both the embedding file (the SVG file itself or the
+          embedded SVG file that contains the href) and the embedded href.
+        justification: |
+          A broken part must not be mistaken for a missing one: the caller needs the same stable code as when
+          the file is rendered alone, and the message must say which file of the diagram is at fault.
+        tests:
+          - SourceLoader_Load_SvgEmbeddingBrokenFile_FailsWithItsCodeNamingBothFiles
+          - SourceLoader_Load_SvgEmbeddingBrokenFileInNestedSvg_NamesTheNestedFile
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-Documents
+        title: >-
+          The SourceLoader class shall render a page of a PDF file, a slide of a PPTX file, or a page of
+          a VSDX file directly at the target size, over the background color (white by default), at 96
+          dots per inch when no size is given, taking the displayed size of a rotated PDF page and
+          opening the document once however many pages are loaded from it.
+        justification: |
+          Pages and slides are what agents are asked to look at; rendering them at their final size is
+          sharper than resampling, and opening the document once keeps the rendering of every page of a
+          long document affordable.
+        tests:
+          - SourceLoader_Load_FirstPage_RendersOverWhiteAt96Dpi
+          - SourceLoader_Load_SecondPage_RendersThatPage
+          - SourceLoader_OpenPages_EveryPage_MatchesLoadingEachAlone
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-PageSelection
+        title: >-
+          The SourceLoader class shall choose the page to load by its number counted from 1 (the first
+          by default), and shall report a page that does not exist, for a document or for a single
+          image, with the error code page-out-of-range.
+        justification: |
+          One numbering for every source lets an agent ask for page 3 without knowing the format, and a
+          page that is not there is a mistake that needs a stable code and a message naming the file.
+        tests:
+          - SourceLoader_Load_SecondPage_RendersThatPage
+          - SourceLoader_Load_PageThatDoesNotExist_ThrowsPageOutOfRange
+          - SourceLoader_OpenPages_EveryPage_MatchesLoadingEachAlone
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-Resolution
+        title: >-
+          The SourceLoader class shall size a page of a document from its size in points and the
+          resolution in dots per inch (96 by default), rounded to the nearest pixel, with the pixels
+          the library renders at that resolution; shall take a whole number of dots per inch for a
+          VSDX page; and shall refuse a resolution that is not greater than zero.
+        justification: |
+          The resolution is the way to ask for a sharper or smaller page without computing pixels; the
+          result must be what the library produces so that the tool adds no second opinion about it.
+        tests:
+          - SourceLoader_Load_Dpi_SizesThePage
+          - SourceLoader_Load_Dpi_MatchesTheLibraryRender
+          - SourceLoader_Load_DpiNotUsable_ThrowsUsageError
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-Diagnostics
+        title: >-
+          The SourceLoader class shall report, with the loaded page, a note (source, severity, stable
+          code, message, and page) for each picture of a PPTX slide and each construct of a VSDX page
+          that the library skips or approximates, for each image href of an SVG file that is not drawn
+          (and the notes of the files it embeds), and shall report no notes for a PDF, whose library has
+          no such channel.
+        justification: |
+          A page that is drawn with something missing must say so; otherwise an agent trusts an image
+          that is not what the document shows.
+        tests:
+          - SourceLoader_Load_PptxMetafilePicture_IsSkippedAndReported
+          - SourceLoader_Load_VsdxUnsupportedRow_IsReportedAndStrictRefuses
+          - SourceLoader_Load_PdfStrict_HasNoDiagnostics
+          - SourceLoader_Load_SvgEmbeddingModelWithNotes_MergesDiagnosticsAndEcho
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-Strict
+        title: >-
+          The SourceLoader class shall, in strict mode, report a picture or construct that the library
+          would skip or approximate as an unsupported-feature error naming the file and the feature,
+          and shall report a construct the library cannot draw at all as the same error in both modes.
+        justification: |
+          A caller who needs a faithful image wants a failure instead of a silent approximation.
+        tests:
+          - SourceLoader_Load_PptxMetafilePictureStrict_ThrowsUnsupportedFeature
+          - SourceLoader_Load_PptxUnsupportedShape_ThrowsUnsupportedFeature
+          - SourceLoader_Load_VsdxUnsupportedRow_IsReportedAndStrictRefuses
+          - SourceLoader_Load_SvgEmbeddingStrict_UnresolvedAndUnsupportedAreErrors
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-Scad
+        title: >-
+          The SourceLoader class shall draw an OpenSCAD model directly at the target size (800 by 800
+          pixels when no size is given, which a scale multiplies) from a named view (iso, front, back,
+          left, right, top, or bottom; iso by default, but top for a model that is entirely 2D; the eye
+          is on the side the name says, looking at the model, Z up), with the azimuth and elevation of the
+          view replaceable, with an orthographic projection unless perspective is asked for, over the
+          background color (white by default, transparent when the background has no alpha), with the
+          default color applied to surfaces the model does not color, giving the same picture for the
+          same options every time; shall leave the choice of the view to the SCAD library (so that a
+          model that is entirely 2D is drawn flat from above and a model that sets its own view is
+          drawn in it) unless a view name, azimuth, or elevation is given, in which case the view
+          given is used; shall report in its operation the view the library drew (iso, top, or
+          another named view when its angles match one, and custom otherwise, with the azimuth, elevation,
+          and projection used); and shall reject a view name that is not one of the views with a usage
+          error that lists them.
+        justification: |
+          A named view lets an agent look at a model from a side without computing a camera; fixing the
+          conventions (azimuth about Z from the front, Z up) and the default size makes the pictures
+          comparable, and the same options giving the same picture lets results be cached and compared.
+          A drawing sheet is read from above and a model may set its own view, so the default is the
+          library's to choose while the view that the caller asks for always wins, and the operation
+          must say what was drawn so that the agent can reproduce or vary it.
+        tests:
+          - SourceLoader_Load_DefaultOptions_DrawsIsometricOrthographicAt800
+          - SourceLoader_Load_DefaultOptions_MatchesTheLibraryRender
+          - SourceLoader_Load_EachNamedView_IsDistinctAndDeterministic
+          - SourceLoader_ScadViews_HaveTheDocumentedAngles
+          - SourceLoader_Load_OppositeViews_HaveMirroredSilhouettes
+          - SourceLoader_Load_AzimuthAndElevationOverride_ReplaceTheViewAngles
+          - SourceLoader_Load_ViewName_IsCaseInsensitiveAndValidated
+          - ScadViewOptions_IsViewExplicit_FollowsTheRules
+          - SourceLoader_Load_FlatModel_UsesTheTopViewUnlessAViewIsChosen
+          - SourceLoader_Load_Perspective_DiffersFromOrthographic
+          - SourceLoader_Load_SizeOptions_FollowTheNaturalSize
+          - SourceLoader_Load_Background_IsWhiteColoredOrTransparent
+          - SourceLoader_Load_DefaultColor_ColorsUncoloredSurfaces
+          - SourceLoader_Load_ModelWithoutGeometry_IsTheBackground
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-ScadVariables
+        title: >-
+          The SourceLoader class shall evaluate an OpenSCAD model with the variables given (numbers,
+          flags, and text) replacing the assignments of the same names and the special variable $t
+          set to the time given, shall describe them in the operation it reports, and shall report a
+          variable whose name the SCAD library does not accept as a usage error.
+        justification: |
+          Parametric models are the point of OpenSCAD; setting a variable from the command line lets an
+          agent explore a model without editing it, and a bad name is a mistake in the command line,
+          not a defect.
+        tests:
+          - SourceLoader_Load_Defines_ChangeTheModel
+          - SourceLoader_Load_Defines_AreDescribedByNameAndType
+          - SourceLoader_Load_DefineWithInvalidName_ThrowsUsageError
+          - SourceLoader_Load_Time_SetsTheSpecialVariable
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-ScadDiagnostics
+        title: >-
+          The SourceLoader class shall report the warnings, the unsupported features (with the feature
+          identifier as the code and the position in the model), and the echoed text of an OpenSCAD
+          model with the loaded image, and in strict mode shall report an unsupported feature as an
+          unsupported-feature error naming the feature and the position.
+        justification: |
+          A picture that silently lacks part of the model misleads the agent that looks at it, and the
+          echo output is how a model reports what it computed; strict mode is for callers that cannot
+          accept an incomplete picture.
+        tests:
+          - SourceLoader_Load_EchoWarningAndUnsupported_AreReturned
+          - SourceLoader_Load_UnsupportedFeatureInStrictMode_ThrowsUnsupportedFeature
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-ScadLimits
+        title: >-
+          The SourceLoader class shall limit an OpenSCAD model to the number of triangles given (5000000
+          by default) and to the evaluation limits of the SCAD library, and shall report a model that
+          exceeds a limit as a budget-exceeded error that names the limit and the position, and, for the
+          triangle limit, the option that raises it.
+        justification: |
+          A model is a program from an untrusted source; a hostile or careless one must fail quickly
+          with a message that says what to change, not exhaust the memory or the time of the agent that
+          renders it.
+        tests:
+          - SourceLoader_Load_TriangleLimitExceeded_ThrowsBudgetExceeded
+          - SourceLoader_Load_TriangleLimitLargeEnough_Loads
+          - SourceLoader_Load_EvaluationLimitExceeded_ThrowsBudgetExceeded
+          - SourceLoader_MapScadEvaluation_LimitAndOtherFailures_MapToTheirCodes
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-ScadIncludes
+        title: >-
+          The SourceLoader class shall read the files named by the include and use directives of an
+          OpenSCAD model relative to the folder of the file that names them and only inside the folder
+          of the model and below it (never following a link, and never reading a file outside), and
+          shall report a directive whose file cannot be found, a path that leaves the folder, an include
+          cycle, and a syntax error in an included file as scad-error errors that name the place.
+        justification: |
+          Models are split into files, but a model must not be able to read other files of the machine,
+          and a picture drawn without a file the model asked for would be wrong without saying so.
+        tests:
+          - SourceLoader_Load_IncludeAndUse_AreReadFromTheModelFolderAndBelow
+          - SourceLoader_Load_NestedInclude_IsRelativeToTheIncludingFile
+          - SourceLoader_Load_MissingInclude_ThrowsScadError
+          - SourceLoader_Load_IncludeOutsideTheModelFolder_ThrowsScadError
+          - SourceLoader_Load_IncludeCycleAndBrokenInclude_ThrowScadError
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-ScadErrors
+        title: >-
+          The SourceLoader class shall report a syntax error (with the file, line, and column), a failed
+          assertion, and any other failure of the evaluation of an OpenSCAD model as a scad-error error,
+          a model longer than the library reads as corrupt-input, and shall give a picture or an
+          expected error, never an unexpected exception, for a model that is cut anywhere, is garbage,
+          or stresses the library with huge numbers, degenerate shapes, unsupported constructs, and bad
+          arguments.
+        justification: |
+          A model is hand-written text and fails in many ways; every failure that is the author's
+          mistake must be a concise, located, coded error, while an unexpected exception stays a defect
+          that is not hidden.
+        tests:
+          - SourceLoader_Probe_SyntaxError_ThrowsScadErrorWithLocation
+          - SourceLoader_Load_FailedAssert_ThrowsScadError
+          - SourceLoader_Probe_SourceTooLong_ThrowsCorruptInput
+          - SourceLoader_Probe_DeeplyNestedExpression_ThrowsScadError
+          - SourceLoader_Read_ScadExceptions_AreMappedToErrorCodes
+          - SourceLoader_Load_TruncatedAndGarbageModels_GiveAPictureOrToolException
+          - SourceLoader_Load_StressModels_GiveAPictureOrToolException
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-VegaLiteDetection
+        title: >-
+          The SourceLoader class shall recognize a Vega-Lite chart by the file name suffix .vl.json or .vl
+          (checked before the extension, which is only .json), or, for a .json file, by a top-level $schema
+          string property under vega.github.io/schema/vega-lite/ read from the first 4 KiB (the address in
+          any other property or nested value does not count; a JSON file is never taken for an SVG), while a
+          signature still wins over the name; and shall report a plain Vega specification, and a JSON file
+          that is not a Vega-Lite chart, as unsupported-format with a hint that says that Vega is not
+          supported or how to name a chart.
+        justification: |
+          A chart is JSON text without a signature, and JSON is used for everything; the double suffix
+          .vl.json names a chart for people and for the tool, and the schema sniff finds a chart that was
+          saved as .json. Plain Vega is a different language that the tool does not draw, so naming it
+          explicitly is kinder than a generic unsupported-format.
+        tests:
+          - SourceLoader_Detect_VegaLiteSuffixesAndSchema_ReturnsVegaLite
+          - SourceLoader_Detect_VegaSchema_IsUnsupported
+          - SourceLoader_Detect_SchemaMustBeATopLevelProperty
+          - SourceLoader_Detect_UnrecognizedContent_FallsBackToExtension
+          - SourceLoader_ExtensionKinds_AreWellFormed
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-VegaLiteProbe
+        title: >-
+          The SourceLoader class shall report for a Vega-Lite chart, by parsing and measuring it without
+          drawing it, the natural size the library lays the chart out at, four channels with transparency,
+          one page, and what the specification declares: its mark types, its data references (kind, URL, row
+          count, and line), its parameter names, its title, and its schema major version; and shall report a
+          chart that lays out larger than the maximum image size as size-limit, and any other failure to measure
+          it as a vega-lite-error.
+        justification: |
+          Knowing what a chart is and how big it will be before committing to render it lets an agent choose
+          sizes and decide whether data must be supplied, and keeps the information commands cheap.
+        tests:
+          - SourceLoader_Probe_VegaLite_ReportsChartFacts
+          - SourceLoader_Probe_VegaLiteFacet_ReportsTheMeasuredSizeAndTheMarkOfItsCells
+          - SourceLoader_Probe_VegaLiteLargerThanMaximum_IsSizeLimit
+          - SourceLoader_Probe_EachKind_ReportsHeaderFacts
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-VegaLiteRender
+        title: >-
+          The SourceLoader class shall draw a Vega-Lite chart directly at the target size (its natural size
+          when no size is given, which a scale multiplies, and fitted inside and centered when both sides are
+          given) over the background of the chart (white by default, or the background color given), with UTC
+          dates, only the bundled fonts, and no network access, giving the same picture for the same options
+          every time, and shall return the warnings and the unsupported features of the library (the feature
+          identifier as the code and the file, line, column, and pointer in the message) with the loaded
+          image.
+        justification: |
+          A chart is a vector source: drawing it at the target size keeps text and lines sharp. Fixing the
+          time zone and the fonts makes the picture the same on every machine, so results can be cached and
+          compared, and reporting what the library leaves out keeps a partial chart from being mistaken for a
+          complete one.
+        tests:
+          - SourceLoader_Load_VegaLite_RendersInlineChartWithExpectedPixels
+          - SourceLoader_Load_VegaLiteComposition_DrawsEveryCellAtTheProbedSizeWithoutDiagnostics
+          - SourceLoader_Load_VegaLite_MapsDiagnosticsAndStrictErrors
+          - Imaging_Convert_InputKindToOutputFormat_WritesTheSourcePixels
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-VegaLiteData
+        title: >-
+          The SourceLoader class shall measure and draw a Vega-Lite chart whose data is in a local file named by
+          a relative url by opening the specification by its path, so that the data is read from the folder of
+          the specification and below it (never the current directory, another folder, or the network), exactly
+          as the same chart with inline rows, and shall name the data file in the chart facts; shall report a
+          local data file that is missing, outside the folder of the specification, or not valid text as a
+          vega-lite-error in lenient and strict mode alike, never as an empty chart; shall report remote data
+          only as a diagnostic (an unsupported-feature error with the strict switch) and never fetch it; and
+          shall report a data limit of the library (rows or bytes of a file) as budget-exceeded and every other
+          data failure as vega-lite-error.
+        justification: |
+          A chart is only as useful as its data, and the data of a chart that an agent was given sits beside it;
+          reading exactly that folder keeps the result independent of the working directory and keeps an
+          untrusted chart from reaching other files or hosts, while a coded error for a missing or oversized
+          file tells a script what to fix.
+        tests:
+          - SourceLoader_Probe_VegaLiteLocalDataIsMeasuredFromSpecFolder
+          - SourceLoader_Load_VegaLiteMissingDataMapsToVegaLiteError
+          - SourceLoader_Load_VegaLiteDataLimitMapsToBudgetExceeded
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-VegaLiteErrors
+        title: >-
+          The SourceLoader class shall report an invalid Vega-Lite specification (malformed JSON, a property
+          of the wrong type, plain Vega named like a chart) and a chart that cannot be rendered as a
+          vega-lite-error error that names the file, line, and column on one line (this includes a
+          specification nested deeper than, or with a string longer than, the limit of the parser, as a SCAD
+          nesting limit is a scad-error, and any argument failure of the library while the chart is measured or
+          drawn), a chart that exceeds a limit of the library while it is laid out or drawn (data rows, views,
+          ticks, scene items, and so on) as budget-exceeded, a specification file longer than the limit of the library
+          as corrupt-input (as an overlong SCAD model is), a chart that lays out larger than the maximum image
+          size as size-limit and nothing else as size-limit, an unsupported feature in strict mode as an
+          unsupported-feature error that names the feature, and shall give a picture or an expected error, never
+          an unexpected exception, for a damaged file.
+        justification: |
+          A chart is hand-written text and fails in many ways; every failure that is the author's mistake must
+          be a concise, located, coded error that a script can branch on, while an unexpected exception stays a
+          defect that is not hidden. The code of a failure must say what it is: an argument failure of the
+          library is not a usage error, and an overflow in the layout is not a request for a larger image.
+        tests:
+          - SourceLoader_Load_VegaLite_MapsDiagnosticsAndStrictErrors
+          - SourceLoader_Load_VegaLite_MapsLimitFailuresToBudgetExceeded
+          - SourceLoader_Load_VegaLite_MapsCompositionLimitFailuresToBudgetExceeded
+          - SourceLoader_Probe_VegaLiteSourceBeyondLimit_IsCorruptInput
+          - SourceLoader_Probe_VegaLiteParserLimits_AreSpecificationErrors
+          - SourceLoader_RenderAndMeasureChart_MapArgumentFailures
+          - SourceLoader_Probe_VegaLiteOverflowingDomain_IsNotSizeLimit
+          - SourceLoader_Load_GarbageWithKnownExtension_ThrowsCorruptInput
+          - SourceLoader_Load_DamagedFile_ThrowsToolExceptionOrLoads
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-Sizing
+        title: >-
+          The SourceLoader class shall derive the target size from the natural size and the scale,
+          width, and height options (a scale multiplies both sides, one side keeps the aspect ratio,
+          two sides are exact, rounded to the nearest pixel, never below one pixel), shall resize a
+          raster source to it, and shall fit a page of a document inside two sides given together,
+          centered over the background, without stretching it.
+        justification: |
+          One predictable size policy shared by every source lets an agent ask for an image of a given
+          width or scale without computing the other side, and a page that is never stretched keeps its
+          proportions.
+        tests:
+          - SourceLoader_ComputeTargetSize_SizeOptions_FollowsPolicy
+          - SourceLoader_Load_RasterWithWidth_ResizesKeepingAspectRatio
+          - SourceLoader_Load_SvgWithSizeOptions_RendersAtRequestedSize
+          - SourceLoader_Load_SizeOptions_ActOnTheNaturalSize
+          - SourceLoader_Load_WidthAndHeight_FitsThePageInsideTheBox
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-BoxFit
+        title: >-
+          The SourceLoader class shall provide the options that load a source into a box of a given size
+          (a vector source is rendered natively at the box by setting its width and height and clearing
+          its scale, a raster source keeps its options), and shall fit a raster surface into a box by
+          delegating to the core Surface fit (contained, scaled to the limiting side and centered on a fill
+          color, or stretched to exactly the box).
+        justification: |
+          Commands that put several images into one size (comparison, contact sheets) must render a
+          vector source sharply at the final size instead of resampling pixels, and must fit a raster
+          source by one shared rule, so that the same image is placed the same way everywhere.
+        tests:
+          - SourceLoader_BoxOptions_VectorKinds_SetBoxAndClearScale
+          - SourceLoader_BoxOptions_RasterKinds_AreUnchanged
+          - SourceLoader_BoxOptions_NullArguments_ThrowArgumentNullException
+          - SourceLoader_Load_VectorWithBox_RendersNativelyAtBox
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-SizeLimit
+        title: >-
+          The SourceLoader class shall refuse, with the error code size-limit, an image or a requested
+          size with a side larger than 8192 pixels, before decoding or rendering wherever the file
+          header gives the size.
+        justification: |
+          An image of that size can exhaust memory; refusing it early with an actionable message is
+          cheaper and clearer than failing during the decode.
+        tests:
+          - SourceLoader_ComputeTargetSize_BeyondMaximum_ThrowsSizeLimit
+          - SourceLoader_Load_PngLargerThanMaximum_ThrowsSizeLimitBeforeDecoding
+          - SourceLoader_Load_SvgWithHugeNaturalSize_NeedsSizeOption
+          - SourceLoader_Load_SizeBeyondMaximum_ThrowsSizeLimit
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-Background
+        title: >-
+          The SourceLoader class shall flatten transparency over the background color for an SVG source
+          (white by default, none when the background has no alpha), render a page of a document over
+          the background color (white by default, transparent when the background has no alpha), and
+          flatten a raster source only when a background color is given.
+        justification: |
+          Flattening a drawing over white is the safe default for viewing; a raster source keeps its own
+          transparency unless the caller asks otherwise.
+        tests:
+          - SourceLoader_Load_SvgBackground_TransparentKeepsAlphaColorFlattens
+          - SourceLoader_Load_Background_IsWhatThePageIsRenderedOver
+          - SourceLoader_Load_RasterBackground_FlattensOnlyWhenAsked
+          - SourceLoader_FormatColor_OpaqueAndTranslucent_FormatsHex
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-Exif
+        title: >-
+          The SourceLoader class shall read the EXIF orientation of a JPEG with the core JPEG codec and shall turn
+          the image upright by it, with the core Surface, unless auto-orientation is switched off, applying the
+          requested size to the upright image.
+        justification: |
+          Cameras record rotation in metadata that the JPEG codec ignores; without applying it, photos
+          appear sideways to the agent that looks at them.
+        tests:
+          - SourceLoader_Load_JpegWithExif_AppliesOrientationUnlessDisabled
+          - SourceLoader_Load_JpegWithExifAndWidth_SizesTheOrientedImage
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-CorruptInput
+        title: >-
+          The SourceLoader class shall report a truncated, empty, or corrupt file of any supported
+          format (including a document damaged anywhere in its pages, parts, or archive), and a file
+          the library cannot decode or draw, as an expected error (corrupt-input, unsupported-feature,
+          or input-unreadable) by mapping an explicit list of library exception types, and shall let
+          every other exception propagate.
+        justification: |
+          A user mistake must produce a concise, stable error, while an unexpected exception is a defect
+          that must not be hidden by a blanket catch.
+        tests:
+          - SourceLoader_Load_DamagedFile_ThrowsToolExceptionOrLoads
+          - SourceLoader_Load_DamagedDocument_ThrowsToolExceptionOrLoads
+          - SourceLoader_Load_GarbageWithKnownExtension_ThrowsCorruptInput
+          - SourceLoader_Load_MalformedSvg_ThrowsCorruptInput
+          - SourceLoader_Load_PdfWithBadContentOrEncryption_ThrowsExpectedErrors
+          - SourceLoader_Load_PackageWithBrokenPart_ThrowsCorruptInput
+          - SourceLoader_Read_AllowListedExceptions_AreMappedToErrorCodes
+          - SourceLoader_Read_MultiLineMessage_IsReducedToOneLine
+          - SourceLoader_Read_UnexpectedExceptions_Propagate
+          - SourceLoader_OpenPages_UnhandledKind_IsNotAToolException
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-Arguments
+        title: The SourceLoader class shall reject null arguments.
+        justification: |
+          A null path or option set is a defect of the caller and must fail fast and clearly.
+        tests:
+          - SourceLoader_PublicMethods_NullArguments_ThrowArgumentNullException
+          - SourceLoader_OpenPages_NullArguments_ThrowArgumentNullException
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-ScadAnchors
+        title: >-
+          The SourceLoader class shall collect the anchors an OpenSCAD model declares during the render, in
+          echo order and with duplicates, as the name, the world point, and the pixel position in the loaded
+          image (absent when the point cannot be projected) of each, report a malformed declaration as a
+          scad-warning note, and return none for a model without anchors.
+        justification: |
+          The pixel positions are only meaningful for the image that was rendered, so they are taken from the
+          library during the same render and handed on with the loaded image.
+        tests:
+          - SourceLoader_Load_ModelWithAnchors_CollectsThemWithPixelPositions

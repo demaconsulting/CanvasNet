@@ -1,0 +1,38 @@
+---
+# cspell:ignore canvasnet
+# Software Unit Requirements for the MontageBuilder Class
+#
+# The MontageBuilder class is the montage operation of the library: given the facts about several files (probed
+# sources) and a request, it lays them out as cells of one contact sheet, opens one source at a time, composes it into
+# its cell, and writes the sheet. It is the library form of the montage command of the canvasnet tool, which parses
+# its arguments into the request and prints the result.
+
+sections:
+  - title: MontageBuilder Unit Requirements
+    requirements:
+      - id: CanvasNetViewer-Imaging-MontageBuilder-Compose
+        title: >-
+          The MontageBuilder class shall place the sources, and the page of a document that is shown, row by row in
+          the cells of one sheet, open and release one source at a time, label each cell with the file
+          name (and the page number for a document page) when labels are on, write the sheet, and report the layout
+          of the sheet, the file written, and the position, size, and label of every cell.
+        justification: |
+          A contact sheet is how a person or an agent sees many pictures at once; the report of the cells lets a caller
+          find a picture on the sheet, and one source at a time keeps the memory to the sheet plus one source.
+        tests:
+          - MontageBuilder_Execute_ThreeImages_LaysOutRowByRowAndWritesTheSheet
+          - MontageBuilder_Execute_Labels_AreTheFileNames
+          - MontageBuilder_Execute_DocumentPage_IsLabeledWithThePageNumber
+
+      - id: CanvasNetViewer-Imaging-MontageBuilder-Checks
+        title: >-
+          The MontageBuilder class shall refuse a sheet larger than the maximum image size with the size-limit code
+          before any source is opened, shall refuse an output that is one of the inputs (same-input-output), and
+          shall report a request without sources as a defect of the caller.
+        justification: |
+          A sheet that cannot exist must be found from the numbers alone, an input must never be replaced by the
+          sheet, and nothing can be composed from no sources.
+        tests:
+          - MontageBuilder_Execute_SheetTooLarge_ThrowsSizeLimit
+          - MontageBuilder_Execute_OutputIsAnInput_ThrowsSameInputOutput
+          - MontageBuilder_Execute_NoInputs_ThrowsArgumentException

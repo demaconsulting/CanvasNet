@@ -7,8 +7,10 @@
 `MontageCommand` is verified with unit tests in `MontageCommandTests.cs` (the sheet geometry, the fit, the labels, the
 result, and the errors) and `MontageCommandSourceTests.cs` (the pages of documents, mixed kinds, vector cells, models,
 and notes). The command is run in-process: the tests create a `Context` (with `--json` when the JSON document is
-wanted), call `Run`, and capture the console with the `ToolHost` helper; failures are asserted as the `ToolException`
-the command throws. Inputs are generated in a temporary directory: flat-colored PNG images, so that the color at a known
+wanted), call `Run`, and capture the console with the `ToolHost` helper; failures are asserted with the
+`ToolHost.ExpectFailure` helper as the exception
+the command lets escape (a `ViewerException` of the library or the tool's own `ToolException`). Inputs are generated in
+a temporary directory: flat-colored PNG images, so that the color at a known
 position of the sheet says which input is there, the presentation and the PDF of the test project, and the SVG and the
 model fixtures. The sheet is decoded with the PNG codec and its pixels are examined at the positions that the layout
 formulas give.

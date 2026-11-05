@@ -1,0 +1,39 @@
+---
+# cspell:ignore canvasnet
+# Software Unit Requirements for the ImageInspector Class
+#
+# The ImageInspector class is the inspect operation of the library: given the facts about a file (a probed source)
+# and a request, it loads the page, runs the image pipeline, and reports either the dominant colors and the luma
+# statistics of the pixels or the pixel at a point with its surroundings. It is the library form of the inspect
+# command of the canvasnet tool, which parses its arguments into the request and prints the result.
+
+sections:
+  - title: ImageInspector Unit Requirements
+    requirements:
+      - id: CanvasNetViewer-Imaging-ImageInspector-Analyze
+        title: >-
+          The ImageInspector class shall load the page of a source, run the operations of the request over it in the
+          order given, and report the dominant colors with the luma statistics of the resulting pixels, or the
+          pixel at a point with the window of the requested radius around it, together with the size of the
+          pixels, the operations applied, the diagnostics, and the background against which a translucent
+          picture was analyzed (opaque white).
+        justification: |
+          Reading numbers off a picture (which colors are in it, what is at this position) is how an agent
+          checks a rendering without looking at it; the analysis must see the same pixels that a render with
+          the same operations would write, and a translucent picture needs one stated background.
+        tests:
+          - ImageInspector_Execute_Colors_ReportsTheDominantColor
+          - ImageInspector_Execute_PixelWithRadius_SamplesPixelAndWindow
+          - ImageInspector_Execute_Operations_AreAppliedBeforeTheAnalysis
+          - ImageInspector_Execute_TranslucentBackground_IsReportedFlattenedOverWhite
+
+      - id: CanvasNetViewer-Imaging-ImageInspector-Arguments
+        title: >-
+          The ImageInspector class shall refuse a point outside the pixels it analyzes with the usage-error code, and
+          shall report a request for a pixel without a point as a defect of the caller.
+        justification: |
+          A position outside the picture is a mistake of the user that must be reported with the size it was
+          compared to; a missing point is a mistake of the program that must fail fast.
+        tests:
+          - ImageInspector_Execute_PointOutsideImage_ThrowsUsageError
+          - ImageInspector_Execute_PixelWithoutPoint_ThrowsArgumentException

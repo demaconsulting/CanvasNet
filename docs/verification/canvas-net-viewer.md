@@ -8,7 +8,8 @@ This document describes the system-level verification strategy for CanvasNetView
 
 The CanvasNetViewer system is verified through system-level integration tests that exercise the package as a whole from
 the perspective of a consumer, through its public API only (`ImageSources`, `Extensions`, `CreateImageResolver`,
-`Render`, and the options and result types). The tests use the real format packages (nothing is mocked): an SVG document
+`Render`, the options and result types, and the `Imaging` operations with `ViewerException`). The tests use the real
+format packages (nothing is mocked): an SVG document
 that embeds a raster, a model, a chart, another SVG file, and a PDF page through the resolver of the viewer, and the
 custom image sources an application plugs in. The custom sources are real implementations of `IImageSource` that record
 every request: a source for a made-up file type, a source that takes over a built-in extension, a source that claims a
@@ -104,6 +105,22 @@ created for each render or one resolver serves two renders.
 
 Asserts that `Render(path)` honors `ViewerRenderOptions.ExtraSources`: a file of the made-up type is drawn by the custom
 source, and an SVG file rendered by path embeds a scheme-claimed live frame.
+
+### Integration: Image Operations Probe Render Inspect Compare Montage
+
+**Test**: `CanvasNetViewer_SystemIntegration_ImageOperations_ProbeRenderInspectCompareMontage`
+
+Writes the SVG fixture, probes it, renders it twice with `ImageRenderer` (once flipped), inspects the flipped picture with
+`ImageInspector`, compares the two renders with `ImageComparer`, and puts both on a contact sheet with `MontageBuilder`.
+Asserts that every operation produced its result, that the two renders have the same size and are not identical, and
+that the sheet has two cells and exists.
+
+### Integration: Failed Operation Is ViewerException With Stable Code
+
+**Test**: `CanvasNetViewer_SystemIntegration_FailedOperation_IsViewerExceptionWithStableCode`
+
+Probes a text file and a missing file, and asserts that each failure is a `ViewerException` (an
+`InvalidOperationException`) with the documented code (`unsupported-format`, `input-not-found`) and a message.
 
 ## Acceptance Criteria
 

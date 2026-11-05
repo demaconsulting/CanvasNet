@@ -1,0 +1,36 @@
+---
+# Software Unit Requirements for the ViewerException Class
+#
+# The ViewerException class is the exception with which every
+# expected failure of the Viewer library is reported (a file that is missing, unsupported, corrupt, or too large; a
+# page that does not exist; an output that cannot be written), and the ErrorCodes class names those failures with
+# stable strings that programs and the results of the canvasnet tool rely on.
+
+sections:
+  - title: CanvasNetViewer Requirements
+    sections:
+      - title: ViewerException Unit Requirements
+        requirements:
+          - id: CanvasNetViewer-ViewerException-Contract
+            title: >-
+              The ViewerException class shall carry a stable error code, a message, an optional hint that says what to
+              do about the failure, and an optional inner exception, and shall be an InvalidOperationException so that a
+              caller can tell an expected, user-correctable failure from a defect.
+            justification: |
+              A program that uses the library needs to act on a failure by its code and to show the message and the hint
+              to its user, without parsing text.
+            tests:
+              - ViewerException_Constructor_CarriesCodeMessageHintAndCause
+              - ViewerException_Constructor_HintAndCauseAreOptional
+
+          - id: CanvasNetViewer-ViewerException-ErrorCodes
+            title: >-
+              The ErrorCodes class shall define the stable strings usage-error, operation-failed, input-not-found,
+              input-unreadable, unsupported-format, corrupt-input, unsupported-feature, page-out-of-range, size-limit,
+              same-input-output, output-exists, output-write-failed, scad-error, vega-lite-error, budget-exceeded,
+              size-mismatch, and threshold-failed, which shall not change between releases.
+            justification: |
+              The codes are the contract of the library and of the result documents of the canvasnet tool; a script
+              branches on them, so a rename would break every caller.
+            tests:
+              - ErrorCodes_Constants_AreTheDocumentedStableStrings

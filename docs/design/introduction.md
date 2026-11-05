@@ -331,38 +331,45 @@ software items, specifically:
   and compose
   images and documents with the CanvasNet libraries, clean up photographs of sketches, and measure their colors, and
   offers a small, stable error contract (exit codes 0 and 1, concise error text, stable error codes, and a versioned
-  JSON result contract). It follows the DEMA
+  JSON result contract). It is a thin command-line shell over the `Imaging` subsystem of the `CanvasNetViewer` system.
+  It follows the DEMA
   Consulting tool template and contains six
-  direct units - `Program` (entry point, error policy, and the `ToolException` supporting type), `Context`
+  direct units - `Program` (entry point, error policy, and the `ToolException` supporting type, which derives from the
+  `ViewerException` of the Viewer), `Context`
   (command line, command capture, output channels), `ArgumentReader` (command-line grammar and value parsers),
   `ResultWriter` (the JSON result documents), `Validation` (the `--validate` self-test and results
-  output), and `PathHelpers` (safe path combination) - and two subsystems, `Commands` (the command contract, the
+  output), and `PathHelpers` (safe path combination) - and one subsystem, `Commands` (the command contract, the
   `CommandRegistry` unit, the `HelpTopics` unit with the help topics and their examples, the `DiscoveryCommands` unit
   with the `formats` and `info` commands, and the
   `RenderCommand` unit with the `render` command, its alias `convert`, and the verb commands `crop`, `resize`,
-  `rotate`, `flip`, and `pad`, the `CompareCommand` unit with the `compare` command, the `MontageCommand` unit
-  with the `montage` command, and the `InspectCommand` unit with the `inspect colors` and `inspect pixel` commands)
-  and `Imaging` (the `SourceLoader` unit, which recognizes, probes, and loads PNG, JPEG,
-  BMP, TIFF, GIF, JPEG 2000, and SVG files, the pages of PDF, PPTX, and VSDX documents, views of OpenSCAD
-  models, and Vega-Lite charts, the `ImagePipeline` unit, which crops, resizes, fits, rotates by any angle, flips,
-  pads, adjusts, deskews,
-  trims, and grids pixels in the order the options
-  were written, the `GridOverlay` unit, which does the
-  grid work for it (the flip, pad, trim, tone, rotation, skew, and analysis arithmetic is the core library's
-  `Surface`), the `ImageWriter`
-  unit, which writes PNG, JPEG, BMP, and TIFF files, the `ImageComparison` unit, which checks how two images
-  compare (measured by the core library's `Surface`) against thresholds, and the `ContactSheet` unit, which composes
-  images into a labeled sheet). It uses
+  `rotate`, `flip`, and `pad` (and the `ImagePipelineParser` that reads the pipeline operations from the command line),
+  the `CompareCommand` unit with the `compare` command, the `MontageCommand` unit
+  with the `montage` command, and the `InspectCommand` unit with the `inspect colors` and `inspect pixel` commands).
+  It uses
   the other systems of this repository through private project references, so that their assemblies are bundled
   into the tool package — see _CanvasNetTool System Design_ (`canvas-net-tool.md`)
 
 - **CanvasNetViewer (System)** — A separate software system (packable as `DemaConsulting.CanvasNet.Viewer`) that
-  aggregates the image sources of every format. It contains one direct unit, `CanvasNetViewer` (with `ViewerRenderOptions`
-  and `ViewerImage`), which lists the built-in image sources (raster, SVG, PDF, PowerPoint, Visio, OpenSCAD, and
+  aggregates the image sources of every format and is the library form of the `canvasnet` tool. It contains two direct
+  units and one subsystem. The direct unit `CanvasNetViewer` (with `ViewerRenderOptions`
+  and `ViewerImage`) lists the built-in image sources (raster, SVG, PDF, PowerPoint, Visio, OpenSCAD, and
   Vega-Lite) and the extensions they claim, creates the `FolderImageResolver` of the core `ImageSources` subsystem for
   one render so that an SVG document can embed every format, renders any file by path or from a stream, and lets a
-  library user add image sources of their own (later sources win; nothing is cached). It references the core package
-  and the Svg, Pdf, Pptx, Vsdx, Scad, and VegaLite packages, is referenced only by the tool, and has no plug-in
+  library user add image sources of their own (later sources win; nothing is cached). The direct unit
+  `ViewerException` is the exception of every expected failure, with the stable `ErrorCodes`. The `Imaging` subsystem
+  holds the `SourceLoader` unit, which recognizes, probes, and loads PNG, JPEG,
+  BMP, TIFF, GIF, JPEG 2000, and SVG files, the pages of PDF, PPTX, and VSDX documents, views of OpenSCAD
+  models, and Vega-Lite charts, the `ImagePipeline` unit, which crops, resizes, fits, rotates by any angle, flips,
+  pads, adjusts, deskews,
+  trims, and grids pixels in the order the operations are given, the `GridOverlay` unit, which does the
+  grid work for it (the flip, pad, trim, tone, rotation, skew, and analysis arithmetic is the core library's
+  `Surface`), the `ImageWriter`
+  unit, which writes PNG, JPEG, BMP, and TIFF files, the `ImageComparison` unit, which checks how two images
+  compare (measured by the core library's `Surface`) against thresholds, the `ContactSheet` unit, which composes
+  images into a labeled sheet, and the four operation units that chain them: `ImageRenderer` (render the pages of a
+  source), `ImageInspector` (colors and pixels), `ImageComparer` (compare two images), and `MontageBuilder` (a contact
+  sheet). It references the core package
+  and the Svg, Pdf, Pptx, Vsdx, Scad, Render3D, and VegaLite packages, is referenced only by the tool, and has no plug-in
   mechanism of its own — see _CanvasNetViewer System Design_ (`canvas-net-viewer.md`)
 
 The following OTS items are also covered:
@@ -552,11 +559,21 @@ names a `CanvasNetRender3D` subsystem. It depends on the `CanvasNet` system's `C
 below and _CanvasNetVegaLite System Design_ (`canvas-net-vega-lite.md`).
 
 A further sibling top-level system, `CanvasNetViewer`, likewise lives in this same repository and is distributed as its
-own NuGet package (`DemaConsulting.CanvasNet.Viewer`). It aggregates the image sources of every format: its sole unit,
-`CanvasNetViewer` (namespace `DemaConsulting.CanvasNet.Viewer`), lists the built-in sources (raster, SVG, PDF, PPTX,
+own NuGet package (`DemaConsulting.CanvasNet.Viewer`). It aggregates the image sources of every format and is the library
+form of the `canvasnet` tool: its direct unit
+`CanvasNetViewer` (namespace `DemaConsulting.CanvasNet.Viewer`) lists the built-in sources (raster, SVG, PDF, PPTX,
 VSDX, OpenSCAD, and Vega-Lite), creates the `FolderImageResolver` of the core `ImageSources` subsystem for one render so
-that an SVG document can embed all of them, and renders any file as a picture. It references the core package and the
-`CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetScad`, and `CanvasNetVegaLite` packages;
+that an SVG document can embed all of them, and renders any file as a picture; its direct unit `ViewerException` is the
+exception of every expected failure with the stable `ErrorCodes`; and its `Imaging` subsystem (namespace
+`DemaConsulting.CanvasNet.Viewer.Imaging`) holds the `SourceLoader`, `ImagePipeline`, `ImageWriter`, `ImageComparison`,
+`ContactSheet`, and `GridOverlay` units that turn files into
+pixels, transform pixels (grid, and the ordered operations over the core library's flip, pad, trim, tone, rotation, and
+skew operations), turn pixels into files, check the comparison of two
+images against thresholds, and compose a contact sheet, and the `ImageRenderer`, `ImageInspector`, `ImageComparer`, and
+`MontageBuilder` units that chain them into the render, inspect, compare, and montage operations. It references the core
+package and the
+`CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetScad`, `CanvasNetRender3D`, and
+`CanvasNetVegaLite` packages;
 only the tool references it. See the Folder Layout section below and _CanvasNetViewer System Design_
 (`canvas-net-viewer.md`).
 
@@ -565,17 +582,13 @@ its own dotnet tool package (`DemaConsulting.CanvasNet.Tool`, command `canvasnet
 Unlike the library systems it is a command-line application following the DEMA Consulting tool template: its
 direct units `Program`, `Context`, `ArgumentReader`, `ResultWriter`, `Validation`, and `PathHelpers` (namespace
 `DemaConsulting.CanvasNet.Tool`) are the entry point, the command line and output channels, the command-line
-grammar, the JSON result documents, the self-validation, and the safe path helper, its `Commands` subsystem
+grammar, the JSON result documents, the self-validation, and the safe path helper, and its `Commands` subsystem
 (namespace `DemaConsulting.CanvasNet.Tool.Commands`) holds the `CommandRegistry`, `HelpTopics`, `DiscoveryCommands`, and
 `RenderCommand`, `CompareCommand`, `MontageCommand`, and `InspectCommand` units (the `formats`, `info`, `render`,
 `convert`, `crop`,
 `resize`, `rotate`, `flip`, `pad`, `compare`, `montage`, and `inspect`
-commands), and its `Imaging` subsystem (namespace
-`DemaConsulting.CanvasNet.Tool.Imaging`) holds the `SourceLoader`, `ImagePipeline`, `ImageWriter`, `ImageComparison`,
-`ContactSheet`, and `GridOverlay` units that turn files into
-pixels, transform pixels (grid, and the ordered operations over the core library's flip, pad, trim, tone, rotation, and
-skew operations), turn pixels into files, check the comparison of two
-images against thresholds, and compose a contact sheet. It uses the `CanvasNet`, `CanvasNetSvg`,
+commands). It is a thin shell: the commands call the operations of the `Imaging` subsystem of the `CanvasNetViewer`
+system with request records built from the command line, and print the results. It uses the `CanvasNet`, `CanvasNetSvg`,
 `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetRender3D`, `CanvasNetScad`, `CanvasNetVegaLite`, and
 `CanvasNetViewer` systems
 through their public API and bundles their assemblies in its package. No library system references the tool. See the
@@ -1430,7 +1443,8 @@ src/DemaConsulting.CanvasNet.VegaLite/
 and `TextMeasurer` units use it — see _CanvasNetVegaLite System Design_ (`canvas-net-vega-lite.md`).
 
 The `CanvasNetViewer` system lives in the `src/DemaConsulting.CanvasNet.Viewer/` project folder (the separate
-`DemaConsulting.CanvasNet.Viewer` package). Its sole unit, `CanvasNetViewer`, occupies the project root (see
+`DemaConsulting.CanvasNet.Viewer` package). Its two direct units, `CanvasNetViewer` and `ViewerException`, occupy the
+project root, and its `Imaging` subsystem occupies the `Imaging/` sub-folder, whose name equals its sub-namespace (see
 _CanvasNetViewer System Design_, `canvas-net-viewer.md`):
 
 ```text
@@ -1439,66 +1453,76 @@ src/DemaConsulting.CanvasNet.Viewer/
 ├── NamespaceDoc.cs                — CanvasNetViewer: namespace-level XML documentation
 ├── CanvasNetViewer.cs             — CanvasNetViewer: the built-in sources, CreateImageResolver, and Render
 ├── ViewerRenderOptions.cs         — CanvasNetViewer: the render options (size, folder, strictness, extra sources, token)
-└── ViewerImage.cs                 — CanvasNetViewer: the rendered picture with its format, notes, text, and embedded images
-```
-
-`CanvasNetViewer` references the `CanvasNet` core package (its `ImageSources` subsystem) and the `CanvasNetSvg`,
-`CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetScad`, and `CanvasNetVegaLite` packages for the image
-source each one supplies; no package references it except the tool.
-
-The `CanvasNetTool` system lives in the `src/DemaConsulting.CanvasNet.Tool/` project folder (the separate
-`DemaConsulting.CanvasNet.Tool` dotnet tool package). The six direct units occupy the project root, and the
-`Commands` and `Imaging` subsystems occupy the `Commands/` and `Imaging/` sub-folders, whose names equal their
-sub-namespaces (see _CanvasNetTool System Design_, `canvas-net-tool.md`):
-
-```text
-src/DemaConsulting.CanvasNet.Tool/
-├── DemaConsulting.CanvasNet.Tool.csproj — Tool package definition (net8.0/net9.0/net10.0; packable as a dotnet tool)
-├── Program.cs                     — Program: entry point, dispatch, and the error policy
-├── ToolException.cs               — Program: ToolException and the stable ErrorCodes
-├── Context.cs                     — Context: global options, command capture, and output channels
-├── ArgumentReader.cs              — ArgumentReader: option reading and the value types
-├── ArgumentReader.Values.cs       — ArgumentReader: the value grammars (size, geometry, color, and others)
-├── ResultWriter.cs                — ResultWriter: deterministic JSON success and failure documents
-├── Validation.cs                  — Validation: --validate self-test and results output
-├── PathHelpers.cs                 — PathHelpers: safe path combination
-├── Commands/                      — Commands subsystem
-│   ├── ICommand.cs                — CommandRegistry: ICommand contract and OptionSpec
-│   ├── CommandRegistry.cs         — CommandRegistry: command table, dispatch, and the unknown-command report
-│   ├── CommandRegistry.Help.cs    — CommandRegistry: the help command, its subjects, examples, and JSON documents
-│   ├── HelpTopics.cs              — HelpTopics: the topic model, the embedded catalog, tokens, and lookup
-│   ├── HelpTopics.Render.cs       — HelpTopics: the text and JSON renderings and the wrapping
-│   ├── Help/                      — HelpTopics: the embedded topic files (scad, vega-lite, svg, pdf, pptx, vsdx,
-│   │   │                            raster, json, errors, and limits, one JSON file each)
-│   │   └── Examples/              — HelpTopics: the embedded example sources (SCAD, Vega-Lite, and SVG files)
-│   ├── DiscoveryCommands.cs       — DiscoveryCommands: the formats and info commands and the format tables
-│   ├── RenderCommand.cs           — RenderCommand: the render command (alias convert), run and result
-│   ├── RenderCommand.Options.cs   — RenderCommand: the option table and the reading of the settings
-│   ├── RenderCommand.Verbs.cs     — RenderCommand: the verb commands crop, resize, rotate, flip, and pad
-│   ├── CompareCommand.cs          — CompareCommand: the compare command, run, thresholds, and result
-│   ├── CompareCommand.Options.cs  — CompareCommand: the option table and the reading of the settings
-│   ├── MontageCommand.cs          — MontageCommand: the montage command, run and result
-│   ├── MontageCommand.Options.cs  — MontageCommand: the option table and the reading of the settings
-│   ├── InspectCommand.cs          — InspectCommand: the inspect colors and inspect pixel commands, run and result
-│   └── InspectCommand.Options.cs  — InspectCommand: the option table and the reading of the settings and the point
+├── ViewerImage.cs                 — CanvasNetViewer: the rendered picture with its format, notes, text, and embedded images
+├── ViewerException.cs             — ViewerException: the exception of every expected failure, and the stable ErrorCodes
 └── Imaging/                       — Imaging subsystem
+    ├── NamespaceDoc.cs            — Imaging: namespace-level XML documentation
     ├── SourceModels.cs            — SourceLoader: source kinds, output formats, and the load model types
     ├── SourceLoader.cs            — SourceLoader: probe, load, size policy, and the exception mapping
     ├── SourceLoader.Detect.cs     — SourceLoader: format detection
     ├── SourceLoader.Raster.cs     — SourceLoader: PNG, JPEG, BMP, TIFF, GIF, and JPEG 2000 sources
     ├── SourceLoader.Svg.cs        — SourceLoader: SVG sources
-    ├── SourceLoader.SvgImages.cs  — SourceLoader: the wiring of the Viewer's image resolver for the files an SVG embeds
+    ├── SourceLoader.SvgImages.cs  — SourceLoader: the wiring of the viewer's image resolver for the files an SVG embeds
     ├── SourceLoader.Documents.cs  — SourceLoader: the page-based sources' shared sizing and rendering
     ├── SourceLoader.Pdf.cs        — SourceLoader: PDF documents
     ├── SourceLoader.Pptx.cs       — SourceLoader: PowerPoint presentations
     ├── SourceLoader.Vsdx.cs       — SourceLoader: Visio drawings
     ├── SourceLoader.Scad.cs       — SourceLoader: OpenSCAD models drawn from a named view
+    ├── SourceLoader.VegaLite.cs   — SourceLoader: Vega-Lite charts
     ├── ImageOperations.cs         — ImagePipeline: the operation records (crop, resize, fit, rotate, flip, pad, photo)
-    ├── ImagePipeline.cs           — ImagePipeline: parsing the ordered operations and applying them to a surface
+    ├── ImagePipeline.cs           — ImagePipeline: applying the ordered operations to a surface
+    ├── ImagePipeline.Anchors.cs   — ImagePipeline: the mapping of model anchors through the applied steps
     ├── GridOverlay.cs             — GridOverlay: the labeled coordinate grid, drawn with the bundled font
     ├── ImageComparison.cs         — ImageComparison: the thresholds of a comparison and the defaults of its options
     ├── ContactSheet.cs            — ContactSheet: layout and composition of a contact sheet, with bundled-font labels
-    └── ImageWriter.cs             — ImageWriter: PNG, JPEG, BMP, and TIFF output, atomic and with the overwrite policy
+    ├── ImageWriter.cs             — ImageWriter: PNG, JPEG, BMP, and TIFF output, atomic and with the overwrite policy
+    ├── ImageRenderer.cs           — ImageRenderer: the render operation (load, transform, and write the pages of a source)
+    ├── ImageInspector.cs          — ImageInspector: the inspect operation (colors and pixels after the pipeline)
+    ├── ImageComparer.cs           — ImageComparer: the compare operation (sizes, measures, thresholds, and pictures)
+    └── MontageBuilder.cs          — MontageBuilder: the montage operation (a contact sheet of many sources)
+```
+
+`CanvasNetViewer` references the `CanvasNet` core package (its `ImageSources` subsystem) and the `CanvasNetSvg`,
+`CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetScad`, `CanvasNetRender3D`, and `CanvasNetVegaLite` packages
+for
+the image source each one supplies and the operations of `Imaging`; no package references it except the tool.
+
+The `CanvasNetTool` system lives in the `src/DemaConsulting.CanvasNet.Tool/` project folder (the separate
+`DemaConsulting.CanvasNet.Tool` dotnet tool package). The six direct units occupy the project root, and the
+`Commands` subsystem occupies the `Commands/` sub-folder, whose name equals its sub-namespace
+(see _CanvasNetTool System Design_, `canvas-net-tool.md`):
+
+```text
+src/DemaConsulting.CanvasNet.Tool/
+├── DemaConsulting.CanvasNet.Tool.csproj — Tool package definition (net8.0/net9.0/net10.0; packable as a dotnet tool)
+├── Program.cs                     — Program: entry point, dispatch, and the error policy
+├── ToolException.cs               — Program: ToolException (a ViewerException with the command and result fields)
+├── Context.cs                     — Context: global options, command capture, and output channels
+├── ArgumentReader.cs              — ArgumentReader: option reading
+├── ArgumentReader.Values.cs       — ArgumentReader: the value grammars (size, geometry, color, and others)
+├── ResultWriter.cs                — ResultWriter: deterministic JSON success and failure documents
+├── Validation.cs                  — Validation: --validate self-test and results output
+├── PathHelpers.cs                 — PathHelpers: safe path combination
+└── Commands/                      — Commands subsystem
+    ├── ICommand.cs                — CommandRegistry: ICommand contract and OptionSpec
+    ├── CommandRegistry.cs         — CommandRegistry: command table, dispatch, and the unknown-command report
+    ├── CommandRegistry.Help.cs    — CommandRegistry: the help command, its subjects, examples, and JSON documents
+    ├── HelpTopics.cs              — HelpTopics: the topic model, the embedded catalog, tokens, and lookup
+    ├── HelpTopics.Render.cs       — HelpTopics: the text and JSON renderings and the wrapping
+    ├── Help/                      — HelpTopics: the embedded topic files (scad, vega-lite, svg, pdf, pptx, vsdx,
+    │   │                            raster, json, errors, and limits, one JSON file each)
+    │   └── Examples/              — HelpTopics: the embedded example sources (SCAD, Vega-Lite, and SVG files)
+    ├── DiscoveryCommands.cs       — DiscoveryCommands: the formats and info commands and the format tables
+    ├── RenderCommand.cs           — RenderCommand: the render command (alias convert), run and result
+    ├── RenderCommand.Options.cs   — RenderCommand: the option table and the reading of the settings
+    ├── RenderCommand.Verbs.cs     — RenderCommand: the verb commands crop, resize, rotate, flip, and pad
+    ├── ImagePipelineParser.cs     — RenderCommand: the reading of the pipeline operations from the command line
+    ├── CompareCommand.cs          — CompareCommand: the compare command, run, thresholds, and result
+    ├── CompareCommand.Options.cs  — CompareCommand: the option table and the reading of the settings
+    ├── MontageCommand.cs          — MontageCommand: the montage command, run and result
+    ├── MontageCommand.Options.cs  — MontageCommand: the option table and the reading of the settings
+    ├── InspectCommand.cs          — InspectCommand: the inspect colors and inspect pixel commands, run and result
+    └── InspectCommand.Options.cs  — InspectCommand: the option table and the reading of the settings and the point
 ```
 
 ## Document Conventions

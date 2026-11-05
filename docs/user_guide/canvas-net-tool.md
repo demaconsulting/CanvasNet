@@ -14,6 +14,12 @@ its own result, every result can be written as one JSON document, a failure is r
 the exit code is always 0 or 1. This chapter describes the whole contract, so that a script or an AI agent can use the
 tool without reading its source.
 
+The tool is a thin command-line shell over the `DemaConsulting.CanvasNet.Viewer` library: it parses a command line into
+the requests of the library's `Imaging` operations (`SourceLoader`, `ImageRenderer`, `ImageInspector`, `ImageComparer`,
+and `MontageBuilder`) and prints their results. Every command in this chapter is therefore also available as a library
+call, with the same behavior and the same stable error codes - see the Viewer chapter of this guide, *Doing what the
+canvasnet commands do, from code*.
+
 ## Installing the Tool
 
 The tool needs the .NET 8, 9, or 10 runtime (the `dotnet tool` commands need the SDK). It bundles every CanvasNet
@@ -50,7 +56,7 @@ not an option (or the value of an option) is the command name.
 - **Mistakes.** An unknown option or command is an error that names the closest valid one (`Did you mean '--fit'?`).
 - **Help.** `canvasnet --help` lists the commands and the help topics, `canvasnet help <command>` and
   `canvasnet <command> --help` show the usage, examples, and every option of a command, and
-  `canvasnet help <topic>` explains an input format or a cross-cutting subject (see _Help Topics_).
+  `canvasnet help <topic>` explains an input format or a cross-cutting subject (see *Help Topics*).
 - **Files.** Paths are relative to the current directory. Wildcards are not expanded by the tool.
 
 ### Global Options
@@ -62,7 +68,7 @@ not an option (or the value of an option) is the command name.
 | `--json` | Write the result of the command as one JSON document on standard output |
 | `--silent` | Suppress all console output, errors included (files are still written; `--log` still records) |
 | `--log <file>` | Also write everything that is printed, errors included, to this file (replaced if it exists) |
-| `--validate` | Run the self-validation (see _Self-Validation_) |
+| `--validate` | Run the self-validation (see *Self-Validation*) |
 | `--results <file>` | With `--validate`: write the results as a `.trx` (TRX) or `.xml` (JUnit) file; alias `--result` |
 | `--depth <1-6>` | With `--validate`: the markdown heading depth of the report (default 1) |
 
@@ -93,7 +99,7 @@ not an option (or the value of an option) is the command name.
   document, and standard output stays that one document.
 - **Exit codes** are the same for every command: **0** for success and **1** for any failure. The finer distinction
   is the stable error code, which is available only in the `Error:` line on standard error and in the `--json`
-  failure document (see _Error Codes_); there is no other exit code to interpret.
+  failure document (see *Error Codes*); there is no other exit code to interpret.
 - **Unexpected exceptions** are bugs, not user errors: a failure the tool did not anticipate (for example a defect in
   a library) is reported as `Unexpected error: <message>` on standard error and then re-thrown. The process then ends
   with the .NET unhandled-exception output (and an event log entry on Windows) and the runtime's own non-zero exit
@@ -140,8 +146,8 @@ parse standard output alone in both cases; the text report on standard error is 
 `crop`, `resize`, `rotate`, `flip`, and `pad` are `render` with one transformation placed first, so each of them
 takes every option of `render` and works on every input that `render` reads (an SVG, a PDF page, an OpenSCAD model, a
 Vega-Lite chart, and so on, not only rasters). The photo operations (`--grayscale`, `--deskew`, `--trim`, `--grid`,
-and so on; see _Photos
-and Sketches_) are options of `render`, so they are available to all of these commands too, and `inspect` accepts them
+and so on; see *Photos
+and Sketches*) are options of `render`, so they are available to all of these commands too, and `inspect` accepts them
 as well.
 
 ### Formats Read and Written
@@ -220,7 +226,7 @@ Run 'canvasnet help <topic>' for supported features, examples, and known differe
 <!-- markdownlint-enable MD013 -->
 
 The `--help` of every command (for example `canvasnet render --help` and `canvasnet formats --help`) ends with a
-_See also_ line that names `canvasnet help <topic>`, the topics, and `canvasnet help topics`.
+*See also* line that names `canvasnet help <topic>`, the topics, and `canvasnet help topics`.
 
 ### info
 
@@ -243,7 +249,7 @@ it, which is cheap even for a large file.
   channels with transparency, and what its specification declares: the mark types, the data sources (inline, a URL, a
   named data set, or a generated sequence, with the row count when the text gives it), the names of its parameters, its
   title, and its schema version. To report the laid-out size the chart is measured, which reads its local data files from
-  the folder of the specification (see _Vega-Lite Charts_ below; a missing file is a `vega-lite-error`) and uses no
+  the folder of the specification (see *Vega-Lite Charts* below; a missing file is a `vega-lite-error`) and uses no
   network.
 
 <!-- markdownlint-disable MD013 -->
@@ -287,12 +293,12 @@ The options of `render` are listed in the following tables.
 | Source option | Meaning |
 | --- | --- |
 | `--page <N>` | The page or slide of a document to draw, counted from 1 (default 1) |
-| `--all-pages` | Draw every page or slide (see _Several Pages_) |
+| `--all-pages` | Draw every page or slide (see *Several Pages*) |
 | `--dpi <D>` | Resolution of a PDF, PPTX, or VSDX page (default 96, above 0 and at most 2400; whole numbers for VSDX) |
 | `--scale <factor>` | Multiply the natural size by a factor (0.001 to 8192), for example `2` or `0.5` |
 | `--width <px>`, `--height <px>` | Target width or height; the other side keeps the aspect ratio unless both given |
 | `--size <WxH>` | Exact target size, for example `800x600` (shorthand for both `--width` and `--height`) |
-| `--background <color>` | The color that transparency is flattened over (see _Colors_ and _Defaults_) |
+| `--background <color>` | The color that transparency is flattened over (see *Colors* and *Defaults*) |
 | `--no-auto-orient` | Do not turn a JPEG upright by its EXIF orientation |
 | `--strict` | Fail with `unsupported-feature` instead of skipping a picture or shape that cannot be drawn |
 
@@ -305,15 +311,15 @@ background.
 
 | Pipeline option | Meaning |
 | --- | --- |
-| `--crop <geometry>` | Cut out a rectangle (see _Geometry_); repeatable |
+| `--crop <geometry>` | Cut out a rectangle (see *Geometry*); repeatable |
 | `--resize <WxH>` | Resample to exactly this size; repeatable |
 | `--fit <WxH>` | Shrink to fit inside the box, keeping the aspect ratio; an image that already fits is unchanged |
 | `--allow-upscale` | Let `--fit` also enlarge an image that is smaller than the box |
 | `--rotate <degrees>` | Rotate clockwise by any angle (-90 is 270); other than a multiple of 90 grows the canvas |
-| `--rotate-fill <color>` | The color of the corners that `--rotate` or `--deskew` exposes (see _Photos and Sketches_) |
+| `--rotate-fill <color>` | The color of the corners that `--rotate` or `--deskew` exposes (see *Photos and Sketches*) |
 | `--flip <h\|v\|both>` | Mirror left to right (`h`), top to bottom (`v`), or both |
 | `--pad <N\|l,t,r,b>` | Add a border of N pixels on every side, or `l,t,r,b` pixels on the left, top, right, bottom |
-| `--pad-color <color>` | The color of the border added by `--pad` (see _Defaults_) |
+| `--pad-color <color>` | The color of the border added by `--pad` (see *Defaults*) |
 | `--filter <name>` | Resampling filter: `auto` (default), `nearest`, `bilinear`, `bicubic`, `lanczos3`, or `area` |
 
 `--filter`, `--pad-color`, `--rotate-fill`, and `--allow-upscale` are settings of the whole command (the last one
@@ -344,7 +350,7 @@ The photo operations have options of their own:
 
 <!-- markdownlint-enable MD013 -->
 
-These options are explained in _Photos and Sketches_. `--threshold` and `--grid` of `render` are unrelated to the
+These options are explained in *Photos and Sketches*. `--threshold` and `--grid` of `render` are unrelated to the
 `--threshold` and `--grid` of `compare` (a metric limit and a number of cells): each command has its own.
 
 | Output option | Meaning |
@@ -358,7 +364,7 @@ An existing output file is replaced unless `--no-clobber` is given. The output m
 (`same-input-output`). The folder of the output is created when it does not exist.
 
 On success `render` prints one line per output, for example
-`wrote shapes.png (100x80 png, 309 bytes) from shapes.svg`, or the JSON document described in _JSON Output_.
+`wrote shapes.png (100x80 png, 309 bytes) from shapes.svg`, or the JSON document described in *JSON Output*.
 
 ```bash
 # Rasterize a drawing (an SVG is drawn at its intrinsic size by default)
@@ -410,8 +416,8 @@ times the resolution divided by 72 (a 72 by 48 point PDF page is 96 by 64 pixels
 An OpenSCAD model (`.scad`) is evaluated and drawn from one viewpoint as a still image, at **800 by 800 pixels**
 unless `--scale`, `--width`, `--height`, or `--size` is given (the picture is never stretched: the camera fits the
 aspect ratio). Only a single view is drawn per command; run the command once per view to get several. A model can also
-be drawn inside an SVG diagram with `<image href="part.scad" .../>` (see _Embedding Images, Charts, and Models in an
-SVG_ and `canvasnet help svg`).
+be drawn inside an SVG diagram with `<image href="part.scad" .../>` (see *Embedding Images, Charts, and Models in an
+SVG* and `canvasnet help svg`).
 
 | Model option | Meaning |
 | --- | --- |
@@ -445,7 +451,7 @@ gives a free viewpoint. Model options given for an input that is not a model are
 view that the model itself sets with its own `$vpr`, `$vpt`, `$vpd`, or `$vpf` assignment. Any of the three options
 (also `--view iso`) makes the view explicit, and then it wins over the model and over the flat default.
 `--projection` alone does not make the view explicit. The `render` entry of the `operations` in the JSON result
-reports what was used (see _JSON Output_).
+reports what was used (see *JSON Output*).
 
 **Viewport variables.** A model sees the camera of its picture in `$vpt` (target), `$vpr` (rotation in degrees),
 `$vpd` (distance), and `$vpf` (vertical field of view in degrees), so `translate($vpt) rotate($vpr)` places an object
@@ -553,7 +559,7 @@ enlarged afterwards, so text and lines stay crisp. A chart has no options of its
 parameters, data, or configuration, and the model options (`-D`, `--view`, ...) given with a chart are a
 `usage-error`. A
 chart has one page, so `--page` beyond 1 is `page-out-of-range`. A chart can also be drawn inside an SVG diagram with
-`<image href="chart.vl.json" .../>` (see _Embedding Images, Charts, and Models in an SVG_ and `canvasnet help svg`).
+`<image href="chart.vl.json" .../>` (see *Embedding Images, Charts, and Models in an SVG* and `canvasnet help svg`).
 
 The background is the one the chart declares (white when it declares none); `--background <color>` replaces it, and
 `--background transparent` gives a transparent picture. The picture is static and the same on every machine: dates are in
@@ -577,7 +583,7 @@ and column of the `url` (also with `--strict`), never an empty chart. A `url` wi
 or an absolute path is **never fetched or opened**: it is reported as the diagnostic `vl-data-remote-url` and the
 chart is
 drawn with an empty dataset (`--strict` makes it an `unsupported-feature` failure). `info` measures the chart, so it reads
-the same data files. See _Vega-Lite Data_ in the CanvasNet User Guide for the CSV, TSV, DSV, and JSON rules, the
+the same data files. See *Vega-Lite Data* in the CanvasNet User Guide for the CSV, TSV, DSV, and JSON rules, the
 `format.parse` rules, and the limits (at most 64 files, 64 MiB per file, and 1,000,000 rows).
 
 The library draws a defined subset of Vega-Lite. A construct it recognizes but cannot draw yet (for example a mark or
@@ -609,7 +615,7 @@ canvasnet render chart.vl.json --strict -o chart.png
 An `<image>` element of an SVG file can name another file by a **relative `href`**, and the tool draws that file in the
 element's rectangle. This turns an SVG into a diagram that puts a 3D part and a chart beside boxes and arrows. The
 shortest form is `<image href="part.scad" x="10" y="10" width="120" height="120"/>`; `canvasnet help svg` lists the
-rules below in its _Linking files with image href_ section, and `canvasnet help svg --example embed` prints a whole
+rules below in its *Linking files with image href* section, and `canvasnet help svg --example embed` prints a whole
 diagram. The file types an `href` may link (the list in the help is checked by a test against the extensions the tool
 accepts):
 
@@ -705,7 +711,7 @@ PPTX and VSDX documents, OpenSCAD models, Vega-Lite charts, and SVG files that e
 shape, or feature the library recognizes but cannot
 draw. By default the page is drawn without it and the report is returned in `diagnostics` in the JSON result and, without
 `--json`, written to standard error as `Unsupported: <code>: <message>` and `Warning: <code>: <message>` lines (see
-_Output, Errors, and Exit Codes_), so a feature that was left out is never silent.
+*Output, Errors, and Exit Codes*), so a feature that was left out is never silent.
 `--strict` turns the report into a failure (`unsupported-feature`) and writes no output. PDF and raster images have no such
 report: whatever the library cannot draw is simply not drawn, and `--strict` has no effect on them. An SVG file
 reports only
@@ -754,11 +760,11 @@ The semantics of the operations are:
 - **rotate** turns the image clockwise by the angle in degrees; a negative angle turns it counterclockwise (`-90` is
   `270`). A multiple of 90 degrees is an exact move of the pixels (and 0 or 360 changes nothing). Any other angle grows
   the canvas to the bounding box of the turned image, so that no corner is cut off, and fills the new corners with
-  `--rotate-fill` (see _Photos and Sketches_ for the rule); a 160x100 image turned by 30 degrees becomes 189x167. An
+  `--rotate-fill` (see *Photos and Sketches* for the rule); a 160x100 image turned by 30 degrees becomes 189x167. An
   angle that is not a number, or a result larger than 8192 pixels on a side (`size-limit`), is refused.
 - **flip** mirrors the image: `h` left to right, `v` top to bottom, `both` is a rotation by 180 degrees.
 - **pad** adds a border of the given widths, in pixels. The color is `--pad-color`, which defaults as described in
-  _Defaults_.
+  *Defaults*.
 
 ### Photos and Sketches
 
@@ -817,7 +823,7 @@ a sketch, a table edge) and turns the image by the opposite angle, so that those
 - It corrects the tilt only when the tilt is at least 0.05 degrees and the confidence is at least 0.4. When the image has
   no clear structure (a blank picture, noise, a photo of a landscape) the confidence is low and the image is **copied
   unchanged**: check `applied` in the JSON result instead of assuming the picture was straightened.
-- The corners that the rotation exposes are filled with the color described under _Rotation by any angle_, and the canvas
+- The corners that the rotation exposes are filled with the color described under *Rotation by any angle*, and the canvas
   grows to hold the whole image. Tell the tool to use the paper color with `--rotate-fill` when the border should not
   show.
 - Deskew is best effort. If the automatic correction would make either side larger than 8192 pixels, the image is
@@ -964,7 +970,7 @@ Options that are shared by both inputs, with the grammar of the same options of 
 | Option | Meaning |
 | --- | --- |
 | `--page <N>`, `--dpi <D>` | The page and the resolution of a document input (defaults 1 and 96) |
-| `--view`, `--azimuth`, `--elevation`, `--projection`, `-D`/`--define`, `--time`, `--default-color`, `--max-triangles` | The view and variables of an OpenSCAD model input (see _OpenSCAD Models_); given when no input is a model they are a `usage-error` |
+| `--view`, `--azimuth`, `--elevation`, `--projection`, `-D`/`--define`, `--time`, `--default-color`, `--max-triangles` | The view and variables of an OpenSCAD model input (see *OpenSCAD Models*); given when no input is a model they are a `usage-error` |
 | `--background <color>` | The **opaque** color that transparency is flattened over (default white); `transparent` or a color with alpha below 255 is a `usage-error` |
 | `--no-auto-orient`, `--strict`, `--filter` | As for `render` |
 | `--quality <1-100>`, `--no-clobber` | For the pictures that are written (a JPEG picture is flattened over the background) |
@@ -987,7 +993,7 @@ size).
 | --- | --- |
 | `--tolerance <0-255>` | A pixel counts as differing when its largest channel difference is **above** this (default 8; 0 counts any change) |
 | `--grid <CxR>` | The grid of cells for the per-cell errors: columns by rows, each 1 to 64 and not more than the pixels of the image (default `4x4`) |
-| `--threshold <metric>=<value>` | A limit to check; repeatable (see _Thresholds_) |
+| `--threshold <metric>=<value>` | A limit to check; repeatable (see *Thresholds*) |
 
 | Picture option | Meaning |
 | --- | --- |
@@ -1202,7 +1208,7 @@ A value that does not match its grammar is a `usage-error` that quotes the value
 ## Help Topics
 
 `canvasnet help <subject>` explains the tool from the tool itself, offline and for the installed version. The subject
-is a command (see _Commands_) or one of ten help topics, which cover the input formats and the subjects that apply to
+is a command (see *Commands*) or one of ten help topics, which cover the input formats and the subjects that apply to
 every command. A subject is matched in any letter case, and a topic may be named by an alias.
 
 | Topic | Aliases | What it covers |
@@ -1242,7 +1248,7 @@ canvasnet render plate.scad --view top --size 400x400 -o plate-top.png --json
 - `--examples` lists the names, kinds (`source`, `command`, or `snippet`), and descriptions of the examples of the
   topic. A `snippet` is shown but not rendered alone, because it refers to other files (the `embed` example of `svg` is
   a diagram that links a model, a chart, and an SVG file beside it).
-- `--json` writes any help output as one JSON document, without a banner or color codes (see _Help Documents_).
+- `--json` writes any help output as one JSON document, without a banner or color codes (see *Help Documents*).
 - An unknown subject is a `usage-error` that names the closest subject (`Did you mean 'scad'?`) when there is one and
   lists the valid subjects. `--example` and `--examples` need a topic, and an unknown example name lists the names.
 - A topic name used as a command (`canvasnet scad`) is an unknown command whose hint says that it is a help topic and
@@ -1312,7 +1318,7 @@ describes the format), `outputs` (`{"format","extensions","alpha","lossy"}`), `q
   `svg-image-unresolved` or `svg-image-too-large` for an SVG `image` that was not drawn).
 - `echo`: the text a SCAD model printed with `echo`.
 - `anchors`: only for a SCAD model, after `echo`: the points it declared with `echo("anchor", "name", [x, y, z])`, in
-  echo order, each `{"name","point":[x,y,z],"pixel":[x,y] or null,"inside"}` (see _Anchors_ under _OpenSCAD Models_).
+  echo order, each `{"name","point":[x,y,z],"pixel":[x,y] or null,"inside"}` (see *Anchors* under *OpenSCAD Models*).
 
 | `op` | Fields besides `op` |
 | --- | --- |
@@ -1341,7 +1347,7 @@ grow in later versions of the tool; a program should ignore an `op` or a key it 
 
 `compare --json` adds `a`, `b`, `size`, `options`, `metrics`, `grid`, `worstCells`, `thresholds`, and `outputs`, and
 `montage --json` adds `sheet`, `cells`, and `outputs`; both documents are described in the sections of the commands
-(_compare_ and _montage_). `inspect --json` adds `subcommand` and the fields described in _inspect_.
+(*compare* and *montage*). `inspect --json` adds `subcommand` and the fields described in *inspect*.
 
 ### Help Documents
 
@@ -1588,8 +1594,8 @@ this reliable:
    canvasnet render redraw.svg --size 1250x1750 --crop 200x120+100+80 --resize 1000x600 -o redraw-detail.png
    ```
 
-6. Fix what differs in the SVG and repeat from step 4 (or use the loop of _Recipe: Iterate a Redraw Until It
-   Matches_). A text-heavy SVG depends on the fonts of the machine, so compare layout rather than exact glyph shapes.
+6. Fix what differs in the SVG and repeat from step 4 (or use the loop of *Recipe: Iterate a Redraw Until It
+   Matches*). A text-heavy SVG depends on the fonts of the machine, so compare layout rather than exact glyph shapes.
 
 ### Recipe: From a Napkin Sketch to an OpenSCAD Model
 

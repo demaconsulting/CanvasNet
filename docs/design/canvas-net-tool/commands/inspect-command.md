@@ -8,8 +8,9 @@
 
 `InspectCommand` is the `inspect` command with its two subcommands: `inspect colors` reports the dominant colors and the
 luma statistics of an image, `inspect pixel` reports the pixel at a point and, optionally, the pixels around it. Its
-single responsibility is to turn a command line into one pass of probe, load, transform, analyze, and report; the
-loading is `SourceLoader`, the transformation is `ImagePipeline`, and the measuring is the core `Surface` (`Analyze` and
+single responsibility is to turn a command line into one inspection and to report it; the
+loading, the transformation, and the measuring are the `ImageInspector` of the Viewer library, which uses `SourceLoader`,
+`ImagePipeline`, and the core `Surface` (`Analyze` and
 `Sample`). The command is
 **read-only**: it writes no file, so it has no output option, no format, no overwrite policy, and no same-file check.
 The unit is the partial class `InspectCommand` in `InspectCommand.cs` (the run and the results) and
@@ -43,18 +44,21 @@ count (default `InspectCommand.DefaultColors`, 8), the radius (default 0), and t
 (`colors`: one input file; `pixel`: an input file and a point, with an example in the hint), parses the point with
 `ParsePoint` (`x,y`: two whole numbers separated by a comma; otherwise `Invalid value '...' for <x,y>`), reads `--count`
 (1 to 32) and `--radius` (0 to 8), reads the source options with `RenderCommand.ReadSourceOptions`, and parses the
-pipeline with `ImagePipeline.Parse(reader, null, null)` (so a malformed operation is reported before anything is
+pipeline with `ImagePipelineParser.Parse(reader, null, null)` (so a malformed operation is reported before anything is
 decoded). The point is not checked against the image here; that needs the pixels.
 
 **Run(context, args)**: parses the arguments with the table, reads the settings, then reports every mistake about the
-input before decoding: `SourceLoader.Probe`, the check that model options were given only for a model (the message of
-`render`), and `SourceLoader.CheckPage`. Then loads the page (`SourceLoader.Load`, which honors `--page`, the size
-options, the background, and the EXIF orientation), runs the pipeline when there are operations (with the default
-border color of `render`: the `--background`, else white for a vector source, else transparent, and the `--background`
-also as the fill of a rotation), runs the subcommand on the resulting surface, and disposes the pixels. The operations
-reported are those of the loader followed by those of the pipeline.
+input before decoding: `SourceLoader.Probe` and the check that model options were given only for a model (the message of
+`render`). It then calls `ImageInspector.Execute(info, request)` of the Viewer library with an `InspectRequest` built
+from the settings (the `SourceOptions`, the operations, the subcommand as `InspectKind`, the count, the radius, and the
+point), which checks the page, loads it (`SourceLoader.Load`, which honors `--page`, the size options, the background,
+and the EXIF orientation), runs the pipeline when there are operations (with the default border color of `render`: the
+`--background`, else white for a vector source, else transparent, and the `--background` also as the fill of a
+rotation), and analyzes the result (see _ImageInspector Unit Design_). The command reports the `InspectResult`. The
+operations reported are those of the loader followed by those of the pipeline.
 
-**Analysis background**: translucent pixels are flattened over white before they are counted. The loader and the
+**Analysis background** (performed by `ImageInspector`): translucent pixels are flattened over white before they are
+counted. The loader and the
 pipeline have already composited the picture over `--background` (a raster source is flattened over it, a drawing or a
 model is rendered onto it, a rotation or a border is filled with it), so a pixel is never composited twice. The reported
 `background` is the color a fully transparent pixel counts as: the `--background` when it is opaque, white when there
@@ -108,7 +112,8 @@ arguments throw `ArgumentNullException`. The registry records the command name o
 - **Context** - the `Json` flag and `WriteLine`.
 - **Program** - the tool version for the JSON result.
 - **RenderCommand** - the option table, `ReadSourceOptions`, `ScadOptionNames`, and `WriteField`.
-- **SourceLoader** and **ImagePipeline** (Imaging) and the core **Surface** (`Analyze`, `Sample`) - loading,
+- **ImageInspector**, **SourceLoader**, and **ImagePipeline** (Imaging, of the Viewer library) and the core **Surface**
+  (`Analyze`, `Sample`) - loading,
   transforming, and measuring.
 - **CommandRegistry** - the edit distance that suggests a subcommand.
 

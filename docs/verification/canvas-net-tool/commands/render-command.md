@@ -10,9 +10,13 @@ model), `RenderCommandVegaLiteTests.cs` (the Vega-Lite charts), and `RenderComma
 pipeline options and the verb commands). The command is run
  in-process: the tests
 create a `Context` (with `--json` when the JSON document is wanted), call `Run`, and capture the console with the
-`ToolHost` helper; failures are asserted as the `ToolException` the command throws (the registry would record the
-command name on it). Inputs are generated in a temporary directory (rasters with the codecs, an EXIF segment injected
-into a JPEG, a PNG that declares an oversized image, the PDF, presentation, and drawing the test project writes, and
+`ToolHost` helper; failures are asserted as the exception the command lets escape (the `ToolHost.ExpectFailure` helper
+accepts a
+`ViewerException` of the library or the tool's own `ToolException`, and returns the stable code and hint; the registry
+would record the command name on it). Inputs are generated in a temporary directory (rasters with the codecs, an EXIF
+segment injected
+into a JPEG, a PNG that declares an oversized image, the PDF, presentation, and drawing that the shared test support
+writes (`FixtureFactory`, which lives in the Viewer test project and is linked into this one), and
 the models and charts the tests write as text) plus the original SVG, model, and chart fixtures, and the outputs are
 decoded with the
 codecs and compared with the generated pixels.

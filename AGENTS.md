@@ -170,10 +170,13 @@ A source project is a dependency of every project that references it, directly o
 | `DemaConsulting.CanvasNet.VegaLite` | `VegaLite.Tests`, `Viewer.Tests`, `Tool.Tests` |
 | `DemaConsulting.CanvasNet.Viewer` | `Viewer.Tests`, `Tool.Tests` |
 | `DemaConsulting.CanvasNet.Tool` | `Tool.Tests` |
-| A test project only | That test project only |
+| A test project only | That test project only (see the shared test support note below) |
 
 Test project names are `DemaConsulting.CanvasNet.{Name}` as in the table (the core project is
 `DemaConsulting.CanvasNet.Tests`).
+
+The shared test support (`FixtureFactory*.cs`, `SurfaceAssert.cs`, and `Fixtures/**`) lives in `Viewer.Tests` and is
+linked into `Tool.Tests`: when it changes, run **both** `Viewer.Tests` and `Tool.Tests`.
 
 ## Rules
 

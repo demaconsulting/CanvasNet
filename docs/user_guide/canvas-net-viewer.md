@@ -1,6 +1,6 @@
 # CanvasNet Viewer Package
 
-<!-- cspell:ignore vsdx pptx scad href hrefs -->
+<!-- cspell:ignore vsdx pptx scad href hrefs ssim -->
 
 ## API Reference
 
@@ -10,12 +10,16 @@
 `DemaConsulting.CanvasNet.Viewer`), which references the core `DemaConsulting.CanvasNet` package and the Svg, Pdf, Pptx,
 Vsdx, Scad, and VegaLite packages - see the Installation section of the project README.
 
-The viewer is the one place that knows every file format of CanvasNet. It does two things without you wiring each
+The viewer is the one place that knows every file format of CanvasNet. It does three things without you wiring each
 format package yourself:
 
 - it creates the **image resolver** that lets an SVG document embed 3D models, charts, other SVG files, document pages,
-  and pictures with `<image href="...">` (`CreateImageResolver`), and
-- it **renders any file** of those formats as a picture in one call (`Render`).
+  and pictures with `<image href="...">` (`CreateImageResolver`),
+- it **renders any file** of those formats as a picture in one call (`Render`), and
+- it does **everything the `canvasnet` command-line tool does** with images, from code (`ImageRenderer`, `ImageInspector`,
+  `ImageComparer`, `MontageBuilder`, and `SourceLoader` of the `DemaConsulting.CanvasNet.Viewer.Imaging` namespace):
+  probe a file, render it through an ordered pipeline of transformations, inspect colors and pixels, compare two images,
+  and compose a contact sheet - see *Doing what the canvasnet commands do, from code* below.
 
 ```csharp
 public static class CanvasNetViewer
@@ -106,6 +110,175 @@ text a model printed with `echo`), and `Embedded`. `Render` throws `FileNotFound
 `NotSupportedException` when no source claims the extension (the message lists them), `SandboxException` when the sandbox
 refuses the file, and `ImageSourceException` for a file that cannot be drawn. Render a file that is not on disk with
 `Render(stream, fileName)`; the extension of the file name chooses the source.
+
+#### Doing what the canvasnet commands do, from code
+
+Everything the `canvasnet` command-line tool does with images is a call of the `Imaging` namespace of the Viewer package
+(`DemaConsulting.CanvasNet.Viewer.Imaging`); the tool only parses a command line into the same requests and prints the
+results. Each operation takes plain request values and returns plain result values, and every expected failure is a
+`ViewerException` (see *Handling errors* below). The paths of the operations are file paths, as on the command line.
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Viewer;
+using DemaConsulting.CanvasNet.Viewer.Imaging;
+```
+
+**`formats` - what can be read and written.** The input kinds by extension, and the output formats by extension:
+
+```csharp
+foreach (var (extension, kind) in SourceLoader.ExtensionKinds)      // .png, .svg, .pdf, .scad, ... -> SourceKind
+{
+    Console.WriteLine($"{extension} -> {kind}");
+}
+
+foreach (var (extension, format) in ImageWriter.ExtensionFormats)   // .png, .jpg, .bmp, .tif -> OutputFormat
+{
+    Console.WriteLine($"{extension} -> {format}");
+}
+```
+
+**`info` - the facts of a file, without rendering it.** `SourceLoader.Probe` reads the header only: the detected kind,
+the size, and for a document every page (a model's modules and functions, a chart's facts, are in the same record):
+
+```csharp
+var info = SourceLoader.Probe("deck.pptx");
+Console.WriteLine($"{info.Format}: {info.PageCount} page(s), page 1 is {info.Width}x{info.Height} pixels");
+foreach (var page in info.Pages)
+{
+    Console.WriteLine($"  page {page.Number}: {page.Width}x{page.Height}");
+}
+```
+
+**`render`, `convert`, and the verbs `crop`, `resize`, `rotate`, `flip`, `pad` - load, transform, write.** An
+`ImageRenderer` call loads the page (or every page) of a probed source, runs an ordered pipeline of operations over it,
+and writes one file for each page. The operations are records, applied in the order of the list, and the output format is
+chosen by the extension of the output (or by `WriteOptions`). All the files are written together or none:
+
+```csharp
+var info = SourceLoader.Probe("part.scad");
+var result = ImageRenderer.Execute(
+    info,
+    new RenderRequest(
+        Output: "out/part.png",
+        AllPages: false,
+        Source: new SourceOptions { Width = 800, Scad = new ScadViewOptions { View = "front", ViewGiven = true } },
+        Write: WriteOptions.Default,
+        Operations:
+        [
+            new CropOperation(new GeometrySpec(
+                new Dimension(10, false), new Dimension(10, false), new Dimension(80, true), new Dimension(80, true))),
+            new RotateOperation(90),
+            new GrayscaleOperation(),
+            new GridOperation(50, null)
+        ]));
+
+foreach (var page in result.Pages)
+{
+    Console.WriteLine($"wrote {page.Result.Path} ({page.Result.Width}x{page.Result.Height})");
+    foreach (var step in page.Operations)                 // what was done, in order, with its parameters
+    {
+        Console.WriteLine($"  {step.Op}");
+    }
+}
+```
+
+The pipeline operations are `CropOperation`, `ResizeOperation`, `FitOperation`, `RotateOperation` (any angle),
+`FlipOperation`, `PadOperation`, `GrayscaleOperation`, `InvertOperation`, `ThresholdOperation`, `LevelsOperation`,
+`BrightnessOperation`, `ContrastOperation`, `AutoLevelsOperation`, `DeskewOperation`, `TrimOperation`, and
+`GridOperation`; `SourceOptions` holds what the command-line options of a source hold (`Page`, `Dpi`, `Scale`, `Width`,
+`Height`, `Background`, `Strict`, `AutoOrient`, `Filter`, and `Scad` for a model's view and variables). With `AllPages`
+every page of a document is written, to a folder (an output that ends with a directory separator) or to a name that
+contains `{page}`. To transform a surface you already have, call `ImagePipeline.Apply(surface, operations,
+defaultPadColor, out var applied)`, and to write one, `ImageWriter.Write(surface, path, inputPathForGuard, options)`;
+`SourceLoader.Load(path, options)` gives the pixels of one page as a `LoadedSource` that owns a `Surface`.
+
+**`inspect colors` and `inspect pixel` - numbers instead of a picture.**
+
+```csharp
+var info = SourceLoader.Probe("photo.jpg");
+
+var colors = ImageInspector.Execute(
+    info,
+    new InspectRequest(new SourceOptions(), [new TrimOperation(8)], InspectKind.Colors, Count: 5, Radius: 0, Point: null));
+foreach (var color in colors.Colors!.Colors)              // the dominant colors, largest first
+{
+    Console.WriteLine($"{color.Color} {color.Fraction:P1}");
+}
+
+var pixel = ImageInspector.Execute(
+    info,
+    new InspectRequest(new SourceOptions(), [], InspectKind.Pixel, Count: 0, Radius: 1, Point: new PixelPoint(10, 20)));
+Console.WriteLine($"{pixel.Pixel!.Pixel} luma {pixel.Pixel.Luma}");
+```
+
+**`compare` - how different are two images?** Two inputs are brought to one size (`Resize`), measured, checked against
+thresholds, and, if asked, written as a difference picture, a side-by-side picture, or an overlay. A threshold that is
+not met is **data** in the result (`Passed` is false), not an exception; you decide what a miss means:
+
+```csharp
+var request = new CompareRequest(
+    A: new CompareInput("a", SourceLoader.Probe("reference.png"), 1, new SourceOptions()),
+    B: new CompareInput("b", SourceLoader.Probe("redraw.svg"), 1, new SourceOptions()),
+    Resize: new ResizeTarget("a", 0, 0),                  // load b at the size of a; null compares at the own sizes
+    Fit: FitMode.Contain,
+    Filter: ResamplingMode.Auto,
+    Background: new Rgba32(255, 255, 255, 255),
+    Tolerance: ImageComparison.DefaultTolerance,
+    GridColumns: ImageComparison.DefaultGridColumns,
+    GridRows: ImageComparison.DefaultGridRows,
+    Thresholds: [new ComparisonThreshold(ThresholdMetric.Rmse, 10), new ComparisonThreshold(ThresholdMetric.Ssim, 0.95)],
+    DiffPath: "diff.png",
+    SideBySidePath: null,
+    OverlayPath: null,
+    DiffStyle: DiffStyle.Heat,
+    Gain: ImageComparison.DefaultGain,
+    OverlayWeight: ImageComparison.DefaultOverlayWeight,
+    Write: WriteOptions.Default);
+
+var comparison = ImageComparer.Execute(request);
+Console.WriteLine($"RMSE {comparison.Metrics.Metrics.Rmse:F2}, SSIM {comparison.Metrics.Metrics.Ssim:F4}");
+foreach (var check in comparison.Checks)
+{
+    Console.WriteLine($"{ImageComparison.MetricName(check.Metric)}: {(check.Passed ? "passed" : "failed")} ({check.Value})");
+}
+```
+
+**`montage` - a contact sheet.** The sources are opened one at a time, so the memory is the sheet plus one source:
+
+```csharp
+var infos = Directory.GetFiles("assets").Select(SourceLoader.Probe).ToList();   // images, and documents (first page)
+var sheet = new SheetOptions(
+    Columns: 0, CellWidth: 200, CellHeight: 150, Spacing: 8, Padding: 8,
+    Background: new Rgba32(255, 255, 255, 255), Labels: true, Fit: FitMode.Contain, Filter: ResamplingMode.Auto);
+
+var montage = MontageBuilder.Execute(
+    infos, new MontageRequest("sheet.png", Page: null, AllPages: false, Dpi: null, Scad: null, Strict: false,
+        AutoOrient: true, Sheet: sheet, Write: WriteOptions.Default));
+Console.WriteLine($"{montage.Layout.Width}x{montage.Layout.Height}, {montage.Cells.Count} cells");
+```
+
+**Handling errors.** An expected failure (a missing, unsupported, or corrupt file, a page that does not exist, a size
+beyond 8192 pixels, an output that cannot be written, inputs that cannot be compared) is a `ViewerException` with a
+stable `Code` (one of the strings of `ErrorCodes`, the same ones the tool prints), a message, and a hint. Anything else
+is a defect and is not caught:
+
+```csharp
+try
+{
+    ImageRenderer.Execute(SourceLoader.Probe(path), request);
+}
+catch (ViewerException ex) when (ex.Code == ErrorCodes.PageOutOfRange)
+{
+    Console.Error.WriteLine($"{ex.Message} {ex.Hint}");
+}
+```
+
+A note about the two ways to draw a file: `CanvasNetViewer.Render` (above) is the simple way to get a picture of a file
+(transparent background for vector files, the fit of a raster into a box, the image-source sandbox, and its own
+exceptions), and the `Imaging` operations are the way the `canvasnet` tool works (document pages and resolution, EXIF
+orientation, a flattened background, the ordered pipeline, and the `ViewerException` codes). The messages and hints of the
+operations are written for the command line and name the options of the tool (for example `--all-pages`).
 
 #### Using only some formats, without the Viewer
 

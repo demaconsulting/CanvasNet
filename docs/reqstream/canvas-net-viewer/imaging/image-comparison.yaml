@@ -1,0 +1,43 @@
+---
+# cspell:ignore psnr rmse ssim
+# Software Unit Requirements for the ImageComparison Class
+#
+# The ImageComparison class is the threshold and defaults side of comparing two images. The measures, the grid, and the
+# pictures (difference, overlay, side-by-side) are computed by the core Surface class (the SurfaceComparison unit of the
+# CanvasNet Canvas subsystem); this unit checks a comparison against thresholds, with the names under which the metrics
+# are written in results and on the command line of the canvasnet tool, and holds the defaults of the comparison
+# options.
+
+sections:
+  - title: ImageComparison Unit Requirements
+    requirements:
+      - id: CanvasNetViewer-Imaging-ImageComparison-Thresholds
+        title: >-
+          The ImageComparison class shall check a comparison against thresholds named mae, rmse, psnr,
+          ssim, diff-ratio, max-diff, and cell-rmse (the largest cell RMSE), each with its documented
+          range, passing an error measure when it is at most the limit and psnr and ssim when they are at
+          least the limit (the PSNR of identical images being infinite), using the unrounded values and
+          returning one check per threshold in the order given.
+        justification: |
+          A script or an agent needs a pass or fail decision with the measured values behind it; the
+          direction of each measure and the use of unrounded values make the decision unambiguous.
+        tests:
+          - ImageComparison_Evaluate_ErrorMetrics_PassWhenAtMostLimit
+          - ImageComparison_Evaluate_SimilarityMetrics_PassWhenAtLeastLimit
+          - ImageComparison_Evaluate_IdenticalImagesPsnr_PassesAnyMinimum
+          - ImageComparison_Evaluate_CellRmse_UsesTheWorstCell
+          - ImageComparison_Evaluate_NullArguments_ThrowArgumentNullException
+          - ImageComparison_ThresholdMetrics_NamesRangesAndDirections_AreConsistent
+          - ImageComparison_TryParseMetric_KnownName_RoundTrips
+
+      - id: CanvasNetViewer-Imaging-ImageComparison-Defaults
+        title: >-
+          The ImageComparison class shall give the comparison options the defaults a tolerance of 8, a grid of 4 by
+          4 cells, a gain of 4, and an overlay weight of 0.5, each within the range the core Surface comparison
+          accepts.
+        justification: |
+          The options of a comparison need one place that fixes their defaults, so that the library, the help of
+          the command-line tool, the parsing, and the result agree, and a default must never be refused by the library
+          that uses it.
+        tests:
+          - ImageComparison_Defaults_AreAcceptedByTheCoreLibrary

@@ -7,8 +7,9 @@
 #### Purpose
 
 `MontageCommand` is the `montage` command: it composes images, and the pages of documents, into one contact sheet. Its
-single responsibility is to turn a command line into one pass of probe, layout, load, compose, and write, and to
-report the result; the layout and the composition are `ContactSheet` and the loading is `SourceLoader`. The unit is the
+single responsibility is to turn a command line into one montage and to
+report the result; the planning, the loading, the composition, and the writing are the `MontageBuilder` of the Viewer
+library, which uses `ContactSheet` for the layout and the composition and `SourceLoader` for the loading. The unit is the
 partial class `MontageCommand` in `MontageCommand.cs` (the run, the planning of the cells, and the reporting) and
 `MontageCommand.Options.cs` (the option table and the reading of the settings). The command has no alias.
 
@@ -25,9 +26,9 @@ declaration: the one of `render` talks about output names), the declarations of 
 shared `ScadViewOptions`, strict and auto-orient, the `SheetOptions` (columns, cell size, spacing, padding, background,
 labels, fit, and filter), and the `WriteOptions`.
 
-**PlannedCell** and **PlacedCell** (private records): a cell before it is loaded (the index of its input and the page)
-and after it was drawn (also its index, position, the `SourceInfo`, the size as loaded, the label, and the notes of the
-loader).
+**PlannedCell** and **PlacedCell** (the planning is private to `MontageBuilder`; the placed cell is its public
+`MontageCell` record): a cell after it was drawn - its index, the index of its input, position, the `SourceInfo`, the
+size as loaded, the label, and the notes of the loader.
 
 Defaults: cell 256x256, spacing 8, padding 8, a white background, `contain`, and the number of columns that
 `ContactSheet` derives from the number of cells.
@@ -43,25 +44,22 @@ to 64), `--spacing` and `--padding` (0 to the maximum image size), `--fit` (with
 
 **Run(context, args)**: reads the settings; without `--all-pages` the number of cells is the number of inputs, so
 `ContactSheet.CalculateLayout` is called first and a sheet that is too large is refused with `size-limit` before any
-input is opened; then probes every input (`SourceLoader.Probe`), checks that model options were given only when an
-input is a model, plans the cells (`PlanCells`), calculates the layout (again, with the real count, so that with
-`--all-pages` the check happens after the page counts were read from the headers), and checks the output with
-`ImageWriter.ResolveFormat` and `ImageWriter.CheckTargets` against every input. Then it creates the `ContactSheet`
-and, for each input in order, opens it once (`SourceLoader.OpenPages` with `BoxOptions` for the cell size) and for each
-of its cells loads the page, adds it to the sheet (which fits it into the cell and draws the label), and disposes it
-before the next, so the memory in use is the sheet plus one input. Last, the sheet is detached, staged with
-`ImageWriter.Stage`, committed, and reported; a `finally` block deletes the temporary file when the commit did not
-happen.
+input is opened (the refusal mentions the options of the tool, which is why the call is made here); then probes every
+input (`SourceLoader.Probe`), checks that model options were given only when an
+input is a model, and calls `MontageBuilder.Execute(infos, request)` of the Viewer library with a `MontageRequest`
+built from the settings. The library plans the cells, calculates the layout (again, with the real count, so that with
+`--all-pages` the check happens after the page counts were read from the headers), checks the output against every input,
+composes the sheet one input at a time, and publishes it (see _MontageBuilder Unit Design_). The command reports the
+`MontageResult`.
 
-**PlanCells**: one cell for an input that is a single image or a model; for a document, the page chosen with `--page`
+**Planning, options, and labels** (performed by `MontageBuilder`): one cell for an input that is a single image or a
+model; for a document, the page chosen with `--page`
 (the first by default, checked with `SourceLoader.CheckPage`, whose `page-out-of-range` names the file) or, with
-`--all-pages`, every page in ascending order. The cells keep the order of the inputs on the command line.
-
-**CreateSourceOptions**: the options of one input: the resolution only for a document, the model options only for a
+`--all-pages`, every page in ascending order. The cells keep the order of the inputs on the command line. The options of
+one input are the resolution only for a document, the model options only for a
 model, the strict and auto-orient switches, the filter, and the sheet background as the background of the loader (so
-the margin of a document page that is fitted into the cell is the background of the sheet).
-
-**CreateLabel**: the file name of the input (`Path.GetFileName`), followed by a space, `p`, and the page number for a
+the margin of a document page that is fitted into the cell is the background of the sheet). The label is the file name
+of the input (`Path.GetFileName`), followed by a space, `p`, and the page number for a
 page of a document, for example `deck.pptx p2`; `ContactSheet` cuts it to the width of the cell.
 
 **Text result**: `wrote {path} ({w}x{h} {format}, {bytes} bytes): {n} image(s) in {c} column(s)`, for example
@@ -96,7 +94,8 @@ exception that is not a `ToolException` is a defect and propagates. Null argumen
 - **Program** - the tool version for the JSON result.
 - **RenderCommand** and **CompareCommand** - the shared option declarations and the reading of the model options and of
   `--fit`.
-- **SourceLoader**, **ContactSheet**, and **ImageWriter** (Imaging) - everything that touches files and pixels.
+- **MontageBuilder**, **SourceLoader**, **ContactSheet**, and **ImageWriter** (Imaging, of the Viewer library) -
+  everything that touches files and pixels.
 
 #### Callers
 

@@ -69,7 +69,7 @@ reads the options that decide how the input is loaded with `ReadSourceOptions`; 
 100 (default 90); rejects `--page` together with `--all-pages`; reads `--all-pages` as a switch; and validates
 `--format` early. A JPEG is flattened over the background color when it has some
 opacity, otherwise over white. The option values reach `SourceLoader` and `ImageWriter` through `SourceOptions` and
-`WriteOptions`. Last, `ImagePipeline.Parse` reads the operations (the verb's first, then the options in
+`WriteOptions`. Last, `ImagePipelineParser.Parse` reads the operations (the verb's first, then the options in
 command-line order), so a malformed operation is reported before anything is decoded.
 
 **ReadSourceOptions(reader)**: `internal`, extracted from `ReadSettings` without a change of grammar so that `inspect`
@@ -105,23 +105,40 @@ drawn from the top (`top`) unless a view is chosen; the usage text of `render` s
 grammar and the same help text. `CompareCommand` and `MontageCommand` build their option tables from it. `WriteField`,
 which writes one parameter of an operation to a JSON object, is `internal` for `CompareCommand`.
 
-**Run(context, args)**: parses the arguments, reads the settings, then reports every mistake about the input, the
-pages, and the outputs before decoding anything: `SourceLoader.Probe` (missing, unreadable, unsupported, or corrupt
-header; for a model, a syntax error), the check that model options were given only for a model (a model option with
-another kind of input is a `usage-error` naming the kind, rather than being ignored), `SourceLoader.CheckPage`
-(`page-out-of-range`; a model has only page 1), `PlanTargets`, `ImageWriter.ResolveFormat`, and
-`ImageWriter.CheckTarget` for every output. Then opens the source once (`SourceLoader.OpenPages`), and for each page
-loads it (`ReadPage`), runs it through `TransformAndStage`, and disposes the pixels before the next page. Each page's
-result is encoded to a temporary file next to its target, and no target is touched until every page has been rendered
-and encoded; then all the outputs are published together (`ImageWriter.PublishAll`, overwriting unless
-`--no-clobber`), and a `finally` block deletes every temporary file that was not committed. The result is
-written through `context.WriteLine`: as one text line per output when `context.Json` is false, or as one JSON
-document. The diagnostics and the echo of a model are part of the JSON document; without `--json` they are written
+**Run(context, args)**: parses the arguments, reads the settings, probes the input with `SourceLoader.Probe` (missing,
+unreadable, unsupported, or corrupt header; for a model, a syntax error), checks that model options were given only for
+a model (a model option with another kind of input is a `usage-error` naming the kind, rather than being ignored; the
+message names the options of the tool, which is why the check is here and not in the library), and then calls
+`ImageRenderer.Execute(info, request)` of the Viewer library with a `RenderRequest` built from the settings (the output,
+`--all-pages`, the `SourceOptions`, the `WriteOptions`, and the operations read by `ImagePipelineParser`). The library
+reports every mistake about the pages and the outputs before decoding anything, renders every page, and publishes all the
+outputs together or none (see _ImageRenderer Unit Design_). The command then writes the result through
+`context.WriteLine`: as one text line per
+output when `context.Json` is false, or as one JSON document. The diagnostics and the echo of a model are part of the
+JSON document; without `--json` they are written
 to standard error after the result lines by `context.WriteDiagnostics`, each note ending with the input path and, for a
 document, the page, so a feature that was left out is not silent
-(the exit code stays 0, and `--silent` suppresses them).
+(the exit code stays 0, and `--silent` suppresses them). A `ViewerException` of the library escapes the command and is
+wrapped by the registry in a `ToolException` that names the command.
 
-**TransformAndStage(loaded, target, settings, isDocument)**: when there are operations, calls `ImagePipeline.Apply` on
+**ImagePipelineParser** (`ImagePipelineParser.cs`, an `internal static` class of this unit): reads the transformation
+operations of the command line into the operation records of the Viewer's `ImagePipeline`. It names the options
+(`CropOption`, `ResizeOption`, and so on) and lists the verb names (`VerbNames`).
+**Parse(reader, verb, verbOperand)** reads the settings (`--filter`, `--allow-upscale`, `--pad-color`,
+`--rotate-fill`, `--auto-levels-clip` from 0 to 20, `--trim-tolerance` from 0 to 255), then, for a verb command, the
+operation of its operand first (`crop` with `ParseGeometry`, `resize` with `ParseSize`, `rotate` with the rotation
+rule, `flip` with `ParseFlip`, `pad` with `ParsePad`), then every step option in `reader.Ordered` order, and returns
+the list. Values are parsed with the `ArgumentReader` value grammars, so a malformed value is a `usage-error` and a size
+or border above the maximum is `size-limit`; the verb operands are named `<geometry>`, `<size>`, `<degrees>`, `<axis>`,
+and `<border>` in messages. A setting without the operation it modifies is a `usage-error` (`--allow-upscale` without
+`--fit`, `--pad-color` without a pad, `--auto-levels-clip` without `--auto-levels`, `--trim-tolerance` without `--trim`,
+and `--rotate-fill` without a rotation or `--deskew`). **ParseFilter(text, option)** turns a filter name into a
+resampling mode with the library's `ImagePipeline.TryParseFilter`, and reports an unknown name as a `usage-error` that
+lists the filters. The parser and the pipeline are tested together by the text-driven tests of `ImagePipelineTests.cs`
+(see _ImagePipeline Unit Verification Design_).
+
+**Transformation and staging of a page** (performed by `ImageRenderer`, called by `Run`): when there are operations, it
+calls `ImagePipeline.Apply` on
 the loaded surface (the loaded surface stays untouched and is disposed with the loaded source; the transformed one is
 disposed in a `finally` block after the staging) and stages the transformed surface with `ImageWriter.Stage`;
 with none, stages the loaded surface. It returns the page's report and the `StagedOutput`. A border with no color
@@ -137,7 +154,8 @@ before the output is published, so a failing operation
 (for example a crop that starts outside the image after an earlier crop) writes nothing and leaves an existing output
 untouched.
 
-**CollectOperations**: the operations to report for a page, in this order: the loader's (`auto-orient`, `resize`,
+**CollectOperations** (performed by `ImageRenderer`): the operations to report for a page, in this order: the loader's
+(`auto-orient`, `resize`,
 `flatten`, `render`, ...), the pipeline's, and the `flatten` of a JPEG when the writer flattened transparency; with
 `--all-pages` of a document each operation without a `page` gets one.
 
@@ -148,7 +166,8 @@ EXIF orientation, and resized once (with `--filter`), and then the pipeline star
 with `--width 24` therefore crops the 24-pixel-wide image. The pipeline's own `--resize` and `--fit` apply to the
 pixels at their point of the chain.
 
-**PlanTargets**: decides the output file of each page. `{page}` in the output is replaced by the page number (for one
+**PlanTargets** (performed by `ImageRenderer`): decides the output file of each page. `{page}` in the output is replaced
+by the page number (for one
 page too). With `--all-pages`, an output that is an existing directory or ends with a directory separator names a
 directory, and each page is written there as `{input name without extension}-{page}` with the extension of the
 format (`.png` unless `--format` says otherwise); an output that has no `{page}` and is not a directory is a
@@ -197,7 +216,7 @@ threshold, levels, brightness, contrast, clip, tolerance, or grid spacing out of
 `--allow-upscale` without `--fit`, `--pad-color` without a pad, `--rotate-fill` without a rotation or `--deskew`,
 `--auto-levels-clip` without `--auto-levels`, `--trim-tolerance` without `--trim`, and a crop that starts outside the
 image or is
-smaller than a pixel) are `ToolException` with
+smaller than a pixel) are `ViewerException` (the library's, or the tool's own `ToolException`) with
 `usage-error`; a size, box, or border larger than the maximum, a border that makes the image larger than the
 maximum, or a rotation whose canvas would be larger than the maximum, is `size-limit`. Input failures come from `SourceLoader`
 (`input-not-found`, `input-unreadable`, `unsupported-format`, `corrupt-input`, `unsupported-feature` - also with
@@ -215,7 +234,8 @@ every `ToolException`.
 - **ResultWriter** - the JSON document.
 - **Context** - the `Json` flag and `WriteLine`.
 - **Program** - the tool version for the JSON result.
-- **SourceLoader**, **ImagePipeline**, and **ImageWriter** (Imaging) - everything that touches files and pixels.
+- **ImageRenderer**, **SourceLoader**, **ImagePipeline**, and **ImageWriter** (Imaging, of the Viewer library) -
+  everything that touches files and pixels.
 
 #### Callers
 

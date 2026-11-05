@@ -44,10 +44,13 @@ ships with (`formats`, `info`, `render` with its alias `convert`, the verbs `cro
 **ArgumentReader** (consumed): each command parses its arguments with `ArgumentReader`, driven by the command's
 `OptionSpec` table, and writes JSON results through `ResultWriter` when `Context.Json` is set.
 
-**Imaging** (consumed): the `info`, `render`, verb, `compare`, `montage`, and `inspect` commands read, compare, compose,
-transform, analyze, and write files only through the `Imaging` subsystem (`SourceLoader`, `ImagePipeline`,
-`ImageComparison`, `ContactSheet`, and `ImageWriter`) and the core `Surface` (comparison and analysis); a command never
-calls a codec directly.
+**Imaging** (consumed, from the `CanvasNetViewer` system): the `info`, `render`, verb, `compare`, `montage`, and `inspect`
+commands read, compare, compose,
+transform, analyze, and write files only through the `Imaging` subsystem of the Viewer library (`SourceLoader` for `info`,
+and the operations `ImageRenderer`, `ImageComparer`, `MontageBuilder`, and `ImageInspector`, with `ImagePipeline`,
+`ImageComparison`, `ContactSheet`, and `ImageWriter` behind them) and the core `Surface` (comparison and analysis); a
+command never calls a codec directly. A command passes the library plain request records and prints the plain result
+records; the library knows nothing of the command line.
 
 **Shared option declarations**: `CompareCommand` and `MontageCommand` take the declarations of the options they share
 with `render` (`--page`, `--dpi`, the options of an OpenSCAD model, `--filter`, `--quality`, `--no-clobber`, and so on)

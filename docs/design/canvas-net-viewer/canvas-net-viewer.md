@@ -6,7 +6,8 @@
 
 ### Purpose
 
-`CanvasNetViewer` is the sole unit of the `CanvasNetViewer` system. It is a static class, with its two supporting types
+`CanvasNetViewer` is one of two units of the `CanvasNetViewer` system (the other is `ViewerException`, beside the
+`Imaging` subsystem). It is a static class, with its two supporting types
 `ViewerRenderOptions` and `ViewerImage`, that does three things: it lists the image sources of every format CanvasNet
 can read, it creates the image resolver that lets an SVG document embed all of them, and it renders any file as a
 picture. It adds no format knowledge of its own: each format is drawn by the source of its own package, and every file
@@ -92,5 +93,6 @@ The core `ImageSources` subsystem (`IImageSource`, `ImageSourceSet`, `FolderImag
 
 ### Callers
 
-Applications and the `CanvasNetTool` system: its `SourceLoader` calls `CreateImageResolver` for every SVG file it renders
-and reads `Extensions` in the drift test of the `svg` help topic. The tool passes no extra sources.
+Applications and the `CanvasNetTool` system: its `SourceLoader` (now part of the `Imaging` subsystem of this system)
+calls `CreateImageResolver` for every SVG file it renders, and the tool reads `Extensions` in the drift test of the `svg`
+help topic. The tool passes no extra sources.

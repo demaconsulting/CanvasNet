@@ -1,0 +1,43 @@
+---
+# cspell:ignore canvasnet
+# Software Unit Requirements for the ImageComparer Class
+#
+# The ImageComparer class is the compare operation of the library: given two inputs (each a probed source, a page,
+# and its source options) and a request, it brings both to one size, measures the difference with the core Surface,
+# checks the thresholds, and writes the pictures that were asked for. It is the library form of the compare
+# command of the canvasnet tool, which parses its arguments into the request, turns a threshold that is not met into
+# a failure, and prints the result.
+
+sections:
+  - title: ImageComparer Unit Requirements
+    requirements:
+      - id: CanvasNetViewer-Imaging-ImageComparer-Measure
+        title: >-
+          The ImageComparer class shall load both inputs, bring them to the same size when the request names a side
+          to resize to, measure the difference with the
+          grid and tolerance of the request, and report for each side its label, source, page, and size, together with
+          the metrics, one check for each threshold in the order given with its measured value and whether it
+          passed, and the pictures that were written, in the order difference, side by side, overlay.
+        justification: |
+          Comparing a redraw with its reference is one operation for the caller: it gets numbers and pictures that
+          agree with each other, a threshold that is not met is a result to be read (not an exception that hides
+          the measures), and the caller decides what a failed check means.
+        tests:
+          - ImageComparer_Execute_IdenticalImages_ReportsIdentical
+          - ImageComparer_Execute_ThresholdNotMet_IsReturnedAsFailedCheck
+          - ImageComparer_Execute_ResizeToA_FitsTheSecondInputAndReportsIt
+          - ImageComparer_Execute_Pictures_AreWrittenInOrder
+
+      - id: CanvasNetViewer-Imaging-ImageComparer-Checks
+        title: >-
+          The ImageComparer class shall refuse, with the stable error code and before anything is written, inputs of
+          different sizes when no resize was asked for (size-mismatch, with a hint), a grid with more cells than the
+          image has pixels in a direction (usage-error), and a picture to write that is one of the inputs
+          (same-input-output).
+        justification: |
+          Two images of different sizes have no pixel-by-pixel difference, and a picture must never replace an
+          input; both are mistakes that must be found before any work is done and any file is touched.
+        tests:
+          - ImageComparer_Execute_DifferentSizesWithoutResize_ThrowsSizeMismatch
+          - ImageComparer_Execute_GridLargerThanImage_ThrowsUsageError
+          - ImageComparer_Execute_PictureIsAnInput_ThrowsSameInputOutput

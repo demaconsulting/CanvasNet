@@ -6,7 +6,9 @@
 # size, measures how much they differ (MAE, RMSE, PSNR, SSIM, the fraction of differing pixels, and the error of each
 # cell of a grid), optionally writes a difference image, a side-by-side image, and an overlay, checks the measures
 # against thresholds, and reports the result as text or as one JSON document. A threshold that is not met is an
-# expected error (exit code 1) raised after the result and the pictures were written.
+# expected error (exit code 1) raised after the result and the pictures were written. The command is a shell: it
+# parses the options, turns a failed threshold check into that error, and prints the result, and the loading, the
+# measuring, and the writing of the pictures are done by the ImageComparer unit of the Viewer library.
 
 sections:
   - title: CompareCommand Unit Requirements

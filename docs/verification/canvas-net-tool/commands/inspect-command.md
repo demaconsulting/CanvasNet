@@ -7,7 +7,8 @@
 `InspectCommand` is verified with unit tests in `InspectCommandTests.cs` (the subcommands, their options, results, and
 errors) and `InspectCommandSourceTests.cs` (the kinds of input). The command is run in-process: the tests create a
 `Context` (with `--json` when the JSON document is wanted), call `Run`, and capture the console with the `ToolHost`
-helper; failures are asserted as the `ToolException` the command throws. The main input is a generated 20x10 PNG, red
+helper; failures are asserted with the `ToolHost.ExpectFailure` helper as the exception the command lets escape (a
+`ViewerException` of the library or the tool's own `ToolException`). The main input is a generated 20x10 PNG, red
 where x is below 15 and blue from there on, whose colors, shares, luma statistics (the luma of red is 77 and of blue
 29), and window means are hand-computed; the other inputs (a JPEG with an EXIF orientation, an SVG drawing, a model, a
 PDF, and a transparent PNG) are the generated fixtures of the test project. The interaction with the default command
