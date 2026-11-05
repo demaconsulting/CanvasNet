@@ -402,6 +402,25 @@ sections:
               - PdfDocument_Render_CustomBackgroundColor_ClearsSurfaceToThatColor
               - PdfDocument_Render_TransparentBackgroundColor_ReproducesOldFullyTransparentBehavior
 
+          - id: CanvasNetPdf-PdfDocument-SurfaceOwnership
+            title: >-
+              The PdfDocument class shall release every image, conversion, and output surface it
+              allocates while rendering a page, also when rendering fails, and a failure shall
+              propagate its original exception type and leave the document usable for another render.
+            justification: |
+              Embedded PDFs (an SVG image that links a .pdf) can be rendered many times, and some of
+              those renders fail on malformed content; a surface that is dropped without release
+              keeps a large pixel buffer alive until the garbage collector runs, so repeated renders
+              of real or hostile documents would hold memory far beyond the work they produce.
+            tests:
+              - PdfDocument_Render_UndefinedXObjectAfterAllocation_ThrowsInvalidDataException
+              - PdfDocument_Render_AfterFailedRender_RepeatsOriginalFailure
+              - PdfDocument_Render_ImageDrawnTwice_PaintsBothPlacements
+              - PdfDocument_Render_TruncatedImageSamples_ThrowsInvalidDataException
+              - PdfDocument_ConvertSamplesToSurface_TruncatedGraySamples_ThrowsInvalidDataException
+              - PdfDocument_ConvertSamplesToSurface_TruncatedDeviceNSamples_ThrowsInvalidDataException
+              - PdfDocument_ConvertSamplesToSurface_CompleteGraySamples_ReturnsConvertedSurface
+              - PdfDocument_Render_AfterSuccessOrFailure_KeepsNoReferenceToTheSurface
           - id: CanvasNetPdf-PdfDocument-RenderWithDpi
             title: >-
               The PdfDocument class shall provide a Render overload that renders a page at a

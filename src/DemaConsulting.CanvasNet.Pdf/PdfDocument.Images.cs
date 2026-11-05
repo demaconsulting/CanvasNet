@@ -60,8 +60,13 @@ public sealed partial class PdfDocument
                 break;
 
             case "Image":
-                var image = DecodeImageXObject(xObject);
-                CompositeImageOntoSurface(image, _gs.CurrentTransform);
+                // The decoded surface is only read by the compositor (which never retains or
+                // disposes it), so it is released as soon as this draw completes or fails
+                using (var image = DecodeImageXObject(xObject))
+                {
+                    CompositeImageOntoSurface(image, _gs.CurrentTransform);
+                }
+
                 break;
 
             default:
@@ -508,7 +513,16 @@ public sealed partial class PdfDocument
         var jpegSurface = JpegCodec.Load(jpegStream);
         if (jpegDecodeRanges is not null)
         {
-            ApplyDecodeToSurface(jpegSurface, channels, jpegDecodeRanges);
+            // Release the decoded surface if applying /Decode fails; the caller never receives it
+            try
+            {
+                ApplyDecodeToSurface(jpegSurface, channels, jpegDecodeRanges);
+            }
+            catch
+            {
+                jpegSurface.Dispose();
+                throw;
+            }
         }
 
         return new DecodedImage(jpegSurface, channels == 1);
@@ -522,7 +536,6 @@ public sealed partial class PdfDocument
         int height,
         int componentCount)
     {
-        var surface = new Surface(width, height);
         var rowBytes = componentCount * width;
 
         // A 1-component image only has 256 possible sample values: convert each once (exact), so
@@ -539,44 +552,57 @@ public sealed partial class PdfDocument
             : null;
         var previousOffset = -1;
         var previousColor = default(Rgba32);
-        for (var y = 0; y < height; y++)
+
+        // The surface is allocated only after the cheap setup above and is released if the
+        // conversion loop fails (truncated samples, tint-budget exhaustion), because the caller
+        // never receives it in that case
+        var surface = new Surface(width, height);
+        try
         {
-            var rowOffset = y * rowBytes;
-            for (var x = 0; x < width; x++)
+            for (var y = 0; y < height; y++)
             {
-                var pixelOffset = rowOffset + (x * componentCount);
-                if (lut is not null)
+                var rowOffset = y * rowBytes;
+                for (var x = 0; x < width; x++)
                 {
-                    if (pixelOffset >= samples.Length)
+                    var pixelOffset = rowOffset + (x * componentCount);
+                    if (lut is not null)
                     {
-                        throw new InvalidDataException(SampleDataTruncatedMessage);
+                        if (pixelOffset >= samples.Length)
+                        {
+                            throw new InvalidDataException(SampleDataTruncatedMessage);
+                        }
+
+                        surface[x, y] = lut[samples[pixelOffset]];
+                        continue;
                     }
 
-                    surface[x, y] = lut[samples[pixelOffset]];
-                    continue;
-                }
+                    if (tintConverter is not null)
+                    {
+                        surface[x, y] = tintConverter.Convert(samples, pixelOffset);
+                        continue;
+                    }
 
-                if (tintConverter is not null)
-                {
-                    surface[x, y] = tintConverter.Convert(samples, pixelOffset);
-                    continue;
-                }
+                    if (memoizing && previousOffset >= 0 && pixelOffset + componentCount <= samples.Length
+                        && samples.AsSpan(pixelOffset, componentCount).SequenceEqual(samples.AsSpan(previousOffset, componentCount)))
+                    {
+                        surface[x, y] = previousColor;
+                        continue;
+                    }
 
-                if (memoizing && previousOffset >= 0 && pixelOffset + componentCount <= samples.Length
-                    && samples.AsSpan(pixelOffset, componentCount).SequenceEqual(samples.AsSpan(previousOffset, componentCount)))
-                {
-                    surface[x, y] = previousColor;
-                    continue;
+                    var color = SamplesToColor(colorSpace, samples, pixelOffset, componentCount);
+                    surface[x, y] = color;
+                    previousOffset = pixelOffset;
+                    previousColor = color;
                 }
-
-                var color = SamplesToColor(colorSpace, samples, pixelOffset, componentCount);
-                surface[x, y] = color;
-                previousOffset = pixelOffset;
-                previousColor = color;
             }
-        }
 
-        return surface;
+            return surface;
+        }
+        catch
+        {
+            surface.Dispose();
+            throw;
+        }
     }
 
     /// <summary>
@@ -764,17 +790,27 @@ public sealed partial class PdfDocument
             ApplyDecodeArray(samples, componentCount, decodeRanges, indexed);
         }
 
+        // Release the surface if the per-pixel conversion fails (for example truncated samples),
+        // because the caller never receives it in that case
         var surface = new Surface(jp2.Width, jp2.Height);
-        var pixelCount = jp2.Width * jp2.Height;
-        for (var i = 0; i < pixelCount; i++)
+        try
         {
-            var color = SamplesToColor(colorSpace, samples, i * componentCount, componentCount);
-            if (useAlpha)
+            var pixelCount = jp2.Width * jp2.Height;
+            for (var i = 0; i < pixelCount; i++)
             {
-                color.A = jp2.AlphaSamples![i];
-            }
+                var color = SamplesToColor(colorSpace, samples, i * componentCount, componentCount);
+                if (useAlpha)
+                {
+                    color.A = jp2.AlphaSamples![i];
+                }
 
-            surface[i % jp2.Width, i / jp2.Width] = color;
+                surface[i % jp2.Width, i / jp2.Width] = color;
+            }
+        }
+        catch
+        {
+            surface.Dispose();
+            throw;
         }
 
         return new DecodedImage(surface, colorSpace.Kind == PdfColorSpace.Family.DeviceGray);
@@ -1077,14 +1113,24 @@ public sealed partial class PdfDocument
             ApplyDecodeArray(decoded, 1, decodeRanges, indexed);
         }
 
+        // Release the surface if the per-pixel conversion fails (for example an /Indexed palette
+        // lookup error), because the caller never receives it in that case
         var surface = new Surface(columns, rows);
-        for (var y = 0; y < rows; y++)
+        try
         {
-            var rowOffset = y * columns;
-            for (var x = 0; x < columns; x++)
+            for (var y = 0; y < rows; y++)
             {
-                surface[x, y] = SamplesToColor(colorSpace, decoded, rowOffset + x, 1);
+                var rowOffset = y * columns;
+                for (var x = 0; x < columns; x++)
+                {
+                    surface[x, y] = SamplesToColor(colorSpace, decoded, rowOffset + x, 1);
+                }
             }
+        }
+        catch
+        {
+            surface.Dispose();
+            throw;
         }
 
         return new DecodedImage(surface, colorSpace.Kind == PdfColorSpace.Family.DeviceGray);

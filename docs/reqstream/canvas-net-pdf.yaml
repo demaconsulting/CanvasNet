@@ -103,6 +103,7 @@ sections:
         children:
           - CanvasNetPdf-PdfDocument-Render
           - CanvasNetPdf-PdfDocument-RenderWithDpi
+          - CanvasNetPdf-PdfDocument-SurfaceOwnership
         tests:
           - CanvasNetPdf_SystemIntegration_PdfRender_ReturnsOpaqueWhiteSizedSurface
           - CanvasNetPdf_SystemIntegration_PdfUnsupportedFormatValidation_MalformedContentStreamThrowsInvalidDataException

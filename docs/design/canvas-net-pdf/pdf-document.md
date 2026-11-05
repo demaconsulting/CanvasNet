@@ -276,7 +276,12 @@ re-parsing it each time — a property a purely static API could not express.
   and inherited `/Resources` via `ResolvePageDetails`, derives the page's base CTM via
   `BuildBaseCtm` (see _Content-Stream Interpreter_ below), resolves the page's `/Contents` bytes
   via `ResolvePageContentBytes`, executes them via `ExecuteContentStream` (passing the resolved
-  `/Resources`), and returns the painted surface. `Surface`'s own constructor supplies the
+  `/Resources`), and returns the painted surface. The surface is owned by `Render` until it is
+  returned: any exception from page resolution or content execution disposes it before
+  propagating unchanged (no surface is leaked to the caller). Likewise, each image XObject
+  decoded by `Do` is disposed immediately after compositing (the compositor never takes
+  ownership), and the image-conversion helpers dispose their partially filled surface if
+  conversion fails. `Surface`'s own constructor supplies the
   `width`/`height` `ArgumentOutOfRangeException`/`MaxDimension` contract; this is deliberately not
   duplicated here, and the caller-specified `width`/`height` is used exactly as given — it is
   never clamped to, or derived from, the page's own `/MediaBox` size. A caller that needs the

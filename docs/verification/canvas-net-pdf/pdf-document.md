@@ -71,7 +71,9 @@ reflection against a `PdfDocument` instance created with
 constructor, which requires a real, parseable PDF byte buffer) since `CompositeImageOntoSurface`
 only reads/writes the instance's own `_surface` field, which the test sets directly - the same
 reflection-based internals-testing approach `PdfDocumentSymbolicEncodingTests.cs` already
-established for a private static field.
+established for a private static field. The surface-ownership regression tests reside in the sibling
+`PdfDocumentSurfaceOwnershipTests.cs`; they render small in-memory PDFs that fail after a surface is
+allocated and call the private sample-conversion helper via the same reflection approach.
 
 ### Test Environment
 
@@ -616,6 +618,31 @@ distinct, non-white opaque `BackgroundColor` and asserts every pixel matches it 
 dedicated transparent-override test passes `new PdfRenderOptions { BackgroundColor = new(0, 0, 0,
 0) }` and asserts every pixel reproduces the fully transparent behavior `Render` had before this
 options parameter was added.
+
+#### CanvasNetPdf-PdfDocument-SurfaceOwnership: Surfaces Are Released on Every Path
+
+**Tests**: `PdfDocument_Render_UndefinedXObjectAfterAllocation_ThrowsInvalidDataException`,
+`PdfDocument_Render_AfterFailedRender_RepeatsOriginalFailure`,
+`PdfDocument_Render_ImageDrawnTwice_PaintsBothPlacements`,
+`PdfDocument_Render_TruncatedImageSamples_ThrowsInvalidDataException`,
+`PdfDocument_ConvertSamplesToSurface_TruncatedGraySamples_ThrowsInvalidDataException`,
+`PdfDocument_ConvertSamplesToSurface_TruncatedDeviceNSamples_ThrowsInvalidDataException`,
+`PdfDocument_ConvertSamplesToSurface_CompleteGraySamples_ReturnsConvertedSurface`,
+`PdfDocument_Render_AfterSuccessOrFailure_KeepsNoReferenceToTheSurface`
+
+Exercise the paths on which `Render` releases a surface it allocated: a content stream that fails
+after the output surface is allocated (an undefined XObject) must throw `InvalidDataException`
+unwrapped, and a second render of the same document must repeat that failure rather than an
+`ObjectDisposedException` or invalid-state error; truncated image samples must throw
+`InvalidDataException` through `Render`; an image drawn twice must paint both placements (each
+decoded image is released after compositing); and the private sample-conversion helper, invoked via
+reflection, must rethrow `InvalidDataException` unwrapped for truncated gray and DeviceN samples
+while still converting complete samples; and after both a successful and a failed render the
+document's private per-render surface field, read via reflection, must be null, so neither the
+caller's surface nor a released one stays reachable through the document. `Surface` exposes no
+disposed indicator, so the release
+itself is verified by code review; these tests pin the observable behavior around the release
+handlers.
 
 #### CanvasNetPdf-PdfDocument-RenderWithDpi: Render(int, float, PdfRenderOptions?) Scales by DPI/72
 
