@@ -168,17 +168,20 @@ public sealed record CompareRequest(CompareInput A, CompareInput B)
     public IReadOnlyList<ComparisonThreshold> Thresholds { get; init; } = [];
 
     /// <summary>
-    ///     Gets the output of the difference picture, or <see langword="null"/> (the default) for none.
+    ///     Gets the output of the difference picture, or <see langword="null"/> (the default) for none; the extension
+    ///     chooses the format unless <see cref="Write"/> sets one.
     /// </summary>
     public string? DiffPath { get; init; }
 
     /// <summary>
-    ///     Gets the output of the side-by-side picture, or <see langword="null"/> (the default) for none.
+    ///     Gets the output of the side-by-side picture, or <see langword="null"/> (the default) for none; the extension
+    ///     chooses the format unless <see cref="Write"/> sets one.
     /// </summary>
     public string? SideBySidePath { get; init; }
 
     /// <summary>
-    ///     Gets the output of the overlay, or <see langword="null"/> (the default) for none.
+    ///     Gets the output of the overlay, or <see langword="null"/> (the default) for none; the extension chooses the
+    ///     format unless <see cref="Write"/> sets one.
     /// </summary>
     public string? OverlayPath { get; init; }
 
@@ -200,7 +203,11 @@ public sealed record CompareRequest(CompareInput A, CompareInput B)
     public double OverlayWeight { get; init; } = ImageComparison.DefaultOverlayWeight;
 
     /// <summary>
-    ///     Gets how the pictures are written; <see cref="WriteOptions.Default"/> by default.
+    ///     Gets how the difference, side-by-side, and overlay pictures are written
+    ///     (<see cref="WriteOptions.Format"/>, JPEG <see cref="WriteOptions.Quality"/>,
+    ///     <see cref="WriteOptions.NoClobber"/>, <see cref="WriteOptions.FlattenBackground"/>);
+    ///     <see cref="WriteOptions.Default"/> by default, for example
+    ///     <c>Write = WriteOptions.Default with { Quality = 85 }</c>.
     /// </summary>
     public WriteOptions Write { get; init; } = WriteOptions.Default;
 }
@@ -243,6 +250,10 @@ public sealed record ComparedPicture(string Kind, WriteResult Result);
 /// <summary>
 ///     What a comparison found.
 /// </summary>
+/// <remarks>
+///     Plain values: the result holds no pixels and has nothing to dispose; <paramref name="Pictures"/> lists where the
+///     pictures were written.
+/// </remarks>
 /// <param name="A">The first input as it was compared.</param>
 /// <param name="B">The second input as it was compared.</param>
 /// <param name="Comparison">The measures, the grid, and the tolerance, from <see cref="Surface.Compare"/>; <see cref="CompareResult.Metrics"/> is a shortcut to its metrics.</param>

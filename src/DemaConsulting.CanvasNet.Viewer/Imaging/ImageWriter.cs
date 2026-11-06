@@ -10,7 +10,11 @@ namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 /// </summary>
 /// <remarks>
 ///     Every member is an optional init property whose default is what the <c>canvasnet</c> commands use when the option
-///     is not given, so <c>new WriteOptions()</c> equals <see cref="Default"/>.
+///     is not given, so <c>new WriteOptions()</c> equals <see cref="Default"/>. Set one member of the defaults with a
+///     <see langword="with"/> expression: <c>WriteOptions.Default with { Quality = 85 }</c>. <c>ImageRenderer</c>,
+///     <c>MontageBuilder</c>, and <c>ImageComparer</c> take it as <c>Write</c>; use
+///     <see cref="ImageWriter.Write(Surface, string, string, WriteOptions)"/> to write a <see cref="Surface"/> you already
+///     have (for example the surface of <c>CanvasNetViewer.Render(...)</c>).
 /// </remarks>
 public sealed record WriteOptions
 {
@@ -25,7 +29,7 @@ public sealed record WriteOptions
     public OutputFormat? Format { get; init; }
 
     /// <summary>
-    ///     Gets the JPEG quality, 1 to 100; ignored by the lossless formats. The default is
+    ///     Gets the JPEG quality, 1 to 100; JPEG only: PNG, BMP, and TIFF are lossless and ignore it. The default is
     ///     <see cref="ImageWriter.DefaultQuality"/>.
     /// </summary>
     public int Quality { get; init; } = ImageWriter.DefaultQuality;
@@ -43,7 +47,7 @@ public sealed record WriteOptions
 }
 
 /// <summary>
-///     What was written.
+///     What was written. A plain value: it holds no pixels and has nothing to dispose.
 /// </summary>
 /// <param name="Path">The path of the file as it was given.</param>
 /// <param name="Format">The format that was written.</param>
@@ -313,6 +317,11 @@ public static class ImageWriter
     /// <summary>
     ///     Writes a surface to a file.
     /// </summary>
+    /// <remarks>
+    ///     Use this to write pixels you hold in memory, such as the surface of a <c>ViewerImage</c> or a
+    ///     <see cref="LoadedSource"/>. <paramref name="inputPathForGuard"/> is the file the pixels came from; the output
+    ///     may not be that file.
+    /// </remarks>
     /// <param name="surface">The pixels; the surface is not modified or disposed.</param>
     /// <param name="outputPath">The output path.</param>
     /// <param name="inputPathForGuard">The input path; the output must not be the same file.</param>

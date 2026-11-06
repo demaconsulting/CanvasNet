@@ -69,7 +69,10 @@ public sealed record MontageRequest(string Output)
     public SheetOptions Sheet { get; init; } = new();
 
     /// <summary>
-    ///     Gets how the sheet is written; <see cref="WriteOptions.Default"/> unless set.
+    ///     Gets how the sheet is written (<see cref="WriteOptions.Format"/>, JPEG <see cref="WriteOptions.Quality"/>,
+    ///     <see cref="WriteOptions.NoClobber"/>, <see cref="WriteOptions.FlattenBackground"/>);
+    ///     <see cref="WriteOptions.Default"/> unless set, for example
+    ///     <c>Write = WriteOptions.Default with { Quality = 85 }</c>.
     /// </summary>
     public WriteOptions Write { get; init; } = WriteOptions.Default;
 }
@@ -104,6 +107,10 @@ public sealed record MontageCell(
 /// <summary>
 ///     What a montage produced.
 /// </summary>
+/// <remarks>
+///     The sheet is written to the output; <paramref name="Written"/> says where. The result holds no pixels and has
+///     nothing to dispose.
+/// </remarks>
 /// <param name="Layout">The geometry of the sheet.</param>
 /// <param name="Written">What was written.</param>
 /// <param name="Cells">The cells, in order.</param>

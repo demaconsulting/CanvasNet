@@ -9,8 +9,19 @@ namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 ///     operations to apply in between.
 /// </summary>
 /// <remarks>
-///     The output path is the only required member; every other member is an optional init property whose default is
-///     what the <c>canvasnet render</c> command uses when the option is not given.
+///     <para>
+///         The output path is the only required member; every other member is an optional init property whose default
+///         is what the <c>canvasnet render</c> command uses when the option is not given.
+///     </para>
+///     <para>
+///         <b>Files, not pixels.</b> A render writes files and returns their paths: <c>RenderedPage.Result</c> is a
+///         <see cref="WriteResult"/> (path, format, size in pixels, bytes) and there is no <c>Surface</c> in the result.
+///         How each file is written is <see cref="Write"/> (<see cref="WriteOptions"/>: <c>Quality</c> for JPEG,
+///         <c>Format</c>, <c>NoClobber</c>, <c>FlattenBackground</c>), for example
+///         <c>Write = WriteOptions.Default with { Quality = 85 }</c>. For pixels in memory use
+///         <c>CanvasNetViewer.Render</c> or <see cref="SourceLoader.Load(SourceInfo, SourceOptions)"/>, and write the
+///         surface with <see cref="ImageWriter.Write(Surface, string, string, WriteOptions)"/>.
+///     </para>
 /// </remarks>
 /// <param name="Output">
 ///     The output path. With <see cref="AllPages"/> it names a directory (an existing directory, or a path that ends
@@ -40,6 +51,15 @@ namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 ///         Console.WriteLine(ex.Message);
 ///     }
 ///     </code>
+///     Render every page of a document as JPEG at quality 85 (a trailing separator names a directory, and
+///     <c>Format</c> makes the extension <c>.jpg</c>):
+///     <code language="csharp">
+///     var request = new RenderRequest("pages/")
+///     {
+///         AllPages = true,
+///         Write = WriteOptions.Default with { Format = OutputFormat.Jpeg, Quality = 85 }
+///     };
+///     </code>
 /// </example>
 public sealed record RenderRequest(string Output)
 {
@@ -56,9 +76,15 @@ public sealed record RenderRequest(string Output)
     public SourceOptions Source { get; init; } = new();
 
     /// <summary>
-    ///     Gets how each picture is written (format, quality, overwrite policy, JPEG background);
+    ///     Gets how each file is written: <see cref="WriteOptions.Format"/> (<see langword="null"/>: from the extension
+    ///     of the output), <see cref="WriteOptions.Quality"/> (JPEG only, 1 to 100, default 90),
+    ///     <see cref="WriteOptions.NoClobber"/>, and <see cref="WriteOptions.FlattenBackground"/>;
     ///     <see cref="WriteOptions.Default"/> unless set.
     /// </summary>
+    /// <remarks>
+    ///     Set it with a <see langword="with"/> expression on the default:
+    ///     <c>Write = WriteOptions.Default with { Quality = 85 }</c>.
+    /// </remarks>
     public WriteOptions Write { get; init; } = WriteOptions.Default;
 
     /// <summary>
@@ -82,7 +108,11 @@ public sealed record RenderRequest(string Output)
 /// <param name="Diagnostics">The notes reported while loading.</param>
 /// <param name="Echo">The text a model printed while it was evaluated.</param>
 /// <param name="Operations">What was done to the source to produce the output.</param>
-/// <param name="Result">What was written.</param>
+/// <param name="Result">
+///     What was written: a <see cref="WriteResult"/> with the path, format, size, and byte count of the file. The pixels
+///     are not returned; read the file, or use <c>CanvasNetViewer.Render</c> or
+///     <see cref="SourceLoader.Load(SourceInfo, SourceOptions)"/> for pixels in memory.
+/// </param>
 /// <param name="Anchors">
 ///     The anchors a model declared with <c>echo("anchor", name, [x, y, z])</c>, with their pixel positions in the written
 ///     image (after the pipeline); empty for every other kind. An anchor that cannot be read is a <c>scad-warning</c>
@@ -113,13 +143,17 @@ public sealed record RenderedPage(
 /// <summary>
 ///     What a render produced.
 /// </summary>
+/// <remarks>
+///     Plain values: the result holds no pixels and has nothing to dispose.
+/// </remarks>
 /// <param name="Info">The facts about the source file.</param>
 /// <param name="Pages">The pages that were written, in the order they were rendered.</param>
 public sealed record RenderResult(SourceInfo Info, IReadOnlyList<RenderedPage> Pages);
 
 /// <summary>
 ///     The render operation: loads an image, drawing, or document, runs it through the image pipeline, and writes it as
-///     PNG, JPEG, BMP, or TIFF - the library form of <c>canvasnet render</c> and of its verb commands.
+///     PNG, JPEG, BMP, or TIFF - the library form of <c>canvasnet render</c> and of its verb commands. It writes files; it
+///     returns no pixels.
 /// </summary>
 /// <remarks>
 ///     <para>

@@ -59,6 +59,14 @@ namespace DemaConsulting.CanvasNet.ImageSources;
 ///         invokes the source again, so a live source (a video frame) yields a fresh picture each time.
 ///     </para>
 ///     <para>
+///         <b>Nothing to dispose.</b> The resolver is not <see cref="IDisposable"/>: it holds no open files, streams, or
+///         other resources between calls (each file is read completely and closed), so it needs no <c>using</c> and
+///         nothing to clean up after a render but reading <see cref="Diagnostics"/>, <see cref="Echo"/>, and
+///         <see cref="Embedded"/>. The only disposable objects that pass through it are the <see cref="Surface"/>
+///         objects it returns from <see cref="Resolve"/> (the renderer disposes them) and from <c>Render</c> (the caller
+///         disposes <c>result.Surface</c>).
+///     </para>
+///     <para>
 ///         <b>Failures.</b> A link that cannot be resolved is not an error (see <see cref="UnresolvedCode"/>). A file that
 ///         is found but cannot be drawn throws <see cref="ImageSourceException"/> (the original exception is the
 ///         <see cref="Exception.InnerException"/>), except <see cref="OperationCanceledException"/>, which passes through.

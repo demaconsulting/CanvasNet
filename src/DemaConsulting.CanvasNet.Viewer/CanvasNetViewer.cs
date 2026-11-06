@@ -84,7 +84,8 @@ public static class CanvasNetViewer
     /// <returns>
     ///     A new resolver. It serves one top-level render and is not thread-safe; create a new one for the next render.
     ///     Read its <see cref="FolderImageResolver.Diagnostics"/>, <see cref="FolderImageResolver.Echo"/> and
-    ///     <see cref="FolderImageResolver.Embedded"/> after the render.
+    ///     <see cref="FolderImageResolver.Embedded"/> after the render. It is not <see cref="IDisposable"/> and holds no
+    ///     open files; there is nothing to dispose.
     /// </returns>
     /// <exception cref="ArgumentException">Thrown when <paramref name="folder"/> is null, empty or only white space.</exception>
     public static FolderImageResolver CreateImageResolver(string folder, FolderImageResolverOptions? options = null)
@@ -108,7 +109,10 @@ public static class CanvasNetViewer
     ///     scheme as a built-in source (or as an earlier extra source) wins. Must not be null.
     /// </param>
     /// <param name="options">The limits and switches, or <see langword="null"/> for the defaults.</param>
-    /// <returns>A new resolver, as for <see cref="CreateImageResolver(string, FolderImageResolverOptions?)"/>.</returns>
+    /// <returns>
+    ///     A new resolver, as for <see cref="CreateImageResolver(string, FolderImageResolverOptions?)"/>; it is not
+    ///     <see cref="IDisposable"/> and holds no open files, so there is nothing to dispose.
+    /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="extraSources"/> is null.</exception>
     /// <exception cref="ArgumentException">
     ///     Thrown when <paramref name="folder"/> is null, empty or only white space, or a source makes an invalid claim (see
@@ -130,7 +134,9 @@ public static class CanvasNetViewer
     /// <param name="path">The path of the file; it must exist and its extension must be one of <see cref="Extensions"/> (or claimed by an extra source).</param>
     /// <param name="options">What to render and how, or <see langword="null"/> for the natural size.</param>
     /// <returns>
-    ///     The picture with its notes, text, format and embedded images; the caller disposes it. A document that embeds
+    ///     The picture with its notes, text, format and embedded images; the caller disposes it. It writes no file; to
+    ///     save the picture with a format or quality use <c>ImageWriter.Write</c> of the
+    ///     <c>DemaConsulting.CanvasNet.Viewer.Imaging</c> namespace. A document that embeds
     ///     other files (an SVG file, a model with includes) finds them in the sandbox folder
     ///     (<see cref="ViewerRenderOptions.Folder"/>, by default the folder of the file).
     /// </returns>

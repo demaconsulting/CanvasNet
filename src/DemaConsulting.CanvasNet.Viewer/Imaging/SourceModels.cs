@@ -227,7 +227,7 @@ public sealed record SourcePage(
     int? Rotation);
 
 /// <summary>
-///     The facts about a source file that can be read without rendering it.
+///     The facts about a source file that can be read without rendering it. A plain value; nothing to dispose.
 /// </summary>
 /// <param name="Path">The path of the file as it was given.</param>
 /// <param name="Format">The detected kind.</param>
@@ -327,8 +327,14 @@ public sealed record ScadViewOptions
     private static readonly ReadOnlyDictionary<string, object?> NoDefines = new(new Dictionary<string, object?>());
 
     /// <summary>
-    ///     Gets the name of the viewpoint: one of <see cref="SourceLoader.ScadViews"/>; <c>iso</c> by default.
+    ///     Gets the name of the viewpoint (any case): <c>iso</c> (the default; the isometric view, azimuth 45 degrees,
+    ///     elevation about 35.26), <c>front</c>, <c>back</c>, <c>left</c>, <c>right</c>, <c>top</c>, or <c>bottom</c>.
     /// </summary>
+    /// <remarks>
+    ///     These are the names of <see cref="SourceLoader.ScadViews"/>, which lists the azimuth and elevation of each;
+    ///     any other name is a <c>usage-error</c> when the model is loaded. <see cref="Azimuth"/> and
+    ///     <see cref="Elevation"/> replace the angles of the named view.
+    /// </remarks>
     public string View { get; init; } = SourceLoader.DefaultScadView;
 
     /// <summary>
@@ -337,9 +343,14 @@ public sealed record ScadViewOptions
     ///     model with 3D objects, a flat top view for a model that is entirely 2D.
     /// </summary>
     /// <remarks>
-    ///     The command line sets it for every <c>--view</c>, including <c>--view iso</c>; code that builds the options
-    ///     directly only needs it to ask for the isometric view of a model that is entirely 2D, because any other
-    ///     <see cref="View"/> counts as chosen.
+    ///     You rarely need to set this. A view already counts as chosen when <see cref="View"/> is any name but
+    ///     <c>iso</c>, or when <see cref="Azimuth"/> or <see cref="Elevation"/> is set (see
+    ///     <see cref="IsViewExplicit"/>), so <c>new ScadViewOptions { View = "front" }</c> is enough. Set
+    ///     <see cref="ViewGiven"/> only to ask for <c>iso</c> explicitly, which matters for a model that is entirely 2D
+    ///     (it is drawn from the top when no view was chosen) and when <c>iso</c> must win over the viewport variables
+    ///     of the model. It is a separate flag because <see cref="View"/> always has a value (<c>iso</c> by default), so
+    ///     <c>View = "iso"</c> alone cannot be told from no choice. The command line sets it for every <c>--view</c>,
+    ///     including <c>--view iso</c>.
     /// </remarks>
     public bool ViewGiven { get; init; }
 
@@ -420,19 +431,60 @@ public sealed record SourceOptions
     public bool Strict { get; init; }
 
     /// <summary>
-    ///     Gets the factor applied to the natural size, or <see langword="null"/> for none.
+    ///     Gets the factor applied to the natural size, or <see langword="null"/> for none. When it is set it takes
+    ///     precedence: <see cref="Width"/> and <see cref="Height"/> are then ignored (the command line rejects the
+    ///     combination).
     /// </summary>
     public double? Scale { get; init; }
 
     /// <summary>
-    ///     Gets the target width in pixels, or <see langword="null"/> to derive it (keeping the aspect ratio when
-    ///     only the height is given, otherwise the natural width).
+    ///     Gets the target width in pixels, 1 to 8192 (a larger value is a <c>size-limit</c> error), or
+    ///     <see langword="null"/> to derive it.
     /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         With only one of <see cref="Width"/> and <see cref="Height"/> the other keeps the aspect ratio of the
+    ///         source (rounded to the nearest pixel; a model is 800 x 800 naturally, so one side gives a square). With
+    ///         neither, the natural size is used. With both, the loaded picture is always exactly
+    ///         <see cref="Width"/> x <see cref="Height"/>, and the aspect ratio is handled per kind:
+    ///     </para>
+    ///     <list type="bullet">
+    ///         <item>
+    ///             <description>
+    ///                 A raster is resampled to exactly that size, so it is stretched when the aspect ratio differs
+    ///                 (add a fit operation afterwards to keep the ratio).
+    ///             </description>
+    ///         </item>
+    ///         <item>
+    ///             <description>
+    ///                 An SVG is drawn at that size and fitted by its own <c>preserveAspectRatio</c> (by default the
+    ///                 aspect ratio is kept and the drawing is centered).
+    ///             </description>
+    ///         </item>
+    ///         <item>
+    ///             <description>
+    ///                 A PDF, PPTX, or VSDX page is fitted inside the box and centered, never stretched, with
+    ///                 <see cref="Background"/> in the margin.
+    ///             </description>
+    ///         </item>
+    ///         <item>
+    ///             <description>
+    ///                 An OpenSCAD model is framed to the box (not stretched), and a Vega-Lite chart is scaled
+    ///                 uniformly and centered over its background.
+    ///             </description>
+    ///         </item>
+    ///     </list>
+    ///     <para>
+    ///         <see cref="Scale"/> takes precedence over both sizes. <c>CanvasNetViewer.Render</c> is different for a
+    ///         raster: with both sizes it fits the picture inside the box over a transparent margin.
+    ///     </para>
+    /// </remarks>
     public int? Width { get; init; }
 
     /// <summary>
-    ///     Gets the target height in pixels, or <see langword="null"/> to derive it (keeping the aspect ratio when
-    ///     only the width is given, otherwise the natural height).
+    ///     Gets the target height in pixels, 1 to 8192 (a larger value is a <c>size-limit</c> error), or
+    ///     <see langword="null"/> to derive it. See <see cref="Width"/> for how one side, both sides, and
+    ///     <see cref="Scale"/> combine for each kind of source.
     /// </summary>
     public int? Height { get; init; }
 
@@ -486,7 +538,10 @@ public sealed record AppliedOperation(string Op, IReadOnlyList<KeyValuePair<stri
 /// <param name="Echo">The text a model printed while it was evaluated; empty for every other kind.</param>
 /// <param name="Operations">What was done to the source to produce <paramref name="Surface"/>, in order.</param>
 /// <remarks>
-///     The loaded source owns its surface: disposing the loaded source disposes the surface. Of every viewer result,
+///     The loaded source owns its surface: dispose the loaded source (<c>using var loaded = ...</c>) and do not
+///     dispose <see cref="Surface"/> separately. A copy made with <see langword="with"/> shares the same surface, so
+///     dispose only one of them. Everything else (<c>Info</c>, <c>Diagnostics</c>, <c>Echo</c>, <c>Operations</c>,
+///     <see cref="Anchors"/>) is plain data. Of every viewer result,
 ///     only this record (through <see cref="Anchors"/>) and <c>RenderedPage</c> report the anchors of a model; the
 ///     <c>ViewerImage</c> of <c>CanvasNetViewer.Render</c>, <c>InspectResult</c>, <c>CompareSide</c>, and
 ///     <c>MontageCell</c> carry <c>Diagnostics</c> and <c>Echo</c> but no anchors. An anchor that cannot be read is

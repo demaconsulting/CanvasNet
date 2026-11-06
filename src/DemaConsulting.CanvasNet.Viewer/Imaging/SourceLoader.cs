@@ -74,7 +74,8 @@ public static partial class SourceLoader
     /// <param name="options">The loading options.</param>
     /// <returns>
     ///     The pixels and the facts about the source. A vector source is rendered directly at its final size; a raster
-    ///     source is decoded at its own size and then oriented, resized, and flattened as the options say.
+    ///     source is decoded at its own size and then oriented, resized, and flattened as the options say. The caller
+    ///     disposes the <see cref="LoadedSource"/> (it owns the surface).
     /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null"/>.</exception>
     /// <exception cref="ViewerException">
@@ -95,7 +96,10 @@ public static partial class SourceLoader
     /// </summary>
     /// <param name="info">The facts about the file.</param>
     /// <param name="options">The loading options.</param>
-    /// <returns>The pixels and the facts about the source; see <see cref="Load(string, SourceOptions)"/>.</returns>
+    /// <returns>
+    ///     The pixels and the facts about the source; see <see cref="Load(string, SourceOptions)"/>. The caller disposes
+    ///     the <see cref="LoadedSource"/> (it owns the surface).
+    /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null"/>.</exception>
     /// <exception cref="ViewerException">See <see cref="Load(string, SourceOptions)"/>.</exception>
     public static LoadedSource Load(SourceInfo info, SourceOptions options)
@@ -144,6 +148,8 @@ public static partial class SourceLoader
     /// </summary>
     /// <remarks>
     ///     The class cannot be derived from outside the library: the kinds of source are the ones the loader knows.
+    ///     Dispose the page source when the pages are read. A page that <see cref="ReadPage"/> returned does not depend
+    ///     on the source, so it stays valid after the source is disposed; dispose each page too.
     /// </remarks>
     public abstract class PageSource : IDisposable
     {

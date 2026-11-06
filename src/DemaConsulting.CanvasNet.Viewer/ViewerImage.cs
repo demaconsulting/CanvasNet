@@ -13,7 +13,11 @@ namespace DemaConsulting.CanvasNet.Viewer;
 ///     <see cref="Echo"/> carry the notes and printed text of every file of the render, but <b>no anchors</b>: the anchors
 ///     of an OpenSCAD model are reported only by <c>ImageRenderer</c> (<c>RenderedPage.Anchors</c>) and
 ///     <c>SourceLoader.Load</c> (<c>LoadedSource.Anchors</c>) in the <c>DemaConsulting.CanvasNet.Viewer.Imaging</c>
-///     namespace.
+///     namespace. Use <c>using var image = CanvasNetViewer.Render(...)</c>. <see cref="Format"/>,
+///     <see cref="Diagnostics"/>, <see cref="Echo"/>, and <see cref="Embedded"/> are plain data; only
+///     <see cref="Surface"/> is released by disposing. <c>Render</c> returns pixels and writes no file; to save them
+///     with a quality or a format, call <see cref="Imaging.ImageWriter.Write"/> in the
+///     <c>DemaConsulting.CanvasNet.Viewer.Imaging</c> namespace.
 /// </remarks>
 public sealed class ViewerImage : IDisposable
 {

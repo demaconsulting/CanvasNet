@@ -19,7 +19,8 @@ public sealed record ViewerRenderOptions
     ///     background) so the result is exactly that size, with one dimension it scales to keep the aspect ratio. When
     ///     given, it must be from 1 to <see cref="DemaConsulting.CanvasNet.Canvas.Surface.MaxDimension"/> (8192);
     ///     <see cref="CanvasNetViewer"/> throws <see cref="ArgumentOutOfRangeException"/> for any other value before it
-    ///     reads the file.
+    ///     reads the file. For a raster this differs from <c>SourceOptions.Width</c> and <c>Height</c> of the Imaging
+    ///     operations, which stretch it to exactly the size.
     /// </summary>
     public int? Width { get; init; }
 

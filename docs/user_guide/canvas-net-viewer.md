@@ -138,7 +138,24 @@ against the same budget, so a 10 x 10 picture resized to 1 x 1 needs 101 pixels,
 `Diagnostics`, `Echo` (the text a model printed with `echo`), and `Embedded`. `Render` throws `FileNotFoundException`
 for a missing file, `NotSupportedException` when no source claims the extension (the message lists them),
 `SandboxException` when the sandbox refuses the file, and `ImageSourceException` for a file that cannot be drawn. Render
-a file that is not on disk with `Render(stream, fileName)`; the extension of the file name chooses the source.
+a file that is not on disk with `Render(stream, fileName)`; the extension of the file name chooses the source. With both
+`Width` and `Height`, `Render` fits a raster inside the box over a transparent margin, whereas `SourceOptions.Width` and
+`Height` of the `Imaging` operations stretch a raster (see *Sizes* below).
+
+`Render` returns pixels and writes no file. To save them with a format or a quality, use the writer of the `Imaging`
+namespace (the third argument is the file you rendered, which the output may not be):
+
+<!-- compile -->
+
+```csharp
+using DemaConsulting.CanvasNet.Viewer;
+using DemaConsulting.CanvasNet.Viewer.Imaging;
+
+using var image = CanvasNetViewer.Render("models/part.scad", new ViewerRenderOptions { Width = 512 });
+var written = ImageWriter.Write(
+    image.Surface, "part.jpg", "models/part.scad", WriteOptions.Default with { Quality = 85 });
+Console.WriteLine($"{written.Path}: {written.Width}x{written.Height}, {written.Bytes} bytes");
+```
 
 #### Doing what the canvasnet commands do, from code
 
@@ -160,6 +177,21 @@ command does without options:
   positions in a list and start at 0.
 - **Numbers are in the units of the command line**: sizes in pixels, angles in degrees, and for a comparison the units
   of the table in *`compare`* below.
+- **Some requests have a factory.** `InspectRequest.ForColors(count)` and `InspectRequest.ForPixel(point, radius)` build
+  the two kinds (a pixel inspection needs a point, which a constructor cannot require). The result is a record, so add
+  more with a `with` expression, for example `InspectRequest.ForColors(5) with { Operations = [new TrimOperation(8)] }`.
+  An object initializer cannot follow a method call, so `InspectRequest.ForColors(5) { Operations = ... }` does not
+  compile; after `new InspectRequest(InspectKind.Colors)` it does.
+
+**Which call do I need: a file or pixels?** `ImageRenderer.Execute` **writes files** and returns where it wrote them
+(`RenderedPage.Result` is a `WriteResult` with `Path`, `Format`, `Width`, `Height`, `Bytes`, and `Flattened`; it has no
+`Surface`). To get **pixels in memory**, use `CanvasNetViewer.Render` (a `ViewerImage`) for one call without options, or
+`SourceLoader.Load` (a `LoadedSource`) with the page, resolution, EXIF, and model options of the tool. Either surface can
+be written with the options of a render by `ImageWriter.Write(surface, path, inputPath, options)`.
+
+- `ImageRenderer.Execute(info, request)` gives files on disk and a `RenderResult` (paths and sizes, no pixels)
+- `CanvasNetViewer.Render(path, options)` gives a `ViewerImage`, which you dispose
+- `SourceLoader.Load(info, options)` gives a `LoadedSource`, which you dispose
 
 **`formats` - what can be read and written.** The input kinds by extension, and the output formats by extension:
 
@@ -206,7 +238,8 @@ catch (ViewerException ex)
 **`render`, `convert`, and the verbs `crop`, `resize`, `rotate`, `flip`, `pad` - load, transform, write.** An
 `ImageRenderer` call loads the page (or every page) of a probed source, runs an ordered pipeline of operations over it,
 and writes one file for each page. The operations are records, applied in the order of the list, and the output format is
-chosen by the extension of the output (or by `WriteOptions.Format`). All the files are written together or none:
+chosen by the extension of the output, or by `WriteOptions.Format`; `WriteOptions.Quality` is the JPEG quality. All the
+files are written together or none:
 
 <!-- compile -->
 
@@ -215,9 +248,11 @@ using DemaConsulting.CanvasNet.Viewer;
 using DemaConsulting.CanvasNet.Viewer.Imaging;
 
 var info = SourceLoader.Probe("part.scad");
-var request = new RenderRequest("out/part.png")
+var request = new RenderRequest("out/part.jpg")
 {
-    Source = new SourceOptions { Width = 800, Scad = new ScadViewOptions { View = "front", ViewGiven = true } },
+    // View is iso (the default), front, back, left, right, top, or bottom; naming one is enough
+    Source = new SourceOptions { Width = 800, Scad = new ScadViewOptions { View = "front" } },
+    Write = WriteOptions.Default with { Quality = 85 },     // JPEG quality 1 to 100, default 90 (PNG, BMP, TIFF: none)
     Operations =
     [
         // Dimension.Percent(10) is 10 percent of the image size at this step; Dimension.Pixels(10) is 10 pixels
@@ -247,6 +282,14 @@ catch (ViewerException ex)
 }
 ```
 
+**Writing: `WriteOptions`.** How a file is written is `RenderRequest.Write`: `Quality` (JPEG only, 1 to 100, default
+90), `Format` (`OutputFormat.Png`, `Jpeg`, `Bmp`, or `Tiff`; null takes it from the extension of the output, and wins
+when set), `NoClobber` (refuse to overwrite), and `FlattenBackground` (the color a JPEG's transparency is flattened
+over, white by default). Set them with `with` on the default, `Write = WriteOptions.Default with { Quality = 85 }`, or
+with an initializer, `new WriteOptions { Format = OutputFormat.Jpeg, Quality = 85 }`. `MontageRequest.Write` and
+`CompareRequest.Write` are the same type (for a comparison they apply to the difference, side-by-side, and overlay
+pictures). You never need to render a PNG and re-encode it with a codec to get a JPEG of a given quality.
+
 The command verbs are these operations: `crop` is `CropOperation(GeometrySpec)`, `resize` is `ResizeOperation(width,
 height)`, `fit` is `FitOperation(width, height)` (add `allowUpscale: true` to enlarge), `rotate` is
 `RotateOperation(degrees)` (any angle), `flip` is `FlipOperation(FlipAxis.Horizontal | Vertical)`, and `pad` is
@@ -254,12 +297,34 @@ height)`, `fit` is `FitOperation(width, height)` (add `allowUpscale: true` to en
 `ThresholdOperation`, `LevelsOperation`, `BrightnessOperation`, `ContrastOperation`, `AutoLevelsOperation` (the default
 clips 1 percent at each end of the histogram, as the command does), `DeskewOperation`, `TrimOperation`, and
 `GridOperation`. `SourceOptions` holds what the command-line options of a source hold (`Page`, `Dpi`, `Scale`, `Width`,
-`Height`, `Background`, `Strict`, `AutoOrient`, `Filter`, and `Scad` for a model's view and variables). With `AllPages`
-every page of a document is written, to a folder (an output that ends with a directory separator) or to a name that
-contains `{page}`, which is replaced by the 1-based page number. To transform a surface you already have, call
+`Height`, `Background`, `Strict`, `AutoOrient`, `Filter`, and `Scad` for a model's view and variables). The view of a
+model is `ScadViewOptions.View`, one of `iso` (the default), `front`, `back`, `left`, `right`, `top`, or `bottom` (any
+case; `SourceLoader.ScadViews` lists them with their angles; another name is a `usage-error`), and `Azimuth` and
+`Elevation` replace its angles. Naming a view other than `iso`, or setting an angle, is all it takes: you do **not** need
+`ViewGiven`, which only matters to ask for `iso` on a model that is entirely 2D (see the property's documentation).
+With `AllPages` every page of a document is written, to a folder (an output
+that ends with a directory separator) or to a name that contains `{page}`, which is replaced by the 1-based page
+number. To transform a surface you already have, call
 `ImagePipeline.Apply(surface, operations, defaultPadColor, out var applied)`, and to write one,
 `ImageWriter.Write(surface, path, inputPathForGuard, options)`; `SourceLoader.Load(path, options)` gives the pixels of
 one page as a `LoadedSource` that owns a `Surface`.
+
+**Sizes: `SourceOptions.Width` and `Height`.** Each is 1 to 8192 (a larger value is `size-limit`). With **one** side the
+other keeps the aspect ratio of the source (rounded to the nearest pixel; a model is 800 x 800 naturally, so one side
+gives a square). With **both**, the loaded picture is always exactly `Width` x `Height`, and the aspect ratio is handled
+per kind:
+
+- a **raster** (PNG, JPEG, BMP, TIFF, GIF, JPEG 2000) is resampled to exactly that size, so it is **stretched** when the
+  aspect ratio differs (add a `FitOperation` after loading to keep the ratio);
+- an **SVG** is drawn at that size and fitted by its own `preserveAspectRatio` (by default the aspect ratio is kept and
+  the drawing is centered);
+- a **PDF, PPTX, or VSDX** page is fitted inside the box and centered, never stretched, with `Background` in the margin;
+- an **OpenSCAD** model is framed to the box (not stretched), and a **Vega-Lite** chart is scaled uniformly and centered
+  over its background.
+
+`Scale` takes precedence: when it is set, `Width` and `Height` are ignored (the command line rejects the combination).
+`CanvasNetViewer.Render` is different for a raster: with both sizes it fits the picture inside the box over a
+transparent margin (see `ViewerRenderOptions`).
 
 **Cropping.** Every value of a `GeometrySpec` is a non-negative `Dimension` (`Dimension.Pixels(n)` or
 `Dimension.Percent(n)`): the origin must be 0 or more, the width and the height must be more than 0, and a percentage
@@ -338,15 +403,18 @@ using DemaConsulting.CanvasNet.Viewer.Imaging;
 
 var info = SourceLoader.Probe("photo.jpg");
 
+// The request is a record: the factory gives the kind and `with` sets the rest. This is the same request as
+// new InspectRequest(InspectKind.Colors) { Count = 5, Operations = [new TrimOperation(8)] }
 var colors = ImageInspector.Execute(
-    info, new InspectRequest(InspectKind.Colors) { Count = 5, Operations = [new TrimOperation(8)] });
-// the same request: InspectRequest.ForColors(5) with the Operations property set
+    info, InspectRequest.ForColors(5) with { Operations = [new TrimOperation(8)] });
 foreach (var color in colors.Colors!.Colors)              // the dominant colors, largest first
 {
     Console.WriteLine($"{color.Color} {color.Fraction:P1}");
 }
 
-var pixel = ImageInspector.Execute(info, InspectRequest.ForPixel(new PixelPoint(10, 20), radius: 1));
+// A pixel needs a point, so use the factory; the point is in the coordinates after the operations
+var pixel = ImageInspector.Execute(
+    info, InspectRequest.ForPixel(new PixelPoint(10, 20), radius: 1) with { Operations = [new TrimOperation(8)] });
 Console.WriteLine($"{pixel.Pixel!.Pixel} luma {pixel.Pixel.Luma}");
 ```
 
@@ -516,6 +584,20 @@ guide). `Origin` names where the note comes from when the file was embedded in a
 `a.svg`, a warning of the model has `Origin` `["a.svg", "part.scad"]`; for a link that did not resolve inside `a.svg` it
 is `["a.svg"]`. A file link is shown as its folder-relative file name and a scheme link as its href.
 
+**Who disposes what.**
+
+- **Dispose** a `ViewerImage` (`CanvasNetViewer.Render`) and a `LoadedSource` (`SourceLoader.Load`,
+  `PageSource.ReadPage`): each owns one `Surface`, and disposing it disposes the surface. Dispose the owner, not both,
+  and use `using var`.
+- **Dispose** a `PageSource` (`SourceLoader.OpenPages`) and a `ContactSheet` (or take its pixels with `Detach()` and
+  dispose that surface). Pages already read from a `PageSource` stay valid after it is disposed.
+- **Dispose** the `Surface` of an `ImageSourceResult` (from `FolderImageResolver.Render` or your own source): the result
+  is a record and is **not** `IDisposable`, so it cannot be in a `using`.
+- **Nothing to dispose**: a `FolderImageResolver` (not `IDisposable`; it holds no open files, so no `using`), the results
+  of `ImageRenderer`, `ImageInspector`, `ImageComparer`, and `MontageBuilder`, a `WriteResult`, and a `SourceInfo` (plain
+  values, no pixels).
+- `ImagePipeline.Apply` returns a **new** surface that you dispose; its input is neither changed nor disposed.
+
 **Handling errors.** An expected failure (a missing, unsupported, or corrupt file, a page that does not exist, a size
 beyond 8192 pixels, an output that cannot be written, inputs that cannot be compared) is a `ViewerException` with a
 stable `Code` (one of the strings of `ErrorCodes`, the same ones the tool prints), a message, and a hint. Anything else
@@ -562,7 +644,8 @@ A note about the two ways to draw a file: `CanvasNetViewer.Render` (above) is th
 (transparent background for vector files, the fit of a raster into a box, the image-source sandbox, and its own
 exceptions), and the `Imaging` operations are the way the `canvasnet` tool works (document pages and resolution, EXIF
 orientation, a flattened background, the ordered pipeline, and the `ViewerException` codes). The messages and hints of the
-operations are written for the command line and name the options of the tool (for example `--all-pages`).
+operations are written for the command line and name the options of the tool (for example `--all-pages`). The `Imaging`
+operations write files (see *Which call do I need: a file or pixels?*).
 
 #### Using only some formats, without the Viewer
 

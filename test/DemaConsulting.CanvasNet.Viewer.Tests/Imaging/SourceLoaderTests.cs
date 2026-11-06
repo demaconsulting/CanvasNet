@@ -555,6 +555,7 @@ public class SourceLoaderTests
     [InlineData(0.0, 0, 100, 133, 100)]
     [InlineData(0.0, 101, 0, 101, 76)]
     [InlineData(0.0, 10, 20, 10, 20)]
+    [InlineData(1.5, 100, 50, 960, 720)]
     [InlineData(0.0, 1, 0, 1, 1)]
     public void SourceLoader_ComputeTargetSize_SizeOptions_FollowsPolicy(
         double scale,
@@ -662,6 +663,26 @@ public class SourceLoaderTests
         Assert.Equal("resize", resize.Op);
         Assert.Equal(6, resize.Fields.Single(f => f.Key == "width").Value);
         Assert.Equal(4, resize.Fields.Single(f => f.Key == "height").Value);
+    }
+
+    /// <summary>
+    ///     Test that a raster given both a width and a height is stretched to exactly that size.
+    /// </summary>
+    [Fact]
+    public void SourceLoader_Load_RasterWithWidthAndHeight_StretchesToTheExactSize()
+    {
+        // Arrange: the 12x8 PNG
+        using var directory = new TempDirectory();
+        var path = FixtureFactory.WriteSource(directory.Path, "png");
+
+        // Act: load it into a box with another aspect ratio (5x9)
+        using var loaded = SourceLoader.Load(path, new SourceOptions { Width = 5, Height = 9 });
+
+        // Assert: the surface is exactly the box (not fitted), by a single recorded resize
+        Assert.Equal(5, loaded.Surface.Width);
+        Assert.Equal(9, loaded.Surface.Height);
+        var resize = Assert.Single(loaded.Operations);
+        Assert.Equal("resize", resize.Op);
     }
 
     /// <summary>

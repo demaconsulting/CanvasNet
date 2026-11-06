@@ -28,7 +28,11 @@ public readonly record struct PixelPoint(int X, int Y);
 /// <remarks>
 ///     The kind is the only required member; the other members are optional init properties whose defaults are what the
 ///     <c>canvasnet inspect</c> command uses. Prefer <see cref="ForColors"/> and <see cref="ForPixel"/>: a pixel
-///     inspection needs a point, which the factory requires and the constructor cannot.
+///     inspection needs a point, which the factory requires and the constructor cannot. The result of a factory is a
+///     record, so set the other members with a <see langword="with"/> expression, for example
+///     <c>InspectRequest.ForPixel(new PixelPoint(10, 20), radius: 1) with { Operations = [new TrimOperation(8)] }</c>;
+///     an object initializer cannot follow a method call (it can follow
+///     <c>new InspectRequest(InspectKind.Colors)</c>).
 /// </remarks>
 /// <param name="Kind">What is reported.</param>
 public sealed record InspectRequest(InspectKind Kind)
@@ -68,7 +72,14 @@ public sealed record InspectRequest(InspectKind Kind)
     ///     Creates a request for the dominant colors and the luma statistics of an image.
     /// </summary>
     /// <param name="count">The number of dominant colors; <see cref="ImageInspector.DefaultColors"/> by default.</param>
-    /// <returns>The request, with every other member at its default.</returns>
+    /// <returns>
+    ///     The request, with every other member at its default; add more with a <see langword="with"/> expression.
+    /// </returns>
+    /// <example>
+    ///     <code language="csharp">
+    ///     var request = InspectRequest.ForColors(5) with { Operations = [new TrimOperation(8)] };
+    ///     </code>
+    /// </example>
     public static InspectRequest ForColors(int count = ImageInspector.DefaultColors) =>
         new(InspectKind.Colors) { Count = count };
 
@@ -77,7 +88,17 @@ public sealed record InspectRequest(InspectKind Kind)
     /// </summary>
     /// <param name="point">The point, in the coordinates of the image after the operations.</param>
     /// <param name="radius">The radius of the window around the point; 0 (the default) reports the pixel only.</param>
-    /// <returns>The request, with every other member at its default.</returns>
+    /// <returns>
+    ///     The request, with every other member at its default; add more with a <see langword="with"/> expression.
+    /// </returns>
+    /// <example>
+    ///     <code language="csharp">
+    ///     var request = InspectRequest.ForPixel(new PixelPoint(10, 20), radius: 1) with
+    ///     {
+    ///         Operations = [new TrimOperation(8)]
+    ///     };
+    ///     </code>
+    /// </example>
     public static InspectRequest ForPixel(PixelPoint point, int radius = 0) =>
         new(InspectKind.Pixel) { Point = point, Radius = radius };
 }
@@ -97,7 +118,8 @@ public sealed record InspectRequest(InspectKind Kind)
 /// <param name="Pixel">The sampled pixel (and window) for <see cref="InspectKind.Pixel"/>; otherwise <see langword="null"/>.</param>
 /// <remarks>
 ///     The result reports the <paramref name="Diagnostics"/> and the <paramref name="Echo"/> of the loaded source but not
-///     the anchors of a model; only <see cref="ImageRenderer"/> and <see cref="SourceLoader"/> report anchors.
+///     the anchors of a model; only <see cref="ImageRenderer"/> and <see cref="SourceLoader"/> report anchors. The result
+///     is a plain value: it holds no pixels and has nothing to dispose.
 /// </remarks>
 public sealed record InspectResult(
     SourceInfo Info,

@@ -31,6 +31,12 @@ namespace DemaConsulting.CanvasNet.Viewer;
 ///         saves them. An SVG document embeds the other formats through
 ///         <see cref="DemaConsulting.CanvasNet.Svg.SvgLoadOptions.ImageResolver"/>.
 ///     </para>
+///     <para>
+///         <b>Ownership.</b> Dispose a <see cref="ViewerImage"/> (it owns its surface). A
+///         <see cref="DemaConsulting.CanvasNet.ImageSources.FolderImageResolver"/> is not disposable and holds no open
+///         files. The <see cref="DemaConsulting.CanvasNet.Viewer.Imaging"/> operations return plain values and write
+///         files; what to dispose there is described in that namespace.
+///     </para>
 /// </remarks>
 /// <example>
 ///     Render a file of any supported format to a PNG, then let an SVG document embed other files from its folder:

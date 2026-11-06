@@ -307,7 +307,8 @@ The options of `render` are listed in the following tables.
 model) the size is applied when drawing, so the drawing is sharp, never enlarged afterwards. For a raster source it
 is a resampling, using `--filter`. When `--width` and `--height` are both given for an SVG, a document page, or a
 model, the drawing is fitted inside that box, centered, and never stretched; the rest of the box is filled with the
-background.
+background. With both `--width` and `--height` (or `--size`) a raster is resampled to exactly that size, so a picture
+with another aspect ratio is stretched; use `--fit` to keep the aspect ratio.
 
 | Pipeline option | Meaning |
 | --- | --- |

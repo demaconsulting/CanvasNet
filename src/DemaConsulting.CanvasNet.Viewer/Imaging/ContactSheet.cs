@@ -133,6 +133,10 @@ public readonly record struct SheetLayout(
 ///         Labels are drawn with the Rendering text renderer and the bundled Liberation Sans font (never a system
 ///         font), so the same inputs give the same pixels on every machine.
 ///     </para>
+///     <para>
+///         Dispose the sheet, or take its pixels with <c>Detach</c> and dispose that surface. <see cref="Add"/> does not
+///         take ownership of the image you pass; dispose it yourself.
+///     </para>
 /// </remarks>
 public sealed class ContactSheet : IDisposable
 {

@@ -35,6 +35,16 @@ namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 ///         from 0), and anchors of an OpenSCAD model are reported only by <see cref="ImageRenderer"/> and
 ///         <see cref="SourceLoader.Load(SourceInfo, SourceOptions)"/>.
 ///     </para>
+///     <para>
+///         <b>Ownership.</b> The <see cref="ImageRenderer"/>, <see cref="ImageInspector"/>,
+///         <see cref="ImageComparer"/>, and <see cref="MontageBuilder"/> operations return plain values and need no
+///         disposal; <see cref="ImageRenderer"/>,
+///         <see cref="MontageBuilder"/>, and <see cref="ImageComparer"/> write files (<see cref="WriteOptions"/> decides
+///         the format and the JPEG quality) and return where. What you dispose: a <see cref="LoadedSource"/>, a
+///         <see cref="SourceLoader.PageSource"/>, a <see cref="ContactSheet"/>, and the surface that
+///         <see cref="ImagePipeline"/> returns from <c>Apply</c>. In the root namespace dispose a <c>ViewerImage</c>; a
+///         <c>FolderImageResolver</c> is not disposable.
+///     </para>
 /// </remarks>
 /// <example>
 ///     Render page 3 of a document at 150 dots per inch, fitted into 800 x 600 pixels, then measure how much a rendering
