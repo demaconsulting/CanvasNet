@@ -96,11 +96,12 @@ public static partial class SourceLoader
             throw new ViewerException(ErrorCodes.InputNotFound, $"'{path}' does not exist.", "Check the path.");
         }
 
-        var header = Read(path, null, () => ReadHeader(path));
+        var input = SourceInput.FromFile(path);
+        var header = Read(path, null, () => ReadHeader(input));
         if (header.AsSpan().StartsWith("PK\u0003\u0004"u8))
         {
             // An Office or Visio package is told apart by its entries; any other readable archive is not supported
-            var (readable, packageKind) = Read(path, null, () => DetectPackage(path));
+            var (readable, packageKind) = Read(path, null, () => DetectPackage(input));
             if (readable)
             {
                 return packageKind ?? throw new ViewerException(
@@ -253,6 +254,16 @@ public static partial class SourceLoader
     }
 
     /// <summary>
+    ///     Recognizes a raster image by its signature bytes alone, whatever the name of the file says.
+    /// </summary>
+    /// <param name="header">The first bytes of the file.</param>
+    /// <returns>The raster kind, or <see langword="null"/> when the bytes are not one of the raster formats.</returns>
+    internal static SourceKind? DetectRasterSignature(ReadOnlySpan<byte> header)
+    {
+        return DetectSignature(header) is { } kind && kind != SourceKind.Pdf ? kind : null;
+    }
+
+    /// <summary>
     ///     Recognizes a format by its signature bytes: the raster image formats through the core
     ///     <see cref="ImageFormats.Detect(ReadOnlySpan{byte})"/>, plus the PDF signature.
     /// </summary>
@@ -298,7 +309,7 @@ public static partial class SourceLoader
     /// <summary>
     ///     Looks at the entries of a ZIP archive to tell what package it is.
     /// </summary>
-    /// <param name="path">The path of the file.</param>
+    /// <param name="input">Where the bytes of the file come from.</param>
     /// <returns>
     ///     Whether the archive could be read, and, when it could, the kind of package: a presentation when it has
     ///     <c>ppt/presentation.xml</c>, a drawing when it has <c>visio/document.xml</c>, and <see langword="null"/>
@@ -308,11 +319,11 @@ public static partial class SourceLoader
     ///     A file that starts like a ZIP archive but cannot be read as one is reported as not readable, so that the
     ///     file name extension decides and the load that follows reports the damage.
     /// </remarks>
-    private static (bool Readable, SourceKind? Kind) DetectPackage(string path)
+    private static (bool Readable, SourceKind? Kind) DetectPackage(SourceInput input)
     {
         try
         {
-            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            using var stream = input.Open();
             using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
             foreach (var name in archive.Entries.Select(entry => entry.FullName))
             {
@@ -338,11 +349,11 @@ public static partial class SourceLoader
     /// <summary>
     ///     Reads the first bytes of a file.
     /// </summary>
-    /// <param name="path">The path of the file.</param>
+    /// <param name="input">Where the bytes of the file come from.</param>
     /// <returns>The bytes; fewer than <see cref="HeaderLength"/> when the file is shorter.</returns>
-    private static byte[] ReadHeader(string path)
+    internal static byte[] ReadHeader(SourceInput input)
     {
-        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        using var stream = input.Open();
         var buffer = new byte[HeaderLength];
         var total = 0;
         while (total < buffer.Length)

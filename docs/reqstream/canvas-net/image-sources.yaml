@@ -127,6 +127,7 @@ sections:
               - CanvasNet-ImageSources-FolderImageResolver-DirectRender
               - CanvasNet-ImageSources-FolderImageResolver-Configuration
               - CanvasNet-ImageSources-ImageSourceContract-FailureReporting
+              - CanvasNet-ImageSources-ImageSourceContract-DiagnosticDetail
             tests:
               - FolderImageResolver_Resolve_SourceWithNotes_ForwardsDiagnosticsEchoAndEmbedded
               - FolderImageResolver_Resolve_NestedSourceNote_OriginListsEmbeddingChain
@@ -134,6 +135,30 @@ sections:
               - FolderImageResolver_Resolve_SameLinkTwice_InvokesSourceEachTimeWithoutCaching
               - FolderImageResolver_RenderPath_File_ReturnsResultWithFormat
               - ImageSourceException_Constructor_KeepsHrefEmbedderAndInner
+
+          - id: CanvasNet-ImageSources-Fragments
+            title: >-
+              The ImageSources subsystem shall let a link choose what a source draws with the fragment of the link (a
+              list of name=value parameters in the style of RFC 8118, such as report.pdf#page=3): it shall parse the
+              fragment once, with limits, into the request of the source, report a parameter the source does not use
+              and a parameter given twice with different values as warnings while the picture is drawn, let a source
+              decline a page that does not exist or a value it cannot use so that the resolver reports an unsupported
+              note and draws nothing, never hand the options of an embedding document to an embedded file, and pass
+              the caller's options to a direct render only.
+            justification: |
+              A diagram that shows page 3 of a report needs the page in the link; one grammar, one set of limits, and
+              uniform diagnostics keep every source predictable and a hostile link cheap.
+            children:
+              - CanvasNet-ImageSources-ImageSourceContract-ImageFragment
+              - CanvasNet-ImageSources-ImageSourceContract-Refusal
+              - CanvasNet-ImageSources-FolderImageResolver-Fragment
+              - CanvasNet-ImageSources-FolderImageResolver-FragmentDiagnostics
+              - CanvasNet-ImageSources-FolderImageResolver-PageRefusal
+            tests:
+              - ImageFragment_Parse_TwoParameters_KeepsOrderAndRaw
+              - FolderImageResolver_Resolve_FileLinkWithFragment_FragmentReachesSource
+              - FolderImageResolver_Resolve_UnknownParameter_WarnsAndStillDraws
+              - FolderImageResolver_Resolve_SourceRefuses_UnsupportedNoteNothingDrawnBudgetRefunded
 
           - id: CanvasNet-ImageSources-Raster
             title: >-

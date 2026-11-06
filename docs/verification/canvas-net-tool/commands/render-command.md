@@ -242,8 +242,30 @@ reference is exit code 1 with `unsupported-feature` and no file; an embedded mod
 the placement of the huge one red; with `--strict` it is exit code 1 with `unsupported-feature`, a message naming
 `huge.png`, a hint naming `svg-image-too-large`, and no file.
 
-**RenderCommand_Run_SvgEmbeddingHrefWithQueryAndFragment_DrawsTheFile**: `logo.png?v=2#top` draws the green picture
-with `--strict` and no diagnostics, and the `embed` operation lists the link as written.
+**RenderCommand_Run_SvgEmbeddingHrefWithQuery_DrawsTheFile**: `logo.png?v=2` draws the green picture
+with `--strict` and no diagnostics, and the `embed` operation lists the link as written (before the fragment support the
+test also linked `#top`; a fragment on a raster is now an `image-fragment-unknown-parameter` warning).
+
+**RenderCommand_Run_SvgEmbeddingPageFragments_DrawsTheChosenPages**: `report.pdf#page=2`, `deck.pptx#slide=2`, and
+`drawing.vsdx#page=2` side by side render with `--strict`, no diagnostics, the three links as written in the `embed`
+operations, and the pixels of page 2 of each document of the shared fixtures.
+
+**RenderCommand_Run_SvgEmbeddingPageBeyondTheLast_IsUnsupportedNoteAndDrawsTheRest**,
+**RenderCommand_Run_SvgEmbeddingStrictPageProblem_FailsWithUnsupportedFeature**, and
+**RenderCommand_Run_SvgEmbeddingUnknownAndDuplicateParameters_AreWarningsEvenWhenStrict**: `#page=9` of a 2-page PDF is
+exit code 0 with one `image-page-out-of-range` diagnostic (severity `unsupported`, the message `page 9 does not exist`)
+and the rest of the diagram drawn; with `--strict`, `#page=9` and `#page=zero` are exit code 1 with `unsupported-feature`,
+a message naming the link, a hint naming the code, and no file; `logo.png#top` and `#page=1&amp;page=2` are one warning
+each (`image-fragment-unknown-parameter`, `image-fragment-duplicate-parameter`) and `--strict` still succeeds.
+
+**RenderCommand_Run_ScadWarning_WritesDetailAndLocation**, **RenderCommand_Run_ScadUnsupportedFeature_WritesLocationWithoutDetail**,
+**RenderCommand_Run_VegaLiteWarning_WritesDetail**, **RenderCommand_Run_SvgEmbeddingNotes_WriteOriginAndOnlyWhatIsKnown**,
+and **RenderCommand_Run_PlainNote_HasNoExtraMembers** (`RenderCommandDiagnosticDetailTests.cs`): a malformed anchor is a
+`scad-warning` with `detail` `scad-anchor-invalid` and a `location` of the model file and line 2; an unsupported `offset`
+has a location and no detail; an unknown chart property has `detail` `vl-unknown-property`; for an SVG file that embeds
+a model with a bad anchor, a nested SVG file with a missing picture, and a missing picture of its own, the model note has
+the detail, the location, and the origin `["part.scad"]`, the nested note the origin `["inner.svg"]`, and the note of the
+SVG file's own link no extra member; a note without extras has exactly `source`, `severity`, `code`, and `message`.
 
 **RenderCommand_Run_VegaLite_WritesPngAndReportsFormat**: the two-bar chart renders to a PNG whose size is the natural
 size in the JSON result, which names the `vega-lite` format and has one `render` operation with the `UTC` time zone

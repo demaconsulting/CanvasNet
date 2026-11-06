@@ -10,6 +10,11 @@ namespace DemaConsulting.CanvasNet.ImageSources;
 /// </summary>
 /// <remarks>
 ///     <para>
+///         <b>Fragments.</b> The source claims no fragment parameter (it does not implement
+///         <see cref="IFragmentImageSource"/>), so a parameter in the link, such as <c>#page=2</c>, is reported by the
+///         resolver as <see cref="FolderImageResolver.FragmentUnknownParameterCode"/> and ignored.
+///     </para>
+///     <para>
 ///         The format is decided from the <b>content</b> of the file by <see cref="ImageDecoder"/> (the file name
 ///         extension only selects this source), so a PNG that is named <c>.jpg</c> still loads. A JPEG is turned upright
 ///         by its Exif orientation, so the picture looks the way a viewer shows it. The source returns the <b>natural

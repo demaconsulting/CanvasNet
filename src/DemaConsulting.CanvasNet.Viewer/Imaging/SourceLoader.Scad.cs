@@ -2,6 +2,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.ImageSources;
 using DemaConsulting.CanvasNet.Render3D.SceneRendering;
 using DemaConsulting.CanvasNet.Scad;
 
@@ -67,21 +68,21 @@ public static partial class SourceLoader
     /// <summary>
     ///     Reads what the source of a model declares, by parsing it; the model is not evaluated.
     /// </summary>
-    /// <param name="path">The path of the file.</param>
+    /// <param name="input">Where the bytes of the file come from.</param>
     /// <param name="bytes">The size of the file in bytes.</param>
     /// <returns>
     ///     The facts about the file: the names of its modules and functions, its <c>include</c> and <c>use</c>
     ///     directives, and <see cref="DefaultScadSize"/> as its natural size.
     /// </returns>
     /// <exception cref="ViewerException">Thrown with code <c>scad-error</c> when the source has a syntax error.</exception>
-    private static SourceInfo ProbeScad(string path, long bytes)
+    private static SourceInfo ProbeScad(SourceInput input, long bytes)
     {
-        var document = Read(path, SourceKind.Scad, () => ScadDocument.Open(path));
+        var document = Read(input.Name, SourceKind.Scad, () => OpenScad(input));
         var directives = document.Directives
             .Select(d => new SourceDirective(d.Kind == ScadDirectiveKind.Use ? "use" : "include", d.Path, d.Location.Line))
             .ToList();
         return new SourceInfo(
-            path,
+            input.Name,
             SourceKind.Scad,
             bytes,
             DefaultScadSize,
@@ -98,6 +99,18 @@ public static partial class SourceLoader
         {
             Directives = directives
         };
+    }
+
+    /// <summary>
+    ///     Parses a model from its source: the name of the source is the name of the library's messages, and the folder
+    ///     of the source is where its includes are looked up (nowhere else).
+    /// </summary>
+    /// <param name="input">Where the bytes of the file come from.</param>
+    /// <returns>The parsed model.</returns>
+    private static ScadDocument OpenScad(SourceInput input)
+    {
+        using var stream = input.Open();
+        return ScadDocument.Open(stream, new ScadOpenOptions { BaseDirectory = input.Directory, SourceName = input.Name });
     }
 
     /// <summary>
@@ -145,8 +158,10 @@ public static partial class SourceLoader
         /// <param name="document">The parsed model.</param>
         /// <param name="info">The facts about the file.</param>
         /// <param name="options">The loading options.</param>
-        private ScadPageSource(ScadDocument document, SourceInfo info, SourceOptions options)
-            : base(info, options)
+        /// <param name="input">Where the bytes of the file come from.</param>
+        /// <param name="context">The hooks of the caller.</param>
+        private ScadPageSource(ScadDocument document, SourceInfo info, SourceOptions options, SourceInput input, LoadContext context)
+            : base(info, options, input, context)
         {
             _document = document;
         }
@@ -154,14 +169,16 @@ public static partial class SourceLoader
         /// <summary>
         ///     Opens a model.
         /// </summary>
+        /// <param name="input">Where the bytes of the file come from.</param>
         /// <param name="info">The facts about the file.</param>
         /// <param name="options">The loading options.</param>
+        /// <param name="context">The hooks of the caller.</param>
         /// <returns>The page source.</returns>
         /// <exception cref="ViewerException">Thrown when the file cannot be read or has a syntax error.</exception>
-        public static ScadPageSource Open(SourceInfo info, SourceOptions options)
+        public static ScadPageSource Open(SourceInput input, SourceInfo info, SourceOptions options, LoadContext context)
         {
-            var document = Read(info.Path, SourceKind.Scad, () => ScadDocument.Open(info.Path));
-            return new ScadPageSource(document, info, options);
+            var document = Read(info.Path, SourceKind.Scad, () => OpenScad(input));
+            return new ScadPageSource(document, info, options, input, context);
         }
 
         /// <inheritdoc />
@@ -172,6 +189,8 @@ public static partial class SourceLoader
             var (width, height) = ComputeTargetSize(Info.Path, Info.Width, Info.Height, Options);
             var background = Options.Background ?? new Rgba32(255, 255, 255, 255);
 
+            // The surface is charged before the model is evaluated, so a model that cannot be paid for costs nothing
+            Context.ChargeSurface(width, height);
             var echo = new List<string>();
             var notes = new List<ImageDiagnostic>();
             var missingInclude = new List<ScadDiagnostic>();
@@ -179,7 +198,7 @@ public static partial class SourceLoader
             ScadResolvedView? resolved = null;
             var renderOptions = CreateRenderOptions(view, azimuth, elevation, background, echo, notes, missingInclude, anchors, v => resolved = v);
 
-            var surface = Read(Info.Path, SourceKind.Scad, () => _document.Render(width, height, renderOptions));
+            var surface = Read(Info.Path, SourceKind.Scad, () => _document.Render(width, height, renderOptions, Context.CancellationToken));
             if (missingInclude.Count > 0)
             {
                 surface.Dispose();
@@ -195,6 +214,22 @@ public static partial class SourceLoader
                 Operation("render", DescribeRender(view, azimuth, elevation, resolved, width, height, background))
             };
             return new LoadedSource(surface, Info, 1, true, notes, echo, operations) { Anchors = anchors };
+        }
+
+        /// <summary>
+        ///     Converts the position the SCAD library reports to the location of a note.
+        /// </summary>
+        /// <param name="location">The position in the source.</param>
+        /// <returns>The location, or <see langword="null"/> when the library gave no line (line 0).</returns>
+        private static ImageDiagnosticLocation? ToScadLocation(ScadSourceLocation location)
+        {
+            if (location.Line <= 0)
+            {
+                return null;
+            }
+
+            int? column = location.Column > 0 ? location.Column : null;
+            return new ImageDiagnosticLocation(location.File, location.Line, column, null);
         }
 
         /// <summary>
@@ -254,10 +289,18 @@ public static partial class SourceLoader
                             missingInclude.Add(warning);
                         }
 
-                        notes.Add(new ImageDiagnostic("scad", "warning", "scad-warning", OneLine(warning.ToString())));
+                        notes.Add(
+                            new ImageDiagnostic("scad", "warning", "scad-warning", OneLine(warning.ToString()))
+                            {
+                                Detail = warning.Code == ScadDiagnosticCodes.Warning ? null : warning.Code,
+                                Location = ToScadLocation(warning.Location)
+                            });
                     },
                     UnsupportedFeatureHandler = unsupported => notes.Add(
-                        new ImageDiagnostic("scad", "unsupported", unsupported.Feature, OneLine($"{unsupported.Location}: {unsupported.Message}"))),
+                        new ImageDiagnostic("scad", "unsupported", unsupported.Feature, OneLine($"{unsupported.Location}: {unsupported.Message}"))
+                        {
+                            Location = ToScadLocation(unsupported.Location)
+                        }),
                     ThrowOnUnsupportedFeature = Options.Strict
                 };
                 var scene = view.DefaultColor is { } color

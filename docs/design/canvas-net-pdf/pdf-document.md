@@ -1885,14 +1885,19 @@ no other unit or subsystem in this repository calls into it.
 ### Image Source
 
 `PdfImageSource` (`PdfImageSource.cs`) is the `IImageSource` of the package for `.pdf` files, so that a document can
-link to a PDF file through the shared `FolderImageResolver`; it draws the **first page**. `Render(request)` opens the
-document with `PdfDocument.Open(request.OpenContent())`, takes the displayed (rotation-adjusted) size of page 0 from
+link to a PDF file through the shared `FolderImageResolver`; it draws the **first page, or the page the fragment of the
+link names** (`report.pdf#page=3`). The source implements `IFragmentImageSource` (`FragmentParameters` is `["page"]`)
+and reads `request.Fragment.GetPositiveInt32("page")` before it reads the file, so an unusable value (`image-fragment-invalid`
+through `ImageSourceRefusedException`) costs nothing. `Render(request)` opens the
+document with `PdfDocument.Open(request.OpenContent())`, throws `ImageSourceRefusedException` with the code
+`image-page-out-of-range` when the page is beyond `PageCount`, takes the displayed (rotation-adjusted) size of the chosen
+page from
 `GetPageInfo` at 96 dots per inch as the natural size (points times 96/72, rounded), asks `request.SizeFor(naturalWidth,
 naturalHeight, fitInside: true)` for the largest size of the aspect ratio of the page inside the requested box, charges
 that size with `request.EnsureWithinBudget(width, height)` (a size that does not fit in the live budget is
 refused with
 `ImageSourceBudgetException` before any surface is allocated; the contract is on `ImageSourceRequest`), and
-draws it with `Render(0, width, height, new PdfRenderOptions { BackgroundColor = transparent })`, so the page is sharp
+draws it with `Render(index, width, height, new PdfRenderOptions { BackgroundColor = transparent })`, so the page is sharp
 at the size of its placement, not distorted, and the embedding document shows through. The PDF library has no
 diagnostics channel and cannot be canceled while it draws, so the result has no notes (the strictness switch has no
 effect) and the cancellation token is checked before the document is opened and before it is drawn. The class is

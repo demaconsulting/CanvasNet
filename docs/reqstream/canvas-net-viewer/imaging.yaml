@@ -56,6 +56,8 @@ sections:
           - CanvasNetViewer-Imaging-SourceLoader-Exif
           - CanvasNetViewer-Imaging-SourceLoader-Arguments
           - CanvasNetViewer-Imaging-SourceLoader-BoxFit
+          - CanvasNetViewer-Imaging-SourceLoader-InMemoryInput
+          - CanvasNetViewer-Imaging-SourceLoader-OptionValidation
         tests:
           - Imaging_Convert_InputKindToOutputFormat_WritesTheSourcePixels
           - Imaging_Convert_RequestedSize_WritesThatSize
@@ -283,12 +285,14 @@ sections:
       - id: CanvasNetViewer-Imaging-DiagnosticOrigin
         title: >-
           The Imaging subsystem shall give every note it reports about a file that embeds other files an origin, the
-          embedded files that the note is about, outermost first, empty by default, and shall compare two notes as
-          equal when their fields and their origin entries are equal.
+          embedded files that the note is about, outermost first, empty by default, shall give a note about a model or
+          a chart its finer identifier (detail) and its position in the file (location) where the library gave them,
+          and shall compare two notes as equal when their fields and their origin entries are equal.
         justification: |
           When files embed files, a note must say which file to fix; reporting it as data lets a program find the
           file without parsing the message, and value equality keeps the notes usable in assertions and sets.
         children:
           - CanvasNetViewer-Imaging-SourceLoader-DiagnosticOrigin
+          - CanvasNetViewer-Imaging-SourceLoader-DiagnosticDetail
         tests:
           - Imaging_Diagnostics_Origin_DefaultsToEmptyAndIsComparedByEntries

@@ -10,6 +10,11 @@ namespace DemaConsulting.CanvasNet.Svg;
 /// </summary>
 /// <remarks>
 ///     <para>
+///         <b>Fragments.</b> The source claims no fragment parameter (it does not implement
+///         <see cref="IFragmentImageSource"/>), so a parameter in the link, such as <c>#page=2</c>, is reported by the
+///         resolver as <see cref="FolderImageResolver.FragmentUnknownParameterCode"/> and ignored.
+///     </para>
+///     <para>
 ///         The file is drawn by <see cref="SvgCodec"/> at the size <see cref="ImageSourceRequest.SizeFor(int, int, bool)"/>
 ///         gives from the natural size of the SVG file, so a vector picture is as sharp as its placement allows; when both
 ///         dimensions are requested the surface is exactly that box and the codec fits the drawing into it by the

@@ -93,7 +93,10 @@ allocated and call the private sample-conversion helper via the same reflection 
 **Tests**: `PdfImageSource_Render_NoRequestedSize_DrawsNaturalSizeOnTransparentBackground`,
 `PdfImageSource_Render_RequestedSize_FitsPageInsideBoxKeepingAspectRatio`,
 `PdfImageSource_Render_SizeBeyondRemainingPixels_IsRefusedBeforeDrawing`, `PdfImageSource_Render_InvalidInput_Throws`,
-`PdfImageSource_Properties_NameExtensionAndNoSchemes`
+`PdfImageSource_Properties_NameExtensionAndNoSchemes`, `PdfImageSource_Render_PageFragment_DrawsTheChosenPage`,
+`PdfImageSource_Render_PageBeyondTheLast_IsRefusedWithPageOutOfRange`,
+`PdfImageSource_Render_InvalidPageValue_IsRefusedWithInvalidFragmentBeforeReading`,
+`PdfImageSource_FragmentParameters_DeclaresPage`
 
 `PdfImageSourceTests.cs` calls `PdfImageSource.Render` with requests built by hand over a one-page PDF written by the
 test (144 by
@@ -107,7 +110,11 @@ an allocation far below the 64 MB of the picture, while a budget of exactly 96 b
 not a PDF file is `InvalidDataException`, a request without a file
 `InvalidOperationException`, a null request `ArgumentNullException`, a canceled request `OperationCanceledException`,
 and the name,
-extension, and absence of schemes.
+extension, and absence of schemes. The fragment tests build a two-page document and assert that no fragment draws page 1
+and `page=2` draws page 2 at the size of that page, that `page=3` is refused with `ImageSourceRefusedException` (code
+`image-page-out-of-range`), that `0`, `abc`, `2.5`, and an empty value are refused with `image-fragment-invalid`
+before the
+document is read, and that the source declares exactly `page`.
 
 #### CanvasNetPdf-PdfDocument-Tokenizer: Tokenizer Recognizes Every Lexical Construct
 

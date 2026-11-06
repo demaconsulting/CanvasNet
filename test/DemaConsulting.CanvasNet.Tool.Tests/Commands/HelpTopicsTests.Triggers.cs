@@ -98,6 +98,43 @@ public partial class HelpTopicsTests
     }
 
     /// <summary>
+    ///     Test that each image-link code the <c>svg</c> topic cites is reported by the real pipeline for a link that
+    ///     causes it, with the severity the topic states, and that <c>--strict</c> fails exactly for the two that
+    ///     leave the image out.
+    /// </summary>
+    /// <param name="href">The href of the link, written as XML attribute text (so <c>&amp;amp;</c> separates parameters).</param>
+    /// <param name="code">The code the pipeline reports.</param>
+    /// <param name="severity">The severity of the report.</param>
+    /// <param name="strictFails">Whether <c>--strict</c> turns the report into an error.</param>
+    [Theory]
+    [InlineData("report.pdf#pag=2", "image-fragment-unknown-parameter", "warning", false)]
+    [InlineData("report.pdf#page=1&amp;page=2", "image-fragment-duplicate-parameter", "warning", false)]
+    [InlineData("report.pdf#page=0", "image-fragment-invalid", "unsupported", true)]
+    [InlineData("report.pdf#page=9", "image-page-out-of-range", "unsupported", true)]
+    public void HelpTopics_DiagnosticTriggers_ImageFragmentCodes_AreReportedWithTheirSeverity(string href, string code, string severity, bool strictFails)
+    {
+        // Arrange: a diagram linking a two-page PDF
+        using var directory = new TempDirectory();
+        File.WriteAllBytes(directory.Combine("report.pdf"), FixtureFactory.CreatePdf());
+        var input = FixtureFactory.WriteText(
+            directory.Path,
+            "diagram.svg",
+            $"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40' width='40' height='40'><image href='{href}' x='0' y='0' width='40' height='40'/></svg>");
+
+        // Act: render without and with --strict
+        var plain = ToolHost.Invoke("render", input, "--json", "-o", directory.Combine("out.png"));
+        var strict = ToolHost.Invoke("render", input, "--strict", "--json", "-o", directory.Combine("strict.png"));
+
+        // Assert: the code and severity are reported, and --strict fails only for an image that was not drawn
+        Assert.True(plain.ExitCode == 0, plain.StdErr + plain.StdOut);
+        using var document = JsonDocument.Parse(plain.StdOut);
+        var diagnostic = Assert.Single(document.RootElement.GetProperty("diagnostics").EnumerateArray());
+        Assert.Equal(code, diagnostic.GetProperty("code").GetString());
+        Assert.Equal(severity, diagnostic.GetProperty("severity").GetString());
+        Assert.Equal(strictFails ? 1 : 0, strict.ExitCode);
+    }
+
+    /// <summary>
     ///     Test that <c>--strict</c> turns the reports of a model and of a chart into the <c>unsupported-feature</c> error.
     /// </summary>
     /// <param name="cited">The cited identifier whose source is run with <c>--strict</c>.</param>

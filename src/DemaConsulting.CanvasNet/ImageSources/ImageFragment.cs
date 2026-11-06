@@ -1,0 +1,274 @@
+// cspell:ignore href hrefs
+using System.Globalization;
+using System.Text;
+
+namespace DemaConsulting.CanvasNet.ImageSources;
+
+/// <summary>
+///     One parameter of the fragment of a link: a decoded name and value.
+/// </summary>
+/// <param name="Name">The name, percent-decoded, exactly as written (names are compared ASCII case-insensitively).</param>
+/// <param name="Value">The value, percent-decoded; empty when the parameter had no <c>=</c> or nothing after it.</param>
+public readonly record struct ImageFragmentParameter(string Name, string Value);
+
+/// <summary>
+///     The fragment of a link (the text after the first <c>#</c>), parsed into ordered parameters in the style of the
+///     <c>#page=3</c> fragments of RFC 8118 (the PDF media type), so a link can choose which page of a document to draw.
+/// </summary>
+/// <remarks>
+///     <para>
+///         <b>Grammar.</b> The fragment is a list of parameters separated by <c>&amp;</c>; a parameter is a name and an
+///         optional value separated by the <b>first</b> <c>=</c> of the parameter (no <c>=</c> means the value is
+///         empty). Empty segments (<c>&amp;&amp;</c>, a leading or trailing <c>&amp;</c>) are skipped. The text is split
+///         first and percent-decoded afterwards (<see cref="Uri.UnescapeDataString(string)"/>), so <c>a=%26b</c> is the
+///         value <c>&amp;b</c> and <c>%3D</c> in a name is a literal <c>=</c> of the name; a <c>+</c> stays a <c>+</c>,
+///         and an invalid <c>%</c> sequence stays as written. Names are matched ASCII case-insensitively, values are
+///         compared as written, and the order is kept.
+///     </para>
+///     <para>
+///         <b>Limits.</b> A link is untrusted text, so a fragment longer than <see cref="MaxLength"/> characters, or with
+///         more than <see cref="MaxParameters"/> parameters, is not parsed: <see cref="Problem"/> says why, and
+///         <see cref="FolderImageResolver"/> refuses the link with <see cref="FolderImageResolver.FragmentInvalidCode"/>.
+///     </para>
+///     <para>
+///         <b>Duplicates.</b> When a name occurs more than once, <see cref="GetValue(string[])"/> returns the last
+///         occurrence (last wins), and when several names are given (aliases such as <c>page</c> and <c>slide</c>) the
+///         last occurrence of any of them wins.
+///     </para>
+///     <para>
+///         The class is immutable and thread-safe. It never throws from <see cref="Parse(string?)"/>.
+///     </para>
+///     <example>
+///         <code language="csharp">
+///         var fragment = ImageFragment.Parse("page=3&amp;view=front");
+///         int? page = fragment.GetPositiveInt32("page");     // 3
+///         string? view = fragment.GetValue("VIEW");          // "front" (names are case-insensitive)
+///         </code>
+///     </example>
+/// </remarks>
+public sealed class ImageFragment
+{
+    /// <summary>
+    ///     The longest fragment, in characters as written (before decoding), that is parsed: 2048.
+    /// </summary>
+    public const int MaxLength = 2048;
+
+    /// <summary>
+    ///     The largest number of parameters a fragment may have: 32.
+    /// </summary>
+    public const int MaxParameters = 32;
+
+    /// <summary>
+    ///     The longest piece of untrusted text that is quoted in a message, in characters.
+    /// </summary>
+    private const int MaxQuoted = 40;
+
+    /// <summary>
+    ///     The longest link that is quoted in a message, in characters.
+    /// </summary>
+    private const int MaxQuotedLink = 120;
+
+    /// <summary>
+    ///     The parameters, decoded, in the order written.
+    /// </summary>
+    private readonly IReadOnlyList<ImageFragmentParameter> _parameters;
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="ImageFragment"/> class.
+    /// </summary>
+    /// <param name="raw">The fragment as written.</param>
+    /// <param name="parameters">The decoded parameters, in order.</param>
+    /// <param name="problem">The reason the fragment cannot be used, or <see langword="null"/>.</param>
+    private ImageFragment(string raw, ImageFragmentParameter[] parameters, string? problem)
+    {
+        Raw = raw;
+        _parameters = Array.AsReadOnly(parameters);
+        Problem = problem;
+    }
+
+    /// <summary>
+    ///     Gets the fragment that a link without a <c>#</c> has: no text and no parameters.
+    /// </summary>
+    public static ImageFragment Empty { get; } = new(string.Empty, [], null);
+
+    /// <summary>
+    ///     Gets the fragment as written, after the first <c>#</c>, still percent-encoded; empty when there is none.
+    /// </summary>
+    public string Raw { get; }
+
+    /// <summary>
+    ///     Gets the parameters, decoded, in the order they were written; empty when <see cref="Problem"/> is set.
+    /// </summary>
+    public IReadOnlyList<ImageFragmentParameter> Parameters => _parameters;
+
+    /// <summary>
+    ///     Gets the reason the fragment was not parsed (it is longer than <see cref="MaxLength"/> characters or has more
+    ///     than <see cref="MaxParameters"/> parameters), or <see langword="null"/> when it was.
+    /// </summary>
+    public string? Problem { get; }
+
+    /// <summary>
+    ///     Parses the text after the first <c>#</c> of a link.
+    /// </summary>
+    /// <param name="raw">The fragment as written, still percent-encoded, without the <c>#</c>; null counts as empty.</param>
+    /// <returns>
+    ///     The parsed fragment; <see cref="Problem"/> is set (and there are no parameters) when a limit is exceeded.
+    ///     Parsing never throws.
+    /// </returns>
+    public static ImageFragment Parse(string? raw)
+    {
+        if (string.IsNullOrEmpty(raw))
+        {
+            return Empty;
+        }
+
+        // The limits come first: a hostile link must cost nothing to refuse
+        if (raw.Length > MaxLength)
+        {
+            return new ImageFragment(raw, [], $"the fragment is longer than {MaxLength.ToString(CultureInfo.InvariantCulture)} characters");
+        }
+
+        // Split on '&' in the raw text, then decode each part: splitting first keeps an encoded %26 inside its value
+        var parameters = new List<ImageFragmentParameter>();
+        foreach (var segment in raw.Split('&'))
+        {
+            if (segment.Length == 0)
+            {
+                continue;
+            }
+
+            if (parameters.Count == MaxParameters)
+            {
+                return new ImageFragment(raw, [], $"the fragment has more than {MaxParameters.ToString(CultureInfo.InvariantCulture)} parameters");
+            }
+
+            var equals = segment.IndexOf('=');
+            var name = equals < 0 ? segment : segment[..equals];
+            var value = equals < 0 ? string.Empty : segment[(equals + 1)..];
+            parameters.Add(new ImageFragmentParameter(Decode(name), Decode(value)));
+        }
+
+        return new ImageFragment(raw, [.. parameters], null);
+    }
+
+    /// <summary>
+    ///     Gets the value of a parameter, the last occurrence of any of the given names.
+    /// </summary>
+    /// <param name="names">The names to look for, ASCII case-insensitively; they are aliases of each other.</param>
+    /// <returns>The decoded value of the last matching parameter, or <see langword="null"/> when there is none.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="names"/> is null.</exception>
+    public string? GetValue(params string[] names)
+    {
+        return FindLast(names)?.Value;
+    }
+
+    /// <summary>
+    ///     Gets the value of a parameter as a whole number of 1 or more, the last occurrence of any of the given names.
+    /// </summary>
+    /// <param name="names">The names to look for, ASCII case-insensitively; they are aliases of each other.</param>
+    /// <returns>The number, or <see langword="null"/> when no parameter has one of the names.</returns>
+    /// <remarks>
+    ///     Only ASCII digits are accepted (leading zeros are allowed: <c>003</c> is 3); a sign, a space, a decimal
+    ///     point, an empty value, zero and a value above <see cref="int.MaxValue"/> are all invalid.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="names"/> is null.</exception>
+    /// <exception cref="ImageSourceRefusedException">
+    ///     Thrown, with the code <see cref="FolderImageResolver.FragmentInvalidCode"/>, when the value is not a whole
+    ///     number from 1 to <see cref="int.MaxValue"/>.
+    /// </exception>
+    public int? GetPositiveInt32(params string[] names)
+    {
+        var found = FindLast(names);
+        if (found is not { } parameter)
+        {
+            return null;
+        }
+
+        // Only ASCII digits are a number here (int.TryParse with NumberStyles.None would also reject a sign or a space)
+        var value = parameter.Value;
+        if (value.Length > 0
+            && value.All(static c => c is >= '0' and <= '9')
+            && int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var number)
+            && number >= 1)
+        {
+            return number;
+        }
+
+        throw new ImageSourceRefusedException(
+            FolderImageResolver.FragmentInvalidCode,
+            $"the fragment parameter {Quote(parameter.Name)} must be a whole number of 1 or more, not {Quote(parameter.Value)}");
+    }
+
+    /// <summary>
+    ///     Quotes a piece of untrusted text for a message: control characters are replaced and a long text is cut.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <returns>The text in single quotes, at most 40 characters long inside the quotes, free of control characters.</returns>
+    internal static string Quote(string text)
+    {
+        return Quote(text, MaxQuoted);
+    }
+
+    /// <summary>
+    ///     Quotes a link for a message the way <see cref="Quote(string)"/> does, but allows a longer text, because a
+    ///     legitimate link can be long.
+    /// </summary>
+    /// <param name="href">The link as written.</param>
+    /// <returns>The link in single quotes, at most 120 characters long inside the quotes, free of control characters.</returns>
+    internal static string QuoteLink(string href)
+    {
+        return Quote(href, MaxQuotedLink);
+    }
+
+    /// <summary>
+    ///     Quotes a piece of untrusted text for a message.
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <param name="maxLength">The most characters of the text to show.</param>
+    /// <returns>The quoted text.</returns>
+    private static string Quote(string text, int maxLength)
+    {
+        var builder = new StringBuilder(Math.Min(text.Length, maxLength) + 5);
+        builder.Append('\'');
+        foreach (var c in text.Take(maxLength))
+        {
+            builder.Append(char.IsControl(c) ? '?' : c);
+        }
+
+        if (text.Length > maxLength)
+        {
+            builder.Append("...");
+        }
+
+        return builder.Append('\'').ToString();
+    }
+
+    /// <summary>
+    ///     Finds the last parameter that has one of the names.
+    /// </summary>
+    /// <param name="names">The names, matched ASCII case-insensitively.</param>
+    /// <returns>The parameter, or <see langword="null"/>.</returns>
+    private ImageFragmentParameter? FindLast(string[] names)
+    {
+        ArgumentNullException.ThrowIfNull(names);
+        for (var i = _parameters.Count - 1; i >= 0; i--)
+        {
+            if (names.Any(name => string.Equals(name, _parameters[i].Name, StringComparison.OrdinalIgnoreCase)))
+            {
+                return _parameters[i];
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    ///     Percent-decodes a name or value.
+    /// </summary>
+    /// <param name="text">The text as written.</param>
+    /// <returns>The decoded text; text without a <c>%</c> is returned as it is.</returns>
+    private static string Decode(string text)
+    {
+        return text.Contains('%') ? Uri.UnescapeDataString(text) : text;
+    }
+}

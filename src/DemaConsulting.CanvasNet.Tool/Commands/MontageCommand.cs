@@ -225,6 +225,7 @@ internal sealed partial class MontageCommand : ICommand
                 writer.WriteString("severity", diagnostic.Severity);
                 writer.WriteString("code", diagnostic.Code);
                 writer.WriteString("message", diagnostic.Message);
+                ResultWriter.WriteDiagnosticExtras(writer, diagnostic);
                 writer.WriteEndObject();
             }
         }

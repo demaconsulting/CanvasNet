@@ -10,6 +10,11 @@ namespace DemaConsulting.CanvasNet.VegaLite;
 /// </summary>
 /// <remarks>
 ///     <para>
+///         <b>Fragments.</b> The source claims no fragment parameter (it does not implement
+///         <see cref="IFragmentImageSource"/>), so a parameter in the link, such as <c>#page=2</c>, is reported by the
+///         resolver as <see cref="FolderImageResolver.FragmentUnknownParameterCode"/> and ignored.
+///     </para>
+///     <para>
 ///         The natural size of the chart is its own layout size (<see cref="VegaLiteDocument.Measure"/>); the chart is laid
 ///         out afresh at the size <see cref="ImageSourceRequest.SizeFor(int, int, bool)"/> gives, so it is as sharp as the
 ///         placement allows. The chart keeps <b>its own background</b> (white unless the specification declares another),

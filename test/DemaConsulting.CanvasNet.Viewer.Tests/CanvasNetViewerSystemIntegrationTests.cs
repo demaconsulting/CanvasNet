@@ -104,17 +104,18 @@ public class CanvasNetViewerSystemIntegrationTests
     }
 
     /// <summary>
-    ///     Proves that an SVG document may link files with a query and a fragment (<c>logo.png?v=2#top</c>): they are not
-    ///     part of the file name, the picture is drawn, and the embedded image reports the link as written.
+    ///     Proves that an SVG document may link files with a query and a fragment (<c>logo.png?v=2</c>,
+    ///     <c>part.scad?v=2#view=front</c>): they are not part of the file name, the pictures are drawn (the fragment
+    ///     chooses the viewpoint of the model), and the embedded images report the links as written.
     /// </summary>
     [Fact]
     public void CanvasNetViewer_SystemIntegration_SvgEmbeddingWithQueryAndFragment_DrawsTheFile()
     {
-        // Arrange: a raster and a model, linked with a cache-busting query and a fragment
+        // Arrange: a raster linked with a cache-busting query, and a model with a query and a fragment
         using var folder = new ViewerTestFolder();
         folder.WriteBytes("logo.png", ViewerFixtures.Png(4, 4, ViewerFixtures.Green));
         folder.WriteText("part.scad", ViewerFixtures.Cube);
-        var svg = ViewerFixtures.Svg(ViewerFixtures.Cell("logo.png?v=2#top", 0) + ViewerFixtures.Cell("part.scad#view", 1));
+        var svg = ViewerFixtures.Svg(ViewerFixtures.Cell("logo.png?v=2", 0) + ViewerFixtures.Cell("part.scad?v=2#view=front", 1));
         var resolver = CanvasNetViewer.CreateImageResolver(folder.Path);
 
         // Act
@@ -124,7 +125,7 @@ public class CanvasNetViewerSystemIntegrationTests
         Assert.Equal(ViewerFixtures.Green, surface[50, 50]);
         Assert.NotEqual(ViewerFixtures.Gray, surface[150, 50]);
         Assert.Empty(resolver.Diagnostics);
-        Assert.Equal(["logo.png?v=2#top", "part.scad#view"], resolver.Embedded.Select(e => e.Href));
+        Assert.Equal(["logo.png?v=2", "part.scad?v=2#view=front"], resolver.Embedded.Select(e => e.Href));
     }
 
     /// <summary>

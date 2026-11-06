@@ -12,6 +12,11 @@ namespace DemaConsulting.CanvasNet.Scad;
 /// </summary>
 /// <remarks>
 ///     <para>
+///         <b>Fragments.</b> The source claims no fragment parameter (it does not implement
+///         <see cref="IFragmentImageSource"/>), so a parameter in the link, such as <c>#page=2</c>, is reported by the
+///         resolver as <see cref="FolderImageResolver.FragmentUnknownParameterCode"/> and ignored. (Choosing the viewpoint with <c>#view=front</c> is a feature of the built-in sources of <c>CanvasNetViewer</c>, which draw with the loader of the viewer; this stand-alone source takes none.)
+///     </para>
+///     <para>
 ///         The model is drawn with the view the library itself chooses for it (see
 ///         <see cref="ScadDocument.Render(int, int, ScadRenderOptions?, CancellationToken)"/>): the fitted isometric
 ///         view for a model with 3D objects, a flat top-down view for a model that is entirely 2D, or the view of the

@@ -43,9 +43,11 @@ public class FolderImageResolverHrefTests
         // Act
         using var surface = resolver.Resolve(href, 10, 10);
 
-        // Assert: drawn without a warning; the source got the raw link and the name of the file that was read
+        // Assert: drawn; the only notes are about fragment parameters the stub does not declare; the source got the raw
+        // link and the name of the file that was read
         Assert.NotNull(surface);
-        Assert.Empty(resolver.Diagnostics);
+        Assert.All(resolver.Diagnostics, d => Assert.Equal(FolderImageResolver.FragmentUnknownParameterCode, d.Code));
+        Assert.Equal(href.Contains("#", StringComparison.Ordinal) && !href.EndsWith('#') ? 1 : 0, resolver.Diagnostics.Count);
         var request = Assert.Single(stub.Requests);
         Assert.Equal(href, request.Href);
         Assert.Equal(expectedFile, request.FileName);
@@ -75,8 +77,7 @@ public class FolderImageResolverHrefTests
         Assert.NotNull(encodedWithFragment);
         Assert.Null(literal);
         Assert.Equal(["a#b.stub", "a#b.stub"], stub.Requests.Select(r => r.FileName));
-        var note = Assert.Single(resolver.Diagnostics);
-        Assert.Equal(FolderImageResolver.UnresolvedCode, note.Code);
+        var note = Assert.Single(resolver.Diagnostics, d => d.Code == FolderImageResolver.UnresolvedCode);
         Assert.Contains("'a#b.stub'", note.Message, StringComparison.Ordinal);
     }
 
@@ -144,7 +145,7 @@ public class FolderImageResolverHrefTests
         Assert.Equal(
             ["inside.stub", "inside.stub", "inside.stub", "in#side.stub"],
             stub.Requests.Select(r => r.FileName));
-        Assert.Empty(resolver.Diagnostics);
+        Assert.All(resolver.Diagnostics, d => Assert.Equal(FolderImageResolver.FragmentUnknownParameterCode, d.Code));
     }
 
     /// <summary>
@@ -325,7 +326,7 @@ public class FolderImageResolverHrefTests
         Assert.NotNull(surface);
         Assert.Equal("sub/inner.leaf", Assert.Single(leaf.Requests).FileName);
         Assert.Equal("inner.leaf?v=1#top", Assert.Single(leaf.Requests).Href);
-        Assert.Empty(resolver.Diagnostics);
+        Assert.All(resolver.Diagnostics, d => Assert.Equal(FolderImageResolver.FragmentUnknownParameterCode, d.Code));
     }
 
     /// <summary>

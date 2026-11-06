@@ -85,6 +85,53 @@ Asserts that a stream is rendered by the extension of its file name, that the fi
 only from the folder option, that null arguments and an unknown extension are rejected, and that a width or height
 outside 1 to `Surface.MaxDimension` throws `ArgumentOutOfRangeException` without the stream being read.
 
+#### CanvasNetViewer-CanvasNetViewer-LoaderSources: Linked Files Are Drawn By The Loader
+
+**Tests**: `CanvasNetViewer_Render_PdfPageFragment_DrawsTheChosenPage`,
+`CanvasNetViewer_Render_SlideAndVsdxPageFragments_DrawTheChosenPage`,
+`CanvasNetViewer_Render_PageBeyondTheLast_IsUnsupportedNoteAndNothingDrawn`,
+`CanvasNetViewer_Render_InvalidPageValue_IsInvalidFragmentNote`,
+`CanvasNetViewer_Render_UnknownParameter_IsWarningAndStillDrawn`,
+`CanvasNetViewer_Render_DuplicatePage_LastWinsAndWarnsOnlyWhenDifferent`,
+`CanvasNetViewer_Render_QueryAndEncodedFragment_AreHandled`, `CanvasNetViewer_Render_ScadViewFragment_ChoosesTheViewOrIsInvalid`,
+`CanvasNetViewer_Render_SchemeSource_ReceivesRawLinkAndParsedFragment`,
+`CanvasNetViewer_Render_ExtraSourceForBuiltInExtension_WinsAndGetsFragment`,
+`CanvasNetViewer_Render_NestedSvgWithFragment_UsesTheScopedResolver`, `CanvasNetViewer_Render_HostileFragment_IsRefusedAndShortInTheMessage`,
+`SourceLoader_Load_StrictWithFragmentProblems_FailsOnlyForRefusedLinks`, `SourceLoader_Load_FragmentProblems_AreNotesOfTheDocument`
+(`CanvasNetViewerFragmentTests.cs`)
+
+Writes the two-page PDF, the two-slide presentation and the two-page drawing of the shared fixtures next to an SVG that
+links their pages with `#page=N` and `#slide=N`, and asserts by the color of the pixels that the chosen page is the one
+drawn (page 1 without a fragment); that a page beyond the last is one unsupported note with the code
+`image-page-out-of-range` (the message names the number of pages, the origin the embedding file), nothing is drawn, the
+image is not listed as embedded, and the rest of the document is drawn; that `page=0` and `page=abc` are
+`image-fragment-invalid`; that an unknown parameter is a warning and the picture is drawn, a duplicate with another value
+a warning with the last value used, and the same value twice silent; that a `?query` and `%`-encoded values work; that
+`#view=front` chooses the view of a model and an unknown view is invalid; that a scheme source receives the raw link and
+the parsed fragment, and that an extra source for a built-in extension wins and gets the fragment; that a nested SVG file
+draws its pages through the scoped resolver; that a fragment of thousands of characters is refused with a short message;
+and that `Strict` fails for the two refused codes only.
+
+#### CanvasNetViewer-CanvasNetViewer-RenderOptions: Page, Resolution, Background, And Model Options
+
+**Tests**: `ViewerRenderOptions_Defaults_PageOneAndNoDpiBackgroundOrScad`, `CanvasNetViewer_Render_PageAndDpi_DrawsThePageAtTheResolution`,
+`CanvasNetViewer_Render_StreamWithPage_DrawsThePage`, `CanvasNetViewer_Render_PageBeyondTheLast_ThrowsViewerExceptionPageOutOfRange`,
+`CanvasNetViewer_Render_InvalidOptions_ThrowsBeforeReadingTheContent`, `CanvasNetViewer_Render_FractionalDpiForVsdx_ThrowsViewerExceptionUsageError`,
+`CanvasNetViewer_Render_Background_FlattensTransparentAreas`, `CanvasNetViewer_Render_VegaLiteBackground_DefaultIsTheChartsOwn`,
+`CanvasNetViewer_Render_ScadOptions_ChooseViewDefinesAndReportAnchorsEchoAndDetail`, `CanvasNetViewer_Render_Failures_HaveTheDocumentedShapes`,
+`CanvasNetViewer_Render_MatchesTheLoaderOfTheTool`, `CanvasNetViewer_Render_RasterWithBox_IsFittedAndCharged`,
+`CanvasNetViewer_Render_CanceledToken_ThrowsOperationCanceled` (`CanvasNetViewerRenderOptionsTests.cs`)
+
+Asserts the defaults of the new options; that `Page = 2` with `Dpi = 192` gives the size of page 2 at that resolution
+and `ViewerImage.Page` and `PageCount` report the page drawn and the number of pages; that a page beyond the last is a
+`ViewerException` with the code `page-out-of-range`; that a page of 0, a `Dpi` of 0, NaN or 2401, a width of 0, and a
+bad model option each throw `ArgumentOutOfRangeException` before the stream is read; that a fractional `Dpi` for a Visio
+drawing is a `usage-error`; that `Background` flattens a transparent SVG while no background keeps it transparent (and a
+chart keeps its own); that a model gets its view and variables, reports its anchors, echo, and notes with `Detail` and
+`Location`; the exception shapes (a missing include is a `ViewerException` with `scad-error`, a corrupt raster an
+`ImageSourceException` whose inner exception is the codec's); that the pixels equal those of `SourceLoader.Load` for
+equal options; and that a raster in a box is fitted and charged.
+
 #### CanvasNetViewer-CanvasNetViewer-ExtraSources: Your Own Sources
 
 **Tests**: `CanvasNetViewer_CreateImageResolver_CreatesNewResolverWithBuiltInAndExtraSources` and the five custom-source

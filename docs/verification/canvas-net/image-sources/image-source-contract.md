@@ -115,3 +115,37 @@ the defaults of the resolver options.
 **Tests**: `ImageSourceException_Constructor_KeepsHrefEmbedderAndInner`
 
 Asserts that the message, the link, the embedder (and its absence at the top level), and the inner exception are kept.
+
+##### CanvasNet-ImageSources-ImageSourceContract-ImageFragment: The Parsed Fragment
+
+**Tests**: `ImageFragment_Parse_NullOrEmpty_IsEmpty`, `ImageFragment_Parse_TwoParameters_KeepsOrderAndRaw`,
+`ImageFragment_Parse_SingleParameter_SplitsBeforeDecoding`, `ImageFragment_Parse_EmptySegments_AreSkipped`,
+`ImageFragment_Parse_HashAndQuestionMark_StayInTheText`, `ImageFragment_GetValue_CaseInsensitiveLastWins_AcrossAliases`,
+`ImageFragment_GetValue_NullNames_ThrowsArgumentNullException`, `ImageFragment_GetPositiveInt32_ValidValues_ReturnsNumber`,
+`ImageFragment_GetPositiveInt32_UnusableValue_ThrowsRefusedWithInvalidCode`,
+`ImageFragment_GetPositiveInt32_HostileValue_IsQuotedSafelyInMessage`, `ImageFragment_Parse_TooLong_HasProblemAndNoParameters`,
+`ImageFragment_Parse_AtTheLimits_IsParsed`, `ImageFragment_Parse_TooManyParameters_HasProblemAndNoParameters`,
+`ImageFragment_Parameters_AreReadOnly`, `ImageSourceRequest_Fragment_DefaultsToEmptyAndNoOptions`
+
+These tests are in `ImageFragmentTests.cs` and `ImageSourceContractTests.cs`. They assert that null and the empty text
+are the empty fragment; that parameters keep their order and the raw text; that the text is split at `&` and at the
+first `=` before it is decoded (`a=%26b` is the value `&b`, `a%3Db=1` the name `a=b`, `a=b=c` the value `b=c`, a name
+without `=` has an empty value, and `+` stays); that empty segments are skipped and a second `#` and a `?` stay in the
+text; that names match ignoring case, the last value wins across aliases, and a null name list is rejected; that a
+whole number from 1 is read (`003` is 3) and `0`, `-1`, `+2`, a space, `2.5`, text, an empty value, and an overflow are
+refused with `image-fragment-invalid`, with a quoted, cleaned, and cut message for a hostile value; that 2049
+characters or 33 parameters set `Problem` and leave no parameter while exactly the limits parse; that the parameter
+list is read-only; and that a request has the empty fragment and no options by default.
+
+##### CanvasNet-ImageSources-ImageSourceContract-Refusal: A Source Declines The Picture
+
+**Tests**: `ImageSourceRefusedException_Constructor_KeepsCodeAndMessageAndValidates`
+
+Asserts that the code and the message are kept and that a null or empty code and a null message are rejected.
+
+##### CanvasNet-ImageSources-ImageSourceContract-DiagnosticDetail: Detail, Location, And Page Of A Note
+
+**Tests**: `ImageSourceDiagnostic_Equals_ComparesDetailLocationAndPage`, `ImageDiagnosticLocation_Equality_IsByValue`
+
+Asserts that two notes are equal only when `Detail`, `Location`, and `Page` are equal too (with equal hash codes), and that
+a location is compared by its four members.

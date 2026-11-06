@@ -22,15 +22,16 @@ public sealed partial class FolderImageResolver
     /// </returns>
     /// <remarks>
     ///     A relative reference is parsed as RFC 3986 says: the query (from the first <c>?</c>) and the fragment (from the
-    ///     first <c>#</c>) are not part of the path, so they are cut off <b>before</b> percent-decoding. That order keeps
+    ///     first <c>#</c>) are not part of the path, so they are cut off <b>before</b> percent-decoding (see
+    ///     <see cref="SplitHref(string)"/>). That order keeps
     ///     an encoded <c>%23</c> or <c>%3F</c> a literal character of the file name, and it means a decoded
     ///     <c>#</c> or <c>?</c> can never hide or reveal a path segment. What is left is decoded and goes to the
     ///     extension choice and the sandbox, which refuse everything that is not a plain relative path below the folder
-    ///     exactly as before; the text that was cut off is never used.
+    ///     exactly as before; the query that was cut off is never used, and the fragment is parsed separately.
     /// </remarks>
     private (string? Path, bool RelativeToCurrent, string? Reason) ToRelativePath(string href)
     {
-        var reference = StripQueryAndFragment(href);
+        var reference = SplitHref(href).Reference;
         if (reference.Length == 0)
         {
             return (null, false, "the reference is empty (it has only a query or a fragment)");
@@ -48,14 +49,25 @@ public sealed partial class FolderImageResolver
     }
 
     /// <summary>
-    ///     Cuts the query and the fragment off a reference, leaving its path (still percent-encoded).
+    ///     Splits a link into the reference (its path, still percent-encoded) and the raw fragment.
     /// </summary>
-    /// <param name="href">The reference as written.</param>
-    /// <returns>The text before the first <c>?</c> or <c>#</c>, or all of it when there is none.</returns>
-    private static string StripQueryAndFragment(string href)
+    /// <param name="href">The link as written.</param>
+    /// <returns>
+    ///     The reference: the text before the first <c>#</c> with its query (from the first <c>?</c>) cut off; and the
+    ///     fragment: everything after the first <c>#</c>, still percent-encoded, with later <c>#</c> and <c>?</c>
+    ///     characters belonging to it (empty when there is no <c>#</c>).
+    /// </returns>
+    /// <remarks>
+    ///     The order is RFC 3986's: the fragment starts at the first <c>#</c>, and the query is only the part before it,
+    ///     so <c>a.pdf#page=2?x</c> has no query and <c>a.pdf?v=2#page=2</c> has the ignored query <c>v=2</c>.
+    /// </remarks>
+    internal static (string Reference, string Fragment) SplitHref(string href)
     {
-        var end = href.AsSpan().IndexOfAny('?', '#');
-        return end < 0 ? href : href[..end];
+        var hash = href.IndexOf('#');
+        var beforeFragment = hash < 0 ? href : href[..hash];
+        var fragment = hash < 0 ? string.Empty : href[(hash + 1)..];
+        var query = beforeFragment.IndexOf('?');
+        return (query < 0 ? beforeFragment : beforeFragment[..query], fragment);
     }
 
     /// <summary>

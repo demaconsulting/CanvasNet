@@ -468,7 +468,9 @@ is given twice, the later definition wins. A name that is not a valid variable n
 The `include <file>` and `use <file>` directives of a model are read relative to the file that names them, and only
 inside the folder of the model and below it; symbolic links are not followed. An include that names a missing file, a
 file outside the model's folder, or a circular include is an error (`scad-error`) rather than being skipped, because
-a picture drawn without a file it asked for would be silently wrong. A syntax error is also a `scad-error`, with the
+a picture drawn without a file it asked for would be silently wrong. The same holds for a model that an SVG file embeds
+with an `<image>` element: its missing include fails the render naming the link, where earlier versions only warned
+and drew the model without the file (a deliberate change). A syntax error is also a `scad-error`, with the
 file, line, and column of the mistake. A model that would produce more triangles than `--max-triangles` fails with
 `budget-exceeded`.
 
@@ -626,7 +628,7 @@ accepts):
 | Another SVG file | `.svg` |
 | OpenSCAD model | `.scad` |
 | Vega-Lite chart | `.vl.json`, `.vl` |
-| Page 1 of a document (the first PDF page, PowerPoint slide, or Visio page) | `.pdf`, `.pptx`, `.vsdx` |
+| A document page (page 1, or `#page=N`; PDF, PowerPoint, Visio) | `.pdf`, `.pptx`, `.vsdx` |
 
 The format is decided by the **file name** (its extension), not by the content: a Vega-Lite chart must be named `.vl.json`
 or `.vl` (a chart in a plain `.json` file is not linked), and a file with another name is not drawn (the warning
@@ -673,9 +675,9 @@ draws the model and the chart into their rectangles. The result lists each embed
   `include` files of a model and the data files of a chart; there is no option for another folder. An absolute path, a
   drive letter, a `..` that leaves the folder, a symbolic link, and a network URL (`http:`, `https:`, `ftp:`, ...) are
   **never** read or fetched. A `file:` URI that points inside the folder, and a percent-encoded path such as
-  `my%20picture.png`, are accepted, and a query or fragment after the file name (`logo.png?v=2`, `part.scad#view`) is
-  ignored (an encoded `%23` or `%3F` is a literal `#` or `?` in the name). An embedded SVG file looks for its own images
-  beside itself, so a diagram can be
+  `my%20picture.png`, are accepted, and a query after the file name (`logo.png?v=2`) is ignored (an encoded `%23` or
+  `%3F` is a literal `#` or `?` in the name). A fragment after the file name chooses a page, slide, or view (see
+  **Choosing a page** below). An embedded SVG file looks for its own images beside itself, so a diagram can be
   split into folders. (Files that an embedded SVG file embeds are not listed as `embed` operations of the result; the
   `embed` list names the files the SVG file you named embeds itself.)
 - **Size and background.** A model, chart, SVG file, or document page is drawn at the **device size of its rectangle**
@@ -684,15 +686,32 @@ draws the model and the chart into their rectangles. The result lists each embed
   own size and resampled once. A model and an SVG file are drawn over a **transparent** background, so the diagram shows
   through; a chart keeps **its own background** (white unless it declares another), because a chart is meant to carry
   its own paper. An embedded model is drawn with the view the library chooses for it (isometric for a 3D model,
-  top-down for a flat 2D model, or the view of its own `$vpr`, `$vpt`, `$vpd`, and `$vpf` variables) and default
+  top-down for a flat 2D model, or the view of its own `$vpr`, `$vpt`, `$vpd`, and `$vpf` variables; `#view=front` in
+  the link chooses a named view) and default
   settings: the options of the command (`--view`,
   `-D`, `--page`, `--dpi`, ...) apply to the SVG file only.
+- **Choosing a page.** A link to a document draws **page 1 unless its fragment says otherwise**:
+  `<image href="report.pdf#page=3" .../>` draws page 3 of a PDF, `deck.pptx#slide=2` (or `#page=2`) slide 2 of a
+  presentation, `drawing.vsdx#page=2` page 2 of a Visio drawing, and `part.scad#view=front` draws a model from a named
+  view (`iso`, `front`, `back`, `left`, `right`, `top`, `bottom`). The fragment is a list of `name=value` parameters
+  separated by `&` (written `&amp;` inside an XML attribute); `%XX` escapes are decoded after the split; names are not
+  case sensitive; a page counts from 1. A fragment is at most 2048 characters and 32 parameters. An embedded file never
+  takes the options of the command: `--page` chooses the page of the SVG file only, and the page of an embedded document
+  is the one in its link. `canvasnet help svg` prints the grammar and `canvasnet help svg --example embed-pages` a
+  diagram that places pages side by side. **Behavior change:** a fragment on a file that takes no parameter
+  (`logo.png#anything`, `other.svg#top`) used to be ignored and is now the warning `image-fragment-unknown-parameter`
+  (the picture is still drawn); `part.scad#view` without a value is `image-fragment-invalid`.
 - **A reference that is not drawn** (the file is missing, outside the folder, behind a link, of an unknown format, a
   network URL, or over a limit) is the warning **`svg-image-unresolved`** in `diagnostics` (and on standard error); the
   rest of the diagram is drawn. With `--strict` it is an `unsupported-feature` failure instead. A picture that would take
   more pixels than the render may use (**`svg-image-too-large`**: the pictures of one render may use 64 million pixels in
   all, counted before anything is decoded, so a huge raster in a small rectangle is refused and not decoded) is a
-  warning in the same way, and with `--strict` the same failure. The notes of an embedded
+  warning in the same way, and with `--strict` the same failure. The same holds for a link whose fragment has a value
+  that is not allowed (**`image-fragment-invalid`**, for example `#page=0`, or a fragment over its limits) and for a
+  page or slide that does not exist (**`image-page-out-of-range`**, `#page=9` of a 2-page PDF): a warning-level
+  `unsupported` report and nothing drawn, and with `--strict` the failure. The warnings
+  **`image-fragment-unknown-parameter`** and **`image-fragment-duplicate-parameter`** (the last value wins) do not fail
+  `--strict`, because the picture was drawn. The notes of an embedded
   model or chart, and the lines a model prints with `echo`, are reported too, with the file in front of each message.
 - **A file that is found but broken** (a corrupt picture, a model with a syntax error, a chart with an invalid
   specification) fails the render with its own error code (`corrupt-input`, `scad-error`, `vega-lite-error`, ...), and
@@ -716,8 +735,9 @@ draw. By default the page is drawn without it and the report is returned in `dia
 `--strict` turns the report into a failure (`unsupported-feature`) and writes no output. PDF and raster images have no such
 report: whatever the library cannot draw is simply not drawn, and `--strict` has no effect on them. An SVG file
 reports only
-its `image` references that were not drawn (`svg-image-unresolved`, or `svg-image-too-large` for a picture over the pixel
-budget) and the notes of the files it embeds; what the SVG
+its `image` references that were not drawn (`svg-image-unresolved`, `svg-image-too-large` for a picture over the pixel
+budget, `image-fragment-invalid` for a fragment that cannot be used, or `image-page-out-of-range` for a page that does
+not exist, which `--strict` fails on; the fragment warnings do not) and the notes of the files it embeds; what the SVG
 library cannot draw in the file itself (animation, an unknown filter primitive) is simply not drawn.
 
 A PPTX shape that the library does not implement at all (for example an unknown preset shape) is always a failure
@@ -1313,10 +1333,18 @@ describes the format), `outputs` (`{"format","extensions","alpha","lossy"}`), `q
 - `operations`: every step that was applied, in order (see the following table).
 - `outputs`: one entry per file written: `path` (as given), `format`, `width`, `height`, `bytes`, and `page` for a
   document.
-- `diagnostics`: the features that were skipped, each `{"source","severity","code","message"}` and `page` for a
-  document (`source` is `scad`, `pptx`, `vsdx`, `vega-lite`, or `svg`; `code` is the library's stable feature token, such as
+- `diagnostics`: the features that were skipped, each `{"source","severity","code","message"}`, `page` for a
+  document, and, only when there is something to say, `detail`, `location`, and `origin` after them (`source` is `scad`,
+  `pptx`, `vsdx`, `vega-lite`, or `svg`; `code` is the library's stable feature token, such as
   `scad-module-surface` or `vl-mark-geoshape`, `vega-lite-warning` for a warning of the chart library, or
-  `svg-image-unresolved` or `svg-image-too-large` for an SVG `image` that was not drawn).
+  `svg-image-unresolved`, `svg-image-too-large`, `image-fragment-invalid`, `image-page-out-of-range`,
+  `image-fragment-unknown-parameter`, or `image-fragment-duplicate-parameter` for an SVG `image` link). `detail` is the
+  finer identifier when `code` is a generic one (`scad-anchor-invalid` for a `scad-warning`, `vl-unknown-property` for a
+  `vega-lite-warning`); `location` is `{"file","line","column"}` (a chart adds `"pointer"`, and a member that is
+  not known is left out) where the file gave a position; `origin` lists the files, outermost first, that lead to an
+  embedded file's note (a link of the SVG file you named has none). The `code`s and the other members are unchanged; a
+  note without the extras has exactly the shape it always had. The same members are in the `diagnostics` of `inspect`,
+  `compare`, and `montage`.
 - `echo`: the text a SCAD model printed with `echo`.
 - `anchors`: only for a SCAD model, after `echo`: the points it declared with `echo("anchor", "name", [x, y, z])`, in
   echo order, each `{"name","point":[x,y,z],"pixel":[x,y] or null,"inside"}` (see *Anchors* under *OpenSCAD Models*).

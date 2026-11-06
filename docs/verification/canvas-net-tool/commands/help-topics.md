@@ -120,10 +120,27 @@ that an absolute path and a network URL are never followed, that `--strict` appl
 `canvasnet help svg --example embed`, and the `embed`
 example can be printed.
 
-**HelpTopics_SvgTopic_EmbedSnippet_RendersStrictWithItsSiblingFiles**: the `svg` topic has exactly one snippet, which is
-not a source example; it parses as XML, every `image` `href` ends in a supported extension, and after the sibling files
-are written from the `scad`, `vega-lite`, and `svg` examples, `render <snippet> --strict --json` succeeds with no
-diagnostic, one `embed` operation per link, and the picture written.
+**HelpTopics_SvgTopic_EmbedSnippet_RendersStrictWithItsSiblingFiles**: a theory over the two snippets of the `svg` topic
+(`embed` and `embed-pages`), which are not source examples; each parses as XML, every `image` `href` (without its
+fragment) ends in a supported extension, and after the sibling files are written (from the `scad`, `vega-lite`, and `svg`
+examples, and the PDF, PPTX, and VSDX documents of the shared fixtures), `render <snippet> --strict --json` succeeds with
+no diagnostic, one `embed` operation per link, and the picture written.
+
+**HelpTopics_SvgTopic_PageFragment_DocumentsGrammarPerFormatCodesAndStrict**: the `page fragment` item names the grammar
+(`name=value`), `page=N`, `slide=N`, `view=`, the counting from 1, and the live limits; the `page example` item shows
+`report.pdf#page=2`, `deck.pptx#slide=3`, the `&amp;` note, and `canvasnet help svg --example embed-pages`, which can be
+printed; the `diagnostics` section has a term for each of the four new codes; and the `--strict` option text names
+`image-fragment-invalid` and `image-page-out-of-range` and says that the warnings stay warnings.
+
+**HelpTopics_FormatTopicsJsonAndLimits_DocumentFragmentsDetailLocationAndOrigin**: the `pdf`, `pptx`, `vsdx`, and `scad`
+topics show `report.pdf#page=3`, `deck.pptx#slide=3`, `drawing.vsdx#page=2`, and `part.scad#view=front`; the `json` topic
+has the terms `detail`, `location`, and `origin` in its diagnostics section; and the `limits` topic quotes the fragment
+limits (2048 characters and 32 parameters) from `ImageFragment`.
+
+**HelpTopics_DiagnosticTriggers_ImageFragmentCodes_AreReportedWithTheirSeverity**: a theory over the four codes: a diagram
+linking the two-page PDF with `#pag=2`, `#page=1&amp;page=2`, `#page=0`, and `#page=9` reports exactly one diagnostic with
+the code `image-fragment-unknown-parameter`, `image-fragment-duplicate-parameter` (both `warning`),
+`image-fragment-invalid`, and `image-page-out-of-range` (both `unsupported`), and `--strict` fails only for the last two.
 
 **HelpTopics_ImageHrefLinking_IsCrossReferencedFromScadVegaLiteFormatsAndRender**: the text of the `scad` topic and the
 `vega-lite` topic, the footer of the `formats` listing, and the usage of `render` each contain `<image href` and
@@ -139,8 +156,10 @@ option or alias of `render` or a global option.
 values of the error code constants of the tool.
 
 **HelpTopics_CitedDiagnosticIds_ExistInTheLibraries**: every diagnostic identifier cited anywhere in the topics (found
-with a pattern for the families `scad-`, `vl-`, `pptx-`, `vsdx-`, and `pdf-`) is an entry of the trigger table, an error
-code, or a placeholder of the naming rule; otherwise the literal part of the identifier (before a `<type>`
+with a pattern for the families `scad-`, `vl-`, `pptx-`, `vsdx-`, `pdf-`, `image-fragment-`, and `image-page-`) is an entry
+of the trigger table, an error
+code, one of the image-link codes (`svg-image-*` and the four fragment codes, which the theory above renders), or a
+placeholder of the naming rule; otherwise the literal part of the identifier (before a `<type>`
 placeholder) must be a string literal in one of the library assemblies (the assembly-literal check).
 
 **HelpTopics_DiagnosticTriggers_ProduceTheCitedIds**: a theory over the trigger table: for each cited identifier, a tiny

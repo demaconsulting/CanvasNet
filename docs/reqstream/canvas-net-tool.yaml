@@ -777,15 +777,18 @@ sections:
       - id: CanvasNetTool-System-SvgEmbed
         title: >-
           The tool shall let an SVG file embed, with an image element whose href is a relative path, a raster,
-          another SVG file, an OpenSCAD model, a Vega-Lite chart, or the first page of a PDF, PPTX, or VSDX document
-          (the type is decided by the file name extension; the tool wires in the image resolver of the Viewer
+          another SVG file, an OpenSCAD model, a Vega-Lite chart, or a page of a PDF, PPTX, or VSDX document
+          (page 1, or the page the fragment of the href names with page=N or slide=N; the type is decided by the
+          file name extension; the tool wires in the image resolver of the Viewer
           package and has no plug-in mechanism),
           reading the embedded files only from the folder of the SVG file the user named and below it (with no
           option for another folder, never from the network, and refusing an absolute path, a path that leaves
           the folder, and a symbolic link), drawing a model or chart at the size of its placement, reporting an
-          href that it does not draw as the warning svg-image-unresolved and a picture too large for the pixel budget
-          as the warning svg-image-too-large (each an unsupported-feature error with
-          `--strict`), ignoring a query and a fragment after the file name, limiting the nesting, the number of
+          href that it does not draw as the warning svg-image-unresolved, a picture too large for the pixel budget
+          as the warning svg-image-too-large, a fragment that cannot be used as image-fragment-invalid, and a page
+          that does not exist as image-page-out-of-range (each an unsupported-feature error with
+          `--strict`; a parameter the file does not use or a duplicate stays a warning), ignoring a query after the
+          file name, limiting the nesting, the number of
           embedded files, and the pixels they may use in total, and reporting an embedded file
           that is found but broken with its own error code naming both files.
         tags: [system]
@@ -801,6 +804,8 @@ sections:
           - CanvasNetTool-Commands-RenderCommand-SvgEmbed
         tests:
           - CanvasNetTool_SvgEmbed_RenderAsProcess_DrawsModelAndChartAndWarnsOutsideFolder
+          - RenderCommand_Run_SvgEmbeddingPageFragments_DrawsTheChosenPages
+          - RenderCommand_Run_SvgEmbeddingStrictPageProblem_FailsWithUnsupportedFeature
 
       - id: CanvasNetTool-System-Diagnostics
         title: >-
@@ -808,7 +813,8 @@ sections:
           skip or approximate, the warnings, unsupported features, and echoed text of an OpenSCAD
           model, the warnings and unsupported features of a Vega-Lite chart, and the image references of
           an SVG file that are not drawn, in the `diagnostics`
-          and `echo` of the JSON result and, without `--json`, as Unsupported and Warning lines (and
+          and `echo` of the JSON result (each diagnostic with its finer `detail`, its `location`, and the `origin`
+          of an embedded file where there is one) and, without `--json`, as Unsupported and Warning lines (and
           ECHO lines) on standard error that leave the exit code unchanged, and with `--strict` shall fail
           with the error code unsupported-feature and write no output instead of skipping an
           unsupported feature.
@@ -819,9 +825,13 @@ sections:
           mode is for callers that cannot accept the gap.
         children:
           - CanvasNetTool-Context-Diagnostics
+          - CanvasNetTool-ResultWriter-DiagnosticExtras
+          - CanvasNetTool-Commands-RenderCommand-DiagnosticExtras
         tests:
           - CanvasNetTool_Documents_UnsupportedFeature_ReportedAndStrictFails
           - CanvasNetTool_Scad_Diagnostics_AreReportedInJson
+          - RenderCommand_Run_ScadWarning_WritesDetailAndLocation
+          - RenderCommand_Run_SvgEmbeddingNotes_WriteOriginAndOnlyWhatIsKnown
           - CanvasNetTool_VegaLite_DetectionDiagnosticsAndErrors_FollowTheContract
           - RenderCommand_Run_VegaLiteDiagnostics_AreWrittenToStandardErrorInTextMode
           - RenderCommand_Run_ScadDiagnosticsAndEcho_AreWrittenToStandardErrorInTextMode

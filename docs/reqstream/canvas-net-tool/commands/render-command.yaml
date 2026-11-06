@@ -250,21 +250,48 @@ sections:
           - RenderCommand_Run_SvgEmbeddingModelWithUnsupportedFeature_IsNoteThenStrictError
           - RenderCommand_Run_SvgEmbeddingTooLargePicture_WarnsWithTooLargeCodeAndDrawsTheRest
           - RenderCommand_Run_SvgEmbeddingStrictTooLargePicture_FailsWithUnsupportedFeature
+          - RenderCommand_Run_SvgEmbeddingPageBeyondTheLast_IsUnsupportedNoteAndDrawsTheRest
+          - RenderCommand_Run_SvgEmbeddingStrictPageProblem_FailsWithUnsupportedFeature
+          - RenderCommand_Run_SvgEmbeddingUnknownAndDuplicateParameters_AreWarningsEvenWhenStrict
 
       - id: CanvasNetTool-Commands-RenderCommand-SvgEmbed
         title: >-
           The render command shall render an SVG file whose image elements name a model, a chart, another SVG
-          file, a document page, or a raster in the folder of the SVG file or below it, list each embedded file
-          as an embed operation of the result, and fail with the error code of an embedded file that is found
-          but broken (naming both files) and with no output written.
+          file, a document page, or a raster in the folder of the SVG file or below it, choose the page of a
+          document (or the view of a model) from the fragment of the link and draw page 1 without one, list each
+          embedded file as an embed operation of the result with the link as written, report a page that does not
+          exist (image-page-out-of-range) and a fragment that cannot be used (image-fragment-invalid) as unsupported
+          notes that fail with unsupported-feature under the strict option while an unknown or duplicate parameter
+          stays a warning, and fail with the error code of an embedded file that is found but broken (naming both
+          files) and with no output written.
         justification: |
-          The picture of a diagram is rendered by one command from the files beside it, and a broken part
-          fails the whole picture with a message that says which file is at fault.
+          The picture of a diagram is rendered by one command from the files beside it, a diagram can place any page
+          of a document, and a broken part fails the whole picture with a message that says which file is at fault.
         tests:
           - RenderCommand_Run_SvgEmbeddingModelChartAndPicture_DrawsAllAndListsEmbeds
-          - RenderCommand_Run_SvgEmbeddingHrefWithQueryAndFragment_DrawsTheFile
+          - RenderCommand_Run_SvgEmbeddingHrefWithQuery_DrawsTheFile
+          - RenderCommand_Run_SvgEmbeddingPageFragments_DrawsTheChosenPages
           - RenderCommand_Run_SvgEmbeddingBrokenModel_FailsWithScadErrorNamingBothFiles
           - RenderCommand_Run_SvgWithoutEmbeddedFiles_IsUnchangedAndStrictSafe
+
+      - id: CanvasNetTool-Commands-RenderCommand-DiagnosticExtras
+        title: >-
+          The render, inspect, compare, and montage commands shall write the optional members detail, location, and
+          origin of each diagnostic in the JSON result (through the ResultWriter) after the members they already
+          wrote, shall write them for the notes of a model, a chart, and an embedded file, and shall leave a note
+          without them, and the text output, unchanged.
+        justification: |
+          Every command that reports notes reports the same facts, so a caller reads them the same way whatever
+          command produced them.
+        tests:
+          - RenderCommand_Run_ScadWarning_WritesDetailAndLocation
+          - RenderCommand_Run_ScadUnsupportedFeature_WritesLocationWithoutDetail
+          - RenderCommand_Run_VegaLiteWarning_WritesDetail
+          - RenderCommand_Run_SvgEmbeddingNotes_WriteOriginAndOnlyWhatIsKnown
+          - RenderCommand_Run_PlainNote_HasNoExtraMembers
+          - InspectCommand_Run_ScadWarning_WritesDetailAndLocation
+          - CompareCommand_Run_ScadWarning_WritesDetailAndLocation
+          - MontageCommand_Run_ScadWarning_WritesDetailAndLocation
 
       - id: CanvasNetTool-Commands-RenderCommand-Output
         title: >-

@@ -85,6 +85,80 @@ sections:
               - CanvasNetViewer_Render_SizeOutOfRange_ThrowsBeforeReading
               - CanvasNetViewer_Render_SizeAtBoundaries_IsAccepted
 
+          - id: CanvasNetViewer-CanvasNetViewer-LoaderSources
+            title: >-
+              The CanvasNetViewer class shall draw a linked file and a file given to Render with the same code as the
+              command-line tool: its built-in sources shall be adapters over the SourceLoader (with the names,
+              extensions and order above), hand the bytes and the fragment of the link to it, choose the page of a
+              PDF, PowerPoint or Visio document from the fragment (page 1 without one) and the view of a model from
+              view=, keep the options of an embedding document away from an embedded file, report a page that does not
+              exist as an unsupported note with the code image-page-out-of-range and a value that cannot be used as
+              image-fragment-invalid without drawing the image, report notes with their detail, location, page and
+              origin, and surface a library failure as the original exception inside an ImageSourceException.
+            justification: |
+              One loader means a linked page, a rendered page and a page written by the tool cannot differ, and a
+              diagram can place any page of a document.
+            tests:
+              - CanvasNetViewer_Render_PdfPageFragment_DrawsTheChosenPage
+              - CanvasNetViewer_Render_SlideAndVsdxPageFragments_DrawTheChosenPage
+              - CanvasNetViewer_Render_PageBeyondTheLast_IsUnsupportedNoteAndNothingDrawn
+              - CanvasNetViewer_Render_InvalidPageValue_IsInvalidFragmentNote
+              - CanvasNetViewer_Render_UnknownParameter_IsWarningAndStillDrawn
+              - CanvasNetViewer_Render_DuplicatePage_LastWinsAndWarnsOnlyWhenDifferent
+              - CanvasNetViewer_Render_QueryAndEncodedFragment_AreHandled
+              - CanvasNetViewer_Render_ScadViewFragment_ChoosesTheViewOrIsInvalid
+              - CanvasNetViewer_Render_SchemeSource_ReceivesRawLinkAndParsedFragment
+              - CanvasNetViewer_Render_ExtraSourceForBuiltInExtension_WinsAndGetsFragment
+              - CanvasNetViewer_Render_NestedSvgWithFragment_UsesTheScopedResolver
+              - CanvasNetViewer_Render_HostileFragment_IsRefusedAndShortInTheMessage
+              - SourceLoader_Load_StrictWithFragmentProblems_FailsOnlyForRefusedLinks
+              - SourceLoader_Load_FragmentProblems_AreNotesOfTheDocument
+
+          - id: CanvasNetViewer-CanvasNetViewer-RenderOptions
+            title: >-
+              The ViewerRenderOptions class shall let Render draw a chosen page (Page, from 1, default 1) at a chosen
+              resolution (Dpi), over a chosen background (Background, none by default so that a document, a model and
+              an SVG file stay transparent and a chart keeps its own), and an OpenSCAD model with chosen view options
+              (Scad); CanvasNetViewer shall validate them before it reads the file (ArgumentOutOfRangeException),
+              report a page the file does not have as a ViewerException with the code page-out-of-range, give the
+              same pixels as the SourceLoader for equal options, and return in the ViewerImage the page drawn
+              (Page), the number of pages of the file (PageCount), and the anchors of a model (Anchors) besides the
+              notes and printed text. A PDF, presentation or drawing shall be parsed once by a render, not once for
+              its page facts and again for the page. With ThrowOnUnsupportedFeature, a link of an SVG file that is not
+              drawn shall fail the render with the code unsupported-feature, as the strict mode of the tool does; a
+              picture fitted into a Width by Height box shall have the Background in its margin, and its anchors shall
+              follow the picture.
+            justification: |
+              A caller that wants page N of a document, or a model from one view, with its notes and anchors, should
+              not have to leave CanvasNetViewer for the Imaging operations of the tool.
+            tests:
+              - CanvasNetViewer_Render_Path_ParsesTheDocumentOnce
+              - CanvasNetViewer_Render_Stream_ParsesTheDocumentOnce
+              - CanvasNetViewer_Render_PageOutOfRange_ParsesTheDocumentOnce
+              - CanvasNetViewer_Render_LinkedDocument_ParsesTheDocumentOnce
+              - SourceLoader_Probe_ParsesTheDocumentOnce
+              - ViewerRenderOptions_Defaults_PageOneAndNoDpiBackgroundOrScad
+              - CanvasNetViewer_Render_PageAndDpi_DrawsThePageAtTheResolution
+              - CanvasNetViewer_Render_StreamWithPage_DrawsThePage
+              - CanvasNetViewer_Render_PageBeyondTheLast_ThrowsViewerExceptionPageOutOfRange
+              - CanvasNetViewer_Render_InvalidOptions_ThrowsBeforeReadingTheContent
+              - CanvasNetViewer_Render_FractionalDpiForVsdx_ThrowsViewerExceptionUsageError
+              - CanvasNetViewer_Render_Background_FlattensTransparentAreas
+              - CanvasNetViewer_Render_VegaLiteBackground_DefaultIsTheChartsOwn
+              - CanvasNetViewer_Render_ScadOptions_ChooseViewDefinesAndReportAnchorsEchoAndDetail
+              - CanvasNetViewer_Render_Failures_HaveTheDocumentedShapes
+              - CanvasNetViewer_Render_MatchesTheLoaderOfTheTool
+              - CanvasNetViewer_Render_RasterWithBox_IsFittedAndCharged
+              - CanvasNetViewer_Render_CanceledToken_ThrowsOperationCanceled
+              - CanvasNetViewer_Render_UndrawnLink_IsNoteWithoutStrict
+              - CanvasNetViewer_Render_UndrawnLinkWithStrict_ThrowsUnsupportedFeature
+              - CanvasNetViewer_Render_StrictWithOnlyWarnings_Succeeds
+              - CanvasNetViewer_Render_UndrawnLinkInNestedSvgWithStrict_NamesTheNestedFile
+              - SourceLoader_Load_UndrawnLinkWithStrict_StillThrowsUnsupportedFeature
+              - CanvasNetViewer_Render_FitIntoBox_MarginHasTheBackground
+              - CanvasNetViewer_Render_PdfFitIntoBox_MarginHasTheBackground
+              - CanvasNetViewer_FitIntoBox_AnchorsFollowTheScaleAndOffset
+              - CanvasNetViewer_Render_ScadWithBox_AnchorsAreInsideTheReturnedPicture
           - id: CanvasNetViewer-CanvasNetViewer-ExtraSources
             title: >-
               The CanvasNetViewer class shall accept extra image sources (to CreateImageResolver and in

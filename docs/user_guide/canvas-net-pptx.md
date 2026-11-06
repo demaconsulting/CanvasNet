@@ -106,10 +106,14 @@ using var surface = document.Render(0, 96f, options);
 ### Using As An Embedded Image
 
 `PptxImageSource` is the image source of this package for `.pptx` files. With it a document that links to a presentation
-draws its **first slide** through a `FolderImageResolver` of the core package (or `CanvasNetViewer.CreateImageResolver`
+draws **slide 1, or the slide the fragment of the link names** (`deck.pptx#slide=3`, or `#page=3`, counted from 1; if both
+are given the last one wins), through a `FolderImageResolver` of the core package (or `CanvasNetViewer.CreateImageResolver`
 of the Viewer package). The slide is fitted, without distortion, inside the size of its placement (its natural size is
 the slide size at 96 dots per inch) over a transparent background; a picture the renderer skips is returned as a note of
-the source `pptx`, or fails when `ThrowOnUnsupportedFeature` is set.
+the source `pptx`, or fails when `ThrowOnUnsupportedFeature` is set. The source implements `IFragmentImageSource` and
+declares `page` and `slide`; a slide that does not exist is reported as `image-page-out-of-range` and a value that is not
+a whole number from 1 as `image-fragment-invalid` (nothing is drawn), and any other parameter is the warning
+`image-fragment-unknown-parameter` (see the core user guide, *Linked Images*).
 
 ```csharp
 // An SVG document that links to files of this kind, drawn through the resolver

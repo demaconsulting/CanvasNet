@@ -478,3 +478,40 @@ that is not drawn has an empty origin.
 
 **SourceLoader_Load_SvgEmbeddingNestedSvgWithMissingFile_OriginIsTheNestedFile**: an SVG file that embeds a second SVG
 file whose own link does not resolve reports a note with the origin `["inner.svg"]`, the file that holds the link.
+
+**SourceLoader_Load_ScadAnchorWarning_CarriesDetailAndLocation**, **SourceLoader_Load_ScadGenericWarning_HasNoDetailButHasLocation**,
+**SourceLoader_Load_ScadUnsupportedFeature_CarriesLocation**, **SourceLoader_Load_VegaLiteNotes_CarryDetailAndPointer**,
+**SourceLoader_Load_DocumentNote_HasNoLocation**, **SourceLoader_Load_SvgEmbeddingModel_NotesKeepOriginDetailAndLocation**,
+and **ImageDiagnostic_Equals_ComparesDetailAndLocation** (`SourceLoaderDiagnosticDetailTests.cs`): a malformed anchor is
+a `scad-warning` whose `Detail` is `scad-anchor-invalid` and whose `Location` has the file, line, and column; a warning
+whose library code is the generic one has a location and no detail; an unsupported construct keeps its feature as the code
+and gets a location; a chart note has the `vl-*` detail and a JSON pointer; a presentation note has a page and no
+location; the notes of an embedded model keep the detail, the location, and the origin; and two notes are equal only when
+the new members are equal.
+
+**SourceLoader_InputFromMemory_LoadsLikeTheFile**, **SourceLoader_SourceInput_FileAndMemory_ExposeNameFolderLengthAndStream**,
+**SourceLoader_LoadContext_Charge_IsCalledOnceWithTheSizeOfTheSurface**, **SourceLoader_LoadContext_ChargeRefused_StopsBeforeDecoding**,
+**SourceLoader_LoadContext_CanceledToken_ThrowsOperationCanceled**, **SourceLoader_LoadContext_ScopedResolver_LoadsNestedPicturesAndAddsNoNotes**,
+**SourceLoader_LoadContext_ScopedResolverNull_LeavesLinksUnresolved**, and **SourceLoader_LoadContext_ReturnFittedPage_SkipsTheMargin**
+(`SourceLoaderInputTests.cs`): a file loaded from memory gives the kind, size, pixels, and notes of the same file loaded
+from disk for every format; the input exposes its name, folder, length, and a fresh stream; the charge hook is called
+once per surface with its size before it is decoded, a refusal stops the load before decoding, a canceled token throws,
+a scoped resolver draws the nested pictures and adds no notes of its own while a null one leaves the links unresolved, and
+a document page comes back at its fitted size without the margin.
+
+**SourceLoader_Load_InvalidOptionsAndMissingFile_ThrowsUsageErrorBeforeTouchingTheFile**,
+**SourceLoader_LoadAndOpenPagesOfInfo_InvalidOptions_ThrowUsageErrorBeforeTouchingTheFile**,
+**SourceLoader_FindOptionProblem_BoundaryOptions_AreAccepted**, **SourceLoader_Load_WidthAboveTheMaximum_IsStillSizeLimit**,
+**SourceLoader_Load_PageBeyondTheLast_IsStillPageOutOfRange**, **SourceLoader_FindOptionProblem_UnknownView_NamesTheViewAndListsTheViews**,
+and **SourceLoader_MaxDpi_Is2400** (`SourceLoaderOptionsValidationTests.cs`): a table of malformed options (an undefined
+filter, a width or height of 0 or below, a scale of 0, a negative one, NaN, infinity, 0.0009, and 8193, a resolution of
+0, a negative one, NaN, infinity, and 2401, an elevation of 91 or -91, a time of 2e9, a triangle limit of 0, an unknown
+view, a bad variable name) is a `usage-error` from `Load(path)`, `Load(info)`, and `OpenPages` even when the file does not
+exist; the values at the boundaries are accepted; a width of 9000 is still `size-limit` and a page beyond the last still
+`page-out-of-range`; the unknown-view message names the views; and the maximum resolution is 2400.
+
+**SourceLoader_Load_StrictWithFragmentProblems_FailsOnlyForRefusedLinks** and **SourceLoader_Load_FragmentProblems_AreNotesOfTheDocument**
+(`CanvasNetViewerFragmentTests.cs`): an SVG file with a link to a page that does not exist or with an invalid page value
+fails with `unsupported-feature` in strict mode, while an unknown or duplicate parameter is only a note; without strict
+mode
+the four codes are notes of the document, with the embedding file as origin where the link is in an embedded file.

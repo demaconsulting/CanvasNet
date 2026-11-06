@@ -10,8 +10,8 @@ It comprises these source files in the namespace `DemaConsulting.CanvasNet.Image
 
 - `FolderImageResolver.cs` - `FolderImageResolver` (sealed partial class): the public entry points (`Resolve`,
   `Render(path)`, `Render(Stream)`), the dispatch, the limits, the call of a source, and the private scope class
-- `FolderImageResolver.Href.cs` - the parsing of links: the cutting off of a query and a fragment, `file:` URIs,
-  percent-encoding, and the description of a refusal of the sandbox
+- `FolderImageResolver.Href.cs` - the parsing of links: the cutting off of a query and a fragment (`SplitHref`),
+  `file:` URIs, percent-encoding, and the description of a refusal of the sandbox
 - `FolderImageResolverOptions.cs` - `FolderImageResolverOptions` (sealed record): the limits and switches
 
 #### Purpose
@@ -24,7 +24,8 @@ the core package, instead of in each host. Everything format-specific is in the 
 
 The unit's behavior is specified by the `CanvasNet-ImageSources-FolderImageResolver-*` requirements (`Confinement`,
 `FileUri`, `UriReference`, `Dispatch`, `Precedence`, `Schemes`, `NestedScope`, `Limits`, `PixelBudget`, `Cancellation`,
-`Diagnostics`, `Failures`, `NoCaching`, `DirectRender`, and `Configuration`) in
+`Diagnostics`, `Failures`, `NoCaching`, `DirectRender`, `Configuration`, `Fragment`, `FragmentDiagnostics`, and
+`PageRefusal`) in
 `docs/reqstream/canvas-net/image-sources/folder-image-resolver.yaml`.
 
 #### Data Model
@@ -61,23 +62,47 @@ that a source receives in its request; it shares the owner's counts and lists.
 
 *Scheme path*: find the source that claims the scheme (none: unresolved, "network and other URLs are never loaded");
 clamp the placement size and check it against the live budget (below); apply the limits to the key `scheme:` + link;
-build a request with only the link **as written** (nothing is cut off a scheme link: the source owns its meaning), the
-clamped size, the shared budget, the child scope (no file, depth + 1), the switch, and the token; call the source.
+parse the fragment (below); build a request with only the link **as written** (nothing is cut off a scheme link: the
+source owns its meaning), the parsed `Fragment`, the clamped size, the shared budget, the child scope (no file, depth +
+1), the switch, and the token; call the source.
 
-*File path*: with no folder the link is unresolved. Convert the link to a path (`ToRelativePath`): first cut the query
-(from the first `?`) and the fragment (from the first `#`) off the link, as RFC 3986 defines a reference, **before**
-anything is decoded; a link that is empty after that is unresolved ("the reference is empty"). Then a `file:` URI
+*File path*: with no folder the link is unresolved. Convert the link to a path (`ToRelativePath`, which uses
+`SplitHref`): first cut the query (from the first `?` before a `#`) and the fragment (from the first `#`) off the link,
+as RFC 3986 defines a reference, **before**
+anything is decoded; a `?` after the first `#` belongs to the fragment; a link that is empty after that is unresolved
+("the reference is empty"). Then a `file:` URI
 inside the folder becomes a path relative to the folder (a `file:` URI with a host or outside is refused), and for any
 other link percent-encoding is decoded, so an encoded `%23` or `%3F` is a literal `#` or `?` of the file name and the
-text that was cut off is never used again; absolute, drive, and UNC paths are left in the text so that the sandbox
+text that was cut off is never used for the path (the query is never used; the fragment goes to the source, below);
+absolute, drive, and UNC paths are left in the text so that the sandbox
 refuses them. Pick the source by the longest extension of the path (none: unresolved, listing the claimed extensions)
 and apply the depth and image-count limits (`CheckDepthAndCount`), both **before any file is read**, so an image that is
-over a limit is never opened. Resolve the path with the sandbox, relative to the folder of the current file for an
+over a limit is never opened. Parse the fragment (below). Resolve the path with the sandbox, relative to the folder of
+the current file for an
 ordinary link (a refusal becomes a reason; no file is "the file was not found"); check that the name the sandbox found
 leads to the same source; clamp the placement size and check it against the live budget; apply the cycle check, which
 needs the resolved key, and only then count the image; build a request with the bytes, the relative name (forward
-slashes), the folder, the clamped size, the shared budget, the child scope, the switch, and the token, and the link
+slashes), the folder, the parsed `Fragment`, the clamped size, the shared budget, the child scope, the switch, and the
+token, and the link
 **as written** in `Href`; call the source.
+
+**Fragment** (`ResolveFile`, `ResolveScheme`, `Draw`): the text after the first `#` of the link is parsed with
+`ImageFragment.Parse`. A fragment with a `Problem` (over 2048 characters or 32 parameters) is refused right after the
+source is chosen and before anything is counted or read: the note has the code `image-fragment-invalid` and the
+severity unsupported, the source is not called and the file is not counted as an image. Otherwise `Draw`, before it
+calls the source, reports for each parameter name that the source does not declare in `IFragmentImageSource`
+(case-insensitively) one `image-fragment-unknown-parameter` warning - a source without the interface declares nothing,
+so every parameter of a file link is unknown, while a scheme-claimed source without the interface owns its links and gets
+no warning - and for each name given twice with different values one `image-fragment-duplicate-parameter` warning (the
+last value wins in the source; the same value twice is silent, and parameters a source treats as aliases are compared by
+`GetValue` and not reported as duplicates). The message names the href and the parameter through
+`ImageFragment.Quote`, which replaces control characters and cuts the text, so a hostile link cannot flood a report.
+The picture is still drawn after a warning.
+
+**Refusal** (`Draw`, `Invoke`): an `ImageSourceRefusedException` of a source (a page that does not exist, a value it
+cannot use) passes `Invoke` unwrapped; `Draw` adds an unsupported note with the code of the exception and the message
+`"{href}: {message}"`, gives back what the request charged, and returns nothing, so the render carries on. A direct
+render lets the exception propagate.
 
 **Limits**: `CheckDepthAndCount` refuses a scope whose depth has reached `MaxDepth` and a count that has reached
 `MaxImages` (no file is needed, so it runs before the sandbox opens one); `CheckCycle` refuses a key already on the
@@ -122,14 +147,20 @@ picks
 the source or `NotSupportedException` (listing the extensions); the sandbox resolves the path (`SandboxException` for a
 refusal, `FileNotFoundException` for none); the request has the file on the chain at depth 0; the result is returned
 with the
-format filled in. The path is used as given (no query, fragment, or decoding). **`Render(stream, name, w, h)`**: the
+format filled in. The path is used as given (no query, fragment, or decoding). The overloads with a final
+`IImageSourceOptions` parameter do the same and put the options in `ImageSourceRequest.Options` (a link never gets
+options, so an embedded file does not inherit those of its embedder); the overloads without it pass `null`.
+**`Render(stream, name, w, h)`**: the
 same without a file: the stream is read up to 16 MiB (`InvalidDataException` beyond), `Directory` is the folder of the
 resolver, and the scope has no file.
 
 #### Error Handling
 
 An unresolved link is never an exception: it is a warning with the code `svg-image-unresolved` and the message
-`image '{href}' was not drawn: {reason}`. A picture that does not fit in the pixel budget is the warning
+`image '{href}' was not drawn: {reason}`. A fragment over its limits, or a page a source refuses, is an unsupported note
+with the code `image-fragment-invalid` or the code of the `ImageSourceRefusedException` (`image-page-out-of-range`),
+and an unknown or duplicate parameter is a warning; none of them is an exception, and none stops the render.
+A picture that does not fit in the pixel budget is the warning
 `svg-image-too-large` with the message `image '{href}' was not drawn: it needs {n} pixels but only {m} of the budget of
 {budget} pixels remain`. Both carry the origin of the scope that contains the link (the file that holds it). A found file
 that its source cannot draw is `ImageSourceException`.

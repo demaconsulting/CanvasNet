@@ -39,8 +39,9 @@ sections:
       - id: CanvasNetViewer-Embedding
         title: >-
           The library shall create, for a folder, a resolver that lets an SVG document embed a raster, a model,
-          a chart, another SVG file, and a page of a document from that folder and below it only (a query or a
-          fragment after the file name is ignored), refuse a picture that would take more pixels than the render
+          a chart, another SVG file, and a page of a document from that folder and below it only (a query after the
+          file name is ignored, and a fragment chooses the page of a document, # page=N or  # slide=N, or the view of
+          a model,  # view=name), refuse a picture that would take more pixels than the render
           may use before it is decoded (a warning, not an error), and report the
           notes, printed text, and embedded images of the render.
         tags: [system]
@@ -49,6 +50,7 @@ sections:
           must work with the SVG codec without the application wiring any format package itself.
         children:
           - CanvasNetViewer-CanvasNetViewer-CreateImageResolver
+          - CanvasNetViewer-CanvasNetViewer-LoaderSources
         tests:
           - CanvasNetViewer_SystemIntegration_SvgEmbeddingEveryFormat_DrawsAllAndReportsEmbeds
           - CanvasNetViewer_SystemIntegration_SvgEmbeddingWithQueryAndFragment_DrawsTheFile
@@ -57,9 +59,11 @@ sections:
       - id: CanvasNetViewer-Render
         title: >-
           The library shall render any file of a supported format, given as a path or as a stream with a file
-          name, as a picture at its natural size or at a requested size, returning the picture with its format,
-          notes, printed text, and embedded images, and shall fail with a specific exception for a missing file,
-          an unknown file type, a file that cannot be drawn, a path outside the folder, and a canceled render.
+          name, as a picture at its natural size or at a requested size (for a document, the chosen page at a
+          chosen resolution, over a chosen background), returning the picture with its format, page, notes, printed
+          text, anchors, and embedded images, and shall fail with a specific exception for a missing file,
+          an unknown file type, a file that cannot be drawn, a page that does not exist, a path outside the folder,
+          and a canceled render.
         tags: [system]
         justification: |
           Applications that only want to show a file (a viewer, a thumbnail generator, a report builder) should
@@ -67,6 +71,7 @@ sections:
         children:
           - CanvasNetViewer-CanvasNetViewer-RenderPath
           - CanvasNetViewer-CanvasNetViewer-RenderStream
+          - CanvasNetViewer-CanvasNetViewer-RenderOptions
         tests:
           - CanvasNetViewer_SystemIntegration_RenderWithExtraSources_UsesCustomSources
 

@@ -418,7 +418,8 @@ sections:
       - id: CanvasNetPptx-ImageSource
         title: >-
           The library shall provide an image source for .pptx files, for the image resolver of the core package,
-          that draws the first slide fitted inside the size its placement asks for over a transparent background
+          that draws a slide (slide 1, or the slide the fragment of the link names with slide=N or page=N) fitted
+          inside the size its placement asks for over a transparent background
           and reports the pictures it skipped.
         tags: [system]
         justification: |

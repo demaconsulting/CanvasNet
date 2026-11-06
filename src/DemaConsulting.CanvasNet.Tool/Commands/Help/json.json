@@ -43,8 +43,11 @@
       "items": [
         { "term": "source", "text": "Where the report comes from: scad, vega-lite, pptx, vsdx, or svg. PDF and raster images have no diagnostics channel." },
         { "term": "severity", "text": "unsupported for a feature that was left out, or warning for a questionable construct that still rendered." },
-        { "term": "code", "text": "The stable identifier of the feature, for example scad-module-surface or vl-mark-geoshape. A warning of a SCAD model has the code scad-warning; a warning of a Vega-Lite chart has the code vega-lite-warning and carries its vl-* identifier at the start of the message text." },
+        { "term": "code", "text": "The stable generic identifier of the report, for example scad-module-surface, vl-mark-geoshape, svg-image-unresolved, or image-page-out-of-range. A warning of a SCAD model always has the code scad-warning and a warning of a Vega-Lite chart the code vega-lite-warning; the finer identifier is in detail." },
         { "term": "message", "text": "A description; for a model or chart it gives file, line, and column." },
+        { "term": "detail", "text": "Only when the code is generic: the finer identifier of the library, for example scad-anchor-invalid for a scad-warning or vl-unknown-property for a vega-lite-warning. Branch on code and detail, never on the message." },
+        { "term": "location", "text": "Only when the file gave a position: {file, line, column} for a model, or {file, pointer, line, column} for a chart (the JSON pointer of the offending property); a member that is not known is left out." },
+        { "term": "origin", "text": "Only for a report about an embedded file (an SVG that links other files): the files, outermost first, that lead to it, as folder-relative names (a link that was not drawn names the SVG file that contains it). The message starts with the href as written." },
         { "term": "page", "text": "The page of a document the report belongs to." },
         { "text": "Without --json the same reports are written to standard error as 'Unsupported: <code>: <message>' or 'Warning: <code>: <message>' lines (and echo as 'ECHO: <text>'); with --json standard error carries none of them, so standard output stays one JSON document." }
       ]

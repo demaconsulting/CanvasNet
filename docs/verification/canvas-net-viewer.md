@@ -57,8 +57,9 @@ five images are embedded at depth 0, and that the one picture of the nested SVG 
 
 **Test**: `CanvasNetViewer_SystemIntegration_SvgEmbeddingWithQueryAndFragment_DrawsTheFile`
 
-Writes a raster and a model, renders an SVG whose links are `logo.png?v=2#top` and `part.scad#view`, and asserts that
-both are drawn, that nothing is reported, and that the embedded images list the links as written.
+Writes a raster and a model, renders an SVG whose links are `logo.png?v=2` and `part.scad?v=2#view=front`, and asserts
+that both are drawn (the fragment chooses the viewpoint of the model), that nothing is reported, and that the embedded
+images list the links as written.
 
 ### Integration: Svg Embedding Of A Huge Raster In A Tiny Placement Is Refused With A Warning
 

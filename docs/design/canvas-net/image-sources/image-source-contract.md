@@ -16,6 +16,12 @@ files, all `public`:
 - `ImageSourceResult.cs` - `ImageSourceResult` (sealed record): what it drew
 - `ImageSourceDiagnostic.cs` and `ImageDiagnosticSeverity.cs` - `ImageSourceDiagnostic` (sealed record) and the severity
   enum
+- `ImageDiagnosticLocation.cs` - `ImageDiagnosticLocation` (sealed record): where in a file a note points
+- `ImageFragment.cs` - `ImageFragment` (sealed class) and `ImageFragmentParameter` (record struct): the parsed fragment
+  of a link
+- `IFragmentImageSource.cs` - `IFragmentImageSource` (interface): the fragment parameters a source uses
+- `IImageSourceOptions.cs` - `IImageSourceOptions` (marker interface): caller-defined options of a direct render
+- `ImageSourceRefusedException.cs` - `ImageSourceRefusedException` (sealed class): a source declining a picture
 - `IImageResolver.cs` - `IImageResolver` (interface): what a renderer calls
 - `EmbeddedImage.cs` - `EmbeddedImage` (sealed record): one loaded image
 - `ImageSourceException.cs` - `ImageSourceException` (sealed class): the failure of a source
@@ -34,7 +40,7 @@ so that the claims of every source are validated once, where the list is compose
 later source wins) is implemented in one place for every consumer.
 
 The unit's behavior is specified by the `CanvasNet-ImageSources-ImageSourceContract-*` requirements (`SourceClaims`,
-`Request`, `SizeRule`, `Result`, and `FailureReporting`) in
+`Request`, `SizeRule`, `Result`, `FailureReporting`, `ImageFragment`, `Refusal`, and `DiagnosticDetail`) in
 `docs/reqstream/canvas-net/image-sources/image-source-contract.yaml`.
 
 #### Data Model
@@ -51,9 +57,24 @@ size), `Resolver` (an `IImageResolver` scoped to the request), `ThrowOnUnsupport
 `Budget` (the shared live `ImageBudget`, or `null` for no limit, which is what a request built by hand has unless a test
 of a custom source sets `new ImageBudget(maxPixels)`), `RemainingPixels` (read live from `Budget`; `long.MaxValue`
 without one) and `ChargedPixels` (the pixels this request has charged through `EnsureWithinBudget`; default 0; the only
-state that changes after construction). `HasContent` is true exactly when `FileName` is not null: a file-based request
+state that changes after construction). `Fragment` (an `init` property, the `ImageFragment` of the link; `Empty` for a
+link without one) and `Options` (an `init` property, the `IImageSourceOptions` of a direct render; `null` for a link,
+because an embedded file never inherits the options of its embedder). `HasContent` is true exactly when `FileName` is
+not null: a file-based request
 has content, a scheme-claimed request has only `Href`. The budget contract is documented once, in the XML remarks of
 this class; the other documents link to it.
+
+**`ImageFragment`** (immutable): the parsed text after the first `#` of a link, with the grammar
+`fragment = [ param *( "&" param ) ]`, `param = name [ "=" value ]`. `Raw` is the text as written, `Parameters` the
+decoded `(Name, Value)` pairs in order (a read-only list), and `Problem` is non-null when a limit was exceeded (more
+than `MaxLength` = 2048 characters or `MaxParameters` = 32 parameters), in which case there are no parameters. The text
+is split at `&` and at the first `=` of each segment before it is percent-decoded (`Uri.UnescapeDataString`; a `+` is
+a `+`), so an encoded `%26` or `%3D` stays inside its name or value. `GetValue(names)` is the last value of any of the
+names (ASCII case-insensitive), and `GetPositiveInt32(names)` reads it as a whole number from 1 (ASCII digits only,
+leading zeros allowed). `Quote` (internal) shows untrusted text in a message with control characters replaced and a
+length limit. **`IFragmentImageSource`**: `FragmentParameters`, the lower-case names a source uses. **`IImageSourceOptions`**:
+a marker with no member. **`ImageSourceRefusedException`**: a `Code` and a message; how a source says "not this
+picture".
 
 **`ImageBudget`**: a private count of the pixels still free, created from `MaxDecodedPixels` (a negative maximum is
 `ArgumentOutOfRangeException`), the public get-only `Remaining`, and the internal `Charge(pixels)` (throws
@@ -66,7 +87,9 @@ empty), so changing the original list afterwards does not change the result and 
 working.
 **`ImageSourceDiagnostic`**: `Source`, `Severity` (`Info`, `Warning`, `Unsupported`), `Code`, `Message`, and the optional
 `Origin` (an `init` property, a list of strings, empty by default: the embedded files, outermost first, that the note is
-about, set by the resolver; a root-relative file name for a file link and the href as written for a scheme link). The
+about, set by the resolver; a root-relative file name for a file link and the href as written for a scheme link), and
+the optional `Detail` (the finer identifier when `Code` is generic), `Location` (an `ImageDiagnosticLocation`: `File`,
+`Line`, `Column`, `Pointer`, each optional) and `Page` (1-based). The
 record overrides `Equals` and `GetHashCode` so that two diagnostics are equal when their fields and their origin
 entries are equal, which the compiler-generated equality would not do for a list.
 **`EmbeddedImage`**: `Href`, `Format`, `Width`, `Height`, and `Depth` (0 for an image of the top-level document).
@@ -121,7 +144,10 @@ An invalid claim is an `ArgumentException` that names the source; a null set or 
 `OpenContent` on a scheme-claimed request is `InvalidOperationException`; `SizeFor` rejects a natural size below one
 pixel; `EnsureWithinBudget` throws `ImageSourceBudgetException` for a size over the live budget; `ImageBudget` rejects a
 negative maximum;
-`ImageSourceResult` rejects a null surface. The unit throws nothing else and performs no I/O.
+`ImageSourceResult` rejects a null surface; `ImageFragment.Parse` never throws (a limit sets `Problem`), `GetValue`
+rejects null names, and `GetPositiveInt32` throws `ImageSourceRefusedException` (code `image-fragment-invalid`) for a
+value that is not a whole number from 1; `ImageSourceRefusedException` rejects an empty code and a null message. The
+unit throws nothing else and performs no I/O.
 
 #### Dependencies
 

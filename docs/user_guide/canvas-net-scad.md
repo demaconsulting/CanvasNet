@@ -709,6 +709,10 @@ when no size is requested), over a transparent background so the document shows 
 are looked up in the folder of the file and nowhere else, and a missing one is reported as a `scad-warning` note.
 Warnings and unsupported features of the model are returned as notes of the source `scad`, and its `echo` output as
 printed text. Set `FolderImageResolverOptions.ThrowOnUnsupportedFeature` to fail on an unsupported feature instead.
+This source declares no fragment parameters, so a parameter in the link (`part.scad#view=front`) is the warning
+`image-fragment-unknown-parameter` and the view stays the library's choice; the named views of the link
+(`#view=iso|front|back|left|right|top|bottom`) are a feature of the source that `CanvasNetViewer` lists (see the Viewer
+user guide), which also treats a missing `include` as an error, as `canvasnet render` does.
 
 ```csharp
 // An SVG document that links to files of this kind, drawn through the resolver

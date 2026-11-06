@@ -12,16 +12,16 @@ public static partial class SourceLoader
     /// <summary>
     ///     Reads the header of a raster file.
     /// </summary>
-    /// <param name="path">The path of the file.</param>
+    /// <param name="input">Where the bytes of the file come from.</param>
     /// <param name="kind">The kind of the file (a raster kind).</param>
     /// <param name="bytes">The size of the file in bytes.</param>
     /// <returns>The facts about the file.</returns>
-    private static SourceInfo ProbeRaster(string path, SourceKind kind, long bytes)
+    private static SourceInfo ProbeRaster(SourceInput input, SourceKind kind, long bytes)
     {
-        var info = Read(path, kind, () => GetRasterInfo(path, kind));
-        var orientation = kind == SourceKind.Jpeg ? Read(path, kind, () => JpegCodec.ReadExifOrientation(path)) : null;
+        var info = Read(input.Name, kind, () => GetRasterInfo(input, kind));
+        var orientation = kind == SourceKind.Jpeg ? Read(input.Name, kind, () => ReadOrientation(input)) : null;
         return new SourceInfo(
-            path,
+            input.Name,
             kind,
             bytes,
             info.Width,
@@ -42,10 +42,19 @@ public static partial class SourceLoader
     /// </summary>
     /// <param name="info">The facts about the file.</param>
     /// <param name="options">The loading options.</param>
+    /// <param name="input">Where the bytes of the file come from.</param>
+    /// <param name="context">The hooks of the caller.</param>
     /// <returns>The loaded source.</returns>
-    private static LoadedSource LoadRaster(SourceInfo info, SourceOptions options)
+    /// <remarks>
+    ///     The declared size is charged to the pixel budget of the caller (when there is one) before the size limit is
+    ///     applied and before anything is decoded, so a picture that is far too large is refused for the budget, as a
+    ///     warning of the embedding document, rather than as an error.
+    /// </remarks>
+    private static LoadedSource LoadRaster(SourceInfo info, SourceOptions options, SourceInput input, LoadContext context)
     {
-        // Refuse a file that is too large, and a result that would be too large, before decoding anything
+        // Charge the declared size first, then refuse a file that is too large, and a result that would be too large,
+        // before decoding anything
+        context.ChargeSurface(info.Width, info.Height);
         EnsureStoredSizeSupported(info);
         var orientation = options.AutoOrient && info.ExifOrientation is > 1 ? info.ExifOrientation : null;
         var swapped = orientation >= 5;
@@ -54,7 +63,7 @@ public static partial class SourceLoader
         var (width, height) = ComputeTargetSize(info.Path, orientedWidth, orientedHeight, options);
 
         var operations = new List<AppliedOperation>();
-        var surface = Read(info.Path, info.Format, () => DecodeRaster(info.Path, info.Format));
+        var surface = Read(info.Path, info.Format, () => DecodeRaster(input, info.Format));
         try
         {
             if (orientation is { } exif)
@@ -104,38 +113,81 @@ public static partial class SourceLoader
     /// <summary>
     ///     Reads the header of a raster file with the codec of its kind.
     /// </summary>
-    /// <param name="path">The path of the file.</param>
+    /// <param name="input">Where the bytes of the file come from.</param>
     /// <param name="kind">The kind.</param>
     /// <returns>The header information.</returns>
-    private static ImageInfo GetRasterInfo(string path, SourceKind kind)
+    private static ImageInfo GetRasterInfo(SourceInput input, SourceKind kind)
     {
+        using var stream = input.Open();
         return kind switch
         {
-            SourceKind.Png => PngCodec.GetInfo(path),
-            SourceKind.Jpeg => JpegCodec.GetInfo(path),
-            SourceKind.Bmp => BmpCodec.GetInfo(path),
-            SourceKind.Tiff => TiffCodec.GetInfo(path),
-            SourceKind.Gif => GifCodec.GetInfo(path),
-            _ => Jpeg2000Codec.GetInfo(path)
+            SourceKind.Png => PngCodec.GetInfo(stream),
+            SourceKind.Jpeg => JpegCodec.GetInfo(stream),
+            SourceKind.Bmp => BmpCodec.GetInfo(stream),
+            SourceKind.Tiff => TiffCodec.GetInfo(stream),
+            SourceKind.Gif => GifCodec.GetInfo(stream),
+            _ => Jpeg2000Codec.GetInfo(stream)
         };
+    }
+
+    /// <summary>
+    ///     Reads the EXIF orientation of a JPEG source.
+    /// </summary>
+    /// <param name="input">Where the bytes of the file come from.</param>
+    /// <returns>The orientation (1 to 8), or <see langword="null"/> when the file has none.</returns>
+    private static int? ReadOrientation(SourceInput input)
+    {
+        using var stream = input.Open();
+        return JpegCodec.ReadExifOrientation(stream);
+    }
+
+    /// <summary>
+    ///     Reads the size a raster source declares in its header, without decoding any pixel.
+    /// </summary>
+    /// <param name="input">Where the bytes of the file come from.</param>
+    /// <param name="kind">The kind.</param>
+    /// <returns>The declared width and height.</returns>
+    /// <remarks>
+    ///     A GIF is the exception to "the header only": its codec decodes the first frame to describe it, which would
+    ///     allocate the picture this read is meant to guard, so the size of the Logical Screen Descriptor (bytes 6 to 9,
+    ///     little-endian) is read directly. The other codecs read the header only.
+    /// </remarks>
+    /// <exception cref="InvalidDataException">Thrown when the header is malformed.</exception>
+    internal static (int Width, int Height) ReadDeclaredRasterSize(SourceInput input, SourceKind kind)
+    {
+        if (kind == SourceKind.Gif)
+        {
+            using var gif = input.Open();
+            var header = new byte[10];
+            if (gif.ReadAtLeast(header, header.Length, throwOnEndOfStream: false) < header.Length)
+            {
+                throw new InvalidDataException("The GIF data is truncated.");
+            }
+
+            return (header[6] | (header[7] << 8), header[8] | (header[9] << 8));
+        }
+
+        var info = GetRasterInfo(input, kind);
+        return (info.Width, info.Height);
     }
 
     /// <summary>
     ///     Decodes a raster file with the codec of its kind.
     /// </summary>
-    /// <param name="path">The path of the file.</param>
+    /// <param name="input">Where the bytes of the file come from.</param>
     /// <param name="kind">The kind.</param>
     /// <returns>The pixels.</returns>
-    private static Surface DecodeRaster(string path, SourceKind kind)
+    private static Surface DecodeRaster(SourceInput input, SourceKind kind)
     {
+        using var stream = input.Open();
         return kind switch
         {
-            SourceKind.Png => PngCodec.Load(path),
-            SourceKind.Jpeg => JpegCodec.Load(path),
-            SourceKind.Bmp => BmpCodec.Load(path),
-            SourceKind.Tiff => TiffCodec.Load(path),
-            SourceKind.Gif => GifCodec.Load(path),
-            _ => Jpeg2000Codec.Load(path)
+            SourceKind.Png => PngCodec.Load(stream),
+            SourceKind.Jpeg => JpegCodec.Load(stream),
+            SourceKind.Bmp => BmpCodec.Load(stream),
+            SourceKind.Tiff => TiffCodec.Load(stream),
+            SourceKind.Gif => GifCodec.Load(stream),
+            _ => Jpeg2000Codec.Load(stream)
         };
     }
 }

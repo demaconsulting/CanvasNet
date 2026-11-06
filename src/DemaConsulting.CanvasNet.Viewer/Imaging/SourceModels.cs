@@ -144,9 +144,11 @@ public static class SourceKindExtensions
 ///     The viewer reports notes in two shapes: this record (a string <see cref="Severity"/>) for the loaders and the
 ///     operations of this namespace (<c>RenderedPage</c>, <c>InspectResult</c>, <c>CompareSide</c>, <c>MontageCell</c>,
 ///     <see cref="LoadedSource"/>), and the core <c>ImageSourceDiagnostic</c> (an enum severity) for the
-///     <c>ViewerImage</c> of <c>CanvasNetViewer.Render</c>. The <see cref="Code"/> of a note of an OpenSCAD model is
-///     <c>scad-warning</c>; the finer <c>ScadDiagnostic.Code</c> is not carried here, so branch on the
-///     <see cref="Code"/> and never on the <see cref="Message"/>.
+///     <c>ViewerImage</c> of <c>CanvasNetViewer.Render</c>. The <see cref="Code"/> is the stable, generic code of a
+///     note (an OpenSCAD warning is always <c>scad-warning</c>, a Vega-Lite warning <c>vega-lite-warning</c>); the finer
+///     identifier of the library (<c>scad-anchor-invalid</c>, <c>vl-text-missing-glyph</c>) is in <see cref="Detail"/>
+///     and the position in the file in <see cref="Location"/>, so branch on <see cref="Code"/> and
+///     <see cref="Detail"/> and never on the <see cref="Message"/>.
 /// </remarks>
 /// <param name="Source">The part of the tool or library that reported the note, for example <c>svg</c>.</param>
 /// <param name="Severity">The severity: <c>info</c>, <c>warning</c>, or <c>unsupported</c>.</param>
@@ -155,6 +157,19 @@ public static class SourceKindExtensions
 /// <param name="Page">The 1-based page the note is about, or <see langword="null"/> when it is not about one page.</param>
 public sealed record ImageDiagnostic(string Source, string Severity, string Code, string Message, int? Page = null)
 {
+    /// <summary>
+    ///     Gets the finer, source-specific identifier of the note when <see cref="Code"/> is a generic one (for example
+    ///     <c>scad-anchor-invalid</c> for a <c>scad-warning</c>, or the <c>vl-*</c> identifier of a Vega-Lite warning), or
+    ///     <see langword="null"/> when <see cref="Code"/> is already the most specific.
+    /// </summary>
+    public string? Detail { get; init; }
+
+    /// <summary>
+    ///     Gets where in the file the note points (file, line, column and, for a chart, the JSON pointer), or
+    ///     <see langword="null"/> when the source gave no position.
+    /// </summary>
+    public DemaConsulting.CanvasNet.ImageSources.ImageDiagnosticLocation? Location { get; init; }
+
     /// <summary>
     ///     Gets the embedded files, outermost first, that the note is about; empty (the default) for a note about the
     ///     source itself.
@@ -180,6 +195,8 @@ public sealed record ImageDiagnostic(string Source, string Severity, string Code
         && Code == other.Code
         && Message == other.Message
         && Page == other.Page
+        && Detail == other.Detail
+        && Equals(Location, other.Location)
         && Origin.SequenceEqual(other.Origin);
 
     /// <summary>
@@ -194,6 +211,8 @@ public sealed record ImageDiagnostic(string Source, string Severity, string Code
         hash.Add(Code);
         hash.Add(Message);
         hash.Add(Page);
+        hash.Add(Detail);
+        hash.Add(Location);
         foreach (var entry in Origin)
         {
             hash.Add(entry);
@@ -542,10 +561,10 @@ public sealed record AppliedOperation(string Op, IReadOnlyList<KeyValuePair<stri
 ///     dispose <see cref="Surface"/> separately. A copy made with <see langword="with"/> shares the same surface, so
 ///     dispose only one of them. Everything else (<c>Info</c>, <c>Diagnostics</c>, <c>Echo</c>, <c>Operations</c>,
 ///     <see cref="Anchors"/>) is plain data. Of every viewer result,
-///     only this record (through <see cref="Anchors"/>) and <c>RenderedPage</c> report the anchors of a model; the
-///     <c>ViewerImage</c> of <c>CanvasNetViewer.Render</c>, <c>InspectResult</c>, <c>CompareSide</c>, and
+///     <see cref="LoadedSource"/> (through <see cref="Anchors"/>), <c>RenderedPage</c> and the <c>ViewerImage</c> of
+///     <c>CanvasNetViewer.Render</c> report the anchors of a model; <c>InspectResult</c>, <c>CompareSide</c>, and
 ///     <c>MontageCell</c> carry <c>Diagnostics</c> and <c>Echo</c> but no anchors. An anchor that cannot be read is
-///     reported as a <c>scad-warning</c> note whose <c>ScadDiagnostic.Code</c> is <c>scad-anchor-invalid</c>.
+///     reported as a <c>scad-warning</c> note whose <see cref="ImageDiagnostic.Detail"/> is <c>scad-anchor-invalid</c>.
 /// </remarks>
 public sealed record LoadedSource(
     Surface Surface,

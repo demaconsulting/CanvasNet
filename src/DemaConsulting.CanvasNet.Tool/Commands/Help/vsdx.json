@@ -9,6 +9,7 @@
       "title": "Supported",
       "items": [
         { "text": "Pages: --page N (from 1) and --all-pages; 'canvasnet info' lists the page names. --dpi must be a whole number." },
+        { "text": "Embedding: <image href=\"drawing.vsdx#page=2\" .../> in an SVG file draws page 2 (page 1 without the fragment); a page that does not exist is image-page-out-of-range. See 'canvasnet help svg'." },
         { "text": "Shape trees with Master and MasterShape and StyleSheet inheritance: fills, strokes, and text." },
         { "text": "1-D connectors with arrowheads and glue, and nested groups." },
         { "text": "The built-in color palette, themed colors, and line and fill transparency; NonPrinting and HideText are honored." },

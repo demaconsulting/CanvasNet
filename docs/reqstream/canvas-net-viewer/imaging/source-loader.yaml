@@ -585,3 +585,65 @@ sections:
           library during the same render and handed on with the loaded image.
         tests:
           - SourceLoader_Load_ModelWithAnchors_CollectsThemWithPixelPositions
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-DiagnosticDetail
+        title: >-
+          The SourceLoader class shall report with each note of an OpenSCAD model or a Vega-Lite chart, besides the
+          generic code (scad-warning, vega-lite-warning, or the feature of an unsupported construct), the finer
+          identifier of the library as Detail (none when the code is already the most specific) and the position in
+          the file as Location (file, line and column, and for a chart the JSON pointer; none when the library gave
+          no position), keep both for the notes of an embedded file, and give no location to a note about a page of a
+          document.
+        justification: |
+          A generic code with a position is enough for a tool or an agent to find the line to fix without parsing the
+          message.
+        tests:
+          - SourceLoader_Load_ScadAnchorWarning_CarriesDetailAndLocation
+          - SourceLoader_Load_ScadGenericWarning_HasNoDetailButHasLocation
+          - SourceLoader_Load_ScadUnsupportedFeature_CarriesLocation
+          - SourceLoader_Load_VegaLiteNotes_CarryDetailAndPointer
+          - SourceLoader_Load_DocumentNote_HasNoLocation
+          - SourceLoader_Load_SvgEmbeddingModel_NotesKeepOriginDetailAndLocation
+          - ImageDiagnostic_Equals_ComparesDetailAndLocation
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-InMemoryInput
+        title: >-
+          The SourceLoader class shall load a file from memory exactly as it loads the same file from disk (the same
+          kind, size, pixels and notes, with the folder and name of the input as the base for the files the format
+          itself names), call an optional hook to charge the size of every surface before it allocates it (and stop
+          before decoding when the hook refuses), observe a cancellation token, draw the nested pictures of an SVG file
+          through a resolver it is given instead of building its own, and optionally return a document page at the
+          fitted size without the margin.
+        justification: |
+          An embedded file arrives as bytes and must obey the budget, the cancellation and the nesting limits of the
+          render that embeds it, yet draw exactly as the tool draws a file.
+        tests:
+          - SourceLoader_InputFromMemory_LoadsLikeTheFile
+          - SourceLoader_LoadContext_Charge_IsCalledOnceWithTheSizeOfTheSurface
+          - SourceLoader_LoadContext_ChargeRefused_StopsBeforeDecoding
+          - SourceLoader_LoadContext_CanceledToken_ThrowsOperationCanceled
+          - SourceLoader_LoadContext_ScopedResolver_LoadsNestedPicturesAndAddsNoNotes
+          - SourceLoader_LoadContext_ScopedResolverNull_LeavesLinksUnresolved
+          - SourceLoader_LoadContext_ReturnFittedPage_SkipsTheMargin
+          - SourceLoader_SourceInput_FileAndMemory_ExposeNameFolderLengthAndStream
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-OptionValidation
+        title: >-
+          The SourceLoader class shall check the SourceOptions of Load and OpenPages before it touches any file and
+          reject a value outside the ranges of the command line (a width or height below 1, a scale that is not
+          finite or outside 0.001 to 8192, a resolution that is not finite, not above 0 or above MaxDpi (2400), a
+          filter that is not defined, a model view that is not known, an elevation outside -90 to 90, a time outside
+          the limit, a triangle limit below 1, a variable the model library rejects) as a ViewerException with the
+          code usage-error, while a size above the maximum stays size-limit and a page below the first or beyond
+          the last stays page-out-of-range.
+        justification: |
+          The options of the library are not parsed by the command line, so the same ranges must be checked where
+          they are used, before any work is done.
+        tests:
+          - SourceLoader_Load_InvalidOptionsAndMissingFile_ThrowsUsageErrorBeforeTouchingTheFile
+          - SourceLoader_LoadAndOpenPagesOfInfo_InvalidOptions_ThrowUsageErrorBeforeTouchingTheFile
+          - SourceLoader_FindOptionProblem_BoundaryOptions_AreAccepted
+          - SourceLoader_Load_WidthAboveTheMaximum_IsStillSizeLimit
+          - SourceLoader_Load_PageBeyondTheLast_IsStillPageOutOfRange
+          - SourceLoader_FindOptionProblem_UnknownView_NamesTheViewAndListsTheViews
+          - SourceLoader_MaxDpi_Is2400

@@ -37,7 +37,8 @@
       "items": [
         { "term": "SVG", "text": "At most 5,000,000 characters, nesting depth 100, and 100,000 rendered elements; beyond that the file is corrupt-input." },
         { "term": "PPTX", "text": "Opening a presentation buffers the whole package in memory, up to 256 MiB." },
-        { "term": "Default resolution", "text": "A document page is drawn at 96 dpi." }
+        { "term": "Default resolution", "text": "A document page is drawn at 96 dpi." },
+        { "term": "Link fragment", "text": "The fragment of an image href in an SVG file (the part after #, as in report.pdf#page=2) is at most {{fragmentMaxLength}} characters and {{fragmentMaxParameters}} parameters; beyond that the image is not drawn and image-fragment-invalid is reported (an unsupported-feature error with --strict)." }
       ]
     }
   ],

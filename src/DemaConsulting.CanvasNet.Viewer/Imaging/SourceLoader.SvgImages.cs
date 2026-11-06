@@ -25,7 +25,11 @@ namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 ///         A reference that cannot be resolved (missing, outside the folder, a network URL, an unknown format, a cycle,
 ///         or over a limit) is a warning <c>svg-image-unresolved</c> and draws nothing, and so is a picture that is too
 ///         large for the pixel budget (<c>svg-image-too-large</c>); with
-///         <see cref="SourceOptions.Strict"/> either is an <c>unsupported-feature</c> error. A file that is found but is
+///         <see cref="SourceOptions.Strict"/> either is an <c>unsupported-feature</c> error, and so is a link whose
+///         fragment cannot be used (<c>image-fragment-invalid</c>) or that asks for a page the document does not have
+///         (<c>image-page-out-of-range</c>), which are not drawn either; an unknown or repeated fragment parameter
+///         (<c>image-fragment-unknown-parameter</c>, <c>image-fragment-duplicate-parameter</c>) is a warning only. A
+///         file that is found but is
 ///         broken (corrupt, a model with a syntax error, a chart with a bad specification) is an error that names both
 ///         files.
 ///     </para>
@@ -77,7 +81,22 @@ public static partial class SourceLoader
         /// <returns>The notes, in the order they were reported.</returns>
         public List<ImageDiagnostic> Notes()
         {
-            return [.. Resolver.Diagnostics.Select(d => new ImageDiagnostic(d.Source, SeverityName(d.Severity), d.Code, d.Message) { Origin = d.Origin })];
+            return [.. Resolver.Diagnostics.Select(ToImageDiagnostic)];
+        }
+
+        /// <summary>
+        ///     Converts a note of the resolver to the note shape of the loader, keeping every member.
+        /// </summary>
+        /// <param name="note">The note of the resolver.</param>
+        /// <returns>The note with the same source, severity, code, message, page, detail, location and origin.</returns>
+        internal static ImageDiagnostic ToImageDiagnostic(ImageSourceDiagnostic note)
+        {
+            return new ImageDiagnostic(note.Source, SeverityName(note.Severity), note.Code, note.Message, note.Page)
+            {
+                Detail = note.Detail,
+                Location = note.Location,
+                Origin = note.Origin
+            };
         }
 
         /// <summary>
@@ -92,26 +111,48 @@ public static partial class SourceLoader
         }
 
         /// <summary>
-        ///     Applies the <c>--strict</c> policy: a reference that was not drawn, or whose picture is too large for the
-        ///     pixel budget, is an error.
+        ///     Applies the <c>--strict</c> policy: a reference that was not drawn, whose picture is too large for the
+        ///     pixel budget, whose fragment cannot be used, or that names a page the document does not have, is an error;
+        ///     a fragment parameter that is unknown or given twice is only a warning.
         /// </summary>
         /// <exception cref="ViewerException">Thrown with code <c>unsupported-feature</c> for the first such reference.</exception>
         public void ThrowForUnresolved()
         {
-            var unresolved = Resolver.Diagnostics.FirstOrDefault(
-                d => d.Code is FolderImageResolver.UnresolvedCode or FolderImageResolver.TooLargeCode);
+            ThrowForUnresolved(Resolver.Diagnostics, _svgName, false);
+        }
+
+        /// <summary>
+        ///     Applies the <c>--strict</c> policy to the notes of a resolver that served a whole render, for a render that
+        ///     does not own the resolver of its nested pictures (the embedding path of <c>CanvasNetViewer</c>).
+        /// </summary>
+        /// <param name="notes">The notes the shared resolver collected, from every level of the render.</param>
+        /// <param name="svgName">The name of the file that was rendered.</param>
+        /// <param name="nameHolder">
+        ///     <see langword="true"/> to name the file that holds the link (the last file of the note's origin) instead of
+        ///     <paramref name="svgName"/>.
+        /// </param>
+        /// <exception cref="ViewerException">Thrown with code <c>unsupported-feature</c> for the first reference that was not drawn.</exception>
+        internal static void ThrowForUnresolved(IEnumerable<ImageSourceDiagnostic> notes, string svgName, bool nameHolder = true)
+        {
+            var unresolved = notes.FirstOrDefault(
+                d => d.Code is FolderImageResolver.UnresolvedCode
+                    or FolderImageResolver.TooLargeCode
+                    or FolderImageResolver.FragmentInvalidCode
+                    or FolderImageResolver.PageOutOfRangeCode);
             if (unresolved == null)
             {
                 return;
             }
 
+            // The file that holds the link is the last one of the chain the note came through
+            var holder = nameHolder && unresolved.Origin.Count > 0 ? unresolved.Origin[^1] : svgName;
             var match = UnresolvedMessage.Match(unresolved.Message);
             var what = match.Success
                 ? $"embeds '{match.Groups["href"].Value}', which was not drawn: {match.Groups["reason"].Value}"
                 : $"embeds an image that was not drawn: {unresolved.Message}";
             throw new ViewerException(
                 ErrorCodes.UnsupportedFeature,
-                $"'{_svgName}' {what}.",
+                $"'{holder}' {what}.",
                 $"Without --strict the image is left out and reported as the warning {unresolved.Code}.");
         }
 
@@ -149,7 +190,7 @@ public static partial class SourceLoader
         /// </summary>
         /// <param name="severity">The severity.</param>
         /// <returns>The name: <c>info</c>, <c>warning</c>, or <c>unsupported</c>.</returns>
-        private static string SeverityName(ImageDiagnosticSeverity severity)
+        internal static string SeverityName(ImageDiagnosticSeverity severity)
         {
             return severity switch
             {

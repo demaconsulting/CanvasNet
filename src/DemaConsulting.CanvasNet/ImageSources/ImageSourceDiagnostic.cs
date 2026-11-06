@@ -27,6 +27,11 @@ namespace DemaConsulting.CanvasNet.ImageSources;
 ///         A source that must stop rather than draw without a feature honors
 ///         <see cref="ImageSourceRequest.ThrowOnUnsupportedFeature"/> by throwing instead of reporting.
 ///     </para>
+///     <para>
+///         <b>Finer detail.</b> <see cref="Code"/> stays the stable, generic code; <see cref="Detail"/>,
+///         <see cref="Location"/> and <see cref="Page"/> are optional additions a source may fill in. They are kept as
+///         reported when the resolver forwards a note, and take part in equality like <see cref="Origin"/>.
+///     </para>
 /// </remarks>
 public sealed record ImageSourceDiagnostic(string Source, ImageDiagnosticSeverity Severity, string Code, string Message)
 {
@@ -47,6 +52,23 @@ public sealed record ImageSourceDiagnostic(string Source, ImageDiagnosticSeverit
     public IReadOnlyList<string> Origin { get; init; } = [];
 
     /// <summary>
+    ///     Gets a finer, source-specific code for a note whose <see cref="Code"/> is a generic one (for example
+    ///     <c>scad-anchor-invalid</c> for a <c>scad-warning</c>), or <see langword="null"/> when <see cref="Code"/> is
+    ///     already the most specific.
+    /// </summary>
+    public string? Detail { get; init; }
+
+    /// <summary>
+    ///     Gets where in the file the note points, or <see langword="null"/> when the source gave no location.
+    /// </summary>
+    public ImageDiagnosticLocation? Location { get; init; }
+
+    /// <summary>
+    ///     Gets the 1-based page, slide or sheet the note is about, or <see langword="null"/> when it is not about one.
+    /// </summary>
+    public int? Page { get; init; }
+
+    /// <summary>
     ///     Determines whether another note has the same values, comparing <see cref="Origin"/> entry by entry.
     /// </summary>
     /// <param name="other">The note to compare with.</param>
@@ -57,6 +79,9 @@ public sealed record ImageSourceDiagnostic(string Source, ImageDiagnosticSeverit
         && Severity == other.Severity
         && Code == other.Code
         && Message == other.Message
+        && Detail == other.Detail
+        && Equals(Location, other.Location)
+        && Page == other.Page
         && Origin.SequenceEqual(other.Origin);
 
     /// <summary>
@@ -70,6 +95,9 @@ public sealed record ImageSourceDiagnostic(string Source, ImageDiagnosticSeverit
         hash.Add(Severity);
         hash.Add(Code);
         hash.Add(Message);
+        hash.Add(Detail);
+        hash.Add(Location);
+        hash.Add(Page);
         foreach (var entry in Origin)
         {
             hash.Add(entry);

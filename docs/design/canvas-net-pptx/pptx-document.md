@@ -3686,13 +3686,17 @@ run changes).
 ### Image Source
 
 `PptxImageSource` (`PptxImageSource.cs`) is the `IImageSource` of the package for `.pptx` files, so that a document can
-link to a presentation through the shared `FolderImageResolver`; it draws the **first slide**. `Render(request)` opens
+link to a presentation through the shared `FolderImageResolver`; it draws the **first slide, or the slide the fragment of
+the link names** (`deck.pptx#slide=3`, or `#page=3`; the last of the two wins). The source implements
+`IFragmentImageSource` (`["page", "slide"]`) and reads the number with `request.Fragment.GetPositiveInt32("page",
+"slide")` before it reads the file; a slide beyond `SlideCount` is an `ImageSourceRefusedException` with the code
+`image-page-out-of-range`. `Render(request)` opens
 the presentation with `PptxDocument.Open(request.OpenContent())`, takes `SlideSize` in English Metric Units divided by
 9525 (96 dots per inch) as the natural size, asks `request.SizeFor(..., fitInside: true)` for the largest size of the
 aspect ratio of the slide inside the requested box, charges that size with `request.EnsureWithinBudget(width, height)`
 (a size that does not fit in the live budget is refused with `ImageSourceBudgetException` before any surface
 is allocated; the contract is on `ImageSourceRequest`), and
-draws slide 0 with a `PptxRenderOptions` whose background is
+draws the chosen slide with a `PptxRenderOptions` whose background is
 transparent, whose `StrictUnsupportedPictures` is the request's `ThrowOnUnsupportedFeature` and whose
 `OnUnsupportedPictureSkipped` handler adds an `Unsupported` note of the source `pptx` with the feature name as the code.
 The PPTX library cannot be canceled while it draws, so the cancellation token is checked before the presentation is

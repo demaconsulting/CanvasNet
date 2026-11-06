@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.ImageSources;
 using DemaConsulting.CanvasNet.Pdf;
 using DemaConsulting.CanvasNet.Pptx;
 using DemaConsulting.CanvasNet.Scad;
@@ -32,7 +33,7 @@ public partial class HelpTopicsTests
     ///     Matches the diagnostic identifiers a topic may cite.
     /// </summary>
     private static readonly Regex IdentifierPattern =
-        new(@"\b(?:scad|vl|pptx|vsdx|pdf|svg)-[A-Za-z0-9<>-]+", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(5));
+        new(@"\b(?:scad|vl|pptx|vsdx|pdf|svg|image-fragment|image-page)-[A-Za-z0-9<>-]+", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(5));
 
     /// <summary>
     ///     Matches a file name extension (lower case, with the dot, and the two-part <c>.vl.json</c>) in a sentence.
@@ -317,16 +318,25 @@ public partial class HelpTopicsTests
     }
 
     /// <summary>
-    ///     Test that the <c>embed</c> snippet of the <c>svg</c> topic, which is skipped by the render drift test
-    ///     because it refers to sibling files, is well formed, links only supported file types, and renders under
-    ///     <c>--strict</c> without a diagnostic once its sibling files exist (the examples of the other topics).
+    ///     Gets the names of the snippet examples of the <c>svg</c> topic as theory data.
     /// </summary>
-    [Fact]
-    public void HelpTopics_SvgTopic_EmbedSnippet_RendersStrictWithItsSiblingFiles()
+    public static IEnumerable<object[]> SvgSnippetData =>
+        HelpTopics.Find("svg")!.Examples.Where(e => e.Kind == HelpTopics.SnippetKind).Select(e => new object[] { e.Name });
+
+    /// <summary>
+    ///     Test that each snippet of the <c>svg</c> topic (<c>embed</c> and <c>embed-pages</c>), which is skipped by the
+    ///     render drift test because it refers to sibling files, is well formed, links only supported file types, and
+    ///     renders under <c>--strict</c> without a diagnostic once its sibling files exist (the examples of the other
+    ///     topics for a model, chart, or SVG file, and the fixture documents for a PDF, PPTX, or VSDX file).
+    /// </summary>
+    /// <param name="snippetName">The name of the snippet.</param>
+    [Theory]
+    [MemberData(nameof(SvgSnippetData))]
+    public void HelpTopics_SvgTopic_EmbedSnippet_RendersStrictWithItsSiblingFiles(string snippetName)
     {
-        // Arrange: the snippet, which is not a source example, and its links
+        // Arrange: the snippet, which is not a source example, and its links (a link may carry a fragment)
         var topic = HelpTopics.Find("svg")!;
-        var snippet = Assert.Single(topic.Examples, e => e.Kind == HelpTopics.SnippetKind);
+        var snippet = Assert.Single(topic.Examples, e => e.Kind == HelpTopics.SnippetKind && e.Name == snippetName);
         Assert.DoesNotContain(HelpTopics.SourceExamples(), e => e.Example == snippet);
         var links = XDocument.Parse(snippet.Content).Descendants()
             .Where(e => e.Name.LocalName == "image")
@@ -334,17 +344,29 @@ public partial class HelpTopicsTests
             .ToList();
         Assert.NotEmpty(links);
 
-        // Arrange: save the snippet and, for each link, a sibling file taken from the examples of that format
+        // Arrange: save the snippet and, for each distinct file, a sibling file taken from the examples of that format
         using var directory = new TempDirectory();
         var input = directory.Combine(snippet.FileName!);
         File.WriteAllText(input, snippet.Content);
         var siblingTopics = new Dictionary<string, string> { [".scad"] = "scad", [".vl.json"] = "vega-lite", [".svg"] = "svg" };
-        foreach (var href in links)
+        var documents = new Dictionary<string, Func<byte[]>>
         {
-            Assert.Contains(CanvasNetViewer.Extensions, e => href.EndsWith(e, StringComparison.OrdinalIgnoreCase));
-            var (extension, topicName) = siblingTopics.First(p => href.EndsWith(p.Key, StringComparison.OrdinalIgnoreCase));
+            [".pdf"] = () => FixtureFactory.CreatePdf(),
+            [".pptx"] = () => FixtureFactory.CreatePptx(),
+            [".vsdx"] = () => FixtureFactory.CreateVsdx()
+        };
+        foreach (var file in links.Select(href => href.Split('#')[0]).Distinct(StringComparer.Ordinal))
+        {
+            Assert.Contains(CanvasNetViewer.Extensions, e => file.EndsWith(e, StringComparison.OrdinalIgnoreCase));
+            if (documents.FirstOrDefault(p => file.EndsWith(p.Key, StringComparison.OrdinalIgnoreCase)) is { Value: not null } fixture)
+            {
+                File.WriteAllBytes(directory.Combine(file), fixture.Value());
+                continue;
+            }
+
+            var (extension, topicName) = siblingTopics.First(p => file.EndsWith(p.Key, StringComparison.OrdinalIgnoreCase));
             var sibling = HelpTopics.SourceExamples().First(e => e.Topic.Name == topicName && e.Example.FileName!.EndsWith(extension, StringComparison.Ordinal));
-            File.WriteAllText(directory.Combine(href), sibling.Example.Content);
+            File.WriteAllText(directory.Combine(file), sibling.Example.Content);
         }
 
         // Act: render with --strict
@@ -358,6 +380,77 @@ public partial class HelpTopicsTests
         Assert.Empty(document.RootElement.GetProperty("diagnostics").EnumerateArray());
         Assert.Equal(links.Count, document.RootElement.GetProperty("operations").EnumerateArray().Count(o => o.GetProperty("op").GetString() == "embed"));
         Assert.True(File.Exists(output));
+    }
+
+    /// <summary>
+    ///     Test that the <c>svg</c> topic documents the page fragment: the grammar, the parameter of each format, the
+    ///     four diagnostic codes with their severity, the <c>--strict</c> behavior, the <c>&amp;amp;</c> note, the
+    ///     example, and that the limits quoted are the live ones.
+    /// </summary>
+    [Fact]
+    public void HelpTopics_SvgTopic_PageFragment_DocumentsGrammarPerFormatCodesAndStrict()
+    {
+        // Arrange: the text of the image-links and diagnostics sections and the options
+        var topic = HelpTopics.Find("svg")!;
+        var links = topic.Sections.First(s => s.Id == "image-links").Items;
+        var fragment = Assert.Single(links, i => i.Term == "page fragment").Text;
+        var example = Assert.Single(links, i => i.Term == "page example").Text;
+        var diagnostics = topic.Sections.First(s => s.Id == "diagnostics").Items;
+        var strict = Assert.Single(topic.Sections.First(s => s.Id == "options").Items, i => i.Term == "--strict").Text;
+
+        // Assert: grammar and per-format parameters
+        Assert.Contains("name=value", fragment);
+        Assert.Contains("page=N", fragment);
+        Assert.Contains("slide=N", fragment);
+        Assert.Contains("view=", fragment);
+        Assert.Contains("counts from 1", fragment);
+        Assert.Contains(ImageFragment.MaxLength.ToString(System.Globalization.CultureInfo.InvariantCulture), fragment);
+        Assert.Contains(ImageFragment.MaxParameters.ToString(System.Globalization.CultureInfo.InvariantCulture), fragment);
+
+        // Assert: examples, and the &amp; note
+        Assert.Contains("report.pdf#page=2", example);
+        Assert.Contains("deck.pptx#slide=3", example);
+        Assert.Contains("&amp;", example);
+        Assert.Contains("canvasnet help svg --example embed-pages", example);
+        Assert.Contains("<image href=\"report.pdf#page=2\"", HelpTopics.RenderExample(topic, "embed-pages"));
+
+        // Assert: each code is documented, and --strict names the two that fail
+        foreach (var code in new[] { FolderImageResolver.FragmentUnknownParameterCode, FolderImageResolver.FragmentDuplicateParameterCode, FolderImageResolver.FragmentInvalidCode, FolderImageResolver.PageOutOfRangeCode })
+        {
+            Assert.Contains(diagnostics, i => i.Term == code);
+        }
+
+        Assert.Contains(FolderImageResolver.FragmentInvalidCode, strict);
+        Assert.Contains(FolderImageResolver.PageOutOfRangeCode, strict);
+        Assert.Contains("stay warnings", strict);
+    }
+
+    /// <summary>
+    ///     Test that the format topics point to the page fragment, <c>scad</c> documents <c>#view=</c>, <c>json</c>
+    ///     documents <c>detail</c>, <c>location</c>, and <c>origin</c>, and <c>limits</c> documents the fragment limits.
+    /// </summary>
+    [Fact]
+    public void HelpTopics_FormatTopicsJsonAndLimits_DocumentFragmentsDetailLocationAndOrigin()
+    {
+        // Arrange
+        string TextOf(string name) => string.Join("\n", HelpTopics.Find(name)!.Sections.SelectMany(s => s.Items).Select(i => $"{i.Term} {i.Text}"));
+
+        // Assert: the document topics show the embedding with their own parameter
+        Assert.Contains("report.pdf#page=3", TextOf("pdf"));
+        Assert.Contains("deck.pptx#slide=3", TextOf("pptx"));
+        Assert.Contains("drawing.vsdx#page=2", TextOf("vsdx"));
+        Assert.Contains("part.scad#view=front", TextOf("scad"));
+
+        // Assert: the json topic documents the three members, and the limits topic the live fragment limits
+        var json = HelpTopics.Find("json")!.Sections.First(s => s.Id == "diagnostics").Items;
+        foreach (var term in new[] { "detail", "location", "origin" })
+        {
+            Assert.Contains(json, i => i.Term == term);
+        }
+
+        var limits = TextOf("limits");
+        Assert.Contains(ImageFragment.MaxLength.ToString(System.Globalization.CultureInfo.InvariantCulture) + " characters", limits);
+        Assert.Contains(ImageFragment.MaxParameters.ToString(System.Globalization.CultureInfo.InvariantCulture) + " parameters", limits);
     }
 
     /// <summary>
@@ -466,7 +559,7 @@ public partial class HelpTopicsTests
     public void HelpTopics_CitedDiagnosticIds_ExistInTheLibraries()
     {
         // Arrange: what a cited identifier may be, and the text of the libraries to search for literals
-        var allowed = Triggers.SelectMany(t => new[] { t.Cited, t.Code }).Concat(["scad-warning", "vega-lite-warning", "svg-image-unresolved", "svg-image-too-large", NamingRule]).Concat(ErrorCodeValues()).ToHashSet(StringComparer.Ordinal);
+        var allowed = Triggers.SelectMany(t => new[] { t.Cited, t.Code }).Concat(["scad-warning", "vega-lite-warning", "svg-image-unresolved", "svg-image-too-large", FolderImageResolver.FragmentUnknownParameterCode, FolderImageResolver.FragmentDuplicateParameterCode, FolderImageResolver.FragmentInvalidCode, FolderImageResolver.PageOutOfRangeCode, NamingRule]).Concat(ErrorCodeValues()).ToHashSet(StringComparer.Ordinal);
         var literals = LibraryAssemblies.Select(a => File.ReadAllBytes(a.Location)).ToList();
         var cited = HelpTopics.All.SelectMany(AllStrings).SelectMany(s => IdentifierPattern.Matches(s).Select(m => m.Value)).Distinct().Order(StringComparer.Ordinal).ToList();
 
