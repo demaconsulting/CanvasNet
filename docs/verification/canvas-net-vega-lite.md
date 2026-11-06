@@ -815,7 +815,7 @@ and that a forked budget counts on its own and is taken over only when adopted.
 `..._DefaultColorRampOfAScatterPlotHasAGradientLegend`, `..._SharedFieldsMergeAndOthersStack`,
 `..._OrientsPlaceTheLegendAroundTheDataRectangle`, `..._ConfigurationAndAutosizeNone`,
 `..._UnsupportedPropertiesAreReportedWithLocations`, `..._LimitsAndCancellationApply`,
-`..._RendersAreDeterministicAcrossThreads`
+`..._RendersAreDeterministicAcrossThreads`, `..._TrailSizeLegendIsPaintedWithTheStrokeWidth`
 
 Uses the three original legend fixtures and small inline specifications, reads the scene of the rendered document and
 asserts hand-derived geometry (the sizes of the legend boxes are those of the unit-tested legend builder): the color and
@@ -830,7 +830,11 @@ shape and a color) while the size has its own legend 8 pixels below, and a shape
 bottom legend is 18 pixels below the x axis, a top legend 18 pixels above the data rectangle, an inner orient does not
 change the canvas, a left legend ends 18 pixels left of the y axis, and `autosize: none` keeps the canvas size so the
 legend
-sticks out; a `titleOrient` of `left` is reported once with its location and stops a strict render; a `MaxSceneItems` of
+sticks out; the size legend of a trail (four rows with the sizes 1, 3, 6, and 9) has five symbols of the size 100 whose
+stroke widths run from 1 to 3 + 2 / 3, and the ink of the largest symbol is
+about 3.7 pixels thick in the rendered picture (the sum of the coverage of the column through its center is at least
+3.4, where a symbol of the width 1.5 was about 1.5 thick); a `titleOrient` of `left` is reported once with its location
+and stops a strict render; a `MaxSceneItems` of
 the exact scene count renders and one less fails with the name of the limit, as does a limit that only the legends fit
 in, and a canceled token stops the render; and four concurrent renders are byte-identical to the first.
 
@@ -1151,6 +1155,18 @@ capsule at a point of the diameter d covers the d pixel rows from 100 - d / 2 to
 are inside that range by more than the 0.02 pixel tolerance (the rows 99 to 100, 97 to 102, and 95 to 104) and no ink in
 the rows more than a pixel beyond it (the rows up to 97 and from 102, up to 95 and from 104, and up to 93 and from 106);
 the boundary rows are not asserted.
+
+### Trails: The End Is Not Clipped At The Data Rectangle
+
+**Test**: `VegaLiteLineAreaIntegrationTests.CanvasNetVegaLite_SystemIntegration_Trails_EndOnTheEdgeOfTheDataRectangleIsNotClipped`
+
+Renders a trail of the size 20 over the rows (0, 5) and (2, 5) with x from 0 to 2 over 300 pixels and y on the domain 0
+to 10, so that the last point is a circle of the
+radius 10 on the right edge of the data rectangle (x = 300, the row 100). Asserts that the marks group has no clip
+(Vega-Lite clips only for `clip: true`, an interval selection, or a projection), that the last point
+of the run is at x = 300, and that the pixels 3 and 4 to the right of the edge, over the padding of the chart, have the
+blue of the trail, so the round end is whole. The part of a mark that is
+beyond the padding is cut by the image, which does not grow with the overflow (the documented difference P11-D1).
 
 ### Curves: All Fifteen Interpolations Render And Are Finite
 
@@ -1568,6 +1584,7 @@ while the default step of 20 pixels for each of the three categories decides the
 **Tests**:
 `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_UnsupportedLayerMarkIsReportedAndOthersAreDrawn`,
 `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_TransformInAConcatenationAndInAFacetIsApplied`,
+`VegaLiteCompositionSystemTests.CanvasNetVegaLite_SystemIntegration_Composition_TopLevelTransformsApplyToEveryViewWithoutDiagnostics`,
 `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_VariableParameterInALayerIsStillReported`,
 `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_EmptyLayerListDrawsOnlyTheBackground`
 
@@ -1578,7 +1595,11 @@ that a transform of a view inside an `hconcat` and inside a `facet` is applied a
 and a facet are drawn since Phase 11), while a transform of a later phase (`regression`) in a layer of a facet keeps its
 ordinary message, that a variable parameter declared in a layer is still reported (`vl-param-variable`) while the layer
 is drawn, and that a layered view with an empty `layer` array draws exactly what a view without a mark does (the same
-pixels and size).
+pixels and size). The pin test `VegaLiteCompositionSystemTests.CanvasNetVegaLite_SystemIntegration_Composition_TopLevelTransformsApplyToEveryViewWithoutDiagnostics`
+asserts that a top-level `filter` of `datum.x > 1` and `calculate` of `z` leave three of the four rows in each view of a
+`layer`, an `hconcat`, a `vconcat`, and a `repeat` (three points in
+each of the two views, or in each layer), one and two points in the two views of a facet by a group field, and that no
+warning and no unsupported feature is reported.
 
 ### Layers: Views And Nesting Are Limited
 

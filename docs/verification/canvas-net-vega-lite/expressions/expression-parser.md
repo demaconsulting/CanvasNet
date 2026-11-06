@@ -141,12 +141,19 @@ expression literal); and that a null text is an `ArgumentNullException`, not a s
 ##### Length Limit
 
 **Tests**: `ExpressionParserTests.ExpressionParser_Parse_LengthLimit_AcceptsUpToLimit`,
-`ExpressionParserTests.ExpressionParser_Parse_OverlongTextWithInvalidCharacter_ReportsLengthFirst`
+`ExpressionParserTests.ExpressionParser_Parse_OverlongTextWithInvalidCharacter_ReportsLengthFirst`,
+`ExpressionParserTests.ExpressionParser_ParseGenerated_IsBoundedByTheGeneratedBudgetNotTheUserLimit`
 
 Asserts that the number `1` padded to 4,095 and to 4,096 characters is accepted and padded to 4,097 characters fails
 with the message "the expression has 4097 characters, more than the limit of 4096 (MaxExpressionLength) at expression
 offset 4096." at the given location, and that a text that is both too long (limit 5) and invalid is reported as too
-long, so an oversize text is never tokenized.
+long, so an oversize text is never tokenized. The generated-text test asserts, for `ParseGenerated` with a
+`MaxSourceLength` of 10 (a budget of 80 characters), that 80 characters are accepted
+and 81 fail naming `MaxSourceLength` and "81 characters" at the offset 80 and the given location, that the same 81
+characters written by the user (`Parse`) are accepted with the default limits and fail with a
+`MaxExpressionLength` of 80, that a text of 5,000 characters is accepted with the default limits (the user limit does
+not apply), that a chain of 20,000 terms parses (39,999 instructions: the parser loops over a chain),
+and that 65 nested parentheses still fail naming `MaxExpressionDepth`.
 
 ##### Depth Limit Is Exact And Stack Safe
 

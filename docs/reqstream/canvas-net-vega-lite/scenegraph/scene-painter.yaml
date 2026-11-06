@@ -137,13 +137,21 @@ sections:
                   The ScenePainter unit shall draw a trail item as the union of the capsules between its
                   consecutive points - each as wide as the size of its end points, as Vega's trail does - so that
                   its width follows the size of each point, shall break the trail at the boundary of a run and at a
-                  point with no usable size, and shall draw a circle for coincident points.
+                  point with no usable size, and shall draw a circle for coincident points; a translucent trail
+                  that is painted in several chunks (an unusually large trail) shall be composited once, so that
+                  its capsules do not composite twice at the joints of the chunks, as Vega paints one path, with
+                  the cancellation token still polled before every chunk.
                 justification: |
                   A trail is a line whose width varies with the data; the capsules are what make the width change
-                  smoothly and the runs are how a gap breaks the trail.
+                  smoothly and the runs are how a gap breaks the trail, and a large translucent trail must not
+                  show the seams of the implementation.
                 tests:
                   - ScenePainter_Paint_TrailWidthFollowsTheSizeOfEachPoint
                   - ScenePainter_Paint_TrailBreaksAtRunBoundariesAndDrawsCapsForCoincidentPoints
+                  - ScenePainter_Paint_TranslucentTrailInSeveralChunksHasNoSeam
+                  - ScenePainter_Paint_TranslucentTrailOutlineInSeveralChunksHasNoSeam
+                  - ScenePainter_Paint_TranslucentTrailBeyondTheSurfaceEdgeHasNoSeam
+                  - ScenePainter_Paint_OpaqueTrailInSeveralChunksIsBlackAlongTheWholeRow
 
               - id: CanvasNetVegaLite-Scenegraph-ScenePainter-MiterLimit
                 title: >-

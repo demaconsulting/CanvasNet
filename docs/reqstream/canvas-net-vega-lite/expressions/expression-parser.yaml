@@ -93,13 +93,19 @@ sections:
                   and object literals, conditional branches, and unary operands - exceeds the expression-depth
                   limit (64 by default, a nesting of exactly the limit being accepted), and shall compile
                   a long chain of operators or logical operands without recursion proportional to its length
-                  and a nesting at the largest configurable depth without overflowing the stack.
+                  and a nesting at the largest configurable depth without overflowing the stack; and shall
+                  bound the text of an expression that the renderer writes from a predicate or a composite mark by
+                  eight times the source-length limit instead (the expression-length limit being that of the
+                  expressions a user writes), the nesting depth applying to both.
                 justification: |
                   Expressions are untrusted input; recursion or memory proportional to hostile text would let a
-                  specification terminate the host process.
+                  specification terminate the host process. The text that the renderer writes for a predicate is a
+                  linear expansion of a document that is already bounded, so a long membership list must not fail
+                  on the limit that guards user-written text.
                 tests:
                   - ExpressionParser_Parse_LengthLimit_AcceptsUpToLimit
                   - ExpressionParser_Parse_OverlongTextWithInvalidCharacter_ReportsLengthFirst
+                  - ExpressionParser_ParseGenerated_IsBoundedByTheGeneratedBudgetNotTheUserLimit
                   - ExpressionParser_Parse_DepthLimit_AcceptsUpToLimit
                   - ExpressionParser_Parse_EveryNestingConstruct_IsBoundedByDepthLimit
                   - ExpressionParser_Parse_MaximumConfiguredDepth_DoesNotOverflowTheStack

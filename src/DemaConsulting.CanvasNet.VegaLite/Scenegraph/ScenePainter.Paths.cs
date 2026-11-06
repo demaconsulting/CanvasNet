@@ -1,6 +1,9 @@
 // Portions derived from d3-shape (ISC), d3-path (ISC), Vega (BSD-3-Clause) and Vega-Lite (BSD-3-Clause); see third-party/README.md
 using System.Numerics;
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Drawing;
 using DemaConsulting.CanvasNet.Geometry;
+using Path = DemaConsulting.CanvasNet.Geometry.Path;
 
 namespace DemaConsulting.CanvasNet.VegaLite.Scenegraph;
 
@@ -27,7 +30,9 @@ namespace DemaConsulting.CanvasNet.VegaLite.Scenegraph;
 ///         previous capsule; this painter starts it with a move, which has the same fill and no stray stroke).
 ///         Cancellation is polled every 1,024 points and before every fill. The filler cannot be interrupted, so the capsules are filled and stroked
 ///         in chunks of at most <see cref="TrailChunkWeight"/> (the estimate of <see cref="TrailCapsuleWeight"/>): a trail of ordinary size is
-///         one chunk, and a trail of huge points costs a bounded amount between two polls.
+///         one chunk, and a trail of huge points costs a bounded amount between two polls. A translucent trail of several chunks is painted through coverage layers (see
+///         <c>TrailLayers</c>) and composited once, so that the capsules at the joints of the chunks do not composite twice (Vega paints one path:
+///         <c>vega-scenegraph/src/path/trail.js</c>, <c>marks/markMultiItemPath.js</c>).
 ///     </para>
 ///     <para>
 ///         <b>Miter limit.</b> The miter limit of an item is 4 when it has none, 1 when it is not finite or is below 1 and
@@ -177,53 +182,310 @@ internal sealed partial class ScenePainter
             return;
         }
 
-        var writer = new ArcPathWriter();
-        var weight = 0.0;
-        var capsules = 0;
-        var visited = 0;
-        foreach (var run in trail.Runs)
+        // The layers of a translucent trail that is painted in several chunks (see TrailLayers); created at the first chunk, when it is known that there are several
+        TrailLayers? layers = null;
+        var layersDecided = false;
+        try
         {
-            var ready = false;
-            double x1 = 0;
-            double y1 = 0;
-            double r1 = 0;
-            foreach (var point in run)
+            var writer = new ArcPathWriter();
+            var weight = 0.0;
+            var capsules = 0;
+            var visited = 0;
+            foreach (var run in trail.Runs)
             {
-                if (++visited % TrailPollInterval == 0)
+                var ready = false;
+                double x1 = 0;
+                double y1 = 0;
+                double r1 = 0;
+                foreach (var point in run)
+                {
+                    if (++visited % TrailPollInterval == 0)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                    }
+
+                    if (!IsDrawable(point, local.Scale))
+                    {
+                        ready = false;
+                        continue;
+                    }
+
+                    var r2 = point.Size / 2;
+                    if (ready)
+                    {
+                        AppendCapsule(writer, x1, y1, r1, point.X, point.Y, r2);
+
+                        // The filler cannot be interrupted, so the capsules are painted in chunks of a bounded cost, with a poll before each
+                        weight += TrailCapsuleWeight(Math.Max(r1, r2), local.Scale);
+                        capsules++;
+                        if (weight >= TrailChunkWeight)
+                        {
+                            TrailChunkFlushed?.Invoke(capsules);
+                            cancellationToken.ThrowIfCancellationRequested();
+                            if (!layersDecided)
+                            {
+                                layers = TrailLayers.TryCreate(trail, local, cancellationToken);
+                                layersDecided = true;
+                            }
+
+                            PaintTrailChunk(writer.Build(), trail, local, layers);
+                            writer = new ArcPathWriter();
+                            (weight, capsules) = (0, 0);
+                        }
+                    }
+
+                    (ready, x1, y1, r1) = (true, point.X, point.Y, r2);
+                }
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            PaintTrailChunk(writer.Build(), trail, local, layers);
+            layers?.Composite(local.Target, cancellationToken);
+        }
+        finally
+        {
+            layers?.Dispose();
+        }
+    }
+
+    /// <summary>
+    ///     Paints one chunk of the capsules of a trail: straight onto the target, or, for a translucent trail in several chunks, into its layers.
+    /// </summary>
+    /// <param name="path">The path of the chunk in the units of the trail.</param>
+    /// <param name="trail">The trail.</param>
+    /// <param name="local">The context of the enclosing group.</param>
+    /// <param name="layers">The layers of the trail, or null to paint onto the target.</param>
+    private static void PaintTrailChunk(Path path, SceneTrail trail, Context local, TrailLayers? layers)
+    {
+        if (layers is null)
+        {
+            FillAndStroke(path, trail, local, local.Transform);
+        }
+        else
+        {
+            layers.PaintChunk(path, trail, local);
+        }
+    }
+
+    /// <summary>
+    ///     The coverage layers of a translucent trail that is painted in several chunks, so that it is painted as one path as Vega paints it.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         Vega paints a trail as one path (<c>vega-scenegraph/src/path/trail.js</c> builds all capsules into one path, <c>marks/markMultiItemPath.js</c> <c>draw</c> begins one
+    ///         path and fills and strokes it once with the non-zero rule), so the capsules of a translucent trail overlap without compositing twice. Painted chunk by chunk,
+    ///         the first capsule of a chunk repeats the half circle at the joint that the last capsule of the previous chunk already painted, and that circle would be composited
+    ///         twice, a visible dot. The layers repair this: every chunk of the fill is painted with the opaque color into a transparent layer (the union of the coverage inside
+    ///         the layer is the union of the one path), and once the last chunk is in, the layer is composited at the alpha of the paint, then the stroke layer. Compositing the
+    ///         fill and then the stroke is the order of Vega's single path.
+    ///     </para>
+    ///     <para>
+    ///         A layer covers the pixel box of the trail (its points grown by the radius, the stroke width and the antialiasing margin) cut to the target, so it never exceeds the
+    ///         target. A gradient fill is still painted chunk by chunk, with the box of the chunk as its reference (the gradient is not layered).
+    ///     </para>
+    /// </remarks>
+    private sealed class TrailLayers : IDisposable
+    {
+        /// <summary>The antialiasing margin around the points, in surface pixels.</summary>
+        private const float Margin = 2;
+
+        /// <summary>The layer of the fill, or null when the trail has no solid fill.</summary>
+        private readonly Surface? _fill;
+
+        /// <summary>The layer of the stroke, or null when the trail has no stroke.</summary>
+        private readonly Surface? _stroke;
+
+        /// <summary>The first column of the layers on the target.</summary>
+        private readonly int _boxX;
+
+        /// <summary>The first row of the layers on the target.</summary>
+        private readonly int _boxY;
+
+        /// <summary>The fill color with the alpha of the paint.</summary>
+        private readonly Rgba32 _fillColor;
+
+        /// <summary>The stroke color with the alpha of the paint.</summary>
+        private readonly Rgba32 _strokeColor;
+
+        /// <summary>The trail with the opaque color and no opacity, for the stroke into the layer.</summary>
+        private readonly SceneTrail? _strokeItem;
+
+        /// <summary>
+        ///     Initializes the layers.
+        /// </summary>
+        /// <param name="trail">The trail.</param>
+        /// <param name="boxX">The first column of the box.</param>
+        /// <param name="boxY">The first row of the box.</param>
+        /// <param name="width">The width of the box.</param>
+        /// <param name="height">The height of the box.</param>
+        private TrailLayers(SceneTrail trail, int boxX, int boxY, int width, int height)
+        {
+            _boxX = boxX;
+            _boxY = boxY;
+            if (trail.FillGradient is null && CssPaint.TryResolvePaint(trail.Fill, trail.FillOpacity * trail.Opacity, out _fillColor))
+            {
+                _fill = new Surface(width, height);
+            }
+
+            if ((trail.StrokeWidth ?? 1) > 0 && CssPaint.TryResolvePaint(trail.Stroke, trail.StrokeOpacity * trail.Opacity, out _strokeColor))
+            {
+                _stroke = new Surface(width, height);
+                _strokeItem = trail with
+                {
+                    Stroke = $"#{_strokeColor.R:x2}{_strokeColor.G:x2}{_strokeColor.B:x2}",
+                    StrokeOpacity = 1,
+                    Opacity = 1,
+                };
+            }
+        }
+
+        /// <summary>
+        ///     Creates the layers of a trail.
+        /// </summary>
+        /// <param name="trail">The trail.</param>
+        /// <param name="local">The context of the enclosing group.</param>
+        /// <param name="cancellationToken">A token that stops the work.</param>
+        /// <returns>The layers; null when the trail has no translucent solid paint (an opaque trail has no seam), or no part of it is on the target.</returns>
+        public static TrailLayers? TryCreate(SceneTrail trail, Context local, CancellationToken cancellationToken)
+        {
+            var translucentFill = trail.FillGradient is null
+                && CssPaint.TryResolvePaint(trail.Fill, trail.FillOpacity * trail.Opacity, out var fill)
+                && fill.A < 255;
+            var translucentStroke = (trail.StrokeWidth ?? 1) > 0
+                && CssPaint.TryResolvePaint(trail.Stroke, trail.StrokeOpacity * trail.Opacity, out var stroke)
+                && stroke.A < 255;
+            if (!translucentFill && !translucentStroke)
+            {
+                return null;
+            }
+
+            // The pixel box of the points: each point grown by its radius, the stroke width (the stroke is centered on the outline) and the margin
+            var grow = (trail.StrokeWidth ?? 1) * local.Scale;
+            float left = float.MaxValue, top = float.MaxValue, right = float.MinValue, bottom = float.MinValue;
+            var visited = 0;
+            foreach (var run in trail.Runs)
+            {
+                foreach (var point in run)
+                {
+                    if (++visited % TrailPollInterval == 0)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                    }
+
+                    if (!IsDrawable(point, local.Scale))
+                    {
+                        continue;
+                    }
+
+                    var center = Vector2.Transform(new Vector2((float)point.X, (float)point.Y), local.Transform);
+                    var reach = (float)((point.Size / 2 * local.Scale) + grow) + Margin;
+                    left = Math.Min(left, center.X - reach);
+                    top = Math.Min(top, center.Y - reach);
+                    right = Math.Max(right, center.X + reach);
+                    bottom = Math.Max(bottom, center.Y + reach);
+                }
+            }
+
+            left = Math.Max(0, left);
+            top = Math.Max(0, top);
+            right = Math.Min(local.Target.Width, right);
+            bottom = Math.Min(local.Target.Height, bottom);
+            if (!(right > left) || !(bottom > top))
+            {
+                return null;
+            }
+
+            var boxX = (int)Math.Floor(left);
+            var boxY = (int)Math.Floor(top);
+            return new TrailLayers(trail, boxX, boxY, (int)Math.Ceiling(right) - boxX, (int)Math.Ceiling(bottom) - boxY);
+        }
+
+        /// <summary>
+        ///     Paints a chunk of capsules into the layers.
+        /// </summary>
+        /// <param name="path">The path of the chunk in the units of the trail.</param>
+        /// <param name="trail">The trail.</param>
+        /// <param name="local">The context of the enclosing group.</param>
+        public void PaintChunk(Path path, SceneTrail trail, Context local)
+        {
+            if (path.Subpaths.Count == 0)
+            {
+                return;
+            }
+
+            var shifted = local.Transform * Matrix3x2.CreateTranslation(-_boxX, -_boxY);
+            if (_fill is not null)
+            {
+                var opaque = new Rgba32(_fillColor.R, _fillColor.G, _fillColor.B, 255);
+                PathFiller.Fill(_fill, path.Transform(shifted), opaque, FillRule.NonZero, FlattenTolerance);
+            }
+            else if (!TryFillWithGradient(path, trail, local, local.Transform)
+                && CssPaint.TryResolvePaint(trail.Fill, trail.FillOpacity * trail.Opacity, out var color))
+            {
+                // A gradient fill (or a fallback to its solid fill) is not layered: it is painted chunk by chunk
+                PathFiller.Fill(local.Target, path.Transform(local.Transform), color, FillRule.NonZero, FlattenTolerance);
+            }
+
+            if (_stroke is not null)
+            {
+                StrokeOnly(path, _strokeItem!, new Context(_stroke, shifted, local.Scale), shifted);
+            }
+        }
+
+        /// <summary>
+        ///     Composites the layers onto the target: the fill, then the stroke, each at the alpha of its paint.
+        /// </summary>
+        /// <param name="target">The target surface.</param>
+        /// <param name="cancellationToken">A token that stops the work.</param>
+        public void Composite(Surface target, CancellationToken cancellationToken)
+        {
+            CompositeLayer(target, _fill, _fillColor, cancellationToken);
+            CompositeLayer(target, _stroke, _strokeColor, cancellationToken);
+        }
+
+        /// <inheritdoc/>
+        public void Dispose()
+        {
+            _fill?.Dispose();
+            _stroke?.Dispose();
+        }
+
+        /// <summary>
+        ///     Composites one layer: the alpha of each pixel of the layer is the coverage of the paint.
+        /// </summary>
+        /// <param name="target">The target surface.</param>
+        /// <param name="layer">The layer, or null.</param>
+        /// <param name="color">The color of the paint, with its alpha.</param>
+        /// <param name="cancellationToken">A token that stops the work.</param>
+        private void CompositeLayer(Surface target, Surface? layer, Rgba32 color, CancellationToken cancellationToken)
+        {
+            if (layer is null)
+            {
+                return;
+            }
+
+            var coverage = new float[layer.Width];
+            for (var y = 0; y < layer.Height; y++)
+            {
+                if (y % 64 == 0)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                 }
 
-                if (!IsDrawable(point, local.Scale))
+                var row = layer.GetRowSpan(y);
+                var any = false;
+                for (var x = 0; x < coverage.Length; x++)
                 {
-                    ready = false;
-                    continue;
+                    coverage[x] = row[x].A / 255f;
+                    any |= row[x].A != 0;
                 }
 
-                var r2 = point.Size / 2;
-                if (ready)
+                if (any)
                 {
-                    AppendCapsule(writer, x1, y1, r1, point.X, point.Y, r2);
-
-                    // The filler cannot be interrupted, so the capsules are painted in chunks of a bounded cost, with a poll before each
-                    weight += TrailCapsuleWeight(Math.Max(r1, r2), local.Scale);
-                    capsules++;
-                    if (weight >= TrailChunkWeight)
-                    {
-                        TrailChunkFlushed?.Invoke(capsules);
-                        cancellationToken.ThrowIfCancellationRequested();
-                        FillAndStroke(writer.Build(), trail, local, local.Transform);
-                        writer = new ArcPathWriter();
-                        (weight, capsules) = (0, 0);
-                    }
+                    target.CompositeOverSpan(_boxY + y, _boxX, coverage, color);
                 }
-
-                (ready, x1, y1, r1) = (true, point.X, point.Y, r2);
             }
         }
-
-        cancellationToken.ThrowIfCancellationRequested();
-        FillAndStroke(writer.Build(), trail, local, local.Transform);
     }
 
     /// <summary>

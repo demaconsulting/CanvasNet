@@ -141,7 +141,12 @@ internal sealed partial class MarkBuilder
 
             if (channel.IsStacked || channel.HasRange)
             {
-                // A stack runs from its lower to its upper end, a range from theta (or radius) to theta2 (or radius2)
+                // A stack runs from its lower to its upper end, a range from theta (or radius) to theta2 (or radius2); a row whose stacked value is invalid is not drawn
+                if (!channel.HasValidStackValue(_table, row))
+                {
+                    return null;
+                }
+
                 return model.MapCenter(channel.Read(_table, row)) is { } high && SecondEnd(channel, model, maximum, row) is { } low ? Ordered(high, low) : null;
             }
 
@@ -188,10 +193,12 @@ internal sealed partial class MarkBuilder
         /// <param name="channel">The stacked channel.</param>
         /// <param name="model">The scale of the channel.</param>
         /// <param name="row">The row.</param>
-        /// <returns>The value; null when the row has no valid stack ends.</returns>
+        /// <returns>The value; null when the row has no valid stack ends or its stacked value is invalid.</returns>
         private double? StackedPolarValue(Channel channel, ScaleModel model, int row)
         {
-            if (!channel.Read(_table, row).TryGetQuantitative(out var end) || !_table.GetValue(row, channel.Field2Index).TryGetQuantitative(out var start))
+            if (!channel.HasValidStackValue(_table, row)
+                || !channel.Read(_table, row).TryGetQuantitative(out var end)
+                || !_table.GetValue(row, channel.Field2Index).TryGetQuantitative(out var start))
             {
                 return null;
             }

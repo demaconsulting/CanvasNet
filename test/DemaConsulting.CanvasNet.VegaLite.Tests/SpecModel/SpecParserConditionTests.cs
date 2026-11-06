@@ -18,6 +18,59 @@ public class SpecParserConditionTests
         + color + " } }";
 
     /// <summary>
+    ///     Validates that a membership list and a composition of predicates are not bound by the expression length limit of user-written expressions, because the expression that
+    ///     the renderer writes for them is not user-written: a <c>oneOf</c> of 1,000 numbers (21,891 characters as an expression) and of 1,000 strings, and an <c>or</c> of 1,000
+    ///     comparisons compile with the default limits; the list is bound by <c>MaxScaleDomainSize</c> (the same entries limit as a time-aware list), and the written text by eight
+    ///     times <c>MaxSourceLength</c>, so a hostile document cannot make the renderer parse text that is out of proportion to it.
+    /// </summary>
+    [Fact]
+    public void SpecParser_Conditions_LargeOneOfAndOrPredicatesAreNotBoundByTheUserExpressionLength()
+    {
+        // Arrange: 1,000 numbers, 1,000 strings, and an or of 1,000 equal comparisons, each as the test of a condition
+        var numbers = string.Join(", ", Enumerable.Range(1, 1000));
+        var strings = string.Join(", ", Enumerable.Range(1, 1000).Select(i => "\"value" + i + "\""));
+        var comparisons = string.Join(", ", Enumerable.Range(1, 1000).Select(i => "{ \"field\": \"q\", \"equal\": " + i + " }"));
+        string Color(string test) => "{ \"condition\": { \"test\": " + test + ", \"value\": \"red\" }, \"value\": \"gray\" }";
+
+        foreach (var test in new[]
+        {
+            "{ \"field\": \"q\", \"oneOf\": [ " + numbers + " ] }",
+            "{ \"field\": \"c\", \"oneOf\": [ " + strings + " ] }",
+            "{ \"or\": [ " + comparisons + " ] }",
+        })
+        {
+            // Act
+            var tree = SpecParser.Parse(Spec(Color(test)));
+            var compiled = tree.Expressions.Get(tree.Root["encoding"]!["color"]!["condition"]!["test"]!);
+
+            // Assert: the expression is compiled and longer than the limit of a user-written expression (4,096)
+            Assert.NotNull(compiled);
+            Assert.True(compiled.Source.Length > 4_096, $"{compiled.Source.Length} characters");
+        }
+
+        // Act / Assert: a list longer than MaxScaleDomainSize is refused at the list, one that is exactly as long as the limit is accepted
+        var list = Color("{ \"field\": \"q\", \"oneOf\": [ " + numbers + " ] }");
+        var tooMany = Assert.Throws<VegaLiteSpecException>(() => SpecParser.Parse(Spec(list), "c.json", new VegaLiteLimits { MaxScaleDomainSize = 999 }));
+        Assert.Equal("/encoding/color/condition/test/oneOf", tooMany.Location.Pointer);
+        Assert.Contains("MaxScaleDomainSize", tooMany.Message, StringComparison.Ordinal);
+        Assert.NotNull(SpecParser.Parse(Spec(list), "c.json", new VegaLiteLimits { MaxScaleDomainSize = 1000 }).Root);
+
+        // Act / Assert: the written text is bound by eight times MaxSourceLength: 1,000 members of a 30 character field name are about 50,000 characters, and a document of about
+        // 3,500 characters (the limit that is set) allows about 28,000
+        var longField = new string('f', 30);
+        var small = Spec(Color("{ \"field\": \"" + longField + "\", \"oneOf\": [ " + string.Join(", ", Enumerable.Repeat("1", 1000)) + " ] }"));
+        var overBudget = Assert.Throws<VegaLiteSpecException>(() => SpecParser.Parse(small, "c.json", new VegaLiteLimits { MaxSourceLength = small.Length }));
+        Assert.Equal("/encoding/color/condition/test", overBudget.Location.Pointer);
+        Assert.Contains("MaxSourceLength", overBudget.Message, StringComparison.Ordinal);
+
+        // Act / Assert: an expression that the user writes keeps the limit of 4,096 characters
+        var written = Color("\"" + string.Join(" || ", Enumerable.Repeat("datum.q === 1", 400)) + "\"");
+        var userLimit = Assert.Throws<VegaLiteSpecException>(() => SpecParser.Parse(Spec(written), "c.json"));
+        Assert.Equal("/encoding/color/condition/test", userLimit.Location.Pointer);
+        Assert.Contains("MaxExpressionLength", userLimit.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Validates that a malformed condition is a specification error at the offending value.
     /// </summary>
     [Theory]

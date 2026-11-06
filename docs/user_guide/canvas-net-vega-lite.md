@@ -132,7 +132,8 @@ and exposed read-only, so one instance can be shared between threads and calls.
 limits have an upper ceiling too), and the defaults are `MaxSourceLength` 4,194,304 characters, `MaxJsonDepth` 64,
 `MaxDataFiles` 64, `MaxDataBytes` 64 MiB, `MaxDataRows` 1,000,000, `MaxFieldCount` 1,024, `MaxViews` 1,000,
 `MaxCompositionDepth` 16, `MaxSceneItems` 2,000,000, `MaxScaleDomainSize` 100,000, `MaxTicks` 1,000,
-`MaxExpressionLength` 4,096, `MaxExpressionDepth` 64, `MaxEvaluationSteps` 50,000,000, `MaxStringLength` 1,048,576, and
+`MaxExpressionLength` 4,096 (the expressions that you write), `MaxExpressionDepth` 64, `MaxEvaluationSteps` 50,000,000,
+`MaxStringLength` 1,048,576, and
 `MaxDiagnostics` 1,000 (the first report beyond it becomes a single `vl-diagnostics-suppressed` warning). `MaxViews`
 and `MaxCompositionDepth` are checked when the views of a specification are normalized, before any data is read:
 `MaxViews` counts the top-level view, every layer (nested ones too), every child of a concatenation, every copy of a
@@ -152,7 +153,8 @@ N items and fails on the next one; tick labels that are dropped because they ove
 data limits apply to each `Measure` or `Render` call: `MaxDataRows` is a **total** across every table that the call
 creates (inline rows, files, datasets, and sequences), `MaxDataFiles` counts the distinct files read, `MaxDataBytes` is
 the size of each file, and `MaxFieldCount` is the number of fields of a row (the columns of a file). The data is read
-and checked before any scene item is counted. `MaxExpressionLength` and `MaxExpressionDepth` are checked when the
+and checked before any scene item is counted. `MaxExpressionLength` (for the expressions that you write: `calculate`, a
+`filter` text, a `labelExpr`, an `{"expr": ...}`) and `MaxExpressionDepth` are checked when the
 document is opened (with `VegaLiteOpenOptions.Limits`); `MaxEvaluationSteps` is **one budget per measure or render
 call** that the parameters, the transforms, and the row-bound mark values share, and `MaxStringLength` also bounds every
 text that an expression builds. The fields and rows that the row transforms derive count against `MaxFieldCount` and
@@ -529,7 +531,7 @@ runs, instead of being accepted and ignored.
 <!-- markdownlint-disable MD013 -->
 | Limit | Default | Checked | Failure |
 | ----- | ------- | ------- | ------- |
-| `MaxExpressionLength` | 4,096 characters | When the document is opened (`VegaLiteOpenOptions.Limits`) | `VegaLiteSpecException` (the offset is the limit) |
+| `MaxExpressionLength` | 4,096 characters | When the document is opened (`VegaLiteOpenOptions.Limits`); applies to the expressions that you write, not to the text that the renderer writes from a predicate (see the `oneOf` rule under the time predicates), which is bound by eight times `MaxSourceLength` | `VegaLiteSpecException` (the offset is the limit) |
 | `MaxExpressionDepth` | 64 (at most 256) | When the document is opened | `VegaLiteSpecException`; the nesting of parentheses, brackets, call arguments, array and object literals, conditional branches, and unary operators counts, a long chain such as `a + b + c + ...` does not |
 | `MaxEvaluationSteps` | 50,000,000 | At every instruction; **one budget per call** shared by the parameters, the transforms, and the row-bound mark values | `VegaLiteRenderException` located at the expression, with the offset of the instruction that ran out. A step is one executed instruction, plus one per 64 characters or elements of the work of a function such as `split` or `replace`, or of an operator that reads a long string or array as a number or text |
 | `MaxStringLength` | 1,048,576 | For every text an expression builds (`+`, `join`, `pad`, `replace`, ...) | `VegaLiteRenderException` |
@@ -1399,8 +1401,12 @@ is March, `5` against `hours` is 05:00), any other number is milliseconds, and a
 single unit, as a month or weekday name (`"Mar"`). A `utc` unit compares in UTC (Vega-Lite ignores its `utc` flag in a
 predicate). The `week` and `dayofyear` parts are **not applied** by a predicate, as in Vega-Lite, and the warning
 `vl-predicate-timeunit-part` says so; the `timeUnit` transform and the encoding do apply them. A `binned` unit (or the
-`maxbins` form without a unit) in a predicate is reported and ignored. A time-aware `oneOf` list is compiled into an
-expression and so is bounded by `MaxExpressionLength` (4,096 characters) and `MaxScaleDomainSize` entries.
+`maxbins` form without a unit) in a predicate is reported and ignored. A time-aware `oneOf` list, and a predicate that
+is the `test` of a condition, is compiled into an
+expression that the renderer writes (not one that you write), so it is not bound by `MaxExpressionLength`: a list may
+have `MaxScaleDomainSize` entries (100,000), a `oneOf` of a thousand values or an
+`or` of a thousand comparisons is accepted, and the text that is written is bound by eight times `MaxSourceLength` (a
+longer one is a located `VegaLiteSpecException` that names `MaxSourceLength`).
 
 **Time and UTC scales.** A temporal field on `x`, `y`, `size`, `opacity`, `strokeWidth`, or `angle` gets a `time` scale
 (a `utc` scale when its time unit is a `utc` unit): a linear scale over milliseconds whose ticks are calendar
@@ -1631,7 +1637,15 @@ two valid points (a trail: no run of two points) draws nothing.
   measure channel draws nothing** (Vega-Lite draws a flat area at zero).
 - **`trail`** is a line whose width follows the `size` channel at every point: the shape is the hull of the circles
   of the points (Vega's trail), and the size without a channel is 2. A row without a valid size ends the trail's run.
-  The `size` of a trail does not group.
+  The `size` of a trail does not group. A trail is one shape painted once: a translucent trail (`opacity`,
+  `fillOpacity`) shows no
+  dots where its capsules overlap, however many points it has, as in Vega (a very large trail is painted in several
+  steps internally
+  and composited once, so the steps leave no seams). A trail is not clipped at the edge of the data rectangle (Vega-Lite
+  clips only for
+  `"clip": true`); what the image cuts is the part that lies beyond the chart padding, because the image does not grow
+  with the overflow of a mark (see the first deviation under
+  *Deviations from Vega-Lite* in *Vega-Lite Composition*).
 
 **Interpolation.** The `interpolate` property of a line or area (in the mark definition or in `config`) takes the 15
 names of Vega-Lite, and the `tension` property sets the shape parameter of three of them:
@@ -1670,7 +1684,12 @@ value at a fallback position) are reported (`vl-mark-invalid-show`, also when th
 and the default applies. The scale domains of
 this renderer **always include the rows of invalid values**, so `filter` and `break-paths-filter-domains` are reported
 with the warning `vl-mark-invalid-domains`. A mark that is not a path drops the rows that have an invalid value, as
-before.
+before. **A stacked channel** (the default for a `bar`, an `area`, and an `arc`) works as in Vega-Lite: the stack counts
+a null value as 0, so the other
+slices keep their places, and the row is then dropped from the marks. A bar, an arc, a point, or a label of a null slice
+is **not drawn** (it is not
+a zero-width slice), and a stacked `area` breaks its path at the null (a layer that has no value there draws no area at
+it).
 
 **Overlays.** A `line`, `area`, `trail`, or `rule` can draw **points** over its marks with `"point": true`, an object of
 point mark properties (`{"size": 100, "fill": "white"}`), or `"transparent"` (points with the opacity 0), and an `area`
@@ -1744,7 +1763,11 @@ layers, see *Vega-Lite Layers and Composite Marks* and Example 43).
 
 **Legends.** The symbols follow the mark: a `line`, `rule`, or `trail` shows a short stroked line in the color of the
 group (a trail's symbol is stroked and not filled, although the trail is drawn filled; its stroke width is the legend
-default), and an `area`, `arc`, or `text` shows a filled circle.
+default), and an `area`, `arc`, or `text` shows a filled circle. The `size` legend of a **trail** shows its **width**:
+as in Vega-Lite, the
+symbols keep the symbol size (100, or the `symbolSize` of the legend) and take the stroke width of the size scale (1 to
+4 by default), so a
+thick part of the trail has a thick symbol; the `size` legend of a `line` or a `text` still scales the size of the symbol.
 
 **Limits and determinism.** The limits of the call bound the new marks too, and a limit that is exceeded is a located
 `VegaLiteRenderException` that names it, raised **before** the memory is used:
@@ -1775,7 +1798,7 @@ and the tests compare with a tolerance.
 | --------- | ------------------------------------- |
 | `line`, `area`, `trail`, `text`, and `arc` marks, grouped by the grouping channels, with the `order` channel | `image` and `geoshape` (`vl-mark-<type>`) |
 | The 15 `interpolate` names and `tension`; `point` and `line` overlays | `bundle` for an area (`vl-mark-interpolate-bundle-area`); `catmull-rom-open` and `-closed` (an error) |
-| The invalid modes `break-paths-*` and `filter` | The modes `show` and `null` (`vl-mark-invalid-show`); domains that leave the invalid rows out (`vl-mark-invalid-domains`) |
+| The invalid modes `break-paths-*` and `filter`; the null slice of a stack is not drawn (a bar, an arc, a point, a label) and breaks a stacked area | The modes `show` and `null` (`vl-mark-invalid-show`); domains that leave the invalid rows out (`vl-mark-invalid-domains`), so a category that occurs only in null rows of a stacked chart stays on the axis and in the legend (Vega-Lite drops it) |
 | Stack, impute, and `impute` on `x` and `y` | A binned dimension of a stacked path (`vl-encoding-stack-impute-bin`); `impute` on another channel (`vl-encoding-impute`) |
 | Polar `theta`, `radius`, `theta2`, and `radius2` of an arc, and `theta` and `radius` of a text | A `bin` of `theta` or `radius` (`vl-encoding-bin`); a custom `formatType` of a text (`vl-format-type-custom`) |
 | `padAngle`, `cornerRadius`, `innerRadius`, and `outerRadius` of an arc | `startAngle`, `endAngle`, and `padRadius` (`vl-unknown-property`, a warning) |

@@ -267,7 +267,21 @@ known mode (from the configuration) give the default; the feature catalog report
 (`vl-mark-invalid-show`), also when the mode comes from the configuration (located at the configuration). The scale
 domains are not filtered by the mode, so the invalid rows stay in the domains in
 every mode; `filter` and `break-paths-filter-domains` are reported with a warning (`vl-mark-invalid-domains`). A mark
-other than a path keeps its behavior: a row with an invalid continuous channel is not drawn.
+other than a path keeps its behavior: a row with an invalid continuous channel is not drawn. **A stacked channel** (`x`,
+`y`, `theta`, or `radius`) is invalid
+when the value that was stacked (the `StackPlan.Field`, read through `Channel.StackValueIndex`) is not a finite number:
+the stack
+counts such a value as 0 (Vega's `+value`, `vega-encode/src/Stack.js`), so the stack ends of the row are numbers and the
+other
+slices keep their places, and Vega-Lite's invalid filter, which runs after the stack on the field of the value (`compile/data/parse.ts`
+order Aggregate, Stack, invalid filter; the `FilterInvalidNode` of `compile/data`), is what removes the row from the
+marks. `Channel.HasValidStackValue`
+makes `RangePair` (bars, rects, areas), the polar span of an arc, `StackedPolarValue` (the label of a slice), and
+`Center` (a symbol or a line on a stack)
+treat the row as invalid: a bar, rect, symbol, arc, or label of a null slice is not drawn (it was a zero-size item
+before), and a stacked
+area breaks its path at the row (`RowState.Undefined`, or dropped in the `filter` mode; each side that is a single point
+has no area, as in Vega).
 
 **Overlays** (`MarkBuilder.Overlays.cs`; Vega-Lite's path overlay normalizer, built here and not by a layer expansion).
 After the items of the mark, the builder draws a **line overlay** (an area whose `line` property is true or an object,
@@ -397,19 +411,28 @@ reports the exhausted evaluation steps, and the text limits name `VegaLiteLimits
 
 1. **Overlay differences** (the point overlay otherwise follows Vega-Lite's `getPointOverlay`, including the **`shape`
    trigger**: an `encoding.shape` enables the overlay when `point` is missing and the configuration does not decide, see
-   `SpecNormalizer.HasPointOverlay`): the overlay is a second run of this builder and not a layer, so the `size` channel
-   of a line is applied through the scale of the line (its range of stroke widths read as the area of a symbol) to the
-   overlay points as well, and an `{"expr": ...}` inside an overlay object is not evaluated.
+   `SpecNormalizer.HasPointOverlay`): the overlay is a second run of this builder and not a layer, so an `{"expr": ...}`
+   inside an
+   overlay object is not evaluated, and the legend of a line with points shows filled symbols (Vega-Lite merges the
+   legends of its layers). The `size` of a
+   line applied to the overlay points through the scale of the line (its range of stroke widths read as the area of a
+   symbol) is **not a
+   difference**: it is Vega-Lite's own behavior (the path overlay normalizer of Vega-Lite gives the point layer the
+   whole encoding, so its `size` is the scale of the line); a line with `point: true`
+   and the sizes 1, 3, 6, and 9 has the overlay symbols 1.333, 2, 3, and 4 in both, pinned by `MarkBuilder_Build_PointOverlayOfALineTakesTheSizeFromTheStrokeWidthRange`.
 2. **Invalid-mode domains**: the scale domains are never filtered by the `invalid` mode (reported by the warning
    `vl-mark-invalid-domains`); `show` is not supported (`vl-mark-invalid-show`).
 3. **An area without a measure channel** draws nothing.
 4. **A bar or area without stack-by fields is still stacked** (as Vega-Lite's `stack` is only null for an aggregate
    without stack-by): the `order` channel of such a bar is a stack order and does not sort the drawing, and the null `y`
-   of an area is a vertex with the value 0. `"stack": null` turns the stack off.
+   of an area is a vertex with the value 0 in the stack, but the row is invalid: the area breaks its path there and a
+   bar, arc, or label
+   of a null slice is not drawn (see Invalid data modes). `"stack": null` turns the stack off.
 5. **Stack impute of a binned dimension** is not done (the warning `vl-encoding-stack-impute-bin`); see _EncodingPlan_.
 6. **Polar bins** on `theta` or `radius` are not drawn (reported as `vl-encoding-bin`), and a time unit on `theta` is read
-   at the start of the unit. A stacked arc row whose value is null is a zero-width slice (the stack takes null as 0); an
-   unstacked null is not drawn.
+   at the start of the unit. A stacked arc row whose value is null is not drawn (the stack takes null as 0, so the other
+   slices keep their angles; Vega-Lite's invalid filter removes the row after the stack); an unstacked null is not drawn
+   either.
 7. **`startAngle`, `endAngle`, and `padRadius`** are not Vega-Lite mark properties here (`theta` and `theta2` are) and are
    reported as unknown properties.
 8. **The text mark's rules**: a null number is formatted as `0`; `lineBreak` is a literal text, not a pattern; `dx` and

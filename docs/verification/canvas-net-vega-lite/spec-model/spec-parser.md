@@ -382,6 +382,7 @@ object.
 
 **Tests**: `SpecParserConditionTests.SpecParser_Parse_MalformedConditionReportsThePointer`,
 `SpecParserConditionTests.SpecParser_Parse_ConditionTestsAreCompiled`,
+`SpecParserConditionTests.SpecParser_Conditions_LargeOneOfAndOrPredicatesAreNotBoundByTheUserExpressionLength`,
 `SpecParserConditionTests.SpecParser_Parse_ConditionsThatAreNotEvaluatedAreNotCompiled`,
 `SpecParserConditionTests.SpecParser_Parse_FieldConditionScaleIsValidated`,
 `PredicateSourceTests.PredicateSource_TryBuild_WritesTheExpressionThatMeansTheSame`,
@@ -393,6 +394,15 @@ object.
 `ChannelDefinitionsTests.ChannelDefinitions_Conditions_ListsConditionsInOrder`,
 `ChannelDefinitionsTests.ChannelDefinitions_Values_ListsTheConstantsOfAChannelThatNoFieldDrives`,
 `MarkChannelGatingTests.SpecParser_Parse_EvaluatesSizeConditionsOfMarksThatUseASize`
+
+Assert, for the large-list test, that a condition `test` of a `oneOf` of 1,000 numbers, of 1,000 strings, and an `or` of
+1,000 equal comparisons compile with the default limits to an expression of more
+than 4,096 characters; that a list of 1,000 with a `MaxScaleDomainSize` of 999 fails at
+`/encoding/color/condition/test/oneOf` naming `MaxScaleDomainSize` and with 1,000 is accepted; that
+1,000 members of a 30-character field with a `MaxSourceLength` equal to the document (eight times that is about 28,000
+characters, and the expression is about 50,000) fail at
+`/encoding/color/condition/test` naming `MaxSourceLength`; and that a user-written expression of 400 comparisons still
+fails naming `MaxExpressionLength`.
 
 Assert, as a theory of ten specifications, that a condition that is not an object, has neither a `test` nor a `param`,
 has a test that does not parse, refers to an undeclared parameter, or is not an expression or a predicate, a predicate
@@ -548,7 +558,7 @@ is null, a number, or unknown is an error at `/transform/0/timeUnit`.
 ##### Time Predicates Are Compiled
 
 **Tests**: `SpecParserTimeTests.SpecParser_TimePredicates_AreCompiledOnceUnderThePredicate`,
-`SpecParserTimeTests.SpecParser_TimePredicates_OneOfIsBoundedByTheDomainSizeAndTheExpressionLength`
+`SpecParserTimeTests.SpecParser_TimePredicates_OneOfIsBoundedByTheDomainSizeAndTheGeneratedBudget`
 
 Asserts that the predicates that are written with the time functions are compiled when the specification is parsed,
 once, under the key of the predicate object, also inside a composition: of four filters, the month predicate
@@ -557,9 +567,12 @@ reference (`{"expr": "1 + 1"}`) have a compiled expression, while the plain comp
 the date-time leaf in the `and`, has none (it is evaluated natively); and that an expression value that reads an
 undeclared name (`nope + 1`) fails at the specification. It also asserts the bounds: with a `MaxScaleDomainSize` of 2, a
 `oneOf` of three dates is a located error at the list (`/transform/0/filter/oneOf`, naming `MaxScaleDomainSize`) while
-two are accepted without a warning, and with a `MaxExpressionLength` of 40 the expression of the two-date list is too
-long and fails at the predicate (`/transform/0/filter`), so that a long list of dates cannot build an unbounded
-expression.
+two are accepted without a warning, and with a `MaxExpressionLength` of 40 the two-date list is accepted too (the
+expression is written by the renderer, so the
+limit of the expressions that a user writes does not apply to it, which this test asserted the other way before), as is
+a list of 300 dates whose
+written expression is longer than 4,096 characters; the bound of the written text, eight times `MaxSourceLength`, is
+asserted by the conditions test below and by the expression parser tests.
 
 ##### Time Predicates As Expressions
 

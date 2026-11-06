@@ -264,10 +264,18 @@ catalog (for example a binned unit).
 - **Predicate time values** (`ValidatePredicateTime`, called from `ValidatePredicate` for a field predicate): the
   `timeUnit` of the predicate and its date-time values are validated, and a time-aware `oneOf` list (one that
   `PredicateSource.IsTimeAware` says is written as an expression) that holds more than `MaxScaleDomainSize` values is an
-  error at the array. `CompileTimePredicate` then writes every time-aware field predicate **leaf** (also inside `and`,
+  error at the array (`CheckOneOfSize`; the conditions check every `oneOf` of their predicate the same way,
+  `CheckOneOfSizes`, before the expression is written). `CompileTimePredicate` then writes every time-aware field
+  predicate **leaf** (also inside `and`,
   `or`, and `not`) as expression source with `PredicateSource.TryBuild` and compiles it once under the key of the
-  predicate object, so the 4,096-character `MaxExpressionLength` bounds a long list of date-time values and an over-long
-  one fails at the predicate when the document is opened.
+  predicate object. The text is **written by the renderer, not by the user**, so it is compiled with
+  `ExpressionParser.ParseGenerated` (`CompileSource(..., generated: true)`): the 4,096-character `MaxExpressionLength`
+  of the expressions that the user writes does not
+  apply to it, a long list (a `oneOf` of 1,000 values is about 22,000 characters) compiles, and the text is bound by
+  eight times `MaxSourceLength` (a longer one
+  fails at the predicate when the document is opened, naming `MaxSourceLength`) and the list by `MaxScaleDomainSize`.
+  The same holds for the test of a **condition** that is a predicate object
+  (`ValidateConditions`).
 - **Parse directives** (`ValidateFormat`): a `date:` or `utc:` entry of `format.parse` without a format in matching
   quotes is an error at the entry (see the data format rules above).
 
@@ -433,7 +441,8 @@ first problem), invalid UTF-8, nesting deeper than `MaxJsonDepth` (at the crossi
 than whitespace (a second value is rejected at its own position), a `$schema` naming plain Vega, and a
 known property of the wrong type or value (the first in document order). An expression that cannot be compiled is a
 `VegaLiteSpecException` located at the string value of the expression (its pointer, line, and column) whose message ends
-with the zero-based offset inside the expression text (a syntax error, a text longer than `MaxExpressionLength`, nesting
+with the zero-based offset inside the expression text (a syntax error, a user-written text longer than
+`MaxExpressionLength` or a written one longer than eight times `MaxSourceLength`, nesting
 beyond `MaxExpressionDepth`, an invalid regular expression literal, or a reference to an undeclared parameter); a parameter
 cycle, a repeated or reserved parameter name, a `param` of a predicate that names no parameter, and a transform or predicate
 of the wrong shape are located at the offending value. A time unit that does not exist, a date-time object with an

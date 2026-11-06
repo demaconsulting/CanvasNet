@@ -297,6 +297,44 @@ public class VegaLiteCompositionSystemTests
     }
 
     /// <summary>
+    ///     Pins that the top-level transforms of a layer, a concatenation, a facet and a repeat are applied to every view (item 8 of the polish backlog: the diagnostic that the
+    ///     <c>calculate</c> transform is not supported yet no longer exists, every view is drawn): a <c>filter</c> of <c>datum.x &gt; 1</c> and a <c>calculate</c> of <c>z</c> leave three
+    ///     of the four rows in every view (a facet by <c>g</c>: one row of a and two of b), as Vega-Lite's children inherit the data and the transforms of their parent, and nothing is
+    ///     reported as unsupported or as a warning.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Composition_TopLevelTransformsApplyToEveryViewWithoutDiagnostics()
+    {
+        // Arrange: four rows in two groups; the filter keeps x = 2, 3, 4 and the calculate doubles x
+        const string head = """{ "data": { "values": [ { "x": 1, "g": "a" }, { "x": 2, "g": "a" }, { "x": 3, "g": "b" }, { "x": 4, "g": "b" } ] }, "transform": [ { "filter": "datum.x > 1" }, { "calculate": "datum.x * 2", "as": "z" } ], """;
+        const string point = """{ "width": 60, "height": 60, "mark": "point", "encoding": { "x": { "field": "x", "type": "quantitative" }, "y": { "field": "z", "type": "quantitative" } } }""";
+        var specs = new Dictionary<string, (string Json, int[] Counts)>
+        {
+            ["layer"] = (head + "\"layer\": [ " + point + ", " + point + " ] }", [3, 3]),
+            ["hconcat"] = (head + "\"hconcat\": [ " + point + ", " + point + " ] }", [3, 3]),
+            ["vconcat"] = (head + "\"vconcat\": [ " + point + ", " + point + " ] }", [3, 3]),
+            ["facet"] = (head + "\"facet\": { \"column\": { \"field\": \"g\", \"type\": \"nominal\" } }, \"spec\": " + point + " }", [1, 2]),
+            ["repeat"] = (
+                head + "\"repeat\": { \"column\": [\"x\", \"z\"] }, \"spec\": { \"width\": 60, \"height\": 60, \"mark\": \"point\", \"encoding\": { \"x\": { \"field\": { \"repeat\": \"column\" }, \"type\": \"quantitative\" }, \"y\": { \"field\": \"z\", \"type\": \"quantitative\" } } } }",
+                [3, 3]),
+        };
+
+        foreach (var (name, (json, counts)) in specs)
+        {
+            // Act
+            var warnings = new List<VegaLiteDiagnostic>();
+            var unsupported = new List<VegaLiteUnsupportedFeature>();
+            var scene = VegaLiteDocument.Parse(json).BuildScene(new VegaLiteRenderOptions { WarningHandler = warnings.Add, UnsupportedFeatureHandler = unsupported.Add }, Ct);
+            var perView = scene.FindAll("marks").Select(e => ((SceneGroup)e.Item).Children.Count(c => c.Role == "mark-point")).Where(n => n > 0).OrderBy(n => n).ToArray();
+
+            // Assert: the points of every view and no diagnostic
+            Assert.True(counts.SequenceEqual(perView), $"{name}: expected {string.Join(",", counts)} points per view, got {string.Join(",", perView)}.");
+            Assert.Empty(warnings);
+            Assert.Empty(unsupported);
+        }
+    }
+
+    /// <summary>
     ///     Renders a specification and writes its scene (the type, the offset, and the text of every item in drawing order) and its pixels.
     /// </summary>
     /// <param name="json">The specification text.</param>

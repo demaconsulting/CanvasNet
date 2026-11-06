@@ -317,7 +317,11 @@ and not at a scale of 2 (40,000 pixels), a stroke width of 40,000 or 1e300 is no
 
 ##### Trails Are Painted In Chunks With A Poll Between Them
 
-**Tests**: `ScenePainterPathTests.ScenePainter_Paint_TrailIsPaintedInChunksWithACancellationPollBetweenThem`
+**Tests**: `ScenePainterPathTests.ScenePainter_Paint_TrailIsPaintedInChunksWithACancellationPollBetweenThem`,
+`ScenePainterPathTests.ScenePainter_Paint_TranslucentTrailInSeveralChunksHasNoSeam`,
+`ScenePainterPathTests.ScenePainter_Paint_TranslucentTrailOutlineInSeveralChunksHasNoSeam`,
+`ScenePainterPathTests.ScenePainter_Paint_TranslucentTrailBeyondTheSurfaceEdgeHasNoSeam`,
+`ScenePainterPathTests.ScenePainter_Paint_OpaqueTrailInSeveralChunksIsBlackAlongTheWholeRow`
 
 The estimated cost of a capsule is `1 + sqrt(radius x scale / 0.02)`: 1 for no radius, 11 for a radius of 2
 (`sqrt(100)`), 21 for a radius of 2 at a scale of 4 (`sqrt(400)`), and about 906.1 for the largest radius that the
@@ -329,6 +333,18 @@ painting with an `OperationCanceledException` before the first chunk is filled (
 no capsule of that size is ever filled: the test also runs in milliseconds), and that an ordinary trail (100 points
 of size 4, 99 capsules of weight 11, a total of 1,089) is one chunk that the observer never sees and is drawn whole
 (black at its middle). The test counts capsules and does not measure time.
+
+The seam tests use 9,400 points 0.8 apart with the size 4 (a weight of 11 for each of the 9,399 capsules, so the
+observer is told `[9091]`: the first chunk is
+complete after 9,091 capsules and the trail is two chunks) on a 7,600 by 20 white surface, and assert on the row 10 (the
+center of the trail) from x = 20 to
+x = 7,500: with a black fill of the opacity 0.5 every pixel equals the pixel at x = 100 (127 or 128, a single composite
+of half black over white, where the
+chunk-by-chunk painting gave 120 at x = 7,280, the joint); with a black stroke of the width 2 and the opacity 0.5 and no
+fill, every pixel of the row 8 (the top edges of the capsules) is the
+same one composite (it was 74 at the joint); with an opaque black fill every pixel is black and the chunks are the same;
+and for a trail placed at the offset -7,000 on a 600 by 20 surface (the layers are cut to
+the target, the joint is at x of about 282) the row is one composite from x = 20 to x = 500.
 
 ##### Arcs Fill Their Wedge, Stroke, And Scale
 

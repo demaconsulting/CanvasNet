@@ -409,7 +409,7 @@ input:
   | `MaxTicks` | 1,000 per axis | `Ticks`, `AxisBuilder`, `LegendBuilder` | `VegaLiteRenderException` (also for categories, and for the ticks of a time axis or legend: the interval range stops at the first tick beyond the limit, before any label is made) |
   | `MaxSceneItems` | 2,000,000 | `MarkBuilder`, `SceneBudget`, `VegaLiteDocument` | `VegaLiteRenderException`, counted as each item is created, before it is kept; a line or area is charged one item plus an upper bound of its path segments, and a trail one item plus its points, **before** the segment list or the item exists; every overlay point, every arc, and every line of a text label is one item, charged before it is created |
   | `MaxDiagnostics` | 1,000 | `VegaLiteReportSink` | Further reports collapse into one `vl-diagnostics-suppressed` notice; strict mode is unaffected |
-  | `MaxExpressionLength` | 4,096 characters | `ExpressionParser` (when the document is opened) | `VegaLiteSpecException` located at the expression, offset in the message; checked before tokenizing |
+  | `MaxExpressionLength` | 4,096 characters | `ExpressionParser` (when the document is opened) | `VegaLiteSpecException` located at the expression, offset in the message; checked before tokenizing; applies to the expressions that a user writes, not to the text that the renderer writes from a predicate or a composite mark, which is bound by eight times `MaxSourceLength` (`ParseGenerated`) |
   | `MaxExpressionDepth` | 64 (1 to 256) | `ExpressionParser` (when the document is opened) | `VegaLiteSpecException`; counts nesting (groups, brackets, arguments, literals, branches, unary operands), not length |
   | `MaxEvaluationSteps` | 50,000,000 (total per call) | `ExpressionEvaluator`, `ExpressionFunctionContext`, `WorkMeter` | `VegaLiteRenderException` located at the expression or the transform; one step per executed instruction plus one per 64 characters or elements of function work, shared by the parameters, the transforms (also the comparisons of a filter predicate and the rows, sorts, window frames, and bootstrap resamples of the aggregating transforms, and the rows of a `timeUnit` transform), the implicit pipeline, the sort of a scale, the label text of the legends, the date functions (one step per element of a sequence, and the lengths of a format specifier, its output, and a parsed text), and the mark values of the call (also the grouping, the sorts, the points, and the segment bounds of the path marks, the characters and lines of the labels of a text mark, and the slices of an arc mark, and the rows of an encoding or stack impute) |
   | `MaxViews`, `MaxCompositionDepth` | 1,000, 16 (1 to 64) | `SpecNormalizer` (when the document renders, before any data is read), `EncodingTransforms.Facet` (the cells of a facet, before the partition is allocated) | `VegaLiteRenderException` located at the offending view (`MaxViews`: every view counts, the layers, the children of a concatenation, the copies of a repeat (computed before they are made), the cells of a facet (cells times the views of one cell), and the views that a composite mark expands to) or container (`MaxCompositionDepth`: the nesting of `layer`, `concat`, `hconcat`, `vconcat`, `facet`, and `repeat`, the outermost one being level one; a chart and the views of an expansion are not levels) |
@@ -1094,7 +1094,9 @@ The following decisions differ from, or are stricter than, the Vega-Lite referen
     null
     and are reported. The value model has one null for `null` and `undefined`, so null converts to 0 in arithmetic.
     The math functions use the host math library, so a transcendental result can differ from a browser in the last bit.
-18. **Compiled when the document is opened**: an expression with a syntax error, a length over `MaxExpressionLength`,
+18. **Compiled when the document is opened**: an expression with a syntax error, a length over `MaxExpressionLength`
+    (for a text that the user wrote; the expression that the renderer writes from a predicate is bound by eight times
+    `MaxSourceLength`, item 41),
     nesting over `MaxExpressionDepth`, or a reference to an undeclared parameter is a `VegaLiteSpecException` at open
     time;
     Vega-Lite itself would fail when it builds the dataflow. `MaxExpressionDepth` counts nesting, not length.
@@ -1227,7 +1229,11 @@ The following decisions differ from, or are stricter than, the Vega-Lite referen
     uses `indexof` over the list, **`utc` units use the `utc*` functions** (Vega-Lite marks this "TODO" and ignores the
     flag), and a text that is neither a date nor a unit part never matches. The `week` and `dayofyear` parts are **not
     applied** in a predicate, exactly like Vega-Lite, and are reported by the warning `vl-predicate-timeunit-part` (the
-    transform and the encoding apply them). A date list longer than `MaxExpressionLength` fails at the predicate.
+    transform and the encoding apply them). The expression is written by the renderer, so the `MaxExpressionLength` of
+    the expressions that a user writes does not apply to it: a date list is
+    bound by `MaxScaleDomainSize` values and the written text by eight times `MaxSourceLength`, and either failure is at
+    the predicate (the same holds for a `oneOf` or an `or` of a condition,
+    so a list of a thousand values is accepted).
 42. **Time units**: all 40 local unit names of Vega-Lite (and their `utc` forms) and the object form, including the
     `maxbins` form with Vega's `timeBin`; the `binned*` units are not applied (`vl-timeunit-binned`, the unit is ignored
     and the field is used as it is; in the `timeUnit` transform the end is one step after the value, as in Vega-Lite); a
@@ -1298,7 +1304,14 @@ The following decisions differ from, or are stricter than, the Vega-Lite referen
     default applies. **The scale domains of every mode include the rows that the mode leaves out of the marks** (the
     scale resolver does not filter a domain by the validity of another channel), so the explicit `filter` and
     `break-paths-filter-domains` modes give the warning `vl-mark-invalid-domains`. The other marks keep dropping the
-    invalid rows (item 4).
+    invalid rows (item 4). **A stacked channel is invalid when the value that was stacked is not a number**: the stack
+    counts a null as 0
+    (so the other slices keep their positions), and the row is then removed from the marks as Vega-Lite's filter, which
+    runs after the stack
+    (`compile/data/parse.ts` and its `FilterInvalidNode`), does: a bar, an arc, a symbol, or a label of that row is not
+    drawn and a stacked area breaks
+    its path there. The domains still hold the row (a category that occurs only in null rows stays on the axis and in
+    the legend, which Vega-Lite drops: the deviation above).
 51. **Overlays (P9-D6)**: the `point` overlay of a line, area, trail, or rule and the `line` overlay of an area follow
     the
     overlay mark definitions of Vega-Lite (`true`, an object, `"transparent"` for invisible points, and the
@@ -1309,10 +1322,12 @@ The following decisions differ from, or are stricter than, the Vega-Lite referen
     the overlay marks draw the channels of their mark that the path does not (the points a `shape`, `angle`,
     `strokeDash`,
     and `size`, the line overlay of an area its `strokeDash` and its `size` as the width; the legend of a line with
-    points shows filled symbols), a `size` channel is applied to the overlay points through the scale of the base mark
-    (for a line that
-    is its range of stroke widths read as the area of a symbol), the overlay line of an area groups as a line, and an
-    `{"expr": ...}` inside an overlay object is not evaluated (`vl-expr-ref`).
+    points shows filled symbols), the overlay line of an area groups as a line, and an
+    `{"expr": ...}` inside an overlay object is not evaluated (`vl-expr-ref`). The `size` channel of a line is applied
+    to the overlay points through the
+    scale of the line, its range of stroke widths read as the area of a symbol: that is **Vega-Lite's own behavior**
+    (the point layer of
+    the path overlay normalizer of Vega-Lite gets the whole encoding and shares the scale), not a difference.
 52. **Impute (P9-D7, P9-D8)**: the `impute` of `x` or `y` runs the impute engine after the aggregate and before the
     stack, with the key taken from the other position channel (it needs both channels), the grouping fields of the path,
     and the `value`, `method`, `frame`, and `keyvals` of the definition (the `keyvals` array is bounded by
@@ -1331,7 +1346,8 @@ The following decisions differ from, or are stricter than, the Vega-Lite referen
     position in the sort and cuts the path there. A group field that holds an array or an object compares by
     identity. An `area` without a measure channel draws nothing (Vega-Lite draws a zero-height area at zero). A bar,
     an area, and an arc stack by default, and **one without stack-by fields is still stacked** (as in Vega-Lite),
-    so an `order` on it orders the stack and a null `y` of an area is a vertex at zero; `stack: null` gives the
+    so an `order` on it orders the stack and a null `y` of an area counts 0 in the stack but breaks the path of the
+    area; `stack: null` gives the
     unstacked chart. A stack is not grouped by the stacked field itself (a radial chart reads `theta` and `radius`
     from one field). The orientation of a mark with no `orient` follows Vega-Lite's rules (an area with `y2` is
     vertical, or horizontal when `y` is `"binned"`, and an area with `x2` is horizontal, or vertical when `x` is
@@ -1359,8 +1375,9 @@ The following decisions differ from, or are stricter than, the Vega-Lite referen
     the aliases of `radius2` and `radius` and the explicit properties win; `padAngle` and `cornerRadius` are constants
     of the mark definition or the configuration. `startAngle`, `endAngle`, and `padRadius` are not Vega-Lite properties
     and are reported as unknown properties. The two ends of a slice or ring are ordered, so a reversed scale still
-    makes a sector. A stacked arc row whose value is null is a zero-width slice (Vega-Lite leaves it out), and an
-    unstacked null is not drawn.
+    makes a sector. A stacked arc row whose value is null is not drawn (the stack counts it as 0, so the other
+    slices keep their angles, and Vega-Lite's filter removes the row after the stack), and an unstacked null is not
+    drawn either.
 56. **The text mark (P9-D9)**: the text of a row is the `text` channel, else the `text` property. A field is formatted
     by
     its `format` and `formatType` (a custom format type is reported as `vl-format-type-custom` and the default format is

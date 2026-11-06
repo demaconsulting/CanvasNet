@@ -493,6 +493,44 @@ public class ExpressionParserTests
     }
 
     /// <summary>
+    ///     Validates that the expression that the renderer writes (from a predicate or a composite mark) is bound by eight times <c>MaxSourceLength</c> and not by the length limit of
+    ///     user-written expressions: with <c>MaxSourceLength</c> 10 the budget is 80 characters, 80 are accepted and 81 are refused with a message that names <c>MaxSourceLength</c>;
+    ///     the same 81 characters written by the user are accepted by default and refused by a <c>MaxExpressionLength</c> of 80; a text far longer than the user limit is accepted with
+    ///     the default limits, and a chain of 20,000 terms parses (the parser loops over a chain).
+    /// </summary>
+    [Fact]
+    public void ExpressionParser_ParseGenerated_IsBoundedByTheGeneratedBudgetNotTheUserLimit()
+    {
+        // Arrange
+        var limits = new VegaLiteLimits { MaxSourceLength = 10 };
+
+        // Act
+        var accepted = ExpressionParser.ParseGenerated("1".PadRight(80), Location, limits);
+        var refused = Assert.Throws<VegaLiteSpecException>(() => ExpressionParser.ParseGenerated("1".PadRight(81), Location, limits));
+        var userWritten = Compile("1".PadRight(81));
+        var userRefused = Assert.Throws<VegaLiteSpecException>(() => Compile("1".PadRight(81), new VegaLiteLimits { MaxExpressionLength = 80 }));
+        var longer = ExpressionParser.ParseGenerated("1".PadRight(5_000), Location);
+        var chain = ExpressionParser.ParseGenerated(string.Join(" + ", Enumerable.Repeat("1", 20_000)), Location);
+
+        // Assert: the budget is 8 x MaxSourceLength; the error names the limit, the text length and the location
+        Assert.Equal(1, accepted.InstructionCount);
+        Assert.Equal(Location, refused.Location);
+        Assert.Contains("MaxSourceLength", refused.Message, StringComparison.Ordinal);
+        Assert.Contains("81 characters", refused.Message, StringComparison.Ordinal);
+        Assert.EndsWith("at expression offset 80.", refused.Message, StringComparison.Ordinal);
+
+        // Assert: the user limit applies to Parse only
+        Assert.Equal(1, userWritten.InstructionCount);
+        Assert.Contains("MaxExpressionLength", userRefused.Message, StringComparison.Ordinal);
+        Assert.Equal(1, longer.InstructionCount);
+        Assert.Equal(39_999, chain.InstructionCount);
+
+        // Assert: the nesting depth is still bound for a generated text
+        var deep = Assert.Throws<VegaLiteSpecException>(() => ExpressionParser.ParseGenerated(Repeat("(", 65) + "1" + Repeat(")", 65), Location));
+        Assert.Contains("MaxExpressionDepth", deep.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Validates that the length is checked before the text is tokenized: an over-long text with an invalid character
     ///     is still reported as too long.
     /// </summary>

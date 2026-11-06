@@ -128,11 +128,14 @@ internal sealed partial class SpecParser
     /// <param name="key">The node the compiled expression is kept under (the string node, or the predicate object that the source was written from).</param>
     /// <param name="source">The expression source.</param>
     /// <param name="location">The node that locates a failure, and whose scope decides which parameters are visible.</param>
+    /// <param name="generated">Whether the renderer wrote the source from a predicate (its length is bound by <c>ExpressionParser.ParseGenerated</c>), not the user (bound by <see cref="VegaLiteLimits.MaxExpressionLength"/>).</param>
     /// <returns>The compiled expression (also kept in the tree).</returns>
     /// <exception cref="VegaLiteSpecException">Thrown for a syntax error, a limit overflow or a reference to an unknown parameter.</exception>
-    private CompiledExpression CompileSource(SpecNode key, string source, SpecNode location)
+    private CompiledExpression CompileSource(SpecNode key, string source, SpecNode location, bool generated = false)
     {
-        var compiled = ExpressionParser.Parse(source, location.GetLocation(_file), _limits);
+        var compiled = generated
+            ? ExpressionParser.ParseGenerated(source, location.GetLocation(_file), _limits)
+            : ExpressionParser.Parse(source, location.GetLocation(_file), _limits);
         var unknown = compiled.ParameterReferences.FirstOrDefault(r => !IsViewSignal(r.Name) && !IsParameterDeclared(location, r.Name));
         if (unknown.Name is not null)
         {
@@ -194,9 +197,14 @@ internal sealed partial class SpecParser
             if (item["test"] is { } test)
             {
                 ValidatePredicate(test);
-                if (evaluated && test.IsObject && PredicateSource.TryBuild(test, out var source))
+                if (evaluated && test.IsObject)
                 {
-                    CompileSource(test, source, test);
+                    // The lists are checked before the expression is written, so that a list that is too long costs no text
+                    CheckOneOfSizes(test);
+                    if (PredicateSource.TryBuild(test, out var source))
+                    {
+                        CompileSource(test, source, test, generated: true);
+                    }
                 }
             }
 

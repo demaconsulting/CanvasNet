@@ -494,6 +494,7 @@ budget of four fails naming `MaxSceneItems` and a canceled token stops the build
 ##### Conditional Encodings
 
 **Tests**: `MarkBuilderConditionTests.MarkBuilder_Build_ValueConditionOverridesTheBaseValueWhereTheTestHolds`,
+`MarkBuilderConditionTests.MarkBuilder_Build_LargeOneOfConditionIsEvaluatedAndChargedToTheStepBudget`,
 `MarkBuilderConditionTests.MarkBuilder_Build_ConditionWithoutBaseValueLeavesTheMarkDefault`,
 `MarkBuilderConditionTests.MarkBuilder_Build_FirstConditionThatHoldsWins`,
 `MarkBuilderConditionTests.MarkBuilder_Build_FieldConditionUsesTheScaleOfItsFieldWhereTheTestHolds`,
@@ -522,8 +523,11 @@ given in either order, a set, validity of a field that exists and one that does 
 holds for the rows that a hand evaluation says; that a test reads a variable parameter and a missing field does not hold;
 that a condition on a parameter changes nothing; that the color and opacity conditions apply to bars, ticks, and rules and
 the size condition gives the thickness of a bar (4 or 9 pixels); that a limit of 4 steps fails naming
-`MaxEvaluationSteps` while a limit of 10,000 draws the three circles; that a canceled token stops the build; and that
-two builds give equal items.
+`MaxEvaluationSteps` while a limit of 10,000 draws the three circles; that a canceled token stops the build; that
+two builds give equal items; and that a `oneOf` condition over a list of 999 numbers (the numbers 1 to 1000 without 3, a
+written expression
+far longer than 4,096 characters) gives `red`, `gray`, and `red` to the rows 1, 3, and 5, and fails with a limit of 100
+steps naming `MaxEvaluationSteps`, not a length.
 
 ##### Bars And Rects Span Their Time Units
 
@@ -623,7 +627,24 @@ polygon of the line chart (the bundle line having a cubic segment).
 
 **Tests**: `MarkBuilderPathTests.MarkBuilder_Build_DefaultInvalidModeBreaksThePath`,
 `MarkBuilderPathTests.MarkBuilder_Build_InvalidFilterConnectsTheNeighbors`,
-`MarkBuilderPathTests.MarkBuilder_Build_InvalidShowIsTheDefaultModeAndReported`
+`MarkBuilderPathTests.MarkBuilder_Build_InvalidShowIsTheDefaultModeAndReported`,
+`MarkBuilderTests.MarkBuilder_Build_StackedNullSliceOfABarIsNotDrawn`,
+`MarkBuilderArcTests.MarkBuilder_Build_StackedNullSliceOfAnArcIsNotDrawn`,
+`MarkBuilderPolarTextTests.MarkBuilder_Build_StackedNullSliceOfAPolarTextIsNotDrawn`,
+`MarkBuilderPathTests.MarkBuilder_Build_StackedNullInAStackedAreaBreaksThePath`
+
+Assert, for the stacked null tests, that a null value on a stacked channel counts 0 in the stack and the row is then
+invalid: on a 200 by 150 chart of the
+stacks A (a 3, b null, c 2) and B (a 4, b 1) over the domain 0 to 5 (y(v) = 150 - 30 v) the bars are the four rectangles
+(5, 0, 90, 90), (5, 90, 90, 60),
+(105, 0, 90, 120), and (105, 120, 90, 30), not five (the null slice has no zero-height rectangle) with the fills blue,
+red, blue, and orange, the same four with
+`normalize` (and four with `center` and with a horizontal chart, four circles with an explicit `stack`); for the pie of
+3, null, and 2 over the domain 0 to 5
+the two arcs (0, 2 PI 3 / 5) and (2 PI 3 / 5, 2 PI); for the labels of the same slices at the radius 60 the two labels a
+and c at the angles 2 PI 1.5 / 5 and 2 PI 4 / 5;
+and for the stacked areas a (3, null, 2) and b (1, 2, 2) over the keys 0, 1, and 2 that b is one area of seven segments
+and a has no vertex at the null key (x = 100).
 
 Assert the broken line and the two polygons of the unstacked area in the default mode, the three other `break-paths`
 modes, and a text value; the connected line and polygon of the `filter` mode (from the mark, from `config.line`, and the
@@ -649,6 +670,7 @@ that a line without the properties has the offset 0 and no cap, join, or miter l
 `MarkBuilderOverlayTests.MarkBuilder_Build_ShapeChannelOfAnAreaShapesTheOverlayPoints`,
 `MarkBuilderOverlayTests.MarkBuilder_Build_PointChannelsOfThePathMarkReachTheOverlayPoints`,
 `MarkBuilderOverlayTests.MarkBuilder_Build_LineOverlayOfAnAreaDrawsTheSizeAndTheDashOfTheEncoding`,
+`MarkBuilderOverlayTests.MarkBuilder_Build_PointOverlayOfALineTakesTheSizeFromTheStrokeWidthRange`,
 `MarkBuilderOverlayTests.MarkBuilder_Build_TransparentPointOfTheConfigurationEnablesTheDefaultOverlay`
 
 Assert the overlays derived above: the roles `mark-line`, `mark-point` x 3 with the budget 14, the filled blue circles of
@@ -669,6 +691,11 @@ angle of a line reach the overlay points; and that the line overlay of an area d
 with the size), and that without the line overlay only the areas are drawn. Last, it asserts that a `"transparent"` in `config.line.point`
 or `config.area.point` enables the default overlay with opaque points (as Vega-Lite's `getPointOverlay` reads a truthy
 configuration value that is not an object), while the `"transparent"` of the mark definition makes the points opacity 0.
+The
+pin test asserts that a line with `"point": true` over the sizes 1, 3, 6, and 9 has the overlay symbols 1.333, 2, 3, and
+4 (the
+range of the stroke widths over the domain 0 to 9 read as the area, as in Vega 6.4), with the stroke width 2 and the
+opacity 1.
 
 ##### The Order Channel Sorts The Drawing
 

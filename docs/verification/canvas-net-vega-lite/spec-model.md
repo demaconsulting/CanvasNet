@@ -145,6 +145,8 @@ scenario in the four unit verification documents passes without error or unexpec
   `SpecParserTimeTests.SpecParser_TickCountInterval_Validated`,
   `SpecParserTimeTests.SpecParser_TimeFormat_SpecifierLimitsAreSpecificationErrors`,
   `SpecParserTimeTests.SpecParser_TimePredicates_AreCompiledOnceUnderThePredicate`,
+  `SpecParserTimeTests.SpecParser_TimePredicates_OneOfIsBoundedByTheDomainSizeAndTheGeneratedBudget`,
+  `SpecParserConditionTests.SpecParser_Conditions_LargeOneOfAndOrPredicatesAreNotBoundByTheUserExpressionLength`,
   `PredicateSourceTimeTests.PredicateSource_TimeUnit_Equal_Month`,
   `PredicateSourceTimeTests.PredicateSource_WeekPart_IsOmittedAndWarned`,
   `FeatureCatalogTimeTests.FeatureCatalog_Visit_TemporalFieldsAndTimeUnitsAreSupported`,
@@ -158,7 +160,9 @@ scenario in the four unit verification documents passes without error or unexpec
   characters or 4,096 pieces, and a `date:` or `utc:` parse
   entry without a quoted format are `VegaLiteSpecException` errors at the offending member), compiles each time
   predicate once into an expression written with the date and time functions (so it is evaluated in the calendar of the
-  chart), and the catalog, which reads the same units with `TimeUnitSpec`, reports nothing for a supported
+  chart; the text that is written for a predicate or a condition is bound by `MaxScaleDomainSize` values and eight times
+  `MaxSourceLength`, not by the 4,096 characters of a user-written expression, so a membership list of a thousand values
+  compiles), and the catalog, which reads the same units with `TimeUnitSpec`, reports nothing for a supported
   specification that uses temporal fields, time units, time and UTC scales, date-time objects, a custom date format, and
   the `timeUnit` transform, while the parts that are not applied are reported at the exact value: a binned unit
   (`vl-timeunit-binned`, an unsupported feature, so strict mode throws at the first), a `maxbins` unit in a predicate,

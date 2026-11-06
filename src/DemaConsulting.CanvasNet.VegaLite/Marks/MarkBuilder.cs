@@ -55,7 +55,8 @@ namespace DemaConsulting.CanvasNet.VegaLite.Marks;
 ///         whose value for a channel with a continuous domain (<c>x</c>, <c>y</c>, <c>size</c>, <c>opacity</c>, <c>strokeWidth</c>, <c>fillOpacity</c>,
 ///         <c>strokeOpacity</c>, <c>angle</c> on a linear scale; <c>color</c>, <c>fill</c>, <c>stroke</c> on a sequential, diverging, quantize, quantile or
 ///         threshold scale) is null, missing, NaN or not a
-///         number is not drawn. A null in a discrete field is the category <c>null</c> and is drawn; a value outside an explicit
+///         number is not drawn. A stacked channel (<c>x</c>, <c>y</c>, <c>theta</c> or <c>radius</c>) is valid when the value that was stacked is: the stack counts a null as 0, so the other slices keep their
+///         positions, and a bar, an arc, a symbol or a label of a null slice is not drawn (Vega-Lite's filter runs after the stack) and a stacked area breaks its path there. A null in a discrete field is the category <c>null</c> and is drawn; a value outside an explicit
 ///         discrete domain is not.
 ///     </para>
 ///     <para>
@@ -226,12 +227,14 @@ internal sealed partial class MarkBuilder
         /// <param name="valueExpression">The compiled <c>{"expr": ...}</c> of the constant <c>value</c> of the channel, or null.</param>
         /// <param name="secondary">The definition of the secondary channel (<c>x2</c> or <c>y2</c>) of a position channel, or null.</param>
         /// <param name="conditions">The conditions of the channel whose test the call can evaluate, in order.</param>
-        public Channel(SpecNode node, ResolvedScale? scale, ScaleModel? model, DataTable table, CompiledExpression? valueExpression = null, SpecNode? secondary = null, IReadOnlyList<ChannelCondition>? conditions = null)
+        /// <param name="stackField">The field path of the measure that the stack of this channel stacks (the field before the stack's start and end), or null when the channel is not the stacked one.</param>
+        public Channel(SpecNode node, ResolvedScale? scale, ScaleModel? model, DataTable table, CompiledExpression? valueExpression = null, SpecNode? secondary = null, IReadOnlyList<ChannelCondition>? conditions = null, string? stackField = null)
         {
             Scale = scale;
             Model = model;
             ValueExpression = valueExpression;
             Conditions = conditions ?? [];
+            StackValueIndex = stackField is null ? -1 : table.FindField(stackField);
             var fieldNode = ChannelDefinitions.FieldDefinitionOf(node);
             IsFieldConditional = !ReferenceEquals(fieldNode, node);
             FieldIndex = scale?.FieldPath is { } path ? table.FindField(path) : -1;
@@ -295,6 +298,19 @@ internal sealed partial class MarkBuilder
 
         /// <summary>Gets a value indicating whether the channel is the stacked channel: its field is the upper end of the stack and its second field the lower end.</summary>
         public bool IsStacked => Model is { Kind: ScaleKind.Linear } && Scale is { Stack: not null } && Field2Index >= 0;
+
+        /// <summary>Gets the index in the table of the measure that the stack of this channel stacks (the value before the stack), or -1 when the channel does not stack one.</summary>
+        public int StackValueIndex { get; }
+
+        /// <summary>
+        ///     Determines whether the value that a stacked channel stacks is valid for a row: a number that is not NaN or infinite. A stack counts an invalid value as 0 (Vega's <c>+value</c>), so the
+        ///     stack ends of the row are numbers, and Vega-Lite's invalid filter, which runs after the stack on the field of the value (the <c>FilterInvalidNode</c> of <c>compile/data</c>), is what removes the row.
+        /// </summary>
+        /// <param name="table">The data.</param>
+        /// <param name="row">The row.</param>
+        /// <returns><see langword="true"/> when the channel is not stacked or the row has a valid value; <see langword="false"/> for a row that a non-path mark does not draw and a path mark breaks at.</returns>
+        public bool HasValidStackValue(DataTable table, int row) =>
+            !IsStacked || StackValueIndex < 0 || table.GetValue(row, StackValueIndex).TryGetQuantitative(out _);
 
         /// <summary>Gets a value indicating whether the channel is binned on a continuous scale and the end of each bin is known, or spans its time unit on a time scale: the geometry of a bin (Vega-Lite's <c>rectBinPosition</c>) applies.</summary>
         public bool HasBandEnds => (Model is { Kind: ScaleKind.Linear } && Scale is { Bin: not BinKind.None } && (Field2Index >= 0 || BinStep is not null)) || IsTimeBand;
@@ -542,7 +558,8 @@ internal sealed partial class MarkBuilder
                         table,
                         owner._expressions?.Compiled.GetReference(node["value"]),
                         name is "x" or "y" or "theta" or "radius" && overlay is null && encoding[name + "2"] is { IsObject: true } secondary ? secondary : null,
-                        ConditionsOf(name, node));
+                        ConditionsOf(name, node),
+                        _plan?.Stack is { } stack && stack.Channel == name ? stack.Field : null);
                 }
             }
 
@@ -1131,6 +1148,12 @@ internal sealed partial class MarkBuilder
         /// <returns>The position, or null when the row is invalid.</returns>
         private double? Center(Channel channel, ScaleModel model, int row)
         {
+            // A symbol, a tick, a text or a line on a stack does not have a position at a row whose stacked value is invalid (Vega-Lite's invalid filter or the undefined point of a path)
+            if (!channel.HasValidStackValue(_table, row))
+            {
+                return null;
+            }
+
             if (channel.Offset is { } offset)
             {
                 return OffsetCenter(channel, model, offset, row);
@@ -1296,7 +1319,13 @@ internal sealed partial class MarkBuilder
             {
                 if (channel.IsStacked || channel.HasRange)
                 {
-                    // A stack runs from its lower to its upper end, a range from x (or y) to x2 (or y2); a row with an invalid end is not drawn
+                    // A stack runs from its lower to its upper end, a range from x (or y) to x2 (or y2); a row with an invalid end is not drawn, and neither is a row whose stacked value is
+                    // invalid (the stack counts it as 0, and Vega-Lite's invalid filter, which runs after the stack, removes the row from the marks)
+                    if (!channel.HasValidStackValue(_table, row))
+                    {
+                        return null;
+                    }
+
                     return model.MapCenter(channel.Read(_table, row)) is { } high && SecondEnd(channel, model, extent, row) is { } low ? (high, low) : null;
                 }
 

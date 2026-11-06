@@ -242,6 +242,31 @@ public class MarkBuilderPathTests
     }
 
     /// <summary>
+    ///     Validates that a stacked area breaks its path at a layer whose value is null (vega-lite@6.5.0 <c>compile/mark/encode/defined.ts</c>: the <c>defined</c> test of a path mark is the
+    ///     validity of the value field, and the stack counts the null as 0, so the area of the layer is undefined there instead of running down to the baseline): the layer with the null has no
+    ///     vertex at the null, while the other layer is one continuous area.
+    /// </summary>
+    [Fact]
+    public void MarkBuilder_Build_StackedNullInAStackedAreaBreaksThePath()
+    {
+        // Arrange: a is 3, null, 2 and b is 1, 2, 2 at the keys 0, 1, 2 (x(k) = 100 k, y(v) = 150 - 30 v over the domain [0, 5]; b is on the bottom)
+        const string rows = """
+            [ { "x": 0, "y": 3, "g": "a" }, { "x": 1, "y": null, "g": "a" }, { "x": 2, "y": 2, "g": "a" }, { "x": 0, "y": 1, "g": "b" }, { "x": 1, "y": 2, "g": "b" }, { "x": 2, "y": 2, "g": "b" } ]
+            """;
+        const string encoding = """{ "x": { "field": "x", "type": "quantitative" }, "y": { "field": "y", "type": "quantitative" }, "color": { "field": "g", "type": "nominal" } }""";
+
+        // Act
+        var layers = ChartTestHelpers.Of<ScenePath>(ChartTestHelpers.Marks("{ \"width\": 200, \"height\": 150, \"data\": { \"values\": " + rows + " }, \"mark\": \"area\", \"encoding\": " + encoding + " }", 200, 150), "mark-area");
+
+        // Assert: b is one continuous area over the three keys (three vertices on top, three on the baseline, closed)
+        var b = Assert.Single(layers, l => l.Fill == Orange);
+        Assert.Equal(7, b.Segments.Count);
+
+        // Assert: a has no vertex at the null (x = 100): its path breaks there and each of the two single-point runs has no area
+        Assert.DoesNotContain(layers.Where(l => l.Fill == Blue).SelectMany(l => l.Segments), s => Math.Abs(s.X - 100) < 1e-9);
+    }
+
+    /// <summary>
     ///     Validates a horizontal area (the value runs along x, the dimension along y) and a range area (<c>y2</c> is the baseline).
     /// </summary>
     [Fact]

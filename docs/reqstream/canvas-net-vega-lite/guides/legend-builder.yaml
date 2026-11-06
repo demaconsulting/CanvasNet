@@ -67,13 +67,20 @@ sections:
                   the stroke shape (a short line) painted with the stroke color of the entry (a trail being filled
                   by default but drawn with a stroke in its legend, as Vega-Lite does), with the stroke width of
                   the mark or the legend default, and the symbols of the legend of an area, arc, or text mark as
-                  filled circles in the color of the entry.
+                  filled circles in the color of the entry; the size legend of a trail shall scale the stroke
+                  width of its symbols and keep the symbol size (100 or the symbolSize of the legend), as
+                  Vega-Lite binds a trail's size to strokeWidth, while the size legend of a line or a text still
+                  scales the symbol size.
                 justification: |
                   The symbol of a legend must look like the mark that it explains; Vega-Lite draws the legend of a
-                  line with a stroke and that of an area, arc, or text with a filled circle.
+                  line with a stroke and that of an area, arc, or text with a filled circle, and a trail's width is
+                  what its size legend must show.
                 tests:
                   - LegendBuilder_Build_LineMarkUsesAStrokeSymbolInTheMarkColor
                   - LegendBuilder_Build_AreaArcAndTextMarksUseFilledCircles
+                  - LegendBuilder_Build_TrailSizeLegendScalesTheStrokeWidthNotTheSymbolSize
+                  - LegendBuilder_Build_TrailSizeLegendOfACategoryAndOfAMergedColorUseStrokeWidths
+                  - LegendBuilder_Build_LineSizeLegendScalesTheSymbolSize
 
               - id: CanvasNetVegaLite-Guides-LegendBuilder-Entries
                 title: >-
@@ -119,6 +126,7 @@ sections:
                   - LegendBuilder_Gradient_FewerThanThreeTicksUseTheEndsOfTheDomain
                   - LegendBuilder_Gradient_ExplicitLengthThicknessTicksAndLabelProperties
                   - LegendBuilder_Gradient_DomainWithoutSpanUsesTheUnitRamp
+                  - LegendBuilder_Gradient_LabelsMatchVegaForALengthOf160And200
 
               - id: CanvasNetVegaLite-Guides-LegendBuilder-DiscreteGradient
                 title: >-

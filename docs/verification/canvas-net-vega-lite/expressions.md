@@ -88,6 +88,7 @@ runs constitutes a failure.
   their insertion order.
 - **Hostile Expressions Fail Closed**:
   `ExpressionParserTests.ExpressionParser_Parse_LengthLimit_AcceptsUpToLimit`,
+  `ExpressionParserTests.ExpressionParser_ParseGenerated_IsBoundedByTheGeneratedBudgetNotTheUserLimit`,
   `ExpressionParserTests.ExpressionParser_Parse_DepthLimit_AcceptsUpToLimit`,
   `ExpressionParserTests.ExpressionParser_Parse_MaximumConfiguredDepth_DoesNotOverflowTheStack`,
   `ExpressionEvaluatorTests.ExpressionEvaluator_Evaluate_StepBudget_IsExact`,
@@ -97,7 +98,8 @@ runs constitutes a failure.
   `ExpressionFunctionsTests.ExpressionFunctions_StringResults_AreBoundedByMaxStringLength`,
   `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Expressions_ErrorsAndLimitsFailWhenTheDocumentIsOpened`,
   `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Expressions_HostileEvaluationFailsClosed` — a text
-  over 4,096 characters or 64 levels of nesting is refused when it is compiled (4,096 and 64 are accepted), the
+  over 4,096 characters or 64 levels of nesting is refused when it is compiled (4,096 and 64 are accepted; the text that
+  the renderer writes from a predicate is bound by eight times `MaxSourceLength` instead), the
   nesting limit cannot overflow the stack even at its ceiling of 256, a program passes with exactly its number of
   instructions as the budget and fails with one fewer, a string over the limit is refused at the operation that makes
   it, a catastrophic regular expression finishes through the linear-time engine, one that needs backtracking fails with

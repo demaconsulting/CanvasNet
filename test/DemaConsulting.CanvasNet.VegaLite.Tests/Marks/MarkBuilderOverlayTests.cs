@@ -309,6 +309,27 @@ public class MarkBuilderOverlayTests
     }
 
     /// <summary>
+    ///     Pins that the point overlay of a line shares the size scale of the line, so its symbols get the sizes of the stroke-width range as their area (item 5 of the polish backlog): this is
+    ///     Vega-Lite's own behavior, not a difference (in vega-lite@6.5.0 the path overlay normalizer, <c>normalize</c>, gives the point layer the whole encoding and the shared <c>size</c> scale has the range
+    ///     of the line, [1, 4] here over the domain [0, 9]): the values 1, 3, 6 and 9 give the sizes 1 + 3 s / 9 = 1.333, 2, 3 and 4, the numbers of Vega 6.4 for the same chart.
+    /// </summary>
+    [Fact]
+    public void MarkBuilder_Build_PointOverlayOfALineTakesTheSizeFromTheStrokeWidthRange()
+    {
+        // Arrange
+        const string rows = """[ { "x": 1, "y": 2, "s": 1 }, { "x": 2, "y": 3, "s": 3 }, { "x": 3, "y": 4, "s": 6 }, { "x": 4, "y": 5, "s": 9 } ]""";
+        const string encoding = """{ "x": { "field": "x", "type": "quantitative" }, "y": { "field": "y", "type": "quantitative" }, "size": { "field": "s", "type": "quantitative" } }""";
+
+        // Act
+        var points = ChartTestHelpers.Of<SceneSymbol>(ChartTestHelpers.Marks(Chart("""{ "type": "line", "point": true }""", encoding, rows), 240, 160), "mark-point");
+
+        // Assert: the sizes of the stroke-width range, an overlay stroke width of 2 and the full opacity of an overlay point
+        Assert.Equal(4, points.Count);
+        Assert.Equal([Math.Round(1 + (3 * 1 / 9.0), 9), 2.0, 3.0, 4.0], points.Select(p => Math.Round(p.Size, 9)).ToArray());
+        Assert.All(points, p => Assert.Equal((2.0, 1.0), (p.StrokeWidth ?? 0, p.Opacity)));
+    }
+
+    /// <summary>
     ///     Validates that the line overlay of an area draws the channels of a line (Vega-Lite gives the line layer the whole encoding): the <c>strokeDash</c> of the groups dashes the line
     ///     of each group (the area has none), and a <c>size</c> that is constant in a group is the width of its line, with the range of the stroke widths and not that of a symbol.
     /// </summary>

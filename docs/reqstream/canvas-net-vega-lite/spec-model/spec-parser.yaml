@@ -319,7 +319,9 @@ sections:
                   parts week and dayofyear omitted with a warning, a range as a pair of comparisons, and
                   oneOf as an index test), in every culture identically, compile it once under the
                   predicate so that the row transforms and the conditions evaluate it, and bound a oneOf
-                  list of times by the scale domain limit and the expression length limit.
+                  list of times by the scale domain limit and the text that is written for it by eight times
+                  the source length limit (the expression length limit applies to the expressions that the user
+                  writes, not to the text that is written from a predicate).
                 justification: |
                   A time predicate is an expression like any other; compiling it once keeps its cost bounded
                   and its meaning that of Vega-Lite.
@@ -339,7 +341,7 @@ sections:
                   - PredicateSource_TimePredicates_AreCultureIndependent
                   - PredicateSource_TimeMembers_RejectNull
                   - SpecParser_TimePredicates_AreCompiledOnceUnderThePredicate
-                  - SpecParser_TimePredicates_OneOfIsBoundedByTheDomainSizeAndTheExpressionLength
+                  - SpecParser_TimePredicates_OneOfIsBoundedByTheDomainSizeAndTheGeneratedBudget
 
               - id: CanvasNetVegaLite-SpecModel-SpecParser-LegendOptions
                 title: >-
@@ -395,7 +397,10 @@ sections:
                   condition once, an expression text as written and a predicate object
                   (equal, lt, lte, gt, gte, range, oneOf, valid, and, or, not, a variable parameter) as the
                   expression that means the same, shall compile the value expression of a condition, and shall
-                  leave out what no expression can say (a selection, a time unit, a date object).
+                  leave out what no expression can say (a selection, a time unit, a date object); the text that
+                  is written for a predicate is not bound by the expression length limit of user-written
+                  expressions but by eight times the source length limit, and a oneOf list by the scale domain
+                  limit, so that a membership list of a thousand values is accepted.
                 justification: |
                   Evaluating the tests of the conditions with the expression engine gives them the same
                   limits, step budget, and cancellation as every other expression, and compiling them once
@@ -403,6 +408,7 @@ sections:
                 tests:
                   - SpecParser_Parse_MalformedConditionReportsThePointer
                   - SpecParser_Parse_ConditionTestsAreCompiled
+                  - SpecParser_Conditions_LargeOneOfAndOrPredicatesAreNotBoundByTheUserExpressionLength
                   - SpecParser_Parse_ConditionsThatAreNotEvaluatedAreNotCompiled
                   - SpecParser_Parse_FieldConditionScaleIsValidated
                   - PredicateSource_TryBuild_WritesTheExpressionThatMeansTheSame

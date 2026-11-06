@@ -103,11 +103,19 @@ documented above as machine-dependent is not a failure.
   rules and the measured text widths, through the whole chain of parser, scales, ticks, number format, and measurer.
 - **Legends Of Path, Text, And Arc Marks Look Like Their Marks**:
   `LegendBuilderPathMarkTests.LegendBuilder_Build_LineMarkUsesAStrokeSymbolInTheMarkColor`,
-  `LegendBuilderPathMarkTests.LegendBuilder_Build_AreaArcAndTextMarksUseFilledCircles` — a parsed specification of a
+  `LegendBuilderPathMarkTests.LegendBuilder_Build_AreaArcAndTextMarksUseFilledCircles`,
+  `LegendBuilderPathMarkTests.LegendBuilder_Build_TrailSizeLegendScalesTheStrokeWidthNotTheSymbolSize`,
+  `LegendBuilderPathMarkTests.LegendBuilder_Build_TrailSizeLegendOfACategoryAndOfAMergedColorUseStrokeWidths`,
+  `LegendBuilderPathMarkTests.LegendBuilder_Build_LineSizeLegendScalesTheSymbolSize` — the size legend of a trail scales
+  the stroke width of its symbols (1 to 3.667 over the entries 0 to 8) and keeps the symbol size 100, while that of a
+  line scales the symbol size; a parsed specification of a
   line, a rule, or a trail with a nominal color gives a legend of three `stroke` symbols (a short line) painted with the
   stroke colors `#4c78a8`, `#f58518`, and `#e45756` and the legend default width 1.5 (a trail is filled by default but
   is drawn with a stroke in its legend, as Vega-Lite does), and an area, an arc, or a text mark gives three filled circles
-  of the size 100 in the same colors, through the chain of parser, scales, legend plan, and builder.
+  of the size 100 in the same colors, through the chain of parser, scales, legend plan, and builder. The gradient legend
+  is pinned to the labels of Vega 6.4
+  by `LegendBuilderTests.LegendBuilder_Gradient_LabelsMatchVegaForALengthOf160And200` (the two ends 0 and 5 for a length
+  of 160, the five labels 1 to 5 for 200).
 - **Legends Fail Closed With A Location**:
   `LegendBuilderTests.LegendBuilder_Limits_AreEnforcedBeforeAnythingIsCreated`,
   `LegendBuilderTests.LegendBuilder_Build_CancellationAndInvalidFormat` — too many values, ticks, characters, or scene

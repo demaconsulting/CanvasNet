@@ -71,8 +71,24 @@ translations), and the scale.
   cancellation token is polled before that, and a new path starts. A trail of ordinary size (a weight of about 11 per
   capsule) is one chunk up to about 9,000 capsules, so ordinary charts are painted exactly as before; the largest
   capsule the bound allows (a size of 32,768, a weight of about 906) gives chunks of 111 capsules. The capsules of
-  two chunks overlap at the shared point, so the only difference from one fill is that the anti-aliased rim of the
-  round caps at that joint is composited twice.
+  two chunks overlap at the shared point, so a **translucent trail painted in several chunks** is painted through **coverage
+  layers** (`ScenePainter.TrailLayers`): at the first chunk the painter finds the pixel box of the trail (its points
+  grown by
+  the radius, the stroke width, and a 2 pixel margin, cut to the target, in a pass that polls the token like the capsule
+  pass), and every chunk of the fill is painted with the opaque color into a transparent layer of that box and every
+  chunk of
+  the stroke into a second layer; when the last chunk is in, the fill layer and then the stroke layer are composited once,
+  with the alpha of the paint (`Surface.CompositeOverSpan`, coverage = layer alpha). The union of the coverage inside a
+  layer is the
+  union of the one path of Vega (`vega-scenegraph/src/path/trail.js` builds all capsules into one path and
+  `marks/markMultiItemPath.js` `draw` fills and strokes it once), so the capsule at a joint no longer composites twice
+  (a dark
+  dot in 0.4 opacity before). A single-chunk trail and a trail whose solid paints are opaque take the direct path and are
+  painted exactly as before; the layers are at most the target in size and are allocated only for a translucent
+  multi-chunk trail
+  (a stroke layer only when the trail has a stroke). A gradient fill is still painted chunk by chunk, with the bounding
+  box of the
+  chunk as its reference (a gradient is not layered).
 - A group paints its own background and border as a (rounded) rectangle behind its children; a stroked group is offset as
   Vega does (half a pixel for a one-pixel stroke, so that the line covers exactly one pixel column and row). The
   background can be a gradient.
@@ -117,7 +133,8 @@ translations), and the scale.
   around the first point with a half circle on the backward side, and closes. The width is therefore the size at each
   point, tapering linearly between two points of different size, with round ends. The capsules of **all runs are one
   path**, filled with the nonzero rule (so overlapping capsules are one shape and have no seams) and stroked as one path
-  with the stroke of the item. A point whose coordinates or size are not finite, whose coordinates or size are beyond the
+  with the stroke of the item (a translucent one in several chunks as one composite, see Trail chunks). A point whose
+  coordinates or size are not finite, whose coordinates or size are beyond the
   magnitude bound, or whose size is not positive **ends its run** (the next usable point starts the run again, so a run
   with a gap draws two pieces), and a run needs two usable points to draw anything (a run of one point draws nothing).
   *Deviation from Vega* (the coincident points): two coincident points (the normal has no length) draw a circle of the

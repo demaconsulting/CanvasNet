@@ -355,6 +355,117 @@ public class ScenePainterPathTests
     }
 
     /// <summary>
+    ///     Builds a trail of many closely spaced points (0.8 apart, size 4) whose capsules weigh 11 each, so that the first chunk is complete after 9,091 capsules and the
+    ///     trail is painted in two chunks (a joint at the point 9,091 where the first capsule of the second chunk repeats the half circle that the last capsule of the
+    ///     first chunk ended with).
+    /// </summary>
+    /// <returns>The scene points of the single run.</returns>
+    private static SceneTrailPoint[] SeamPoints() =>
+        [.. Enumerable.Range(0, 9400).Select(i => new SceneTrailPoint(10 + (0.8 * i), 10, 4))];
+
+    /// <summary>
+    ///     Asserts that the pixels of the row 10 of a surface are the same in the whole range that the points of <see cref="SeamPoints"/> cover (from 20 to 7,500).
+    /// </summary>
+    /// <param name="surface">The surface.</param>
+    /// <returns>The common pixel.</returns>
+    private static Rgba32 AssertUniformRow(Surface surface)
+    {
+        var reference = surface[100, 10];
+        for (var x = 20; x <= 7500; x++)
+        {
+            Assert.True(surface[x, 10] == reference, $"The pixel ({x}, 10) is {surface[x, 10]}, not {reference}.");
+        }
+
+        return reference;
+    }
+
+    /// <summary>
+    ///     Validates that a translucent trail that is painted in several chunks has no seam (Vega paints one path, so the capsules overlap without compositing twice): the half
+    ///     transparent black fill of 9,400 points is one composite, 127 or 128 over white, along the whole row, also at the joint of the chunks.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_TranslucentTrailInSeveralChunksHasNoSeam()
+    {
+        // Arrange
+        var scene = MakeScene(7600, 20, new SceneTrail("mark-trail", [SeamPoints()]) { Fill = "#000000", FillOpacity = 0.5 });
+        var flushes = new List<int>();
+
+        // Act
+        using var surface = new ScenePainter(new TextMeasurer()) { TrailChunkFlushed = flushes.Add }.Paint(scene, 7600, 20, ScenePlacement.Uniform(1), Ct);
+
+        // Assert: the trail was painted in two chunks (the first one is complete after 9,091 capsules) and the pixel is the same everywhere: half of black over white
+        Assert.Equal([9091], flushes);
+        var pixel = AssertUniformRow(surface);
+        Assert.InRange(pixel.R, 127, 128);
+        Assert.Equal((pixel.R, pixel.R, 255), (pixel.G, pixel.B, pixel.A));
+    }
+
+    /// <summary>
+    ///     Validates that the outline of a translucent trail that is painted in several chunks has no seam either: a 2 wide half transparent black stroke without a fill. The
+    ///     stroke follows the outline of every capsule, so the pixel row 8, which the top edges (y = 10 - 2) of all capsules cross, is covered by the stroke everywhere and is
+    ///     one composite along the whole trail, also at the joint where the second chunk repeats a capsule.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_TranslucentTrailOutlineInSeveralChunksHasNoSeam()
+    {
+        // Arrange
+        var scene = MakeScene(7600, 20, new SceneTrail("mark-trail", [SeamPoints()]) { Stroke = "#000000", StrokeWidth = 2, StrokeOpacity = 0.5 });
+        var flushes = new List<int>();
+
+        // Act
+        using var surface = new ScenePainter(new TextMeasurer()) { TrailChunkFlushed = flushes.Add }.Paint(scene, 7600, 20, ScenePlacement.Uniform(1), Ct);
+
+        // Assert: two chunks, and the stroke at the row 8 is half of black over white (127 or 128) from the first to the last pixel
+        Assert.Equal([9091], flushes);
+        var reference = surface[100, 8];
+        Assert.InRange(reference.R, 127, 128);
+        for (var x = 20; x <= 7500; x++)
+        {
+            Assert.True(surface[x, 8] == reference, $"The pixel ({x}, 8) is {surface[x, 8]}, not {reference}.");
+        }
+    }
+
+    /// <summary>
+    ///     Validates that an opaque trail in several chunks is painted as before: black along the whole row, and the chunks are the same ones.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_OpaqueTrailInSeveralChunksIsBlackAlongTheWholeRow()
+    {
+        // Arrange
+        var scene = MakeScene(7600, 20, new SceneTrail("mark-trail", [SeamPoints()]) { Fill = "#000000" });
+        var flushes = new List<int>();
+
+        // Act
+        using var surface = new ScenePainter(new TextMeasurer()) { TrailChunkFlushed = flushes.Add }.Paint(scene, 7600, 20, ScenePlacement.Uniform(1), Ct);
+
+        // Assert
+        Assert.Equal([9091], flushes);
+        Assert.Equal(Black, AssertUniformRow(surface));
+    }
+
+    /// <summary>
+    ///     Validates that the layers of a translucent trail are cut to the target: a trail that is mostly beyond the left edge of the surface (placed at an offset of -7,000)
+    ///     still has no seam where it is visible, at the joint of the chunks at about x = 282.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_TranslucentTrailBeyondTheSurfaceEdgeHasNoSeam()
+    {
+        // Arrange
+        var scene = MakeScene(7600, 20, new SceneTrail("mark-trail", [SeamPoints()]) { Fill = "#000000", FillOpacity = 0.5 });
+
+        // Act
+        using var surface = Paint(scene, 600, 20, new ScenePlacement(1, -7000, 0));
+
+        // Assert: the row is one composite from x = 20 to x = 500 (the points reach x = 7,530 in the scene, 530 on the surface)
+        var reference = surface[100, 10];
+        Assert.InRange(reference.R, 127, 128);
+        for (var x = 20; x <= 500; x++)
+        {
+            Assert.True(surface[x, 10] == reference, $"The pixel ({x}, 10) is {surface[x, 10]}, not {reference}.");
+        }
+    }
+
+    /// <summary>
     ///     Validates the cost estimate of a trail capsule and that a trail is painted in chunks of a bounded cost: the number of capsules per chunk follows from the weights, and a chunk
     ///     boundary polls the cancellation token before it paints anything.
     /// </summary>

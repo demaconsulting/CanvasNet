@@ -315,6 +315,36 @@ public class VegaLiteLineAreaIntegrationTests
     }
 
     /// <summary>
+    ///     Pins that a trail is not clipped at the edge of the data rectangle (item 3 of the polish backlog): vega-lite@6.5.0 clips a mark only for <c>clip: true</c>, an interval-selection
+    ///     scale or a projection (<c>compile/mark/mark.ts</c>), so the round end of a trail whose last point is on the right edge of the data rectangle is painted whole over the padding
+    ///     of the chart, and the group of the marks has no clip. (What does cut such a mark is the canvas size, which does not grow with the overflow of the marks: the documented difference P11-D1.)
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Trails_EndOnTheEdgeOfTheDataRectangleIsNotClipped()
+    {
+        // Arrange: x from 0 to 2 over 300 pixels, y = 5 on the domain 0 to 10 (the row 100); the trail has the size 20, so its last point is a circle of the radius 10 centered on the edge
+        const string data = "[ { \"x\": 0, \"y\": 5 }, { \"x\": 2, \"y\": 5 } ]";
+        const string encoding = """{ "x": { "field": "x", "type": "quantitative", "axis": null }, "y": { "field": "y", "type": "quantitative", "axis": null, "scale": { "domain": [0, 10] } } }""";
+
+        // Act
+        using var surface = Draw(Chart("{ \"type\": \"trail\", \"size\": 20 }", data, encoding), out var scene, out var warnings);
+        var view = ViewOf(scene);
+
+        // Assert: the marks have no clip, and the trail ends on the edge of the data rectangle
+        Assert.Empty(warnings);
+        var marks = Assert.IsType<SceneGroup>(Assert.Single(scene.FindAll("marks")).Item);
+        Assert.Null(marks.Clip);
+        var run = Assert.Single(Assert.Single(Items<SceneTrail>(scene, "mark-trail")).Runs);
+        Assert.Equal(300.0, run[^1].X, 6);
+
+        // Assert: the pixels 3 and 4 to the right of the edge (the padding of the chart is 5, the end cap is 10 wide) at the row of the end have ink
+        var row = (int)Math.Round(view.Y + 100);
+        var edge = (int)Math.Round(view.X + 300);
+        Assert.True(VegaLiteTestHelpers.Near(Blue, surface[edge + 3, row]), "The end of the trail is cut at the edge of the data rectangle.");
+        Assert.True(VegaLiteTestHelpers.Near(Blue, surface[edge + 4, row]), "The end of the trail is cut at the edge of the data rectangle.");
+    }
+
+    /// <summary>
     ///     Validates that all fifteen interpolations of Vega-Lite render a line and an area of five points without a report (the area of the bundle interpolation is reported and
     ///     drawn with the linear one), with finite coordinates near the chart, straight segments only for the linear and step interpolations, curves for the others, the closing
     ///     command for the closed ones, and the first point of the data as the start of every interpolation that passes through it.

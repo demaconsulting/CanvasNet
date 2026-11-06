@@ -125,6 +125,10 @@ the unit verification document passes without error or unexpected exception.
   `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Binning_HistogramBarsFillTheirBinsLessOnePixel`,
   `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_PreBinned_RangesAreBarsOverTheirRanges`,
   `MarkBuilderTests.MarkBuilder_Build_StackedLayersSpanFromTheStackStartToItsEnd`,
+  `MarkBuilderTests.MarkBuilder_Build_StackedNullSliceOfABarIsNotDrawn`,
+  `MarkBuilderArcTests.MarkBuilder_Build_StackedNullSliceOfAnArcIsNotDrawn`,
+  `MarkBuilderPolarTextTests.MarkBuilder_Build_StackedNullSliceOfAPolarTextIsNotDrawn`,
+  `MarkBuilderPathTests.MarkBuilder_Build_StackedNullInAStackedAreaBreaksThePath`,
   `MarkBuilderTests.MarkBuilder_Build_SignedStacksHangBelowZeroInBothOrientations`,
   `MarkBuilderTests.MarkBuilder_Build_BinnedBarsSpanTheirBinsLessTheSpacing` — the layers of a stack are drawn from their
   stack start to their end in their colors, the bars of a histogram fill their bins less a pixel of spacing (the bars at
@@ -197,10 +201,14 @@ the unit verification document passes without error or unexpected exception.
 - **Trails Drawn Through The Whole Pipeline**:
   `VegaLiteLineAreaIntegrationTests.CanvasNetVegaLite_SystemIntegration_Trails_WidthFollowsTheSizeChannel`,
   `MarkBuilderPathTests.MarkBuilder_Build_TrailPointsCarryTheSizeChannel`,
-  `MarkBuilderPathTests.MarkBuilder_Build_TrailBreaksAtInvalidRows` — the sizes 4, 8, and 12 (the identity scale) at
+  `MarkBuilderPathTests.MarkBuilder_Build_TrailBreaksAtInvalidRows`,
+  `VegaLiteLineAreaIntegrationTests.CanvasNetVegaLite_SystemIntegration_Trails_EndOnTheEdgeOfTheDataRectangleIsNotClipped`
+  — the sizes 4, 8, and 12 (the identity scale) at
   x = 1,
   5, and 9 on the domain 0 to 10 (the pixels 30, 150, 270 on the row 100) are the diameters of the trail, so the columns
-  of those pixels have 4, 8, and 12 rows of ink (half widths 2, 4, and 6), in `#4c78a8` without a stroke.
+  of those pixels have 4, 8, and 12 rows of ink (half widths 2, 4, and 6), in `#4c78a8` without a stroke; a trail that
+  ends on the right edge of the data rectangle
+  is not clipped there (the marks group has no clip and the end cap has ink 3 and 4 pixels beyond the edge).
 - **Overlays, Invalid Modes, And The Draw Order Through The Whole Pipeline**:
   `VegaLiteLineAreaIntegrationTests.CanvasNetVegaLite_SystemIntegration_Overlays_LinePointsAndAreaLineAreDrawn`,
   `VegaLiteLineAreaIntegrationTests.CanvasNetVegaLite_SystemIntegration_Overlays_ShapeChannelShapesTheOverlayPointsInStrictMode`,
@@ -210,6 +218,7 @@ the unit verification document passes without error or unexpected exception.
   `MarkBuilderOverlayTests.MarkBuilder_Build_PointOverlayDrawsSymbolsWithTheOverlayDefinition`,
   `MarkBuilderOverlayTests.MarkBuilder_Build_AreaLineOverlayAndDefaultOpacity`,
   `MarkBuilderOverlayTests.MarkBuilder_Build_OverlayFromConfigAndTransparentPoints`,
+  `MarkBuilderOverlayTests.MarkBuilder_Build_PointOverlayOfALineTakesTheSizeFromTheStrokeWidthRange`,
   `MarkBuilderPathTests.MarkBuilder_Build_DefaultInvalidModeBreaksThePath`,
   `MarkBuilderPathTests.MarkBuilder_Build_InvalidFilterConnectsTheNeighbors`,
   `MarkBuilderPathTests.MarkBuilder_Build_InvalidShowIsTheDefaultModeAndReported`,

@@ -120,6 +120,23 @@ public class MarkBuilderArcTests
     }
 
     /// <summary>
+    ///     Validates that a stacked slice whose value is null is not drawn as an arc (vega-lite@6.5.0 <c>compile/data/parse.ts</c>: the stack runs first and counts the null as 0, then
+    ///     the <c>FilterInvalidNode</c> removes the row from the marks), and that the other slices keep their angles: 3, null and 2 over the domain [0, 5] make [0, 2 PI 3 / 5] and [2 PI 3 / 5, 2 PI].
+    /// </summary>
+    [Fact]
+    public void MarkBuilder_Build_StackedNullSliceOfAnArcIsNotDrawn()
+    {
+        // Act
+        var arcs = Arcs("\"arc\"", PieEncoding, """[ { "k": "a", "v": 3 }, { "k": "b", "v": null }, { "k": "c", "v": 2 } ]""");
+
+        // Assert: two arcs, not three (the null slice has no zero-width arc); the angles are those that the null counting 0 gives; the geometry is asserted, the colors are those of
+        // the color scale, whose domain still holds the category of the null row (the documented difference of the domains)
+        Assert.Equal(2, arcs.Count);
+        AssertSector(arcs[0], 0, 2 * Math.PI * 3 / 5, 0, 100);
+        AssertSector(arcs[1], 2 * Math.PI * 3 / 5, 2 * Math.PI, 0, 100);
+    }
+
+    /// <summary>
     ///     Validates a donut (<c>innerRadius</c>), the constants of the mark properties <c>radius</c>, <c>radius2</c>, <c>theta</c> and <c>theta2</c> and their aliases, a radial chart whose
     ///     <c>radius</c> is a square root scale with <c>rangeMin</c> 20, stacked rings, and a band scale on <c>theta</c>.
     /// </summary>

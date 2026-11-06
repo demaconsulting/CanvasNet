@@ -141,7 +141,16 @@ Scene roles: `legend` (group) containing `legend-entry` (group) and `legend-titl
   and the fill is `transparent`), as a line does. This was a fix of `LegendPlan` (in the creation of `LegendMarkFacts`);
   before it the trail got the stroke-shaped symbol with the category color as its fill. The stroke width of a line,
   rule, or trail symbol is the default of a legend symbol, **1.5**, because Vega-Lite's legend encoding does not read the
-  width of Vega's line style; a `strokeWidth` that the mark definition gives wins. Text and arc marks have filled circles
+  width of Vega's line style; a `strokeWidth` that the mark definition gives wins. **The size legend of a trail** scales
+  the
+  **stroke width** of its symbols and keeps the symbol size at `symbolSize` (100 by default): `LookOf` follows
+  `compile/legend/parse.ts` `getLegendDefWithScale` of vega-lite@6.5.0 (`mark === 'trail'`: `size` becomes
+  `strokeWidth`, the
+  color becomes the stroke), so the symbol column is `max(ceil(sqrt(size) + strokeWidth), fontSize)` wide and a thick
+  trail has a thick
+  symbol; the scale wins over `symbolStrokeWidth` and a stroke width of the mark. The size legend of a line, a point, or
+  a text mark is
+  still the symbol size. Text and arc marks have filled circles
   of the default symbol size, and the font size that a `size` channel gives a text mark is shown as the size of the
   symbol. **Temporal symbol legends** (`LegendBuilder.Time.cs`): a
   size or opacity on a **time or UTC** scale (and a temporal color asked to be shown as symbols) has as values the explicit

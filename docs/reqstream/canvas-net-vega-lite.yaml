@@ -404,6 +404,7 @@ sections:
           - CanvasNetVegaLite_SystemIntegration_Unsupported_MarkAndTransformCarryPointerLineColumn
           - CanvasNetVegaLite_SystemIntegration_Aggregation_OnlyTheUnsupportedPartIsReported
           - CanvasNetVegaLite_SystemIntegration_Layer_TransformInAConcatenationAndInAFacetIsApplied
+          - CanvasNetVegaLite_SystemIntegration_Composition_TopLevelTransformsApplyToEveryViewWithoutDiagnostics
 
       - id: CanvasNetVegaLite-StrictMode
         title: >-
@@ -636,6 +637,7 @@ sections:
           - CanvasNetVegaLite_SystemIntegration_Legend_UnsupportedPropertiesAreReportedWithLocations
           - CanvasNetVegaLite_SystemIntegration_Legend_LimitsAndCancellationApply
           - CanvasNetVegaLite_SystemIntegration_Legend_RendersAreDeterministicAcrossThreads
+          - CanvasNetVegaLite_SystemIntegration_Legend_TrailSizeLegendIsPaintedWithTheStrokeWidth
 
       - id: CanvasNetVegaLite-ExtendedScales
         title: >-
@@ -1336,6 +1338,7 @@ sections:
           - CanvasNetVegaLite-Scenegraph-ScenePainter-Trails
         tests:
           - CanvasNetVegaLite_SystemIntegration_Trails_WidthFollowsTheSizeChannel
+          - CanvasNetVegaLite_SystemIntegration_Trails_EndOnTheEdgeOfTheDataRectangleIsNotClipped
 
       - id: CanvasNetVegaLite-CurveInterpolation
         title: >-
@@ -1571,6 +1574,7 @@ sections:
           - CanvasNetVegaLite_SystemIntegration_Layer_TopLevelCalculateIsAppliedAndNotReported
           - CanvasNetVegaLite_SystemIntegration_Layer_TransformsApplyTopLevelFirstThenPerLayer
           - CanvasNetVegaLite_SystemIntegration_Layer_TransformInAConcatenationAndInAFacetIsApplied
+          - CanvasNetVegaLite_SystemIntegration_Composition_TopLevelTransformsApplyToEveryViewWithoutDiagnostics
 
       - id: CanvasNetVegaLite-LayerResolve
         title: >-

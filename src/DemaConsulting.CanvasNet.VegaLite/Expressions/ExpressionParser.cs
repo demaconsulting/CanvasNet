@@ -32,8 +32,9 @@ namespace DemaConsulting.CanvasNet.VegaLite.Expressions;
 ///         <see cref="VegaLiteLimits.MaxExpressionDepth"/> is rejected before the next level is entered, so the stack use
 ///         is bounded by the limit and never by the length of the text. A chain such as <c>a + b + c + ...</c> loops
 ///         instead of recursing and, because the parser emits a postfix program directly, never builds a deep structure
-///         that a later pass would have to walk recursively. The text length is checked against
-///         <see cref="VegaLiteLimits.MaxExpressionLength"/> before anything else is done. The parser is stateless
+///         that a later pass would have to walk recursively. The text length of an expression that the user wrote is checked against
+///         <see cref="VegaLiteLimits.MaxExpressionLength"/> before anything else is done; the text that the renderer writes from a predicate or a composite mark
+///         (<see cref="ParseGenerated"/>) is checked against eight times <see cref="VegaLiteLimits.MaxSourceLength"/> instead. The parser is stateless
 ///         between calls and thread-safe; the result is immutable.
 ///     </para>
 ///     <para>
@@ -45,6 +46,9 @@ namespace DemaConsulting.CanvasNet.VegaLite.Expressions;
 /// </remarks>
 internal sealed partial class ExpressionParser
 {
+    /// <summary>The number of times <see cref="VegaLiteLimits.MaxSourceLength"/> that the text of an expression written by the renderer (see <see cref="ParseGenerated"/>) may be long.</summary>
+    internal const int GeneratedLengthFactor = 8;
+
     /// <summary>The identifiers that name view state.</summary>
     private static readonly HashSet<string> ViewStateNames = new(StringComparer.Ordinal) { "signal", "event", "item" };
 
@@ -191,6 +195,40 @@ internal sealed partial class ExpressionParser
             throw parser.Fail(
                 limits.MaxExpressionLength,
                 $"the expression has {source.Length} characters, more than the limit of {limits.MaxExpressionLength} (MaxExpressionLength)");
+        }
+
+        return parser.Compile();
+    }
+
+    /// <summary>
+    ///     Parses an expression that the renderer wrote from the specification (a predicate, or the expression of a composite mark), not one that the user wrote.
+    /// </summary>
+    /// <remarks>
+    ///     The text is a linear expansion of a part of a document that <see cref="VegaLiteLimits.MaxSourceLength"/> already bounds (a membership list of a thousand values is
+    ///     written as a thousand comparisons), so <see cref="VegaLiteLimits.MaxExpressionLength"/>, the limit of the expressions that a user writes, does not apply to it. The budget
+    ///     is <see cref="GeneratedLengthFactor"/> times <see cref="VegaLiteLimits.MaxSourceLength"/>, so that a hostile document cannot make the parser read text that is out of
+    ///     proportion to it. The nesting depth and the evaluation steps are bound as for any expression.
+    /// </remarks>
+    /// <param name="source">The expression text the renderer wrote.</param>
+    /// <param name="location">The location of the part of the specification that the text was written from.</param>
+    /// <param name="limits">The limits to enforce; the defaults when null.</param>
+    /// <returns>The compiled expression.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="source"/> is null.</exception>
+    /// <exception cref="VegaLiteSpecException">
+    ///     Thrown when the text is longer than <see cref="GeneratedLengthFactor"/> times <see cref="VegaLiteLimits.MaxSourceLength"/>, is nested deeper than
+    ///     <see cref="VegaLiteLimits.MaxExpressionDepth"/>, or is not valid.
+    /// </exception>
+    public static CompiledExpression ParseGenerated(string source, VegaLiteLocation location, VegaLiteLimits? limits = null)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        limits ??= VegaLiteLimits.Default;
+        var parser = new ExpressionParser(source, location, limits);
+        var budget = Math.Min((long)limits.MaxSourceLength * GeneratedLengthFactor, int.MaxValue);
+        if (source.Length > budget)
+        {
+            throw parser.Fail(
+                (int)budget,
+                $"the expression that is written from the specification has {source.Length} characters, more than {GeneratedLengthFactor} times the limit of {limits.MaxSourceLength} (MaxSourceLength)");
         }
 
         return parser.Compile();

@@ -384,6 +384,34 @@ public class LegendBuilderTests
     }
 
     /// <summary>
+    ///     Pins the parity of the gradient legend labels with Vega's for the color values 0.2, 1.7, 3.3 and 5.41 (the color domain is [0.2, 5.41], not rounded out): the labels are
+    ///     <c>max(2, 2 * floor(length / 100))</c> ticks (vega-parser <c>legend.js</c>), and with fewer than three ticks the two ends of the domain
+    ///     (vega-encode <c>LegendEntries.js</c>: <c>values.length &lt; 3</c>), both formatted by the step of the ticks. The numbers are those of Vega 6.4 for the same chart.
+    /// </summary>
+    [Fact]
+    public void LegendBuilder_Gradient_LabelsMatchVegaForALengthOf160And200()
+    {
+        // Arrange
+        const string rows = "[ { \"q\": 1, \"r\": 2, \"c\": 0.2 }, { \"q\": 2, \"r\": 3, \"c\": 1.7 }, { \"q\": 3, \"r\": 4, \"c\": 3.3 }, { \"q\": 4, \"r\": 5, \"c\": 5.41 } ]";
+        var json = Spec("\"color\": { \"field\": \"c\", \"type\": \"quantitative\" }", rows: rows);
+
+        // Act
+        var short160 = Labels(ChartTestHelpers.Legend(json, height: 160));
+        var long300 = Labels(ChartTestHelpers.Legend(json, height: 300));
+
+        // Assert: a length of 160 asks for two ticks, which gives fewer than three values: the ends of the domain, 0.2 and 5.41, labelled 0 and 5 at the bottom and the top of the bar
+        Assert.Equal(["0", "5"], short160.Select(l => l.Text));
+        Assert.Equal([160.0, 0.0], short160.Select(l => l.Y));
+
+        // Assert: the length of 200 (the data height 300 is clamped) asks for four ticks: 1 to 5, at 200 (1 - (v - 0.2) / 5.21), the same as Vega's y positions
+        Assert.Equal(["1", "2", "3", "4", "5"], long300.Select(l => l.Text));
+        for (var i = 0; i < 5; i++)
+        {
+            Assert.Equal(200 * (1 - ((i + 1 - 0.2) / 5.21)), long300[i].Y, 6);
+        }
+    }
+
+    /// <summary>
     ///     Validates that the gradient length follows the data rectangle: the height between 64 and 200 for a vertical bar, and the width
     ///     between 100 and 200 for a horizontal bar of a top legend, whose labels sit below it.
     /// </summary>

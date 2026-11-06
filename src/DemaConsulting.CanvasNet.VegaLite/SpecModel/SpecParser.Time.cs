@@ -334,7 +334,55 @@ internal sealed partial class SpecParser
 
         ValidateDateTimeValue(comparison);
         ValidateDateTimeItems(comparison);
-        if (comparison.Name == "oneOf" && PredicateSource.IsTimeAware(predicate) && comparison.Items.Count > _limits.MaxScaleDomainSize)
+        if (PredicateSource.IsTimeAware(predicate))
+        {
+            CheckOneOfSize(comparison);
+        }
+    }
+
+    /// <summary>
+    ///     Checks the size of every membership list of a predicate that the renderer writes as an expression: a list may have at most <see cref="VegaLiteLimits.MaxScaleDomainSize"/> values
+    ///     (the text that is written for it is bound by <c>ExpressionParser.ParseGenerated</c>, not by the length limit of the expressions a user writes).
+    /// </summary>
+    /// <param name="predicate">The predicate (a field predicate or a composition, as <see cref="PredicateSource"/> writes it).</param>
+    /// <exception cref="VegaLiteSpecException">Thrown, at the list, for a membership list longer than <see cref="VegaLiteLimits.MaxScaleDomainSize"/>.</exception>
+    private void CheckOneOfSizes(SpecNode predicate)
+    {
+        if (!predicate.IsObject)
+        {
+            return;
+        }
+
+        foreach (var name in new[] { "and", "or" })
+        {
+            if (predicate[name] is { IsArray: true } items)
+            {
+                foreach (var item in items.Items)
+                {
+                    CheckOneOfSizes(item);
+                }
+            }
+        }
+
+        if (predicate["not"] is { } negated)
+        {
+            CheckOneOfSizes(negated);
+        }
+
+        if (predicate["oneOf"] is { IsArray: true } list)
+        {
+            CheckOneOfSize(list);
+        }
+    }
+
+    /// <summary>
+    ///     Checks the number of values of one membership list against <see cref="VegaLiteLimits.MaxScaleDomainSize"/>.
+    /// </summary>
+    /// <param name="comparison">The <c>oneOf</c> value; any other comparison is not checked.</param>
+    /// <exception cref="VegaLiteSpecException">Thrown, at the list, for a list longer than the limit.</exception>
+    private void CheckOneOfSize(SpecNode comparison)
+    {
+        if (comparison.Name == "oneOf" && comparison.Items.Count > _limits.MaxScaleDomainSize)
         {
             throw Error(comparison, $"The 'oneOf' of a predicate lists {comparison.Items.Count} values, more than the limit of {_limits.MaxScaleDomainSize} (VegaLiteLimits.MaxScaleDomainSize).");
         }
@@ -344,12 +392,12 @@ internal sealed partial class SpecParser
     ///     Compiles the expression of a field predicate that is written with the date and time functions, once, under the predicate object.
     /// </summary>
     /// <param name="predicate">The predicate object, validated.</param>
-    /// <exception cref="VegaLiteSpecException">Thrown for an expression that is longer than <see cref="VegaLiteLimits.MaxExpressionLength"/>, or that refers to a parameter that is not declared.</exception>
+    /// <exception cref="VegaLiteSpecException">Thrown for an expression that is longer than eight times <see cref="VegaLiteLimits.MaxSourceLength"/>, or that refers to a parameter that is not declared.</exception>
     private void CompileTimePredicate(SpecNode predicate)
     {
         if (PredicateSource.IsTimeAware(predicate) && PredicateSource.TryBuild(predicate, out var source))
         {
-            CompileSource(predicate, source, predicate);
+            CompileSource(predicate, source, predicate, generated: true);
         }
     }
 

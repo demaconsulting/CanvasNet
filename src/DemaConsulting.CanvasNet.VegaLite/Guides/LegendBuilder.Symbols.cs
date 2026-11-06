@@ -517,14 +517,21 @@ internal sealed partial class LegendBuilder
             stroke = s.Text("symbolStrokeColor") ?? (mark.StrokeIsField ? null : mark.Stroke) ?? baseStroke;
         }
 
+        // A trail's size legend scales the stroke width and keeps the symbol size: vega-lite@6.5.0 compile/legend/parse.ts
+        // getLegendDefWithScale (mark === 'trail': channel 'size' -> { strokeWidth: scale }).
+        var isTrail = mark.MarkType == "trail";
         var size = s.Number("symbolSize") ?? 100;
-        if (spec.Get("size") is { } sizeMember && sizeMember.Model.Map(value) is { } scaled)
+        if (!isTrail && spec.Get("size") is { } sizeMember && sizeMember.Model.Map(value) is { } scaled)
         {
             size = scaled;
         }
 
         var strokeWidth = s.Explicit("symbolStrokeWidth")?.AsNumber() ?? mark.StrokeWidth ?? s.Number("symbolStrokeWidth") ?? 1.5;
-        if (spec.Get("strokeWidth") is { } widthMember && widthMember.Model.Map(value) is { } width)
+        if (isTrail && spec.Get("size") is { } trailSize && trailSize.Model.Map(value) is { } trailWidth)
+        {
+            strokeWidth = trailWidth;
+        }
+        else if (spec.Get("strokeWidth") is { } widthMember && widthMember.Model.Map(value) is { } width)
         {
             strokeWidth = width;
         }
