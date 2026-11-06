@@ -62,6 +62,11 @@ says `Unknown output format`.
 the label, facts, or options of either, the thresholds, or the write options throws `ArgumentNullException` that names
 the member, and nothing is written.
 
+**ImageComparer_Execute_InvalidValue_ThrowsBeforeLoading**: with input A deleted and no picture requested, an
+undefined fit mode, filter, difference style, or threshold metric, a tolerance, grid, gain, overlay weight, or explicit
+resize size out of range, and an unknown resize side each throw an `ArgumentException` (or `ArgumentOutOfRangeException`)
+rather than a load error, so the values are checked before anything is loaded, whichever outputs are requested.
+
 **ImageComparer_Execute_Result_MetricsIsShortcutToComparisonMetrics**: a comparison of a white image with a black one
 reports `result.Metrics` equal to `result.Comparison.Metrics` (an RMSE of 255 on the 0 to 255 scale), and the grid cells
 and the tolerance are read from `result.Comparison`.

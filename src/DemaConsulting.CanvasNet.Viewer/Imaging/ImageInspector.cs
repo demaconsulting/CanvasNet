@@ -168,6 +168,11 @@ public static class ImageInspector
     ///     <see langword="null"/>.
     /// </exception>
     /// <exception cref="ArgumentException">Thrown when the kind is <see cref="InspectKind.Pixel"/> and the request has no point.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    ///     Thrown, before anything is loaded, when the kind is not defined, or when the count of a color inspection is
+    ///     outside <see cref="SurfaceStatistics.MinColors"/> to <see cref="SurfaceStatistics.MaxColors"/> or the radius of
+    ///     a pixel inspection is outside 0 to <see cref="PixelSample.MaxRadius"/>.
+    /// </exception>
     /// <exception cref="ViewerException">
     ///     Thrown with code <c>page-out-of-range</c> when the page does not exist, with code <c>usage-error</c> when the
     ///     point lies outside the image after the operations, a value of an operation is out of range, or an operation
@@ -184,6 +189,22 @@ public static class ImageInspector
         ArgumentNullException.ThrowIfNull(request.Source);
         ArgumentNullException.ThrowIfNull(request.Operations);
         ImagePipeline.Validate(request.Operations);
+        if (!Enum.IsDefined(request.Kind))
+        {
+            throw new ArgumentOutOfRangeException(nameof(request), request.Kind, "The inspection kind is not defined.");
+        }
+
+        if (request.Kind == InspectKind.Colors)
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(request.Count, SurfaceStatistics.MinColors);
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(request.Count, SurfaceStatistics.MaxColors);
+        }
+        else
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(request.Radius);
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(request.Radius, PixelSample.MaxRadius);
+        }
+
         if (request.Kind == InspectKind.Pixel && request.Point == null)
         {
             throw new ArgumentException("A pixel inspection needs a point.", nameof(request));

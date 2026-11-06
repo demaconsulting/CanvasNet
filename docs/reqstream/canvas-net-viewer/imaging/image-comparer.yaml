@@ -62,13 +62,16 @@ sections:
           The ImageComparer class shall refuse, with the stable error code and before anything is written, inputs of
           different sizes when no resize was asked for (size-mismatch, with a hint), a grid with more cells than the
           image has pixels in a direction (usage-error), a picture to write that is one of the inputs
-          (same-input-output), and a request with a missing member as a defect of the caller.
+          (same-input-output), and a request with a missing member, an undefined enumeration value, or a value out of
+          the range the compare options accept as a defect of the caller, before any input is loaded.
         justification: |
           Two images of different sizes have no pixel-by-pixel difference, and a picture must never replace an
           input; both are mistakes that must be found before any work is done and any file is touched, and a
-          request that lacks a member cannot be carried out at all.
+          request that lacks a member or carries a malformed value cannot be carried out at all, whichever outputs
+          it happens to ask for.
         tests:
           - ImageComparer_Execute_DifferentSizesWithoutResize_ThrowsSizeMismatch
           - ImageComparer_Execute_GridLargerThanImage_ThrowsUsageError
           - ImageComparer_Execute_PictureIsAnInput_ThrowsSameInputOutput
           - ImageComparer_Execute_NullRequestMember_ThrowsArgumentNullException
+          - ImageComparer_Execute_InvalidValue_ThrowsBeforeLoading

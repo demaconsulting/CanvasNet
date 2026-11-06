@@ -189,6 +189,35 @@ public class ImageInspectorTests
     }
 
     /// <summary>
+    ///     Test that an undefined kind, or a count or radius out of range, is a caller error before the source is loaded.
+    /// </summary>
+    /// <param name="member">The member that is invalid.</param>
+    [Theory]
+    [InlineData("Kind")]
+    [InlineData("CountLow")]
+    [InlineData("CountHigh")]
+    [InlineData("RadiusLow")]
+    [InlineData("RadiusHigh")]
+    public void ImageInspector_Execute_InvalidValue_ThrowsBeforeLoading(string member)
+    {
+        // Arrange: facts about a source whose file is gone, so loading it would fail differently
+        using var directory = new TempDirectory();
+        var info = CreateSolid(directory, 4, 4, Red);
+        File.Delete(info.Path);
+        var request = member switch
+        {
+            "Kind" => new InspectRequest((InspectKind)99),
+            "CountLow" => CreateRequest(InspectKind.Colors) with { Count = SurfaceStatistics.MinColors - 1 },
+            "CountHigh" => CreateRequest(InspectKind.Colors) with { Count = SurfaceStatistics.MaxColors + 1 },
+            "RadiusLow" => InspectRequest.ForPixel(new PixelPoint(1, 1), radius: -1),
+            _ => InspectRequest.ForPixel(new PixelPoint(1, 1), radius: PixelSample.MaxRadius + 1)
+        };
+
+        // Act / Assert
+        Assert.Throws<ArgumentOutOfRangeException>(() => ImageInspector.Execute(info, request));
+    }
+
+    /// <summary>
     ///     Test that a missing operation in the list is a caller error.
     /// </summary>
     [Fact]

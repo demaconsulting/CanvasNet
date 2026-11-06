@@ -48,5 +48,9 @@ reported as the opaque color 127,127,127.
 operations throws `ArgumentNullException` that names the member, and so does a null operation in the list (for
 `operations`).
 
+**ImageInspector_Execute_InvalidValue_ThrowsBeforeLoading**: with the probed file deleted, an undefined kind, a color
+count outside 1 to 32, and a pixel radius outside 0 to 8 each throw `ArgumentOutOfRangeException` rather than a load
+error, so they are checked before the source is loaded (an undefined kind is no longer treated as a pixel inspection).
+
 **ImageInspector_Execute_InvalidOperationValue_ThrowsUsageError**: a resize to 0x0 is a `usage-error` naming the
 operation even though the probed file was deleted, so the check happens before the source is decoded.

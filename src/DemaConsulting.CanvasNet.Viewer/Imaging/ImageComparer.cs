@@ -319,6 +319,13 @@ public static class ImageComparer
     ///     operation needs (the inputs with their label, facts, and options, the thresholds, and the write options) is
     ///     <see langword="null"/>.
     /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    ///     Thrown, before anything is probed, loaded, or written, when the fit mode, the filter, the difference style, or
+    ///     a threshold metric is not defined, or when the tolerance (0 to 255), the grid (1 to
+    ///     <see cref="ComparisonResult.MaxGridSide"/> each way), the gain (0.1 to 255), the overlay weight (0 to 1), or an
+    ///     explicit resize size (1 to <see cref="Surface.MaxDimension"/>) is out of range, whatever outputs are requested.
+    /// </exception>
+    /// <exception cref="ArgumentException">Thrown when the resize target names a side other than <c>"a"</c> or <c>"b"</c>.</exception>
     /// <exception cref="ViewerException">
     ///     Thrown with code <c>usage-error</c> when an output format cannot be told (<see cref="WriteOptions.Format"/>
     ///     wins over the extension of the output), two outputs are the same file, or the
@@ -342,6 +349,7 @@ public static class ImageComparer
         ArgumentNullException.ThrowIfNull(request.B.Source);
         ArgumentNullException.ThrowIfNull(request.Thresholds);
         ArgumentNullException.ThrowIfNull(request.Write);
+        ValidateValues(request);
 
         // Report every mistake about the outputs before any pixels are decoded
         var requested = new List<(string Kind, string Path)>();
@@ -460,6 +468,75 @@ public static class ImageComparer
         {
             Surface?.Dispose();
             Surface = null;
+        }
+    }
+
+    /// <summary>
+    ///     Refuses a request with an undefined enumeration value or a value out of range, whichever outputs it asks for, so
+    ///     a malformed request fails the same way before anything is probed, loaded, or written. The ranges are the ones
+    ///     the <c>canvasnet compare</c> options accept.
+    /// </summary>
+    /// <param name="request">The request.</param>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when a value is not defined or out of range.</exception>
+    /// <exception cref="ArgumentException">Thrown when the resize target names an unknown side.</exception>
+    private static void ValidateValues(CompareRequest request)
+    {
+        if (!Enum.IsDefined(request.Fit))
+        {
+            throw new ArgumentOutOfRangeException(nameof(request), request.Fit, "The fit mode is not defined.");
+        }
+
+        if (!Enum.IsDefined(request.Filter))
+        {
+            throw new ArgumentOutOfRangeException(nameof(request), request.Filter, "The resampling filter is not defined.");
+        }
+
+        if (!Enum.IsDefined(request.DiffStyle))
+        {
+            throw new ArgumentOutOfRangeException(nameof(request), request.DiffStyle, "The difference style is not defined.");
+        }
+
+        ArgumentOutOfRangeException.ThrowIfNegative(request.Tolerance);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(request.Tolerance, 255);
+        ArgumentOutOfRangeException.ThrowIfLessThan(request.GridColumns, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(request.GridColumns, ComparisonResult.MaxGridSide);
+        ArgumentOutOfRangeException.ThrowIfLessThan(request.GridRows, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(request.GridRows, ComparisonResult.MaxGridSide);
+        if (!double.IsFinite(request.Gain) || request.Gain < 0.1 || request.Gain > 255)
+        {
+            throw new ArgumentOutOfRangeException(nameof(request), request.Gain, "The gain must be from 0.1 to 255.");
+        }
+
+        if (!double.IsFinite(request.OverlayWeight) || request.OverlayWeight < 0 || request.OverlayWeight > 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(request), request.OverlayWeight, "The overlay weight must be from 0 to 1.");
+        }
+
+        foreach (var threshold in request.Thresholds)
+        {
+            if (threshold is { } given && !Enum.IsDefined(given.Metric))
+            {
+                throw new ArgumentOutOfRangeException(nameof(request), given.Metric, "The threshold metric is not defined.");
+            }
+        }
+
+        var resize = request.Resize;
+        if (resize == null)
+        {
+            return;
+        }
+
+        if (resize.Side is not (null or "a" or "b"))
+        {
+            throw new ArgumentException($"The resize side '{resize.Side}' is not 'a' or 'b'.", nameof(request));
+        }
+
+        if (resize.Side == null)
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(resize.Width, 1);
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(resize.Width, Surface.MaxDimension);
+            ArgumentOutOfRangeException.ThrowIfLessThan(resize.Height, 1);
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(resize.Height, Surface.MaxDimension);
         }
     }
 

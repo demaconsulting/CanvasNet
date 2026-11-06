@@ -346,6 +346,51 @@ public class ImageComparerTests
     }
 
     /// <summary>
+    ///     Test that an undefined value or a value out of range is a caller error before anything is loaded or written,
+    ///     whichever outputs the request asks for.
+    /// </summary>
+    /// <param name="member">The member that is invalid.</param>
+    [Theory]
+    [InlineData("Fit")]
+    [InlineData("Filter")]
+    [InlineData("DiffStyle")]
+    [InlineData("Tolerance")]
+    [InlineData("GridColumns")]
+    [InlineData("GridRows")]
+    [InlineData("Gain")]
+    [InlineData("OverlayWeight")]
+    [InlineData("Threshold")]
+    [InlineData("ResizeSize")]
+    [InlineData("ResizeSide")]
+    public void ImageComparer_Execute_InvalidValue_ThrowsBeforeLoading(string member)
+    {
+        // Arrange: two inputs of the same size and no requested picture, so no path would touch the invalid value
+        using var directory = new TempDirectory();
+        var a = CreateInput(directory, "a", 20, 10, White);
+        var b = CreateInput(directory, "b", 20, 10, White);
+        File.Delete(a.Info.Path);
+        var request = CreateRequest(a, b);
+        request = member switch
+        {
+            "Fit" => request with { Fit = (FitMode)99 },
+            "Filter" => request with { Filter = (ResamplingMode)99 },
+            "DiffStyle" => request with { DiffStyle = (DiffStyle)99 },
+            "Tolerance" => request with { Tolerance = 256 },
+            "GridColumns" => request with { GridColumns = 0 },
+            "GridRows" => request with { GridRows = ComparisonResult.MaxGridSide + 1 },
+            "Gain" => request with { Gain = double.NaN },
+            "OverlayWeight" => request with { OverlayWeight = 1.5 },
+            "Threshold" => request with { Thresholds = [new ComparisonThreshold((ThresholdMetric)99, 1)] },
+            "ResizeSize" => request with { Resize = ResizeTarget.To(0, 10) },
+            _ => request with { Resize = new ResizeTarget("c", 0, 0) }
+        };
+
+        // Act / Assert: refused as a caller error, although input A no longer exists (so nothing was loaded)
+        Assert.ThrowsAny<ArgumentException>(() => ImageComparer.Execute(request));
+        Assert.Single(Directory.GetFileSystemEntries(directory.Path));
+    }
+
+    /// <summary>
     ///     Test that the metrics of the result are the metrics of the comparison, so the RMSE reads one level less deep,
     ///     and that the grid and the tolerance stay on the comparison.
     /// </summary>
