@@ -1,7 +1,6 @@
 // cspell:ignore lanczos canvasnet zabcz zdefz zabczz zdefzz ccdd fghij eeff deskew deskewing deskewed grayscale otsu luma nocolor
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Tool.Commands;
-using DemaConsulting.CanvasNet.Tool.Imaging;
 
 namespace DemaConsulting.CanvasNet.Tool.Tests.Imaging;
 
@@ -70,7 +69,7 @@ public class ImagePipelineTests
     /// <returns>The operations.</returns>
     private static IReadOnlyList<IImageOperation> Parse(params string[] args)
     {
-        return ImagePipeline.Parse(ArgumentReader.Parse("render", args, RenderCommand.OptionTable), null, null);
+        return ImagePipelineParser.Parse(ArgumentReader.Parse("render", args, RenderCommand.OptionTable), null, null);
     }
 
     /// <summary>
@@ -352,7 +351,7 @@ public class ImagePipelineTests
         var operations = Parse("--crop", geometry);
 
         // Act
-        var error = Assert.Throws<ToolException>(() => ImagePipeline.Apply(input, operations, Transparent, out _));
+        var error = Assert.Throws<ViewerException>(() => ImagePipeline.Apply(input, operations, Transparent, out _));
 
         // Assert: a usage error with the size of the image, and the input is untouched
         Assert.Equal(ErrorCodes.UsageError, error.Code);
@@ -371,7 +370,7 @@ public class ImagePipelineTests
         var operations = Parse("--crop", "0,0,0.1%,50%");
 
         // Act
-        var error = Assert.Throws<ToolException>(() => ImagePipeline.Apply(input, operations, Transparent, out _));
+        var error = Assert.Throws<ViewerException>(() => ImagePipeline.Apply(input, operations, Transparent, out _));
 
         // Assert
         Assert.Equal(ErrorCodes.UsageError, error.Code);
@@ -560,8 +559,8 @@ public class ImagePipelineTests
             RenderCommand.OptionTable);
 
         // Act: as a verb, and as render
-        var asVerb = ImagePipeline.Parse(reader, "crop", "1,1,5,5");
-        var asRender = ImagePipeline.Parse(reader, null, null);
+        var asVerb = ImagePipelineParser.Parse(reader, "crop", "1,1,5,5");
+        var asRender = ImagePipelineParser.Parse(reader, null, null);
 
         // Assert
         Assert.Equal(["crop", "rotate", "resize", "pad", "flip", "fit", "crop"], asVerb.Select(o => o.Name));
@@ -581,14 +580,14 @@ public class ImagePipelineTests
         var fillReader = ArgumentReader.Parse("render", ["--filter", "bicubic", "--rotate-fill", "red"], RenderCommand.OptionTable);
 
         // Act / Assert: the operation, parameters, and shared settings
-        Assert.Equal(new CropOperation(ArgumentReader.ParseGeometry("1,2,3,4", "x")), Assert.Single(ImagePipeline.Parse(reader, "crop", "1,2,3,4")));
-        Assert.Equal(new ResizeOperation(5, 6, ResamplingMode.Bicubic), Assert.Single(ImagePipeline.Parse(reader, "resize", "5x6")));
-        Assert.Equal(new RotateOperation(270, null, ResamplingMode.Bicubic), Assert.Single(ImagePipeline.Parse(reader, "rotate", "-90")));
-        Assert.Equal(new RotateOperation(3.5, Red, ResamplingMode.Bicubic), Assert.Single(ImagePipeline.Parse(fillReader, "rotate", "3.5")));
-        Assert.Equal(new FlipOperation(FlipAxis.Vertical), Assert.Single(ImagePipeline.Parse(reader, "flip", "v")));
-        Assert.Equal(new PadOperation(new PadSpec(1, 2, 3, 4), Red), Assert.Single(ImagePipeline.Parse(padReader, "pad", "1,2,3,4")));
-        Assert.Equal(new PadOperation(new PadSpec(7, 7, 7, 7), Red), Assert.Single(ImagePipeline.Parse(padReader, "pad", "7")));
-        Assert.Equal(new PadOperation(new PadSpec(7, 7, 7, 7), null), Assert.Single(ImagePipeline.Parse(reader, "pad", "7")));
+        Assert.Equal(new CropOperation(ArgumentReader.ParseGeometry("1,2,3,4", "x")), Assert.Single(ImagePipelineParser.Parse(reader, "crop", "1,2,3,4")));
+        Assert.Equal(new ResizeOperation(5, 6, ResamplingMode.Bicubic), Assert.Single(ImagePipelineParser.Parse(reader, "resize", "5x6")));
+        Assert.Equal(new RotateOperation(270, null, ResamplingMode.Bicubic), Assert.Single(ImagePipelineParser.Parse(reader, "rotate", "-90")));
+        Assert.Equal(new RotateOperation(3.5, Red, ResamplingMode.Bicubic), Assert.Single(ImagePipelineParser.Parse(fillReader, "rotate", "3.5")));
+        Assert.Equal(new FlipOperation(FlipAxis.Vertical), Assert.Single(ImagePipelineParser.Parse(reader, "flip", "v")));
+        Assert.Equal(new PadOperation(new PadSpec(1, 2, 3, 4), Red), Assert.Single(ImagePipelineParser.Parse(padReader, "pad", "1,2,3,4")));
+        Assert.Equal(new PadOperation(new PadSpec(7, 7, 7, 7), Red), Assert.Single(ImagePipelineParser.Parse(padReader, "pad", "7")));
+        Assert.Equal(new PadOperation(new PadSpec(7, 7, 7, 7), null), Assert.Single(ImagePipelineParser.Parse(reader, "pad", "7")));
     }
 
     /// <summary>
@@ -716,7 +715,7 @@ public class ImagePipelineTests
         var operations = Parse("--pad", "100");
 
         // Act
-        var error = Assert.Throws<ToolException>(() => ImagePipeline.Apply(input, operations, Transparent, out _));
+        var error = Assert.Throws<ViewerException>(() => ImagePipeline.Apply(input, operations, Transparent, out _));
 
         // Assert: the code and a message that gives the size and the limit
         Assert.Equal(ErrorCodes.SizeLimit, error.Code);
@@ -797,7 +796,7 @@ public class ImagePipelineTests
         // Act: an empty list, a chain, and a chain whose last step fails
         using var copy = ImagePipeline.Apply(input, [], Transparent, out var none);
         using var chained = Run(input, "--flip", "h", "--rotate", "90");
-        Assert.Throws<ToolException>(() => Run(input, "--flip", "h", "--crop", "9,9,1,1"));
+        Assert.Throws<ViewerException>(() => Run(input, "--flip", "h", "--crop", "9,9,1,1"));
 
         // Assert: nothing applied, a different but equal surface, and the input untouched and not disposed
         Assert.Empty(none);
@@ -835,10 +834,10 @@ public class ImagePipelineTests
         // Arrange / Act / Assert
         foreach (var name in new[] { "auto", "nearest", "bilinear", "bicubic", "lanczos3", "area" })
         {
-            Assert.Equal(name, ImagePipeline.FilterName(ImagePipeline.ParseFilter(name.ToUpperInvariant(), "--filter")));
+            Assert.Equal(name, ImagePipeline.FilterName(ImagePipelineParser.ParseFilter(name.ToUpperInvariant(), "--filter")));
         }
 
-        Assert.Equal(ResamplingMode.Lanczos3, ImagePipeline.ParseFilter("Lanczos3", "--filter"));
+        Assert.Equal(ResamplingMode.Lanczos3, ImagePipelineParser.ParseFilter("Lanczos3", "--filter"));
     }
 
     /// <summary>
@@ -851,9 +850,9 @@ public class ImagePipelineTests
         var reader = ArgumentReader.Parse("render", [], RenderCommand.OptionTable);
 
         // Act / Assert
-        Assert.Throws<ArgumentException>(() => ImagePipeline.Parse(reader, "blur", "3"));
-        Assert.Throws<ArgumentNullException>(() => ImagePipeline.Parse(reader, "crop", null));
-        Assert.Equal(["crop", "resize", "rotate", "flip", "pad"], ImagePipeline.VerbNames);
+        Assert.Throws<ArgumentException>(() => ImagePipelineParser.Parse(reader, "blur", "3"));
+        Assert.Throws<ArgumentNullException>(() => ImagePipelineParser.Parse(reader, "crop", null));
+        Assert.Equal(["crop", "resize", "rotate", "flip", "pad"], ImagePipelineParser.VerbNames);
     }
 
     /// <summary>
@@ -1211,7 +1210,7 @@ public class ImagePipelineTests
         var operations = Parse("--rotate", "1");
 
         // Act
-        var error = Assert.Throws<ToolException>(() => ImagePipeline.Apply(input, operations, Transparent, out _));
+        var error = Assert.Throws<ViewerException>(() => ImagePipeline.Apply(input, operations, Transparent, out _));
 
         // Assert: the code, the size, and the hint to shrink first
         Assert.Equal(ErrorCodes.SizeLimit, error.Code);
@@ -1396,7 +1395,7 @@ public class ImagePipelineTests
         using var one = Run(input, "--invert");
         using var chain = Run(input, "--grayscale", "--invert", "--brightness", "10", "--levels", "10,200", "--grid", "16");
         using var afterCrop = Run(input, "--crop", "0,0,20,20", "--threshold", "128");
-        Assert.Throws<ToolException>(() => Run(input, "--invert", "--threshold", "auto", "--crop", "999,999,1,1"));
+        Assert.Throws<ViewerException>(() => Run(input, "--invert", "--threshold", "auto", "--crop", "999,999,1,1"));
 
         // Assert: the input is the same, not disposed, and every result is a different surface
         SurfaceAssert.Equal(before, input);

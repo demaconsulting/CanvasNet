@@ -11,13 +11,13 @@
     <Version>0.0.0</Version>
     <Authors>DEMA Consulting</Authors>
     <Company>DEMA Consulting</Company>
-    <Description>DemaConsulting.CanvasNet.Viewer renders any file the CanvasNet format packages can read (SVG, PDF, PPTX, VSDX, OpenSCAD, Vega-Lite and raster images) in one call, and lets SVG documents embed all of them with a safe, pluggable image resolver.</Description>
+    <Description>DemaConsulting.CanvasNet.Viewer is the library equivalent of the canvasnet command-line tool: it probes, renders, transforms, inspects, compares, and composes into contact sheets any file the CanvasNet format packages can read (SVG, PDF, PPTX, VSDX, OpenSCAD, Vega-Lite and raster images), with the same stable error codes, and lets SVG documents embed all of them with a safe, pluggable image resolver.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/demaconsulting/CanvasNet</PackageProjectUrl>
     <RepositoryUrl>https://github.com/demaconsulting/CanvasNet</RepositoryUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>Icon.png</PackageIcon>
-    <PackageTags>canvas;dotnet-library;viewer</PackageTags>
+    <PackageTags>canvas;dotnet-library;viewer;image;rendering</PackageTags>
     <Copyright>Copyright DEMA Consulting</Copyright>
     <Title>CanvasNet.Viewer</Title>
     <Product>DemaConsulting.CanvasNet.Viewer</Product>
@@ -48,7 +48,7 @@
 
   <!-- Build Tool Dependencies -->
   <ItemGroup>
-    <PackageReference Include="DemaConsulting.ApiMark.MSBuild" Version="0.5.11" PrivateAssets="All" />
+    <PackageReference Include="DemaConsulting.ApiMark.MSBuild" Version="0.5.12" PrivateAssets="All" />
     <PackageReference Include="Microsoft.Sbom.Targets" Version="4.1.13" PrivateAssets="All" />
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.403" PrivateAssets="All" />
   </ItemGroup>
@@ -66,15 +66,23 @@
   </ItemGroup>
 
   <!-- Project References: the core package and every format package whose image source the viewer lists.
-       Render3D and Charts arrive transitively through Scad and Pptx. -->
+       Render3D is referenced explicitly because the imaging operations draw OpenSCAD models with it directly;
+       Charts arrives transitively through Pptx. -->
   <ItemGroup>
     <ProjectReference Include="..\DemaConsulting.CanvasNet\DemaConsulting.CanvasNet.csproj" />
     <ProjectReference Include="..\DemaConsulting.CanvasNet.Svg\DemaConsulting.CanvasNet.Svg.csproj" />
     <ProjectReference Include="..\DemaConsulting.CanvasNet.Pdf\DemaConsulting.CanvasNet.Pdf.csproj" />
     <ProjectReference Include="..\DemaConsulting.CanvasNet.Pptx\DemaConsulting.CanvasNet.Pptx.csproj" />
     <ProjectReference Include="..\DemaConsulting.CanvasNet.Vsdx\DemaConsulting.CanvasNet.Vsdx.csproj" />
+    <ProjectReference Include="..\DemaConsulting.CanvasNet.Render3D\DemaConsulting.CanvasNet.Render3D.csproj" />
     <ProjectReference Include="..\DemaConsulting.CanvasNet.Scad\DemaConsulting.CanvasNet.Scad.csproj" />
     <ProjectReference Include="..\DemaConsulting.CanvasNet.VegaLite\DemaConsulting.CanvasNet.VegaLite.csproj" />
+  </ItemGroup>
+
+  <!-- The unit tests exercise the internal helpers of the imaging operations (the staged-output publish seam, the
+       format detection, and so on). The command-line tool deliberately has no such access: everything it needs is public. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="DemaConsulting.CanvasNet.Viewer.Tests" />
   </ItemGroup>
 
   <ItemGroup>

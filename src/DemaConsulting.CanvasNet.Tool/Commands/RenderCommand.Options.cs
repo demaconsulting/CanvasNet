@@ -1,6 +1,7 @@
 // cspell:ignore canvasnet jpeg tif tiff RRGGBB RRGGBBAA deskew otsu midtones
 using DemaConsulting.CanvasNet.Canvas;
-using DemaConsulting.CanvasNet.Tool.Imaging;
+using DemaConsulting.CanvasNet.Viewer;
+using DemaConsulting.CanvasNet.Viewer.Imaging;
 
 namespace DemaConsulting.CanvasNet.Tool.Commands;
 
@@ -44,28 +45,28 @@ internal sealed partial class RenderCommand
         new("--time", [], true, "SCAD model: the value of $t, the animation time (default 0)", "T"),
         new("--default-color", [], true, "SCAD model: the color of surfaces the model does not color (default gray)", "color"),
         new("--max-triangles", [], true, "SCAD model: the most triangles the model may produce (default 5000000)", "N"),
-        new(ImagePipeline.CropOption, [], true, "Crop to a rectangle x,y,w,h or WxH+X+Y, each value in pixels or percent (repeatable; operations run in the order written)", "geometry"),
-        new(ImagePipeline.ResizeOption, [], true, "Resample to exactly this size, for example 800x600", "WxH"),
-        new(ImagePipeline.FitOption, [], true, "Shrink to fit inside this box, keeping the aspect ratio (an image that already fits is unchanged)", "WxH"),
-        new(ImagePipeline.AllowUpscaleOption, [], false, "Let --fit enlarge an image that is smaller than the box"),
-        new(ImagePipeline.RotateOption, [], true, "Rotate clockwise by any angle in degrees, for example 90 or -3.5; an angle that is not a multiple of 90 grows the canvas and fills the corners (see --rotate-fill)", "degrees"),
-        new(ImagePipeline.RotateFillOption, [], true, "Color of the corners a --rotate or --deskew exposes (default: the --background, else white for an opaque image, else transparent)", "color"),
-        new(ImagePipeline.FlipOption, [], true, "Mirror: h (left to right), v (top to bottom), or both", "axis"),
-        new(ImagePipeline.PadOption, [], true, "Add a border of N pixels on every side, or l,t,r,b pixels on each side", "N|l,t,r,b"),
-        new(ImagePipeline.PadColorOption, [], true, "Color of the border added by --pad (default: the --background, else white for a drawing or document, else transparent)", "color"),
-        new(ImagePipeline.GrayscaleOption, [], false, "Turn every pixel gray (its luma); transparency is kept"),
-        new(ImagePipeline.InvertOption, [], false, "Invert the colors; transparency is kept"),
-        new(ImagePipeline.ThresholdOption, [], true, "Turn the image black and white: pixels with a luma above the level (0-255) become white; auto chooses the level with Otsu's method", "0-255|auto"),
-        new(ImagePipeline.LevelsOption, [], true, "Map the levels black..white to 0..255, with an optional gamma (0.1-10; above 1 brightens the midtones), for example 20,230 or 20,230,1.2", "black,white[,gamma]"),
-        new(ImagePipeline.BrightnessOption, [], true, "Add an amount (-255 to 255) to every color level", "-255..255"),
-        new(ImagePipeline.ContrastOption, [], true, "Change the contrast around mid-gray by a percentage (-100 to 100)", "-100..100"),
-        new(ImagePipeline.AutoLevelsOption, [], false, "Stretch the levels so the darkest and lightest pixels become black and white (ignoring 1% of the pixels at each end; see --auto-levels-clip)"),
-        new(ImagePipeline.AutoLevelsClipOption, [], true, "Percentage of the pixels --auto-levels ignores at each end, 0-20 (default 1)", "percent"),
-        new(ImagePipeline.DeskewOption, [], false, "Straighten the image: find the tilt of its near-horizontal lines (within 15 degrees) and rotate it level; the angle is in the --json result"),
-        new(ImagePipeline.TrimOption, [], false, "Crop away the uniform border around the content (the background is the most common color of the four corners)"),
-        new(ImagePipeline.TrimToleranceOption, [], true, "How far a pixel may differ from the background and still count as background, 0-255 (default 8)", "0-255"),
-        new(ImagePipeline.GridOption, [], true, "Draw a labeled coordinate grid with a line every N pixels (8-4096) in the color given (default #FF00FFA0); put it last to read the final coordinates", "N[,color]"),
-        new(ImagePipeline.FilterOption, [], true, "Resampling filter of a resize or fit: auto (default), nearest, bilinear, bicubic, lanczos3, or area", "name"),
+        new(ImagePipelineParser.CropOption, [], true, "Crop to a rectangle x,y,w,h or WxH+X+Y, each value in pixels or percent (repeatable; operations run in the order written)", "geometry"),
+        new(ImagePipelineParser.ResizeOption, [], true, "Resample to exactly this size, for example 800x600", "WxH"),
+        new(ImagePipelineParser.FitOption, [], true, "Shrink to fit inside this box, keeping the aspect ratio (an image that already fits is unchanged)", "WxH"),
+        new(ImagePipelineParser.AllowUpscaleOption, [], false, "Let --fit enlarge an image that is smaller than the box"),
+        new(ImagePipelineParser.RotateOption, [], true, "Rotate clockwise by any angle in degrees, for example 90 or -3.5; an angle that is not a multiple of 90 grows the canvas and fills the corners (see --rotate-fill)", "degrees"),
+        new(ImagePipelineParser.RotateFillOption, [], true, "Color of the corners a --rotate or --deskew exposes (default: the --background, else white for an opaque image, else transparent)", "color"),
+        new(ImagePipelineParser.FlipOption, [], true, "Mirror: h (left to right), v (top to bottom), or both", "axis"),
+        new(ImagePipelineParser.PadOption, [], true, "Add a border of N pixels on every side, or l,t,r,b pixels on each side", "N|l,t,r,b"),
+        new(ImagePipelineParser.PadColorOption, [], true, "Color of the border added by --pad (default: the --background, else white for a drawing or document, else transparent)", "color"),
+        new(ImagePipelineParser.GrayscaleOption, [], false, "Turn every pixel gray (its luma); transparency is kept"),
+        new(ImagePipelineParser.InvertOption, [], false, "Invert the colors; transparency is kept"),
+        new(ImagePipelineParser.ThresholdOption, [], true, "Turn the image black and white: pixels with a luma above the level (0-255) become white; auto chooses the level with Otsu's method", "0-255|auto"),
+        new(ImagePipelineParser.LevelsOption, [], true, "Map the levels black..white to 0..255, with an optional gamma (0.1-10; above 1 brightens the midtones), for example 20,230 or 20,230,1.2", "black,white[,gamma]"),
+        new(ImagePipelineParser.BrightnessOption, [], true, "Add an amount (-255 to 255) to every color level", "-255..255"),
+        new(ImagePipelineParser.ContrastOption, [], true, "Change the contrast around mid-gray by a percentage (-100 to 100)", "-100..100"),
+        new(ImagePipelineParser.AutoLevelsOption, [], false, "Stretch the levels so the darkest and lightest pixels become black and white (ignoring 1% of the pixels at each end; see --auto-levels-clip)"),
+        new(ImagePipelineParser.AutoLevelsClipOption, [], true, "Percentage of the pixels --auto-levels ignores at each end, 0-20 (default 1)", "percent"),
+        new(ImagePipelineParser.DeskewOption, [], false, "Straighten the image: find the tilt of its near-horizontal lines (within 15 degrees) and rotate it level; the angle is in the --json result"),
+        new(ImagePipelineParser.TrimOption, [], false, "Crop away the uniform border around the content (the background is the most common color of the four corners)"),
+        new(ImagePipelineParser.TrimToleranceOption, [], true, "How far a pixel may differ from the background and still count as background, 0-255 (default 8)", "0-255"),
+        new(ImagePipelineParser.GridOption, [], true, "Draw a labeled coordinate grid with a line every N pixels (8-4096) in the color given (default #FF00FFA0); put it last to read the final coordinates", "N[,color]"),
+        new(ImagePipelineParser.FilterOption, [], true, "Resampling filter of a resize or fit: auto (default), nearest, bilinear, bicubic, lanczos3, or area", "name"),
         new("--output", ["-o"], true, "The output file; its extension selects the format", "file"),
         new("--format", [], true, "Output format: png, jpeg, bmp, or tiff (overrides the extension)", "format"),
         new("--quality", [], true, "JPEG quality, 1-100 (default 90)", "1-100"),
@@ -156,11 +157,17 @@ internal sealed partial class RenderCommand
         var formatOption = reader.Get("--format");
         var format = formatOption == null ? (OutputFormat?)null : ImageWriter.ResolveFormat(output, formatOption);
         var flattenBackground = source.Background is { A: > 0 } color ? color : WriteOptions.Default.FlattenBackground;
-        var write = new WriteOptions(format, quality, reader.Has("--no-clobber"), flattenBackground);
+        var write = new WriteOptions
+        {
+            Format = format,
+            Quality = quality,
+            NoClobber = reader.Has("--no-clobber"),
+            FlattenBackground = flattenBackground
+        };
 
         // The operand of a verb is the second positional (the first is the input); every operation is parsed now so
         // that a malformed one is reported before anything is loaded
-        var operations = ImagePipeline.Parse(reader, verb, verb == null ? null : reader.Positionals[1]);
+        var operations = ImagePipelineParser.Parse(reader, verb, verb == null ? null : reader.Positionals[1]);
         return new Settings(reader.Positionals[0], output, source, write, reader.Has("--all-pages"), operations);
     }
 
@@ -209,8 +216,8 @@ internal sealed partial class RenderCommand
             Height = height,
             Background = background,
             AutoOrient = !reader.Has("--no-auto-orient"),
-            Filter = reader.Get(ImagePipeline.FilterOption) is { } filterText
-                ? ImagePipeline.ParseFilter(filterText, ImagePipeline.FilterOption)
+            Filter = reader.Get(ImagePipelineParser.FilterOption) is { } filterText
+                ? ImagePipelineParser.ParseFilter(filterText, ImagePipelineParser.FilterOption)
                 : ResamplingMode.Auto,
             Scad = ReadScadOptions(reader)
         };

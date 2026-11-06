@@ -201,7 +201,7 @@ internal static partial class ScadExtrusions
     /// <returns><see langword="null"/>.</returns>
     private static LinearArguments? Reject(ScadInstance node, ScadGeometryContext context, string problem)
     {
-        context.Reporter.Warn($"{node.Name}: {problem}; the instance is ignored", node.Location);
+        context.Reporter.Warn(ScadDiagnosticCodes.InvalidArgument, $"{node.Name}: {problem}; the instance is ignored", node.Location);
         return null;
     }
 }

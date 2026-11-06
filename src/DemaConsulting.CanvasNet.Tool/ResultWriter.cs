@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using DemaConsulting.CanvasNet.Viewer;
 
 namespace DemaConsulting.CanvasNet.Tool;
 
@@ -132,8 +133,9 @@ internal static class ResultWriter
     /// <returns>The document, without a trailing newline.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="ex"/> is <see langword="null"/>.</exception>
     /// <remarks>
-    ///     A <see cref="ToolException"/> contributes its own code and hint, and its <see cref="ToolException.ResultFields"/>
-    ///     (written after the <c>error</c> object); an <see cref="ArgumentException"/>
+    ///     A <see cref="ToolException"/> contributes its own code, hint, and <see cref="ToolException.ResultFields"/>
+    ///     (written after the <c>error</c> object); a <see cref="ViewerException"/> of the library contributes its code and
+    ///     hint; an <see cref="ArgumentException"/>
     ///     is reported as <c>usage-error</c>; any other exception as <c>operation-failed</c>.
     /// </remarks>
     public static string Failure(string? command, Exception ex)
@@ -144,6 +146,8 @@ internal static class ResultWriter
         {
             ToolException toolException => Failure(
                 command, toolException.Code, toolException.Message, toolException.Hint, toolException.ResultFields),
+            ViewerException viewerException => Failure(
+                command, viewerException.Code, viewerException.Message, viewerException.Hint),
             ArgumentException => Failure(command, ErrorCodes.UsageError, ex.Message, null),
             _ => Failure(command, ErrorCodes.OperationFailed, ex.Message, null)
         };

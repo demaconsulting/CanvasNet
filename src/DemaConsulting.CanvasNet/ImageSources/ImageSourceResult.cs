@@ -11,7 +11,10 @@ namespace DemaConsulting.CanvasNet.ImageSources;
 ///     <para>
 ///         <b>Ownership.</b> The <see cref="Surface"/> belongs to whoever receives the result: the resolver hands it to
 ///         the renderer, which disposes it after drawing it. A source must therefore return a surface it created for this
-///         request and must not keep, cache or reuse it.
+///         request and must not keep, cache or reuse it. The record itself is <b>not</b> <see cref="IDisposable"/>: do
+///         not put it in a <c>using</c> statement (that does not compile). What needs disposing is
+///         <see cref="Surface"/>, by whoever receives the result: a render that goes through the resolver disposes it
+///         after drawing, and the caller of <c>FolderImageResolver.Render</c> disposes <c>result.Surface</c>.
 ///     </para>
 ///     <para>
 ///         The record is immutable once built; it is safe to share between threads (the surface is not). The

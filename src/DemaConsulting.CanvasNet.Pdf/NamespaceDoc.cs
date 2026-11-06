@@ -40,6 +40,11 @@ namespace DemaConsulting.CanvasNet.Pdf;
 ///     transparency groups, and Type 3 glyphs shown in the
 ///     clipping text-rendering modes). <c>/Separation</c> and <c>/DeviceN</c> colors are evaluated
 ///     through their tint-transform functions (including <c>/FunctionType 4</c> PostScript calculator functions).
+///     See <see cref="PdfDocument"/> for opening a document (<see cref="PdfRenderOptions"/> for the rendering options) and
+///     <see cref="DemaConsulting.CanvasNet.Codecs"/> for saving the result. Page numbers here are <b>0-based</b>
+///     (<c>pageIndex</c>); the <c>DemaConsulting.CanvasNet.Viewer</c> package, which reads PDF through the same code,
+///     numbers pages from 1. To let an SVG document embed a PDF page, see <c>PdfImageSource</c> and
+///     <see cref="DemaConsulting.CanvasNet.ImageSources"/>.
 /// </remarks>
 /// <example>
 ///     Rendering every page of a PDF document to a 300 DPI PNG file, using
@@ -48,7 +53,7 @@ namespace DemaConsulting.CanvasNet.Pdf;
 ///     <see cref="DemaConsulting.CanvasNet.Codecs.PngCodec"/> - the separate package that holds
 ///     <see cref="DemaConsulting.CanvasNet.Canvas.Surface"/> and every raster codec, since this
 ///     namespace only rasterizes into a <c>Surface</c> and has no <c>Save</c> method of its own:
-///     <code>
+///     <code language="csharp">
 ///     using DemaConsulting.CanvasNet.Codecs;
 ///     using DemaConsulting.CanvasNet.Pdf;
 ///

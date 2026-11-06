@@ -1,0 +1,294 @@
+---
+# cspell:ignore scad openscad ssim otsu grayscale deskew deskewed
+# Imaging Subsystem Requirements
+#
+# PURPOSE:
+# - Define requirements for the CanvasNetViewer Imaging subsystem (namespace DemaConsulting.CanvasNet.Viewer.Imaging)
+# - The Imaging subsystem is the library form of everything the canvasnet tool does with images. It turns files
+#   into pixels (SourceLoader), transforms pixels (ImagePipeline, over the core Surface flip, pad, trim, tone
+#   adjustment, rotation, and skew estimation), draws a coordinate grid (GridOverlay), checks a comparison of two
+#   images, which the core Surface computes, against thresholds (ImageComparison), composes a contact sheet
+#   (ContactSheet), and turns pixels into files (ImageWriter). The operation units ImageRenderer, ImageInspector,
+#   ImageComparer, and MontageBuilder chain those units into the render, inspect, compare, and montage operations
+#   of the tool; the failures of all of them are ViewerException values with the stable ErrorCodes (a
+#   requirement of the CanvasNetViewer system). The subsystem is free of command-line concerns: the canvasnet
+#   tool (CanvasNetTool) parses its arguments into the operation records and prints the results
+# - Subsystem requirements describe the externally visible load, compare, compose, and write behavior and are
+#   verified by the subsystem tests, which run the loader, the comparison and the contact sheet, and the writer
+#   together on every input and output format
+
+sections:
+  - title: Imaging Subsystem Requirements
+    requirements:
+      - id: CanvasNetViewer-Imaging-Load
+        title: >-
+          The Imaging subsystem shall load a PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, SVG, PDF, PPTX,
+          VSDX, SCAD, or Vega-Lite file (a chosen page of a document, a named view of a model, a chart)
+          into pixels at the size and resolution the options ask for, and shall report the facts of a
+          file, including the pages of a document, the declarations of a model, and the marks, data, and
+          parameters of a chart, without decoding or rendering it.
+        justification: |
+          Every command needs one place that recognizes a file, reads its header, and produces the
+          pixels, so that the formats behave consistently.
+        children:
+          - CanvasNetViewer-Imaging-SourceLoader-Detect
+          - CanvasNetViewer-Imaging-SourceLoader-Probe
+          - CanvasNetViewer-Imaging-SourceLoader-Raster
+          - CanvasNetViewer-Imaging-SourceLoader-Svg
+          - CanvasNetViewer-Imaging-SourceLoader-Documents
+          - CanvasNetViewer-Imaging-SourceLoader-PageSelection
+          - CanvasNetViewer-Imaging-SourceLoader-Resolution
+          - CanvasNetViewer-Imaging-SourceLoader-Diagnostics
+          - CanvasNetViewer-Imaging-SourceLoader-Strict
+          - CanvasNetViewer-Imaging-SourceLoader-Scad
+          - CanvasNetViewer-Imaging-SourceLoader-ScadVariables
+          - CanvasNetViewer-Imaging-SourceLoader-ScadDiagnostics
+          - CanvasNetViewer-Imaging-SourceLoader-ScadLimits
+          - CanvasNetViewer-Imaging-SourceLoader-ScadIncludes
+          - CanvasNetViewer-Imaging-SourceLoader-ScadErrors
+          - CanvasNetViewer-Imaging-SourceLoader-VegaLiteDetection
+          - CanvasNetViewer-Imaging-SourceLoader-VegaLiteProbe
+          - CanvasNetViewer-Imaging-SourceLoader-VegaLiteRender
+          - CanvasNetViewer-Imaging-SourceLoader-VegaLiteData
+          - CanvasNetViewer-Imaging-SourceLoader-VegaLiteErrors
+          - CanvasNetViewer-Imaging-SourceLoader-Sizing
+          - CanvasNetViewer-Imaging-SourceLoader-Background
+          - CanvasNetViewer-Imaging-SourceLoader-Exif
+          - CanvasNetViewer-Imaging-SourceLoader-Arguments
+          - CanvasNetViewer-Imaging-SourceLoader-BoxFit
+        tests:
+          - Imaging_Convert_InputKindToOutputFormat_WritesTheSourcePixels
+          - Imaging_Convert_RequestedSize_WritesThatSize
+          - Imaging_Convert_DocumentPages_WritesEachPageWithItsPixels
+          - Imaging_Convert_ScadViewToOutputFormat_WritesTheLibraryPixels
+
+      - id: CanvasNetViewer-Imaging-Write
+        title: >-
+          The Imaging subsystem shall write pixels as a PNG, JPEG, BMP, or TIFF file, with transparency
+          flattened for JPEG, through a temporary file, honoring the overwrite policy.
+        justification: |
+          Every command writes images the same way, so that formats, quality, and overwrite behavior are
+          the same everywhere.
+        children:
+          - CanvasNetViewer-Imaging-ImageWriter-FormatResolution
+          - CanvasNetViewer-Imaging-ImageWriter-Lossless
+          - CanvasNetViewer-Imaging-ImageWriter-Jpeg
+          - CanvasNetViewer-Imaging-ImageWriter-AtomicWrite
+          - CanvasNetViewer-Imaging-ImageWriter-Overwrite
+          - CanvasNetViewer-Imaging-ImageWriter-PublishAll
+          - CanvasNetViewer-Imaging-ImageWriter-SamePath
+          - CanvasNetViewer-Imaging-ImageWriter-MultipleTargets
+        tests:
+          - Imaging_Convert_InputKindToOutputFormat_WritesTheSourcePixels
+          - Imaging_Convert_TransparentPng_FlattensOnlyForJpeg
+
+      - id: CanvasNetViewer-Imaging-Render
+        title: >-
+          The Imaging subsystem shall render a source of any supported kind (the page that was asked for, or every
+          page of a document) through the ordered pipeline of operations into files, one for each page, with all the
+          files published together or none, and shall report for each page what was loaded, what was applied, and what
+          was written.
+        justification: |
+          Producing an image file from a file of another kind, with an optional transformation, is the main use of the
+          library and of the tool; one operation gives the caller the pages, the report, and the guarantee that a
+          failure leaves nothing behind.
+        children:
+          - CanvasNetViewer-Imaging-ImageRenderer-Pages
+          - CanvasNetViewer-Imaging-ImageRenderer-Checks
+          - CanvasNetViewer-Imaging-ImageRenderer-AllOrNothing
+        tests:
+          - Imaging_Render_DocumentPages_AreLoadedTransformedAndWritten
+
+      - id: CanvasNetViewer-Imaging-Inspect
+        title: >-
+          The Imaging subsystem shall report, for a source of any supported kind after the ordered pipeline of
+          operations, the dominant colors with the luma statistics of the pixels, or the pixel at a point with its
+          surroundings, without writing a file.
+        justification: |
+          An agent that cannot look at a picture needs numbers about it; they must describe the pixels that a render
+          with the same operations would write.
+        children:
+          - CanvasNetViewer-Imaging-ImageInspector-Analyze
+          - CanvasNetViewer-Imaging-ImageInspector-Arguments
+        tests:
+          - Imaging_Inspect_LoadedSource_ReportsColorsAndPixel
+
+      - id: CanvasNetViewer-Imaging-Transform
+        title: >-
+          The Imaging subsystem shall transform loaded pixels with an ordered pipeline of operations
+          (crop, resize, fit, rotate by any angle, flip, pad, tone adjustment, deskew, trim, and grid) applied in
+          the order written, and shall give the same transformed pixels when the same operations are applied
+          twice.
+        justification: |
+          Every command that changes an image applies the same operations the same way, in one decode and
+          one encode, so that the order of the options is the order of the effects.
+        children:
+          - CanvasNetViewer-Imaging-ImagePipeline-Order
+          - CanvasNetViewer-Imaging-ImagePipeline-Crop
+          - CanvasNetViewer-Imaging-ImagePipeline-Resize
+          - CanvasNetViewer-Imaging-ImagePipeline-Rotate
+          - CanvasNetViewer-Imaging-ImagePipeline-RotateAngle
+          - CanvasNetViewer-Imaging-ImagePipeline-Flip
+          - CanvasNetViewer-Imaging-ImagePipeline-Pad
+          - CanvasNetViewer-Imaging-ImagePipeline-Deskew
+          - CanvasNetViewer-Imaging-ImagePipeline-Trim
+          - CanvasNetViewer-Imaging-ImagePipeline-Grid
+          - CanvasNetViewer-Imaging-ImagePipeline-Ownership
+          - CanvasNetViewer-Imaging-ImagePipeline-SizeLimit
+          - CanvasNetViewer-Imaging-ImagePipeline-Arguments
+          - CanvasNetViewer-Imaging-ImagePipeline-OperationValues
+        tests:
+          - Imaging_Pipeline_LoadedSource_TransformedAndWrittenOnce
+          - Imaging_Photo_SameInputsTwice_WriteIdenticalBytes
+
+      - id: CanvasNetViewer-Imaging-Compare
+        title: >-
+          The Imaging subsystem shall compare two loaded images of the same size by delegating the exact, repeatable
+          error and similarity measures, the error of each cell of a grid, and the difference image, overlay, and
+          side-by-side image to the core Surface, shall check those measures against thresholds, and shall write
+          the pictures as files with the image writer, loading a vector source at the size of the reference.
+        justification: |
+          Comparing a redraw with its reference is the same chain for every command: the loader produces
+          pixels of one size, the core library measures and draws them, the thresholds decide, and the writer
+          writes the pictures, so that the numbers and the pictures agree between commands and runs.
+        children:
+          - CanvasNetViewer-Imaging-ImageComparison-Thresholds
+          - CanvasNetViewer-Imaging-ImageComparison-Defaults
+          - CanvasNetViewer-Imaging-ImageComparer-Measure
+          - CanvasNetViewer-Imaging-ImageComparer-Checks
+          - CanvasNetViewer-Imaging-ImageComparer-OutputFormat
+          - CanvasNetViewer-Imaging-ImageComparer-ResultShape
+        tests:
+          - Imaging_Compare_LoadedSourcesAreComparedAndVisualized
+          - Imaging_Compare_ComparerLoadsAndMeasuresTwoKinds_AndWritesThePicture
+          - Imaging_Compare_SameInputsTwice_WriteIdenticalBytes
+
+      - id: CanvasNetViewer-Imaging-Montage
+        title: >-
+          The Imaging subsystem shall compose loaded sources of several kinds into one contact sheet, one
+          source at a time, in cells whose layout is calculated from the number of sources and the options,
+          with labels drawn in the bundled font, and shall refuse a sheet larger than the maximum image size
+          before any source is loaded.
+        justification: |
+          A contact sheet is built from whatever the loader can open; composing one source at a time keeps the
+          memory in use to the sheet plus one source, and a fixed layout lets a caller find a cell.
+        children:
+          - CanvasNetViewer-Imaging-ContactSheet-Layout
+          - CanvasNetViewer-Imaging-ContactSheet-SizeLimit
+          - CanvasNetViewer-Imaging-ContactSheet-Placement
+          - CanvasNetViewer-Imaging-ContactSheet-Labels
+          - CanvasNetViewer-Imaging-ContactSheet-Appearance
+          - CanvasNetViewer-Imaging-ContactSheet-Arguments
+          - CanvasNetViewer-Imaging-ContactSheet-Deterministic
+          - CanvasNetViewer-Imaging-MontageBuilder-Compose
+          - CanvasNetViewer-Imaging-MontageBuilder-Checks
+          - CanvasNetViewer-Imaging-MontageBuilder-OutputFormat
+        tests:
+          - Imaging_Montage_LoadedSourcesAreComposedAndWritten
+          - Imaging_Montage_BuilderComposesSeveralKinds_AndWritesOneSheet
+
+      - id: CanvasNetViewer-Imaging-Adjust
+        title: >-
+          The Imaging subsystem shall adjust the tone and color of pixels in place (grayscale, invert, a fixed or
+          automatic threshold, levels, brightness, contrast, and an auto-levels stretch) by delegating the
+          arithmetic to the core Surface adjustments, with exact, repeatable results that do not depend on the
+          number of cores.
+        justification: |
+          A photograph of a sketch is cleaned up with the same few tone operations whatever its source; the
+          arithmetic lives once, in integers wherever a number decides a pixel, in the core library, and the
+          pipeline makes the operations orderable and reportable.
+        children:
+          - CanvasNetViewer-Imaging-ImagePipeline-Adjustments
+        tests:
+          - Imaging_Photo_LoadedSourceAdjustedDeskewedTrimmedAndWritten
+
+      - id: CanvasNetViewer-Imaging-Geometry
+        title: >-
+          The Imaging subsystem shall rotate pixels by any angle onto an expanded canvas with a chosen fill color
+          (nearest or bilinear sampling, refusing a canvas larger than the maximum image size as the expected error
+          size-limit), and shall straighten an image by the skew estimated for its dominant near-horizontal lines,
+          by delegating the rotation and the estimate to the core Surface, with exact, repeatable results that do
+          not depend on the number of cores.
+        justification: |
+          A photograph of a sketch is rarely level; estimating its tilt and rotating by an arbitrary angle without
+          losing corners are the geometric steps that turn it into a usable picture, and the pipeline decides when
+          and with what fill they run.
+        children:
+          - CanvasNetViewer-Imaging-ImagePipeline-RotateAngle
+          - CanvasNetViewer-Imaging-ImagePipeline-Deskew
+        tests:
+          - Imaging_Photo_LoadedSourceAdjustedDeskewedTrimmedAndWritten
+
+      - id: CanvasNetViewer-Imaging-Annotate
+        title: >-
+          The Imaging subsystem shall draw a labeled coordinate grid over pixels, with one-pixel lines at the multiples
+          of a spacing, labels that give the pixel coordinates and stay inside the picture, and exact, repeatable
+          blending.
+        justification: |
+          A reader of a photographed sketch needs to turn what is seen into pixel positions and sizes; a grid with
+          coordinates on the picture itself does that without further tools.
+        children:
+          - CanvasNetViewer-Imaging-GridOverlay-Lines
+          - CanvasNetViewer-Imaging-GridOverlay-Blend
+          - CanvasNetViewer-Imaging-GridOverlay-Labels
+          - CanvasNetViewer-Imaging-GridOverlay-Result
+          - CanvasNetViewer-Imaging-GridOverlay-Deterministic
+          - CanvasNetViewer-Imaging-GridOverlay-Arguments
+
+      - id: CanvasNetViewer-Imaging-Determinism
+        title: >-
+          The Imaging subsystem shall produce the same output bytes when the same input is loaded and
+          written twice with the same options.
+        justification: |
+          Reproducible output makes results comparable and lets scripts detect real change.
+        children:
+          - CanvasNetViewer-Imaging-ImageWriter-Deterministic
+        tests:
+          - Imaging_Convert_SameInputTwice_WritesIdenticalBytes
+
+      - id: CanvasNetViewer-Imaging-Errors
+        title: >-
+          The Imaging subsystem shall report a missing, unsupported, truncated, corrupt, or oversized
+          input, and a page that does not exist, as an expected error before anything is written.
+        justification: |
+          A failed conversion must not leave a partial output, and the failure must be a stable,
+          concise error that a caller can act on.
+        children:
+          - CanvasNetViewer-Imaging-SourceLoader-DetectErrors
+          - CanvasNetViewer-Imaging-SourceLoader-SizeLimit
+          - CanvasNetViewer-Imaging-SourceLoader-CorruptInput
+        tests:
+          - Imaging_Convert_CorruptInput_LeavesNoOutput
+          - Imaging_Convert_PageOutOfRange_LeavesNoOutput
+
+      - id: CanvasNetViewer-Imaging-RequestDefaults
+        title: >-
+          The Imaging subsystem shall let a request or an option value be built from its required members alone,
+          every optional member of it carrying the default of the corresponding canvasnet command-line option (so
+          that a request with nothing but its required members does what the command does without options), shall
+          let each optional member be set individually and the value be copied with a changed member, and shall
+          publish the numeric defaults of the commands as constants.
+        justification: |
+          A request with seventeen positional values cannot be written or read; one in which only the required
+          members are positional and every other member is a named option with the default of the command is as
+          easy to use as the command line, and a caller that sets nothing gets the behavior the documentation of the
+          command promises.
+        tests:
+          - Imaging_RequestDefaults_CompareRequestFromInputsAlone_CarriesCommandDefaults
+          - Imaging_RequestDefaults_OptionalMembers_CarryCommandDefaults
+          - Imaging_RequestDefaults_PublishedConstants_AreTheCommandDefaults
+          - Imaging_RequestDefaults_InitProperties_CanBeSetAndCopied
+          - Imaging_RequestDefaults_OperationDefaults_AreTheCommandDefaults
+
+      - id: CanvasNetViewer-Imaging-DiagnosticOrigin
+        title: >-
+          The Imaging subsystem shall give every note it reports about a file that embeds other files an origin, the
+          embedded files that the note is about, outermost first, empty by default, and shall compare two notes as
+          equal when their fields and their origin entries are equal.
+        justification: |
+          When files embed files, a note must say which file to fix; reporting it as data lets a program find the
+          file without parsing the message, and value equality keeps the notes usable in assertions and sets.
+        children:
+          - CanvasNetViewer-Imaging-SourceLoader-DiagnosticOrigin
+        tests:
+          - Imaging_Diagnostics_Origin_DefaultsToEmptyAndIsComparedByEntries

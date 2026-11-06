@@ -72,4 +72,18 @@ public class ScadSyntaxExceptionTests
         Assert.Equal(0, withMessage.Location.Line);
         Assert.Equal(0, withInner.Location.Line);
     }
+
+    /// <summary>
+    ///     Validates that the exception exposes its constant code.
+    /// </summary>
+    [Fact]
+    public void ScadSyntaxException_Code_IsScadSyntaxError()
+    {
+        // Arrange / Act
+        var ex = new ScadSyntaxException("bad", new ScadSourceLocation("x.scad", 1, 1));
+
+        // Assert
+        Assert.Equal("scad-syntax-error", ex.Code);
+        Assert.Equal(ScadDiagnosticCodes.SyntaxError, new ScadSyntaxException().Code);
+    }
 }

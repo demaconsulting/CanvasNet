@@ -11,7 +11,8 @@ description of an OpenSCAD model and the link between the format table and the l
 in-process with fixed versions (through its `internal` constructor) so that the output does not depend on the
 build version; the JSON output is compared byte for byte with a golden document. The `info` command is run
 in-process on files generated in a temporary directory (rasters written with the codecs, an EXIF segment injected
-into a JPEG, and the PDF, presentation, and drawing the test project writes) and on the original SVG fixture, and
+into a JPEG, and the PDF, presentation, and drawing that the shared test support writes) and on the original SVG
+fixture, and
 its JSON output is compared with the exact expected document. The
 format tables are checked against `SourceKind`, `OutputFormat`, `SourceLoader.ExtensionKinds`, and
 `ImageWriter.ExtensionFormats`, so a listed format is one the code knows. The tests create a `Context` with

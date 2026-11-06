@@ -2,7 +2,8 @@
 # Software Unit Requirements for the Program Class
 #
 # The Program unit is the entry point and top-level dispatcher of the tool. It also owns the
-# tool's error-handling policy (including the ToolException supporting type, which is documented
+# tool's error-handling policy (including the ToolException supporting type, which derives from the
+# ViewerException of the Viewer library and adds the command name and the result fields; it is documented
 # with this unit): expected failures become a concise message and exit code 1, unexpected
 # exceptions are reported and re-thrown.
 
@@ -95,8 +96,9 @@ sections:
       - id: CanvasNetTool-Program-ExpectedErrors
         title: >-
           The Program class shall report an ArgumentException, an InvalidOperationException, or a
-          ToolException on standard error as a concise message (with the stable error code and the
-          hint for a ToolException), without a stack trace.
+          ViewerException (the exception of the Viewer library, whose codes the tool reports, or the
+          ToolException of the tool derived from it) on standard error as a concise message (with the
+          stable error code and the hint for a ViewerException), without a stack trace.
         justification: |
           These exception types signal expected, user-correctable failures. A concise message with
           a stable error code and an optional hint lets users and agents fix the problem and lets

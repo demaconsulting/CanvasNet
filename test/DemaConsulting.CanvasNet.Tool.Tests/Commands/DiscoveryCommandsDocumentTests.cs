@@ -34,7 +34,7 @@ public class DiscoveryCommandsDocumentTests
     {
         using var context = Context.Create([]);
         var command = new DiscoveryCommands.Info();
-        return Assert.Throws<ToolException>(() => command.Run(context, args));
+        return ToolHost.ExpectFailure(() => command.Run(context, args));
     }
 
     /// <summary>

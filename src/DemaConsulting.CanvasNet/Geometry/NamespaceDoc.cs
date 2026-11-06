@@ -12,6 +12,29 @@ namespace DemaConsulting.CanvasNet.Geometry;
 ///     allocation-conscious building blocks with no dependency on any rasterizer or pixel format;
 ///     future drawing/rendering functionality will consume this namespace, not the other way around.
 /// </summary>
+/// <remarks>
+///     See <see cref="PathBuilder"/> to build a <see cref="Path"/> and <see cref="Path"/> for its bounds and transforms
+///     (it also has rectangle, rounded-rectangle, and circle factories). To paint or stroke a path, see
+///     <see cref="DemaConsulting.CanvasNet.Drawing"/> (<see cref="DemaConsulting.CanvasNet.Drawing.PathFiller"/>) or the
+///     transform-aware <see cref="DemaConsulting.CanvasNet.Rendering"/> helpers; glyph outlines come from
+///     <see cref="DemaConsulting.CanvasNet.Fonts"/> as paths too.
+/// </remarks>
+/// <example>
+///     Build a closed shape with a curved side and measure it:
+///     <code language="csharp">
+///     using System.Numerics;
+///     using DemaConsulting.CanvasNet.Geometry;
+///
+///     var path = new PathBuilder()
+///         .MoveTo(new Vector2(0, 0))
+///         .LineTo(new Vector2(40, 0))
+///         .CubicBezierTo(new Vector2(60, 0), new Vector2(60, 40), new Vector2(40, 40))
+///         .Close()
+///         .Build();
+///     var bounds = path.GetBounds();
+///     Console.WriteLine($"{bounds.Width} x {bounds.Height}");
+///     </code>
+/// </example>
 internal static class NamespaceDoc
 {
 }

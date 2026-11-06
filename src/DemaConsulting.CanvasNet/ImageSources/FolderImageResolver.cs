@@ -59,6 +59,14 @@ namespace DemaConsulting.CanvasNet.ImageSources;
 ///         invokes the source again, so a live source (a video frame) yields a fresh picture each time.
 ///     </para>
 ///     <para>
+///         <b>Nothing to dispose.</b> The resolver is not <see cref="IDisposable"/>: it holds no open files, streams, or
+///         other resources between calls (each file is read completely and closed), so it needs no <c>using</c> and
+///         nothing to clean up after a render but reading <see cref="Diagnostics"/>, <see cref="Echo"/>, and
+///         <see cref="Embedded"/>. The only disposable objects that pass through it are the <see cref="Surface"/>
+///         objects it returns from <see cref="Resolve"/> (the renderer disposes them) and from <c>Render</c> (the caller
+///         disposes <c>result.Surface</c>).
+///     </para>
+///     <para>
 ///         <b>Failures.</b> A link that cannot be resolved is not an error (see <see cref="UnresolvedCode"/>). A file that
 ///         is found but cannot be drawn throws <see cref="ImageSourceException"/> (the original exception is the
 ///         <see cref="Exception.InnerException"/>), except <see cref="OperationCanceledException"/>, which passes through.
@@ -167,7 +175,7 @@ public sealed partial class FolderImageResolver : IImageResolver
         _sources = sources as ImageSourceSet ?? new ImageSourceSet(sources);
         _budget = new ImageBudget(_options.MaxDecodedPixels);
         _rootDirectory = rootFolder is null ? null : Path.GetFullPath(rootFolder);
-        _rootScope = new Scope(this, null, [], 0, null);
+        _rootScope = new Scope(this, null, [], 0, null, []);
     }
 
     /// <summary>
@@ -313,7 +321,7 @@ public sealed partial class FolderImageResolver : IImageResolver
             PixelWidth = width,
             PixelHeight = height,
             Budget = _budget,
-            Resolver = new Scope(this, file, [file.Key], 0, name),
+            Resolver = new Scope(this, file, [file.Key], 0, name, []),
             ThrowOnUnsupportedFeature = _options.ThrowOnUnsupportedFeature,
             CancellationToken = _options.CancellationToken
         };
@@ -357,7 +365,7 @@ public sealed partial class FolderImageResolver : IImageResolver
             PixelWidth = width,
             PixelHeight = height,
             Budget = _budget,
-            Resolver = new Scope(this, null, [], 0, fileName),
+            Resolver = new Scope(this, null, [], 0, fileName, []),
             ThrowOnUnsupportedFeature = _options.ThrowOnUnsupportedFeature,
             CancellationToken = _options.CancellationToken
         };
@@ -399,12 +407,12 @@ public sealed partial class FolderImageResolver : IImageResolver
         var source = _sources.FindByScheme(scheme);
         if (source is null)
         {
-            return Unresolved(href, $"network and other URLs are never loaded (no image source claims the scheme '{scheme}')");
+            return Unresolved(scope, href, $"network and other URLs are never loaded (no image source claims the scheme '{scheme}')");
         }
 
         // The chain holds the link itself, so a source that resolves its own link again is a cycle
         var key = "scheme:" + href;
-        if (!TryClampRequest(href, pixelWidth, pixelHeight, out var width, out var height))
+        if (!TryClampRequest(scope, href, pixelWidth, pixelHeight, out var width, out var height))
         {
             return null;
         }
@@ -413,7 +421,7 @@ public sealed partial class FolderImageResolver : IImageResolver
         var reason = CheckCycle(scope, key) ?? CheckDepthAndCount(scope);
         if (reason is not null)
         {
-            return Unresolved(href, reason);
+            return Unresolved(scope, href, reason);
         }
 
         _loaded++;
@@ -423,7 +431,7 @@ public sealed partial class FolderImageResolver : IImageResolver
             PixelWidth = width,
             PixelHeight = height,
             Budget = _budget,
-            Resolver = new Scope(this, null, [.. scope.Chain, key], scope.Depth + 1, href),
+            Resolver = new Scope(this, null, [.. scope.Chain, key], scope.Depth + 1, href, [.. scope.Origin, href]),
             ThrowOnUnsupportedFeature = _options.ThrowOnUnsupportedFeature,
             CancellationToken = _options.CancellationToken
         };
@@ -443,20 +451,20 @@ public sealed partial class FolderImageResolver : IImageResolver
         var sandbox = GetSandbox();
         if (sandbox is null)
         {
-            return Unresolved(href, "the resolver has no folder, so no file can be loaded");
+            return Unresolved(scope, href, "the resolver has no folder, so no file can be loaded");
         }
 
         // Turn the link into a path the sandbox accepts, and pick the source by the extension before touching any file
         var (path, relativeToCurrent, reason) = ToRelativePath(href);
         if (path is null)
         {
-            return Unresolved(href, reason ?? "the reference cannot be resolved");
+            return Unresolved(scope, href, reason ?? "the reference cannot be resolved");
         }
 
         var source = _sources.FindByExtension(path);
         if (source is null)
         {
-            return Unresolved(href, DescribeUnknownFormat());
+            return Unresolved(scope, href, DescribeUnknownFormat());
         }
 
         // The depth and count limits need no file, so they are applied before the sandbox opens (reads) it: an image
@@ -464,7 +472,7 @@ public sealed partial class FolderImageResolver : IImageResolver
         reason = CheckDepthAndCount(scope);
         if (reason is not null)
         {
-            return Unresolved(href, reason);
+            return Unresolved(scope, href, reason);
         }
 
         // The sandbox does every safety check; a refusal is a reason, never a read
@@ -475,21 +483,21 @@ public sealed partial class FolderImageResolver : IImageResolver
         }
         catch (SandboxException ex)
         {
-            return Unresolved(href, DescribeSandboxFailure(ex));
+            return Unresolved(scope, href, DescribeSandboxFailure(ex));
         }
 
         if (file is null)
         {
-            return Unresolved(href, "the file was not found");
+            return Unresolved(scope, href, "the file was not found");
         }
 
         // The name of the file the sandbox found must lead to the same source as the text of the link
         if (!ReferenceEquals(_sources.FindByExtension(file.Key), source))
         {
-            return Unresolved(href, DescribeUnknownFormat());
+            return Unresolved(scope, href, DescribeUnknownFormat());
         }
 
-        if (!TryClampRequest(href, pixelWidth, pixelHeight, out var width, out var height))
+        if (!TryClampRequest(scope, href, pixelWidth, pixelHeight, out var width, out var height))
         {
             return null;
         }
@@ -498,7 +506,7 @@ public sealed partial class FolderImageResolver : IImageResolver
         reason = CheckCycle(scope, file.Key);
         if (reason is not null)
         {
-            return Unresolved(href, reason);
+            return Unresolved(scope, href, reason);
         }
 
         _loaded++;
@@ -512,7 +520,7 @@ public sealed partial class FolderImageResolver : IImageResolver
             PixelWidth = width,
             PixelHeight = height,
             Budget = _budget,
-            Resolver = new Scope(this, file, [.. scope.Chain, file.Key], scope.Depth + 1, name),
+            Resolver = new Scope(this, file, [.. scope.Chain, file.Key], scope.Depth + 1, name, [.. scope.Origin, name]),
             ThrowOnUnsupportedFeature = _options.ThrowOnUnsupportedFeature,
             CancellationToken = _options.CancellationToken
         };
@@ -560,20 +568,21 @@ public sealed partial class FolderImageResolver : IImageResolver
     /// <summary>
     ///     Clamps the placement size of a link and checks that a picture of that size fits in the pixel budget.
     /// </summary>
+    /// <param name="scope">The scope that contains the link, whose origin goes on the note.</param>
     /// <param name="href">The link as written, for the note.</param>
     /// <param name="pixelWidth">The device-pixel width of the placement.</param>
     /// <param name="pixelHeight">The device-pixel height of the placement.</param>
     /// <param name="width">The width to request: <paramref name="pixelWidth"/> clamped to 1 to <see cref="Surface.MaxDimension"/>.</param>
     /// <param name="height">The height to request: <paramref name="pixelHeight"/> clamped to 1 to <see cref="Surface.MaxDimension"/>.</param>
     /// <returns><see langword="true"/> when it fits; otherwise a note was added and the link is not drawn.</returns>
-    private bool TryClampRequest(string href, int pixelWidth, int pixelHeight, out int width, out int height)
+    private bool TryClampRequest(Scope scope, string href, int pixelWidth, int pixelHeight, out int width, out int height)
     {
         width = Math.Clamp(pixelWidth, 1, Surface.MaxDimension);
         height = Math.Clamp(pixelHeight, 1, Surface.MaxDimension);
         var requested = (long)width * height;
         if (requested > RemainingPixels)
         {
-            TooLarge(href, requested);
+            TooLarge(scope, href, requested);
             return false;
         }
 
@@ -623,14 +632,17 @@ public sealed partial class FolderImageResolver : IImageResolver
         }
         catch (ImageSourceBudgetException ex)
         {
-            TooLarge(request.Href, ex.RequestedPixels);
+            TooLarge(scope, request.Href, ex.RequestedPixels);
             return null;
         }
 
-        // The notes get the embedding link in front so their origin is clear; the rest is kept as reported
+        // The notes get the embedding link in front of the message and the chain of files in front of the origin, so
+        // where a note comes from is clear; the rest is kept as reported. The file that reported them is the last link
+        // of the chain: the scope that was created for the request
+        var origin = request.Resolver is Scope reporter ? reporter.Origin : scope.Origin;
         foreach (var note in result.Diagnostics)
         {
-            _diagnostics.Add(note with { Message = $"{request.Href}: {note.Message}" });
+            _diagnostics.Add(note with { Message = $"{request.Href}: {note.Message}", Origin = [.. origin, .. note.Origin] });
         }
 
         _echo.AddRange(result.Echo);
@@ -729,28 +741,37 @@ public sealed partial class FolderImageResolver : IImageResolver
     /// <summary>
     ///     Reports a link that was not drawn.
     /// </summary>
+    /// <param name="scope">The scope that contains the link; its origin goes on the note.</param>
     /// <param name="href">The link as written.</param>
     /// <param name="reason">Why it was not drawn.</param>
     /// <returns>Always <see langword="null"/>: nothing is drawn.</returns>
-    private Surface? Unresolved(string href, string reason)
+    private Surface? Unresolved(Scope scope, string href, string reason)
     {
-        _diagnostics.Add(new ImageSourceDiagnostic("svg", ImageDiagnosticSeverity.Warning, UnresolvedCode, $"image '{href}' was not drawn: {reason}"));
+        _diagnostics.Add(
+            new ImageSourceDiagnostic("svg", ImageDiagnosticSeverity.Warning, UnresolvedCode, $"image '{href}' was not drawn: {reason}")
+            {
+                Origin = scope.Origin
+            });
         return null;
     }
 
     /// <summary>
     ///     Reports a link whose picture does not fit in the pixel budget.
     /// </summary>
+    /// <param name="scope">The scope that contains the link; its origin goes on the note.</param>
     /// <param name="href">The link as written.</param>
     /// <param name="pixels">The number of pixels the picture needs.</param>
-    private void TooLarge(string href, long pixels)
+    private void TooLarge(Scope scope, string href, long pixels)
     {
         _diagnostics.Add(
             new ImageSourceDiagnostic(
                 "svg",
                 ImageDiagnosticSeverity.Warning,
                 TooLargeCode,
-                $"image '{href}' was not drawn: it needs {pixels} pixels but only {RemainingPixels} of the budget of {_options.MaxDecodedPixels} pixels remain"));
+                $"image '{href}' was not drawn: it needs {pixels} pixels but only {RemainingPixels} of the budget of {_options.MaxDecodedPixels} pixels remain")
+            {
+                Origin = scope.Origin
+            });
     }
 
     /// <summary>
@@ -832,13 +853,15 @@ public sealed partial class FolderImageResolver : IImageResolver
         /// <param name="chain">The identities of the files from the top level down to this one.</param>
         /// <param name="depth">How many levels of embedded files are above links of this scope.</param>
         /// <param name="name">The name of the embedding file or link, for failures; <see langword="null"/> at the top level.</param>
-        public Scope(FolderImageResolver owner, SandboxedFile? current, IReadOnlyList<string> chain, int depth, string? name)
+        /// <param name="origin">The names of the files that embed links of this scope, outermost first; empty at the top level.</param>
+        public Scope(FolderImageResolver owner, SandboxedFile? current, IReadOnlyList<string> chain, int depth, string? name, IReadOnlyList<string> origin)
         {
             _owner = owner;
             Current = current;
             Chain = chain;
             Depth = depth;
             Name = name;
+            Origin = origin;
         }
 
         /// <summary>
@@ -861,6 +884,13 @@ public sealed partial class FolderImageResolver : IImageResolver
         ///     Gets the name of the embedding file or link, for failures.
         /// </summary>
         public string? Name { get; }
+
+        /// <summary>
+        ///     Gets the names of the embedded files, outermost first, that contain the links of this scope: empty at the
+        ///     top level, otherwise the origin of the scope that embedded this file followed by this file's own name.
+        ///     It is the <see cref="ImageSourceDiagnostic.Origin"/> of every note about a link of this scope.
+        /// </summary>
+        public IReadOnlyList<string> Origin { get; }
 
         /// <inheritdoc />
         public Surface? Resolve(string href, int pixelWidth, int pixelHeight)

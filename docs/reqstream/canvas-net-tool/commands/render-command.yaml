@@ -5,7 +5,9 @@
 # The RenderCommand class is the render command (alias convert) and the verb commands crop, resize,
 # rotate, flip, and pad (the same class constructed with a verb): it loads an input file, applies the
 # source options and the image pipeline (including the photo tools), and writes the result as PNG, JPEG, BMP,
-# or TIFF, reporting it as one text line or one JSON document.
+# or TIFF, reporting it as one text line or one JSON document. The command is a shell: it parses the options
+# (the transformation options with the ImagePipelineParser type of this unit) and prints the result, and the
+# loading, the pipeline, and the writing are done by the ImageRenderer unit of the Viewer library.
 
 sections:
   - title: RenderCommand Unit Requirements

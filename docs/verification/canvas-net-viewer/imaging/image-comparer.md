@@ -1,0 +1,79 @@
+### ImageComparer
+
+<!-- cspell:ignore canvasnet psnr rmse ssim -->
+
+#### Verification Approach
+
+`ImageComparer` is verified with unit tests in `ImageComparerTests.cs` in the Viewer test project. The tests write
+solid-color PNG files of known sizes and colors to a temporary directory, probe them, and call `ImageComparer.Execute`
+with a request that the test adjusts with `with`; the expected measures are known from the colors (identical images, black
+against white). Nothing is mocked; the measures themselves are verified with the core `SurfaceComparison` unit and the
+thresholds with `ImageComparison`.
+
+#### Test Environment
+
+N/A - standard test environment; the tests write only to temporary directories that each test deletes.
+
+#### Acceptance Criteria
+
+- All unit tests pass with zero failures.
+- Identical images are reported as identical, with no checks and no pictures.
+- A threshold that is not met is a failed check in the result, not an exception.
+- Inputs of different sizes are `size-mismatch` unless a resize is requested, and a resize to a side fits the other input
+  and reports the loaded size.
+- A grid larger than the images is a usage error; a picture that is one of the inputs is `same-input-output`.
+- The pictures that were asked for are written, in the order difference, side by side, overlay.
+
+#### Test Scenarios
+
+**ImageComparer_Execute_IdenticalImages_ReportsIdentical**: two red 20 by 10 images are identical, with no checks, no
+pictures, the sizes 20 by 10, and the labels `a` and `b`.
+
+**ImageComparer_Execute_ThresholdNotMet_IsReturnedAsFailedCheck**: black against white with a mean-error limit of 1 is not
+identical, and the one check failed with its metric and measured value.
+
+**ImageComparer_Execute_DifferentSizesWithoutResize_ThrowsSizeMismatch**: a 20 by 10 image against a 10 by 10 image without
+a resize is `size-mismatch`, and the message names both sizes.
+
+**ImageComparer_Execute_ResizeToA_FitsTheSecondInputAndReportsIt**: a 20 by 10 image against a 10 by 10 image with a resize
+to side `a` gives both sides 20 by 10, the second side reports that it was loaded at 10 by 10 and a `fit` step, and the
+first side has no operations.
+
+**ImageComparer_Execute_GridLargerThanImage_ThrowsUsageError**: a grid with more columns than the image has pixels is
+`usage-error`.
+
+**ImageComparer_Execute_Pictures_AreWrittenInOrder**: the three pictures are written and listed as diff, sideBySide, and
+overlay, the difference picture has the size of the images, and the side-by-side picture is at least three images wide.
+
+**ImageComparer_Execute_PictureIsAnInput_ThrowsSameInputOutput**: a difference picture whose path is an input is
+`same-input-output` and the input is unchanged.
+
+**ImageComparer_Execute_ExplicitFormatAndExtensionlessPath_WritesThatFormat** and
+**ImageComparer_Execute_ExplicitFormatAndCustomExtension_FormatWinsOverExtension**: with a format in the write options,
+a difference picture named `diff` is a PNG (the signature bytes and the reported format) and one named `diff.dat` is a
+JPEG (it starts with FF D8), so the format of the options wins over the extension.
+
+**ImageComparer_Execute_NoFormatAndNoExtension_ThrowsUsageErrorBeforeWriting** and
+**ImageComparer_Execute_UnknownExplicitFormat_ThrowsUsageError**: without a format in the options a picture named `diff`
+is a `usage-error` and the folder holds only the two inputs; a format value that no member has is a `usage-error` that
+says `Unknown output format`.
+
+**ImageComparer_Execute_NullRequestMember_ThrowsArgumentNullException**: a request without the first or second input,
+the label, facts, or options of either, the thresholds, or the write options throws `ArgumentNullException` that names
+the member, and nothing is written.
+
+**ImageComparer_Execute_InvalidValue_ThrowsBeforeLoading**: with input A deleted and no picture requested, an
+undefined fit mode, filter, difference style, or threshold metric, a tolerance, grid, gain, overlay weight, or explicit
+resize size out of range, and an unknown resize side each throw an `ArgumentException` (or `ArgumentOutOfRangeException`)
+rather than a load error, so the values are checked before anything is loaded, whichever outputs are requested.
+
+**ImageComparer_Execute_Result_MetricsIsShortcutToComparisonMetrics**: a comparison of a white image with a black one
+reports `result.Metrics` equal to `result.Comparison.Metrics` (an RMSE of 255 on the 0 to 255 scale), and the grid cells
+and the tolerance are read from `result.Comparison`.
+
+**ResizeTarget_Helpers_CreateTheThreeShapes**: `ResizeTarget.ToInputA` and `ToInputB` are the targets with the side `a`
+and `b` and sizes of 0, and `ResizeTarget.To(width, height)` is the target with no side and that size.
+
+**ImageComparer_Execute_ResizeHelper_BringsInputsToTheNamedSize**: for each helper (the size of the first input, the
+size of the second input, and an explicit size) two inputs of different sizes are compared at the size the helper names,
+and both sides report that size.

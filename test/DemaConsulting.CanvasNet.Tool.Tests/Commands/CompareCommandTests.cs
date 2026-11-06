@@ -56,7 +56,7 @@ public class CompareCommandTests
     {
         using var context = Context.Create(json ? ["--json"] : []);
         var command = new CompareCommand();
-        var (exception, stdOut, _) = ToolHost.Capture(() => Assert.Throws<ToolException>(() => command.Run(context, args)));
+        var (exception, stdOut, _) = ToolHost.Capture(() => ToolHost.ExpectFailure(() => command.Run(context, args)));
         return (exception, stdOut);
     }
 

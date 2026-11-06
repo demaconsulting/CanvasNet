@@ -1,5 +1,4 @@
 // cspell:ignore canvasnet deskew
-using DemaConsulting.CanvasNet.Tool.Imaging;
 
 namespace DemaConsulting.CanvasNet.Tool.Commands;
 
@@ -31,7 +30,7 @@ internal sealed partial class RenderCommand
     ///     Initializes a new instance of the <see cref="RenderCommand"/> class.
     /// </summary>
     /// <param name="verb">
-    ///     One of <see cref="ImagePipeline.VerbNames"/> to run that verb, or <see langword="null"/> for the
+    ///     One of <see cref="ImagePipelineParser.VerbNames"/> to run that verb, or <see langword="null"/> for the
     ///     <c>render</c> command.
     /// </param>
     /// <exception cref="ArgumentException">Thrown when <paramref name="verb"/> is not a verb.</exception>

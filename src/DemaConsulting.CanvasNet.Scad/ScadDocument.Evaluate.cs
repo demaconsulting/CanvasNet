@@ -27,6 +27,11 @@ public sealed partial class ScadDocument
     ///         all). A path that would leave those directories is rejected. Environment variables are ignored.
     ///     </para>
     ///     <para>
+    ///         <see cref="Render"/> and <see cref="BuildScene"/> evaluate the program themselves and deliver the echo and
+    ///         the warnings through the same handlers, so call <see cref="Evaluate"/> only when you need the echo and the
+    ///         diagnostics without a scene or a picture; calling it before them runs the program (and the handlers) twice.
+    ///     </para>
+    ///     <para>
     ///         The handlers in <paramref name="options"/> are invoked on the calling thread, in the order the events
     ///         occurred, after the evaluation has finished and before this method returns or throws (see
     ///         <see cref="ScadEvaluationOptions"/>). The file resolver callback is likewise only called on the calling

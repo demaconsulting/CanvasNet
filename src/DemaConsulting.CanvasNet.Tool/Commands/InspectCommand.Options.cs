@@ -1,7 +1,8 @@
 // cspell:ignore canvasnet
 using System.Globalization;
 using DemaConsulting.CanvasNet.Canvas;
-using DemaConsulting.CanvasNet.Tool.Imaging;
+using DemaConsulting.CanvasNet.Viewer;
+using DemaConsulting.CanvasNet.Viewer.Imaging;
 
 namespace DemaConsulting.CanvasNet.Tool.Commands;
 
@@ -11,7 +12,7 @@ namespace DemaConsulting.CanvasNet.Tool.Commands;
 internal sealed partial class InspectCommand
 {
     /// <summary>The default number of dominant colors of <c>inspect colors</c>.</summary>
-    internal const int DefaultColors = 8;
+    internal const int DefaultColors = ImageInspector.DefaultColors;
 
     /// <summary>The names of the subcommands, in the order they are listed.</summary>
     internal static readonly IReadOnlyList<string> SubcommandNames = ["colors", "pixel"];
@@ -96,7 +97,7 @@ internal sealed partial class InspectCommand
         var source = RenderCommand.ReadSourceOptions(reader);
 
         // Every operation is parsed now so that a malformed one is reported before anything is loaded
-        var operations = ImagePipeline.Parse(reader, null, null);
+        var operations = ImagePipelineParser.Parse(reader, null, null);
         return new Settings(subcommand, reader.Positionals[1], source, operations, count, radius, point);
     }
 

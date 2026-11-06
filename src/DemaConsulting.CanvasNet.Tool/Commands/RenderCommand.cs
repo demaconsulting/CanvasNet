@@ -2,7 +2,8 @@
 using System.Globalization;
 using System.Text.Json;
 using DemaConsulting.CanvasNet.Canvas;
-using DemaConsulting.CanvasNet.Tool.Imaging;
+using DemaConsulting.CanvasNet.Viewer;
+using DemaConsulting.CanvasNet.Viewer.Imaging;
 
 namespace DemaConsulting.CanvasNet.Tool.Commands;
 
@@ -12,7 +13,9 @@ namespace DemaConsulting.CanvasNet.Tool.Commands;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         The command is one pass of load, transform, and write. Loading is <see cref="SourceLoader"/>: a vector
+///         The command parses the command line, checks the options against the kind of the input, and prints the
+///         result; the work - one pass of load, transform, and write - is <see cref="ImageRenderer"/> of the Viewer
+///         library. Loading is <see cref="SourceLoader"/>: a vector
 ///         source (SVG, a Vega-Lite chart, or a page of a PDF, PPTX, or VSDX document) is rendered directly at the requested size, over
 ///         white unless a background is given; a raster source is decoded, turned upright by its EXIF orientation
 ///         (unless <c>--no-auto-orient</c>), and resized when a size is requested. Writing is
@@ -27,7 +30,8 @@ namespace DemaConsulting.CanvasNet.Tool.Commands;
 ///         pages, the format, and every output path) is checked first, and the document is opened once for all pages.
 ///     </para>
 ///     <para>
-///         The image pipeline (<see cref="ImagePipeline"/>) runs between the load and the write: the operations
+///         The image pipeline (<see cref="ImagePipeline"/>, read from the command line by
+///         <see cref="ImagePipelineParser"/>) runs between the load and the write: the operations
 ///         <c>--crop</c>, <c>--resize</c>, <c>--fit</c>, <c>--rotate</c>, <c>--flip</c>, <c>--pad</c>, and the photo tools
 ///         <c>--grayscale</c>, <c>--invert</c>, <c>--threshold</c>, <c>--levels</c>, <c>--brightness</c>,
 ///         <c>--contrast</c>, <c>--auto-levels</c>, <c>--deskew</c>, <c>--trim</c>, and <c>--grid</c> are applied to
@@ -44,11 +48,6 @@ namespace DemaConsulting.CanvasNet.Tool.Commands;
 /// </remarks>
 internal sealed partial class RenderCommand : ICommand
 {
-    /// <summary>
-    ///     The text in an output name that is replaced by the page number.
-    /// </summary>
-    private const string PagePlaceholder = "{page}";
-
     /// <inheritdoc />
     public string Name => _verb ?? "render";
 
@@ -127,45 +126,19 @@ internal sealed partial class RenderCommand : ICommand
                 $"The options {string.Join(", ", ScadOptionNames)} only apply to an OpenSCAD model, but '{settings.Input}' is a {info.Format.ToFormatName()} file.",
                 "Remove them, or render a .scad file.");
         }
-        var pages = settings.AllPages ? Enumerable.Range(1, info.PageCount).ToList() : [settings.Source.Page];
-        SourceLoader.CheckPage(info, pages[0]);
-        var targets = PlanTargets(settings, info, pages);
-        ImageWriter.ResolveFormat(targets[0].Path, settings.Write.Format?.ToFormatName());
-        foreach (var (_, target) in targets)
-        {
-            ImageWriter.CheckTarget(target, settings.Input, settings.Write.NoClobber);
-        }
 
-        // Each page is loaded, run through the image pipeline (crop, resize, rotate, and so on), and encoded to a
-        // temporary file next to its target. No target is touched until every page has been rendered and encoded, so a
-        // render or encode failure on any page leaves no new or partial output and every existing output untouched.
-        // The outputs are then published all or nothing: if a move fails (for example a target is no longer
-        // writable), the targets already published are rolled back and the error is reported.
-        var outputs = new List<PageOutput>();
-        var staged = new List<ImageWriter.StagedOutput>();
-        try
-        {
-            using (var source = SourceLoader.OpenPages(info, settings.Source))
+        // The operation reports the mistakes about the pages and the outputs before any pixels are decoded, then
+        // loads, transforms, and writes every page; everything below only formats what it returns
+        var result = ImageRenderer.Execute(
+            info,
+            new RenderRequest(settings.Output)
             {
-                foreach (var (page, target) in targets)
-                {
-                    using var loaded = source.ReadPage(page);
-                    var (output, pending) = TransformAndStage(loaded, target, settings, info.Format.IsDocument());
-                    staged.Add(pending);
-                    outputs.Add(output);
-                }
-            }
-
-            ImageWriter.PublishAll(staged);
-        }
-        finally
-        {
-            // Disposing removes the temporary file of every output that was not moved into place
-            foreach (var pending in staged)
-            {
-                pending.Dispose();
-            }
-        }
+                AllPages = settings.AllPages,
+                Source = settings.Source,
+                Write = settings.Write,
+                Operations = settings.Operations
+            });
+        var outputs = result.Pages;
 
         if (context.Json)
         {
@@ -190,175 +163,6 @@ internal sealed partial class RenderCommand : ICommand
     }
 
     /// <summary>
-    ///     One page that was loaded and written, with what is reported about it.
-    /// </summary>
-    /// <param name="Page">The 1-based page number.</param>
-    /// <param name="Info">The facts about the source; the size is the natural size of the page.</param>
-    /// <param name="Diagnostics">The notes reported while loading.</param>
-    /// <param name="Echo">The text a model printed while it was evaluated.</param>
-    /// <param name="Operations">What was done to the source to produce the output.</param>
-    /// <param name="Result">What was written.</param>
-    /// <param name="Anchors">The anchors a model declared, with their pixel positions in the written image.</param>
-    private sealed record PageOutput(
-        int Page,
-        SourceInfo Info,
-        IReadOnlyList<ImageDiagnostic> Diagnostics,
-        IReadOnlyList<string> Echo,
-        IReadOnlyList<AppliedOperation> Operations,
-        WriteResult Result,
-        IReadOnlyList<SourceAnchor> Anchors)
-    {
-        /// <summary>
-        ///     Initializes a new instance of the <see cref="PageOutput"/> record from a loaded page.
-        /// </summary>
-        /// <param name="loaded">The loaded page.</param>
-        /// <param name="operations">What was done to the source to produce the output.</param>
-        /// <param name="result">What was written.</param>
-        /// <param name="anchors">The anchors of the loaded page, already mapped through the pipeline.</param>
-        public PageOutput(LoadedSource loaded, IReadOnlyList<AppliedOperation> operations, WriteResult result, IReadOnlyList<SourceAnchor> anchors)
-            : this(loaded.Page, loaded.Info, loaded.Diagnostics, loaded.Echo, operations, result, anchors)
-        {
-        }
-    }
-
-    /// <summary>
-    ///     Decides which output file each page is written to.
-    /// </summary>
-    /// <param name="settings">The settings.</param>
-    /// <param name="info">The facts about the input.</param>
-    /// <param name="pages">The 1-based pages to render.</param>
-    /// <returns>The page and the output path of each.</returns>
-    /// <exception cref="ToolException">
-    ///     Thrown with code <c>usage-error</c> when every page is rendered but the output would be the same file for
-    ///     each of them.
-    /// </exception>
-    /// <remarks>
-    ///     <c>{page}</c> in the output is replaced by the page number. With <c>--all-pages</c> an output that is an
-    ///     existing directory, or ends with a directory separator, names a directory: each page is written there as
-    ///     the input's file name without extension, a dash, and the page number, with the extension of the format.
-    /// </remarks>
-    private static List<(int Page, string Path)> PlanTargets(Settings settings, SourceInfo info, IReadOnlyList<int> pages)
-    {
-        var template = settings.Output;
-        if (settings.AllPages && IsDirectoryOutput(template))
-        {
-            var extension = (settings.Write.Format ?? OutputFormat.Png) switch
-            {
-                OutputFormat.Jpeg => ".jpg",
-                OutputFormat.Bmp => ".bmp",
-                OutputFormat.Tiff => ".tif",
-                _ => ".png"
-            };
-            template = Path.Combine(template, Path.GetFileNameWithoutExtension(settings.Input) + "-{page}" + extension);
-        }
-        else if (settings.AllPages && info.PageCount > 1 && !template.Contains(PagePlaceholder, StringComparison.Ordinal))
-        {
-            throw new ToolException(
-                ErrorCodes.UsageError,
-                $"The output '{settings.Output}' would be the same file for every page.",
-                "With --all-pages, put {page} in the output name, for example out-{page}.png, or name a directory.");
-        }
-
-        return pages
-            .Select(page => (page, template.Replace(PagePlaceholder, page.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal)))
-            .ToList();
-    }
-
-    /// <summary>
-    ///     Determines whether an output names a directory.
-    /// </summary>
-    /// <param name="output">The output path.</param>
-    /// <returns><see langword="true"/> when it is an existing directory or ends with a directory separator.</returns>
-    private static bool IsDirectoryOutput(string output)
-    {
-        return Directory.Exists(output)
-               || output.EndsWith('/')
-               || output.EndsWith(Path.DirectorySeparatorChar)
-               || output.EndsWith(Path.AltDirectorySeparatorChar);
-    }
-
-    /// <summary>
-    ///     Runs the image pipeline over a loaded page and stages the result next to its output.
-    /// </summary>
-    /// <param name="loaded">The loaded page; it is not disposed.</param>
-    /// <param name="target">The output path of the page.</param>
-    /// <param name="settings">The settings.</param>
-    /// <param name="isDocument"><see langword="true"/> when the source is a document.</param>
-    /// <returns>What was loaded, done to it, and will be written, and the staged output that publishes it.</returns>
-    /// <remarks>
-    ///     The pipeline makes a new surface for every step and disposes the previous one, so at most two full-size
-    ///     surfaces exist at a time (plus the writer's flattened copy of a JPEG). A border that has no color of its
-    ///     own is the background the user gave, else white for a vector source (which is flattened over white), else
-    ///     transparent.
-    /// </remarks>
-    private static (PageOutput Output, ImageWriter.StagedOutput Staged) TransformAndStage(
-        LoadedSource loaded, string target, Settings settings, bool isDocument)
-    {
-        Surface? transformed = null;
-        try
-        {
-            var surface = loaded.Surface;
-            IReadOnlyList<AppliedOperation> applied = [];
-            if (settings.Operations.Count > 0)
-            {
-                var defaultPad = settings.Source.Background ?? (loaded.IsVector ? new Rgba32(255, 255, 255, 255) : new Rgba32(0, 0, 0, 0));
-                transformed = ImagePipeline.Apply(surface, settings.Operations, defaultPad, out applied, settings.Source.Background);
-                surface = transformed;
-            }
-
-            var staged = ImageWriter.Stage(surface, target, settings.Input, settings.Write);
-            var result = staged.Result;
-
-            // The anchors of a model follow the pixels through the pipeline; the loaded image is the starting point
-            var anchors = settings.Operations.Count > 0
-                ? ImagePipeline.MapAnchors(loaded.Anchors, loaded.Surface.Width, loaded.Surface.Height, applied)
-                : loaded.Anchors;
-            return (new PageOutput(loaded, CollectOperations(loaded, applied, result, settings, isDocument), result, anchors), staged);
-        }
-        finally
-        {
-            transformed?.Dispose();
-        }
-    }
-
-    /// <summary>
-    ///     Lists what was done to a loaded page to produce its output.
-    /// </summary>
-    /// <param name="loaded">The loaded page.</param>
-    /// <param name="applied">What the image pipeline did, in order.</param>
-    /// <param name="result">What was written.</param>
-    /// <param name="settings">The settings.</param>
-    /// <param name="isDocument"><see langword="true"/> when the source is a document.</param>
-    /// <returns>
-    ///     The operations of the loader, then those of the pipeline, then the flattening of a JPEG when the writer did
-    ///     it; when every page of a document is rendered each operation names its page.
-    /// </returns>
-    private static List<AppliedOperation> CollectOperations(
-        LoadedSource loaded,
-        IReadOnlyList<AppliedOperation> applied,
-        WriteResult result,
-        Settings settings,
-        bool isDocument)
-    {
-        var operations = loaded.Operations.Concat(applied).ToList();
-        if (result.Flattened)
-        {
-            operations.Add(SourceLoader.Operation("flatten", ("background", SourceLoader.FormatColor(settings.Write.FlattenBackground))));
-        }
-
-        if (settings.AllPages && isDocument)
-        {
-            return operations
-                .Select(o => o.Fields.Any(f => f.Key == "page")
-                    ? o
-                    : o with { Fields = [.. o.Fields, new KeyValuePair<string, object>("page", loaded.Page)] })
-                .ToList();
-        }
-
-        return operations;
-    }
-
-    /// <summary>
     ///     Renders the one-line text result of one page.
     /// </summary>
     /// <param name="output">The page that was written.</param>
@@ -366,7 +170,7 @@ internal sealed partial class RenderCommand : ICommand
     ///     The text, for example <c>wrote out.png (816x1056 png, 41208 bytes) from in.svg</c>; a page of a document
     ///     adds <c>page N</c>.
     /// </returns>
-    private static string RenderText(PageOutput output)
+    private static string RenderText(RenderedPage output)
     {
         var result = output.Result;
         var page = output.Info.Format.IsDocument() ? $" page {output.Page}" : string.Empty;
@@ -380,7 +184,7 @@ internal sealed partial class RenderCommand : ICommand
     /// </summary>
     /// <param name="output">The rendered page.</param>
     /// <returns>Warning lines for operation reports that explain a skipped best-effort operation.</returns>
-    private static IEnumerable<string> RenderWarnings(PageOutput output)
+    private static IEnumerable<string> RenderWarnings(RenderedPage output)
     {
         foreach (var operation in output.Operations.Where(o => o.Op == "deskew"))
         {
@@ -405,7 +209,7 @@ internal sealed partial class RenderCommand : ICommand
     ///     <c>outputs</c>, and <c>diagnostics</c> list every page; each output and each note of a document names its
     ///     page. For an OpenSCAD model (and only for one) <c>anchors</c> follows <c>echo</c> (see <see cref="WriteAnchors"/>).
     /// </remarks>
-    private static void WriteJsonFields(Utf8JsonWriter writer, SourceInfo source, Settings settings, IReadOnlyList<PageOutput> outputs)
+    private static void WriteJsonFields(Utf8JsonWriter writer, SourceInfo source, Settings settings, IReadOnlyList<RenderedPage> outputs)
     {
         var isDocument = source.Format.IsDocument();
 
@@ -512,7 +316,7 @@ internal sealed partial class RenderCommand : ICommand
     ///     when the point cannot be located) and <c>inside</c> (whether the pixel lies within the written image). The
     ///     anchors are in echo order, duplicates included; the array is empty when the model declares none.
     /// </remarks>
-    private static void WriteAnchors(Utf8JsonWriter writer, IReadOnlyList<PageOutput> outputs)
+    private static void WriteAnchors(Utf8JsonWriter writer, IReadOnlyList<RenderedPage> outputs)
     {
         writer.WriteStartArray("anchors");
         foreach (var output in outputs)

@@ -42,6 +42,14 @@ internal sealed class ScadReporter
     public void Warn(string message, ScadSourceLocation location) => _sink.Warn(message, location);
 
     /// <summary>
+    ///     Reports a categorized warning (an invalid argument or a recoverable problem).
+    /// </summary>
+    /// <param name="code">The stable warning code, one of the <see cref="ScadDiagnosticCodes"/> constants.</param>
+    /// <param name="message">The warning text, without location.</param>
+    /// <param name="location">The location the warning is about.</param>
+    public void Warn(string code, string message, ScadSourceLocation location) => _sink.Warn(code, message, location);
+
+    /// <summary>
     ///     Reports an unsupported feature and, in strict mode, throws for the first report of it.
     /// </summary>
     /// <param name="feature">The stable feature identifier.</param>

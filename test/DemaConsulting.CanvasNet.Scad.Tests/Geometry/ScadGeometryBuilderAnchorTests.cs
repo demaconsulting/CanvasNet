@@ -220,6 +220,7 @@ public class ScadGeometryBuilderAnchorTests
         // Assert: no anchor, and the warning about the anchor names the module (other warnings may also exist)
         Assert.Empty(result.Anchors);
         var warning = Assert.Single(result.Warnings, w => w.Message.StartsWith("scad-anchor-invalid:", StringComparison.Ordinal));
+        Assert.Equal(ScadDiagnosticCodes.AnchorInvalid, warning.Code);
         Assert.Contains($"inside {module},", warning.Message, StringComparison.Ordinal);
         Assert.Contains("'a'", warning.Message, StringComparison.Ordinal);
     }
@@ -262,6 +263,7 @@ public class ScadGeometryBuilderAnchorTests
         Assert.Empty(result.Anchors);
         var warning = Assert.Single(result.Warnings);
         Assert.StartsWith("scad-anchor-invalid:", warning.Message, StringComparison.Ordinal);
+        Assert.Equal(ScadDiagnosticCodes.AnchorInvalid, warning.Code);
         Assert.Contains("'huge'", warning.Message, StringComparison.Ordinal);
     }
 

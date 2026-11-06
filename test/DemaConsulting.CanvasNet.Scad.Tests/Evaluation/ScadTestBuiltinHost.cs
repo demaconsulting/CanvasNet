@@ -10,6 +10,9 @@ internal sealed class ScadTestBuiltinHost : IScadBuiltinHost
     /// <summary>Gets the warnings reported, in order.</summary>
     public List<string> Warnings { get; } = [];
 
+    /// <summary>Gets the code of each warning reported, in the order of <see cref="Warnings"/>.</summary>
+    public List<string> WarningCodes { get; } = [];
+
     /// <summary>Gets the unsupported-feature reports, in order.</summary>
     public List<(string Feature, string Message)> UnsupportedReports { get; } = [];
 
@@ -32,7 +35,14 @@ internal sealed class ScadTestBuiltinHost : IScadBuiltinHost
     public ScadRandom UnseededRandom { get; } = new(ScadRandom.DefaultState);
 
     /// <inheritdoc />
-    public void Warn(string message) => Warnings.Add(message);
+    public void Warn(string message) => Warn(ScadDiagnosticCodes.Warning, message);
+
+    /// <inheritdoc />
+    public void Warn(string code, string message)
+    {
+        WarningCodes.Add(code);
+        Warnings.Add(message);
+    }
 
     /// <inheritdoc />
     public void Unsupported(string feature, string message) => UnsupportedReports.Add((feature, message));

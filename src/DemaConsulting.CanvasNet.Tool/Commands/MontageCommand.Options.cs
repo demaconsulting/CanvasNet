@@ -1,6 +1,7 @@
 // cspell:ignore canvasnet
 using DemaConsulting.CanvasNet.Canvas;
-using DemaConsulting.CanvasNet.Tool.Imaging;
+using DemaConsulting.CanvasNet.Viewer;
+using DemaConsulting.CanvasNet.Viewer.Imaging;
 
 namespace DemaConsulting.CanvasNet.Tool.Commands;
 
@@ -10,13 +11,13 @@ namespace DemaConsulting.CanvasNet.Tool.Commands;
 internal sealed partial class MontageCommand
 {
     /// <summary>The default width and height of the image area of a cell.</summary>
-    internal const int DefaultCellSize = 256;
+    internal const int DefaultCellSize = ContactSheet.DefaultCellSize;
 
     /// <summary>The default space between cells.</summary>
-    internal const int DefaultSpacing = 8;
+    internal const int DefaultSpacing = ContactSheet.DefaultSpacing;
 
     /// <summary>The default space around the sheet.</summary>
-    internal const int DefaultPadding = 8;
+    internal const int DefaultPadding = ContactSheet.DefaultPadding;
 
     /// <summary>
     ///     The options of the command, in the order they are listed in the help.
@@ -41,7 +42,7 @@ internal sealed partial class MontageCommand
         new("--all-pages", [], false, "Add every page or slide of a document, in order, instead of one"),
         .. RenderCommand.SpecsFor("--dpi", "--no-auto-orient", "--strict"),
         .. RenderCommand.SpecsFor(RenderCommand.ScadOptionNames),
-        .. RenderCommand.SpecsFor(ImagePipeline.FilterOption, "--quality", "--no-clobber")
+        .. RenderCommand.SpecsFor(ImagePipelineParser.FilterOption, "--quality", "--no-clobber")
     ];
 
     /// <summary>
@@ -120,19 +121,21 @@ internal sealed partial class MontageCommand
             }
         }
 
-        var filter = reader.Get(ImagePipeline.FilterOption) is { } filterText
-            ? ImagePipeline.ParseFilter(filterText, ImagePipeline.FilterOption)
+        var filter = reader.Get(ImagePipelineParser.FilterOption) is { } filterText
+            ? ImagePipelineParser.ParseFilter(filterText, ImagePipelineParser.FilterOption)
             : ResamplingMode.Auto;
-        var sheet = new SheetOptions(
-            reader.GetInt("--columns", 1, ContactSheet.MaxColumns) ?? 0,
-            cellWidth,
-            cellHeight,
-            reader.GetInt("--spacing", 0, Surface.MaxDimension) ?? DefaultSpacing,
-            reader.GetInt("--padding", 0, Surface.MaxDimension) ?? DefaultPadding,
-            background,
-            reader.Has("--labels"),
-            reader.Get("--fit") is { } fitText ? CompareCommand.ParseFit(fitText, "--fit") : FitMode.Contain,
-            filter);
+        var sheet = new SheetOptions
+        {
+            Columns = reader.GetInt("--columns", 1, ContactSheet.MaxColumns) ?? 0,
+            CellWidth = cellWidth,
+            CellHeight = cellHeight,
+            Spacing = reader.GetInt("--spacing", 0, Surface.MaxDimension) ?? DefaultSpacing,
+            Padding = reader.GetInt("--padding", 0, Surface.MaxDimension) ?? DefaultPadding,
+            Background = background,
+            Labels = reader.Has("--labels"),
+            Fit = reader.Get("--fit") is { } fitText ? CompareCommand.ParseFit(fitText, "--fit") : FitMode.Contain,
+            Filter = filter
+        };
         var quality = reader.GetInt("--quality", ImageWriter.MinQuality, ImageWriter.MaxQuality) ?? ImageWriter.DefaultQuality;
 
         return new Settings(
@@ -145,6 +148,12 @@ internal sealed partial class MontageCommand
             reader.Has("--strict"),
             !reader.Has("--no-auto-orient"),
             sheet,
-            new WriteOptions(null, quality, reader.Has("--no-clobber"), background));
+            new WriteOptions
+            {
+                Format = null,
+                Quality = quality,
+                NoClobber = reader.Has("--no-clobber"),
+                FlattenBackground = background
+            });
     }
 }

@@ -66,8 +66,9 @@ load/crop/resize/save workflows.
 - 🛡️ **Sandboxed File Resolver** - Resolve untrusted relative paths to files inside chosen directories, no escapes
 - 🖼️ **Linked Pictures** - SVG `<image href>` can embed 3D models, charts, other SVG files, document pages, and
   pictures from the document's own folder; the `Viewer` package lists every format, and you can add your own source
-- 🔭 **Viewer** - `CanvasNetViewer.Render` draws any file CanvasNet can read, and `CreateImageResolver` makes SVG
-  documents embed all of them
+- 🔭 **Viewer** - `CanvasNetViewer.Render` draws any file CanvasNet can read, `CreateImageResolver` makes SVG
+  documents embed all of them, and its `Imaging` operations do everything the `canvasnet` tool does (probe, render with
+  a transformation pipeline, inspect, compare, and make a contact sheet) as library calls
 - 🎬 **Rendering** - Transform-aware canvas with text and shape drawing
 - 📦 **Package Reading** - `OpcPackage` and `SafeXml` read untrusted `.pptx`/`.vsdx` packages and XML safely
 - ⚡ **Span-Based** - Fast, allocation-conscious pixel and row access
@@ -102,7 +103,7 @@ the ones you need, the same way as above:
 | `DemaConsulting.CanvasNet.Render3D` | 3D mesh/scene rasterization                      |
 | `DemaConsulting.CanvasNet.Scad`     | OpenSCAD-language model rendering                |
 | `DemaConsulting.CanvasNet.VegaLite` | Vega-Lite static chart rendering                 |
-| `DemaConsulting.CanvasNet.Viewer`   | Render any file; SVG documents embed all formats |
+| `DemaConsulting.CanvasNet.Viewer`   | The `canvasnet` operations as library calls      |
 | `DemaConsulting.CanvasNet.Tool`     | The `canvasnet` command-line tool (dotnet tool)  |
 
 ## Command-Line Tool
@@ -415,7 +416,8 @@ using var serif = named.Render(640, 480, fonts);
 
 A model can name points of interest with `echo("anchor", "name", [x, y, z]);`; `ScadRenderOptions.AnchorHandler` (and
 the `anchors` array of `canvasnet render model.scad --json`) reports each with its pixel position in the picture, for
-callouts and leader lines.
+callouts and leader lines. An anchor that cannot be read is skipped with a warning whose `ScadDiagnostic.Code` is
+`scad-anchor-invalid` (every warning has a stable `Code`, so test it and not the message).
 
 Render a Vega-Lite chart (the `DemaConsulting.CanvasNet.VegaLite` package implements a defined subset of the
 language for static pictures: it never touches the network, reads local data files only from a sandbox, uses only the

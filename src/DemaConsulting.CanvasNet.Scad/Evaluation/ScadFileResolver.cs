@@ -193,7 +193,7 @@ internal sealed partial class ScadFileResolver
         var file = Resolve(directive, referrer);
         if (file is null)
         {
-            _sink.Warn($"Can't open include file '{directive.Path}'", directive.Location);
+            _sink.Warn(ScadDiagnosticCodes.IncludeNotFound, $"Can't open include file '{directive.Path}'", directive.Location);
             return;
         }
 

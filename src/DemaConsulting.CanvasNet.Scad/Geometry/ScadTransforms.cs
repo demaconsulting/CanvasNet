@@ -504,7 +504,7 @@ internal static partial class ScadTransforms
     /// <returns><see cref="ScadGeo.Empty"/>.</returns>
     internal static ScadGeo Invalid(ScadInstance node, ScadGeometryContext context, string problem)
     {
-        context.Reporter.Warn($"{node.Name}: {problem}; the instance is ignored", node.Location);
+        context.Reporter.Warn(ScadDiagnosticCodes.InvalidArgument, $"{node.Name}: {problem}; the instance is ignored", node.Location);
         return ScadGeo.Empty;
     }
 

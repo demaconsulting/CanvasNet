@@ -20,7 +20,8 @@ namespace DemaConsulting.CanvasNet.ImageSources;
 ///         (the renderer then draws nothing and carries on). Return a fresh surface on every call: nothing in the
 ///         contract allows a caller to cache results, and a live source (a video frame) depends on being asked again. The
 ///         <c>href</c> is untrusted text from a document, so an implementation that touches the file system
-///         or the network must confine it first. Exceptions propagate to the caller of the renderer unchanged.
+///         or the network must confine it first. Exceptions propagate to the caller of the renderer unchanged. An
+///         implementation need not be <see cref="IDisposable"/>; <see cref="FolderImageResolver"/> is not.
 ///     </para>
 ///     <para>
 ///         <b>Thread safety.</b> The contract does not require an implementation to be thread-safe; a renderer calls it

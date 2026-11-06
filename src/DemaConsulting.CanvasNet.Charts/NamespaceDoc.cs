@@ -60,13 +60,20 @@ namespace DemaConsulting.CanvasNet.Charts;
 ///     <c>PptxDocument.Charts.cs</c> (chart-part location/parsing) and its
 ///     <c>RenderGraphicFrame</c> rendering dispatch.
 ///     </para>
+///     <para>
+///     See <see cref="ChartBuilder"/> to create a <see cref="Chart"/> and <see cref="ChartRenderer"/> with
+///     <see cref="ChartRenderOptions"/> to draw it onto a <see cref="DemaConsulting.CanvasNet.Canvas.Surface"/>
+///     (<see cref="DemaConsulting.CanvasNet.Codecs"/> saves it), <see cref="DemaConsulting.CanvasNet.Charts.OpenXml"/> to
+///     read a chart from an Office document, and <c>DemaConsulting.CanvasNet.VegaLite</c> for charts written as
+///     Vega-Lite specifications.
+///     </para>
 /// </remarks>
 /// <example>
 ///     Building an immutable <see cref="Chart"/> describing a simple two-category bar chart with
 ///     a title, using <see cref="ChartBuilder"/>'s fluent API, then rendering it onto a new
 ///     400x300 <see cref="DemaConsulting.CanvasNet.Canvas.Surface"/> using
 ///     <see cref="ChartRenderer"/>:
-///     <code>
+///     <code language="csharp">
 ///     using DemaConsulting.CanvasNet.Charts;
 ///
 ///     var chart = new ChartBuilder()

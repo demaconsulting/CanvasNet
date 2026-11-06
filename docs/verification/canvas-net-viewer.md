@@ -1,6 +1,6 @@
 # System Verification Design
 
-<!-- cspell:ignore vsdx pptx scad href -->
+<!-- cspell:ignore vsdx pptx scad href slnx -->
 
 This document describes the system-level verification strategy for CanvasNetViewer.
 
@@ -8,7 +8,8 @@ This document describes the system-level verification strategy for CanvasNetView
 
 The CanvasNetViewer system is verified through system-level integration tests that exercise the package as a whole from
 the perspective of a consumer, through its public API only (`ImageSources`, `Extensions`, `CreateImageResolver`,
-`Render`, and the options and result types). The tests use the real format packages (nothing is mocked): an SVG document
+`Render`, the options and result types, and the `Imaging` operations with `ViewerException`). The tests use the real
+format packages (nothing is mocked): an SVG document
 that embeds a raster, a model, a chart, another SVG file, and a PDF page through the resolver of the viewer, and the
 custom image sources an application plugs in. The custom sources are real implementations of `IImageSource` that record
 every request: a source for a made-up file type, a source that takes over a built-in extension, a source that claims a
@@ -104,6 +105,46 @@ created for each render or one resolver serves two renders.
 
 Asserts that `Render(path)` honors `ViewerRenderOptions.ExtraSources`: a file of the made-up type is drawn by the custom
 source, and an SVG file rendered by path embeds a scheme-claimed live frame.
+
+### Integration: Image Operations Probe Render Inspect Compare Montage
+
+**Test**: `CanvasNetViewer_SystemIntegration_ImageOperations_ProbeRenderInspectCompareMontage`
+
+Writes the SVG fixture, probes it, renders it twice with `ImageRenderer` (once flipped), inspects the flipped picture with
+`ImageInspector`, compares the two renders with `ImageComparer`, and puts both on a contact sheet with `MontageBuilder`.
+Asserts that every operation produced its result, that the two renders have the same size and are not identical, and
+that the sheet has two cells and exists.
+
+### Integration: Failed Operation Is ViewerException With Stable Code
+
+**Test**: `CanvasNetViewer_SystemIntegration_FailedOperation_IsViewerExceptionWithStableCode`
+
+Probes a text file and a missing file, and asserts that each failure is a `ViewerException` (an
+`InvalidOperationException`) with the documented code (`unsupported-format`, `input-not-found`) and a message.
+
+### Integration: User Guide Examples Compile
+
+**Test**: `CanvasNetViewer_UserGuideExamples_Compile`
+
+Reads `docs/user_guide/canvas-net-viewer.md` (found by walking up from the test output folder to the folder that holds
+`CanvasNet.slnx`) and extracts every fenced C# block with the HTML comment that precedes it. A block preceded by
+`<!-- compile -->` is a complete program (top-level statements, then types) and is compiled, never run, with Roslyn:
+one compilation for each example, with the implicit usings of a .NET console project added, a console application
+output, nullable annotations enabled, and the assemblies of the test host (the platform libraries and the Viewer
+package with its dependencies) as references. A block preceded by `<!-- signature -->` is a listing and is not
+compiled. Asserts that every C# block of the guide carries one of the two markers (so a new example cannot escape the
+check), that at least 15 examples are compiled, that no example has a compile error (a failure names the line of the
+example, its first line, and the diagnostics), and that every example that mentions `ViewerException` has both the
+`DemaConsulting.CanvasNet.Viewer` and the `DemaConsulting.CanvasNet.Viewer.Imaging` using directives.
+
+### Integration: User Guide Examples Negative Control Reports Errors
+
+**Test**: `CanvasNetViewer_UserGuideExamples_NegativeControl_ReportsErrors`
+
+Runs the same compile step on a program that calls a method that does not exist, on a program that has a using
+directive for a namespace that does not exist, and on a correct program. Asserts that the first two are reported with
+an error that names the missing member or namespace, and that the correct program has no error, which proves that the
+guide test can fail and does not pass on an empty check.
 
 ## Acceptance Criteria
 

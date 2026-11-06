@@ -245,6 +245,20 @@ collected, that the embedded image has the format the source reported, the size 
 the
 unresolved warnings have the stable code, source, and severity.
 
+##### CanvasNet-ImageSources-FolderImageResolver-DiagnosticOrigin: Which File A Note Is About
+
+**Tests**: `FolderImageResolver_Resolve_NestedSourceNote_OriginListsEmbeddingChain`,
+`FolderImageResolver_Resolve_UnresolvedLinkInEmbeddedFile_OriginIsTheContainingFile`,
+`FolderImageResolver_Resolve_TooLargeLinkInEmbeddedFile_OriginIsTheContainingFile`,
+`FolderImageResolver_Resolve_SchemeLinkNote_OriginIsTheLinkAsWritten`,
+`ImageSourceDiagnostic_Origin_DefaultsToEmptyAndIsComparedByEntries`
+
+Asserts that a note about a link of the top-level document has an empty origin and that a note a source reported for a
+file embedded by another file lists the chain of files, outermost first, with the message still prefixed by the link
+as before; that a link that is not drawn, and a link whose picture does not fit in the pixel budget, found inside an
+embedded file, name that file as the origin; that a note for a scheme link names the link as written; and that the
+origin takes part in value equality, compared entry by entry, and is empty by default.
+
 ##### CanvasNet-ImageSources-FolderImageResolver-Failures: Failed Files
 
 **Tests**: `FolderImageResolver_Resolve_SourceThrows_WrapsInImageSourceException`,

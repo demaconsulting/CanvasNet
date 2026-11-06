@@ -15,9 +15,6 @@ internal sealed partial class ScadEvaluator
     /// <summary>The first echo argument that turns a statement-form <c>echo</c> into an anchor declaration.</summary>
     private const string AnchorEchoTag = "anchor";
 
-    /// <summary>The stable identifier that starts the message of every warning about a malformed or unsupported anchor.</summary>
-    internal const string AnchorInvalidCode = "scad-anchor-invalid";
-
     /// <summary>
     ///     Executes the statements of a list that produce instances; assignments and definitions were already
     ///     bound when the list's scope was built.
@@ -297,7 +294,7 @@ internal sealed partial class ScadEvaluator
     /// </summary>
     /// <remarks>
     ///     A valid anchor has exactly three unnamed arguments: the tag, a non-empty string name and a vector of exactly
-    ///     three finite numbers. Anything else produces one <see cref="AnchorInvalidCode"/> warning and no instance;
+    ///     three finite numbers. Anything else produces one <see cref="ScadDiagnosticCodes.AnchorInvalid"/> warning and no instance;
     ///     the evaluation continues.
     /// </remarks>
     /// <param name="values">The evaluated arguments (name and value), the first being the tag.</param>
@@ -309,7 +306,7 @@ internal sealed partial class ScadEvaluator
         // Check the shape of the call first: tag, name and point, all positional
         if (values.Count != 3 || values[1].Name is not null || values[2].Name is not null)
         {
-            Warn($"{AnchorInvalidCode}: expected echo(\"anchor\", \"name\", [x, y, z]) with exactly three unnamed arguments; the anchor is skipped", location);
+            Warn(ScadDiagnosticCodes.AnchorInvalid, $"{ScadDiagnosticCodes.AnchorInvalid}: expected echo(\"anchor\", \"name\", [x, y, z]) with exactly three unnamed arguments; the anchor is skipped", location);
             return;
         }
 
@@ -317,7 +314,7 @@ internal sealed partial class ScadEvaluator
         var nameValue = values[1].Value;
         if (nameValue.Kind != ScadValueKind.String || nameValue.AsString.Length == 0)
         {
-            Warn($"{AnchorInvalidCode}: the anchor name must be a non-empty string; the anchor is skipped", location);
+            Warn(ScadDiagnosticCodes.AnchorInvalid, $"{ScadDiagnosticCodes.AnchorInvalid}: the anchor name must be a non-empty string; the anchor is skipped", location);
             return;
         }
 
@@ -326,7 +323,7 @@ internal sealed partial class ScadEvaluator
         if (point.Kind != ScadValueKind.Vector || point.AsVector.Count != 3 || !IsFiniteNumber(point.AsVector[0])
             || !IsFiniteNumber(point.AsVector[1]) || !IsFiniteNumber(point.AsVector[2]))
         {
-            Warn($"{AnchorInvalidCode}: the anchor '{nameValue.AsString}' needs a point [x, y, z] of three finite numbers; the anchor is skipped", location);
+            Warn(ScadDiagnosticCodes.AnchorInvalid, $"{ScadDiagnosticCodes.AnchorInvalid}: the anchor '{nameValue.AsString}' needs a point [x, y, z] of three finite numbers; the anchor is skipped", location);
             return;
         }
 
@@ -382,13 +379,13 @@ internal sealed partial class ScadEvaluator
             }
             else
             {
-                Warn($"Ignoring unknown argument '{slot}' of assert", location);
+                Warn(ScadDiagnosticCodes.UnknownArgument, $"Ignoring unknown argument '{slot}' of assert", location);
             }
         }
 
         if (extra)
         {
-            Warn("Ignoring extra arguments to assert", location);
+            Warn(ScadDiagnosticCodes.ArgumentCount, "Ignoring extra arguments to assert", location);
         }
 
         if (condition is null)

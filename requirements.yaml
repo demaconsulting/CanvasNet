@@ -168,6 +168,18 @@ includes:
   - docs/reqstream/canvas-net-viewer.yaml
   - docs/reqstream/canvas-net-viewer/canvas-net-viewer.yaml
   - docs/reqstream/canvas-net-viewer/platform-requirements.yaml
+  - docs/reqstream/canvas-net-viewer/viewer-exception.yaml
+  - docs/reqstream/canvas-net-viewer/imaging.yaml
+  - docs/reqstream/canvas-net-viewer/imaging/source-loader.yaml
+  - docs/reqstream/canvas-net-viewer/imaging/image-writer.yaml
+  - docs/reqstream/canvas-net-viewer/imaging/image-pipeline.yaml
+  - docs/reqstream/canvas-net-viewer/imaging/image-comparison.yaml
+  - docs/reqstream/canvas-net-viewer/imaging/contact-sheet.yaml
+  - docs/reqstream/canvas-net-viewer/imaging/grid-overlay.yaml
+  - docs/reqstream/canvas-net-viewer/imaging/image-renderer.yaml
+  - docs/reqstream/canvas-net-viewer/imaging/image-inspector.yaml
+  - docs/reqstream/canvas-net-viewer/imaging/image-comparer.yaml
+  - docs/reqstream/canvas-net-viewer/imaging/montage-builder.yaml
   - docs/reqstream/canvas-net-tool.yaml
   - docs/reqstream/canvas-net-tool/platform-requirements.yaml
   - docs/reqstream/canvas-net-tool/program.yaml
@@ -184,13 +196,6 @@ includes:
   - docs/reqstream/canvas-net-tool/commands/compare-command.yaml
   - docs/reqstream/canvas-net-tool/commands/montage-command.yaml
   - docs/reqstream/canvas-net-tool/commands/inspect-command.yaml
-  - docs/reqstream/canvas-net-tool/imaging.yaml
-  - docs/reqstream/canvas-net-tool/imaging/source-loader.yaml
-  - docs/reqstream/canvas-net-tool/imaging/image-writer.yaml
-  - docs/reqstream/canvas-net-tool/imaging/image-pipeline.yaml
-  - docs/reqstream/canvas-net-tool/imaging/image-comparison.yaml
-  - docs/reqstream/canvas-net-tool/imaging/contact-sheet.yaml
-  - docs/reqstream/canvas-net-tool/imaging/grid-overlay.yaml
   - docs/reqstream/ots/xunit.yaml
   - docs/reqstream/ots/reqstream.yaml
   - docs/reqstream/ots/buildmark.yaml

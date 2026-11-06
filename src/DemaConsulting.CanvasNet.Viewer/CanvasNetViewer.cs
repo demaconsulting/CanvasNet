@@ -16,7 +16,7 @@ namespace DemaConsulting.CanvasNet.Viewer;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         <b>The built-in sources.</b> <see cref="ImageSources"/> lists one <see cref="IImageSource"/> per format:
+///         <b>The built-in sources.</b> The <see cref="ImageSources"/> property lists one <see cref="IImageSource"/> per format:
 ///         raster (PNG, JPEG, BMP, TIFF, GIF, JPEG 2000), SVG, PDF, PPTX, VSDX, OpenSCAD and Vega-Lite. The list is fixed
 ///         and explicit: there is no discovery, no reflection and no global registry that can be changed. To support
 ///         another format, or to replace how a built-in one is drawn, implement <see cref="IImageSource"/> and pass it
@@ -24,13 +24,15 @@ namespace DemaConsulting.CanvasNet.Viewer;
 ///         (the later source in the sequence takes precedence).
 ///     </para>
 ///     <para>
-///         <b>Embedding.</b> <see cref="CreateImageResolver(string, FolderImageResolverOptions?)"/> returns a
-///         <see cref="FolderImageResolver"/> for <c>SvgLoadOptions.ImageResolver</c>. Create one for <b>every</b> top-level
-///         render (it is cheap): it counts the images of one render, accumulates the diagnostics, and never caches a
-///         picture, so a live source is asked again every time.
+///         <b>Embedding.</b> The overload <see cref="CreateImageResolver(string, FolderImageResolverOptions?)"/> returns a
+///         <see cref="FolderImageResolver"/> for <c>SvgLoadOptions.ImageResolver</c>, for a render that you drive
+///         yourself. Create one for <b>every</b> top-level render (it is cheap): it counts the images of one render,
+///         accumulates the diagnostics, and never caches a picture, so a live source is asked again every time. Your
+///         own sources go in the overload with <c>extraSources</c>; the <c>Render</c> methods below need no resolver
+///         from you and take your sources from <see cref="ViewerRenderOptions.ExtraSources"/>.
 ///     </para>
 ///     <para>
-///         <b>Rendering.</b> <see cref="Render(string, ViewerRenderOptions?)"/> and
+///         <b>Rendering.</b> The methods <see cref="Render(string, ViewerRenderOptions?)"/> and
 ///         <see cref="Render(Stream, string, ViewerRenderOptions?)"/> draw one file with the same sources, the same
 ///         folder sandbox and the same limits as embedding does. The class is static and stateless: the shared source
 ///         instances are stateless and thread-safe, and every call builds its own resolver, so the methods are safe to
@@ -82,7 +84,8 @@ public static class CanvasNetViewer
     /// <returns>
     ///     A new resolver. It serves one top-level render and is not thread-safe; create a new one for the next render.
     ///     Read its <see cref="FolderImageResolver.Diagnostics"/>, <see cref="FolderImageResolver.Echo"/> and
-    ///     <see cref="FolderImageResolver.Embedded"/> after the render.
+    ///     <see cref="FolderImageResolver.Embedded"/> after the render. It is not <see cref="IDisposable"/> and holds no
+    ///     open files; there is nothing to dispose.
     /// </returns>
     /// <exception cref="ArgumentException">Thrown when <paramref name="folder"/> is null, empty or only white space.</exception>
     public static FolderImageResolver CreateImageResolver(string folder, FolderImageResolverOptions? options = null)
@@ -94,13 +97,22 @@ public static class CanvasNetViewer
     /// <summary>
     ///     Creates a resolver that embeds every built-in format and your own sources from a folder.
     /// </summary>
+    /// <remarks>
+    ///     Use this for a render that you drive yourself (for example <c>SvgCodec.Load</c> with
+    ///     <c>SvgLoadOptions.ImageResolver</c>). <see cref="Render(string, ViewerRenderOptions?)"/> does not need it: it
+    ///     builds its own resolver from the built-in sources plus <see cref="ViewerRenderOptions.ExtraSources"/>, so pass
+    ///     your sources there instead. The precedence is the same in both: a later source wins.
+    /// </remarks>
     /// <param name="folder">The folder the links are confined to. Must not be null, empty or only white space.</param>
     /// <param name="extraSources">
     ///     Your own sources. They are placed <b>after</b> the built-in ones, so one that claims the same extension or URI
     ///     scheme as a built-in source (or as an earlier extra source) wins. Must not be null.
     /// </param>
     /// <param name="options">The limits and switches, or <see langword="null"/> for the defaults.</param>
-    /// <returns>A new resolver, as for <see cref="CreateImageResolver(string, FolderImageResolverOptions?)"/>.</returns>
+    /// <returns>
+    ///     A new resolver, as for <see cref="CreateImageResolver(string, FolderImageResolverOptions?)"/>; it is not
+    ///     <see cref="IDisposable"/> and holds no open files, so there is nothing to dispose.
+    /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="extraSources"/> is null.</exception>
     /// <exception cref="ArgumentException">
     ///     Thrown when <paramref name="folder"/> is null, empty or only white space, or a source makes an invalid claim (see
@@ -122,7 +134,9 @@ public static class CanvasNetViewer
     /// <param name="path">The path of the file; it must exist and its extension must be one of <see cref="Extensions"/> (or claimed by an extra source).</param>
     /// <param name="options">What to render and how, or <see langword="null"/> for the natural size.</param>
     /// <returns>
-    ///     The picture with its notes, text, format and embedded images; the caller disposes it. A document that embeds
+    ///     The picture with its notes, text, format and embedded images; the caller disposes it. It writes no file; to
+    ///     save the picture with a format or quality use <c>ImageWriter.Write</c> of the
+    ///     <c>DemaConsulting.CanvasNet.Viewer.Imaging</c> namespace. A document that embeds
     ///     other files (an SVG file, a model with includes) finds them in the sandbox folder
     ///     (<see cref="ViewerRenderOptions.Folder"/>, by default the folder of the file).
     /// </returns>

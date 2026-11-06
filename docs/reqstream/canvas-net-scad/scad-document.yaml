@@ -383,6 +383,30 @@ sections:
               - ScadDiagnostic_ToString_PrefixesLocation
               - ScadDiagnostic_ToString_IsCultureInvariant
 
+          - id: CanvasNetScad-ScadDocument-DiagnosticCode
+            title: >-
+              Every ScadDiagnostic shall carry a stable machine-readable code that identifies the kind of warning,
+              with a default code for a warning that has no more specific kind, in lower-case kebab-case, unique
+              among the published codes and part of the value equality of the record but not of its text; the
+              warnings of Evaluate and Render shall carry the code of their kind (for example an unknown name, an
+              include that was not found, or the notice that further warnings were suppressed) while their messages
+              stay unchanged; and the ScadSyntaxException and ScadEvaluationException classes shall expose a code
+              that identifies the kind of failure.
+            justification: |
+              A program that reacts to one kind of warning or failure must not match message text, which is meant
+              for people and may be reworded; a code is the stable contract between versions.
+            tests:
+              - ScadDiagnostic_Code_DefaultsToScadWarning
+              - ScadDiagnostic_Code_IsPartOfEqualityAndNotOfToString
+              - ScadDiagnosticCodes_Values_AreUniqueKebabCase
+              - ScadDiagnosticCodes_ContractValues_AreStable
+              - ScadDocument_Evaluate_Warning_CarriesItsCategoryCode
+              - ScadDocument_Evaluate_MissingInclude_WarningHandlerReceivesIncludeNotFoundCode
+              - ScadDocument_Evaluate_BeyondDiagnosticsCap_NoticeHasSuppressedCode
+              - ScadDocument_BuildScene_GeometryWarning_CarriesItsCategoryCode
+              - ScadSyntaxException_Code_IsScadSyntaxError
+              - ScadEvaluationException_Code_IsScadEvaluationError
+
           - id: CanvasNetScad-ScadDocument-UnsupportedFeature
             title: >-
               The ScadUnsupportedFeature record shall carry a feature identifier, a message, and a

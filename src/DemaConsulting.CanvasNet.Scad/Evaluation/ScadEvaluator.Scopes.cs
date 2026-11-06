@@ -112,7 +112,7 @@ internal sealed partial class ScadEvaluator
             }
         }
 
-        Warn($"Unable to convert {name}={value.ToEchoText()} to a vec3 or vec2 of numbers; the viewport variable is ignored", cell.Location);
+        Warn(ScadDiagnosticCodes.ViewportVariable, $"Unable to convert {name}={value.ToEchoText()} to a vec3 or vec2 of numbers; the viewport variable is ignored", cell.Location);
         return null;
     }
 
@@ -137,7 +137,7 @@ internal sealed partial class ScadEvaluator
             return value.AsNumber;
         }
 
-        Warn($"Unable to convert {name}={value.ToEchoText()} to {expected}; the viewport variable is ignored", cell.Location);
+        Warn(ScadDiagnosticCodes.ViewportVariable, $"Unable to convert {name}={value.ToEchoText()} to {expected}; the viewport variable is ignored", cell.Location);
         return null;
     }
 
@@ -242,7 +242,7 @@ internal sealed partial class ScadEvaluator
         var previous = scope.DefineVariable(cell);
         if (previous is not null)
         {
-            Warn($"'{cell.Name}' is assigned more than once in this scope; the last assignment is used", previous.Location);
+            Warn(ScadDiagnosticCodes.DuplicateDefinition, $"'{cell.Name}' is assigned more than once in this scope; the last assignment is used", previous.Location);
         }
 
         CheckSpecialDepth(scope, cell.Location);
@@ -258,7 +258,7 @@ internal sealed partial class ScadEvaluator
         var previous = scope.DefineFunction(new ScadClosure(function.Name, function.Parameters, function.Body, scope, function.Location));
         if (previous is not null)
         {
-            Warn($"Function '{function.Name}' is defined more than once in this scope; the last definition is used", previous.Location);
+            Warn(ScadDiagnosticCodes.DuplicateDefinition, $"Function '{function.Name}' is defined more than once in this scope; the last definition is used", previous.Location);
         }
     }
 
@@ -272,7 +272,7 @@ internal sealed partial class ScadEvaluator
         var previous = scope.DefineModule(module.Name, new ScadModuleBinding(module, scope));
         if (previous is not null)
         {
-            Warn($"Module '{module.Name}' is defined more than once in this scope; the last definition is used", previous.Definition.Location);
+            Warn(ScadDiagnosticCodes.DuplicateDefinition, $"Module '{module.Name}' is defined more than once in this scope; the last definition is used", previous.Definition.Location);
         }
     }
 
@@ -333,7 +333,7 @@ internal sealed partial class ScadEvaluator
             case ScadCellState.Done:
                 return cell.Value;
             case ScadCellState.Evaluating:
-                Warn($"Circular reference while evaluating '{cell.Name}'", location ?? cell.Location);
+                Warn(ScadDiagnosticCodes.CircularReference, $"Circular reference while evaluating '{cell.Name}'", location ?? cell.Location);
                 return ScadValue.Undef;
             default:
                 cell.State = ScadCellState.Evaluating;
@@ -357,7 +357,7 @@ internal sealed partial class ScadEvaluator
         ChargeHops(hops);
         if (cell is null)
         {
-            Warn($"Ignoring unknown variable '{name}'", location);
+            Warn(ScadDiagnosticCodes.UnknownVariable, $"Ignoring unknown variable '{name}'", location);
             return ScadValue.Undef;
         }
 

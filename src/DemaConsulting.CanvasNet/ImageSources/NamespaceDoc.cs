@@ -23,7 +23,51 @@ namespace DemaConsulting.CanvasNet.ImageSources;
 ///     <para>
 ///         The namespace has no global state and no discovery: a source is used only when the caller passes it in.
 ///     </para>
+///     <para>
+///         See <see cref="FolderImageResolver"/> for the resolver (and <see cref="FolderImageResolverOptions"/> for its
+///         limits), <see cref="IImageSource"/> and <see cref="ImageSourceRequest"/> for writing a source of your own, and
+///         <see cref="ImageSourceDiagnostic"/> for the notes a render collects. A document renderer takes the resolver
+///         as an <see cref="IImageResolver"/>: for SVG, see <c>SvgLoadOptions.ImageResolver</c> in
+///         <c>DemaConsulting.CanvasNet.Svg</c>. The sources of the format packages are
+///         <c>SvgImageSource</c>, <c>ScadImageSource</c>, <c>VegaLiteImageSource</c>, <c>PdfImageSource</c>,
+///         <c>PptxImageSource</c>, and <c>VsdxImageSource</c>, and <c>CanvasNetViewer.CreateImageResolver</c> in
+///         <c>DemaConsulting.CanvasNet.Viewer</c> builds a resolver with all of them. Files are read through
+///         <see cref="DemaConsulting.CanvasNet.Files"/>.
+///     </para>
 /// </remarks>
+/// <example>
+///     Write a source for a made-up <c>.dots</c> file (this one only draws a blank picture of the requested size) and let a
+///     resolver draw one, together with the built-in raster
+///     source. The source is listed last, so it wins when two sources claim the same extension:
+///     <code language="csharp">
+///     using DemaConsulting.CanvasNet.Canvas;
+///     using DemaConsulting.CanvasNet.ImageSources;
+///
+///     var resolver = new FolderImageResolver("assets", [new RasterImageSource(), new DotsSource()]);
+///     using var picture = resolver.Render("art/many.dots", 200, 100).Surface;
+///     foreach (var note in resolver.Diagnostics)
+///     {
+///         Console.WriteLine($"{note.Code}: {note.Message}");
+///     }
+///
+///     // A source claims file name extensions (or URI schemes) and returns a new surface on every call
+///     sealed class DotsSource : IImageSource
+///     {
+///         public string Name => "dots";
+///         public IReadOnlyList&lt;string&gt; Extensions => [".dots"];
+///         public IReadOnlyList&lt;string&gt; Schemes => [];
+///
+///         public ImageSourceResult Render(ImageSourceRequest request)
+///         {
+///             var (width, height) = request.SizeFor(200, 100);
+///             request.EnsureWithinBudget(width, height);   // charge the pixel budget before allocating
+///             var surface = new Surface(width, height);
+///             surface.Clear(new Rgba32(255, 255, 255, 255));
+///             return new ImageSourceResult(surface) { Format = "dots" };
+///         }
+///     }
+///     </code>
+/// </example>
 internal static class NamespaceDoc
 {
 }

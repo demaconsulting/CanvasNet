@@ -8,10 +8,11 @@
 
 `CompareCommand` is the `compare` command: it loads two inputs, brings them to one size, measures how much they differ,
 optionally writes pictures of the differences, checks the measures against thresholds, and reports the result. Its
-single responsibility is to turn a command line into one pass of load, compare, and write, and to report the result;
-the pixel work is the core `Surface` (`Compare`, `CreateDiff`, `CreateOverlay`, `CreateSideBySide`), `ImageComparison`
-checks the thresholds, and the loading is `SourceLoader`. The unit is the partial class `CompareCommand`
-in `CompareCommand.cs` (the run, the loading of the sides, the pictures, and the reporting) and
+single responsibility is to turn a command line into one comparison and to report the result; the work (loading, sizing,
+measuring, the thresholds, and the pictures) is the `ImageComparer` of the Viewer library, which calls the core `Surface`
+(`Compare`, `CreateDiff`, `CreateOverlay`, `CreateSideBySide`), `ImageComparison`, and `SourceLoader`. The unit is the
+partial class `CompareCommand`
+in `CompareCommand.cs` (the run, the preparation of the sides, and the reporting) and
 `CompareCommand.Options.cs` (the option table and the reading of the settings). The command has no alias.
 
 #### Data Model
@@ -37,13 +38,10 @@ for one input alone (`--a-view`, `--b-view`) counts as an explicit view for that
 an input with no view chosen leaves the choice to the library (isometric, or a flat top view for a model that is
 entirely 2D).
 
-**Side** (private class): one loaded input - its label, `SourceInfo`, page, the pixels at the size that is compared
-(owned by the side, disposed with it), that size (kept after the pixels are disposed, because the failure document of a
-threshold is written after `Run` has returned), the size as loaded, the operations applied, the diagnostics, and the
-echo.
-
-**PictureOutput** (private record): the kind of a picture that was written (`diff`, `sideBySide`, or `overlay`) and its
-`WriteResult`.
+**Side** and **PictureOutput** (the `CompareSide` and `ComparedPicture` records of the Viewer library): one compared
+input - its label, `SourceInfo`, page, the size that is compared, the size as loaded, the operations applied, the
+diagnostics, and the echo - and a picture that was written (`diff`, `sideBySide`, or `overlay`) with its `WriteResult`.
+They are plain data, so the failure document of a threshold can be written after the library call has returned.
 
 #### Key Methods
 
@@ -57,18 +55,24 @@ value by `ParseNumber` within `ImageComparison.Range` - and rejects a metric giv
 size with `ParseSize`, which refuses a side beyond the maximum with `size-limit`), `--quality`, the per-side options,
 and, with `RenderCommand.ReadScadOptions`, the shared options of a model.
 
-**Run(context, args)**: parses and reads the settings, then reports every mistake about the inputs and outputs before
-decoding anything: `SourceLoader.Probe` for both inputs, the check that shared model options were given only when an
-input is a model, `PrepareSide` for each input (a per-side option given for an input of the wrong kind is a
-`usage-error` naming the kind; shared options are skipped for an input they do not concern; `SourceLoader.CheckPage`,
-whose `page-out-of-range` is re-thrown with `Input a:` or `Input b:` in front), `ImageWriter.ResolveFormat` for every
-requested picture, and `ImageWriter.CheckTargets` for the pictures against both inputs and against each other. Then it
-loads the sides (`LoadSides`), checks the sizes, compares (`Surface.Compare`), evaluates the thresholds
-(`ImageComparison.Evaluate`), writes the pictures
-(`WriteOutputs`), and reports.
+**Run(context, args)**: parses and reads the settings, probes both inputs with `SourceLoader.Probe`, checks that shared
+model options were given only when an input is a model, and runs `PrepareSide` for each input (a per-side option
+given for an input of the wrong kind is a `usage-error` naming the kind, in terms of the options of the tool; shared
+options are skipped for an input they do not concern; `SourceLoader.CheckPage`, whose `page-out-of-range` is
+re-thrown with `Input a:` or `Input b:` in front, and the `SourceOptions` of the side). It then calls
+`ImageComparer.Execute(request)` of the Viewer library with a `CompareRequest` built from the settings and the two
+`CompareInput` values (the inputs are the positional members; every other value is set explicitly as an `init`
+property, so the result does not depend on the defaults of the record), and reports the result (the metrics are
+`result.Comparison.Metrics`, the full measurement is `result.Comparison`). The library reports every mistake about the
+pictures before decoding
+anything, loads and sizes the sides, compares, evaluates the thresholds, and writes the pictures (see _ImageComparer Unit
+Design_), so the behavior described below for loading and writing is the library's, called with the values read here. A
+threshold that is not met is data in the library's result: the command writes the result and then throws
+`ToolException(threshold-failed)`.
 
-**LoadSides / LoadSide**: without `--resize-to` both inputs are loaded at their natural size, and a difference in size
-is `ToolException(size-mismatch)` with the hint to use `--resize-to`. With `--resize-to a` the first input is loaded at
+**Loading and sizing of the sides** (performed by `ImageComparer`): without `--resize-to` both inputs are loaded at
+their natural size, and a difference in size
+is `size-mismatch` with the hint to use `--resize-to`. With `--resize-to a` the first input is loaded at
 its natural size and the second is loaded into that size; with `b` the roles are exchanged; with `WxH` both are loaded
 into that size. Loading into a box is `SourceLoader.OpenPages` with `SourceLoader.BoxOptions` (a vector input - SVG, a
 document page, a model - is rendered at the box, so it is sharp and never resampled), then, when the pixels are not
@@ -77,7 +81,8 @@ the box size, the core `Surface.FitInto` with `--fit` and the background (a rast
 operation is reported as `fit` (with `mode`, `width`, `height`, and `background`) or `resize`. Every input is flattened
 over the background by the loader, so both are opaque. The side owns the pixels of the loaded source from then on.
 
-**WriteOutputs / CreatePicture**: each requested picture is created (`Surface.CreateDiff`, `CreateOverlay`, or
+**Writing of the pictures** (performed by `ImageComparer`): each requested picture is created (`Surface.CreateDiff`,
+`CreateOverlay`, or
 `CreateSideBySide`), staged with `ImageWriter.Stage` (the first input
 is the guard path; `CheckTargets` has already checked both), and disposed before the next is created, so at most the
 two inputs and one picture are in memory; the order is `diff`, `sideBySide`, `overlay`. The side-by-side picture
@@ -86,7 +91,8 @@ always uses the heat map as its third panel. When every picture is staged, all a
 picture that was not published, so a failure leaves no new or partial output and every existing output untouched.
 
 **Threshold failure**: the result is written first (the pictures, and the text lines or nothing in JSON mode), then,
-when a check failed, the command throws `ToolException(threshold-failed)` whose message lists each failed check (for
+when a check of the library's result failed, the command throws `ToolException(threshold-failed)` whose message lists
+each failed check (for
 example `rmse 23.91 is above the limit 10; ssim 0.8123 is below the limit 0.9`) and whose `ResultFields` write the
 command's JSON fields. `Program` reports it like any expected error: the message and hint on standard error, exit code
 1, and with `--json` the failure document, in which `ResultWriter.Failure` writes the result fields after the `error`
@@ -136,7 +142,8 @@ defect and propagates. Null arguments throw `ArgumentNullException`.
 - **Context** - the `Json` flag and `WriteLine`.
 - **Program** - the tool version for the JSON result.
 - **RenderCommand** - the shared option declarations, the reading of the model options, and `WriteField`.
-- **SourceLoader**, **ImageComparison**, and **ImageWriter** (Imaging), and the core `Surface` (`FitInto`, `Compare`,
+- **ImageComparer**, **SourceLoader**, **ImageComparison**, and **ImageWriter** (Imaging, of the Viewer library), and
+  the core `Surface` (`FitInto`, `Compare`,
   `CreateDiff`, `CreateOverlay`, `CreateSideBySide`) - everything that
   touches files and pixels.
 

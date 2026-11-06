@@ -12,7 +12,10 @@
 #   standard output and standard error must be examined separately)
 # - Requirements for the individual commands are system requirements of their own, with the
 #   command units' requirements as their children
-
+# - The tool is a thin command-line shell over the DemaConsulting.CanvasNet.Viewer library: the Imaging
+#   subsystem that loads, transforms, compares, composes, and writes images is a subsystem of the
+#   CanvasNetViewer system, and the system requirements below name the requirements of that subsystem
+#   (CanvasNetViewer-Imaging-*) as children
 sections:
   - title: CanvasNetTool System-Level Requirements
     requirements:
@@ -377,6 +380,7 @@ sections:
           command with one grammar and a result they can read or parse.
         children:
           - CanvasNetTool-Commands-Render
+          - CanvasNetViewer-Imaging-Render
         tests:
           - CanvasNetTool_Render_SvgToPng_WritesImageAndResultLine
           - CanvasNetTool_Render_SvgWithText_DrawsTextWithDefaultFont
@@ -400,7 +404,7 @@ sections:
           photograph); one ordered pipeline in a single invocation avoids intermediate files and lossy
           re-encoding, and the result says what was done so the agent can verify it.
         children:
-          - CanvasNetTool-Imaging-Transform
+          - CanvasNetViewer-Imaging-Transform
         tests:
           - CanvasNetTool_Pipeline_MultiOpRender_AppliesOperationsInOrder
           - CanvasNetTool_Pipeline_UnsupportedOrImpossibleOperations_AreReportedAsExpectedErrors
@@ -437,8 +441,8 @@ sections:
           read; the same options on every machine give the same pixels, and the reported numbers tell an agent
           what the tool chose.
         children:
-          - CanvasNetTool-Imaging-Adjust
-          - CanvasNetTool-Imaging-Transform
+          - CanvasNetViewer-Imaging-Adjust
+          - CanvasNetViewer-Imaging-Transform
         tests:
           - CanvasNetTool_Photo_GrayscaleThresholdLevels_WriteExpectedPixels
           - CanvasNetTool_Photo_AutoLevels_StretchesContrastAndReportsPoints
@@ -454,7 +458,7 @@ sections:
           Photographs and scans are rarely level; rotating by the angle that levels them, without cutting off the
           corners, is the first step of cleaning them up.
         children:
-          - CanvasNetTool-Imaging-Geometry
+          - CanvasNetViewer-Imaging-Geometry
         tests:
           - CanvasNetTool_Photo_RotateObliqueAngle_ExpandsCanvasAndFillsCorners
           - CanvasNetTool_Photo_RotateVerbWithFill_MatchesRenderEquivalent
@@ -470,7 +474,7 @@ sections:
           A tilted photograph of ruled or drawn lines is levelled without the user measuring an angle, and the
           reported angle and confidence let an agent decide whether to trust the result.
         children:
-          - CanvasNetTool-Imaging-Geometry
+          - CanvasNetViewer-Imaging-Geometry
         tests:
           - CanvasNetTool_Photo_Deskew_StraightensTiltedLinesAndReportsAngleInJson
           - RenderCommand_Run_DeskewTooLarge_SucceedsWithReasonAndWarning
@@ -484,7 +488,7 @@ sections:
           A photograph of a drawing is surrounded by paper or table; cropping it to the drawing makes the
           coordinates and sizes of later steps relative to the drawing.
         children:
-          - CanvasNetTool-Imaging-Geometry
+          - CanvasNetViewer-Imaging-Geometry
         tests:
           - CanvasNetTool_Photo_Trim_CropsUniformBorder
 
@@ -498,7 +502,7 @@ sections:
           A grid with coordinates on the picture lets a person or an agent measure a sketch without further
           tools.
         children:
-          - CanvasNetTool-Imaging-Annotate
+          - CanvasNetViewer-Imaging-Annotate
         tests:
           - CanvasNetTool_Photo_Grid_DrawsLabeledLinesAtSpacing
 
@@ -513,6 +517,7 @@ sections:
           before it transforms the picture.
         children:
           - CanvasNetTool-Commands-Inspect
+          - CanvasNetViewer-Imaging-Inspect
         tests:
           - CanvasNetTool_Inspect_Colors_ReportsDominantColorsAndLumaAsJson
 
@@ -527,6 +532,7 @@ sections:
           Probing a stroke, a mark, or a dimension line by its coordinates is how a measurement of a sketch is checked.
         children:
           - CanvasNetTool-Commands-Inspect
+          - CanvasNetViewer-Imaging-Inspect
         tests:
           - CanvasNetTool_Inspect_Pixel_ReportsValueAndNeighborhood
           - CanvasNetTool_Inspect_Errors_AreReportedAsExpectedErrors
@@ -547,7 +553,7 @@ sections:
           looking at it. The measures are defined exactly so that two runs, and two tool versions, agree.
         children:
           - CanvasNetTool-Commands-Compare
-          - CanvasNetTool-Imaging-Compare
+          - CanvasNetViewer-Imaging-Compare
         tests:
           - CanvasNetTool_Compare_IdenticalImages_ReportsZeroDifference
           - CanvasNetTool_Compare_DifferentImages_ReportsMetricsAndGridAsJson
@@ -619,7 +625,7 @@ sections:
           not cost the time of loading its inputs.
         children:
           - CanvasNetTool-Commands-Montage
-          - CanvasNetTool-Imaging-Montage
+          - CanvasNetViewer-Imaging-Montage
         tests:
           - CanvasNetTool_Montage_Images_WritesContactSheet
           - CanvasNetTool_Montage_DocumentAllPagesWithLabels_WritesCellPerPage
@@ -650,7 +656,7 @@ sections:
           drawings, the documents that carry diagrams and slides, and the 3D models they are asked to
           show, whatever they are named, means they rarely need another tool first.
         children:
-          - CanvasNetTool-Imaging-Load
+          - CanvasNetViewer-Imaging-Load
         tests:
           - CanvasNetTool_InputFormats_EveryFormat_AreReadable
           - CanvasNetTool_Documents_EveryFormat_WritesDecodableFile
@@ -720,8 +726,8 @@ sections:
           model are in the file it wrote; the numbers must follow the pixel steps it asked for, and text
           output and every other input must stay as they were.
         children:
-          - CanvasNetTool-Imaging-SourceLoader-ScadAnchors
-          - CanvasNetTool-Imaging-ImagePipeline-AnchorMapping
+          - CanvasNetViewer-Imaging-SourceLoader-ScadAnchors
+          - CanvasNetViewer-Imaging-ImagePipeline-AnchorMapping
           - CanvasNetTool-Commands-RenderCommand-ScadAnchors
         tests:
           - CanvasNetTool_Scad_Anchors_AreReportedInJsonAndFollowThePixelSteps
@@ -756,11 +762,11 @@ sections:
           and mistake of a chart is a concise, coded error rather than a crash, and the constructs the renderer
           cannot draw yet are reported, never silently skipped.
         children:
-          - CanvasNetTool-Imaging-SourceLoader-VegaLiteDetection
-          - CanvasNetTool-Imaging-SourceLoader-VegaLiteProbe
-          - CanvasNetTool-Imaging-SourceLoader-VegaLiteRender
-          - CanvasNetTool-Imaging-SourceLoader-VegaLiteData
-          - CanvasNetTool-Imaging-SourceLoader-VegaLiteErrors
+          - CanvasNetViewer-Imaging-SourceLoader-VegaLiteDetection
+          - CanvasNetViewer-Imaging-SourceLoader-VegaLiteProbe
+          - CanvasNetViewer-Imaging-SourceLoader-VegaLiteRender
+          - CanvasNetViewer-Imaging-SourceLoader-VegaLiteData
+          - CanvasNetViewer-Imaging-SourceLoader-VegaLiteErrors
           - CanvasNetTool-Commands-DiscoveryCommands-VegaLite
           - CanvasNetTool-Commands-RenderCommand-VegaLite
         tests:
@@ -789,9 +795,9 @@ sections:
           figures without a plotting or modeling program and lets documents be rendered from untrusted sources
           safely, while every left-out reference is reported and the limits keep the work bounded.
         children:
-          - CanvasNetTool-Imaging-SourceLoader-SvgEmbedding
-          - CanvasNetTool-Imaging-SourceLoader-SvgEmbeddingUnresolved
-          - CanvasNetTool-Imaging-SourceLoader-SvgEmbeddingErrors
+          - CanvasNetViewer-Imaging-SourceLoader-SvgEmbedding
+          - CanvasNetViewer-Imaging-SourceLoader-SvgEmbeddingUnresolved
+          - CanvasNetViewer-Imaging-SourceLoader-SvgEmbeddingErrors
           - CanvasNetTool-Commands-RenderCommand-SvgEmbed
         tests:
           - CanvasNetTool_SvgEmbed_RenderAsProcess_DrawsModelAndChartAndWarnsOutsideFolder
@@ -829,7 +835,7 @@ sections:
           These are the formats that image viewers, documents, and the models that look at images
           accept; the choice must follow what the caller typed.
         children:
-          - CanvasNetTool-Imaging-Write
+          - CanvasNetViewer-Imaging-Write
         tests:
           - CanvasNetTool_OutputFormats_ExtensionAndFormatOption_SelectFormat
           - CanvasNetTool_Convert_EachOutputFormat_WritesDecodableFile
@@ -864,7 +870,7 @@ sections:
         justification: |
           Reproducible output lets scripts and agents detect real change and cache results.
         children:
-          - CanvasNetTool-Imaging-Determinism
+          - CanvasNetViewer-Imaging-Determinism
         tests:
           - CanvasNetTool_Determinism_SameInputTwice_WritesIdenticalBytes
           - CanvasNetTool_Scad_NamedViews_WriteDistinctDeterministicImages
@@ -884,7 +890,7 @@ sections:
           Agents hand the tool files of every quality; a bad file is a user mistake that must produce a
           concise, actionable error, not a crash.
         children:
-          - CanvasNetTool-Imaging-Errors
+          - CanvasNetViewer-Imaging-Errors
         tests:
           - CanvasNetTool_InputErrors_BadInputs_AreReportedAsExpectedErrors
           - CanvasNetTool_InputErrors_DocumentMistakes_AreReportedAsExpectedErrors

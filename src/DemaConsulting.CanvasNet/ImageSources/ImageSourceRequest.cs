@@ -19,7 +19,7 @@ namespace DemaConsulting.CanvasNet.ImageSources;
 ///         link exactly as written, says what is wanted. <see cref="Href"/> is always set.
 ///     </para>
 ///     <para>
-///         <b>Size.</b> <see cref="PixelWidth"/> and <see cref="PixelHeight"/> are the size, in device pixels, of the
+///         <b>Size.</b> The properties <see cref="PixelWidth"/> and <see cref="PixelHeight"/> are the size, in device pixels, of the
 ///         rectangle the picture is placed in (the renderer fits whatever comes back into it). They are
 ///         <see langword="null"/> when the caller wants the natural size of the picture. A vector source (a model, a chart,
 ///         a document page) should draw at the requested size so the result is sharp; a raster has no natural way to

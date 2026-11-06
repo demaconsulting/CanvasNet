@@ -16,17 +16,23 @@ contract (exit codes, error text, stable error codes) is small, fixed, and docum
 
 The tool follows the DEMA Consulting tool template (a `Program` entry point, a `Context` that owns the
 command line and the output channels, a self-validation mode, and safe path helpers) and adds a
-`Commands` subsystem that dispatches the first non-option argument to a registered command, and an `Imaging`
-subsystem that turns files into pixels and pixels into files. Its commands inspect (`formats`, `info`), render and
+`Commands` subsystem that dispatches the first non-option argument to a registered command. It is a thin command-line
+shell over the `DemaConsulting.CanvasNet.Viewer` library: everything that touches an image (loading every format,
+the pipeline of transformations, writing, comparing, composing a contact sheet) is done by the `Imaging` subsystem of
+the `CanvasNetViewer` system, which the commands call with request records built from the command line; the tool reads
+the arguments, runs the library call, and prints the result as text or as one JSON document. Its commands inspect
+(`formats`, `info`), render and
 transform (`render`, `convert`, `crop`, `resize`, `rotate`, `flip`, `pad`), clean up photographs and sketches (the
 tone, deskew, trim, and grid operations of `render`, and `rotate` by any angle), measure (`inspect colors` and
 `inspect pixel`), compare (`compare`), and compose
 (`montage`) images. The system
-consists of six direct units and two subsystems:
+consists of six direct units and one subsystem:
 
 - **Program** (unit; `Program.cs` and `ToolException.cs`): the entry point. `Main` delegates to `Execute`,
   which creates the `Context`, runs the program logic, and applies the error policy. `Run` dispatches in
-  priority order: version query, help, self-validation, then the selected command. See _Program Unit
+  priority order: version query, help, self-validation, then the selected command. `ToolException.cs` holds the
+  `ToolException` of the tool, which derives from the `ViewerException` of the Viewer library and adds the command
+  name and the result fields. See _Program Unit
   Design_ (`canvas-net-tool/program.md`).
 - **Context** (unit; `Context.cs`): parses the global options in any position, captures the command name
   and the command arguments, owns standard output, standard error, and the optional log file, and derives
@@ -51,34 +57,26 @@ consists of six direct units and two subsystems:
   command and its alias `convert`, and the verb commands `crop`, `resize`, `rotate`, `flip`, and `pad`),
   `CompareCommand` (the `compare` command: exact metrics, a grid of per-cell errors, difference pictures, and
   threshold gating), `MontageCommand` (the `montage` command: a labeled contact sheet of images and document
-  pages), and `InspectCommand` (the read-only `inspect colors` and `inspect pixel` commands). See
-  _Commands Subsystem Design_ (`canvas-net-tool/commands.md`).
-- **Imaging** (subsystem; namespace `DemaConsulting.CanvasNet.Tool.Imaging`, folder `Imaging/`): everything that
-  turns files into pixels, transforms pixels, and turns pixels into files, free of command-line concerns. It
-  holds `SourceLoader` (format detection, header probing, and loading of PNG, JPEG, BMP, TIFF, GIF, JPEG 2000,
-  and SVG, of the pages of PDF, PPTX, and VSDX documents, of a view of an OpenSCAD model, and of a Vega-Lite
-  chart, with the size policy, page and resolution handling, the views and variables of a model, EXIF orientation, background
-  flattening, and the mapping of library exceptions to expected errors),
-  `ImagePipeline` (the ordered crop, resize, fit, rotate by any angle, flip, pad, tone-adjustment, deskew, trim, and
-  grid operations, which the `render` command, the verb commands `crop`, `resize`, `rotate`, `flip`, and `pad`, and
-  `inspect` share, delegating flip, pad, trim, rotation, skew estimation, and the tone adjustments to the core `Surface`),
-  `GridOverlay` (the labeled coordinate grid),
-  `ImageWriter` (PNG, JPEG, BMP, and TIFF output, written atomically with the overwrite policy),
-  `ImageComparison` (the threshold checks of a comparison and the defaults of its options; the exact error metrics, the
-  windowed structural similarity, the per-cell grid, and the difference, overlay, and side-by-side pictures of two images
-  of the same size are the core `Surface`'s), and
-  `ContactSheet` (the layout and composition of a contact sheet, with labels drawn in the bundled font). It is a
-  subsystem because loading, transforming, comparing, composing, and writing are separate responsibilities
-  that are reviewed and tested separately. See _Imaging Subsystem Design_ (`canvas-net-tool/imaging.md`).
+  pages), and `InspectCommand` (the read-only `inspect colors` and `inspect pixel` commands). Each of the
+  four image commands (`RenderCommand`, `CompareCommand`, `MontageCommand`, and `InspectCommand`) reads its options,
+  probes its inputs, checks the options against the kind of each input, calls the matching operation of the Viewer
+  library (`ImageRenderer`, `ImageComparer`, `MontageBuilder`, or `ImageInspector`), and prints the result;
+  the `ImagePipelineParser` type (in `RenderCommand`'s unit) reads the pipeline operations from the command line.
+  See _Commands Subsystem Design_ (`canvas-net-tool/commands.md`).
+
+The `Imaging` subsystem that the commands use is part of the `CanvasNetViewer` system (namespace
+`DemaConsulting.CanvasNet.Viewer.Imaging`); see _Imaging Subsystem Design_ (`canvas-net-viewer/imaging.md`). The tool
+references the Viewer assembly (and the other library assemblies) as private assets, so the tool package bundles
+them and has no package dependencies.
 
 Dependencies inside the system are one-directional except for self-validation: `Program` calls `Context`,
 `Commands`, `ResultWriter`, and `Validation`; `Validation` calls back into `Program.Run` (to exercise the tool
 in-process) and uses `PathHelpers`; `Commands` uses `Context` for output, `ArgumentReader` for the command line,
-`ResultWriter` for JSON results, `Imaging` for everything that touches an image, and `ToolException` for
-failures, and never calls `Program`; `Imaging` knows nothing of `Commands` or `Context` and uses `ArgumentReader`
-only in `ImagePipeline`, to read the transformation operations from a parsed command line.
-`ArgumentReader` uses the `OptionSpec` type of `Commands` and `ToolException`; `ResultWriter` uses
-`ToolException` and `ErrorCodes`.
+`ResultWriter` for JSON results, the `Imaging` operations of the Viewer for everything that touches an image, and
+`ToolException` (and the Viewer's `ViewerException`) for failures, and never calls `Program`; the Viewer knows nothing of
+`Commands` or `Context` and nothing of the command line.
+`ArgumentReader` uses the `OptionSpec` type of `Commands` and `ViewerException`; `ResultWriter` uses
+`ToolException`, `ViewerException`, and `ErrorCodes`.
 
 ### Deliberate Deviations From The Template
 
@@ -92,7 +90,8 @@ The template's `Program` runs one demo action. CanvasNetTool differs in these re
   standard
   output is exactly the command's own output and can be piped or parsed.
 - **Error report format.** An expected failure is reported as `Error: {code}: {message}` (plus an optional
-  `Hint:` line) when it is a `ToolException`, and as the template's `Error: {message}` otherwise.
+  `Hint:` line) when it is a `ViewerException` (the tool's `ToolException` or one of the library), and as the template's
+  `Error: {message}` otherwise.
 - **JSON results.** The global `--json` option makes a command write its result as one JSON document on
   standard output (the template has no machine-readable output). With `--json` (and without `--silent`) an
   expected failure is additionally written to standard output as a failure document in the same envelope, so
@@ -107,7 +106,7 @@ The template's `Program` runs one demo action. CanvasNetTool differs in these re
   `ToolException.ResultFields`, so that a caller needs one parse to see both the failure and the measures.
 - **Unexpected exceptions.** As in the template, an unexpected exception is reported on standard error
   and re-thrown. Library and I/O exceptions that mean "bad or unsupported user input" are mapped to
-  `ToolException` at the boundary where the input is read, using an explicit list of exception types;
+  `ViewerException` at the boundary where the input is read, using an explicit list of exception types;
   everything else is a defect and escapes.
 
 ## External Interfaces
@@ -127,7 +126,8 @@ The stable error codes are `usage-error`, `operation-failed`, `input-not-found`,
 `unsupported-format`, `corrupt-input`, `unsupported-feature`, `page-out-of-range`, `size-limit`,
 `same-input-output`, `output-exists`, `output-write-failed`, `scad-error`, `vega-lite-error`, `budget-exceeded`, `size-mismatch`,
 and `threshold-failed`
-(the `ErrorCodes` supporting type documented in _Program Unit Design_). A code is never changed once
+(the `ErrorCodes` type of the `ViewerException` unit of the Viewer library; see also _Program Unit Design_). A code is
+never changed once
 released. For a Vega-Lite chart the codes are exact: `vega-lite-error` is an invalid specification (including a
 nesting or string longer than the parser limit, as the SCAD nesting limit is a `scad-error`) or a chart the library
 cannot lay out or draw (including any argument failure of the library, and a local data file that is missing, outside the
@@ -144,17 +144,18 @@ Unit Design_ for the mapping.
   Integration Design_ (`ots/test-results.md`).
 - **The CanvasNet libraries** (same repository): the tool references the core `CanvasNet` package and the
   `CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetRender3D`, `CanvasNetScad`,
-  `CanvasNetVegaLite`, and `CanvasNetViewer` systems. The `SourceLoader` calls `CanvasNetViewer.CreateImageResolver`
-  to let an SVG file embed the files beside it (the tool wires the resolver in and passes no extra sources: it has no
-  plug-in mechanism). The imaging code calls the core `Surface` and `Rgba32` types and the PNG, JPEG,
+  `CanvasNetVegaLite`, and `CanvasNetViewer` systems. The tool calls the operations of the `Imaging` subsystem of
+  `CanvasNetViewer` for everything that touches an image; that subsystem calls `CanvasNetViewer.CreateImageResolver`
+  to let an SVG file embed the files beside it (the tool passes no extra sources: it has no
+  plug-in mechanism), the core `Surface` and `Rgba32` types and the PNG, JPEG,
   BMP, TIFF, GIF, and JPEG 2000 codecs, the `CanvasNetSvg` system's `SvgCodec`, the `PdfDocument`, `PptxDocument`, and
   `VsdxDocument` types of the `CanvasNetPdf`, `CanvasNetPptx`, and `CanvasNetVsdx` systems, and the
   `ScadDocument` type of the `CanvasNetScad` system (with the `Camera` and `SceneRenderOptions` types of the
   `CanvasNetRender3D` system, which draws the model), and the `VegaLiteDocument` type of the `CanvasNetVegaLite`
-  system, which parses, measures, and draws a chart (the tool uses only its public API and sets the options that
+  system, which parses, measures, and draws a chart (only its public API is used, with the options that
   make a render static and deterministic: UTC dates, only the bundled fonts, and no network; the data files of a chart
-  are read by the library from the folder of the specification and below it only, because the tool opens the chart by its
-  path and passes no other data folder, so there is no `--data-dir` option). The core `Fonts` and
+  are read by the library from the folder of the specification and below it only, because the chart is opened by its
+  path and no other data folder is passed, so there is no `--data-dir` option). The core `Fonts` and
   `Rendering` subsystems also supply the
   bundled font and the text renderer with which `ContactSheet` draws the labels of a contact sheet, so that labels
   never depend on the fonts installed on a machine. Each
@@ -176,14 +177,16 @@ Unit Design_ for the mapping.
 ## Risk Control Measures
 
 N/A - not a safety-classified software item. The path-traversal guard in `PathHelpers` protects the
-self-validation temporary files. Commands that write user-named output files do so through `ImageWriter`, which
+self-validation temporary files. Commands that write user-named output files do so through the `ImageWriter` of the
+Viewer library, which
 refuses an output that is the input (by path, after link resolution; a hard link is safe because the input is fully
 read first and an output is moved over its name as a new file), writes through a temporary file so that a failure
 while encoding never leaves a partial
 output, and overwrites an existing output only when overwriting is allowed. A command that writes several outputs
 touches no target until every one is encoded and then publishes them all or nothing
 (`ImageWriter.PublishAll`, with rollback). The maximum image size
-(`Surface.MaxDimension`, 8192 pixels per side) is enforced by `SourceLoader` before a file is decoded or a
+(`Surface.MaxDimension`, 8192 pixels per side) is enforced by the `SourceLoader` of the library before a file is decoded
+or a
 drawing is rendered, which bounds memory use. `compare` holds the two loaded images and one picture at a time, and
 `montage` holds the sheet plus one source at a time; a sheet larger than the limit is refused before any input is
 loaded.
@@ -201,9 +204,10 @@ loaded.
    then `Validation.Run`); the named command (`CommandRegistry.Run`); otherwise the banner and a usage hint.
 4. A command reads its arguments with `ArgumentReader` (against its option table), reads its inputs, writes its
    results through the `Context` (as text, or through `ResultWriter` as one JSON document when `--json` was
-   given), and reports an expected failure by throwing `ToolException`; the registry records the command name on
-   it.
-5. `Execute` catches `ArgumentException` and `InvalidOperationException` (including `ToolException`),
+   given), and reports an expected failure by throwing `ToolException` (or by letting the `ViewerException` of a library
+   call escape, which the registry wraps in a `ToolException` with the same code, message, and hint); the registry
+   records the command name on it.
+5. `Execute` catches `ArgumentException` and `InvalidOperationException` (including `ViewerException` and `ToolException`),
    writes the concise report through the `Context` (so `--silent` suppresses it and `--log` records it; to standard
    error only when no context could be created) and, when `--json` was given without `--silent`, the failure
    document to standard output, and returns 1. Any other exception is written as an

@@ -102,7 +102,7 @@ internal static partial class ScadBuiltinFunctions
     /// <returns><c>undef</c>, so callers can <c>return</c> the call.</returns>
     private static ScadValue BadArgument(IScadBuiltinHost host, string name, string expected, ScadValue actual)
     {
-        host.Warn($"Function '{name}' expects {expected}, got {actual.KindDescription}");
+        host.Warn(ScadDiagnosticCodes.InvalidArgument, $"Function '{name}' expects {expected}, got {actual.KindDescription}");
         return ScadValue.Undef;
     }
 
@@ -144,13 +144,13 @@ internal static partial class ScadBuiltinFunctions
         // Drop surplus positional arguments, then enforce the minimum
         if (descriptor.MaxArgs >= 0 && slots.Count > descriptor.MaxArgs)
         {
-            host.Warn($"Ignoring extra arguments to function '{descriptor.Name}'");
+            host.Warn(ScadDiagnosticCodes.ArgumentCount, $"Ignoring extra arguments to function '{descriptor.Name}'");
             slots.RemoveRange(descriptor.MaxArgs, slots.Count - descriptor.MaxArgs);
         }
 
         if (slots.Count < descriptor.MinArgs)
         {
-            host.Warn(string.Create(CultureInfo.InvariantCulture, $"Function '{descriptor.Name}' expects {DescribeArity(descriptor)} arguments, got {slots.Count}"));
+            host.Warn(ScadDiagnosticCodes.ArgumentCount, string.Create(CultureInfo.InvariantCulture, $"Function '{descriptor.Name}' expects {DescribeArity(descriptor)} arguments, got {slots.Count}"));
             return null;
         }
 
@@ -170,7 +170,7 @@ internal static partial class ScadBuiltinFunctions
         var slot = Array.IndexOf(descriptor.Parameters, argName);
         if (slot < 0)
         {
-            host.Warn($"Ignoring unknown argument '{argName}' of function '{descriptor.Name}'");
+            host.Warn(ScadDiagnosticCodes.UnknownArgument, $"Ignoring unknown argument '{argName}' of function '{descriptor.Name}'");
             return;
         }
 

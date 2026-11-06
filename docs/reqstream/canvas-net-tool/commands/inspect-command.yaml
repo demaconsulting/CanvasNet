@@ -5,7 +5,8 @@
 # The InspectCommand class is the inspect command with its subcommands colors and pixel: it loads one page of an
 # input exactly as the render command does, applies the same image pipeline, and reports what the pixels contain (the
 # dominant colors and luma statistics, or the pixel at a point and its neighborhood) as one or two text lines or one
-# JSON document. It is read-only: it writes no file.
+# JSON document. It is read-only: it writes no file. The command is a shell: it parses the options and prints the
+# result, and the analysis is done by the ImageInspector unit of the Viewer library.
 
 sections:
   - title: InspectCommand Unit Requirements

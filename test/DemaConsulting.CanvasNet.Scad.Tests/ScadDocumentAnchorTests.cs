@@ -415,6 +415,7 @@ public class ScadDocumentAnchorTests
         // Assert
         var warning = Assert.Single(log.Warnings);
         Assert.StartsWith("scad-anchor-invalid:", warning.Message, StringComparison.Ordinal);
+        Assert.Equal(ScadDiagnosticCodes.AnchorInvalid, warning.Code);
         Assert.Equal(2, warning.Location.Line);
         Assert.Equal("good", Assert.Single(anchors).Name);
         Assert.Equal(2, log.Echo.Count);

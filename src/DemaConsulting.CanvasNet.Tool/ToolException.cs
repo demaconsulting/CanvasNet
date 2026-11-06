@@ -1,77 +1,24 @@
+using DemaConsulting.CanvasNet.Viewer;
+
 namespace DemaConsulting.CanvasNet.Tool;
 
 /// <summary>
-///     Stable, machine-readable error codes reported by the tool.
+///     An expected, user-correctable failure of the command-line tool: a <see cref="ViewerException"/> that also
+///     knows which command it came from and can carry the fields of a result that was produced before it failed.
 /// </summary>
 /// <remarks>
-///     The code strings are part of the tool's documented contract: scripts and agents may branch
-///     on them, so a value is never changed once released. New codes may be added.
+///     <para>
+///         The code and the hint are those of <see cref="ViewerException"/>: the stable <see cref="ErrorCodes"/> of the
+///         Viewer library. This derived type adds only what a command line needs, so the library stays free of it.
+///     </para>
+///     <para>
+///         <see cref="Program.Main"/> and <see cref="ResultWriter"/> handle every <see cref="ViewerException"/> (the
+///         tool's own and the library's) on the expected-error path: a concise message on standard error and exit code
+///         1, with no stack trace. The command registry turns a library exception into a
+///         <see cref="ToolException"/> that names the command.
+///     </para>
 /// </remarks>
-internal static class ErrorCodes
-{
-    /// <summary>The command line is malformed: unknown command or option, missing or invalid value.</summary>
-    public const string UsageError = "usage-error";
-
-    /// <summary>An expected operation failure that has no more specific code.</summary>
-    public const string OperationFailed = "operation-failed";
-
-    /// <summary>The input file does not exist.</summary>
-    public const string InputNotFound = "input-not-found";
-
-    /// <summary>The input file exists but cannot be read.</summary>
-    public const string InputUnreadable = "input-unreadable";
-
-    /// <summary>The input file has a format the tool does not support.</summary>
-    public const string UnsupportedFormat = "unsupported-format";
-
-    /// <summary>The input file is corrupt or truncated.</summary>
-    public const string CorruptInput = "corrupt-input";
-
-    /// <summary>The input uses a feature that the underlying library does not support.</summary>
-    public const string UnsupportedFeature = "unsupported-feature";
-
-    /// <summary>The requested page does not exist in the input document.</summary>
-    public const string PageOutOfRange = "page-out-of-range";
-
-    /// <summary>The requested or resulting image is larger than the supported maximum size.</summary>
-    public const string SizeLimit = "size-limit";
-
-    /// <summary>The output path is the same file as the input path.</summary>
-    public const string SameInputOutput = "same-input-output";
-
-    /// <summary>The output file exists and overwriting was disabled.</summary>
-    public const string OutputExists = "output-exists";
-
-    /// <summary>The output file could not be written.</summary>
-    public const string OutputWriteFailed = "output-write-failed";
-
-    /// <summary>An OpenSCAD model has a syntax or evaluation error.</summary>
-    public const string ScadError = "scad-error";
-
-    /// <summary>A Vega-Lite chart has a specification error or cannot be rendered.</summary>
-    public const string VegaLiteError = "vega-lite-error";
-
-    /// <summary>A resource budget (such as the triangle budget) was exceeded.</summary>
-    public const string BudgetExceeded = "budget-exceeded";
-
-    /// <summary>The two images to compare have different sizes and no size normalization was requested.</summary>
-    public const string SizeMismatch = "size-mismatch";
-
-    /// <summary>A comparison completed but at least one requested quality threshold was not met.</summary>
-    public const string ThresholdFailed = "threshold-failed";
-}
-
-/// <summary>
-///     An expected, user-correctable failure of the tool, carrying a stable error code.
-/// </summary>
-/// <remarks>
-///     <see cref="ToolException"/> derives from <see cref="InvalidOperationException"/> so that it is
-///     handled by the expected-error path of <see cref="Program.Main"/> exactly like any other
-///     expected failure: a concise message on standard error and exit code 1, with no stack trace.
-///     The code, hint, and command name let callers (and the JSON error contract) give a more precise
-///     report than the message alone.
-/// </remarks>
-internal sealed class ToolException : InvalidOperationException
+internal sealed class ToolException : ViewerException
 {
     /// <summary>
     ///     Initializes a new instance of the <see cref="ToolException"/> class.
@@ -81,21 +28,9 @@ internal sealed class ToolException : InvalidOperationException
     /// <param name="hint">An optional suggestion for correcting the failure.</param>
     /// <param name="inner">The optional exception that caused this failure.</param>
     public ToolException(string code, string message, string? hint = null, Exception? inner = null)
-        : base(message, inner)
+        : base(code, message, hint, inner)
     {
-        Code = code;
-        Hint = hint;
     }
-
-    /// <summary>
-    ///     Gets the stable error code.
-    /// </summary>
-    public string Code { get; }
-
-    /// <summary>
-    ///     Gets the optional suggestion for correcting the failure, or <see langword="null"/>.
-    /// </summary>
-    public string? Hint { get; }
 
     /// <summary>
     ///     Gets or sets the name of the command that was running when the failure occurred, or

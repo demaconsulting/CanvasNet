@@ -1,0 +1,57 @@
+---
+# cspell:ignore canvasnet
+# Software Unit Requirements for the ImageRenderer Class
+#
+# The ImageRenderer class is the render operation of the library: given the facts about a file (a probed source) and
+# a request, it loads the pages that were asked for, runs the image pipeline over each, and writes one file per page,
+# all or nothing. It is the library form of the render command and of the verb commands (crop, resize, rotate, flip,
+# pad, and convert) of the canvasnet tool, which parse their arguments into the request and print the result.
+
+sections:
+  - title: ImageRenderer Unit Requirements
+    requirements:
+      - id: CanvasNetViewer-Imaging-ImageRenderer-Pages
+        title: >-
+          The ImageRenderer class shall load the page of a source that the request names, or every page when
+          asked, run the operations of the request over each page in the order given, write one file for each
+          page (a folder naming the pages after the input), and report for each page
+          its number, the facts of the loaded pixels, the diagnostics, the operations applied with their results,
+          and the file written.
+        justification: |
+          Rendering a document page by page into files is the common use of an image library; one operation
+          that does the loading, the transformation, and the writing keeps the pipeline in one decode and
+          one encode, and the report tells the caller exactly what was done to each page.
+        tests:
+          - ImageRenderer_Execute_SingleImage_WritesCopyAndReportsPage
+          - ImageRenderer_Execute_Operations_AreAppliedInOrderAndReported
+          - ImageRenderer_Execute_AllPagesIntoDirectory_NamesEachPageAfterTheInput
+
+      - id: CanvasNetViewer-Imaging-ImageRenderer-Checks
+        title: >-
+          The ImageRenderer class shall refuse, with the stable error code and before any page is decoded, a page that
+          does not exist, an output whose format cannot be told (the format of the write options wins over the
+          extension), an output that is the input, an output that
+          exists when overwriting is not allowed, an operation with an invalid value, and a request with a missing
+          member or operation (as a defect of the caller).
+        justification: |
+          A mistake that is visible from the request alone must fail early and clearly, so that an input is
+          never replaced by its own output and a long decode is not wasted.
+        tests:
+          - ImageRenderer_Execute_OutputIsInput_ThrowsSameInputOutput
+          - ImageRenderer_Execute_UnknownExtension_ThrowsUsageError
+          - ImageRenderer_Execute_NoClobberExistingOutput_ThrowsOutputExists
+          - ImageRenderer_Execute_PageOutOfRange_ThrowsPageOutOfRange
+          - ImageRenderer_Execute_ExplicitFormatAndExtensionlessOutput_WritesThatFormat
+          - ImageRenderer_Execute_NullRequestMember_ThrowsArgumentNullException
+          - ImageRenderer_Execute_NullOperationElement_ThrowsArgumentNullException
+          - ImageRenderer_Execute_InvalidOperationValue_ThrowsUsageErrorBeforeDecodeOrWrite
+
+      - id: CanvasNetViewer-Imaging-ImageRenderer-AllOrNothing
+        title: >-
+          The ImageRenderer class shall leave no output file behind when loading, transforming, or writing any page
+          fails, and shall not change the input.
+        justification: |
+          A render of many pages that stops half way must not leave a folder that looks complete; publishing all
+          the pages together or none keeps the result trustworthy.
+        tests:
+          - ImageRenderer_Execute_OperationFails_LeavesNothingBehind

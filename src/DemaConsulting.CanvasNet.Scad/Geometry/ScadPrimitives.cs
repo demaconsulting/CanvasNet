@@ -189,7 +189,7 @@ internal static partial class ScadPrimitives
     /// <returns><see cref="ScadGeo.Empty"/>.</returns>
     private static ScadGeo Invalid(ScadInstance node, ScadGeometryContext context, string problem)
     {
-        context.Reporter.Warn($"{node.Name}: {problem}; the instance is ignored", node.Location);
+        context.Reporter.Warn(ScadDiagnosticCodes.InvalidArgument, $"{node.Name}: {problem}; the instance is ignored", node.Location);
         return ScadGeo.Empty;
     }
 

@@ -19,6 +19,12 @@ box and assert only on observable behavior.
   report, the JSON failure document, command dispatch with global options in any position, the option forms read
   through `ArgumentReader`, and the re-throw of an unexpected exception.
 
+The tool is a thin shell over the `Imaging` subsystem of the CanvasNetViewer system, so the loading, the pipeline, the
+writing, the comparison, and the contact sheet are verified with the tests of the Viewer (see _Imaging Subsystem
+Verification Design_), and the tests of this project verify the command line, the dispatch, the printing, and the result
+documents on top of them. The generated test inputs and assertions that both projects use (`FixtureFactory`,
+`SurfaceAssert`, and the fixture files) live in the Viewer test project and are linked into this one; a change to them
+needs both test projects to be run.
 Platform and runtime support is proven differently: the integration-test job of the build workflow installs the
 packaged tool in each operating system and .NET runtime of its matrix and runs `canvasnet --validate` with a
 results file; the self-test results (`CanvasNetTool_VersionDisplay` and `CanvasNetTool_HelpDisplay`) are the

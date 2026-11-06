@@ -10,7 +10,6 @@ using DemaConsulting.CanvasNet.Pptx;
 using DemaConsulting.CanvasNet.Scad;
 using DemaConsulting.CanvasNet.Svg;
 using DemaConsulting.CanvasNet.Tool.Commands;
-using DemaConsulting.CanvasNet.Tool.Imaging;
 using DemaConsulting.CanvasNet.VegaLite;
 using DemaConsulting.CanvasNet.Viewer;
 using DemaConsulting.CanvasNet.Vsdx;

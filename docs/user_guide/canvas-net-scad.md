@@ -51,7 +51,15 @@ public sealed partial class ScadDocument
   by the path and uses the file's folder as the base directory for `include` and `use`; a string or stream document
   has no base directory unless `ScadOpenOptions` supplies one (or a `FileResolver`).
 - `Evaluate` runs the program without generating geometry and returns the `echo` lines, the warnings, the
-  unsupported-feature reports, and the number of module instances.
+  unsupported-feature reports, and the number of module instances. **`Render` and `BuildScene` evaluate the program
+  themselves** and deliver the echo lines, the warnings, and the anchors through the same handlers of their options,
+  once: do not call `Evaluate` first to "check" a model before you render it, because that runs the program, and its
+  handlers, a second time. Call `Evaluate` when you only need the echo lines and the diagnostics, without a picture or
+  a scene.
+- `Open(Stream)` and `Parse` give a document without a base directory: unless `ScadOpenOptions` supplies a
+  `BaseDirectory`, `LibraryPaths`, or a `FileResolver`, an `include` or `use` fails the evaluation with a
+  `ScadEvaluationException` (with a base directory, an include that is not found only warns; see *Diagnostics and their
+  codes*).
 - `BuildScene` evaluates the program and returns a Render3D `Scene` in right-handed, Z-up model space, so you can
   measure it (`scene.ComputeBounds()`), combine it with other scenes, or render it with your own camera and
   `SceneRenderer`. Every call returns a new scene; a model without geometry gives a scene that renders as the
@@ -537,8 +545,9 @@ The rules:
   The first argument must be the string `"anchor"`.
 - **A valid declaration** has exactly three unnamed arguments: the tag, a non-empty string name, and a vector of exactly
   three finite numbers. Anything else with the tag `"anchor"` (a wrong number of arguments, a named argument, a name that
-  is not a non-empty string, a point that is not three finite numbers) is skipped with **one warning that starts with
-  `scad-anchor-invalid:`** (an ordinary `ScadDiagnostic`, delivered to the `WarningHandler`); the echo line is still
+  is not a non-empty string, a point that is not three finite numbers) is skipped with **one warning whose `Code` is
+  `scad-anchor-invalid`** (an ordinary `ScadDiagnostic`, delivered to the `WarningHandler`; for compatibility its message
+  also starts with `scad-anchor-invalid:`); the echo line is still
   printed.
 - **Duplicates are kept**, in echo order; the library does not require names to be unique.
 - **Where an anchor may sit.** Inside groups, user modules, `for`, `if`, `union`, `difference`, `intersection`,
@@ -555,6 +564,67 @@ The rules:
 
 The `canvasnet render` tool lists the anchors of a model in the `anchors` array of its `--json` result and moves their
 pixels through the pixel steps of the command line (see the Tool user guide).
+
+### Diagnostics and their codes
+
+A `ScadDiagnostic` is a warning: something questionable that does not stop the evaluation (an unknown name, an argument
+that is ignored, an include that was not found). It has a `Message` (free text for people), a `Location`, and a
+`Code`, the stable machine-readable kind of the warning. **Test the `Code`, never the message.** There is no severity
+to read: every diagnostic is a warning, an error is an exception, and a recognized but unsupported feature is a
+`ScadUnsupportedFeature` with its own `Feature` id (see *Unsupported Features and Strict Mode*).
+
+`Code` is one of the constants of `ScadDiagnosticCodes`, lower-case kebab-case and starting with `scad-`; a warning
+without a more specific category has the default `scad-warning`, so the property is always set. Codes are never renamed
+once published and new ones may be added, so handle an unknown code like `scad-warning`.
+
+| Code | The warning is about |
+| --- | --- |
+| `scad-anchor-invalid` | an anchor declaration that cannot be read or placed (its message also starts with the code) |
+| `scad-include-not-found` | an `include` or `use` file that could not be opened |
+| `scad-unknown-variable`, `scad-unknown-function`, `scad-unknown-module` | a name that is not defined |
+| `scad-unknown-argument`, `scad-duplicate-argument`, `scad-argument-count` | the arguments of a call |
+| `scad-invalid-argument` | a value a built-in cannot use; the instance (or the value) is ignored |
+| `scad-duplicate-definition`, `scad-circular-reference`, `scad-type-mismatch` | definitions and expressions |
+| `scad-viewport-variable` | a `$vp*` value that cannot be used |
+| `scad-diagnostics-suppressed` | the notice that more warnings were dropped after the diagnostics cap |
+| `scad-warning` | any other warning |
+
+The two failures have a code too: `ScadSyntaxException.Code` is `scad-syntax-error` and
+`ScadEvaluationException.Code` is `scad-evaluation-error`, and the `Feature` of a `ScadUnsupportedFeatureException` is
+its code. The Viewer reports every model warning with the code `scad-warning` (the finer code is on the
+`ScadDiagnostic`), so use the Scad package directly when you need to tell warnings apart:
+
+```csharp
+using DemaConsulting.CanvasNet.Scad;
+
+var warnings = new List<ScadDiagnostic>();
+var document = ScadDocument.Parse("cube(size = 5, bogus = 1); echo(missing);");
+
+// Render (or BuildScene) evaluates the program itself; do not call Evaluate first
+using var image = document.Render(
+    200, 200, new ScadRenderOptions { Evaluation = new ScadEvaluationOptions { WarningHandler = warnings.Add } });
+
+foreach (var warning in warnings)
+{
+    if (warning.Code == ScadDiagnosticCodes.UnknownVariable)
+    {
+        Console.WriteLine($"undefined name at {warning.Location}");
+    }
+    else
+    {
+        Console.WriteLine($"{warning.Code}: {warning}");
+    }
+}
+
+try
+{
+    ScadDocument.Parse("cube(");
+}
+catch (ScadSyntaxException ex)
+{
+    Console.WriteLine($"{ex.Code}: {ex.Message}");      // scad-syntax-error: ...
+}
+```
 
 ### Unsupported Features and Strict Mode
 

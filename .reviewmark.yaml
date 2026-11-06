@@ -1520,6 +1520,9 @@ reviews:
       - "docs/verification/introduction.md"                           # verification introduction
       - "docs/verification/canvas-net-viewer.md"                      # system verification
       - "test/DemaConsulting.CanvasNet.Viewer.Tests/CanvasNetViewerSystemIntegrationTests.cs"  # integration tests
+      - "test/DemaConsulting.CanvasNet.Viewer.Tests/FixtureFactory*.cs"  # test inputs (shared)
+      - "test/DemaConsulting.CanvasNet.Viewer.Tests/SurfaceAssert.cs"  # pixel assertions (shared with the tool tests)
+      - "test/DemaConsulting.CanvasNet.Viewer.Tests/Fixtures/README.md"  # fixture provenance and licensing
       - "src/DemaConsulting.CanvasNet.Viewer/DemaConsulting.CanvasNet.Viewer.csproj"  # package project file
       - "test/DemaConsulting.CanvasNet.Viewer.Tests/DemaConsulting.CanvasNet.Viewer.Tests.csproj"  # test project
 
@@ -1565,8 +1568,203 @@ reviews:
       - "docs/verification/canvas-net-viewer/canvas-net-viewer.md"    # unit verification
       - "docs/sysml2/model/canvas-net-viewer.sysml"                   # system SysML2 model
       - "docs/sysml2/model/canvas-net-viewer/canvas-net-viewer.sysml"  # unit SysML2 model
-      - "src/DemaConsulting.CanvasNet.Viewer/**/*.cs"                 # unit source
-      - "test/DemaConsulting.CanvasNet.Viewer.Tests/**/*.cs"          # unit/integration tests
+      - "src/DemaConsulting.CanvasNet.Viewer/CanvasNetViewer.cs"      # unit source
+      - "src/DemaConsulting.CanvasNet.Viewer/ViewerImage.cs"          # unit source (result type)
+      - "src/DemaConsulting.CanvasNet.Viewer/ViewerRenderOptions.cs"  # unit source (options type)
+      - "src/DemaConsulting.CanvasNet.Viewer/NamespaceDoc.cs"         # namespace documentation
+      - "test/DemaConsulting.CanvasNet.Viewer.Tests/CanvasNetViewerTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Viewer.Tests/ViewerFixtures.cs"  # unit test fixtures
+
+  # CanvasNetViewer-ViewerException Review (one per direct unit)
+  - id: CanvasNetViewer-ViewerException
+    title: Review that CanvasNetViewer ViewerException Implementation is Correct
+    context:
+      - "docs/design/canvas-net-viewer.md"
+      - "docs/reqstream/canvas-net-viewer.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-viewer/viewer-exception.yaml"      # unit requirements
+      - "docs/design/canvas-net-viewer/viewer-exception.md"           # unit design
+      - "docs/verification/canvas-net-viewer/viewer-exception.md"     # unit verification
+      - "docs/sysml2/model/canvas-net-viewer/viewer-exception.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Viewer/ViewerException.cs"      # unit source
+      - "test/DemaConsulting.CanvasNet.Viewer.Tests/ViewerExceptionTests.cs"  # unit tests
+
+  # CanvasNetViewer-Imaging Review (one per subsystem)
+  - id: CanvasNetViewer-Imaging
+    title: Review that CanvasNetViewer Imaging Subsystem Implementation is Correct
+    context:
+      - "docs/design/canvas-net-viewer.md"
+      - "docs/reqstream/canvas-net-viewer.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-viewer/imaging.yaml"                 # subsystem requirements
+      - "docs/design/canvas-net-viewer/imaging.md"                      # subsystem design
+      - "docs/verification/canvas-net-viewer/imaging.md"                # subsystem verification
+      - "docs/sysml2/model/canvas-net-viewer/imaging.sysml"             # subsystem SysML2 model
+      - "src/DemaConsulting.CanvasNet.Viewer/Imaging/NamespaceDoc.cs"   # namespace documentation
+      - "test/DemaConsulting.CanvasNet.Viewer.Tests/Imaging/ImagingSubsystemTests.cs"  # subsystem tests
+
+  # CanvasNetViewer-Imaging-SourceLoader Review (one per unit)
+  - id: CanvasNetViewer-Imaging-SourceLoader
+    title: Review that CanvasNetViewer Imaging SourceLoader Implementation is Correct
+    context:
+      - "docs/design/canvas-net-viewer.md"
+      - "docs/reqstream/canvas-net-viewer.yaml"
+      - "docs/design/canvas-net-viewer/imaging.md"
+      - "docs/reqstream/canvas-net-viewer/imaging.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-viewer/imaging/source-loader.yaml"   # unit requirements
+      - "docs/design/canvas-net-viewer/imaging/source-loader.md"        # unit design
+      - "docs/verification/canvas-net-viewer/imaging/source-loader.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-viewer/imaging/source-loader.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Viewer/Imaging/SourceLoader*.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Viewer/Imaging/SourceModels.cs"   # unit source (model types)
+      - "test/DemaConsulting.CanvasNet.Viewer.Tests/Imaging/SourceLoader*Tests.cs"  # unit tests
+
+  # CanvasNetViewer-Imaging-ImageWriter Review (one per unit)
+  - id: CanvasNetViewer-Imaging-ImageWriter
+    title: Review that CanvasNetViewer Imaging ImageWriter Implementation is Correct
+    context:
+      - "docs/design/canvas-net-viewer.md"
+      - "docs/reqstream/canvas-net-viewer.yaml"
+      - "docs/design/canvas-net-viewer/imaging.md"
+      - "docs/reqstream/canvas-net-viewer/imaging.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-viewer/imaging/image-writer.yaml"    # unit requirements
+      - "docs/design/canvas-net-viewer/imaging/image-writer.md"         # unit design
+      - "docs/verification/canvas-net-viewer/imaging/image-writer.md"   # unit verification
+      - "docs/sysml2/model/canvas-net-viewer/imaging/image-writer.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Viewer/Imaging/ImageWriter.cs"    # unit source
+      - "test/DemaConsulting.CanvasNet.Viewer.Tests/Imaging/ImageWriterTests.cs"  # unit tests
+
+  # CanvasNetViewer-Imaging-ImagePipeline Review (one per unit)
+  - id: CanvasNetViewer-Imaging-ImagePipeline
+    title: Review that CanvasNetViewer Imaging ImagePipeline Implementation is Correct
+    context:
+      - "docs/design/canvas-net-viewer.md"
+      - "docs/reqstream/canvas-net-viewer.yaml"
+      - "docs/design/canvas-net-viewer/imaging.md"
+      - "docs/reqstream/canvas-net-viewer/imaging.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-viewer/imaging/image-pipeline.yaml"  # unit requirements
+      - "docs/design/canvas-net-viewer/imaging/image-pipeline.md"       # unit design
+      - "docs/verification/canvas-net-viewer/imaging/image-pipeline.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-viewer/imaging/image-pipeline.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Viewer/Imaging/ImagePipeline*.cs"  # unit source (including the anchor mapping)
+      - "src/DemaConsulting.CanvasNet.Viewer/Imaging/ImageOperations.cs"  # unit source (operation records)
+      - "test/DemaConsulting.CanvasNet.Viewer.Tests/Imaging/ImagePipeline*Tests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/ImagePipelineTests.cs"  # unit tests (text-driven)
+
+  # CanvasNetViewer-Imaging-ImageComparison Review (one per unit)
+  - id: CanvasNetViewer-Imaging-ImageComparison
+    title: Review that CanvasNetViewer Imaging ImageComparison Implementation is Correct
+    context:
+      - "docs/design/canvas-net-viewer.md"
+      - "docs/reqstream/canvas-net-viewer.yaml"
+      - "docs/design/canvas-net-viewer/imaging.md"
+      - "docs/reqstream/canvas-net-viewer/imaging.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-viewer/imaging/image-comparison.yaml"  # unit requirements
+      - "docs/design/canvas-net-viewer/imaging/image-comparison.md"     # unit design
+      - "docs/verification/canvas-net-viewer/imaging/image-comparison.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-viewer/imaging/image-comparison.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Viewer/Imaging/ImageComparison*.cs"  # unit source
+      - "test/DemaConsulting.CanvasNet.Viewer.Tests/Imaging/ImageComparisonTests.cs"  # unit tests
+
+  # CanvasNetViewer-Imaging-ContactSheet Review (one per unit)
+  - id: CanvasNetViewer-Imaging-ContactSheet
+    title: Review that CanvasNetViewer Imaging ContactSheet Implementation is Correct
+    context:
+      - "docs/design/canvas-net-viewer.md"
+      - "docs/reqstream/canvas-net-viewer.yaml"
+      - "docs/design/canvas-net-viewer/imaging.md"
+      - "docs/reqstream/canvas-net-viewer/imaging.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-viewer/imaging/contact-sheet.yaml"   # unit requirements
+      - "docs/design/canvas-net-viewer/imaging/contact-sheet.md"        # unit design
+      - "docs/verification/canvas-net-viewer/imaging/contact-sheet.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-viewer/imaging/contact-sheet.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Viewer/Imaging/ContactSheet.cs"   # unit source
+      - "test/DemaConsulting.CanvasNet.Viewer.Tests/Imaging/ContactSheetTests.cs"  # unit tests
+
+  # CanvasNetViewer-Imaging-GridOverlay Review (one per unit)
+  - id: CanvasNetViewer-Imaging-GridOverlay
+    title: Review that CanvasNetViewer Imaging GridOverlay Implementation is Correct
+    context:
+      - "docs/design/canvas-net-viewer.md"
+      - "docs/reqstream/canvas-net-viewer.yaml"
+      - "docs/design/canvas-net-viewer/imaging.md"
+      - "docs/reqstream/canvas-net-viewer/imaging.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-viewer/imaging/grid-overlay.yaml"   # unit requirements
+      - "docs/design/canvas-net-viewer/imaging/grid-overlay.md"        # unit design
+      - "docs/verification/canvas-net-viewer/imaging/grid-overlay.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-viewer/imaging/grid-overlay.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Viewer/Imaging/GridOverlay.cs"   # unit source
+      - "test/DemaConsulting.CanvasNet.Viewer.Tests/Imaging/GridOverlayTests.cs"  # unit tests
+
+  # CanvasNetViewer-Imaging-ImageRenderer Review (one per unit)
+  - id: CanvasNetViewer-Imaging-ImageRenderer
+    title: Review that CanvasNetViewer Imaging ImageRenderer Implementation is Correct
+    context:
+      - "docs/design/canvas-net-viewer.md"
+      - "docs/reqstream/canvas-net-viewer.yaml"
+      - "docs/design/canvas-net-viewer/imaging.md"
+      - "docs/reqstream/canvas-net-viewer/imaging.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-viewer/imaging/image-renderer.yaml"   # unit requirements
+      - "docs/design/canvas-net-viewer/imaging/image-renderer.md"        # unit design
+      - "docs/verification/canvas-net-viewer/imaging/image-renderer.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-viewer/imaging/image-renderer.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Viewer/Imaging/ImageRenderer.cs"   # unit source
+      - "test/DemaConsulting.CanvasNet.Viewer.Tests/Imaging/ImageRendererTests.cs"  # unit tests
+
+  # CanvasNetViewer-Imaging-ImageInspector Review (one per unit)
+  - id: CanvasNetViewer-Imaging-ImageInspector
+    title: Review that CanvasNetViewer Imaging ImageInspector Implementation is Correct
+    context:
+      - "docs/design/canvas-net-viewer.md"
+      - "docs/reqstream/canvas-net-viewer.yaml"
+      - "docs/design/canvas-net-viewer/imaging.md"
+      - "docs/reqstream/canvas-net-viewer/imaging.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-viewer/imaging/image-inspector.yaml"   # unit requirements
+      - "docs/design/canvas-net-viewer/imaging/image-inspector.md"        # unit design
+      - "docs/verification/canvas-net-viewer/imaging/image-inspector.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-viewer/imaging/image-inspector.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Viewer/Imaging/ImageInspector.cs"   # unit source
+      - "test/DemaConsulting.CanvasNet.Viewer.Tests/Imaging/ImageInspectorTests.cs"  # unit tests
+
+  # CanvasNetViewer-Imaging-ImageComparer Review (one per unit)
+  - id: CanvasNetViewer-Imaging-ImageComparer
+    title: Review that CanvasNetViewer Imaging ImageComparer Implementation is Correct
+    context:
+      - "docs/design/canvas-net-viewer.md"
+      - "docs/reqstream/canvas-net-viewer.yaml"
+      - "docs/design/canvas-net-viewer/imaging.md"
+      - "docs/reqstream/canvas-net-viewer/imaging.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-viewer/imaging/image-comparer.yaml"   # unit requirements
+      - "docs/design/canvas-net-viewer/imaging/image-comparer.md"        # unit design
+      - "docs/verification/canvas-net-viewer/imaging/image-comparer.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-viewer/imaging/image-comparer.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Viewer/Imaging/ImageComparer.cs"   # unit source
+      - "test/DemaConsulting.CanvasNet.Viewer.Tests/Imaging/ImageComparerTests.cs"  # unit tests
+
+  # CanvasNetViewer-Imaging-MontageBuilder Review (one per unit)
+  - id: CanvasNetViewer-Imaging-MontageBuilder
+    title: Review that CanvasNetViewer Imaging MontageBuilder Implementation is Correct
+    context:
+      - "docs/design/canvas-net-viewer.md"
+      - "docs/reqstream/canvas-net-viewer.yaml"
+      - "docs/design/canvas-net-viewer/imaging.md"
+      - "docs/reqstream/canvas-net-viewer/imaging.yaml"
+    paths:
+      - "docs/reqstream/canvas-net-viewer/imaging/montage-builder.yaml"   # unit requirements
+      - "docs/design/canvas-net-viewer/imaging/montage-builder.md"        # unit design
+      - "docs/verification/canvas-net-viewer/imaging/montage-builder.md"  # unit verification
+      - "docs/sysml2/model/canvas-net-viewer/imaging/montage-builder.sysml"  # unit SysML2 model
+      - "src/DemaConsulting.CanvasNet.Viewer/Imaging/MontageBuilder.cs"   # unit source
+      - "test/DemaConsulting.CanvasNet.Viewer.Tests/Imaging/MontageBuilderTests.cs"  # unit tests
 
   # CanvasNetRender3D-Architecture Review (one per system)
   - id: CanvasNetRender3D-Architecture
@@ -3373,9 +3571,6 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Runner.cs"          # out-of-process test runner
       - "test/DemaConsulting.CanvasNet.Tool.Tests/ToolHost.cs"        # in-process console capture helper
       - "test/DemaConsulting.CanvasNet.Tool.Tests/TestCommand.cs"     # configurable test command
-      - "test/DemaConsulting.CanvasNet.Tool.Tests/FixtureFactory*.cs"  # generated test inputs and temporary directory
-      - "test/DemaConsulting.CanvasNet.Tool.Tests/SurfaceAssert.cs"   # pixel assertions
-      - "test/DemaConsulting.CanvasNet.Tool.Tests/Fixtures/README.md"  # fixture provenance and licensing
       - "src/DemaConsulting.CanvasNet.Tool/DemaConsulting.CanvasNet.Tool.csproj"  # tool package project file
       - "test/DemaConsulting.CanvasNet.Tool.Tests/DemaConsulting.CanvasNet.Tool.Tests.csproj"  # test project
 
@@ -3422,7 +3617,7 @@ reviews:
       - "docs/verification/canvas-net-tool/program.md"                # unit verification
       - "docs/sysml2/model/canvas-net-tool/program.sysml"             # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.Tool/Program.cs"                # unit source
-      - "src/DemaConsulting.CanvasNet.Tool/ToolException.cs"          # supporting types (ToolException, ErrorCodes)
+      - "src/DemaConsulting.CanvasNet.Tool/ToolException.cs"          # supporting type (ToolException)
       - "test/DemaConsulting.CanvasNet.Tool.Tests/ProgramTests.cs"    # unit tests
 
   # CanvasNetTool-Context Review (one per direct unit)
@@ -3572,6 +3767,7 @@ reviews:
       - "docs/verification/canvas-net-tool/commands/render-command.md"  # unit verification
       - "docs/sysml2/model/canvas-net-tool/commands/render-command.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.Tool/Commands/RenderCommand*.cs"  # unit source
+      - "src/DemaConsulting.CanvasNet.Tool/Commands/ImagePipelineParser.cs"  # unit source (pipeline operation parser)
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/RenderCommand*Tests.cs"  # unit tests
 
   # CanvasNetTool-Commands-CompareCommand Review (one per unit)
@@ -3621,117 +3817,6 @@ reviews:
       - "docs/sysml2/model/canvas-net-tool/commands/inspect-command.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.Tool/Commands/InspectCommand*.cs"  # unit source
       - "test/DemaConsulting.CanvasNet.Tool.Tests/Commands/InspectCommand*Tests.cs"  # unit tests
-
-  # CanvasNetTool-Imaging Review (one per subsystem)
-  - id: CanvasNetTool-Imaging
-    title: Review that CanvasNetTool Imaging Subsystem Implementation is Correct
-    context:
-      - "docs/design/canvas-net-tool.md"
-      - "docs/reqstream/canvas-net-tool.yaml"
-    paths:
-      - "docs/reqstream/canvas-net-tool/imaging.yaml"                 # subsystem requirements
-      - "docs/design/canvas-net-tool/imaging.md"                      # subsystem design
-      - "docs/verification/canvas-net-tool/imaging.md"                # subsystem verification
-      - "docs/sysml2/model/canvas-net-tool/imaging.sysml"             # subsystem SysML2 model
-      - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/ImagingSubsystemTests.cs"  # subsystem tests
-
-  # CanvasNetTool-Imaging-SourceLoader Review (one per unit)
-  - id: CanvasNetTool-Imaging-SourceLoader
-    title: Review that CanvasNetTool Imaging SourceLoader Implementation is Correct
-    context:
-      - "docs/design/canvas-net-tool.md"
-      - "docs/reqstream/canvas-net-tool.yaml"
-      - "docs/design/canvas-net-tool/imaging.md"
-      - "docs/reqstream/canvas-net-tool/imaging.yaml"
-    paths:
-      - "docs/reqstream/canvas-net-tool/imaging/source-loader.yaml"   # unit requirements
-      - "docs/design/canvas-net-tool/imaging/source-loader.md"        # unit design
-      - "docs/verification/canvas-net-tool/imaging/source-loader.md"  # unit verification
-      - "docs/sysml2/model/canvas-net-tool/imaging/source-loader.sysml"  # unit SysML2 model
-      - "src/DemaConsulting.CanvasNet.Tool/Imaging/SourceLoader*.cs"  # unit source
-      - "src/DemaConsulting.CanvasNet.Tool/Imaging/SourceModels.cs"   # unit source (model types)
-      - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/SourceLoader*Tests.cs"  # unit tests
-
-  # CanvasNetTool-Imaging-ImageWriter Review (one per unit)
-  - id: CanvasNetTool-Imaging-ImageWriter
-    title: Review that CanvasNetTool Imaging ImageWriter Implementation is Correct
-    context:
-      - "docs/design/canvas-net-tool.md"
-      - "docs/reqstream/canvas-net-tool.yaml"
-      - "docs/design/canvas-net-tool/imaging.md"
-      - "docs/reqstream/canvas-net-tool/imaging.yaml"
-    paths:
-      - "docs/reqstream/canvas-net-tool/imaging/image-writer.yaml"    # unit requirements
-      - "docs/design/canvas-net-tool/imaging/image-writer.md"         # unit design
-      - "docs/verification/canvas-net-tool/imaging/image-writer.md"   # unit verification
-      - "docs/sysml2/model/canvas-net-tool/imaging/image-writer.sysml"  # unit SysML2 model
-      - "src/DemaConsulting.CanvasNet.Tool/Imaging/ImageWriter.cs"    # unit source
-      - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/ImageWriterTests.cs"  # unit tests
-
-  # CanvasNetTool-Imaging-ImagePipeline Review (one per unit)
-  - id: CanvasNetTool-Imaging-ImagePipeline
-    title: Review that CanvasNetTool Imaging ImagePipeline Implementation is Correct
-    context:
-      - "docs/design/canvas-net-tool.md"
-      - "docs/reqstream/canvas-net-tool.yaml"
-      - "docs/design/canvas-net-tool/imaging.md"
-      - "docs/reqstream/canvas-net-tool/imaging.yaml"
-    paths:
-      - "docs/reqstream/canvas-net-tool/imaging/image-pipeline.yaml"  # unit requirements
-      - "docs/design/canvas-net-tool/imaging/image-pipeline.md"       # unit design
-      - "docs/verification/canvas-net-tool/imaging/image-pipeline.md"  # unit verification
-      - "docs/sysml2/model/canvas-net-tool/imaging/image-pipeline.sysml"  # unit SysML2 model
-      - "src/DemaConsulting.CanvasNet.Tool/Imaging/ImagePipeline*.cs"  # unit source (including the anchor mapping)
-      - "src/DemaConsulting.CanvasNet.Tool/Imaging/ImageOperations.cs"  # unit source (operation records)
-      - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/ImagePipeline*Tests.cs"  # unit tests
-
-  # CanvasNetTool-Imaging-ImageComparison Review (one per unit)
-  - id: CanvasNetTool-Imaging-ImageComparison
-    title: Review that CanvasNetTool Imaging ImageComparison Implementation is Correct
-    context:
-      - "docs/design/canvas-net-tool.md"
-      - "docs/reqstream/canvas-net-tool.yaml"
-      - "docs/design/canvas-net-tool/imaging.md"
-      - "docs/reqstream/canvas-net-tool/imaging.yaml"
-    paths:
-      - "docs/reqstream/canvas-net-tool/imaging/image-comparison.yaml"  # unit requirements
-      - "docs/design/canvas-net-tool/imaging/image-comparison.md"     # unit design
-      - "docs/verification/canvas-net-tool/imaging/image-comparison.md"  # unit verification
-      - "docs/sysml2/model/canvas-net-tool/imaging/image-comparison.sysml"  # unit SysML2 model
-      - "src/DemaConsulting.CanvasNet.Tool/Imaging/ImageComparison*.cs"  # unit source
-      - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/ImageComparisonTests.cs"  # unit tests
-
-  # CanvasNetTool-Imaging-ContactSheet Review (one per unit)
-  - id: CanvasNetTool-Imaging-ContactSheet
-    title: Review that CanvasNetTool Imaging ContactSheet Implementation is Correct
-    context:
-      - "docs/design/canvas-net-tool.md"
-      - "docs/reqstream/canvas-net-tool.yaml"
-      - "docs/design/canvas-net-tool/imaging.md"
-      - "docs/reqstream/canvas-net-tool/imaging.yaml"
-    paths:
-      - "docs/reqstream/canvas-net-tool/imaging/contact-sheet.yaml"   # unit requirements
-      - "docs/design/canvas-net-tool/imaging/contact-sheet.md"        # unit design
-      - "docs/verification/canvas-net-tool/imaging/contact-sheet.md"  # unit verification
-      - "docs/sysml2/model/canvas-net-tool/imaging/contact-sheet.sysml"  # unit SysML2 model
-      - "src/DemaConsulting.CanvasNet.Tool/Imaging/ContactSheet.cs"   # unit source
-      - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/ContactSheetTests.cs"  # unit tests
-
-  # CanvasNetTool-Imaging-GridOverlay Review (one per unit)
-  - id: CanvasNetTool-Imaging-GridOverlay
-    title: Review that CanvasNetTool Imaging GridOverlay Implementation is Correct
-    context:
-      - "docs/design/canvas-net-tool.md"
-      - "docs/reqstream/canvas-net-tool.yaml"
-      - "docs/design/canvas-net-tool/imaging.md"
-      - "docs/reqstream/canvas-net-tool/imaging.yaml"
-    paths:
-      - "docs/reqstream/canvas-net-tool/imaging/grid-overlay.yaml"   # unit requirements
-      - "docs/design/canvas-net-tool/imaging/grid-overlay.md"        # unit design
-      - "docs/verification/canvas-net-tool/imaging/grid-overlay.md"  # unit verification
-      - "docs/sysml2/model/canvas-net-tool/imaging/grid-overlay.sysml"  # unit SysML2 model
-      - "src/DemaConsulting.CanvasNet.Tool/Imaging/GridOverlay.cs"   # unit source
-      - "test/DemaConsulting.CanvasNet.Tool.Tests/Imaging/GridOverlayTests.cs"  # unit tests
 
   # OTS-BuildMark Review (one per OTS item)
   - id: OTS-BuildMark

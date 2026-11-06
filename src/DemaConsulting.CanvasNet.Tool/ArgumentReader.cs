@@ -1,5 +1,7 @@
 // cspell:ignore canvasnet
 using DemaConsulting.CanvasNet.Tool.Commands;
+using DemaConsulting.CanvasNet.Viewer;
+using DemaConsulting.CanvasNet.Viewer.Imaging;
 
 namespace DemaConsulting.CanvasNet.Tool;
 
@@ -9,50 +11,6 @@ namespace DemaConsulting.CanvasNet.Tool;
 /// <param name="Name">The canonical option name (<see cref="OptionSpec.Name"/>), even when an alias was typed.</param>
 /// <param name="Value">The option's value, or <see langword="null"/> for a flag.</param>
 internal readonly record struct ParsedOption(string Name, string? Value);
-
-/// <summary>
-///     A length that is either an absolute number of pixels or a percentage of the image's size.
-/// </summary>
-/// <param name="Value">The number: pixels when <see cref="IsPercent"/> is <see langword="false"/>, percent (0-100) otherwise.</param>
-/// <param name="IsPercent"><see langword="true"/> when <paramref name="Value"/> is a percentage.</param>
-internal readonly record struct Dimension(double Value, bool IsPercent);
-
-/// <summary>
-///     A rectangle given as an origin and a size, each component in pixels or percent.
-/// </summary>
-/// <param name="X">The left edge.</param>
-/// <param name="Y">The top edge.</param>
-/// <param name="Width">The width.</param>
-/// <param name="Height">The height.</param>
-/// <remarks>
-///     Percentages of <paramref name="X"/> and <paramref name="Width"/> are relative to the image width;
-///     percentages of <paramref name="Y"/> and <paramref name="Height"/> to the image height.
-/// </remarks>
-internal readonly record struct GeometrySpec(Dimension X, Dimension Y, Dimension Width, Dimension Height);
-
-/// <summary>
-///     The widths of a border, in pixels, on each side of an image.
-/// </summary>
-/// <param name="Left">The left border width.</param>
-/// <param name="Top">The top border width.</param>
-/// <param name="Right">The right border width.</param>
-/// <param name="Bottom">The bottom border width.</param>
-internal readonly record struct PadSpec(int Left, int Top, int Right, int Bottom);
-
-/// <summary>
-///     The axis (or axes) an image is mirrored about.
-/// </summary>
-internal enum FlipAxis
-{
-    /// <summary>Mirror left to right (about the vertical axis).</summary>
-    Horizontal,
-
-    /// <summary>Mirror top to bottom (about the horizontal axis).</summary>
-    Vertical,
-
-    /// <summary>Mirror about both axes, which is a rotation by 180 degrees.</summary>
-    Both
-}
 
 /// <summary>
 ///     Reads the options and positional arguments of one command's argument list, and parses the typed

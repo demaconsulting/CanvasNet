@@ -13,6 +13,11 @@
 # subsystem (the raster source and the folder resolver), so that one call renders any file the
 # library can read and one call creates the resolver that lets an SVG document embed all of them -
 # see docs/design/canvas-net-viewer.md's Dependencies section for details.
+#
+# The system also contains the Imaging subsystem (namespace DemaConsulting.CanvasNet.Viewer.Imaging), the library
+# form of everything the canvasnet command-line tool does with images (probe, render with transformations, inspect,
+# compare, montage), and the ViewerException unit with the stable ErrorCodes. The canvasnet tool (CanvasNetTool) is a
+# command-line shell over these types.
 
 sections:
   - title: CanvasNetViewer Requirements
@@ -83,3 +88,58 @@ sections:
           - CanvasNetViewer_SystemIntegration_CustomSourceOverridingBuiltInExtension_Wins
           - CanvasNetViewer_SystemIntegration_CustomSchemeSource_IsEmbeddedFromRawHref
           - CanvasNetViewer_SystemIntegration_LiveFrameSource_GivesFreshFrameOnEveryRender
+
+      - id: CanvasNetViewer-ImageOperations
+        title: >-
+          The library shall do from code everything the canvasnet tool does with images: report the facts of a file of
+          any supported format, render it (a chosen page or every page of a document) through an ordered pipeline of
+          crop, resize, fit, rotate, flip, pad, tone, deskew, trim, and grid operations into image files, report the
+          dominant colors and the pixels of an image, compare two images with measures and thresholds and write the
+          comparison pictures, and compose a contact sheet, each as one call that takes plain request values and returns
+          plain result values, without a command line.
+        tags: [system]
+        justification: |
+          What an agent can do through the command line, an application should be able to do through the library
+          without starting a process or building a command line; the tool is then only a way to type the requests.
+        children:
+          - CanvasNetViewer-Imaging-Load
+          - CanvasNetViewer-Imaging-Render
+          - CanvasNetViewer-Imaging-Transform
+          - CanvasNetViewer-Imaging-Inspect
+          - CanvasNetViewer-Imaging-Compare
+          - CanvasNetViewer-Imaging-Montage
+          - CanvasNetViewer-Imaging-Write
+          - CanvasNetViewer-Imaging-RequestDefaults
+          - CanvasNetViewer-Imaging-DiagnosticOrigin
+        tests:
+          - CanvasNetViewer_SystemIntegration_ImageOperations_ProbeRenderInspectCompareMontage
+
+      - id: CanvasNetViewer-UserGuideExamples
+        title: >-
+          Every C# example of the user guide of the library that is marked as compiled shall be a complete program
+          (its own using directives and declared variables) that compiles without an error against the current
+          public API of the library, and every C# block of the guide shall be marked as compiled or as a signature
+          listing, so that an example cannot silently drift from the API or escape the check.
+        tags: [system]
+        justification: |
+          A user guide whose examples no longer compile misleads the library users and agents that copy them; the
+          examples are the documentation of the API, so they are held to the API by a test and not by review alone.
+        tests:
+          - CanvasNetViewer_UserGuideExamples_Compile
+          - CanvasNetViewer_UserGuideExamples_NegativeControl_ReportsErrors
+
+      - id: CanvasNetViewer-ErrorContract
+        title: >-
+          The library shall report every expected failure of those operations (a file that is missing, unsupported,
+          corrupt, or too large, a page that does not exist, an output that cannot be written, inputs that cannot be
+          compared) as one exception type that carries a stable error code, a message, and a hint, with the codes
+          fixed between releases.
+        tags: [system]
+        justification: |
+          A program must be able to tell a mistake of the user from a defect, and to act on the failure without
+          parsing text; the canvasnet tool reports the same codes in its results.
+        children:
+          - CanvasNetViewer-ViewerException-Contract
+          - CanvasNetViewer-ViewerException-ErrorCodes
+        tests:
+          - CanvasNetViewer_SystemIntegration_FailedOperation_IsViewerExceptionWithStableCode

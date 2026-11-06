@@ -512,7 +512,7 @@ public class ContextTests
     {
         // Arrange: a non-silent text context and one note of each severity
         using var context = Context.Create([]);
-        var notes = new (string? Origin, DemaConsulting.CanvasNet.Tool.Imaging.ImageDiagnostic Diagnostic)[]
+        var notes = new (string? Origin, DemaConsulting.CanvasNet.Viewer.Imaging.ImageDiagnostic Diagnostic)[]
         {
             (null, new("scad", "warning", "scad-warning", "m.scad:1:1: careless")),
             ("deck.pptx", new("pptx", "unsupported", "pptx-picture-emf", "a metafile was skipped", 2))
@@ -538,7 +538,7 @@ public class ContextTests
     {
         // Arrange: an echo with ESC, a message with NUL and a bidirectional override, and an origin with a C1 control
         using var context = Context.Create([]);
-        var notes = new (string? Origin, DemaConsulting.CanvasNet.Tool.Imaging.ImageDiagnostic Diagnostic)[]
+        var notes = new (string? Origin, DemaConsulting.CanvasNet.Viewer.Imaging.ImageDiagnostic Diagnostic)[]
         {
             ("in\u0085put", new("scad", "warning", "scad-warning", "a\0b \u202e evil\tok caf\u00e9 \\ done"))
         };
@@ -595,7 +595,7 @@ public class ContextTests
     {
         // Arrange
         using var context = Context.Create([option]);
-        var notes = new (string? Origin, DemaConsulting.CanvasNet.Tool.Imaging.ImageDiagnostic Diagnostic)[]
+        var notes = new (string? Origin, DemaConsulting.CanvasNet.Viewer.Imaging.ImageDiagnostic Diagnostic)[]
         {
             (null, new("vega-lite", "unsupported", "vl-channel-shape", "ignored"))
         };
@@ -618,7 +618,7 @@ public class ContextTests
         using var context = Context.Create([]);
         var count = Context.MaxReportedLines + 5;
         var notes = Enumerable.Range(0, count)
-            .Select(i => ((string?)null, new DemaConsulting.CanvasNet.Tool.Imaging.ImageDiagnostic("vega-lite", "warning", "vega-lite-warning", $"note {i}")))
+            .Select(i => ((string?)null, new DemaConsulting.CanvasNet.Viewer.Imaging.ImageDiagnostic("vega-lite", "warning", "vega-lite-warning", $"note {i}")))
             .ToList();
         var echo = Enumerable.Range(0, count).Select(i => $"ECHO: {i}").ToList();
 

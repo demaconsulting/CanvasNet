@@ -9,7 +9,15 @@ namespace DemaConsulting.CanvasNet.Viewer;
 ///     render reported. The caller owns it and disposes it.
 /// </summary>
 /// <remarks>
-///     Disposing the object disposes <see cref="Surface"/>. The object is not thread-safe.
+///     Disposing the object disposes <see cref="Surface"/>. The object is not thread-safe. <see cref="Diagnostics"/> and
+///     <see cref="Echo"/> carry the notes and printed text of every file of the render, but <b>no anchors</b>: the anchors
+///     of an OpenSCAD model are reported only by <c>ImageRenderer</c> (<c>RenderedPage.Anchors</c>) and
+///     <c>SourceLoader.Load</c> (<c>LoadedSource.Anchors</c>) in the <c>DemaConsulting.CanvasNet.Viewer.Imaging</c>
+///     namespace. Use <c>using var image = CanvasNetViewer.Render(...)</c>. <see cref="Format"/>,
+///     <see cref="Diagnostics"/>, <see cref="Echo"/>, and <see cref="Embedded"/> are plain data; only
+///     <see cref="Surface"/> is released by disposing. <c>Render</c> returns pixels and writes no file; to save them
+///     with a quality or a format, call <see cref="Imaging.ImageWriter.Write"/> in the
+///     <c>DemaConsulting.CanvasNet.Viewer.Imaging</c> namespace.
 /// </remarks>
 public sealed class ViewerImage : IDisposable
 {

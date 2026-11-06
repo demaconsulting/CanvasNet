@@ -64,7 +64,11 @@ this class; the other documents link to it.
 `Diagnostics` and `Echo` are copied into private `ReadOnlyCollection<T>` snapshots when they are assigned (null becomes
 empty), so changing the original list afterwards does not change the result and a cast cannot modify it; `with` keeps
 working.
-**`ImageSourceDiagnostic`**: `Source`, `Severity` (`Info`, `Warning`, `Unsupported`), `Code`, and `Message`.
+**`ImageSourceDiagnostic`**: `Source`, `Severity` (`Info`, `Warning`, `Unsupported`), `Code`, `Message`, and the optional
+`Origin` (an `init` property, a list of strings, empty by default: the embedded files, outermost first, that the note is
+about, set by the resolver; a root-relative file name for a file link and the href as written for a scheme link). The
+record overrides `Equals` and `GetHashCode` so that two diagnostics are equal when their fields and their origin
+entries are equal, which the compiler-generated equality would not do for a list.
 **`EmbeddedImage`**: `Href`, `Format`, `Width`, `Height`, and `Depth` (0 for an image of the top-level document).
 **`ImageSourceException`**: `Href`, `Embedder` (null for the top-level document), and the original failure as the inner
 exception. **`ImageSourceBudgetException`**: `RequestedPixels` and `RemainingPixels`; it is how a source refuses, and

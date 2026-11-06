@@ -50,7 +50,7 @@ public class MontageCommandTests
     {
         using var context = Context.Create([]);
         var command = new MontageCommand();
-        var (exception, _, _) = ToolHost.Capture(() => Assert.Throws<ToolException>(() => command.Run(context, args)));
+        var (exception, _, _) = ToolHost.Capture(() => ToolHost.ExpectFailure(() => command.Run(context, args)));
         return exception;
     }
 

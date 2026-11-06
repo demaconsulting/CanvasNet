@@ -19,9 +19,11 @@
     <AnalysisLevel>latest</AnalysisLevel>
   </PropertyGroup>
 
-  <!-- Implicit Usings -->
+  <!-- Implicit Usings: the neutral namespace of the test support (fixture factory, surface assertions) that lives in
+       this project and is linked into the Tool tests -->
   <ItemGroup>
     <Using Include="Xunit" />
+    <Using Include="DemaConsulting.CanvasNet.TestSupport" />
   </ItemGroup>
 
   <!-- Test Framework Dependencies -->
@@ -36,6 +38,9 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>compile; runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
+    <!-- Roslyn compiles the C# examples of the Viewer user guide (compile only, never run) so they cannot drift from
+         the API; it is used by this test project only. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
     <PackageReference Include="Microsoft.Testing.Extensions.TrxReport" Version="2.5.2" />
     <PackageReference Include="xunit.v3" Version="4.0.2" />
@@ -65,6 +70,11 @@
   <!-- Project References: the viewer package only; the format packages and the core package arrive through it -->
   <ItemGroup>
     <ProjectReference Include="..\..\src\DemaConsulting.CanvasNet.Viewer\DemaConsulting.CanvasNet.Viewer.csproj" />
+  </ItemGroup>
+
+  <!-- Original-work test fixtures, copied next to the test assembly. The Tool tests link the same files. -->
+  <ItemGroup>
+    <None Include="Fixtures\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

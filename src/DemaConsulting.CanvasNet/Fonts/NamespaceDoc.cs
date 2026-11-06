@@ -29,6 +29,25 @@ namespace DemaConsulting.CanvasNet.Fonts;
 ///     <see cref="FontResolver"/> (a CSS <c>font-family</c> list to a loaded font, with
 ///     <see cref="GenericFontFamilies"/> as its generic-family policy).
 /// </summary>
+/// <remarks>
+///     See <see cref="SystemFontCatalog"/> to find and load an installed font or the bundled fallback,
+///     <see cref="FontResolver"/> to resolve a CSS <c>font-family</c> list, and <see cref="TrueTypeFont"/> for glyph
+///     outlines and metrics. To draw text, see <see cref="DemaConsulting.CanvasNet.Rendering.TextRenderer"/> (it measures
+///     and draws with a <see cref="TrueTypeFont"/>) or fill <see cref="TrueTypeFont.GetGlyphOutline(int)"/> yourself with
+///     <see cref="DemaConsulting.CanvasNet.Drawing.PathFiller"/>. A <see cref="TrueTypeFont"/> is not disposable, and the
+///     bundled fallback is one shared instance for the life of the process.
+/// </remarks>
+/// <example>
+///     Find an installed font by family name and fall back to the bundled Liberation Sans:
+///     <code language="csharp">
+///     using DemaConsulting.CanvasNet.Fonts;
+///
+///     var match = SystemFontCatalog.FindBestMatch("Helvetica", bold: false, italic: false, serif: false, fixedPitch: false);
+///     var font = (match is { } info ? SystemFontCatalog.Load(info) : null)
+///         ?? SystemFontCatalog.LoadBundledFallback(serif: false, fixedPitch: false, bold: false, italic: false);
+///     Console.WriteLine(font.GetNameInfo().FamilyName);
+///     </code>
+/// </example>
 internal static class NamespaceDoc
 {
 }

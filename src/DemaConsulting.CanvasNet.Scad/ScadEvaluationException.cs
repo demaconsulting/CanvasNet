@@ -61,6 +61,15 @@ public sealed class ScadEvaluationException : InvalidOperationException
     public ScadSourceLocation Location { get; }
 
     /// <summary>
+    ///     Gets the stable machine-readable code of this kind of failure, <see cref="ScadDiagnosticCodes.EvaluationError"/>.
+    /// </summary>
+    /// <remarks>
+    ///     The code is constant for the type; it lets a caller that handles several kinds of Scad failure and warning
+    ///     branch on one identifier family instead of on the exception type or the message text.
+    /// </remarks>
+    public string Code { get; } = ScadDiagnosticCodes.EvaluationError;
+
+    /// <summary>
     ///     Builds the exception message by prefixing the description with the location when it is known.
     /// </summary>
     /// <param name="description">The error description.</param>

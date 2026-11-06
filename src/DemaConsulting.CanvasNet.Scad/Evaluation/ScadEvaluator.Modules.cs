@@ -35,7 +35,7 @@ internal sealed partial class ScadEvaluator
         }
         else
         {
-            Warn($"Ignoring unknown module '{instantiation.Name}'", instantiation.Location);
+            Warn(ScadDiagnosticCodes.UnknownModule, $"Ignoring unknown module '{instantiation.Name}'", instantiation.Location);
         }
     }
 

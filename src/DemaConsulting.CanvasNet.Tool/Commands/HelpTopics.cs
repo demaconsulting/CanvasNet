@@ -4,8 +4,9 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Scad;
-using DemaConsulting.CanvasNet.Tool.Imaging;
 using DemaConsulting.CanvasNet.VegaLite;
+using DemaConsulting.CanvasNet.Viewer;
+using DemaConsulting.CanvasNet.Viewer.Imaging;
 
 namespace DemaConsulting.CanvasNet.Tool.Commands;
 

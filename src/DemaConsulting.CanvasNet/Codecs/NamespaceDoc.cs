@@ -25,6 +25,29 @@ namespace DemaConsulting.CanvasNet.Codecs;
 ///     namespace - it now lives in the separate <c>DemaConsulting.CanvasNet.Svg</c> package's
 ///     <c>DemaConsulting.CanvasNet.Svg</c> namespace.
 /// </summary>
+/// <remarks>
+///     See <see cref="ImageDecoder"/> to decode a file without knowing its format, <see cref="ImageFormats"/> to
+///     recognize one, and the codec of each format (for example <see cref="PngCodec"/>) to load or save it. Every codec
+///     works on a <see cref="DemaConsulting.CanvasNet.Canvas.Surface"/>, which has the editing members. The vector and
+///     document formats are separate packages: <c>DemaConsulting.CanvasNet.Svg</c>, <c>.Pdf</c>, <c>.Pptx</c>, and
+///     <c>.Vsdx</c> each rasterize into a surface, and <c>DemaConsulting.CanvasNet.Viewer</c> reads all of them with one
+///     call. <see cref="DemaConsulting.CanvasNet.ImageSources"/> is the contract that lets one document embed pictures
+///     of another format.
+/// </remarks>
+/// <example>
+///     Convert a picture to another format, and load a file whose format is not known in advance:
+///     <code language="csharp">
+///     using DemaConsulting.CanvasNet.Canvas;
+///     using DemaConsulting.CanvasNet.Codecs;
+///
+///     using var photo = PngCodec.Load("photo.png");
+///     JpegCodec.Save(photo, "photo.jpg");
+///
+///     using var stream = File.OpenRead("picture.dat");
+///     using var picture = ImageDecoder.Load(stream);   // recognizes PNG, JPEG, BMP, TIFF, GIF, and JPEG 2000
+///     Console.WriteLine($"{picture.Width} x {picture.Height}");
+///     </code>
+/// </example>
 internal static class NamespaceDoc
 {
 }

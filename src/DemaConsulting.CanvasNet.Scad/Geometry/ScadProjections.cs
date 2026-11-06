@@ -158,7 +158,7 @@ internal static partial class ScadProjections
             return value.AsBoolean;
         }
 
-        context.Reporter.Warn("projection: 'cut' must be true or false; false is used", node.Location);
+        context.Reporter.Warn(ScadDiagnosticCodes.InvalidArgument, "projection: 'cut' must be true or false; false is used", node.Location);
         return false;
     }
 

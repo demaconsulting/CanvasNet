@@ -1,6 +1,7 @@
 // cspell:ignore canvasnet
 using System.Reflection;
 using DemaConsulting.CanvasNet.Tool.Commands;
+using DemaConsulting.CanvasNet.Viewer;
 
 namespace DemaConsulting.CanvasNet.Tool;
 
@@ -179,7 +180,8 @@ internal static class Program
     /// <param name="commandName">The command named on the command line, or <see langword="null"/> when unknown.</param>
     /// <param name="ex">The expected exception.</param>
     /// <remarks>
-    ///     A <see cref="ToolException"/> is reported as <c>Error: {code}: {message}</c> followed by an
+    ///     A <see cref="ViewerException"/> (the tool's own <see cref="ToolException"/> or one of the Viewer library) is
+    ///     reported as <c>Error: {code}: {message}</c> followed by an
     ///     optional <c>Hint:</c> line; any other expected exception as <c>Error: {message}</c>. When the
     ///     failure is reported through the context, <c>--silent</c> suppresses the console output and the
     ///     <c>--log</c> file receives the report, exactly as for any other output; when the context asks for
@@ -189,12 +191,12 @@ internal static class Program
     /// </remarks>
     private static void ReportExpected(Context? context, string[]? args, string? commandName, Exception ex)
     {
-        if (ex is ToolException toolException)
+        if (ex is ViewerException viewerException)
         {
-            WriteError(context, $"Error: {toolException.Code}: {toolException.Message}");
-            if (toolException.Hint != null)
+            WriteError(context, $"Error: {viewerException.Code}: {viewerException.Message}");
+            if (viewerException.Hint != null)
             {
-                WriteError(context, $"Hint: {toolException.Hint}");
+                WriteError(context, $"Hint: {viewerException.Hint}");
             }
         }
         else

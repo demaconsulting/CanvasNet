@@ -6,7 +6,8 @@
 
 ### Purpose
 
-`CanvasNetViewer` is the sole unit of the `CanvasNetViewer` system. It is a static class, with its two supporting types
+`CanvasNetViewer` is one of two units of the `CanvasNetViewer` system (the other is `ViewerException`, beside the
+`Imaging` subsystem). It is a static class, with its two supporting types
 `ViewerRenderOptions` and `ViewerImage`, that does three things: it lists the image sources of every format CanvasNet
 can read, it creates the image resolver that lets an SVG document embed all of them, and it renders any file as a
 picture. It adds no format knowledge of its own: each format is drawn by the source of its own package, and every file
@@ -42,7 +43,10 @@ arguments and return `new FolderImageResolver(folder, sources, options)`, where 
 by the extra sources in the second overload. A new resolver is created on every call and nothing is shared between
 calls, because a resolver counts the images and collects the notes of one render and never caches a picture. The
 precedence rule is the `ImageSourceSet` rule: when several sources claim the same extension or scheme, the later one
-wins, so an extra source overrides a built-in one.
+wins, so an extra source overrides a built-in one. `Render` does not use this method: it builds its own resolver from
+the built-in sources plus `ViewerRenderOptions.ExtraSources`, so `ExtraSources` is for a picture of one file made by
+`Render`, and `CreateImageResolver` is for a render that the caller drives (for example `SvgCodec.Load` with
+`SvgLoadOptions.ImageResolver`) and that needs the resolver and its notes.
 
 **`Render(path, options)`**: validate the options (see _Error Handling_), resolve the sandbox folder (`options.Folder`,
 or the folder of the file), refuse a file outside it with `ArgumentException`, express the file as a path relative to the
@@ -92,5 +96,6 @@ The core `ImageSources` subsystem (`IImageSource`, `ImageSourceSet`, `FolderImag
 
 ### Callers
 
-Applications and the `CanvasNetTool` system: its `SourceLoader` calls `CreateImageResolver` for every SVG file it renders
-and reads `Extensions` in the drift test of the `svg` help topic. The tool passes no extra sources.
+Applications and the `CanvasNetTool` system: its `SourceLoader` (now part of the `Imaging` subsystem of this system)
+calls `CreateImageResolver` for every SVG file it renders, and the tool reads `Extensions` in the drift test of the `svg`
+help topic. The tool passes no extra sources.
