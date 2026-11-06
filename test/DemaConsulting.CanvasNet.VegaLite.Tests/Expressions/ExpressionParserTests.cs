@@ -531,6 +531,28 @@ public class ExpressionParserTests
     }
 
     /// <summary>
+    ///     Validates the budget that a writer of generated text counts against: it is eight times <c>MaxSourceLength</c> (at most the length of a string), and the error that it
+    ///     reports for a text that passes it is the one that <c>ParseGenerated</c> reports for a text of that length, with the length that is given.
+    /// </summary>
+    [Fact]
+    public void ExpressionParser_GeneratedTooLong_IsTheErrorOfParseGeneratedForTheBudget()
+    {
+        // Arrange
+        var limits = new VegaLiteLimits { MaxSourceLength = 10 };
+
+        // Act
+        var parsed = Assert.Throws<VegaLiteSpecException>(() => ExpressionParser.ParseGenerated("1".PadRight(81), Location, limits));
+        var counted = ExpressionParser.GeneratedTooLong(81, Location, limits);
+
+        // Assert
+        Assert.Equal(80, ExpressionParser.GeneratedBudget(limits));
+        Assert.Equal(int.MaxValue, ExpressionParser.GeneratedBudget(new VegaLiteLimits { MaxSourceLength = int.MaxValue }));
+        Assert.Equal(parsed.Message, counted.Message);
+        Assert.Equal(parsed.Location, counted.Location);
+        Assert.Contains("500000000 characters", ExpressionParser.GeneratedTooLong(500_000_000, Location, limits).Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Validates that the length is checked before the text is tokenized: an over-long text with an invalid character
     ///     is still reported as too long.
     /// </summary>

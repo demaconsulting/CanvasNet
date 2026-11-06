@@ -201,10 +201,7 @@ internal sealed partial class SpecParser
                 {
                     // The lists are checked before the expression is written, so that a list that is too long costs no text
                     CheckOneOfSizes(test);
-                    if (PredicateSource.TryBuild(test, out var source))
-                    {
-                        CompileSource(test, source, test, generated: true);
-                    }
+                    CompilePredicate(test);
                 }
             }
 

@@ -1456,6 +1456,29 @@ public class FeatureCatalogTests
             .Where(r => r.Id != "vl-param-selection").ToList();
 
     /// <summary>
+    ///     Validates that the catalog does not write the text of a predicate to find out whether it can be evaluated: a color condition whose test is a 100,000 character field name
+    ///     with 100 members, 10 million characters as an expression (within the budget of the parser, which compiles it), is visited without allocating anywhere near that text again.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_DoesNotExpandAnOverBudgetPredicate()
+    {
+        // Arrange
+        var members = string.Join(", ", Enumerable.Repeat("1", 100));
+        var tree = SpecParser.Parse(
+            "{\"data\":{\"values\":[{\"q\":1}]},\"mark\":\"point\",\"encoding\":{\"x\":{\"field\":\"q\",\"type\":\"quantitative\"},\"color\":{\"condition\":{\"test\":{\"field\":\""
+            + new string('f', 100_000) + "\",\"oneOf\":[" + members + "]},\"value\":1}}}}");
+
+        // Act
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        var reports = FeatureCatalog.Visit(tree);
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        // Assert: the predicate can be evaluated, so there is nothing to report, and the text of 10 million characters (20 MB) was not written again
+        Assert.Empty(reports);
+        Assert.True(allocated < 8_000_000, $"{allocated} bytes were allocated.");
+    }
+
+    /// <summary>
     ///     Validates that the conditions that the renderer evaluates are not reported: an expression test, the predicate forms, value and field
     ///     conditions, and an array of conditions.
     /// </summary>

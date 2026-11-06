@@ -643,8 +643,14 @@ red, blue, and orange, the same four with
 3, null, and 2 over the domain 0 to 5
 the two arcs (0, 2 PI 3 / 5) and (2 PI 3 / 5, 2 PI); for the labels of the same slices at the radius 60 the two labels a
 and c at the angles 2 PI 1.5 / 5 and 2 PI 4 / 5;
-and for the stacked areas a (3, null, 2) and b (1, 2, 2) over the keys 0, 1, and 2 that b is one area of seven segments
-and a has no vertex at the null key (x = 100).
+and for the stacked areas a (3, null, 2) and b (1, 2, 2) over the keys 0, 1, and 2 (x(k) = 100 k; the stacked domain is
+0 to 4, so y(v) = 150 - 37.5 v) that there are exactly two layers, that b is the one closed subpath
+`M0,112.5 L100,75 L200,75 L200,150 L100,150 L0,150 Z` of seven segments, and that a has no vertex at the null key
+(x = 100) and is exactly `M0,0 L0,112.5 Z M200,0 L200,75 Z` (d3's area of a run of one point is the line from its top
+to its baseline, closed, so the two runs are two closed subpaths one at each key), with two `M` segments, no vertex
+strictly between x = 0 and x = 200, and no subpath that holds both x = 0 and x = 200. The assertion was
+mutation-checked: connecting the runs (treating the null row as dropped, as the `filter` mode does) gives
+`M0,0 L200,0 L200,75 L0,112.5 Z` and fails the test.
 
 Assert the broken line and the two polygons of the unstacked area in the default mode, the three other `break-paths`
 modes, and a text value; the connected line and polygon of the `filter` mode (from the mark, from `config.line`, and the

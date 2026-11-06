@@ -33,21 +33,117 @@ internal static class PredicateSource
     /// <param name="predicate">The <c>test</c> value: an expression text or a predicate object that the parser has validated.</param>
     /// <param name="source">Receives the expression source; empty when the predicate cannot be written.</param>
     /// <returns><see langword="true"/> when the whole predicate could be written as an expression.</returns>
-    public static bool TryBuild(SpecNode predicate, out string source)
+    public static bool TryBuild(SpecNode predicate, out string source) =>
+        Build(predicate, int.MaxValue, out source, out _) == Status.Written;
+
+    /// <summary>
+    ///     Writes a predicate as expression source, counting the characters as they are written and refusing a text that passes a budget before it is allocated.
+    /// </summary>
+    /// <remarks>
+    ///     The text of a membership list repeats the expression that reads the field once per member, so a long field name and a large list multiply: the product is not bounded by the
+    ///     document. The writer keeps the text only while it is within the budget; past it, it drops what it has and only counts, so the exact length of the text that would have been
+    ///     written is reported without ever allocating it.
+    /// </remarks>
+    /// <param name="predicate">The <c>test</c> value: an expression text or a predicate object that the parser has validated.</param>
+    /// <param name="budget">The most characters that the text may have.</param>
+    /// <param name="source">Receives the expression source; empty unless the result is <see cref="Status.Written"/>.</param>
+    /// <param name="length">Receives the number of characters of the text (of what was written until a part that cannot be written).</param>
+    /// <returns>
+    ///     <see cref="Status.Unsupported"/> when a part cannot be written (this wins over a text that is too long), <see cref="Status.TooLong"/> when the text has more characters than
+    ///     the budget, else <see cref="Status.Written"/>.
+    /// </returns>
+    public static Status Build(SpecNode predicate, long budget, out string source, out long length)
     {
         ArgumentNullException.ThrowIfNull(predicate);
-        var text = new StringBuilder();
-        var written = Append(predicate, text);
-        source = written ? text.ToString() : string.Empty;
-        return written;
+        var text = new SourceWriter(budget);
+        var written = AppendPredicate(predicate, text);
+        length = text.Length;
+        source = written && !text.Overflowed ? text.ToString() : string.Empty;
+        if (!written)
+        {
+            return Status.Unsupported;
+        }
+
+        return text.Overflowed ? Status.TooLong : Status.Written;
     }
 
     /// <summary>
     ///     Tells whether a predicate has a part that an expression cannot say (a selection, or a parameter that is not a variable parameter, or a value that is not a valid date-time object).
     /// </summary>
+    /// <remarks>The text is only counted (the budget is zero), so a predicate with a large expansion costs no memory to ask.</remarks>
     /// <param name="predicate">The <c>test</c> value.</param>
     /// <returns><see langword="true"/> when <see cref="TryBuild"/> would fail.</returns>
-    public static bool IsUnsupported(SpecNode predicate) => !TryBuild(predicate, out _);
+    public static bool IsUnsupported(SpecNode predicate) => Build(predicate, 0, out _, out _) == Status.Unsupported;
+
+    /// <summary>The outcome of <see cref="Build"/>.</summary>
+    internal enum Status
+    {
+        /// <summary>A part of the predicate cannot be written as an expression.</summary>
+        Unsupported,
+
+        /// <summary>The predicate was written within the budget.</summary>
+        Written,
+
+        /// <summary>The text of the predicate has more characters than the budget.</summary>
+        TooLong,
+    }
+
+    /// <summary>
+    ///     Collects the text of an expression while counting its characters: the text is kept up to a budget, then only counted.
+    /// </summary>
+    /// <param name="budget">The most characters to keep.</param>
+    private sealed class SourceWriter(long budget)
+    {
+        /// <summary>The text so far, or null once the budget has been passed.</summary>
+        private StringBuilder? _text = new();
+
+        /// <summary>Gets the number of characters written, counted also after the budget has been passed.</summary>
+        public long Length { get; private set; }
+
+        /// <summary>Gets a value indicating whether more characters than the budget were written (the text was dropped).</summary>
+        public bool Overflowed => _text is null;
+
+        /// <summary>
+        ///     Writes a text.
+        /// </summary>
+        /// <param name="value">The text; nothing for null.</param>
+        /// <returns>The writer.</returns>
+        public SourceWriter Append(string? value)
+        {
+            if (!string.IsNullOrEmpty(value))
+            {
+                Length += value.Length;
+                if (Length > budget)
+                {
+                    _text = null;
+                }
+
+                _text?.Append(value);
+            }
+
+            return this;
+        }
+
+        /// <summary>
+        ///     Writes a character.
+        /// </summary>
+        /// <param name="value">The character.</param>
+        /// <returns>The writer.</returns>
+        public SourceWriter Append(char value)
+        {
+            Length++;
+            if (Length > budget)
+            {
+                _text = null;
+            }
+
+            _text?.Append(value);
+            return this;
+        }
+
+        /// <inheritdoc/>
+        public override string ToString() => _text?.ToString() ?? string.Empty;
+    }
 
     /// <summary>
     ///     Writes one predicate.
@@ -55,7 +151,7 @@ internal static class PredicateSource
     /// <param name="node">The predicate.</param>
     /// <param name="text">The text written so far.</param>
     /// <returns><see langword="false"/> when a part cannot be written.</returns>
-    private static bool Append(SpecNode node, StringBuilder text)
+    private static bool AppendPredicate(SpecNode node, SourceWriter text)
     {
         if (node.IsString)
         {
@@ -79,7 +175,7 @@ internal static class PredicateSource
         if (node["not"] is { } negated)
         {
             text.Append("!(");
-            var inner = Append(negated, text);
+            var inner = AppendPredicate(negated, text);
             text.Append(')');
             return inner;
         }
@@ -99,7 +195,7 @@ internal static class PredicateSource
     /// <param name="all"><see langword="true"/> for <c>and</c>.</param>
     /// <param name="text">The text written so far.</param>
     /// <returns><see langword="false"/> when a part cannot be written.</returns>
-    private static bool AppendComposition(SpecNode items, bool all, StringBuilder text)
+    private static bool AppendComposition(SpecNode items, bool all, SourceWriter text)
     {
         text.Append('(');
         if (items.Items.Count == 0)
@@ -114,7 +210,7 @@ internal static class PredicateSource
                 text.Append(all ? " && " : " || ");
             }
 
-            if (!Append(items.Items[i], text))
+            if (!AppendPredicate(items.Items[i], text))
             {
                 return false;
             }
@@ -130,7 +226,7 @@ internal static class PredicateSource
     /// <param name="parameter">The <c>param</c> value.</param>
     /// <param name="text">The text written so far.</param>
     /// <returns><see langword="false"/> for a selection parameter, an undeclared one, or a name that is not an identifier.</returns>
-    private static bool AppendParameter(SpecNode parameter, StringBuilder text)
+    private static bool AppendParameter(SpecNode parameter, SourceWriter text)
     {
         if (!parameter.IsString
             || SpecParser.FindParameter(parameter, parameter.StringValue!) is not { } declaration
@@ -210,7 +306,7 @@ internal static class PredicateSource
     /// <param name="node">The predicate object.</param>
     /// <param name="text">The text written so far.</param>
     /// <returns><see langword="false"/> for a field that is not a path or a value that cannot be written.</returns>
-    private static bool AppendField(SpecNode node, StringBuilder text)
+    private static bool AppendField(SpecNode node, SourceWriter text)
     {
         if (node["field"] is not { IsString: true } field || FieldPath.Parse(field.StringValue) is not { } segments)
         {
@@ -282,7 +378,7 @@ internal static class PredicateSource
     /// <param name="field">The expression that reads the field.</param>
     /// <param name="text">The text written so far.</param>
     /// <returns><see langword="false"/> when a value cannot be written.</returns>
-    private static bool AppendTime(SpecNode comparison, TimeUnitSpec? unit, string field, StringBuilder text)
+    private static bool AppendTime(SpecNode comparison, TimeUnitSpec? unit, string field, SourceWriter text)
     {
         var left = unit is null ? "time(" + field + ")" : UnitInstant(unit, field);
         switch (comparison.Name)
@@ -290,18 +386,18 @@ internal static class PredicateSource
             case "range":
                 return AppendTimeRange(left, comparison, unit, text);
             case "oneOf":
-                var members = new List<string>(comparison.Items.Count);
-                foreach (var item in comparison.Items)
+                text.Append("(indexof([");
+                for (var i = 0; i < comparison.Items.Count; i++)
                 {
-                    if (!TimeOperand(item, unit, out var member))
+                    if (!TimeOperand(comparison.Items[i], unit, out var member))
                     {
                         return false;
                     }
 
-                    members.Add(member);
+                    text.Append(i > 0 ? ", " : string.Empty).Append(member);
                 }
 
-                text.Append("(indexof([").Append(string.Join(", ", members)).Append("], ").Append(left).Append(") !== -1)");
+                text.Append("], ").Append(left).Append(") !== -1)");
                 return true;
             default:
                 if (!TimeOperand(comparison, unit, out var operand))
@@ -330,7 +426,7 @@ internal static class PredicateSource
     /// <param name="unit">The time unit that applies, or null.</param>
     /// <param name="text">The text written so far.</param>
     /// <returns><see langword="false"/> when an end cannot be written.</returns>
-    private static bool AppendTimeRange(string left, SpecNode range, TimeUnitSpec? unit, StringBuilder text)
+    private static bool AppendTimeRange(string left, SpecNode range, TimeUnitSpec? unit, SourceWriter text)
     {
         var lowNode = range.Items[0];
         var highNode = range.Items[1];
@@ -471,7 +567,7 @@ internal static class PredicateSource
     /// <param name="value">The expression that reads the field.</param>
     /// <param name="range">The array of the two endpoints.</param>
     /// <param name="text">The text written so far.</param>
-    private static void AppendRange(string value, SpecNode range, StringBuilder text)
+    private static void AppendRange(string value, SpecNode range, SourceWriter text)
     {
         var low = range.Items[0];
         var high = range.Items[1];
@@ -505,7 +601,7 @@ internal static class PredicateSource
     /// <param name="value">The expression that reads the field.</param>
     /// <param name="members">The array of members.</param>
     /// <param name="text">The text written so far.</param>
-    private static void AppendOneOf(string value, SpecNode members, StringBuilder text)
+    private static void AppendOneOf(string value, SpecNode members, SourceWriter text)
     {
         text.Append('(');
         if (members.Items.Count == 0)

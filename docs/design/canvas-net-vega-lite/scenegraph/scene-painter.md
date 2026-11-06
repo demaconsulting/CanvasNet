@@ -74,7 +74,8 @@ translations), and the scale.
   two chunks overlap at the shared point, so a **translucent trail painted in several chunks** is painted through **coverage
   layers** (`ScenePainter.TrailLayers`): at the first chunk the painter finds the pixel box of the trail (its points
   grown by
-  the radius, the stroke width, and a 2 pixel margin, cut to the target, in a pass that polls the token like the capsule
+  the radius, the stroke width that is painted, and a 2 pixel margin, cut to the target, in a pass that polls the token
+  like the capsule
   pass), and every chunk of the fill is painted with the opaque color into a transparent layer of that box and every
   chunk of
   the stroke into a second layer; when the last chunk is in, the fill layer and then the stroke layer are composited once,
@@ -86,7 +87,16 @@ translations), and the scale.
   dot in 0.4 opacity before). A single-chunk trail and a trail whose solid paints are opaque take the direct path and are
   painted exactly as before; the layers are at most the target in size and are allocated only for a translucent
   multi-chunk trail
-  (a stroke layer only when the trail has a stroke). A gradient fill is still painted chunk by chunk, with the bounding
+  (a stroke layer only when the trail has a stroke that is drawn). **The stroke reach**: a stroke width that
+  `StrokeOnly` never strokes (not positive, not finite, beyond `MaxMagnitude` surface pixels, or too small to be a
+  float; the one test `TryStrokeWidth` shared by both) neither grows the box nor gets a layer, so it cannot inflate the
+  box to the whole target or (as a NaN) make the box empty. **The pixel budget**: the layers of one trail are charged
+  before they are allocated - the box width times its height times the number of layers (fill, stroke) must be at most
+  `TrailLayerPixelBudget` (`DefaultTrailLayerPixels`, 32 Mi pixels, 128 MiB of `Rgba32`: two layers of 4,096 by 4,096
+  pixels; the layers of the largest 8,192 by 8,192 target would be 512 MiB). A trail over it is painted chunk by chunk
+  as before the layers existed, so the chunk joints keep the double composite (documented deviation; every ordinary
+  chart is far under the budget). The peak is one trail at a time (the layers are disposed at the end of each trail). A
+  gradient fill is still painted chunk by chunk, with the bounding
   box of the
   chunk as its reference (a gradient is not layered).
 - A group paints its own background and border as a (rounded) rectangle behind its children; a stroked group is offset as
@@ -172,7 +182,11 @@ translations), and the scale.
   above, shared with `CurveBuilder` and `MarkBuilder` so that the scene never holds what the painter would skip.
 - `TrailCapsuleWeight(double, float)` (internal static) and the `TrailChunkFlushed` observer (internal, null in production,
   told the capsule count of every chunk before its poll) - the estimate that chunks a trail, and the hook that lets a test
-  count the chunks and cancel at a boundary without measuring time.
+  count the chunks and cancel at a boundary without measuring time. `TrailLayerPixelBudget` (internal, init-only,
+  default `DefaultTrailLayerPixels`) and the `TrailLayersCreated` observer (internal, null in production, told the pixel
+  count that was charged when the layers are created) let a test lower the budget and assert the box and the fallback
+  without allocating layers. `TryStrokeWidth(double?, float, out float)` (private static) is the one test of whether a
+  stroke width is drawn, used by `StrokeOnly` and by the layers.
 - `ScenePlacement.Uniform` and `ScenePlacement.Fit` - the two placements `VegaLiteDocument` uses.
 
 **Pre- and postconditions**: the scene is non-null; on return the surface holds the drawing, deterministic for the

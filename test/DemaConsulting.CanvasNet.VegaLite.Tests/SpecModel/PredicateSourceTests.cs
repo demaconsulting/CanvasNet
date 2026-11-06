@@ -106,4 +106,88 @@ public class PredicateSourceTests
     [Fact]
     public void PredicateSource_TryBuild_NullPredicateThrows() =>
         Assert.Throws<ArgumentNullException>(() => PredicateSource.TryBuild(null!, out _));
+
+    /// <summary>
+    ///     Builds a membership predicate on a field name of 100,000 characters with 5,000 members, which is 500 million characters as an expression (the field is written once per member).
+    /// </summary>
+    /// <param name="extra">The JSON text of a part to add as the second part of an <c>and</c>, or null for the membership predicate alone.</param>
+    /// <returns>The predicate node.</returns>
+    private static SpecNode HugePredicate(string? extra = null)
+    {
+        var membership = "{ \"field\": \"" + new string('f', 100_000) + "\", \"oneOf\": [ " + string.Join(", ", Enumerable.Repeat("1", 5_000)) + " ] }";
+        return Predicate(extra is null ? membership : "{ \"and\": [ " + membership + ", " + extra + " ] }");
+    }
+
+    /// <summary>
+    ///     Validates that a predicate whose text is over the budget is refused while it is written, before the text is allocated: a 100,000 character field name with 5,000 members is
+    ///     500,094,998 characters (the field is written once per member, <c>datum["..."] === 1</c> and a separator for each), and with a budget of one million it is reported as too long
+    ///     with the exact length, no text, and without allocating more than a small fraction of it (the text would be a gigabyte).
+    /// </summary>
+    [Fact]
+    public void PredicateSource_Build_RefusesAnOverBudgetExpansionBeforeAllocatingIt()
+    {
+        // Arrange
+        var node = HugePredicate();
+
+        // Act
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        var status = PredicateSource.Build(node, 1_000_000, out var source, out var length);
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        // Assert: too long, with the exact length of the text that would have been written, and nothing kept
+        Assert.Equal(PredicateSource.Status.TooLong, status);
+        Assert.Equal(string.Empty, source);
+        Assert.Equal((5_000L * (100_009 + 5 + 1)) + (4_999 * 4) + 2, length);
+        Assert.True(allocated < 16_000_000, $"{allocated} bytes were allocated.");
+    }
+
+    /// <summary>
+    ///     Validates the boundary of the budget: a text of exactly the budget is written, one character less is too long, and a part that cannot be written wins over a text that is too long
+    ///     (so that a predicate that is never compiled is not reported as too long).
+    /// </summary>
+    [Fact]
+    public void PredicateSource_Build_BudgetBoundaryAndUnsupportedWins()
+    {
+        // Arrange
+        var node = Predicate("""{ "field": "c", "oneOf": [ 1, 2 ] }""");
+        const string Expected = """(datum["c"] === 1 || datum["c"] === 2)""";
+
+        // Act
+        var exact = PredicateSource.Build(node, Expected.Length, out var source, out var exactLength);
+        var oneLess = PredicateSource.Build(node, Expected.Length - 1, out var refused, out var refusedLength);
+        var unsupported = PredicateSource.Build(HugePredicate("""{ "param": "sel" }"""), 1_000, out var none, out _);
+
+        // Assert
+        Assert.Equal(PredicateSource.Status.Written, exact);
+        Assert.Equal(Expected, source);
+        Assert.Equal(Expected.Length, exactLength);
+        Assert.Equal(PredicateSource.Status.TooLong, oneLess);
+        Assert.Equal(string.Empty, refused);
+        Assert.Equal(Expected.Length, refusedLength);
+        Assert.Equal(PredicateSource.Status.Unsupported, unsupported);
+        Assert.Equal(string.Empty, none);
+    }
+
+    /// <summary>
+    ///     Validates that asking whether a predicate is unsupported does not write its text: the huge predicate is answered (supported, and with a part that cannot be written) while
+    ///     allocating a few megabytes at most, where the text would be a gigabyte.
+    /// </summary>
+    [Fact]
+    public void PredicateSource_IsUnsupported_DoesNotAllocateTheExpansion()
+    {
+        // Arrange
+        var supported = HugePredicate();
+        var unsupported = HugePredicate("""{ "param": "sel" }""");
+
+        // Act
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        var supportedAnswer = PredicateSource.IsUnsupported(supported);
+        var unsupportedAnswer = PredicateSource.IsUnsupported(unsupported);
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        // Assert
+        Assert.False(supportedAnswer);
+        Assert.True(unsupportedAnswer);
+        Assert.True(allocated < 16_000_000, $"{allocated} bytes were allocated.");
+    }
 }

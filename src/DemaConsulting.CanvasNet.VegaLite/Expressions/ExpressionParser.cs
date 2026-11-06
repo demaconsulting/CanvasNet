@@ -223,16 +223,35 @@ internal sealed partial class ExpressionParser
         ArgumentNullException.ThrowIfNull(source);
         limits ??= VegaLiteLimits.Default;
         var parser = new ExpressionParser(source, location, limits);
-        var budget = Math.Min((long)limits.MaxSourceLength * GeneratedLengthFactor, int.MaxValue);
-        if (source.Length > budget)
+        if (source.Length > GeneratedBudget(limits))
         {
-            throw parser.Fail(
-                (int)budget,
-                $"the expression that is written from the specification has {source.Length} characters, more than {GeneratedLengthFactor} times the limit of {limits.MaxSourceLength} (MaxSourceLength)");
+            throw GeneratedTooLong(source.Length, location, limits);
         }
 
         return parser.Compile();
     }
+
+    /// <summary>
+    ///     Gets the number of characters that the expression that the renderer writes from the specification may have: <see cref="GeneratedLengthFactor"/> times
+    ///     <see cref="VegaLiteLimits.MaxSourceLength"/>, and at most the length of a string.
+    /// </summary>
+    /// <param name="limits">The limits.</param>
+    /// <returns>The budget in characters.</returns>
+    internal static long GeneratedBudget(VegaLiteLimits limits) => Math.Min((long)limits.MaxSourceLength * GeneratedLengthFactor, int.MaxValue);
+
+    /// <summary>
+    ///     Creates the exception for a text that the renderer would write from the specification and that is longer than <see cref="GeneratedBudget"/>; the writer of the text
+    ///     counts the characters as it goes and refuses the text with this exception before it is allocated, and <see cref="ParseGenerated"/> refuses one that is written
+    ///     with the same one.
+    /// </summary>
+    /// <param name="length">The number of characters of the text.</param>
+    /// <param name="location">The location of the part of the specification that the text is written from.</param>
+    /// <param name="limits">The limits.</param>
+    /// <returns>The exception to throw.</returns>
+    internal static VegaLiteSpecException GeneratedTooLong(long length, VegaLiteLocation location, VegaLiteLimits limits) =>
+        new(
+            $"Invalid expression: the expression that is written from the specification has {length} characters, more than {GeneratedLengthFactor} times the limit of {limits.MaxSourceLength} (MaxSourceLength) at expression offset {(int)GeneratedBudget(limits)}.",
+            location);
 
     /// <summary>
     ///     Creates the exception for the first problem of the expression.

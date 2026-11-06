@@ -140,11 +140,13 @@ sections:
                   point with no usable size, and shall draw a circle for coincident points; a translucent trail
                   that is painted in several chunks (an unusually large trail) shall be composited once, so that
                   its capsules do not composite twice at the joints of the chunks, as Vega paints one path, with
-                  the cancellation token still polled before every chunk.
+                  the cancellation token still polled before every chunk; the coverage layers that do this shall be
+                  charged against a pixel budget before they are allocated (a trail whose layers would be larger
+                  being painted chunk by chunk) and shall ignore a stroke width that is never drawn.
                 justification: |
                   A trail is a line whose width varies with the data; the capsules are what make the width change
                   smoothly and the runs are how a gap breaks the trail, and a large translucent trail must not
-                  show the seams of the implementation.
+                  show the seams of the implementation nor allocate memory that nothing bounds.
                 tests:
                   - ScenePainter_Paint_TrailWidthFollowsTheSizeOfEachPoint
                   - ScenePainter_Paint_TrailBreaksAtRunBoundariesAndDrawsCapsForCoincidentPoints
@@ -152,6 +154,9 @@ sections:
                   - ScenePainter_Paint_TranslucentTrailOutlineInSeveralChunksHasNoSeam
                   - ScenePainter_Paint_TranslucentTrailBeyondTheSurfaceEdgeHasNoSeam
                   - ScenePainter_Paint_OpaqueTrailInSeveralChunksIsBlackAlongTheWholeRow
+                  - ScenePainter_Paint_TrailLayerPixelsAreChargedAgainstTheBudgetAndFallBackBeyondIt
+                  - ScenePainter_Paint_TrailLayersIgnoreAStrokeWidthThatIsNotDrawn
+                  - ScenePainter_TrailLayerPixelBudget_DefaultIsBoundedBelowTheLayersOfTheLargestTarget
 
               - id: CanvasNetVegaLite-Scenegraph-ScenePainter-MiterLimit
                 title: >-

@@ -381,6 +381,29 @@ public class SpecParserTimeTests
     }
 
     /// <summary>
+    ///     Validates that a time-aware predicate on a long field name (the field is written seven times for each end of the instant of a time unit) is refused with the error of a
+    ///     predicate that is longer than the generated budget, located at the predicate: a 100,000 character field with a range of dates is over a budget of eight times a
+    ///     <c>MaxSourceLength</c> that is the length of the specification, and under that of the default limit.
+    /// </summary>
+    [Fact]
+    public void SpecParser_TimePredicates_LongFieldFailsFastWithTheGeneratedBudgetError()
+    {
+        // Arrange
+        var field = new string('f', 100_000);
+        var json = "{ \"mark\": \"point\", \"transform\": [ { \"filter\": { \"timeUnit\": \"yearmonthdatehoursminutesseconds\", \"field\": \"" + field
+            + "\", \"range\": [ { \"year\": 2020 }, { \"year\": 2021 } ] } } ] }";
+
+        // Act
+        var ex = Assert.Throws<VegaLiteSpecException>(() => SpecParser.Parse(json, "t.json", new VegaLiteLimits { MaxSourceLength = json.Length }));
+        var accepted = SpecParser.Parse(json, "t.json");
+
+        // Assert: the error names the budget, at the predicate; the default limit allows the text
+        Assert.Equal("/transform/0/filter", ex.Location.Pointer);
+        Assert.Contains("more than 8 times the limit of " + json.Length + " (MaxSourceLength)", ex.Message, StringComparison.Ordinal);
+        Assert.NotNull(accepted.Expressions.Get(accepted.Root["transform"]!.Items[0]["filter"]!));
+    }
+
+    /// <summary>
     ///     Validates the limit of the time format specifiers of a specification: the <c>format</c> of an axis or legend of a temporal field (a text, or a member of a multi-format
     ///     object), of a field with a time unit and of a field forced to time by <c>formatType</c>, and the date format of a <c>format.parse</c> entry, are refused at the format when
     ///     they are longer than 1,024 characters or expand to more than 4,096 pieces; a number format, a custom format type and a specifier at the limit are not.

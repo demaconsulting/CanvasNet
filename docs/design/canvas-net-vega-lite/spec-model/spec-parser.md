@@ -265,17 +265,26 @@ catalog (for example a binned unit).
   `timeUnit` of the predicate and its date-time values are validated, and a time-aware `oneOf` list (one that
   `PredicateSource.IsTimeAware` says is written as an expression) that holds more than `MaxScaleDomainSize` values is an
   error at the array (`CheckOneOfSize`; the conditions check every `oneOf` of their predicate the same way,
-  `CheckOneOfSizes`, before the expression is written). `CompileTimePredicate` then writes every time-aware field
+  `CheckOneOfSizes`, before the expression is written). `ValidateOperandExpressions` (also from `ValidatePredicateTime`)
+  compiles every **`{"expr": ...}` operand** of a field predicate (the comparison, or an item of a `range` or `oneOf`)
+  as any expression that the user writes (`CompileExpression`, so `Parse`): the 4,096-character `MaxExpressionLength`,
+  the depth, the syntax, and the parameters it refers to apply, and a failure is located at the `expr` text (the same
+  error as the same text written as a top-level `filter`). `CompileTimePredicate` then writes every time-aware field
   predicate **leaf** (also inside `and`,
-  `or`, and `not`) as expression source with `PredicateSource.TryBuild` and compiles it once under the key of the
-  predicate object. The text is **written by the renderer, not by the user**, so it is compiled with
+  `or`, and `not`) as expression source with `PredicateSource.Build` and compiles it once under the key of the
+  predicate object (`CompilePredicate`). The text is **written by the renderer, not by the user**, so it is compiled with
   `ExpressionParser.ParseGenerated` (`CompileSource(..., generated: true)`): the 4,096-character `MaxExpressionLength`
   of the expressions that the user writes does not
-  apply to it, a long list (a `oneOf` of 1,000 values is about 22,000 characters) compiles, and the text is bound by
+  apply to it (the operand texts that are copied into it were checked above), a long list (a `oneOf` of 1,000 values is
+  about 22,000 characters) compiles, and the text is bound by
   eight times `MaxSourceLength` (a longer one
   fails at the predicate when the document is opened, naming `MaxSourceLength`) and the list by `MaxScaleDomainSize`.
+  The text is **counted while it is written**: `PredicateSource.Build(predicate, budget, ...)` keeps the characters only
+  up to the budget (`ExpressionParser.GeneratedBudget`) and then only counts, so a long field name with a large `oneOf`
+  list (the field is written once per member) fails fast with the same error (`ExpressionParser.GeneratedTooLong`, the
+  exact length that would have been written) before the text is allocated.
   The same holds for the test of a **condition** that is a predicate object
-  (`ValidateConditions`).
+  (`ValidateConditions`, which calls `CompilePredicate` after `CheckOneOfSizes`).
 - **Parse directives** (`ValidateFormat`): a `date:` or `utc:` entry of `format.parse` without a format in matching
   quotes is an error at the entry (see the data format rules above).
 
@@ -369,7 +378,8 @@ an error; a duplicate key keeps the last value at the position of the first occu
   and legend of a field condition are validated like those of a channel). A `test` is checked by `ValidatePredicate`
   (an expression text is compiled there, as in a filter). On a channel that accepts a condition
   (`ChannelDefinitions.CanCondition`, the `IsConditionSite` check) a predicate **object** is also written as expression
-  source by `PredicateSource.TryBuild` and compiled once under the key of the predicate node, so the marks evaluate
+  source by `PredicateSource.Build` (`CompilePredicate`) and compiled once under the key of the predicate node, so the
+  marks evaluate
   it with the expression engine under the step budget; a predicate that no expression can say (a selection, a parameter
   that is not a variable, a date-time object that is not valid) is not written. A predicate with a `timeUnit` or a
   date-time value **is** written, with the date and time functions (see `PredicateSource` below), so it is evaluated in
@@ -395,7 +405,17 @@ an error; a duplicate key keeps the last value at the position of the first occu
   nothing is reported for it, in strict mode too. Every stage that needs the type of a definition without one calls
   this method (the scale resolver, the encoding plan, the stack rules, the temporal-field collection, the text mark,
   the facet headers, the composite marks, the guide time-format check, and the feature catalog), so that they agree.
-- `PredicateSource.TryBuild(predicate, out source)` writes the predicates of Vega-Lite as expression text with the
+- `PredicateSource.Build(predicate, budget, out source, out length)` writes the predicates of Vega-Lite as expression
+  text while **counting the characters** (a private `SourceWriter` keeps the text up to `budget` and then drops it and
+  only counts), and returns `Written`, `TooLong` (the exact `length` of the text that would have been written, no
+  `source`), or `Unsupported` (a part no expression can say; it wins over `TooLong`). `TryBuild(predicate, out source)`
+  is `Build` with no budget, and `IsUnsupported(predicate)` is `Build` with a budget of zero (only counting, so the
+  catalog does not allocate the text of a predicate to throw it away). The text of a `oneOf` repeats the expression that
+  reads the field once per member, so the product of a long field name and a large list is not bounded by the document;
+  the budget of the parser (`ExpressionParser.GeneratedBudget`, 8 times `MaxSourceLength`) is what stops it, before the
+  text exists. The pieces that are built once per field predicate (the path text and the instant of a time unit, at most
+  about 14 times the field name) are not counted before they are written; they are linear in the document. The
+  predicates are written with the
   meaning that `isValid`, strict equality, and the comparison operators give: `equal` as `===`, `lt`, `lte`, `gt`, and
   `gte` as the comparisons, `range` as an inclusive pair (the endpoints in ascending order when both are numbers, a null
   endpoint leaving that side open), `oneOf` as an `or` of strict equalities, `valid` as `isValid` (negated for false),

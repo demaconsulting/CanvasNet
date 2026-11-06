@@ -321,7 +321,10 @@ and not at a scale of 2 (40,000 pixels), a stroke width of 40,000 or 1e300 is no
 `ScenePainterPathTests.ScenePainter_Paint_TranslucentTrailInSeveralChunksHasNoSeam`,
 `ScenePainterPathTests.ScenePainter_Paint_TranslucentTrailOutlineInSeveralChunksHasNoSeam`,
 `ScenePainterPathTests.ScenePainter_Paint_TranslucentTrailBeyondTheSurfaceEdgeHasNoSeam`,
-`ScenePainterPathTests.ScenePainter_Paint_OpaqueTrailInSeveralChunksIsBlackAlongTheWholeRow`
+`ScenePainterPathTests.ScenePainter_Paint_OpaqueTrailInSeveralChunksIsBlackAlongTheWholeRow`,
+`ScenePainterPathTests.ScenePainter_Paint_TrailLayerPixelsAreChargedAgainstTheBudgetAndFallBackBeyondIt`,
+`ScenePainterPathTests.ScenePainter_Paint_TrailLayersIgnoreAStrokeWidthThatIsNotDrawn`,
+`ScenePainterPathTests.ScenePainter_TrailLayerPixelBudget_DefaultIsBoundedBelowTheLayersOfTheLargestTarget`
 
 The estimated cost of a capsule is `1 + sqrt(radius x scale / 0.02)`: 1 for no radius, 11 for a radius of 2
 (`sqrt(100)`), 21 for a radius of 2 at a scale of 4 (`sqrt(400)`), and about 906.1 for the largest radius that the
@@ -345,6 +348,19 @@ fill, every pixel of the row 8 (the top edges of the capsules) is the
 same one composite (it was 74 at the joint); with an opaque black fill every pixel is black and the chunks are the same;
 and for a trail placed at the offset -7,000 on a 600 by 20 surface (the layers are cut to
 the target, the joint is at x of about 282) the row is one composite from x = 20 to x = 500.
+
+The budget tests use the same fill-only trail (the box of its points grown by the radius 2 and the 2 pixel margin is
+7,528 by 8 pixels and it has one layer, so 60,224 pixels), and assert that the observer `TrailLayersCreated` is told
+`[60224]` when the budget is exactly that and the row is one composite, and that with a budget of 60,223 it is told
+nothing, the same two chunks are painted straight onto the target and the row is no longer uniform (the joint of the
+chunks composites twice, 127 or 128 elsewhere). The stroke-reach theory (a width of infinity, NaN, and 1e9, with a half
+transparent black fill and stroke) asserts the observer is told `[60224]` (one layer of the box of the fill, not two of
+the whole 7,600 by 20 target, 304,000 pixels, as before, and not no layer at all for a NaN) and the row is one
+composite, 127 or 128, which is the fill alone (the stroke is never drawn). The ceiling test asserts that the default
+budget (33,554,432 pixels) is at most 128 MiB of 4-byte pixels and below one layer of the largest target (8,192 by
+8,192 pixels), so that the 512 MiB of a fill and a stroke layer of that target can never be allocated. The first two
+tests were checked by mutation: with the previous box rule and no budget they fail (304,000 pixels reported, and
+layers created beyond the budget).
 
 ##### Arcs Fill Their Wedge, Stroke, And Scale
 

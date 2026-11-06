@@ -531,7 +531,7 @@ runs, instead of being accepted and ignored.
 <!-- markdownlint-disable MD013 -->
 | Limit | Default | Checked | Failure |
 | ----- | ------- | ------- | ------- |
-| `MaxExpressionLength` | 4,096 characters | When the document is opened (`VegaLiteOpenOptions.Limits`); applies to the expressions that you write, not to the text that the renderer writes from a predicate (see the `oneOf` rule under the time predicates), which is bound by eight times `MaxSourceLength` | `VegaLiteSpecException` (the offset is the limit) |
+| `MaxExpressionLength` | 4,096 characters | When the document is opened (`VegaLiteOpenOptions.Limits`); applies to the expressions that you write (also an `{"expr": ...}` value inside a predicate), not to the text that the renderer writes from a predicate (see the `oneOf` rule under the time predicates), which is bound by eight times `MaxSourceLength` | `VegaLiteSpecException` (the offset is the limit) |
 | `MaxExpressionDepth` | 64 (at most 256) | When the document is opened | `VegaLiteSpecException`; the nesting of parentheses, brackets, call arguments, array and object literals, conditional branches, and unary operators counts, a long chain such as `a + b + c + ...` does not |
 | `MaxEvaluationSteps` | 50,000,000 | At every instruction; **one budget per call** shared by the parameters, the transforms, and the row-bound mark values | `VegaLiteRenderException` located at the expression, with the offset of the instruction that ran out. A step is one executed instruction, plus one per 64 characters or elements of the work of a function such as `split` or `replace`, or of an operator that reads a long string or array as a number or text |
 | `MaxStringLength` | 1,048,576 | For every text an expression builds (`+`, `join`, `pad`, `replace`, ...) | `VegaLiteRenderException` |
@@ -1406,7 +1406,11 @@ is the `test` of a condition, is compiled into an
 expression that the renderer writes (not one that you write), so it is not bound by `MaxExpressionLength`: a list may
 have `MaxScaleDomainSize` entries (100,000), a `oneOf` of a thousand values or an
 `or` of a thousand comparisons is accepted, and the text that is written is bound by eight times `MaxSourceLength` (a
-longer one is a located `VegaLiteSpecException` that names `MaxSourceLength`).
+longer one is a located `VegaLiteSpecException` that names `MaxSourceLength`; the text is counted as it is written and
+refused as soon as it passes the bound, so a very long field name with a large `oneOf` list fails at once and uses no
+memory for the text). An expression that you write as the value of a predicate (`{"expr": "..."}` as the comparison or
+as an item of a `range` or `oneOf`) is an expression that you write: it is bound by `MaxExpressionLength` like any
+other, and a failure is located at the `expr` text.
 
 **Time and UTC scales.** A temporal field on `x`, `y`, `size`, `opacity`, `strokeWidth`, or `angle` gets a `time` scale
 (a `utc` scale when its time unit is a `utc` unit): a linear scale over milliseconds whose ticks are calendar
@@ -1641,7 +1645,10 @@ two valid points (a trail: no run of two points) draws nothing.
   `fillOpacity`) shows no
   dots where its capsules overlap, however many points it has, as in Vega (a very large trail is painted in several
   steps internally
-  and composited once, so the steps leave no seams). A trail is not clipped at the edge of the data rectangle (Vega-Lite
+  and composited once, so the steps leave no seams; the memory for that is bounded, so a translucent trail so large that
+  its layers would need more than 32 Mi pixels (a fill and an outline over a box larger than about 4,096 by 4,096
+  pixels, or a fill or an outline alone over one larger than about 5,800 by 5,800) is painted in steps without it and
+  may show a darker dot where two steps meet). A trail is not clipped at the edge of the data rectangle (Vega-Lite
   clips only for
   `"clip": true`); what the image cuts is the part that lies beyond the chart padding, because the image does not grow
   with the overflow of a mark (see the first deviation under

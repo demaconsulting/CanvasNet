@@ -1,4 +1,5 @@
 using DemaConsulting.CanvasNet.VegaLite.Data;
+using DemaConsulting.CanvasNet.VegaLite.Expressions;
 
 namespace DemaConsulting.CanvasNet.VegaLite.SpecModel;
 
@@ -338,6 +339,8 @@ internal sealed partial class SpecParser
         {
             CheckOneOfSize(comparison);
         }
+
+        ValidateOperandExpressions(comparison);
     }
 
     /// <summary>
@@ -395,9 +398,50 @@ internal sealed partial class SpecParser
     /// <exception cref="VegaLiteSpecException">Thrown for an expression that is longer than eight times <see cref="VegaLiteLimits.MaxSourceLength"/>, or that refers to a parameter that is not declared.</exception>
     private void CompileTimePredicate(SpecNode predicate)
     {
-        if (PredicateSource.IsTimeAware(predicate) && PredicateSource.TryBuild(predicate, out var source))
+        if (PredicateSource.IsTimeAware(predicate))
         {
-            CompileSource(predicate, source, predicate, generated: true);
+            CompilePredicate(predicate);
+        }
+    }
+
+    /// <summary>
+    ///     Writes a predicate as an expression and compiles it, once, under the predicate node; a predicate that no expression can say is left alone.
+    /// </summary>
+    /// <remarks>
+    ///     The characters of the text are counted as it is written and it is refused as soon as it passes the generated budget (eight times <see cref="VegaLiteLimits.MaxSourceLength"/>),
+    ///     before it is allocated, with the error of <see cref="ExpressionParser.ParseGenerated"/>.
+    /// </remarks>
+    /// <param name="predicate">The predicate (a field predicate or a composition), validated.</param>
+    /// <exception cref="VegaLiteSpecException">Thrown for a text that is longer than the budget, or for an expression that refers to a parameter that is not declared.</exception>
+    private void CompilePredicate(SpecNode predicate)
+    {
+        switch (PredicateSource.Build(predicate, ExpressionParser.GeneratedBudget(_limits), out var source, out var length))
+        {
+            case PredicateSource.Status.TooLong:
+                throw ExpressionParser.GeneratedTooLong(length, predicate.GetLocation(_file), _limits);
+            case PredicateSource.Status.Written:
+                CompileSource(predicate, source, predicate, generated: true);
+                break;
+        }
+    }
+
+    /// <summary>
+    ///     Validates the expressions that the user writes as the operands of a field predicate (<c>{ "expr": ... }</c> as the comparison, or as an item of a <c>range</c> or <c>oneOf</c>) as
+    ///     any expression that the user writes: the length limit, the depth, the syntax and the parameters it refers to.
+    /// </summary>
+    /// <remarks>
+    ///     The text of an operand is copied into the expression that is written for the predicate, which is bound by the generated budget, so it is checked here, where it is the user's text.
+    /// </remarks>
+    /// <param name="comparison">The operator value.</param>
+    /// <exception cref="VegaLiteSpecException">Thrown, at the <c>expr</c> text, for an expression that is too long, not valid, or refers to a parameter that is not declared.</exception>
+    private void ValidateOperandExpressions(SpecNode comparison)
+    {
+        foreach (var operand in comparison.IsArray ? comparison.Items : [comparison])
+        {
+            if (operand.IsObject && operand["expr"] is { IsString: true } expression)
+            {
+                CompileExpression(expression);
+            }
         }
     }
 

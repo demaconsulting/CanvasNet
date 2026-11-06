@@ -89,6 +89,7 @@ runs constitutes a failure.
 - **Hostile Expressions Fail Closed**:
   `ExpressionParserTests.ExpressionParser_Parse_LengthLimit_AcceptsUpToLimit`,
   `ExpressionParserTests.ExpressionParser_ParseGenerated_IsBoundedByTheGeneratedBudgetNotTheUserLimit`,
+  `ExpressionParserTests.ExpressionParser_GeneratedTooLong_IsTheErrorOfParseGeneratedForTheBudget`,
   `ExpressionParserTests.ExpressionParser_Parse_DepthLimit_AcceptsUpToLimit`,
   `ExpressionParserTests.ExpressionParser_Parse_MaximumConfiguredDepth_DoesNotOverflowTheStack`,
   `ExpressionEvaluatorTests.ExpressionEvaluator_Evaluate_StepBudget_IsExact`,

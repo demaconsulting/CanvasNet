@@ -719,6 +719,31 @@ internal sealed partial class ScenePainter
     }
 
     /// <summary>
+    ///     Resolves the width that a stroke is drawn with: the width of the item (1 when it has none) when it can be stroked at all.
+    /// </summary>
+    /// <remarks>
+    ///     A width that is not positive, or beyond <see cref="MaxMagnitude"/> surface pixels (which also covers a width that is not finite), is not stroked: the outline would be that large.
+    ///     A width that is below that can still underflow to zero as a float; such a stroke cannot be drawn either, so it is skipped rather than handed to the stroker. The coverage layers of
+    ///     a trail use the same test, so that a width that is never drawn does not grow them or get a layer.
+    /// </remarks>
+    /// <param name="requested">The stroke width of the item in its own units, or null.</param>
+    /// <param name="scale">The uniform scale from the item's units to surface pixels.</param>
+    /// <param name="width">Receives the width as a float.</param>
+    /// <returns><see langword="true"/> when the stroke has a width that can be drawn.</returns>
+    private static bool TryStrokeWidth(double? requested, float scale, out float width)
+    {
+        var value = requested ?? 1;
+        width = 0;
+        if (!(value > 0) || !IsBoundedAt(scale, value))
+        {
+            return false;
+        }
+
+        width = (float)value;
+        return float.IsFinite(width) && width > 0;
+    }
+
+    /// <summary>
     ///     Strokes a path as the item's stroke paint, width, cap, join and dashes say.
     /// </summary>
     /// <param name="path">The path in the item's own units.</param>
@@ -727,16 +752,8 @@ internal sealed partial class ScenePainter
     /// <param name="transform">The matrix from the path's units to surface pixels.</param>
     private static void StrokeOnly(Path path, SceneItem item, Context context, Matrix3x2 transform)
     {
-        var requestedWidth = item.StrokeWidth ?? 1;
-        if (path.Subpaths.Count == 0 || !(requestedWidth > 0) || !IsBoundedAt(context.Scale, requestedWidth))
-        {
-            return;
-        }
-
-        // A width beyond MaxMagnitude surface pixels (which also covers a width that is not finite) is not stroked: the outline would be that large. A width that is below that can still
-        // underflow to zero as a float; such a stroke cannot be drawn either, so it is skipped rather than handed to the stroker
-        var width = (float)requestedWidth;
-        if (!float.IsFinite(width) || !(width > 0)
+        if (path.Subpaths.Count == 0
+            || !TryStrokeWidth(item.StrokeWidth, context.Scale, out var width)
             || !CssPaint.TryResolvePaint(item.Stroke, item.StrokeOpacity * item.Opacity, out var color))
         {
             return;

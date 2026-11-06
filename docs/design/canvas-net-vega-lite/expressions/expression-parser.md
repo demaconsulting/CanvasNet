@@ -78,7 +78,10 @@ an instruction that pops its operands and pushes null, so the stack stays consis
 characters (4,096 by default); the text that the renderer writes from a predicate or for a composite mark
 (`ParseGenerated`) is at most `GeneratedLengthFactor` (8) times `MaxSourceLength` characters, because it is a linear
 expansion of a document that `MaxSourceLength` already bounds (a membership list of a thousand values is written as a
-thousand comparisons) and the limit that guards user-written text must not reject it; the nesting is at most
+thousand comparisons) and the limit that guards user-written text must not reject it (the writer counts the
+characters as it writes and refuses a text over this budget before allocating it, with the same error:
+`GeneratedBudget` and `GeneratedTooLong`; an `{"expr": ...}` that the user writes inside a predicate is bound by
+`MaxExpressionLength` where it is validated); the nesting is at most
 `MaxExpressionDepth` (64 by default, at most 256). Nesting is counted for groups, brackets, call argument lists, array and
 object literals, conditional branches, and unary operands; the nesting of level `MaxExpressionDepth` is accepted and
 the next level is rejected before it is entered. A parser instance parses one text; `Parse` itself is stateless and
@@ -86,6 +89,10 @@ thread-safe.
 
 #### Key Methods
 
+- `ExpressionParser.GeneratedBudget(VegaLiteLimits)` and `ExpressionParser.GeneratedTooLong(length, location, limits)`
+  (internal static) - the budget of a generated text (`GeneratedLengthFactor * MaxSourceLength`, at most
+  `int.MaxValue`) and the error for a text over it, shared by `ParseGenerated` and by the writer of predicate text in
+  `SpecParser`, which refuses a text while it is written, before it is allocated, with the identical message.
 - `ExpressionParser.ParseGenerated(string source, VegaLiteLocation location, VegaLiteLimits? limits)` - the same as
   `Parse`, but the
   length is compared with `GeneratedLengthFactor * MaxSourceLength` (the failure names `MaxSourceLength` and the factor,

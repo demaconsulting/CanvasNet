@@ -56,6 +56,22 @@ internal sealed partial class ScenePainter
     /// </summary>
     internal Action<int>? TrailChunkFlushed { get; init; }
 
+    /// <summary>The default budget of <see cref="TrailLayerPixelBudget"/>: 32 Mi pixels, which is 128 MiB of <see cref="Rgba32"/> (two layers of 4,096 by 4,096 pixels).</summary>
+    internal const long DefaultTrailLayerPixels = 33_554_432;
+
+    /// <summary>
+    ///     Gets the most pixels, over all the layers of one trail, that the coverage layers of a translucent trail (see <c>TrailLayers</c>) may have; a trail whose layers would be larger is
+    ///     painted chunk by chunk, as it was before the layers existed (the capsules at a joint between two chunks then composite twice). Tests lower it; the default is
+    ///     <see cref="DefaultTrailLayerPixels"/>.
+    /// </summary>
+    internal long TrailLayerPixelBudget { get; init; } = DefaultTrailLayerPixels;
+
+    /// <summary>
+    ///     Gets an observer that is told the number of pixels (the width times the height times the number of layers) of the layers of a trail when they are created; null in production. It
+    ///     makes the box of the layers, and the fallback beyond <see cref="TrailLayerPixelBudget"/>, testable without allocating the layers.
+    /// </summary>
+    internal Action<long>? TrailLayersCreated { get; init; }
+
     /// <summary>The number of trail points between two checks of the cancellation token.</summary>
     private const int TrailPollInterval = 1024;
 
@@ -224,8 +240,12 @@ internal sealed partial class ScenePainter
                             cancellationToken.ThrowIfCancellationRequested();
                             if (!layersDecided)
                             {
-                                layers = TrailLayers.TryCreate(trail, local, cancellationToken);
+                                layers = TrailLayers.TryCreate(trail, local, TrailLayerPixelBudget, cancellationToken);
                                 layersDecided = true;
+                                if (layers is not null)
+                                {
+                                    TrailLayersCreated?.Invoke(layers.Pixels);
+                                }
                             }
 
                             PaintTrailChunk(writer.Build(), trail, local, layers);
@@ -280,8 +300,9 @@ internal sealed partial class ScenePainter
     ///         fill and then the stroke is the order of Vega's single path.
     ///     </para>
     ///     <para>
-    ///         A layer covers the pixel box of the trail (its points grown by the radius, the stroke width and the antialiasing margin) cut to the target, so it never exceeds the
-    ///         target. A gradient fill is still painted chunk by chunk, with the box of the chunk as its reference (the gradient is not layered).
+    ///         A layer covers the pixel box of the trail (its points grown by the radius, the stroke width that is painted and the antialiasing margin) cut to the target, so it never exceeds the
+    ///         target, and the layers of one trail are charged against <see cref="TrailLayerPixelBudget"/> before they are allocated: a trail whose layers would have more pixels is painted chunk
+    ///         by chunk without them. A gradient fill is still painted chunk by chunk, with the box of the chunk as its reference (the gradient is not layered).
     ///     </para>
     /// </remarks>
     private sealed class TrailLayers : IDisposable
@@ -314,20 +335,21 @@ internal sealed partial class ScenePainter
         ///     Initializes the layers.
         /// </summary>
         /// <param name="trail">The trail.</param>
+        /// <param name="scale">The uniform scale from the units of the trail to surface pixels.</param>
         /// <param name="boxX">The first column of the box.</param>
         /// <param name="boxY">The first row of the box.</param>
         /// <param name="width">The width of the box.</param>
         /// <param name="height">The height of the box.</param>
-        private TrailLayers(SceneTrail trail, int boxX, int boxY, int width, int height)
+        private TrailLayers(SceneTrail trail, float scale, int boxX, int boxY, int width, int height)
         {
             _boxX = boxX;
             _boxY = boxY;
-            if (trail.FillGradient is null && CssPaint.TryResolvePaint(trail.Fill, trail.FillOpacity * trail.Opacity, out _fillColor))
+            if (HasSolidFill(trail, out _fillColor))
             {
                 _fill = new Surface(width, height);
             }
 
-            if ((trail.StrokeWidth ?? 1) > 0 && CssPaint.TryResolvePaint(trail.Stroke, trail.StrokeOpacity * trail.Opacity, out _strokeColor))
+            if (HasStroke(trail, scale, out _strokeColor))
             {
                 _stroke = new Surface(width, height);
                 _strokeItem = trail with
@@ -337,6 +359,37 @@ internal sealed partial class ScenePainter
                     Opacity = 1,
                 };
             }
+
+            Pixels = (long)width * height * ((_fill is null ? 0 : 1) + (_stroke is null ? 0 : 1));
+        }
+
+        /// <summary>Gets the number of pixels of the layers: the width times the height of the box, for each layer.</summary>
+        public long Pixels { get; }
+
+        /// <summary>
+        ///     Tells whether the fill of a trail is layered: a solid fill (a gradient is not layered) that can be painted.
+        /// </summary>
+        /// <param name="trail">The trail.</param>
+        /// <param name="color">Receives the fill color with the alpha of the paint.</param>
+        /// <returns><see langword="true"/> when the trail has a solid fill.</returns>
+        private static bool HasSolidFill(SceneTrail trail, out Rgba32 color)
+        {
+            color = default;
+            return trail.FillGradient is null && CssPaint.TryResolvePaint(trail.Fill, trail.FillOpacity * trail.Opacity, out color);
+        }
+
+        /// <summary>
+        ///     Tells whether the stroke of a trail is layered: it is painted at all (<see cref="TryStrokeWidth"/>: a width that is not finite or is beyond the bound is never stroked, so it has
+        ///     no layer and does not grow the box).
+        /// </summary>
+        /// <param name="trail">The trail.</param>
+        /// <param name="scale">The uniform scale from the units of the trail to surface pixels.</param>
+        /// <param name="color">Receives the stroke color with the alpha of the paint.</param>
+        /// <returns><see langword="true"/> when the trail has a stroke that is painted.</returns>
+        private static bool HasStroke(SceneTrail trail, float scale, out Rgba32 color)
+        {
+            color = default;
+            return TryStrokeWidth(trail.StrokeWidth, scale, out _) && CssPaint.TryResolvePaint(trail.Stroke, trail.StrokeOpacity * trail.Opacity, out color);
         }
 
         /// <summary>
@@ -344,23 +397,23 @@ internal sealed partial class ScenePainter
         /// </summary>
         /// <param name="trail">The trail.</param>
         /// <param name="local">The context of the enclosing group.</param>
+        /// <param name="pixelBudget">The most pixels, over all the layers, that may be created.</param>
         /// <param name="cancellationToken">A token that stops the work.</param>
-        /// <returns>The layers; null when the trail has no translucent solid paint (an opaque trail has no seam), or no part of it is on the target.</returns>
-        public static TrailLayers? TryCreate(SceneTrail trail, Context local, CancellationToken cancellationToken)
+        /// <returns>
+        ///     The layers; null when the trail has no translucent solid paint (an opaque trail has no seam), when no part of it is on the target, or when its layers would have more pixels than
+        ///     <paramref name="pixelBudget"/> (the trail is then painted chunk by chunk).
+        /// </returns>
+        public static TrailLayers? TryCreate(SceneTrail trail, Context local, long pixelBudget, CancellationToken cancellationToken)
         {
-            var translucentFill = trail.FillGradient is null
-                && CssPaint.TryResolvePaint(trail.Fill, trail.FillOpacity * trail.Opacity, out var fill)
-                && fill.A < 255;
-            var translucentStroke = (trail.StrokeWidth ?? 1) > 0
-                && CssPaint.TryResolvePaint(trail.Stroke, trail.StrokeOpacity * trail.Opacity, out var stroke)
-                && stroke.A < 255;
-            if (!translucentFill && !translucentStroke)
+            var hasFill = HasSolidFill(trail, out var fill);
+            var hasStroke = HasStroke(trail, local.Scale, out var stroke);
+            if (!(hasFill && fill.A < 255) && !(hasStroke && stroke.A < 255))
             {
                 return null;
             }
 
-            // The pixel box of the points: each point grown by its radius, the stroke width (the stroke is centered on the outline) and the margin
-            var grow = (trail.StrokeWidth ?? 1) * local.Scale;
+            // The pixel box of the points: each point grown by its radius, the stroke width that is painted (the stroke is centered on the outline) and the margin
+            var grow = hasStroke ? (float)trail.StrokeWidth.GetValueOrDefault(1) * local.Scale : 0f;
             float left = float.MaxValue, top = float.MaxValue, right = float.MinValue, bottom = float.MinValue;
             var visited = 0;
             foreach (var run in trail.Runs)
@@ -397,7 +450,17 @@ internal sealed partial class ScenePainter
 
             var boxX = (int)Math.Floor(left);
             var boxY = (int)Math.Floor(top);
-            return new TrailLayers(trail, boxX, boxY, (int)Math.Ceiling(right) - boxX, (int)Math.Ceiling(bottom) - boxY);
+            var boxWidth = (int)Math.Ceiling(right) - boxX;
+            var boxHeight = (int)Math.Ceiling(bottom) - boxY;
+
+            // The layers are charged against the budget before anything is allocated; a trail over it is painted chunk by chunk
+            var layerCount = (hasFill ? 1 : 0) + (hasStroke ? 1 : 0);
+            if ((long)boxWidth * boxHeight * layerCount > pixelBudget)
+            {
+                return null;
+            }
+
+            return new TrailLayers(trail, local.Scale, boxX, boxY, boxWidth, boxHeight);
         }
 
         /// <summary>

@@ -466,6 +466,85 @@ public class ScenePainterPathTests
     }
 
     /// <summary>
+    ///     Validates that the coverage layers of a translucent trail are charged against the pixel budget and that a trail over it falls back to chunk by chunk painting: the fill-only
+    ///     trail of the seam tests has a box of 7,528 by 8 pixels and one layer, 60,224 pixels, which is reported when the layers are created; with a budget of exactly that the layers are
+    ///     created and the row has no seam, and with one pixel less no layers are created and the trail is painted in its two chunks, so the joint of the chunks composites twice (a
+    ///     different pixel in the row).
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_TrailLayerPixelsAreChargedAgainstTheBudgetAndFallBackBeyondIt()
+    {
+        // Arrange
+        var scene = MakeScene(7600, 20, new SceneTrail("mark-trail", [SeamPoints()]) { Fill = "#000000", FillOpacity = 0.5 });
+        var charges = new List<long>();
+        var flushes = new List<int>();
+
+        // Act: the budget is exactly the pixels of the layers
+        using var within = new ScenePainter(new TextMeasurer()) { TrailLayersCreated = charges.Add, TrailChunkFlushed = flushes.Add, TrailLayerPixelBudget = 60_224 }
+            .Paint(scene, 7600, 20, ScenePlacement.Uniform(1), Ct);
+
+        // Assert: the layers were created and charged, and the row has no seam
+        Assert.Equal([60_224L], charges);
+        Assert.Equal([9091], flushes);
+        AssertUniformRow(within);
+
+        // Act: one pixel less
+        charges.Clear();
+        flushes.Clear();
+        using var beyond = new ScenePainter(new TextMeasurer()) { TrailLayersCreated = charges.Add, TrailChunkFlushed = flushes.Add, TrailLayerPixelBudget = 60_223 }
+            .Paint(scene, 7600, 20, ScenePlacement.Uniform(1), Ct);
+
+        // Assert: no layers, the same two chunks, painted straight onto the target: the joint of the chunks is a different pixel than the rest of the row
+        Assert.Empty(charges);
+        Assert.Equal([9091], flushes);
+        var reference = beyond[100, 10];
+        Assert.Contains(Enumerable.Range(20, 7481), x => beyond[x, 10] != reference);
+        Assert.InRange(reference.R, 127, 128);
+    }
+
+    /// <summary>
+    ///     Validates that the layers of a translucent trail ignore a stroke width that is never drawn (not finite, or beyond the bound of 32,768 surface pixels): the width does not grow the
+    ///     box of the layers (which would be the whole target, or no layer at all for a NaN) and the stroke gets no layer, so the trail has one layer of the box of its fill and no seam.
+    /// </summary>
+    /// <param name="width">The stroke width.</param>
+    [Theory]
+    [InlineData(double.PositiveInfinity)]
+    [InlineData(double.NaN)]
+    [InlineData(1e9)]
+    public void ScenePainter_Paint_TrailLayersIgnoreAStrokeWidthThatIsNotDrawn(double width)
+    {
+        // Arrange: a translucent fill and a black stroke of a width that cannot be stroked
+        var scene = MakeScene(7600, 20, new SceneTrail("mark-trail", [SeamPoints()]) { Fill = "#000000", FillOpacity = 0.5, Stroke = "#000000", StrokeWidth = width, StrokeOpacity = 0.5 });
+        var charges = new List<long>();
+
+        // Act
+        using var surface = new ScenePainter(new TextMeasurer()) { TrailLayersCreated = charges.Add }.Paint(scene, 7600, 20, ScenePlacement.Uniform(1), Ct);
+
+        // Assert: one layer of the box of the points (7,528 by 8 pixels) and not two of the whole target (7,600 by 20), no seam, and the stroke was not drawn (the fill alone is half of black)
+        Assert.Equal([60_224L], charges);
+        var pixel = AssertUniformRow(surface);
+        Assert.InRange(pixel.R, 127, 128);
+    }
+
+    /// <summary>
+    ///     Validates the ceiling of the default budget of the layers without allocating them: 32 Mi pixels are 128 MiB of 4-byte pixels, and the layers of the largest target (8,192 by 8,192
+    ///     pixels, 256 MiB each, 512 MiB for a fill and a stroke) are far over it, so they are never created.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_TrailLayerPixelBudget_DefaultIsBoundedBelowTheLayersOfTheLargestTarget()
+    {
+        // Act
+        var bytes = ScenePainter.DefaultTrailLayerPixels * System.Runtime.CompilerServices.Unsafe.SizeOf<Rgba32>();
+        var largest = (long)Surface.MaxDimension * Surface.MaxDimension;
+
+        // Assert
+        Assert.Equal(ScenePainter.DefaultTrailLayerPixels, new ScenePainter(new TextMeasurer()).TrailLayerPixelBudget);
+        Assert.True(bytes <= 128L * 1024 * 1024, $"{bytes} bytes");
+        Assert.True(largest > ScenePainter.DefaultTrailLayerPixels, "A single layer of the largest target is over the budget.");
+        Assert.True(2 * largest > ScenePainter.DefaultTrailLayerPixels);
+    }
+
+    /// <summary>
     ///     Validates the cost estimate of a trail capsule and that a trail is painted in chunks of a bounded cost: the number of capsules per chunk follows from the weights, and a chunk
     ///     boundary polls the cancellation token before it paints anything.
     /// </summary>

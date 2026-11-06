@@ -166,4 +166,102 @@ public class SpecParserConditionTests
         // Assert
         Assert.StartsWith("/encoding/color/condition/scale", ex.Location.Pointer, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    ///     Parses a specification whose only transform is a filter and returns the exception that refuses it.
+    /// </summary>
+    /// <param name="filter">The JSON text of the filter.</param>
+    /// <param name="limits">The limits, or null for the defaults.</param>
+    /// <returns>The exception.</returns>
+    private static VegaLiteSpecException FilterFails(string filter, VegaLiteLimits? limits = null) =>
+        Assert.Throws<VegaLiteSpecException>(() => SpecParser.Parse("{ \"mark\": \"point\", \"transform\": [ { \"filter\": " + filter + " } ] }", "c.json", limits));
+
+    /// <summary>
+    ///     Gets the description of an expression error without the location that the message starts with.
+    /// </summary>
+    /// <param name="ex">The exception.</param>
+    /// <returns>The text from <c>Invalid expression:</c> on.</returns>
+    private static string Description(VegaLiteSpecException ex) => ex.Message[ex.Message.IndexOf("Invalid expression:", StringComparison.Ordinal)..];
+
+    /// <summary>
+    ///     Validates that an expression that the user writes as the operand of a predicate (<c>{ "expr": ... }</c>) is bound by <c>MaxExpressionLength</c> like any expression that the user
+    ///     writes: a 5,000 character one is refused as the comparison, as an item of a membership list, as an end of a range, in a time-aware filter, inside a composition and as the test of a
+    ///     condition, with the message of a top-level expression of the same length and located at the <c>expr</c> node; one of 4,096 characters is accepted, the limit that is set applies, and
+    ///     an expression that refers to a parameter that is not declared is refused at the same node.
+    /// </summary>
+    [Fact]
+    public void SpecParser_PredicateExpressionOperands_AreBoundByTheUserExpressionLength()
+    {
+        // Arrange: 5,000 characters of a valid expression (a one and blanks)
+        var tooLong = "1".PadRight(5_000);
+        var embedded = "{ \"expr\": \"" + tooLong + "\" }";
+        var reference = FilterFails("\"" + tooLong + "\"");
+        Assert.Contains("the expression has 5000 characters, more than the limit of 4096 (MaxExpressionLength) at expression offset 4096.", reference.Message, StringComparison.Ordinal);
+
+        // Act / Assert: each way of embedding the expression is refused with the same message, at the expr node
+        foreach (var (filter, pointer) in new[]
+        {
+            ("{ \"field\": \"q\", \"equal\": " + embedded + " }", "/transform/0/filter/equal/expr"),
+            ("{ \"field\": \"q\", \"gt\": " + embedded + " }", "/transform/0/filter/gt/expr"),
+            ("{ \"field\": \"q\", \"oneOf\": [ 1, " + embedded + " ] }", "/transform/0/filter/oneOf/1/expr"),
+            ("{ \"field\": \"q\", \"range\": [ " + embedded + ", 3 ] }", "/transform/0/filter/range/0/expr"),
+            ("{ \"field\": \"q\", \"range\": [ 1, " + embedded + " ] }", "/transform/0/filter/range/1/expr"),
+            ("{ \"field\": \"d\", \"timeUnit\": \"month\", \"equal\": " + embedded + " }", "/transform/0/filter/equal/expr"),
+            ("{ \"field\": \"d\", \"timeUnit\": \"month\", \"range\": [ " + embedded + ", 3 ] }", "/transform/0/filter/range/0/expr"),
+            ("{ \"and\": [ { \"field\": \"q\", \"gt\": 1 }, { \"field\": \"q\", \"lte\": " + embedded + " } ] }", "/transform/0/filter/and/1/lte/expr"),
+        })
+        {
+            var ex = FilterFails(filter);
+            Assert.Equal(pointer, ex.Location.Pointer);
+            Assert.Equal(Description(reference), Description(ex));
+        }
+
+        // Act / Assert: the test of a condition is checked the same way
+        var condition = Assert.Throws<VegaLiteSpecException>(() => SpecParser.Parse(
+            Spec("{ \"condition\": { \"test\": { \"field\": \"q\", \"oneOf\": [ " + embedded + " ] }, \"value\": \"red\" }, \"value\": \"gray\" }"),
+            "c.json"));
+        Assert.Equal("/encoding/color/condition/test/oneOf/0/expr", condition.Location.Pointer);
+        Assert.Equal(Description(reference), Description(condition));
+
+        // Act / Assert: an expression of exactly 4,096 characters is accepted, and the limit that is set applies to the embedded expression
+        var atLimit = "{ \"field\": \"q\", \"equal\": { \"expr\": \"" + "1".PadRight(4_096) + "\" } }";
+        Assert.NotNull(SpecParser.Parse("{ \"mark\": \"point\", \"transform\": [ { \"filter\": " + atLimit + " } ] }", "c.json").Root);
+        var small = FilterFails("{ \"field\": \"q\", \"equal\": { \"expr\": \"" + "1".PadRight(41) + "\" } }", new VegaLiteLimits { MaxExpressionLength = 40 });
+        Assert.Equal("/transform/0/filter/equal/expr", small.Location.Pointer);
+        Assert.Contains("the limit of 40 (MaxExpressionLength)", small.Message, StringComparison.Ordinal);
+
+        // Act / Assert: an undeclared parameter in the embedded expression is refused at the expr node
+        var undeclared = FilterFails("{ \"field\": \"q\", \"equal\": { \"expr\": \"nope + 1\" } }");
+        Assert.Equal("/transform/0/filter/equal/expr", undeclared.Location.Pointer);
+        Assert.Contains("'nope'", undeclared.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    ///     Validates that a field name that is long, with a large membership list, fails fast with the error of a predicate that is longer than the generated budget (eight times
+    ///     <c>MaxSourceLength</c>), located at the test, and that the text is not allocated first: a 100,000 character field name with 100 members is 10 million characters as an
+    ///     expression, over the budget of 2.4 million that a <c>MaxSourceLength</c> of 300,000 allows, and parsing it allocates a small fraction of that text.
+    /// </summary>
+    [Fact]
+    public void SpecParser_Conditions_LongFieldTimesLargeOneOfFailsFastWithTheGeneratedBudgetError()
+    {
+        // Arrange: the specification (about 100,500 characters) is within the limit of 300,000
+        var field = new string('f', 100_000);
+        var json = Spec("{ \"condition\": { \"test\": { \"field\": \"" + field + "\", \"oneOf\": [ " + string.Join(", ", Enumerable.Repeat("1", 100)) + " ] }, \"value\": \"red\" }, \"value\": \"gray\" }");
+        var limits = new VegaLiteLimits { MaxSourceLength = 300_000 };
+        var expectedLength = 100 * (100_000 + 9 + 5 + 1) + (99 * 4) + 2;
+
+        // Act: the allocations of this thread while the specification is parsed
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        var ex = Assert.Throws<VegaLiteSpecException>(() => SpecParser.Parse(json, "c.json", limits));
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        // Assert: the error of an expression that is over the generated budget, at the test, with the exact length of the text that would have been written
+        Assert.Equal("/encoding/color/condition/test", ex.Location.Pointer);
+        Assert.Equal(
+            $"Invalid expression: the expression that is written from the specification has {expectedLength} characters, more than 8 times the limit of 300000 (MaxSourceLength) at expression offset 2400000.",
+            Description(ex));
+
+        // Assert: the text (10 million characters, 20 MB, plus the copy of the builder) is never allocated; the document, its tree and the field text are about 2 MB
+        Assert.True(allocated < 16_000_000, $"{allocated} bytes were allocated.");
+    }
 }

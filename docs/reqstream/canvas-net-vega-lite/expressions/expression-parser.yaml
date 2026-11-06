@@ -106,6 +106,7 @@ sections:
                   - ExpressionParser_Parse_LengthLimit_AcceptsUpToLimit
                   - ExpressionParser_Parse_OverlongTextWithInvalidCharacter_ReportsLengthFirst
                   - ExpressionParser_ParseGenerated_IsBoundedByTheGeneratedBudgetNotTheUserLimit
+                  - ExpressionParser_GeneratedTooLong_IsTheErrorOfParseGeneratedForTheBudget
                   - ExpressionParser_Parse_DepthLimit_AcceptsUpToLimit
                   - ExpressionParser_Parse_EveryNestingConstruct_IsBoundedByDepthLimit
                   - ExpressionParser_Parse_MaximumConfiguredDepth_DoesNotOverflowTheStack

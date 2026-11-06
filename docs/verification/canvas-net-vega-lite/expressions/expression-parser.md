@@ -142,7 +142,8 @@ expression literal); and that a null text is an `ArgumentNullException`, not a s
 
 **Tests**: `ExpressionParserTests.ExpressionParser_Parse_LengthLimit_AcceptsUpToLimit`,
 `ExpressionParserTests.ExpressionParser_Parse_OverlongTextWithInvalidCharacter_ReportsLengthFirst`,
-`ExpressionParserTests.ExpressionParser_ParseGenerated_IsBoundedByTheGeneratedBudgetNotTheUserLimit`
+`ExpressionParserTests.ExpressionParser_ParseGenerated_IsBoundedByTheGeneratedBudgetNotTheUserLimit`,
+`ExpressionParserTests.ExpressionParser_GeneratedTooLong_IsTheErrorOfParseGeneratedForTheBudget`
 
 Asserts that the number `1` padded to 4,095 and to 4,096 characters is accepted and padded to 4,097 characters fails
 with the message "the expression has 4097 characters, more than the limit of 4096 (MaxExpressionLength) at expression
@@ -153,7 +154,10 @@ and 81 fail naming `MaxSourceLength` and "81 characters" at the offset 80 and th
 characters written by the user (`Parse`) are accepted with the default limits and fail with a
 `MaxExpressionLength` of 80, that a text of 5,000 characters is accepted with the default limits (the user limit does
 not apply), that a chain of 20,000 terms parses (39,999 instructions: the parser loops over a chain),
-and that 65 nested parentheses still fail naming `MaxExpressionDepth`.
+and that 65 nested parentheses still fail naming `MaxExpressionDepth`. The budget test asserts that `GeneratedBudget`
+is 80 for a `MaxSourceLength` of 10 and `int.MaxValue` for the largest limit, and that `GeneratedTooLong` (the error
+that the writer of a predicate raises while it counts) has the message and location of the one that `ParseGenerated`
+raises for the same length, and carries the length that it is given (500,000,000 characters).
 
 ##### Depth Limit Is Exact And Stack Safe
 
