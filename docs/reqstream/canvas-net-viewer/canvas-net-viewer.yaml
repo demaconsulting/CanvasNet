@@ -124,7 +124,10 @@ sections:
               same pixels as the SourceLoader for equal options, and return in the ViewerImage the page drawn
               (Page), the number of pages of the file (PageCount), and the anchors of a model (Anchors) besides the
               notes and printed text. A PDF, presentation or drawing shall be parsed once by a render, not once for
-              its page facts and again for the page.
+              its page facts and again for the page. With ThrowOnUnsupportedFeature, a link of an SVG file that is not
+              drawn shall fail the render with the code unsupported-feature, as the strict mode of the tool does; a
+              picture fitted into a Width by Height box shall have the Background in its margin, and its anchors shall
+              follow the picture.
             justification: |
               A caller that wants page N of a document, or a model from one view, with its notes and anchors, should
               not have to leave CanvasNetViewer for the Imaging operations of the tool.
@@ -147,7 +150,15 @@ sections:
               - CanvasNetViewer_Render_MatchesTheLoaderOfTheTool
               - CanvasNetViewer_Render_RasterWithBox_IsFittedAndCharged
               - CanvasNetViewer_Render_CanceledToken_ThrowsOperationCanceled
-
+              - CanvasNetViewer_Render_UndrawnLink_IsNoteWithoutStrict
+              - CanvasNetViewer_Render_UndrawnLinkWithStrict_ThrowsUnsupportedFeature
+              - CanvasNetViewer_Render_StrictWithOnlyWarnings_Succeeds
+              - CanvasNetViewer_Render_UndrawnLinkInNestedSvgWithStrict_NamesTheNestedFile
+              - SourceLoader_Load_UndrawnLinkWithStrict_StillThrowsUnsupportedFeature
+              - CanvasNetViewer_Render_FitIntoBox_MarginHasTheBackground
+              - CanvasNetViewer_Render_PdfFitIntoBox_MarginHasTheBackground
+              - CanvasNetViewer_FitIntoBox_AnchorsFollowTheScaleAndOffset
+              - CanvasNetViewer_Render_ScadWithBox_AnchorsAreInsideTheReturnedPicture
           - id: CanvasNetViewer-CanvasNetViewer-ExtraSources
             title: >-
               The CanvasNetViewer class shall accept extra image sources (to CreateImageResolver and in

@@ -21,6 +21,51 @@ public class FolderImageResolverFragmentTests
     }
 
     /// <summary>
+    ///     A source whose declaration is broken: it returns <see langword="null"/> or a list with a null entry.
+    /// </summary>
+    private sealed class BrokenDeclarationSource : StubImageSource, IFragmentImageSource
+    {
+        /// <summary>
+        ///     Initializes a new instance of the <see cref="BrokenDeclarationSource"/> class.
+        /// </summary>
+        /// <param name="parameters">What the declaration returns.</param>
+        public BrokenDeclarationSource(IReadOnlyList<string>? parameters)
+            : base("broken", [Ext])
+        {
+            FragmentParameters = parameters!;
+        }
+
+        /// <inheritdoc />
+        public IReadOnlyList<string> FragmentParameters { get; }
+    }
+
+    /// <summary>
+    ///     Test that a source that declares <see langword="null"/> parameters, or a null entry, declares none instead of
+    ///     making the resolver fail: its parameters are reported as unknown and the picture is drawn.
+    /// </summary>
+    /// <param name="withNullEntry"><see langword="true"/> to declare a list holding a null entry, otherwise a null list.</param>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FolderImageResolver_Resolve_NullFragmentParameters_TreatedAsNone(bool withNullEntry)
+    {
+        // Arrange
+        using var folder = new ImageTestFolder();
+        folder.WriteText("a.stub", "a");
+        var source = new BrokenDeclarationSource(withNullEntry ? new string[] { null!, "page" } : null);
+        var resolver = new FolderImageResolver(folder.Path, [source]);
+
+        // Act
+        using var surface = resolver.Resolve("a.stub#page=2&other=1", 10, 10);
+
+        // Assert: drawn; "other" is unknown, and "page" is declared only when the list has it
+        Assert.NotNull(surface);
+        var unknown = resolver.Diagnostics.Where(d => d.Code == FolderImageResolver.FragmentUnknownParameterCode).ToList();
+        Assert.Equal(withNullEntry ? 1 : 2, unknown.Count);
+        Assert.Contains("'other'", unknown[^1].Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Test that the fragment of a file link reaches the source parsed, while the link, the file name and the query
     ///     handling are unchanged.
     /// </summary>

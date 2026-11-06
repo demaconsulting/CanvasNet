@@ -33,7 +33,8 @@ public interface IFragmentImageSource
 {
     /// <summary>
     ///     Gets the names of the fragment parameters the source uses, in lower case (names are matched ASCII
-    ///     case-insensitively). An empty list declares none.
+    ///     case-insensitively). An empty list declares none; <see langword="null"/> is treated as an empty list, and a
+    ///     <see langword="null"/> entry is ignored, so a source never makes the resolver fail by what it declares.
     /// </summary>
     IReadOnlyList<string> FragmentParameters { get; }
 }

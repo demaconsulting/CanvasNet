@@ -205,11 +205,15 @@ VSDX
 file, 1 by default; a page the file does not have is a `ViewerException` with the code `page-out-of-range`, and a value
 below 1 throws `ArgumentOutOfRangeException` before the file is read), `Dpi` (the resolution a document page is sized at,
 96 by default, above 0 and at most 2400; a VSDX file takes a whole number), `Background` (the color transparent areas are
-flattened over; null keeps the transparency of a document, a model, and an SVG file, and the own background of a chart),
+flattened over, and the color of the margin when `Width` and `Height` fit the picture into a box, whose anchors follow
+the picture; null keeps the transparency of a document, a model, and an SVG file, and the own background of a chart),
 `Scad` (the `ScadViewOptions` of a model: the view, angles, projection, `Defines`, time, and triangle limit), `Folder`
 (the sandbox for the files the rendered file itself
 includes or embeds; by default the folder of the file, or none for a stream), `ThrowOnUnsupportedFeature` (an unsupported
-feature fails instead of being drawn without it and reported), `MaxDecodedPixels` (the most pixels the render may decode
+feature fails instead of being drawn without it and reported; for an SVG file it also fails on a link that is not
+drawn, as `--strict` does: a missing file, a picture too large, an unusable fragment, or a page that does not exist is a
+`ViewerException` with the code `unsupported-feature`, while an unknown fragment parameter stays a warning),
+`MaxDecodedPixels` (the most pixels the render may decode
 in total; null keeps the resolver default of 64,000,000, which refuses a single 8192 x 8192 picture, so set it to render
 one larger image; when a raster is resized to the requested size, the final picture is a second buffer that counts
 against the same budget, so a 10 x 10 picture resized to 1 x 1 needs 101 pixels, and one that does not fit throws

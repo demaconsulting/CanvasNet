@@ -110,6 +110,7 @@ sections:
                 tests:
                   - FolderImageResolver_Resolve_UnknownParameter_WarnsAndStillDraws
                   - FolderImageResolver_Resolve_SourceWithoutInterface_EveryParameterIsUnknown
+                  - FolderImageResolver_Resolve_NullFragmentParameters_TreatedAsNone
                   - FolderImageResolver_Resolve_DuplicateParameter_WarnsOnlyWhenValuesDiffer
                   - FolderImageResolver_Resolve_AliasParameters_AreNotDuplicates
                   - FolderImageResolver_Resolve_UnknownRepeatedParameter_IsOnlyReportedAsUnknown

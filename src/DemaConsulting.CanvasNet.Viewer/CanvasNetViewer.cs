@@ -185,7 +185,8 @@ public static class CanvasNetViewer
     ///     Thrown, with the code <c>page-out-of-range</c>, when <see cref="ViewerRenderOptions.Page"/> is not a page of the
     ///     file (a single-image file has only page 1); and with the code of the failure (<c>size-limit</c>,
     ///     <c>usage-error</c>, <c>scad-error</c> for a model whose include is missing) for a mistake or limit of the
-    ///     built-in sources that has no library exception behind it.
+    ///     built-in sources that has no library exception behind it; with <see cref="ViewerRenderOptions.ThrowOnUnsupportedFeature"/>,
+    ///     with the code <c>unsupported-feature</c> for a link of an SVG file that is not drawn.
     /// </exception>
     /// <exception cref="ImageSourceException">Thrown when the file is found but cannot be drawn (the original failure is the inner exception).</exception>
     /// <exception cref="ImageSourceBudgetException">
@@ -216,7 +217,7 @@ public static class CanvasNetViewer
         var resolver = CreateResolver(folder, settings);
         var direct = CreateDirectOptions(settings);
         var result = RenderDirect(() => resolver.Render(relative, settings.Width, settings.Height, direct));
-        return CreateImage(resolver, result, settings, direct);
+        return CreateImage(resolver, result, settings, direct, Path.GetFileName(fullPath));
     }
 
     /// <summary>
@@ -254,7 +255,7 @@ public static class CanvasNetViewer
         var resolver = CreateResolver(settings.Folder, settings);
         var direct = CreateDirectOptions(settings);
         var result = RenderDirect(() => resolver.Render(content, fileName, settings.Width, settings.Height, direct));
-        return CreateImage(resolver, result, settings, direct);
+        return CreateImage(resolver, result, settings, direct, fileName);
     }
 
     /// <summary>
@@ -332,26 +333,44 @@ public static class CanvasNetViewer
     /// <param name="result">What the source of the file returned.</param>
     /// <param name="settings">The render options.</param>
     /// <param name="direct">The options of the render, in which a built-in source reported the page and the anchors.</param>
+    /// <param name="fileName">The name of the rendered file, for the message of a strict failure.</param>
     /// <returns>The viewer image; it owns the surface.</returns>
+    /// <exception cref="ViewerException">
+    ///     Thrown with code <c>unsupported-feature</c>, when <see cref="ViewerRenderOptions.ThrowOnUnsupportedFeature"/> is
+    ///     set, for a link of the document (at any level) that was not drawn, whose picture did not fit in the budget,
+    ///     whose fragment was not usable, or that named a page the file does not have.
+    /// </exception>
     private static ViewerImage CreateImage(
         FolderImageResolver resolver,
         ImageSourceResult result,
         ViewerRenderOptions settings,
-        DirectRenderOptions direct)
+        DirectRenderOptions direct,
+        string fileName)
     {
-        // A source may return another size than the one asked for (a raster is always natural); the caller gets the size it
-        // asked for: the box when both dimensions are given (the picture fitted inside it), or the aspect-preserving size.
-        // The final buffer exists next to the surface of the source (already charged), so it must fit in what is left of
-        // the live budget; nothing is allocated after it, so it only needs checking, not charging
+        // A nested SVG file is drawn through the resolver of this render, which only records the links it could not draw;
+        // the strict policy of the tool (a link that was not drawn is an error) is applied here, once, to all of them
         var surface = result.Surface;
+        var anchors = direct.Anchors;
         try
         {
+            if (settings.ThrowOnUnsupportedFeature)
+            {
+                SourceLoader.SvgImages.ThrowForUnresolved(resolver.Diagnostics, fileName);
+            }
+
+            // A source may return another size than the one asked for (a raster is always natural); the caller gets the size it
+            // asked for: the box when both dimensions are given (the picture fitted inside it), or the aspect-preserving size.
+            // The final buffer exists next to the surface of the source (already charged), so it must fit in what is left of
+            // the live budget; nothing is allocated after it, so it only needs checking, not charging. The anchors follow the
+            // same scale and offset as the pixels, and the margin of a fit has the background the caller chose
+            var steps = new List<AppliedOperation>();
+            var (sourceWidth, sourceHeight) = (surface.Width, surface.Height);
             if (settings.Width is { } width && settings.Height is { } height)
             {
                 if (surface.Width != width || surface.Height != height)
                 {
                     EnsureFinalBufferFits(resolver, width, height);
-                    var fitted = surface.FitInto(width, height, FitMode.Contain, new Rgba32(0, 0, 0, 0));
+                    var fitted = FitIntoBox(surface, width, height, settings.Background ?? new Rgba32(0, 0, 0, 0), steps);
                     surface.Dispose();
                     surface = fitted;
                 }
@@ -366,7 +385,13 @@ public static class CanvasNetViewer
                     var resized = surface.Resize(target.Width, target.Height);
                     surface.Dispose();
                     surface = resized;
+                    steps.Add(SourceLoader.Operation("resize", ("width", target.Width), ("height", target.Height)));
                 }
+            }
+
+            if (steps.Count > 0 && anchors.Count > 0)
+            {
+                anchors = ImagePipeline.MapAnchors(anchors, sourceWidth, sourceHeight, steps);
             }
         }
         catch
@@ -384,7 +409,39 @@ public static class CanvasNetViewer
             resolver.Embedded,
             direct.DrawnPage,
             direct.PageCount,
-            direct.Anchors);
+            anchors);
+    }
+
+    /// <summary>
+    ///     Fits a surface into a box, keeping its aspect ratio and centering it, and describes the change of scale and
+    ///     offset so that positions in the surface can follow.
+    /// </summary>
+    /// <param name="surface">The surface; it is not disposed.</param>
+    /// <param name="width">The width of the box.</param>
+    /// <param name="height">The height of the box.</param>
+    /// <param name="margin">The color of the margin that the fit leaves around the picture.</param>
+    /// <param name="steps">Receives the <c>resize</c> and <c>pad</c> steps that were applied, as the imaging pipeline reports them.</param>
+    /// <returns>A new surface of exactly the box size.</returns>
+    internal static Surface FitIntoBox(Surface surface, int width, int height, Rgba32 margin, List<AppliedOperation> steps)
+    {
+        var (fittedWidth, fittedHeight) = Surface.FitInside(surface.Width, surface.Height, width, height);
+        var fitted = surface.FitInto(width, height, FitMode.Contain, margin);
+        if (fittedWidth != surface.Width || fittedHeight != surface.Height)
+        {
+            steps.Add(SourceLoader.Operation("resize", ("width", fittedWidth), ("height", fittedHeight)));
+        }
+
+        if (fittedWidth != width || fittedHeight != height)
+        {
+            steps.Add(SourceLoader.Operation(
+                "pad",
+                ("left", (width - fittedWidth) / 2),
+                ("top", (height - fittedHeight) / 2),
+                ("width", width),
+                ("height", height)));
+        }
+
+        return fitted;
     }
 
     /// <summary>

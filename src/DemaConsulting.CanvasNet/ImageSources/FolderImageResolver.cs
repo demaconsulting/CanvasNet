@@ -919,7 +919,7 @@ public sealed partial class FolderImageResolver : IImageResolver
         var names = declared?.FragmentParameters ?? [];
         foreach (var group in parameters.GroupBy(p => p.Name, StringComparer.OrdinalIgnoreCase))
         {
-            if (!names.Contains(group.Key, StringComparer.OrdinalIgnoreCase))
+            if (!names.Any(n => n is not null && string.Equals(n, group.Key, StringComparison.OrdinalIgnoreCase)))
             {
                 _diagnostics.Add(
                     new ImageSourceDiagnostic(

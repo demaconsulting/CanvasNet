@@ -118,7 +118,23 @@ public static partial class SourceLoader
         /// <exception cref="ViewerException">Thrown with code <c>unsupported-feature</c> for the first such reference.</exception>
         public void ThrowForUnresolved()
         {
-            var unresolved = Resolver.Diagnostics.FirstOrDefault(
+            ThrowForUnresolved(Resolver.Diagnostics, _svgName, false);
+        }
+
+        /// <summary>
+        ///     Applies the <c>--strict</c> policy to the notes of a resolver that served a whole render, for a render that
+        ///     does not own the resolver of its nested pictures (the embedding path of <c>CanvasNetViewer</c>).
+        /// </summary>
+        /// <param name="notes">The notes the shared resolver collected, from every level of the render.</param>
+        /// <param name="svgName">The name of the file that was rendered.</param>
+        /// <param name="nameHolder">
+        ///     <see langword="true"/> to name the file that holds the link (the last file of the note's origin) instead of
+        ///     <paramref name="svgName"/>.
+        /// </param>
+        /// <exception cref="ViewerException">Thrown with code <c>unsupported-feature</c> for the first reference that was not drawn.</exception>
+        internal static void ThrowForUnresolved(IEnumerable<ImageSourceDiagnostic> notes, string svgName, bool nameHolder = true)
+        {
+            var unresolved = notes.FirstOrDefault(
                 d => d.Code is FolderImageResolver.UnresolvedCode
                     or FolderImageResolver.TooLargeCode
                     or FolderImageResolver.FragmentInvalidCode
@@ -128,13 +144,15 @@ public static partial class SourceLoader
                 return;
             }
 
+            // The file that holds the link is the last one of the chain the note came through
+            var holder = nameHolder && unresolved.Origin.Count > 0 ? unresolved.Origin[^1] : svgName;
             var match = UnresolvedMessage.Match(unresolved.Message);
             var what = match.Success
                 ? $"embeds '{match.Groups["href"].Value}', which was not drawn: {match.Groups["reason"].Value}"
                 : $"embeds an image that was not drawn: {unresolved.Message}";
             throw new ViewerException(
                 ErrorCodes.UnsupportedFeature,
-                $"'{_svgName}' {what}.",
+                $"'{holder}' {what}.",
                 $"Without --strict the image is left out and reported as the warning {unresolved.Code}.");
         }
 

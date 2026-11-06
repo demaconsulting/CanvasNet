@@ -61,7 +61,9 @@ public sealed record ViewerRenderOptions
     ///     Gets the color that transparent areas are flattened over, or <see langword="null"/> for the default: no
     ///     flattening, so a document page, a model and an SVG file come back over a <b>transparent</b> background and a
     ///     Vega-Lite chart keeps its own. Any color other than fully transparent flattens the picture over it (a raster
-    ///     with transparency too).
+    ///     with transparency too). When <see cref="Width"/> and <see cref="Height"/> fit the picture into a box, the margin
+    ///     around it has this color (transparent when none is given), and the pixel positions in
+    ///     <see cref="ViewerImage.Anchors"/> follow the picture into the box.
     /// </summary>
     public DemaConsulting.CanvasNet.Canvas.Rgba32? Background { get; init; }
 
@@ -92,7 +94,11 @@ public sealed record ViewerRenderOptions
 
     /// <summary>
     ///     Gets a value indicating whether a file that uses a feature its source does not draw fails (the source throws)
-    ///     instead of being drawn without it with a note. The default is <see langword="false"/>.
+    ///     instead of being drawn without it with a note. The default is <see langword="false"/>. For an SVG file it also
+    ///     covers its links, as <c>--strict</c> of the tool does: a link that is not drawn (a missing file, one outside the
+    ///     folder, a picture too large for the budget, an unusable fragment, a page that does not exist), at any level of
+    ///     nesting, is a <see cref="ViewerException"/> with the code <c>unsupported-feature</c> that names the file that
+    ///     holds the link; an unknown or repeated fragment parameter stays a warning.
     /// </summary>
     public bool ThrowOnUnsupportedFeature { get; init; }
 
