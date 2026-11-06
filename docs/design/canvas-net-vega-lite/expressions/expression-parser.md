@@ -74,7 +74,14 @@ that keep or pop the tested value for `&&` and `||`, the conditional jump, and t
 jump). An unsupported construct is
 an instruction that pops its operands and pushes null, so the stack stays consistent.
 
-**Limits and invariants.** The text is at most `MaxExpressionLength` characters (4,096 by default); the nesting is at most
+**Limits and invariants.** The text of an expression that the user wrote (`Parse`) is at most `MaxExpressionLength`
+characters (4,096 by default); the text that the renderer writes from a predicate or for a composite mark
+(`ParseGenerated`) is at most `GeneratedLengthFactor` (8) times `MaxSourceLength` characters, because it is a linear
+expansion of a document that `MaxSourceLength` already bounds (a membership list of a thousand values is written as a
+thousand comparisons) and the limit that guards user-written text must not reject it (the writer counts the
+characters as it writes and refuses a text over this budget before allocating it, with the same error:
+`GeneratedBudget` and `GeneratedTooLong`; an `{"expr": ...}` that the user writes inside a predicate is bound by
+`MaxExpressionLength` where it is validated); the nesting is at most
 `MaxExpressionDepth` (64 by default, at most 256). Nesting is counted for groups, brackets, call argument lists, array and
 object literals, conditional branches, and unary operands; the nesting of level `MaxExpressionDepth` is accepted and
 the next level is rejected before it is entered. A parser instance parses one text; `Parse` itself is stateless and
@@ -82,6 +89,20 @@ thread-safe.
 
 #### Key Methods
 
+- `ExpressionParser.GeneratedBudget(VegaLiteLimits)` and `ExpressionParser.GeneratedTooLong(length, location, limits)`
+  (internal static) - the budget of a generated text (`GeneratedLengthFactor * MaxSourceLength`, at most
+  `int.MaxValue`) and the error for a text over it, shared by `ParseGenerated` and by the writer of predicate text in
+  `SpecParser`, which refuses a text while it is written, before it is allocated, with the identical message.
+- `ExpressionParser.ParseGenerated(string source, VegaLiteLocation location, VegaLiteLimits? limits)` - the same as
+  `Parse`, but the
+  length is compared with `GeneratedLengthFactor * MaxSourceLength` (the failure names `MaxSourceLength` and the factor,
+  at the offset that is the
+  budget) and `MaxExpressionLength` does not apply; the nesting depth and the evaluation budget are as for `Parse`. The
+  callers are the compilation of
+  the conditions and time-aware predicates in `SpecParser` (`CompileSource(..., generated: true)`) and the generated
+  expressions of the composite marks
+  (`SpecNormalizer.Expr`); the expressions that the user writes (`calculate`, a `filter` text, `labelExpr`,
+  `{"expr": ...}`) still use `Parse`.
 - `ExpressionParser.Parse(string source, VegaLiteLocation location, VegaLiteLimits? limits)` - requires non-null text,
   uses the default limits when none are given, compares the length with `MaxExpressionLength` **before tokenizing** (a
   hostile text costs one comparison), tokenizes, compiles, and returns the `CompiledExpression`. `location` is the location
@@ -109,7 +130,8 @@ limits, or a `VegaLiteSpecException` was thrown and nothing is returned; no func
 
 Every problem with the text is a `VegaLiteSpecException` whose location is the location of the expression string and whose
 message has the fixed form `{location}: Invalid expression: {description} at expression offset {N}.` with the zero-based
-offset of the first problem: a text longer than `MaxExpressionLength` (the offset is the limit), nesting beyond
+offset of the first problem: a text longer than `MaxExpressionLength` (the offset is the limit; for `ParseGenerated` the
+budget of eight times `MaxSourceLength`), nesting beyond
 `MaxExpressionDepth` (the offset of the offending bracket or operator), an unexpected or unterminated token, an unknown
 character, an invalid number, string escape, or regular expression literal, and the rejected syntax listed above. A null
 text is an `ArgumentNullException`, which is not converted. Constructs that are well formed but not executable are not errors:

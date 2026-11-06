@@ -79,8 +79,9 @@ internal sealed class EncodingData
 ///         <c>argmax</c> or <c>argmin</c> measure returns is read into a scalar field for the channel. <b>Impute.</b> The impute engine of
 ///         <see cref="AggregateTransforms"/> appends the missing (series, key) rows, first for the <c>impute</c> of <c>x</c> or <c>y</c> and then, for a stacked
 ///         line or area, with the value 0 for every layer of the stack that lacks a key. <b>Stack.</b> The engine of
-///         <see cref="AggregateTransforms"/> with the plan's stacks and layer order. The invalid-row filter of Vega-Lite's last stage is
-///         done by the marks, which skip a row whose position is not a number.
+///         <see cref="AggregateTransforms"/> with the plan's stacks and layer order (a null value counts as 0 in the stack, as in Vega: <c>vega-encode/src/Stack.js</c>). The invalid-row filter of
+///         Vega-Lite's last stage is done by the marks, which skip a row whose position is not a number or, on a stacked channel, whose stacked value is not a number (the filter of
+///         the <c>FilterInvalidNode</c> of <c>compile/data</c> runs after the stack, so the other slices keep their positions).
 ///     </para>
 ///     <para>
 ///         <b>Limits.</b> The groups of the aggregate are counted in the row budget as they appear (the Raw table stays counted while it is in

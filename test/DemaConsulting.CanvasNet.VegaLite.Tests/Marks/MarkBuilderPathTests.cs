@@ -242,6 +242,53 @@ public class MarkBuilderPathTests
     }
 
     /// <summary>
+    ///     Validates that a stacked area breaks its path at a layer whose value is null (vega-lite@6.5.0 <c>compile/mark/encode/defined.ts</c>: the <c>defined</c> test of a path mark is the
+    ///     validity of the value field, and the stack counts the null as 0, so the area of the layer is undefined there instead of running down to the baseline): the layer with the null has no
+    ///     vertex at the null and is two separate closed subpaths (d3's area of a run of one point is the line from its top to its baseline, closed), pinned exactly, while the other layer is one
+    ///     continuous area. The test fails when the runs are joined across the null or when a layer is dropped.
+    /// </summary>
+    [Fact]
+    public void MarkBuilder_Build_StackedNullInAStackedAreaBreaksThePath()
+    {
+        // Arrange: a is 3, null, 2 and b is 1, 2, 2 at the keys 0, 1, 2 (x(k) = 100 k, y(v) = 150 - 30 v over the domain [0, 5]; b is on the bottom)
+        const string rows = """
+            [ { "x": 0, "y": 3, "g": "a" }, { "x": 1, "y": null, "g": "a" }, { "x": 2, "y": 2, "g": "a" }, { "x": 0, "y": 1, "g": "b" }, { "x": 1, "y": 2, "g": "b" }, { "x": 2, "y": 2, "g": "b" } ]
+            """;
+        const string encoding = """{ "x": { "field": "x", "type": "quantitative" }, "y": { "field": "y", "type": "quantitative" }, "color": { "field": "g", "type": "nominal" } }""";
+
+        // Act
+        var layers = ChartTestHelpers.Of<ScenePath>(ChartTestHelpers.Marks("{ \"width\": 200, \"height\": 150, \"data\": { \"values\": " + rows + " }, \"mark\": \"area\", \"encoding\": " + encoding + " }", 200, 150), "mark-area");
+
+        // Assert: the layers are the two series (a layer that is dropped fails here); b is one continuous area over the three keys: three vertices on top and three on the baseline in one closed subpath
+        // (x(k) = 100 k, y(v) = 150 - 37.5 v over the stacked domain [0, 4], so b is at 112.5, 75, 75 on top of the baseline 150)
+        Assert.Equal(2, layers.Count);
+        var b = Assert.Single(layers, l => l.Fill == Orange);
+        var a = Assert.Single(layers, l => l.Fill == Blue);
+        Assert.Equal(7, b.Segments.Count);
+        Assert.Equal("M0,112.5 L100,75 L200,75 L200,150 L100,150 L0,150 Z", PathText.Of(b));
+
+        // Assert: a has no vertex at the null (x = 100) and its two single-point runs are not connected: d3's area writes a run of one point as the vertical line from its top (the layer
+        // stacked on b: 0 at both keys) to its baseline (the top of b, 112.5 at x = 0 and 75 at x = 200) and closes it, so the path is two closed subpaths, one at each key
+        Assert.Equal("M0,0 L0,112.5 Z M200,0 L200,75 Z", PathText.Of(a));
+        Assert.Equal(2, a.Segments.Count(s => s.Kind == ScenePathSegmentKind.MoveTo));
+        Assert.DoesNotContain(a.Segments, s => s.Kind != ScenePathSegmentKind.Close && s.X > 1e-9 && s.X < 200 - 1e-9);
+        var subpaths = new List<List<ScenePathSegment>>();
+        foreach (var segment in a.Segments)
+        {
+            if (segment.Kind == ScenePathSegmentKind.MoveTo)
+            {
+                subpaths.Add([]);
+            }
+
+            subpaths[^1].Add(segment);
+        }
+
+        Assert.All(subpaths, subpath => Assert.False(
+            subpath.Any(s => s.Kind != ScenePathSegmentKind.Close && s.X < 1e-9) && subpath.Any(s => s.Kind != ScenePathSegmentKind.Close && s.X > 200 - 1e-9),
+            "A subpath of the layer with the null must not join the key 0 and the key 2."));
+    }
+
+    /// <summary>
     ///     Validates a horizontal area (the value runs along x, the dimension along y) and a range area (<c>y2</c> is the baseline).
     /// </summary>
     [Fact]

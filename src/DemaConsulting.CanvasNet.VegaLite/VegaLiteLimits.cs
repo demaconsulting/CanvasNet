@@ -231,11 +231,13 @@ public sealed class VegaLiteLimits
     }
 
     /// <summary>
-    ///     Gets the maximum length of one expression in UTF-16 characters; 4,096 by default.
+    ///     Gets the maximum length of one expression that a user writes (a <c>calculate</c>, a <c>filter</c> text, a <c>labelExpr</c>, an <c>{"expr": ...}</c>) in UTF-16 characters; 4,096 by default.
     /// </summary>
     /// <remarks>
-    ///     Checked when the document is opened, for every expression the renderer compiles (a longer one is a
-    ///     <see cref="VegaLiteSpecException"/> located at the expression).
+    ///     Checked when the document is opened, for every expression that is written in the specification (a longer one is a
+    ///     <see cref="VegaLiteSpecException"/> located at the expression). The text that the renderer writes from a predicate (a long membership list
+    ///     as a condition or a time-aware filter) or for a composite mark is not user-written: it is bound by eight times <see cref="MaxSourceLength"/>, and a membership
+    ///     list by <see cref="MaxScaleDomainSize"/> values.
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">Thrown on initialization when the value is less than one.</exception>
     public int MaxExpressionLength

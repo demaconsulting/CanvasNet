@@ -1,4 +1,5 @@
 using DemaConsulting.CanvasNet.VegaLite.Data;
+using DemaConsulting.CanvasNet.VegaLite.Expressions;
 
 namespace DemaConsulting.CanvasNet.VegaLite.SpecModel;
 
@@ -334,7 +335,57 @@ internal sealed partial class SpecParser
 
         ValidateDateTimeValue(comparison);
         ValidateDateTimeItems(comparison);
-        if (comparison.Name == "oneOf" && PredicateSource.IsTimeAware(predicate) && comparison.Items.Count > _limits.MaxScaleDomainSize)
+        if (PredicateSource.IsTimeAware(predicate))
+        {
+            CheckOneOfSize(comparison);
+        }
+
+        ValidateOperandExpressions(comparison);
+    }
+
+    /// <summary>
+    ///     Checks the size of every membership list of a predicate that the renderer writes as an expression: a list may have at most <see cref="VegaLiteLimits.MaxScaleDomainSize"/> values
+    ///     (the text that is written for it is bound by <c>ExpressionParser.ParseGenerated</c>, not by the length limit of the expressions a user writes).
+    /// </summary>
+    /// <param name="predicate">The predicate (a field predicate or a composition, as <see cref="PredicateSource"/> writes it).</param>
+    /// <exception cref="VegaLiteSpecException">Thrown, at the list, for a membership list longer than <see cref="VegaLiteLimits.MaxScaleDomainSize"/>.</exception>
+    private void CheckOneOfSizes(SpecNode predicate)
+    {
+        if (!predicate.IsObject)
+        {
+            return;
+        }
+
+        foreach (var name in new[] { "and", "or" })
+        {
+            if (predicate[name] is { IsArray: true } items)
+            {
+                foreach (var item in items.Items)
+                {
+                    CheckOneOfSizes(item);
+                }
+            }
+        }
+
+        if (predicate["not"] is { } negated)
+        {
+            CheckOneOfSizes(negated);
+        }
+
+        if (predicate["oneOf"] is { IsArray: true } list)
+        {
+            CheckOneOfSize(list);
+        }
+    }
+
+    /// <summary>
+    ///     Checks the number of values of one membership list against <see cref="VegaLiteLimits.MaxScaleDomainSize"/>.
+    /// </summary>
+    /// <param name="comparison">The <c>oneOf</c> value; any other comparison is not checked.</param>
+    /// <exception cref="VegaLiteSpecException">Thrown, at the list, for a list longer than the limit.</exception>
+    private void CheckOneOfSize(SpecNode comparison)
+    {
+        if (comparison.Name == "oneOf" && comparison.Items.Count > _limits.MaxScaleDomainSize)
         {
             throw Error(comparison, $"The 'oneOf' of a predicate lists {comparison.Items.Count} values, more than the limit of {_limits.MaxScaleDomainSize} (VegaLiteLimits.MaxScaleDomainSize).");
         }
@@ -344,12 +395,53 @@ internal sealed partial class SpecParser
     ///     Compiles the expression of a field predicate that is written with the date and time functions, once, under the predicate object.
     /// </summary>
     /// <param name="predicate">The predicate object, validated.</param>
-    /// <exception cref="VegaLiteSpecException">Thrown for an expression that is longer than <see cref="VegaLiteLimits.MaxExpressionLength"/>, or that refers to a parameter that is not declared.</exception>
+    /// <exception cref="VegaLiteSpecException">Thrown for an expression that is longer than eight times <see cref="VegaLiteLimits.MaxSourceLength"/>, or that refers to a parameter that is not declared.</exception>
     private void CompileTimePredicate(SpecNode predicate)
     {
-        if (PredicateSource.IsTimeAware(predicate) && PredicateSource.TryBuild(predicate, out var source))
+        if (PredicateSource.IsTimeAware(predicate))
         {
-            CompileSource(predicate, source, predicate);
+            CompilePredicate(predicate);
+        }
+    }
+
+    /// <summary>
+    ///     Writes a predicate as an expression and compiles it, once, under the predicate node; a predicate that no expression can say is left alone.
+    /// </summary>
+    /// <remarks>
+    ///     The characters of the text are counted as it is written and it is refused as soon as it passes the generated budget (eight times <see cref="VegaLiteLimits.MaxSourceLength"/>),
+    ///     before it is allocated, with the error of <see cref="ExpressionParser.ParseGenerated"/>.
+    /// </remarks>
+    /// <param name="predicate">The predicate (a field predicate or a composition), validated.</param>
+    /// <exception cref="VegaLiteSpecException">Thrown for a text that is longer than the budget, or for an expression that refers to a parameter that is not declared.</exception>
+    private void CompilePredicate(SpecNode predicate)
+    {
+        switch (PredicateSource.Build(predicate, ExpressionParser.GeneratedBudget(_limits), out var source, out var length))
+        {
+            case PredicateSource.Status.TooLong:
+                throw ExpressionParser.GeneratedTooLong(length, predicate.GetLocation(_file), _limits);
+            case PredicateSource.Status.Written:
+                CompileSource(predicate, source, predicate, generated: true);
+                break;
+        }
+    }
+
+    /// <summary>
+    ///     Validates the expressions that the user writes as the operands of a field predicate (<c>{ "expr": ... }</c> as the comparison, or as an item of a <c>range</c> or <c>oneOf</c>) as
+    ///     any expression that the user writes: the length limit, the depth, the syntax and the parameters it refers to.
+    /// </summary>
+    /// <remarks>
+    ///     The text of an operand is copied into the expression that is written for the predicate, which is bound by the generated budget, so it is checked here, where it is the user's text.
+    /// </remarks>
+    /// <param name="comparison">The operator value.</param>
+    /// <exception cref="VegaLiteSpecException">Thrown, at the <c>expr</c> text, for an expression that is too long, not valid, or refers to a parameter that is not declared.</exception>
+    private void ValidateOperandExpressions(SpecNode comparison)
+    {
+        foreach (var operand in comparison.IsArray ? comparison.Items : [comparison])
+        {
+            if (operand.IsObject && operand["expr"] is { IsString: true } expression)
+            {
+                CompileExpression(expression);
+            }
         }
     }
 

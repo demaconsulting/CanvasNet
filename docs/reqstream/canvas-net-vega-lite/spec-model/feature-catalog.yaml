@@ -434,12 +434,14 @@ sections:
                   vl-encoding-condition-param for a condition or a test on a parameter that is not a variable
                   parameter (a time unit or a date object in a test is evaluated and not reported), each
                   at the construct, and shall visit the expressions and the field properties of a condition
-                  like those of a channel.
+                  like those of a channel, without writing the text of a predicate to find out whether it can be
+                  evaluated.
                 justification: |
                   A condition that the renderer cannot evaluate must be reported where it is, and one that it
                   evaluates must not be reported at all.
                 tests:
                   - FeatureCatalog_Visit_ConditionsWithATestAreNotReported
+                  - FeatureCatalog_Visit_DoesNotExpandAnOverBudgetPredicate
                   - FeatureCatalog_Visit_ParameterConditionsAreReported
                   - FeatureCatalog_Visit_TimeUnitAndDateTestsAreSupported
                   - FeatureCatalog_Visit_ConditionOnAChannelThatTakesNoneIsReported

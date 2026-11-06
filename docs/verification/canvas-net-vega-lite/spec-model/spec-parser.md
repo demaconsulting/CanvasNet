@@ -382,17 +382,52 @@ object.
 
 **Tests**: `SpecParserConditionTests.SpecParser_Parse_MalformedConditionReportsThePointer`,
 `SpecParserConditionTests.SpecParser_Parse_ConditionTestsAreCompiled`,
+`SpecParserConditionTests.SpecParser_Conditions_LargeOneOfAndOrPredicatesAreNotBoundByTheUserExpressionLength`,
+`SpecParserConditionTests.SpecParser_Conditions_LongFieldTimesLargeOneOfFailsFastWithTheGeneratedBudgetError`,
+`SpecParserConditionTests.SpecParser_PredicateExpressionOperands_AreBoundByTheUserExpressionLength`,
 `SpecParserConditionTests.SpecParser_Parse_ConditionsThatAreNotEvaluatedAreNotCompiled`,
 `SpecParserConditionTests.SpecParser_Parse_FieldConditionScaleIsValidated`,
 `PredicateSourceTests.PredicateSource_TryBuild_WritesTheExpressionThatMeansTheSame`,
 `PredicateSourceTests.PredicateSource_TryBuild_QuotesPathsAndStrings`,
 `PredicateSourceTests.PredicateSource_TryBuild_RefusesWhatNoExpressionCanSay`,
 `PredicateSourceTests.PredicateSource_TryBuild_NullPredicateThrows`,
+`PredicateSourceTests.PredicateSource_Build_RefusesAnOverBudgetExpansionBeforeAllocatingIt`,
+`PredicateSourceTests.PredicateSource_Build_BudgetBoundaryAndUnsupportedWins`,
+`PredicateSourceTests.PredicateSource_IsUnsupported_DoesNotAllocateTheExpansion`,
 `ChannelDefinitionsTests.ChannelDefinitions_CanCondition_ListsTheConditionalChannels`,
 `ChannelDefinitionsTests.ChannelDefinitions_FieldDefinitionOf_FindsTheObjectThatCarriesTheField`,
 `ChannelDefinitionsTests.ChannelDefinitions_Conditions_ListsConditionsInOrder`,
 `ChannelDefinitionsTests.ChannelDefinitions_Values_ListsTheConstantsOfAChannelThatNoFieldDrives`,
 `MarkChannelGatingTests.SpecParser_Parse_EvaluatesSizeConditionsOfMarksThatUseASize`
+
+Assert, for the large-list test, that a condition `test` of a `oneOf` of 1,000 numbers, of 1,000 strings, and an `or` of
+1,000 equal comparisons compile with the default limits to an expression of more
+than 4,096 characters; that a list of 1,000 with a `MaxScaleDomainSize` of 999 fails at
+`/encoding/color/condition/test/oneOf` naming `MaxScaleDomainSize` and with 1,000 is accepted; that
+1,000 members of a 30-character field with a `MaxSourceLength` equal to the document (eight times that is about 28,000
+characters, and the expression is about 50,000) fail at
+`/encoding/color/condition/test` naming `MaxSourceLength`; and that a user-written expression of 400 comparisons still
+fails naming `MaxExpressionLength`.
+
+Assert, for the long-field test (`SpecParser_Conditions_LongFieldTimesLargeOneOfFailsFastWithTheGeneratedBudgetError`),
+that a condition `test` on a 100,000-character field name with a `oneOf` of 100 members (10 million characters as an
+expression, over the 2.4 million of a `MaxSourceLength` of 300,000) is refused at `/encoding/color/condition/test` with
+exactly the over-budget message (the exact length, 8 times the limit, the offset 2,400,000), and that the parse allocated
+less than 16 MB on the calling thread (the text itself would be 20 MB or more, and 42 MB were allocated before the writer
+counted). Assert, for the operand test (`SpecParser_PredicateExpressionOperands_AreBoundByTheUserExpressionLength`),
+that a 5,000-character `{"expr": ...}` as the comparison (`equal`, `gt`, `lte`), as an item of a `oneOf`, as an end of a
+`range` (both ends), in a time-aware filter and inside an `and` is refused with the message of a top-level filter text
+of the same length ("the expression has 5000 characters, more than the limit of 4096 (MaxExpressionLength) at expression
+offset 4096.") located at the `expr` node (for example `/transform/0/filter/oneOf/1/expr` and
+`/encoding/color/condition/test/oneOf/0/expr`), that a text of exactly 4,096 characters is accepted, that a
+`MaxExpressionLength` of 40 refuses a 41-character operand at the `expr` node, and that an operand that names an
+undeclared parameter is refused there.
+
+Assert, for the `PredicateSource` tests, that `Build` of a 100,000-character field name with 5,000 members and a budget
+of one million reports `TooLong`, no source, the exact length 500,094,998 and allocates less than 16 MB; that a budget
+equal to the length of `(datum["c"] === 1 || datum["c"] === 2)` writes it, one less is `TooLong` with the same length,
+and that a part that cannot be written (a selection parameter) wins over a text that is too long; and that
+`IsUnsupported` answers both a supported and an unsupported huge predicate in less than 16 MB.
 
 Assert, as a theory of ten specifications, that a condition that is not an object, has neither a `test` nor a `param`,
 has a test that does not parse, refers to an undeclared parameter, or is not an expression or a predicate, a predicate
@@ -548,7 +583,8 @@ is null, a number, or unknown is an error at `/transform/0/timeUnit`.
 ##### Time Predicates Are Compiled
 
 **Tests**: `SpecParserTimeTests.SpecParser_TimePredicates_AreCompiledOnceUnderThePredicate`,
-`SpecParserTimeTests.SpecParser_TimePredicates_OneOfIsBoundedByTheDomainSizeAndTheExpressionLength`
+`SpecParserTimeTests.SpecParser_TimePredicates_OneOfIsBoundedByTheDomainSizeAndTheGeneratedBudget`,
+`SpecParserTimeTests.SpecParser_TimePredicates_LongFieldFailsFastWithTheGeneratedBudgetError`
 
 Asserts that the predicates that are written with the time functions are compiled when the specification is parsed,
 once, under the key of the predicate object, also inside a composition: of four filters, the month predicate
@@ -557,9 +593,15 @@ reference (`{"expr": "1 + 1"}`) have a compiled expression, while the plain comp
 the date-time leaf in the `and`, has none (it is evaluated natively); and that an expression value that reads an
 undeclared name (`nope + 1`) fails at the specification. It also asserts the bounds: with a `MaxScaleDomainSize` of 2, a
 `oneOf` of three dates is a located error at the list (`/transform/0/filter/oneOf`, naming `MaxScaleDomainSize`) while
-two are accepted without a warning, and with a `MaxExpressionLength` of 40 the expression of the two-date list is too
-long and fails at the predicate (`/transform/0/filter`), so that a long list of dates cannot build an unbounded
-expression.
+two are accepted without a warning, and with a `MaxExpressionLength` of 40 the two-date list is accepted too (the
+expression is written by the renderer, so the
+limit of the expressions that a user writes does not apply to it, which this test asserted the other way before), as is
+a list of 300 dates whose
+written expression is longer than 4,096 characters; the bound of the written text, eight times `MaxSourceLength`, is
+asserted by the conditions test below and by the expression parser tests. The long-field test asserts that a time-aware
+`range` of two dates with a `timeUnit` of six parts on a 100,000-character field (the field is written 12 times) fails
+at `/transform/0/filter` naming "more than 8 times the limit of {length} (MaxSourceLength)" when `MaxSourceLength` is
+the length of the document, and compiles with the default limits.
 
 ##### Time Predicates As Expressions
 

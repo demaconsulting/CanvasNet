@@ -100,6 +100,27 @@ public class MarkBuilderPolarTextTests
     }
 
     /// <summary>
+    ///     Validates that the label of a stacked slice whose value is null is not drawn (the invalid filter of Vega-Lite runs after the stack, which counts the null as 0), and that the
+    ///     labels of the other slices keep their places: the stack of 3, null and 2 over the domain [0, 5] puts a at the middle of [0, 3] (angle 2 PI 1.5 / 5) and c at the middle of [3, 5] (2 PI 4 / 5).
+    /// </summary>
+    [Fact]
+    public void MarkBuilder_Build_StackedNullSliceOfAPolarTextIsNotDrawn()
+    {
+        // Act
+        var labels = Labels(
+            "\"text\"",
+            """{ "theta": { "field": "v", "type": "quantitative", "stack": true }, "radius": { "value": 60 }, "color": { "field": "k", "type": "nominal" }, "text": { "field": "k", "type": "nominal" } }""",
+            """[ { "k": "a", "v": 3 }, { "k": "b", "v": null }, { "k": "c", "v": 2 } ]""");
+
+        // Assert: two labels, not three, at (100 + 60 sin(theta), 100 - 60 cos(theta))
+        Assert.Equal(["a", "c"], labels.Select(l => l.Text));
+        var first = 2 * Math.PI * 1.5 / 5;
+        var second = 2 * Math.PI * 4 / 5;
+        AssertAt(labels[0], 100 + (60 * Math.Sin(first)), 100 - (60 * Math.Cos(first)));
+        AssertAt(labels[1], 100 + (60 * Math.Sin(second)), 100 - (60 * Math.Cos(second)));
+    }
+
+    /// <summary>
     ///     Validates the polar offset of a label: an unstacked <c>theta</c> is its scaled value, a stacked <c>radius</c> is the middle of its ring, constants of the channels and of the mark
     ///     properties are used as they are, and a row without a valid value is not drawn.
     /// </summary>

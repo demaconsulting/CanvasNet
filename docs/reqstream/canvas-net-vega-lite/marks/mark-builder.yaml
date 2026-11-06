@@ -247,6 +247,7 @@ sections:
                   must win and the rest must look exactly as they do without the condition.
                 tests:
                   - MarkBuilder_Build_ValueConditionOverridesTheBaseValueWhereTheTestHolds
+                  - MarkBuilder_Build_LargeOneOfConditionIsEvaluatedAndChargedToTheStepBudget
                   - MarkBuilder_Build_ConditionWithoutBaseValueLeavesTheMarkDefault
                   - MarkBuilder_Build_FirstConditionThatHoldsWins
                   - MarkBuilder_Build_FieldConditionUsesTheScaleOfItsFieldWhereTheTestHolds
@@ -374,14 +375,23 @@ sections:
                   the row in the filter mode, apply the default mode for show and null (which the FeatureCatalog
                   reports), take the mode from the mark, the mark configuration, and the global mark
                   configuration in that order, and keep the invalid rows in the domains of the scales in every
-                  mode.
+                  mode; and shall treat a row whose value on a stacked channel (x, y, theta, or radius) is not a
+                  finite number as invalid after the stack, which counts the value as zero and so leaves the
+                  position of the other slices unchanged: a bar, rect, symbol, arc, or label of such a row is not
+                  drawn and a stacked area or line breaks its path there, as Vega-Lite filters invalid rows after
+                  the stack.
                 justification: |
-                  A gap in the data must not be drawn as a line to zero; Vega-Lite breaks the path by default and
-                  the modes must change nothing else.
+                  A gap in the data must not be drawn as a line to zero or as a zero-size slice; Vega-Lite breaks
+                  the path by default and filters the row of the other marks, and the modes must change nothing
+                  else.
                 tests:
                   - MarkBuilder_Build_DefaultInvalidModeBreaksThePath
                   - MarkBuilder_Build_InvalidFilterConnectsTheNeighbors
                   - MarkBuilder_Build_InvalidShowIsTheDefaultModeAndReported
+                  - MarkBuilder_Build_StackedNullSliceOfABarIsNotDrawn
+                  - MarkBuilder_Build_StackedNullSliceOfAnArcIsNotDrawn
+                  - MarkBuilder_Build_StackedNullSliceOfAPolarTextIsNotDrawn
+                  - MarkBuilder_Build_StackedNullInAStackedAreaBreaksThePath
 
               - id: CanvasNetVegaLite-Marks-MarkBuilder-StrokeProperties
                 title: >-
@@ -405,7 +415,9 @@ sections:
                   encoding that has a shape channel when the mark definition has no point property and the
                   configuration does not enable it (point false or null keeps it off); and shall draw the
                   channels of a point mark that the path does not draw (the shape, the angle, and the stroke dash,
-                  and the size of an area) on the overlay points, the shape of a path mark being left out of the
+                  and the size of an area) on the overlay points, the size of a line taking the range of the stroke
+                  widths as the area of the symbols exactly as Vega-Lite's layered point does, the shape of a path
+                  mark being left out of the
                   path (it does not group the paths); and shall draw the line overlay of an area with the channels
                   of a line (its stroke dash as the dash of the line and its size as the width, with the range of the
                   stroke widths).
@@ -422,6 +434,7 @@ sections:
                   - MarkBuilder_Build_ShapeChannelOfAnAreaShapesTheOverlayPoints
                   - MarkBuilder_Build_PointChannelsOfThePathMarkReachTheOverlayPoints
                   - MarkBuilder_Build_LineOverlayOfAnAreaDrawsTheSizeAndTheDashOfTheEncoding
+                  - MarkBuilder_Build_PointOverlayOfALineTakesTheSizeFromTheStrokeWidthRange
                   - MarkBuilder_Build_TransparentPointOfTheConfigurationEnablesTheDefaultOverlay
 
               - id: CanvasNetVegaLite-Marks-MarkBuilder-DrawOrder

@@ -312,7 +312,8 @@ projects that apply to the file).
 | d3-path | `src/path.js` | `moveTo`, `lineTo`, `bezierCurveTo`, `closePath`, and the `arc` call with its tolerance and its full-circle rule |
 | Vega | `packages/vega-scenegraph/src/path/curves.js`, `path/shapes.js` | the mapping of the interpolation names to the d3-shape curves and their parameters, and the line and area generators of the path marks |
 | Vega | `packages/vega-scenegraph/src/path/trail.js` | the trail outline: the capsule of two consecutive points, the width from the size of each point, the break at an undefined point |
-| Vega | `packages/vega-scenegraph/src/marks/markMultiItemPath.js`, `marks/text.js` | the first-item rule of the path marks, the text position, offset and rotation |
+| Vega | `packages/vega-scenegraph/src/marks/markMultiItemPath.js`, `marks/text.js` | the first-item rule of the path marks, the text position, offset and rotation; that a trail is one path filled and stroked once (`draw`), which `ScenePainter.Paths.cs` reproduces for a translucent trail painted in several chunks (coverage layers composited once) |
+| Vega | `packages/vega-encode/src/Stack.js` | that the stack reads a value as `+value`, so a null counts as 0 and its row keeps a start and an end (the slices around it keep their positions; the marks drop the row afterwards) |
 | Vega | `packages/vega-scenegraph/src/util/text.js` | the text lines, the baseline offsets and the line height (see also the scenegraph files above) |
 | Vega-Lite | `src/stack.ts`, `src/encoding.ts`, `src/channel.ts` | the stack of a polar channel and its dimension, the grouping fields of a path mark (`pathGroupingFields`), the channels that each mark supports |
 | Vega-Lite | `src/compile/mark/mark.ts` | the grouping of the path marks, the sort of a line, the facet by the grouping fields |
@@ -322,9 +323,11 @@ projects that apply to the file).
 | Vega-Lite | `src/compile/mark/encode/text.ts`, `src/compile/format.ts` | the text of a row: the number, time, binned and plain formats |
 | Vega-Lite | `src/compile/mark/init.ts` | the orientation of the marks that follow the measure or the time |
 | Vega-Lite | `src/normalize/pathoverlay.ts` | the point and the line overlay of a path mark: which marks have them, the overlay mark definitions, the `shape` channel that switches the point overlay on, and the channels that the overlay points draw (`SpecNormalizer.PathOverlay.cs`) |
-| Vega-Lite | `src/compile/data/parse.ts`, `src/compile/data/impute.ts`, `src/compile/data/stack.ts` | the order of the implicit transforms, the implicit impute of a stacked path mark and the impute of an encoding |
+| Vega-Lite | `src/compile/data/parse.ts`, `src/compile/data/impute.ts`, `src/compile/data/stack.ts` | the order of the implicit transforms (aggregate, stack, then the invalid filter), the implicit impute of a stacked path mark and the impute of an encoding |
+| Vega-Lite | `src/compile/data/filterinvalid.ts` | that the invalid filter reads the field of the value (not the start and end of the stack) and removes the row after the stack, which `MarkBuilder` reproduces for a stacked channel (`Channel.HasValidStackValue`) |
 | Vega-Lite | `src/compile/scale/properties.ts`, `range.ts`, `type.ts`, `src/scale.ts` | the zero rule, the ranges and the types of the polar scales |
 | Vega-Lite | `src/compile/legend/encode.ts` | the legend symbol of a path mark (the symbol of a trail is stroked and not filled) |
+| Vega-Lite | `src/compile/legend/parse.ts` | `getLegendDefWithScale`: the size legend of a trail is bound to `strokeWidth` and its color to `stroke` (`LegendBuilder.Symbols.cs`) |
 
 Where this package deliberately differs from the upstream behavior: the curve generators write into a bounded list of
 path segments and never throw (a point that is not finite is a gap); the number of segments is bounded and charged

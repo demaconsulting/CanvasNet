@@ -127,7 +127,7 @@ internal sealed class CompositeBuilder
     public SpecNode Expr(string? name, string source)
     {
         var node = Str(name, source);
-        _expressions.Add((node, ExpressionParser.Parse(source, node.GetLocation(_sourceName), _limits)));
+        _expressions.Add((node, ExpressionParser.ParseGenerated(source, node.GetLocation(_sourceName), _limits)));
         return node;
     }
 

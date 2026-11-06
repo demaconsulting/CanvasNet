@@ -449,6 +449,42 @@ public class MarkBuilderTests
     }
 
     /// <summary>
+    ///     Validates that a stacked bar whose value is null is not drawn (Vega-Lite: <c>compile/data/parse.ts</c> runs the stack first, which counts the null as 0
+    ///     (<c>vega-encode/src/Stack.js</c>), and the invalid filter of the <c>FilterInvalidNode</c> of <c>compile/data</c> then removes the row from the marks), while the other layers keep their
+    ///     positions; with <c>stack: "normalize"</c> and <c>"center"</c> the other layers are unchanged by the null too.
+    /// </summary>
+    [Fact]
+    public void MarkBuilder_Build_StackedNullSliceOfABarIsNotDrawn()
+    {
+        // Arrange: a is 3, 4, b is null, 1 and c is 2 in the stacks A and B: the stack runs descending by the color (c at the bottom), so A is c 0-2, b 2-2, a 2-5 and B is b 0-1, a 1-5
+        // (the domain is 0 to 5, y(v) = 150 - 30 v, the bands are 90 wide at 5 and 105)
+        const string rows = "[ { \"k\": \"A\", \"c\": \"a\", \"n\": 3 }, { \"k\": \"A\", \"c\": \"b\", \"n\": null }, { \"k\": \"A\", \"c\": \"c\", \"n\": 2 }, { \"k\": \"B\", \"c\": \"a\", \"n\": 4 }, { \"k\": \"B\", \"c\": \"b\", \"n\": 1 } ]";
+        string Chart(string stack) => Sized("\"bar\"", "{ \"x\": { \"field\": \"k\", \"type\": \"nominal\" }, \"y\": { \"field\": \"n\", \"type\": \"quantitative\"" + stack + " }, \"color\": { \"field\": \"c\", \"type\": \"nominal\" } }", rows, 200, 150);
+
+        // Act
+        var bars = Rectangles(Chart(string.Empty), 200, 150);
+
+        // Assert: four rectangles, not five: A/a 2-5, A/c 0-2, B/a 1-5 and B/b 0-1; the null slice of A/b has no zero-height rectangle
+        Assert.Equal([Q(5, 0, 90, 90), Q(5, 90, 90, 60), Q(105, 0, 90, 120), Q(105, 120, 90, 30)], bars.Select(b => Q(b.X, b.Y, b.Width, b.Height)));
+        Assert.Equal([Blue, "#e45756", Blue, "#f58518"], bars.Select(b => b.Fill));
+
+        // Assert: normalize divides by the totals 5 and 5 (the null counts 0): the positions of the other slices (y(v) = 150 - 150 v) follow the same rule, and the null is not drawn
+        var normalized = Rectangles(Chart(", \"stack\": \"normalize\""), 200, 150);
+        Assert.Equal([Q(5, 0, 90, 90), Q(5, 90, 90, 60), Q(105, 0, 90, 120), Q(105, 120, 90, 30)], normalized.Select(b => Q(b.X, b.Y, b.Width, b.Height)));
+
+        // Assert: center stacks about the middle of the largest stack: not five rectangles either
+        Assert.Equal(4, Rectangles(Chart(", \"stack\": \"center\""), 200, 150).Count);
+
+        // Assert: a horizontal chart does not draw the null slice either
+        var horizontal = Sized("\"bar\"", "{ \"y\": { \"field\": \"k\", \"type\": \"nominal\" }, \"x\": { \"field\": \"n\", \"type\": \"quantitative\" }, \"color\": { \"field\": \"c\", \"type\": \"nominal\" } }", rows, 200, 150);
+        Assert.Equal(4, Rectangles(horizontal, 200, 150).Count);
+
+        // Assert: a circle with an explicit stack is not drawn at the null slice either (four circles, not five)
+        var circles = Sized("\"circle\"", "{ \"x\": { \"field\": \"k\", \"type\": \"nominal\" }, \"y\": { \"field\": \"n\", \"type\": \"quantitative\", \"stack\": \"zero\" }, \"color\": { \"field\": \"c\", \"type\": \"nominal\" } }", rows, 200, 150);
+        Assert.Equal(4, ChartTestHelpers.Of<SceneSymbol>(ChartTestHelpers.Marks(circles, 200, 150), "mark-circle").Count);
+    }
+
+    /// <summary>
     ///     Validates that signed stacks hang below the zero baseline in both orientations: positives stack up (right) from zero and negatives stack down
     ///     (left) from zero, separately; an all-negative stack hangs entirely below zero; center and normalize use the absolute values. The rectangles are
     ///     derived by hand from the domains below, with the band of a single category 90 px wide at 5 and of two categories 45 px wide at 2.5 and 52.5.

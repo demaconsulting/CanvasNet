@@ -351,26 +351,56 @@ public class SpecParserTimeTests
     }
 
     /// <summary>
-    ///     Validates that a list of dates that is longer than the domain size limit is refused at the list, and a list of the limit is accepted; and that the expression of a
-    ///     predicate is bound by the expression length limit.
+    ///     Validates that a list of dates that is longer than the domain size limit is refused at the list, and a list of the limit is accepted; and that the expression that the
+    ///     renderer writes for a predicate is not bound by the expression length limit of user-written expressions (a limit of 40 characters accepts it, and so does a list of 300
+    ///     dates), but by eight times the source length limit.
     /// </summary>
     [Fact]
-    public void SpecParser_TimePredicates_OneOfIsBoundedByTheDomainSizeAndTheExpressionLength()
+    public void SpecParser_TimePredicates_OneOfIsBoundedByTheDomainSizeAndTheGeneratedBudget()
     {
         // Arrange
         const string Three = """{ "mark": "point", "transform": [ { "filter": { "field": "d", "oneOf": [ { "year": 2020 }, { "year": 2021 }, { "year": 2022 } ] } } ] }""";
         const string Two = """{ "mark": "point", "transform": [ { "filter": { "field": "d", "oneOf": [ { "year": 2020 }, { "year": 2021 } ] } } ] }""";
+        var dates = string.Join(", ", Enumerable.Range(0, 300).Select(i => "{ \"year\": " + (1900 + i) + ", \"month\": 3, \"date\": 4 }"));
+        var many = "{ \"mark\": \"point\", \"transform\": [ { \"filter\": { \"timeUnit\": \"yearmonthdate\", \"field\": \"d\", \"oneOf\": [ " + dates + " ] } } ] }";
 
         // Act
         var ex = Assert.Throws<VegaLiteSpecException>(() => SpecParser.Parse(Three, "t.json", new VegaLiteLimits { MaxScaleDomainSize = 2 }));
         var accepted = SpecParser.Parse(Two, "t.json", new VegaLiteLimits { MaxScaleDomainSize = 2 });
-        var tooLong = Assert.Throws<VegaLiteSpecException>(() => SpecParser.Parse(Two, "t.json", new VegaLiteLimits { MaxExpressionLength = 40 }));
+        var notUserWritten = SpecParser.Parse(Two, "t.json", new VegaLiteLimits { MaxExpressionLength = 40 });
+        var large = SpecParser.Parse(many, "t.json");
 
-        // Assert
+        // Assert: the list that is too long is refused at the list, the shorter one is accepted
         Assert.Equal("/transform/0/filter/oneOf", ex.Location.Pointer);
         Assert.Contains("MaxScaleDomainSize", ex.Message, StringComparison.Ordinal);
         Assert.Empty(accepted.Warnings);
-        Assert.Equal("/transform/0/filter", tooLong.Location.Pointer);
+
+        // Assert: the written expression is longer than a user-written expression may be, and is compiled
+        Assert.Empty(notUserWritten.Warnings);
+        Assert.True(large.Expressions.Get(large.Root["transform"]!.Items[0]["filter"]!)!.Source.Length > 4_096);
+    }
+
+    /// <summary>
+    ///     Validates that a time-aware predicate on a long field name (the field is written seven times for each end of the instant of a time unit) is refused with the error of a
+    ///     predicate that is longer than the generated budget, located at the predicate: a 100,000 character field with a range of dates is over a budget of eight times a
+    ///     <c>MaxSourceLength</c> that is the length of the specification, and under that of the default limit.
+    /// </summary>
+    [Fact]
+    public void SpecParser_TimePredicates_LongFieldFailsFastWithTheGeneratedBudgetError()
+    {
+        // Arrange
+        var field = new string('f', 100_000);
+        var json = "{ \"mark\": \"point\", \"transform\": [ { \"filter\": { \"timeUnit\": \"yearmonthdatehoursminutesseconds\", \"field\": \"" + field
+            + "\", \"range\": [ { \"year\": 2020 }, { \"year\": 2021 } ] } } ] }";
+
+        // Act
+        var ex = Assert.Throws<VegaLiteSpecException>(() => SpecParser.Parse(json, "t.json", new VegaLiteLimits { MaxSourceLength = json.Length }));
+        var accepted = SpecParser.Parse(json, "t.json");
+
+        // Assert: the error names the budget, at the predicate; the default limit allows the text
+        Assert.Equal("/transform/0/filter", ex.Location.Pointer);
+        Assert.Contains("more than 8 times the limit of " + json.Length + " (MaxSourceLength)", ex.Message, StringComparison.Ordinal);
+        Assert.NotNull(accepted.Expressions.Get(accepted.Root["transform"]!.Items[0]["filter"]!));
     }
 
     /// <summary>

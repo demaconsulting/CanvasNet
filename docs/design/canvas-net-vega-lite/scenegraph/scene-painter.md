@@ -68,11 +68,46 @@ translations), and the scale.
 - **Trail chunks.** The core filler cannot be interrupted, so a trail is painted in chunks: every capsule has an
   estimated cost (`TrailCapsuleWeight`, `1 + sqrt(radius * scale / 0.02)`, the number of line pieces of its round
   caps), and when the capsules written so far weigh `TrailChunkWeight` (100,000) they are filled and stroked, the
-  cancellation token is polled before that, and a new path starts. A trail of ordinary size (a weight of about 11 per
+  cancellation token is polled before that, and a new path starts. A chunk is flushed lazily, just before the next
+  capsule is appended (not right after the capsule that completes it), so a flush implies that the trail has a second
+  chunk and the last chunk is never empty. A trail of ordinary size (a weight of about 11 per
   capsule) is one chunk up to about 9,000 capsules, so ordinary charts are painted exactly as before; the largest
   capsule the bound allows (a size of 32,768, a weight of about 906) gives chunks of 111 capsules. The capsules of
-  two chunks overlap at the shared point, so the only difference from one fill is that the anti-aliased rim of the
-  round caps at that joint is composited twice.
+  two chunks overlap at the shared point, so a **translucent trail painted in several chunks** is painted through
+  **coverage layers** (`ScenePainter.TrailLayers`): at the first flush (so only when a second chunk exists) the
+  painter decides which paints are layered (`LayerPlan` / `TryPlan`, the one source for the allocation, the box and
+  the budget) and finds the pixel box of the trail (its points grown by the radius, the stroke width of a layered
+  stroke, and a 2 pixel margin, cut to the target, in a pass that polls the token like the capsule pass; a point that
+  cannot be drawn does not grow it), and every chunk of the fill is painted with the opaque color into a
+  transparent layer of that box and every chunk of
+  the stroke into a second layer; when the last chunk is in, the fill layer and then the stroke layer are composited once,
+  with the alpha of the paint (`Surface.CompositeOverSpan`, coverage = layer alpha; one buffer of the coverage of a
+  row, as wide as the box, is shared by both composites). The union of the coverage inside a
+  layer is the
+  union of the one path of Vega (`vega-scenegraph/src/path/trail.js` builds all capsules into one path and
+  `marks/markMultiItemPath.js` `draw` fills and strokes it once), so the capsule at a joint no longer composites twice
+  (a dark
+  dot in 0.4 opacity before). A single-chunk trail and a trail whose solid paints are opaque take the direct path and are
+  painted exactly as before. **Only the paints that need a layer get one**: the fill is layered only when it is a
+  solid fill with an alpha above 0 and below 255 (an opaque fill repeated per chunk has no visible seam, so it is painted
+  directly onto the target, below the composite of the stroke layer; a fully transparent paint is not painted at
+  all), and the stroke is layered when it is drawn and is translucent **or** follows a layered fill - the layered
+  fill is composited only after the last chunk, so an opaque stroke painted directly would be covered by it, and its
+  layer is for the order of Vega's path (fill, then stroke), not for a seam. The two layers cannot be shared or
+  reused, since both are live until the last chunk. The layers are at most the
+  target in size. **The stroke reach**: a stroke width that
+  `StrokeOnly` never strokes (not positive, not finite, beyond `MaxMagnitude` surface pixels, or too small to be a
+  float; the one test `TryStrokeWidth` shared by both) neither grows the box nor gets a layer, so it cannot inflate the
+  box to the whole target or (as a NaN) make the box empty. **The pixel budget**: the layers of one trail are charged
+  before they are allocated - the box width times its height times the number of layers that exist (the plan: fill,
+  stroke) must be at most
+  `TrailLayerPixelBudget` (`DefaultTrailLayerPixels`, 32 Mi pixels, 128 MiB of `Rgba32`: two layers of 4,096 by 4,096
+  pixels; the layers of the largest 8,192 by 8,192 target would be 512 MiB). A trail over it is painted chunk by chunk
+  as before the layers existed, so the chunk joints keep the double composite (documented deviation; every ordinary
+  chart is far under the budget). The peak is one trail at a time (the layers are disposed at the end of each trail). A
+  gradient fill is still painted chunk by chunk, with the bounding
+  box of the
+  chunk as its reference (a gradient is not layered).
 - A group paints its own background and border as a (rounded) rectangle behind its children; a stroked group is offset as
   Vega does (half a pixel for a one-pixel stroke, so that the line covers exactly one pixel column and row). The
   background can be a gradient.
@@ -117,7 +152,8 @@ translations), and the scale.
   around the first point with a half circle on the backward side, and closes. The width is therefore the size at each
   point, tapering linearly between two points of different size, with round ends. The capsules of **all runs are one
   path**, filled with the nonzero rule (so overlapping capsules are one shape and have no seams) and stroked as one path
-  with the stroke of the item. A point whose coordinates or size are not finite, whose coordinates or size are beyond the
+  with the stroke of the item (a translucent one in several chunks as one composite, see Trail chunks). A point whose
+  coordinates or size are not finite, whose coordinates or size are beyond the
   magnitude bound, or whose size is not positive **ends its run** (the next usable point starts the run again, so a run
   with a gap draws two pieces), and a run needs two usable points to draw anything (a run of one point draws nothing).
   *Deviation from Vega* (the coincident points): two coincident points (the normal has no length) draw a circle of the
@@ -154,8 +190,13 @@ translations), and the scale.
 - `IsBoundedAt(float scale, params double[] values)` and `IsBounded(...)` (internal static) - the magnitude bound described
   above, shared with `CurveBuilder` and `MarkBuilder` so that the scene never holds what the painter would skip.
 - `TrailCapsuleWeight(double, float)` (internal static) and the `TrailChunkFlushed` observer (internal, null in production,
-  told the capsule count of every chunk before its poll) - the estimate that chunks a trail, and the hook that lets a test
-  count the chunks and cancel at a boundary without measuring time.
+  told the capsule count of every chunk that is followed by another one, before its poll) - the estimate that chunks a
+  trail, and the hook that lets a test
+  count the chunks and cancel at a boundary without measuring time. `TrailLayerPixelBudget` (internal, init-only,
+  default `DefaultTrailLayerPixels`) and the `TrailLayersCreated` observer (internal, null in production, told the pixel
+  count that was charged when the layers are created) let a test lower the budget and assert the box and the fallback
+  without allocating layers. `TryStrokeWidth(double?, float, out float)` (private static) is the one test of whether a
+  stroke width is drawn, used by `StrokeOnly` and by the layers.
 - `ScenePlacement.Uniform` and `ScenePlacement.Fit` - the two placements `VegaLiteDocument` uses.
 
 **Pre- and postconditions**: the scene is non-null; on return the surface holds the drawing, deterministic for the

@@ -317,18 +317,75 @@ and not at a scale of 2 (40,000 pixels), a stroke width of 40,000 or 1e300 is no
 
 ##### Trails Are Painted In Chunks With A Poll Between Them
 
-**Tests**: `ScenePainterPathTests.ScenePainter_Paint_TrailIsPaintedInChunksWithACancellationPollBetweenThem`
+**Tests**: `ScenePainterPathTests.ScenePainter_Paint_TrailIsPaintedInChunksWithACancellationPollBetweenThem`,
+`ScenePainterPathTests.ScenePainter_Paint_TranslucentTrailInSeveralChunksHasNoSeam`,
+`ScenePainterPathTests.ScenePainter_Paint_TranslucentTrailOutlineInSeveralChunksHasNoSeam`,
+`ScenePainterPathTests.ScenePainter_Paint_TranslucentTrailBeyondTheSurfaceEdgeHasNoSeam`,
+`ScenePainterPathTests.ScenePainter_Paint_OpaqueTrailInSeveralChunksIsBlackAlongTheWholeRow`,
+`ScenePainterPathTests.ScenePainter_Paint_TrailLayerPixelsAreChargedAgainstTheBudgetAndFallBackBeyondIt`,
+`ScenePainterPathTests.ScenePainter_Paint_TrailLayersIgnoreAStrokeWidthThatIsNotDrawn`,
+`ScenePainterPathTests.ScenePainter_Paint_OpaqueFillWithTranslucentStrokeIsChargedOneLayer`,
+`ScenePainterPathTests.ScenePainter_Paint_TranslucentFillWithOpaqueStrokeKeepsTheStrokeAboveTheFill`,
+`ScenePainterPathTests.ScenePainter_Paint_FullyTransparentFillIsNotLayered`,
+`ScenePainterPathTests.ScenePainter_Paint_TrailThatEndsAtTheFirstChunkBoundaryAllocatesNoLayers`,
+`ScenePainterPathTests.ScenePainter_Paint_TranslucentTrailBeyondTheTargetAllocatesNoLayers`,
+`ScenePainterPathTests.ScenePainter_Paint_PointsThatCannotBeDrawnDoNotGrowTheLayerBox`,
+`ScenePainterPathTests.ScenePainter_TrailLayerPixelBudget_DefaultIsBoundedBelowTheLayersOfTheLargestTarget`
 
 The estimated cost of a capsule is `1 + sqrt(radius x scale / 0.02)`: 1 for no radius, 11 for a radius of 2
 (`sqrt(100)`), 21 for a radius of 2 at a scale of 4 (`sqrt(400)`), and about 906.1 for the largest radius that the
 bound allows (16,384: `sqrt(819,200) = 905.1`). A chunk is complete when its weight reaches `TrailChunkWeight` =
 100,000; for the largest capsules `110 x 906.1 = 99,671` is below it and `111 x 906.1 = 100,577` is not, so the
 first chunk of a trail of 450 points of size 32,768 has 111 capsules (the 112th point). The test asserts the four
-weights, that the observer `TrailChunkFlushed` is told `[111]` and that a token canceled by the observer stops the
+weights, that the observer `TrailChunkFlushed` is told `[111]` (a chunk is flushed just before the next capsule is
+appended, so the
+observer is told only of a chunk that is followed by another one) and that a token canceled by the observer stops the
 painting with an `OperationCanceledException` before the first chunk is filled (so no second chunk is reached and
 no capsule of that size is ever filled: the test also runs in milliseconds), and that an ordinary trail (100 points
 of size 4, 99 capsules of weight 11, a total of 1,089) is one chunk that the observer never sees and is drawn whole
 (black at its middle). The test counts capsules and does not measure time.
+
+The seam tests use 9,400 points 0.8 apart with the size 4 (a weight of 11 for each of the 9,399 capsules, so the
+observer is told `[9091]`: the first chunk is
+complete after 9,091 capsules and the trail is two chunks) on a 7,600 by 20 white surface, and assert on the row 10 (the
+center of the trail) from x = 20 to
+x = 7,500: with a black fill of the opacity 0.5 every pixel equals the pixel at x = 100 (127 or 128, a single composite
+of half black over white, where the
+chunk-by-chunk painting gave 120 at x = 7,280, the joint); with a black stroke of the width 2 and the opacity 0.5 and no
+fill, every pixel of the row 8 (the top edges of the capsules) is the
+same one composite (it was 74 at the joint); with an opaque black fill every pixel is black and the chunks are the same;
+and for a trail placed at the offset -7,000 on a 600 by 20 surface (the layers are cut to
+the target, the joint is at x of about 282) the row is one composite from x = 20 to x = 500.
+
+The budget tests use the same fill-only trail (the box of its points grown by the radius 2 and the 2 pixel margin is
+7,528 by 8 pixels and it has one layer, so 60,224 pixels), and assert that the observer `TrailLayersCreated` is told
+`[60224]` when the budget is exactly that and the row is one composite, and that with a budget of 60,223 it is told
+nothing, the same two chunks are painted straight onto the target and the row is no longer uniform (the joint of the
+chunks composites twice, 127 or 128 elsewhere). The stroke-reach theory (a width of infinity, NaN, and 1e9, with a half
+transparent black fill and stroke) asserts the observer is told `[60224]` (one layer of the box of the fill, not two of
+the whole 7,600 by 20 target, 304,000 pixels, as before, and not no layer at all for a NaN) and the row is one
+composite, 127 or 128, which is the fill alone (the stroke is never drawn). The ceiling test asserts that the default
+budget (33,554,432 pixels) is at most 128 MiB of 4-byte pixels and below one layer of the largest target (8,192 by
+8,192 pixels), so that the 512 MiB of a fill and a stroke layer of that target can never be allocated. The first two
+tests were checked by mutation: with the previous box rule and no budget they fail (304,000 pixels reported, and
+layers created beyond the budget).
+
+The layer-plan tests use the same trail, 7,600 by 20, with a 2 wide stroke, so the box of the points is grown by the
+radius 2, the stroke width 2 and the margin 2: 7,532 by 12 pixels, 90,384 for one layer and 180,768 for two. An opaque
+red fill with a half transparent black stroke is charged `[90384]` (the stroke layer only: an opaque fill has no visible
+seam and is painted directly) with a budget of exactly that, and nothing with 90,383 (the former rule charged
+180,768); the row 8 is half of black over red (127 or 128, 0, 0, 255) along the whole trail. A half transparent black
+fill with an
+opaque red stroke is charged `[180768]` (the stroke layer is kept for the order) and the row 8 is exactly red
+(255, 0, 0, 255): a stroke painted directly would be covered by the later composite of the fill. A fill of the opacity
+0 (and a fill of none) leaves the half transparent stroke the only layer, `[90384]`. A trail of 112 points of size
+32,768 on a 40 by 40 surface is 111 capsules, exactly one chunk: the observer `TrailChunkFlushed` is told nothing, no
+layers are created (it failed before the flush moved: the layers were created for a trail of one chunk) and the half
+transparent fill is one composite (127 or 128) at its center. The seam trail on a 600 by 20 surface at the offset
+-8,000 is two chunks that are both beyond the target: the observer is told `[9091]`, no layers are created (the box is
+empty) and the pixel at (100, 10) is white. The seam trail with a second run of points that cannot be drawn (NaN, 1e9,
+infinity, a size of 0 and of NaN) is charged `[60224]` as the trail alone, so those points do not grow the box (a
+regression pin: the drawable test is shared by the painting and the box), and the row is one composite.
 
 ##### Arcs Fill Their Wedge, Stroke, And Scale
 

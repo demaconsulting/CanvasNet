@@ -409,4 +409,42 @@ public class VegaLiteLegendIntegrationTests
         // Assert
         Assert.All(renders, r => Assert.Equal(expected, r));
     }
+
+    /// <summary>
+    ///     Validates that the size legend of a rendered trail chart paints the stroke width of each entry (vega-lite@6.5.0 binds a trail's size legend to
+    ///     <c>strokeWidth</c>): the scene symbols have the size 100 and the widths 1 to 3.667, and the ink of the largest entry is about 3.7 pixels thick
+    ///     (it was 1.5 pixels thick before).
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Legend_TrailSizeLegendIsPaintedWithTheStrokeWidth()
+    {
+        // Arrange: a trail over four points whose size ranges from 1 to 9
+        const string json = "{ \"width\": 200, \"height\": 100, \"data\": { \"values\": [ { \"q\": 1, \"r\": 1, \"s\": 1 }, { \"q\": 2, \"r\": 3, \"s\": 3 }, { \"q\": 3, \"r\": 2, \"s\": 6 }, { \"q\": 4, \"r\": 4, \"s\": 9 } ] }, \"mark\": \"trail\", \"encoding\": { \"x\": { \"field\": \"q\", \"type\": \"quantitative\" }, \"y\": { \"field\": \"r\", \"type\": \"quantitative\" }, \"size\": { \"field\": \"s\", \"type\": \"quantitative\" } } }";
+        var document = VegaLiteDocument.Parse(json);
+
+        // Act
+        var scene = SceneOf(json);
+        using var surface = document.Render(cancellationToken: Ct);
+        var legend = Assert.Single(LegendsOf(scene));
+        var symbols = Inside<SceneSymbol>(legend.Group, "legend-symbol");
+
+        // Assert: the scene symbols have the fixed size and the scaled width
+        Assert.Equal(5, symbols.Count);
+        Assert.All(symbols, s => Assert.Equal(100.0, s.Item.Size));
+        Assert.Equal(1.0, symbols[0].Item.StrokeWidth!.Value, 6);
+        Assert.Equal(1 + 3 * 8 / 9.0, symbols[4].Item.StrokeWidth!.Value, 6);
+
+        // Assert: the column of ink through the center of the largest symbol is about 3.7 pixels thick
+        var largest = symbols[4];
+        var x = (int)Math.Round(legend.X + largest.X + largest.Item.X);
+        var top = (int)Math.Round(legend.Y + largest.Y + largest.Item.Y) - 8;
+        var thickness = 0.0;
+        for (var y = top; y < top + 16; y++)
+        {
+            // (the red channel runs from 255 on the white background to 0x4c in the stroke color, so the sum of the coverage is the thickness)
+            thickness += (255 - surface[x, y].R) / (double)(255 - 0x4c);
+        }
+
+        Assert.True(thickness >= 3.4, $"The largest legend symbol is {thickness} pixels thick.");
+    }
 }

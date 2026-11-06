@@ -39,6 +39,27 @@ public class MarkBuilderConditionTests
         ChartTestHelpers.Of<SceneSymbol>(ChartTestHelpers.Marks(json, 100, 100, null, limits), "mark-circle");
 
     /// <summary>
+    ///     Validates that a membership condition with a large list (the written expression is far longer than the limit of a user-written expression) is evaluated for every row: the
+    ///     rows whose value is in the list of 999 numbers get the value of the condition, the others the value of the channel, and the evaluation is charged to the step budget, so a tiny
+    ///     <c>MaxEvaluationSteps</c> fails with the step limit message and not with a length message.
+    /// </summary>
+    [Fact]
+    public void MarkBuilder_Build_LargeOneOfConditionIsEvaluatedAndChargedToTheStepBudget()
+    {
+        // Arrange: the list holds 1 to 1000 without 3, so q = 1 and 5 are in it and q = 3 is not
+        var members = string.Join(", ", Enumerable.Range(1, 1000).Where(n => n != 3));
+        var json = Spec("\"circle\"", "\"color\": { \"condition\": { \"test\": { \"field\": \"q\", \"oneOf\": [ " + members + " ] }, \"value\": \"red\" }, \"value\": \"gray\" }");
+
+        // Act
+        var items = Circles(json);
+        var exhausted = Assert.Throws<VegaLiteRenderException>(() => Circles(json, new VegaLiteLimits { MaxEvaluationSteps = 100 }));
+
+        // Assert
+        Assert.Equal(["red", "gray", "red"], items.Select(i => i.Fill));
+        Assert.Contains("MaxEvaluationSteps", exhausted.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     ///     Validates that a value condition gives its value to the rows whose test holds and leaves the channel's own value to the others.
     /// </summary>
     [Fact]

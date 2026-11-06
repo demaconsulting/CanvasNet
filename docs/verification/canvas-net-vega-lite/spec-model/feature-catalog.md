@@ -400,6 +400,7 @@ reported.
 
 **Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_ConditionsWithATestAreNotReported`,
 `FeatureCatalogTests.FeatureCatalog_Visit_ParameterConditionsAreReported`,
+`FeatureCatalogTests.FeatureCatalog_Visit_DoesNotExpandAnOverBudgetPredicate`,
 `FeatureCatalogTests.FeatureCatalog_Visit_TimeUnitAndDateTestsAreSupported`,
 `FeatureCatalogTests.FeatureCatalog_Visit_ConditionOnAChannelThatTakesNoneIsReported`,
 `FeatureCatalogTests.FeatureCatalog_Visit_ConditionExpressionsAndFieldPropertiesAreVisited`
@@ -413,7 +414,10 @@ warning `vl-predicate-timeunit-part` at the `timeUnit` of the test (`/encoding/c
 a binned unit is `vl-timeunit-binned` at the same place; that a condition on
 `x` is `vl-encoding-condition` at the condition; and that a function outside the list in a test or in a `value.expr`
 is `vl-expr-function-now` at the text, a `temporal` field in a field condition is silent (the former `vl-type-temporal`
-is retired), and a `geojson` field is `vl-type-geojson` at its `type`.
+is retired), and a `geojson` field is `vl-type-geojson` at its `type`. The over-budget test asserts that visiting a color
+condition whose test is a 100,000-character field name with 100 members (10 million characters as an expression, which the
+parser compiles) reports nothing and allocates less than 8 MB on the calling thread, where writing the text again to ask
+whether it can be evaluated allocated 41 MB.
 
 ##### Time Is Supported: Temporal Fields, Units, Scales, And Predicates Report Nothing
 

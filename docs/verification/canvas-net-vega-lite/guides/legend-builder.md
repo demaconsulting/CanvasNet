@@ -120,7 +120,10 @@ values, format, and symbol properties.
 ##### Symbols Of Path, Text, And Arc Marks
 
 **Tests**: `LegendBuilderPathMarkTests.LegendBuilder_Build_LineMarkUsesAStrokeSymbolInTheMarkColor`,
-`LegendBuilderPathMarkTests.LegendBuilder_Build_AreaArcAndTextMarksUseFilledCircles`
+`LegendBuilderPathMarkTests.LegendBuilder_Build_AreaArcAndTextMarksUseFilledCircles`,
+`LegendBuilderPathMarkTests.LegendBuilder_Build_TrailSizeLegendScalesTheStrokeWidthNotTheSymbolSize`,
+`LegendBuilderPathMarkTests.LegendBuilder_Build_TrailSizeLegendOfACategoryAndOfAMergedColorUseStrokeWidths`,
+`LegendBuilderPathMarkTests.LegendBuilder_Build_LineSizeLegendScalesTheSymbolSize`
 
 Assert, for a line over two quantitative positions with a nominal color of three categories, that the legend has three
 symbols of the shape `stroke` whose stroke is `#4c78a8`, `#f58518`, and `#e45756`, whose fill is `transparent`, and whose
@@ -129,7 +132,18 @@ stroke width is 1.5; that a `strokeWidth` of 5 on the mark is the width of every
 colors as its stroke even though a trail is filled (the trail legend rule above). Assert, for an area over two
 positions, an arc over a quantitative `theta`, and a text mark, each with the same color, that the three symbols are
 circles of the size 100 whose fill is the three colors and whose stroke is absent or transparent; and that a nominal
-`size` channel on the text mark gives three symbols of three different sizes.
+`size` channel on the text mark gives three symbols of three different sizes. Assert, for a trail whose `size` is the
+quantitative field with the
+values 1, 3, 6, and 9 (the size range 1 to 4 over the domain 0 to 9), that the legend has the five entries 0, 2, 4, 6,
+and 8 whose
+symbols are `stroke` symbols of the size 100, transparent fill, and stroke `#4c78a8`, with the stroke widths 1, 1 + 3 *2
+/ 9, 1 + 3* 4 / 9, 3, and 1 + 3 * 8 / 9 (the oracle
+values 1, 1.667, 2.333, 3, and 3.667), and the labels start at 18 (the symbol column is `ceil(10 + 3.667) = 14` wide and
+the label offset 4); for a nominal trail size of four
+categories, the widths 1, 2, 3, and 4 and the size 100; for a trail whose color and size are the same field, one legend
+whose symbols have the category colors as the stroke and those widths;
+for an explicit `symbolSize` of 400, the size 400; and, for a line with the same size, the symbol sizes 1, 1.667, 2.333,
+3, and 3.667 with the stroke width 1.5.
 
 ##### Grid
 
@@ -145,10 +159,13 @@ Assert the order and positions of four entries in two columns and of three entri
 `LegendBuilderTests.LegendBuilder_Gradient_FewerThanThreeTicksUseTheEndsOfTheDomain`,
 `LegendBuilderTests.LegendBuilder_Gradient_ExplicitLengthThicknessTicksAndLabelProperties`,
 `LegendBuilderTests.LegendBuilder_Gradient_DomainWithoutSpanUsesTheUnitRamp`,
+`LegendBuilderTests.LegendBuilder_Gradient_LabelsMatchVegaForALengthOf160And200`,
 `LegendBuilderTests.LegendBuilder_Discrete_QuantizeColorDrawsOneBandPerClass`,
 `LegendBuilderTests.LegendBuilder_Discrete_ThresholdScaleIsWidenedByOneClassAtEachEnd`
 
-Assert the bars, the stops, the labels and their alignment, the lengths, and the bands derived above.
+Assert the bars, the stops, the labels and their alignment, the lengths, and the bands derived above, and, as a pin of
+the parity with Vega 6.4 for the color values 0.2, 1.7, 3.3, and 5.41, that a length of 160 gives the two labels 0 and
+5 at 160 and 0, and a length of 200 the five labels 1 to 5 at the heights 200 times (1 minus (v minus 0.2) over 5.21).
 
 ##### Titles And Box
 
