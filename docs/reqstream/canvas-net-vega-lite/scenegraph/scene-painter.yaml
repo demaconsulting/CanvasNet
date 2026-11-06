@@ -140,13 +140,18 @@ sections:
                   point with no usable size, and shall draw a circle for coincident points; a translucent trail
                   that is painted in several chunks (an unusually large trail) shall be composited once, so that
                   its capsules do not composite twice at the joints of the chunks, as Vega paints one path, with
-                  the cancellation token still polled before every chunk; the coverage layers that do this shall be
-                  charged against a pixel budget before they are allocated (a trail whose layers would be larger
-                  being painted chunk by chunk) and shall ignore a stroke width that is never drawn.
+                  the cancellation token still polled before every chunk; the coverage layers that do this shall
+                  exist only for a trail of several chunks and only for the paints that need them (a solid fill that
+                  is translucent, and a drawn stroke that is translucent or follows a layered fill, to keep the
+                  order of fill and stroke; an opaque fill is painted directly), shall be charged against a pixel
+                  budget before they are allocated (a trail whose layers would be larger being painted chunk by
+                  chunk), shall grow only by the points that can be drawn, and shall ignore a stroke width that is
+                  never drawn.
                 justification: |
                   A trail is a line whose width varies with the data; the capsules are what make the width change
                   smoothly and the runs are how a gap breaks the trail, and a large translucent trail must not
-                  show the seams of the implementation nor allocate memory that nothing bounds.
+                  show the seams of the implementation nor allocate memory that nothing bounds, nor memory that
+                  its paints do not need.
                 tests:
                   - ScenePainter_Paint_TrailWidthFollowsTheSizeOfEachPoint
                   - ScenePainter_Paint_TrailBreaksAtRunBoundariesAndDrawsCapsForCoincidentPoints
@@ -156,6 +161,12 @@ sections:
                   - ScenePainter_Paint_OpaqueTrailInSeveralChunksIsBlackAlongTheWholeRow
                   - ScenePainter_Paint_TrailLayerPixelsAreChargedAgainstTheBudgetAndFallBackBeyondIt
                   - ScenePainter_Paint_TrailLayersIgnoreAStrokeWidthThatIsNotDrawn
+                  - ScenePainter_Paint_OpaqueFillWithTranslucentStrokeIsChargedOneLayer
+                  - ScenePainter_Paint_TranslucentFillWithOpaqueStrokeKeepsTheStrokeAboveTheFill
+                  - ScenePainter_Paint_FullyTransparentFillIsNotLayered
+                  - ScenePainter_Paint_TrailThatEndsAtTheFirstChunkBoundaryAllocatesNoLayers
+                  - ScenePainter_Paint_TranslucentTrailBeyondTheTargetAllocatesNoLayers
+                  - ScenePainter_Paint_PointsThatCannotBeDrawnDoNotGrowTheLayerBox
                   - ScenePainter_TrailLayerPixelBudget_DefaultIsBoundedBelowTheLayersOfTheLargestTarget
 
               - id: CanvasNetVegaLite-Scenegraph-ScenePainter-MiterLimit

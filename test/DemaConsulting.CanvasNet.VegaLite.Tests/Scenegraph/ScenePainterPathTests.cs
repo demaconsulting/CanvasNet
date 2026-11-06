@@ -364,16 +364,17 @@ public class ScenePainterPathTests
         [.. Enumerable.Range(0, 9400).Select(i => new SceneTrailPoint(10 + (0.8 * i), 10, 4))];
 
     /// <summary>
-    ///     Asserts that the pixels of the row 10 of a surface are the same in the whole range that the points of <see cref="SeamPoints"/> cover (from 20 to 7,500).
+    ///     Asserts that the pixels of a row of a surface are the same in the whole range that the points of <see cref="SeamPoints"/> cover (from 20 to 7,500).
     /// </summary>
     /// <param name="surface">The surface.</param>
+    /// <param name="y">The row; 10 is the middle of the trail, 8 is where the top edges of the capsules (and so their outline) cross.</param>
     /// <returns>The common pixel.</returns>
-    private static Rgba32 AssertUniformRow(Surface surface)
+    private static Rgba32 AssertUniformRow(Surface surface, int y = 10)
     {
-        var reference = surface[100, 10];
+        var reference = surface[100, y];
         for (var x = 20; x <= 7500; x++)
         {
-            Assert.True(surface[x, 10] == reference, $"The pixel ({x}, 10) is {surface[x, 10]}, not {reference}.");
+            Assert.True(surface[x, y] == reference, $"The pixel ({x}, {y}) is {surface[x, y]}, not {reference}.");
         }
 
         return reference;
@@ -524,6 +525,152 @@ public class ScenePainterPathTests
         Assert.Equal([60_224L], charges);
         var pixel = AssertUniformRow(surface);
         Assert.InRange(pixel.R, 127, 128);
+    }
+
+    /// <summary>
+    ///     Validates that an opaque fill does not get a layer: an opaque red fill with a half transparent black 2 wide stroke has no seam to repair in its fill (opaque painting
+    ///     repeated per chunk is the same), so only the stroke is layered and charged, one layer of 7,532 by 12 = 90,384 pixels (the stroke width and the radius grow the box), not two;
+    ///     with a budget of exactly that the layer is created and the outline of the row 8 is half of black over red, and with one pixel less no layer is created.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_OpaqueFillWithTranslucentStrokeIsChargedOneLayer()
+    {
+        // Arrange
+        var scene = MakeScene(7600, 20, new SceneTrail("mark-trail", [SeamPoints()]) { Fill = "#ff0000", Stroke = "#000000", StrokeWidth = 2, StrokeOpacity = 0.5 });
+        var charges = new List<long>();
+        var flushes = new List<int>();
+
+        // Act: the budget is exactly one layer
+        using var within = new ScenePainter(new TextMeasurer()) { TrailLayersCreated = charges.Add, TrailChunkFlushed = flushes.Add, TrailLayerPixelBudget = 90_384 }
+            .Paint(scene, 7600, 20, ScenePlacement.Uniform(1), Ct);
+
+        // Assert: one layer was charged, and the outline is half of black over the opaque red fill from the first to the last pixel
+        Assert.Equal([90_384L], charges);
+        Assert.Equal([9091], flushes);
+        var pixel = AssertUniformRow(within, 8);
+        Assert.InRange(pixel.R, 127, 128);
+        Assert.Equal((0, 0, 255), (pixel.G, pixel.B, pixel.A));
+
+        // Act: one pixel less
+        charges.Clear();
+        using var beyond = new ScenePainter(new TextMeasurer()) { TrailLayersCreated = charges.Add, TrailLayerPixelBudget = 90_383 }.Paint(scene, 7600, 20, ScenePlacement.Uniform(1), Ct);
+
+        // Assert: nothing was created (the old code charged an unneeded layer for the fill as well, 180,768 pixels)
+        Assert.Empty(charges);
+    }
+
+    /// <summary>
+    ///     Validates that an opaque stroke under a translucent fill keeps its layer, for the order: the fill is composited after the last chunk, so an opaque stroke that was painted
+    ///     straight onto the target would be covered by it. A half transparent black fill with an opaque red 2 wide stroke is two layers (180,768 pixels), and the outline of the row 8 is
+    ///     exactly red (the stroke is on top of the fill, as in Vega's single path).
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_TranslucentFillWithOpaqueStrokeKeepsTheStrokeAboveTheFill()
+    {
+        // Arrange
+        var scene = MakeScene(7600, 20, new SceneTrail("mark-trail", [SeamPoints()]) { Fill = "#000000", FillOpacity = 0.5, Stroke = "#ff0000", StrokeWidth = 2 });
+        var charges = new List<long>();
+
+        // Act
+        using var surface = new ScenePainter(new TextMeasurer()) { TrailLayersCreated = charges.Add }.Paint(scene, 7600, 20, ScenePlacement.Uniform(1), Ct);
+
+        // Assert: both layers, and the row 8 is the pure red of the stroke along the whole trail
+        Assert.Equal([180_768L], charges);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), AssertUniformRow(surface, 8));
+    }
+
+    /// <summary>
+    ///     Validates that a fill that is not painted gets no layer: a fill that is fully transparent (an opacity of 0) or none leaves the half transparent 2 wide stroke as the only layer,
+    ///     90,384 pixels.
+    /// </summary>
+    /// <param name="fill">The fill.</param>
+    /// <param name="fillOpacity">The fill opacity.</param>
+    [Theory]
+    [InlineData("#000000", 0.0)]
+    [InlineData("none", 1.0)]
+    public void ScenePainter_Paint_FullyTransparentFillIsNotLayered(string fill, double fillOpacity)
+    {
+        // Arrange
+        var scene = MakeScene(7600, 20, new SceneTrail("mark-trail", [SeamPoints()]) { Fill = fill, FillOpacity = fillOpacity, Stroke = "#000000", StrokeWidth = 2, StrokeOpacity = 0.5 });
+        var charges = new List<long>();
+
+        // Act
+        using var surface = new ScenePainter(new TextMeasurer()) { TrailLayersCreated = charges.Add }.Paint(scene, 7600, 20, ScenePlacement.Uniform(1), Ct);
+
+        // Assert: the layer of the stroke only, and no seam in the outline
+        Assert.Equal([90_384L], charges);
+        var pixel = AssertUniformRow(surface, 8);
+        Assert.InRange(pixel.R, 127, 128);
+    }
+
+    /// <summary>
+    ///     Validates that layers are created only for a trail of more than one chunk: 112 points of the largest size make 111 capsules, which weigh exactly one chunk, so the chunk is
+    ///     painted when it is complete and there is no second chunk; nothing is flushed, no layers are created, and the half transparent fill is one composite.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_TrailThatEndsAtTheFirstChunkBoundaryAllocatesNoLayers()
+    {
+        // Arrange
+        var points = Enumerable.Range(0, 112).Select(i => new SceneTrailPoint(i, 10, 32768)).ToArray();
+        var scene = MakeScene(40, 40, new SceneTrail("mark-trail", [points]) { Fill = "#000000", FillOpacity = 0.5 });
+        var charges = new List<long>();
+        var flushes = new List<int>();
+
+        // Act
+        using var surface = new ScenePainter(new TextMeasurer()) { TrailLayersCreated = charges.Add, TrailChunkFlushed = flushes.Add }.Paint(scene, 40, 40, ScenePlacement.Uniform(1), Ct);
+
+        // Assert: a single chunk, painted straight onto the target
+        Assert.Empty(flushes);
+        Assert.Empty(charges);
+        Assert.InRange(surface[20, 20].R, 127, 128);
+    }
+
+    /// <summary>
+    ///     Validates that no layers are created for a translucent trail that is not on the target (the box is empty): the trail is painted in two chunks, but both are beyond the surface.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_TranslucentTrailBeyondTheTargetAllocatesNoLayers()
+    {
+        // Arrange: the points reach x = 7,530, and the placement moves them 8,000 to the left of a 600 wide surface
+        var scene = MakeScene(7600, 20, new SceneTrail("mark-trail", [SeamPoints()]) { Fill = "#000000", FillOpacity = 0.5 });
+        var charges = new List<long>();
+        var flushes = new List<int>();
+
+        // Act
+        using var surface = new ScenePainter(new TextMeasurer()) { TrailLayersCreated = charges.Add, TrailChunkFlushed = flushes.Add }.Paint(scene, 600, 20, new ScenePlacement(1, -8000, 0), Ct);
+
+        // Assert
+        Assert.Empty(charges);
+        Assert.Equal([9091], flushes);
+        Assert.Equal(White, surface[100, 10]);
+    }
+
+    /// <summary>
+    ///     Validates that points that cannot be drawn (not finite, beyond the bound, or without a size) do not grow the box of the layers: a second run of such points beside the seam trail
+    ///     leaves the layer at 7,528 by 8 = 60,224 pixels.
+    /// </summary>
+    [Fact]
+    public void ScenePainter_Paint_PointsThatCannotBeDrawnDoNotGrowTheLayerBox()
+    {
+        // Arrange
+        SceneTrailPoint[] notDrawable =
+        [
+            new(double.NaN, 10, 4),
+            new(1e9, 10, 4),
+            new(10, 1e9, 4),
+            new(double.PositiveInfinity, 10, 4),
+            new(7599, 10, 0),
+            new(7599, 10, double.NaN),
+        ];
+        var scene = MakeScene(7600, 20, new SceneTrail("mark-trail", [SeamPoints(), notDrawable]) { Fill = "#000000", FillOpacity = 0.5 });
+        var charges = new List<long>();
+
+        // Act
+        using var surface = new ScenePainter(new TextMeasurer()) { TrailLayersCreated = charges.Add }.Paint(scene, 7600, 20, ScenePlacement.Uniform(1), Ct);
+
+        // Assert
+        Assert.Equal([60_224L], charges);
+        Assert.InRange(AssertUniformRow(surface).R, 127, 128);
     }
 
     /// <summary>

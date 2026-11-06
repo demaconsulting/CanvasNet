@@ -94,6 +94,12 @@ in the four unit verification documents passes without error or unexpected excep
   `ScenePainterPathTests.ScenePainter_Paint_OpaqueTrailInSeveralChunksIsBlackAlongTheWholeRow`,
   `ScenePainterPathTests.ScenePainter_Paint_TrailLayerPixelsAreChargedAgainstTheBudgetAndFallBackBeyondIt`,
   `ScenePainterPathTests.ScenePainter_Paint_TrailLayersIgnoreAStrokeWidthThatIsNotDrawn`,
+  `ScenePainterPathTests.ScenePainter_Paint_OpaqueFillWithTranslucentStrokeIsChargedOneLayer`,
+  `ScenePainterPathTests.ScenePainter_Paint_TranslucentFillWithOpaqueStrokeKeepsTheStrokeAboveTheFill`,
+  `ScenePainterPathTests.ScenePainter_Paint_FullyTransparentFillIsNotLayered`,
+  `ScenePainterPathTests.ScenePainter_Paint_TrailThatEndsAtTheFirstChunkBoundaryAllocatesNoLayers`,
+  `ScenePainterPathTests.ScenePainter_Paint_TranslucentTrailBeyondTheTargetAllocatesNoLayers`,
+  `ScenePainterPathTests.ScenePainter_Paint_PointsThatCannotBeDrawnDoNotGrowTheLayerBox`,
   `ScenePainterPathTests.ScenePainter_TrailLayerPixelBudget_DefaultIsBoundedBelowTheLayersOfTheLargestTarget`,
   `ScenePainterPathTests.ScenePainter_Paint_GroupBeyondTheMagnitudeBoundDrawsNothing`,
   `ScenePainterPathTests.ScenePainter_Paint_TheBoundAppliesToTheSizeInSurfacePixels`,
@@ -105,7 +111,8 @@ in the four unit verification documents passes without error or unexpected excep
   nothing (a cubic control point beyond it is a line), a trail is painted in chunks of a bounded estimated cost with
   a cancellation poll before each (the chunk of the largest capsules has 111 capsules, counted and not timed) and, when
   it is translucent, composited once through coverage layers so that the joints of the chunks show no seam (one
-  composite along the whole row), and a
+  composite along the whole row; only the translucent fill, and a stroke that is translucent or under a layered
+  fill, get a layer, and only a trail of a second chunk allocates any), and a
   font size that does not fit a single is unmeasurable instead of throwing.
 - **Scene Budget And Cancellation**:
   `ScenePainterTests.ScenePainter_Paint_InvalidArgumentsAndCancellation`,

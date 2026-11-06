@@ -68,30 +68,39 @@ translations), and the scale.
 - **Trail chunks.** The core filler cannot be interrupted, so a trail is painted in chunks: every capsule has an
   estimated cost (`TrailCapsuleWeight`, `1 + sqrt(radius * scale / 0.02)`, the number of line pieces of its round
   caps), and when the capsules written so far weigh `TrailChunkWeight` (100,000) they are filled and stroked, the
-  cancellation token is polled before that, and a new path starts. A trail of ordinary size (a weight of about 11 per
+  cancellation token is polled before that, and a new path starts. A chunk is flushed lazily, just before the next
+  capsule is appended (not right after the capsule that completes it), so a flush implies that the trail has a second
+  chunk and the last chunk is never empty. A trail of ordinary size (a weight of about 11 per
   capsule) is one chunk up to about 9,000 capsules, so ordinary charts are painted exactly as before; the largest
   capsule the bound allows (a size of 32,768, a weight of about 906) gives chunks of 111 capsules. The capsules of
-  two chunks overlap at the shared point, so a **translucent trail painted in several chunks** is painted through **coverage
-  layers** (`ScenePainter.TrailLayers`): at the first chunk the painter finds the pixel box of the trail (its points
-  grown by
-  the radius, the stroke width that is painted, and a 2 pixel margin, cut to the target, in a pass that polls the token
-  like the capsule
-  pass), and every chunk of the fill is painted with the opaque color into a transparent layer of that box and every
-  chunk of
+  two chunks overlap at the shared point, so a **translucent trail painted in several chunks** is painted through
+  **coverage layers** (`ScenePainter.TrailLayers`): at the first flush (so only when a second chunk exists) the
+  painter decides which paints are layered (`LayerPlan` / `TryPlan`, the one source for the allocation, the box and
+  the budget) and finds the pixel box of the trail (its points grown by the radius, the stroke width of a layered
+  stroke, and a 2 pixel margin, cut to the target, in a pass that polls the token like the capsule pass; a point that
+  cannot be drawn does not grow it), and every chunk of the fill is painted with the opaque color into a
+  transparent layer of that box and every chunk of
   the stroke into a second layer; when the last chunk is in, the fill layer and then the stroke layer are composited once,
-  with the alpha of the paint (`Surface.CompositeOverSpan`, coverage = layer alpha). The union of the coverage inside a
+  with the alpha of the paint (`Surface.CompositeOverSpan`, coverage = layer alpha; one buffer of the coverage of a
+  row, as wide as the box, is shared by both composites). The union of the coverage inside a
   layer is the
   union of the one path of Vega (`vega-scenegraph/src/path/trail.js` builds all capsules into one path and
   `marks/markMultiItemPath.js` `draw` fills and strokes it once), so the capsule at a joint no longer composites twice
   (a dark
   dot in 0.4 opacity before). A single-chunk trail and a trail whose solid paints are opaque take the direct path and are
-  painted exactly as before; the layers are at most the target in size and are allocated only for a translucent
-  multi-chunk trail
-  (a stroke layer only when the trail has a stroke that is drawn). **The stroke reach**: a stroke width that
+  painted exactly as before. **Only the paints that need a layer get one**: the fill is layered only when it is a
+  solid fill with an alpha above 0 and below 255 (an opaque fill repeated per chunk has no visible seam, so it is painted
+  directly onto the target, below the composite of the stroke layer; a fully transparent paint is not painted at
+  all), and the stroke is layered when it is drawn and is translucent **or** follows a layered fill - the layered
+  fill is composited only after the last chunk, so an opaque stroke painted directly would be covered by it, and its
+  layer is for the order of Vega's path (fill, then stroke), not for a seam. The two layers cannot be shared or
+  reused, since both are live until the last chunk. The layers are at most the
+  target in size. **The stroke reach**: a stroke width that
   `StrokeOnly` never strokes (not positive, not finite, beyond `MaxMagnitude` surface pixels, or too small to be a
   float; the one test `TryStrokeWidth` shared by both) neither grows the box nor gets a layer, so it cannot inflate the
   box to the whole target or (as a NaN) make the box empty. **The pixel budget**: the layers of one trail are charged
-  before they are allocated - the box width times its height times the number of layers (fill, stroke) must be at most
+  before they are allocated - the box width times its height times the number of layers that exist (the plan: fill,
+  stroke) must be at most
   `TrailLayerPixelBudget` (`DefaultTrailLayerPixels`, 32 Mi pixels, 128 MiB of `Rgba32`: two layers of 4,096 by 4,096
   pixels; the layers of the largest 8,192 by 8,192 target would be 512 MiB). A trail over it is painted chunk by chunk
   as before the layers existed, so the chunk joints keep the double composite (documented deviation; every ordinary
@@ -181,7 +190,8 @@ translations), and the scale.
 - `IsBoundedAt(float scale, params double[] values)` and `IsBounded(...)` (internal static) - the magnitude bound described
   above, shared with `CurveBuilder` and `MarkBuilder` so that the scene never holds what the painter would skip.
 - `TrailCapsuleWeight(double, float)` (internal static) and the `TrailChunkFlushed` observer (internal, null in production,
-  told the capsule count of every chunk before its poll) - the estimate that chunks a trail, and the hook that lets a test
+  told the capsule count of every chunk that is followed by another one, before its poll) - the estimate that chunks a
+  trail, and the hook that lets a test
   count the chunks and cancel at a boundary without measuring time. `TrailLayerPixelBudget` (internal, init-only,
   default `DefaultTrailLayerPixels`) and the `TrailLayersCreated` observer (internal, null in production, told the pixel
   count that was charged when the layers are created) let a test lower the budget and assert the box and the fallback

@@ -51,7 +51,8 @@ internal sealed partial class ScenePainter
     internal const double TrailChunkWeight = 100_000;
 
     /// <summary>
-    ///     Gets an observer that is told the number of capsules of a trail chunk just before the chunk is polled for cancellation and painted; null in production. It makes the chunking of
+    ///     Gets an observer that is told the number of capsules of a trail chunk that is followed by another one, just before the chunk is polled for cancellation and painted (so it is told
+    ///     once for each chunk but the last); null in production. It makes the chunking of
     ///     a trail testable by counting (and lets a test cancel at a chunk boundary), without measuring time.
     /// </summary>
     internal Action<int>? TrailChunkFlushed { get; init; }
@@ -67,7 +68,8 @@ internal sealed partial class ScenePainter
     internal long TrailLayerPixelBudget { get; init; } = DefaultTrailLayerPixels;
 
     /// <summary>
-    ///     Gets an observer that is told the number of pixels (the width times the height times the number of layers) of the layers of a trail when they are created; null in production. It
+    ///     Gets an observer that is told the number of pixels (the width times the height times the number of layers: one for a translucent fill, one for a stroke that is translucent or under
+    ///     a layered fill) of the layers of a trail when they are created, which is only for a trail of several chunks; null in production. It
     ///     makes the box of the layers, and the fallback beyond <see cref="TrailLayerPixelBudget"/>, testable without allocating the layers.
     /// </summary>
     internal Action<long>? TrailLayersCreated { get; init; }
@@ -229,11 +231,9 @@ internal sealed partial class ScenePainter
                     var r2 = point.Size / 2;
                     if (ready)
                     {
-                        AppendCapsule(writer, x1, y1, r1, point.X, point.Y, r2);
-
-                        // The filler cannot be interrupted, so the capsules are painted in chunks of a bounded cost, with a poll before each
-                        weight += TrailCapsuleWeight(Math.Max(r1, r2), local.Scale);
-                        capsules++;
+                        // The filler cannot be interrupted, so the capsules are painted in chunks of a bounded cost, with a poll before each. A complete chunk is flushed
+                        // only when another capsule follows it (not right after the capsule that completes it), so a flush means that the trail has a second chunk
+                        // and the last chunk is never empty: a trail of one chunk never creates layers
                         if (weight >= TrailChunkWeight)
                         {
                             TrailChunkFlushed?.Invoke(capsules);
@@ -252,6 +252,10 @@ internal sealed partial class ScenePainter
                             writer = new ArcPathWriter();
                             (weight, capsules) = (0, 0);
                         }
+
+                        AppendCapsule(writer, x1, y1, r1, point.X, point.Y, r2);
+                        weight += TrailCapsuleWeight(Math.Max(r1, r2), local.Scale);
+                        capsules++;
                     }
 
                     (ready, x1, y1, r1) = (true, point.X, point.Y, r2);
@@ -300,7 +304,14 @@ internal sealed partial class ScenePainter
     ///         fill and then the stroke is the order of Vega's single path.
     ///     </para>
     ///     <para>
-    ///         A layer covers the pixel box of the trail (its points grown by the radius, the stroke width that is painted and the antialiasing margin) cut to the target, so it never exceeds the
+    ///         Only the paints that need it are layered. An opaque paint has no visible seam (painting it again per chunk gives the same pixels except possibly at anti-aliased edge pixels of a joint), so a solid fill is layered only when it is translucent,
+    ///         and an opaque fill is painted straight onto the target chunk by chunk. A stroke is layered when it is translucent, and also when it is drawn under a layered fill whatever its
+    ///         opacity: the layered fill is composited only after the last chunk, so an opaque stroke that was painted straight onto the target would be covered by it, and the layer keeps
+    ///         the order of Vega's path (fill, then stroke). A gradient fill is not layered either. The two layers cannot be shared or reused: both are live until the last chunk, because
+    ///         the fill and the stroke are painted into separate layers of every chunk and composited after it; only the buffer of the coverage of a row is shared by the composites.
+    ///     </para>
+    ///     <para>
+    ///         A layer covers the pixel box of the trail (its points grown by the radius, the stroke width of a layered stroke and the antialiasing margin) cut to the target, so it never exceeds the
     ///         target, and the layers of one trail are charged against <see cref="TrailLayerPixelBudget"/> before they are allocated: a trail whose layers would have more pixels is painted chunk
     ///         by chunk without them. A gradient fill is still painted chunk by chunk, with the box of the chunk as its reference (the gradient is not layered).
     ///     </para>
@@ -310,10 +321,10 @@ internal sealed partial class ScenePainter
         /// <summary>The antialiasing margin around the points, in surface pixels.</summary>
         private const float Margin = 2;
 
-        /// <summary>The layer of the fill, or null when the trail has no solid fill.</summary>
+        /// <summary>The layer of the fill, or null when the fill is not a translucent solid fill (it is then painted straight onto the target).</summary>
         private readonly Surface? _fill;
 
-        /// <summary>The layer of the stroke, or null when the trail has no stroke.</summary>
+        /// <summary>The layer of the stroke, or null when the stroke is not layered (it is not drawn, or it is opaque and not under a layered fill).</summary>
         private readonly Surface? _stroke;
 
         /// <summary>The first column of the layers on the target.</summary>
@@ -335,21 +346,23 @@ internal sealed partial class ScenePainter
         ///     Initializes the layers.
         /// </summary>
         /// <param name="trail">The trail.</param>
-        /// <param name="scale">The uniform scale from the units of the trail to surface pixels.</param>
+        /// <param name="plan">The paints that are layered.</param>
         /// <param name="boxX">The first column of the box.</param>
         /// <param name="boxY">The first row of the box.</param>
         /// <param name="width">The width of the box.</param>
         /// <param name="height">The height of the box.</param>
-        private TrailLayers(SceneTrail trail, float scale, int boxX, int boxY, int width, int height)
+        private TrailLayers(SceneTrail trail, LayerPlan plan, int boxX, int boxY, int width, int height)
         {
             _boxX = boxX;
             _boxY = boxY;
-            if (HasSolidFill(trail, out _fillColor))
+            _fillColor = plan.FillColor;
+            _strokeColor = plan.StrokeColor;
+            if (plan.Fill)
             {
                 _fill = new Surface(width, height);
             }
 
-            if (HasStroke(trail, scale, out _strokeColor))
+            if (plan.Stroke)
             {
                 _stroke = new Surface(width, height);
                 _strokeItem = trail with
@@ -360,36 +373,45 @@ internal sealed partial class ScenePainter
                 };
             }
 
-            Pixels = (long)width * height * ((_fill is null ? 0 : 1) + (_stroke is null ? 0 : 1));
+            Pixels = (long)width * height * plan.Count;
         }
 
         /// <summary>Gets the number of pixels of the layers: the width times the height of the box, for each layer.</summary>
         public long Pixels { get; }
 
         /// <summary>
-        ///     Tells whether the fill of a trail is layered: a solid fill (a gradient is not layered) that can be painted.
+        ///     The paints of a trail that are layered.
         /// </summary>
-        /// <param name="trail">The trail.</param>
-        /// <param name="color">Receives the fill color with the alpha of the paint.</param>
-        /// <returns><see langword="true"/> when the trail has a solid fill.</returns>
-        private static bool HasSolidFill(SceneTrail trail, out Rgba32 color)
+        /// <param name="Fill">Whether the fill is layered: a solid fill that is translucent (the alpha is above 0 and below 255).</param>
+        /// <param name="FillColor">The fill color with the alpha of the paint.</param>
+        /// <param name="Stroke">Whether the stroke is layered: it is drawn, and it is translucent or under a layered fill (see the remarks of <see cref="TrailLayers"/>).</param>
+        /// <param name="StrokeColor">The stroke color with the alpha of the paint.</param>
+        private readonly record struct LayerPlan(bool Fill, Rgba32 FillColor, bool Stroke, Rgba32 StrokeColor)
         {
-            color = default;
-            return trail.FillGradient is null && CssPaint.TryResolvePaint(trail.Fill, trail.FillOpacity * trail.Opacity, out color);
+            /// <summary>Gets the number of layers.</summary>
+            public int Count => (Fill ? 1 : 0) + (Stroke ? 1 : 0);
         }
 
         /// <summary>
-        ///     Tells whether the stroke of a trail is layered: it is painted at all (<see cref="TryStrokeWidth"/>: a width that is not finite or is beyond the bound is never stroked, so it has
-        ///     no layer and does not grow the box).
+        ///     Decides which paints of a trail are layered; the single source of the layers for their allocation, the box and the budget.
         /// </summary>
+        /// <remarks>
+        ///     A paint that resolves to no color (fully transparent, none) is not painted and has no layer. A gradient fill is never layered. A stroke that is not drawn (<see cref="TryStrokeWidth"/>:
+        ///     a width that is not finite or is beyond the bound) has no layer and does not grow the box.
+        /// </remarks>
         /// <param name="trail">The trail.</param>
         /// <param name="scale">The uniform scale from the units of the trail to surface pixels.</param>
-        /// <param name="color">Receives the stroke color with the alpha of the paint.</param>
-        /// <returns><see langword="true"/> when the trail has a stroke that is painted.</returns>
-        private static bool HasStroke(SceneTrail trail, float scale, out Rgba32 color)
+        /// <param name="plan">Receives the plan.</param>
+        /// <returns><see langword="true"/> when at least one paint is layered.</returns>
+        private static bool TryPlan(SceneTrail trail, float scale, out LayerPlan plan)
         {
-            color = default;
-            return TryStrokeWidth(trail.StrokeWidth, scale, out _) && CssPaint.TryResolvePaint(trail.Stroke, trail.StrokeOpacity * trail.Opacity, out color);
+            var fill = default(Rgba32);
+            var stroke = default(Rgba32);
+            var fillLayered = trail.FillGradient is null && CssPaint.TryResolvePaint(trail.Fill, trail.FillOpacity * trail.Opacity, out fill) && fill.A < 255;
+            var strokeDrawn = TryStrokeWidth(trail.StrokeWidth, scale, out _) && CssPaint.TryResolvePaint(trail.Stroke, trail.StrokeOpacity * trail.Opacity, out stroke);
+            var strokeLayered = strokeDrawn && (stroke.A < 255 || fillLayered);
+            plan = new LayerPlan(fillLayered, fill, strokeLayered, stroke);
+            return fillLayered || strokeLayered;
         }
 
         /// <summary>
@@ -401,19 +423,17 @@ internal sealed partial class ScenePainter
         /// <param name="cancellationToken">A token that stops the work.</param>
         /// <returns>
         ///     The layers; null when the trail has no translucent solid paint (an opaque trail has no seam), when no part of it is on the target, or when its layers would have more pixels than
-        ///     <paramref name="pixelBudget"/> (the trail is then painted chunk by chunk).
+        ///     <paramref name="pixelBudget"/> (the trail is then painted chunk by chunk). Only the paints of the plan are charged: an opaque fill beside a translucent stroke has no layer.
         /// </returns>
         public static TrailLayers? TryCreate(SceneTrail trail, Context local, long pixelBudget, CancellationToken cancellationToken)
         {
-            var hasFill = HasSolidFill(trail, out var fill);
-            var hasStroke = HasStroke(trail, local.Scale, out var stroke);
-            if (!(hasFill && fill.A < 255) && !(hasStroke && stroke.A < 255))
+            if (!TryPlan(trail, local.Scale, out var plan))
             {
                 return null;
             }
 
-            // The pixel box of the points: each point grown by its radius, the stroke width that is painted (the stroke is centered on the outline) and the margin
-            var grow = hasStroke ? (float)trail.StrokeWidth.GetValueOrDefault(1) * local.Scale : 0f;
+            // The pixel box of the points: each point grown by its radius, the stroke width of a layered stroke (the stroke is centered on the outline) and the margin
+            var grow = plan.Stroke ? (float)trail.StrokeWidth.GetValueOrDefault(1) * local.Scale : 0f;
             float left = float.MaxValue, top = float.MaxValue, right = float.MinValue, bottom = float.MinValue;
             var visited = 0;
             foreach (var run in trail.Runs)
@@ -454,13 +474,12 @@ internal sealed partial class ScenePainter
             var boxHeight = (int)Math.Ceiling(bottom) - boxY;
 
             // The layers are charged against the budget before anything is allocated; a trail over it is painted chunk by chunk
-            var layerCount = (hasFill ? 1 : 0) + (hasStroke ? 1 : 0);
-            if ((long)boxWidth * boxHeight * layerCount > pixelBudget)
+            if ((long)boxWidth * boxHeight * plan.Count > pixelBudget)
             {
                 return null;
             }
 
-            return new TrailLayers(trail, local.Scale, boxX, boxY, boxWidth, boxHeight);
+            return new TrailLayers(trail, plan, boxX, boxY, boxWidth, boxHeight);
         }
 
         /// <summary>
@@ -485,7 +504,8 @@ internal sealed partial class ScenePainter
             else if (!TryFillWithGradient(path, trail, local, local.Transform)
                 && CssPaint.TryResolvePaint(trail.Fill, trail.FillOpacity * trail.Opacity, out var color))
             {
-                // A gradient fill (or a fallback to its solid fill) is not layered: it is painted chunk by chunk
+                // An opaque solid fill (no seam, so no layer) or a gradient fill (or a fallback to its solid fill) is not layered: it is painted chunk by chunk
+                // straight onto the target, below the composite of the stroke layer
                 PathFiller.Fill(local.Target, path.Transform(local.Transform), color, FillRule.NonZero, FlattenTolerance);
             }
 
@@ -502,8 +522,10 @@ internal sealed partial class ScenePainter
         /// <param name="cancellationToken">A token that stops the work.</param>
         public void Composite(Surface target, CancellationToken cancellationToken)
         {
-            CompositeLayer(target, _fill, _fillColor, cancellationToken);
-            CompositeLayer(target, _stroke, _strokeColor, cancellationToken);
+            // The layers have the width of the box, so one buffer of the coverage of a row serves both
+            var coverage = new float[(_fill ?? _stroke)!.Width];
+            CompositeLayer(target, _fill, _fillColor, coverage, cancellationToken);
+            CompositeLayer(target, _stroke, _strokeColor, coverage, cancellationToken);
         }
 
         /// <inheritdoc/>
@@ -519,15 +541,15 @@ internal sealed partial class ScenePainter
         /// <param name="target">The target surface.</param>
         /// <param name="layer">The layer, or null.</param>
         /// <param name="color">The color of the paint, with its alpha.</param>
+        /// <param name="coverage">The buffer of the coverage of a row, as wide as the layer; shared by the layers.</param>
         /// <param name="cancellationToken">A token that stops the work.</param>
-        private void CompositeLayer(Surface target, Surface? layer, Rgba32 color, CancellationToken cancellationToken)
+        private void CompositeLayer(Surface target, Surface? layer, Rgba32 color, float[] coverage, CancellationToken cancellationToken)
         {
             if (layer is null)
             {
                 return;
             }
 
-            var coverage = new float[layer.Width];
             for (var y = 0; y < layer.Height; y++)
             {
                 if (y % 64 == 0)

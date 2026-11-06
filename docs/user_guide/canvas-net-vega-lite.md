@@ -1645,9 +1645,12 @@ two valid points (a trail: no run of two points) draws nothing.
   `fillOpacity`) shows no
   dots where its capsules overlap, however many points it has, as in Vega (a very large trail is painted in several
   steps internally
-  and composited once, so the steps leave no seams; the memory for that is bounded, so a translucent trail so large that
-  its layers would need more than 32 Mi pixels (a fill and an outline over a box larger than about 4,096 by 4,096
-  pixels, or a fill or an outline alone over one larger than about 5,800 by 5,800) is painted in steps without it and
+  and composited once, so the steps leave no seams; the memory for that is bounded, and only the translucent parts
+  need it: a translucent fill gets one layer, and an outline gets one when it is translucent or when the fill is
+  translucent (an opaque fill needs none), so a translucent trail so large that
+  its layers would need more than 32 Mi pixels (two layers, a translucent fill with an outline, over a box larger than
+  about 4,096 by 4,096 pixels, or one layer, a translucent fill alone or a translucent outline over an opaque fill,
+  over a box larger than about 5,800 by 5,800) is painted in steps without it and
   may show a darker dot where two steps meet). A trail is not clipped at the edge of the data rectangle (Vega-Lite
   clips only for
   `"clip": true`); what the image cuts is the part that lies beyond the chart padding, because the image does not grow
