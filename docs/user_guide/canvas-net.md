@@ -2274,6 +2274,11 @@ public interface IImageSource
     ImageSourceResult Render(ImageSourceRequest request);
 }
 
+public interface IFragmentImageSource           // optional: the fragment parameters a source uses
+{
+    IReadOnlyList<string> FragmentParameters { get; }   // lower case: ["page"], ["page", "slide"]
+}
+
 public sealed class FolderImageResolver : IImageResolver
 {
     public FolderImageResolver(string? rootFolder, IEnumerable<IImageSource> sources,
@@ -2286,6 +2291,9 @@ public sealed class FolderImageResolver : IImageResolver
     public Surface? Resolve(string href, int pixelWidth, int pixelHeight);
     public ImageSourceResult Render(string path, int? pixelWidth = null, int? pixelHeight = null);
     public ImageSourceResult Render(Stream content, string fileName, int? pixelWidth = null, int? pixelHeight = null);
+    public ImageSourceResult Render(string path, int? pixelWidth, int? pixelHeight, IImageSourceOptions? options);
+    public ImageSourceResult Render(Stream content, string fileName, int? pixelWidth, int? pixelHeight,
+        IImageSourceOptions? options);
 }
 
 public sealed record FolderImageResolverOptions
@@ -2301,19 +2309,65 @@ public sealed record FolderImageResolverOptions
 warning and without reading anything, when it is absolute, a drive or UNC path, an alternate data stream, contains a
 control character, leaves the folder (also as `%2e%2e`), or goes through a symbolic link or junction; a `file:` URI is
 accepted only when it names a file inside the folder, and `%20` and similar encodings are decoded. A link is read as a
-URI reference (RFC 3986): **a query (`?cache=1`) and a fragment (`#view`) are not part of the file name** and are cut
-off before the decoding, so `image.png?v=2` and `part.scad#view` name `image.png` and `part.scad`, while an encoded
+URI reference (RFC 3986): **a query (`?cache=1`) is not part of the file name** and is cut off (and ignored), and **a
+fragment (`#page=2`) is not part of the file name either**: it is cut off before the decoding and parsed into
+`request.Fragment`, so `image.png?v=2` and `report.pdf#page=2` name `image.png` and `report.pdf`, while an encoded
 `%23` or `%3F` stays a literal `#` or `?` in the file name (the file `a#b.png` is linked as `a%23b.png`); a link that is
 only a query or a fragment is unresolved, and the source still receives the link as written in `request.Href`. A link
 with another
 URI scheme (`http:`, `https:`, `ftp:`, ...) is never fetched: it is an unresolved warning unless a source you supply
 claims
-the scheme (then the source gets the link exactly as written, `?` and `#` included). A link that cannot be drawn is a
+the scheme (then the source gets the link exactly as written, `?` and `#` included, and the parsed fragment in
+`request.Fragment`). A link that cannot be drawn is a
 warning (code `svg-image-unresolved`) in `Diagnostics` and draws nothing; a
 file
 that is found but is broken (a corrupt picture, a model with a syntax error) throws `ImageSourceException`, which names
 the
 link and the embedding file and keeps the original exception as its `InnerException`.
+
+#### Fragment parameters: choosing a page
+
+The fragment of a link is a list of parameters in the style of RFC 8118 (`report.pdf#page=3`), parsed by
+`ImageFragment.Parse(raw)` (raw text after the first `#`, still encoded; it never throws) into
+`ImageSourceRequest.Fragment`:
+
+```text
+fragment = [ param *( "&" param ) ]       ; "&" separates; empty segments are skipped
+param    = name [ "=" value ]             ; split at the FIRST "="; no "=" means the value ""
+name, value = *( any character except "&" )   ; percent-decoded AFTER the split; "+" is not a space
+```
+
+Names are matched ASCII case-insensitively and values are compared as written; the order is kept. `GetValue` gives the
+**last** value of any of the names it is given (or `null`), `GetPositiveInt32("page")` reads a whole number from 1
+(digits only; `003` is 3) or throws `ImageSourceRefusedException` with the code `image-fragment-invalid`. A raw fragment
+over `ImageFragment.MaxLength` (2048) characters or with more than `ImageFragment.MaxParameters` (32) parameters is not
+parsed: `Fragment.Problem` says why, and the resolver reports `image-fragment-invalid` without calling the source.
+
+A source that uses parameters implements `IFragmentImageSource` and declares their lower-case names; the built-in ones
+declare `["page"]` (`PdfImageSource`, `VsdxImageSource`), `["page", "slide"]` (`PptxImageSource`, the last of the two
+wins), and none for the others (the viewer's SCAD source adds `view`). With no parameter **page 1 is drawn**. The
+resolver reports, as `Diagnostics` of `Source` `"svg"`:
+
+- `image-fragment-unknown-parameter` (`Warning`): a parameter the source does not declare; the picture is drawn without
+  it.
+- `image-fragment-duplicate-parameter` (`Warning`): a parameter given twice with different values (the same value twice
+  is silent); the last wins.
+- `image-fragment-invalid` (`Unsupported`): a value the source cannot use, or a fragment over the limits; nothing is
+  drawn.
+- `image-page-out-of-range` (`Unsupported`): the page does not exist; nothing is drawn.
+
+The codes are constants of `FolderImageResolver` (`FragmentUnknownParameterCode`, `FragmentDuplicateParameterCode`,
+`FragmentInvalidCode`, `PageOutOfRangeCode`). **Behavior change:** a source that does not implement
+`IFragmentImageSource` declares nothing, so *any* fragment on a link to a file it draws (`logo.png#anything`) is now the
+warning `image-fragment-unknown-parameter` instead of being ignored silently; the picture is still drawn. A source that
+claims a URI scheme owns its links: without `IFragmentImageSource` it receives the fragment and no warning is made.
+
+A source declines a page by throwing `ImageSourceRefusedException(code, message)` from `Render`: the resolver adds an
+`Unsupported` note with that code, draws nothing, gives the charged budget back, and carries on; it is never wrapped in
+an
+`ImageSourceException`, and a direct `Render` lets it propagate. A direct render has no link, so its options travel in a
+caller-defined `IImageSourceOptions` (`Render(path, width, height, options)`), delivered as `request.Options`; it is
+`null` for a link, because an embedded file never inherits the options of the file that embeds it.
 
 The file name extension chooses the source (the longest claimed extension wins, ignoring case, so `.vl.json` beats
 `.json`; a file nobody claims is a warning). Nesting is limited to `MaxDepth` levels, a file that embeds itself is cut
@@ -2328,7 +2382,10 @@ not drawn it is the file that contains the link. An entry is the root-relative f
 written for a scheme link; the `Origin` is empty for a note about the top-level document, and the link stays in front of
 the `Message` as before. For `sub/b.scad` embedded by `a.svg` it is `["a.svg", "sub/b.scad"]`, and for a link inside
 `a.svg` that was not drawn it is `["a.svg"]`. Two diagnostics are equal when all their fields, `Origin` entries
-included, are equal.
+included, are equal. A note can also carry `Detail` (the finer identifier when the `Code` is generic, for example
+`scad-anchor-invalid` for a `scad-warning`), `Location` (an `ImageDiagnosticLocation` with `File`, `Line`, `Column`, and
+`Pointer`, each `null` when unknown) and `Page` (the 1-based page the note is about); a source sets them on the
+`ImageSourceDiagnostic` it returns, and the resolver forwards them unchanged.
 
 **The pixel budget.** A small placement can ask for a huge picture: a raster is decoded at its own size, so an 8192 by
 8192 PNG placed in a 1 by 1 rectangle would allocate about 256 MiB, again for every link. `MaxDecodedPixels` (default
@@ -2428,7 +2485,12 @@ The contract, in short (every member is documented in the XML documentation):
   `fitInside: true`, which suits a page of a document, the picture is fitted into the box). A raster simply returns its
   natural
   size; the renderer resamples it once.
-- **Notes.** Return notes in `ImageSourceResult.Diagnostics` (source, severity, code, message) and printed text in
+- **Fragment and options.** `request.Fragment` is the parsed fragment of the link (empty without one); declare the
+  parameters you read with `IFragmentImageSource`, read them with `GetValue`/`GetPositiveInt32`, and throw
+  `ImageSourceRefusedException` for a page you do not have. `request.Options` carries the `IImageSourceOptions` of a direct
+  `Render` and is `null` for a link.
+- **Notes.** Return notes in `ImageSourceResult.Diagnostics` (source, severity, code, message, and optionally `Detail`,
+  `Location`, `Page`) and printed text in
   `Echo`; the
   resolver forwards them with the embedding link in front. When `ThrowOnUnsupportedFeature` is set, throw instead of
   drawing

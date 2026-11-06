@@ -81,11 +81,16 @@ control character is a warning, and that a source that claims another scheme nev
 `FolderImageResolver_Resolve_EscapingReferenceWithQueryOrFragment_IsStillUnresolved`,
 `FolderImageResolver_Resolve_SchemeLinkWithQueryAndFragment_IsPassedAsIs`,
 `FolderImageResolver_Resolve_UnclaimedSchemeWithQuery_IsUnresolved`,
-`FolderImageResolver_Resolve_NestedLinkWithQueryAndFragment_ResolvesFromFolderOfEmbeddingFile`
+`FolderImageResolver_Resolve_NestedLinkWithQueryAndFragment_ResolvesFromFolderOfEmbeddingFile`,
+`FolderImageResolver_Resolve_QuestionMarkAfterHash_BelongsToFragment`,
+`FolderImageResolver_Render_PathWithHash_IsNotInterpretedAsFragment`
 
-These tests are in `FolderImageResolverHrefTests.cs`. They assert, as a theory, that `a.stub?cache=1`, `a.stub#view`,
+These tests are in `FolderImageResolverHrefTests.cs` and `FolderImageResolverFragmentTests.cs`. They assert, as a theory,
+that `a.stub?cache=1`, `a.stub#view`,
 `a.stub?x=1#frag`, `a.stub#frag?not-a-query`, `sub/b.STUB?v=2`, an encoded name with a query and a fragment, and
-`a.stub#/../../outside` all draw the named file with no note, and that the source receives the link as written in
+`a.stub#/../../outside` all draw the named file (the stub source declares no fragment parameter, so the only notes are
+`image-fragment-unknown-parameter` warnings for a fragment that has one), and that the source receives the link as
+written in
 `Href` and the name of the file that was read in `FileName`; that `a%23b.stub` (with and without a fragment) reads the
 file `a#b.stub` while the unencoded `a#b.stub` names `a` and is unresolved; that `a%3Fb.stub` is a literal question
 mark of the name and never reads `a.stub` (the file `a?b.stub` is created where the file system allows it, and on
@@ -96,7 +101,56 @@ without a source call; as a theory over 18 spellings (`..%2f` and `%2e%2e` with 
 absolute, drive, and UNC paths, an encoded NUL, an alternate data stream) that stripping opens no way out; that a
 claimed scheme link with a query and a fragment reaches its source untouched while a path whose query contains a colon
 is still a path; that an unclaimed scheme with a query is a warning; and that a link inside an embedded file is
-stripped and resolved from the folder of that file.
+stripped and resolved from the folder of that file; and that a `?` after the first `#` belongs to the fragment, while a
+path given to a direct `Render` with a `#` in it is used as given.
+
+##### CanvasNet-ImageSources-FolderImageResolver-Fragment: The Fragment Reaches The Source
+
+**Tests**: `FolderImageResolver_Resolve_FileLinkWithFragment_FragmentReachesSource`,
+`FolderImageResolver_Resolve_LinkWithoutFragment_RequestHasEmptyFragment`,
+`FolderImageResolver_Resolve_FragmentOverLimits_IsInvalidAndSourceNotCalledAndNotCounted`,
+`FolderImageResolver_Resolve_SchemeLink_ReceivesRawHrefAndFragmentWithoutWarnings`,
+`FolderImageResolver_Resolve_SchemeLinkFragmentOverLimit_IsInvalidAndSourceNotCalled`,
+`FolderImageResolver_Render_PathWithOptions_PassesOptionsToSourceOnly`,
+`FolderImageResolver_Render_StreamWithAndWithoutOptions_PassesOptionsOrNull`
+
+Asserts that the request of a file link carries the parsed fragment (raw text and parameters) while `Href` and the path
+are unchanged, that a link without a fragment has the empty one, that a fragment over 2048 characters or 32 parameters
+is one `image-fragment-invalid` note with the source not called and the file not counted as an image, that a scheme link
+gets the raw link and the parsed fragment (and no warning without the interface, warnings with it), and that the options
+of a direct render reach the source in `Options` of that request only and are `null` for a link and for the overloads
+without options.
+
+##### CanvasNet-ImageSources-FolderImageResolver-FragmentDiagnostics: Unknown And Duplicate Parameters
+
+**Tests**: `FolderImageResolver_Resolve_UnknownParameter_WarnsAndStillDraws`,
+`FolderImageResolver_Resolve_SourceWithoutInterface_EveryParameterIsUnknown`,
+`FolderImageResolver_Resolve_DuplicateParameter_WarnsOnlyWhenValuesDiffer`,
+`FolderImageResolver_Resolve_AliasParameters_AreNotDuplicates`,
+`FolderImageResolver_Resolve_UnknownRepeatedParameter_IsOnlyReportedAsUnknown`,
+`FolderImageResolver_Resolve_HostileParameterName_IsSanitizedInMessage`,
+`FolderImageResolver_Resolve_SchemeLinkWithInterface_WarnsAboutUnknownParameters`
+
+Asserts that a parameter the source does not declare is one warning and the picture is drawn, that every parameter is
+unknown for a source without the interface, that two values for one name warn once and the same value twice does not,
+that aliases are not duplicates, that a repeated unknown parameter is reported as unknown only, and that a hostile name
+with control characters and a long text is shown quoted, cleaned, and cut.
+
+##### CanvasNet-ImageSources-FolderImageResolver-PageRefusal: A Source Declines A Page
+
+**Tests**: `FolderImageResolver_Resolve_SourceRefuses_UnsupportedNoteNothingDrawnBudgetRefunded`,
+`FolderImageResolver_Resolve_SourceReadsInvalidPage_IsInvalidFragmentNote`,
+`FolderImageResolver_Resolve_NestedRefusal_HasOriginOfEmbeddingFile`,
+`FolderImageResolver_Render_SourceRefuses_ExceptionPropagatesUnwrapped`,
+`FolderImageResolver_Render_SourceRefusesAfterCharging_BudgetIsRefunded`,
+`FolderImageResolver_Resolve_SourceNoteWithDetail_KeepsDetailLocationAndPage`
+
+Asserts that an `ImageSourceRefusedException` is one unsupported note with the code of the exception, nothing drawn, the
+charged pixels given back, and the render carried on; that a source that reads an unusable page value yields
+`image-fragment-invalid`; that the note of a nested refusal has the embedding file as origin; that a direct render lets
+the
+exception propagate unwrapped and refunds the budget; and that the `Detail`, `Location`, and `Page` of a note a source
+returns are forwarded unchanged.
 
 ##### CanvasNet-ImageSources-FolderImageResolver-Dispatch: Extension Dispatch
 

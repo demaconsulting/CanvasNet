@@ -917,6 +917,11 @@ reviews:
       - "src/DemaConsulting.CanvasNet/ImageSources/ImageSourceResult.cs"       # unit source (result)
       - "src/DemaConsulting.CanvasNet/ImageSources/ImageSourceDiagnostic.cs"   # unit source (note)
       - "src/DemaConsulting.CanvasNet/ImageSources/ImageDiagnosticSeverity.cs"  # unit source (severity)
+      - "src/DemaConsulting.CanvasNet/ImageSources/ImageDiagnosticLocation.cs"  # unit source (note position)
+      - "src/DemaConsulting.CanvasNet/ImageSources/ImageFragment.cs"           # unit source (fragment of a link)
+      - "src/DemaConsulting.CanvasNet/ImageSources/IFragmentImageSource.cs"    # unit source (fragment parameters)
+      - "src/DemaConsulting.CanvasNet/ImageSources/IImageSourceOptions.cs"     # unit source (direct render options)
+      - "src/DemaConsulting.CanvasNet/ImageSources/ImageSourceRefusedException.cs"  # unit source (refusal)
       - "src/DemaConsulting.CanvasNet/ImageSources/IImageResolver.cs"          # unit source (resolver contract)
       - "src/DemaConsulting.CanvasNet/ImageSources/EmbeddedImage.cs"           # unit source (embedded image)
       - "src/DemaConsulting.CanvasNet/ImageSources/ImageSourceException.cs"    # unit source (failure)
@@ -924,6 +929,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet/ImageSources/ImageSourceSet.cs"          # unit source (set of sources)
       - "test/DemaConsulting.CanvasNet.Tests/ImageSources/ImageSourceSetTests.cs"       # unit tests (set)
       - "test/DemaConsulting.CanvasNet.Tests/ImageSources/ImageSourceContractTests.cs"  # unit tests (request, result)
+      - "test/DemaConsulting.CanvasNet.Tests/ImageSources/ImageFragmentTests.cs"        # unit tests (fragment)
       - "test/DemaConsulting.CanvasNet.Tests/ImageSources/ImageSourceTestSupport.cs"    # shared test support
 
   # CanvasNet-ImageSources-FolderImageResolver Review (one per unit)
@@ -943,6 +949,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Tests/ImageSources/FolderImageResolverTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Tests/ImageSources/FolderImageResolverHrefTests.cs"    # unit tests (links)
       - "test/DemaConsulting.CanvasNet.Tests/ImageSources/FolderImageResolverBudgetTests.cs"  # unit tests (budget)
+      - "test/DemaConsulting.CanvasNet.Tests/ImageSources/FolderImageResolverFragmentTests.cs"  # unit tests (fragment)
       - "test/DemaConsulting.CanvasNet.Tests/ImageSources/PngHeaderFixtures.cs"  # test support (header-only PNG)
       - "test/DemaConsulting.CanvasNet.Tests/ImageSources/ImageSourceTestSupport.cs"    # shared test support
 
@@ -1271,6 +1278,7 @@ reviews:
       - "docs/sysml2/model/canvas-net-pptx/pptx-document.sysml"       # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.Pptx/PptxDocument.cs"  # phase 1a unit source (public API)
       - "src/DemaConsulting.CanvasNet.Pptx/PptxImageSource.cs"  # unit source (image source)
+      - "test/DemaConsulting.CanvasNet.Viewer.Tests/PackageImageSourceFragmentTests.cs"  # image source slide tests
       - "src/DemaConsulting.CanvasNet.Pptx/PptxDocument.Package.cs"  # phase 1a unit source (package layer)
       - "src/DemaConsulting.CanvasNet.Pptx/NamespaceDoc.cs"  # Pptx namespace documentation
       - "src/DemaConsulting.CanvasNet.Pptx/PptxDocument.Presentation.cs"  # phase 1b unit source (presentation)
@@ -1505,6 +1513,7 @@ reviews:
       - "src/DemaConsulting.CanvasNet.Vsdx/**/*.cs"                    # unit source
       - "src/DemaConsulting.CanvasNet.Vsdx/DemaConsulting.CanvasNet.Vsdx.csproj"  # project file
       - "test/DemaConsulting.CanvasNet.Vsdx.Tests/**/*.cs"             # unit/integration tests
+      - "test/DemaConsulting.CanvasNet.Viewer.Tests/PackageImageSourceFragmentTests.cs"  # image source page tests
       - "test/DemaConsulting.CanvasNet.Vsdx.Tests/VsdxFixtures/**"      # fixture corpus (promoted)
 
   # CanvasNetViewer-Architecture Review (one per system)
@@ -1569,10 +1578,13 @@ reviews:
       - "docs/sysml2/model/canvas-net-viewer.sysml"                   # system SysML2 model
       - "docs/sysml2/model/canvas-net-viewer/canvas-net-viewer.sysml"  # unit SysML2 model
       - "src/DemaConsulting.CanvasNet.Viewer/CanvasNetViewer.cs"      # unit source
+      - "src/DemaConsulting.CanvasNet.Viewer/LoaderImageSource.cs"    # unit source (adapter over the SourceLoader)
       - "src/DemaConsulting.CanvasNet.Viewer/ViewerImage.cs"          # unit source (result type)
       - "src/DemaConsulting.CanvasNet.Viewer/ViewerRenderOptions.cs"  # unit source (options type)
       - "src/DemaConsulting.CanvasNet.Viewer/NamespaceDoc.cs"         # namespace documentation
       - "test/DemaConsulting.CanvasNet.Viewer.Tests/CanvasNetViewerTests.cs"  # unit tests
+      - "test/DemaConsulting.CanvasNet.Viewer.Tests/CanvasNetViewerFragmentTests.cs"  # unit tests (fragments)
+      - "test/DemaConsulting.CanvasNet.Viewer.Tests/CanvasNetViewerRenderOptionsTests.cs"  # unit tests (render options)
       - "test/DemaConsulting.CanvasNet.Viewer.Tests/ViewerFixtures.cs"  # unit test fixtures
 
   # CanvasNetViewer-ViewerException Review (one per direct unit)

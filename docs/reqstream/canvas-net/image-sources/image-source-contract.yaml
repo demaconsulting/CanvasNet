@@ -107,3 +107,59 @@ sections:
                   which files are involved.
                 tests:
                   - ImageSourceException_Constructor_KeepsHrefEmbedderAndInner
+
+              - id: CanvasNet-ImageSources-ImageSourceContract-ImageFragment
+                title: >-
+                  The ImageFragment class shall parse the raw text after the first number sign of a link without ever
+                  throwing: split it into parameters at the ampersand (skipping empty segments), split each parameter
+                  at its first equals sign (no equals sign gives an empty value), decode percent-encoding after the
+                  split and never read a plus sign as a space, keep the order and the raw text, match names ignoring
+                  ASCII case, return the last value of a name or of any of several names, read a whole number from one
+                  (digits only, leading zeros allowed) and refuse any other value with an
+                  ImageSourceRefusedException that carries the code image-fragment-invalid and a short message safe to
+                  show, and, for a fragment of more than 2048 characters or more than 32 parameters, keep no
+                  parameter and say why in Problem. An IFragmentImageSource shall declare the lower-case parameter
+                  names a source uses.
+                justification: |
+                  A link is untrusted text; one grammar with hard limits, applied the same way by every source, keeps
+                  a page choice predictable and a hostile fragment cheap.
+                tests:
+                  - ImageFragment_Parse_NullOrEmpty_IsEmpty
+                  - ImageFragment_Parse_TwoParameters_KeepsOrderAndRaw
+                  - ImageFragment_Parse_SingleParameter_SplitsBeforeDecoding
+                  - ImageFragment_Parse_EmptySegments_AreSkipped
+                  - ImageFragment_Parse_HashAndQuestionMark_StayInTheText
+                  - ImageFragment_GetValue_CaseInsensitiveLastWins_AcrossAliases
+                  - ImageFragment_GetValue_NullNames_ThrowsArgumentNullException
+                  - ImageFragment_GetPositiveInt32_ValidValues_ReturnsNumber
+                  - ImageFragment_GetPositiveInt32_UnusableValue_ThrowsRefusedWithInvalidCode
+                  - ImageFragment_GetPositiveInt32_HostileValue_IsQuotedSafelyInMessage
+                  - ImageFragment_Parse_TooLong_HasProblemAndNoParameters
+                  - ImageFragment_Parse_AtTheLimits_IsParsed
+                  - ImageFragment_Parse_TooManyParameters_HasProblemAndNoParameters
+                  - ImageFragment_Parameters_AreReadOnly
+                  - ImageSourceRequest_Fragment_DefaultsToEmptyAndNoOptions
+
+              - id: CanvasNet-ImageSources-ImageSourceContract-Refusal
+                title: >-
+                  The ImageSourceRefusedException class shall carry a non-empty code and a message and reject a
+                  missing code or message, so that a source can decline the picture a link asks for (a page that does
+                  not exist, a value it cannot use) without being treated as a broken file.
+                justification: |
+                  A source must return a picture; a defined refusal lets it say "not this one" in a way the resolver
+                  reports as a note instead of an error.
+                tests:
+                  - ImageSourceRefusedException_Constructor_KeepsCodeAndMessageAndValidates
+
+              - id: CanvasNet-ImageSources-ImageSourceContract-DiagnosticDetail
+                title: >-
+                  The ImageSourceDiagnostic record shall carry, besides source, severity, code, message and origin,
+                  an optional Detail (the finer identifier when the code is generic), an optional Location (file,
+                  line, column and JSON pointer, each optional, as the ImageDiagnosticLocation record) and an optional
+                  1-based Page, and shall treat two notes as equal only when all of them are equal.
+                justification: |
+                  A generic code with a position in a file is enough to point at the line to fix; tools should not
+                  parse message text to find it.
+                tests:
+                  - ImageSourceDiagnostic_Equals_ComparesDetailLocationAndPage
+                  - ImageDiagnosticLocation_Equality_IsByValue

@@ -1016,17 +1016,21 @@ sections:
           - id: CanvasNetVsdx-VsdxDocument-ImageSource
             title: >-
               The Vsdx package shall provide an image source for .vsdx files (claiming that extension and no URI
-              scheme) that opens the drawing from the bytes of the request and draws its first page over a
-              transparent background at its natural size (the page size at 96 dots per inch), or fitted inside the
+              scheme) that opens the drawing from the bytes of the request and draws a page over a
+              transparent background (page 1, or the page the fragment of the link names with page=N, counted from
+              1; the source declares the parameter page through IFragmentImageSource) at its natural size (the page
+              size at 96 dots per inch), or fitted inside the
               requested box keeping the aspect ratio, refuses with ImageSourceBudgetException, before drawing
-              anything, a size that exceeds the pixels the request allows, returns each feature the library does
+              anything, a size that exceeds the pixels the request allows, refuses with ImageSourceRefusedException
+              a page that does not exist (code image-page-out-of-range) and a value that is not a whole number from 1
+              (code image-fragment-invalid), returns each feature the library does
               not draw as an unsupported note of the source vsdx (and fails with VsdxUnsupportedFeatureException
               when the request
               is strict), and fails with InvalidDataException for content that is not a readable drawing,
               InvalidOperationException for a request without a file, and OperationCanceledException for a canceled
               request.
             justification: |
-              The first page stands for a drawing linked from a diagram; fitting without distortion keeps the page
+              A diagram links a drawing to show one of its pages; fitting without distortion keeps the page
               recognizable at any placement size.
             tests:
               - VsdxImageSource_Render_NoRequestedSize_DrawsNaturalSizeOnTransparentBackground
@@ -1035,3 +1039,6 @@ sections:
               - VsdxImageSource_Render_UnsupportedFeature_ReturnsDiagnosticOrThrowsWhenStrict
               - VsdxImageSource_Render_InvalidInput_Throws
               - VsdxImageSource_Properties_NameExtensionAndNoSchemes
+              - VsdxImageSource_Render_PageFragment_DrawsTheChosenPage
+              - VsdxImageSource_Render_PageBeyondTheLastOrInvalid_IsRefused
+              - PackageImageSources_FragmentParameters_AreDeclared

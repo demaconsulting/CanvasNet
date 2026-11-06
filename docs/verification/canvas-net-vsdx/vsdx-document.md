@@ -69,7 +69,9 @@ is wrong.
 `VsdxImageSource_Render_RequestedBox_FitsPageInsideBox`,
 `VsdxImageSource_Render_SizeBeyondRemainingPixels_IsRefusedBeforeDrawing`,
 `VsdxImageSource_Render_UnsupportedFeature_ReturnsDiagnosticOrThrowsWhenStrict`,
-`VsdxImageSource_Render_InvalidInput_Throws`, `VsdxImageSource_Properties_NameExtensionAndNoSchemes`
+`VsdxImageSource_Render_InvalidInput_Throws`, `VsdxImageSource_Properties_NameExtensionAndNoSchemes`,
+`VsdxImageSource_Render_PageFragment_DrawsTheChosenPage`, `VsdxImageSource_Render_PageBeyondTheLastOrInvalid_IsRefused`,
+`PackageImageSources_FragmentParameters_AreDeclared`
 
 `VsdxImageSourceTests.cs` calls `VsdxImageSource.Render` with requests built by hand over synthetic packages from
 `VsdxTestPackages` (a filled rectangle; a shape with a geometry row type the library does not know). Asserts the natural
@@ -84,7 +86,10 @@ aspect ratio of the page, that a 4000 by 4000 box against a budget of 1000 pixel
 without a file
 `InvalidOperationException`, a null request `ArgumentNullException`, a canceled request `OperationCanceledException`,
 and the name,
-extension, and absence of schemes.
+extension, and absence of schemes. The page-selection tests (`PackageImageSourceFragmentTests.cs`) assert that `page=2`
+draws page 2 of the two-page drawing of the shared fixtures at the size of that page, that a page beyond the last is
+refused with `ImageSourceRefusedException` (code `image-page-out-of-range`), that an unusable value is refused with
+`image-fragment-invalid`, and that the source declares `page`.
 
 #### CanvasNetVsdx-VsdxDocument-OpenStream: Open(Stream) Buffers Input and Validates Null/Oversized Arguments
 

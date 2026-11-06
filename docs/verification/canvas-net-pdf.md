@@ -404,13 +404,15 @@ device pixels, confirming tiling-pattern cell execution, `/XStep`/`/YStep` tile-
 and the nested-execution machinery shared with `/Subtype /Form` XObjects all integrate correctly
 through the system's own public entry point.
 
-### Integration: Image Source Draws The first page of a PDF file At The Size Of Its Placement
+### Integration: Image Source Draws A Page Of A PDF File At The Size Of Its Placement
 
 **Test**: `PdfImageSource_Render_RequestedSize_FitsPageInsideBoxKeepingAspectRatio`
 
 Exercises end-to-end system behavior of `PdfImageSource`, the package's source for the shared image resolver of the core
-package: it renders the first page of a PDF file from the bytes of a hand-built request with a requested size and
-asserts that the picture has the documented size. The full set of scenarios (natural size, transparency, notes, strict
+package: it renders a page of a PDF file (the first page, or the one the fragment of the link names with `page=N`) from
+the bytes of a hand-built request with a requested size and
+asserts that the picture has the documented size. The full set of scenarios (natural size, transparency, page
+selection, a page that does not exist, an invalid page value, notes, strict
 mode, the folder of the request, and invalid input) is in the unit verification design
 (`canvas-net-pdf/pdf-document.md`).
 

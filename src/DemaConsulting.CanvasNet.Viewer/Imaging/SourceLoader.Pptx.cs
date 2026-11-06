@@ -18,18 +18,29 @@ public static partial class SourceLoader
     /// <summary>
     ///     Reads the slides of a presentation without rendering them.
     /// </summary>
-    /// <param name="path">The path of the file.</param>
+    /// <param name="input">Where the bytes of the file come from.</param>
     /// <param name="bytes">The size of the file in bytes.</param>
     /// <returns>The facts about the file; every slide has the size of the presentation.</returns>
-    private static SourceInfo ProbePptx(string path, long bytes)
+    private static SourceInfo ProbePptx(SourceInput input, long bytes)
     {
-        using var document = Read(path, SourceKind.Pptx, () => PptxDocument.Open(path));
-        var size = Read(path, SourceKind.Pptx, () => document.SlideSize);
-        var count = Read(path, SourceKind.Pptx, () => document.SlideCount);
+        using var document = Read(input.Name, SourceKind.Pptx, () => OpenPptx(input));
+        var size = Read(input.Name, SourceKind.Pptx, () => document.SlideSize);
+        var count = Read(input.Name, SourceKind.Pptx, () => document.SlideCount);
         var pages = Enumerable.Range(1, count)
             .Select(number => CreatePage(number, size.WidthEmu / EmuPerPoint, size.HeightEmu / EmuPerPoint, null, null))
             .ToList();
-        return CreateDocumentInfo(path, SourceKind.Pptx, bytes, pages);
+        return CreateDocumentInfo(input.Name, SourceKind.Pptx, bytes, pages);
+    }
+
+    /// <summary>
+    ///     Opens a presentation from its source; the document holds no reference to the stream afterwards.
+    /// </summary>
+    /// <param name="input">Where the bytes of the file come from.</param>
+    /// <returns>The opened document; the caller disposes it.</returns>
+    private static PptxDocument OpenPptx(SourceInput input)
+    {
+        using var stream = input.Open();
+        return PptxDocument.Open(stream);
     }
 
     /// <summary>
@@ -48,8 +59,10 @@ public static partial class SourceLoader
         /// <param name="document">The opened document; the page source owns it.</param>
         /// <param name="info">The facts about the file.</param>
         /// <param name="options">The loading options.</param>
-        private PptxPageSource(PptxDocument document, SourceInfo info, SourceOptions options)
-            : base(info, options)
+        /// <param name="input">Where the bytes of the file come from.</param>
+        /// <param name="context">The hooks of the caller.</param>
+        private PptxPageSource(PptxDocument document, SourceInfo info, SourceOptions options, SourceInput input, LoadContext context)
+            : base(info, options, input, context)
         {
             _document = document;
         }
@@ -57,15 +70,17 @@ public static partial class SourceLoader
         /// <summary>
         ///     Opens a presentation.
         /// </summary>
+        /// <param name="input">Where the bytes of the file come from.</param>
         /// <param name="info">The facts about the file.</param>
         /// <param name="options">The loading options.</param>
+        /// <param name="context">The hooks of the caller.</param>
         /// <returns>The page source.</returns>
         /// <exception cref="ViewerException">Thrown when the file cannot be opened or the resolution is not usable.</exception>
-        public static PptxPageSource Open(SourceInfo info, SourceOptions options)
+        public static PptxPageSource Open(SourceInput input, SourceInfo info, SourceOptions options, LoadContext context)
         {
             ValidateDpi(options, false);
-            var document = Read(info.Path, SourceKind.Pptx, () => PptxDocument.Open(info.Path));
-            return new PptxPageSource(document, info, options);
+            var document = Read(info.Path, SourceKind.Pptx, () => OpenPptx(input));
+            return new PptxPageSource(document, info, options, input, context);
         }
 
         /// <inheritdoc />

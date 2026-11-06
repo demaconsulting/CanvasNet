@@ -110,8 +110,10 @@ public static partial class SourceLoader
         /// </summary>
         /// <param name="info">The facts about the file.</param>
         /// <param name="options">The loading options.</param>
-        protected DocumentPageSource(SourceInfo info, SourceOptions options)
-            : base(info, options)
+        /// <param name="input">Where the bytes of the file come from.</param>
+        /// <param name="context">The hooks of the caller.</param>
+        protected DocumentPageSource(SourceInfo info, SourceOptions options, SourceInput input, LoadContext context)
+            : base(info, options, input, context)
         {
         }
 
@@ -149,6 +151,8 @@ public static partial class SourceLoader
                 ? Surface.FitInside(naturalWidth, naturalHeight, boxWidth, boxHeight)
                 : (boxWidth, boxHeight);
 
+            // The page is charged at the size it is drawn at, before it is allocated
+            Context.ChargeSurface(width, height);
             var operations = new List<AppliedOperation>
             {
                 Operation(
@@ -163,7 +167,7 @@ public static partial class SourceLoader
             var surface = Read(Info.Path, Info.Format, () => Render(page - 1, width, height, diagnostics));
             try
             {
-                if (width != boxWidth || height != boxHeight)
+                if ((width != boxWidth || height != boxHeight) && !Context.ReturnFittedPage)
                 {
                     surface = Replace(surface, Center(surface, boxWidth, boxHeight, Background));
                     operations.Add(Operation("fit", ("width", boxWidth), ("height", boxHeight)));

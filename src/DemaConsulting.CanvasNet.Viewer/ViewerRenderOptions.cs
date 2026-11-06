@@ -32,6 +32,57 @@ public sealed record ViewerRenderOptions
     public int? Height { get; init; }
 
     /// <summary>
+    ///     Gets the 1-based page, slide or sheet of a document to draw: <c>1</c>, the first, by default. A PDF, a PPTX
+    ///     presentation (a slide) and a VSDX drawing have pages; every other file has only page 1.
+    /// </summary>
+    /// <remarks>
+    ///     A page the file does not have makes <see cref="CanvasNetViewer"/> throw a <see cref="ViewerException"/> with the
+    ///     code <c>page-out-of-range</c>; a value below 1 throws <see cref="ArgumentOutOfRangeException"/> before the file
+    ///     is read. A document embedded in the rendered file chooses its own page with the fragment of its link
+    ///     (<c>report.pdf#page=3</c>); it never inherits this value. <see cref="ViewerImage.PageCount"/> tells how many
+    ///     pages the file has.
+    /// </remarks>
+    public int Page { get; init; } = 1;
+
+    /// <summary>
+    ///     Gets the resolution, in dots per inch, a page of a document is sized at, or <see langword="null"/> for 96. It
+    ///     sets the natural size of a PDF, PPTX or VSDX page (the size <see cref="Width"/> and <see cref="Height"/> act
+    ///     on); every other kind ignores it.
+    /// </summary>
+    /// <remarks>
+    ///     It must be finite, greater than 0 and at most <see cref="Imaging.SourceLoader.MaxDpi"/> (2400), otherwise
+    ///     <see cref="CanvasNetViewer"/> throws <see cref="ArgumentOutOfRangeException"/> before the file is read; a
+    ///     Visio drawing takes a whole number only (a fractional value is a <see cref="ViewerException"/> with the code
+    ///     <c>usage-error</c>).
+    /// </remarks>
+    public double? Dpi { get; init; }
+
+    /// <summary>
+    ///     Gets the color that transparent areas are flattened over, or <see langword="null"/> for the default: no
+    ///     flattening, so a document page, a model and an SVG file come back over a <b>transparent</b> background and a
+    ///     Vega-Lite chart keeps its own. Any color other than fully transparent flattens the picture over it (a raster
+    ///     with transparency too).
+    /// </summary>
+    public DemaConsulting.CanvasNet.Canvas.Rgba32? Background { get; init; }
+
+    /// <summary>
+    ///     Gets how an OpenSCAD model is viewed and evaluated (the viewpoint, the angles, the projection, definitions of
+    ///     variables, the time and the triangle limit), or <see langword="null"/> for the library's choice. Every other
+    ///     kind ignores it.
+    /// </summary>
+    /// <remarks>
+    ///     The options are checked before the file is read: an unknown view, an elevation outside -90 to 90, a time
+    ///     outside the limit, a triangle limit below 1 or a definition the library rejects throws
+    ///     <see cref="ArgumentOutOfRangeException"/>. The anchors a model declares come back in
+    ///     <see cref="ViewerImage.Anchors"/>. A model embedded in the rendered file chooses its viewpoint with the
+    ///     fragment of its link (<c>part.scad#view=front</c>) and never inherits this value. There is no <c>Scale</c>,
+    ///     <c>Filter</c> or <c>AutoOrient</c> here: the size is <see cref="Width"/> and <see cref="Height"/> (or
+    ///     <see cref="Dpi"/> for a document), and the resampling of a raster is the concern of
+    ///     <c>ImageWriter</c> and <c>SourceLoader</c> of the <c>Imaging</c> namespace.
+    /// </remarks>
+    public Imaging.ScadViewOptions? Scad { get; init; }
+
+    /// <summary>
     ///     Gets the folder that confines the files the rendered file itself includes or embeds (a model's
     ///     <c>include</c>, a chart's data, the pictures of an SVG file), or <see langword="null"/>. For a render by path the
     ///     default is the folder of the file, and the file must be inside the folder; for a render of a stream the default

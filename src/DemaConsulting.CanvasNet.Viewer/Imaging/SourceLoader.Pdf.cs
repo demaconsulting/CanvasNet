@@ -17,14 +17,14 @@ public static partial class SourceLoader
     /// <summary>
     ///     Reads the pages of a PDF file without rendering them.
     /// </summary>
-    /// <param name="path">The path of the file.</param>
+    /// <param name="input">Where the bytes of the file come from.</param>
     /// <param name="bytes">The size of the file in bytes.</param>
     /// <returns>The facts about the file, with the size (in points, rotation applied) and rotation of every page.</returns>
-    private static SourceInfo ProbePdf(string path, long bytes)
+    private static SourceInfo ProbePdf(SourceInput input, long bytes)
     {
-        using var document = Read(path, SourceKind.Pdf, () => PdfDocument.Open(path));
+        using var document = Read(input.Name, SourceKind.Pdf, () => OpenPdf(input));
         var pages = Read(
-            path,
+            input.Name,
             SourceKind.Pdf,
             () => Enumerable.Range(0, document.PageCount)
                 .Select(i =>
@@ -33,7 +33,18 @@ public static partial class SourceLoader
                     return CreatePage(i + 1, page.Width, page.Height, null, page.Rotation);
                 })
                 .ToList());
-        return CreateDocumentInfo(path, SourceKind.Pdf, bytes, pages);
+        return CreateDocumentInfo(input.Name, SourceKind.Pdf, bytes, pages);
+    }
+
+    /// <summary>
+    ///     Opens a PDF document from its source; the document holds no reference to the stream afterwards.
+    /// </summary>
+    /// <param name="input">Where the bytes of the file come from.</param>
+    /// <returns>The opened document; the caller disposes it.</returns>
+    private static PdfDocument OpenPdf(SourceInput input)
+    {
+        using var stream = input.Open();
+        return PdfDocument.Open(stream);
     }
 
     /// <summary>
@@ -52,8 +63,10 @@ public static partial class SourceLoader
         /// <param name="document">The opened document; the page source owns it.</param>
         /// <param name="info">The facts about the file.</param>
         /// <param name="options">The loading options.</param>
-        private PdfPageSource(PdfDocument document, SourceInfo info, SourceOptions options)
-            : base(info, options)
+        /// <param name="input">Where the bytes of the file come from.</param>
+        /// <param name="context">The hooks of the caller.</param>
+        private PdfPageSource(PdfDocument document, SourceInfo info, SourceOptions options, SourceInput input, LoadContext context)
+            : base(info, options, input, context)
         {
             _document = document;
         }
@@ -61,15 +74,17 @@ public static partial class SourceLoader
         /// <summary>
         ///     Opens a PDF file.
         /// </summary>
+        /// <param name="input">Where the bytes of the file come from.</param>
         /// <param name="info">The facts about the file.</param>
         /// <param name="options">The loading options.</param>
+        /// <param name="context">The hooks of the caller.</param>
         /// <returns>The page source.</returns>
         /// <exception cref="ViewerException">Thrown when the file cannot be opened or the resolution is not usable.</exception>
-        public static PdfPageSource Open(SourceInfo info, SourceOptions options)
+        public static PdfPageSource Open(SourceInput input, SourceInfo info, SourceOptions options, LoadContext context)
         {
             ValidateDpi(options, false);
-            var document = Read(info.Path, SourceKind.Pdf, () => PdfDocument.Open(info.Path));
-            return new PdfPageSource(document, info, options);
+            var document = Read(info.Path, SourceKind.Pdf, () => OpenPdf(input));
+            return new PdfPageSource(document, info, options, input, context);
         }
 
         /// <inheritdoc />

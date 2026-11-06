@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Runtime.ExceptionServices;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.ImageSources;
 using DemaConsulting.CanvasNet.Pdf;
@@ -6,6 +7,7 @@ using DemaConsulting.CanvasNet.Pptx;
 using DemaConsulting.CanvasNet.Scad;
 using DemaConsulting.CanvasNet.Svg;
 using DemaConsulting.CanvasNet.VegaLite;
+using DemaConsulting.CanvasNet.Viewer.Imaging;
 using DemaConsulting.CanvasNet.Vsdx;
 
 namespace DemaConsulting.CanvasNet.Viewer;
@@ -21,7 +23,22 @@ namespace DemaConsulting.CanvasNet.Viewer;
 ///         and explicit: there is no discovery, no reflection and no global registry that can be changed. To support
 ///         another format, or to replace how a built-in one is drawn, implement <see cref="IImageSource"/> and pass it
 ///         as an extra source; <b>an extra source that claims the same extension or URI scheme as a built-in one wins</b>
-///         (the later source in the sequence takes precedence).
+///         (the later source in the sequence takes precedence). The built-in sources draw with the same
+///         <see cref="Imaging.SourceLoader"/> as the <c>canvasnet</c> tool, so a file embedded in an SVG document and a file
+///         passed to <see cref="Render(string, ViewerRenderOptions?)"/> are drawn by one implementation; the instances in
+///         <see cref="ImageSources"/> are internal adapters (their names, extensions and URI schemes are those of the
+///         sources of the format packages, which remain available stand-alone).
+///     </para>
+///     <para>
+///         <b>Pages and views.</b> A link inside an SVG document chooses the page of a document, or the viewpoint of a
+///         model, with the fragment of the link: <c>report.pdf#page=3</c>, <c>deck.pptx#slide=2</c> (or <c>#page=2</c>),
+///         <c>drawing.vsdx#page=2</c>, <c>part.scad#view=front</c>. Pages and slides count from 1 and are page 1 without a
+///         fragment. A parameter that the source does not use is the warning
+///         <see cref="FolderImageResolver.FragmentUnknownParameterCode"/>, a page that does not exist is the unsupported
+///         note <see cref="FolderImageResolver.PageOutOfRangeCode"/>, and an unusable value is
+///         <see cref="FolderImageResolver.FragmentInvalidCode"/>. In an XML attribute write <c>&amp;</c> as
+///         <c>&amp;amp;</c> to give more than one parameter. <see cref="ViewerRenderOptions.Page"/> is the same choice for
+///         the file passed to <c>Render</c> itself.
 ///     </para>
 ///     <para>
 ///         <b>Embedding.</b> The overload <see cref="CreateImageResolver(string, FolderImageResolverOptions?)"/> returns a
@@ -44,15 +61,24 @@ public static class CanvasNetViewer
     /// <summary>
     ///     The built-in sources, in a fixed order. Their extensions do not overlap.
     /// </summary>
+    /// <remarks>
+    ///     Each one claims what the source of the matching format package claims, and draws with
+    ///     <see cref="Imaging.SourceLoader"/> (see <see cref="LoaderImageSource"/>), so that an embedded file and a file
+    ///     rendered by the <c>canvasnet</c> tool are drawn by the same code.
+    /// </remarks>
     private static readonly ReadOnlyCollection<IImageSource> BuiltInSources = new(
     [
-        new RasterImageSource(),
-        new SvgImageSource(),
-        new PdfImageSource(),
-        new PptxImageSource(),
-        new VsdxImageSource(),
-        new ScadImageSource(),
-        new VegaLiteImageSource()
+        new LoaderImageSource(
+            new RasterImageSource(),
+            [SourceKind.Png, SourceKind.Jpeg, SourceKind.Bmp, SourceKind.Tiff, SourceKind.Gif, SourceKind.Jpeg2000],
+            [],
+            false),
+        new LoaderImageSource(new SvgImageSource(), [SourceKind.Svg], [], false),
+        new LoaderImageSource(new PdfImageSource(), [SourceKind.Pdf], ["page"], false),
+        new LoaderImageSource(new PptxImageSource(), [SourceKind.Pptx], ["page", "slide"], false),
+        new LoaderImageSource(new VsdxImageSource(), [SourceKind.Vsdx], ["page"], false),
+        new LoaderImageSource(new ScadImageSource(), [SourceKind.Scad], [], true),
+        new LoaderImageSource(new VegaLiteImageSource(), [SourceKind.VegaLite], [], false)
     ]);
 
     /// <summary>
@@ -143,13 +169,23 @@ public static class CanvasNetViewer
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="path"/> is null.</exception>
     /// <exception cref="ArgumentOutOfRangeException">
     ///     Thrown, before the file is read, when <see cref="ViewerRenderOptions.Width"/> or
-    ///     <see cref="ViewerRenderOptions.Height"/> is given and is not from 1 to <see cref="Surface.MaxDimension"/>.
+    ///     <see cref="ViewerRenderOptions.Height"/> is given and is not from 1 to <see cref="Surface.MaxDimension"/>, when
+    ///     <see cref="ViewerRenderOptions.Page"/> is less than 1, when <see cref="ViewerRenderOptions.Dpi"/> is not a
+    ///     finite number greater than 0 and at most <see cref="SourceLoader.MaxDpi"/>, or when
+    ///     <see cref="ViewerRenderOptions.Scad"/> is not usable (an unknown view, an elevation outside -90 to 90, a time
+    ///     outside the limit, a triangle limit below 1, a definition the library rejects).
     /// </exception>
     /// <exception cref="ArgumentException">Thrown when the file is not inside <see cref="ViewerRenderOptions.Folder"/>.</exception>
     /// <exception cref="FileNotFoundException">Thrown when the file does not exist.</exception>
     /// <exception cref="NotSupportedException">Thrown when no source claims the extension; the message lists the extensions.</exception>
     /// <exception cref="DemaConsulting.CanvasNet.Files.SandboxException">
     ///     Thrown when the sandbox refuses the file: it is, or is reached through, a symbolic link, or is larger than 16 MiB.
+    /// </exception>
+    /// <exception cref="ViewerException">
+    ///     Thrown, with the code <c>page-out-of-range</c>, when <see cref="ViewerRenderOptions.Page"/> is not a page of the
+    ///     file (a single-image file has only page 1); and with the code of the failure (<c>size-limit</c>,
+    ///     <c>usage-error</c>, <c>scad-error</c> for a model whose include is missing) for a mistake or limit of the
+    ///     built-in sources that has no library exception behind it.
     /// </exception>
     /// <exception cref="ImageSourceException">Thrown when the file is found but cannot be drawn (the original failure is the inner exception).</exception>
     /// <exception cref="ImageSourceBudgetException">
@@ -161,7 +197,7 @@ public static class CanvasNetViewer
     {
         ArgumentNullException.ThrowIfNull(path);
         var settings = options ?? new ViewerRenderOptions();
-        ValidateSize(settings);
+        ValidateOptions(settings);
 
         // The file is addressed relative to the sandbox folder, so it goes through the same checks as an embedded link
         var fullPath = Path.GetFullPath(path);
@@ -178,8 +214,9 @@ public static class CanvasNetViewer
         }
 
         var resolver = CreateResolver(folder, settings);
-        var result = resolver.Render(relative, settings.Width, settings.Height);
-        return CreateImage(resolver, result, settings);
+        var direct = CreateDirectOptions(settings);
+        var result = RenderDirect(() => resolver.Render(relative, settings.Width, settings.Height, direct));
+        return CreateImage(resolver, result, settings, direct);
     }
 
     /// <summary>
@@ -191,14 +228,16 @@ public static class CanvasNetViewer
     ///     What to render and how, or <see langword="null"/> for the natural size. <see cref="ViewerRenderOptions.Folder"/>
     ///     (optional) is the sandbox for the files the document itself includes or embeds; without it none are resolved.
     /// </param>
-    /// <returns>The picture with its notes, text, format and embedded images; the caller disposes it.</returns>
+    /// <returns>The picture with its notes, text, format, page and embedded images; the caller disposes it.</returns>
     /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
     /// <exception cref="ArgumentOutOfRangeException">
-    ///     Thrown, before the stream is read, when <see cref="ViewerRenderOptions.Width"/> or
-    ///     <see cref="ViewerRenderOptions.Height"/> is given and is not from 1 to <see cref="Surface.MaxDimension"/>.
+    ///     Thrown, before the stream is read, for the options that <see cref="Render(string, ViewerRenderOptions?)"/>
+    ///     refuses: a width or height outside 1 to <see cref="Surface.MaxDimension"/>, a page below 1, a resolution that
+    ///     is not usable, or model options that are not usable.
     /// </exception>
     /// <exception cref="NotSupportedException">Thrown when no source claims the extension of <paramref name="fileName"/>.</exception>
     /// <exception cref="InvalidDataException">Thrown when the stream is longer than 16 MiB.</exception>
+    /// <exception cref="ViewerException">See <see cref="Render(string, ViewerRenderOptions?)"/>.</exception>
     /// <exception cref="ImageSourceException">Thrown when the content cannot be drawn (the original failure is the inner exception).</exception>
     /// <exception cref="ImageSourceBudgetException">
     ///     Thrown when the picture, or the final picture of a render that is resized to the requested size, does not fit in
@@ -210,11 +249,57 @@ public static class CanvasNetViewer
         ArgumentNullException.ThrowIfNull(content);
         ArgumentNullException.ThrowIfNull(fileName);
         var settings = options ?? new ViewerRenderOptions();
-        ValidateSize(settings);
+        ValidateOptions(settings);
 
         var resolver = CreateResolver(settings.Folder, settings);
-        var result = resolver.Render(content, fileName, settings.Width, settings.Height);
-        return CreateImage(resolver, result, settings);
+        var direct = CreateDirectOptions(settings);
+        var result = RenderDirect(() => resolver.Render(content, fileName, settings.Width, settings.Height, direct));
+        return CreateImage(resolver, result, settings, direct);
+    }
+
+    /// <summary>
+    ///     Creates the options of the built-in sources for a direct render.
+    /// </summary>
+    /// <param name="settings">The render options.</param>
+    /// <returns>The options; the source fills in the page that was drawn and the page count.</returns>
+    private static DirectRenderOptions CreateDirectOptions(ViewerRenderOptions settings)
+    {
+        return new DirectRenderOptions
+        {
+            Page = settings.Page,
+            Dpi = settings.Dpi,
+            Background = settings.Background,
+            Scad = settings.Scad
+        };
+    }
+
+    /// <summary>
+    ///     Runs the direct render of a resolver and gives its failures the shape <c>Render</c> documents.
+    /// </summary>
+    /// <param name="render">The render.</param>
+    /// <returns>What the source returned.</returns>
+    /// <exception cref="ViewerException">
+    ///     Thrown for a page that does not exist (<c>page-out-of-range</c>) and for a failure of the built-in sources that
+    ///     the loader reports as a <see cref="ViewerException"/> without a library exception behind it.
+    /// </exception>
+    private static ImageSourceResult RenderDirect(Func<ImageSourceResult> render)
+    {
+        try
+        {
+            return render();
+        }
+        catch (ImageSourceRefusedException ex)
+        {
+            // Only a page that does not exist can be refused here (the options have no fragment)
+            var code = ex.Code == FolderImageResolver.PageOutOfRangeCode ? ErrorCodes.PageOutOfRange : ErrorCodes.UsageError;
+            throw new ViewerException(code, ex.Message, "Pages are numbered from 1.", ex);
+        }
+        catch (ImageSourceException ex) when (ex.InnerException is ViewerException loaderFailure)
+        {
+            // A mistake of the caller or a limit is not a failure of the file: it keeps its own code
+            ExceptionDispatchInfo.Capture(loaderFailure).Throw();
+            throw;
+        }
     }
 
     /// <summary>
@@ -246,8 +331,13 @@ public static class CanvasNetViewer
     /// <param name="resolver">The resolver of the render.</param>
     /// <param name="result">What the source of the file returned.</param>
     /// <param name="settings">The render options.</param>
+    /// <param name="direct">The options of the render, in which a built-in source reported the page and the anchors.</param>
     /// <returns>The viewer image; it owns the surface.</returns>
-    private static ViewerImage CreateImage(FolderImageResolver resolver, ImageSourceResult result, ViewerRenderOptions settings)
+    private static ViewerImage CreateImage(
+        FolderImageResolver resolver,
+        ImageSourceResult result,
+        ViewerRenderOptions settings,
+        DirectRenderOptions direct)
     {
         // A source may return another size than the one asked for (a raster is always natural); the caller gets the size it
         // asked for: the box when both dimensions are given (the picture fitted inside it), or the aspect-preserving size.
@@ -291,7 +381,34 @@ public static class CanvasNetViewer
             result.Format ?? "unknown",
             [.. result.Diagnostics, .. resolver.Diagnostics],
             [.. result.Echo, .. resolver.Echo],
-            resolver.Embedded);
+            resolver.Embedded,
+            direct.DrawnPage,
+            direct.PageCount,
+            direct.Anchors);
+    }
+
+    /// <summary>
+    ///     Checks that the options are usable, before anything is read.
+    /// </summary>
+    /// <param name="options">The render options.</param>
+    /// <exception cref="ArgumentOutOfRangeException">
+    ///     Thrown when the width or the height is given and is not from 1 to <see cref="Surface.MaxDimension"/>, when the
+    ///     page is less than 1, or when the resolution or the model options are not usable (the same rules as
+    ///     <see cref="SourceLoader.Load(string, SourceOptions)"/> applies).
+    /// </exception>
+    private static void ValidateOptions(ViewerRenderOptions options)
+    {
+        ValidateSize(options);
+        if (options.Page < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(options), options.Page, "ViewerRenderOptions.Page must be at least 1.");
+        }
+
+        // The loader owns the ranges of the resolution and of the model options, so every route gives the same answer
+        if (SourceLoader.FindOptionProblem(new SourceOptions { Dpi = options.Dpi, Scad = options.Scad }) is { } problem)
+        {
+            throw new ArgumentOutOfRangeException(nameof(options), options, problem.Message);
+        }
     }
 
     /// <summary>

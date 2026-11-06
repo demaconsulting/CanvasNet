@@ -76,7 +76,12 @@ public interface IImageSource
     ///     when <see cref="ImageSourceRequest.ThrowOnUnsupportedFeature"/> is set). <see cref="FolderImageResolver"/>
     ///     wraps the exception in an <see cref="ImageSourceException"/> that names the link and the embedding file, except
     ///     for <see cref="OperationCanceledException"/>, which passes through. A link that merely cannot be found is not
-    ///     the source's business: the resolver reports it before the source is called.
+    ///     the source's business: the resolver reports it before the source is called. A source that declines the picture because of the link
+    ///     itself (a page that does not exist, a fragment value it cannot use) throws
+    ///     <see cref="ImageSourceRefusedException"/>, which the resolver turns into an
+    ///     <see cref="ImageDiagnosticSeverity.Unsupported"/> note without drawing anything. A source that reads
+    ///     parameters from the fragment of a link (<c>#page=3</c>) also implements
+    ///     <see cref="IFragmentImageSource"/> to declare their names.
     /// </exception>
     ImageSourceResult Render(ImageSourceRequest request);
 }

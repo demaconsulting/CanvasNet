@@ -10,11 +10,10 @@ namespace DemaConsulting.CanvasNet.Viewer;
 /// </summary>
 /// <remarks>
 ///     Disposing the object disposes <see cref="Surface"/>. The object is not thread-safe. <see cref="Diagnostics"/> and
-///     <see cref="Echo"/> carry the notes and printed text of every file of the render, but <b>no anchors</b>: the anchors
-///     of an OpenSCAD model are reported only by <c>ImageRenderer</c> (<c>RenderedPage.Anchors</c>) and
-///     <c>SourceLoader.Load</c> (<c>LoadedSource.Anchors</c>) in the <c>DemaConsulting.CanvasNet.Viewer.Imaging</c>
-///     namespace. Use <c>using var image = CanvasNetViewer.Render(...)</c>. <see cref="Format"/>,
-///     <see cref="Diagnostics"/>, <see cref="Echo"/>, and <see cref="Embedded"/> are plain data; only
+///     <see cref="Echo"/> carry the notes and printed text of every file of the render; <see cref="Anchors"/> carries the
+///     anchors of an OpenSCAD model (empty for every other file). Use <c>using var image = CanvasNetViewer.Render(...)</c>.
+///     <see cref="Format"/>, <see cref="Page"/>, <see cref="PageCount"/>, <see cref="Diagnostics"/>, <see cref="Echo"/>,
+///     <see cref="Anchors"/>, and <see cref="Embedded"/> are plain data; only
 ///     <see cref="Surface"/> is released by disposing. <c>Render</c> returns pixels and writes no file; to save them
 ///     with a quality or a format, call <see cref="Imaging.ImageWriter.Write"/> in the
 ///     <c>DemaConsulting.CanvasNet.Viewer.Imaging</c> namespace.
@@ -29,18 +28,27 @@ public sealed class ViewerImage : IDisposable
     /// <param name="diagnostics">The notes of the file and of the files it embeds; copied into a read-only list.</param>
     /// <param name="echo">The text the files printed; copied into a read-only list.</param>
     /// <param name="embedded">The images the file embedded; copied into a read-only list.</param>
+    /// <param name="page">The 1-based page that was drawn.</param>
+    /// <param name="pageCount">The number of pages the file has.</param>
+    /// <param name="anchors">The anchors a model declared; copied into a read-only list; <see langword="null"/> for none.</param>
     internal ViewerImage(
         Surface surface,
         string format,
         IReadOnlyList<ImageSourceDiagnostic> diagnostics,
         IReadOnlyList<string> echo,
-        IReadOnlyList<EmbeddedImage> embedded)
+        IReadOnlyList<EmbeddedImage> embedded,
+        int page = 1,
+        int pageCount = 1,
+        IReadOnlyList<Imaging.SourceAnchor>? anchors = null)
     {
         Surface = surface;
         Format = format;
         Diagnostics = new ReadOnlyCollection<ImageSourceDiagnostic>([.. diagnostics]);
         Echo = new ReadOnlyCollection<string>([.. echo]);
         Embedded = new ReadOnlyCollection<EmbeddedImage>([.. embedded]);
+        Page = page;
+        PageCount = pageCount;
+        Anchors = new ReadOnlyCollection<Imaging.SourceAnchor>([.. anchors ?? []]);
     }
 
     /// <summary>
@@ -72,6 +80,26 @@ public sealed class ViewerImage : IDisposable
     ///     completion order. Empty for a file that embeds nothing.
     /// </summary>
     public IReadOnlyList<EmbeddedImage> Embedded { get; }
+
+    /// <summary>
+    ///     Gets the 1-based page, slide or sheet that was drawn (<see cref="ViewerRenderOptions.Page"/>); <c>1</c> for a
+    ///     file without pages.
+    /// </summary>
+    public int Page { get; }
+
+    /// <summary>
+    ///     Gets the number of pages the file has (1 for a file without pages). It lets a caller walk the pages of a
+    ///     document: render page 1, read this, then render the others.
+    /// </summary>
+    public int PageCount { get; }
+
+    /// <summary>
+    ///     Gets the anchors an OpenSCAD model declared with <c>echo("anchor", name, [x, y, z])</c>, with their positions in
+    ///     <see cref="Surface"/> when the render had no <see cref="ViewerRenderOptions.Width"/> or
+    ///     <see cref="ViewerRenderOptions.Height"/> (a resized picture moves them); empty for every other file and for a
+    ///     model without anchors.
+    /// </summary>
+    public IReadOnlyList<Imaging.SourceAnchor> Anchors { get; }
 
     /// <summary>
     ///     Disposes <see cref="Surface"/>.

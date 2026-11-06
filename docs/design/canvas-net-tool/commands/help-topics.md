@@ -65,20 +65,30 @@ two examples; this is checked by the unit tests, not by the loader. An example `
 `fileName`, and its content is the text of the embedded file `Examples/<topic>-<fileName>`; it is a file the tool can
 read on its own, so the tests render every one with `--strict`. A `snippet` is stored the same way (`fileName` and an
 embedded file) but is text that refers to other files, such as the `embed` diagram of the `svg` topic whose `image`
-elements link a model, a chart, and an SVG file; `SourceExamples()` does not return it, so the strict-clean drift test
-skips it, and a dedicated test renders it with its sibling files (a new kind rather than an exception in the test, so
+elements link a model, a chart, and an SVG file, and the `embed-pages` diagram whose links choose pages (`#page=2`,
+`#slide=2`); `SourceExamples()` does not return a snippet, so the strict-clean drift test
+skips it, and a dedicated test renders each snippet with its sibling files (the examples of the other topics for a model,
+a chart, and an SVG file, and the documents of the shared test fixtures for a PDF, PPTX, and VSDX; a new kind rather than
+an exception in the test, so
 a snippet is visible as one in `--examples` and in the JSON). A `command` example has inline `content` that is a command
 line and starts with the tool name followed by a space (`canvasnet`). The `language` is `openscad`, `json`, `xml`, or
 `shell`.
 
 The `svg` topic has one more section, `image-links` (after `supported`), that gathers what an agent needs to link a file
 from a diagram: the item `href file types` lists the file name extensions an `image` `href` may link, then items state
-the size rule, the folder rule (a query or fragment after the file name is ignored), the warnings `svg-image-unresolved`
+the size rule, the folder rule (a query after the file name is ignored; a fragment is read as parameters), the page
+fragment (grammar, the parameter of each format, limits, the `&amp;` of an XML attribute), the unknown-parameter note, and
+the warnings `svg-image-unresolved`
 and `svg-image-too-large`, and an `example`, which points to the `embed`
 snippet, and the file types of the `href file types` item are compared by a unit test, in both directions, with
 `CanvasNetViewer.Extensions` (the extensions of the image sources the tool wires in, so a type added to the Viewer is
 caught) and with the `formats` table, so the list cannot
-drift from what the tool does. The `scad` and `vega-lite` topics, the footer of the `formats` listing, and the usage
+drift from what the tool does. The `diagnostics` section of the `svg` topic documents `image-fragment-unknown-parameter`,
+`image-fragment-duplicate-parameter`, `image-fragment-invalid`, and `image-page-out-of-range` with their severity and
+the effect of `--strict`; the identifier pattern of the drift test includes the `image-fragment-` and `image-page-`
+prefixes and a theory renders each of the four codes through the tool. The `pdf`, `pptx`, `vsdx`, and `scad` topics show
+the fragment of their format, the `json` topic describes `detail`, `location`, and `origin`, and the `limits` topic
+states the limits of a fragment. The `scad` and `vega-lite` topics, the footer of the `formats` listing, and the usage
 of `render` each point to `canvasnet help svg`.
 
 **Tokens**: text in a topic file may use `{{name}}` tokens, which the loader replaces from the live constants of the
@@ -99,6 +109,8 @@ are formatted with the invariant culture and no thousands separator.
 | `vlMaxDataFiles` | `VegaLiteLimits.Default.MaxDataFiles` |
 | `vlMaxDataBytes` | `VegaLiteLimits.Default.MaxDataBytes` |
 | `vlMaxDataRows` | `VegaLiteLimits.Default.MaxDataRows` |
+| `fragmentMaxLength` | `ImageFragment.MaxLength` |
+| `fragmentMaxParameters` | `ImageFragment.MaxParameters` |
 
 Single braces such as `{page}` are literal text. A token the table does not know is a load error.
 
@@ -183,6 +195,7 @@ identifier is produced by a tiny model or chart or exists in the libraries, and 
 - **ArgumentReader** - `MaxDpi`, for a token.
 - **ImageWriter** (Imaging) and the core `Surface` - the quality and size constants for tokens.
 - **ScadLimits** (Scad) and **VegaLiteLimits** (VegaLite) - the resource limits for tokens.
+- **ImageFragment** (core ImageSources) - the fragment limits for tokens.
 
 #### Callers
 

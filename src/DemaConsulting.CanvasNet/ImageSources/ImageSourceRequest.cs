@@ -99,6 +99,27 @@ public sealed class ImageSourceRequest
     public required string Href { get; init; }
 
     /// <summary>
+    ///     Gets the fragment of the link (the text after the first <c>#</c>), parsed: the raw text and the ordered,
+    ///     decoded parameters such as <c>page=3</c>. <see cref="ImageFragment.Empty"/> for a link without a fragment and
+    ///     for a direct render.
+    /// </summary>
+    /// <remarks>
+    ///     For a file link, <see cref="Href"/> is the link as written (query and fragment included) and the resolver has
+    ///     already cut the query and fragment off before it located the file; for a scheme-claimed link <see cref="Href"/>
+    ///     is untouched, query included, and the fragment is additionally parsed here. A source reads the parameters it
+    ///     declares through <see cref="IFragmentImageSource"/>; the resolver warns about the others. This is the typed
+    ///     accessor for a page: <c>Fragment.GetPositiveInt32("page")</c>.
+    /// </remarks>
+    public ImageFragment Fragment { get; init; } = ImageFragment.Empty;
+
+    /// <summary>
+    ///     Gets the caller-defined options of a direct render
+    ///     (<see cref="FolderImageResolver.Render(string, int?, int?, IImageSourceOptions?)"/>), or <see langword="null"/>:
+    ///     always for a link in a document, because an embedded file never inherits the options of the file that embeds it.
+    /// </summary>
+    public IImageSourceOptions? Options { get; init; }
+
+    /// <summary>
     ///     Gets the bytes of the file. Empty when <see cref="HasContent"/> is <see langword="false"/>. The bytes are shared:
     ///     a source must not modify them.
     /// </summary>

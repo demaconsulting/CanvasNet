@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using DemaConsulting.CanvasNet.Viewer;
+using DemaConsulting.CanvasNet.Viewer.Imaging;
 
 namespace DemaConsulting.CanvasNet.Tool;
 
@@ -151,6 +152,68 @@ internal static class ResultWriter
             ArgumentException => Failure(command, ErrorCodes.UsageError, ex.Message, null),
             _ => Failure(command, ErrorCodes.OperationFailed, ex.Message, null)
         };
+    }
+
+    /// <summary>
+    ///     Writes the optional members of a diagnostic object that follow its <c>source</c>, <c>severity</c>,
+    ///     <c>code</c>, and <c>message</c> members: <c>detail</c>, <c>location</c>, and <c>origin</c>.
+    /// </summary>
+    /// <param name="writer">The writer, positioned inside the diagnostic's JSON object.</param>
+    /// <param name="diagnostic">The diagnostic.</param>
+    /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null"/>.</exception>
+    /// <remarks>
+    ///     Each member is written only when the diagnostic has a value for it, so a plain note keeps the shape it always
+    ///     had. <c>detail</c> is the finer, source-specific identifier of a generic <c>code</c>; <c>location</c> is an
+    ///     object with the members the source knows (<c>file</c>, <c>line</c>, <c>column</c>, <c>pointer</c>);
+    ///     <c>origin</c> lists the embedded files, outermost first, that the diagnostic is about.
+    /// </remarks>
+    public static void WriteDiagnosticExtras(Utf8JsonWriter writer, ImageDiagnostic diagnostic)
+    {
+        ArgumentNullException.ThrowIfNull(writer);
+        ArgumentNullException.ThrowIfNull(diagnostic);
+
+        if (diagnostic.Detail is { } detail)
+        {
+            writer.WriteString("detail", detail);
+        }
+
+        if (diagnostic.Location is { } location
+            && (location.File != null || location.Line != null || location.Column != null || location.Pointer != null))
+        {
+            writer.WriteStartObject("location");
+            if (location.File != null)
+            {
+                writer.WriteString("file", location.File);
+            }
+
+            if (location.Line is { } line)
+            {
+                writer.WriteNumber("line", line);
+            }
+
+            if (location.Column is { } column)
+            {
+                writer.WriteNumber("column", column);
+            }
+
+            if (location.Pointer != null)
+            {
+                writer.WriteString("pointer", location.Pointer);
+            }
+
+            writer.WriteEndObject();
+        }
+
+        if (diagnostic.Origin.Count > 0)
+        {
+            writer.WriteStartArray("origin");
+            foreach (var entry in diagnostic.Origin)
+            {
+                writer.WriteStringValue(entry);
+            }
+
+            writer.WriteEndArray();
+        }
     }
 
     /// <summary>

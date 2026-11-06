@@ -420,7 +420,7 @@ public class SourceLoaderSvgImageTests
     [Fact]
     public void SourceLoader_Load_SvgEmbeddingOuterOptions_DoNotReachEmbeddedFiles()
     {
-        // Arrange: a raster and a model, loaded with a scale and a view name that is not a view
+        // Arrange: a raster and a model, loaded with a scale and a view of the model
         using var directory = new TempDirectory();
         WriteSolidPng(directory.Combine("p.png"), Green);
         File.Copy(FixtureFactory.FixturePath("cube.scad"), directory.Combine("part.scad"));
@@ -428,7 +428,7 @@ public class SourceLoaderSvgImageTests
             directory.Path,
             "diagram.svg",
             "<image href='p.png' x='0' y='0' width='10' height='10'/><image href='part.scad' x='10' y='0' width='10' height='10'/>");
-        var options = new SourceOptions { Scale = 3, Scad = new ScadViewOptions { View = "no-such-view" } };
+        var options = new SourceOptions { Scale = 3, Scad = new ScadViewOptions { View = "top" } };
 
         // Act
         using var loaded = SourceLoader.Load(path, options);

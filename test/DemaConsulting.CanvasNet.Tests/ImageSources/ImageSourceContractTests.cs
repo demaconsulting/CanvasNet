@@ -295,6 +295,87 @@ public class ImageSourceContractTests
     }
 
     /// <summary>
+    ///     Test that a new request has the empty fragment and no options, and that both can be set.
+    /// </summary>
+    [Fact]
+    public void ImageSourceRequest_Fragment_DefaultsToEmptyAndNoOptions()
+    {
+        // Arrange
+        var fragment = ImageFragment.Parse("page=2");
+        var options = new ContractOptions();
+
+        // Act
+        var plain = new ImageSourceRequest { Href = "a.pdf" };
+        var full = new ImageSourceRequest { Href = "a.pdf#page=2", Fragment = fragment, Options = options };
+
+        // Assert
+        Assert.Same(ImageFragment.Empty, plain.Fragment);
+        Assert.Null(plain.Options);
+        Assert.Same(fragment, full.Fragment);
+        Assert.Same(options, full.Options);
+    }
+
+    /// <summary>
+    ///     Test that the detail, location and page of a note take part in equality and hashing, and default to null.
+    /// </summary>
+    [Fact]
+    public void ImageSourceDiagnostic_Equals_ComparesDetailLocationAndPage()
+    {
+        // Arrange
+        var location = new ImageDiagnosticLocation("a.scad", 3, 4, null);
+        var plain = new ImageSourceDiagnostic("scad", ImageDiagnosticSeverity.Warning, "scad-warning", "m");
+        var full = plain with { Detail = "scad-anchor-invalid", Location = location, Page = 2 };
+        var same = plain with { Detail = "scad-anchor-invalid", Location = new ImageDiagnosticLocation("a.scad", 3, 4, null), Page = 2 };
+
+        // Act / Assert
+        Assert.Null(plain.Detail);
+        Assert.Null(plain.Location);
+        Assert.Null(plain.Page);
+        Assert.Equal(full, same);
+        Assert.Equal(full.GetHashCode(), same.GetHashCode());
+        Assert.NotEqual(plain, full);
+        Assert.NotEqual(plain, plain with { Detail = "x" });
+        Assert.NotEqual(plain, plain with { Location = location });
+        Assert.NotEqual(plain, plain with { Page = 1 });
+    }
+
+    /// <summary>
+    ///     Test that the refused exception keeps its code and message and validates its arguments.
+    /// </summary>
+    [Fact]
+    public void ImageSourceRefusedException_Constructor_KeepsCodeAndMessageAndValidates()
+    {
+        // Act
+        var exception = new ImageSourceRefusedException("image-page-out-of-range", "page 3 does not exist");
+
+        // Assert
+        Assert.Equal("image-page-out-of-range", exception.Code);
+        Assert.Equal("page 3 does not exist", exception.Message);
+        Assert.Throws<ArgumentException>(() => new ImageSourceRefusedException("", "m"));
+        Assert.Throws<ArgumentNullException>(() => new ImageSourceRefusedException(null!, "m"));
+        Assert.Throws<ArgumentNullException>(() => new ImageSourceRefusedException("c", null!));
+    }
+
+    /// <summary>
+    ///     Test the shape of the location record: value equality and null members.
+    /// </summary>
+    [Fact]
+    public void ImageDiagnosticLocation_Equality_IsByValue()
+    {
+        // Act / Assert
+        Assert.Equal(new ImageDiagnosticLocation("f", 1, 2, "/p"), new ImageDiagnosticLocation("f", 1, 2, "/p"));
+        Assert.NotEqual(new ImageDiagnosticLocation("f", 1, 2, null), new ImageDiagnosticLocation("f", 1, 3, null));
+        Assert.Null(new ImageDiagnosticLocation(null, null, null, null).Pointer);
+    }
+
+    /// <summary>
+    ///     Options of a direct render for the tests above.
+    /// </summary>
+    private sealed class ContractOptions : IImageSourceOptions
+    {
+    }
+
+    /// <summary>
     ///     A memory owner that is not backed by a plain array, to reach the copying branch of
     ///     <see cref="ImageSourceRequest.OpenContent"/>.
     /// </summary>

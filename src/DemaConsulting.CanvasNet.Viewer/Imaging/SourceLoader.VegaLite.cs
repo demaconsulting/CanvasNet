@@ -1,5 +1,6 @@
 using System.Globalization;
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.ImageSources;
 using DemaConsulting.CanvasNet.VegaLite;
 
 namespace DemaConsulting.CanvasNet.Viewer.Imaging;
@@ -40,7 +41,7 @@ public static partial class SourceLoader
     ///     Reads what a chart declares and the size it is laid out at, by parsing and measuring it; the chart is not
     ///     drawn.
     /// </summary>
-    /// <param name="path">The path of the file.</param>
+    /// <param name="input">Where the bytes of the file come from.</param>
     /// <param name="bytes">The size of the file in bytes.</param>
     /// <returns>
     ///     The facts about the file: the natural size of the chart, 4 channels, and the marks, data references,
@@ -50,9 +51,10 @@ public static partial class SourceLoader
     ///     Thrown with code <c>vega-lite-error</c> when the specification or the chart is not valid, <c>budget-exceeded</c>
     ///     when a limit is exceeded, and <c>size-limit</c> when the chart is larger than <see cref="Surface.MaxDimension"/>.
     /// </exception>
-    private static SourceInfo ProbeVegaLite(string path, long bytes)
+    private static SourceInfo ProbeVegaLite(SourceInput input, long bytes)
     {
-        var document = Read(path, SourceKind.VegaLite, () => VegaLiteDocument.Open(path));
+        var path = input.Name;
+        var document = Read(path, SourceKind.VegaLite, () => OpenVegaLite(input));
         var size = Read(path, SourceKind.VegaLite, () => MeasureChart(() => document.Measure(CreateVegaLiteOptions(new SourceOptions(), null)), path));
         var chart = new ChartFacts(
             [.. document.MarkTypes],
@@ -64,6 +66,18 @@ public static partial class SourceLoader
         {
             Chart = chart
         };
+    }
+
+    /// <summary>
+    ///     Parses a chart from its source: the name of the source is the name of the library's messages, and the folder
+    ///     of the source is where the data files of the chart are looked up (nowhere else).
+    /// </summary>
+    /// <param name="input">Where the bytes of the file come from.</param>
+    /// <returns>The parsed chart.</returns>
+    private static VegaLiteDocument OpenVegaLite(SourceInput input)
+    {
+        using var stream = input.Open();
+        return VegaLiteDocument.Open(stream, new VegaLiteOpenOptions { BaseDirectory = input.Directory, SourceName = input.Name });
     }
 
     /// <summary>
@@ -138,7 +152,12 @@ public static partial class SourceLoader
             Fonts = new VegaLiteFontOptions { UseSystemFonts = false },
             WarningHandler = notes == null
                 ? null
-                : warning => notes.Add(new ImageDiagnostic("vega-lite", "warning", VegaLiteWarningCode, OneLine(warning.ToString()))),
+                : warning => notes.Add(
+                    new ImageDiagnostic("vega-lite", "warning", VegaLiteWarningCode, OneLine(warning.ToString()))
+                    {
+                        Detail = ReadVegaLiteDetail(warning.Message),
+                        Location = ToVegaLiteLocation(warning.Location)
+                    }),
             UnsupportedFeatureHandler = notes == null
                 ? null
                 : unsupported => notes.Add(
@@ -146,9 +165,47 @@ public static partial class SourceLoader
                         "vega-lite",
                         "unsupported",
                         unsupported.Feature,
-                        OneLine(unsupported.Location.IsKnown ? $"{unsupported.Location}: {unsupported.Message}" : unsupported.Message))),
+                        OneLine(unsupported.Location.IsKnown ? $"{unsupported.Location}: {unsupported.Message}" : unsupported.Message))
+                    {
+                        Location = ToVegaLiteLocation(unsupported.Location)
+                    }),
             ThrowOnUnsupportedFeature = options.Strict
         };
+    }
+
+    /// <summary>
+    ///     Reads the stable <c>vl-*</c> identifier a warning of the Vega-Lite library starts its message with.
+    /// </summary>
+    /// <param name="message">The message of the warning.</param>
+    /// <returns>The identifier (for example <c>vl-text-missing-glyph</c>), or <see langword="null"/> when the message has none.</returns>
+    private static string? ReadVegaLiteDetail(string message)
+    {
+        var colon = message.IndexOf(':', StringComparison.Ordinal);
+        if (colon <= 3 || !message.StartsWith("vl-", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        var identifier = message[..colon];
+        return identifier.All(static c => c is (>= 'a' and <= 'z') or (>= '0' and <= '9') or '-') ? identifier : null;
+    }
+
+    /// <summary>
+    ///     Converts the position the Vega-Lite library reports to the location of a note.
+    /// </summary>
+    /// <param name="location">The position in the specification.</param>
+    /// <returns>The location, or <see langword="null"/> when the library does not know it.</returns>
+    private static ImageDiagnosticLocation? ToVegaLiteLocation(VegaLiteLocation location)
+    {
+        if (!location.IsKnown)
+        {
+            return null;
+        }
+
+        int? line = location.Line > 0 ? location.Line : null;
+        int? column = location.Column > 0 ? location.Column : null;
+        var pointer = string.IsNullOrEmpty(location.Pointer) ? null : location.Pointer;
+        return new ImageDiagnosticLocation(location.File, line, column, pointer);
     }
 
     /// <summary>
@@ -208,8 +265,10 @@ public static partial class SourceLoader
         /// <param name="document">The parsed chart.</param>
         /// <param name="info">The facts about the file.</param>
         /// <param name="options">The loading options.</param>
-        private VegaLitePageSource(VegaLiteDocument document, SourceInfo info, SourceOptions options)
-            : base(info, options)
+        /// <param name="input">Where the bytes of the file come from.</param>
+        /// <param name="context">The hooks of the caller.</param>
+        private VegaLitePageSource(VegaLiteDocument document, SourceInfo info, SourceOptions options, SourceInput input, LoadContext context)
+            : base(info, options, input, context)
         {
             _document = document;
         }
@@ -217,14 +276,16 @@ public static partial class SourceLoader
         /// <summary>
         ///     Opens a chart.
         /// </summary>
+        /// <param name="input">Where the bytes of the file come from.</param>
         /// <param name="info">The facts about the file.</param>
         /// <param name="options">The loading options.</param>
+        /// <param name="context">The hooks of the caller.</param>
         /// <returns>The page source.</returns>
         /// <exception cref="ViewerException">Thrown when the file cannot be read or is not a valid specification.</exception>
-        public static VegaLitePageSource Open(SourceInfo info, SourceOptions options)
+        public static VegaLitePageSource Open(SourceInput input, SourceInfo info, SourceOptions options, LoadContext context)
         {
-            var document = Read(info.Path, SourceKind.VegaLite, () => VegaLiteDocument.Open(info.Path));
-            return new VegaLitePageSource(document, info, options);
+            var document = Read(info.Path, SourceKind.VegaLite, () => OpenVegaLite(input));
+            return new VegaLitePageSource(document, info, options, input, context);
         }
 
         /// <inheritdoc />
@@ -234,7 +295,9 @@ public static partial class SourceLoader
             var notes = new List<ImageDiagnostic>();
             var renderOptions = CreateVegaLiteOptions(Options, notes);
 
-            var surface = RenderChart(() => _document.Render(width, height, renderOptions), Info.Path);
+            // The surface is charged before the chart is drawn, so a chart that cannot be paid for costs nothing
+            Context.ChargeSurface(width, height);
+            var surface = RenderChart(() => _document.Render(width, height, renderOptions, Context.CancellationToken), Info.Path);
             var fields = new List<(string Name, object Value)>
             {
                 ("width", width),

@@ -1,4 +1,4 @@
-// cspell:ignore scad svg href
+// cspell:ignore scad svg href hrefs
 using System.Text.Json;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
@@ -105,16 +105,16 @@ public class RenderCommandSvgEmbedTests
     }
 
     /// <summary>
-    ///     Test that a link with a query and a fragment names the file before them: the picture is drawn, without
-    ///     diagnostics, also with <c>--strict</c>, and the result lists the link as written.
+    ///     Test that a link with a query names the file before it: the picture is drawn, without diagnostics, also with
+    ///     <c>--strict</c>, and the result lists the link as written.
     /// </summary>
     [Fact]
-    public void RenderCommand_Run_SvgEmbeddingHrefWithQueryAndFragment_DrawsTheFile()
+    public void RenderCommand_Run_SvgEmbeddingHrefWithQuery_DrawsTheFile()
     {
         // Arrange
         using var directory = new TempDirectory();
         WriteGreenPng(directory.Combine("logo.png"));
-        var input = WriteDiagram(directory.Path, "<image href='logo.png?v=2#top' x='90' y='50' width='20' height='20'/>");
+        var input = WriteDiagram(directory.Path, "<image href='logo.png?v=2' x='90' y='50' width='20' height='20'/>");
         var output = directory.Combine("diagram.png");
 
         // Act
@@ -125,7 +125,138 @@ public class RenderCommandSvgEmbedTests
         using var document = JsonDocument.Parse(stdOut);
         Assert.Empty(document.RootElement.GetProperty("diagnostics").EnumerateArray());
         var embed = Assert.Single(document.RootElement.GetProperty("operations").EnumerateArray(), o => o.GetProperty("op").GetString() == "embed");
-        Assert.Equal("logo.png?v=2#top", embed.GetProperty("href").GetString());
+        Assert.Equal("logo.png?v=2", embed.GetProperty("href").GetString());
+        using var image = PngCodec.Load(output);
+        Assert.Equal(Green, image[100, 60]);
+    }
+
+    /// <summary>
+    ///     Test that a link with a fragment chooses the page of a document (<c>report.pdf#page=2</c>, <c>deck.pptx#slide=2</c>,
+    ///     <c>drawing.vsdx#page=2</c>), without diagnostics, also with <c>--strict</c>, and the result lists the links as written.
+    /// </summary>
+    [Fact]
+    public void RenderCommand_Run_SvgEmbeddingPageFragments_DrawsTheChosenPages()
+    {
+        // Arrange: the second page of a PDF, the second slide of a presentation and the second page of a drawing
+        using var directory = new TempDirectory();
+        File.WriteAllBytes(directory.Combine("report.pdf"), FixtureFactory.CreatePdf());
+        File.WriteAllBytes(directory.Combine("deck.pptx"), FixtureFactory.CreatePptx());
+        File.WriteAllBytes(directory.Combine("drawing.vsdx"), FixtureFactory.CreateVsdx());
+        var input = WriteDiagram(
+            directory.Path,
+            "<image href='report.pdf#page=2' x='0' y='0' width='40' height='40'/>"
+            + "<image href='deck.pptx#slide=2' x='40' y='0' width='40' height='40'/>"
+            + "<image href='drawing.vsdx#page=2' x='80' y='0' width='40' height='40'/>");
+        var output = directory.Combine("diagram.png");
+
+        // Act
+        var (exitCode, stdOut, stdErr) = ToolHost.Invoke("render", input, "--strict", "-o", output, "--json");
+
+        // Assert
+        Assert.True(exitCode == 0, stdErr + stdOut);
+        using var document = JsonDocument.Parse(stdOut);
+        Assert.Empty(document.RootElement.GetProperty("diagnostics").EnumerateArray());
+        var hrefs = document.RootElement.GetProperty("operations").EnumerateArray()
+            .Where(o => o.GetProperty("op").GetString() == "embed")
+            .Select(o => o.GetProperty("href").GetString())
+            .ToList();
+        Assert.Equal(["report.pdf#page=2", "deck.pptx#slide=2", "drawing.vsdx#page=2"], hrefs);
+        using var image = PngCodec.Load(output);
+        Assert.Equal(new Rgba32(0, 153, 0, 255), image[20, 20]);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), image[60, 12]);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), image[100, 30]);
+    }
+
+    /// <summary>
+    ///     Test that a page that does not exist is one unsupported note with the page-out-of-range code and the embedding
+    ///     file as origin, exit code 0 without <c>--strict</c>, and the rest of the diagram is drawn.
+    /// </summary>
+    [Fact]
+    public void RenderCommand_Run_SvgEmbeddingPageBeyondTheLast_IsUnsupportedNoteAndDrawsTheRest()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        File.WriteAllBytes(directory.Combine("report.pdf"), FixtureFactory.CreatePdf());
+        WriteGreenPng(directory.Combine("logo.png"));
+        var input = WriteDiagram(
+            directory.Path,
+            "<image href='report.pdf#page=9' x='10' y='10' width='20' height='20'/>"
+            + "<image href='logo.png' x='90' y='50' width='20' height='20'/>");
+        var output = directory.Combine("diagram.png");
+
+        // Act
+        var (exitCode, stdOut, stdErr) = ToolHost.Invoke("render", input, "-o", output, "--json");
+
+        // Assert
+        Assert.True(exitCode == 0, stdErr + stdOut);
+        using var document = JsonDocument.Parse(stdOut);
+        var diagnostic = Assert.Single(document.RootElement.GetProperty("diagnostics").EnumerateArray());
+        Assert.Equal("image-page-out-of-range", diagnostic.GetProperty("code").GetString());
+        Assert.Equal("unsupported", diagnostic.GetProperty("severity").GetString());
+        Assert.Contains("page 9 does not exist", diagnostic.GetProperty("message").GetString(), StringComparison.Ordinal);
+        using var image = PngCodec.Load(output);
+        Assert.Equal(Red, image[20, 20]);
+        Assert.Equal(Green, image[100, 60]);
+    }
+
+    /// <summary>
+    ///     Test that with <c>--strict</c> a page that does not exist, or a fragment that cannot be used, fails with
+    ///     <c>unsupported-feature</c> naming the link and the code, and writes no output.
+    /// </summary>
+    /// <param name="fragment">The fragment of the link.</param>
+    /// <param name="code">The code the hint names.</param>
+    [Theory]
+    [InlineData("page=9", "image-page-out-of-range")]
+    [InlineData("page=zero", "image-fragment-invalid")]
+    public void RenderCommand_Run_SvgEmbeddingStrictPageProblem_FailsWithUnsupportedFeature(string fragment, string code)
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        File.WriteAllBytes(directory.Combine("report.pdf"), FixtureFactory.CreatePdf());
+        var input = WriteDiagram(directory.Path, $"<image href='report.pdf#{fragment}' x='10' y='10' width='20' height='20'/>");
+        var output = directory.Combine("diagram.png");
+
+        // Act
+        var (exitCode, stdOut, _) = ToolHost.Invoke("render", input, "--strict", "-o", output, "--json");
+
+        // Assert
+        Assert.Equal(1, exitCode);
+        using var document = JsonDocument.Parse(stdOut);
+        var error = document.RootElement.GetProperty("error");
+        Assert.Equal(ErrorCodes.UnsupportedFeature, error.GetProperty("code").GetString());
+        Assert.Contains("report.pdf#" + fragment, error.GetProperty("message").GetString(), StringComparison.Ordinal);
+        Assert.Contains(code, error.GetProperty("hint").GetString(), StringComparison.Ordinal);
+        Assert.False(File.Exists(output));
+    }
+
+    /// <summary>
+    ///     Test that a fragment parameter that the source does not use, or a parameter given twice with different values,
+    ///     is a warning only: the picture is drawn, and <c>--strict</c> still succeeds.
+    /// </summary>
+    [Fact]
+    public void RenderCommand_Run_SvgEmbeddingUnknownAndDuplicateParameters_AreWarningsEvenWhenStrict()
+    {
+        // Arrange
+        using var directory = new TempDirectory();
+        WriteGreenPng(directory.Combine("logo.png"));
+        File.WriteAllBytes(directory.Combine("report.pdf"), FixtureFactory.CreatePdf());
+        var input = WriteDiagram(
+            directory.Path,
+            "<image href='logo.png#top' x='90' y='50' width='20' height='20'/>"
+            + "<image href='report.pdf#page=1&amp;page=2' x='10' y='10' width='20' height='20'/>");
+        var output = directory.Combine("diagram.png");
+
+        // Act
+        var (exitCode, stdOut, stdErr) = ToolHost.Invoke("render", input, "--strict", "-o", output, "--json");
+
+        // Assert
+        Assert.True(exitCode == 0, stdErr + stdOut);
+        using var document = JsonDocument.Parse(stdOut);
+        var codes = document.RootElement.GetProperty("diagnostics").EnumerateArray().Select(d => d.GetProperty("code").GetString()).ToList();
+        Assert.Equal(["image-fragment-unknown-parameter", "image-fragment-duplicate-parameter"], codes);
+        Assert.All(
+            document.RootElement.GetProperty("diagnostics").EnumerateArray(),
+            d => Assert.Equal("warning", d.GetProperty("severity").GetString()));
         using var image = PngCodec.Load(output);
         Assert.Equal(Green, image[100, 60]);
     }

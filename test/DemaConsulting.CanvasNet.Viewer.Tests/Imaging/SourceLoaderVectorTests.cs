@@ -442,8 +442,9 @@ public class SourceLoaderVectorTests
         using var directory = new TempDirectory();
         var path = FixtureFactory.WriteSource(directory.Path, "pdf");
 
-        // Act: 9600 dpi is 12800 pixels wide, and a width of 9000 is too large too
-        var byDpi = Assert.Throws<ViewerException>(() => SourceLoader.Load(path, new SourceOptions { Dpi = 9600 }));
+        // Act: a scale of 8000 is 1536000 pixels wide, and a width of 9000 is too large too (a resolution above the
+        // maximum of 2400 is a usage error, which is tested with the validation of the options)
+        var byDpi = Assert.Throws<ViewerException>(() => SourceLoader.Load(path, new SourceOptions { Scale = 8000 }));
         var byWidth = Assert.Throws<ViewerException>(() => SourceLoader.Load(path, new SourceOptions { Width = 9000 }));
 
         // Assert: size-limit

@@ -52,17 +52,29 @@ public static partial class SourceLoader
         ArgumentNullException.ThrowIfNull(path);
 
         var kind = Detect(path);
-        var bytes = Read(path, null, () => new FileInfo(path).Length);
+        return ProbeInput(SourceInput.FromFile(path), kind);
+    }
+
+    /// <summary>
+    ///     Reads the facts about a source of a known kind without rendering it.
+    /// </summary>
+    /// <param name="input">Where the bytes come from.</param>
+    /// <param name="kind">The kind of the source, already recognized by the caller.</param>
+    /// <returns>The facts; for a document they include every page.</returns>
+    /// <exception cref="ViewerException">Thrown for an unreadable or corrupt source (see <see cref="Read{T}"/>).</exception>
+    internal static SourceInfo ProbeInput(SourceInput input, SourceKind kind)
+    {
+        var bytes = Read(input.Name, null, () => input.Length);
         return kind switch
         {
             SourceKind.Png or SourceKind.Jpeg or SourceKind.Bmp or SourceKind.Tiff or SourceKind.Gif or SourceKind.Jpeg2000
-                => ProbeRaster(path, kind, bytes),
-            SourceKind.Svg => ProbeSvg(path, bytes),
-            SourceKind.Pdf => ProbePdf(path, bytes),
-            SourceKind.Pptx => ProbePptx(path, bytes),
-            SourceKind.Vsdx => ProbeVsdx(path, bytes),
-            SourceKind.Scad => ProbeScad(path, bytes),
-            SourceKind.VegaLite => ProbeVegaLite(path, bytes),
+                => ProbeRaster(input, kind, bytes),
+            SourceKind.Svg => ProbeSvg(input, bytes),
+            SourceKind.Pdf => ProbePdf(input, bytes),
+            SourceKind.Pptx => ProbePptx(input, bytes),
+            SourceKind.Vsdx => ProbeVsdx(input, bytes),
+            SourceKind.Scad => ProbeScad(input, bytes),
+            SourceKind.VegaLite => ProbeVegaLite(input, bytes),
             _ => throw UnhandledKind(kind)
         };
     }
@@ -80,14 +92,19 @@ public static partial class SourceLoader
     /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null"/>.</exception>
     /// <exception cref="ViewerException">
     ///     Thrown for a missing, unreadable, unsupported, or corrupt file, with code <c>page-out-of-range</c> when
-    ///     <see cref="SourceOptions.Page"/> is not a page of the source, and with code <c>size-limit</c> when the
-    ///     source or the requested size is larger than <see cref="Surface.MaxDimension"/> pixels per side.
+    ///     <see cref="SourceOptions.Page"/> is not a page of the source, with code <c>size-limit</c> when the
+    ///     source or the requested size is larger than <see cref="Surface.MaxDimension"/> pixels per side, and with
+    ///     code <c>usage-error</c>, before the file is touched, when <paramref name="options"/> is not usable (a size or
+    ///     scale out of range, a resolution above <see cref="MaxDpi"/>, an undefined filter, a model view, angle, time,
+    ///     triangle limit, or definition that is not valid).
     /// </exception>
     public static LoadedSource Load(string path, SourceOptions options)
     {
         ArgumentNullException.ThrowIfNull(path);
         ArgumentNullException.ThrowIfNull(options);
 
+        // The options are checked first, so a mistake is reported the same way whatever the file is
+        ValidateOptions(options);
         return Load(Probe(path), options);
     }
 
@@ -114,7 +131,7 @@ public static partial class SourceLoader
     /// <summary>
     ///     Opens a source so that one or more of its pages can be loaded.
     /// </summary>
-    /// <param name="info">The facts about the file, from <see cref="Probe"/>.</param>
+    /// <param name="info">The facts about the file, from <see cref="Probe(string)"/>.</param>
     /// <param name="options">The loading options; <see cref="SourceOptions.Page"/> is not used, the page is passed to <see cref="PageSource.ReadPage"/>.</param>
     /// <returns>
     ///     The page source, which the caller disposes. A document is parsed once when it is opened, so loading every
@@ -122,23 +139,40 @@ public static partial class SourceLoader
     /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when an argument is <see langword="null"/>.</exception>
     /// <exception cref="ViewerException">
-    ///     Thrown when the file cannot be opened (see <see cref="Read{T}"/>) or when <see cref="SourceOptions.Dpi"/> does
-    ///     not suit the source.
+    ///     Thrown when the file cannot be opened (see <see cref="Read{T}"/>), with code <c>usage-error</c> when
+    ///     <paramref name="options"/> is not usable (see <see cref="Load(string, SourceOptions)"/>) or
+    ///     <see cref="SourceOptions.Dpi"/> does not suit the source.
     /// </exception>
     public static PageSource OpenPages(SourceInfo info, SourceOptions options)
     {
         ArgumentNullException.ThrowIfNull(info);
         ArgumentNullException.ThrowIfNull(options);
 
+        return OpenInputPages(SourceInput.FromFile(info.Path), info, options, LoadContext.Default);
+    }
+
+    /// <summary>
+    ///     Opens a source, wherever its bytes come from, so that its pages can be loaded.
+    /// </summary>
+    /// <param name="input">Where the bytes come from.</param>
+    /// <param name="info">The facts about the source, from <see cref="ProbeInput"/>.</param>
+    /// <param name="options">The loading options.</param>
+    /// <param name="context">The hooks of the caller.</param>
+    /// <returns>The page source, which the caller disposes.</returns>
+    /// <exception cref="ViewerException">See <see cref="OpenPages(SourceInfo, SourceOptions)"/>.</exception>
+    internal static PageSource OpenInputPages(SourceInput input, SourceInfo info, SourceOptions options, LoadContext context)
+    {
+        // The options are checked before the source is opened, so a mistake costs no I/O
+        ValidateOptions(options);
         return info.Format switch
         {
             SourceKind.Png or SourceKind.Jpeg or SourceKind.Bmp or SourceKind.Tiff or SourceKind.Gif or SourceKind.Jpeg2000
-                or SourceKind.Svg => new ImagePageSource(info, options),
-            SourceKind.Pdf => PdfPageSource.Open(info, options),
-            SourceKind.Pptx => PptxPageSource.Open(info, options),
-            SourceKind.Vsdx => VsdxPageSource.Open(info, options),
-            SourceKind.Scad => ScadPageSource.Open(info, options),
-            SourceKind.VegaLite => VegaLitePageSource.Open(info, options),
+                or SourceKind.Svg => new ImagePageSource(info, options, input, context),
+            SourceKind.Pdf => PdfPageSource.Open(input, info, options, context),
+            SourceKind.Pptx => PptxPageSource.Open(input, info, options, context),
+            SourceKind.Vsdx => VsdxPageSource.Open(input, info, options, context),
+            SourceKind.Scad => ScadPageSource.Open(input, info, options, context),
+            SourceKind.VegaLite => VegaLitePageSource.Open(input, info, options, context),
             _ => throw UnhandledKind(info.Format)
         };
     }
@@ -158,10 +192,14 @@ public static partial class SourceLoader
         /// </summary>
         /// <param name="info">The facts about the file.</param>
         /// <param name="options">The loading options.</param>
-        private protected PageSource(SourceInfo info, SourceOptions options)
+        /// <param name="input">Where the bytes of the source come from.</param>
+        /// <param name="context">The hooks of the caller.</param>
+        private protected PageSource(SourceInfo info, SourceOptions options, SourceInput input, LoadContext context)
         {
             Info = info;
             Options = options;
+            Input = input;
+            Context = context;
         }
 
         /// <summary>
@@ -175,6 +213,16 @@ public static partial class SourceLoader
         protected SourceOptions Options { get; }
 
         /// <summary>
+        ///     Gets where the bytes of the source come from.
+        /// </summary>
+        private protected SourceInput Input { get; }
+
+        /// <summary>
+        ///     Gets the hooks of the caller: cancellation, the pixel budget and the resolver of nested pictures.
+        /// </summary>
+        private protected LoadContext Context { get; }
+
+        /// <summary>
         ///     Loads one page.
         /// </summary>
         /// <param name="page">The 1-based page number.</param>
@@ -183,9 +231,12 @@ public static partial class SourceLoader
         ///     Thrown with code <c>page-out-of-range</c> when <paramref name="page"/> is not a page of the source, and
         ///     for the failures described at <see cref="SourceLoader.Load(string, SourceOptions)"/>.
         /// </exception>
+        /// <exception cref="OperationCanceledException">Thrown when the caller canceled the load.</exception>
+        /// <exception cref="ImageSources.ImageSourceBudgetException">Thrown when the caller's pixel budget cannot hold the page.</exception>
         public LoadedSource ReadPage(int page)
         {
             CheckPage(Info, page);
+            Context.CancellationToken.ThrowIfCancellationRequested();
             return LoadPageCore(page);
         }
 
@@ -222,15 +273,17 @@ public static partial class SourceLoader
         /// </summary>
         /// <param name="info">The facts about the file.</param>
         /// <param name="options">The loading options.</param>
-        public ImagePageSource(SourceInfo info, SourceOptions options)
-            : base(info, options)
+        /// <param name="input">Where the bytes of the source come from.</param>
+        /// <param name="context">The hooks of the caller.</param>
+        public ImagePageSource(SourceInfo info, SourceOptions options, SourceInput input, LoadContext context)
+            : base(info, options, input, context)
         {
         }
 
         /// <inheritdoc />
         protected override LoadedSource LoadPageCore(int page)
         {
-            return Info.Format == SourceKind.Svg ? LoadSvg(Info, Options) : LoadRaster(Info, Options);
+            return Info.Format == SourceKind.Svg ? LoadSvg(Info, Options, Input, Context) : LoadRaster(Info, Options, Input, Context);
         }
     }
 

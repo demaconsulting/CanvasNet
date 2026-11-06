@@ -16,15 +16,23 @@ namespace DemaConsulting.CanvasNet.ImageSources;
 ///         that leaves the folder (<c>..</c>, also percent-encoded), a path through a symbolic link or junction, a
 ///         control character, an alternate data stream and a file larger than 16 MiB are all refused, and a refused link
 ///         is a warning with nothing drawn, never a read. A <c>file:</c> URI is accepted only when it names a file inside
-///         the folder. The link is read as a URI reference (RFC 3986): <b>a query (<c>?…</c>) and a fragment
-///         (<c>#…</c>) are not part of the file name</b> and are cut off before the percent-decoding (so
-///         <c>image.png?cache=1</c> and <c>part.scad#view</c> name <c>image.png</c> and <c>part.scad</c>, while an
-///         encoded <c>%23</c> or <c>%3F</c> stays a literal <c>#</c> or <c>?</c> in the file name); a link that is only a
-///         query or fragment is unresolved. The source still receives the link as written in
+///         the folder. The link is read as a URI reference (RFC 3986): <b>a query (<c>?…</c>) is not part of the file
+///         name</b> and is ignored for a file link (so <c>image.png?cache=1</c> names <c>image.png</c>), and <b>a
+///         fragment (<c>#…</c>) is not part of it either, but is parsed</b> (<see cref="ImageFragment"/>) and given to
+///         the source in <see cref="ImageSourceRequest.Fragment"/>, which is how <c>report.pdf#page=3</c> chooses a page;
+///         both are cut off before the percent-decoding (an encoded <c>%23</c> or <c>%3F</c> stays a literal <c>#</c> or
+///         <c>?</c> in the file name); a link that is only a query or fragment is unresolved. A parameter that the source
+///         does not declare (<see cref="IFragmentImageSource"/>) is a warning
+///         (<see cref="FragmentUnknownParameterCode"/>) and the picture is drawn without it; a parameter given twice with
+///         different values is a warning (<see cref="FragmentDuplicateParameterCode"/>) and the last one wins; a
+///         fragment the source cannot use is an <see cref="ImageDiagnosticSeverity.Unsupported"/> note with
+///         <see cref="FragmentInvalidCode"/>, and a page that does not exist one with <see cref="PageOutOfRangeCode"/>,
+///         and in both cases nothing is drawn and the render carries on. The source still receives the link as written in
 ///         <see cref="ImageSourceRequest.Href"/>. A link with a URI scheme (<c>http:</c>, <c>ftp:</c>, <c>camera:</c>, ...) is never read from the
 ///         file system; it is drawn only when an <see cref="IImageSource"/> claims the scheme (see
 ///         <see cref="IImageSource.Schemes"/>), and then it is that source that owns access and security, and it gets the
-///         link exactly as written (a <c>?</c> or <c>#</c> in it is not interpreted). No source in
+///         link exactly as written (its query is not interpreted; its fragment is parsed into the request as well, and
+///         only a fragment over the limits of <see cref="ImageFragment"/> is refused). No source in
 ///         this repository claims <c>http</c> or <c>https</c>, so by default such links are unresolved warnings.
 ///     </para>
 ///     <para>
@@ -86,6 +94,32 @@ public sealed partial class FolderImageResolver : IImageResolver
     ///     allocated for it and nothing is drawn, and the render carries on.
     /// </summary>
     public const string TooLargeCode = "svg-image-too-large";
+
+    /// <summary>
+    ///     The code of the warning <see cref="Diagnostics"/> holds for a fragment parameter that the source of the link
+    ///     does not declare (see <see cref="IFragmentImageSource"/>); the picture is drawn without it.
+    /// </summary>
+    public const string FragmentUnknownParameterCode = "image-fragment-unknown-parameter";
+
+    /// <summary>
+    ///     The code of the warning <see cref="Diagnostics"/> holds for a fragment that gives the same parameter more than
+    ///     once with different values; the last one wins and the picture is drawn.
+    /// </summary>
+    public const string FragmentDuplicateParameterCode = "image-fragment-duplicate-parameter";
+
+    /// <summary>
+    ///     The code of the <see cref="ImageDiagnosticSeverity.Unsupported"/> note <see cref="Diagnostics"/> holds for a
+    ///     link whose fragment cannot be used (it is over the limits of <see cref="ImageFragment"/>, or a source cannot
+    ///     use the value of a parameter); nothing is drawn and the render carries on.
+    /// </summary>
+    public const string FragmentInvalidCode = "image-fragment-invalid";
+
+    /// <summary>
+    ///     The code of the <see cref="ImageDiagnosticSeverity.Unsupported"/> note <see cref="Diagnostics"/> holds for a
+    ///     link that asks for a page, slide or sheet that the document does not have; nothing is drawn and the render
+    ///     carries on.
+    /// </summary>
+    public const string PageOutOfRangeCode = "image-page-out-of-range";
 
     /// <summary>
     ///     The sources, with the precedence rule applied.
@@ -292,6 +326,36 @@ public sealed partial class FolderImageResolver : IImageResolver
     /// <exception cref="OperationCanceledException">Thrown when <see cref="FolderImageResolverOptions.CancellationToken"/> is canceled.</exception>
     public ImageSourceResult Render(string path, int? pixelWidth = null, int? pixelHeight = null)
     {
+        return Render(path, pixelWidth, pixelHeight, null);
+    }
+
+    /// <summary>
+    ///     Draws a file of the folder directly, as the top-level picture, with caller-defined options for the source, and
+    ///     fails loudly when it cannot.
+    /// </summary>
+    /// <param name="path">
+    ///     The path of the file relative to the folder of the resolver, resolved by the same sandbox as a link. It is a
+    ///     plain path: a <c>file:</c> URI, percent-encoding, a query and a fragment are not interpreted (the page to draw
+    ///     is chosen with <paramref name="options"/>, not with a fragment).
+    /// </param>
+    /// <param name="pixelWidth">The requested width, or <see langword="null"/> for the natural width.</param>
+    /// <param name="pixelHeight">The requested height, or <see langword="null"/> for the natural height.</param>
+    /// <param name="options">
+    ///     The options the source understands, passed untouched in <see cref="ImageSourceRequest.Options"/>; the resolver
+    ///     never reads them. Files this file embeds never get them.
+    /// </param>
+    /// <returns>See <see cref="Render(string, int?, int?)"/>.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="path"/> is null.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when the resolver was created without a folder.</exception>
+    /// <exception cref="NotSupportedException">Thrown when no source claims the extension; the message lists the extensions.</exception>
+    /// <exception cref="SandboxException">Thrown when the sandbox refuses the path.</exception>
+    /// <exception cref="FileNotFoundException">Thrown when the file does not exist.</exception>
+    /// <exception cref="ImageSourceException">Thrown when the source fails to draw the file.</exception>
+    /// <exception cref="ImageSourceRefusedException">Thrown, as the source threw it, when the source declines the picture (for example a page that does not exist).</exception>
+    /// <exception cref="ImageSourceBudgetException">Thrown when the picture does not fit in <see cref="FolderImageResolverOptions.MaxDecodedPixels"/>.</exception>
+    /// <exception cref="OperationCanceledException">Thrown when <see cref="FolderImageResolverOptions.CancellationToken"/> is canceled.</exception>
+    public ImageSourceResult Render(string path, int? pixelWidth, int? pixelHeight, IImageSourceOptions? options)
+    {
         ArgumentNullException.ThrowIfNull(path);
         if (_rootDirectory is null)
         {
@@ -322,6 +386,7 @@ public sealed partial class FolderImageResolver : IImageResolver
             PixelHeight = height,
             Budget = _budget,
             Resolver = new Scope(this, file, [file.Key], 0, name, []),
+            Options = options,
             ThrowOnUnsupportedFeature = _options.ThrowOnUnsupportedFeature,
             CancellationToken = _options.CancellationToken
         };
@@ -350,6 +415,31 @@ public sealed partial class FolderImageResolver : IImageResolver
     /// <exception cref="OperationCanceledException">Thrown when <see cref="FolderImageResolverOptions.CancellationToken"/> is canceled.</exception>
     public ImageSourceResult Render(Stream content, string fileName, int? pixelWidth = null, int? pixelHeight = null)
     {
+        return Render(content, fileName, pixelWidth, pixelHeight, null);
+    }
+
+    /// <summary>
+    ///     Draws a file given as a stream, as the top-level picture, with caller-defined options for the source, and
+    ///     fails loudly when it cannot.
+    /// </summary>
+    /// <param name="content">The bytes of the file; read to the end, at most 16 MiB. It is not closed.</param>
+    /// <param name="fileName">The name of the file; its extension chooses the source. It need not exist.</param>
+    /// <param name="pixelWidth">The requested width, or <see langword="null"/> for the natural width.</param>
+    /// <param name="pixelHeight">The requested height, or <see langword="null"/> for the natural height.</param>
+    /// <param name="options">
+    ///     The options the source understands, passed untouched in <see cref="ImageSourceRequest.Options"/>; the resolver
+    ///     never reads them. Files this file embeds never get them.
+    /// </param>
+    /// <returns>See <see cref="Render(Stream, string, int?, int?)"/>.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when an argument other than <paramref name="options"/> is null.</exception>
+    /// <exception cref="NotSupportedException">Thrown when no source claims the extension of <paramref name="fileName"/>.</exception>
+    /// <exception cref="InvalidDataException">Thrown when the stream is longer than 16 MiB.</exception>
+    /// <exception cref="ImageSourceException">Thrown when the source fails to draw the file.</exception>
+    /// <exception cref="ImageSourceRefusedException">Thrown, as the source threw it, when the source declines the picture (for example a page that does not exist).</exception>
+    /// <exception cref="ImageSourceBudgetException">Thrown when the picture does not fit in <see cref="FolderImageResolverOptions.MaxDecodedPixels"/>.</exception>
+    /// <exception cref="OperationCanceledException">Thrown when <see cref="FolderImageResolverOptions.CancellationToken"/> is canceled.</exception>
+    public ImageSourceResult Render(Stream content, string fileName, int? pixelWidth, int? pixelHeight, IImageSourceOptions? options)
+    {
         ArgumentNullException.ThrowIfNull(content);
         ArgumentNullException.ThrowIfNull(fileName);
         _options.CancellationToken.ThrowIfCancellationRequested();
@@ -366,6 +456,7 @@ public sealed partial class FolderImageResolver : IImageResolver
             PixelHeight = height,
             Budget = _budget,
             Resolver = new Scope(this, null, [], 0, fileName, []),
+            Options = options,
             ThrowOnUnsupportedFeature = _options.ThrowOnUnsupportedFeature,
             CancellationToken = _options.CancellationToken
         };
@@ -412,6 +503,14 @@ public sealed partial class FolderImageResolver : IImageResolver
 
         // The chain holds the link itself, so a source that resolves its own link again is a cycle
         var key = "scheme:" + href;
+
+        // The source owns its link, but the fragment must still be within the limits that protect every source
+        var fragment = ImageFragment.Parse(SplitHref(href).Fragment);
+        if (fragment.Problem is not null)
+        {
+            return Refuse(scope, href, FragmentInvalidCode, fragment.Problem);
+        }
+
         if (!TryClampRequest(scope, href, pixelWidth, pixelHeight, out var width, out var height))
         {
             return null;
@@ -428,6 +527,7 @@ public sealed partial class FolderImageResolver : IImageResolver
         var request = new ImageSourceRequest
         {
             Href = href,
+            Fragment = fragment,
             PixelWidth = width,
             PixelHeight = height,
             Budget = _budget,
@@ -465,6 +565,13 @@ public sealed partial class FolderImageResolver : IImageResolver
         if (source is null)
         {
             return Unresolved(scope, href, DescribeUnknownFormat());
+        }
+
+        // The fragment is checked against the limits before any file is read or counted: a hostile link costs nothing
+        var fragment = ImageFragment.Parse(SplitHref(href).Fragment);
+        if (fragment.Problem is not null)
+        {
+            return Refuse(scope, href, FragmentInvalidCode, fragment.Problem);
         }
 
         // The depth and count limits need no file, so they are applied before the sandbox opens (reads) it: an image
@@ -514,6 +621,7 @@ public sealed partial class FolderImageResolver : IImageResolver
         var request = new ImageSourceRequest
         {
             Href = href,
+            Fragment = fragment,
             Content = file.Content,
             FileName = name,
             Directory = file.Directory,
@@ -624,7 +732,11 @@ public sealed partial class FolderImageResolver : IImageResolver
     {
         _options.CancellationToken.ThrowIfCancellationRequested();
 
-        // A refusal for the budget is a warning and nothing is drawn; the render carries on
+        // The fragment parameters the source does not use, and the ones given twice, are reported before the source runs
+        ReportFragmentParameters(scope, source, request);
+
+        // A refusal for the budget is a warning and nothing is drawn; so is a source that declines the link itself (a page
+        // that does not exist); the render carries on
         ImageSourceResult result;
         try
         {
@@ -634,6 +746,10 @@ public sealed partial class FolderImageResolver : IImageResolver
         {
             TooLarge(scope, request.Href, ex.RequestedPixels);
             return null;
+        }
+        catch (ImageSourceRefusedException ex)
+        {
+            return Refuse(scope, request.Href, ex.Code, ex.Message);
         }
 
         // The notes get the embedding link in front of the message and the chain of files in front of the origin, so
@@ -727,7 +843,7 @@ public sealed partial class FolderImageResolver : IImageResolver
             return source.Render(request)
                    ?? throw new InvalidOperationException($"The image source '{source.Name}' returned no result.");
         }
-        catch (Exception ex) when (ex is not (OperationCanceledException or ImageSourceException or ImageSourceBudgetException))
+        catch (Exception ex) when (ex is not (OperationCanceledException or ImageSourceException or ImageSourceBudgetException or ImageSourceRefusedException))
         {
             // The original exception stays the inner one, so its type is intact for callers that map it
             throw new ImageSourceException(
@@ -753,6 +869,81 @@ public sealed partial class FolderImageResolver : IImageResolver
                 Origin = scope.Origin
             });
         return null;
+    }
+
+    /// <summary>
+    ///     Reports a link that a source or the resolver declined to draw because of the link itself.
+    /// </summary>
+    /// <param name="scope">The scope that contains the link; its origin goes on the note.</param>
+    /// <param name="href">The link as written.</param>
+    /// <param name="code">The code of the note.</param>
+    /// <param name="reason">Why it was not drawn.</param>
+    /// <returns>Always <see langword="null"/>: nothing is drawn.</returns>
+    /// <remarks>
+    ///     Unlike an unresolved link this is <see cref="ImageDiagnosticSeverity.Unsupported"/>: the file was found and
+    ///     could be drawn, but not as the link asks, so a strict caller can fail on it.
+    /// </remarks>
+    private Surface? Refuse(Scope scope, string href, string code, string reason)
+    {
+        _diagnostics.Add(
+            new ImageSourceDiagnostic("svg", ImageDiagnosticSeverity.Unsupported, code, $"image {ImageFragment.QuoteLink(href)} was not drawn: {reason}")
+            {
+                Origin = scope.Origin
+            });
+        return null;
+    }
+
+    /// <summary>
+    ///     Warns about the fragment parameters of a link that its source does not use, and about a parameter that is given
+    ///     more than once with different values.
+    /// </summary>
+    /// <param name="scope">The scope that contains the link; its origin goes on the notes.</param>
+    /// <param name="source">The source that will draw the link; its <see cref="IFragmentImageSource"/> declares the names it uses.</param>
+    /// <param name="request">The request, whose <see cref="ImageSourceRequest.Fragment"/> is checked.</param>
+    /// <remarks>
+    ///     A file link is always checked (a source without <see cref="IFragmentImageSource"/> uses no parameter at all).
+    ///     A scheme-claimed link is checked only when its source declares parameters, because a scheme source owns the
+    ///     meaning of its links. Each name is reported once, in the order of first appearance; a name that is unknown is
+    ///     not also reported as a duplicate. Aliases of one source (<c>page</c> and <c>slide</c>) are different names and
+    ///     are never reported as duplicates of each other.
+    /// </remarks>
+    private void ReportFragmentParameters(Scope scope, IImageSource source, ImageSourceRequest request)
+    {
+        var parameters = request.Fragment.Parameters;
+        var declared = source as IFragmentImageSource;
+        if (parameters.Count == 0 || (declared is null && !request.HasContent))
+        {
+            return;
+        }
+
+        var names = declared?.FragmentParameters ?? [];
+        foreach (var group in parameters.GroupBy(p => p.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            if (!names.Contains(group.Key, StringComparer.OrdinalIgnoreCase))
+            {
+                _diagnostics.Add(
+                    new ImageSourceDiagnostic(
+                        "svg",
+                        ImageDiagnosticSeverity.Warning,
+                        FragmentUnknownParameterCode,
+                        $"image {ImageFragment.QuoteLink(request.Href)}: the fragment parameter {ImageFragment.Quote(group.Key)} is not used by the '{source.Name}' source and is ignored")
+                    {
+                        Origin = scope.Origin
+                    });
+            }
+            else if (group.Select(p => p.Value).Distinct(StringComparer.Ordinal).Count() > 1)
+            {
+                _diagnostics.Add(
+                    new ImageSourceDiagnostic(
+                        "svg",
+                        ImageDiagnosticSeverity.Warning,
+                        FragmentDuplicateParameterCode,
+                        $"image {ImageFragment.QuoteLink(request.Href)}: the fragment parameter {ImageFragment.Quote(group.Key)} is given more than once with different values; the last one, {ImageFragment.Quote(group.Last().Value)}, is used")
+                    {
+                        Origin = scope.Origin
+                    });
+            }
+        }
     }
 
     /// <summary>

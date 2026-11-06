@@ -64,9 +64,11 @@ load/crop/resize/save workflows.
 - 🔣 **Glyph Fallback** - A character a font lacks (`∝`, `≫`, arrows, math signs) is drawn from bundled Noto fonts,
   the same on every machine; `GlyphFallback.FindMissing` lists the rest
 - 🛡️ **Sandboxed File Resolver** - Resolve untrusted relative paths to files inside chosen directories, no escapes
-- 🖼️ **Linked Pictures** - SVG `<image href>` can embed 3D models, charts, other SVG files, document pages, and
-  pictures from the document's own folder; the `Viewer` package lists every format, and you can add your own source
-- 🔭 **Viewer** - `CanvasNetViewer.Render` draws any file CanvasNet can read, `CreateImageResolver` makes SVG
+- 🖼️ **Linked Pictures** - SVG `<image href>` can embed 3D models, charts, other SVG files, document pages
+  (`report.pdf#page=3`, `deck.pptx#slide=2`), and pictures from the document's own folder; the `Viewer` package lists
+  every format, and you can add your own source
+- 🔭 **Viewer** - `CanvasNetViewer.Render` draws any file CanvasNet can read (any page, at any resolution),
+  `CreateImageResolver` makes SVG
   documents embed all of them, and its `Imaging` operations do everything the `canvasnet` tool does (probe, render with
   a transformation pipeline, inspect, compare, and make a contact sheet) as library calls
 - 🎬 **Rendering** - Transform-aware canvas with text and shape drawing
@@ -119,7 +121,8 @@ canvasnet --help
 
 An SVG drawing can also embed files that sit beside it with `<image href="part.scad" .../>` (a 3D model, a Vega-Lite
 chart, another SVG file, a document page, or a picture), so a diagram can show a part and a chart beside boxes and
-arrows; run `canvasnet help svg` for the file types and rules.
+arrows; a fragment chooses the page of a document (`report.pdf#page=3`, `deck.pptx#slide=2`; page 1 without one);
+run `canvasnet help svg` for the file types and rules.
 
 The tool succeeds with exit code 0 and fails with exit code 1. An expected failure is reported as a one-line
 message on standard error with a stable error code (for example `Error: usage-error: Unknown command 'x'.`), and
@@ -464,6 +467,7 @@ using DemaConsulting.CanvasNet.Svg;
 using DemaConsulting.CanvasNet.Viewer;
 
 // diagrams/overview.svg links <image href="part.scad" .../> and <image href="sales.vl.json" .../> beside it
+// (and could link <image href="report.pdf#page=2" .../> to draw page 2 of a PDF document)
 var resolver = CanvasNetViewer.CreateImageResolver("diagrams");   // one per render; notes are in resolver.Diagnostics
 using var diagram = SvgCodec.Load(
     "diagrams/overview.svg", 800, 480, null, new SvgLoadOptions { ImageResolver = resolver });
@@ -472,6 +476,10 @@ PngCodec.Save(diagram, "overview.png");
 // Or draw any single file the library can read (SVG, PDF, PPTX, VSDX, OpenSCAD, Vega-Lite, or a raster)
 using var image = CanvasNetViewer.Render("diagrams/part.scad", new ViewerRenderOptions { Width = 512 });
 PngCodec.Save(image.Surface, "part.png");
+
+// ... including a chosen page of a document, in memory (image.PageCount tells how many pages there are)
+using var page2 = CanvasNetViewer.Render("reports/q3.pdf", new ViewerRenderOptions { Page = 2, Dpi = 150 });
+PngCodec.Save(page2.Surface, "q3-page2.png");
 ```
 
 See the Viewer chapter of the User Guide for adding your own image source (a new file type or a live source).

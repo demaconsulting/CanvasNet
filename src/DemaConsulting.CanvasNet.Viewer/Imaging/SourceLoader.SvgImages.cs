@@ -25,7 +25,11 @@ namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 ///         A reference that cannot be resolved (missing, outside the folder, a network URL, an unknown format, a cycle,
 ///         or over a limit) is a warning <c>svg-image-unresolved</c> and draws nothing, and so is a picture that is too
 ///         large for the pixel budget (<c>svg-image-too-large</c>); with
-///         <see cref="SourceOptions.Strict"/> either is an <c>unsupported-feature</c> error. A file that is found but is
+///         <see cref="SourceOptions.Strict"/> either is an <c>unsupported-feature</c> error, and so is a link whose
+///         fragment cannot be used (<c>image-fragment-invalid</c>) or that asks for a page the document does not have
+///         (<c>image-page-out-of-range</c>), which are not drawn either; an unknown or repeated fragment parameter
+///         (<c>image-fragment-unknown-parameter</c>, <c>image-fragment-duplicate-parameter</c>) is a warning only. A
+///         file that is found but is
 ///         broken (corrupt, a model with a syntax error, a chart with a bad specification) is an error that names both
 ///         files.
 ///     </para>
@@ -77,7 +81,22 @@ public static partial class SourceLoader
         /// <returns>The notes, in the order they were reported.</returns>
         public List<ImageDiagnostic> Notes()
         {
-            return [.. Resolver.Diagnostics.Select(d => new ImageDiagnostic(d.Source, SeverityName(d.Severity), d.Code, d.Message) { Origin = d.Origin })];
+            return [.. Resolver.Diagnostics.Select(ToImageDiagnostic)];
+        }
+
+        /// <summary>
+        ///     Converts a note of the resolver to the note shape of the loader, keeping every member.
+        /// </summary>
+        /// <param name="note">The note of the resolver.</param>
+        /// <returns>The note with the same source, severity, code, message, page, detail, location and origin.</returns>
+        internal static ImageDiagnostic ToImageDiagnostic(ImageSourceDiagnostic note)
+        {
+            return new ImageDiagnostic(note.Source, SeverityName(note.Severity), note.Code, note.Message, note.Page)
+            {
+                Detail = note.Detail,
+                Location = note.Location,
+                Origin = note.Origin
+            };
         }
 
         /// <summary>
@@ -92,14 +111,18 @@ public static partial class SourceLoader
         }
 
         /// <summary>
-        ///     Applies the <c>--strict</c> policy: a reference that was not drawn, or whose picture is too large for the
-        ///     pixel budget, is an error.
+        ///     Applies the <c>--strict</c> policy: a reference that was not drawn, whose picture is too large for the
+        ///     pixel budget, whose fragment cannot be used, or that names a page the document does not have, is an error;
+        ///     a fragment parameter that is unknown or given twice is only a warning.
         /// </summary>
         /// <exception cref="ViewerException">Thrown with code <c>unsupported-feature</c> for the first such reference.</exception>
         public void ThrowForUnresolved()
         {
             var unresolved = Resolver.Diagnostics.FirstOrDefault(
-                d => d.Code is FolderImageResolver.UnresolvedCode or FolderImageResolver.TooLargeCode);
+                d => d.Code is FolderImageResolver.UnresolvedCode
+                    or FolderImageResolver.TooLargeCode
+                    or FolderImageResolver.FragmentInvalidCode
+                    or FolderImageResolver.PageOutOfRangeCode);
             if (unresolved == null)
             {
                 return;
@@ -149,7 +172,7 @@ public static partial class SourceLoader
         /// </summary>
         /// <param name="severity">The severity.</param>
         /// <returns>The name: <c>info</c>, <c>warning</c>, or <c>unsupported</c>.</returns>
-        private static string SeverityName(ImageDiagnosticSeverity severity)
+        internal static string SeverityName(ImageDiagnosticSeverity severity)
         {
             return severity switch
             {

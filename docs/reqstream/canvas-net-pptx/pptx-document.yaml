@@ -2313,17 +2313,21 @@ sections:
           - id: CanvasNetPptx-PptxDocument-ImageSource
             title: >-
               The Pptx package shall provide an image source for .pptx files (claiming that extension and no URI
-              scheme) that opens the presentation from the bytes of the request and draws its first slide over a
-              transparent background at its natural size (the presentation size at 96 dots per inch), or fitted
+              scheme) that opens the presentation from the bytes of the request and draws a slide over a
+              transparent background (slide 1, or the slide the fragment of the link names with slide=N or page=N,
+              counted from 1, the last of the two winning; the source declares both parameters through
+              IFragmentImageSource) at its natural size (the presentation size at 96 dots per inch), or fitted
               inside the requested box keeping the aspect ratio, refuses with ImageSourceBudgetException, before
-              drawing anything, a size that exceeds the pixels the request allows, returns each skipped picture as
+              drawing anything, a size that exceeds the pixels the request allows, refuses with
+              ImageSourceRefusedException a slide that does not exist (code image-page-out-of-range) and a value that
+              is not a whole number from 1 (code image-fragment-invalid), returns each skipped picture as
               an unsupported note of the source pptx (and fails with PptxUnsupportedFeatureException when the
               request is strict),
               and fails with InvalidDataException for content that is not a readable presentation,
               InvalidOperationException for a request without a file, and OperationCanceledException for a canceled
               request.
             justification: |
-              The first slide stands for a presentation linked from a diagram; fitting without distortion keeps the
+              A diagram links a presentation to show one of its slides; fitting without distortion keeps the
               slide recognizable at any placement size.
             tests:
               - PptxImageSource_Render_NoRequestedSize_DrawsNaturalSizeOnTransparentBackground
@@ -2332,3 +2336,7 @@ sections:
               - PptxImageSource_Render_SkippedPicture_ReturnsDiagnosticOrThrowsWhenStrict
               - PptxImageSource_Render_InvalidInput_Throws
               - PptxImageSource_Properties_NameExtensionAndNoSchemes
+              - PptxImageSource_Render_NoFragmentOrPageOne_DrawsFirstSlide
+              - PptxImageSource_Render_SlideOrPageTwo_DrawsSecondSlide
+              - PptxImageSource_Render_SlideBeyondTheLastOrInvalid_IsRefused
+              - PackageImageSources_FragmentParameters_AreDeclared

@@ -156,6 +156,137 @@ public class PdfImageSourceTests
     }
 
     /// <summary>
+    ///     Creates a two-page PDF document: page 1 is 144 by 96 points with a red rectangle in the top-left quarter; page 2
+    ///     is rotated by 90 degrees, so it is displayed 96 by 144 points (128 by 192 pixels), and is filled with green.
+    /// </summary>
+    /// <returns>The bytes of the document.</returns>
+    private static byte[] CreateTwoPagePdf()
+    {
+        var objects = new[]
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R 5 0 R] /Count 2 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 144 96] /Contents 4 0 R /Resources << >> >>",
+            Stream("1 0 0 rg 0 48 72 48 re f"),
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 144 96] /Rotate 90 /Contents 6 0 R /Resources << >> >>",
+            Stream("0 0.6 0 rg 0 0 144 96 re f")
+        };
+        var builder = new StringBuilder("%PDF-1.4\n");
+        var offsets = new List<int>();
+        for (var i = 0; i < objects.Length; i++)
+        {
+            offsets.Add(builder.Length);
+            builder.Append($"{i + 1} 0 obj\n{objects[i]}\nendobj\n");
+        }
+
+        var xref = builder.Length;
+        builder.Append($"xref\n0 {objects.Length + 1}\n0000000000 65535 f \n");
+        foreach (var offset in offsets)
+        {
+            builder.Append($"{offset:D10} 00000 n \n");
+        }
+
+        builder.Append($"trailer\n<< /Size {objects.Length + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n");
+        return Encoding.ASCII.GetBytes(builder.ToString());
+
+        static string Stream(string content) => $"<< /Length {content.Length} >>\nstream\n{content}\nendstream";
+    }
+
+    /// <summary>
+    ///     Creates a request for a link with a fragment into a PDF file.
+    /// </summary>
+    /// <param name="bytes">The bytes of the file.</param>
+    /// <param name="fragment">The fragment text, without the hash.</param>
+    /// <param name="budget">The budget, or <see langword="null"/> for none.</param>
+    /// <returns>The request.</returns>
+    private static ImageSourceRequest Linked(byte[] bytes, string fragment, ImageBudget? budget = null)
+    {
+        return new ImageSourceRequest
+        {
+            Href = "report.pdf#" + fragment,
+            FileName = "report.pdf",
+            Content = bytes,
+            Fragment = ImageFragment.Parse(fragment),
+            Budget = budget
+        };
+    }
+
+    /// <summary>
+    ///     Test that <c>#page=2</c> draws the second page, at the size of that page, and that <c>#page=1</c> and no
+    ///     fragment draw the first.
+    /// </summary>
+    [Fact]
+    public void PdfImageSource_Render_PageFragment_DrawsTheChosenPage()
+    {
+        // Arrange
+        var bytes = CreateTwoPagePdf();
+        var source = new PdfImageSource();
+
+        // Act
+        using var second = source.Render(Linked(bytes, "page=2")).Surface;
+        using var first = source.Render(Linked(bytes, "page=1")).Surface;
+        using var none = source.Render(Linked(bytes, string.Empty)).Surface;
+
+        // Assert: page 2 is displayed rotated (128 by 192) and green; page 1 is 192 by 128 with red in its top-left
+        Assert.Equal((128, 192), (second.Width, second.Height));
+        Assert.Equal(new Rgba32(0, 153, 0, 255), second[64, 96]);
+        Assert.Equal((192, 128), (first.Width, first.Height));
+        Assert.Equal(new Rgba32(255, 0, 0, 255), first[20, 20]);
+        Assert.Equal((192, 128), (none.Width, none.Height));
+    }
+
+    /// <summary>
+    ///     Test that a page that the document does not have is refused with the page-out-of-range code, naming the number
+    ///     of pages, before anything is charged to the budget.
+    /// </summary>
+    [Fact]
+    public void PdfImageSource_Render_PageBeyondTheLast_IsRefusedWithPageOutOfRange()
+    {
+        // Arrange
+        var budget = new ImageBudget(1_000_000);
+
+        // Act
+        var ex = Assert.Throws<ImageSourceRefusedException>(() => new PdfImageSource().Render(Linked(CreateTwoPagePdf(), "page=3", budget)));
+
+        // Assert
+        Assert.Equal(FolderImageResolver.PageOutOfRangeCode, ex.Code);
+        Assert.Equal("page 3 does not exist: the document has 2 pages", ex.Message);
+        Assert.Equal(1_000_000L, budget.Remaining);
+    }
+
+    /// <summary>
+    ///     Test that a page value that is not a whole number of 1 or more is refused with the invalid-fragment code and
+    ///     that the file is not even read (a corrupt file is not reported).
+    /// </summary>
+    /// <param name="fragment">The fragment.</param>
+    [Theory]
+    [InlineData("page=0")]
+    [InlineData("page=two")]
+    [InlineData("page=")]
+    [InlineData("page=-1")]
+    public void PdfImageSource_Render_InvalidPageValue_IsRefusedWithInvalidFragmentBeforeReading(string fragment)
+    {
+        // Act: the bytes are not a PDF, so reading them would throw InvalidDataException instead
+        var ex = Assert.Throws<ImageSourceRefusedException>(() => new PdfImageSource().Render(Linked([1, 2, 3], fragment)));
+
+        // Assert
+        Assert.Equal(FolderImageResolver.FragmentInvalidCode, ex.Code);
+    }
+
+    /// <summary>
+    ///     Test that the source declares the <c>page</c> parameter and nothing else.
+    /// </summary>
+    [Fact]
+    public void PdfImageSource_FragmentParameters_DeclaresPage()
+    {
+        // Arrange
+        IFragmentImageSource source = new PdfImageSource();
+
+        // Act / Assert
+        Assert.Equal(["page"], source.FragmentParameters);
+    }
+
+    /// <summary>
     ///     Test the identity of the source: its name, its extension, and that it claims no scheme.
     /// </summary>
     [Fact]

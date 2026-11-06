@@ -174,10 +174,14 @@ more than once. Every other public member throws `ObjectDisposedException` once 
 ### Using As An Embedded Image
 
 `VsdxImageSource` is the image source of this package for `.vsdx` files. With it a document that links to a Visio
-drawing draws its **first page** through a `FolderImageResolver` of the core package (or
+drawing draws **page 1, or the page the fragment of the link names** (`drawing.vsdx#page=2`, counted from 1), through a
+`FolderImageResolver` of the core package (or
 `CanvasNetViewer.CreateImageResolver` of the Viewer package). The page is fitted, without distortion, inside the size of
 its placement (its natural size is the page size at 96 dots per inch) over a transparent background; a feature the
-renderer does not draw is returned as a note of the source `vsdx`, or fails when `ThrowOnUnsupportedFeature` is set.
+renderer does not draw is returned as a note of the source `vsdx`, or fails when `ThrowOnUnsupportedFeature` is set. The
+source implements `IFragmentImageSource` and declares `page`; a page that does not exist is reported as
+`image-page-out-of-range` and a value that is not a whole number from 1 as `image-fragment-invalid` (nothing is drawn),
+and any other parameter is the warning `image-fragment-unknown-parameter` (see the core user guide, *Linked Images*).
 
 ```csharp
 // An SVG document that links to files of this kind, drawn through the resolver

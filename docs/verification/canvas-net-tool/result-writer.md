@@ -49,3 +49,14 @@ point and an integer without a thousands separator.
 **ResultWriter_Failure_SpecialCharacters_AreEscapedAndRoundTrip**: a message with quotes, a backslash, a newline, a
 tab, HTML characters, an accented letter, and an emoji (a surrogate pair) yields ASCII-only single-line text that
 parses back to the original message.
+
+**ResultWriter_WriteDiagnosticExtras_PlainDiagnostic_WritesNothing**: a diagnostic without detail, location, or origin
+adds no member to its object.
+
+**ResultWriter_WriteDiagnosticExtras_DetailLocationOrigin_AreWrittenInOrder**: a diagnostic with a detail, a location of
+a file, a line, and a column, and an origin of two files writes `detail`, `location` (with only the three known members),
+and `origin`, in that order, byte for byte.
+
+**ResultWriter_WriteDiagnosticExtras_PointerAndEmptyLocation_AreHandled** and
+**ResultWriter_WriteDiagnosticExtras_NullArguments_ThrowsArgumentNullException**: a location with only a JSON pointer
+writes only the pointer, a location without any member is left out, and null arguments are rejected.

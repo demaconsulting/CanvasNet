@@ -96,7 +96,7 @@ internal static class ReadOnlyListAssert
 /// <summary>
 ///     An image source for tests: it claims what it is told to and draws what a delegate says, recording every request.
 /// </summary>
-internal sealed class StubImageSource : IImageSource
+internal class StubImageSource : IImageSource
 {
     /// <summary>The picture colors the stubs draw, for tests that tell sources apart by pixels.</summary>
     public static readonly Rgba32 Green = new(0, 255, 0, 255);
@@ -161,4 +161,32 @@ internal sealed class StubImageSource : IImageSource
         _requests.Add(request);
         return _render(request);
     }
+}
+
+/// <summary>
+///     A <see cref="StubImageSource"/> that also declares the fragment parameters it uses.
+/// </summary>
+internal sealed class FragmentStubImageSource : StubImageSource, IFragmentImageSource
+{
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="FragmentStubImageSource"/> class.
+    /// </summary>
+    /// <param name="name">The name of the source.</param>
+    /// <param name="fragmentParameters">The fragment parameter names the source declares.</param>
+    /// <param name="extensions">The claimed extensions.</param>
+    /// <param name="schemes">The claimed schemes.</param>
+    /// <param name="render">The delegate that draws, or <see langword="null"/> to draw a 4 by 4 green surface.</param>
+    public FragmentStubImageSource(
+        string name,
+        string[] fragmentParameters,
+        string[]? extensions = null,
+        string[]? schemes = null,
+        Func<ImageSourceRequest, ImageSourceResult>? render = null)
+        : base(name, extensions, schemes, render)
+    {
+        FragmentParameters = fragmentParameters;
+    }
+
+    /// <inheritdoc />
+    public IReadOnlyList<string> FragmentParameters { get; }
 }

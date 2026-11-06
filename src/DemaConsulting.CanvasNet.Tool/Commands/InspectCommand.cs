@@ -334,6 +334,7 @@ internal sealed partial class InspectCommand : ICommand
                 writer.WriteNumber("page", page);
             }
 
+            ResultWriter.WriteDiagnosticExtras(writer, diagnostic);
             writer.WriteEndObject();
         }
 

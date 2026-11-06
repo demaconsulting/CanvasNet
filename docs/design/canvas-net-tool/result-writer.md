@@ -46,6 +46,14 @@ hint and its `ResultFields`; an `ArgumentException` is `usage-error`; anything e
 document with result fields is `{"schemaVersion":1,"ok":false,"command":...,"error":{...},<result fields>}`: the
 fields are additive and follow the error object, so a consumer of the plain failure document is unaffected.
 
+**WriteDiagnosticExtras(writer, diagnostic)**: writes the optional members of a diagnostic object, positioned inside it
+after `source`, `severity`, `code`, `message`, and `page`: `detail` (the finer identifier of a generic code), `location`
+(an object with only the members the file gave, in the order `file`, `line`, `column`, `pointer`; left out altogether
+when none is known), and `origin` (an array of the embedded files, outermost first; left out when empty). A diagnostic
+without any of them gets no extra member, so its shape is the one the schema always had, and the schema version stays 1.
+The four commands that report notes (`render`, `inspect`, `compare`, and `montage`) call it, so they write the same
+facts. Null arguments throw `ArgumentNullException`.
+
 **Write** (private): writes the top-level object with `Utf8JsonWriter` using `Indented = false` and the relaxed
 escaping encoder (so ASCII text such as an apostrophe stays readable), then escapes every non-ASCII UTF-16 code unit
 as `\uXXXX`. The result is ASCII-only, so it is identical on every console code page and in every pipe; a surrogate

@@ -80,3 +80,21 @@ sections:
           console code page and pipe unchanged.
         tests:
           - ResultWriter_Failure_SpecialCharacters_AreEscapedAndRoundTrip
+
+      - id: CanvasNetTool-ResultWriter-DiagnosticExtras
+        title: >-
+          The ResultWriter class shall write, after the source, severity, code, message, and page of a diagnostic
+          object, the optional members `detail` (the finer identifier when the code is generic), `location` (an
+          object with only the members the file gave: file, line, column, and JSON pointer) and `origin` (the
+          embedded files, outermost first), each only when the diagnostic has a value for it, so that the members
+          and the codes that existed before are unchanged and a note without the extras keeps its shape, and the
+          schema version stays 1.
+        justification: |
+          A tool or an agent that reads the result finds the line of a model warning, or the file that embeds a
+          failing link, as data instead of parsing a message; adding members after the existing ones does not break
+          a consumer that ignores keys it does not know.
+        tests:
+          - ResultWriter_WriteDiagnosticExtras_PlainDiagnostic_WritesNothing
+          - ResultWriter_WriteDiagnosticExtras_DetailLocationOrigin_AreWrittenInOrder
+          - ResultWriter_WriteDiagnosticExtras_PointerAndEmptyLocation_AreHandled
+          - ResultWriter_WriteDiagnosticExtras_NullArguments_ThrowsArgumentNullException

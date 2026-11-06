@@ -48,16 +48,17 @@ sections:
               - id: CanvasNet-ImageSources-FolderImageResolver-UriReference
                 title: >-
                   The FolderImageResolver class shall read a link without a URI scheme, and a file: URI, as a URI
-                  reference: it shall cut off the query (from the first question mark) and the fragment (from the
-                  first number sign) before it decodes percent-encoding, so that an encoded %23 or %3F stays a literal
-                  character of the file name; shall choose the source by the extension of what is left and resolve it
-                  through the sandbox with every refusal unchanged; shall report a link that is nothing but a query or
-                  a fragment as an unresolved warning; shall hand the source the link as written; and shall hand a
+                  reference: it shall cut off the query (from the first question mark before a number sign) and the
+                  fragment (from the first number sign) before it decodes percent-encoding, so that an encoded %23 or
+                  %3F stays a literal character of the file name; shall choose the source by the extension of what is
+                  left and resolve it through the sandbox with every refusal unchanged; shall report a link that is
+                  nothing but a query or a fragment as an unresolved warning; shall hand the source the link as
+                  written (the fragment parsed into the request, see the Fragment requirement); and shall hand a
                   link of a claimed scheme to its source as written, without cutting anything off.
                 justification: |
-                  Documents link files with cache-busting queries and fragments (image.png?v=2, part.scad#view); the
-                  order of stripping and decoding is what keeps an encoded character from changing the path and keeps
-                  every escape of the folder refused.
+                  Documents link files with cache-busting queries and fragments (image.png?v=2, report.pdf#page=2);
+                  the order of stripping and decoding is what keeps an encoded character from changing the path and
+                  keeps every escape of the folder refused.
                 tests:
                   - FolderImageResolver_Resolve_RelativeLinkWithQueryOrFragment_NamesTheFile
                   - FolderImageResolver_Resolve_EncodedHash_IsLiteralCharacterOfTheFileName
@@ -69,6 +70,70 @@ sections:
                   - FolderImageResolver_Resolve_SchemeLinkWithQueryAndFragment_IsPassedAsIs
                   - FolderImageResolver_Resolve_UnclaimedSchemeWithQuery_IsUnresolved
                   - FolderImageResolver_Resolve_NestedLinkWithQueryAndFragment_ResolvesFromFolderOfEmbeddingFile
+                  - FolderImageResolver_Resolve_QuestionMarkAfterHash_BelongsToFragment
+                  - FolderImageResolver_Render_PathWithHash_IsNotInterpretedAsFragment
+
+              - id: CanvasNet-ImageSources-FolderImageResolver-Fragment
+                title: >-
+                  The FolderImageResolver class shall parse the fragment of a link into the ImageFragment of the
+                  request it hands the source (the empty fragment when the link has none, and the parsed fragment
+                  also for a link of a claimed scheme, whose link is still passed as written), shall refuse before it
+                  calls a source, and without counting a file, a fragment over the limits as a note with the code
+                  image-fragment-invalid, and shall give a direct render no link: its caller-defined options are passed
+                  to the source in the request and are null for a link, so an embedded file never inherits the options
+                  of its embedder.
+                justification: |
+                  The fragment chooses the page of a document; parsing it once in the resolver gives every source the
+                  same grammar and limits, and a hostile link cannot flood a source with parameters.
+                tests:
+                  - FolderImageResolver_Resolve_FileLinkWithFragment_FragmentReachesSource
+                  - FolderImageResolver_Resolve_LinkWithoutFragment_RequestHasEmptyFragment
+                  - FolderImageResolver_Resolve_FragmentOverLimits_IsInvalidAndSourceNotCalledAndNotCounted
+                  - FolderImageResolver_Resolve_SchemeLink_ReceivesRawHrefAndFragmentWithoutWarnings
+                  - FolderImageResolver_Resolve_SchemeLinkFragmentOverLimit_IsInvalidAndSourceNotCalled
+                  - FolderImageResolver_Render_PathWithOptions_PassesOptionsToSourceOnly
+                  - FolderImageResolver_Render_StreamWithAndWithoutOptions_PassesOptionsOrNull
+
+              - id: CanvasNet-ImageSources-FolderImageResolver-FragmentDiagnostics
+                title: >-
+                  The FolderImageResolver class shall report, before it calls the source and with the embedding file
+                  as origin, a warning with the code image-fragment-unknown-parameter for every parameter name the
+                  source does not declare through IFragmentImageSource (a source without the interface declares none,
+                  so every parameter of a link to a file it draws is unknown, while a source that claims a URI scheme
+                  and does not implement the interface owns its links and gets no warning), and a warning with the
+                  code image-fragment-duplicate-parameter for a parameter given twice with different values (the last
+                  wins; the same value twice and aliases of the same meaning are silent), keep the message of each
+                  short and free of control characters whatever the link contains, and still draw the picture.
+                justification: |
+                  A misspelled or unsupported parameter must be visible without breaking the diagram, and a hostile
+                  link must not be able to fill a report with its own text.
+                tests:
+                  - FolderImageResolver_Resolve_UnknownParameter_WarnsAndStillDraws
+                  - FolderImageResolver_Resolve_SourceWithoutInterface_EveryParameterIsUnknown
+                  - FolderImageResolver_Resolve_DuplicateParameter_WarnsOnlyWhenValuesDiffer
+                  - FolderImageResolver_Resolve_AliasParameters_AreNotDuplicates
+                  - FolderImageResolver_Resolve_UnknownRepeatedParameter_IsOnlyReportedAsUnknown
+                  - FolderImageResolver_Resolve_HostileParameterName_IsSanitizedInMessage
+                  - FolderImageResolver_Resolve_SchemeLinkWithInterface_WarnsAboutUnknownParameters
+
+              - id: CanvasNet-ImageSources-FolderImageResolver-PageRefusal
+                title: >-
+                  The FolderImageResolver class shall turn an ImageSourceRefusedException of a source into a note with
+                  the severity unsupported and the code of the exception, draw nothing, give back the pixels the request
+                  charged and carry on, shall report a value the source reads and cannot use as a note with the code
+                  image-fragment-invalid, shall not wrap the exception in an ImageSourceException, and shall let it
+                  propagate from a direct render.
+                justification: |
+                  A source must return a picture, so a page that does not exist needs a way to say "not this picture"
+                  that does not look like a broken file.
+                tests:
+                  - FolderImageResolver_Resolve_SourceRefuses_UnsupportedNoteNothingDrawnBudgetRefunded
+                  - FolderImageResolver_Resolve_SourceReadsInvalidPage_IsInvalidFragmentNote
+                  - FolderImageResolver_Resolve_NestedRefusal_HasOriginOfEmbeddingFile
+                  - FolderImageResolver_Render_SourceRefuses_ExceptionPropagatesUnwrapped
+                  - FolderImageResolver_Render_SourceRefusesAfterCharging_BudgetIsRefunded
+                  - FolderImageResolver_Resolve_SourceNoteWithDetail_KeepsDetailLocationAndPage
+
               - id: CanvasNet-ImageSources-FolderImageResolver-Dispatch
                 title: >-
                   The FolderImageResolver class shall choose the source of a file by the longest claimed extension of

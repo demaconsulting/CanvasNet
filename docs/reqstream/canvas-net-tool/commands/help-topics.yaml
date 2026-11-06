@@ -101,14 +101,26 @@ sections:
           may link (the list shall be exactly the file name extensions the SVG image resolver of the tool accepts, and
           the same extensions the formats command lists), that a linked model, chart, document page, or SVG file is
           drawn at the size of the placement, the folder rule (relative to the folder of the SVG file, with no absolute
-          path, escape, symbolic link, or network URL; a query or fragment after the file name is ignored), the
-          diagnostic codes svg-image-unresolved and svg-image-too-large, and an example, and
-          the scad and vega-lite topics, the formats listing, and the render usage shall point to that topic.
+          path, escape, symbolic link, or network URL; a query after the file name is ignored), the page fragment (its
+          grammar, the parameter of each format, that page 1 is drawn without one, the limits, the &amp; of an XML
+          attribute, and the change that a fragment on a file that takes no parameter is now a warning), the
+          diagnostic codes svg-image-unresolved, svg-image-too-large, image-fragment-unknown-parameter,
+          image-fragment-duplicate-parameter, image-fragment-invalid, and image-page-out-of-range with the effect of the
+          strict option on each, and an example (a snippet of pages that renders under the strict option once its
+          sibling files exist), and
+          the scad and vega-lite topics, the formats listing, and the render usage shall point to that topic; the pdf,
+          pptx, vsdx, and scad topics shall show the fragment of their format, the json topic shall describe the
+          detail, location, and origin members of a diagnostic, and the limits topic shall state the limits of a
+          fragment, quoted from the code.
         justification: |
-          An agent that wants a model or a chart inside a diagram must find out that an image element can link it, and
-          what it may link, without reading the source; a list of file types that is compared with the resolver in both
-          directions cannot omit a type that works or promise one that does not.
+          An agent that wants a model, a chart, or page 2 of a document inside a diagram must find out that an image
+          element can link it, and what it may link, without reading the source; a list of file types that is compared
+          with the resolver in both directions cannot omit a type that works or promise one that does not.
         tests:
           - HelpTopics_SvgTopic_ImageHrefFileTypes_MatchTheResolverExtensions
           - HelpTopics_SvgTopic_ImageLinksSection_StatesSizeFolderRuleDiagnosticAndExample
+          - HelpTopics_SvgTopic_EmbedSnippet_RendersStrictWithItsSiblingFiles
+          - HelpTopics_SvgTopic_PageFragment_DocumentsGrammarPerFormatCodesAndStrict
+          - HelpTopics_FormatTopicsJsonAndLimits_DocumentFragmentsDetailLocationAndOrigin
+          - HelpTopics_DiagnosticTriggers_ImageFragmentCodes_AreReportedWithTheirSeverity
           - HelpTopics_ImageHrefLinking_IsCrossReferencedFromScadVegaLiteFormatsAndRender

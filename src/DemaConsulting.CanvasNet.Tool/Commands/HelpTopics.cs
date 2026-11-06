@@ -206,7 +206,9 @@ internal static partial class HelpTopics
             ["vlMaxJsonDepth"] = Format(vegaLite.MaxJsonDepth),
             ["vlMaxDataFiles"] = Format(vegaLite.MaxDataFiles),
             ["vlMaxDataBytes"] = Format(vegaLite.MaxDataBytes),
-            ["vlMaxDataRows"] = Format(vegaLite.MaxDataRows)
+            ["vlMaxDataRows"] = Format(vegaLite.MaxDataRows),
+            ["fragmentMaxLength"] = Format(DemaConsulting.CanvasNet.ImageSources.ImageFragment.MaxLength),
+            ["fragmentMaxParameters"] = Format(DemaConsulting.CanvasNet.ImageSources.ImageFragment.MaxParameters)
         };
     }
 

@@ -9,6 +9,7 @@
       "title": "Supported",
       "items": [
         { "text": "Slides as pages: --page N (from 1), --all-pages, and --dpi." },
+        { "text": "Embedding: <image href=\"deck.pptx#slide=3\" .../> in an SVG file draws slide 3 (#page=3 means the same; slide 1 without the fragment); a slide that does not exist is image-page-out-of-range. See 'canvasnet help svg'." },
         { "text": "The shape tree including nested groups; preset and custom geometry with solid, linear-gradient, and covered pattern fills, and outlines." },
         { "text": "Connectors (straight, elbow, and curved) with arrowheads." },
         { "text": "Raster pictures (BMP, PNG, TIFF, JPEG, GIF, with srcRect cropping) and pictures that only carry an SVG." },

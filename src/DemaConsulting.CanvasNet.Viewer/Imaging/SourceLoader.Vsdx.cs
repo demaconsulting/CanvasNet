@@ -17,14 +17,14 @@ public static partial class SourceLoader
     /// <summary>
     ///     Reads the pages of a drawing without rendering them.
     /// </summary>
-    /// <param name="path">The path of the file.</param>
+    /// <param name="input">Where the bytes of the file come from.</param>
     /// <param name="bytes">The size of the file in bytes.</param>
     /// <returns>The facts about the file, with the name and size of every page.</returns>
-    private static SourceInfo ProbeVsdx(string path, long bytes)
+    private static SourceInfo ProbeVsdx(SourceInput input, long bytes)
     {
-        using var document = Read(path, SourceKind.Vsdx, () => VsdxDocument.Open(path));
+        using var document = Read(input.Name, SourceKind.Vsdx, () => OpenVsdx(input));
         var pages = Read(
-            path,
+            input.Name,
             SourceKind.Vsdx,
             () => Enumerable.Range(0, document.PageCount)
                 .Select(i =>
@@ -33,7 +33,18 @@ public static partial class SourceLoader
                     return CreatePage(i + 1, page.WidthEmu / EmuPerPoint, page.HeightEmu / EmuPerPoint, page.Name, null);
                 })
                 .ToList());
-        return CreateDocumentInfo(path, SourceKind.Vsdx, bytes, pages);
+        return CreateDocumentInfo(input.Name, SourceKind.Vsdx, bytes, pages);
+    }
+
+    /// <summary>
+    ///     Opens a drawing from its source; the document holds no reference to the stream afterwards.
+    /// </summary>
+    /// <param name="input">Where the bytes of the file come from.</param>
+    /// <returns>The opened document; the caller disposes it.</returns>
+    private static VsdxDocument OpenVsdx(SourceInput input)
+    {
+        using var stream = input.Open();
+        return VsdxDocument.Open(stream);
     }
 
     /// <summary>
@@ -52,8 +63,10 @@ public static partial class SourceLoader
         /// <param name="document">The opened document; the page source owns it.</param>
         /// <param name="info">The facts about the file.</param>
         /// <param name="options">The loading options.</param>
-        private VsdxPageSource(VsdxDocument document, SourceInfo info, SourceOptions options)
-            : base(info, options)
+        /// <param name="input">Where the bytes of the file come from.</param>
+        /// <param name="context">The hooks of the caller.</param>
+        private VsdxPageSource(VsdxDocument document, SourceInfo info, SourceOptions options, SourceInput input, LoadContext context)
+            : base(info, options, input, context)
         {
             _document = document;
         }
@@ -61,15 +74,17 @@ public static partial class SourceLoader
         /// <summary>
         ///     Opens a drawing.
         /// </summary>
+        /// <param name="input">Where the bytes of the file come from.</param>
         /// <param name="info">The facts about the file.</param>
         /// <param name="options">The loading options.</param>
+        /// <param name="context">The hooks of the caller.</param>
         /// <returns>The page source.</returns>
         /// <exception cref="ViewerException">Thrown when the file cannot be opened or the resolution is not usable.</exception>
-        public static VsdxPageSource Open(SourceInfo info, SourceOptions options)
+        public static VsdxPageSource Open(SourceInput input, SourceInfo info, SourceOptions options, LoadContext context)
         {
             ValidateDpi(options, true);
-            var document = Read(info.Path, SourceKind.Vsdx, () => VsdxDocument.Open(info.Path));
-            return new VsdxPageSource(document, info, options);
+            var document = Read(info.Path, SourceKind.Vsdx, () => OpenVsdx(input));
+            return new VsdxPageSource(document, info, options, input, context);
         }
 
         /// <inheritdoc />

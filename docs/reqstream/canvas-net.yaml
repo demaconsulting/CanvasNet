@@ -1321,6 +1321,7 @@ sections:
           - CanvasNet-ImageSources-Confinement
           - CanvasNet-ImageSources-Limits
           - CanvasNet-ImageSources-Reporting
+          - CanvasNet-ImageSources-Fragments
         tests:
           - FolderImageResolver_Resolve_EscapingReference_IsUnresolvedWarning
           - FolderImageResolver_Resolve_TooDeep_TerminatesWithWarning

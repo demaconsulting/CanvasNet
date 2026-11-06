@@ -23,9 +23,10 @@ internal sealed partial class ArgumentReader
     ///     The largest accepted dots-per-inch value.
     /// </summary>
     /// <remarks>
-    ///     Internal so that the help topics can quote the limit from the code instead of repeating the number.
+    ///     Internal so that the help topics can quote the limit from the code instead of repeating the number. The limit is
+    ///     the one of <see cref="SourceLoader.MaxDpi"/>, so the command line and the loader agree.
     /// </remarks>
-    internal const double MaxDpi = 2400;
+    internal const double MaxDpi = SourceLoader.MaxDpi;
 
     /// <summary>
     ///     Parses an integer within a range.

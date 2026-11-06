@@ -279,7 +279,8 @@ sections:
       - id: CanvasNetVsdx-ImageSource
         title: >-
           The library shall provide an image source for .vsdx files, for the image resolver of the core package,
-          that draws the first page fitted inside the size its placement asks for over a transparent background
+          that draws a page (page 1, or the page the fragment of the link names with page=N) fitted inside the size
+          its placement asks for over a transparent background
           and reports the features it does not draw.
         tags: [system]
         justification: |

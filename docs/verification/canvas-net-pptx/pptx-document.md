@@ -70,7 +70,9 @@ actually fail if the implementation is wrong.
 `PptxImageSource_Render_SizeBeyondRemainingPixels_IsRefusedBeforeDrawing`,
 `PptxImageSource_Render_SkippedPicture_ReturnsDiagnosticOrThrowsWhenStrict`,
 `PptxImageSource_Render_InvalidInput_Throws`,
-`PptxImageSource_Properties_NameExtensionAndNoSchemes`
+`PptxImageSource_Properties_NameExtensionAndNoSchemes`, `PptxImageSource_Render_NoFragmentOrPageOne_DrawsFirstSlide`,
+`PptxImageSource_Render_SlideOrPageTwo_DrawsSecondSlide`, `PptxImageSource_Render_SlideBeyondTheLastOrInvalid_IsRefused`,
+`PackageImageSources_FragmentParameters_AreDeclared`
 
 `PptxImageSourceTests.cs` calls `PptxImageSource.Render` with requests built by hand over a one-slide presentation
 assembled by the
@@ -87,7 +89,11 @@ and throws
 request without
 a file `InvalidOperationException`, a null request `ArgumentNullException`, a canceled request
 `OperationCanceledException`, and the
-name, extension, and absence of schemes.
+name, extension, and absence of schemes. The slide-selection tests (`PackageImageSourceFragmentTests.cs`, which has the
+two-slide presentation and the two-page drawing of the shared fixtures) assert that no fragment and `page=1` draw slide
+1, that `slide=2` and `page=2` draw slide 2 (and the last of `page=1&slide=2` wins), that a slide beyond the last is
+refused with `ImageSourceRefusedException` (code `image-page-out-of-range`), that an unusable value is refused with
+`image-fragment-invalid`, and that the source declares `page` and `slide`.
 
 #### CanvasNetPptx-PptxDocument-OpenStream: Open(Stream) Buffers Input and Validates Null Argument
 

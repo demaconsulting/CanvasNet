@@ -56,9 +56,14 @@ public static class CanvasNetViewer
 ```
 
 The list of built-in sources is fixed: there is no discovery, no reflection, and no global registry that can change it.
-The file types a link can point to are the extensions in `CanvasNetViewer.Extensions`: `.png`, `.jpg`, `.jpeg`, `.bmp`,
+The entries of `ImageSources` are the viewer's own adapters over the loader that the `canvasnet` tool uses
+(`SourceLoader`), so a linked file and a file given to `Render` are drawn by the same code; they have the names,
+extensions, and order listed above, and they are not the stand-alone `PdfImageSource`, `SvgImageSource`, ... classes of
+the format packages (which stay public for use without the viewer). The file types a link can point to are the
+extensions in `CanvasNetViewer.Extensions`: `.png`, `.jpg`, `.jpeg`, `.bmp`,
 `.tif`, `.tiff`, `.gif`, `.jp2`, `.j2k`, `.j2c` (rasters), `.svg`, `.scad` (an OpenSCAD model), `.vl.json` and `.vl`
-(a Vega-Lite chart), and `.pdf`, `.pptx`, and `.vsdx` (the first page of the document). The type is decided by the
+(a Vega-Lite chart), and `.pdf`, `.pptx`, and `.vsdx` (a page of the document: page 1, or the page the fragment of the
+link names, see *Choosing a page, slide, or view with a fragment* below). The type is decided by the
 file name; a chart in a plain `.json` file is not linked.
 
 #### Embedding files in an SVG document
@@ -90,8 +95,9 @@ foreach (var image in resolver.Embedded)             // every image that was dra
 }
 ```
 
-Links are confined to the folder: a relative path below it is followed (a query or fragment after the file name, as in
-`logo.png?v=2` or `part.scad#view`, is ignored); an absolute path, a path that leaves the folder, a symbolic link, and a
+Links are confined to the folder: a relative path below it is followed (a query after the file name, as in `logo.png?v=2`,
+is ignored, and a fragment, as in `report.pdf#page=3`, is read as parameters, see below); an absolute path, a path that
+leaves the folder, a symbolic link, and a
 network URL (`http:`, `https:`) are never read or fetched. A link that is not drawn is a warning with the code
 `svg-image-unresolved` in `Diagnostics` and draws nothing; so is a picture that would take more pixels than the render
 may use (`FolderImageResolverOptions.MaxDecodedPixels`, 64 million by default, counted before anything is decoded, so a
@@ -108,6 +114,73 @@ a link still starts with the href, as written. See *Diagnostics: Code and Origin
 
 **Create a new resolver for every render.** A resolver counts the images of one render and collects its notes, and it is
 not thread-safe; creating one is cheap. It never caches a picture, so a live source is asked again every time.
+
+#### Choosing a page, slide, or view with a fragment
+
+The fragment of a link (the text after the first `#`) is a list of `name=value` parameters separated by `&`, in the style
+of RFC 8118 (`report.pdf#page=3`). A document link draws **page 1 unless the fragment says otherwise**:
+
+- `report.pdf#page=3` draws page 3 of a PDF document;
+- `deck.pptx#slide=2` draws slide 2 of a presentation (`#page=2` means the same);
+- `drawing.vsdx#page=2` draws page 2 of a Visio drawing;
+- `part.scad#view=front` draws an OpenSCAD model from a named view (`iso`, `front`, `back`, `left`, `right`, `top`,
+  or `bottom`);
+- a raster, an SVG file, and a chart take no parameter.
+
+The grammar is: the first `#` starts the fragment; `&` separates parameters (an empty one, as in `a&&b`, is skipped); the
+first `=` of a parameter splits the name from the value (no `=` means an empty value); `%XX` escapes are decoded after
+that split, so `a=%26b` has the value `&b`; `+` is not a space. Names are not case sensitive. A page is a whole number
+from 1 (digits only, leading zeros allowed). A fragment is at most 2048 characters with at most 32 parameters
+(`ImageFragment.MaxLength` and `MaxParameters`). A `?query` before the fragment is ignored for a file link. In an SVG
+file an `&` inside an attribute is written `&amp;` (`href="report.pdf#page=2&amp;page=3"`), as XML requires.
+
+What the resolver reports, as notes in `Diagnostics`:
+
+- `image-fragment-unknown-parameter` (`Warning`): the file does not use the parameter (a typo such as `pag=2`); the
+  image is drawn without it.
+- `image-fragment-duplicate-parameter` (`Warning`): a parameter has two different values; the last one wins and the
+  image is drawn.
+- `image-fragment-invalid` (`Unsupported`): a value that is not allowed (`page=0`, `page=abc`, `view=` with no value) or
+  a fragment over the limits; nothing is drawn.
+- `image-page-out-of-range` (`Unsupported`): the page or slide does not exist; the message tells how many there are;
+  nothing is drawn.
+
+Behavior change: a fragment on a file that takes no parameter used to be ignored silently; `logo.png#anything` and
+`other.svg#top` now draw the picture and add `image-fragment-unknown-parameter`. A model link `part.scad#view` (no
+value) is now `image-fragment-invalid`, and a missing `include` or `use` file of a model embedded in an SVG file is an
+error as it is for `canvasnet render` (an `ImageSourceException` naming the link, with the `scad-error`
+`ViewerException` as its `InnerException`), instead of a warning. An embedded file never inherits the options
+of the document that embeds it: the page is the one in its own link.
+
+A link to a page that does not exist leaves the rest of the document drawn:
+
+<!-- compile -->
+
+```csharp
+using DemaConsulting.CanvasNet.ImageSources;
+using DemaConsulting.CanvasNet.Svg;
+using DemaConsulting.CanvasNet.Viewer;
+
+// pages.svg contains: <image href="report.pdf#page=2" x="0" y="0" width="200" height="280"/>
+//                     <image href="deck.pptx#slide=9" x="220" y="0" width="200" height="150"/>
+var folder = "diagrams";
+var resolver = CanvasNetViewer.CreateImageResolver(folder);
+var options = new SvgLoadOptions { ImageResolver = resolver };
+using var picture = SvgCodec.Load(Path.Combine(folder, "pages.svg"), 440, 280, null, options);
+
+foreach (var note in resolver.Diagnostics)
+{
+    if (note.Code == FolderImageResolver.PageOutOfRangeCode)      // "image-page-out-of-range"
+    {
+        Console.WriteLine($"{string.Join(" > ", note.Origin)}: {note.Message}");
+    }
+}
+```
+
+With `--strict` on the command line an image that was not drawn (`image-fragment-invalid` or `image-page-out-of-range`,
+like `svg-image-unresolved` and `svg-image-too-large`) is an `unsupported-feature` error; the two warnings above stay
+warnings. The library never throws for such a note: read `Diagnostics`. Your own source can opt in to parameters by
+implementing `IFragmentImageSource` (see the core user guide, *Linked Images*).
 
 #### Rendering any file
 
@@ -127,7 +200,14 @@ PngCodec.Save(image.Surface, "part.png");
 
 `ViewerRenderOptions` has `Width` and `Height` (none: natural size; one: keep the aspect ratio; both: a box - a vector
 file is drawn at that size and a raster is fitted into it; when given, each must be from 1 to 8192, otherwise `Render`
-throws `ArgumentOutOfRangeException` before it reads anything), `Folder` (the sandbox for the files the rendered file itself
+throws `ArgumentOutOfRangeException` before it reads anything), `Page` (the 1-based page or slide of a PDF, PPTX, or
+VSDX
+file, 1 by default; a page the file does not have is a `ViewerException` with the code `page-out-of-range`, and a value
+below 1 throws `ArgumentOutOfRangeException` before the file is read), `Dpi` (the resolution a document page is sized at,
+96 by default, above 0 and at most 2400; a VSDX file takes a whole number), `Background` (the color transparent areas are
+flattened over; null keeps the transparency of a document, a model, and an SVG file, and the own background of a chart),
+`Scad` (the `ScadViewOptions` of a model: the view, angles, projection, `Defines`, time, and triangle limit), `Folder`
+(the sandbox for the files the rendered file itself
 includes or embeds; by default the folder of the file, or none for a stream), `ThrowOnUnsupportedFeature` (an unsupported
 feature fails instead of being drawn without it and reported), `MaxDecodedPixels` (the most pixels the render may decode
 in total; null keeps the resolver default of 64,000,000, which refuses a single 8192 x 8192 picture, so set it to render
@@ -135,12 +215,65 @@ one larger image; when a raster is resized to the requested size, the final pict
 against the same budget, so a 10 x 10 picture resized to 1 x 1 needs 101 pixels, and one that does not fit throws
 `ImageSourceBudgetException`), `ExtraSources` (see *`ExtraSources` or `CreateImageResolver`?* below), and
 `CancellationToken`. The `ViewerImage` owns the `Surface` (disposing it disposes the surface) and carries `Format`,
-`Diagnostics`, `Echo` (the text a model printed with `echo`), and `Embedded`. `Render` throws `FileNotFoundException`
+`Page` (the page that was drawn) and `PageCount` (how many the file has, so you can walk a document), `Diagnostics`,
+`Echo` (the text a model printed with `echo`), `Anchors` (the named points a model declared, with their pixels; empty for
+every other file), and `Embedded`. `Render` throws `FileNotFoundException`
 for a missing file, `NotSupportedException` when no source claims the extension (the message lists them),
-`SandboxException` when the sandbox refuses the file, and `ImageSourceException` for a file that cannot be drawn. Render
+`SandboxException` when the sandbox refuses the file, and `ImageSourceException` for a file that cannot be drawn
+(a mistake of the caller or a limit - `page-out-of-range`, a size above 8192 pixels, a model whose `include` is
+missing - is a `ViewerException` instead). Render
 a file that is not on disk with `Render(stream, fileName)`; the extension of the file name chooses the source. With both
 `Width` and `Height`, `Render` fits a raster inside the box over a transparent margin, whereas `SourceOptions.Width` and
-`Height` of the `Imaging` operations stretch a raster (see *Sizes* below).
+`Height` of the `Imaging` operations stretch a raster (see *Sizes* below). A document or model that the rendered file
+embeds chooses its own page or view with the fragment of its link; it never inherits `Page`, `Dpi`, or `Scad`.
+
+To render page 2 of a PDF document at 192 dpi, over white, in memory:
+
+<!-- compile -->
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Viewer;
+
+using var page = CanvasNetViewer.Render(
+    "reports/q3.pdf",
+    new ViewerRenderOptions { Page = 2, Dpi = 192, Background = new Rgba32(255, 255, 255, 255) });
+
+Console.WriteLine($"page {page.Page} of {page.PageCount}: {page.Surface.Width}x{page.Surface.Height}");
+foreach (var note in page.Diagnostics)
+{
+    Console.WriteLine($"{note.Severity} {note.Code}: {note.Message}");
+}
+```
+
+A model with anchors, a named view, and its notes (`Detail` is the finer identifier of the library and `Location` the
+position in the model file):
+
+<!-- compile -->
+
+```csharp
+using DemaConsulting.CanvasNet.Viewer;
+using DemaConsulting.CanvasNet.Viewer.Imaging;
+
+using var image = CanvasNetViewer.Render(
+    "models/bracket.scad",
+    new ViewerRenderOptions { Width = 600, Scad = new ScadViewOptions { View = "front", ViewGiven = true } });
+
+foreach (var anchor in image.Anchors)
+{
+    Console.WriteLine($"{anchor.Name}: pixel {anchor.PixelX}, {anchor.PixelY}");
+}
+
+foreach (var line in image.Echo)
+{
+    Console.WriteLine($"echo: {line}");
+}
+
+foreach (var note in image.Diagnostics)
+{
+    Console.WriteLine($"{note.Code} {note.Detail} at {note.Location?.File}:{note.Location?.Line}: {note.Message}");
+}
+```
 
 `Render` returns pixels and writes no file. To save them with a format or a quality, use the writer of the `Imaging`
 namespace (the third argument is the file you rendered, which the output may not be):
@@ -537,13 +670,14 @@ result carries all three:
 | `RenderedPage` (of `ImageRenderer`)               | yes         | yes  | yes     | `ImageDiagnostic`       |
 | `LoadedSource` (of `SourceLoader.Load`)           | yes         | yes  | yes     | `ImageDiagnostic`       |
 | `InspectResult`, `CompareSide`, `MontageCell`     | yes         | yes  | no      | `ImageDiagnostic`       |
-| `ViewerImage` (of `CanvasNetViewer.Render`)       | yes         | yes  | no      | `ImageSourceDiagnostic` |
+| `ViewerImage` (of `CanvasNetViewer.Render`)       | yes         | yes  | yes     | `ImageSourceDiagnostic` |
 | `FolderImageResolver` (an SVG render)             | yes         | yes  | no      | `ImageSourceDiagnostic` |
 
-Only `ImageRenderer` and `SourceLoader.Load` give anchors; the other operations cannot report them. The two diagnostic
+`ImageRenderer`, `SourceLoader.Load`, and `CanvasNetViewer.Render` give anchors; the other operations cannot report them.
+The two diagnostic
 types carry the same facts: `ImageDiagnostic` (the Imaging namespace) has a string `Severity` and a page, and
-`ImageSourceDiagnostic` (the core package) has an `ImageDiagnosticSeverity`; both have `Source`, `Code`, `Message`, and
-`Origin`:
+`ImageSourceDiagnostic` (the core package) has an `ImageDiagnosticSeverity` and a `Page`; both have `Source`, `Code`,
+`Message`, `Detail`, `Location`, and `Origin`:
 
 <!-- compile -->
 
@@ -569,7 +703,7 @@ foreach (var note in page.Diagnostics)                     // warnings; an ancho
     Console.WriteLine($"{note.Severity} {note.Code}: {note.Message}");
 }
 
-// the same data of CanvasNetViewer.Render, without anchors
+// the same data of CanvasNetViewer.Render, including the anchors
 using var image = CanvasNetViewer.Render("bracket.scad");
 foreach (var note in image.Diagnostics)
 {
@@ -577,10 +711,13 @@ foreach (var note in image.Diagnostics)
 }
 ```
 
-**Diagnostics: `Code` and `Origin`.** Test the `Code` of a note, never its message. The code of a note from the Imaging
-operations for a model warning is `scad-warning`; the finer code of the model's own warning, such as
-`scad-anchor-invalid` or `scad-include-not-found`, is `ScadDiagnostic.Code` of the Scad package (see the Scad user
-guide). `Origin` names where the note comes from when the file was embedded in another: for `part.scad` embedded by
+**Diagnostics: `Code`, `Detail`, `Location`, and `Origin`.** Test the `Code` of a note, never its message. The code of a
+note for a model warning is the generic `scad-warning` (a chart warning is `vega-lite-warning`); the finer identifier of
+the library's own warning, such as `scad-anchor-invalid` or `scad-include-not-found`, or the `vl-*` identifier of a chart
+warning, is in `Detail` (it is `null` when the `Code` is already the most specific). `Location` is where the note points:
+`File`, `Line`, and `Column`, and for a chart the JSON `Pointer`; a member the source did not know is `null`, and the
+whole `Location` is `null` for a note without a position (a page note has the 1-based `Page` instead). `Origin` names
+where the note comes from when the file was embedded in another: for `part.scad` embedded by
 `a.svg`, a warning of the model has `Origin` `["a.svg", "part.scad"]`; for a link that did not resolve inside `a.svg` it
 is `["a.svg"]`. A file link is shown as its folder-relative file name and a scheme link as its href.
 

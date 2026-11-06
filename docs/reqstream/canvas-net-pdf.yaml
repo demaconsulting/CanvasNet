@@ -386,7 +386,8 @@ sections:
       - id: CanvasNetPdf-ImageSource
         title: >-
           The library shall provide an image source for .pdf files, for the image resolver of the core package,
-          that draws the first page fitted inside the size its placement asks for over a transparent background.
+          that draws a page (page 1, or the page the fragment of the link names with page=N) fitted inside the size its
+          placement asks for over a transparent background.
         tags: [system]
         justification: |
           A diagram that links to a document (an SVG image element, for example) needs the PDF renderer as one of

@@ -528,6 +528,7 @@ internal sealed partial class CompareCommand : ICommand
                     writer.WriteNumber("page", page);
                 }
 
+                ResultWriter.WriteDiagnosticExtras(writer, diagnostic);
                 writer.WriteEndObject();
             }
         }

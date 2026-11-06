@@ -12,7 +12,7 @@ size policy and the options that belong to reading (page, resolution, orientatio
 reports a bad file as an expected error. The unit consists of the static class `SourceLoader` (partial files
 `SourceLoader.cs`, `SourceLoader.Detect.cs`, `SourceLoader.Raster.cs`, `SourceLoader.Svg.cs`,
 `SourceLoader.Documents.cs`, `SourceLoader.Pdf.cs`, `SourceLoader.Pptx.cs`, `SourceLoader.Vsdx.cs`,
-`SourceLoader.Scad.cs`, `SourceLoader.VegaLite.cs`, and `SourceLoader.SvgImages.cs`),
+`SourceLoader.Scad.cs`, `SourceLoader.VegaLite.cs`, `SourceLoader.SvgImages.cs`, and `SourceLoader.Input.cs`),
 and the supporting types in `SourceModels.cs`. The EXIF orientation is read by the core `JpegCodec.ReadExifOrientation`
 and applied by the core `Surface.ApplyExifOrientation`. The pixel helpers that used to be part of this unit
 (`FlattenOver`, `HasTransparency`, `FitInside`, and `FitInto`, with the `FitMode` enum) are methods of the core
@@ -61,7 +61,8 @@ from the -Y side (the front) and positive azimuth moves the eye toward +X.
 
 **LoadedSource** (record, `IDisposable`): the `Surface` (disposed with the record), the `Info` (for a document page,
 sized at the natural size of that page at the requested resolution), the 1-based `Page`, `IsVector`, `Diagnostics`
-(`ImageDiagnostic` records: source, severity, code, message, and the page, with the `Origin`: the embedded files,
+(`ImageDiagnostic` records: source, severity, code, message, and the page, with the optional `Detail`, `Location`, and
+the `Origin`: the embedded files,
 outermost first, that the note is about, empty by default and compared entry by entry), `Echo` (text printed by a model),
 `Anchors` (`SourceAnchor` records, an init property that is empty for every kind but a model: the name, the world
 point `X`, `Y`, `Z`, and the nullable continuous pixel position `PixelX` and `PixelY` in the loaded surface), and
@@ -307,6 +308,47 @@ private center helper for documents (a page rendered smaller than the box is cen
 size comes from the core `Surface.FitInside` (the smaller of the two box ratios scales both sides, so a small image is
 enlarged, and each side is rounded half away from zero and limited to 1 and the box; the algorithm is documented in
 *SurfaceTransforms Unit Design*, `canvas/surface-transforms.md`).
+
+**SourceInput and LoadContext** (`SourceLoader.Input.cs`): the loader reads a file through a `SourceInput`, not a path.
+`SourceInput.FromFile(path)` opens a new `FileStream` for every use, and `SourceInput.FromMemory(bytes, name,
+directory)` serves bytes; both expose `Name` (the path as given, used in every message), `Directory` (the folder that the
+files a format names itself are looked up in), `Length`, and `Open()`. Every `ProbeX` and page source reads through it and
+calls the library by its **stream** overload with `BaseDirectory = input.Directory` and
+`SourceName = input.Name`, which is
+what the path overloads of the libraries do, so a file loaded from disk and the same bytes loaded from memory give the same
+kind, size, pixels, and notes. The public `Probe(path)`, `Load`, and `OpenPages` use `FromFile` and the default
+`LoadContext`, so the command line behaves as before. The internal entry points `ProbeInput(input, kind)` and
+`OpenInputPages(input, info, options, context)` serve `LoaderImageSource` of the `CanvasNetViewer` unit.
+`LoadContext` carries the hooks of a render that embeds the file: a `CancellationToken` (checked before each load, and
+passed to the model and chart renderers), `Charge(width, height)` (called once for every surface before it is
+allocated, so the pixel budget of the render is charged first - a raster from its declared size, before the stored-size
+check, so a huge picture stays a `svg-image-too-large` warning and not a `size-limit` error), `ScopedResolver` (used
+instead of building an `SvgImages` resolver for the nested pictures of an SVG file, so the depth, cycle, and budget
+limits of the embedding render apply and the resolver's notes are not duplicated), and `ReturnFittedPage` (a document page
+comes back at its fitted size without the margin, as a linked page is drawn). The default context has no hook.
+
+**Option validation** (`FindOptionProblem`): `Load(path, options)`, `Load(info, options)`, and `OpenPages` check the
+`SourceOptions` first, before any file is touched, with the ranges of the command-line readers: `Width` and `Height`
+at least 1 (above `Surface.MaxDimension` stays `size-limit` when the file is loaded), `Scale` finite and from 0.001 to
+8192, `Dpi` finite, above 0 and at most `MaxDpi` (2400, the constant the tool's `ArgumentReader` shares), a `Filter` that
+is a defined value, and for a model a known `View`, a finite `Azimuth`, a finite `Elevation` from -90 to 90, a finite
+`Time` within 1e9, `MaxTriangles` at least 1, and `Defines` that the model library accepts. A violation is a
+`ViewerException` with the code `usage-error`; `CanvasNetViewer.Render` calls the same validator and reports the problem
+as
+an `ArgumentOutOfRangeException`. A page below 1 or beyond the last keeps its `page-out-of-range` from `CheckPage`,
+and the
+whole-number rule of the Visio `Dpi` stays in `ValidateDpi` because it depends on the kind of file.
+
+**Diagnostic detail** (`ImageDiagnostic.Detail` and `.Location`): the generic `Code` of a note is unchanged (`scad-warning`,
+`vega-lite-warning`, the feature of an unsupported construct). `Detail` is the finer identifier of the library: for a model
+warning the `ScadDiagnostic.Code` when it differs from `scad-warning` (`scad-anchor-invalid`), for a chart warning the
+documented `vl-*` prefix of the message. `Location` is `(File, Line, Column)` of a model (left out when the line is 0)
+and `(File, Pointer, Line, Column)` of a chart when the position is known; a note about a page of a document has the
+`Page` and no location. For the notes of embedded files `SvgImages` copies `Detail`, `Location`, `Page`, and `Origin`
+unchanged. `SvgImages.ThrowForUnresolved` also treats `image-fragment-invalid` and `image-page-out-of-range`
+(besides `svg-image-unresolved` and `svg-image-too-large`) as an image that was not drawn, so `Strict` fails with
+`unsupported-feature`; the warnings `image-fragment-unknown-parameter` and `image-fragment-duplicate-parameter` stay
+warnings.
 
 #### Error Handling
 

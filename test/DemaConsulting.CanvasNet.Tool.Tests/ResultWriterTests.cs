@@ -1,6 +1,8 @@
 // cspell:ignore canvasnet rmse
 using System.Globalization;
 using System.Text.Json;
+using DemaConsulting.CanvasNet.ImageSources;
+using DemaConsulting.CanvasNet.Viewer.Imaging;
 
 namespace DemaConsulting.CanvasNet.Tool.Tests;
 
@@ -227,6 +229,92 @@ public class ResultWriterTests
 
         // Assert: byte-identical
         Assert.Equal(first, second);
+    }
+
+    /// <summary>
+    ///     Test that a plain diagnostic gets no extra member, so its shape stays the one the schema always had.
+    /// </summary>
+    [Fact]
+    public void ResultWriter_WriteDiagnosticExtras_PlainDiagnostic_WritesNothing()
+    {
+        // Arrange / Act: write a diagnostic without detail, location, or origin
+        var json = ResultWriter.Success("c", writer =>
+        {
+            writer.WriteStartObject("d");
+            ResultWriter.WriteDiagnosticExtras(writer, new ImageDiagnostic("svg", "warning", "svg-image-unresolved", "m"));
+            writer.WriteEndObject();
+        });
+
+        // Assert: an empty object
+        Assert.Equal("{\"schemaVersion\":1,\"ok\":true,\"command\":\"c\",\"d\":{}}", json);
+    }
+
+    /// <summary>
+    ///     Test that detail, a location with only the known members, and the origin are written in that order.
+    /// </summary>
+    [Fact]
+    public void ResultWriter_WriteDiagnosticExtras_DetailLocationOrigin_AreWrittenInOrder()
+    {
+        // Arrange: a diagnostic with a position in a file and an embed chain
+        var diagnostic = new ImageDiagnostic("scad", "warning", "scad-warning", "m")
+        {
+            Detail = "scad-anchor-invalid",
+            Location = new ImageDiagnosticLocation("part.scad", 3, 7, null),
+            Origin = ["a.svg", "sub/part.scad"]
+        };
+
+        // Act
+        var json = ResultWriter.Success("c", writer =>
+        {
+            writer.WriteStartObject("d");
+            ResultWriter.WriteDiagnosticExtras(writer, diagnostic);
+            writer.WriteEndObject();
+        });
+
+        // Assert: null location members are omitted
+        Assert.Equal(
+            "{\"schemaVersion\":1,\"ok\":true,\"command\":\"c\",\"d\":{\"detail\":\"scad-anchor-invalid\","
+            + "\"location\":{\"file\":\"part.scad\",\"line\":3,\"column\":7},\"origin\":[\"a.svg\",\"sub/part.scad\"]}}",
+            json);
+    }
+
+    /// <summary>
+    ///     Test that the JSON pointer of a chart is written, and that a location without any member is left out.
+    /// </summary>
+    [Fact]
+    public void ResultWriter_WriteDiagnosticExtras_PointerAndEmptyLocation_AreHandled()
+    {
+        // Arrange / Act
+        var json = ResultWriter.Success("c", writer =>
+        {
+            writer.WriteStartObject("a");
+            ResultWriter.WriteDiagnosticExtras(
+                writer,
+                new ImageDiagnostic("vega-lite", "warning", "vega-lite-warning", "m") { Location = new ImageDiagnosticLocation(null, null, null, "/mark") });
+            writer.WriteEndObject();
+            writer.WriteStartObject("b");
+            ResultWriter.WriteDiagnosticExtras(
+                writer,
+                new ImageDiagnostic("vega-lite", "warning", "vega-lite-warning", "m") { Location = new ImageDiagnosticLocation(null, null, null, null) });
+            writer.WriteEndObject();
+        });
+
+        // Assert
+        Assert.Equal("{\"schemaVersion\":1,\"ok\":true,\"command\":\"c\",\"a\":{\"location\":{\"pointer\":\"/mark\"}},\"b\":{}}", json);
+    }
+
+    /// <summary>
+    ///     Test that null arguments of <c>WriteDiagnosticExtras</c> are rejected.
+    /// </summary>
+    [Fact]
+    public void ResultWriter_WriteDiagnosticExtras_NullArguments_ThrowsArgumentNullException()
+    {
+        // Arrange / Act / Assert
+        ResultWriter.Success("c", writer =>
+        {
+            Assert.Throws<ArgumentNullException>(() => ResultWriter.WriteDiagnosticExtras(writer, null!));
+            Assert.Throws<ArgumentNullException>(() => ResultWriter.WriteDiagnosticExtras(null!, new ImageDiagnostic("a", "b", "c", "d")));
+        });
     }
 
     /// <summary>

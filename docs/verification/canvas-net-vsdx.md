@@ -380,13 +380,15 @@ dimensions. Complements `VsdxRenderFixtureTests`'s own per-category whole-docume
 (one fixture per shape-family, each additionally asserting a specific painted pixel) with
 full-corpus "opens, resolves, and renders cleanly" coverage in one place.
 
-### Integration: Image Source Draws The first page of a Visio drawing At The Size Of Its Placement
+### Integration: Image Source Draws A Page Of A Visio Drawing At The Size Of Its Placement
 
 **Test**: `VsdxImageSource_Render_RequestedBox_FitsPageInsideBox`
 
 Exercises end-to-end system behavior of `VsdxImageSource`, the package's source for the shared image resolver of the
-core package: it renders the first page of a Visio drawing from the bytes of a hand-built request with a requested size
-and asserts that the picture has the documented size. The full set of scenarios (natural size, transparency, notes,
+core package: it renders a page of a Visio drawing (the first, or the one the fragment of the link names with `page=N`)
+from the bytes of a hand-built request with a requested size
+and asserts that the picture has the documented size. The full set of scenarios (natural size, transparency, page
+selection, a page that does not exist, an invalid value, notes,
 strict mode, the folder of the request, and invalid input) is in the unit verification design
 (`canvas-net-vsdx/vsdx-document.md`).
 

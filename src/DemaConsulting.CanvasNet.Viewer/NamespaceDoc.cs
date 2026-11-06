@@ -13,9 +13,9 @@ namespace DemaConsulting.CanvasNet.Viewer;
 /// <remarks>
 ///     <para>
 ///         <see cref="CanvasNetViewer"/> is the entry point: <see cref="CanvasNetViewer.Render(string, ViewerRenderOptions?)"/>
-///         draws a file and returns a <see cref="ViewerImage"/> with its notes, echo, and embedded images,
-///         <see cref="ViewerRenderOptions"/> says how (size, sandbox folder, your own
-///         <see cref="ViewerRenderOptions.ExtraSources"/>), and
+///         draws a file and returns a <see cref="ViewerImage"/> with its notes, echo, anchors, page, and embedded images,
+///         <see cref="ViewerRenderOptions"/> says how (size, page, resolution, background, model view, sandbox folder,
+///         your own <see cref="ViewerRenderOptions.ExtraSources"/>), and
 ///         <see cref="CanvasNetViewer.CreateImageResolver(string, DemaConsulting.CanvasNet.ImageSources.FolderImageResolverOptions?)"/>
 ///         is for a render that you drive yourself. A failure the caller can fix is reported by a
 ///         <see cref="ViewerException"/> with a stable <see cref="ViewerException.Code"/> from <see cref="ErrorCodes"/>;
