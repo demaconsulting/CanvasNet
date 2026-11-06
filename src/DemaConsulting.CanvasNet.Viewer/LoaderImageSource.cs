@@ -204,7 +204,8 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
             }
         }
 
-        var info = SourceLoader.ProbeInput(input, kind);
+        using var opened = SourceLoader.OpenInput(input, kind);
+        var info = opened.Info;
         if (options.Page < 1 || options.Page > info.PageCount)
         {
             throw new ImageSourceRefusedException(FolderImageResolver.PageOutOfRangeCode, DescribeMissingPage(kind, options.Page, info.PageCount));
@@ -218,7 +219,7 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
             ScopedResolver = request.Resolver,
             ReturnFittedPage = true
         };
-        using var pages = SourceLoader.OpenInputPages(input, info, options, context);
+        using var pages = SourceLoader.OpenInputPages(input, info, options, context, opened);
         var loaded = pages.ReadPage(options.Page);
 
         // The loaded source only owns the surface, which now belongs to the result

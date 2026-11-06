@@ -123,11 +123,17 @@ sections:
               report a page the file does not have as a ViewerException with the code page-out-of-range, give the
               same pixels as the SourceLoader for equal options, and return in the ViewerImage the page drawn
               (Page), the number of pages of the file (PageCount), and the anchors of a model (Anchors) besides the
-              notes and printed text.
+              notes and printed text. A PDF, presentation or drawing shall be parsed once by a render, not once for
+              its page facts and again for the page.
             justification: |
               A caller that wants page N of a document, or a model from one view, with its notes and anchors, should
               not have to leave CanvasNetViewer for the Imaging operations of the tool.
             tests:
+              - CanvasNetViewer_Render_Path_ParsesTheDocumentOnce
+              - CanvasNetViewer_Render_Stream_ParsesTheDocumentOnce
+              - CanvasNetViewer_Render_PageOutOfRange_ParsesTheDocumentOnce
+              - CanvasNetViewer_Render_LinkedDocument_ParsesTheDocumentOnce
+              - SourceLoader_Probe_ParsesTheDocumentOnce
               - ViewerRenderOptions_Defaults_PageOneAndNoDpiBackgroundOrScad
               - CanvasNetViewer_Render_PageAndDpi_DrawsThePageAtTheResolution
               - CanvasNetViewer_Render_StreamWithPage_DrawsThePage

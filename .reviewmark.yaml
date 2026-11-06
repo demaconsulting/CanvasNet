@@ -1585,6 +1585,7 @@ reviews:
       - "test/DemaConsulting.CanvasNet.Viewer.Tests/CanvasNetViewerTests.cs"  # unit tests
       - "test/DemaConsulting.CanvasNet.Viewer.Tests/CanvasNetViewerFragmentTests.cs"  # unit tests (fragments)
       - "test/DemaConsulting.CanvasNet.Viewer.Tests/CanvasNetViewerRenderOptionsTests.cs"  # unit tests (render options)
+      - "test/DemaConsulting.CanvasNet.Viewer.Tests/CanvasNetViewerSingleParseTests.cs"  # unit tests (single parse)
       - "test/DemaConsulting.CanvasNet.Viewer.Tests/ViewerFixtures.cs"  # unit test fixtures
 
   # CanvasNetViewer-ViewerException Review (one per direct unit)

@@ -317,8 +317,12 @@ calls the library by its **stream** overload with `BaseDirectory = input.Directo
 `SourceName = input.Name`, which is
 what the path overloads of the libraries do, so a file loaded from disk and the same bytes loaded from memory give the same
 kind, size, pixels, and notes. The public `Probe(path)`, `Load`, and `OpenPages` use `FromFile` and the default
-`LoadContext`, so the command line behaves as before. The internal entry points `ProbeInput(input, kind)` and
-`OpenInputPages(input, info, options, context)` serve `LoaderImageSource` of the `CanvasNetViewer` unit.
+`LoadContext`, so the command line behaves as before (it probes once for `info` and opens once for `render`, as
+before). The internal entry points `ProbeInput(input, kind)`, `OpenInput(input, kind)` and
+`OpenInputPages(input, info, options, context, opened)` serve `LoaderImageSource` of the `CanvasNetViewer` unit:
+`OpenInput` returns an `OpenedSource` that keeps the parsed PDF, presentation or drawing open after reading its pages,
+and `OpenInputPages` takes the document from it (`TakeDocument`, which transfers ownership to the page source), so a
+render parses a document once. A per-thread counter (`DocumentParseCount`) counts the parses, for the tests.
 `LoadContext` carries the hooks of a render that embeds the file: a `CancellationToken` (checked before each load, and
 passed to the model and chart renderers), `Charge(width, height)` (called once for every surface before it is
 allocated, so the pixel budget of the render is charged first - a raster from its declared size, before the stored-size

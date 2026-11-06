@@ -468,7 +468,9 @@ is given twice, the later definition wins. A name that is not a valid variable n
 The `include <file>` and `use <file>` directives of a model are read relative to the file that names them, and only
 inside the folder of the model and below it; symbolic links are not followed. An include that names a missing file, a
 file outside the model's folder, or a circular include is an error (`scad-error`) rather than being skipped, because
-a picture drawn without a file it asked for would be silently wrong. A syntax error is also a `scad-error`, with the
+a picture drawn without a file it asked for would be silently wrong. The same holds for a model that an SVG file embeds
+with an `<image>` element: its missing include fails the render naming the link, where earlier versions only warned
+and drew the model without the file (a deliberate change). A syntax error is also a `scad-error`, with the
 file, line, and column of the mistake. A model that would produce more triangles than `--max-triangles` fails with
 `budget-exceeded`.
 
@@ -626,7 +628,7 @@ accepts):
 | Another SVG file | `.svg` |
 | OpenSCAD model | `.scad` |
 | Vega-Lite chart | `.vl.json`, `.vl` |
-| A page of a document (page 1 unless the href says `#page=N`; PDF page, PowerPoint slide, or Visio page) | `.pdf`, `.pptx`, `.vsdx` |
+| A document page (page 1, or `#page=N`; PDF, PowerPoint, Visio) | `.pdf`, `.pptx`, `.vsdx` |
 
 The format is decided by the **file name** (its extension), not by the content: a Vega-Lite chart must be named `.vl.json`
 or `.vl` (a chart in a plain `.json` file is not linked), and a file with another name is not drawn (the warning

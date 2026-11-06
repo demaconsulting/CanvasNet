@@ -152,15 +152,61 @@ public static partial class SourceLoader
     }
 
     /// <summary>
+    ///     Reads the facts about a source of a known kind and keeps a document open, so a render of it does not parse it again.
+    /// </summary>
+    /// <param name="input">Where the bytes come from.</param>
+    /// <param name="kind">The kind of the source, already recognized by the caller.</param>
+    /// <returns>The facts and, for a PDF, presentation or drawing, the parsed document; the caller disposes it.</returns>
+    /// <exception cref="ViewerException">Thrown for an unreadable or corrupt source (see <see cref="Read{T}"/>).</exception>
+    internal static OpenedSource OpenInput(SourceInput input, SourceKind kind)
+    {
+        switch (kind)
+        {
+            case SourceKind.Pdf:
+                return KeepOpen(Read(input.Name, SourceKind.Pdf, () => OpenPdf(input)), (d, bytes) => DescribePdf(input.Name, d, bytes), input);
+            case SourceKind.Pptx:
+                return KeepOpen(Read(input.Name, SourceKind.Pptx, () => OpenPptx(input)), (d, bytes) => DescribePptx(input.Name, d, bytes), input);
+            case SourceKind.Vsdx:
+                return KeepOpen(Read(input.Name, SourceKind.Vsdx, () => OpenVsdx(input)), (d, bytes) => DescribeVsdx(input.Name, d, bytes), input);
+            default:
+                return new OpenedSource(ProbeInput(input, kind), null);
+        }
+    }
+
+    /// <summary>
+    ///     Describes an opened document and keeps it open, disposing it when it cannot be described.
+    /// </summary>
+    /// <typeparam name="T">The type of the document.</typeparam>
+    /// <param name="document">The opened document; ownership passes to the result.</param>
+    /// <param name="describe">Reads the facts about the document, given the size of the file.</param>
+    /// <param name="input">Where the bytes come from.</param>
+    /// <returns>The opened source.</returns>
+    private static OpenedSource KeepOpen<T>(T document, Func<T, long, SourceInfo> describe, SourceInput input)
+        where T : IDisposable
+    {
+        try
+        {
+            var bytes = Read(input.Name, null, () => input.Length);
+            return new OpenedSource(describe(document, bytes), document);
+        }
+        catch
+        {
+            document.Dispose();
+            throw;
+        }
+    }
+
+    /// <summary>
     ///     Opens a source, wherever its bytes come from, so that its pages can be loaded.
     /// </summary>
     /// <param name="input">Where the bytes come from.</param>
     /// <param name="info">The facts about the source, from <see cref="ProbeInput"/>.</param>
     /// <param name="options">The loading options.</param>
     /// <param name="context">The hooks of the caller.</param>
+    /// <param name="opened">The source as <see cref="OpenInput"/> opened it, whose parsed document is reused, or <see langword="null"/> to parse it again.</param>
     /// <returns>The page source, which the caller disposes.</returns>
     /// <exception cref="ViewerException">See <see cref="OpenPages(SourceInfo, SourceOptions)"/>.</exception>
-    internal static PageSource OpenInputPages(SourceInput input, SourceInfo info, SourceOptions options, LoadContext context)
+    internal static PageSource OpenInputPages(SourceInput input, SourceInfo info, SourceOptions options, LoadContext context, OpenedSource? opened = null)
     {
         // The options are checked before the source is opened, so a mistake costs no I/O
         ValidateOptions(options);
@@ -168,9 +214,9 @@ public static partial class SourceLoader
         {
             SourceKind.Png or SourceKind.Jpeg or SourceKind.Bmp or SourceKind.Tiff or SourceKind.Gif or SourceKind.Jpeg2000
                 or SourceKind.Svg => new ImagePageSource(info, options, input, context),
-            SourceKind.Pdf => PdfPageSource.Open(input, info, options, context),
-            SourceKind.Pptx => PptxPageSource.Open(input, info, options, context),
-            SourceKind.Vsdx => VsdxPageSource.Open(input, info, options, context),
+            SourceKind.Pdf => PdfPageSource.Open(input, info, options, context, opened),
+            SourceKind.Pptx => PptxPageSource.Open(input, info, options, context, opened),
+            SourceKind.Vsdx => VsdxPageSource.Open(input, info, options, context, opened),
             SourceKind.Scad => ScadPageSource.Open(input, info, options, context),
             SourceKind.VegaLite => VegaLitePageSource.Open(input, info, options, context),
             _ => throw UnhandledKind(info.Format)

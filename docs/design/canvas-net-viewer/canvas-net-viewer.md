@@ -60,8 +60,11 @@ builds them from its fragment (`page` or `slide` through `GetPositiveInt32`, `vi
 a transparent background for a vector source, none for a chart, and for a vector source the placement as `Width` and
 `Height`; an embedded file never inherits the options of its embedder); (2) wrap the bytes in a
 `SourceLoader.SourceInput` named and based as the resolver found the file; (3) for a raster, refuse from its declared
-size, before anything is decoded, a picture that cannot fit in the budget; (4) `ProbeInput`, and a page below 1 or beyond
-the page count is an `ImageSourceRefusedException` with the code `image-page-out-of-range`; (5) open the pages with a
+size, before anything is decoded, a picture that cannot fit in the budget; (4) `OpenInput`, which parses a PDF,
+presentation or drawing once and returns the facts about its pages together with the parsed document (any other kind
+is described by `ProbeInput`), and a page below 1 or beyond the page count is an `ImageSourceRefusedException` with the
+code `image-page-out-of-range`; (5) open the pages, handing the already parsed document to the page source (which then
+owns it; the `OpenedSource` disposes it on every path where it was not handed over), with a
 `LoadContext` that charges every surface to the request (`EnsureWithinBudget`), observes the cancellation token, draws a
 nested SVG through the scoped resolver of the request (so the depth, cycle and budget limits of the render hold), and
 returns a document page at its fitted size; (6) read the page and convert the notes of the loader to

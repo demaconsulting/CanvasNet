@@ -23,8 +23,20 @@ public static partial class SourceLoader
     private static SourceInfo ProbePdf(SourceInput input, long bytes)
     {
         using var document = Read(input.Name, SourceKind.Pdf, () => OpenPdf(input));
+        return DescribePdf(input.Name, document, bytes);
+    }
+
+    /// <summary>
+    ///     Describes the pages of an opened PDF document.
+    /// </summary>
+    /// <param name="name">The name of the source.</param>
+    /// <param name="document">The opened document.</param>
+    /// <param name="bytes">The size of the file in bytes.</param>
+    /// <returns>The facts about the file.</returns>
+    private static SourceInfo DescribePdf(string name, PdfDocument document, long bytes)
+    {
         var pages = Read(
-            input.Name,
+            name,
             SourceKind.Pdf,
             () => Enumerable.Range(0, document.PageCount)
                 .Select(i =>
@@ -33,7 +45,7 @@ public static partial class SourceLoader
                     return CreatePage(i + 1, page.Width, page.Height, null, page.Rotation);
                 })
                 .ToList());
-        return CreateDocumentInfo(input.Name, SourceKind.Pdf, bytes, pages);
+        return CreateDocumentInfo(name, SourceKind.Pdf, bytes, pages);
     }
 
     /// <summary>
@@ -43,6 +55,7 @@ public static partial class SourceLoader
     /// <returns>The opened document; the caller disposes it.</returns>
     private static PdfDocument OpenPdf(SourceInput input)
     {
+        _documentParses++;
         using var stream = input.Open();
         return PdfDocument.Open(stream);
     }
@@ -78,12 +91,13 @@ public static partial class SourceLoader
         /// <param name="info">The facts about the file.</param>
         /// <param name="options">The loading options.</param>
         /// <param name="context">The hooks of the caller.</param>
+        /// <param name="opened">The source as it was opened for its facts, whose parsed document is reused, or <see langword="null"/> to parse the file.</param>
         /// <returns>The page source.</returns>
         /// <exception cref="ViewerException">Thrown when the file cannot be opened or the resolution is not usable.</exception>
-        public static PdfPageSource Open(SourceInput input, SourceInfo info, SourceOptions options, LoadContext context)
+        public static PdfPageSource Open(SourceInput input, SourceInfo info, SourceOptions options, LoadContext context, OpenedSource? opened = null)
         {
             ValidateDpi(options, false);
-            var document = Read(info.Path, SourceKind.Pdf, () => OpenPdf(input));
+            var document = opened?.TakeDocument<PdfDocument>() ?? Read(info.Path, SourceKind.Pdf, () => OpenPdf(input));
             return new PdfPageSource(document, info, options, input, context);
         }
 

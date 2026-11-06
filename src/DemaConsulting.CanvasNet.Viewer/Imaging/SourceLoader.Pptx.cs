@@ -24,12 +24,24 @@ public static partial class SourceLoader
     private static SourceInfo ProbePptx(SourceInput input, long bytes)
     {
         using var document = Read(input.Name, SourceKind.Pptx, () => OpenPptx(input));
-        var size = Read(input.Name, SourceKind.Pptx, () => document.SlideSize);
-        var count = Read(input.Name, SourceKind.Pptx, () => document.SlideCount);
+        return DescribePptx(input.Name, document, bytes);
+    }
+
+    /// <summary>
+    ///     Describes the slides of an opened presentation.
+    /// </summary>
+    /// <param name="name">The name of the source.</param>
+    /// <param name="document">The opened presentation.</param>
+    /// <param name="bytes">The size of the file in bytes.</param>
+    /// <returns>The facts about the file.</returns>
+    private static SourceInfo DescribePptx(string name, PptxDocument document, long bytes)
+    {
+        var size = Read(name, SourceKind.Pptx, () => document.SlideSize);
+        var count = Read(name, SourceKind.Pptx, () => document.SlideCount);
         var pages = Enumerable.Range(1, count)
             .Select(number => CreatePage(number, size.WidthEmu / EmuPerPoint, size.HeightEmu / EmuPerPoint, null, null))
             .ToList();
-        return CreateDocumentInfo(input.Name, SourceKind.Pptx, bytes, pages);
+        return CreateDocumentInfo(name, SourceKind.Pptx, bytes, pages);
     }
 
     /// <summary>
@@ -39,6 +51,7 @@ public static partial class SourceLoader
     /// <returns>The opened document; the caller disposes it.</returns>
     private static PptxDocument OpenPptx(SourceInput input)
     {
+        _documentParses++;
         using var stream = input.Open();
         return PptxDocument.Open(stream);
     }
@@ -74,12 +87,13 @@ public static partial class SourceLoader
         /// <param name="info">The facts about the file.</param>
         /// <param name="options">The loading options.</param>
         /// <param name="context">The hooks of the caller.</param>
+        /// <param name="opened">The source as it was opened for its facts, whose parsed document is reused, or <see langword="null"/> to parse the file.</param>
         /// <returns>The page source.</returns>
         /// <exception cref="ViewerException">Thrown when the file cannot be opened or the resolution is not usable.</exception>
-        public static PptxPageSource Open(SourceInput input, SourceInfo info, SourceOptions options, LoadContext context)
+        public static PptxPageSource Open(SourceInput input, SourceInfo info, SourceOptions options, LoadContext context, OpenedSource? opened = null)
         {
             ValidateDpi(options, false);
-            var document = Read(info.Path, SourceKind.Pptx, () => OpenPptx(input));
+            var document = opened?.TakeDocument<PptxDocument>() ?? Read(info.Path, SourceKind.Pptx, () => OpenPptx(input));
             return new PptxPageSource(document, info, options, input, context);
         }
 

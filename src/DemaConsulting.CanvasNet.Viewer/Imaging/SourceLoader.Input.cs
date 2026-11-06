@@ -133,6 +133,77 @@ public static partial class SourceLoader
     }
 
     /// <summary>
+    ///     The number of times a PDF, presentation or drawing was parsed by the current thread.
+    /// </summary>
+    /// <remarks>
+    ///     It exists so that a test can prove that a render parses a document once. It is per thread, so tests that run
+    ///     in parallel do not disturb each other.
+    /// </remarks>
+    [ThreadStatic]
+    private static int _documentParses;
+
+    /// <summary>
+    ///     Gets the number of documents the current thread has parsed so far.
+    /// </summary>
+    internal static int DocumentParseCount => _documentParses;
+
+    /// <summary>
+    ///     A source that was opened once, for the facts about it and then for drawing a page of it.
+    /// </summary>
+    /// <remarks>
+    ///     A document (PDF, presentation, drawing) is parsed to read its pages, and a render needs the same parsed
+    ///     document; this class carries it from the first use to the second so it is parsed once. The caller disposes it;
+    ///     a document that was handed to a page source by <see cref="TakeDocument"/> is then the page source's to dispose.
+    /// </remarks>
+    internal sealed class OpenedSource : IDisposable
+    {
+        /// <summary>
+        ///     The parsed document, or <see langword="null"/> for a source that is not a document or once it is taken.
+        /// </summary>
+        private IDisposable? _document;
+
+        /// <summary>
+        ///     Initializes a new instance of the <see cref="OpenedSource"/> class.
+        /// </summary>
+        /// <param name="info">The facts about the source.</param>
+        /// <param name="document">The parsed document, or <see langword="null"/> when the source is not a document.</param>
+        public OpenedSource(SourceInfo info, IDisposable? document)
+        {
+            Info = info;
+            _document = document;
+        }
+
+        /// <summary>
+        ///     Gets the facts about the source.
+        /// </summary>
+        public SourceInfo Info { get; }
+
+        /// <summary>
+        ///     Hands over the parsed document, so that the caller owns and disposes it.
+        /// </summary>
+        /// <typeparam name="T">The type of the document.</typeparam>
+        /// <returns>The document, or <see langword="null"/> when there is none (or it is already taken).</returns>
+        public T? TakeDocument<T>()
+            where T : class, IDisposable
+        {
+            if (_document is not T document)
+            {
+                return null;
+            }
+
+            _document = null;
+            return document;
+        }
+
+        /// <inheritdoc />
+        public void Dispose()
+        {
+            _document?.Dispose();
+            _document = null;
+        }
+    }
+
+    /// <summary>
     ///     The hooks and policies that an embedding resolver gives the loader. The tool gives none (<see cref="Default"/>).
     /// </summary>
     internal sealed class LoadContext

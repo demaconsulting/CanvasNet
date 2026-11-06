@@ -23,8 +23,20 @@ public static partial class SourceLoader
     private static SourceInfo ProbeVsdx(SourceInput input, long bytes)
     {
         using var document = Read(input.Name, SourceKind.Vsdx, () => OpenVsdx(input));
+        return DescribeVsdx(input.Name, document, bytes);
+    }
+
+    /// <summary>
+    ///     Describes the pages of an opened drawing.
+    /// </summary>
+    /// <param name="name">The name of the source.</param>
+    /// <param name="document">The opened drawing.</param>
+    /// <param name="bytes">The size of the file in bytes.</param>
+    /// <returns>The facts about the file.</returns>
+    private static SourceInfo DescribeVsdx(string name, VsdxDocument document, long bytes)
+    {
         var pages = Read(
-            input.Name,
+            name,
             SourceKind.Vsdx,
             () => Enumerable.Range(0, document.PageCount)
                 .Select(i =>
@@ -33,7 +45,7 @@ public static partial class SourceLoader
                     return CreatePage(i + 1, page.WidthEmu / EmuPerPoint, page.HeightEmu / EmuPerPoint, page.Name, null);
                 })
                 .ToList());
-        return CreateDocumentInfo(input.Name, SourceKind.Vsdx, bytes, pages);
+        return CreateDocumentInfo(name, SourceKind.Vsdx, bytes, pages);
     }
 
     /// <summary>
@@ -43,6 +55,7 @@ public static partial class SourceLoader
     /// <returns>The opened document; the caller disposes it.</returns>
     private static VsdxDocument OpenVsdx(SourceInput input)
     {
+        _documentParses++;
         using var stream = input.Open();
         return VsdxDocument.Open(stream);
     }
@@ -78,12 +91,13 @@ public static partial class SourceLoader
         /// <param name="info">The facts about the file.</param>
         /// <param name="options">The loading options.</param>
         /// <param name="context">The hooks of the caller.</param>
+        /// <param name="opened">The source as it was opened for its facts, whose parsed document is reused, or <see langword="null"/> to parse the file.</param>
         /// <returns>The page source.</returns>
         /// <exception cref="ViewerException">Thrown when the file cannot be opened or the resolution is not usable.</exception>
-        public static VsdxPageSource Open(SourceInput input, SourceInfo info, SourceOptions options, LoadContext context)
+        public static VsdxPageSource Open(SourceInput input, SourceInfo info, SourceOptions options, LoadContext context, OpenedSource? opened = null)
         {
             ValidateDpi(options, true);
-            var document = Read(info.Path, SourceKind.Vsdx, () => OpenVsdx(input));
+            var document = opened?.TakeDocument<VsdxDocument>() ?? Read(info.Path, SourceKind.Vsdx, () => OpenVsdx(input));
             return new VsdxPageSource(document, info, options, input, context);
         }
 
