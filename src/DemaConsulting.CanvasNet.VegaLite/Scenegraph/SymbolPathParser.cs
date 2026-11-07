@@ -49,8 +49,12 @@ internal sealed class SymbolPathParser
     /// <summary>The total number of characters of path text that the cache retains; the cache is emptied when it would exceed this.</summary>
     private const int MaxCachedChars = 262144;
 
-    /// <summary>The parsed paths by text; only a text that parses is kept. Guarded by a lock on the dictionary.</summary>
+    /// <summary>The parsed paths by text; null for a text that does not parse. Guarded by a lock on the dictionary.</summary>
     private static readonly Dictionary<string, SymbolPathParser?> Cache = new(StringComparer.Ordinal);
+
+    /// <summary>The number of texts that <see cref="TryGet"/> parsed (a cache miss) on the current thread (for tests).</summary>
+    [ThreadStatic]
+    private static int _parsesOnThisThread;
 
     /// <summary>The total characters of the keys in <see cref="Cache"/>. Guarded by a lock on <see cref="Cache"/>.</summary>
     private static long _cachedChars;
@@ -106,10 +110,12 @@ internal sealed class SymbolPathParser
         }
 
         var parsed = TryParse(text, out _);
+        _parsesOnThisThread++;
 
-        // Only a path that parses and is of modest length is kept: a text that does not parse, or a very long one, is parsed again
-        // for each use, which keeps the memory that the process-wide cache retains within the fixed budget
-        if (parsed is null || text.Length > MaxCachedPathLength)
+        // Only a text of modest length is kept (a text that does not parse is kept too, as a failure, so that a shape field that repeats
+        // one malformed path is not scanned again for each row): a very long text is parsed again for each use, which keeps the memory
+        // that the process-wide cache retains within the fixed budget
+        if (text.Length > MaxCachedPathLength)
         {
             return parsed;
         }
@@ -133,6 +139,9 @@ internal sealed class SymbolPathParser
 
         return parsed;
     }
+
+    /// <summary>Gets the number of texts that <see cref="TryGet"/> had to parse (a cache miss) on the current thread (for tests).</summary>
+    internal static int ParsesOnThisThread => _parsesOnThisThread;
 
     /// <summary>
     ///     Finds out whether a path text is in the cache (for tests).

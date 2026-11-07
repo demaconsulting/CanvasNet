@@ -95,7 +95,7 @@ public sealed record ViewerRenderOptions
     ///         parameter the shapes of its initial state (<c>{"x": [2, 6]}</c> for an interval selection). It is the option
     ///         behind <c>--param name=value</c> of the tool and behind the <c>param.&lt;name&gt;=&lt;value&gt;</c>
     ///         fragment of an SVG link, so the command line, the library and an embedded chart behave the same way. The
-    ///         values are checked before the file is read: one the library rejects (an empty name, a value nested too deeply)
+    ///         values are checked before the file is read: one that the library rejects (an empty name, a value nested too deeply)
     ///         throws <see cref="ArgumentOutOfRangeException"/>. A name the chart does not declare is a
     ///         <see cref="ViewerException"/> with the code <c>vega-lite-error</c> that lists the declared names (see
     ///         <see cref="Imaging.ChartOptions.WarnOnUnknownParameters"/> for the warning instead). A chart embedded in the

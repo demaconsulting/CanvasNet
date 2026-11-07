@@ -497,7 +497,7 @@ public class CanvasNetViewerParameterFragmentTests
 
     /// <summary>
     ///     Test that a direct render with a parameter the chart does not declare is a <c>vega-lite-error</c> that lists the
-    ///     declared names (unlike an embedded link, which warns), and that a value the library rejects is refused before the file is read.
+    ///     declared names (unlike an embedded link, which warns), and that a value that the library rejects is refused before the file is read.
     /// </summary>
     [Fact]
     public void CanvasNetViewer_Render_VegaLiteOptions_UnknownAndInvalid_AreRefused()
@@ -580,7 +580,7 @@ public class CanvasNetViewerParameterFragmentTests
     }
 
     /// <summary>
-    ///     Test that chart options the library rejects are a <c>usage-error</c> before the file is touched, for a missing file as
+    ///     Test that chart options that the library rejects are a <c>usage-error</c> before the file is touched, for a missing file as
     ///     for an existing one, and that a null dictionary is a problem too.
     /// </summary>
     [Fact]

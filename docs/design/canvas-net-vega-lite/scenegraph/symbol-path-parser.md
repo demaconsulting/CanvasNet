@@ -70,8 +70,10 @@ symbol's center; they are empty when the path draws no point. The legend uses th
 **Cache.** `TryGet` keeps parsed paths by their exact text (ordinal comparison) in a process-wide cache that is guarded
 by a lock and bounded three ways: at most 256 entries, at most 262,144 characters of path text in total, and no text
 longer than 8,192 characters. The cache is cleared when an entry would exceed the entry or the character budget. A
-text that does not parse is never cached (it is parsed again on each call, which stops at the first error), so a
-long-lived process that renders many different specifications retains a bounded amount of path text. `Render`
+text that does not parse is cached too, as a failure (so a shape field that repeats one malformed path is scanned once,
+not once per row), when its text is within the same length bound; a text longer than 8,192 characters is never cached
+and is parsed again on each call. Every cached text counts its characters toward the budget, so a long-lived process
+that renders many different specifications retains a bounded amount of path text. `Render`
 remembers the last size (a symbol mark mostly has one size) and returns the same `Path` and bounds for it.
 
 **Limits** (every loop or allocation of the unit): the number of commands is at most `MaxCommands` (4,096) and the

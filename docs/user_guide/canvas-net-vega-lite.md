@@ -2904,23 +2904,16 @@ declares another), because a chart carries its own paper; its data files are loo
 nowhere else. Warnings and unsupported features are returned as notes of the source `vega-lite`.
 
 The source declares one family of fragment parameters, the **parameters of the chart**: `param.<name>=<value>` in the
-link sets
-the parameter `<name>` through `VegaLiteRenderOptions.Parameters`, like `--param name=value` of the `canvasnet` tool
-(`chart.vl.json#param.threshold=5&amp;param.brush={%22x%22:[2,6]}` in an XML attribute; `%22` is a double quote, decoded
-after the
-fragment is split). The value is a number, `true`, `false`, `null`, text, or JSON (a selection takes its initial state
-in the
-shape of the specification, see *Vega-Lite Parameters*), and the last value of a name wins. The chart is laid out again
-with the
-values, so a parameter that changes the layout changes the natural size too. A value that is not usable (malformed JSON,
-or one the library
-rejects) refuses the link with `ImageSourceRefusedException`, which the resolver reports as `image-fragment-invalid` and
-the chart is not
-drawn; a name the chart does not declare is the warning `vl-param-unknown` of the source `vega-lite` (a link is not a
-command line: the chart is
-drawn without it). `ImageParameterValues` of the core package reads the values, and
-`VegaLiteImageSource.ParameterPrefix` and
-`VegaLiteImageSource.UnknownParameterCode` are the constants.
+link sets the parameter `<name>` through `VegaLiteRenderOptions.Parameters`, like `--param name=value` of the
+`canvasnet` tool (`chart.vl.json#param.threshold=5&amp;param.brush={%22x%22:[2,6]}` in an XML attribute; `%22` is a
+double quote, decoded after the fragment is split). The value is a number, `true`, `false`, `null`, text, or JSON (a
+selection takes its initial state in the shape of the specification, see *Vega-Lite Parameters*), and the last value of
+a name wins. The chart is laid out again with the values, so a parameter that changes the layout changes the natural
+size too. A value that is not usable (malformed JSON, or one that the library rejects) refuses the link with
+`ImageSourceRefusedException`, which the resolver reports as `image-fragment-invalid` and the chart is not drawn; a
+name that the chart does not declare is the warning `vl-param-unknown` of the source `vega-lite` (a link is not a
+command line: the chart is drawn without it). `ImageParameterValues` of the core package reads the values, and
+`VegaLiteImageSource.ParameterPrefix` and `VegaLiteImageSource.UnknownParameterCode` are the constants.
 
 ```csharp
 // An SVG document that links to files of this kind, drawn through the resolver

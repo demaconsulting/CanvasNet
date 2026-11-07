@@ -68,17 +68,17 @@ sections:
                 title: >-
                   The SymbolPathParser unit shall share the parsed path of a text and the drawing of a size between
                   calls (a cache of parsed paths bounded by the number of entries and by the total characters of
-                  path text, which keeps only a path that parses and is of modest length, and a memo of the last
-                  drawing), so that a shape that many marks use is parsed once, shall not retain a text that does
-                  not parse or a very long text, shall be safe to call from several threads, and shall return the
-                  same result for the same text and size.
+                  path text, which keeps a path of modest length whether or not it parses, and a memo of the last
+                  drawing), so that a shape that many marks use, or one malformed path that many rows repeat, is
+                  parsed once, shall not retain a very long text, shall be safe to call from several threads, and
+                  shall return the same result for the same text and size.
                 justification: |
                   A scatter plot of thousands of points with a custom shape would otherwise parse and render the
                   path once per point, while a long-lived process that renders many different specifications must
                   not retain an unbounded amount of path text.
                 tests:
                   - SymbolPathParser_TryGet_SharesParsedPathsAndDrawings
-                  - SymbolPathParser_TryGet_DoesNotCacheInvalidOrVeryLongPaths
+                  - SymbolPathParser_TryGet_CachesInvalidPathsOnceAndDoesNotCacheVeryLongPaths
                   - SymbolPathParser_TryGet_BoundsTheRetainedTextAndIsThreadSafe
 
               - id: CanvasNetVegaLite-Scenegraph-SymbolPathParser-Scaling

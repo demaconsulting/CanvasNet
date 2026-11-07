@@ -350,25 +350,33 @@ public class SymbolPathParserTests
     }
 
     /// <summary>
-    ///     Validates that a path that does not parse and a path longer than the cache keeps are parsed on each call and never retained.
+    ///     Validates that a path that does not parse is cached as a failure (so a repeated malformed path is parsed once), while a path longer
+    ///     than the cache keeps is parsed on each call and never retained.
     /// </summary>
     [Fact]
-    public void SymbolPathParser_TryGet_DoesNotCacheInvalidOrVeryLongPaths()
+    public void SymbolPathParser_TryGet_CachesInvalidPathsOnceAndDoesNotCacheVeryLongPaths()
     {
-        // Arrange: an invalid path (a command without parameters) and a valid path longer than the cache keeps
+        // Arrange: an invalid path within the bound (a command without parameters), and a valid path longer than the cache keeps
         var invalid = "M0,0 L1,1 L " + new string(' ', 100) + "unique-invalid";
         var veryLong = LongPath(7, 9000);
+        var before = SymbolPathParser.ParsesOnThisThread;
 
-        // Act
-        var invalidResult = SymbolPathParser.TryGet(invalid);
+        // Act: the same malformed path ten times, as a shape field that repeats it for each row
+        var results = Enumerable.Range(0, 10).Select(_ => SymbolPathParser.TryGet(invalid)).ToList();
+        var parsedForInvalid = SymbolPathParser.ParsesOnThisThread - before;
         var longResult = SymbolPathParser.TryGet(veryLong);
+        var longAgain = SymbolPathParser.TryGet(veryLong);
 
-        // Assert: the invalid path is not drawable and was not kept; the long one is drawn but was not kept
-        Assert.Null(invalidResult);
+        // Assert: the invalid path is not drawable, is kept as a failure and was parsed once
+        Assert.All(results, Assert.Null);
+        Assert.True(SymbolPathParser.IsCached(invalid));
+        Assert.Equal(1, parsedForInvalid);
+
+        // Assert: the overlong one is drawn, was not kept and was parsed on each call
         Assert.NotNull(longResult);
-        Assert.False(SymbolPathParser.IsCached(invalid));
         Assert.False(SymbolPathParser.IsCached(veryLong));
-        Assert.Equal(longResult.CommandCount, SymbolPathParser.TryGet(veryLong)!.CommandCount);
+        Assert.Equal(longResult.CommandCount, longAgain!.CommandCount);
+        Assert.Equal(1 + 2, SymbolPathParser.ParsesOnThisThread - before);
     }
 
     /// <summary>

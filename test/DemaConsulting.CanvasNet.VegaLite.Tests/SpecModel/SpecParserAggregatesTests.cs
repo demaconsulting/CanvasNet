@@ -502,7 +502,7 @@ public class SpecParserAggregatesTests
     }
 
     /// <summary>
-    ///     Validates that every transform name of Vega-Lite (the statistical transforms of Phase 13 included) is one the renderer accepts, and that the predicate still
+    ///     Validates that every transform name of Vega-Lite (the statistical transforms of Phase 13 included) is one that the renderer accepts, and that the predicate still
     ///     rejects a name that is not a transform (the match is case-sensitive).
     /// </summary>
     [Fact]

@@ -186,7 +186,7 @@ public static class CanvasNetViewer
     ///     finite number greater than 0 and at most <see cref="SourceLoader.MaxDpi"/>, or when
     ///     <see cref="ViewerRenderOptions.Scad"/> is not usable (an unknown view, an elevation outside -90 to 90, a time
     ///     outside the limit, a triangle limit below 1, a definition the library rejects), or when
-    ///     <see cref="ViewerRenderOptions.VegaLite"/> is not usable (a parameter value the library rejects).
+    ///     <see cref="ViewerRenderOptions.VegaLite"/> is not usable (a parameter value that the library rejects).
     /// </exception>
     /// <exception cref="ArgumentException">Thrown when the file is not inside <see cref="ViewerRenderOptions.Folder"/>.</exception>
     /// <exception cref="FileNotFoundException">Thrown when the file does not exist.</exception>

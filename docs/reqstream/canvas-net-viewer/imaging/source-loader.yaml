@@ -678,11 +678,10 @@ sections:
       - id: CanvasNetViewer-Imaging-SourceLoader-ChartParameters
         title: >-
           The SourceLoader class shall take the values of the parameters of a Vega-Lite chart from
-          SourceOptions.VegaLite
-          (ChartOptions: a dictionary of null, boolean, number, text, list and dictionary values, the shapes
-          VegaLiteRenderOptions.Parameters takes), check them before it touches any file (a value the library rejects is
-          a
-          ViewerException with the code usage-error), lay the chart out again with them before it works out the target
+          SourceOptions.VegaLite (ChartOptions: a dictionary of null, boolean, number, text, list and dictionary
+          values, the shapes VegaLiteRenderOptions.Parameters takes), check them before it touches any file (a value
+          that the library rejects is a ViewerException with the code usage-error), lay the chart out again with them
+          before it works out the target
           size, so that the natural size of the loaded source and the picture are those of the parameterized chart, list
           them
           in the params field of the render operation (in name order, the values as JSON), fail with vega-lite-error,

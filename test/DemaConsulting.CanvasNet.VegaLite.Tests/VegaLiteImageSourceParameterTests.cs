@@ -208,7 +208,7 @@ public class VegaLiteImageSourceParameterTests
     }
 
     /// <summary>
-    ///     Test that a structured value the library rejects (nested beyond its limit, within the limit of the grammar) refuses the link.
+    ///     Test that a structured value that the library rejects (nested beyond its limit, within the limit of the grammar) refuses the link.
     /// </summary>
     [Fact]
     public void VegaLiteImageSource_Render_ValueTheLibraryRejects_IsRefused()
