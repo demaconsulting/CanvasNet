@@ -1403,9 +1403,9 @@ public class VegaLiteSystemIntegrationTests
     [Fact]
     public void CanvasNetVegaLite_SystemIntegration_Expressions_HostileEvaluationFailsClosed()
     {
-        // Arrange: fifty rows against a budget of fifty steps, after a selection parameter that is reported first
+        // Arrange: fifty rows against a budget of fifty steps, after an animation selection that is reported first
         var rows = "[" + string.Join(",", Enumerable.Range(0, 50).Select(i => "{\"a\":" + i + "}")) + "]";
-        var spec = "{\"params\":[{\"name\":\"s\",\"select\":\"interval\"}],\"data\":{\"values\":" + rows + "},"
+        var spec = "{\"params\":[{\"name\":\"s\",\"select\":{\"type\":\"point\",\"on\":\"timer\"}}],\"data\":{\"values\":" + rows + "},"
             + "\"transform\":[{\"calculate\":\"datum.a * 2 + 1\",\"as\":\"b\"}],\"mark\":\"point\",\"encoding\":{\"x\":{\"field\":\"b\",\"type\":\"quantitative\"}}}";
         var delivered = new List<string>();
         var options = new VegaLiteRenderOptions
@@ -1420,7 +1420,7 @@ public class VegaLiteSystemIntegrationTests
         // Assert: located at the expression, with the offset, after the report that came first
         Assert.Equal("/transform/0/calculate", ex.Location.Pointer);
         Assert.Contains("expression offset", ex.Message, StringComparison.Ordinal);
-        Assert.Equal(["vl-param-selection"], delivered);
+        Assert.Equal(["vl-param-selection-animation"], delivered);
 
         // Arrange: a pattern that makes a backtracking engine take exponential time on this text (forty a and a b)
         var text = new string('a', 40) + "b";

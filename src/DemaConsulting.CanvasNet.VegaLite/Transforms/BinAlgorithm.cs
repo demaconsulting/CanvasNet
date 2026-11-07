@@ -41,6 +41,12 @@ internal sealed record BinSettings
     public (double Min, double Max)? Extent { get; init; }
 
     /// <summary>
+    ///     Gets the span that chooses the step instead of the span of the data, or null (Vega's <c>span</c> of the <c>bin</c> transform, which Vega-Lite sets from a <c>bin.extent</c> that is a parameter: the
+    ///     span of the selected range). A span that is zero or not a number is as good as none. The bins still start and stop at the extent of the data; only the step follows the span.
+    /// </summary>
+    public double? Span { get; init; }
+
+    /// <summary>
     ///     Reads the parameters from the <c>bin</c> value of a specification.
     /// </summary>
     /// <param name="bin">The value: an object of bin parameters, or anything else (true) for the defaults; null is the defaults.</param>
@@ -96,7 +102,7 @@ internal readonly record struct BinSpec(double Start, double Stop, double Step)
 ///     <para>
 ///         <b>Choosing the step</b> (<see cref="Compute"/>) is a port of Vega's <c>bin</c> of <c>vega-statistics</c>. With neither an
 ///         exact <c>step</c> nor a list of <c>steps</c> the step starts at <c>max(minstep, base^(round(log_base(span)) - level))</c>,
-///         where <c>span</c> is the extent (its magnitude when the extent is a single value, 1 for zero) and <c>level</c> is
+///         where <c>span</c> is the <see cref="BinSettings.Span"/> when it is given and not zero, else the extent (its magnitude when the extent is a single value, 1 for zero) and <c>level</c> is
 ///         <c>ceil(log_base(maxbins))</c>; it is multiplied by the base while the span needs more than <c>maxbins</c> bins, and
 ///         then divided by each divisor in turn when that still fits. A list of steps chooses the largest listed step that is
 ///         smaller than <c>span / maxbins</c> (the first one when none is). With <c>nice</c> the extent is rounded out to whole
@@ -128,6 +134,28 @@ internal static class BinAlgorithm
     private static readonly double[] DefaultDivide = [5, 2];
 
     /// <summary>
+    ///     Gets the span of a value the way Vega-Lite's <c>span</c> expression function does: the last element minus the first of an array.
+    /// </summary>
+    /// <param name="value">The value of a parameter.</param>
+    /// <returns>The span; zero for anything that is not an array of two or more numbers or dates (an empty array, a scalar, a value that is not a number).</returns>
+    public static double SpanOf(DataValue value)
+    {
+        if (!value.IsArray)
+        {
+            return 0;
+        }
+
+        var items = value.Elements.ToArray();
+        if (items.Length == 0 || !items[0].TryGetQuantitative(out var first) || !items[^1].TryGetQuantitative(out var last))
+        {
+            return 0;
+        }
+
+        var span = last - first;
+        return double.IsNaN(span) ? 0 : span;
+    }
+
+    /// <summary>
     ///     Chooses the bins for an extent (Vega's <c>bin</c>).
     /// </summary>
     /// <param name="min">The smallest value; finite.</param>
@@ -152,7 +180,9 @@ internal static class BinAlgorithm
         }
 
         var logBase = Math.Log(settings.Base);
-        var span = max - min;
+
+        // Vega's span is the span of the settings, else the extent, else its magnitude, else 1 (a span that is zero or not a number falls through, as in JavaScript)
+        var span = settings.Span is { } given && given != 0 && !double.IsNaN(given) ? given : max - min;
         if (JsNumber.IsZero(span))
         {
             span = Math.Abs(min);

@@ -6,7 +6,9 @@ namespace DemaConsulting.CanvasNet.VegaLite.SpecModel;
 ///     (<c>SpecParser</c>, <c>SpecNode</c>), checks the shape of the properties that the renderer depends on, lists
 ///     the recognized-but-unsupported constructs with stable <c>vl-*</c> identifiers (<c>FeatureCatalog</c>), and
 ///     resolves the effective configuration from the Vega-Lite version 6 defaults, the specification's
-///     <c>config</c> and the caller's configuration (<c>ConfigResolver</c>).
+///     <c>config</c> and the caller's configuration (<c>ConfigResolver</c>), and replaces the <c>{"expr": ...}</c>
+///     references of the static sites by the values of their expressions, evaluated once with the parameters
+///     (<c>ExpressionReferenceFolder</c>, <c>ExpressionReferenceSites</c>).
 /// </summary>
 /// <remarks>
 ///     The namespace is internal to the package: the public surface is <c>VegaLiteDocument</c>. Every type is

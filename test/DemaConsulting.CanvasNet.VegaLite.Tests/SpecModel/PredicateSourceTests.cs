@@ -15,7 +15,9 @@ public class PredicateSourceTests
     /// <returns>The <c>filter</c> value in the parsed tree.</returns>
     private static SpecNode Predicate(string predicate)
     {
-        var json = """{ "params": [ { "name": "threshold", "value": 1 }, { "name": "sel", "select": "interval" } ], "data": { "values": [ { "q": 1 } ] }, "transform": [ { "filter": """
+        var json = """{ "params": [ { "name": "threshold", "value": 1 }, { "name": "bad name", "value": 1 }, { "name": "sel", "select": "interval" }, { "name": "ptid", "select": "point" }, """
+            + """{ "name": "multi", "select": { "type": "interval", "resolve": "union" } }, { "name": "my-sel", "select": { "type": "point", "fields": ["q"] } } ], """
+            + """ "selection": { "leg": { "type": "single", "empty": "none" } }, "data": { "values": [ { "q": 1 } ] }, "transform": [ { "filter": """
             + predicate + """ } ], "mark": "point", "encoding": { "x": { "field": "q", "type": "quantitative" } } }""";
         return SpecParser.Parse(json).Root["transform"]!.Items[0]["filter"]!;
     }
@@ -80,12 +82,138 @@ public class PredicateSourceTests
     }
 
     /// <summary>
-    ///     Validates the predicates that no expression can say: they are not written and the whole predicate is unsupported.
+    ///     Validates the text that Vega-Lite compiles for a predicate on a selection: empty or in the selection, or (with <c>empty: false</c>) not empty and in it; a point selection
+    ///     over the identity of the rows uses the identity test; a resolve other than <c>global</c> is the third argument; the store is named with the variable form of the name; the
+    ///     legacy <c>selection</c> property names a selection too (a legacy <c>empty: "none"</c> is <c>empty: false</c>).
     /// </summary>
     [Theory]
-    [InlineData("""{ "param": "sel" }""")]
-    [InlineData("""{ "and": [ { "field": "q", "gt": 1 }, { "param": "sel" } ] }""")]
-    [InlineData("""{ "not": { "param": "sel" } }""")]
+    [InlineData("""{ "param": "sel" }""", """(!length(data("sel_store")) || vlSelectionTest("sel_store", datum))""")]
+    [InlineData("""{ "param": "sel", "empty": true }""", """(!length(data("sel_store")) || vlSelectionTest("sel_store", datum))""")]
+    [InlineData("""{ "param": "sel", "empty": false }""", """(length(data("sel_store")) && vlSelectionTest("sel_store", datum))""")]
+    [InlineData("""{ "param": "ptid" }""", """(!length(data("ptid_store")) || vlSelectionIdTest("ptid_store", datum))""")]
+    [InlineData("""{ "param": "multi" }""", """(!length(data("multi_store")) || vlSelectionTest("multi_store", datum, "union"))""")]
+    [InlineData("""{ "param": "my-sel" }""", """(!length(data("my_sel_store")) || vlSelectionTest("my_sel_store", datum))""")]
+    [InlineData("""{ "not": { "param": "sel" } }""", """!((!length(data("sel_store")) || vlSelectionTest("sel_store", datum)))""")]
+    [InlineData(
+        """{ "and": [ { "field": "q", "gt": 1 }, { "param": "sel", "empty": false } ] }""",
+        """((datum["q"] > 1) && (length(data("sel_store")) && vlSelectionTest("sel_store", datum)))""")]
+    [InlineData("""{ "selection": "leg" }""", """(length(data("leg_store")) && vlSelectionIdTest("leg_store", datum))""")]
+    [InlineData("""{ "selection": "sel", "empty": false }""", """(!length(data("sel_store")) || vlSelectionTest("sel_store", datum))""")]
+    [InlineData("""{ "selection": "leg", "empty": true }""", """(length(data("leg_store")) && vlSelectionIdTest("leg_store", datum))""")]
+    [InlineData(
+        """{ "selection": { "or": [ "leg", { "not": "sel" } ] } }""",
+        """((length(data("leg_store")) && vlSelectionIdTest("leg_store", datum)) || !((!length(data("sel_store")) || vlSelectionTest("sel_store", datum))))""")]
+    public void PredicateSource_TryBuild_WritesTheSelectionTestOfVegaLite(string predicate, string expected)
+    {
+        // Arrange
+        var node = Predicate(predicate);
+
+        // Act
+        var built = PredicateSource.TryBuild(node, out var source);
+
+        // Assert
+        Assert.True(built);
+        Assert.Equal(expected, source);
+    }
+
+    /// <summary>
+    ///     Validates that the legacy form takes its emptiness from the declaration of the selection only: Vega-Lite's <c>selectioncompat</c> turns <c>{"selection": name}</c> into
+    ///     <c>{param, empty}</c> where <c>empty</c> is <c>empty !== "none"</c> of the declaration (default true), and does not read an <c>empty</c> of the predicate itself.
+    /// </summary>
+    /// <remarks>The cases are part of <see cref="PredicateSource_TryBuild_WritesTheSelectionTestOfVegaLite"/>; this only names the rule.</remarks>
+    [Fact]
+    public void PredicateSource_TryBuild_LegacyPredicateIgnoresItsOwnEmpty()
+    {
+        // Arrange: the declaration says "none", the predicate says true; and the other way round for a selection that is not legacy
+        var none = Predicate("""{ "selection": "leg", "empty": true }""");
+        var all = Predicate("""{ "selection": "sel", "empty": false }""");
+
+        // Act
+        PredicateSource.TryBuild(none, out var noneSource);
+        PredicateSource.TryBuild(all, out var allSource);
+
+        // Assert
+        Assert.Equal("""(length(data("leg_store")) && vlSelectionIdTest("leg_store", datum))""", noneSource);
+        Assert.Equal("""(!length(data("sel_store")) || vlSelectionTest("sel_store", datum))""", allSource);
+    }
+
+    /// <summary>
+    ///     Parses a specification with one selection and returns the text of the predicate on it.
+    /// </summary>
+    /// <param name="declaration">The selection (the <c>params</c> entry, or <c>null</c> to use the legacy entry given in <paramref name="legacy"/>).</param>
+    /// <param name="config">The <c>config</c> object (written out), or null.</param>
+    /// <param name="legacy">The legacy <c>selection</c> object (written out), or null.</param>
+    /// <returns>The expression source of <c>{"param": "p"}</c> (<c>{"selection": "p"}</c> for a legacy entry).</returns>
+    private static string SelectionPredicate(string? declaration, string? config = null, string? legacy = null)
+    {
+        var json = "{ " + (config is null ? string.Empty : "\"config\": " + config + ", ")
+            + (declaration is null ? string.Empty : "\"params\": [ " + declaration + " ], ")
+            + (legacy is null ? string.Empty : "\"selection\": " + legacy + ", ")
+            + """ "data": { "values": [ { "q": 1 } ] }, "transform": [ { "filter": """ + (legacy is null ? """{ "param": "p" }""" : """{ "selection": "p" }""")
+            + """ } ], "mark": "point", "encoding": { "x": { "field": "q", "type": "quantitative" } } }""";
+        var node = SpecParser.Parse(json).Root["transform"]!.Items[0]["filter"]!;
+        Assert.True(PredicateSource.TryBuild(node, out var source));
+        return source;
+    }
+
+    /// <summary>
+    ///     Validates the choice of the test function from the projection that Vega-Lite's <c>project.ts</c> gives the selection: the presence of <c>fields</c> or <c>encodings</c> decides (an empty
+    ///     list is an empty projection, so the field test), then the keys of the value, then the default projection of the configuration (<c>selection.point.fields</c>), then the row identity.
+    /// </summary>
+    /// <param name="declaration">The selection (written out).</param>
+    /// <param name="config">The <c>config</c> object (written out), or null.</param>
+    /// <param name="identity">Whether the predicate is the identity test.</param>
+    [Theory]
+    [InlineData("""{ "name": "p", "select": { "type": "point", "fields": [] } }""", null, false)]
+    [InlineData("""{ "name": "p", "select": { "type": "point", "encodings": [] } }""", null, false)]
+    [InlineData("""{ "name": "p", "select": { "type": "point", "fields": [] }, "value": [ { "q": 1 } ] }""", null, false)]
+    [InlineData("""{ "name": "p", "select": { "type": "point", "fields": ["q"] } }""", null, false)]
+    [InlineData("""{ "name": "p", "select": { "type": "point", "encodings": ["x"] } }""", null, false)]
+    [InlineData("""{ "name": "p", "select": "point" }""", null, true)]
+    [InlineData("""{ "name": "p", "select": "point", "value": 3 }""", null, true)]
+    [InlineData("""{ "name": "p", "select": "point", "value": [ { "q": 3 } ] }""", null, false)]
+    [InlineData("""{ "name": "p", "select": "point", "value": [ { "x": 3 } ] }""", null, false)]
+    [InlineData("""{ "name": "p", "select": { "type": "point", "fields": ["_vgsid_"] } }""", null, true)]
+    [InlineData("""{ "name": "p", "select": "point" }""", """{ "selection": { "point": { "fields": ["q"] } } }""", false)]
+    [InlineData("""{ "name": "p", "select": "point", "value": 3 }""", """{ "selection": { "point": { "fields": ["q"] } } }""", false)]
+    [InlineData("""{ "name": "p", "select": "point" }""", """{ "selection": { "point": { "fields": [] } } }""", false)]
+    [InlineData("""{ "name": "p", "select": "point" }""", """{ "selection": { "point": { "encodings": ["x"] } } }""", true)]
+    [InlineData("""{ "name": "p", "select": "point" }""", """{ "selection": { "interval": { "encodings": ["x"] } } }""", true)]
+    [InlineData("""{ "name": "p", "select": { "type": "point", "fields": [] } }""", """{ "selection": { "point": { "fields": ["_vgsid_"] } } }""", false)]
+    [InlineData("""{ "name": "p", "select": "interval" }""", null, false)]
+    public void PredicateSource_TryBuild_ChoosesTheTestFromTheEffectiveProjection(string declaration, string? config, bool identity)
+    {
+        // Act
+        var source = SelectionPredicate(declaration, config);
+
+        // Assert
+        Assert.Equal(
+            identity ? """(!length(data("p_store")) || vlSelectionIdTest("p_store", datum))""" : """(!length(data("p_store")) || vlSelectionTest("p_store", datum))""",
+            source);
+    }
+
+    /// <summary>
+    ///     Validates that the legacy selection object projects as a parameter does (an empty <c>fields</c> is an empty projection).
+    /// </summary>
+    [Fact]
+    public void PredicateSource_TryBuild_LegacySelectionWithEmptyFieldsIsAFieldTest()
+    {
+        // Act
+        var empty = SelectionPredicate(null, legacy: """{ "p": { "type": "multi", "fields": [] } }""");
+        var identity = SelectionPredicate(null, legacy: """{ "p": { "type": "multi" } }""");
+
+        // Assert
+        Assert.Equal("""(!length(data("p_store")) || vlSelectionTest("p_store", datum))""", empty);
+        Assert.Equal("""(!length(data("p_store")) || vlSelectionIdTest("p_store", datum))""", identity);
+    }
+
+    /// <summary>
+    ///     Validates the predicates that no expression can say: they are not written and the whole predicate is unsupported (a variable parameter whose name is not an identifier).
+    /// </summary>
+    [Theory]
+    [InlineData("""{ "param": "bad name" }""")]
+    [InlineData("""{ "and": [ { "field": "q", "gt": 1 }, { "param": "bad name" } ] }""")]
+    [InlineData("""{ "not": { "param": "bad name" } }""")]
     public void PredicateSource_TryBuild_RefusesWhatNoExpressionCanSay(string predicate)
     {
         // Arrange
@@ -155,7 +283,7 @@ public class PredicateSourceTests
         // Act
         var exact = PredicateSource.Build(node, Expected.Length, out var source, out var exactLength);
         var oneLess = PredicateSource.Build(node, Expected.Length - 1, out var refused, out var refusedLength);
-        var unsupported = PredicateSource.Build(HugePredicate("""{ "param": "sel" }"""), 1_000, out var none, out _);
+        var unsupported = PredicateSource.Build(HugePredicate("""{ "param": "bad name" }"""), 1_000, out var none, out _);
 
         // Assert
         Assert.Equal(PredicateSource.Status.Written, exact);
@@ -177,7 +305,7 @@ public class PredicateSourceTests
     {
         // Arrange
         var supported = HugePredicate();
-        var unsupported = HugePredicate("""{ "param": "sel" }""");
+        var unsupported = HugePredicate("""{ "param": "bad name" }""");
 
         // Act
         var before = GC.GetAllocatedBytesForCurrentThread();
@@ -189,5 +317,38 @@ public class PredicateSourceTests
         Assert.False(supportedAnswer);
         Assert.True(unsupportedAnswer);
         Assert.True(allocated < 16_000_000, $"{allocated} bytes were allocated.");
+    }
+
+    /// <summary>
+    ///     Validates that the text of a predicate on a selection is counted and refused by the budget like any other: an <c>or</c> of 100 selection predicates is written within a budget
+    ///     that holds it, is reported as too long with the exact length (and no text) below it, and a legacy composition behaves the same.
+    /// </summary>
+    [Fact]
+    public void PredicateSource_Build_SelectionPredicatesAreCountedAgainstTheBudget()
+    {
+        // Arrange
+        const string One = """(!length(data("sel_store")) || vlSelectionTest("sel_store", datum))""";
+        var modern = Predicate("{ \"or\": [ " + string.Join(", ", Enumerable.Repeat("{ \"param\": \"sel\" }", 100)) + " ] }");
+        var legacy = Predicate("{ \"selection\": { \"or\": [ " + string.Join(", ", Enumerable.Repeat("\"sel\"", 100)) + " ] } }");
+        var expected = (100L * One.Length) + (99 * 4) + 2;
+
+        foreach (var node in new[] { modern, legacy })
+        {
+            // Act
+            var exact = PredicateSource.Build(node, expected, out var source, out var exactLength);
+            var oneLess = PredicateSource.Build(node, expected - 1, out var refused, out var refusedLength);
+            var counted = PredicateSource.Build(node, 0, out _, out var countedLength);
+
+            // Assert
+            Assert.Equal(PredicateSource.Status.Written, exact);
+            Assert.Equal(expected, source.Length);
+            Assert.Equal(expected, exactLength);
+            Assert.Equal(PredicateSource.Status.TooLong, oneLess);
+            Assert.Equal(string.Empty, refused);
+            Assert.Equal(expected, refusedLength);
+            Assert.Equal(PredicateSource.Status.TooLong, counted);
+            Assert.Equal(expected, countedLength);
+            Assert.False(PredicateSource.IsUnsupported(node));
+        }
     }
 }

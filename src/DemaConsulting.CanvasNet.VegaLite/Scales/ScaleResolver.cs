@@ -52,6 +52,18 @@ internal sealed record ResolvedScale
     /// <summary>Gets a value indicating whether the specification gives the domain (<c>scale.domain</c>); when the layers share a scale, the explicit domains win over the implicit ones and are merged (Vega-Lite's merge of explicit domains).</summary>
     public bool HasExplicitDomain { get; init; }
 
+    /// <summary>
+    ///     Gets a value indicating whether the domain is a raw domain: the <c>scale.domainRaw</c>, or the value of the parameter that <c>scale.domain</c> names (<c>{"param": ...}</c>). As in Vega's <c>configureDomain</c>, a raw domain replaces the domain and
+    ///     nothing adjusts it afterwards: no <c>zero</c>, <c>domainMin</c>, <c>domainMax</c>, <c>domainMid</c>, pixel <c>padding</c> or <c>nice</c>.
+    /// </summary>
+    public bool HasRawDomain { get; init; }
+
+    /// <summary>
+    ///     Gets a value indicating whether the marks of a view that uses the scale are clipped to the data rectangle: the domain comes from a parameter (Vega-Lite's <c>scaleClip</c>, which looks for the selection extent of the
+    ///     x or y scale), so the marks that the domain leaves out must not be drawn outside the view.
+    /// </summary>
+    public bool ClipMarks { get; init; }
+
     /// <summary>Gets the order of the categories of a discrete scale; <see cref="DomainOrder.Ascending"/> for the others.</summary>
     public DomainOrder DomainOrder { get; init; }
 
@@ -602,7 +614,7 @@ internal static partial class ScaleResolver
     /// <remarks>
     ///     This is the convenience entry for callers that have only the rows after the explicit transforms (the tests and tools);
     ///     the document pipeline runs <see cref="EncodingTransforms"/> in its own call context and uses
-    ///     <see cref="Resolve(SpecNode, EncodingPlan, EncodingData, ResolvedConfig, string?, VegaLiteLimits?, CancellationToken)"/>.
+    ///     <see cref="Resolve(SpecNode, EncodingPlan, EncodingData, ResolvedConfig, string?, VegaLiteLimits?, CancellationToken, IReadOnlyDictionary{string, DataValue}?)"/>.
     ///     The row budget of that private context starts empty.
     /// </remarks>
     /// <param name="view">The view object of the specification (its <c>mark</c>, <c>encoding</c>, <c>width</c> and <c>height</c> are read).</param>
@@ -642,6 +654,7 @@ internal static partial class ScaleResolver
     /// <param name="sourceName">The source name used in the locations of errors, or null.</param>
     /// <param name="limits">The limits to enforce; the defaults when null.</param>
     /// <param name="cancellationToken">A token that stops the resolution.</param>
+    /// <param name="parameters">The values of the variable parameters by name (the parameter that a <c>scale.domain</c> of the form <c>{"param": ...}</c> names); null when there are none.</param>
     /// <returns>The scales; empty when the view has no mark or no encoding.</returns>
     /// <exception cref="ArgumentNullException">Thrown when an argument other than the optional ones is null.</exception>
     /// <exception cref="VegaLiteSpecException">Thrown when <c>scale.domain</c> or <c>scale.range</c> has the wrong shape; carries the location.</exception>
@@ -654,15 +667,46 @@ internal static partial class ScaleResolver
         ResolvedConfig config,
         string? sourceName = null,
         VegaLiteLimits? limits = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IReadOnlyDictionary<string, DataValue>? parameters = null)
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(plan);
         ArgumentNullException.ThrowIfNull(data);
         ArgumentNullException.ThrowIfNull(config);
+        return ResolveView(view, plan, data, config, sourceName, limits, cancellationToken, parameters, []);
+    }
 
+    /// <summary>
+    ///     Resolves the scales of a single view and collects the findings of the resolution.
+    /// </summary>
+    /// <param name="view">The view object of the specification.</param>
+    /// <param name="plan">The plan of the encoding.</param>
+    /// <param name="data">The tables of the implicit pipeline and the bins it computed.</param>
+    /// <param name="config">The effective configuration.</param>
+    /// <param name="sourceName">The source name used in the locations of errors, or null.</param>
+    /// <param name="limits">The limits to enforce; the defaults when null.</param>
+    /// <param name="cancellationToken">A token that stops the resolution.</param>
+    /// <param name="parameters">The values of the variable parameters by name, or null.</param>
+    /// <param name="warnings">Receives the findings.</param>
+    /// <param name="selections">The selections of the specification, or null.</param>
+    /// <param name="node">The unit view in the layer tree, which decides the selections it sees, or null.</param>
+    /// <returns>The scales; empty when the view has no mark or no encoding.</returns>
+    private static ResolvedScales ResolveView(
+        SpecNode view,
+        EncodingPlan plan,
+        EncodingData data,
+        ResolvedConfig config,
+        string? sourceName,
+        VegaLiteLimits? limits,
+        CancellationToken cancellationToken,
+        IReadOnlyDictionary<string, DataValue>? parameters,
+        List<FeatureReport> warnings,
+        SelectionModel? selections = null,
+        LayerNode? node = null)
+    {
         // The mark decides the scale kinds, the zero rule, the paddings and the size range
-        var context = CreateContext(view, plan, data, config, sourceName, limits, cancellationToken);
+        var context = CreateContext(view, plan, data, config, sourceName, limits, cancellationToken, parameters, warnings, selections, node);
         return new ResolvedScales(plan.MarkType, plan.Orient, context is null ? [] : ApplyNestedOffsets(ResolveChannels(context), context), plan);
     }
 
@@ -676,6 +720,10 @@ internal static partial class ScaleResolver
     /// <param name="sourceName">The source name used in the locations of errors, or null.</param>
     /// <param name="limits">The limits to enforce; the defaults when null.</param>
     /// <param name="cancellationToken">A token that stops the resolution.</param>
+    /// <param name="parameters">The values of the variable parameters by name, or null.</param>
+    /// <param name="warnings">Receives the findings of the resolution (a raw domain that cannot be used).</param>
+    /// <param name="selections">The selections of the specification, or null.</param>
+    /// <param name="node">The unit view in the layer tree, which decides the selections it sees, or null.</param>
     /// <returns>The facts; null when the view has no mark or no encoding (it has no scales).</returns>
     private static Context? CreateContext(
         SpecNode view,
@@ -684,7 +732,11 @@ internal static partial class ScaleResolver
         ResolvedConfig config,
         string? sourceName,
         VegaLiteLimits? limits,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IReadOnlyDictionary<string, DataValue>? parameters,
+        List<FeatureReport> warnings,
+        SelectionModel? selections = null,
+        LayerNode? node = null)
     {
         var markType = plan.MarkType;
         if (markType.Length == 0 || view["encoding"] is not { IsObject: true } encoding)
@@ -698,6 +750,10 @@ internal static partial class ScaleResolver
             Plan = plan,
             Data = data,
             Config = config,
+            Parameters = parameters,
+            Selections = selections,
+            View = node,
+            Warnings = warnings,
             MarkType = markType,
             Orient = plan.Orient,
             PointOverlay = SpecNormalizer.HasPointOverlay(markType, markDefinition, encoding, config.VegaLite[markType]?["point"]),
@@ -1302,7 +1358,14 @@ internal static partial class ScaleResolver
         double[]? entries = null;
         BinSpec? binSpec = null;
         var domainNode = scaleDef?["domain"] is { IsArray: true } array ? array : null;
-        if (kind == ScaleKind.Quantile)
+        var raw = continuousToContinuous ? ReadRawDomain(input, context, continuous: true) : null;
+        if (raw is { Numbers: { } rawNumbers })
+        {
+            // A raw domain is the domain: nothing adjusts it afterwards (Vega's configureDomain returns at once)
+            (start, end) = (rawNumbers[0], rawNumbers[^1]);
+            entries = rawNumbers.Length > 2 ? [.. rawNumbers] : null;
+        }
+        else if (kind == ScaleKind.Quantile)
         {
             entries = QuantileDomain(input, domainNode, context);
             (start, end) = entries.Length > 0 ? (entries[0], entries[^1]) : (0d, 1d);
@@ -1339,7 +1402,8 @@ internal static partial class ScaleResolver
 
         // The zero rule pulls the end values to zero; the quantile and threshold scales have none (Vega-Lite's scaleTypeSupportProperty),
         // and neither has a log scale, whose domain cannot reach zero, or a temporal field (a time scale, or the sequential scale of a temporal color), for which zero is not meaningful
-        var zero = kind is not (ScaleKind.Quantile or ScaleKind.Threshold)
+        var zero = raw is null
+            && kind is not (ScaleKind.Quantile or ScaleKind.Threshold)
             && !isTimeKind
             && time is null
             && input.TransformKind != ScaleTransformKind.Log
@@ -1363,8 +1427,8 @@ internal static partial class ScaleResolver
             }
         }
 
-        // domainMin, domainMax and domainMid belong to the continuous-to-continuous scales (domainMid to colors only)
-        if (continuousToContinuous)
+        // domainMin, domainMax and domainMid belong to the continuous-to-continuous scales (domainMid to colors only); a raw domain is not adjusted
+        if (continuousToContinuous && raw is null)
         {
             if (ReadDomainBound(scaleDef?["domainMin"], time) is { } domainMin)
             {
@@ -1431,7 +1495,7 @@ internal static partial class ScaleResolver
         var transform = MakeTransform(input);
         if (transform.Kind == ScaleTransformKind.Log)
         {
-            CheckLogDomain(entries ?? [start, end], domainNode, input, context);
+            CheckLogDomain(entries ?? [start, end], raw is null ? domainNode : null, input, context);
         }
         var domainSize = kind == ScaleKind.Threshold ? entries!.Length : 0;
         if (ResolveOutputs(input, kind, domainSize, context) is not { } outputs)
@@ -1442,7 +1506,7 @@ internal static partial class ScaleResolver
         var isPosition = group == ChannelGroup.Position;
         var reverse = ReverseOf(input, kind);
         var supportsRangeLimits = kind is ScaleKind.Linear or ScaleKind.Time or ScaleKind.Utc;
-        var timeNice = isTimeKind ? TimeNiceRequest(scaleDef) : null;
+        var timeNice = isTimeKind && raw is null ? TimeNiceRequest(scaleDef) : null;
         double? niceCount;
         if (isTimeKind)
         {
@@ -1450,7 +1514,7 @@ internal static partial class ScaleResolver
         }
         else
         {
-            niceCount = NiceRule(input, kind, domainNode is not null, isPosition);
+            niceCount = raw is null ? NiceRule(input, kind, domainNode is not null, isPosition) : null;
         }
 
         return new ResolvedScale
@@ -1469,9 +1533,11 @@ internal static partial class ScaleResolver
             DomainEnd = end,
             Domain = entries,
             HasExplicitDomain = domainNode is not null,
+            HasRawDomain = raw is not null,
+            ClipMarks = HasSelectionExtent(input, context),
             NiceCount = niceCount,
             NiceInterval = timeNice is { Interval: not null } ? timeNice : null,
-            PaddingPixels = isPosition ? ContinuousPadding(input, context) : 0,
+            PaddingPixels = isPosition && raw is null ? ContinuousPadding(input, context) : 0,
             Clamp = continuousToContinuous && (scaleDef?["clamp"]?.AsBool() ?? false),
             Transform = transform,
             Round = supportsRangeLimits && (scaleDef?["round"]?.AsBool() ?? false),
@@ -1570,7 +1636,8 @@ internal static partial class ScaleResolver
             return BuildBinOrdinal(input, context);
         }
 
-        var domain = DiscreteDomain(input, context);
+        var raw = kind is ScaleKind.Band or ScaleKind.Point or ScaleKind.Ordinal ? ReadRawDomain(input, context, continuous: false) : null;
+        var domain = DiscreteDomain(input, context, raw);
 
         // The output values (which also decide whether the channel has a scale at all)
         if (ResolveOutputs(input, kind, domain.Count, context) is not { } outputs)
@@ -1599,7 +1666,9 @@ internal static partial class ScaleResolver
             Location = input.Location,
             DiscreteDomain = domain,
             HasExplicitDomain = input.ScaleDef?["domain"] is { IsArray: true },
-            DomainOrder = OrderOf(input, context),
+            HasRawDomain = raw is not null,
+            ClipMarks = HasSelectionExtent(input, context),
+            DomainOrder = raw is not null ? DomainOrder.Custom : OrderOf(input, context),
             PaddingInner = inner,
             PaddingOuter = outer,
             Align = Math.Clamp(input.ScaleDef?["align"]?.AsNumber() ?? 0.5, 0, 1),
@@ -1943,9 +2012,10 @@ internal static partial class ScaleResolver
     /// </summary>
     /// <param name="input">The channel facts.</param>
     /// <param name="context">The view facts.</param>
+    /// <param name="raw">The raw domain of the scale (<c>scale.domainRaw</c>, or the value of the parameter that <c>scale.domain</c> names), which is the domain as it is; null when the scale has none.</param>
     /// <returns>The categories.</returns>
     /// <exception cref="VegaLiteRenderException">Thrown when the domain exceeds the limit.</exception>
-    private static List<DataValue> DiscreteDomain(CommonInputs input, Context context)
+    private static List<DataValue> DiscreteDomain(CommonInputs input, Context context, RawDomain? raw)
     {
         // The layers of a layered view that share the scale have already combined their categories
         if (context.Shared is { Categories: not null } shared && shared.Channel == input.Channel)
@@ -1953,9 +2023,20 @@ internal static partial class ScaleResolver
             return [.. shared.Categories];
         }
 
-        // An explicit domain is used as it is
+        // A raw domain is the domain, each category once
         var domain = new List<DataValue>();
         var seen = new HashSet<DataValue>();
+        if (raw is not null)
+        {
+            foreach (var value in raw.Values.Where(seen.Add))
+            {
+                domain.Add(value);
+            }
+
+            return CheckDomainSize(domain, input, context);
+        }
+
+        // An explicit domain is used as it is
         if (input.ScaleDef?["domain"] is { IsArray: true } explicitDomain)
         {
             CheckSpecArray(explicitDomain, input, context, "domain");
@@ -2063,6 +2144,18 @@ internal static partial class ScaleResolver
 
         /// <summary>Gets the configuration.</summary>
         public required ResolvedConfig Config { get; init; }
+
+        /// <summary>Gets the values of the variable parameters by name, or null when there are none.</summary>
+        public IReadOnlyDictionary<string, DataValue>? Parameters { get; init; }
+
+        /// <summary>Gets the selections of the specification, which give the extent of a scale (<c>scale.domain</c> or <c>bin.extent</c> of the form <c>{"param": ...}</c>, <c>"bind": "scales"</c>), or null when there are none.</summary>
+        public SelectionModel? Selections { get; init; }
+
+        /// <summary>Gets the unit view the scales are resolved for, which decides the selections it sees; null when the view is not part of a layer tree.</summary>
+        public LayerNode? View { get; init; }
+
+        /// <summary>Gets the list that receives the findings of the resolution (a raw domain that cannot be used).</summary>
+        public List<FeatureReport> Warnings { get; init; } = [];
 
         /// <summary>Gets the mark type.</summary>
         public required string MarkType { get; init; }

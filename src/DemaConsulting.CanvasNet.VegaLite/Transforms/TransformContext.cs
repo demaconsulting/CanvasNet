@@ -40,6 +40,39 @@ internal sealed record TransformContext(
     /// <summary>The number of rows between two cancellation checks.</summary>
     private const int CancellationInterval = 1024;
 
+    /// <summary>Gets the selections of the specification (Vega-Lite's selection components), whose values a bin extent can follow; the model that declares none when there are none.</summary>
+    public SelectionModel Selections { get; init; } = SelectionModel.Empty;
+
+    /// <summary>Gets the view that the transforms of the context run for (the view whose <c>transform</c> runs, or the unit whose encoding is implemented); it decides the selections they see. Null when unknown.</summary>
+    public LayerNode? View { get; init; }
+
+    /// <summary>
+    ///     Reads the span that a <c>bin.extent</c> of the form <c>{"param": ...}</c> gives (Vega-Lite's <c>span(N["field"])</c> of the <c>bin</c> transform).
+    /// </summary>
+    /// <remarks>
+    ///     The extent of the bins is not taken from the parameter: only the step follows its span, and the bins start and stop at the extent of the data. A selection gives the span of the selected
+    ///     range of the field the extent names; a variable parameter is the signal itself. A parameter that holds no range has the span zero, which the bin algorithm ignores.
+    /// </remarks>
+    /// <param name="extent">The <c>extent</c> of the bin.</param>
+    /// <returns>The span; null when the extent is not a parameter reference.</returns>
+    public double? BinSpanOf(SpecNode? extent)
+    {
+        if (extent is not { IsObject: true } || extent["param"] is not { IsString: true } name)
+        {
+            return null;
+        }
+
+        var param = name.StringValue!;
+        var read = Selections.ResolveExtent(View, param, extent["field"]?.StringValue, extent["encoding"]?.StringValue, Locate(extent), Warnings);
+        var value = read.Value;
+        if (!read.IsSelection)
+        {
+            Parameters.TryGetValue(param, out value);
+        }
+
+        return BinAlgorithm.SpanOf(value);
+    }
+
     /// <summary>
     ///     Gets the location of a node of the specification.
     /// </summary>

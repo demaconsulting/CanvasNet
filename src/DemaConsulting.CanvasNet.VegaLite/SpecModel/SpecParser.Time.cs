@@ -411,16 +411,17 @@ internal sealed partial class SpecParser
     ///     The characters of the text are counted as it is written and it is refused as soon as it passes the generated budget (eight times <see cref="VegaLiteLimits.MaxSourceLength"/>),
     ///     before it is allocated, with the error of <see cref="ExpressionParser.ParseGenerated"/>.
     /// </remarks>
-    /// <param name="predicate">The predicate (a field predicate or a composition), validated.</param>
+    /// <param name="predicate">The predicate (a field predicate, a predicate on a parameter or a selection, a composition, or a condition that holds a <c>param</c> or a <c>selection</c>), validated.</param>
+    /// <param name="key">The node the compiled expression is kept under; the predicate when null.</param>
     /// <exception cref="VegaLiteSpecException">Thrown for a text that is longer than the budget, or for an expression that refers to a parameter that is not declared.</exception>
-    private void CompilePredicate(SpecNode predicate)
+    private void CompilePredicate(SpecNode predicate, SpecNode? key = null)
     {
         switch (PredicateSource.Build(predicate, ExpressionParser.GeneratedBudget(_limits), out var source, out var length))
         {
             case PredicateSource.Status.TooLong:
                 throw ExpressionParser.GeneratedTooLong(length, predicate.GetLocation(_file), _limits);
             case PredicateSource.Status.Written:
-                CompileSource(predicate, source, predicate, generated: true);
+                CompileSource(key ?? predicate, source, predicate, generated: true);
                 break;
         }
     }

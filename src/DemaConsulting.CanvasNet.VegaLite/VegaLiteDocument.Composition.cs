@@ -175,16 +175,147 @@ public sealed partial class VegaLiteDocument
 
         content.AddRange(axes.Where(a => !a.InFront).Select(a => a.Group));
 
-        // The marks group of each layer and each mark are charged by the mark builder before they are created; the layers are drawn in order, the last one on top
+        // The marks group of each layer and each mark are charged by the mark builder before they are created; the layers are drawn in order, the last one on top, with the brushes of the
+        // interval selections around them
         var markBuilder = new MarkBuilder(cell.Config, cell.Limits, budget, cell.SourceName, cell.Expressions);
-        foreach (var layer in cell.Layers)
-        {
-            content.Add(markBuilder.Build(layer.Unit, layer.Data.Main, layer.Scales, width, height, cancellationToken));
-        }
+        content.AddRange(BuildMarkGroups(cell, markBuilder, width, height, cancellationToken));
 
         content.AddRange(axes.Where(a => a.InFront).Select(a => a.Group));
         content.AddRange(guides.Legends.Groups);
         return content;
+    }
+
+    /// <summary>
+    ///     Builds the marks groups of the layers of a cell with the brushes of the interval selections around them.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         A unit that is the whole chart, or a unit of a concatenation or of a facet, draws the shade of the brushes of its selections first and the outlines last (<c>[brush_bg, marks, brush]</c>, the
+    ///         selections of the unit one around the other in the order they are declared). The units of a layered view do it together, as Vega-Lite's <c>assembleLayerSelectionMarks</c> does,
+    ///         wrapping the marks of all the layers child by child: <c>[bg_n, ..., bg_0, marks of every layer, brush_0, ..., brush_n]</c>, so that the shade of every selection is behind every layer and the outline in front.
+    ///         A layered view in a layered view wraps the marks of its own units first. Without a selection the layers are drawn in order and nothing else is made.
+    ///     </para>
+    ///     <para>The recursion follows the nesting of the layered views of one chart, which <see cref="VegaLiteLimits.MaxCompositionDepth"/> bounds.</para>
+    /// </remarks>
+    /// <param name="cell">The cell.</param>
+    /// <param name="markBuilder">The mark builder of the cell.</param>
+    /// <param name="width">The width of the data rectangle.</param>
+    /// <param name="height">The height of the data rectangle.</param>
+    /// <param name="cancellationToken">The token that stops the work.</param>
+    /// <returns>The groups in drawing order.</returns>
+    private static List<SceneItem> BuildMarkGroups(CellInputs cell, MarkBuilder markBuilder, double width, double height, CancellationToken cancellationToken)
+    {
+        var selections = cell.Layers.Select(l => l.Selections).FirstOrDefault(s => s is { HasSelections: true });
+        var root = cell.Layers[0].Node.ChartRoot ?? cell.Layers[0].Node;
+        if (selections is not null && cell.Layers.All(l => IsBelow(l.Node, root)))
+        {
+            var byNode = cell.Layers.ToDictionary(l => l.Node);
+            return DrawWithBrushes(root, markBuilder, selections, byNode, width, height, cancellationToken);
+        }
+
+        var groups = new List<SceneItem>(cell.Layers.Count);
+        foreach (var layer in cell.Layers)
+        {
+            groups.Add(markBuilder.Build(layer.Unit, layer.Data.Main, layer.Scales, width, height, cancellationToken));
+        }
+
+        return groups;
+    }
+
+    /// <summary>
+    ///     Tells whether a view is the root or below it.
+    /// </summary>
+    /// <param name="node">The view.</param>
+    /// <param name="root">The root.</param>
+    /// <returns><see langword="true"/> when walking up from the view reaches the root.</returns>
+    private static bool IsBelow(LayerNode node, LayerNode root)
+    {
+        for (var current = node; current is not null; current = current.Parent)
+        {
+            if (ReferenceEquals(current, root))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    ///     Draws the layers below a view with the brushes of their selections around them.
+    /// </summary>
+    /// <param name="node">The view: the chart, then the layered views and units below it.</param>
+    /// <param name="markBuilder">The mark builder of the cell.</param>
+    /// <param name="selections">The selections of the specification.</param>
+    /// <param name="byNode">The layers of the cell by their unit.</param>
+    /// <param name="width">The width of the data rectangle.</param>
+    /// <param name="height">The height of the data rectangle.</param>
+    /// <param name="cancellationToken">The token that stops the work.</param>
+    /// <returns>The groups in drawing order.</returns>
+    private static List<SceneItem> DrawWithBrushes(
+        LayerNode node,
+        MarkBuilder markBuilder,
+        SelectionModel selections,
+        Dictionary<LayerNode, LayerChart> byNode,
+        double width,
+        double height,
+        CancellationToken cancellationToken)
+    {
+        if (byNode.TryGetValue(node, out var layer))
+        {
+            List<SceneItem> own = [markBuilder.Build(layer.Unit, layer.Data.Main, layer.Scales, width, height, cancellationToken)];
+
+            // The marks of a unit that is a layer are wrapped by the layered view above it; any other unit wraps its own
+            return node.Parent is { IsLayer: true } ? own : WrapWithBrushes(node, own, markBuilder, selections, byNode, width, height);
+        }
+
+        var items = new List<SceneItem>();
+        foreach (var child in node.Children)
+        {
+            items.AddRange(DrawWithBrushes(child, markBuilder, selections, byNode, width, height, cancellationToken));
+        }
+
+        if (node.IsLayer)
+        {
+            foreach (var child in node.Children.Where(byNode.ContainsKey))
+            {
+                items = WrapWithBrushes(child, items, markBuilder, selections, byNode, width, height);
+            }
+        }
+
+        return items;
+    }
+
+    /// <summary>
+    ///     Puts the brushes of the selections of a unit around some marks: the shade of each before them and its outline after them, the selections one around the other in declaration order.
+    /// </summary>
+    /// <param name="unit">The unit.</param>
+    /// <param name="marks">The groups to wrap.</param>
+    /// <param name="markBuilder">The mark builder of the cell.</param>
+    /// <param name="selections">The selections of the specification.</param>
+    /// <param name="byNode">The layers of the cell by their unit.</param>
+    /// <param name="width">The width of the data rectangle.</param>
+    /// <param name="height">The height of the data rectangle.</param>
+    /// <returns>The wrapped groups.</returns>
+    private static List<SceneItem> WrapWithBrushes(
+        LayerNode unit,
+        List<SceneItem> marks,
+        MarkBuilder markBuilder,
+        SelectionModel selections,
+        Dictionary<LayerNode, LayerChart> byNode,
+        double width,
+        double height)
+    {
+        var result = marks;
+        foreach (var component in selections.ComponentsOf(unit))
+        {
+            if (markBuilder.BuildBrush(component, selections, byNode[unit].Scales, unit, width, height) is { } brush)
+            {
+                result = [brush.Background, .. result, brush.Outline];
+            }
+        }
+
+        return result;
     }
 
     /// <summary>
@@ -255,6 +386,7 @@ public sealed partial class VegaLiteDocument
     ///     The root has no data rectangle of its own (<see cref="ViewLayout.Resolve"/> with <c>composition</c>): the canvas is the bounds of the content plus the padding, so what a chart
     ///     draws outside its cell (an axis, a legend) enlarges the canvas as it does for a single view.
     /// </remarks>
+    /// <param name="view">The top-level view of the specification as it is drawn (the expression references folded), whose padding, background and view are read.</param>
     /// <param name="root">The root of the view tree (a concatenation or a facet).</param>
     /// <param name="layers">The layers that are drawn, with their scales, in document order.</param>
     /// <param name="scales">The scales of the layers; null when no layer is drawn.</param>
@@ -267,6 +399,7 @@ public sealed partial class VegaLiteDocument
     /// <param name="cancellationToken">The token that stops the work.</param>
     /// <returns>The plan.</returns>
     private ChartPlan BuildComposition(
+        SpecNode view,
         LayerNode root,
         IReadOnlyList<LayerChart> layers,
         LayeredScales? scales,
@@ -280,7 +413,7 @@ public sealed partial class VegaLiteDocument
     {
         var composer = new Composer(layers, scales, config, measurer, limits, budget, expressions, _tree.SourceName, cancellationToken);
         var content = composer.Compose(root);
-        var request = ViewLayout.Resolve(_tree.Root, config, default, background, composition: true);
+        var request = ViewLayout.Resolve(view, config, default, background, composition: true);
 
         // The root is zero by zero and its "guides" are the bounds of the content, so the canvas is the content plus the padding
         var extents = LegendLayout.Combine(default, content.Bounds, 0, 0);
@@ -472,10 +605,11 @@ public sealed partial class VegaLiteDocument
             }
 
             var legendLayers = LegendLayers(_layers, scales);
+            var selections = _layers.Select(l => l.Selections).FirstOrDefault(s => s is { HasSelections: true });
             foreach (var owner in LegendPlan.Owners(legendLayers))
             {
                 _cancellationToken.ThrowIfCancellationRequested();
-                var specs = LegendPlan.Create([.. _leavesUnder[owner].Select(i => legendLayers[i])], _config, _sourceName, owner);
+                var specs = LegendPlan.Create([.. _leavesUnder[owner].Select(i => legendLayers[i])], _config, _sourceName, owner, selections);
                 if (owner.ChartRoot is { } chart)
                 {
                     if (!_legendsOfChart.TryGetValue(chart, out var own))

@@ -189,17 +189,25 @@ internal static class ChannelDefinitions
     ///     Finds the object that carries the field of a channel: the definition itself, or else the condition that holds a field.
     /// </summary>
     /// <param name="definition">The channel definition object.</param>
-    /// <returns>The definition when it names a field, a datum, or an aggregate; otherwise the first condition on a test that does (a condition on a parameter is not supported and has no scale); otherwise the definition.</returns>
+    /// <returns>The definition when it names a field, a datum, or an aggregate; otherwise the first condition on a predicate (a test or a parameter) that does; otherwise the definition.</returns>
     public static SpecNode FieldDefinitionOf(SpecNode definition) =>
         HasField(definition) ? definition : TestConditions(definition).FirstOrDefault(HasField) ?? definition;
 
     /// <summary>
-    ///     Lists the conditions of a channel definition that hold a test (a condition on a parameter is not evaluated).
+    ///     Lists the conditions of a channel definition that hold a predicate: a <c>test</c>, a <c>param</c> (a selection or a variable parameter), or a legacy <c>selection</c>.
     /// </summary>
     /// <param name="definition">The channel definition object.</param>
-    /// <returns>The condition objects with a <c>test</c> and no <c>param</c>, in order.</returns>
+    /// <returns>The condition objects with a predicate, in order.</returns>
     public static IEnumerable<SpecNode> TestConditions(SpecNode definition) =>
-        Conditions(definition).Where(c => c["test"] is not null && c["param"] is null);
+        Conditions(definition).Where(c => c["test"] is not null || c["param"] is not null || c["selection"] is not null);
+
+    /// <summary>
+    ///     Gets the node that the compiled expression of the predicate of a condition is kept under: the <c>test</c>, the <c>param</c>, or the legacy <c>selection</c>.
+    /// </summary>
+    /// <param name="condition">The condition object.</param>
+    /// <returns>The node; null when the condition holds no predicate.</returns>
+    public static SpecNode? PredicateKeyOf(SpecNode condition) =>
+        condition["test"] ?? condition["param"] ?? condition["selection"];
 
     /// <summary>
     ///     Finds the first value of a channel that a legend shows for a channel that no field drives: the value of the first condition, else the
@@ -211,7 +219,7 @@ internal static class ChannelDefinitions
         Values(definition).FirstOrDefault();
 
     /// <summary>
-    ///     Lists the constant values of a channel that no field drives: the values of its conditions on a test, in order, then the value of the definition.
+    ///     Lists the constant values of a channel that no field drives: the values of its conditions on a predicate, in order, then the value of the definition.
     /// </summary>
     /// <param name="definition">The channel definition object, or null.</param>
     /// <returns>The value nodes; none when a field drives the channel.</returns>

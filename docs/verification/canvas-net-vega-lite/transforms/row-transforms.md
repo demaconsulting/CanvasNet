@@ -139,7 +139,9 @@ keeps none), `equal: 1970` on `year` keeps the rows 1, 2, and 3, `valid: true` w
 the same three rows, and a date-time object `{"year": 2020}` as the value to compare with matches no row (its date is
 not 1970); that a filter on a variable parameter keeps every
 row or none depending on its truthiness (`true` keeps 3 rows, an override of `false` or `0` keeps none) while a filter
-on a selection parameter, by `param` or by the legacy `selection`, keeps every row.
+on an empty selection parameter, by `param` or by the legacy `selection`, keeps every row (the default `empty` rule; the
+rows
+that a selection with tuples selects are asserted in the system scenarios _Selections_).
 
 ##### Filter Predicates Are Charged To The Step Budget
 
@@ -181,6 +183,20 @@ of 20, a caller override of 20 characters is kept by `calculate` while one of 21
 at `/params/0` that names the parameter and `the limit of 20 characters (VegaLiteLimits.MaxStringLength)`; that a
 `value` text or a text inside a composite `value` that is over a lower render limit is refused the same way; and that a
 long text of the data that an expression copies with `calculate` is a failure located at `/transform/0/calculate`.
+
+##### Structured Values Of The Caller And The Order Of The Call
+
+**Tests**: `ExpressionReferenceFolderTests.ExpressionReferenceFolder_Fold_ReplacesAReferenceByItsValue`,
+`ExpressionReferenceFolderTests.ExpressionReferenceFolder_Fold_ReadsTheValuesOfTheCaller`
+
+The parameters of these scenarios are evaluated by `ParameterEnvironment.Populate` into the evaluator that the fold
+then reads (the order of the call: the parameters first, the fold of the expression references after them). Asserts that
+an expression reference reads the value of a parameter that is the expression of another (6 is 3 doubled, a font size of
+16 is 6 plus 10), that a value of the caller replaces the whole definition of the parameter (its expression is not
+evaluated), and that the value of the caller can be structured: an array of two numbers given for a parameter is the
+array that a reference to it folds to (`[5, 9]`). The mapping of the structured values at the public API (the copies,
+the depth and size bounds) is verified in the `VegaLiteDocument` unit verification, and the use of an array as the
+domain of a scale at the system tier.
 
 ##### Fold And Flatten Reshape The Rows
 

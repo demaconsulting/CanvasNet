@@ -9,16 +9,21 @@ The `SpecModel` subsystem (namespace `DemaConsulting.CanvasNet.VegaLite.SpecMode
 it turns Vega-Lite JSON into an immutable tree with exact locations, lists the constructs that are recognized but not
 supported, and resolves the effective configuration. It contains no data, no pixels, and no file or network access. It
 is **internal**: the tree, the reports, and the configuration types are visible only to the `VegaLiteDocument` unit,
-the other subsystems, and, through `InternalsVisibleTo`, the test assembly. It contains four units:
+the other subsystems, and, through `InternalsVisibleTo`, the test assembly. It contains five units:
 
 - **SpecParser** - the internal partial `SpecParser` (`SpecParser.cs`, `SpecParser.Validation.cs`,
   `SpecParser.Transforms.cs`, `SpecParser.Aggregates.cs`, `SpecParser.Time.cs`, and `SpecParser.Layers.cs`, with
   `ParameterGraph`), the tree
   types `SpecNode`,
   `SpecNodeKind`, `NodePosition`, and
-  `SpecTree` (`SpecNode.cs`), `SpecExpressions` (`SpecExpressions.cs`), and `SpecMetadata` and `SpecMarkEntry`
+  `SpecTree` (`SpecNode.cs`), `SpecExpressions` with the `StaticReference` and `StaticSiteKind` records
+  (`SpecExpressions.cs`), and `SpecMetadata` and `SpecMarkEntry`
   (`SpecMetadata.cs`); `PredicateSource` (`PredicateSource.cs`) writes the field predicates, including the time
   predicates, as expression source; see _SpecParser Unit Design_ (`spec-model/spec-parser.md`)
+- **ExpressionReferenceFolder** - the internal static `ExpressionReferenceFolder` with `FoldResult`
+  (`ExpressionReferenceFolder.cs`) and the internal static `ExpressionReferenceSites`
+  (`ExpressionReferenceSites.cs`): it evaluates the `{"expr": ...}` references of the static sites once and rewrites the
+  tree; see _ExpressionReferenceFolder Unit Design_ (`spec-model/expression-reference-folder.md`)
 - **FeatureCatalog** - the internal static `FeatureCatalog`, `FeatureReport`, and `FeatureReportKind`; see
   _FeatureCatalog Unit Design_ (`spec-model/feature-catalog.md`)
 - **ConfigResolver** - the internal static `ConfigResolver`, `ResolvedConfig`, `ConfigNode`, and `ConfigNodeKind`; see
@@ -42,7 +47,8 @@ The subsystem's namespace documentation is in `SpecModel/NamespaceDoc.cs`. Its b
 `SpecParser.ParseSchemaMajorVersion`, `SpecParser.IsChannelName`, `SpecParser.FindTransformOperation`,
 `SpecParser.EscapePointerSegment`, and the helpers `SpecParser.IsSupportedTransform`, `IsResolveChannel`, `IsViewSignal`,
 `IsParameterDeclared`, `FindParameter`, `IsSupportedSort`, `TryParseSortShorthand`, and `IsSortChannel`;
-`SpecTree.Expressions` (the compiled expressions) and `ParameterGraph.Sort`;
+`SpecTree.Expressions` (the compiled expressions and `SpecExpressions.StaticReferences`) and `ParameterGraph.Sort`;
+`ExpressionReferenceFolder.Fold(SpecTree, ExpressionEvaluator)`, which returns a `FoldResult`;
 `SpecMetadata.Read(SpecTree)`; `FeatureCatalog.Visit(SpecTree)` and
 `FeatureCatalog.IsSchemeBearingUrl(string)`; `ConfigResolver.Resolve(SpecTree, string?)`,
 `ConfigResolver.Resolve(SpecNode?, string?)`, and `ConfigResolver.Defaults`, which return a `ResolvedConfig`; and
@@ -52,7 +58,9 @@ VegaLiteLimits?)` (an `ExpandedLayers`), and `SpecNormalizer.TryOrientation`.
 **Consumed**: the public `VegaLiteLimits`, `VegaLiteLocation`, and `VegaLiteSpecException` types of the
 `VegaLiteDocument` unit (limits to enforce, the location of every node and report, and the error type of a malformed
 specification), `ExpressionParser` and `CompiledExpression` of the `Expressions` subsystem (the compilation of the
-expressions and the constructs they collect), `FieldPath`, `ParseDirectives`, `TimeUnitSpec`, `DateTimeObject`, and
+expressions and the constructs they collect), `ExpressionEvaluator` of the `Expressions` subsystem and `DataValue` of the
+`Data` subsystem (the evaluation of a static reference by the folder), `FieldPath`, `ParseDirectives`,
+`TimeUnitSpec`, `DateTimeObject`, and
 `JsDateParser` of the `Data` subsystem (field names, the `parse` entry rule, and the time unit, date-time object, and
 date text rules of the time validation), `AggregateMeasures` and `StackRules`
 of
@@ -62,7 +70,8 @@ subsystem (so that the catalog decides the stack of a view exactly as the plan d
 about a binned dimension of a stacked path mark, and the channels that a mark does not draw). The .NET base class
 library supplies `System.Text.Json`, `System.Text`, and `System.Globalization`.
 
-**Consumers**: `VegaLiteDocument` (parse, metadata, reports, configuration, and the layer tree), the `Data` subsystem (`DataLoader`
+**Consumers**: `VegaLiteDocument` (parse, metadata, reports, the fold, configuration, and the layer tree), the `Data`
+subsystem (`DataLoader`
 reads `SpecNode`), the `Transforms` subsystem (`RowTransforms` and `ParameterEnvironment` read the tree, its compiled
 expressions, and the transform and parameter helpers), the `Scales` subsystem (`ScaleResolver` reads `SpecNode`,
 `LayerNode`, and `ResolvedConfig`), the `Guides`
@@ -96,6 +105,15 @@ is an edit of the catalog's supported sets together with the unit that draws it:
 not draw is reported from the same support table as the scale resolver's (`ScaleResolver.ChannelIsDrawn`), so the report
 and the drawing cannot disagree. The document merges the catalog
 reports with the parse warnings once.
+
+**Expression references are values before anything else reads them.** Vega-Lite compiles an `{"expr": ...}` reference
+(`ExprRef`) to a Vega signal, so in a chart that never changes its value is the expression evaluated once with the
+parameters at their initial state. `SpecParser` compiles every reference at a static site (a site that
+Vega-Lite's schema allows one at and that no row reads) when the document is opened and lists it in
+`SpecExpressions.StaticReferences`; at render time `ExpressionReferenceFolder` evaluates the list once, after the
+parameters, and rewrites the tree by copying only the path from the root to each reference, so that the configuration
+resolver, the normalizer, and every later stage read values where the author wrote references. The sites that the marks
+evaluate for every row stay references and keep their own path.
 
 **Configuration is a merged tree, not a bag of constants.** `ConfigResolver` builds one `ConfigNode` tree from the Vega
 guide defaults, the Vega-Lite defaults, the specification's `config`, and the caller's `Config`, in that order of

@@ -3,10 +3,10 @@
 ![Marks Structure](VegaLiteMarksView.svg)
 
 The `MarkBuilder` unit is the first software unit in the `Marks` subsystem (the second is _CurveBuilder_). It comprises
-seven
+eight
 source files in the `DemaConsulting.CanvasNet.VegaLite.Marks` namespace; together they define one `internal` type, the
 `sealed partial class MarkBuilder` (with private helper types for one channel, the sizing of a position, the paint of an
-item, the settings of an overlay, and one build run, the nested `sealed partial class Run`):
+item, the settings of an overlay, and one build run, the nested `sealed partial class Run`), and the record `BrushGroups`:
 
 - `MarkBuilder.cs` - the public surface (`IsSupported`, `Build`), the channels, the paint, the conditions and
   row-bound expressions, the bar, rect, tick, rule, and symbol marks, and the `Style` methods that apply the stroke
@@ -20,6 +20,8 @@ item, the settings of an overlay, and one build run, the nested `sealed partial 
 - `MarkBuilder.Arcs.cs` - the `arc` mark, the polar span of a channel, and the polar position of a stacked `text`
 - `MarkBuilder.Offsets.cs` - the `xOffset` and `yOffset` channels: `ChannelOffset` (the offset scale of a position and
   how it reads the offset value of a row), `AttachOffsets`, `TimeUnitOffsetRange`, and `OffsetCenter`
+- `MarkBuilder.Brush.cs` - the brush of an interval selection (phase 12): `BrushGroups` (the shade and the outline) and
+  `BuildBrush`
 
 Every file carries the provenance header comment for the d3-shape, d3-path, Vega, and Vega-Lite behavior it ports (see
 _CanvasNetVegaLite System Design_, Third-Party Provenance and Attribution).
@@ -146,7 +148,7 @@ parser compiled the expression when the document was opened, so no text is parse
 A result of the wrong kind leaves the default in place: a color expression that does not give text, a number expression
 (`opacity`, `strokeWidth`, `size`) that does not give a finite number. Everything else that is an `{"expr": ...}` (other
 mark properties, other encoding values, and conditions that cannot be evaluated) is not evaluated and is reported by the
-feature catalog (`vl-expr-ref`, `vl-encoding-condition`, `vl-encoding-condition-param`).
+feature catalog (`vl-expr-ref`, `vl-encoding-condition`).
 
 **Ignored without a report**: `tooltip`, `href`, and the individual corner radii and
 `cornerRadiusEnd`. `x2` and `y2` of the marks other than `bar`, `rect`, `rule`, and `area` are reported by the feature
@@ -464,10 +466,44 @@ reports the exhausted evaluation steps, and the text limits name `VegaLiteLimits
   the token every 1,024 rows and charging the item budget one item at a time as each item is created, so a row that
   draws nothing costs nothing), creating bar and rect items, symbol items, rule items, tick items, path items (lines
   and areas, one item per group), trail items, text items, and arc items with resolved geometry and paint, followed by the
-  items of the overlays of a path mark, and returns the group, clipped to the data rectangle only when the
-  mark definition says `"clip": true` (an explicit `scale.domain` does not clip: Vega-Lite's `scaleClip` is for the
-  extent of an interval selection, so a bar that starts at zero, as a default stack does, can overflow such a domain, as
-  in Vega-Lite).
+  items of the overlays of a path mark, and returns the group, clipped to the data rectangle when the
+  mark definition says `"clip": true` and when the `x` or `y` scale reports `ClipMarks` (the scale has the extent of a
+  parameter or a selection, phase 12: Vega-Lite's `scaleClip` clips for the extent of a selection or parameter
+  domain); an
+  explicit `scale.domain` array does not clip, so a bar that starts at zero, as a default stack does, can overflow
+  such a
+  domain, as in Vega-Lite.
+- `BuildBrush(component, model, scales, unit, width, height)` (`MarkBuilder.Brush.cs`; Vega-Lite's `interval.ts`
+  `marks`) -
+  builds the brush of an interval selection of a unit, as two `BrushGroups`. It returns nothing (null) for a point selection,
+  a selection bound to the scales (`IsScaleBound`), a dropped selection, a selection with no initial value, a globally
+  resolved selection whose store does not start with a tuple of this unit (`store[0].unit === unitName`) or that the unit
+  draws in a facet cell (`LayerNode.Cell`; the name of the unit of a cell never equals the one in the store), a selection
+  projected over neither `x` nor `y`, an end that has no position on the scale of its channel (`ScaleModel.Map`: a
+  band scale gives the **start** of the band, a point scale its position, a linear or time scale the extrapolated
+  pixel), and a
+  rectangle with no area (both extents are tested, which is what makes Vega-Lite's stroke test `N_x[0] !== N_x[1]` and
+  the
+  zero width of its shade hold at once, so no item is made for what paints nothing). The rectangle is `min`, `abs` of
+  the two
+  ends of each projected axis of the **first** initial tuple (`Init[0]`); an axis the selection is not projected over
+  spans
+  `0` to the size of the data rectangle. The shade (`selection-brush-background`, a group with the data rectangle as its
+  clip
+  and a `SceneRect` child) has the `fill` and `fillOpacity` of `SelectionComponent.Mark`; the outline
+  (`selection-brush`)
+  has a transparent fill and takes `stroke`, `strokeOpacity`, `strokeWidth`, `strokeDash`, `strokeDashOffset`,
+  `strokeCap`, `strokeJoin`, `strokeMiterLimit`, and `opacity` from
+  the
+  other keys of the mark (every key but `fill`, `fillOpacity`, and `cursor` is a stroke key in Vega-Lite, which copies it
+  to the rectangle whatever its schema lists; the keys that the scene does not model have no
+  effect here). It charges four items (two groups and two rectangles) before making them.
+- `VegaLiteDocument.BuildMarkGroups` (not part of this unit; it calls `Build` and `BuildBrush`) - arranges the marks groups
+  of a cell with the brushes: a unit that is the whole chart, or a unit of a concatenation or a facet, wraps its own marks
+  (`[shade, marks, outline]`, the selections of the unit one around the other in declaration order); the units of a
+  layered view are wrapped together, child by child, as Vega-Lite's `assembleLayerSelectionMarks` does
+  (`[shade_n, ..., shade_0, marks of every layer, outline_0, ..., outline_n]`), a nested layered view wrapping its own units
+  first. A cell without selections draws its layers in order and nothing else.
 - Row filtering (Vega-Lite's invalid filter; the path marks use the invalid modes described above instead) - a row whose
   value for a channel with a continuous domain (`x`, `y`,
   `size`, or `opacity` on a linear, time, or UTC scale, and a color, `strokeWidth`, `fillOpacity`, `strokeOpacity`, or
@@ -494,7 +530,11 @@ has no
   When no condition holds the row gets what the channel gives without conditions: its scaled field, else its own
   `value`, else the default of the mark. A channel with a field of its own takes value conditions only; a channel
   that is only a value may take a field condition. A field condition leaves the continuous-domain row filter alone
-  (the field is read only where its test holds). Conditions on a parameter, and tests that no expression can say, are
+  (the field is read only where its test holds). A condition on a `param` (a selection or a variable parameter) or on the
+  legacy `selection` is a condition like a `test`: the parser compiled the predicate of Vega-Lite for it (the selection
+  test with its `empty` rule, read through `ChannelDefinitions.PredicateKeyOf`), so the first holding condition wins in
+  the order
+  written, whichever kind of predicate it holds. Tests that no expression can say are
   left out by the parser, so they never hold. Without the `RowExpressions` (a caller that has none) the conditions
   are ignored and the channels draw as they do without them. (A `condition` on the `text` channel is reported by the
   catalog and not applied.)
@@ -550,15 +590,19 @@ feature catalog has already reported it. The unit performs no I/O.
   see _SceneModel_, _ScenePainter_, and _ArcGeometry_)
 - **`VegaLiteLimits`**, **`VegaLiteLocation`**, **`VegaLiteRenderException`**, and **`VegaLiteSpecException`** - the
   public types of the `VegaLiteDocument` unit
+- **`SelectionModel`**, **`SelectionComponent`** (`Transforms`) and **`LayerNode`** (`SpecModel`) - the selections and
+  the unit that `BuildBrush` draws
 - **.NET base class library** - `System.Globalization`, `System.Collections.Generic`
 
 #### Callers
 
 `VegaLiteDocument` calls `IsSupported` to decide if a view is drawn and `Build` once for the final data rectangle,
-passing the Main table that the implicit pipeline produced and the `RowExpressions` of the call. The
+passing the Main table that the implicit pipeline produced and the `RowExpressions` of the call; `BuildMarkGroups` calls
+`BuildBrush` for the selections of each unit of a cell. The
 tests in `test/DemaConsulting.CanvasNet.VegaLite.Tests/Marks/` (`MarkBuilderTests.cs`, `MarkBuilderChannelTests.cs`,
 `MarkBuilderConditionTests.cs`, `MarkBuilderTimeTests.cs`, `MarkBuilderPathTests.cs`, `MarkBuilderOrderTests.cs`,
 `MarkBuilderOverlayTests.cs`, `MarkBuilderTextTests.cs`, `MarkBuilderArcTests.cs`, `MarkBuilderPolarTextTests.cs`, and
 `MarkBuilderOffsetTests.cs`)
 call the builder directly through
-`InternalsVisibleTo`, and the chart integration tests exercise it through the public document.
+`InternalsVisibleTo`, and the chart integration tests (among them `VegaLiteBrushIntegrationTests.cs` for the brush)
+exercise it through the public document.

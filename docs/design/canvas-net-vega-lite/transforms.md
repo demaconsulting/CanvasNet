@@ -15,11 +15,16 @@ stack, on the Cartesian and on the polar channels), and
 computes the
 **static parameter environment** that expressions read, after the `DataLoader` has produced its table and before any scale
 exists. It is **internal**: its types are visible only to the `VegaLiteDocument` unit and the other subsystems and, through
-`InternalsVisibleTo`, to the test assembly. It contains four units:
+`InternalsVisibleTo`, to the test assembly. It contains five units:
 
 - **RowTransforms** - the internal `RowTransforms` (with its predicates, shape, and lookup parts), `RowSampler`,
   `TableLayout` and `FieldReader`, `ParameterEnvironment` and `SpecValues`, `TransformContext`, and `RowExpressions`; see
   _RowTransforms Unit Design_ (`transforms/row-transforms.md`)
+- **SelectionModel** - the internal `SelectionModel`, `SelectionComponent`, and `SelectionBind` (the stores and the
+  resolved values of the selection parameters in their initial state, with the projection of Vega-Lite, the selections a
+  view sees, the extent that a selection gives a scale or a bin, and the time units that a predicate on a selection
+  needs: `SelectionTimeUnits`); see
+  _SelectionModel Unit Design_ (`transforms/selection-model.md`)
 - **AggregateTransforms** - the internal `AggregateTransforms` (with its aggregate, bin, window, stack, and impute parts,
   the impute also behind a typed entry), `AggregateMeasures` and `MeasureCell` (the operations), `BinAlgorithm`,
   `StackRules` (the stack decision on the Cartesian and the polar channels), `WorkMeter`, and `StableSorter`;
@@ -43,8 +48,9 @@ The subsystem's namespace documentation is in `Transforms/NamespaceDoc.cs`. Its 
 **Exposed** (internal only): `RowTransforms.Apply(DataTable, SpecNode?, TransformContext)`, which returns the transformed
 table (the input itself when nothing changes) and dispatches the aggregating transforms to
 `AggregateTransforms.Apply(DataTable, SpecNode, SpecNode, TransformContext)`;
-`ParameterEnvironment.Populate(SpecTree, overrides, values, evaluator)`, which
-fills the dictionary of parameter values that the evaluator reads;
+`ParameterEnvironment.Populate(SpecTree, overrides, values, evaluator, selectionValues)`, which
+fills the dictionary of parameter values that the evaluator reads (a value of the caller can be a scalar, an array, or an
+object; `VegaLiteDocument` calls it first in every call, before the expression references are folded and the data is read);
 `RowSampler.Select(count, size, pointer, token)`; `EncodingPlan.Create(SpecNode, ResolvedConfig)`, which plans the implicit
 pipeline of a view, and `EncodingTransforms.Apply(EncodingPlan, DataTable, TransformContext)`, which runs it and
 returns the
@@ -125,7 +131,15 @@ instead of running for minutes.
 an expression is evaluated once per call, in the dependency order that the `SpecParser` fixed (cycles and unknown references
 were rejected when the document was opened), and a value in `VegaLiteRenderOptions.Parameters` replaces the whole definition
 of that parameter (the expression is not evaluated). The environment is a dictionary of `DataValue` by name that the
-evaluator reads. Selection parameters have no value in a static chart and are reported.
+evaluator reads. Selection parameters are not values of this environment: the `SelectionModel` (see _SelectionModel_)
+computes the initial state of each selection (its tuples as a store and the resolved value) once per call, the
+predicates of the conditions and filters read the stores through the selection functions of the expression engine, and
+the resolved value is the value of the name of the selection in the environment (so an expression can read it). A `bin`
+whose `extent` is `{"param": name}` (in an encoding or in a `bin` transform) keeps the bins over the extent of the data
+and
+takes only the **span** of the parameter's range as the `span` of the bin algorithm (`BinSettings.Span`, Vega's
+`span || (max - min) || abs(min) || 1`): `TransformContext.BinSpanOf` reads the span from the selection (through the view
+that runs, `TransformContext.View`) or the variable parameter, and `BinAlgorithm.SpanOf` is Vega's `span` of an array.
 
 **Time in predicates.** A `filter` predicate that has a `timeUnit` or compares with a date-time object is written as
 expression source text by `PredicateSource` (the left side is the unit parts of the field as a `datetime` call, the

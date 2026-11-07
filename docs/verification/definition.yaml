@@ -110,6 +110,7 @@ input-files:
   - docs/verification/canvas-net-vega-lite/spec-model/feature-catalog.md
   - docs/verification/canvas-net-vega-lite/spec-model/config-resolver.md
   - docs/verification/canvas-net-vega-lite/spec-model/spec-normalizer.md
+  - docs/verification/canvas-net-vega-lite/spec-model/expression-reference-folder.md
   - docs/verification/canvas-net-vega-lite/data.md
   - docs/verification/canvas-net-vega-lite/data/data-table.md
   - docs/verification/canvas-net-vega-lite/data/data-loader.md
@@ -123,6 +124,7 @@ input-files:
   - docs/verification/canvas-net-vega-lite/expressions/expression-functions.md
   - docs/verification/canvas-net-vega-lite/transforms.md
   - docs/verification/canvas-net-vega-lite/transforms/row-transforms.md
+  - docs/verification/canvas-net-vega-lite/transforms/selection-model.md
   - docs/verification/canvas-net-vega-lite/transforms/aggregate-transforms.md
   - docs/verification/canvas-net-vega-lite/transforms/encoding-plan.md
   - docs/verification/canvas-net-vega-lite/transforms/time-unit-transform.md

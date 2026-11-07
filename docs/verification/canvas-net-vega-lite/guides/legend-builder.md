@@ -60,7 +60,9 @@ ticks and date labels of a gradient, date symbols, a size over dates, and the zo
 in the same folder, with the expectations of the ten day data derived in the scenarios below from the d3 interval
 table; the label expressions of the legends (the datum of a symbol, gradient, and discrete gradient legend, the
 `symbolLimit` row, and the configuration rule) are in `LegendBuilderLabelExprTests.cs`, in the same folder, which reads
-the labels of the first legend through the shared `ChartTestHelpers.Legend` helper.
+the labels of the first legend through the shared `ChartTestHelpers.Legend` helper; the dimming of the legend of a
+selection (Phase 12) is in `LegendBuilderSelectionTests.cs`, in the same folder, which lays specification texts out
+through the public API and reads the opacity of the `legend-symbol` and `legend-label` items.
 
 #### Test Environment
 
@@ -379,3 +381,41 @@ of ' + datum.value + ' #' + datum.index` as `0% of 0 #0`, `25% of 25 #1`, and `1
 of the tick along the bar, 0 to 1); that a discrete gradient of a quantize scale gives the ends of each class as `perc`
 and `perc2` (`20-40`, `40-60`, `60-80`, and `80-100`); and that the value of a temporal legend is a date
 (`'in ' + year(datum.value)` gives `in 2024`).
+
+##### Legends Bound To A Selection
+
+**Tests**: `LegendBuilderSelectionTests.LegendBuilder_BoundSelection_DimsTheEntriesTheSelectionDoesNotHold`,
+`LegendBuilderSelectionTests.LegendBuilder_BoundSelection_HoldsEveryValueOfTheSelection`,
+`LegendBuilderSelectionTests.LegendBuilder_BoundSelection_EmptyStoreDimsNothing`,
+`LegendBuilderSelectionTests.LegendBuilder_BoundSelection_UnselectedOpacityComesFromTheConfiguration`,
+`LegendBuilderSelectionTests.LegendBuilder_BoundSelection_SelectedSymbolKeepsTheOpacityOfTheMark`,
+`LegendBuilderSelectionTests.LegendBuilder_BoundSelection_SymbolOpacityOfTheLegendGivesWayToOne`,
+`LegendBuilderSelectionTests.LegendBuilder_BoundSelection_ComparesWithStrictEquality`,
+`LegendBuilderSelectionTests.LegendBuilder_BoundSelection_NumberHoldsTheNumberEntry`,
+`LegendBuilderSelectionTests.LegendBuilder_UnboundSelection_DimsNothing`,
+`LegendBuilderSelectionTests.LegendBuilder_BoundSelection_ProjectedOverTheChannelBindsTheLegend`,
+`LegendBuilderSelectionTests.LegendBuilder_BoundSelection_DimsTheLabelsOfAGradientLegend`,
+`LegendBuilderSelectionTests.LegendBuilder_BoundSelection_LegendOfTheOpacityChannelDimsOnlyTheLabels`,
+`LegendBuilderSelectionTests.LegendBuilder_BoundSelection_TimeUnitProjectionDimsEveryEntry`,
+`LegendBuilderSelectionTests.LegendBuilder_BoundSelection_DateOfTheSelectionHoldsTheEntryOfTheDate`,
+`LegendBuilderSelectionTests.LegendBuilder_BoundSelection_TickOfATimeScaleIsNotHeldByItsMilliseconds`,
+`LegendBuilderSelectionTests.LegendBuilder_BoundSelection_WithoutAProjectionIsReportedAndDimsNothing`
+
+Asserts, for a point chart whose nominal color field `c` has the entries `x`, `y`, and `z` and a selection of `c` bound
+to the legend that holds `y`, that the symbols have the opacities 0.35, 0.7 (the default opacity of a point mark, which
+the legend symbol takes over), and 0.35 and the labels 0.35, 1, and 0.35; that a selection with the values `x` and `z`
+keeps those two entries; that a selection without a value dims nothing; that `config.legend.unselectedOpacity` of 0.2
+replaces 0.35; that the opacity 0.6 of the mark is the opacity of the selected symbol (but not of the label); that a
+`symbolOpacity` of the legend makes the selected symbol 1 (the rule of Vega-Lite has no opacity of the symbol to keep
+then); that the text `"2"` does not hold the number entry 2 of an ordinal field (every entry is dimmed) while the
+number 2 holds it; that a selection without `bind`, and one with another `resolve`, dim nothing; that a selection
+projected over the `color` channel binds the legend of the channel; that the six labels `0` to `10` of the gradient legend
+of a quantitative color over 0 to 10 get the opacities 0.35, 0.35, 1, 0.35, 0.35, and 0.35 for the value 4 while the bar
+keeps 1; that a legend that also explains the `opacity` channel keeps the opacities of its symbols and dims its labels;
+that a selection projected over the `color` channel of a field with a `timeUnit` (stored under `month_d`, while the rule
+reads the field `d` of the channel definition, as Vega-Lite does) dims all three entries; that the date of a selection
+(a number of milliseconds) holds the entry of a discrete legend over a parsed date field (second of three days: 0.35,
+0.7, 0.35, the labels 0.35, 1, 0.35), while the third day of a symbol legend of a temporal color, whose five ticks are
+dates, is held by none of them (all dimmed); and that a legend binding without a projected field is reported and dims
+nothing. The expectations of the three date and time unit cases were cross-checked against Vega-Lite 6.5.0 run as a
+research oracle (not copied).

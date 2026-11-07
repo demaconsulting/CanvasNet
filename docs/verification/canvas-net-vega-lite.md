@@ -546,8 +546,10 @@ background inside the chart, and that `ParameterNames` lists the three names in 
 **Test**: `CanvasNetVegaLite_SystemIntegration_Parameters_OverridesReachTheTransforms`
 
 Renders the chart of the last scenario of this group (a flatten, a calculate with a parameter, a filter, a lookup, and
-a sample) with a selection parameter added. Asserts that a caller's value for `minimum` changes the picture, that
-naming the selection parameter in the options changes nothing (the bytes are identical to the baseline), and that a name
+a sample) with an interval selection parameter added that nothing uses. Asserts that a caller's value for `minimum`
+changes the picture, that
+naming the selection parameter in the options (a value for its initial state) changes nothing here (the bytes are
+identical to the baseline, because no condition or filter reads it), and that a name
 the document does not declare throws an `ArgumentException` that names it.
 
 ### Parameters: Invalid Definitions Fail When The Document Is Opened
@@ -557,6 +559,70 @@ the document does not declare throws an `ArgumentException` that names it.
 Parses documents whose parameters form a cycle, refer to a name that is not declared, or repeat a name. Asserts that
 each is a `VegaLiteSpecException` at the offending value (`/params/0/expr`, `/params/0/expr`, and `/params/1/name`)
 before any render.
+
+### Selections: Parameters Are Drawn In Their Initial State
+
+**Tests**: `CanvasNetVegaLite_SystemIntegration_Selection_IntervalIncludesBothEnds`,
+`..._Selection_ReversedIntervalIsSwapped`, `..._Selection_EmptySelectionFollowsTheEmptyRule`,
+`..._Selection_PointMatchesByStrictEquality`, `..._Selection_ProjectionIsInferredFromTheValue`,
+`..._Selection_FilterKeepsTheSelectedRows`, `..._Selection_FilterOfAnEmptySelectionFollowsTheEmptyRule`,
+`..._Selection_TestCompositionsUseTheSelection`, `..._Selection_CallerValueReplacesTheInitialValue`,
+`..._Selection_ExpressionsReadTheResolvedSelection`, `..._Selection_LegacySelectionIsMappedToAParameter`,
+`..._Selection_LegacyEmptyNoneSelectsNothing`, `..._Selection_RowIdentitySelectionWithAValueIsReported`,
+`..._Selection_IntervalOverACategoricalAxisSelectsItsEndsOnly`,
+`..._Selection_TopLevelSelectionOfAConcatIsSharedByItsViews`,
+`..._Selection_TemporalIntervalSelectsTheRowsInsideTheDates`,
+`..._Selection_FieldConditionColorsTheSelectedRowsByTheirCategory`,
+`..._Selection_InteractionPropertiesAreIgnoredWithoutAReport`, `..._Selection_FacetCellsShareTheSelection`,
+`..._Selection_CallerCanReplaceTheInitOfALegacySelection`, `..._Selection_TopLevelSelectionOfTwoLayersIsReported`
+(all in `VegaLiteSelectionIntegrationTests`)
+
+Render three circles at `a` = 1, 4, and 7 (and `b` = 1, 2, and 3) whose fill is `#d73027` where a condition on a
+selection holds and `#4575b4` elsewhere, and assert the fill of each circle, derived from the rule of the selection and
+never from another implementation: an interval over `x` with the range 1 to 4 includes both ends (the circles at 1 and 4,
+not 7), and the reversed range 7 to 4 is the range 4 to 7; a selection without a value is empty, so the condition holds
+for every circle by default and for none with `empty: false`; a point selection matches by strict equality (the value
+`4` selects the circle at 4, the list 1 and 7 selects those two, the text `"4"` none); the projection is inferred from the
+keys of the value (a field, a channel, an interval range) and nothing is reported; a `filter` on the selection keeps the
+rows that it selects (the circles at 4 and 7, drawn at 1200/7 and 300 pixels because the domain of `x` becomes 0 to 7)
+and, on an empty selection, all rows by default and none with `empty: false`; the `not` of a selection and its `and` with
+a field predicate select the rows that Boolean algebra says; the value of the caller replaces the value of the
+specification (a map of arrays gives the range 4 to 7, a null clears the selection so that everything is selected); the
+resolved selection is a value for expressions (`brush.a[0]` and `brush.a[1]` give a title "From 1 to 4"); a legacy
+`selection` of `single` with `init`, a condition that names it, and `empty: "none"` (nothing selected while it is
+empty) are mapped to a parameter, and the caller can replace its `init`; a point selection over the identity of the rows
+selects every circle while it is empty without a report, and is reported once as `vl-param-selection-id` with an initial
+value (and applied as empty); an interval over a categorical axis selects the categories at its two ends and not the one
+between; a top-level selection of a concatenation is one selection for both views and tests the field of the first one
+(1 and 4 are in, 7 is out in both); a temporal interval with date-time objects selects the rows inside it in the chart
+calendar, and the caller's `DateTime` values select the rows that their instants say; a condition that holds a field
+colors the selected row with the scale of that field (`#f58518`, the second palette color) and draws its three-entry
+legend; the interaction properties and bindings change nothing and report nothing; the cells of a facet share one
+selection; and a top-level selection that two layers receive is applied as empty (every circle selected) and reported as
+reports nothing.
+
+### Brushes, Bound Scales, Selection Domains, And Bin Extents (Phase 12, Milestone 2b)
+
+**Tests**: `VegaLiteBrushIntegrationTests` (`CanvasNetVegaLite_SystemIntegration_Brush_*`, 18 methods),
+`VegaLiteSelectionExtentIntegrationTests` (`..._BindScales_*`, `..._Domain_*`, and `..._BinExtent_*`, 12 methods), and
+`VegaLiteSelectionTimeUnitIntegrationTests` (`..._TimeUnitSelection_*`, 3 methods)
+
+Render small charts whose expectations are derived from the arithmetic of the scales (a 200 by 100 pixel data rectangle,
+so a linear domain of 0 to 10 maps one unit to 20 pixels). Assert that an interval selection with an initial value draws
+`selection-brush-background` and `selection-brush` rectangles over the range of its channels (the reversed range draws
+the same rectangle, a band scale gives the start of the band, dates go through the time scale, a channel that is not projected
+spans the rectangle), with the fill `#333` at 0.125 and the white stroke of `config.selection.interval.mark` and the
+overrides of the specification, that the caller's value replaces or clears the brush, that a global selection is drawn
+by the first unit only and never by a facet cell, that a layered view orders `[background, layers, brush]`, and that the
+brush is charged to the scene budget; that a selection bound to the scales sets the domain of its continuous channels
+and clips the marks, draws no brush, and keeps the domain of the data (with the clip) in a concatenation; that
+`scale.domain: {param}` of a selection takes the range of a field, else of an encoding, else of the first projected field
+with a warning; that a `bin` extent that is a parameter chooses the step from its span while the bins cover the data; and
+that a filter or a condition on a selection projected over a time unit finds the derived field; and that the example of
+the package documentation (a brush on the first view of a vertical concatenation, the bars of the second binned by the
+span of the brush, the host's range replacing the specification's) renders in strict mode without a report, with the
+circles inside the range red and four bars (`..._BinExtent_TheDocumentationExampleRenders`). The legends that a
+selection is bound to are verified by the `LegendBuilder` unit scenarios (`LegendBuilderSelectionTests`).
 
 ### Expressions: Row-Bound Mark Values Are Evaluated Per Row
 
@@ -587,10 +653,11 @@ that would have come later.
 
 **Test**: `CanvasNetVegaLite_SystemIntegration_Deferred_FeaturesAreStillReported`
 
-Renders a document with a selection parameter, the transforms `regression`, `loess`, `density`, and `quantile`, a
+Renders a document with an animation selection parameter (a point selection with `on: "timer"`), the transforms
+`regression`, `loess`, `density`, and `quantile`, a
 `timeUnit` transform (supported since Phase 8, so it is computed and not reported), a calculate that calls `now` and
 `luminance`, and a condition on the `x` channel (which takes none). Asserts that each is
-reported once, in document order (`vl-param-selection`, `vl-transform-regression`, `vl-transform-loess`,
+reported once, in document order (`vl-param-selection-animation`, `vl-transform-regression`, `vl-transform-loess`,
 `vl-transform-density`, `vl-transform-quantile`, `vl-expr-function-now`, `vl-expr-function-luminance`,
 `vl-encoding-condition`), that nothing is executed silently, and that
 the chart is still drawn. The aggregate, window, bin, stack, and impute transforms that this scenario reported before
@@ -630,9 +697,11 @@ expression, and that a document within the limits opens.
 
 **Test**: `CanvasNetVegaLite_SystemIntegration_Expressions_HostileEvaluationFailsClosed`
 
-Renders fifty rows through `datum.a * 2 + 1` with a `MaxEvaluationSteps` of 50 after a selection parameter. Asserts a
+Renders fifty rows through `datum.a * 2 + 1` with a `MaxEvaluationSteps` of 50 after an animation selection parameter.
+Asserts a
 `VegaLiteRenderException` located at `/transform/0/calculate` that names the offset, after the report that came first
-(`vl-param-selection`) was delivered. Renders a document that tests the catastrophic pattern `(a+)+$` against forty
+(`vl-param-selection-animation`) was delivered. Renders a document that tests the catastrophic pattern `(a+)+$` against
+forty
 letters and a `b` and asserts that the linear-time engine finishes and the chart renders.
 
 ### Transforms: Limits, Sandbox, And Cancellation Fail Closed
@@ -894,8 +963,9 @@ the others 0.4, in strict mode, without a warning and without a legend (conditio
 the colors confirmed by pixels blended over the white background; a color condition that holds a field draws the legend
 of that field (`a`, `b`, `c` in the palette colors) and leaves the value of the channel where the test fails; a
 condition
-on a variable parameter is reported once at the condition with `vl-encoding-condition-param` (and stops a strict render
-there) while the chart draws the value of the channel, and a test with a syntax error is a `VegaLiteSpecException` at
+on a variable parameter is evaluated by its truthiness and reported nowhere (a strict render succeeds and the circles take
+the value of the condition because the parameter is true), a condition on a parameter that no view declares is a
+`VegaLiteSpecException` at the `param` of the condition, and a test with a syntax error is a `VegaLiteSpecException` at
 the test; and a `MaxEvaluationSteps` of 10 fails naming the limit while a roomy one renders, the exact scene count
 renders and one less fails naming `MaxSceneItems`, a canceled token stops the render, and repeated and concurrent
 renders are byte-identical.
@@ -1987,6 +2057,52 @@ and the first band at 18.75) has six bars 37.5 wide at 18.75, 56.25 (touching), 
 nothing
 reported even in strict mode, and that the boxes
 of a boxplot with an offset are side by side with equal widths.
+
+### Parameters: Expression References And Raw Domains (Phase 12, Milestone 1)
+
+**Tests**:
+`VegaLiteParamsIntegrationTests.CanvasNetVegaLite_SystemIntegration_Params_ExpressionReferencesDriveTitleBackgroundAndPadding`,
+`VegaLiteParamsIntegrationTests.CanvasNetVegaLite_SystemIntegration_Params_ExpressionReferencesReachAxesScalesAndConfiguration`,
+`VegaLiteParamsIntegrationTests.CanvasNetVegaLite_SystemIntegration_Params_UnfoldableReferencesAreReported`,
+`VegaLiteParamsIntegrationTests.CanvasNetVegaLite_SystemIntegration_Params_FoldingIsDeterministicAndLeavesTheDocumentAlone`,
+`VegaLiteParamsIntegrationTests.CanvasNetVegaLite_SystemIntegration_Params_DomainOfAParameterIsRawAndClipsTheMarks`,
+`VegaLiteParamsIntegrationTests.CanvasNetVegaLite_SystemIntegration_Params_TheCallerOverridesTheDomainOfAParameter`,
+`VegaLiteParamsIntegrationTests.CanvasNetVegaLite_SystemIntegration_Params_DomainRawIsTheDomain`,
+`VegaLiteParamsIntegrationTests.CanvasNetVegaLite_SystemIntegration_Params_AnUnusableRawDomainIsReportedAndIgnored`,
+`VegaLiteParamsIntegrationTests.CanvasNetVegaLite_SystemIntegration_Params_TheDomainOfADiscreteScaleIsTheValueOfTheParameter`,
+`VegaLiteParamsIntegrationTests.CanvasNetVegaLite_SystemIntegration_Params_ALayerThatTakesItsDomainFromAParameterSetsTheSharedScale`,
+`VegaLiteParamsIntegrationTests.CanvasNetVegaLite_SystemIntegration_Params_AVariableParameterOfANestedViewIsNotASignal`,
+`VegaLiteParamsIntegrationTests.CanvasNetVegaLite_SystemIntegration_Params_TheCallerGivesTheDomainOfATimeScaleAsDates`
+
+Lays out small circle and bar charts of three rows (x of 1, 4, and 7, a data rectangle of 300 by 200 pixels, so that a
+linear scale of the domain d0 to d1 puts the value v at 300 x (v - d0) / (d1 - d0)) through the public API and asserts the
+scene items against numbers derived by hand. Asserts that the expression references of the title (the text `Total 18` from
+a parameter whose expression wins over its value and reads another, and the font size 18, the parameter `size` of 9 plus
+9), the padding (`size + 1`, which is 10), and the background
+give the chart that the same literals give, with no report even in strict mode, and that the padding of 10 against the
+default of 5 is five more on each of the four sides; that a reference at a property of an axis (the label size), a
+scale (`zero`: the domain 1 to 7 puts the first circle at 0, where the default 0 to 7 puts it at 300 / 7), and the
+configuration (a label size one larger than the axes') is the value that the later stages read; that a reference that
+reads `datum` is reported as `vl-expr-ref` and the property keeps its default, and that a date at a property that
+takes none is the warning of the call; and that the references are folded for every call with the values of that call, so
+that alternating calls with two values of one parameter draw the one title or the other, with no change in the document.
+
+Asserts that a `scale.domain` of the form `{"param": "xr"}` with the value `[2, 6]` places the circles at
+300 x (v - 2) /
+4, that is -75, 150, and 375, unchanged by `zero`, `nice`, `padding`, and `domainMin`, and that the marks of the view are
+clipped to the data rectangle (an explicit domain array of the same numbers does not clip); that the value of the caller
+replaces the default of the parameter (`[0, 8]` puts the circles at 37.5, 150, and 262.5, a null leaves the domain of the
+data) and the domain of a parameter clips the marks even when the parameter has no value; that `domainRaw` of `[0.5, 9.5]`
+places the circles at 300 x (v - 0.5) / 9, wins over the domain that a parameter gives, and does not clip by itself;
+that a
+raw domain that no scale can use (a text, an array of one number, an empty array, a non-numeric entry) is one
+`vl-scale-domain-raw` warning that names the scale while the chart has the domain of its data; that the value `["c", "a"]`
+is the list of categories of a band scale, so the bar of c takes the first band; that, with a layer that takes its domain
+from a parameter, both layers of a view use the domain `[2, 6]` of the shared scale unadjusted and the marks of every
+layer are clipped; that a variable parameter of a nested view is reported as `vl-param-variable` with the explanation that
+Vega-Lite compiles no signal for it and an expression that reads it sees null (the title keeps its default font size,
+not the 30 of the nested parameter); and that a caller who gives the domain of a time scale as two dates, 2020-01-01 and
+2020-01-03, puts 2020-01-02 at 150 pixels and 2020-01-03 at 300 of 300.
 
 ### Platform: Every System Scenario Runs On Every Target
 

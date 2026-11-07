@@ -66,7 +66,9 @@ sections:
                   The EncodingPlan unit shall, for an x or y channel with bin set, add to every row the start
                   and end of its bin (computed once for each field and parameter combination and shared by the
                   channels that use it, 10 bins at most unless maxbins, step, extent, nice, base, divide,
-                  steps, minstep, or anchor say otherwise), keep the rows of an encoding that only bins, give
+                  steps, minstep, anchor, or an extent that is a parameter reference say otherwise), keep the
+                  rows of an encoding
+                  that only bins, give
                   a value that cannot be binned no bounds (all such rows forming one group when aggregated),
                   turn the bins of a nominal or ordinal channel into text categories ordered by bin start, and
                   leave an already binned field (bin set to binned) as it is.
@@ -80,6 +82,8 @@ sections:
                   - EncodingTransforms_Apply_InvalidValuesFormOneGroupWithoutBounds
                   - EncodingTransforms_Apply_BinStepAndExtentParameters
                   - EncodingTransforms_Apply_OrdinalBinsAreTextCategoriesOrderedByStart
+                  - CanvasNetVegaLite_SystemIntegration_BinExtent_TheSpanOfASelectionChoosesTheStep
+                  - CanvasNetVegaLite_SystemIntegration_BinExtent_AnEmptySelectionLeavesTheBinsOfTheData
 
               - id: CanvasNetVegaLite-Transforms-EncodingPlan-BinnedChannels
                 title: >-

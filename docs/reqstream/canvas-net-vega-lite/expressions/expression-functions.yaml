@@ -4,11 +4,13 @@
 # These requirements describe the design-level behavior of the ExpressionFunctions unit of the Expressions
 # subsystem (internal namespace DemaConsulting.CanvasNet.VegaLite.Expressions): the closed table of the pure
 # functions that an expression may call (math, text and array, type and conversion, regular expression, and, from
-# Phase 8, date and time functions, and the d3 number format function), the per-evaluation context that charges
-# their work and carries the time calendar, and the translation of a JavaScript regular
+# Phase 8, date and time functions, the d3 number format function, and, from Phase 12, the selection functions), the
+# per-evaluation context that charges their work, carries the time calendar and the selection stores, the stores and
+# the port of the selection tests that the selection functions use, and the translation of a JavaScript regular
 # expression into a bounded .NET one. The unit comprises ExpressionFunctions.cs, ExpressionFunctions.Text.cs,
 # ExpressionFunctions.Types.cs, ExpressionFunctions.Regex.cs, ExpressionFunctions.Time.cs,
-# ExpressionFunctions.Number.cs, ExpressionFunctionContext.cs, and ExpressionRegex.cs. See
+# ExpressionFunctions.Number.cs, ExpressionFunctions.Selection.cs, ExpressionFunctionContext.cs, SelectionStore.cs,
+# SelectionTestSemantics.cs, and ExpressionRegex.cs. See
 # docs/verification/canvas-net-vega-lite/expressions/expression-functions.md for the test-evidence mapping.
 
 sections:
@@ -25,15 +27,16 @@ sections:
                   min, pow, round, sign, sin, sinh, sqrt, tan, tanh, trunc, lower, upper, trim, substring,
                   slice, indexof, lastindexof, startswith, endswith, includes, replace, split, join, pad,
                   length, isArray, isBoolean, isDate, isFinite, isNaN, isNumber, isObject, isRegExp, isString,
-                  isValid, toBoolean, toDate, toNumber, toString, regexp, test, and format, and the date and
-                  time functions named in the requirements of the date and time group below (100 functions in
+                  isValid, toBoolean, toDate, toNumber, toString, regexp, test, and format, the date and
+                  time functions named in the requirements of the date and time group below, and the selection
+                  functions data, vlSelectionTest, vlSelectionIdTest, and vlSelectionResolve (104 functions in
                   all) - with no random, clock (so no now), reflection, file, or network function, and shall
                   refuse to invoke a name outside the table.
                 justification: |
                   A closed, enumerable table is what makes an expression engine safe to run on untrusted
                   specifications, and the absence of a random source is what keeps the output reproducible.
                 tests:
-                  - ExpressionFunctions_Names_AreTheOneHundredWhitelistedFunctions
+                  - ExpressionFunctions_Names_AreTheWhitelistedFunctions
                   - ExpressionFunctions_Invoke_UnknownName_ThrowsArgumentException
 
               - id: CanvasNetVegaLite-Expressions-ExpressionFunctions-Math
@@ -313,4 +316,45 @@ sections:
                   specification render differently.
                 tests:
                   - ExpressionFunctions_Repeated_ResultsAreIdentical
-                  - ExpressionFunctions_Names_AreTheOneHundredWhitelistedFunctions
+                  - ExpressionFunctions_Names_AreTheWhitelistedFunctions
+
+              - id: CanvasNetVegaLite-Expressions-ExpressionFunctions-SelectionFunctions
+                title: >-
+                  The ExpressionFunctions unit shall provide the selection functions of Vega - data, which gives
+                  the tuples of a selection store of the call (an empty array for any other name),
+                  vlSelectionTest, which tests a datum against the tuples of a store (an enumerated scalar by
+                  strict equality, an enumerated list by membership, a range with inclusive ends that are
+                  swapped when reversed, a bin with an exclusive end, a datum without the field never matching,
+                  dates compared as milliseconds, the tuples united by default and, for intersect, united within
+                  a unit and intersected across units, the number zero for a store without tuples),
+                  vlSelectionIdTest for a store of row identities, and vlSelectionResolve, which gives the
+                  selected values of each field (united or intersected across units) and, for a point
+                  selection, the vlPoint query - reading the stores from the per-evaluation context and charging
+                  one step to the budget for each field it tests.
+                justification: |
+                  The predicates that Vega-Lite compiles for a selection are expressions over these functions;
+                  running them as Vega does is what makes a chart select the same rows, and charging their work
+                  keeps a store of many tuples from running past the budget.
+                tests:
+                  - SelectionTestSemantics_Test_EnumeratedScalarUsesStrictEquality
+                  - SelectionTestSemantics_Test_EnumeratedListMatchesByMembership
+                  - SelectionTestSemantics_Test_RangeIncludesBothEndsAndIsSwapped
+                  - SelectionTestSemantics_Test_BinAndExclusiveRangeTypes
+                  - SelectionTestSemantics_Test_DateOfTheDatumIsComparedAsANumber
+                  - SelectionEntry_Create_DatesOfTheValuesBecomeNumbers
+                  - SelectionTestSemantics_Test_ComparisonTypes
+                  - SelectionTestSemantics_Test_EmptyStoreIsFalsyZero
+                  - SelectionTestSemantics_Test_UnionAndIntersectCombineUnits
+                  - SelectionTestSemantics_IdTest_IdentityMustBeInTheStore
+                  - SelectionTestSemantics_Resolve_PointValuesAndTheirQuery
+                  - SelectionTestSemantics_Resolve_IntervalRangeIsSorted
+                  - SelectionTestSemantics_Resolve_UnitsAreUnitedOrIntersected
+                  - SelectionTestSemantics_Resolve_IdentitiesAndEmptyStore
+                  - SelectionStore_ToValue_ShowsTheTuples
+                  - SelectionTestSemantics_Test_WorkIsChargedToTheBudget
+                  - ExpressionFunctions_Data_GivesTheTuplesOfAStore
+                  - ExpressionFunctions_VlSelectionTest_PredicateSelectsTheRangeOrEverythingWhenEmpty
+                  - ExpressionFunctions_VlSelectionTest_OperationAndEmptyResult
+                  - ExpressionFunctions_VlSelectionIdTest_SelectsTheRowsOfTheStore
+                  - ExpressionFunctions_VlSelectionResolve_GivesTheSelectedValuesOfEachField
+                  - ExpressionFunctions_VlSelectionTest_IsChargedToTheStepBudget

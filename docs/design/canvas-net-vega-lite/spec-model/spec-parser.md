@@ -2,14 +2,15 @@
 
 ![SpecModel Structure](VegaLiteSpecModelView.svg)
 
-The `SpecParser` unit is the first software unit in the `SpecModel` subsystem. It comprises ten source files in the
+The `SpecParser` unit is the first software unit in the `SpecModel` subsystem. It comprises twelve source files in the
 `DemaConsulting.CanvasNet.VegaLite.SpecModel` namespace, all `internal`:
 
 - `SpecParser.cs` - `SpecParser` (sealed partial class): the entry points, the single-pass reader with an explicit
   frame stack, the limits, the duplicate-key policy, and the translation of reader errors
 - `SpecParser.Validation.cs` - the second half of `SpecParser`: the structural validation rules and the sets of known
   property names, and the detection of unknown properties
-- `SpecParser.Transforms.cs` - the third part of `SpecParser`: the compilation of expressions, the semantic validation of
+- `SpecParser.Transforms.cs` - the third part of `SpecParser`: the compilation of expressions (and of the static
+  references, `CompileStaticReferences`), the semantic validation of
   variable parameters, transforms, and predicates, the helpers that the catalog and the transforms share, and
   `ParameterGraph` (the dependency order of parameters)
 - `SpecParser.Aggregates.cs` - the fourth part of `SpecParser`: the validation of the aggregating transforms and of the
@@ -22,7 +23,18 @@ The `SpecParser` unit is the first software unit in the `SpecModel` subsystem. I
   `spacing`, `align`, `center`, `header`, and the `{"repeat": ...}` references), and `IsResolveChannel`
 - `SpecParser.LabelExpressions.cs` - the seventh part of `SpecParser`: the compilation of the `labelExpr` of axes,
   legends, and headers (`CompileLabelExpression`) and of the guide configurations (`CompileConfigLabelExpressions`)
-- `SpecExpressions.cs` - `SpecExpressions`: the compiled expressions of a tree, by the string node that holds the text
+- `SelectionDeclarations.cs` and `SelectionDeclarations.Assignment.cs` - `SelectionDeclarations` (static partial class,
+  phase 12): the reading of the selection parameters (`IsSelection`, `NameOf`, `TypeOf`, `OptionsOf`, `ValueOf`, `ResolveOf`,
+  `DeclarationsOf`, the legacy `selection` property, and the variable name of a store, `VarName`) and `Assign`, the port
+  of
+  Vega-Lite's top-level selection normalizer that decides which unit view a selection applies to
+- `SelectionDeclarations.cs` and `SelectionDeclarations.Assignment.cs` - `SelectionDeclarations` (static partial class,
+  phase 12): the reading of the selection parameters (`IsSelection`, `NameOf`, `TypeOf`, `OptionsOf`, `ValueOf`, `ResolveOf`,
+  `DeclarationsOf`, the legacy `selection` property, and the variable name of a store, `VarName`) and `Assign`, the port
+  of
+  Vega-Lite's top-level selection normalizer that decides which unit view a selection applies to
+- `SpecExpressions.cs` - `SpecExpressions` (the compiled expressions of a tree, by the string node that holds the text,
+  and the list of the static references), `StaticReference`, and `StaticSiteKind`
 - `SpecNode.cs` - `SpecNode`, `SpecNodeKind`, `NodePosition`, and `SpecTree`: the immutable tree
 - `SpecMetadata.cs` - `SpecMetadata` and `SpecMarkEntry`: the descriptive facts read from a tree
 
@@ -54,7 +66,8 @@ null; `AsString`, `AsNumber`, and `AsBool` return typed values or null; `GetLoca
 
 **`SpecTree`** holds the `Root`, the `SourceName`, the `Warnings` (the parser's `vl-duplicate-key` and
 `vl-unknown-property` reports), the `Expressions` (a `SpecExpressions`: the `CompiledExpression` of every supported site,
-found by the string node that holds the text, or by the `{"expr": ...}` object that wraps it), `Locate` and `LocateKey`,
+found by the string node that holds the text, or by the `{"expr": ...}` object that wraps it) and, in
+`Expressions.StaticReferences`, the `StaticReference` list of the references of the static sites, `Locate` and `LocateKey`,
 and `EnumerateViews()`, which lists the root and the nested
 `layer`, `concat`, `hconcat`, `vconcat`, and `spec` views, parents first, using an explicit work stack.
 
@@ -119,18 +132,44 @@ be what its author meant, and well-formed constructs that the renderer does not 
   entries `axis`, every `axis*` configuration, `header`, `headerRow`, `headerColumn`, and `headerFacet` is compiled
   too (`SpecParser.LabelExpressions.cs`; `config.legend` has no `labelExpr` in Vega-Lite and is not read), so a syntax
   error, an over-long or over-deep text, or an unknown parameter is a located `VegaLiteSpecException` at the text when
-  the document is opened. Any other expression is not compiled.
+  the document is opened. An expression at a site where Vega-Lite's schema allows no expression reference (a `width` or
+  a `height`, for example) is not compiled.
+- **Static references.** The `{"expr": ...}` object at every other property that Vega-Lite's schema allows an
+  `ExprRef` at - the title (`TitleParams`), the `padding` and `background` of the top-level view, the mark properties
+  that are not row-bound (including the overlay objects, the parts of a composite mark, and the mark configurations),
+  the properties of an `axis`, a `legend`, a `header`, and a `scale` (for `domain` and `range` also each entry), the
+  `view` background, the scale configuration, the `value` and `datum` of the other channel definitions, and the same
+  properties in the `config` of the top-level view - is compiled at the end of `Run`
+  (`CompileStaticReferences`, which walks the tree with `ExpressionReferenceSites.Find`) with the same rules as any
+  expression, so a syntax error, an over-long text, or an undeclared parameter is a located `VegaLiteSpecException`, and
+  is listed as a `StaticReference` (the reference object, its string node, the compiled expression, and the
+  `StaticSiteKind`) in document order in `SpecExpressions.StaticReferences`. A reference that an earlier rule already
+  compiled (the row-bound sites above) is not compiled again and is not listed. The `ExpressionReferenceFolder` unit
+  evaluates the list once per call (see _ExpressionReferenceFolder Unit Design_). The `gridAlign` of a legend accepts an
+  expression reference like the other legend properties of the same kind.
 - **References.** An identifier of a compiled expression that is not a function or a constant
   is a parameter reference, and
   it must name a parameter declared in the view that contains the expression or an ancestor view (a selection parameter
-  counts); the view signals `width`, `height`, `padding`, `autosize`, `background`, and `cursor` are also accepted (and
+  counts, and so does a selection of any other view: a selection is visible from every view, as in Vega-Lite's single
+  signal namespace); the view signals `width`, `height`, `padding`, `autosize`, `background`, and `cursor` are also
+  accepted (and
   reported as view state when no parameter declares them). Any other name is a located error that names the offset.
 - **Parameters.** A parameter needs a non-empty `name`; names are unique within one view and may not be `datum`, `event`,
   `item`, or `parent`; the references between the expressions of the variable parameters of one view must not form a cycle
   (the error is located at the `expr` of the lowest-numbered parameter that is on or depends on the cycle, found by
   `ParameterGraph.Sort`, a deterministic topological order that takes the earliest-declared ready parameter first).
+- **Selections (phase 12).** `ValidateSelectionParameter` checks a parameter that has `select`: `point` or `interval`,
+  or an
+  object whose `type` is one of them; `fields` and `encodings` are arrays of texts; `resolve` is `global`, `union`, or `intersect`;
+  `views` is an array of texts; `value` has a shape that the model can read; every interaction property (`on`, `clear`,
+  `toggle`,
+  `nearest`, `translate`, `zoom`, `mark`, `bind`, ...) is accepted unchecked. The legacy top-level `selection` is an
+  object of
+  selections with `type` `single`, `multi`, or `interval` (`ValidateLegacySelections`).
 - **Transforms.** Every supported transform is checked for its shape: `calculate` needs a text `as`; `filter` is an
-  expression text or a predicate (an `and` or `or` array, a `not`, a `param` that names a declared parameter, a `selection`
+  expression text or a predicate (an `and` or `or` array, a `not`, a `param` that names a declared parameter or
+  selection (an
+  undeclared name is a located error), a `selection`
   text, or a `field` with exactly one of `equal`, `lt`, `lte`, `gt`, `gte`, `range` (two values), `oneOf` (an array), and
   `valid` (a boolean)); `fold` and `flatten` are arrays of field paths with an `as` of the right length (one or two names
   for a fold, at most as many as the fields for a flatten); `sample` is a non-negative
@@ -209,7 +248,8 @@ E expression reference), and a wrong kind is a `VegaLiteSpecException` at the va
 - **Overlay objects.** The `point` and `line` objects are mark definitions without a type: they are validated with the
   rules of the mark definition (a wrong value is an error at its pointer, for example `/mark/point/color`), a property
   that no mark has is a `vl-unknown-property` warning at its key (worded "a mark overlay"), and an expression reference
-  inside an overlay object is left to the catalog, which reports it as `vl-expr-ref` where it is. The check is made for
+  inside an overlay object is a static site (see _Static references_ above) that is compiled and folded like the one of
+  the mark itself. The check is made for
   every mark type.
 - **Arc and polar properties.** `padAngle`, `innerRadius`, `outerRadius`, `radius`, `radius2`, `theta`, and `theta2` are
   numbers or expression references. `startAngle`, `endAngle`, and `padRadius` are not Vega-Lite properties and stay
@@ -379,9 +419,12 @@ an error; a duplicate key keeps the last value at the position of the first occu
   (an expression text is compiled there, as in a filter). On a channel that accepts a condition
   (`ChannelDefinitions.CanCondition`, the `IsConditionSite` check) a predicate **object** is also written as expression
   source by `PredicateSource.Build` (`CompilePredicate`) and compiled once under the key of the predicate node, so the
-  marks evaluate
-  it with the expression engine under the step budget; a predicate that no expression can say (a selection, a parameter
-  that is not a variable, a date-time object that is not valid) is not written. A predicate with a `timeUnit` or a
+  marks evaluate it with the expression engine under the step budget (the characters of the text are counted as it is
+  written and a text longer than the generated budget is refused before it is allocated); a predicate on a selection
+  (`param` or the legacy `selection`, with its `empty`) is written as the text that Vega-Lite compiles for it, under the
+  same budget (`PredicateSource`; an undeclared name is a located error), and a predicate that no expression can say
+  (a parameter that is not a variable or selection, a date-time object that is not valid) is not written. A predicate
+  with a `timeUnit` or a
   date-time value **is** written, with the date and time functions (see `PredicateSource` below), so it is evaluated in
   the calendar of the chart. The `value.expr` of a condition is compiled like
   the one of a channel. `CompileSource(key, source, location)` is the common part of `CompileExpression`.
@@ -420,7 +463,15 @@ an error; a duplicate key keeps the last value at the position of the first occu
   `gte` as the comparisons, `range` as an inclusive pair (the endpoints in ascending order when both are numbers, a null
   endpoint leaving that side open), `oneOf` as an `or` of strict equalities, `valid` as `isValid` (negated for false),
   `and`, `or`, and `not` as the logical operators (an empty `and` is true, an empty `or` is false), and a variable
-  parameter as its name. A field path is written as one bracket per segment (`datum["a"]["b"]`) and a text as a
+  parameter as its name. A predicate on a **selection** is written as the text Vega-Lite compiles
+  (`!length(data("s_store")) || vlSelectionTest("s_store", datum)`, `length(...) && ...` for `empty: false`): the
+  function is `vlSelectionIdTest` when the effective projection (`SelectionDeclarations.UsesRowIdentity`: the presence
+  of `fields` or `encodings`, an empty list included; else the keys of the `value`; else the `config.selection` defaults
+  of the specification) has the field `_vgsid_`; a projection that the host's `Config` or `Parameters` changes is applied
+  by the model, and the identity test of a store of fields tests the fields. The legacy `{"selection": ...}` takes its
+  emptiness from the declaration (`empty: "none"` is `empty: false`) and ignores an `empty` on the predicate, as
+  Vega-Lite's `selectioncompat` does. A field path is written as one bracket per segment (`datum["a"]["b"]`) and a text
+  as a
   double-quoted literal with the JavaScript escapes, so no part of the specification is ever pasted into the source
   unquoted.
   **Time predicates** (`IsTimeAware`, `ReadUnit`, `AppendTime`) follow Vega-Lite's `fieldFilterExpression`: a field

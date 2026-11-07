@@ -14,11 +14,12 @@ six units:
 - **ScaleModel** - the internal `ScaleModel`, `ScaleKind`, and `ScaleRange`: the immutable linear, time, UTC, band,
   point, ordinal, sequential, diverging, quantize, quantile, threshold, and bin-ordinal mappings;
   see _ScaleModel Unit Design_ (`scales/scale-model.md`)
-- **ScaleResolver** - the internal static partial `ScaleResolver` (seven files) with `ResolvedScales`, `ResolvedScale`,
+- **ScaleResolver** - the internal static partial `ScaleResolver` (nine files) with `ResolvedScales`, `ResolvedScale`,
   `LayeredScales`,
   and
   `RangeEnd`: the Vega-Lite inference of scale types, domains (including the binned, stacked, ranged, unaggregated, and
-  temporal ones), the order of discrete domains (also over the dates of a time unit), ranges, paddings, the colors and
+  temporal ones, and the raw domain that `domainRaw` or a parameter gives), the order of discrete domains (also over
+  the dates of a time unit), ranges, paddings, the colors and
   schemes of color scales, the ranges of the non-position channels, the polar `theta` and `radius` channels of the arc
   and text marks (the full-circle angle range, the radius range, and the zero rule), and the scales that the layers of
   a layered view share or keep apart; see _ScaleResolver Unit Design_
@@ -102,6 +103,12 @@ resolved again so that everything that depends on the domain is consistent, and 
 its own field. Every property that places a value is the shared scale's, so a line over a bar chart cannot be
 misaligned; `resolve` can keep the scales of a channel apart, and scales that cannot be combined stay the layer's own with
 a warning. The single-view path is unchanged: one layer is the single-view result.
+
+**A raw domain is the domain, not an input to the rules.** A `scale.domainRaw`, or the value of the variable parameter
+that `scale.domain` names, replaces the domain of the scale and nothing adjusts it afterwards (no zero rule, bounds,
+pixel padding, or `nice`), as Vega's `configureDomain` returns at once for a raw domain; an unusable value keeps the
+scale's own domain with a `vl-scale-domain-raw` warning, and a scale whose domain is a parameter clips its marks (see
+_ScaleResolver Unit Design_).
 
 **Time scales are linear scales with a calendar.** A temporal field (and any field with a time unit) has values that
 are instants, milliseconds since the Unix epoch. `ScaleKind.Time` and `ScaleKind.Utc` are kinds of their own, not a flag

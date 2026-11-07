@@ -418,7 +418,12 @@ internal sealed partial class SpecParser
     {
         if (extent is { IsObject: true } && extent["param"] is { IsString: true })
         {
-            // A parameter extent is recognized and reported by the feature catalog
+            // A parameter extent sets the span of the bin (the selected range of a field, or the variable parameter)
+            if (extent["field"] is { IsString: false } || extent["encoding"] is { IsString: false })
+            {
+                throw Error(extent, "The 'field' and the 'encoding' of the 'extent' of a bin must be texts.");
+            }
+
             return;
         }
 

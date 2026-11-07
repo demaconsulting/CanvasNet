@@ -275,22 +275,25 @@ public class MarkBuilderConditionTests
     }
 
     /// <summary>
-    ///     Validates that a condition on a parameter never holds: the channel keeps its own value.
+    ///     Validates that a condition on a selection that is empty holds for every row (the default of <c>empty</c>), and that with <c>empty: false</c> it holds for none.
     /// </summary>
     [Fact]
-    public void MarkBuilder_Build_ParameterConditionIsNotApplied()
+    public void MarkBuilder_Build_ParameterConditionOnAnEmptySelectionFollowsTheEmptyRule()
     {
         // Arrange
-        var json = Spec(
+        var selected = Spec(
             "\"circle\"",
             """ "color": { "condition": { "param": "brush", "value": "red" }, "value": "gray" } """,
             """ "params": [ { "name": "brush", "select": "interval" } ], """);
+        var none = selected.Replace("\"param\": \"brush\"", "\"param\": \"brush\", \"empty\": false", StringComparison.Ordinal);
 
         // Act
-        var items = Circles(json);
+        var all = Circles(selected);
+        var nothing = Circles(none);
 
         // Assert
-        Assert.Equal(["gray", "gray", "gray"], items.Select(i => i.Fill));
+        Assert.Equal(["red", "red", "red"], all.Select(i => i.Fill));
+        Assert.Equal(["gray", "gray", "gray"], nothing.Select(i => i.Fill));
     }
 
     /// <summary>

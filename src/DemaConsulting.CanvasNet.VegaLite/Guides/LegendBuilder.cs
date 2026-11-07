@@ -319,14 +319,17 @@ internal sealed partial class LegendBuilder
     /// <param name="baseline">The vertical alignment.</param>
     /// <param name="limit">The width limit; 0 for none.</param>
     /// <param name="lines">The lines of a multi-line label (a label expression that gave an array); null for the single line <paramref name="text"/>.</param>
+    /// <param name="entry">The value of the entry the label belongs to (<c>datum.value</c>), which a selection bound to the legend tests; null for a label that is not an entry's.</param>
     /// <returns>The label (role <c>legend-label</c>).</returns>
-    private static SceneText MakeLabel(Context c, double x, double y, string text, string align, string baseline, double limit, IReadOnlyList<string>? lines = null)
+    /// <exception cref="VegaLiteRenderException">Thrown, with the location of the legend, when the test of a selection exhausts the evaluation budget.</exception>
+    private static SceneText MakeLabel(Context c, double x, double y, string text, string align, string baseline, double limit, IReadOnlyList<string>? lines = null, DataValue? entry = null)
     {
         var s = c.S;
         return new SceneText("legend-label", x, y, lines ?? [text])
         {
             Fill = s.Text("labelColor") ?? s.StyleText("guide-label", "fill"),
             FillOpacity = s.Number("labelOpacity") ?? 1,
+            Opacity = LabelOpacity(c, entry),
             FontFamily = s.Text("labelFont") ?? s.StyleText("guide-label", "font"),
             FontSize = LabelFontSize(s),
             FontWeight = s.Text("labelFontWeight") ?? s.StyleText("guide-label", "fontWeight"),
@@ -335,6 +338,80 @@ internal sealed partial class LegendBuilder
             Align = align,
             Baseline = baseline,
         };
+    }
+
+    /// <summary>
+    ///     Applies the labels' part of the opacity rule of a legend that a selection is bound to: 1 for a selected entry, <c>config.legend.unselectedOpacity</c> for the others.
+    /// </summary>
+    /// <param name="c">The build state.</param>
+    /// <param name="entry">The value of the entry, or null for a label that is not an entry's (never dimmed).</param>
+    /// <returns>The opacity of the label.</returns>
+    /// <exception cref="VegaLiteRenderException">Thrown, with the location of the legend, when the test exhausts the evaluation budget.</exception>
+    private static double LabelOpacity(Context c, DataValue? entry) =>
+        c.Spec.Dimming is { } dimming && entry is { } value && !IsSelected(c, dimming, value) ? dimming.UnselectedOpacity : 1;
+
+    /// <summary>
+    ///     Applies the symbols' part of the opacity rule of a legend that a selection is bound to: the opacity of the symbol (Vega-Lite's <c>opacity ?? 1</c>, so 1 when the legend gives a
+    ///     <c>symbolOpacity</c>) for a selected entry, <c>config.legend.unselectedOpacity</c> for the others.
+    /// </summary>
+    /// <param name="c">The build state.</param>
+    /// <param name="look">The look of the symbol.</param>
+    /// <param name="entry">The value of the entry.</param>
+    /// <returns>The opacity of the symbol.</returns>
+    /// <exception cref="VegaLiteRenderException">Thrown, with the location of the legend, when the test exhausts the evaluation budget.</exception>
+    private static double SymbolOpacity(Context c, SymbolLook look, DataValue entry)
+    {
+        if (c.Spec.Dimming is not { DimsSymbols: true } dimming)
+        {
+            return look.Opacity;
+        }
+
+        if (!IsSelected(c, dimming, entry))
+        {
+            return dimming.UnselectedOpacity;
+        }
+
+        return c.S.Number("symbolOpacity") is null ? look.Opacity : 1;
+    }
+
+    /// <summary>
+    ///     Tests an entry against the selections that are bound to the legend.
+    /// </summary>
+    /// <param name="c">The build state.</param>
+    /// <param name="dimming">The dimming.</param>
+    /// <param name="entry">The value of the entry.</param>
+    /// <returns><see langword="true"/> when the entry is selected.</returns>
+    /// <exception cref="VegaLiteRenderException">Thrown, with the location of the legend, when the test exhausts the evaluation budget.</exception>
+    private static bool IsSelected(Context c, LegendDimming dimming, DataValue entry)
+    {
+        try
+        {
+            return dimming.IsSelected(DatumValue(c, entry), c.Evaluation);
+        }
+        catch (ExpressionRuntimeException ex)
+        {
+            throw new VegaLiteRenderException(ex.Message, c.Spec.Location);
+        }
+    }
+
+    /// <summary>
+    ///     Gets the value of an entry as Vega holds it in <c>datum.value</c>, which the test of a selection compares with strict equality: the ticks of a time scale (and of a sequential scale of
+    ///     dates) are <c>Date</c> objects, while the domain value of a discrete scale over a field of dates is the number of milliseconds of the date (a selection stores the milliseconds of a date as a
+    ///     number, so a tick is never held and a discrete entry is held when its date is).
+    /// </summary>
+    /// <param name="c">The build state.</param>
+    /// <param name="entry">The value of the entry as the legend keeps it: a number for a tick, a date or a number for a domain value.</param>
+    /// <returns>The value that Vega tests.</returns>
+    private static DataValue DatumValue(Context c, DataValue entry)
+    {
+        var kind = c.Spec.Canonical.Model.Kind;
+        var ticksAreDates = kind is ScaleKind.Time or ScaleKind.Utc || (kind is ScaleKind.Sequential or ScaleKind.Diverging && IsTemporal(c));
+        if (ticksAreDates)
+        {
+            return entry.IsNumber ? DataValue.FromDate(entry.Number) : entry;
+        }
+
+        return entry.IsDate ? DataValue.FromNumber(entry.Milliseconds) : entry;
     }
 
     /// <summary>

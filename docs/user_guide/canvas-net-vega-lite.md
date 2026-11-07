@@ -120,7 +120,7 @@ and exposed read-only, so one instance can be shared between threads and calls.
 | `ContainerWidth`, `ContainerHeight` | 400, 300 | The size in pixels of a chart whose `width` or `height` is `"container"`, which is fitted to that size (see *Vega-Lite Autosize and Container Sizes*) |
 | `Fonts` | `null` | A `VegaLiteFontOptions`: `UseSystemFonts` (default `false`) and `AdditionalDirectories` (default empty; copied and validated when set). See *Time Zone, Fonts, and Determinism* |
 | `TimeZone` | `null` (UTC) | The only time zone the chart ever uses: a date-time without an offset in the data, a custom `date:` parse format, the local time units, the local date functions of expressions, and the ticks and labels of time scales are read in it. `null` is UTC, never the zone of the machine; the `utc` time units, scales, and functions always use UTC. See *Vega-Lite Time and Time Zones* |
-| `Parameters` | `null` | Caller-supplied values that **replace the definition** of the named parameters of the specification, validated and copied when set (see *Vega-Lite Parameters*). A name that the document does not declare (`ParameterNames`) is an `ArgumentException` when the chart is measured or rendered. Values are `null`, `bool`, `string`, finite numbers, `DateTime`, or `DateTimeOffset` |
+| `Parameters` | `null` | Caller-supplied values that **replace the definition** of the named parameters of the specification, validated and copied when set (see *Vega-Lite Parameters*). A name that the document does not declare (`ParameterNames`) is an `ArgumentException` when the chart is measured or rendered. Values are `null`, `bool`, `string`, finite numbers, `DateTime`, `DateTimeOffset`, or a **structured value**: a sequence (an array or a list) or a string-keyed dictionary (`IReadOnlyDictionary<string, object?>` or `IDictionary<string, object?>`) of such values, nested up to 32 levels and holding at most 65,536 values; a structured value is how the host gives a parameter that holds an array, such as the domain of a scale |
 | `Datasets` | `null` | Named tables of rows for a `data.name`, copied when set; a caller dataset **replaces** a dataset of the same name in the specification's top-level `datasets`. Each row is a dictionary of field name to a value that is `null`, `bool`, `string`, a finite number, a `DateTime` (UTC; an unspecified kind is taken as UTC), or a `DateTimeOffset` (see *Vega-Lite Data*) |
 | `Limits` | `VegaLiteLimits.Default` | The resource limits of the call (see below) |
 | `WarningHandler` | `null` | Receives each `VegaLiteDiagnostic` (a warning); `null` drops them |
@@ -320,7 +320,7 @@ without it. A key that Vega-Lite does not define for a view, mark, encoding, or 
 | Channels | `x`, `y`, `xOffset` and `yOffset` (grouped bars and offset points inside a band; see *Vega-Lite Offset Channels (Grouped Bars)*), `theta`, `radius`, `color`, `fill`, `stroke`, `size`, `opacity`, `fillOpacity`, `strokeOpacity`, `strokeWidth`, `strokeDash`, `shape`, `angle`, and `text`, each as a `field`, a literal `value`, or a literal `datum` where the channel permits it (`shape` is drawn by a `point` mark and by the overlay points of a `line`, `area`, `trail`, or `rule` (see *Overlays* under *Vega-Lite Line, Area, Text, and Arc Marks*), `angle` by a `point`, `circle`, `square`, or `text`, `text` by a `text` mark, `theta` and `radius` by an `arc` or `text` mark, `size` by every mark but a `rect`, `area`, and `arc`, and `strokeDash` by every mark but a `rect`, `area`, `trail`, `text`, and `arc`; see *Vega-Lite Legends, Color Schemes, and Scales*). `x2` and `y2` give the end of a range on a `bar`, `rect`, `rule`, or `area` (and the ends of the range of an `errorbar` or `errorband`), `xError`, `xError2`, `yError`, and `yError2` give the errors of an `errorbar` or `errorband` (they are reported on any other mark), `theta2` and `radius2` the end of the span of an `arc`, and `order` orders the layers of a stack, the points of a path, or the drawing order of the marks. `detail` groups the points of a path. `tooltip`, `href`, `description`, and `key` are accepted and ignored without a report, because they have no meaning in a still picture. `row`, `column`, and `facet` on a unit view facet it, as the `facet` operator does (see *Vega-Lite Composition*); inside a layer or the `spec` of a facet they are reported |
 | Field types | `quantitative`, `temporal`, `nominal`, and `ordinal` (`geojson` is reported) |
 | Encoding properties | `field`, `type`, `value`, `datum`, `title`, `scale`, `axis`, `legend` (an object of legend properties, or `null`), `aggregate` (all 24 operations, including `count` without a field), `bin` (on `x` and `y`: `true`, the bin parameters, or `"binned"`; on `color`, `fill`, `stroke`, `size`, the opacities, `strokeWidth`, `strokeDash`, `shape`, and `angle`: `true` or the bin parameters, with 6 bins by default, 4 for `strokeDash`, and 10 for `angle`), `timeUnit` (the 40 Vega-Lite time units, their `utc` forms, and the object form; see *Vega-Lite Time and Time Zones*), `stack` (`zero`, `center`, `normalize`, `true`, `false`, or `null`; also on `theta` and `radius`), `impute` (on `x` and `y`: an object of `keyvals`, `method`, `value`, and `frame`, or `null` to switch off the implicit impute of a stacked path mark), and `sort` (ascending, descending, `null`, an array of values, a channel such as `"-y"`, or an object that sorts by an aggregate of a field), and `condition` on the `color`, `fill`, `stroke`, `opacity`, `fillOpacity`, `strokeOpacity`, `strokeWidth`, `strokeDash`, `size`, `shape`, and `angle` channels (a `test` that is an expression or a predicate; the first condition that holds gives the mark its `value` or the scale of its field; see *Vega-Lite Conditional Encodings*); see *Vega-Lite Aggregation, Binning, and Stacking* |
-| Scales | The types linear, log, pow, sqrt, symlog, sequential, time, utc, band, point, ordinal, quantile, quantize, threshold, and bin-ordinal, as Vega-Lite accepts them for a channel and a field type (a scale type that the channel or the field cannot use is replaced by the default one with the warning `vl-scale-type-ignored`); a diverging color scale is a sequential one with a `domainMid`. A temporal field gets a `time` scale (a `utc` scale for a `utc` time unit), see *Vega-Lite Time and Time Zones*. The polar channels `theta` and `radius` have the ranges 0 to a full turn and 0 to half of the smaller side of the view, see *Vega-Lite Line, Area, Text, and Arc Marks*. A binned quantitative color gets the bin-ordinal scale (one color per bin, and a legend of the ranges of the bins). A log scale takes `base`, a pow scale `exponent`, and a symlog scale `constant`; a log scale has no zero, is rounded out to powers of its base, and refuses a domain that includes zero or crosses it with a located error, where a symlog scale takes such data. The properties are `type`, `domain`, `domainMid`, `domainMin`, `domainMax`, `range` (a list, or the name of an entry of `config.range`), `rangeMin`, `rangeMax`, `scheme`, `interpolate`, `zero`, `nice` (also a time interval for a time scale), `padding`, `reverse`, `paddingInner`, `paddingOuter`, `align`, `round`, `clamp`, `base`, `exponent`, and `constant`; see *Vega-Lite Legends, Color Schemes, and Scales*. A quantitative `domain` and `range` of more than two entries map piecewise exactly as in d3-scale (`min(domain length, range length)` entries are used, and `zero`, `nice` and padding change only the first and last entry), while a band or point scale uses the first two entries of its `range` |
+| Scales | The types linear, log, pow, sqrt, symlog, sequential, time, utc, band, point, ordinal, quantile, quantize, threshold, and bin-ordinal, as Vega-Lite accepts them for a channel and a field type (a scale type that the channel or the field cannot use is replaced by the default one with the warning `vl-scale-type-ignored`); a diverging color scale is a sequential one with a `domainMid`. A temporal field gets a `time` scale (a `utc` scale for a `utc` time unit), see *Vega-Lite Time and Time Zones*. The polar channels `theta` and `radius` have the ranges 0 to a full turn and 0 to half of the smaller side of the view, see *Vega-Lite Line, Area, Text, and Arc Marks*. A binned quantitative color gets the bin-ordinal scale (one color per bin, and a legend of the ranges of the bins). A log scale takes `base`, a pow scale `exponent`, and a symlog scale `constant`; a log scale has no zero, is rounded out to powers of its base, and refuses a domain that includes zero or crosses it with a located error, where a symlog scale takes such data. The properties are `type`, `domain` (an array, or `{"param": ...}` of a variable or a selection parameter), `domainRaw`, `domainMid`, `domainMin`, `domainMax`, `range` (a list, or the name of an entry of `config.range`), `rangeMin`, `rangeMax`, `scheme`, `interpolate`, `zero`, `nice` (also a time interval for a time scale), `padding`, `reverse`, `paddingInner`, `paddingOuter`, `align`, `round`, `clamp`, `base`, `exponent`, and `constant`; see *Vega-Lite Legends, Color Schemes, and Scales*. A quantitative `domain` and `range` of more than two entries map piecewise exactly as in d3-scale (`min(domain length, range length)` entries are used, and `zero`, `nice` and padding change only the first and last entry), while a band or point scale uses the first two entries of its `range` |
 | Axes | Grid, ticks, labels, domain, title, `orient`, `offset`, `minExtent`, `maxExtent`, `tickCount` (a number, and for a time scale a time interval), `tickMinStep`, `values`, a d3 number or time `format` (a text, or for dates an object of multi-format levels), `formatType` of `number`, `time`, or `utc`, the label properties (`labelAngle`, `labelAlign`, `labelBaseline`, `labelPadding`, `labelOffset`, `labelLimit`, `labelFlush`, `labelFlushOffset`, `labelOverlap`, `labelSeparation`), the font, color, opacity, dash, width, and cap properties of the parts, `titleAnchor`, `titleAngle`, `titlePadding`, and `zindex`, and `labelExpr` (see *Vega-Lite Label Expressions*), with the configuration precedence of Vega-Lite (including `config.axisTemporal`) |
 | Legends | Symbol, gradient, and discrete gradient legends for the color, fill, stroke, shape, size, opacity, stroke width, and stroke dash channels, merged when channels share a field, placed by `orient` (right by default), titled like the axes, with the `legend` properties and `config.legend`; `legend: null` switches one off, and the legend of a chart makes the picture larger (see *Vega-Lite Legends, Color Schemes, and Scales*). A temporal field gets date labels (see *Vega-Lite Time and Time Zones*). The `labelExpr` of a legend is evaluated (see *Vega-Lite Label Expressions*). `legend.encode`, a `formatType` other than `number`, `time`, or `utc`, a `titleOrient` other than `top`, and `clipHeight` are reported and not drawn |
 | Color schemes | The 68 color schemes of Vega by name (`scale.scheme` and `config.range`, lower or upper case), a list of colors, or `{"name", "count", "extent"}`, with `interpolate` (`rgb`, `hsl`, `hsl-long`, `lab`, `hcl`, `hcl-long`, and an sRGB `gamma`) for a list of colors; an unknown scheme name is an error. `cubehelix` interpolation is reported |
@@ -328,8 +328,8 @@ without it. A key that Vega-Lite does not define for a view, mark, encoding, or 
 | Titles | `text` (a string or an array of lines), `subtitle`, `anchor`, `orient`, `offset`, `frame`, the font, color, and alignment properties, `limit`, `angle`, `dx`, and `dy` |
 | Layout | `width` and `height` as numbers, `{"step": n}`, or `"container"`; `padding` as a number or an object; `autosize` of `pad`, `none`, `fit`, `fit-x`, and `fit-y` (with `contains`), also implied by a `"container"` size, for a single or a layered view (see *Vega-Lite Autosize and Container Sizes*); `background`; the `view` configuration (size, fill, and stroke). Of a layered view only the top-level `width`, `height`, `padding`, `autosize`, and `background` count, and a `step` is applied to the merged discrete scale of the layers (the union of their categories times the step). A composition is laid out as a grid with `spacing` (20 pixels by default), `columns`, `align`, `center`, and `bounds`, and takes the size of the views inside it (see *Vega-Lite Composition*) |
 | Configuration | The Vega-Lite 6 and Vega defaults, the `config` of the specification, and `VegaLiteRenderOptions.Config`, merged in that order; the `style` mechanism; the `boxplot`, `errorbar`, and `errorband` entries of the composite marks (see *Vega-Lite Layers and Composite Marks*); the `concat` and `facet` entries (`spacing`, `columns`) and the `header`, `headerRow`, `headerColumn`, and `headerFacet` entries of the facet headers (see *Vega-Lite Composition*). Only the top-level `config` counts in a layered view or a composition |
-| Expressions | A subset of the Vega expression language with 100 functions (math, string, array, type, regular expression, number format, and date and time), in the `calculate` and `filter` transforms, the `expr` of a parameter, the `{"expr": ...}` color, fill, stroke, opacity, stroke width, and size values of a mark that are evaluated for every row, and the `labelExpr` of axes, legends, and facet headers; see *Vega-Lite Expressions* and *Vega-Lite Label Expressions* |
-| Parameters | Static **variable** parameters of the single or top-level view (`value` or `expr`, with a caller override through `VegaLiteRenderOptions.Parameters`), read by expressions and by the `param` filter predicate; see *Vega-Lite Parameters*. Selections and bindings have no meaning in a still picture. A variable parameter declared inside a layer or a composition is reported (`vl-param-variable`) |
+| Expressions | A subset of the Vega expression language with 104 functions (math, string, array, type, regular expression, number format, date and time, and the selection functions `data`, `vlSelectionTest`, `vlSelectionIdTest`, and `vlSelectionResolve`), in the `calculate` and `filter` transforms, the `expr` of a parameter, the `{"expr": ...}` color, fill, stroke, opacity, stroke width, and size values of a mark that are evaluated for every row, and the `labelExpr` of axes, legends, and facet headers; see *Vega-Lite Expressions* and *Vega-Lite Label Expressions* |
+| Parameters | Static **variable** parameters of the single or top-level view (`value` or `expr`, with a caller override through `VegaLiteRenderOptions.Parameters`), read by expressions, by expression references (`{"expr": ...}`, evaluated once), by the `param` filter predicate, and by a scale `domain` of the form `{"param": ...}`; see *Vega-Lite Parameters*. **Selection parameters** (`select` of `point` or `interval`, and the legacy `selection`) are drawn in their **initial state** (the `value`, or the caller's override) and read by the `condition` of a channel, by the `filter` transform, by a scale `domain` or a `bin` `extent` of the form `{"param": ...}`, and by `"bind": "scales"`, with `empty`; an interval selection with a `value` also draws its **brush**, and a legend that a selection is bound to (`"bind": "legend"`) **dims** the entries the selection does not hold, as Vega-Lite does; the events, the input widgets, and the other interaction properties have no meaning in a still picture. A variable parameter declared inside a layer or a composition is ignored, as Vega-Lite itself declares no signal for it, and is reported (`vl-param-variable`) |
 | Transforms | `calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot`, `lookup`, `timeUnit`, `aggregate`, `joinaggregate`, `window`, `bin`, `stack`, and `impute`, run in the order of the specification on the rows before the scales are built, where the `transform` of a layered view or a composition is applied first and then the `transform` of each layer or child (see *Vega-Lite Layers and Composite Marks* and *Vega-Lite Composition*); see *Vega-Lite Transforms*, *Vega-Lite Time and Time Zones*, and *Vega-Lite Aggregation, Binning, and Stacking* |
 | Time | Temporal fields with implicit date parsing, the `parse` directives `date`, `date:'...'`, and `utc:'...'`, the time units, date-time objects, time and UTC scales with calendar ticks and `nice` intervals, date labels on axes and legends, the date and time expression functions, and the render option `TimeZone`; see *Vega-Lite Time and Time Zones* |
 | Other transforms | **None** (`regression`, `loess`, `density`, `quantile`, and `extent` are reported; see the identifiers below) |
@@ -392,14 +392,17 @@ of its row and its parameters. Expressions are accepted in these places, and onl
   text, a number that is not finite) leaves the default of a mark property in place; the `opacity` or `size` of a
   channel `value` that is not a finite number leaves that row out of the picture, like a missing value of a continuous
   channel;
+- an `{"expr": ...}` value at a **static site**: a property that has one value for the whole chart, which Vega-Lite's
+  schema allows an expression at. The expression runs **once per call**, without a row, after the parameters are
+  evaluated and before anything else reads the specification, so the title, the padding, the background, the
+  configuration, the scales, the guides, and the marks see the value, never the expression (see *Expression
+  references* in *Vega-Lite Parameters*);
 - the `labelExpr` of an axis, a legend, and a facet header, and of the axis and header entries of `config`: the
-  expression
-  runs once for every label, with `datum` bound to the label (see *Vega-Lite Label Expressions*).
+  expression runs once for every label, with `datum` bound to the label (see *Vega-Lite Label Expressions*).
 
-An expression anywhere else (a title, `width`, `height`, `padding`, `background`, `view`, another mark property, an
-encoding `value` of another channel) is not evaluated and is reported (`vl-expr-ref`).
-Conditional encodings (`condition` with a `test`) are applied, as described in *Vega-Lite Conditional Encodings*; a
-condition on a `param` is reported (`vl-encoding-condition-param`) and never holds.
+An expression anywhere else (`width`, `height`, a `facet` field definition, an `{"expr": ...}` that Vega-Lite's schema
+does not allow) is not evaluated and is reported (`vl-expr-ref`), and so is a static site that reads `datum`.
+Conditional encodings (`condition` with a `test` or a `param`) are applied, as described in *Vega-Lite Conditional Encodings*.
 
 Every expression of every view is **compiled when the document is opened**, once, so a mistake is a
 `VegaLiteSpecException` at the string value of the expression, with the pointer, line, and column of the value and the
@@ -509,7 +512,19 @@ the string value of the expression and its message names the offset of the const
 | `monthFormat(m)`, `monthAbbrevFormat(m)`, `dayFormat(d)`, `dayAbbrevFormat(d)` | The English name of month `m` (0 is January) or weekday `d` (0 is Sunday), full or abbreviated; the empty text for anything that is not a whole number; other numbers roll over |
 <!-- markdownlint-enable MD013 -->
 
-The functions of the color (`rgb`, `hsl`, ...), scale, data (`data`, `scale`), and
+The selection functions are the ones that the expressions of a compiled selection call; they read the **stores of the
+selections** of the call (see *Selection parameters* in *Vega-Lite Parameters*):
+
+<!-- markdownlint-disable MD013 -->
+| Selection (4) | Meaning |
+| ------------- | ------- |
+| `data(name)` | The array of the tuples of the selection store `name` (a selection `brush` has the store `brush_store`: each tuple is an object with `unit`, `fields`, and `values`); an empty array for any other name, as no other data set can be read |
+| `vlSelectionTest(store, datum[, op])` | Whether the datum is selected by the tuples of the store, with the rules of `vega-selections`: a point value must be strictly equal (or a member of a list), a range includes both ends (a binned range excludes its end), a datum without the field is not selected; `op` is `"union"` (any unit selects it) or `"intersect"` (every unit does). A store without tuples gives the number `0` |
+| `vlSelectionIdTest(store, datum[, op])` | The same test of the identity of the row (`_vgsid_`) |
+| `vlSelectionResolve(store[, op, isPoint, vegaLite5])` | The value of the selection: an object with the values or the range of each field (and `vlPoint`, the query of the tuples, for a point selection); an empty object for an empty store |
+<!-- markdownlint-enable MD013 -->
+
+The functions of the color (`rgb`, `hsl`, ...), scale (`scale`), and
 geographic families, and the other functions of Vega, are reported as unsupported (`vl-expr-function-<name>`, for
 example `vl-expr-function-geoarea`) and give `null`. `now` and `random` are not available by design: an expression has
 no clock and no random source, so `now()` is reported as `vl-expr-function-now`, and `datetime()` gives `null`.
@@ -586,15 +601,209 @@ parameter has the value that its definition gives, because a still picture has n
   row otherwise.
 - `VegaLiteRenderOptions.Parameters` **replaces the definition** of a parameter by a value of the host: the `value` and
   the `expr` of the specification are not used and the expression is **not evaluated**, and the expressions that read
-  the parameter see the override. A date (`DateTime`, `DateTimeOffset`) becomes a date value. The names that may be
+  the parameter see the override. A date (`DateTime`, `DateTimeOffset`) becomes a date value, and a **structured value**
+  (an array or list, or a string-keyed dictionary, nested) becomes an array or an object, so a host can give the
+  domain of a scale (`new object[] { 2, 6 }`) or an object. The names that may be
   overridden are `VegaLiteDocument.ParameterNames`; any other name is an `ArgumentException` when the chart is measured
-  or rendered. The override of a selection parameter is accepted and has no effect. A text of an override (or of a
-  `value`) longer than `MaxStringLength` fails the render with a located `VegaLiteRenderException`.
-- A **selection** parameter (an entry with `select`, and the legacy `selection`) is reported (`vl-param-selection`);
-  an expression that reads it sees `null`, and a filter on it (`{"param": "brush"}`, `{"selection": "brush"}`) keeps
-  every row and is reported (`vl-transform-filter-param`). The variable parameters of a view inside a layer or a
-  composition
-  are checked but not evaluated and are reported (`vl-param-variable`); only those of the top-level view are supported.
+  or rendered. A text of an override (or of a
+  `value`) longer than `MaxStringLength` fails the render with a located `VegaLiteRenderException`. The override of a
+  **selection** parameter replaces its initial value (see *Selection parameters* below). The `canvasnet` tool does not
+  pass parameter values to a Vega-Lite chart yet (its `-D` option sets OpenSCAD variables only); a chart is drawn with
+  the values of its specification there.
+- **Only the variable parameters of the top-level view exist.** Vega-Lite compiles the `params` of the top-level
+  specification into the signals of the chart and none for a view inside a layer or a composition, so a variable
+  parameter declared there is ignored and reported (`vl-param-variable`); an expression that reads one fails in Vega
+  and evaluates to `null` here. Declare a parameter that several views read at the top level.
+
+**Selection parameters.** A parameter with `select` (`"point"`, `"interval"`, or an object such as `{"type":
+"interval", "encodings": ["x"]}`), and an entry of the legacy top-level `selection` (`single`, `multi`, `interval`),
+is a **selection**. A still picture has no mouse, so a selection is drawn in its **initial state**: nothing is selected,
+or what its `value` (the legacy `init`) selects, or what the host gives in `VegaLiteRenderOptions.Parameters`. The
+state is the one that Vega-Lite's compiled chart holds before any event, and the tests are the ones of Vega-Lite and
+`vega-selections`. Example 49 draws a brush, a point selection, and a legend bound to a selection.
+
+```json
+{
+  "params": [ { "name": "brush", "select": { "type": "interval", "encodings": ["x"] }, "value": { "x": [1, 4] } } ],
+  "data": { "values": [ { "a": 1, "b": 1 }, { "a": 4, "b": 2 }, { "a": 7, "b": 3 } ] },
+  "mark": "circle",
+  "encoding": {
+    "x": { "field": "a", "type": "quantitative" },
+    "y": { "field": "b", "type": "quantitative" },
+    "fill": { "condition": { "param": "brush", "value": "#d73027" }, "value": "#4575b4" }
+  }
+}
+```
+
+The circles at `a` = 1 and 4 are red (the range includes both ends) and the one at 7 is blue.
+
+- **Where a selection applies.** A selection of a single or a layered unit view applies to that unit; a selection of a
+  `concat`, `facet`, or `repeat` at the top level applies to every unit view inside (or to those that its `views` names,
+  by unit `name`) and is **one selection** for all of them: the store is the one of the first unit, so a field it projects
+  is tested in every view. A selection that two layers of one layered view both receive is a duplicate signal that Vega
+  rejects: it is applied as empty and reported (`vl-param-selection-layer`); name one layer in `views`, or declare the
+  selection in that layer. The name of a selection is visible from every view (a condition in one view may name the
+  selection of another); a `param` or `selection` that no view declares is a `VegaLiteSpecException` at the name.
+- **The projection** says which fields a selection tests, as in Vega-Lite: the `fields` and `encodings` of the `select`
+  object; else the keys of the `value` (a key that is a channel name such as `x` is an encoding, another key is a field
+  of a point selection); else the defaults of `config.selection` (an interval projects `x` and `y`; a point selection
+  projects the identity of the rows, `_vgsid_`). An explicit list counts when it is present, even when it is empty:
+  `"fields": []` is an empty projection (every row matches a tuple), not the default. A projected channel that has no
+  field, or an aggregate, is skipped
+  and reported as the warning `vl-param-selection-projection`; so is an interval initialized with a key that is not a
+  channel (the default encodings are used).
+- **The initial value.** A point selection takes an array of objects (`[{"a": 4}, {"a": 7}]`, one tuple each), one object
+  (`{"a": 4}`), or, for a selection of one field, a scalar or an array of scalars (`4`, `[4, 7]`: one tuple per value).
+  An interval selection takes a map of one range per encoding or field (`{"x": [1, 4], "y": [2, 3]}`); a reversed range
+  is read sorted. A date is a date-time object (`{"year": 2020, "month": 1, "date": 15}`, read in the calendar of the
+  chart; see *Vega-Lite Time and Time Zones*). Over a discrete (band, point, or ordinal) axis the range holds the
+  values at its two ends and **only those categories** are in the selection; over a binned field the range includes its
+  start and excludes its end. A point selection that projects the identity of the rows (no `fields`, no `encodings`,
+  no key in the `value`) has no tuples in a still chart, since the rows have no identity: with a `value` it is applied as
+  empty and reported (`vl-param-selection-id`).
+- **What is selected.** A datum is in a point selection when its field equals the value with strict equality (the number
+  `1` is not the text `"1"`; a datum without the field is not selected); in an interval selection when its value is
+  between the two ends, both included. A selection with **no tuples is empty**: the `empty` property of a condition or
+  filter (`true` by default) says whether an empty selection selects every row or none (`{"param": "brush", "empty":
+  false}` selects none). The legacy `empty: "none"` is `empty: false`. With several selections in several units, a
+  selection of `resolve` `"global"` (the default) or `"union"` selects what any unit selects, and `"intersect"` what
+  every unit selects.
+- **Where it is used.** A selection is read by a channel `condition` (`{"param": "brush", "value": ...}`, a field
+  condition, or a `test` that holds it: `{"test": {"and": [{"param": "brush"}, {"field": "a", "gt": 1}]}}`, also in
+  `not`, `and`, and `or`; the legacy `{"selection": "brush"}` is the same), by a `filter` transform
+  (`{"filter": {"param": "brush"}}`, or `{"filter": {"selection": "brush"}}`), by the domain of a scale and the extent
+  of a bin (below), and by `"bind": "scales"` (below). An expression can read it by its name: it
+  has the value that Vega-Lite computes from the selection (an object with one array per field, as `brush.a[0]`
+  and `brush.a[1]` for the range of the field `a`). A selection that is projected over a field with a `timeUnit`
+  tests the derived field (`month_date`, whose year is 2012 when the unit has none, as everywhere in Vega-Lite): the
+  `filter` and the units whose conditions name the selection get that field computed first, as Vega-Lite does.
+- **The host can set it.** `Parameters["brush"]` takes the same shapes as the `value` (a dictionary of arrays for an
+  interval; a list of dictionaries or a dictionary for a point selection; a scalar or a list of scalars; a `DateTime`
+  for a date) and **replaces** the `value` of the specification; `null` clears the selection. A date-time object as a
+  member of a dictionary is not supported (give a `DateTime`). The value of a row-identity selection is reported.
+- **The brush.** An interval selection that has an initial value draws the two rectangles that Vega-Lite draws (named
+  `brush_bg` and `brush` there): a shade **before** the marks, with the `fill` and `fillOpacity` of the selection's
+  `mark` (`#333` and 0.125 by default), and an outline **after** them, with a transparent fill and every other key
+  of the `mark` as its stroke (`stroke` white by default, `strokeWidth`, `strokeOpacity`, `strokeDash`,
+  `strokeDashOffset`, and also `strokeCap`, `strokeJoin`, `strokeMiterLimit`, and `opacity`, which Vega-Lite's compiler
+  copies to the rectangle although its schema does not list them; the `cursor` has no meaning). Both are clipped to
+  the data rectangle. The `mark` of the selection
+  is merged over `config.selection.interval.mark` (the specification's and the caller's `Config`), property by
+  property. The rectangle runs from the first end of the range to the second of the **first** value, each end mapped
+  through the scale of its channel (the ends may come in either order; a band scale maps a value to the **start** of its
+  band, so a brush from `"a"` to `"c"` stops where the band of `"c"` starts), and an axis the selection is not projected
+  over spans the data rectangle. A brush that has no extent on an axis it is projected over, a selection with no value,
+  and a value that has no position on its scale draw nothing (no item is made). In a **layered** view the shades of all
+  the selections come before the marks of every layer and the outlines after them (the last layer's shade first, the
+  first layer's outline first), and the selections of one view wrap each other in the order they are declared. A
+  selection of `resolve` `"global"` (the default) has one interval, the one of the unit that declared it first: of
+  several views, only that one draws the brush, and **no cell of a facet draws one** (Vega-Lite's test of the unit of the
+  store never matches the name of a cell); with `"resolve": "union"` or `"intersect"` every view that has the
+  selection draws its own, through its own scales. A point selection draws no brush.
+- **`"bind": "scales"`.** An interval selection bound to the scales (zoom and pan in a browser) **sets the domain**
+  of the continuous scales it projects over to the range of its `value`, and the marks of the view are clipped to the
+  data rectangle; no brush is drawn. It applies only to a view that is the **whole view** (a single view, or the layers
+  of a layered view at the top level): in a `concat`, a `facet`, or a `repeat` Vega-Lite pushes the state of the scale to
+  the top level through signals, which hold nothing in a still picture, so the domains stay those of the data (the marks
+  are clipped all the same, because the scale has the extent of a selection) and the selection reads as nothing. A
+  scale that is not continuous cannot be bound and is reported as the warning `vl-param-selection-projection`. The
+  `resolve` has to be `"global"`: any other makes the selection draw its brush instead.
+- **A selection as the domain of a scale or the extent of a bin.** `{"scale": {"domain": {"param": "brush"}}}`, and
+  `{"bin": {"extent": {"param": "brush"}}}` in an encoding or in a `bin` transform, follow the selection. The
+  object may name a `field` or an `encoding` (the field the selection projects over that channel); with neither, or
+  with an `encoding` that is not projected exactly once, the first projected field is used (reported as the warning
+  `vl-param-selection-projection` when the selection projects several). A **domain** is the range (or the list of
+  values) of that field, taken as the raw domain of the scale (see *A parameter as the domain of a scale* below). A
+  **bin extent** only sets the **span** that chooses the bin width (Vega's `span` of the `bin` transform: the last end
+  minus the first of the range; zero, or no value, is no span): the bins still start and stop at the extent of the
+  data, as in Vega-Lite, and an encoding whose `bin` has such an extent also takes the range as the domain of its
+  scale and clips its marks. A selection that holds nothing changes nothing, but the marks are still clipped. The
+  selection may be declared in another view (a `vconcat` of a view with the selection and a histogram that bins by it);
+  a **variable** parameter holding `[min, max]` works the same way.
+- **Ignored without a report**: `on`, `clear`, `toggle`, `nearest`, `translate`, `zoom`, and the input widgets of
+  `bind`. An animation selection (an `on` with a timer, or the `time` encoding) is reported
+  (`vl-param-selection-animation`).
+- **A legend bound to a selection.** `"bind": "legend"` (on a selection of `resolve` `"global"` that projects exactly
+  one field that is not the row identity) makes the legend of the channel an interactive one in a browser. In its
+  initial state the legend **dims the entries the selection does not hold**: with a selection that has tuples, the
+  symbols and the labels of an entry whose value is not among the values the selection holds for the field get the
+  opacity `config.legend.unselectedOpacity` (0.35 by default); a selected entry keeps its own (a symbol the opacity of
+  the mark, a label 1). A selection with no tuples dims nothing. The test is Vega-Lite's: the value of the entry
+  must be **strictly equal** to a held value (an ordinal entry `2` is not selected by the text `"2"`). A selection stores
+  a date as a number of milliseconds: the entry of a discrete legend over a field of dates is that number, so the date
+  selects it, while a tick of a time scale (a temporal color shown as symbols, or its gradient labels) is a date and is
+  never selected. The field it reads is the `field` of the channel definition (not the projected field, so a selection
+  over a field with a `timeUnit`, which stores its values under the derived field such as `month_d`, dims every entry
+  while it has a tuple, as in Vega-Lite), and the
+  projection must be that field or the channel. The labels of a gradient legend are dimmed by their tick value too.
+  When the legends of several channels or layers merge, the first one decides; a legend that also explains `opacity`
+  keeps its symbols (Vega-Lite drops the rule from them) and dims its labels. A legend binding without exactly one
+  projected field is reported as the warning `vl-param-selection-projection` and is not applied.
+- **Known differences.** The `resolve` of a predicate (`vlSelectionTest`'s third argument) is read from the `config` of
+  the specification, not from the `Config` text of the render options (a static chart has the tuples of one unit, so
+  the answer is the same); the same holds for the choice between `vlSelectionTest` and `vlSelectionIdTest`, which is
+  made from the projection that the specification and its `config` give (the model applies a default projection of the
+  host's `Config`, or a value of the host, and the identity test of a store that is projected over fields tests those
+  fields, so the answer is the same); the finding `vl-param-selection-id` reads the effective configuration (the host's
+  `Config` too), like the brush and `bind: "scales"`. The ends of a date-time
+  object are read in the time zone of the chart (`VegaLiteRenderOptions.TimeZone`, UTC by default), where a browser
+  reads them in its own. A brush that paints nothing is not made, where Vega-Lite makes a zero-size rectangle.
+
+**Expression references.** An `{"expr": ...}` object (Vega-Lite's `ExprRef`) is a value that an expression gives. At
+a **static site** (a property with one value for the whole chart) the expression runs **once per call**, with the
+parameters at their initial state (or the override of the host), and its value is what the property holds: the
+chart is the one that the literal value would give. The sites are the ones that Vega-Lite's schema allows an
+`ExprRef` at, and the renderer reads:
+
+<!-- markdownlint-disable MD013 -->
+| Where | Properties |
+| ----- | ---------- |
+| The top-level view | `padding` and `background` |
+| `title` | `text`, `anchor`, `angle`, `aria`, `color`, `dx`, `dy`, `font`, `fontSize`, `fontStyle`, `fontWeight`, `frame`, `limit`, `lineHeight`, `offset`, `orient`, `zindex`, and the subtitle properties `subtitleColor`, `subtitleFont`, `subtitleFontSize`, `subtitleFontStyle`, `subtitleFontWeight`, `subtitleLineHeight`, and `subtitlePadding` |
+| The `mark` definition, a `point` or `line` overlay, the parts of a composite mark | The properties of a mark (`align`, `angle`, `baseline`, `cornerRadius`, `dx`, `dy`, `fillOpacity`, `font`, `fontSize`, `interpolate`, `limit`, `shape`, `size` of a mark that does not evaluate it for every row, `strokeCap`, `strokeDash`, `text`, `theta`, `radius`, `x`, `y`, ... 75 in all) except `color`, `fill`, `stroke`, `opacity`, `strokeWidth`, and the `size` of a symbol, line, trail, or text mark, which the marks evaluate **for every row** (see above) |
+| `encoding`: a channel definition | `value` (of a channel other than `color`, `fill`, `stroke`, `opacity`, and the `size` of such a mark) and `datum` |
+| An `axis` (and `config.axis*`) | The 65 properties of an axis that Vega-Lite allows (`labelAngle`, `labelFontSize`, `tickCount`, `values`, `domainColor`, `gridOpacity`, `offset`, `orient`, `titleAnchor`, ...) |
+| A `legend` (and `config.legend`) | The 68 properties of a legend (`columns`, `symbolSize`, `labelFontSize`, `titleOrient`, `values`, `offset`, `padding`, ...) |
+| A `header` of a facet (and `config.header*`) | The label and title properties (`labelFontSize`, `labelAngle`..., `titleFontSize`, `titlePadding`, ...), 20 in all |
+| A `scale` | `align`, `base`, `clamp`, `constant`, `domain` (the whole array, or each entry), `domainMax`, `domainMid`, `domainMin`, `domainRaw`, `exponent`, `interpolate`, `nice`, `padding`, `paddingInner`, `paddingOuter`, `range` (each entry), `rangeMax`, `rangeMin`, `reverse`, `round`, `scheme`, `zero` |
+| `view` (and `config.view`) | The stroke, fill, opacity, and corner radius of the plot background |
+| `config` | `background`, `lineBreak`, `padding`, and the properties of `title`, `axis*`, `legend`, `header*`, `view`, `scale`, `mark`, the mark types, and named `style`s |
+<!-- markdownlint-enable MD013 -->
+
+- The value is whatever the expression gives: a text, a number, a boolean, `null`, an array, or an object. A number
+  that is not finite (JSON has none) leaves the property unset. The `text` of a title or a mark takes the JavaScript
+  text of a number or a boolean. A **date** (`datetime(...)`) is its number of milliseconds only in a scale domain
+  (`domain`, `domainMin`, `domainMax`, `domainMid`, `domainRaw`); anywhere else it has no value a property can read,
+  so the reference is left and reported as the warning `vl-expr-ref`. A result longer than `MaxStringLength` is a
+  located `VegaLiteRenderException`.
+- An expression is compiled when the document is opened, like every other (a syntax error, or a name that no view
+  declares as a parameter, is a `VegaLiteSpecException`). It reads parameters, never `datum`: a static site has no row,
+  so a reference that reads `datum` is **not evaluated**, the property keeps its default, and the reference is reported
+  (`vl-expr-ref`). Each evaluation counts against `MaxEvaluationSteps`.
+- `width` and `height` are not expression references in Vega-Lite (a size is a number, `"container"`, or a step), so a
+  chart cannot be sized by a parameter; an `{"expr": ...}` there is reported (`vl-expr-ref`). The `labelExpr` of a
+  guide is a text, not a reference (see *Vega-Lite Label Expressions*).
+- An `{"expr": ...}` in the `Config` text of the render options is **not evaluated** (the text is merged as it is) and is
+  reported (`vl-expr-ref`, with the pointer inside the text in the message); the `config` of the specification is.
+
+**A parameter as the domain of a scale.** A scale `domain` of the form `{"param": "name"}` takes the **value of the
+parameter** `name` as the scale's **raw domain**: for a variable parameter its value (an array), for a selection
+parameter the range (or list of values) of one of its fields (see *A selection as the domain of a scale or the extent of
+a bin* above); the `extent` of an encoding's `bin` and an interval selection bound to the scales do the same. The raw
+domain replaces the domain and **nothing adjusts it
+afterwards** (no `zero`, `domainMin`, `domainMax`, `domainMid`, `padding`, or `nice`), as in Vega. A `domainRaw` that
+the scale writes itself works the same way and wins over a parameter. The raw domain of a continuous scale (linear,
+log, pow, sqrt, symlog, time, utc, and the sequential scale of a color) is two numbers or dates (more than two are a
+piecewise domain; a date is its instant); that of a band, point, or ordinal scale is the list of categories in order.
+The discretizing scales (`quantize`, `quantile`, `threshold`, `bin-ordinal`) keep their own domain. A parameter
+without a value, and a selection that holds nothing for the field, leave the domain of the scale as it is; a value that
+cannot be a domain (not
+an array, fewer than two numbers, a non-numeric entry, a date object of the specification) is reported as the warning
+`vl-scale-domain-raw` and the scale keeps its own domain (Vega would draw nothing). When the `domain` of the x or y
+scale is a parameter (or its bin has an `extent` that is one, or a selection is bound to it), the marks of the view are
+**clipped to the data rectangle**, as Vega-Lite does for the extent of
+a parameter, so the marks that the domain leaves out are not drawn outside the view (this holds also when the parameter
+has no value). A layered view that shares the scale takes the raw domain of a layer for all of them.
 
 ### Vega-Lite Transforms
 
@@ -640,15 +849,15 @@ combine predicates, and `param` names a parameter. Comparisons follow JavaScript
 | `{"field": f, "oneOf": [v, ...]}` | The value is strictly equal to one of the values |
 | `{"field": f, "valid": true}` | The value is not `null` and not `NaN` (`false` selects the others) |
 | `{"and": [p, ...]}`, `{"or": [p, ...]}`, `{"not": p}` | All, any, or none of the predicates hold; each part is a predicate or an expression text |
-| `{"param": "name"}` | The variable parameter is truthy (see *Vega-Lite Parameters*) |
+| `{"param": "name"}` | The variable parameter is truthy (see *Vega-Lite Parameters*), or the selection parameter selects the row (see *Selection parameters* in *Vega-Lite Parameters*; `"empty": false` makes an empty selection select no row) |
+| `{"selection": "name"}` (also with `and`, `or`, `not`) | The legacy form of the selection predicate |
 <!-- markdownlint-enable MD013 -->
 
 When an object has several comparisons, the first of `equal`, `lt`, `lte`, `gt`, `gte`, `range`, `oneOf`, `valid` is
 used. A predicate may carry a `timeUnit`, and its value may be a date-time object (`{"year": 2020}`): the comparison is
 then made on the date, or on the parts that the unit keeps (see *Vega-Lite Time and Time Zones*). The `timeUnit` of a
 predicate whose unit has a `week` or `dayofyear` part does not apply those parts, as in Vega-Lite, and is reported as
-the warning `vl-predicate-timeunit-part`. A `selection` predicate or the `param` of a selection keeps every row
-(`vl-transform-filter-param`).
+the warning `vl-predicate-timeunit-part`.
 
 **Sorting by a field.** The `sort` of a discrete channel takes these forms:
 
@@ -711,7 +920,8 @@ Examples:
 ```
 
 Examples 33 and 34 draw charts with parameters, expressions, filters, calculates, a sort by a field, and the
-aggregating transforms.
+aggregating transforms. Example 48 draws charts whose title, padding, and axis read parameters through expression
+references, and whose scale takes its domain from a parameter.
 
 ### Vega-Lite Aggregation, Binning, and Stacking
 
@@ -802,7 +1012,7 @@ when `as` is one text, and the two names of an array of two. The bin parameters 
 | `base`, `divide` | The base of the step (greater than 1) and the divisors tried to refine a step (up to 16 numbers) | `10` and `[5, 2]` |
 | `nice` | Whether the extent is rounded out to whole steps | `true` |
 | `anchor` | A number that a bin boundary is aligned to; values below the shifted first bin go to the infinite bin | None |
-| `extent` | The `[min, max]` that decides the bins (two numbers in ascending order) | The extent of the finite numbers of the field |
+| `extent` | The `[min, max]` that decides the bins (two numbers in ascending order), or `{"param": ...}` of a selection or a variable parameter: only the **span** of the parameter's range chooses the bin width and the bins still cover the data (see *Selection parameters* in *Vega-Lite Parameters*) | The extent of the finite numbers of the field |
 <!-- markdownlint-enable MD013 -->
 
 The step is the largest "nice" width that gives at most `maxbins` bins, found by the algorithm of Vega: over the data
@@ -851,8 +1061,9 @@ unaggregated rows, see `sort` and `scale.domain: "unaggregated"`) a copy of the 
   fields of **every other** channel definition that is not itself aggregated (including `detail` and `tooltip`, the
   field of a binned channel as its two boundaries, and every definition of an array channel), and each aggregated
   definition becomes a measure. Without any grouping field the chart is one group, and without rows it is empty.
-- **`bin`** on an `x` or `y` definition (`true` or the parameters above; the extent as `{"param": ...}` is reported and
-  the extent of the data is used) bins the field of the channel. A quantitative channel is a continuous axis from the
+- **`bin`** on an `x` or `y` definition (`true` or the parameters above; an extent as `{"param": ...}` sets the span that
+  chooses the bin width and the domain of the scale, see *Vega-Lite Parameters*) bins the field of the channel. A
+  quantitative channel is a continuous axis from the
   first to the last boundary of the bins (no zero, no nice rounding of the domain), a bar or rect fills the bin less the
   `binSpacing` (1 pixel for a bar and 0 for a rect or tick), and a point or rule sits in the middle of the bin; a bar
   that would be thinner than `minBandSize` (0.25) is widened to it. An `ordinal` or `nominal` binned channel is
@@ -976,7 +1187,9 @@ classes is the length of an explicit `range`, else the `count` of a scheme objec
 and `quantileCount`). A `log` scale takes `base` (10), `pow` an `exponent` (1), `sqrt` is `pow` of 0.5, and `symlog` a
 `constant` (1); `domainMin`, `domainMax`, `rangeMin`, and `rangeMax` replace an end of the domain or the range, `zero`
 and `nice` apply to the continuous types, and a `reverse` reverses the range. The `time` and `utc` scales of a temporal
-field are described in *Vega-Lite Time and Time Zones*. The scale property `bins` and the type `identity` are reported
+field are described in *Vega-Lite Time and Time Zones*. A `domain` that is a parameter (`{"param": ...}`) or a
+`domainRaw` is the domain as it is, with no `zero`, `nice`, or padding, and clips the marks (see *A parameter as the
+domain of a scale* in *Vega-Lite Parameters*). The scale property `bins` and the type `identity` are reported
 (`vl-scale-property-bins`, `vl-scale-identity`).
 
 **Where the colors come from.** In the order of Vega-Lite: the `range` of the scale (a list of colors, or the name of
@@ -1044,7 +1257,7 @@ the canonical scale of a legend that merges several continuous channels is the f
 
 The `labelExpr` of an axis, a legend, and a facet header replaces the text of every label with the result of an
 expression, as in Vega-Lite 6. The expression runs on the same engine as every other expression (see *Vega-Lite
-Expressions*: the same 100 functions and parameters, and the same `MaxEvaluationSteps`, `MaxStringLength`, and
+Expressions*: the same 104 functions and parameters, and the same `MaxEvaluationSteps`, `MaxStringLength`, and
 cancellation), once for every label and **before the labels are measured, laid out, and thinned**, so a longer text
 makes the axis or the legend wider, and a blank text takes no room and no part in the removal of overlapping labels.
 The `labelExpr` of the configuration applies to every guide that has none of its own: `config.axis` and the other axis
@@ -1822,14 +2035,17 @@ A channel can take a **`condition`** (one object or an array of objects) on `col
 `fillOpacity`, `strokeOpacity`, `strokeWidth`, `strokeDash`, `size`, `shape`, and `angle`. Each condition has a `test`
 and either a `value` or the properties of a field definition. The `test` is an expression (`"datum.moisture < 30"`) or a
 predicate object (`{"field": "day", "range": [3, 5]}`, with `equal`, `lt`, `lte`, `gt`, `gte`, `range`, `oneOf`,
-`valid`, `and`, `or`, `not`, and a variable `param`); it runs for every row with the expression engine, under the
+`valid`, `and`, `or`, `not`, a variable `param`, and a selection `param` or the legacy `selection` with `empty`); it
+runs for every row with the expression engine, under the
 `MaxEvaluationSteps` budget and the cancellation token. The first condition that holds gives the mark its value (or the
 value of the scale of its field); a row for which none holds gets what the channel gives without the conditions - its
 own field and scale, else its `value`, else the default of the mark. Conditions that hold only values create no scale
 and no legend; a condition that holds a field draws the legend of that field, and the symbols of another legend show
 the first condition value (the opacity is the largest of the values). A predicate `test` may use a `timeUnit` or a
-date-time object, as a filter does (see *Vega-Lite Time and Time Zones*). A condition on a `param` or a selection never
-holds and is reported (`vl-encoding-condition-param`), and a condition on a channel that takes none is reported as
+date-time object, as a filter does (see *Vega-Lite Time and Time Zones*). A condition may name a selection instead of
+a `test`: `{"param": "brush", "value": "red"}`, `{"param": "brush", "empty": false, "value": "red"}`, or a field
+definition; it holds for the rows that the selection selects (see *Selection parameters* in *Vega-Lite Parameters*), in
+the order written with the other conditions. A condition on a channel that takes none is reported as
 `vl-encoding-condition`.
 
 ### Vega-Lite Layers and Composite Marks
@@ -2279,30 +2495,27 @@ thread, after the work finished and before the method returns or throws.
 | `vl-timeunit-maxbins` | Unsupported | The `{"maxbins": n}` time unit form without a `unit` in a filter or condition predicate; the unit is ignored and the field is compared as it is (an encoding and the transform apply it) |
 | `vl-predicate-timeunit-part` | Warning | The `timeUnit` of a filter or condition predicate whose unit has a `week` or `dayofyear` part: like Vega-Lite, the predicate does not apply those parts |
 | `vl-encoding-condition` | Unsupported | A `condition` on a channel that takes none (`x`, `y`, the secondary channels, `order`); the condition is ignored |
-| `vl-encoding-condition-param` | Unsupported | A condition on a `param`, or a `test` that names a selection or a parameter that is not a variable; the condition never holds |
 | `vl-encoding-bin` | Unsupported | The `bin` of a channel that cannot bin (`order`, the secondary channels `x2` and `y2`, and `theta` and `radius`), and `bin: "binned"` (data that is binned already) on a channel other than `x` and `y`, unless it is false or null; the channel is not binned |
-| `vl-encoding-bin-extent-param` | Unsupported | A `bin.extent` of an encoding that is a `{"param": ...}` object; the extent of the data is used |
 | `vl-encoding-sort` | Unsupported | A `sort` that is not applied: a channel (`"-y"`, `{"encoding": ...}`) that the encoding does not have or that has neither a `field` nor an `aggregate` (the message names the channel), or an `op` that cannot order categories (`argmin`, `argmax`, `values`, `exponential`, `exponentialb`); the categories are sorted ascending |
 | `vl-encoding-sort-ignored` | Warning | A `sort` array, channel (`"-y"`, `{"encoding": ...}`), or object with a `field` or `op` on a quantitative field whose scale is continuous: there are no categories to order, so the sort is ignored (`"ascending"`, `"descending"`, and `null` are not reported) |
 | `vl-encoding-sort-mixed-types` | Warning | A `sort` array that mixes strings, numbers, booleans, or `null`, reported at the array; the values are matched by kind (`1` does not position the text `"1"`) |
 | `vl-encoding-stack-nonlinear` | Unsupported | An explicit `stack` (not false or null) of an `x` or `y` whose `scale.type` is not linear; the marks of a log, pow, sqrt, or symlog scale are not stacked (Vega-Lite does not stack on them), and any other type is stacked on the linear scale |
 | `vl-scale-<type>` | Unsupported | `scale/type`, for every type except linear, log, pow, sqrt, symlog, sequential, time, utc, band, point, ordinal, quantile, quantize, threshold, and bin-ordinal (that is `identity`) |
-| `vl-scale-property-<name>` | Unsupported | A scale property outside the supported list (see the Scales row of *Supported Vega-Lite Subset*; `bins` and `domainRaw` are examples that are not supported). An unknown color scheme name is not reported but is an error |
+| `vl-scale-property-<name>` | Unsupported | A scale property outside the supported list (see the Scales row of *Supported Vega-Lite Subset*; `bins` is an example that is not supported). An unknown color scheme name is not reported but is an error |
 | `vl-guide-encode` | Unsupported | `axis.encode`, `legend.encode` |
 | `vl-guide-legend-titleorient`, `vl-guide-legend-clipheight` | Unsupported | A `legend.titleOrient` other than `top` (the title stays above the entries), a `legend.clipHeight` (the entries are not clipped) |
 | `vl-guide-axis-<name>` | Unsupported | `labelBound`, `tickBand`, `tickExtra`, `position`, `translate`, `bandPosition`, `titleX`, `titleY` of an axis |
 | `vl-guide-axis-tickcount-interval` | Warning | A time interval (`"week"` or `{"interval": "week", "step": 2}`) as the `tickCount` of an axis or legend whose scale is not a time scale; the default tick count is used |
 | `vl-format-type-custom` | Unsupported | An `axis.formatType`, `legend.formatType`, `header.formatType`, or the `formatType` of a `text` channel other than `number`, `time`, and `utc` (a custom format type is not evaluated; the default format is used) |
-| `vl-expr-ref` | Unsupported | An `{"expr": ...}` value where the renderer does not evaluate one: a title, padding, background, `view`, a mark property other than color, fill, stroke, opacity, stroke width, and the size of a point, circle, square, line, trail, or text, an encoding `value` other than that of color, fill, stroke, opacity, or the size of such a mark, and a facet field definition or `header`; and an expression inside a `point` or `line` overlay object. The value is not used |
+| `vl-scale-domain-raw` | Warning | The value of the parameter that a scale `domain` names, or a `domainRaw`, that cannot be a domain: not an array, fewer than two numbers or dates for a continuous scale (none for a band, point, or ordinal scale), or an entry that is not a number or a date (a text, an object, `NaN`); the scale keeps its own domain (see *A parameter as the domain of a scale* in *Vega-Lite Parameters*) |
+| `vl-expr-ref` | Unsupported or warning | An `{"expr": ...}` value that is not evaluated: at a property that Vega-Lite's schema does not allow one at (`width`, `height`, a `facet` field definition, and the like), at a static site that reads `datum` (a static site has no row; the property keeps its default), or in the `Config` of the render options (unsupported); and, as a **warning**, an expression at a static site whose value is a date (or a regular expression) where the property takes none. The value is not used |
 | `vl-offset-position` | Unsupported | An `xOffset` or `yOffset` that has no position to nest in: the `x` (or `y`) channel is missing, is quantitative, or is temporal without a `timeUnit`; or its time unit is `day`, `weekday`, `yearweekday`, binned, or `maxbins`; or the mark is a `rect` with a temporal time unit. A nominal or ordinal field with a `timeUnit` is an ordinary band parent and is drawn (not reported). A temporal field with another time unit is nested in and not reported. The offset is ignored and the marks are drawn at their position (Vega-Lite throws for a continuous position) |
 | `vl-offset-ranged` | Unsupported | A continuous (quantitative or temporal) `xOffset` or `yOffset` of a `bar` or an `area`, which Vega-Lite draws as a range from the start of the band (a ranged offset). The offset is ignored and the marks are drawn at their position; the continuous offset of a point-like mark is drawn |
-| `vl-expr-function-<name>` | Unsupported | The string value of an expression (also a `labelExpr`) that calls a function outside the 100 supported ones, once per call, with `<name>` lower-cased (`vl-expr-function-now` for `now`, `vl-expr-function-geoarea` for `geoArea`; `vl-expr-function-luminance` for `luminance`; the message names the function **as written**). The call evaluates to null |
+| `vl-expr-function-<name>` | Unsupported | The string value of an expression (also a `labelExpr`) that calls a function outside the 104 supported ones, once per call, with `<name>` lower-cased (`vl-expr-function-now` for `now`, `vl-expr-function-geoarea` for `geoArea`; `vl-expr-function-luminance` for `luminance`; the message names the function **as written**). The call evaluates to null |
 | `vl-expr-view-state` | Unsupported | The string value of an expression that uses `signal`, `event`, or `item`, or the name `width`, `height`, `padding`, `autosize`, `background`, or `cursor` without declaring a parameter of that name. It evaluates to null |
 | `vl-expr-construct-<name>` | Unsupported | The string value of an expression that uses an operator that is parsed but not run: `bitwise-or`, `bitwise-xor`, `bitwise-and`, `bitwise-not` (the unary `~`), `shift-left`, `shift-right`, `shift-right-unsigned`, or `in`. It evaluates to null |
 | `vl-expr-runtime` | Warning | The string value of a `calculate` expression whose result is a regular expression for some rows; null is stored (one warning per transform, with the number of rows and the first row index) |
 | `vl-transform-<name>` | Unsupported | An entry of `transform` for `regression`, `loess`, `density`, `quantile`, or `extent` (the entry is skipped). The transforms of a layered view, of its layers, and of the views of a `concat`, `hconcat`, `vconcat`, `facet`, or `repeat` are applied and are not reported for being there |
-| `vl-transform-bin-extent-param` | Unsupported | A `bin` transform whose `extent` is a `{"param": ...}` object; the extent of the data is used |
-| `vl-transform-filter-param` | Unsupported | A `param` of a filter that names a selection parameter, or a `selection` predicate; every row passes |
 | `vl-transform-pivot-op` | Unsupported | A pivot `op` other than `sum` or `count`; `sum` is used |
 | `vl-transform-lookup-param` | Unsupported | A lookup whose `from` is a `param` (the data of a selection); the transform is skipped |
 | `vl-transform-runtime` | Warning | A pivot that skipped rows whose pivot value is null, cut its columns at `limit`, or let a pivot value replace a group field of the same name |
@@ -2314,8 +2527,9 @@ thread, after the work finished and before the method returns or throws.
 | `vl-layer-scale-conflict` | Warning | Layers whose scales of one channel cannot be shared (a continuous scale with a discrete one, a linear scale with a log, pow, or time scale, or different discretizing scales), reported at the channel of the layer that is left out; that layer keeps a scale of its own |
 | `vl-composite-grouping` | Unsupported | A grouping channel of a `boxplot`, `errorbar`, or `errorband` (every channel but the measure, its second end or errors, and the tooltip) that has a `bin`, a `timeUnit`, or an `aggregate`: the rows are grouped by the field as it is, and a channel that aggregates is left out |
 | `vl-channel-xerror`, `-xerror2`, `-yerror`, `-yerror2` | Unsupported | An `xError`, `xError2`, `yError`, or `yError2` channel on a mark other than `errorbar` and `errorband`, which use them (the channel is ignored) |
-| `vl-param-selection` | Unsupported | Every selection parameter (an entry of `params` with `select`) and the legacy top-level `selection`; nothing is selected |
-| `vl-param-variable` | Unsupported | A variable parameter of a nested view (a view inside a layer or a composition); the variable parameters of the single or top-level view are supported |
+| `vl-param-selection-layer`, `-id`, `-animation` | Unsupported | A selection that is not drawn as Vega-Lite does: `-layer` is a selection that two or more layers of one layered view receive (a top-level selection of a layered view without `views`, or with `views` that name both), which Vega rejects as a duplicate signal; it is applied as an empty selection (name one layer in `views`); `-id` is a point selection over the identity of the rows (no `fields`, no `encodings`, no key in the `value`) that has an initial `value`, or a value of the host: a still chart has no row identity, so it is applied as empty; `-animation` is a selection with a timer in `on`, or with the `time` encoding: it is drawn in its initial state |
+| `vl-param-selection-projection` | Warning | A selection projection or use that cannot be built: a channel in `encodings` that has no field or an aggregate is skipped, an interval initialized with a key that is not a channel uses the default encodings, a selection used as the `domain` of a scale or the `extent` of a bin that names no field (or an encoding that is not projected exactly once) while it projects several uses the first field, and a selection bound to the scales that projects a channel without a continuous scale does not bind it, and a selection bound to a legend that does not project exactly one field (or encoding) does not bind it (see *Selection parameters* in *Vega-Lite Parameters*) |
+| `vl-param-variable` | Unsupported | A variable parameter of a nested view (a view inside a layer or a composition): Vega-Lite compiles only the `params` of the top-level view into signals, so the parameter is ignored (an expression that reads it fails in Vega and evaluates to `null` here); the variable parameters of the single or top-level view are supported |
 | `vl-projection` | Unsupported | `projection` |
 | `vl-layout-fit-step` | Warning | An `autosize` of `fit`, `fit-x`, or `fit-y` (also the one that a `"container"` size implies) whose width or height is sized by a step (`{"step": n}`, or no size on a discrete scale): the fit is dropped for that dimension, as in Vega-Lite (reported at the `autosize`, else the size property, else the view) |
 | `vl-duplicate-key` | Warning | The later of two equal keys of one object (the last value wins) |
@@ -2337,6 +2551,11 @@ reported by earlier releases and are no longer produced, because expressions, th
 parameters are now supported (see *Vega-Lite Expressions*, *Vega-Lite Transforms*, and *Vega-Lite Parameters*); a build
 that matched one of them should stop doing so. An expression that uses something that is still deferred is reported
 with the more precise identifiers above (`vl-expr-function-<name>`, `vl-expr-view-state`, `vl-expr-construct-<name>`).
+The identifier `vl-scale-property-domainRaw` was reported by earlier releases and is no longer produced, because a
+`domainRaw` is now the domain of its scale; `vl-expr-ref` is no longer produced for a title, padding, background,
+`view`, a mark property, an axis, legend, header, or scale property, or the `value` of a channel, because an expression
+reference at such a static site is now evaluated once (see *Vega-Lite Parameters*), and `vl-param-variable` is
+unchanged but explains that Vega-Lite itself declares no signal for the variable parameter of a nested view.
 The identifiers `vl-encoding-aggregate`, `vl-encoding-stack`, `vl-transform-aggregate`, `-joinaggregate`, `-window`,
 `-bin`, `-stack`, and `-impute` (for the drawn view) were reported by earlier releases and are no longer produced,
 because the aggregating, binning, and stacking transforms and encodings are now supported (see *Vega-Lite Aggregation,
@@ -2397,12 +2616,16 @@ and `-yoffset` are no longer produced because the offset channels are drawn (see
 Bars)*); they are retired with it, and `vl-offset-position` and `vl-offset-ranged` are new (`vl-offset-position` is no
 longer reported for a temporal position with a supported time unit, which is nested in now). The identifier
 `vl-expr-function-format` is no longer reported either, because `format()` is supported (see *Vega-Lite Expressions*).
+The identifiers `vl-param-selection`, `vl-encoding-condition-param`, `vl-transform-filter-param`,
+`vl-encoding-bin-extent-param`, and `vl-transform-bin-extent-param` are retired in
+Phase 12: selections are drawn in their initial state, and a bin `extent` that is a parameter sets the span of the bins,
+so they are no longer reported (see *Selection parameters* in
+*Vega-Lite Parameters*); `vl-param-selection-layer`, `-id`, `-animation`, and `-projection` are new.
 A build that matched one of
 the retired identifiers should stop doing so.
 Planned later releases add, among other things, the other transforms (`regression`, `loess`, `density`, `quantile`,
 `extent`), the color functions of the expression language, expressions in more
-places, `image`, and
-selections; until then the constructs are
+places, and `image`; until then the constructs are
 reported with the identifiers above. Geographic constructs (`projection`, `geoshape`, `longitude` and `latitude`,
 topojson) are not planned and remain reported.
 
@@ -2426,7 +2649,10 @@ file, test, example, data set, or documentation text of the upstream projects wa
   the defaults of `resolve` of each composition, the expansion of a `repeat` and its field references, the facet
   channels of a unit view, and the `fit` autosize and the container sizes); the datum and the text rules of the label
   expressions of axes, legends, and headers, and the rules of the offset channels (the nested offset scale, its
-  paddings and step, and the placement of the marks); and
+  paddings and step, and the placement of the marks); the rules of the selections of Phase 12 (the tests and the
+  resolution of a selection of `vega-selections`, the predicate text, the projection, and the legend binding of a
+  selection of Vega-Lite, and
+  the normalization of a top-level selection); and
   the palette table of the 68 color schemes, the color interpolation rules, and the rules that give a scheme its number
   of colors.
 - **d3-array**, **d3-format**, **d3-scale**, **d3-scale-chromatic**, **d3-interpolate**, **d3-color**, **d3-time**,
@@ -2445,8 +2671,7 @@ file, test, example, data set, or documentation text of the upstream projects wa
 The expression language and the row transforms (`calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot`, and
 `lookup`) are original code written from the public documentation of the Vega expression language, ECMAScript, and the
 Vega-Lite transforms: no value, source file, test, or example of the upstream projects was ported or copied for them
-(the `timeUnit` transform and the date and time functions use the time unit and the d3-time and d3-time-format rules
-described above).
+(the `timeUnit` transform, the date and time functions, and the selection functions use the rules described above).
 The functions follow the behavior that the Vega documentation describes; the
 `sample` transform does not reproduce Vega's random generator but uses published algorithms (FNV-1a, SplitMix64, and
 reservoir sampling) implemented from their public descriptions, and so does the bootstrap of `ci0` and `ci1`.
@@ -3849,3 +4074,164 @@ using var misplacedPicture = misplaced.Render(new VegaLiteRenderOptions { Unsupp
 Console.WriteLine(features[0].Feature);  // Output: vl-offset-position
 Console.WriteLine(features[0].Location.Pointer); // Output: /encoding/xOffset
 ```
+
+### Example 48: Expression References and Parameters as Scale Domains
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.VegaLite;
+
+var strict = new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true };
+
+// 1. Expression references ({"expr": ...}) are evaluated once with the parameters, wherever Vega-Lite allows one and
+//    no row is involved: here the text, the size, and the color of the title, the padding, and the label size of the y
+//    axis. "accent" is an expression of "base", so the title is 14 pixels in firebrick, with the padding of 12. All
+//    are supported, so strict mode has nothing to throw for
+var sales = VegaLiteDocument.Parse("""
+    {
+      "params": [
+        { "name": "base", "value": 12 },
+        { "name": "accent", "expr": "base > 10 ? '#b22222' : '#4682b4'" }
+      ],
+      "title": {
+        "text": { "expr": "'Sales, base size ' + base" },
+        "fontSize": { "expr": "base + 2" },
+        "color": { "expr": "accent" }
+      },
+      "padding": { "expr": "base" },
+      "data": { "values": [
+        { "stall": "North", "crates": 28 }, { "stall": "South", "crates": 55 }, { "stall": "East", "crates": 43 }
+      ] },
+      "mark": "bar",
+      "encoding": {
+        "x": { "field": "stall", "type": "nominal" },
+        "y": { "field": "crates", "type": "quantitative", "axis": { "labelFontSize": { "expr": "base - 1" } } }
+      }
+    }
+    """);
+var salesSize = sales.Measure(strict);
+Console.WriteLine($"{salesSize.Width}x{salesSize.Height}"); // Output: 153x397
+using var salesPicture = sales.Render(strict);
+PngCodec.Save(salesPicture, "sales-references.png");
+
+// The host replaces a parameter, and every reference that reads it follows: a base of 8 gives a smaller title and
+// padding, and the color of the title is now the blue of the other branch
+using var small = sales.Render(new VegaLiteRenderOptions
+{
+    Parameters = new Dictionary<string, object?> { ["base"] = 8 },
+});
+
+// 2. A parameter can be the domain of a scale. The value of "window" is the domain as it is (no zero, nice, or
+//    padding), and the marks that it leaves out are clipped to the view. The host gives an array to replace it
+var window = VegaLiteDocument.Parse("""
+    {
+      "params": [ { "name": "window", "value": [20, 60] } ],
+      "width": 300, "height": 150,
+      "data": { "values": [ { "x": 10, "y": 1 }, { "x": 30, "y": 2 }, { "x": 50, "y": 3 }, { "x": 70, "y": 4 } ] },
+      "mark": "circle",
+      "encoding": {
+        "x": { "field": "x", "type": "quantitative", "scale": { "domain": { "param": "window" } } },
+        "y": { "field": "y", "type": "quantitative" }
+      }
+    }
+    """);
+var windowSize = window.Measure(strict);
+Console.WriteLine($"{windowSize.Width}x{windowSize.Height}"); // Output: 339x197
+using var zoomed = window.Render(new VegaLiteRenderOptions
+{
+    Parameters = new Dictionary<string, object?> { ["window"] = new object[] { 0, 80 } },
+});
+PngCodec.Save(zoomed, "window-zoomed.png");
+
+// 3. An expression at a property with one value for the whole chart has no row, so it cannot read datum: the
+//    reference is reported (and ignored), and strict mode refuses the chart
+var reads = VegaLiteDocument.Parse("""
+    {
+      "title": { "text": "T", "fontSize": { "expr": "datum.size" } },
+      "data": { "values": [ { "x": 1 } ] },
+      "mark": "point",
+      "encoding": { "x": { "field": "x", "type": "quantitative" } }
+    }
+    """);
+var features = new List<VegaLiteUnsupportedFeature>();
+using var readsPicture = reads.Render(new VegaLiteRenderOptions { UnsupportedFeatureHandler = features.Add });
+Console.WriteLine(features[0].Feature); // Output: vl-expr-ref
+Console.WriteLine(features[0].Location.Pointer); // Output: /title/fontSize
+```
+
+### Example 49: Selections in Their Initial State
+
+A selection is drawn the way Vega-Lite's chart looks before anyone touches it: the `value` of the selection (or the one
+the host gives) is what is selected. The first chart brushes a range of a scatter plot, so the points inside the
+rectangle keep their color; the second selects two bars; the third dims the legend entries of a selection that is
+bound to the legend.
+
+```csharp
+using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.Codecs;
+using DemaConsulting.CanvasNet.VegaLite;
+
+var strict = new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true };
+
+// A point selection of the field "c" with the initial value B and D. The bars that it holds are blue and the others
+// gray; the selection is a parameter, so the host can replace its value
+var bars = VegaLiteDocument.Parse("""
+    {
+      "params": [
+        { "name": "pick", "select": { "type": "point", "fields": ["c"] },
+          "value": [ { "c": "B" }, { "c": "D" } ] }
+      ],
+      "data": { "values": [
+        { "c": "A", "n": 28 }, { "c": "B", "n": 55 }, { "c": "C", "n": 43 }, { "c": "D", "n": 91 }
+      ] },
+      "mark": "bar",
+      "encoding": {
+        "x": { "field": "c", "type": "nominal" },
+        "y": { "field": "n", "type": "quantitative" },
+        "color": { "condition": { "param": "pick", "value": "steelblue" }, "value": "lightgray" }
+      }
+    }
+    """);
+Console.WriteLine(string.Join(", ", bars.ParameterNames)); // Output: pick
+using var initial = bars.Render(strict);
+PngCodec.Save(initial, "bars-b-and-d.png");
+
+// The host selects A instead: a list of objects, one for each tuple of the selection
+using var other = bars.Render(new VegaLiteRenderOptions
+{
+    Parameters = new Dictionary<string, object?>
+    {
+        ["pick"] = new List<Dictionary<string, object?>> { new() { ["c"] = "A" } },
+    },
+});
+PngCodec.Save(other, "bars-a.png");
+```
+
+An interval selection with a `value` also draws the **brush**: a shade behind the marks and an outline over them
+(`#333` at 0.125 and a white stroke by default; see *Selection parameters*). The points inside the range, both ends
+included, take the color of their group:
+
+```markdown
+![A brush with the points inside it colored](examples/brush-selection.vl.json){scale=2 width=60%}
+```
+
+![A brush with the points inside it colored](examples/brush-selection.vl.json){scale=2 width=60%}
+
+A selection with the value that the host or the specification gives selects the bars in the same way:
+
+```markdown
+![Two bars selected](examples/bar-selection.vl.json){scale=2 width=60%}
+```
+
+![Two bars selected](examples/bar-selection.vl.json){scale=2 width=60%}
+
+A selection that is bound to the legend (`"bind": "legend"`) dims the entries it does not hold, the symbols and the
+labels, to `config.legend.unselectedOpacity` (0.35 by default); here the marks follow the same selection through an
+`opacity` condition:
+
+```markdown
+![Legend entries p and r dimmed](examples/legend-selection.vl.json){scale=2 width=60%}
+```
+
+![Legend entries p and r dimmed](examples/legend-selection.vl.json){scale=2 width=60%}

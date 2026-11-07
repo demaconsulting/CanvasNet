@@ -1,0 +1,25 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "description": "An interval selection with an initial value: the brush is drawn, and the points inside it keep their color.",
+  "width": 300,
+  "height": 200,
+  "title": "Interval selection in its initial state",
+  "params": [
+    {"name": "brush", "select": {"type": "interval"}, "value": {"x": [2, 6], "y": [1, 5]}}
+  ],
+  "data": {"values": [
+    {"a": 1, "b": 2, "g": "p"}, {"a": 2, "b": 5, "g": "q"}, {"a": 3, "b": 4, "g": "p"},
+    {"a": 4, "b": 1, "g": "r"}, {"a": 5, "b": 3, "g": "q"}, {"a": 5, "b": 6, "g": "r"},
+    {"a": 6, "b": 2, "g": "p"}, {"a": 7, "b": 4, "g": "q"}, {"a": 7, "b": 1, "g": "r"},
+    {"a": 4, "b": 4.5, "g": "q"}
+  ]},
+  "mark": {"type": "point", "filled": true, "size": 90},
+  "encoding": {
+    "x": {"field": "a", "type": "quantitative", "scale": {"domain": [0, 7]}},
+    "y": {"field": "b", "type": "quantitative", "scale": {"domain": [0, 7]}},
+    "color": {
+      "condition": {"param": "brush", "field": "g", "type": "nominal"},
+      "value": "lightgray"
+    }
+  }
+}

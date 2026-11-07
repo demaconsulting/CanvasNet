@@ -962,14 +962,14 @@ public class VegaLiteChartIntegrationTests
 
     /// <summary>
     ///     Validates that the features that Phase 5 does not support are still reported and never silently executed:
-    ///     conditional encodings, selection parameters, the transforms of later phases and the date and format functions.
+    ///     conditional encodings on channels without conditions, animation selections, the transforms of later phases and the date and format functions.
     /// </summary>
     [Fact]
     public void CanvasNetVegaLite_SystemIntegration_Deferred_FeaturesAreStillReported()
     {
         // Arrange
         const string Json = """
-            { "params": [ { "name": "sel", "select": "interval" } ],
+            { "params": [ { "name": "sel", "select": { "type": "point", "on": "timer" } } ],
               "data": { "values": [ { "a": 1, "d": "2020-01-01" } ] },
               "transform": [
                 { "regression": "a", "on": "d" },
@@ -991,7 +991,7 @@ public class VegaLiteChartIntegrationTests
         // Assert: each one is reported once, in document order, and the chart is still drawn
         Assert.Equal(
             [
-                "vl-param-selection", "vl-transform-regression", "vl-transform-loess", "vl-transform-density", "vl-transform-quantile",
+                "vl-param-selection-animation", "vl-transform-regression", "vl-transform-loess", "vl-transform-density", "vl-transform-quantile",
                 "vl-expr-function-now", "vl-expr-function-luminance", "vl-encoding-condition",
             ],
             reported);

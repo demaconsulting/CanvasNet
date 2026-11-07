@@ -381,6 +381,33 @@ public class ConfigResolverTests
     }
 
     /// <summary>
+    ///     Validates the selection defaults of Vega-Lite (<c>selection.ts</c> <c>defaultConfig</c>): a point selection over the identity of the rows and an interval over x and y, both resolved
+    ///     globally, with the brush mark of the interval (fill <c>#333</c>, fill opacity 0.125, white stroke), and that the specification's and the caller's <c>config.selection</c> merge over them
+    ///     property by property (the caller's wins).
+    /// </summary>
+    [Fact]
+    public void ConfigResolver_Resolve_CarriesTheSelectionDefaults()
+    {
+        // Arrange
+        var defaults = ConfigResolver.Defaults;
+        var fromSpecification = Resolve("{\"selection\":{\"interval\":{\"mark\":{\"stroke\":\"red\"},\"resolve\":\"union\"}}}");
+        var withCaller = Resolve("{\"selection\":{\"interval\":{\"mark\":{\"stroke\":\"red\"}}}}", "{\"selection\":{\"interval\":{\"mark\":{\"stroke\":\"blue\",\"strokeWidth\":2}}}}");
+
+        // Assert
+        Assert.Equal(["_vgsid_"], defaults.VegaLite["selection"]!["point"]!["fields"]!.Items.Select(i => i.StringValue));
+        Assert.Equal(("global", "global"), (defaults.VegaLite["selection"]!["point"]!["resolve"]!.StringValue, defaults.VegaLite["selection"]!["interval"]!["resolve"]!.StringValue));
+        Assert.Equal(["x", "y"], defaults.VegaLite["selection"]!["interval"]!["encodings"]!.Items.Select(i => i.StringValue));
+        var mark = defaults.VegaLite["selection"]!["interval"]!["mark"]!;
+        Assert.Equal(("#333", 0.125, "white"), (mark["fill"]!.StringValue, mark["fillOpacity"]!.NumberValue, mark["stroke"]!.StringValue));
+
+        // The specification changes one key and keeps the others; the caller changes the stroke over the specification's
+        var changed = fromSpecification.VegaLite["selection"]!["interval"]!;
+        Assert.Equal(("union", "red", "#333"), (changed["resolve"]!.StringValue, changed["mark"]!["stroke"]!.StringValue, changed["mark"]!["fill"]!.StringValue));
+        var caller = withCaller.VegaLite["selection"]!["interval"]!["mark"]!;
+        Assert.Equal(("blue", 2.0, 0.125), (caller["stroke"]!.StringValue, caller["strokeWidth"]!.NumberValue, caller["fillOpacity"]!.NumberValue));
+    }
+
+    /// <summary>
     ///     Validates the view property precedence: <c>style.cell</c>, then <c>view</c>, then the default cell style.
     /// </summary>
     [Fact]

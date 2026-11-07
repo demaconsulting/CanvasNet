@@ -222,7 +222,8 @@ is read from the clock, the environment, or the current culture.
   `EncodingData.Identity` for an identity plan; otherwise runs the stages in **Vega-Lite's order: explicit
   transforms (done by the caller), bin, time unit, Raw, aggregate, impute, stack, Main**:
   1. **Bin** (`BinFields`): for every distinct bin the extent of the finite numeric values of the field (or the
-     `extent` parameter) goes to `BinAlgorithm.Resolve` with the `MaxScaleDomainSize` limit; then one pass
+     `extent` parameter, when it is two numbers; an `extent` that is `{"param": ...}` only sets the span that chooses
+     the step) goes to `BinAlgorithm.Resolve` with the `MaxScaleDomainSize` limit; then one pass
      writes the start, the end, and, for a discrete channel, the range text (the two boundaries formatted and
      joined with an en dash, formatted once per distinct bin, and the text `null` for a row without a valid
      value) with one `TableLayout`.

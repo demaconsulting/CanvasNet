@@ -10,7 +10,10 @@
 # (ScaleResolver.cs, ScaleResolver.Plan.cs, ScaleResolver.Sort.cs, ScaleResolver.Color.cs, and
 # ScaleResolver.Range.cs, and ScaleResolver.Time.cs for the temporal fields), and (Phase 10) the scales of the layers
 # of a layered view - the shared scale with the combined domain, the independent scales of resolve, and the conflicts -
-# in ScaleResolver.Layers.cs, and the nested scales of the xOffset and yOffset channels in ScaleResolver.Offsets.cs. See
+# in ScaleResolver.Layers.cs, the nested scales of the xOffset and yOffset channels in ScaleResolver.Offsets.cs, and
+# (Phase 12, milestone 1) the raw domain of a scale (domainRaw and the domain that a parameter gives) in
+# ScaleResolver.Raw.cs, extended in milestone 2b to the extent that a selection gives (a domain of the form param, a
+# bin extent, bind scales). See
 # docs/verification/canvas-net-vega-lite/scales/scale-resolver.md for the test-evidence mapping.
 
 sections:
@@ -111,6 +114,74 @@ sections:
                   - ScaleResolver_Resolve_DiscreteDomainsFollowTheSortProperty
                   - ScaleResolver_Resolve_ExplicitSortArrayUsesTheFirstIndexOfEachValue
                   - ScaleResolver_Resolve_PiecewiseDomainAndRangeFollowD3
+
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-RawDomains
+                title: >-
+                  The ScaleResolver unit shall take as the domain of a scale, as it is, the array that the scale's
+                  domainRaw holds (which wins) or that the variable parameter named by a scale domain of the form
+                  param holds - of at least two numbers or dates (a date is its milliseconds; more than two entries
+                  make a piecewise domain) for a continuous-to-continuous scale and of at least one scalar for a
+                  band, point, or ordinal scale (each category once, in order, an entry that no row has included) -
+                  without the zero rule, domainMin, domainMax, domainMid, pixel padding, or nice, shall keep the
+                  domain of the data for a parameter without a value and a discretizing scale, shall keep the scale's
+                  own domain and report a vl-scale-domain-raw
+                  warning at the value for a value that no scale can use, shall refuse a raw domain that a log
+                  scale cannot hold with a located render error, and shall mark the scale so that the marks are
+                  clipped whenever its extent is a parameter reference (a domain of the form param, a bin extent of
+                  that form, or a selection bound to the scales), given the values of the parameters of the call
+                  as an optional argument.
+                justification: |
+                  A parameter that gives a domain is how a host zooms a chart; Vega takes the value as the domain and
+                  adjusts nothing, so a chart that adjusted it would differ from the one the author sees in Vega-Lite.
+                tests:
+                  - ScaleResolver_Resolve_AParameterDomainIsTheDomainAsItIs
+                  - ScaleResolver_Resolve_AParameterDomainOfThreeNumbersIsPiecewise
+                  - ScaleResolver_Resolve_AParameterWithoutAValueKeepsTheDomainOfTheData
+                  - ScaleResolver_Resolve_DomainRawWinsOverTheDomainOfAParameter
+                  - ScaleResolver_Resolve_AParameterDomainOfADiscreteScaleIsTheListOfCategories
+                  - ScaleResolver_Resolve_ALogScaleRefusesARawDomainThatCrossesZero
+                  - ScaleResolver_Resolve_ADiscretizingScaleKeepsItsOwnDomain
+                  - CanvasNetVegaLite_SystemIntegration_Params_AnUnusableRawDomainIsReportedAndIgnored
+
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-SelectionExtents
+                title: >-
+                  The ScaleResolver unit shall take the extent of a scale from a selection as Vega-Lite does - for a
+                  scale domain or a bin extent of the form param that names a selection, the selected range (or
+                  values) of the field that the object names, else of the field projected over its encoding, else
+                  of the first projected field (reporting the guess as a vl-param-selection-projection warning when
+                  the selection projects several fields), seen through the selection that the view of the scale sees,
+                  and for an interval selection bound to the scales (resolved globally, over a continuous scale)
+                  the range of the field it projects over the channel, the binding winning over a domain and a
+                  domain over a bin extent - as the raw domain of the scale, shall keep the domain of the data when the
+                  selection holds nothing for the field, and shall mark the scale for clipping in every one of these
+                  cases, also when the selection is bound to the scales of a view that is not the whole view and so
+                  holds nothing.
+                justification: |
+                  A selection that sets a domain or a binding is how a linked view zooms; the scale must take exactly
+                  the range that Vega-Lite's compiled specification holds at its first paint, and a view that is
+                  not the whole view must keep the domain of its data as Vega-Lite does.
+                tests:
+                  - CanvasNetVegaLite_SystemIntegration_BindScales_TheInitialRangeIsTheDomain
+                  - CanvasNetVegaLite_SystemIntegration_BindScales_AreIgnoredInAConcatenation
+                  - CanvasNetVegaLite_SystemIntegration_BindScales_ApplyToTheLayersOfTheWholeView
+                  - CanvasNetVegaLite_SystemIntegration_BindScales_WarnWhenTheScaleIsNotContinuous
+                  - CanvasNetVegaLite_SystemIntegration_Domain_ASelectionGivesTheRangeOfAField
+                  - CanvasNetVegaLite_SystemIntegration_Domain_TheFirstFieldIsUsedWithAWarning
+                  - CanvasNetVegaLite_SystemIntegration_Domain_AnEmptySelectionKeepsTheDomainOfTheData
+                  - CanvasNetVegaLite_SystemIntegration_BinExtent_TheSpanOfASelectionChoosesTheStep
+                  - CanvasNetVegaLite_SystemIntegration_BinExtent_AnEmptySelectionLeavesTheBinsOfTheData
+
+              - id: CanvasNetVegaLite-Scales-ScaleResolver-RawDomainLayers
+                title: >-
+                  The ScaleResolver unit shall, when a layer that shares a channel has a raw domain, make that
+                  domain the domain of the shared scale whatever the other layers hold, without adjusting the shared
+                  scale afterwards, and shall clip the marks of the layers when any member's domain comes from a
+                  parameter.
+                justification: |
+                  Vega merges the extents of the layers and sets the raw domain on the shared scale, so a layer that
+                  is zoomed by a parameter zooms the whole chart.
+                tests:
+                  - CanvasNetVegaLite_SystemIntegration_Params_ALayerThatTakesItsDomainFromAParameterSetsTheSharedScale
 
               - id: CanvasNetVegaLite-Scales-ScaleResolver-SortByField
                 title: >-

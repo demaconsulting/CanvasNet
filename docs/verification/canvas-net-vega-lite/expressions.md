@@ -72,11 +72,11 @@ runs constitutes a failure.
   object rebuilt on demand and an escaped dot), and what is not supported (unknown functions, view state, deferred
   operators) is null at evaluation while the parser still lists it.
 - **Parse, Evaluate, And Call: The Function Table Behind The Evaluator**:
-  `ExpressionFunctionsTests.ExpressionFunctions_Names_AreTheOneHundredWhitelistedFunctions`,
+  `ExpressionFunctionsTests.ExpressionFunctions_Names_AreTheWhitelistedFunctions`,
   `ExpressionFunctionsTests.ExpressionFunctions_Math_ExactValuesAndSpecialCases`,
   `ExpressionFunctionsTests.ExpressionFunctions_Text_FollowJavaScriptAndVega`,
   `ExpressionFunctionsNumberTests.ExpressionFunctionsNumber_Format_MatchesD3`,
-  `ExpressionEvaluatorTests.ExpressionEvaluator_Evaluate_SizeProportionalWork_IsCharged` — the calls of the 100 names
+  `ExpressionEvaluatorTests.ExpressionEvaluator_Evaluate_SizeProportionalWork_IsCharged` — the calls of the 104 names
   compile like any other call, run through the evaluator, and give the hand-derived values, while a call of any other
   name is an unsupported function, and the work of a function over a long text is charged to the same budget as the
   instructions (the instructions plus one step per 64 characters).

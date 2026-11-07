@@ -216,6 +216,7 @@ internal sealed class LayerNode
         Depth = depth;
         Resolve = LayerResolve.Default;
         Repeater = parent?.Repeater;
+        Template = this;
     }
 
     /// <summary>Gets the view object of the specification this node stands for.</summary>
@@ -337,6 +338,12 @@ internal sealed class LayerNode
     ///     is not part of an instantiated facet.
     /// </summary>
     public FacetCellInfo? Cell { get; private set; }
+
+    /// <summary>
+    ///     Gets the node of the template that this view is a copy of (a node of a cell of an instantiated facet); the node itself for a view that is not a copy. The selections of a
+    ///     specification are declared for the units of the template, so the copies of a cell find them through it.
+    /// </summary>
+    public LayerNode Template { get; private set; }
 
     /// <summary>
     ///     Gets a value indicating whether a facet has been instantiated: its single template child was replaced by one copy for each cell (see <see cref="LayerTree.InstantiateFacet"/>).
@@ -495,6 +502,7 @@ internal sealed class LayerNode
             Cell = cell,
             HasCells = original.HasCells,
         };
+        copy.Template = original.Template;
         if (original.ChartRoot is { } chart)
         {
             // The chart is the node itself or a node above it inside the template, which was copied first

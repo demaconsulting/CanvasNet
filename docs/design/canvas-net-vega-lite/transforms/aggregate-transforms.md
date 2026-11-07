@@ -111,11 +111,13 @@ Vega-Lite). The same engine serves the `impute` property of an encoding and the 
 area (see _EncodingPlan_); it does not know where its parameters come from.
 
 **Bin.** `BinSettings` holds the parameters (`maxbins` 20 when the algorithm is used raw, `base` 10, `divide`
-`[5, 2]`, `step`, `steps`, `minstep`, `nice` true, `anchor`, `extent`; the `bin` transform and the position
+`[5, 2]`, `step`, `steps`, `minstep`, `nice` true, `anchor`, `extent`, `span`; the `bin` transform and the position
 channels ask for 10 bins). `BinSpec(Start, Stop, Step)` is the result. The `bin` transform writes the lower and
 the upper boundary of the bin of every row to the two names of `as` (a name gives `name` and `name_end`; none
 gives `bin0` and `bin1`); a row whose value is null or not a finite number gets null in both, and values outside
-an explicit `extent` fall in the bins at minus and plus infinity.
+an explicit `extent` fall in the bins at minus and plus infinity. An `extent` of the form `{"param": ...}` is not a
+range of the bins: it sets `span` (Vega-Lite's `span(N["field"])` of the `bin` transform; `TransformContext.BinSpanOf`),
+which only chooses the step, while the bins still start and stop at the extent of the data.
 
 **Stack rules.** `StackRules.Decide(markType, orient, encoding)` returns the `StackDecision` (stacked channel,
 offset, stack-by definitions) or null. A mark is stackable when it is `arc`, `area`, `bar`, `rule`, `point`,
@@ -196,7 +198,8 @@ clock, the environment, a random source, or the current culture.
   remainder of the rows is reserved; `MaxFieldCount` and the cell count are checked; the table is allocated; the
   nulls are replaced for the window methods; the input rows are released (unless `releaseInput` is false).
 - `BinAlgorithm.Compute(min, max, settings, maxBinsLimit, location)` - the port of Vega's `bin`. The span is
-  `max - min` (the magnitude of a single value, 1 for zero); the start step is
+  `settings.Span` when it is given and is neither zero nor NaN (JavaScript's `||`), else `max - min` (the magnitude of a
+  single value, 1 for zero); the start step is
   `max(minstep, base^(round(log_base(span)) - ceil(log_base(maxbins))))`, multiplied by the base while
   `ceil(span / step) > maxbins`, then divided by each divisor where `span / (step / divisor) <= maxbins` and the
   step stays at or above `minstep`; `steps` picks the largest listed step smaller than `span / maxbins` (the

@@ -1,0 +1,120 @@
+---
+# Software Unit Requirements for ExpressionReferenceFolder
+#
+# These requirements describe the design-level behavior of the ExpressionReferenceFolder unit of the SpecModel
+# subsystem (internal namespace DemaConsulting.CanvasNet.VegaLite.SpecModel): the evaluation, once per call and with
+# the parameters at their initial state, of the {"expr": ...} references (Vega-Lite's ExprRef) at the static sites of
+# a specification (the sites that no row reads), and the rewrite of the specification tree so that every later stage
+# reads the value where it read the reference. The unit comprises ExpressionReferenceFolder.cs (the fold) and
+# ExpressionReferenceSites.cs (the table of the sites that Vega-Lite's schema allows an expression reference at, and
+# the walk that finds them). The list of references is compiled by the SpecParser unit, which holds the
+# StaticReference records. See docs/verification/canvas-net-vega-lite/spec-model/expression-reference-folder.md for
+# the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: SpecModel Requirements
+        sections:
+          - title: ExpressionReferenceFolder Requirements
+            requirements:
+              - id: CanvasNetVegaLite-SpecModel-ExpressionReferenceFolder-Sites
+                title: >-
+                  The ExpressionReferenceFolder unit shall evaluate an expression reference at every property
+                  that Vega-Lite's schema allows one at in the title, the padding and background of the
+                  top-level view, the mark definition (including the overlays of a path mark and the parts of a
+                  composite mark), the axis, the legend, the header, the scale (as a whole and, for the domain
+                  and the range, for each entry), the background of the view, the scale configuration, the value
+                  and datum of a channel definition, and the same properties in the configuration of the
+                  top-level view, in nested views as well, and shall not evaluate an object of the data, the
+                  datasets, the transforms, or the parameters, nor a reference at a property that the schema
+                  does not allow one at.
+                justification: |
+                  A chart whose title, colors, sizes, or domains are driven by a parameter must show the value of
+                  the parameter's initial state; the sites must be exactly those of the Vega-Lite schema,
+                  because an inline data row can hold an object with an expr key and a predicate has its own
+                  rules.
+                tests:
+                  - ExpressionReferenceFolder_Fold_ReplacesAReferenceByItsValue
+                  - ExpressionReferenceFolder_Fold_EverySiteOfTheTableFolds
+                  - ExpressionReferenceFolder_Fold_NestedViewsFoldTheirOwnSites
+                  - ExpressionReferenceFolder_Fold_FoldsTheConfiguration
+                  - ExpressionReferenceSites_Find_DoesNotEnterDataTransformsAndParameters
+                  - ExpressionReferenceSites_Find_ReadsTheConfiguration
+                  - ExpressionReferenceSites_Find_AConditionHasNoStaticValue
+                  - ExpressionReferenceSites_PropertiesOf_MatchesTheSchemaCounts
+
+              - id: CanvasNetVegaLite-SpecModel-ExpressionReferenceFolder-FoldsOnce
+                title: >-
+                  The ExpressionReferenceFolder unit shall replace each static expression reference by the value
+                  its expression gives once, with the parameters at their initial state (the expression of a
+                  parameter before its value, a value of the caller replacing the whole definition of the
+                  parameter), shall give a number, a string, a boolean, null, an array, or an object its own
+                  form, shall give a number that is not finite the value null, and shall give the text of a
+                  number or a boolean the JavaScript text where a title or a mark reads a text.
+                justification: |
+                  Vega-Lite compiles an expression reference to a signal, so in a chart that never changes its
+                  value is the expression evaluated at the initial state of the parameters; the caller's value
+                  must win, and a value must take the form its property can read.
+                tests:
+                  - ExpressionReferenceFolder_Fold_ReplacesAReferenceByItsValue
+                  - ExpressionReferenceFolder_Fold_ReadsTheValuesOfTheCaller
+                  - ExpressionReferenceFolder_Fold_FoldsEveryKindOfValue
+                  - ExpressionReferenceFolder_Fold_TheTextOfATitleIsText
+
+              - id: CanvasNetVegaLite-SpecModel-ExpressionReferenceFolder-DatumAndDates
+                title: >-
+                  The ExpressionReferenceFolder unit shall leave a reference that reads datum in place (a static
+                  site has no row), shall replace a date by its number of milliseconds only in a scale domain,
+                  and shall leave a reference whose value no property can hold (a date elsewhere, a regular
+                  expression) in place and deliver a vl-expr-ref warning located at it.
+                justification: |
+                  A static site is evaluated without a row, and only the domain of a time scale is built from
+                  numbers in Vega; a value that cannot stand where the reference is must be reported rather than
+                  invented.
+                tests:
+                  - ExpressionReferenceFolder_Fold_AReferenceThatReadsTheDatumStaysInPlace
+                  - ExpressionReferenceFolder_Fold_ADateIsFoldedOnlyInADomain
+                  - ExpressionReferenceFolder_Fold_AValueWithNoFormStaysAReference
+
+              - id: CanvasNetVegaLite-SpecModel-ExpressionReferenceFolder-RowBoundSites
+                title: >-
+                  The ExpressionReferenceFolder unit shall leave the sites that the marks evaluate for every row
+                  (the color, fill, stroke, opacity, and stroke width of a mark, its size where the mark reads
+                  it for every row, and the value of a color, fill, stroke, opacity, or size channel and of a
+                  condition) with their reference, so that the
+                  row-bound expressions keep their meaning.
+                justification: |
+                  A mark property that reads datum is a per-row expression; folding it once would change what
+                  the chart shows.
+                tests:
+                  - ExpressionReferenceFolder_Fold_LeavesTheRowBoundSitesToTheMarks
+                  - ExpressionReferenceSites_Find_ThePaintPropertiesOfAMarkAreRowBound
+                  - ExpressionReferenceSites_Find_AConditionHasNoStaticValue
+
+              - id: CanvasNetVegaLite-SpecModel-ExpressionReferenceFolder-Identity
+                title: >-
+                  The ExpressionReferenceFolder unit shall return the tree it was given when the specification
+                  holds nothing to fold, shall otherwise copy only the nodes on the way from the root to a
+                  folded reference so that every other subtree keeps its identity, and shall locate a folded
+                  value at the reference it replaces.
+                justification: |
+                  The compiled expressions and the parameter indexes are keyed by node, so untouched subtrees
+                  must stay the same nodes, and a later diagnostic about a folded value must point at the
+                  expression the author wrote.
+                tests:
+                  - ExpressionReferenceFolder_Fold_WithoutReferences_ReturnsTheSameTree
+                  - ExpressionReferenceFolder_Fold_KeepsUntouchedSubtreesAndLocatesTheValues
+
+              - id: CanvasNetVegaLite-SpecModel-ExpressionReferenceFolder-Limits
+                title: >-
+                  The ExpressionReferenceFolder unit shall charge the evaluation of every reference to the step
+                  budget of the call and shall report an expression that exceeds the budget, and a value
+                  holding a text longer than the string limit, as a VegaLiteRenderException located at the
+                  reference.
+                justification: |
+                  An expression of a specification is untrusted input, so its work and its result must be
+                  bounded, and the failure must point at the offending reference.
+                tests:
+                  - ExpressionReferenceFolder_Fold_TheStepBudgetIsEnforcedAtTheReference
+                  - ExpressionReferenceFolder_Fold_ALongTextIsALocatedError

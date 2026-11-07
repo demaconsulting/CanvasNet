@@ -3,7 +3,7 @@
 ![Expressions Structure](VegaLiteExpressionsView.svg)
 
 The `ExpressionFunctions` unit is the third software unit in the `Expressions` subsystem. It
-comprises eight source files in
+comprises twelve source files in
 the `DemaConsulting.CanvasNet.VegaLite.Expressions` namespace, all `internal`:
 
 - `ExpressionFunctions.cs` - `ExpressionFunctions` (static partial class): the frozen function table, `Names`, `TryGet`,
@@ -13,8 +13,12 @@ the `DemaConsulting.CanvasNet.VegaLite.Expressions` namespace, all `internal`:
 - `ExpressionFunctions.Regex.cs` - `regexp`, `test`, and the regular expression forms of `replace` and `split`
 - `ExpressionFunctions.Time.cs` - the date and time functions (`AddTime`)
 - `ExpressionFunctions.Number.cs` - the number formatting function `format` (`AddNumber`)
+- `ExpressionFunctions.Selection.cs` - the selection functions `data`, `vlSelectionTest`, `vlSelectionIdTest`, and
+  `vlSelectionResolve` (`AddSelection`)
+- `SelectionStore.cs` - `SelectionTupleField`, `SelectionEntry`, and `SelectionStore`: the tuples of a selection
+- `SelectionTestSemantics.cs` - `SelectionTestSemantics`: the test and the resolution of a selection
 - `ExpressionFunctionContext.cs` - the `ExpressionFunction` delegate and `ExpressionFunctionContext`, the per-evaluation
-  state
+  state (with the selection stores of the call)
 - `ExpressionRegex.cs` - `ExpressionRegex`, the translation of a JavaScript regular expression into a safe .NET one
 
 #### Purpose
@@ -41,7 +45,7 @@ The unit's behavior is specified by the `CanvasNetVegaLite-Expressions-Expressio
 `(ReadOnlySpan<DataValue> arguments, ExpressionFunctionContext context) -> DataValue`; an
 argument that is not supplied is simply missing (JavaScript's `undefined`: NaN as a number, the
 text `undefined` as text), and
-an optional argument that is null counts as not supplied. The 100 functions are:
+an optional argument that is null counts as not supplied. The 104 functions are:
 
 - **Math (27)**: `abs`, `acos`, `acosh`, `asin`, `asinh`, `atan`, `atan2`, `atanh`, `ceil`, `clamp`, `cos`, `cosh`, `exp`,
   `floor`, `log`, `log10`, `max`, `min`, `pow`, `round`, `sign`, `sin`, `sinh`, `sqrt`, `tan`,
@@ -64,6 +68,8 @@ an optional argument that is null counts as not supplied. The 100 functions are:
   rejects null and NaN, and the four conversions give null for null and for the empty text. `toDate` reads its argument
   as an instant (see below) and gives a date, or null when the argument is not a valid instant.
 - **Regular expressions (2 more names, plus the forms of `replace` and `split`)**: `regexp` and `test`.
+- **Selection (4)**: `data`, `vlSelectionTest`, `vlSelectionIdTest`, and `vlSelectionResolve`, the functions of Vega that
+  Vega-Lite's compiled selections call (see _Selection Functions_ below).
 - **Date and time (41)**: the constructors `datetime`, `utc`, and `time`, and `timezoneoffset`; the getters `date`, `day`,
   `year`, `month`, `hours`, `minutes`, `seconds`, `milliseconds`, `quarter`, `week`, `isoweek`, and `dayofyear`, each with
   its UTC form (`utcdate`, `utcday`, ..., `utcdayofyear`; 24 names, registered from one list); `timeOffset`,
@@ -175,14 +181,36 @@ engine rejects (look-around, back-references, atomic groups) falls back to the b
 millisecond timeout that fails closed**. Known deviations: the numbering of mixed named and unnamed groups follows .NET,
 and `.` and `\s` follow the .NET classes.
 
+**Selection Functions.** `data(name)` returns the tuples of the selection store `name` of the call (the stores that
+`ExpressionFunctionContext.SelectionStores` holds, as an array of objects) and an empty array for every other name,
+because no other data set can be read from an expression; the three selection functions treat a name that is not a store
+as an empty store. A `SelectionStore` has a `Name` and `Entries`; a `SelectionEntry` is a tuple of a unit name,
+fields (`SelectionTupleField`: the field, its channel, and its type `E`, `R`, or `R-RE`) and values, or, for a
+selection over the identity of the rows, a unit and an id. `SelectionTestSemantics` is a port of `selectionTest`,
+`selectionIdTest`, and `selectionResolve` of `vega-selections` 5: `Test` tests a datum against the entries of a store by
+unit (an `E` field matches with strict equality or membership in an array by the SameValueZero rule; an `R` field is
+inclusive at both ends with swapped bounds accepted; an `R-RE` field includes the start and excludes the end; a datum
+without the field never matches; the datum is read by the field path, with the nested paths and the escaped dots of
+Vega's `field`), with the `intersect` operation requiring a match in every unit and `union` in at least one; `IdTest`
+tests the `_vgsid_` of the datum (the row identity) the same way, counting the tuples that hold the row against the number
+of units as `selectionIdTest` does (`bisectRight(entries, value) - index < unitIdx.size`; `Test` counts the units that a
+datum misses, so duplicate tuples of one unit never satisfy another unit) (a store whose tuples are projected over fields
+is tested
+as `Test` does: the predicate names the function from the projection the specification can see, and the host's
+configuration or values can replace it; Vega-Lite never compiles that mismatch); `Resolve` returns the value of the
+store as Vega-Lite's
+`vlSelectionResolve` does (per unit tuples united or intersected: values are merged per field, ranges are united as the
+extent or intersected, and for a point selection `vlPoint` is added with the `or`/`and` flag; an empty store gives the
+number 0 as in Vega). The functions charge the step budget by the work they do.
+
 #### Key Methods
 
-- `Names()` - the 100 names in ordinal order; `TryGet(name, out function)` - a case-sensitive lookup used by the
+- `Names()` - the 104 names in ordinal order; `TryGet(name, out function)` - a case-sensitive lookup used by the
   parser to
   decide whether a call is supported; `Invoke(name, arguments, context)` - calls a function (a name that is not in the table
   is an `ArgumentException`, a programming error because the parser never compiles such a call).
 - Each family registers its functions in one method (`AddMath`, `AddText`, `AddTypes`,
-  `AddRegex`, `AddTime`, `AddNumber`); `BuildTable` freezes the
+  `AddRegex`, `AddTime`, `AddNumber`, `AddSelection`); `BuildTable` freezes the
   result. The helpers convert arguments the JavaScript way (`Num`, `Text`, an integer-or-infinity conversion, a position
   clamp, and a position that counts from the end) and check results against `MaxStringLength` before a string is built.
 - `Instant`, `Components`, `OffsetDate`, `Sequence`, `FormatTime`, and `ParseTime` (private, in the time file) - the

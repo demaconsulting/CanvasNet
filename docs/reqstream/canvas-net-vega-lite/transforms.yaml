@@ -11,8 +11,9 @@
 # and runs them after the transforms; and the
 # TimeUnitTransform unit that adds the start and end fields of a time unit (the timeUnit transform and the time
 # unit of an encoding) and collects the fields that are implicitly parsed as dates. Statistical transforms are
-# deferred to later phases and are reported by the FeatureCatalog; selection
-# parameters and conditions on a parameter stay deferred. Each requirement
+# deferred to later phases and are reported by the FeatureCatalog; the initial state of the selection parameters (the
+# SelectionModel unit) is built before the parameters, and the conditions and filters on a parameter are evaluated.
+# Each requirement
 # here links down to the unit requirements that implement it. See docs/verification/canvas-net-vega-lite/transforms.md
 # for the test-evidence mapping.
 
@@ -108,18 +109,44 @@ sections:
           - id: CanvasNetVegaLite-Transforms-Parameters
             title: >-
               The Transforms subsystem shall build the environment of static variable parameters of the call
-              from their values and expressions, evaluating them once in dependency order, letting the caller's
-              render parameters replace a definition, and reading a parameter in an expression or in a filter
-              predicate.
+              from their values and expressions, evaluating them once in dependency order and before the
+              expression references and the data of the call read them, letting the caller's
+              render parameters (a scalar, an array, or an object) replace a definition, and reading a parameter
+              in an expression or in a filter predicate.
             justification: |
               Static parameters let a host change a chart without editing its text, and they must have one
-              defined value per call.
+              defined value per call that every stage reads.
             children:
               - CanvasNetVegaLite-Transforms-RowTransforms-Parameters
             tests:
               - RowTransforms_Apply_ParametersAreEvaluatedInDependencyOrderAndOverridden
               - RowTransforms_Apply_FilterOnAParameterReadsItsTruthiness
               - CanvasNetVegaLite_SystemIntegration_Parameters_DefaultsOverridesAndFilterParam
+              - CanvasNetVegaLite_SystemIntegration_Params_TheCallerOverridesTheDomainOfAParameter
+
+          - id: CanvasNetVegaLite-Transforms-Selections
+            title: >-
+              The Transforms subsystem shall build, once per call and before the parameters are evaluated, the
+              initial state of the selections of the specification - the declaration of each selection for the
+              unit views it applies to, its projection over fields and encodings, the tuples of its value (or of
+              the value that the caller gave), its store, and its resolved value - so that the predicates of the
+              conditions and filters, and the expressions that read the selection, see what Vega-Lite's compiled
+              specification holds at its first paint.
+            justification: |
+              A selection is the state of a chart that a viewer would change; a static chart shows it as it is
+              before any event, and every stage must read one and the same state.
+            children:
+              - CanvasNetVegaLite-Transforms-SelectionModel-Declaration
+              - CanvasNetVegaLite-Transforms-SelectionModel-Projection
+              - CanvasNetVegaLite-Transforms-SelectionModel-InitialValue
+              - CanvasNetVegaLite-Transforms-SelectionModel-Stores
+              - CanvasNetVegaLite-Transforms-SelectionModel-Queries
+              - CanvasNetVegaLite-Transforms-SelectionModel-TimeUnits
+            tests:
+              - SelectionModel_Create_DefaultProjectionOfEachType
+              - SelectionModel_Create_StoresAndResolvedValues
+              - SelectionModel_Create_CallerValueReplacesTheValueOfTheSpecification
+              - CanvasNetVegaLite_SystemIntegration_Selection_IntervalIncludesBothEnds
 
           - id: CanvasNetVegaLite-Transforms-Aggregation
             title: >-
@@ -166,7 +193,8 @@ sections:
             title: >-
               The Transforms subsystem shall bin a quantitative field with the bin transform and with the bin
               of a position channel, choosing the bins of the extent with the Vega bin algorithm (maximum
-              number of bins, step, extent, nice, base, divide, steps, minimum step, and anchor) and adding
+              number of bins, step, extent, nice, base, divide, steps, minimum step, and anchor, and the span of
+              an extent that is a parameter reference) and adding
               the start and end of the bin of every row, so that a histogram counts the rows of each bin.
             justification: |
               Histograms and heat maps depend on the bin boundaries, which must be those of Vega-Lite for the

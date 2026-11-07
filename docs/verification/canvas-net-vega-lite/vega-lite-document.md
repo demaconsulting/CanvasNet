@@ -140,12 +140,20 @@ valid JSON throws `ArgumentException` naming `Config`.
 #### Render Options: Parameters And Datasets Are Copied And Validated
 
 **Tests**: `VegaLiteRenderOptionsTests.VegaLiteRenderOptions_Parameters_AreCopiedAndValidated`,
+`VegaLiteRenderOptionsTests.VegaLiteRenderOptions_Parameters_AcceptStructuredValuesAndCopyThem`,
+`VegaLiteRenderOptionsTests.VegaLiteRenderOptions_Parameters_RejectUnboundedOrUnsupportedStructuredValues`,
 `VegaLiteRenderOptionsTests.VegaLiteRenderOptions_Datasets_AreDeepCopiedAndValidated`
 
 Asserts that parameter overrides are copied from the caller's dictionary (later changes have no effect), exposed
 read-only, and checked for blank names, unsupported value kinds (the message names the parameter), and non-finite
-numbers, and that datasets are deep-copied (rows and lists), exposed read-only, and rejected for blank names, null
-tables, and null rows.
+numbers; that a parameter accepts a structured value (an array, a list that holds a dictionary, a dictionary that holds
+an array, with mixed members of a number, a text, null, and a boolean), which is deep-copied into read-only
+collections when the options are created (a later change of the caller's list, member, or dictionary does not reach the
+options, and the copy is not the caller's `List`); that a structured value is bounded: a value nested 40 levels deep, a
+list that contains itself, a value of 65,537 items, a member of an unsupported type, a non-finite number inside, and a
+dictionary member of an unsupported type are `ArgumentException` errors naming `Parameters`, while a value of 65,535
+items (65,536 values with the container) is accepted; and that datasets are deep-copied (rows and lists), exposed
+read-only, and rejected for blank names, null tables, and null rows.
 
 #### Limits: Documented Defaults, Minimums, And Ceilings
 
@@ -319,17 +327,27 @@ _Open Options_, _Render Options: Parameters And Datasets Are Copied And Validate
 `VegaLiteChartIntegrationTests.CanvasNetVegaLite_SystemIntegration_Diagnostics_ExpressionReportsAndStrictMode`,
 `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Aggregation_LimitsAndCancellationApply`,
 `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Aggregation_MeasureMatchesRenderAndRendersAreByteIdentical`,
-`VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Aggregation_OnlyTheUnsupportedPartIsReported`
+`VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Aggregation_OnlyTheUnsupportedPartIsReported`,
+`VegaLiteParamsIntegrationTests.CanvasNetVegaLite_SystemIntegration_Params_ExpressionReferencesDriveTitleBackgroundAndPadding`,
+`VegaLiteParamsIntegrationTests.CanvasNetVegaLite_SystemIntegration_Params_FoldingIsDeterministicAndLeavesTheDocumentAlone`,
+`VegaLiteParamsIntegrationTests.CanvasNetVegaLite_SystemIntegration_Params_TheCallerGivesTheDomainOfATimeScaleAsDates`
 
 The unit creates one data loader, one expression evaluator with one step budget, and one parameter environment per call,
-and runs the stages in the order data, parameters, transforms, the implicit encoding stage (the bins, the aggregate, and
+and, since Phase 12, runs the stages in the order parameters, the fold of the expression references of the static sites,
+configuration, data, transforms, the implicit encoding stage (the bins, the aggregate, and
 the stack that the encoding asks for, which yields the Raw and the Main table), scales, marks, so the scenarios are
 asserted through the
 public API (the units behind the stages are verified under their own designs). Asserts that the values of the static
 parameters are the defaults of the specification overridden by `VegaLiteRenderOptions.Parameters` (a value replaces a
-whole definition, so an overridden expression is not evaluated, and the name of a selection parameter is accepted and
-ignored), that the transforms see them, that a name the document does not declare is an `ArgumentException` when it is
-used, and that `ParameterNames` lists the declared names in declaration order; that the expression and transform errors
+whole definition, so an overridden expression is not evaluated, and the value of a selection parameter replaces its
+initial value), that the transforms see them, that a name the document does not declare is an `ArgumentException` when
+it is
+used, and that `ParameterNames` lists the declared names in declaration order; that an expression reference of the title,
+the background, and the padding takes the value of its parameter, with the caller's value when there is one, and that a
+caller who gives the domain of a time scale as two dates (2020-01-01 and 2020-01-03) gets 2020-01-02 at 150 pixels and
+2020-01-03 at 300 of 300; that the references are folded again for every call, with the values of that call, and that a
+call changes nothing in the document and nothing depends on the degree of parallelism (alternating calls with two
+values of the parameter draw the one title or the other on every call); that the expression and transform errors
 of the specification (a syntax error, a length or nesting over `MaxExpressionLength` or `MaxExpressionDepth`, an
 unknown parameter, a parameter cycle, a repeated name, a wrong transform shape) are located `VegaLiteSpecException`
 errors that fail when the document is opened, before any render or event, while the failures that depend on data
@@ -750,3 +768,17 @@ three bands with the nested paddings 0.2, the step 300 / 3.2 = 93.75) has six ba
 150,
 206.25, and 243.75 and nothing reported, and the three boxes of a boxplot with an offset
 channel sit side by side with equal widths.
+
+#### Selections: The Model Is Bound To The Drawn Units And Reaches The Data Stage, The Scales, And The Marks
+
+**Tests**: `VegaLiteBrushIntegrationTests.CanvasNetVegaLite_SystemIntegration_Brush_AGlobalSelectionIsDrawnByItsFirstUnitOnly`,
+`VegaLiteBrushIntegrationTests.CanvasNetVegaLite_SystemIntegration_Brush_NoCellOfAFacetDrawsAGlobalSelection`,
+`VegaLiteSelectionExtentIntegrationTests.CanvasNetVegaLite_SystemIntegration_BindScales_AreIgnoredInAConcatenation`,
+`VegaLiteSelectionTimeUnitIntegrationTests.CanvasNetVegaLite_SystemIntegration_TimeUnitSelection_AConditionAddsTheTimeUnitToItsView`
+
+The selection model is built from the specification as written and bound to the units of the folded, expanded tree.
+Asserts that the unit that owns a global selection (the first unit of a concatenation) is the only one that draws its
+brush, that the cells of a facet (copies of one template) never draw it, that a binding to the scales in a concatenation
+leaves the domain of the data while the marks are clipped, and that the data stage of a unit derives the time unit
+that a
+condition of its encoding reads.

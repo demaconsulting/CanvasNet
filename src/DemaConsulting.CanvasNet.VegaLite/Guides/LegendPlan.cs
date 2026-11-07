@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Text;
 using DemaConsulting.CanvasNet.VegaLite.Scales;
 using DemaConsulting.CanvasNet.VegaLite.SpecModel;
+using DemaConsulting.CanvasNet.VegaLite.Transforms;
 
 namespace DemaConsulting.CanvasNet.VegaLite.Guides;
 
@@ -491,6 +492,9 @@ internal sealed class LegendSpec
     /// </summary>
     public LayerNode? Owner { get; init; }
 
+    /// <summary>Gets the dimming of the entries that a selection bound to the legend does not hold, or null when no selection is bound to it.</summary>
+    public LegendDimming? Dimming { get; init; }
+
     /// <summary>Gets the canonical member.</summary>
     public LegendMember Canonical => Members[0];
 
@@ -567,7 +571,7 @@ internal sealed record LegendLayer(SpecNode View, ResolvedScales Scales, Func<st
 ///         merge with the explicit one first and the first channel winning; the titles of the channels merge as <see cref="GuideTitle"/> says (a written title wins over a derived one, the others join as <c>a, b</c>).
 ///     </para>
 ///     <para>
-///         <b>Layers.</b> The legends of a layered view are planned over all its layers (<see cref="Create(IReadOnlyList{LegendLayer}, ResolvedConfig, string?, LayerNode?)"/>): the layers that share the legend of
+///         <b>Layers.</b> The legends of a layered view are planned over all its layers (<see cref="Create(IReadOnlyList{LegendLayer}, ResolvedConfig, string?, LayerNode?, SelectionModel?)"/>): the layers that share the legend of
 ///         a channel contribute one member, the other rules are the same.
 ///     </para>
 ///     <para>
@@ -625,9 +629,13 @@ internal static class LegendPlan
     ///     The view whose legends to plan, or null for all of them: only the channels of the layers whose <see cref="LegendLayer.OwnerOf"/> is this view are planned, so a leaf that has
     ///     channels of different owners is planned once for each owner (see <see cref="Owners"/>), and the layers of different owners never share a legend.
     /// </param>
+    /// <param name="selections">
+    ///     The selections of the specification bound to the layer tree, or null: a legend that a selection is bound to (<c>"bind": "legend"</c>) dims the entries the selection does not hold
+    ///     (<see cref="LegendDimming"/>); the first layer of the legend decides.
+    /// </param>
     /// <returns>The legends in the order of their first channel; empty when no channel has a legend.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when an argument other than <paramref name="sourceName"/> or <paramref name="owner"/> is null.</exception>
-    public static IReadOnlyList<LegendSpec> Create(IReadOnlyList<LegendLayer> layers, ResolvedConfig config, string? sourceName, LayerNode? owner = null)
+    /// <exception cref="ArgumentNullException">Thrown when an argument other than <paramref name="sourceName"/>, <paramref name="owner"/> or <paramref name="selections"/> is null.</exception>
+    public static IReadOnlyList<LegendSpec> Create(IReadOnlyList<LegendLayer> layers, ResolvedConfig config, string? sourceName, LayerNode? owner = null, SelectionModel? selections = null)
     {
         ArgumentNullException.ThrowIfNull(layers);
         ArgumentNullException.ThrowIfNull(config);
@@ -665,7 +673,7 @@ internal static class LegendPlan
                 facts[layer] = mark;
             }
 
-            result.Add(Build(members, mark, config, sourceName, layers[layer].OwnerOf(members[0].Channel)));
+            result.Add(Build(members, mark, config, sourceName, layers[layer].OwnerOf(members[0].Channel), LegendDimming.Create(selections, layers[layer].Node, members, config)));
         }
 
         return result;
@@ -675,7 +683,7 @@ internal static class LegendPlan
     ///     Gets the views that own at least one legend of the layers, in the order the legends are planned: the channel order, then the layer order.
     /// </summary>
     /// <remarks>
-    ///     A channel counts when a layer has a legend for it (the rules of <see cref="Create(IReadOnlyList{LegendLayer}, ResolvedConfig, string?, LayerNode?)"/>: a field or datum with a
+    ///     A channel counts when a layer has a legend for it (the rules of <see cref="Create(IReadOnlyList{LegendLayer}, ResolvedConfig, string?, LayerNode?, SelectionModel?)"/>: a field or datum with a
     ///     scale and no <c>legend: null</c>), whatever <c>config.legend.disable</c> says. The caller plans each owner once with <c>owner</c> set to it.
     /// </remarks>
     /// <param name="layers">The layers in order.</param>
@@ -956,8 +964,9 @@ internal static class LegendPlan
     /// <param name="config">The configuration.</param>
     /// <param name="sourceName">The source name.</param>
     /// <param name="owner">The view that owns the legend, or null.</param>
+    /// <param name="dimming">The dimming of the entries, or null.</param>
     /// <returns>The legend.</returns>
-    private static LegendSpec Build(List<LegendMember> members, LegendMarkFacts mark, ResolvedConfig config, string? sourceName, LayerNode? owner)
+    private static LegendSpec Build(List<LegendMember> members, LegendMarkFacts mark, ResolvedConfig config, string? sourceName, LayerNode? owner, LegendDimming? dimming)
     {
         var settings = new LegendSettings(config, [.. members.SelectMany(m => m.LegendObjects)]);
         var kind = ResolveKind(members, settings);
@@ -976,6 +985,7 @@ internal static class LegendPlan
             Mark = mark,
             Location = members[0].Definition.GetLocation(sourceName),
             Owner = owner,
+            Dimming = dimming,
         };
     }
 

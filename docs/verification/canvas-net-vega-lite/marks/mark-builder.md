@@ -310,7 +310,8 @@ constitutes a failure.
 Asserts the derived vertical, horizontal, negative, and non-zero-domain bars (starting at the stack start 0 and not
 clipped for an explicit domain, and running to the first domain value for `stack: null`), the continuous
 bars, the absent channels, the explicit size and corner radius (`size: 20`, `cornerRadius: 3`), the `rect` cells, and
-the clip rule.
+the clip rule (only `clip: true` clips a mark whose scales have no parameter domain; the clipping of the marks of a
+chart whose x or y domain is a parameter is the system scenario `CanvasNetVegaLite_SystemIntegration_Params_DomainOfAParameterIsRawAndClipsTheMarks`).
 
 ##### Point, Circle, Square, Rule, And Tick Geometry
 
@@ -504,7 +505,7 @@ budget of four fails naming `MaxSceneItems` and a canceled token stops the build
 `MarkBuilderConditionTests.MarkBuilder_Build_ShapeAndDashConditionsApplyPerRow`,
 `MarkBuilderConditionTests.MarkBuilder_Build_PredicateObjectTestsAreEvaluated`,
 `MarkBuilderConditionTests.MarkBuilder_Build_TestReadsVariableParametersAndMissingFieldsDoNotHold`,
-`MarkBuilderConditionTests.MarkBuilder_Build_ParameterConditionIsNotApplied`,
+`MarkBuilderConditionTests.MarkBuilder_Build_ParameterConditionOnAnEmptySelectionFollowsTheEmptyRule`,
 `MarkBuilderConditionTests.MarkBuilder_Build_ConditionsApplyToBarsTicksAndRules`,
 `MarkBuilderConditionTests.MarkBuilder_Build_SizeConditionGivesTheThicknessOfABar`,
 `MarkBuilderConditionTests.MarkBuilder_Build_TestEvaluationIsChargedToTheStepBudget`,
@@ -521,7 +522,9 @@ width, the angle, the fill and stroke opacity, the shape, and the dash pattern t
 it holds and the base value or the default elsewhere; that each of the thirteen predicate forms (comparisons, a range
 given in either order, a set, validity of a field that exists and one that does not, a negation, and the compositions)
 holds for the rows that a hand evaluation says; that a test reads a variable parameter and a missing field does not hold;
-that a condition on a parameter changes nothing; that the color and opacity conditions apply to bars, ticks, and rules and
+that a condition on an empty interval selection holds for every row (`empty` true, the default), so the three circles are
+`red`, and for none with `empty: false`, so they are `gray`; that the color and opacity conditions apply to bars, ticks,
+and rules and
 the size condition gives the thickness of a bar (4 or 9 pixels); that a limit of 4 steps fails naming
 `MaxEvaluationSteps` while a limit of 10,000 draws the three circles; that a canceled token stops the build; that
 two builds give equal items; and that a `oneOf` condition over a list of 999 numbers (the numbers 1 to 1000 without 3, a
@@ -894,3 +897,19 @@ Asserts that the segments of the color field stack inside each group of the offs
 group has the segments at y = 0 and 40 with the heights 40 and 60 and the second one segment of the height 20, each
 group starting at zero), and that an aggregated grouped bar chart whose color is the offset field is not stacked: the
 bars have the heights 20, 40, 60, 80, and 100 and start at the baseline, at x = 10, 30, 60, 80, and 110.
+
+##### Brush Marks Of An Interval Selection
+
+**Tests**: `VegaLiteBrushIntegrationTests.CanvasNetVegaLite_SystemIntegration_Brush_*` (the 17 scenarios below, run
+through the public API because the brush needs the selection model, the scales, and the composition together)
+
+Asserts, for a 200 by 100 pixel data rectangle, that the background rectangle covers the range of both channels (the
+rectangle is `min` and `abs` of the mapped ends, so the reversed range `[6, 2]` draws the same rectangle as `[2, 6]`),
+that a channel that is not projected spans the data rectangle, that dates map through the time scale and a band scale
+gives the
+start of the band, that a range without an extent and a selection without an initial value draw nothing, that the
+background is `#333` at the fill opacity 0.125 and the brush transparent with a white stroke, that a `mark` of the
+selection is merged over the defaults and `config.selection.interval.mark` overrides them, that the caller replaces or
+clears the initial value, that a global selection is drawn by its first unit only and never by a facet cell, that a
+layered view draws `[background, layers, brush]` around all its layers, that the selections of one unit nest in the order
+of their declaration, and that the four items of a brush are charged to the scene budget.

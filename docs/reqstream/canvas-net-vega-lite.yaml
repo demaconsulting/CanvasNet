@@ -16,7 +16,9 @@
 # sequence, the transforms calculate, filter, fold, flatten, sample, pivot, lookup, aggregate, joinaggregate,
 # window, bin, timeUnit, stack, and impute with a closed subset of the Vega expression language (including
 # the date and time functions) and static variable
-# parameters, the aggregate, bin, time unit, stack, and impute of an encoding, the marks bar, rect, point, circle,
+# parameters (with their expression references at the title, guides, scales, and marks, and the domains they give)
+# and selection parameters drawn in their initial state,
+# the aggregate, bin, time unit, stack, and impute of an encoding, the marks bar, rect, point, circle,
 # square, rule, tick, line, area, trail, text, and arc (with stacked, binned, time-unit, ranged, interpolated, and
 # polar geometry), the color, size, shape, opacity, stroke,
 # and angle channels with color schemes, linear, logarithmic, power, symlog, time, UTC, band, point, ordinal, and
@@ -697,7 +699,8 @@ sections:
           stroke dash, size, shape, and angle channel for every row as Vega-Lite does (an expression or a
           predicate, the first condition that holds giving the value or the scaled field, else the value or
           scale of the channel, else the default of the mark), draw a scale and a legend only for a condition
-          that holds a field, and report the conditions that it cannot evaluate (a parameter or a selection), under
+          that holds a field, evaluate the condition of a param (a selection or a variable parameter) and of a
+          legacy selection, and report the conditions that it cannot evaluate (a channel that takes none), under
           the limits of the library and the cancellation token.
         tags: [system]
         justification: |
@@ -773,9 +776,11 @@ sections:
       - id: CanvasNetVegaLite-StaticParameters
         title: >-
           The library shall support the static variable parameters of a specification - a value or an
-          expression per parameter, evaluated once per call in dependency order, replaced by the caller's
-          Parameters render option, and read by an expression or by a filter predicate - and shall report
-          selection parameters, event bindings, and scale bindings as unsupported features.
+          expression per parameter, evaluated once per call in dependency order before anything reads them,
+          replaced by the caller's Parameters render option (whose values can be scalars, arrays, and objects),
+          and read by an expression or by a filter predicate - and shall report
+          the variable parameters of a nested view, which Vega-Lite compiles to no signal, as ignored (the
+          bindings are ignored without a report, and selection parameters are the selection requirement).
         tags: [system]
         justification: |
           Hosts must be able to change a chart without editing its text, and an interactive parameter that
@@ -785,7 +790,107 @@ sections:
         tests:
           - CanvasNetVegaLite_SystemIntegration_Parameters_DefaultsOverridesAndFilterParam
           - CanvasNetVegaLite_SystemIntegration_Parameters_OverridesReachTheTransforms
+          - CanvasNetVegaLite_SystemIntegration_Params_AVariableParameterOfANestedViewIsNotASignal
           - FeatureCatalog_Visit_LaterPhaseTransformsConditionsAndSelectionsStayReported
+
+      - id: CanvasNetVegaLite-SelectionParameters
+        title: >-
+          The library shall draw the selection parameters of a specification (select point or interval, and the
+          legacy selection property of a view) in the state that vega-embed paints first, with no event fired: the
+          initial value of the selection (or the value that the caller gave in Parameters, a null clearing it) as
+          Vega-Lite projects it over fields and encodings, selects the rows of its conditions (a condition with a
+          param, a test that names it, and the logical compositions), of the filter transforms on it, and of the
+          expressions that read it, with the empty rule of the predicate and the matching of Vega (strict equality
+          for a value, inclusive ends for a range, a bin that excludes its end), shall draw the brush of an
+          interval selection that has a value (a shade before the marks and an outline after them, from the mark
+          of the selection merged over the configuration), shall set the domain of the scales that an interval
+          selection bound to the scales of a single or top-level layered view projects over, shall let a selection
+          be the domain of a scale or the extent of a bin (the span of its range choosing the bin width), shall
+          share one selection among
+          the views of a composition, shall dim the entries of a legend that a selection is bound to when the
+          selection has an initial value, shall ignore without a report the interaction properties that a static chart
+          cannot have, and shall report, applying them as an empty selection, the selections that it cannot draw as
+          Vega-Lite does (an animation, a selection by row identity with a value, a selection that two layers of a
+          layered view receive).
+        tags: [system]
+        justification: |
+          A selection is the state of a chart that a viewer changes; a chart with an initial brush or highlighted
+          point must show that state, and one that cannot must say so.
+        children:
+          - CanvasNetVegaLite-Transforms-Selections
+          - CanvasNetVegaLite-Expressions-ExpressionFunctions-SelectionFunctions
+          - CanvasNetVegaLite-SpecModel-SpecParser-Selections
+          - CanvasNetVegaLite-SpecModel-FeatureCatalog-Selections
+          - CanvasNetVegaLite-Transforms-RowTransforms-SelectionFilter
+          - CanvasNetVegaLite-Marks-MarkBuilder-ConditionalEncodings
+          - CanvasNetVegaLite-VegaLiteDocument-TransformPipeline
+          - CanvasNetVegaLite-Marks-SelectionBrush
+          - CanvasNetVegaLite-Scales-RawDomains
+          - CanvasNetVegaLite-Transforms-Binning
+          - CanvasNetVegaLite-SpecModel-ConfigDefaults
+          - CanvasNetVegaLite-Guides-LegendBuilder-SelectionDimming
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Selection_IntervalIncludesBothEnds
+          - CanvasNetVegaLite_SystemIntegration_Selection_PointMatchesByStrictEquality
+          - CanvasNetVegaLite_SystemIntegration_Selection_FilterKeepsTheSelectedRows
+          - CanvasNetVegaLite_SystemIntegration_Selection_CallerValueReplacesTheInitialValue
+          - CanvasNetVegaLite_SystemIntegration_Selection_ExpressionsReadTheResolvedSelection
+          - CanvasNetVegaLite_SystemIntegration_Selection_TopLevelSelectionOfAConcatIsSharedByItsViews
+          - CanvasNetVegaLite_SystemIntegration_Selection_InteractionPropertiesAreIgnoredWithoutAReport
+          - CanvasNetVegaLite_SystemIntegration_Selection_TopLevelSelectionOfTwoLayersIsReported
+          - CanvasNetVegaLite_SystemIntegration_Brush_CoversTheRangeOfBothChannels
+          - CanvasNetVegaLite_SystemIntegration_Brush_ALayeredViewWrapsAllItsLayers
+          - CanvasNetVegaLite_SystemIntegration_BindScales_TheInitialRangeIsTheDomain
+          - CanvasNetVegaLite_SystemIntegration_Domain_ASelectionGivesTheRangeOfAField
+          - CanvasNetVegaLite_SystemIntegration_BinExtent_TheSpanOfASelectionChoosesTheStep
+          - CanvasNetVegaLite_SystemIntegration_TimeUnitSelection_AFilterTestsTheDerivedField
+          - CanvasNetVegaLite_SystemIntegration_BinExtent_TheDocumentationExampleRenders
+
+      - id: CanvasNetVegaLite-ParameterExpressionReferences
+        title: >-
+          The library shall evaluate each expression reference (an expr object where Vega-Lite's schema allows a
+          value) at the title, the padding and background of the view, the mark properties that no row reads, the
+          axes, legends, headers, scales, view background, the value and datum of the channels, and the
+          configuration, once per call with the parameters at their initial state, so that a parameter drives the
+          chart as it does in Vega-Lite, shall leave the expressions that the marks evaluate for every row as they
+          are, and shall report a reference that it cannot evaluate where it is (one that reads datum, one whose
+          value no property can hold, one at a site that the schema does not allow).
+        tags: [system]
+        justification: |
+          A parameter that drives a title, a size, a color, or a domain is the most common use of a parameter, and a
+          chart that ignored it would show the wrong thing without a word.
+        children:
+          - CanvasNetVegaLite-SpecModel-StaticExpressionReferences
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Params_ExpressionReferencesDriveTitleBackgroundAndPadding
+          - CanvasNetVegaLite_SystemIntegration_Params_ExpressionReferencesReachAxesScalesAndConfiguration
+          - CanvasNetVegaLite_SystemIntegration_Params_UnfoldableReferencesAreReported
+          - CanvasNetVegaLite_SystemIntegration_Params_FoldingIsDeterministicAndLeavesTheDocumentAlone
+
+      - id: CanvasNetVegaLite-ParameterDomains
+        title: >-
+          The library shall take the domain of a scale as it is from the domainRaw of the scale, from the
+          variable parameter that the scale's domain names, or from the selection that the scale's domain, its bin
+          extent, or a binding to the scales names (for the continuous, band, point, and ordinal scales,
+          alone or shared by layers, with a value of the caller replacing the parameter), without the zero rule,
+          bounds, padding, or nice, shall clip the marks to the data rectangle when a position scale has the extent
+          of a parameter or a selection, and shall
+          report a raw domain that cannot be used and keep the domain of the data.
+        tags: [system]
+        justification: |
+          A parameter that gives a domain is how a host zooms a chart, and the chart must show exactly the extent that
+          was asked for, as Vega-Lite does.
+        children:
+          - CanvasNetVegaLite-Scales-RawDomains
+          - CanvasNetVegaLite-Marks-RangedMarks
+        tests:
+          - CanvasNetVegaLite_SystemIntegration_Params_DomainOfAParameterIsRawAndClipsTheMarks
+          - CanvasNetVegaLite_SystemIntegration_Params_TheCallerOverridesTheDomainOfAParameter
+          - CanvasNetVegaLite_SystemIntegration_Params_DomainRawIsTheDomain
+          - CanvasNetVegaLite_SystemIntegration_Params_AnUnusableRawDomainIsReportedAndIgnored
+          - CanvasNetVegaLite_SystemIntegration_Params_TheDomainOfADiscreteScaleIsTheValueOfTheParameter
+          - CanvasNetVegaLite_SystemIntegration_Params_ALayerThatTakesItsDomainFromAParameterSetsTheSharedScale
+          - CanvasNetVegaLite_SystemIntegration_Params_TheCallerGivesTheDomainOfATimeScaleAsDates
 
       - id: CanvasNetVegaLite-RowTransforms
         title: >-
@@ -1022,7 +1127,7 @@ sections:
           an undeclared parameter reference, an invalid or cyclic parameter, or a malformed transform; shall
           report as unsupported features, with the stable identifiers vl-expr-function-name (the name lower-cased),
           vl-expr-view-state, and vl-expr-construct-name, the expression constructs that it cannot run;
-          shall keep reporting the transforms, parameters, conditions on a parameter, and functions of later
+          shall keep reporting the transforms, parameters that are not drawn, and functions of later
           phases; and shall let strict mode abort at the first such report.
         tags: [system]
         justification: |

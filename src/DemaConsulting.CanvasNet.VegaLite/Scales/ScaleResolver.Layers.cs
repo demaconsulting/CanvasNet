@@ -194,7 +194,7 @@ internal static partial class ScaleResolver
     ///     Resolves the scales of the layers of a layered view.
     /// </summary>
     /// <remarks>
-    ///     A single layer is resolved exactly as <see cref="Resolve(SpecNode, EncodingPlan, EncodingData, ResolvedConfig, string?, VegaLiteLimits?, CancellationToken)"/> does, and
+    ///     A single layer is resolved exactly as <see cref="Resolve(SpecNode, EncodingPlan, EncodingData, ResolvedConfig, string?, VegaLiteLimits?, CancellationToken, IReadOnlyDictionary{string, DataValue}?)"/> does, and
     ///     <see cref="LayeredScales.Merged"/> is the same object as its scales.
     /// </remarks>
     /// <param name="layers">The unit views of the layered view in layer order, with their plans and tables.</param>
@@ -202,7 +202,9 @@ internal static partial class ScaleResolver
     /// <param name="sourceName">The source name used in the locations of errors, or null.</param>
     /// <param name="limits">The limits to enforce; the defaults when null.</param>
     /// <param name="cancellationToken">A token that stops the resolution.</param>
-    /// <returns>The scales of each layer and of the whole view.</returns>
+    /// <param name="parameters">The values of the variable parameters by name (the parameter that a <c>scale.domain</c> of the form <c>{"param": ...}</c> names); null when there are none.</param>
+    /// <param name="selections">The selections of the specification, bound to the layer tree of <paramref name="layers"/> (a selection gives the domain of a scale through <c>scale.domain</c>, <c>bin.extent</c> or <c>"bind": "scales"</c>); null when there are none.</param>
+    /// <returns>The scales of each layer and of the whole view; the findings (a layer scale that cannot be shared, a raw domain that cannot be used) are in <see cref="LayeredScales.Warnings"/>.</returns>
     /// <exception cref="ArgumentNullException">Thrown when an argument other than the optional ones is null.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="layers"/> is empty or a layer has no unit view.</exception>
     /// <exception cref="VegaLiteSpecException">Thrown when <c>scale.domain</c> or <c>scale.range</c> has the wrong shape; carries the location.</exception>
@@ -213,7 +215,9 @@ internal static partial class ScaleResolver
         ResolvedConfig config,
         string? sourceName = null,
         VegaLiteLimits? limits = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IReadOnlyDictionary<string, DataValue>? parameters = null,
+        SelectionModel? selections = null)
     {
         ArgumentNullException.ThrowIfNull(layers);
         ArgumentNullException.ThrowIfNull(config);
@@ -222,17 +226,18 @@ internal static partial class ScaleResolver
             throw new ArgumentException("At least one layer, each with a unit view, is required.", nameof(layers));
         }
 
+        var warnings = new List<FeatureReport>();
         if (layers.Count == 1)
         {
             var only = layers[0];
-            var single = Resolve(only.Node.Unit!, only.Plan, only.Data, config, sourceName, limits, cancellationToken);
+            var single = ResolveView(only.Node.Unit!, only.Plan, only.Data, config, sourceName, limits, cancellationToken, parameters, warnings, selections, only.Node);
             var alone = new Dictionary<string, IReadOnlyList<IReadOnlyList<int>>>(StringComparer.Ordinal);
             foreach (var scale in single.Scales)
             {
                 alone[scale.Channel] = new List<IReadOnlyList<int>> { new[] { 0 } };
             }
 
-            return new LayeredScales([single], single, alone, []);
+            return new LayeredScales([single], single, alone, warnings);
         }
 
         // Every layer on its own first
@@ -241,12 +246,11 @@ internal static partial class ScaleResolver
         for (var i = 0; i < layers.Count; i++)
         {
             var layer = layers[i];
-            contexts[i] = CreateContext(layer.Node.Unit!, layer.Plan, layer.Data, config, sourceName, limits, cancellationToken);
+            contexts[i] = CreateContext(layer.Node.Unit!, layer.Plan, layer.Data, config, sourceName, limits, cancellationToken, parameters, warnings, selections, layer.Node);
             maps[i] = contexts[i] is { } context ? ResolveChannels(context) : new Dictionary<string, ResolvedScale>(StringComparer.Ordinal);
         }
 
         // Then the scales that layers share
-        var warnings = new List<FeatureReport>();
         var groups = new Dictionary<string, IReadOnlyList<IReadOnlyList<int>>>(StringComparer.Ordinal);
         var merged = new Dictionary<string, ResolvedScale>(StringComparer.Ordinal);
         foreach (var channel in Channels)
@@ -407,6 +411,17 @@ internal static partial class ScaleResolver
             shared = rebuilt;
         }
 
+        // The rebuilt scale is the owner's, which may have no raw domain of its own: a layer's raw domain stops the adjustments of the shared scale, and a domain that a parameter gives clips its marks
+        if (members.Any(i => ownScales[i].HasRawDomain))
+        {
+            shared = shared with { HasRawDomain = true, NiceCount = null, NiceInterval = null, PaddingPixels = 0 };
+        }
+
+        if (members.Any(i => ownScales[i].ClipMarks))
+        {
+            shared = shared with { ClipMarks = true };
+        }
+
         foreach (var i in members)
         {
             maps[i][channel] = Bind(shared, ownScales[i]);
@@ -489,6 +504,13 @@ internal static partial class ScaleResolver
             return new SharedDomain(channel, 0, 0, null, CombineCategories(owner, scales, limits));
         }
 
+        // A raw domain (a parameter's domain) replaces the domain of the shared scale whatever the other layers hold, and the shared scale is not adjusted after it (Vega merges the extents of the layers and sets domainRaw)
+        var rawScale = scales.FirstOrDefault(s => s.HasRawDomain);
+        if (rawScale is not null)
+        {
+            return new SharedDomain(channel, rawScale.DomainStart, rawScale.DomainEnd, rawScale.Domain?.ToArray(), null);
+        }
+
         // Vega-Lite's mergeValuesWithExplicit: explicit domains win over implicit ones, which are then ignored; explicit domains that differ are all kept,
         // and Vega takes the extent of the union of their values (a piecewise domain is not kept). An explicit domain that equals another one counts once.
         var explicitScales = scales.Where(s => s.HasExplicitDomain).ToList();
@@ -534,7 +556,12 @@ internal static partial class ScaleResolver
     private static List<DataValue> CombineCategories(ResolvedScale owner, List<ResolvedScale> scales, VegaLiteLimits limits)
     {
         List<DataValue> categories;
-        if (scales.Any(s => s.HasExplicitDomain))
+        if (scales.FirstOrDefault(s => s.HasRawDomain) is { } rawScale)
+        {
+            // A raw domain is the domain of the shared scale
+            categories = [.. rawScale.DiscreteDomain];
+        }
+        else if (scales.Any(s => s.HasExplicitDomain))
         {
             var seenExplicit = new HashSet<DataValue>();
             categories = [.. scales.Where(s => s.HasExplicitDomain).SelectMany(s => s.DiscreteDomain).Where(seenExplicit.Add)];

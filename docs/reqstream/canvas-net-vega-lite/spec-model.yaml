@@ -7,6 +7,9 @@
 # construct outside the supported subset (FeatureCatalog), the configuration resolver (ConfigResolver), and
 # (Phase 10) the normalizer that turns the views of a specification into a tree of layers and expands the
 # composite marks (SpecNormalizer).
+# Phase 12 (milestone 1) adds the compilation of the expression references of the static sites (SpecParser) and
+# their evaluation once per call, which replaces them by values before any later stage reads the tree
+# (ExpressionReferenceFolder).
 # Phase 5 adds the compilation of expressions and the validation of parameters and transforms (SpecParser); Phase 6
 # adds the validation of the aggregating transforms and of the aggregate, bin, stack, and sort of an encoding;
 # Phase 8 adds the validation of the time units, datetime objects, and tick intervals and the translation of
@@ -286,6 +289,33 @@ sections:
               - SpecParser_Parse_Phase5TransformsAndParametersAreAccepted
               - CanvasNetVegaLite_SystemIntegration_Expressions_ErrorsAndLimitsFailWhenTheDocumentIsOpened
 
+          - id: CanvasNetVegaLite-SpecModel-StaticExpressionReferences
+            title: >-
+              The SpecModel subsystem shall compile the expression references (expr) of the static sites that
+              Vega-Lite's schema allows when a specification is parsed, shall evaluate each of them once per call
+              with the parameters at their initial state, and shall give every later stage a tree in which the
+              value stands where the reference was, leaving the sites that the marks evaluate for every row, a
+              reference that reads datum, and a value that no property can hold as references, the last two
+              reported.
+            justification: |
+              A title, a size, a color, or a domain that a parameter drives must show the value of the parameter,
+              and no stage after the evaluation may need to know that expressions exist.
+            children:
+              - CanvasNetVegaLite-SpecModel-SpecParser-StaticReferences
+              - CanvasNetVegaLite-SpecModel-ExpressionReferenceFolder-Sites
+              - CanvasNetVegaLite-SpecModel-ExpressionReferenceFolder-FoldsOnce
+              - CanvasNetVegaLite-SpecModel-ExpressionReferenceFolder-DatumAndDates
+              - CanvasNetVegaLite-SpecModel-ExpressionReferenceFolder-RowBoundSites
+              - CanvasNetVegaLite-SpecModel-ExpressionReferenceFolder-Identity
+              - CanvasNetVegaLite-SpecModel-ExpressionReferenceFolder-Limits
+            tests:
+              - SpecParser_Parse_CompilesTheExpressionsOfSupportedSitesOnly
+              - ExpressionReferenceFolder_Fold_ReplacesAReferenceByItsValue
+              - ExpressionReferenceFolder_Fold_FoldsTheConfiguration
+              - FeatureCatalog_Visit_ExpressionReferencesAreReportedOnlyWhereTheyAreNotEvaluated
+              - FeatureCatalog_VisitCallerConfig_ReportsEveryExpressionReferenceAtItsPointer
+              - CanvasNetVegaLite_SystemIntegration_Params_ExpressionReferencesDriveTitleBackgroundAndPadding
+
           - id: CanvasNetVegaLite-SpecModel-LabelExpressionValidation
             title: >-
               The SpecModel subsystem shall compile, when a specification is parsed, the labelExpr of every axis,
@@ -370,6 +400,7 @@ sections:
               - CanvasNetVegaLite-SpecModel-ConfigResolver-Precedence
               - CanvasNetVegaLite-SpecModel-ConfigResolver-StyleResolution
               - CanvasNetVegaLite-SpecModel-ConfigResolver-CompositeMarkDefaults
+              - CanvasNetVegaLite-SpecModel-ConfigResolver-SelectionDefaults
             tests:
               - ConfigResolver_Resolve_VegaLiteV6DefaultsAndOverrides
               - ConfigResolver_Resolve_CallerConfigOverridesSpecConfig

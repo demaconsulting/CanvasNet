@@ -2,12 +2,13 @@
 
 ![Guides Structure](VegaLiteGuidesView.svg)
 
-The `LegendBuilder` unit is the fifth unit in the `Guides` subsystem. It is six source files in the
+The `LegendBuilder` unit is the fifth unit in the `Guides` subsystem. It is seven source files in the
 `DemaConsulting.CanvasNet.VegaLite.Guides` namespace: `LegendPlan.cs` (the planning types and the static class
 `LegendPlan`), `LegendBuilder.cs` (the sealed partial class `LegendBuilder` with its result records),
 `LegendBuilder.Symbols.cs` (symbol legends), `LegendBuilder.Gradient.cs` (gradient and discrete gradient legends),
-`LegendBuilder.Grid.cs` (the grid layout of Vega's `layout` transform), and `LegendBuilder.Time.cs` (the ticks, labels,
-and `values` of temporal legends). The files carry the provenance header comment
+`LegendBuilder.Grid.cs` (the grid layout of Vega's `layout` transform), `LegendBuilder.Time.cs` (the ticks, labels,
+and `values` of temporal legends), and `LegendDimming.cs` (the dimming of the entries of a legend that a selection is
+bound to). The files carry the provenance header comment
 `Portions derived from Vega (BSD-3-Clause) and Vega-Lite (BSD-3-Clause)` (the time file adds the d3-time, d3-time-format,
 and d3-scale notices). The label formats and tick requests of dates are shared with the axes through the `TimeLabels`
 unit (see _Time Labels Design_).
@@ -53,7 +54,9 @@ unit's behavior is specified by the `CanvasNetVegaLite-Guides-LegendBuilder-*` r
   `legend-title` text), the `LegendFrame` (fill, stroke, stroke width and dash, corner radius) and the item count;
   `CreateGroup(x, y)` creates the `legend` group at the position the layout chose.
 - `GridOptions` and `GridResult` - the parameters and result of the grid layout (`GridLayout`).
-
+- `LegendDimming` (phase 12) - the selections that bind a legend (`"bind": "legend"`) and what each holds for the field
+  of the first channel; `LegendPlan.Create` finds it (`LegendDimming.Create`) from the optional `SelectionModel` and the
+  unit view of the first layer of the legend, and `LegendSpec.Dimming` carries it (null when no selection is bound).
 Scene roles: `legend` (group) containing `legend-entry` (group) and `legend-title`; the entry group contains
 `legend-symbol` and `legend-label` pairs, or `legend-gradient` and `legend-label`s, or `legend-band`s and
 `legend-label`s.
@@ -186,6 +189,26 @@ Scene roles: `legend` (group) containing `legend-entry` (group) and `legend-titl
   (`MakeLabel` takes the lines). The expression runs on the evaluator of the call (the optional `RowExpressions`
   argument of the constructor; without it the builder uses an evaluator of its own with the same limits) and the length
   of the replaced text is charged as the length of every label is.
+- **Legends bound to a selection** (phase 12; Vega-Lite's `compile/selection/legends.ts` and `selectedCondition` of
+  `compile/legend/encode.ts`): `LegendPlan.Create` gives the legend a `LegendDimming` when a selection of the unit view
+  of its first layer is **bound to the legend** (`"bind": "legend"`, `resolve` `global`, one projected field that is not
+  the row identity, equal to the `field` of the first channel's definition or to the channel). The test of an entry is
+  `!length(data(store)) || (N[field] && indexof(N[field], datum.value) >= 0)`, evaluated once for the value of the
+  entry: an empty store selects everything; otherwise the values that the resolved selection holds for the field must
+  contain the value of the entry by **strict equality** (the same function as the selection tests uses). The value of
+  the entry is what Vega holds in `datum.value` (`LegendBuilder.DatumValue`): the number of milliseconds for a domain
+  value of a discrete scale over a field of dates, a date for a tick of a time scale (or of a sequential or diverging
+  scale over dates), which the numbers of a selection never equal. The test reads the field of the channel definition,
+  not the projected field, so a selection over a field with a time unit (stored under `month_d`) dims every entry.
+  The labels of
+  every legend kind (`MakeLabel` takes the value of the entry) get the opacity 1 or `config.legend.unselectedOpacity`;
+  the symbols of a **symbol** legend that does not explain the `opacity` channel get the opacity of the symbol (the
+  opacity of the mark; 1 when the legend has a `symbolOpacity`, as in Vega-Lite's `opacity ?? 1`) or
+  `unselectedOpacity`. A legend that explains the `opacity` channel keeps its symbols (Vega-Lite deletes the symbol
+  opacity rule when the legend encodes opacity). When the channels of a legend merge, the first one decides (Vega-Lite
+  keeps the encoding of the first
+  component). The unit view comes from the layer of the first member; a `LegendPlan.Create` without a selection model (or
+  without the layer's node) dims nothing. The comparisons are charged to the evaluation of the build.
 - Gradient legends - the bar is `gradientThickness` (16) by the gradient length, which is `gradientLength`, else for a
   continuous scale the view height limited to 64 to 200 (vertical) or the view width limited to 100 to 200 for top and
   bottom (100 for other horizontal legends), else 200. Its `FillGradient` has the stops of Vega's `scaleGradient`: the ends
@@ -243,7 +266,8 @@ the `Expressions` subsystem; the scene types and `SceneBudget` of the `Scenegrap
 `VegaLiteDocument` and `LegendLayout` of the `Layout` subsystem (which also calls `LegendBuilder.GridLayout`). The
 tests in `test/DemaConsulting.CanvasNet.VegaLite.Tests/Guides/LegendPlanTests.cs`, `LegendPlanLayerTests.cs` (the legends
 of layered views), `LegendBuilderTests.cs`,
-`LegendBuilderTimeTests.cs`, `LegendBuilderLabelExprTests.cs` (`labelExpr`), and `LegendBuilderPathMarkTests.cs` (the
+`LegendBuilderTimeTests.cs`, `LegendBuilderLabelExprTests.cs` (`labelExpr`), `LegendBuilderSelectionTests.cs` (the
+dimming of a legend bound to a selection), and `LegendBuilderPathMarkTests.cs` (the
 symbols of the line, rule, trail, area, arc, and text
 marks) call the
 unit directly through `InternalsVisibleTo`.

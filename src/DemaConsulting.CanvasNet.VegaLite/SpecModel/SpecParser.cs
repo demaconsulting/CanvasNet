@@ -244,7 +244,8 @@ internal sealed partial class SpecParser
 
         // The shape checks run on the finished tree so that every error carries the pointer of the offending value
         Validate(root);
-        return new SpecTree(root, _file, _warnings.AsReadOnly(), new SpecExpressions(_expressions));
+        var references = CompileStaticReferences(root);
+        return new SpecTree(root, _file, _warnings.AsReadOnly(), new SpecExpressions(_expressions, references));
     }
 
     /// <summary>

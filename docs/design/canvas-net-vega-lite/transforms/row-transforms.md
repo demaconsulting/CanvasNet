@@ -67,9 +67,13 @@ dispatched to `TimeUnitTransform`, see below):
   `oneOf` (strict equality with any
   member), and `valid` (`true` keeps the rows whose value is neither null nor NaN, `false` the others), each on a `field`;
   composed with `and`, `or`, and `not` to the nesting depth the parser accepts; and `param`, the truthiness of a variable
-  parameter (every row passes or none). A predicate on a selection parameter or a `selection` keeps every row (reported
-  by
-  the catalog). **A predicate with a `timeUnit`, or one that compares with a date-time object, is evaluated through the
+  parameter (every row passes or none) or the selection test of a selection parameter. A predicate on a selection parameter
+  (`param`) or a legacy `selection` is compiled by `PredicateSource` to the text of Vega-Lite
+  (`!length(data("name_store")) ||
+  vlSelectionTest("name_store", datum)`, with the `empty` and `resolve` properties), and `BuildFieldPredicate` finds the
+  compiled expression and returns an `ExpressionPredicate` over the evaluator of the call, so an unselected chart keeps
+  every row and a selection keeps the rows that its tuples match. **A predicate with a `timeUnit`, or one that compares
+  with a date-time object, is evaluated through the
   expression engine**: `SpecParser` compiled the expression that `PredicateSource` writes for it (see _SpecParser Unit
   Design_) and stored it under the predicate object, and `BuildFieldPredicate` finds it with
   `Tree.Expressions.Get(node)` and returns an `ExpressionPredicate` over the evaluator of the call, so its meaning
@@ -120,7 +124,8 @@ dispatched to `TimeUnitTransform`, see below):
   secondary row **once per secondary row and copied field** and shared (composites are immutable) by every output row
   that matches that row, so the memory of the copied values is bounded by the secondary rows and fields and not by the
   output rows. A row without a match gets `default` (a JSON scalar; null by default). `from.param`
-  (the data of a selection) is not applied and is reported (`vl-transform-lookup-param`).
+  (the data of a selection) is not applied and is reported (`vl-transform-lookup-param`; the stores of the selections are
+  not read by a lookup).
 - **`timeUnit`** - `timeUnit` (a unit name or a unit object), `field`, and `as`. `RowTransforms.TimeUnit` reads the unit
   with `TimeUnitSpec.TryRead` (an unreadable one returns the input; the parser rejected it), builds one
   `TimeUnitRequest` whose end field is `<as>_end`, and calls `TimeUnitTransform.Apply` with the context and the location
@@ -141,15 +146,27 @@ unchanged transform. A hand-computed vector (ten rows, size four, pointer `/tran
 2, 3, 6, and 9) is pinned by a
 test.
 
-**`ParameterEnvironment`.** `Populate` evaluates the variable parameters of the root view into the dictionary the
-evaluator reads: the order is the topological order of `ParameterGraph.Sort` (dependencies first, otherwise the
+**`ParameterEnvironment`.** `Populate` evaluates the variable parameters of the **top-level view** into the dictionary the
+evaluator reads (Vega-Lite compiles no signal for the variable parameter of a nested view, so there is none, and an
+expression that reads one sees null): the order is the topological order of `ParameterGraph.Sort` (dependencies first,
+otherwise the
 declaration order, so the result does not depend on hashing); for each parameter the caller's override wins and is used
-as given (converted by `DataLoader.FromObject`; the expression is not evaluated), then the expression, then the `value`
-(converted by `SpecValues`, so an array or an object becomes an immutable composite value), else null. A text of an
+as given (converted by `FromCaller`; the expression is not evaluated), then the expression, then the `value`
+(converted by `SpecValues`, so an array or an object becomes an immutable composite value), else null. `FromCaller`
+(phase 12) converts a caller's value: a scalar as `DataLoader.FromObject` does (the dataset rows still take scalars
+only), a string-keyed dictionary of values to an object value, and any other sequence of values to an array value,
+recursively (the nesting and the number of values were bounded when `VegaLiteRenderOptions.Parameters` was set, so the
+recursion is bounded). A text of an
 override or of a `value` (also inside a composite) that is longer than the `MaxStringLength` of the call is a located
 `VegaLiteRenderException` at the parameter, because no function has measured it; the result of an expression is checked
-by the evaluator. A selection parameter is skipped and an override of its name is accepted and ignored. `bind` and
-`empty` are ignored.
+by the evaluator. A selection parameter is not computed here: its resolved value comes from the `SelectionModel` and is
+added to the dictionary under the name of the selection (`selectionValues`; the value of the caller for a selection is the
+initial value that the model reads, not an override of the value here). `bind` and
+`empty` are ignored. Since phase 12 the environment is built by `VegaLiteDocument.PrepareChart` **before** the data
+stage, not inside it, once for each call with the one calendar, the one `ExpressionEvaluator`, and the one parameter
+dictionary of that call (the `EvaluationState`), because the expression references of the static sites are folded
+(`ExpressionReferenceFolder`) from the same values before the configuration is resolved, and the scales read the values
+of the parameters that give a domain.
 
 **`RowExpressions`** is the pair of the compiled expressions of the tree and the evaluator that `MarkBuilder` uses for the
 row-bound paint values; `TransformContext` is the bundle of everything one run shares. Besides the fields it carries, it
@@ -225,7 +242,8 @@ performs no I/O itself; a lookup source is read only through the `DataLoader`.
 
 #### Callers
 
-`VegaLiteDocument` creates the `TransformContext`, calls `ParameterEnvironment.Populate`, then
+`VegaLiteDocument` calls `ParameterEnvironment.Populate` first in every `Measure` or `Render` call (before the fold of the
+expression references and before the data stage), creates the `TransformContext` from the same evaluation state, then calls
 `RowTransforms.Apply` once per
 `Measure` or `Render` call for a single view with a supported mark, and delivers the transform warnings after the loader
 warnings; `EncodingTransforms` and `AggregateTransforms` share the `TransformContext`, `TableLayout`, `FieldReader`, and

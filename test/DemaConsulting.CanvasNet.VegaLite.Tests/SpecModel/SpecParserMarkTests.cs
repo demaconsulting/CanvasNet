@@ -135,7 +135,7 @@ public class SpecParserMarkTests
 
     /// <summary>
     ///     Validates that the objects of the <c>point</c> and <c>line</c> overlays are checked like mark definitions: a wrong value is a located error, an unknown
-    ///     property is warned about at its key, and the expression references inside them are reported by the feature catalog as not evaluated.
+    ///     property is warned about at its key, and the expression references inside them are static sites that the pipeline evaluates once.
     /// </summary>
     [Fact]
     public void SpecParser_Parse_ValidatesOverlayObjectsLikeMarkDefinitions()
@@ -154,9 +154,8 @@ public class SpecParserMarkTests
         Assert.Equal(("vl-unknown-property", "/mark/point/foo"), (warning.Id, warning.Location.Pointer));
         Assert.Empty(SpecParser.Parse(Spec("area", "\"line\":{\"strokeWidth\":3,\"interpolate\":\"step\"},\"point\":{\"filled\":false,\"size\":50}")).Warnings);
 
-        // Assert: an expression reference inside an overlay object is not evaluated, and the catalog reports it where it is
+        // Assert: an expression reference inside an overlay object is a static site, compiled and folded to its value; the catalog has nothing to report
         var reports = FeatureCatalog.Visit(SpecParser.Parse(Spec("line", "\"point\":{\"color\":{\"expr\":\"'red'\"}}"), "t.json"));
-        var report = Assert.Single(reports);
-        Assert.Equal(("vl-expr-ref", "/mark/point/color"), (report.Id, report.Location.Pointer));
+        Assert.Empty(reports);
     }
 }

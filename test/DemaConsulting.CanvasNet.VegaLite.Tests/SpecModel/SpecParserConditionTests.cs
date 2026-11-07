@@ -122,20 +122,21 @@ public class SpecParserConditionTests
     }
 
     /// <summary>
-    ///     Validates that the conditions that are never evaluated are not compiled: a condition on a parameter, a predicate that no expression
-    ///     can say, and a channel that takes no condition.
+    ///     Validates which conditions are compiled: a predicate object on a channel that takes no condition is not, those on a channel that does are, and a condition on a selection parameter is written
+    ///     as the expression that Vega-Lite compiles for it (with or without <c>empty: false</c>).
     /// </summary>
     [Fact]
     public void SpecParser_Parse_ConditionsThatAreNotEvaluatedAreNotCompiled()
     {
         // Arrange
         const string json = """
-            { "params": [ { "name": "sel", "select": "interval" } ],
+            { "params": [ { "name": "sel", "select": "interval" }, { "name": "flag", "value": true } ],
               "data": { "values": [ { "q": 1 } ] },
               "hconcat": [
                 { "mark": "point", "encoding": {
                     "x": { "field": "q", "type": "quantitative", "condition": { "test": { "field": "q", "gt": 1 }, "value": 3 } },
-                    "color": { "condition": [ { "param": "sel", "value": "red" }, { "test": { "param": "sel" }, "value": "blue" } ] } } },
+                    "color": { "condition": [ { "param": "sel", "value": "red" }, { "test": { "param": "sel" }, "value": "blue" }, { "param": "sel", "empty": false, "value": "green" },
+                                              { "param": "flag", "value": "gray" } ] } } },
                 { "mark": "point", "encoding": { "color": { "condition": { "test": { "field": "q", "gt": 1 }, "value": "red" } } } } ] }
             """;
 
@@ -145,10 +146,16 @@ public class SpecParserConditionTests
         var second = tree.Root["hconcat"]!.Items[1]["encoding"]!;
         var conditions = first["color"]!["condition"]!.Items;
 
-        // Assert: the predicate objects of the position channel and of the selection are not written as expressions; those of a view in a concatenation are, like any view's
+        // Assert: the predicate object of the position channel is not written as an expression; those of a view in a concatenation are, like any view's
         Assert.Null(tree.Expressions.Get(first["x"]!["condition"]!["test"]));
-        Assert.Null(tree.Expressions.Get(conditions[1]["test"]));
         Assert.NotNull(tree.Expressions.Get(second["color"]!["condition"]!["test"]));
+
+        // Assert: a selection is the text of Vega-Lite (a selection with the default rule is empty or contains the datum, with empty: false it is not empty and contains it), a variable parameter is its truthiness
+        const string Test = "vlSelectionTest(\"sel_store\", datum)";
+        Assert.Equal("(!length(data(\"sel_store\")) || " + Test + ")", tree.Expressions.Get(conditions[0]["param"])!.Source);
+        Assert.Equal("(!length(data(\"sel_store\")) || " + Test + ")", tree.Expressions.Get(conditions[1]["test"])!.Source);
+        Assert.Equal("(length(data(\"sel_store\")) && " + Test + ")", tree.Expressions.Get(conditions[2]["param"])!.Source);
+        Assert.Equal("(flag)", tree.Expressions.Get(conditions[3]["param"])!.Source);
     }
 
     /// <summary>
@@ -263,5 +270,40 @@ public class SpecParserConditionTests
 
         // Assert: the text (10 million characters, 20 MB, plus the copy of the builder) is never allocated; the document, its tree and the field text are about 2 MB
         Assert.True(allocated < 16_000_000, $"{allocated} bytes were allocated.");
+    }
+
+    /// <summary>
+    ///     Validates that the text that is written for a predicate on a selection is bound by the generated budget like the text of any other predicate: a legacy <c>selection</c>
+    ///     that is an <c>or</c> of 2,000 names is about 11 times the length of the document as an expression, so with the budget of eight times <c>MaxSourceLength</c> that is the
+    ///     length of the document it is refused with the error of a generated expression, located at the predicate, as the test of a condition, as a condition on a legacy selection and
+    ///     as a filter; the same predicates with the default limits are compiled, and a shorter one (a budget that is just enough) is accepted.
+    /// </summary>
+    [Fact]
+    public void SpecParser_Conditions_SelectionPredicatesObeyTheGeneratedBudget()
+    {
+        // Arrange: the same selection name 2,000 times as a legacy composition, each name is written as about 63 characters of expression
+        var names = string.Join(", ", Enumerable.Repeat("\"sel\"", 2000));
+        var composition = "{ \"selection\": { \"or\": [ " + names + " ] } }";
+        var sites = new[]
+        {
+            (Spec("{ \"condition\": { \"test\": " + composition + ", \"value\": \"red\" }, \"value\": \"gray\" }"), "/encoding/color/condition/test"),
+            (Spec("{ \"condition\": { \"selection\": { \"or\": [ " + names + " ] }, \"value\": \"red\" }, \"value\": \"gray\" }"), "/encoding/color/condition"),
+            (Spec("{ \"condition\": { \"test\": { \"and\": [ { \"field\": \"q\", \"gt\": 0 }, " + composition + " ] }, \"value\": \"red\" }, \"value\": \"gray\" }"), "/encoding/color/condition/test"),
+            ("{ \"params\": [ { \"name\": \"sel\", \"select\": \"interval\" } ], \"mark\": \"point\", \"transform\": [ { \"filter\": " + composition + " } ] }", "/transform/0/filter"),
+        };
+
+        foreach (var (json, pointer) in sites)
+        {
+            // Act: the document is the limit of the source, so the budget is eight times its length
+            var limits = new VegaLiteLimits { MaxSourceLength = json.Length };
+            var ex = Assert.Throws<VegaLiteSpecException>(() => SpecParser.Parse(json, "c.json", limits));
+
+            // Assert: the error of a generated expression that is over the budget, at the predicate
+            Assert.StartsWith(pointer, ex.Location.Pointer, StringComparison.Ordinal);
+            Assert.Contains($"more than 8 times the limit of {json.Length} (MaxSourceLength) at expression offset {8L * json.Length}.", Description(ex), StringComparison.Ordinal);
+
+            // Act / Assert: with the default limits the document is accepted
+            Assert.NotNull(SpecParser.Parse(json, "c.json").Root);
+        }
     }
 }

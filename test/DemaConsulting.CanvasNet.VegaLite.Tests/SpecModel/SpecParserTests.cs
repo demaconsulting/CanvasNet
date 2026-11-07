@@ -927,7 +927,7 @@ public class SpecParserTests
     [InlineData("{\"title\":{\"text\":\"T\",\"subtitle\":\"S\"}}", "T")]
     [InlineData("{\"title\":{\"text\":[\"A\",\"B\"]}}", "A\nB")]
     [InlineData("{\"title\":{\"subtitle\":\"S\"}}", null)]
-    [InlineData("{\"title\":{\"text\":{\"expr\":\"x\"}}}", null)]
+    [InlineData("{\"title\":{\"text\":{\"expr\":\"'x'\"}}}", null)]
     [InlineData("{\"title\":null}", null)]
     [InlineData("{}", null)]
     public void SpecMetadata_Read_TitleIsPlainText(string json, string? expected)
@@ -1057,12 +1057,17 @@ public class SpecParserTests
         Assert.NotNull(tree.Expressions.GetReference(root["mark"]!["fill"]));
         Assert.NotNull(tree.Expressions.GetReference(root["encoding"]!["color"]!["value"]));
 
-        // Assert: the deferred sites (and the bar size, which is not a symbol area) are not compiled
-        Assert.Null(tree.Expressions.GetReference(root["title"]!["text"]));
+        // Assert: the static sites are compiled too and listed as static references (the row-bound sites are not listed); the bar size is not a symbol area, so it is static
+        Assert.NotNull(tree.Expressions.GetReference(root["title"]!["text"]));
+        Assert.NotNull(tree.Expressions.GetReference(root["mark"]!["size"]));
+        Assert.NotNull(tree.Expressions.GetReference(root["encoding"]!["x"]!["value"]));
+        Assert.Equal(
+            ["/title/text", "/mark/size", "/encoding/x/value"],
+            tree.Expressions.StaticReferences.Select(r => r.Reference.Pointer));
+
+        // Assert: the width is not a site that Vega-Lite's schema allows an expression at, so it is not compiled
         Assert.Null(tree.Expressions.GetReference(root["width"]));
-        Assert.Null(tree.Expressions.GetReference(root["mark"]!["size"]));
-        Assert.Null(tree.Expressions.GetReference(root["encoding"]!["x"]!["value"]));
-        Assert.Equal(6, tree.Expressions.Count);
+        Assert.Equal(9, tree.Expressions.Count);
         Assert.Null(tree.Expressions.Get(null));
         Assert.Null(tree.Expressions.GetReference(null));
     }
@@ -1108,10 +1113,10 @@ public class SpecParserTests
         // Act
         var tree = SpecParser.Parse(json);
 
-        // Assert: every site compiled (the calculate, two filter texts, the two predicates written with the time functions and the parameter), no warning (the viewing signal width is accepted in a text)
+        // Assert: every site compiled (the calculate, two filter texts, the two predicates written with the time functions, and the two predicates on the selection), no warning (the viewing signal width is accepted in a text)
         Assert.Empty(tree.Warnings);
         Assert.Equal(["limit", "twice", "brush", "empty"], SpecMetadata.Read(tree).ParameterNames);
-        Assert.Equal(6, tree.Expressions.Count);
+        Assert.Equal(8, tree.Expressions.Count);
     }
 
     /// <summary>

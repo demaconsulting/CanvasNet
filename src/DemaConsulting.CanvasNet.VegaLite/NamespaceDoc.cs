@@ -69,6 +69,73 @@ namespace DemaConsulting.CanvasNet.VegaLite;
 ///     PngCodec.Save(image, "crates.png");
 ///     </code>
 /// </example>
+/// <example>
+///     Give a parameter a value from the host: an expression reference (<c>{"expr": ...}</c>) is evaluated once with the parameters, and a parameter can be the domain of a scale
+///     (the host gives an array, here <c>[20, 60]</c>, instead of the <c>value</c> of the specification):
+///     <code language="csharp">
+///     using DemaConsulting.CanvasNet.Codecs;
+///     using DemaConsulting.CanvasNet.VegaLite;
+///
+///     var chart = VegaLiteDocument.Parse("""
+///         {
+///           "params": [ { "name": "window", "value": [0, 100] }, { "name": "size", "value": 14 } ],
+///           "title": { "text": "Readings", "fontSize": { "expr": "size" } },
+///           "data": { "values": [ { "t": 10, "v": 1 }, { "t": 40, "v": 2 }, { "t": 90, "v": 3 } ] },
+///           "mark": "circle",
+///           "encoding": {
+///             "x": { "field": "t", "type": "quantitative", "scale": { "domain": { "param": "window" } } },
+///             "y": { "field": "v", "type": "quantitative" }
+///           }
+///         }
+///         """);
+///     var options = new VegaLiteRenderOptions
+///     {
+///         Parameters = new Dictionary&lt;string, object?&gt; { ["window"] = new object[] { 20, 60 }, ["size"] = 18 },
+///     };
+///     using var image = chart.Render(options);
+///     PngCodec.Save(image, "readings.png");
+///     </code>
+/// </example>
+/// <example>
+///     Draw an interval selection in its initial state: its <c>value</c> (or the one the host gives) is the brush rectangle, the marks inside it are red, and a second view below
+///     bins by the selected range (the span of the range chooses the width of the bins):
+///     <code language="csharp">
+///     using DemaConsulting.CanvasNet.Codecs;
+///     using DemaConsulting.CanvasNet.VegaLite;
+///
+///     var chart = VegaLiteDocument.Parse("""
+///         {
+///           "data": { "values": [ { "a": 1 }, { "a": 2.5 }, { "a": 4 }, { "a": 8 } ] },
+///           "vconcat": [
+///             {
+///               "params": [ { "name": "brush", "select": { "type": "interval", "encodings": ["x"] }, "value": { "x": [2, 5] } } ],
+///               "mark": "circle",
+///               "encoding": {
+///                 "x": { "field": "a", "type": "quantitative" },
+///                 "color": { "condition": { "param": "brush", "value": "firebrick" }, "value": "steelblue" }
+///               }
+///             },
+///             {
+///               "mark": "bar",
+///               "encoding": {
+///                 "x": { "field": "a", "type": "quantitative", "bin": { "extent": { "param": "brush" } } },
+///                 "y": { "aggregate": "count" }
+///               }
+///             }
+///           ]
+///         }
+///         """);
+///     var options = new VegaLiteRenderOptions
+///     {
+///         Parameters = new Dictionary&lt;string, object?&gt;
+///         {
+///             ["brush"] = new Dictionary&lt;string, object?&gt; { ["x"] = new object[] { 3, 6 } },
+///         },
+///     };
+///     using var image = chart.Render(options);
+///     PngCodec.Save(image, "selection.png");
+///     </code>
+/// </example>
 internal static class NamespaceDoc
 {
 }

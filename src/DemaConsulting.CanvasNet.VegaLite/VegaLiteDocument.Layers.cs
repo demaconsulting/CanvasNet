@@ -43,11 +43,20 @@ public sealed partial class VegaLiteDocument
     /// <param name="Plan">The plan of the layer's encoding (field names, titles, bins, stack).</param>
     /// <param name="Data">The Raw and Main tables of the layer's implicit pipeline; the marks draw the Main table.</param>
     /// <param name="Scales">The scales the layer's marks use.</param>
-    private sealed record LayerChart(LayerNode Node, EncodingPlan Plan, EncodingData Data, ResolvedScales Scales)
+    /// <param name="Selections">The selections of the specification, bound to the layer tree (the brushes of the layer's selections are drawn around the marks); null when there are none.</param>
+    private sealed record LayerChart(LayerNode Node, EncodingPlan Plan, EncodingData Data, ResolvedScales Scales, SelectionModel? Selections = null)
     {
         /// <summary>Gets the unit view that the stages after the specification read.</summary>
         public SpecNode Unit => Node.Unit!;
     }
+
+    /// <summary>
+    ///     What the evaluation of the parameters leaves for the rest of the call: the calendar, the parameter values and the evaluator whose step budget is the call's.
+    /// </summary>
+    /// <param name="Calendar">The calendar of the chart (the time zone of the options).</param>
+    /// <param name="Parameters">The values of the variable parameters by name; the evaluator reads this dictionary.</param>
+    /// <param name="Evaluator">The evaluator of the call; one thread only.</param>
+    private sealed record EvaluationState(TimeCalendar Calendar, Dictionary<string, DataValue> Parameters, ExpressionEvaluator Evaluator);
 
     /// <summary>
     ///     What the data stage produced.
@@ -116,17 +125,19 @@ public sealed partial class VegaLiteDocument
     ///     <c>data</c> is, once for each <c>data</c> object of the specification (<see cref="LayerTree.DataSites"/>: the copies of a repeated view and the cells of a facet read one
     ///     table, which is shared, never copied, by the views that inherit it) with the fields that every view that reads it needs as dates
     ///     (<see cref="TemporalFields.CollectAll(IEnumerable{SpecNode}, IEnumerable{FacetDefinition})"/>); a view's <c>transform</c> runs before the views below it read the table.
-    ///     One loader (file cache, file count, row budget), one evaluator (steps) and one set of parameters serve the whole call.
+    ///     One loader (file cache, file count, row budget), one evaluator (steps) and one set of parameters serve the whole call; the evaluator and the parameters are those that evaluated the parameters before the data was read.
     /// </remarks>
     /// <param name="tree">The layer tree.</param>
     /// <param name="specification">The specification tree whose expressions the run evaluates: the parsed one, with the expressions of the composite marks' expansion.</param>
     /// <param name="drawn">The layers that are drawn, in document order.</param>
     /// <param name="config">The effective configuration.</param>
     /// <param name="options">The effective options.</param>
+    /// <param name="evaluation">The calendar, the parameter values and the evaluator of the call.</param>
+    /// <param name="selections">The selections of the specification, bound to the layer tree (a bin extent can follow a selection).</param>
     /// <param name="cancellationToken">The token that stops the work.</param>
     /// <param name="dataWarningSink">Receives the findings as soon as they are known, so that a later failure can still report them; null to not collect them.</param>
     /// <returns>The layers with their tables, the findings and the expressions.</returns>
-    private DataStage RunDataStage(LayerTree tree, SpecTree specification, IReadOnlyList<LayerNode> drawn, ResolvedConfig config, VegaLiteRenderOptions options, CancellationToken cancellationToken, List<FeatureReport>? dataWarningSink)
+    private DataStage RunDataStage(LayerTree tree, SpecTree specification, IReadOnlyList<LayerNode> drawn, ResolvedConfig config, VegaLiteRenderOptions options, EvaluationState evaluation, SelectionModel selections, CancellationToken cancellationToken, List<FeatureReport>? dataWarningSink)
     {
         // The data is read first, before any scene item is charged and before any scale exists: one loader (so one file
         // cache, one file count and one row budget) serves this call, from the sandbox that the effective open options
@@ -135,7 +146,7 @@ public sealed partial class VegaLiteDocument
 
         // A facet is instantiated by this walk, whether or not a view below it is drawn (its cells are drawn empty then), so it is visited too
         var needed = NodesToVisit(drawn.Concat(tree.Compositions.Where(c => c.Kind == ViewKind.Facet)));
-        var calendar = TimeCalendar.Create(options.TimeZone);
+        var calendar = evaluation.Calendar;
         var loader = new DataLoader(_tree.SourceName, options.Limits, Options, root["datasets"], options.Datasets, cancellationToken, calendar: calendar);
         var sites = tree.DataSites(needed);
         var siteOfData = new Dictionary<SpecNode, DataSite>(ReferenceEqualityComparer.Instance);
@@ -151,18 +162,17 @@ public sealed partial class VegaLiteDocument
         var reported = loader.Warnings.Count;
         dataWarningSink?.AddRange(loader.Warnings);
 
-        // The parameters are evaluated once, then the row transforms run in the order of the specification, on the
+        // The parameters were evaluated before the data stage; the row transforms run in the order of the specification, on the
         // loaded rows and before any scale exists; they share the loader (row budget, sandbox) and the evaluator (steps)
-        var parameters = new Dictionary<string, DataValue>(StringComparer.Ordinal);
-        var evaluator = new ExpressionEvaluator(options.Limits, cancellationToken, parameters, calendar);
+        var parameters = evaluation.Parameters;
+        var evaluator = evaluation.Evaluator;
         var expressions = new RowExpressions(specification.Expressions, evaluator);
         var transformWarnings = new List<FeatureReport>();
         var layers = new List<LayerData>(drawn.Count);
         var units = new HashSet<LayerNode>(drawn);
         try
         {
-            ParameterEnvironment.Populate(_tree, options.Parameters, parameters, evaluator);
-            var transformContext = new TransformContext(specification, loader, evaluator, parameters, options.Limits, cancellationToken, transformWarnings);
+            var transformContext = new TransformContext(specification, loader, evaluator, parameters, options.Limits, cancellationToken, transformWarnings) { Selections = selections };
 
             // Depth first in document order: a view's table is the table of the nearest data above it, with the transforms of the views on the way applied
             var pending = new Stack<(LayerNode Node, DataTable Inherited)>();
@@ -171,6 +181,7 @@ public sealed partial class VegaLiteDocument
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var (node, inherited) = pending.Pop();
+                var nodeContext = transformContext with { View = node };
                 var table = inherited;
                 if (!ReferenceEquals(node, tree.Root) && node.Data is { } data)
                 {
@@ -185,19 +196,21 @@ public sealed partial class VegaLiteDocument
                     table = own;
                 }
 
-                table = RowTransforms.Apply(table, node.Transform, transformContext);
+                table = RowTransforms.Apply(table, node.Transform, nodeContext);
                 if (units.Contains(node))
                 {
-                    // Then the encoding's own bin, aggregate and stack, in Vega-Lite's order, on the rows the transforms left
+                    // Then the encoding's own bin, aggregate and stack, in Vega-Lite's order, on the rows the transforms left; the conditions that test a selection projected over a time unit
+                    // need the derived field, which Vega-Lite's time unit node adds above the data of the unit
                     var plan = EncodingPlan.Create(node.Unit!, config);
-                    layers.Add(new LayerData(node, plan, EncodingTransforms.Apply(plan, table, transformContext)));
+                    var unitTable = SelectionTimeUnits.Apply(table, SelectionTimeUnits.ConditionsOf(node.Unit!), nodeContext, nodeContext.Locate(node.Unit!));
+                    layers.Add(new LayerData(node, plan, EncodingTransforms.Apply(plan, unitTable, nodeContext)));
                 }
 
                 // A facet splits its rows into the cells and replaces its template by a copy for each cell; the copies are walked like any view, with the rows of their cell
                 IReadOnlyList<FacetCellData>? cellTables = null;
                 if (node.Kind == ViewKind.Facet && !node.HasCells)
                 {
-                    cellTables = InstantiateFacet(tree, node, table, transformContext, needed, units);
+                    cellTables = InstantiateFacet(tree, node, table, nodeContext, needed, units);
                 }
 
                 for (var i = node.Children.Count - 1; i >= 0; i--)

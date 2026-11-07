@@ -59,8 +59,6 @@ public class FeatureCatalogTests
         Assert.Equal(
             [
                 ("vl-schema-version", "/$schema"),
-                ("vl-expr-ref", "/title/text"),
-                ("vl-param-selection", "/params/1"),
                 ("vl-projection", "/projection"),
                 ("vl-transform-regression", "/transform/2"),
                 ("vl-mark-geoshape", "/mark"),
@@ -906,12 +904,11 @@ public class FeatureCatalogTests
         // Act
         var ids = Visit(json);
 
-        // Assert: the filter object, the variable parameter (bind is ignored) and the row-bound color expression are supported
+        // Assert: the filter object, the variable parameter (bind is ignored), the row-bound color expression, the bar's size (a static site, evaluated once) and the selection (a point selection with a projection)
+        // are supported; the width is not a site that Vega-Lite's schema allows an expression at
         Assert.Equal(
             [
                 ("vl-expr-ref", "/width"),
-                ("vl-param-selection", "/params/1"),
-                ("vl-expr-ref", "/mark/size"),
             ],
             ids);
     }
@@ -1135,18 +1132,19 @@ public class FeatureCatalogTests
         // Act
         var ids = Visit(json);
 
-        // Assert: the seven computed transforms (the time unit among them) are not reported, the later phases are
+        // Assert: the seven computed transforms (the time unit among them) and the condition on the selection are not reported, the later phases are
         Assert.Equal(
             [
-                ("vl-param-selection", "/params/0"), ("vl-transform-regression", "/transform/7"),
+                ("vl-transform-regression", "/transform/7"),
                 ("vl-transform-loess", "/transform/8"), ("vl-transform-density", "/transform/9"), ("vl-transform-quantile", "/transform/10"),
-                ("vl-transform-extent", "/transform/11"), ("vl-encoding-condition-param", "/encoding/color/condition"),
+                ("vl-transform-extent", "/transform/11"),
             ],
             ids);
     }
 
     /// <summary>
-    ///     Validates that the aggregating transforms of a view in a concatenation or a facet are applied (only a bin extent that is a parameter is reported, as for a drawn view).
+    ///     Validates that the aggregating transforms of a view in a concatenation or a facet are applied (a bin extent that is a parameter included: it sets the span of the bins, so nothing is reported
+    ///     for a concatenation, a facet or a drawn view; <c>vl-transform-bin-extent-param</c> was retired in Phase 12).
     /// </summary>
     [Fact]
     public void FeatureCatalog_Visit_NestedViewAggregatingTransformsAreAppliedInConcatAndFacet()
@@ -1176,15 +1174,15 @@ public class FeatureCatalogTests
         var facetIds = Visit(facet);
         var drawnIds = Visit(drawn);
 
-        // Assert: the same single report for a concatenation, a facet and a single view
-        Assert.Equal([("vl-transform-bin-extent-param", "/hconcat/0/transform/3/bin/extent")], concatIds);
-        Assert.Equal([("vl-transform-bin-extent-param", "/spec/transform/3/bin/extent")], facetIds);
-        Assert.Equal([("vl-transform-bin-extent-param", "/transform/0/bin/extent")], drawnIds);
+        // Assert: nothing is reported for a concatenation, a facet or a single view
+        Assert.Empty(concatIds);
+        Assert.Empty(facetIds);
+        Assert.Empty(drawnIds);
     }
 
     /// <summary>
     ///     Validates the parts of the aggregation features that are reported, and that the supported forms are not: a bin extent that is a
-    ///     parameter, the order channel without a stack, a secondary channel that a mark cannot draw, the
+    ///     parameter (retired in Phase 12: it sets the span of the bins), the order channel without a stack, a secondary channel that a mark cannot draw, the
     ///     impute of a channel, and a stack on a scale that is not linear (the bin of a color channel is supported).
     /// </summary>
     [Fact]
@@ -1205,17 +1203,13 @@ public class FeatureCatalogTests
         // Act
         var ids = Visit(json);
 
-        // Assert: x2 draws a range and the order channel orders the stack of y; the bin of the color channel is supported, and only the extent parameter is reported
-        Assert.Equal(
-            [
-                ("vl-encoding-bin-extent-param", "/encoding/x/bin/extent"),
-            ],
-            ids);
+        // Assert: x2 draws a range and the order channel orders the stack of y; the bin of the color channel is supported, and so is the extent parameter
+        Assert.Empty(ids);
     }
 
     /// <summary>
-    ///     Validates the parts of the supported transforms that are not supported: a selection in a filter, a pivot operation, a lookup in a parameter
-    ///     and a remote lookup source; and that a time unit or a date-time object in a predicate is supported (only the parts a predicate does not apply
+    ///     Validates the parts of the supported transforms that are not supported: a pivot operation, a lookup in a parameter
+    ///     and a remote lookup source; that a filter on a selection is supported; and that a time unit or a date-time object in a predicate is supported (only the parts a predicate does not apply
     ///     and a binned unit are reported, at the time unit).
     /// </summary>
     [Fact]
@@ -1252,9 +1246,6 @@ public class FeatureCatalogTests
         // Assert
         Assert.Equal(
             [
-                ("vl-param-selection", "/params/0"),
-                ("vl-transform-filter-param", "/transform/0/filter/param"),
-                ("vl-transform-filter-param", "/transform/1/filter/selection"),
                 ("vl-transform-pivot-op", "/transform/5/op"),
                 ("vl-transform-lookup-param", "/transform/7/from/param"),
                 ("vl-data-remote-url", "/transform/8/from/data"),
@@ -1310,16 +1301,16 @@ public class FeatureCatalogTests
     }
 
     /// <summary>
-    ///     Validates that the row-bound sites of an expression reference are evaluated and the others are still reported as
-    ///     <c>vl-expr-ref</c>, with the constructs of an evaluated site reported at its expression.
+    ///     Validates that an expression reference is reported as <c>vl-expr-ref</c> only where it is not evaluated: the row-bound sites and the static sites that Vega-Lite's schema
+    ///     allows are evaluated (a static one is evaluated once, so a <c>datum</c> in it is reported), the others (the width) are reported as not supported.
     /// </summary>
     [Fact]
-    public void FeatureCatalog_Visit_ExpressionReferencesAreReportedOnlyAtDeferredSites()
+    public void FeatureCatalog_Visit_ExpressionReferencesAreReportedOnlyWhereTheyAreNotEvaluated()
     {
-        // Arrange: a symbol size and a color value are row-bound; a bar's size, a position value and the title are not
+        // Arrange: a symbol size and a color value are row-bound; a bar's size, a position value and the title text are static; the font size of the title reads a datum, the width is not a site
         const string json = """
             {
-              "title": { "text": { "expr": "'t'" } },
+              "title": { "text": { "expr": "'t'" }, "fontSize": { "expr": "datum.a" } },
               "width": { "expr": "200" },
               "mark": { "type": "bar", "size": { "expr": "3" }, "fill": { "expr": "toString(datum.a)" } },
               "encoding": { "color": { "value": { "expr": "regexp('a')" } }, "x": { "value": { "expr": "10" } }, "size": { "value": { "expr": "1" } } }
@@ -1332,18 +1323,41 @@ public class FeatureCatalogTests
         // Assert
         Assert.Equal(
             [
-                ("vl-expr-ref", "/title/text"),
+                ("vl-expr-ref", "/title/fontSize"),
                 ("vl-expr-ref", "/width"),
-                ("vl-expr-ref", "/mark/size"),
-                ("vl-expr-ref", "/encoding/x/value"),
-                ("vl-expr-ref", "/encoding/size/value"),
             ],
             ids);
     }
 
     /// <summary>
-    ///     Validates which <c>sort</c> forms of a channel are reported: only the forms the scale resolver cannot compute.
+    ///     Validates that the expression references of the caller's configuration text are reported as <c>vl-expr-ref</c> (nothing evaluates them there), each at its JSON pointer inside the
+    ///     text, in document order, through objects and arrays, and that a text without a reference, an empty text and no text give no report.
     /// </summary>
+    [Fact]
+    public void FeatureCatalog_VisitCallerConfig_ReportsEveryExpressionReferenceAtItsPointer()
+    {
+        // Arrange: a reference in an object, a reference in an array of an object, a reference whose content is not searched, and a property named expr that is not a reference
+        const string text = """
+            { "axis": { "labelFontSize": { "expr": "12" } },
+              "legend": { "items": [ 1, { "titleFontSize": { "expr": "p" } } ] },
+              "view": { "stroke": "red", "expr": 5 },
+              "mark/a": { "expr": { "expr": "x" } } }
+            """;
+
+        // Act
+        var reports = FeatureCatalog.VisitCallerConfig(text);
+
+        // Assert: three references, in order (the third is inside a property named expr whose value is an object, and its name has an escaped slash); each is an unsupported feature
+        // with the pointer in the message and no location
+        Assert.Equal(["vl-expr-ref", "vl-expr-ref", "vl-expr-ref"], reports.Select(r => r.Id));
+        Assert.Contains("/axis/labelFontSize", reports[0].Message, StringComparison.Ordinal);
+        Assert.Contains("/legend/items/1/titleFontSize", reports[1].Message, StringComparison.Ordinal);
+        Assert.Contains("/mark~1a/expr", reports[2].Message, StringComparison.Ordinal);
+        Assert.All(reports, r => Assert.Equal((FeatureReportKind.UnsupportedFeature, false), (r.Kind, r.Location.IsKnown)));
+        Assert.Empty(FeatureCatalog.VisitCallerConfig("""{ "axis": { "labelFontSize": 12 } }"""));
+        Assert.Empty(FeatureCatalog.VisitCallerConfig(string.Empty));
+        Assert.Empty(FeatureCatalog.VisitCallerConfig(null));
+    }
     /// <param name="sort">The text of the <c>sort</c> value.</param>
     /// <param name="reported">Whether <c>vl-encoding-sort</c> is expected.</param>
     [Theory]
@@ -1446,14 +1460,13 @@ public class FeatureCatalogTests
     }
 
     /// <summary>
-    ///     Parses a specification whose color channel is the given definition and lists the findings that are not about the selection parameter
-    ///     the specification declares.
+    ///     Parses a specification whose color channel is the given definition and lists its findings (the specification declares a selection parameter).
     /// </summary>
     /// <param name="color">The JSON text of the color definition.</param>
     /// <returns>The findings as identifier and pointer pairs.</returns>
     private static List<(string Id, string Pointer)> VisitColor(string color) =>
         Visit("{\"params\":[{\"name\":\"sel\",\"select\":\"interval\"}],\"data\":{\"values\":[{\"q\":1,\"g\":\"a\"}]},\"mark\":\"point\",\"encoding\":{\"x\":{\"field\":\"q\",\"type\":\"quantitative\"},\"color\":" + color + "}}")
-            .Where(r => r.Id != "vl-param-selection").ToList();
+            .ToList();
 
     /// <summary>
     ///     Validates that the catalog does not write the text of a predicate to find out whether it can be evaluated: a color condition whose test is a 100,000 character field name
@@ -1492,21 +1505,22 @@ public class FeatureCatalogTests
         Assert.Empty(VisitColor(color));
 
     /// <summary>
-    ///     Validates that a condition on a parameter, and a test that names a selection or a parameter that is not a variable, are reported at the
-    ///     parameter or the condition and are never applied.
+    ///     Validates that a condition on a selection parameter, a test that names one, and the legacy <c>selection</c> form are evaluated and not reported.
     /// </summary>
     [Fact]
-    public void FeatureCatalog_Visit_ParameterConditionsAreReported()
+    public void FeatureCatalog_Visit_ParameterConditionsAreNotReported()
     {
         // Act
         var single = VisitColor("""{"condition":{"param":"sel","value":"red"},"value":"gray"}""");
-        var array = VisitColor("""{"condition":[{"test":"datum.q > 1","value":"blue"},{"param":"sel","value":"red"}]}""");
+        var array = VisitColor("""{"condition":[{"test":"datum.q > 1","value":"blue"},{"param":"sel","empty":false,"value":"red"}]}""");
         var inTest = VisitColor("""{"condition":{"test":{"and":[{"field":"q","gt":1},{"param":"sel"}]},"value":"red"}}""");
+        var legacy = VisitColor("""{"condition":{"selection":"sel","value":"red"}}""");
 
         // Assert
-        Assert.Equal([("vl-encoding-condition-param", "/encoding/color/condition")], single);
-        Assert.Equal([("vl-encoding-condition-param", "/encoding/color/condition/1")], array);
-        Assert.Equal([("vl-encoding-condition-param", "/encoding/color/condition/test/and/1/param")], inTest);
+        Assert.Empty(single);
+        Assert.Empty(array);
+        Assert.Empty(inTest);
+        Assert.Empty(legacy);
     }
 
     /// <summary>
@@ -1886,5 +1900,67 @@ public class FeatureCatalogTests
         Assert.Equal(
             [("vl-encoding-stack-nonlinear", "/encoding/radius/stack")],
             Visit("""{ "mark": "arc", "encoding": { "radius": { "field": "a", "type": "quantitative", "stack": true, "scale": { "type": "sqrt" } } } }"""));
+    }
+
+    /// <summary>
+    ///     Validates the selections that are not modeled: an animation (a timer in <c>on</c>), a point selection over the identity of the rows with an initial value, and a top-level selection that two layers of
+    ///     a layered view receive are reported at the declaration; the interaction properties and every selection that is modeled are not.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_SelectionsThatAreNotModeledAreReported()
+    {
+        // Arrange
+        const string unit = """{ "mark": "point", "encoding": { "x": { "field": "a", "type": "quantitative" } } }""";
+        string Chart(string parameters) => "{ \"params\": " + parameters + ", \"data\": { \"values\": [ { \"a\": 1 } ] }, \"mark\": \"point\", \"encoding\": { \"x\": { \"field\": \"a\", \"type\": \"quantitative\" } } }";
+
+        // Act
+        var timer = Visit(Chart("""[ { "name": "t", "select": { "type": "point", "on": "timer" } } ]"""));
+        var time = Visit(Chart("""[ { "name": "t", "select": { "type": "point", "encodings": ["time"] } } ]"""));
+        var identity = Visit(Chart("""[ { "name": "p", "select": "point", "value": 3 } ]"""));
+        var layers = Visit("{ \"params\": [ { \"name\": \"s\", \"select\": \"interval\" } ], \"data\": { \"values\": [ { \"a\": 1 } ] }, \"layer\": [ " + unit + ", " + unit + " ] }");
+        var narrowed = Visit("{ \"params\": [ { \"name\": \"s\", \"select\": \"interval\", \"views\": [\"one\"] } ], \"data\": { \"values\": [ { \"a\": 1 } ] }, \"layer\": [ "
+            + unit.Replace("\"mark\"", "\"name\": \"one\", \"mark\"", StringComparison.Ordinal) + ", " + unit + " ] }");
+        var legacyTimer = Visit("""{ "selection": { "t": { "type": "single", "on": "timer" } }, "data": { "values": [ { "a": 1 } ] }, "mark": "point" }""");
+        var modeled = Visit(Chart("""[ { "name": "p", "select": { "type": "point", "fields": ["a"], "on": "dblclick", "clear": false, "toggle": true, "nearest": true }, "value": [ { "a": 1 } ], "bind": { "a": { "input": "range" } } }, { "name": "i", "select": "interval", "bind": "scales" }, { "name": "q", "select": "point" } ]"""));
+
+        // Assert
+        Assert.Equal([("vl-param-selection-animation", "/params/0")], timer);
+        Assert.Equal([("vl-param-selection-animation", "/params/0")], time);
+        Assert.Equal([("vl-param-selection-id", "/params/0")], identity);
+        Assert.Equal([("vl-param-selection-layer", "/params/0")], layers);
+        Assert.Empty(narrowed);
+        Assert.Equal([("vl-param-selection-animation", "/selection/t")], legacyTimer);
+        Assert.Empty(modeled);
+    }
+
+    /// <summary>
+    ///     Validates that the row-identity finding is decided by the effective configuration (the defaults, the specification, then the caller's), as the selection model projects: a point selection
+    ///     with a value whose projection the caller's <c>selection.point</c> names is modeled, and one that the caller's configuration puts back on the identity is reported.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_RowIdentityFindingFollowsTheEffectiveConfiguration()
+    {
+        // Arrange
+        const string chart = """{ "params": [ { "name": "p", "select": "point", "value": 3 } ], "data": { "values": [ { "a": 1 } ] }, "mark": "point", "encoding": { "x": { "field": "a", "type": "quantitative" } } }""";
+        const string specificationFields = """{ "config": { "selection": { "point": { "fields": ["a"] } } }, "params": [ { "name": "p", "select": "point", "value": 3 } ], "data": { "values": [ { "a": 1 } ] }, "mark": "point" }""";
+        List<(string Id, string Pointer)> Effective(string json, string? caller)
+        {
+            var tree = SpecParser.Parse(json);
+            return FeatureCatalog.Visit(tree, ConfigResolver.Resolve(tree, caller)).Select(r => (r.Id, r.Location.Pointer)).ToList();
+        }
+
+        // Act
+        var plain = Effective(chart, null);
+        var callerFields = Effective(chart, """{ "selection": { "point": { "fields": ["a"] } } }""");
+        var callerEncodings = Effective(chart, """{ "selection": { "point": { "fields": [], "encodings": ["x"] } } }""");
+        var callerRestoresIdentity = Effective(specificationFields, """{ "selection": { "point": { "fields": ["_vgsid_"] } } }""");
+        var specificationOnly = Effective(specificationFields, null);
+
+        // Assert
+        Assert.Equal([("vl-param-selection-id", "/params/0")], plain);
+        Assert.Empty(callerFields);
+        Assert.Empty(callerEncodings);
+        Assert.Equal([("vl-param-selection-id", "/params/0")], callerRestoresIdentity);
+        Assert.Empty(specificationOnly);
     }
 }

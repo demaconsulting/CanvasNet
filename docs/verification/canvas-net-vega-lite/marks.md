@@ -257,3 +257,13 @@ the unit verification document passes without error or unexpected exception.
   `0.3` at
   the pixels (100, 133.3333), (200, 66.6667), and (300, 0) (x(v) = 100 v on the domain 0 to 3, y(v) = 200 - 200 v / 30 on
   0 to 30) with the red ink around the first two.
+- **Brush Marks Of An Interval Selection**:
+  `VegaLiteBrushIntegrationTests.CanvasNetVegaLite_SystemIntegration_Brush_CoversTheRangeOfBothChannels`,
+  `VegaLiteBrushIntegrationTests.CanvasNetVegaLite_SystemIntegration_Brush_TheMarkOfTheSelectionPaintsTheBrush`,
+  `VegaLiteBrushIntegrationTests.CanvasNetVegaLite_SystemIntegration_Brush_TheStrokeCapJoinAndMiterLimitReachTheOutline`,
+  `VegaLiteBrushIntegrationTests.CanvasNetVegaLite_SystemIntegration_Brush_ALayeredViewWrapsAllItsLayers`,
+  `VegaLiteBrushIntegrationTests.CanvasNetVegaLite_SystemIntegration_Brush_NoCellOfAFacetDrawsAGlobalSelection` — an
+  interval selection with an initial value draws a background rectangle before and a brush rectangle after the marks of
+  the view over the mapped range of its channels (in the data rectangle of 200 by 100 pixels), painted `#333` at 0.125
+  and transparent with a white stroke or as the mark of the selection says; a layered view draws the background before
+  all the layers and the brush after them; and no cell of a facet draws a selection that is resolved globally.

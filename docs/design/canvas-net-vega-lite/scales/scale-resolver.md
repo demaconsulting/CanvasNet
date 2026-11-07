@@ -2,7 +2,7 @@
 
 ![Scales Structure](VegaLiteScalesView.svg)
 
-The `ScaleResolver` unit is the second software unit in the `Scales` subsystem. It comprises eight source files in the
+The `ScaleResolver` unit is the second software unit in the `Scales` subsystem. It comprises nine source files in the
 `DemaConsulting.CanvasNet.VegaLite.Scales` namespace, all `internal`, that define the `internal` types
 `ScaleResolver` (a `static partial` class), `ResolvedScales` (sealed class), `ResolvedScale` (sealed record),
 `RangeEnd` (readonly record struct), and, since phase 10, `LayerScaleInput` (record), `LayeredScales` (sealed class), and
@@ -27,7 +27,8 @@ the `DomainOrder` enumeration:
   `Supported`, `NoDiscreteParent`, `Ranged`, `TimeUnitParent`), `DecideOffset`, `HasNestedOffset`, `HasTimeUnitOffset`,
   `StepForOf`, and the `ApplyNestedOffsets`
   post-pass that sizes the step of a position scale from its offset scale
-
+- `ScaleResolver.Raw.cs` - the raw domain of a scale (phase 12): `RawDomain`, `ScaleExtent`, `FindExtent`, `ReadRawDomain`,
+  `Usable`, `HasParameterDomain`, `BinExtentOf`, and `HasSelectionExtent`
 The files carry the provenance header comment for the Vega-Lite and Vega rules and the d3-scale and d3-time
 behavior they port.
 
@@ -88,7 +89,42 @@ largest radius that the data rectangle allows (the caller passes half of its sma
 every other channel (also for `theta`, which always sweeps the full circle). Since phase 10, `HasExplicitDomain` says
 that the
 domain came from the specification and `DomainOrder` (`Ascending`, `Descending`, `DataOrder`, or `Custom`) how a discrete
-domain was ordered; both are read when layers merge their scales.
+domain was ordered; both are read when layers merge their scales. Since phase 12, `HasRawDomain` says that the
+domain is a
+raw domain (see _Raw domain_ below) that nothing adjusts, and `ClipMarks` that the scale has the extent of a parameter or
+a selection (see _Raw domain_), so that the marks of the view are clipped.
+
+**Raw domain** (phase 12, `ScaleResolver.Raw.cs`). Vega-Lite turns a `scale.domain` of the form `{"param": name}`, a
+`bin.extent` of that form and an interval selection bound to the scales into the `selectionExtent` of the scale
+component and so into the `domainRaw` of the Vega scale (the value of the signal of the parameter; for a selection,
+`name["field"]`), and Vega's `configureDomain` takes a raw domain before anything else and returns: the raw array is the
+domain, with no zero rule, `domainMin`, `domainMax`,
+`domainMid`, pixel padding, or `nice`. The resolver reads the raw domain of a scale as the `scale.domainRaw` of the
+specification (an array literal, which wins, as Vega-Lite's assembly puts the scale properties after the selection
+extent) or, when there is none, the value of the extent of the scale (`FindExtent`). The extent comes from, in
+Vega-Lite's order of precedence, the `extent` of the bin of the channel, which the `domain` of the scale overrides,
+which a selection bound to the scales overrides (the selections are parsed last and set the extent explicitly): for a
+selection (`Context.Selections`, asked through the unit `Context.View`: `SelectionModel.ResolveExtent`, or
+`BoundExtentOf` for a binding, with the field of the projection) the selected range of a field, for a variable parameter
+its value, taken from the parameter
+values of the call (`Context.Parameters`). A selection bound to the scales of a unit that is not the whole view holds
+nothing (see the `SelectionModel` unit), so its scale keeps its domain. It applies to the continuous-to-continuous
+scales (linear, log, pow, sqrt,
+symlog, time, utc, and the sequential scale of a color), where the value needs at least two numbers or dates (a date
+is its milliseconds; more than two entries are a piecewise domain), and to the band, point, and ordinal scales, where it
+needs at least one scalar and each category counts once, in order, with `DomainOrder.Custom` (an entry that no row has is
+still a category); the discretizing scales keep their own domain. A parameter without a value (null), or a selection
+that holds nothing for the field, leaves the domain of the scale as it is. A value that no scale can use (not
+an array, too few entries, a composite or non-finite entry) is reported once as the warning `vl-scale-domain-raw`, located
+at the value, into `Context.Warnings` (and so into `LayeredScales.Warnings`), and the scale keeps its own domain; Vega
+would draw a scale with such a domain with every position undefined. A log scale still refuses a raw domain that
+crosses zero with the located render error that an explicit domain gets. `ClipMarks` is true whenever the scale has an
+extent from a parameter (`HasSelectionExtent`: a `{"param": ...}` domain, a `{"param": ...}` extent of the bin of the
+channel, or a selection bound to the scale), whether or not the parameter gives a value, because Vega-Lite's `scaleClip`
+looks for the selection extent of the scale whatever its value. A selection used as a domain that names no field, or an
+encoding that is not projected exactly once, takes the first projected field and reports
+`vl-param-selection-projection` (the data stage reports the same choice for a bin extent, so the resolver stays
+silent for that source).
 
 **Layered scales** (phase 10, `ScaleResolver.Layers.cs`). **`LayerScaleInput`** is a layer for the resolver: its
 `LayerNode` (the unit view, and through the parents the `resolve` of each layered view above it), its `EncodingPlan`, and
@@ -512,9 +548,12 @@ parameter) resolve no scale.
   after the explicit transforms (the tests): it requires non-null view, table, and configuration, builds the
   `EncodingPlan`, runs `EncodingTransforms.ApplyStandalone` (a private context with an empty row budget), and calls the
   pipeline entry.
-- `Resolve(view, plan, data, config, sourceName, limits, token)` - the pipeline entry: reads the mark and its orient from
+- `Resolve(view, plan, data, config, sourceName, limits, token, parameters)` - the pipeline entry: reads the mark and
+  its orient from
   the plan, returns an empty result for a view without a mark or an encoding, builds the shared context (plan, the Raw and
-  Main tables, configuration, mark, orient, encoding, limits, token, and the width and height steps), and resolves each
+  Main tables, configuration, mark, orient, encoding, limits, token, the parameter values of the call (an optional
+  read-only dictionary of `DataValue` by name, null when there are none, which a raw domain reads), the list that
+  receives the findings, and the width and height steps), and resolves each
   present channel in the fixed order, reading the field of each from its `ChannelPlan`. The data is scanned with the token
   polled every 4,096 rows.
 - `ChooseKind`, `ChannelIsDrawn`, and `AcceptsScaleType` - the scale-type rules above (`ChooseKind` also takes whether
@@ -574,6 +613,21 @@ parameter) resolve no scale.
   value is the shared scale's, so the marks of all layers line up). The title of the merged scale joins the distinct titles
   of the members (`a, b`). The cost beyond the single-view path is one `ResolveChannel` per shared channel and the
   domain extraction already bounded by the limits.
+- `ReadRawDomain(input, context, continuous)`, `FindExtent(input, context)`, `HasParameterDomain(scaleDef)`,
+  `BinExtentOf(input)`, and `HasSelectionExtent(input, context)` (`ScaleResolver.Raw.cs`) - read the raw
+  domain of a scale (see _Raw domain_): the `domainRaw` array of the specification, or the value of the extent that a
+  parameter or a selection gives (`domain: {"param": ...}`, the `extent` of the bin, or a binding to the scales);
+  check it
+  with `Usable` (continuous: at least two finite numbers or dates;
+  discrete: at least one scalar); and add the `vl-scale-domain-raw` warning (once for each location) when a value
+  cannot be
+  used. `BuildContinuous` takes the raw numbers as the domain start and end (and the entries of a piecewise domain) and
+  skips the zero rule, the domain bounds, the pixel padding, and `nice`; `BuildDiscrete` and `DiscreteDomain` take the
+  entries, each once, in order. In `ResolveLayers` (which takes the selections of the call and gives each layer's context
+  its unit view), a member's raw domain is the shared domain whatever the other layers
+  hold (`CombineDomains`, `CombineCategories`), the rebuilt shared scale is marked `HasRawDomain` with no `nice`
+  and no pixel padding, and `ClipMarks` of any member makes the shared scale clip. `LayeredScales.Warnings` carries the
+  raw-domain warnings next to the conflict warnings.
 - `ReadTimeUnit` and `MakeTimeFacts` (`ScaleResolver.Time.cs`) - find the time unit of a channel (from the plan; the
   resolved unit of `EncodingData.TimeUnits` for the `maxbins` form) and, once the kind is known, build the private
   `TimeFacts(Calendar, Unit, IsTemporal, IsUtc)` record: UTC (and `IsUtc`) for a `Utc` scale, a `utc` unit, or an
@@ -625,7 +679,10 @@ not a date: a timestamp, a date text, or a date-time object) is a `VegaLiteSpecE
 located at the offending value (a name that comes from `config.range` is located at the channel). A color range that is
 empty or has an entry that is not a color is the same error, never a fallback to the default range. A log scale whose domain
 includes zero or crosses it is a `VegaLiteSpecException` at `scale.domain` (an explicit domain) or a
-`VegaLiteRenderException` at the channel (the domain of the data). A discrete domain with
+`VegaLiteRenderException` at the channel (the domain of the data, or a raw domain that a parameter gives). A raw domain
+that
+cannot be used (see _Raw domain_) is not an error: the resolver adds the warning `vl-scale-domain-raw` and keeps the
+own domain of the scale. A discrete domain with
 more than `MaxScaleDomainSize` values, a specification array (domain, range) or an array of the configuration (a named
 or default range of `config.range`, a `symbol` list, a configured scheme list, a dash pattern) of more entries than that,
 a scheme `count`
@@ -669,7 +726,8 @@ reported by the `FeatureCatalog`, and the resolver falls back or ignores them as
 
 `VegaLiteDocument` calls `ResolveLayers` once per render (a view without `layer` is one layer, so the result is the
 single-view `Resolve`), with the plan and the tables that `EncodingTransforms`
-produced for each layer; the `Merged` scales give the discrete size hints of the layout, the axes, and the legends, and
+produced for each layer, and the parameter values of the call (which a raw domain reads); the `Merged` scales give the
+discrete size hints of the layout, the axes, and the legends, and
 the
 `PerLayer` scales the marks of each layer. `FeatureCatalog` calls `InferOrient` (to decide the stack of the view) and
 `ChannelIsDrawn` (to report a channel
@@ -679,7 +737,7 @@ the models built from it (the calendar, unit, temporal flag, band-end flag, and 
 included); `MarkBuilder` builds the polar models with the radius extent `min(width, height) / 2`. The tests in
 `test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverTests.cs`, `ScaleResolverColorTests.cs`,
 `ScaleResolverTimeTests.cs`, `ScaleResolverPolarTests.cs` (the polar scales and the orientation rules),
-`ScaleResolverLayerTests.cs` (the layered scales), and
+`ScaleResolverLayerTests.cs` (the layered scales), `ScaleResolverDomainRawTests.cs` (the raw domain of a scale), and
 `MarkChannelGatingTests.cs` (the support table of `ChannelIsDrawn`) call the
 resolver directly through
 `InternalsVisibleTo`.

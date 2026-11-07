@@ -1,15 +1,15 @@
 ## SpecModel Subsystem Verification Design
 
 This document describes the subsystem-level verification strategy for the `SpecModel` subsystem (internal namespace
-`DemaConsulting.CanvasNet.VegaLite.SpecModel`), containing four units: `SpecParser` (together with the node, tree,
-and metadata types of its files), `FeatureCatalog`, `ConfigResolver`, and `SpecNormalizer`.
+`DemaConsulting.CanvasNet.VegaLite.SpecModel`), containing five units: `SpecParser` (together with the node, tree,
+and metadata types of its files), `FeatureCatalog`, `ConfigResolver`, `SpecNormalizer`, and `ExpressionReferenceFolder`.
 
 ### Verification Approach
 
 The `SpecModel` subsystem is verified at two tiers. The unit tests (see _SpecParser Unit Verification Design_,
-_FeatureCatalog Unit Verification Design_, _ConfigResolver Unit Verification Design_, and _SpecNormalizer Unit
-Verification Design_ under `spec-model/`) verify
-each unit in isolation, including its internal types. The subsystem-level scenarios verify the four units working
+_FeatureCatalog Unit Verification Design_, _ConfigResolver Unit Verification Design_, _SpecNormalizer Unit
+Verification Design_, and _ExpressionReferenceFolder Unit Verification Design_ under `spec-model/`) verify
+each unit in isolation, including its internal types. The subsystem-level scenarios verify the five units working
 together: the parser's immutable tree, with its JSON pointers and one-based line and column positions, is the input
 of the feature catalog (which reports the recognized-but-unsupported constructs at those locations), of the
 configuration resolver (which merges the specification's `config` with the Vega-Lite defaults and the caller's
@@ -40,7 +40,7 @@ original, small, and written for the test; no Vega-Lite example specification is
 ### Acceptance Criteria
 
 The `SpecModel` subsystem's verification passes when every subsystem-level scenario below and every unit-level
-scenario in the four unit verification documents passes without error or unexpected exception.
+scenario in the five unit verification documents passes without error or unexpected exception.
 
 ### Test Scenarios
 
@@ -91,7 +91,7 @@ scenario in the four unit verification documents passes without error or unexpec
   `FeatureCatalogTests.FeatureCatalog_Visit_UnsupportedPartsOfSupportedTransformsAreReported`,
   `FeatureCatalogTests.FeatureCatalog_Visit_NestedViewTransformsAreAppliedAndVariableParametersAreReported`,
   `FeatureCatalogTests.FeatureCatalog_Visit_TransformsExpressionsAndParametersAreReported`,
-  `FeatureCatalogTests.FeatureCatalog_Visit_ExpressionReferencesAreReportedOnlyAtDeferredSites`,
+  `FeatureCatalogTests.FeatureCatalog_Visit_ExpressionReferencesAreReportedOnlyWhereTheyAreNotEvaluated`,
   `VegaLiteDocumentSpecModelTests.VegaLiteDocument_Render_DeliversParseWarningsAndCatalogReportsInDocumentOrder` — the
   parser compiles each expression of a supported site once and hands the compiled expressions to the stages that need
   them, so the errors of an expression (a syntax error, a length or nesting over the limit, an unknown parameter, a
@@ -99,9 +99,10 @@ scenario in the four unit verification documents passes without error or unexpec
   value when the document is opened, with the position of the string and the offset inside it, while the catalog reads
   the same compiled expressions and reports what they list but the engine does not run (`vl-expr-function-<name>`,
   `vl-expr-view-state`, `vl-expr-construct-<name>`) at the expression text, the parts of the supported transforms that
-  are not computed (`vl-transform-filter-param`, `-pivot-op`, and
+  are not computed (`-pivot-op`, and
   `-lookup-param`; the former `-filter-timeunit` and `-filter-datetime` are retired because time predicates are
-  evaluated), the transforms of nested views and later phases, and a supported specification of Phase 5
+  evaluated, and `-filter-param` is retired in Phase 12 because a filter on a selection is evaluated), the transforms of
+  nested views and later phases, and a supported specification of Phase 5
   constructs has no report; the parse warnings and the reports are delivered together in document order.
 - **Aggregating Transforms And Encoding Properties Are Validated And Reported By What Is Computed**:
   `SpecParserAggregatesTests.SpecParser_Parse_AggregateTransformShapesArePinned`,
@@ -222,3 +223,21 @@ scenario in the four unit verification documents passes without error or unexpec
   same orientation rule as the catalog; and the catalog reports nothing for a composite mark that is drawn (with the
   channels that it uses) while reporting the grouping channel that has a bin, a time unit, or an aggregate, and the error
   channels of a mark that does not use them.
+- **Expression References Of The Static Sites Are Compiled At Open, Folded Once, And Reported Only Where They Are Not
+  Evaluated**:
+  `SpecParserTests.SpecParser_Parse_CompilesTheExpressionsOfSupportedSitesOnly`,
+  `ExpressionReferenceFolderTests.ExpressionReferenceFolder_Fold_ReplacesAReferenceByItsValue`,
+  `ExpressionReferenceFolderTests.ExpressionReferenceFolder_Fold_FoldsTheConfiguration`,
+  `ExpressionReferenceFolderTests.ExpressionReferenceFolder_Fold_KeepsUntouchedSubtreesAndLocatesTheValues`,
+  `FeatureCatalogTests.FeatureCatalog_Visit_ExpressionReferencesAreReportedOnlyWhereTheyAreNotEvaluated`,
+  `FeatureCatalogTests.FeatureCatalog_VisitCallerConfig_ReportsEveryExpressionReferenceAtItsPointer`,
+  `VegaLiteParamsIntegrationTests.CanvasNetVegaLite_SystemIntegration_Params_ExpressionReferencesDriveTitleBackgroundAndPadding`
+  — the parser compiles the `{"expr": ...}` references of the title, the padding, the mark properties that no row reads,
+  and the channel values at open (a syntax error or an undeclared parameter is a `VegaLiteSpecException` at the text)
+  and lists them as static references in document order, without the row-bound ones; the folder, which reads that list and
+  the parameters of the call, replaces each reference by the value of its expression in a copy of the tree whose
+  untouched subtrees are the original nodes, so that the configuration resolver and the later stages read the value;
+  and the catalog, which reads the same list, reports an expression reference only where the schema allows none or where
+  a static site reads `datum`, scans the `config` of the top-level view as well, and reports the references of the
+  `Config` text of the caller's render options, which nothing evaluates. The
+  end-to-end effect on the title, the background, and the padding of a rendered chart is verified through the public API.

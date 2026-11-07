@@ -65,7 +65,7 @@ internal sealed partial class SpecParser
     /// <summary>The names of the properties of a channel definition (the union of every variant).</summary>
     private static readonly HashSet<string> ChannelDefKeys = Set(
         "aggregate align axis band bandPosition bin bounds center columns condition datum empty expr field "
-        + "format formatType header impute legend param rescale scale sort spacing stack test timeUnit title "
+        + "format formatType header impute legend param rescale scale selection sort spacing stack test timeUnit title "
         + "type value");
 
     /// <summary>The properties of the field definition of a <c>row</c>, <c>column</c> or <c>facet</c> that lay out its cells: another channel definition does not have them.</summary>
@@ -133,7 +133,7 @@ internal sealed partial class SpecParser
 
     /// <summary>The rules for the properties of a condition of a channel definition: a test (or a parameter), a value or the properties of a field definition.</summary>
     private static readonly Dictionary<string, Rule> ConditionRules = Rules(
-        "test: SO", "param: S", "empty: B", "field: SO", "type: S=" + string.Join('|', FieldTypes), "aggregate: SOZ",
+        "test: SO", "param: S", "empty: B", "selection: SO", "field: SO", "type: S=" + string.Join('|', FieldTypes), "aggregate: SOZ",
         "bin: BOSZ", "timeUnit: SOZ", "scale: OZ", "axis: OZ", "legend: OZ", "sort: SAOZ", "title: STZE", "format: SO",
         "formatType: S", "bandPosition: NE");
 
@@ -178,7 +178,7 @@ internal sealed partial class SpecParser
         "direction: S=horizontal|vertical", "aria: BE", "description: SE", "zindex: NE", "clipHeight: NE",
         "columnPadding: NE", "columns: NE", "cornerRadius: NE", "fillColor: SZE", "strokeColor: SZE", "formatType: S",
         "gradientLength: NE", "gradientOpacity: NE", "gradientStrokeColor: SZE", "gradientStrokeWidth: NE",
-        "gradientThickness: NE", "gridAlign: S=all|each|none", "labelAlign: SE", "labelBaseline: SE", "labelColor: SZE",
+        "gradientThickness: NE", "gridAlign: SE=all|each|none", "labelAlign: SE", "labelBaseline: SE", "labelColor: SZE",
         "labelExpr: S", "labelFont: SE", "labelFontSize: NE", "labelFontStyle: SE", "labelFontWeight: SNE",
         "labelLimit: NE", "labelOffset: NE", "labelOpacity: NE", "labelOverlap: BSE", "labelSeparation: NE",
         "legendX: NE", "legendY: NE", "offset: NE", "padding: NE", "rowPadding: NE", "symbolDash: AE",
@@ -314,6 +314,10 @@ internal sealed partial class SpecParser
                 break;
             case "params":
                 ValidateParams(property);
+                break;
+            case "selection":
+                Check(property, ViewRules[name], name);
+                ValidateLegacySelections(property);
                 break;
             case "transform":
                 ValidateTransforms(property);
@@ -943,9 +947,88 @@ internal sealed partial class SpecParser
             {
                 throw Error(expr, "The expr of a parameter must be a string.");
             }
+
+            if (parameter["select"] is { } select)
+            {
+                ValidateSelectionParameter(parameter, select);
+            }
         }
 
         ValidateParameterSemantics(node);
+    }
+
+    /// <summary>
+    ///     The names of the selection types a <c>select</c> may name.
+    /// </summary>
+    private static readonly string[] SelectionTypes = ["point", "interval"];
+
+    /// <summary>
+    ///     Validates the <c>select</c> of a selection parameter, and the properties of it that the renderer reads.
+    /// </summary>
+    /// <param name="parameter">The parameter object.</param>
+    /// <param name="select">The <c>select</c> value: a type name, or an object with a <c>type</c>.</param>
+    /// <exception cref="VegaLiteSpecException">Thrown when the type is not <c>point</c> or <c>interval</c>, or <c>fields</c>, <c>encodings</c>, <c>resolve</c> or <c>views</c> have the wrong shape.</exception>
+    private void ValidateSelectionParameter(SpecNode parameter, SpecNode select)
+    {
+        var type = select.IsObject ? select["type"] : select;
+        if (type is not { IsString: true } || !SelectionTypes.Contains(type.StringValue, StringComparer.Ordinal))
+        {
+            throw Error(type ?? select, "The 'select' of a parameter must be 'point' or 'interval', or an object with that 'type'.");
+        }
+
+        if (select.IsObject)
+        {
+            ValidateSelectionOptions(select);
+        }
+
+        if (parameter["views"] is { } views && (!views.IsArray || views.Items.Any(v => !v.IsString && !v.IsArray)))
+        {
+            throw Error(views, "The 'views' of a selection parameter must be an array of view names.");
+        }
+    }
+
+    /// <summary>
+    ///     Validates the options of a selection that the renderer reads (the projection and the resolution); the event and interaction options are ignored.
+    /// </summary>
+    /// <param name="options">The object that holds the options: the <c>select</c> object, or an entry of a legacy <c>selection</c>.</param>
+    /// <exception cref="VegaLiteSpecException">Thrown when <c>fields</c> or <c>encodings</c> is not an array of texts, or <c>resolve</c> is not <c>global</c>, <c>union</c> or <c>intersect</c>.</exception>
+    private void ValidateSelectionOptions(SpecNode options)
+    {
+        foreach (var name in new[] { "fields", "encodings" })
+        {
+            if (options[name] is { } list && (!list.IsArray || list.Items.Any(i => !i.IsString)))
+            {
+                throw Error(list, $"The '{name}' of a selection must be an array of texts.");
+            }
+        }
+
+        if (options["resolve"] is { } resolve && (!resolve.IsString || resolve.StringValue is not ("global" or "union" or "intersect")))
+        {
+            throw Error(resolve, "The 'resolve' of a selection must be 'global', 'union' or 'intersect'.");
+        }
+    }
+
+    /// <summary>
+    ///     Validates the legacy <c>selection</c> object of a view: an object of selections, each with a <c>type</c> of <c>single</c>, <c>multi</c> or <c>interval</c>.
+    /// </summary>
+    /// <param name="node">The value.</param>
+    /// <exception cref="VegaLiteSpecException">Thrown for a value that is not an object of selection objects with a known type.</exception>
+    private void ValidateLegacySelections(SpecNode node)
+    {
+        if (!node.IsObject)
+        {
+            throw Error(node, "The selection must be an object of selections.");
+        }
+
+        foreach (var entry in node.Properties)
+        {
+            if (!entry.IsObject || entry["type"] is not { IsString: true } type || type.StringValue is not ("single" or "multi" or "interval"))
+            {
+                throw Error(entry["type"] ?? entry, $"The selection '{entry.Name}' needs a 'type' of 'single', 'multi' or 'interval'.");
+            }
+
+            ValidateSelectionOptions(entry);
+        }
     }
 
     /// <summary>

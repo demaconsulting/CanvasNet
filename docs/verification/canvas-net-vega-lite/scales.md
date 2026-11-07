@@ -71,6 +71,21 @@ the five unit verification documents passes without error or unexpected exceptio
   `ScaleResolverTests.ScaleResolver_Resolve_InvalidInputsFailWithLocation` — categories are sorted ascending by
   default or follow the data order, a descending sort, or an explicit array; a domain over `MaxScaleDomainSize` and
   invalid scale properties fail with a located specification or render exception.
+- **A Parameter Gives The Domain As It Is**:
+  `ScaleResolverDomainRawTests.ScaleResolver_Resolve_AParameterDomainIsTheDomainAsItIs`,
+  `ScaleResolverDomainRawTests.ScaleResolver_Resolve_AParameterDomainOfADiscreteScaleIsTheListOfCategories` — the
+  value of
+  the variable parameter that `scale.domain` names is the domain of a continuous scale without the zero rule, bounds,
+  pixel padding, or `nice`, and the list of categories of a band scale in order, each once, and the scale tells that its
+  marks are clipped; the same domain of a parameter through the whole pipeline is verified at the system tier.
+- **A Selection Or A Bin Gives A Scale Its Extent**:
+  `VegaLiteSelectionExtentIntegrationTests.CanvasNetVegaLite_SystemIntegration_BindScales_TheInitialRangeIsTheDomain`,
+  `VegaLiteSelectionExtentIntegrationTests.CanvasNetVegaLite_SystemIntegration_Domain_ASelectionGivesTheRangeOfAField`,
+  `VegaLiteSelectionExtentIntegrationTests.CanvasNetVegaLite_SystemIntegration_BinExtent_TheSpanOfASelectionChoosesTheStep`
+  —
+  the range of an interval selection bound to the scales, or of a field of a selection that `scale.domain` names, is the
+  domain as it is (a mark at 4 of the domain 2 to 6 over 200 pixels is at 100), the marks are clipped, and the span of a
+  bin extent that is a parameter chooses the step of the bins.
 - **Planned Fields, Sorts, And Domains Follow The Implicit Pipeline**:
   `ScaleResolverPlanTests.ScaleResolver_Resolve_SortsByAnotherChannelsAggregate`,
   `ScaleResolverPlanTests.ScaleResolver_Resolve_PreBinnedDomainIsTheUnionOfStartAndEnd`,

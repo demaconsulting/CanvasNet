@@ -354,12 +354,12 @@ internal sealed partial class LegendBuilder
                 Fill = look.Fill,
                 Stroke = look.Stroke,
                 StrokeWidth = look.StrokeWidth,
-                Opacity = look.Opacity,
+                Opacity = SymbolOpacity(c, look, entries[i].Value),
                 FillOpacity = look.FillOpacity,
                 StrokeOpacity = look.StrokeOpacity,
                 StrokeDash = look.Dash,
             };
-            var label = MakeLabel(c, reference + symbolOffset + labelOffset, y, entries[i].Label.Text, align, baseline, limitWidth, entries[i].Label.Lines);
+            var label = MakeLabel(c, reference + symbolOffset + labelOffset, y, entries[i].Label.Text, align, baseline, limitWidth, entries[i].Label.Lines, entries[i].Value);
             symbols.Add(symbol);
             labels.Add(label);
             boxes.Add(SymbolBounds(symbol).Union(_measurer.GetBounds(label)));
@@ -458,6 +458,7 @@ internal sealed partial class LegendBuilder
         new(label.Role, label.X + dx, label.Y + dy, label.Lines)
         {
             Fill = label.Fill,
+            Opacity = label.Opacity,
             FillOpacity = label.FillOpacity,
             FontFamily = label.FontFamily,
             FontSize = label.FontSize,

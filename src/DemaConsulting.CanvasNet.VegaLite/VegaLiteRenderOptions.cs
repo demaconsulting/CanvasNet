@@ -30,6 +30,12 @@ public sealed class VegaLiteRenderOptions
     /// <summary>The nesting depth that a <see cref="Config"/> text may have.</summary>
     private const int MaxConfigDepth = 64;
 
+    /// <summary>The nesting depth that a structured <see cref="Parameters"/> value may have.</summary>
+    private const int MaxParameterDepth = 32;
+
+    /// <summary>The number of values that one entry of <see cref="Parameters"/> may hold, nested values included.</summary>
+    private const int MaxParameterItems = 65_536;
+
     /// <summary>The backing field of <see cref="Scale"/>.</summary>
     private readonly double _scale = 1;
 
@@ -110,16 +116,52 @@ public sealed class VegaLiteRenderOptions
     ///     specification, or <see langword="null"/> for none.
     /// </summary>
     /// <remarks>
-    ///     A value is <see langword="null"/>, a <see cref="bool"/>, a <see cref="string"/>, a finite number of any
-    ///     built-in numeric type, a <see cref="DateTime"/> or a <see cref="DateTimeOffset"/>. The names are validated
-    ///     against <see cref="VegaLiteDocument.ParameterNames"/> when the document is measured or rendered. The
-    ///     dictionary is copied when it is set.
+    ///     <para>
+    ///         A value is <see langword="null"/>, a <see cref="bool"/>, a <see cref="string"/>, a finite number of any
+    ///         built-in numeric type, a <see cref="DateTime"/> or a <see cref="DateTimeOffset"/>, or a structured value: a sequence (an array or a list) of values, or a
+    ///         dictionary with string keys (<see cref="IReadOnlyDictionary{TKey, TValue}"/> or <see cref="IDictionary{TKey, TValue}"/> of <see langword="string"/> and
+    ///         <see langword="object"/>) of values, nested up to 32 levels and holding at most 65,536 values in all. A structured value is how a caller gives a
+    ///         parameter that holds an array (the domain of a scale, <c>[2, 6]</c>) or an object. The value replaces the whole definition of the parameter: its <c>value</c>
+    ///         and its <c>expr</c> (the expression is not evaluated). The names are validated
+    ///         against <see cref="VegaLiteDocument.ParameterNames"/> when the document is measured or rendered. The
+    ///         dictionary, and every sequence and dictionary in it, is copied when it is set.
+    ///     </para>
+    ///     <para>
+    ///         The value of a <b>selection</b> parameter (<c>"select"</c>) replaces its <c>value</c>, the initial state of the selection, and has the same shapes: an interval selection takes a
+    ///         map from the encodings (or fields) to a range (<c>{"x": [2, 6]}</c>), a point selection a map from the fields to a value, a list of such maps (several values) or a single value
+    ///         for every field; a <see cref="DateTime"/> is the instant of a date, read as given. A <see langword="null"/> value clears the initial state: the selection is empty, so a
+    ///         condition or filter with the default <c>empty</c> rule selects everything. The selection is applied as the specification's own <c>value</c> would be: an interval selection
+    ///         draws its brush from the replaced value (none for a <see langword="null"/> value), and a scale whose <c>domain</c> is the selection, a bin whose <c>extent</c> is, or an interval selection
+    ///         bound to the scales takes the replaced range.
+    ///     </para>
     /// </remarks>
-    /// <exception cref="ArgumentException">Thrown on initialization when a key is empty or a value is not supported (the message names the key).</exception>
+    /// <example>
+    ///     A caller that fixes the x domain of a chart whose scale reads the parameter <c>window</c> (<c>"domain": {"param": "window"}</c>):
+    ///     <code language="csharp">
+    ///     var options = new VegaLiteRenderOptions
+    ///     {
+    ///         Parameters = new Dictionary&lt;string, object?&gt; { ["window"] = new object[] { 2, 6 } },
+    ///     };
+    ///     using var surface = document.Render(options);
+    ///     </code>
+    ///     A caller that selects the range 2 to 6 of the interval selection <c>brush</c> (<c>"select": {"type": "interval", "encodings": ["x"]}</c>), whose conditions then
+    ///     style the marks inside it and whose brush is drawn over that range:
+    ///     <code language="csharp">
+    ///     var options = new VegaLiteRenderOptions
+    ///     {
+    ///         Parameters = new Dictionary&lt;string, object?&gt;
+    ///         {
+    ///             ["brush"] = new Dictionary&lt;string, object?&gt; { ["x"] = new object[] { 2, 6 } },
+    ///         },
+    ///     };
+    ///     using var surface = document.Render(options);
+    ///     </code>
+    /// </example>
+    /// <exception cref="ArgumentException">Thrown on initialization when a key is empty, a value is not supported (the message names the key), or a structured value is nested too deeply or holds too many values.</exception>
     public IReadOnlyDictionary<string, object?>? Parameters
     {
         get => _parameters;
-        init => _parameters = CopyValues(value, nameof(Parameters));
+        init => _parameters = CopyParameters(value, nameof(Parameters));
     }
 
     /// <summary>
@@ -282,6 +324,95 @@ public sealed class VegaLiteRenderOptions
 
         return value;
     }
+
+    /// <summary>
+    ///     Validates and deep-copies the parameter values: the scalars of <see cref="CopyValues"/> and the sequences and string-keyed dictionaries of values.
+    /// </summary>
+    /// <param name="values">The values, or null.</param>
+    /// <param name="propertyName">The property name for exceptions.</param>
+    /// <returns>A read-only copy, or null.</returns>
+    /// <exception cref="ArgumentException">Thrown when a key is empty, a value is not supported, or a structured value is nested too deeply or holds too many values.</exception>
+    private static IReadOnlyDictionary<string, object?>? CopyParameters(IReadOnlyDictionary<string, object?>? values, string propertyName)
+    {
+        if (values is null)
+        {
+            return null;
+        }
+
+        var copy = new Dictionary<string, object?>(values.Count, StringComparer.Ordinal);
+        foreach (var pair in values)
+        {
+            RequireName(pair.Key, propertyName);
+            var remaining = MaxParameterItems;
+            copy[pair.Key] = CopyParameterValue(pair.Value, pair.Key, propertyName, 0, ref remaining);
+        }
+
+        return new ReadOnlyDictionary<string, object?>(copy);
+    }
+
+    /// <summary>
+    ///     Validates and copies one parameter value.
+    /// </summary>
+    /// <remarks>
+    ///     The recursion is bounded by <see cref="MaxParameterDepth"/>, so a value that contains itself is rejected, not followed. A sequence becomes a
+    ///     <see cref="ReadOnlyCollection{T}"/> and a dictionary a <see cref="ReadOnlyDictionary{TKey, TValue}"/>, so the caller's later changes do not reach the call.
+    /// </remarks>
+    /// <param name="value">The value.</param>
+    /// <param name="key">The name of the parameter, for the message.</param>
+    /// <param name="propertyName">The property name for the exception.</param>
+    /// <param name="depth">The nesting depth of the value.</param>
+    /// <param name="remaining">The number of values that may still be copied; reduced by each value.</param>
+    /// <returns>The copy.</returns>
+    /// <exception cref="ArgumentException">Thrown when the value is not supported, is nested too deeply or the parameter holds too many values.</exception>
+    private static object? CopyParameterValue(object? value, string key, string propertyName, int depth, ref int remaining)
+    {
+        if (--remaining < 0)
+        {
+            throw new ArgumentException($"The value of '{key}' holds more than {MaxParameterItems} values.", propertyName);
+        }
+
+        if (value is null || value is string || !IsStructured(value))
+        {
+            RequireSupportedValue(value, key, propertyName);
+            return value;
+        }
+
+        if (depth >= MaxParameterDepth)
+        {
+            throw new ArgumentException($"The value of '{key}' is nested deeper than {MaxParameterDepth} levels.", propertyName);
+        }
+
+        if (value is IEnumerable<KeyValuePair<string, object?>> map)
+        {
+            var members = new Dictionary<string, object?>(StringComparer.Ordinal);
+            foreach (var pair in map)
+            {
+                if (pair.Key is null)
+                {
+                    throw new ArgumentException($"The value of '{key}' has a member without a name.", propertyName);
+                }
+
+                members[pair.Key] = CopyParameterValue(pair.Value, key, propertyName, depth + 1, ref remaining);
+            }
+
+            return new ReadOnlyDictionary<string, object?>(members);
+        }
+
+        var items = new List<object?>();
+        foreach (var item in (System.Collections.IEnumerable)value)
+        {
+            items.Add(CopyParameterValue(item, key, propertyName, depth + 1, ref remaining));
+        }
+
+        return items.AsReadOnly();
+    }
+
+    /// <summary>
+    ///     Tells whether a parameter value is a sequence or a dictionary (anything enumerable that is not a string).
+    /// </summary>
+    /// <param name="value">The value.</param>
+    /// <returns><see langword="true"/> for a structured value.</returns>
+    private static bool IsStructured(object value) => value is System.Collections.IEnumerable;
 
     /// <summary>
     ///     Validates and copies a dictionary of named values.

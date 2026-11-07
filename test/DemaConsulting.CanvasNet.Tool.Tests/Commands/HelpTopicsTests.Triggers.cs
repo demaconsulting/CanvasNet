@@ -44,8 +44,13 @@ public partial class HelpTopicsTests
         new("vl-data-remote-url", "vl-data-remote-url", true, Chart(data: "{\"url\":\"https://example.com/d.csv\"}")),
         new("vl-data-geo", "vl-data-geo", true, Chart(data: "{\"sphere\":true}")),
         new("vl-projection", "vl-projection", true, Chart(top: ",\"projection\":{\"type\":\"mercator\"}")),
-        new("vl-param-selection", "vl-param-selection", true, Chart(top: ",\"params\":[{\"name\":\"p\",\"select\":\"interval\"}]")),
+        new("vl-param-selection-layer", "vl-param-selection-layer", true, "{\"params\":[{\"name\":\"p\",\"select\":\"interval\"}],\"data\":{\"values\":[{\"x\":1,\"y\":2}]},\"layer\":[" + Layer() + "," + Layer() + "]}"),
+        new("vl-param-selection-id", "vl-param-selection-id", true, Chart(top: ",\"params\":[{\"name\":\"p\",\"select\":\"point\",\"value\":2}]")),
+        new("vl-param-selection-animation", "vl-param-selection-animation", true, Chart(top: ",\"params\":[{\"name\":\"p\",\"select\":{\"type\":\"point\",\"on\":\"timer\"}}]")),
+        new("vl-param-selection-projection", "vl-param-selection-projection", true, Chart(top: ",\"params\":[{\"name\":\"p\",\"select\":{\"type\":\"interval\",\"encodings\":[\"size\"]}}]"), true),
         new("vl-param-variable", "vl-param-variable", true, "{\"hconcat\":[" + Chart(top: ",\"params\":[{\"name\":\"v\",\"value\":1}]") + "]}"),
+        new("vl-transform-lookup-param", "vl-transform-lookup-param", true, Chart(top: ",\"params\":[{\"name\":\"p\",\"select\":\"interval\"}],\"transform\":[{\"lookup\":\"x\",\"from\":{\"param\":\"p\"}}]")),
+        new("vl-expr-ref", "vl-expr-ref", true, Chart(top: ",\"title\":{\"text\":\"T\",\"fontSize\":{\"expr\":\"datum.x\"}}")),
         new("vl-transform-<name>", "vl-transform-regression", true, Chart(top: ",\"transform\":[{\"regression\":\"y\",\"on\":\"x\"}]")),
         new("vl-expr-function-<name>", "vl-expr-function-now", true, Chart(top: ",\"transform\":[{\"calculate\":\"now()\",\"as\":\"z\"}]")),
         new("vl-guide-encode", "vl-guide-encode", true, Chart(x: "{\"field\":\"x\",\"type\":\"quantitative\",\"axis\":{\"encode\":{}}}")),
@@ -57,6 +62,7 @@ public partial class HelpTopicsTests
         new("vl-unknown-property", "vl-unknown-property", true, Chart(top: ",\"bogus\":1"), true),
         new("vl-schema-version", "vl-schema-version", true, Chart(top: ",\"$schema\":\"https://vega.github.io/schema/vega-lite/v4.json\""), true),
         new("vl-layout-fit-step", "vl-layout-fit-step", true, Chart(mark: "\"bar\"", x: "{\"field\":\"x\",\"type\":\"ordinal\"}", top: ",\"autosize\":\"fit\",\"width\":{\"step\":20}"), true),
+        new("vl-scale-domain-raw", "vl-scale-domain-raw", true, Chart(top: ",\"params\":[{\"name\":\"d\",\"value\":\"abc\"}]", x: "{\"field\":\"x\",\"type\":\"quantitative\",\"scale\":{\"domain\":{\"param\":\"d\"}}}"), true),
         new("vl-composition-property-ignored", "vl-composition-property-ignored", true, "{\"hconcat\":[" + Chart() + "],\"width\":100}", true),
         new("vl-text-missing-glyph", "vl-text-missing-glyph", true, Chart(mark: "{\"type\":\"text\",\"text\":\"a \\uE000 b\"}"), true)
     ];
@@ -179,4 +185,11 @@ public partial class HelpTopicsTests
         return "{\"data\":" + data + ",\"mark\":" + mark + ",\"encoding\":{\"x\":" + x
                + ",\"y\":{\"field\":\"y\",\"type\":\"quantitative\"}" + extraEncoding + "}" + top + "}";
     }
+
+    /// <summary>
+    ///     Builds a point view with an x and a y channel, for a layered chart.
+    /// </summary>
+    /// <returns>The view text.</returns>
+    private static string Layer() =>
+        "{\"mark\":\"point\",\"encoding\":{\"x\":{\"field\":\"x\",\"type\":\"quantitative\"},\"y\":{\"field\":\"y\",\"type\":\"quantitative\"}}}";
 }
