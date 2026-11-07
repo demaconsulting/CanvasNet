@@ -60,7 +60,9 @@ radius `sqrt(size) / 2`, and the curve formulas.
 The scenarios cover the requirements of the unit as follows: `CanvasNetVegaLite-Scenegraph-SymbolPathParser-Parse` by
 the repetition, number grammar, error, skipped text, and limit scenarios; `-RenderCanvasRules` by the canvas rules, the
 reflected control points, the scaled `t`, and the arcs; `-Bounds` by the curve extrema, the scaled `t`, and the painter
-and legend bounds; `-Cache` by the sharing scenario; and `-Scaling` by the scaling scenario and the painter scenario.
+and legend bounds; `-Cache` by the sharing scenario, the scenario that an invalid path and a path longer than 8,192
+characters are not cached, and the scenario that unique long paths added from four threads never make the cache exceed
+its 256 entries or 262,144 characters; and `-Scaling` by the scaling scenario and the painter scenario.
 
 Unit tests reside in `SymbolPathParserTests.cs` within the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the
 `Scenegraph` folder. The report of the invalid path by the catalog is verified in `FeatureCatalogTests.cs` (see the

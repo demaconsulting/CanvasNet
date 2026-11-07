@@ -67,14 +67,17 @@ and the **extrema of a quadratic or cubic curve** (the parameter values where a 
 bounds are those of the drawn curve and not of its control polygon. `Render` returns them in the coordinates of the
 symbol's center; they are empty when the path draws no point. The legend uses them for the space of the symbol.
 
-**Cache.** `TryGet` keeps at most 256 parsed paths, by their exact text (ordinal comparison), and clears the cache
-when it is full; a text that does not parse is cached as a failure, so a bad path is parsed once. `Render` remembers
-the last
-size (a symbol mark mostly has one size) and returns the same `Path` and bounds for it.
+**Cache.** `TryGet` keeps parsed paths by their exact text (ordinal comparison) in a process-wide cache that is guarded
+by a lock and bounded three ways: at most 256 entries, at most 262,144 characters of path text in total, and no text
+longer than 8,192 characters. The cache is cleared when an entry would exceed the entry or the character budget. A
+text that does not parse is never cached (it is parsed again on each call, which stops at the first error), so a
+long-lived process that renders many different specifications retains a bounded amount of path text. `Render`
+remembers the last size (a symbol mark mostly has one size) and returns the same `Path` and bounds for it.
 
 **Limits** (every loop or allocation of the unit): the number of commands is at most `MaxCommands` (4,096) and the
 numbers read are bounded by seven times that; the parse and the drawing are linear in the number of commands, an arc
-adds at most four cubic curves, and the cache holds at most 256 entries, so the work and the memory are bounded.
+adds at most four cubic curves, and the cache holds at most 256 entries and 262,144 characters of text, so the work
+and the memory are bounded.
 
 **Determinism.** The unit uses only its arguments; numbers are read with the invariant culture, and no clock or random
 source is used. The same text and size give the same path on every call; the path stores single precision numbers, as

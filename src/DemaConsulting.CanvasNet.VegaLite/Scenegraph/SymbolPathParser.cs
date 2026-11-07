@@ -43,8 +43,17 @@ internal sealed class SymbolPathParser
     /// <summary>Vega's <c>Epsilon</c> (<c>util/constants.js</c>).</summary>
     private const double Epsilon = 1e-14;
 
-    /// <summary>The parsed paths by text; null for a text that does not parse.</summary>
+    /// <summary>The longest path text (in characters) that is kept parsed.</summary>
+    private const int MaxCachedPathLength = 8192;
+
+    /// <summary>The total number of characters of path text that the cache retains; the cache is emptied when it would exceed this.</summary>
+    private const int MaxCachedChars = 262144;
+
+    /// <summary>The parsed paths by text; only a text that parses is kept. Guarded by a lock on the dictionary.</summary>
     private static readonly Dictionary<string, SymbolPathParser?> Cache = new(StringComparer.Ordinal);
+
+    /// <summary>The total characters of the keys in <see cref="Cache"/>. Guarded by a lock on <see cref="Cache"/>.</summary>
+    private static long _cachedChars;
 
     /// <summary>The commands: the letter and the parameters.</summary>
     private readonly List<(char Letter, double[] Params)> _commands;
@@ -97,18 +106,60 @@ internal sealed class SymbolPathParser
         }
 
         var parsed = TryParse(text, out _);
+
+        // Only a path that parses and is of modest length is kept: a text that does not parse, or a very long one, is parsed again
+        // for each use, which keeps the memory that the process-wide cache retains within the fixed budget
+        if (parsed is null || text.Length > MaxCachedPathLength)
+        {
+            return parsed;
+        }
+
         lock (Cache)
         {
-            if (Cache.Count >= MaxCachedPaths)
+            if (Cache.ContainsKey(text))
+            {
+                return parsed;
+            }
+
+            if (Cache.Count >= MaxCachedPaths || _cachedChars + text.Length > MaxCachedChars)
             {
                 Cache.Clear();
+                _cachedChars = 0;
             }
 
             Cache[text] = parsed;
+            _cachedChars += text.Length;
         }
 
         return parsed;
     }
+
+    /// <summary>
+    ///     Finds out whether a path text is in the cache (for tests).
+    /// </summary>
+    /// <param name="text">The path text.</param>
+    /// <returns><see langword="true"/> when the text is cached.</returns>
+    internal static bool IsCached(string text)
+    {
+        lock (Cache)
+        {
+            return Cache.ContainsKey(text);
+        }
+    }
+
+    /// <summary>
+    ///     Gets the number of paths and the total number of characters of path text that the cache retains (for tests).
+    /// </summary>
+    /// <returns>The entry count and the character total.</returns>
+    internal static (int Count, long Chars) CacheStatistics()
+    {
+        lock (Cache)
+        {
+            return (Cache.Count, _cachedChars);
+        }
+    }
+
+
 
     /// <summary>
     ///     Parses SVG path data the way vega's <c>parse.js</c> does.

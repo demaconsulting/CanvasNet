@@ -331,4 +331,76 @@ public class SymbolPathParserTests
         Assert.True(ScenePainter.IsDrawableShape("circle"));
         Assert.False(ScenePainter.IsDrawableShape("M0,0L"));
     }
+
+    /// <summary>
+    ///     Builds a valid path text of a given length (a unique polyline).
+    /// </summary>
+    /// <param name="seed">The number that makes the text unique.</param>
+    /// <param name="length">The approximate length in characters.</param>
+    /// <returns>The path text.</returns>
+    private static string LongPath(int seed, int length)
+    {
+        var text = new System.Text.StringBuilder($"M{seed},0");
+        while (text.Length < length)
+        {
+            text.Append(" L1,1");
+        }
+
+        return text.ToString();
+    }
+
+    /// <summary>
+    ///     Validates that a path that does not parse and a path longer than the cache keeps are parsed on each call and never retained.
+    /// </summary>
+    [Fact]
+    public void SymbolPathParser_TryGet_DoesNotCacheInvalidOrVeryLongPaths()
+    {
+        // Arrange: an invalid path (a command without parameters) and a valid path longer than the cache keeps
+        var invalid = "M0,0 L1,1 L " + new string(' ', 100) + "unique-invalid";
+        var veryLong = LongPath(7, 9000);
+
+        // Act
+        var invalidResult = SymbolPathParser.TryGet(invalid);
+        var longResult = SymbolPathParser.TryGet(veryLong);
+
+        // Assert: the invalid path is not drawable and was not kept; the long one is drawn but was not kept
+        Assert.Null(invalidResult);
+        Assert.NotNull(longResult);
+        Assert.False(SymbolPathParser.IsCached(invalid));
+        Assert.False(SymbolPathParser.IsCached(veryLong));
+        Assert.Equal(longResult.CommandCount, SymbolPathParser.TryGet(veryLong)!.CommandCount);
+    }
+
+    /// <summary>
+    ///     Validates that unique long paths, added from several threads, never make the cache retain more path text than its budget.
+    /// </summary>
+    [Fact]
+    public void SymbolPathParser_TryGet_BoundsTheRetainedTextAndIsThreadSafe()
+    {
+        // Arrange: far more unique 4000-character paths than the budget keeps (many times 262144 characters)
+        const int perThread = 200;
+        var violations = 0;
+
+        // Act: four threads add unique paths and check the retained characters after each
+        var threads = Enumerable.Range(0, 4).Select(t => new Thread(() =>
+        {
+            for (var i = 0; i < perThread; i++)
+            {
+                Assert.NotNull(SymbolPathParser.TryGet(LongPath((t * perThread) + i + 1000, 4000)));
+                var (count, chars) = SymbolPathParser.CacheStatistics();
+                if (chars > 262144 || count > 256)
+                {
+                    Interlocked.Increment(ref violations);
+                }
+            }
+        })).ToList();
+        threads.ForEach(t => t.Start());
+        threads.ForEach(t => t.Join());
+
+        // Assert: the cache never exceeded its entry or character budget
+        Assert.Equal(0, violations);
+        var (finalCount, finalChars) = SymbolPathParser.CacheStatistics();
+        Assert.InRange(finalChars, 0, 262144);
+        Assert.InRange(finalCount, 0, 256);
+    }
 }
