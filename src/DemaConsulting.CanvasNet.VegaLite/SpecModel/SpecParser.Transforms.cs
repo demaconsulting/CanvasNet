@@ -47,6 +47,9 @@ internal sealed partial class SpecParser
     /// <summary>The parameter name indexes of the <c>params</c> arrays, built on first use (the trees are immutable, so an index never goes stale).</summary>
     private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<SpecNode, Dictionary<string, SpecNode>> ParameterIndexes = [];
 
+    /// <summary>The indexes of the selections declared anywhere below a root view, built on first use.</summary>
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<SpecNode, Dictionary<string, SpecNode>> SelectionIndexes = [];
+
     /// <summary>The root object of the specification being validated.</summary>
     private SpecNode? _root;
 
@@ -83,16 +86,74 @@ internal sealed partial class SpecParser
     /// <returns>The parameter object, or null when none is declared.</returns>
     public static SpecNode? FindParameter(SpecNode from, string name)
     {
+        // The nearest view that declares the name wins; a legacy selection entry is a declaration too
+        var top = from;
         for (SpecNode? node = from; node is not null; node = node.Parent)
         {
+            top = node;
             if (node.IsObject && node["params"] is { IsArray: true } list
                 && ParameterIndexes.GetValue(list, BuildParameterIndex).TryGetValue(name, out var found))
             {
                 return found;
             }
+
+            if (node.IsObject && node["selection"] is { IsObject: true } legacy && legacy[name] is { IsObject: true } entry)
+            {
+                return entry;
+            }
         }
 
-        return null;
+        // A selection is visible in every view of the specification: Vega-Lite merges the selections of the children into their parent, so a view sees those of its siblings
+        return SelectionIndexes.GetValue(top, BuildSelectionIndex).GetValueOrDefault(name);
+    }
+
+    /// <summary>
+    ///     Indexes the selections declared anywhere in a specification by name, in document order (the first declaration of a name wins).
+    /// </summary>
+    /// <param name="root">The root of the specification.</param>
+    /// <returns>The declarations by name.</returns>
+    private static Dictionary<string, SpecNode> BuildSelectionIndex(SpecNode root)
+    {
+        var index = new Dictionary<string, SpecNode>(StringComparer.Ordinal);
+        var pending = new Stack<SpecNode>();
+        pending.Push(root);
+        while (pending.Count > 0)
+        {
+            var view = pending.Pop();
+            if (!view.IsObject)
+            {
+                continue;
+            }
+
+            foreach (var declaration in SelectionDeclarations.DeclarationsOf(view))
+            {
+                if (SelectionDeclarations.NameOf(declaration) is { } declared)
+                {
+                    index.TryAdd(declared, declaration);
+                }
+            }
+
+            // The nested views pop in document order
+            var nested = new List<SpecNode>();
+            foreach (var property in view.Properties)
+            {
+                if (property.Name is "layer" or "concat" or "hconcat" or "vconcat")
+                {
+                    nested.AddRange(property.Items.Where(item => item.IsObject));
+                }
+                else if (property.Name == "spec" && property.IsObject)
+                {
+                    nested.Add(property);
+                }
+            }
+
+            for (var i = nested.Count - 1; i >= 0; i--)
+            {
+                pending.Push(nested[i]);
+            }
+        }
+
+        return index;
     }
 
     /// <summary>
@@ -188,7 +249,7 @@ internal sealed partial class SpecParser
             }
 
             ValidateDatum(item);
-            if (item["test"] is null && item["param"] is null)
+            if (item["test"] is null && item["param"] is null && item["selection"] is null)
             {
                 throw Error(item, "A condition needs a 'test' (an expression or a predicate) or a 'param'.");
             }
@@ -202,6 +263,28 @@ internal sealed partial class SpecParser
                     // The lists are checked before the expression is written, so that a list that is too long costs no text
                     CheckOneOfSizes(test);
                     CompilePredicate(test);
+                }
+            }
+
+            if (item["param"] is { } conditionParameter)
+            {
+                // A condition on a parameter holds for the rows the selection contains (or, for a variable parameter, when it is truthy)
+                if (!conditionParameter.IsString || !IsParameterDeclared(conditionParameter, conditionParameter.StringValue!))
+                {
+                    throw Error(conditionParameter, "The 'param' of a condition must be the name of a parameter of the specification.");
+                }
+
+                if (evaluated)
+                {
+                    CompilePredicate(item, conditionParameter);
+                }
+            }
+            else if (item["selection"] is { } legacySelection)
+            {
+                ValidateLegacySelectionPredicate(legacySelection);
+                if (evaluated)
+                {
+                    CompilePredicate(item, legacySelection);
                 }
             }
 
@@ -516,20 +599,124 @@ internal sealed partial class SpecParser
                 throw Error(parameter, "The 'param' of a predicate must be the name of a parameter of the specification.");
             }
 
+            CompileSelectionPredicate(predicate, predicate);
             return;
         }
 
         if (predicate["selection"] is { } selection)
         {
-            if (!selection.IsString)
+            ValidateLegacySelectionPredicate(selection);
+            CompileSelectionPredicate(predicate, predicate);
+            return;
+        }
+
+        ValidateFieldPredicate(predicate);
+    }
+
+    /// <summary>
+    ///     Validates the value of a legacy <c>selection</c> predicate: the name of a selection, or a logical composition of names.
+    /// </summary>
+    /// <param name="selection">The value.</param>
+    /// <exception cref="VegaLiteSpecException">Thrown when the value is not a name of a declared selection or a composition of them.</exception>
+    private void ValidateLegacySelectionPredicate(SpecNode selection)
+    {
+        if (selection.IsString)
+        {
+            if (!IsParameterDeclared(selection, selection.StringValue!))
             {
-                throw Error(selection, "The 'selection' of a predicate must be a text.");
+                throw Error(selection, "The 'selection' of a predicate must be the name of a selection of the specification.");
             }
 
             return;
         }
 
-        ValidateFieldPredicate(predicate);
+        if (selection.IsObject)
+        {
+            foreach (var composition in new[] { "and", "or" })
+            {
+                if (selection[composition] is { IsArray: true } items)
+                {
+                    foreach (var item in items.Items)
+                    {
+                        ValidateLegacySelectionPredicate(item);
+                    }
+
+                    return;
+                }
+            }
+
+            if (selection["not"] is { } negated)
+            {
+                ValidateLegacySelectionPredicate(negated);
+                return;
+            }
+        }
+
+        throw Error(selection, "The 'selection' of a predicate must be a text or an 'and', 'or' or 'not' composition of texts.");
+    }
+
+    /// <summary>
+    ///     Compiles the expression of a predicate that names a selection (a selection is evaluated as the expression that Vega-Lite compiles for it); a predicate on a variable parameter
+    ///     is evaluated natively and has no expression.
+    /// </summary>
+    /// <param name="key">The node the compiled expression is kept under.</param>
+    /// <param name="predicate">The object that holds the <c>param</c> (with its <c>empty</c>) or the <c>selection</c>.</param>
+    private void CompileSelectionPredicate(SpecNode key, SpecNode predicate)
+    {
+        IReadOnlyList<SpecNode> names = [];
+        if (predicate["param"] is { IsString: true } named)
+        {
+            names = [named];
+        }
+        else if (predicate["selection"] is { } legacy)
+        {
+            names = LegacyNames(legacy);
+        }
+
+        if (names.Any(n => FindParameter(n, n.StringValue!) is { } declaration && SelectionDeclarations.IsSelection(declaration)))
+        {
+            // The text is written under the generated budget, like any predicate that the renderer writes as an expression
+            CompilePredicate(predicate, key);
+        }
+    }
+
+    /// <summary>
+    ///     Lists the string nodes of a legacy <c>selection</c> value (the names inside a composition).
+    /// </summary>
+    /// <param name="selection">The value.</param>
+    /// <returns>The name nodes.</returns>
+    private static List<SpecNode> LegacyNames(SpecNode selection)
+    {
+        var names = new List<SpecNode>();
+        var pending = new Stack<SpecNode>();
+        pending.Push(selection);
+        while (pending.Count > 0)
+        {
+            var current = pending.Pop();
+            if (current.IsString)
+            {
+                names.Add(current);
+            }
+            else if (current.IsObject)
+            {
+                foreach (var child in current.Properties)
+                {
+                    if (child.IsArray)
+                    {
+                        foreach (var item in child.Items)
+                        {
+                            pending.Push(item);
+                        }
+                    }
+                    else
+                    {
+                        pending.Push(child);
+                    }
+                }
+            }
+        }
+
+        return names;
     }
 
     /// <summary>
@@ -700,6 +887,32 @@ internal sealed partial class SpecParser
         {
             throw Error(fallback, "The 'default' of a lookup must be a text, a number, a boolean or null.");
         }
+    }
+
+    /// <summary>
+    ///     Compiles the <c>{"expr": ...}</c> values of the static sites of the specification (the sites that Vega-Lite's schema allows an expression reference at and that no row reads).
+    /// </summary>
+    /// <remarks>
+    ///     The references at the sites that the marks evaluate for every row were compiled by the validation of the mark and of the channels, so they are not compiled again and are not
+    ///     listed: the list holds what <see cref="ExpressionReferenceFolder"/> evaluates once.
+    /// </remarks>
+    /// <param name="root">The root of the specification.</param>
+    /// <returns>The references in document order.</returns>
+    /// <exception cref="VegaLiteSpecException">Thrown for a syntax error, a limit overflow or a reference to an unknown parameter.</exception>
+    private List<StaticReference> CompileStaticReferences(SpecNode root)
+    {
+        var references = new List<StaticReference>();
+        foreach (var site in ExpressionReferenceSites.Find(root))
+        {
+            if (_expressions.ContainsKey(site.Text))
+            {
+                continue;
+            }
+
+            references.Add(new StaticReference(site.Reference, site.Text, CompileExpression(site.Text), site.Kind));
+        }
+
+        return references;
     }
 
     /// <summary>

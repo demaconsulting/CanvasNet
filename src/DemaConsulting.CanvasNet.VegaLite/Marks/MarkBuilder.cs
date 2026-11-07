@@ -86,8 +86,8 @@ namespace DemaConsulting.CanvasNet.VegaLite.Marks;
 ///         <c>cornerRadius</c> are constants of the mark. A <c>text</c> mark whose <c>theta</c> or <c>radius</c> is stacked sits at the middle of its slice (the <c>bandPosition</c> of the channel moves it).
 ///     </para>
 ///     <para>
-///         <b>Clipping.</b> Marks are clipped to the data rectangle only when the mark definition says <c>"clip": true</c>. Vega-Lite's
-///         <c>scaleClip</c> applies to the extent of an interval selection, which is not supported, so an explicit scale domain never clips. Row-bound expressions
+///         <b>Clipping.</b> Marks are clipped to the data rectangle when the mark definition says <c>"clip": true</c> and when the x or y scale takes its domain from a parameter
+///         (<c>scale.domain</c> of the form <c>{"param": ...}</c>; Vega-Lite's <c>scaleClip</c>, <see cref="ResolvedScale.ClipMarks"/>). An explicit scale domain array never clips. Row-bound expressions
 ///         (<c>{"expr": ...}</c>, compiled by the specification parser) are evaluated against the transformed row of each mark for the
 ///         paint properties of the mark definition (<c>color</c>, <c>fill</c>, <c>stroke</c>, <c>opacity</c>, <c>strokeWidth</c>, and
 ///         <c>size</c> of a symbol) and for the constant <c>value</c> of a color, fill, stroke or opacity channel (and of a size
@@ -204,7 +204,7 @@ internal sealed partial class MarkBuilder
         _budget.Add(1, (view["mark"] ?? view).GetLocation(_sourceName));
         var run = new Run(this, type, markNode is { IsObject: true } ? markNode : null, view, table, scales, width, height, cancellationToken);
         var items = run.Build();
-        var clip = markNode?["clip"] is { IsBoolean: true, BoolValue: true };
+        var clip = markNode?["clip"] is { IsBoolean: true, BoolValue: true } || scales["x"]?.ClipMarks == true || scales["y"]?.ClipMarks == true;
         return new SceneGroup("marks", 0, 0)
         {
             Children = items,
@@ -577,7 +577,7 @@ internal sealed partial class MarkBuilder
         /// </summary>
         /// <param name="name">The channel name.</param>
         /// <param name="node">The channel definition.</param>
-        /// <returns>The conditions in order: those on a test that the parser compiled (a condition on a parameter, a test that no expression can say, and the conditions of a call without expressions are left out).</returns>
+        /// <returns>The conditions in order: those on a predicate that the parser compiled (a predicate that no expression can say, and the conditions of a call without expressions are left out).</returns>
         private List<ChannelCondition> ConditionsOf(string name, SpecNode node)
         {
             var conditions = new List<ChannelCondition>();
@@ -589,7 +589,7 @@ internal sealed partial class MarkBuilder
             var fieldDefinition = ChannelDefinitions.FieldDefinitionOf(node);
             foreach (var condition in ChannelDefinitions.TestConditions(node))
             {
-                if (expressions.Compiled.Get(condition["test"]) is { } test)
+                if (ChannelDefinitions.PredicateKeyOf(condition) is { } key && expressions.Compiled.Get(key) is { } test)
                 {
                     conditions.Add(new ChannelCondition(
                         test,

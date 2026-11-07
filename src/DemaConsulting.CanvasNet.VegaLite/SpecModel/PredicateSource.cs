@@ -16,7 +16,8 @@ namespace DemaConsulting.CanvasNet.VegaLite.SpecModel;
 ///         under the limits and the step budget of the engine.
 ///     </para>
 ///     <para>
-///         A predicate that no expression can say is not written: a selection or a parameter that is not a variable parameter. A <c>timeUnit</c> and a comparison with a date-time
+///         A predicate that no expression can say is not written: a parameter that is not declared, or a variable parameter whose name is not an identifier. A selection is written as the text that
+///         Vega-Lite compiles for it (<c>!length(data("brush_store")) || vlSelectionTest("brush_store", datum)</c>), which the selection functions of the expression engine evaluate. A <c>timeUnit</c> and a comparison with a date-time
 ///         object are written with the date and time functions (<c>time(datetime(year(datum["d"]), month(datum["d"]), 1, 0, 0, 0, 0))</c>, the way Vega-Lite's
 ///         <c>fieldFilterExpression</c> does), so they are evaluated in the calendar of the chart; the parts <c>week</c> and <c>dayofyear</c> of a time unit are
 ///         not written (Vega-Lite does not either). The class is static and pure.
@@ -68,7 +69,7 @@ internal static class PredicateSource
     }
 
     /// <summary>
-    ///     Tells whether a predicate has a part that an expression cannot say (a selection, or a parameter that is not a variable parameter, or a value that is not a valid date-time object).
+    ///     Tells whether a predicate has a part that an expression cannot say (an undeclared parameter, a variable parameter whose name is not an identifier, a selection of an unknown type, or a value that is not a valid date-time object).
     /// </summary>
     /// <remarks>The text is only counted (the budget is zero), so a predicate with a large expansion costs no memory to ask.</remarks>
     /// <param name="predicate">The <c>test</c> value.</param>
@@ -180,12 +181,17 @@ internal static class PredicateSource
             return inner;
         }
 
-        if (node["param"] is { } parameter)
+        if (node["param"] is not null)
         {
-            return AppendParameter(parameter, text);
+            return AppendParameter(node, text);
         }
 
-        return node["selection"] is null && AppendField(node, text);
+        if (node["selection"] is { } legacy)
+        {
+            return AppendLegacySelection(legacy, text);
+        }
+
+        return AppendField(node, text);
     }
 
     /// <summary>
@@ -221,23 +227,127 @@ internal static class PredicateSource
     }
 
     /// <summary>
-    ///     Writes a variable parameter as its name; a selection parameter has no value an expression can read.
+    ///     Writes a predicate on a parameter: a variable parameter as its name (a truthiness test), a selection parameter as the text that Vega-Lite compiles for it.
     /// </summary>
-    /// <param name="parameter">The <c>param</c> value.</param>
+    /// <remarks>
+    ///     A selection is in when its store has no tuple (<c>empty</c> is true, the default) or the datum is in a tuple, so the text is
+    ///     <c>(!length(data("brush_store")) || vlSelectionTest("brush_store", datum))</c>; with <c>empty: false</c> an empty selection selects nothing:
+    ///     <c>(length(data("brush_store")) &amp;&amp; vlSelectionTest("brush_store", datum))</c>. A selection that does not combine its units globally passes its
+    ///     <c>resolve</c> as the third argument, and a point selection over the identity of the rows uses <c>vlSelectionIdTest</c>.
+    /// </remarks>
+    /// <param name="owner">The object that holds <c>param</c> and, optionally, <c>empty</c>: a predicate or a condition.</param>
     /// <param name="text">The text written so far.</param>
-    /// <returns><see langword="false"/> for a selection parameter, an undeclared one, or a name that is not an identifier.</returns>
-    private static bool AppendParameter(SpecNode parameter, SourceWriter text)
+    /// <returns><see langword="false"/> for an undeclared parameter, or a variable parameter whose name is not an identifier.</returns>
+    private static bool AppendParameter(SpecNode owner, SourceWriter text)
     {
-        if (!parameter.IsString
-            || SpecParser.FindParameter(parameter, parameter.StringValue!) is not { } declaration
-            || declaration["select"] is not null
-            || !IsIdentifier(parameter.StringValue!))
+        var parameter = owner["param"]!;
+        return parameter.IsString
+            && AppendNamed(parameter, parameter.StringValue!, owner["empty"] is { IsBoolean: true, BoolValue: false }, text);
+    }
+
+    /// <summary>
+    ///     Writes the predicate on a parameter that is named.
+    /// </summary>
+    /// <param name="at">The node whose scope decides which parameters are visible.</param>
+    /// <param name="name">The name of the parameter.</param>
+    /// <param name="emptyIsFalse">Whether an empty selection selects nothing (<c>empty: false</c>).</param>
+    /// <param name="text">The text written so far.</param>
+    /// <returns><see langword="false"/> for an undeclared name, or a variable parameter whose name is not an identifier.</returns>
+    private static bool AppendNamed(SpecNode at, string name, bool emptyIsFalse, SourceWriter text)
+    {
+        if (SpecParser.FindParameter(at, name) is not { } declaration)
         {
             return false;
         }
 
-        text.Append('(').Append(parameter.StringValue).Append(')');
+        if (!SelectionDeclarations.IsSelection(declaration))
+        {
+            if (!IsIdentifier(name))
+            {
+                return false;
+            }
+
+            text.Append('(').Append(name).Append(')');
+            return true;
+        }
+
+        if (SelectionDeclarations.TypeOf(declaration) is not { } type)
+        {
+            return false;
+        }
+
+        var store = "\"" + SelectionDeclarations.VarName(name) + "_store\"";
+        var function = SelectionDeclarations.UsesRowIdentity(declaration) ? "vlSelectionIdTest(" : "vlSelectionTest(";
+        var resolve = SelectionDeclarations.ResolveOf(declaration, type);
+        var test = function + store + ", datum" + (resolve == "global" ? ")" : ", \"" + resolve + "\")");
+        var length = "length(data(" + store + "))";
+        if (emptyIsFalse || SelectionDeclarations.EmptyIsNone(declaration))
+        {
+            text.Append('(').Append(length).Append(" && ").Append(test).Append(')');
+        }
+        else
+        {
+            text.Append("(!").Append(length).Append(" || ").Append(test).Append(')');
+        }
+
         return true;
+    }
+
+    /// <summary>
+    ///     Writes a predicate of the legacy form <c>{"selection": ...}</c>: the name of a selection, or a logical composition of names.
+    /// </summary>
+    /// <param name="selection">The value of <c>selection</c>.</param>
+    /// <param name="text">The text written so far.</param>
+    /// <returns><see langword="false"/> when a name is not a declared parameter.</returns>
+    private static bool AppendLegacySelection(SpecNode selection, SourceWriter text)
+    {
+        if (selection.IsString)
+        {
+            return AppendNamed(selection, selection.StringValue!, false, text);
+        }
+
+        if (!selection.IsObject)
+        {
+            return false;
+        }
+
+        foreach (var composition in new[] { "and", "or" })
+        {
+            if (selection[composition] is { IsArray: true } items)
+            {
+                text.Append('(');
+                if (items.Items.Count == 0)
+                {
+                    text.Append(composition == "and" ? "true" : "false");
+                }
+
+                for (var i = 0; i < items.Items.Count; i++)
+                {
+                    if (i > 0)
+                    {
+                        text.Append(composition == "and" ? " && " : " || ");
+                    }
+
+                    if (!AppendLegacySelection(items.Items[i], text))
+                    {
+                        return false;
+                    }
+                }
+
+                text.Append(')');
+                return true;
+            }
+        }
+
+        if (selection["not"] is { } negated)
+        {
+            text.Append("!(");
+            var inner = AppendLegacySelection(negated, text);
+            text.Append(')');
+            return inner;
+        }
+
+        return false;
     }
 
     /// <summary>

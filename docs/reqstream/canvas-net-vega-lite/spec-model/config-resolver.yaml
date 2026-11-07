@@ -75,3 +75,18 @@ sections:
                 tests:
                   - ConfigResolver_Resolve_CarriesTheBoxPlotDefaults
                   - ConfigResolver_Resolve_CarriesTheErrorBarAndErrorBandDefaults
+
+              - id: CanvasNetVegaLite-SpecModel-ConfigResolver-SelectionDefaults
+                title: >-
+                  The ConfigResolver unit shall provide the Vega-Lite defaults of the selection types (a point
+                  selection over the identity of the rows and an interval selection over x and y, both resolved
+                  globally, with the brush mark of an interval selection: fill  # 333, fill opacity 0.125, and a white
+                  stroke) below the selection configuration of the specification and of the caller, merged property
+                  by property.
+                justification: |
+                  The projection, the resolution, and the look of the brush of a selection come from the
+                  configuration, so the defaults must be pinned and the author's and the host's configuration must
+                  still override them.
+                tests:
+                  - ConfigResolver_Resolve_CarriesTheSelectionDefaults
+                  - SelectionModel_Create_TheResolutionComesFromTheConfiguration

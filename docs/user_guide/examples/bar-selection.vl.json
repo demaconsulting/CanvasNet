@@ -1,0 +1,22 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "description": "A point selection with an initial value highlights the selected bars; the others are gray.",
+  "width": 300,
+  "height": 200,
+  "title": "Point selection in its initial state",
+  "params": [
+    {"name": "pick", "select": {"type": "point", "fields": ["c"]}, "value": [{"c": "B"}, {"c": "D"}]}
+  ],
+  "data": {"values": [
+    {"c": "A", "n": 28}, {"c": "B", "n": 55}, {"c": "C", "n": 43}, {"c": "D", "n": 91}, {"c": "E", "n": 53}
+  ]},
+  "mark": "bar",
+  "encoding": {
+    "x": {"field": "c", "type": "nominal", "axis": {"labelAngle": 0}},
+    "y": {"field": "n", "type": "quantitative"},
+    "color": {
+      "condition": {"param": "pick", "value": "steelblue"},
+      "value": "lightgray"
+    }
+  }
+}

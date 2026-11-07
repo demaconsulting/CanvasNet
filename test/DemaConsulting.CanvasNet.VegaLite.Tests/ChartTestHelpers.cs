@@ -40,19 +40,22 @@ internal static class ChartTestHelpers
     {
         var effective = limits ?? VegaLiteLimits.Default;
         var token = TestContext.Current.CancellationToken;
-        var tree = SpecParser.Parse(json, "test.vl.json", limits);
-        var config = ConfigResolver.Resolve(tree, callerConfig);
+        var parsed = SpecParser.Parse(json, "test.vl.json", limits);
         var calendar = TimeCalendar.Create(zone);
-        var loader = new DataLoader(tree.SourceName, effective, null, tree.Root["datasets"], null, token, calendar: calendar);
-        var loaded = loader.Load(tree.Root["data"], TemporalFields.Collect(tree.Root));
         var values = new Dictionary<string, DataValue>(StringComparer.Ordinal);
         var evaluator = new ExpressionEvaluator(effective, token, values, calendar);
-        ParameterEnvironment.Populate(tree, null, values, evaluator);
+        ParameterEnvironment.Populate(parsed, null, values, evaluator);
+
+        // The expression references of the static sites are values from here on, as in the pipeline
+        var tree = ExpressionReferenceFolder.Fold(parsed, evaluator).Tree;
+        var config = ConfigResolver.Resolve(tree, callerConfig);
+        var loader = new DataLoader(tree.SourceName, effective, null, tree.Root["datasets"], null, token, calendar: calendar);
+        var loaded = loader.Load(tree.Root["data"], TemporalFields.Collect(tree.Root));
         var context = new TransformContext(tree, loader, evaluator, values, effective, token, []);
         var table = RowTransforms.Apply(loaded, tree.Root["transform"], context);
         var plan = EncodingPlan.Create(tree.Root, config);
         var data = EncodingTransforms.Apply(plan, table, context);
-        var scales = ScaleResolver.Resolve(tree.Root, plan, data, config, tree.SourceName, effective, token);
+        var scales = ScaleResolver.Resolve(tree.Root, plan, data, config, tree.SourceName, effective, token, values);
         return new ChartParts(tree, data.Main, scales, config, plan, data, new RowExpressions(tree.Expressions, evaluator));
     }
 

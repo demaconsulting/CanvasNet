@@ -1,0 +1,25 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "description": "A point selection bound to the legend: the entries that the selection does not hold are dimmed.",
+  "width": 300,
+  "height": 180,
+  "title": "bind: legend with an initial value",
+  "params": [
+    {"name": "series", "select": {"type": "point", "fields": ["g"]}, "bind": "legend", "value": [{"g": "q"}]}
+  ],
+  "data": {"values": [
+    {"a": 1, "b": 2, "g": "p"}, {"a": 2, "b": 5, "g": "q"}, {"a": 3, "b": 4, "g": "p"},
+    {"a": 4, "b": 1, "g": "r"}, {"a": 5, "b": 3, "g": "q"}, {"a": 5, "b": 6, "g": "r"},
+    {"a": 6, "b": 2, "g": "p"}, {"a": 7, "b": 4, "g": "q"}, {"a": 7, "b": 1, "g": "r"}
+  ]},
+  "mark": {"type": "point", "filled": true, "size": 90},
+  "encoding": {
+    "x": {"field": "a", "type": "quantitative"},
+    "y": {"field": "b", "type": "quantitative"},
+    "color": {"field": "g", "type": "nominal"},
+    "opacity": {
+      "condition": {"param": "series", "value": 1},
+      "value": 0.2
+    }
+  }
+}

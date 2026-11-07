@@ -32,7 +32,7 @@ public class EncodingPlanTests
     /// <returns>The plan and the parsed specification.</returns>
     private static (EncodingPlan Plan, SpecTree Tree) Create(string encoding, string mark = "\"bar\"", string? config = null)
     {
-        var tree = SpecParser.Parse("{\"data\":{\"values\":[{\"a\":1}]},\"mark\":" + mark + ",\"encoding\":" + encoding + "}");
+        var tree = SpecParser.Parse("{\"params\":[{\"name\":\"p\",\"select\":\"point\"}],\"data\":{\"values\":[{\"a\":1}]},\"mark\":" + mark + ",\"encoding\":" + encoding + "}");
         return (EncodingPlan.Create(tree.Root, ConfigResolver.Resolve(tree, config)), tree);
     }
 
@@ -286,14 +286,16 @@ public class EncodingPlanTests
             """,
             "\"point\"");
 
-        // Assert: the color reads c through its condition; the size and the parameter condition read nothing; the shape keeps its own field
+        // Assert: the color reads c through its condition; the size reads nothing; the parameter condition's field is the field of the opacity channel as well; the shape keeps its own field
         var color = plan.Channel("color")!;
         Assert.Equal(("c", "c"), (color.SourceField, color.FieldPath));
         Assert.Same(tree.Root["encoding"]!["color"]!["condition"], color.FieldDef);
         Assert.Same(tree.Root["encoding"]!["color"], color.Definition);
         Assert.Equal("c", color.Title);
         Assert.False(plan.Channel("size")!.HasField);
-        Assert.False(plan.Channel("opacity")!.HasField);
+        var opacity = plan.Channel("opacity")!;
+        Assert.Equal("c", opacity.FieldPath);
+        Assert.Same(tree.Root["encoding"]!["opacity"]!["condition"], opacity.FieldDef);
         var shape = plan.Channel("shape")!;
         Assert.Equal("s", shape.FieldPath);
         Assert.Same(shape.Definition, shape.FieldDef);

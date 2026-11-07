@@ -19,7 +19,7 @@ public class ExpressionFunctionsTests
     ///     or color function) and nothing less.
     /// </summary>
     [Fact]
-    public void ExpressionFunctions_Names_AreTheOneHundredWhitelistedFunctions()
+    public void ExpressionFunctions_Names_AreTheWhitelistedFunctions()
     {
         // Arrange: the whitelist by family
         string[] math =
@@ -39,6 +39,7 @@ public class ExpressionFunctionsTests
         ];
         string[] number = ["format"];
         string[] regex = ["regexp", "test"];
+        string[] selection = ["data", "vlSelectionTest", "vlSelectionIdTest", "vlSelectionResolve"];
         string[] time =
         [
             "datetime", "utc", "date", "day", "year", "month", "hours", "minutes", "seconds", "milliseconds", "time", "timezoneoffset",
@@ -47,14 +48,14 @@ public class ExpressionFunctionsTests
             "timeOffset", "utcOffset", "timeSequence", "utcSequence", "timeUnitSpecifier",
             "timeFormat", "utcFormat", "timeParse", "utcParse", "monthFormat", "monthAbbrevFormat", "dayFormat", "dayAbbrevFormat",
         ];
-        var expected = math.Concat(text).Concat(types).Concat(number).Concat(regex).Concat(time).Concat(["toDate"]).Order(StringComparer.Ordinal).ToArray();
+        var expected = math.Concat(text).Concat(types).Concat(number).Concat(regex).Concat(selection).Concat(time).Concat(["toDate"]).Order(StringComparer.Ordinal).ToArray();
 
         // Act
         var names = ExpressionFunctions.Names();
 
         // Assert
         Assert.Equal(expected, names);
-        Assert.Equal(100, names.Count);
+        Assert.Equal(104, names.Count);
         foreach (var excluded in new[] { "random", "now", "rgb", "scale", "if", "eval", "Function" })
         {
             Assert.DoesNotContain(excluded, names);

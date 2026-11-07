@@ -21,7 +21,7 @@ internal sealed record SpecMarkEntry(string Type, VegaLiteLocation Location);
 /// <param name="Title">The plain text of the top-level title, or null.</param>
 /// <param name="Marks">The marks of every view in document order.</param>
 /// <param name="DataReferences">The data sources of every view in document order.</param>
-/// <param name="ParameterNames">The distinct parameter names in document order.</param>
+/// <param name="ParameterNames">The distinct parameter names in document order (the parameters of every view, and the selections of the legacy <c>selection</c> property).</param>
 internal sealed record SpecMetadata(
     string? SchemaUrl,
     int? SchemaMajorVersion,
@@ -61,6 +61,12 @@ internal sealed record SpecMetadata(
             if (view["params"] is { IsArray: true } list)
             {
                 parameters.AddRange(list.Items.Where(p => p["name"]?.StringValue is not null).Select(p => (p, p["name"]!.StringValue!)));
+            }
+
+            // A legacy selection is a parameter of the view with the name of its entry
+            if (view["selection"] is { IsObject: true } legacy)
+            {
+                parameters.AddRange(legacy.Properties.Where(p => p.IsObject && p.Name is not null).Select(p => (p, p.Name!)));
             }
         }
 

@@ -117,8 +117,9 @@ sections:
                   report them (vl-channel-x2 and vl-channel-y2) for any other mark or without it; shall
                   accept the order and detail channels on every mark without a report; and shall report the
                   bin of a channel that cannot bin (vl-encoding-bin: a secondary channel and
-                  order) and a bin: "binned" on a channel other than x and y (vl-encoding-bin), a bin extent that is a
-                  parameter (vl-encoding-bin-extent-param), and an explicit stack of a scale that is not
+                  order) and a bin: "binned" on a channel other than x and y (vl-encoding-bin; a bin extent that is a
+                  parameter reference is supported and vl-encoding-bin-extent-param is retired and never produced
+                  again), and an explicit stack of a scale that is not
                   linear (vl-encoding-stack-nonlinear; Vega-Lite does not stack on a log, pow, sqrt, or symlog
                   scale, so such marks are not stacked).
                 justification: |
@@ -231,9 +232,9 @@ sections:
                 title: >-
                   The FeatureCatalog unit shall report each transform of a later phase (regression,
                   loess, density, quantile, and extent) as vl-transform-name ("not supported yet"), every
-                  variable parameter of a nested view (also in a concat, hconcat, vconcat, facet, or repeat),
-                  each selection parameter (vl-param-selection), the conditions on a parameter
-                  (vl-encoding-condition-param), each projection, shall examine the
+                  variable parameter of a nested view (also in a concat, hconcat, vconcat, facet, or repeat; the
+                  report says that Vega-Lite compiles no signal for it, so it is ignored and an expression that reads
+                  it evaluates to null), each projection, shall examine the
                   nested views of a composition, shall report each construct once at its own location, and
                   shall not report the layer, concat, hconcat, vconcat, facet, and repeat compositions (the
                   stable identifiers vl-composition-concat, -hconcat, -vconcat, -repeat, and -facet are retired),
@@ -359,10 +360,17 @@ sections:
                   view state (signal, event, item,
                   and an undeclared width, height, padding, autosize, background, or cursor) as
                   vl-expr-view-state, and each deferred operator as vl-expr-construct-name, and shall report
-                  an expression reference at a site that the renderer does not evaluate (the title, the
-                  size, the padding, the background, the view, a mark property or channel value outside the
-                  row-bound set) as vl-expr-ref, but not an expression reference at a site that is evaluated, and shall
-                  report the same constructs, with the same identifiers and at the text of the labelExpr, in the
+                  an expression reference only where it is not evaluated - at a site that Vega-Lite's schema does
+                  not allow (the width, the height, a predicate outside the compiled sites, and anything in a
+                  selection - the brush mark, the events, the projection and the initial value, in a parameter, in
+                  the legacy selection and in config.selection) and at a static site
+                  whose expression reads datum, which has no row - as vl-expr-ref, and every expression reference
+                  in the Config text of the caller's render options, which nothing evaluates, as vl-expr-ref at its
+                  pointer in the text, but not an expression
+                  reference at a site that is evaluated (the row-bound sites, and the static sites of the title,
+                  the padding, the background, the view, the guides, the scales, the marks, and the configuration of
+                  the top-level view, which is scanned too), and shall report the same constructs, with the same
+                  identifiers and at the text of the labelExpr, in the
                   labelExpr
                   of an axis, a legend, and a facet header and of config.axis*, config.header*, and config.axis (the
                   identifier vl-expr-label is retired: it is never produced again and never reused), without reporting
@@ -374,7 +382,10 @@ sections:
                 tests:
                   - FeatureCatalog_Visit_UnsupportedExpressionConstructsAreReportedAtTheExpression
                   - FeatureCatalog_Visit_DifferentlyCasedFunctionNames_ShareOneLowerCaseIdentifier
-                  - FeatureCatalog_Visit_ExpressionReferencesAreReportedOnlyAtDeferredSites
+                  - FeatureCatalog_Visit_ExpressionReferencesAreReportedOnlyWhereTheyAreNotEvaluated
+                  - FeatureCatalog_Visit_ExpressionReferencesInASelectionAreReported
+                  - FeatureCatalog_VisitCallerConfig_ReportsEveryExpressionReferenceAtItsPointer
+                  - CanvasNetVegaLite_SystemIntegration_Params_AnExpressionReferenceInTheCallerConfigIsReported
                   - FeatureCatalog_Visit_SupportedLabelExpressionsAreNotReported
                   - FeatureCatalog_Visit_LabelExpressionConstructsAreReportedAtTheText
                   - FeatureCatalog_Visit_ConfigLegendLabelExprIsIgnored
@@ -382,10 +393,11 @@ sections:
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-TransformParts
                 title: >-
                   The FeatureCatalog unit shall report the parts of a supported transform that the renderer
-                  does not execute - a filter on a selection parameter or a selection (vl-transform-filter-param),
-                  a pivot operation other than sum and count
-                  (vl-transform-pivot-op), a lookup from a parameter (vl-transform-lookup-param), and a bin
-                  transform whose extent is a parameter (vl-transform-bin-extent-param) - and a channel sort
+                  does not execute - a pivot operation other than sum and count
+                  (vl-transform-pivot-op), a lookup from a parameter (vl-transform-lookup-param, which needs the
+                  final table of another view filtered by the selection), and shall not report a bin transform
+                  whose extent is a parameter (vl-transform-bin-extent-param is retired and never produced again: the
+                  extent sets the span that chooses the step) - and a channel sort
                   that is not ascending, descending, null, a value list, or a sort by an operation or a channel
                   that the renderer computes (vl-encoding-sort), and shall not report the supported forms.
                 justification: |
@@ -430,10 +442,11 @@ sections:
                 title: >-
                   The FeatureCatalog unit shall not report a condition with a test on the color, fill, stroke,
                   opacity, fill opacity, stroke opacity, stroke width, stroke dash, size, shape, and angle
-                  channels, shall report vl-encoding-condition for a condition on a channel that takes none,
-                  vl-encoding-condition-param for a condition or a test on a parameter that is not a variable
-                  parameter (a time unit or a date object in a test is evaluated and not reported), each
-                  at the construct, and shall visit the expressions and the field properties of a condition
+                  channels, shall report vl-encoding-condition for a condition on a channel that takes none, each
+                  at the construct, shall not report a condition or a test on a selection parameter, a variable
+                  parameter, or a legacy selection (vl-encoding-condition-param is retired and never produced
+                  again; a time unit or a date object in a test is evaluated and not reported), and shall visit the
+                  expressions and the field properties of a condition
                   like those of a channel, without writing the text of a predicate to find out whether it can be
                   evaluated.
                 justification: |
@@ -442,11 +455,32 @@ sections:
                 tests:
                   - FeatureCatalog_Visit_ConditionsWithATestAreNotReported
                   - FeatureCatalog_Visit_DoesNotExpandAnOverBudgetPredicate
-                  - FeatureCatalog_Visit_ParameterConditionsAreReported
+                  - FeatureCatalog_Visit_ParameterConditionsAreNotReported
                   - FeatureCatalog_Visit_TimeUnitAndDateTestsAreSupported
                   - FeatureCatalog_Visit_ConditionOnAChannelThatTakesNoneIsReported
                   - FeatureCatalog_Visit_ConditionExpressionsAndFieldPropertiesAreVisited
                   - FeatureCatalog_Visit_LaterPhaseTransformsConditionsAndSelectionsStayReported
+
+              - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-Selections
+                title: >-
+                  The FeatureCatalog unit shall report, at the declaration of a selection parameter or of an
+                  entry of the legacy selection property, the parts of a selection that the renderer does not
+                  model - vl-param-selection-animation for an animation (a timer in on, or the time encoding),
+                  vl-param-selection-id for a point selection that names no fields or encodings and has a value
+                  (it selects rows by identity), and vl-param-selection-layer for a selection that two or more
+                  layers of one layered view receive (Vega-Lite compiles duplicate signals that Vega rejects) -
+                  and shall not report a selection that is modeled or its interaction properties (on, clear,
+                  toggle, nearest, translate, zoom, and bind), vl-param-selection having been retired and never
+                  produced again.
+                justification: |
+                  A selection that the renderer cannot paint in its initial state must be named, and one that it
+                  paints, with the interaction that a static chart cannot have ignored, must not make a chart noisy.
+                tests:
+                  - FeatureCatalog_Visit_SelectionsThatAreNotModeledAreReported
+                  - FeatureCatalog_Visit_ParameterConditionsAreNotReported
+                  - CanvasNetVegaLite_SystemIntegration_Selection_InteractionPropertiesAreIgnoredWithoutAReport
+                  - CanvasNetVegaLite_SystemIntegration_Selection_RowIdentitySelectionWithAValueIsReported
+                  - CanvasNetVegaLite_SystemIntegration_Selection_TopLevelSelectionOfTwoLayersIsReported
 
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-TimeIds
                 title: >-

@@ -109,14 +109,65 @@ constitutes a failure.
 
 ##### The Function Table Is Exactly The Whitelist
 
-**Tests**: `ExpressionFunctionsTests.ExpressionFunctions_Names_AreTheOneHundredWhitelistedFunctions`,
+**Tests**: `ExpressionFunctionsTests.ExpressionFunctions_Names_AreTheWhitelistedFunctions`,
 `ExpressionFunctionsTests.ExpressionFunctions_Invoke_UnknownName_ThrowsArgumentException`
 
-Asserts that `Names` returns exactly the 100 names above in ordinal order (the 57 names of the earlier phases, the 41
-date and time names, `toDate`, and `format`), that `random`, `now`, `rgb`, `scale`, `if`, `eval`, and `Function` are
+Asserts that `Names` returns exactly the 104 names above in ordinal order (the 57 names of the earlier phases, the 41
+date and time names, `toDate`, `format`, and the four selection names `data`, `vlSelectionTest`, `vlSelectionIdTest`, and
+`vlSelectionResolve`), that `random`, `now`, `rgb`, `scale`, `if`, `eval`, and `Function` are
 absent and not found by `TryGet`, that
 names are case sensitive (`ABS` and `isNan` are not found), that invoking an unknown name is an `ArgumentException`, a
 null context is an `ArgumentNullException`, and `abs(-3)` called directly gives 3.
+
+##### Selection Functions Port The Tests Of Vega
+
+**Tests**: `ExpressionFunctionsSelectionTests.ExpressionFunctions_Data_GivesTheTuplesOfAStore`,
+`ExpressionFunctionsSelectionTests.ExpressionFunctions_VlSelectionTest_PredicateSelectsTheRangeOrEverythingWhenEmpty`,
+`ExpressionFunctionsSelectionTests.ExpressionFunctions_VlSelectionTest_OperationAndEmptyResult`,
+`ExpressionFunctionsSelectionTests.ExpressionFunctions_VlSelectionIdTest_SelectsTheRowsOfTheStore`,
+`ExpressionFunctionsSelectionTests.ExpressionFunctions_VlSelectionIdTest_StoreOfFieldsIsTestedByItsFields`,
+`ExpressionFunctionsSelectionTests.ExpressionFunctions_VlSelectionResolve_GivesTheSelectedValuesOfEachField`,
+`ExpressionFunctionsSelectionTests.ExpressionFunctions_VlSelectionTest_IsChargedToTheStepBudget`,
+`SelectionTestSemanticsTests.SelectionTestSemantics_Test_EnumeratedScalarUsesStrictEquality`,
+`SelectionTestSemanticsTests.SelectionTestSemantics_Test_EnumeratedListMatchesByMembership`,
+`SelectionTestSemanticsTests.SelectionTestSemantics_Test_RangeIncludesBothEndsAndIsSwapped`,
+`SelectionTestSemanticsTests.SelectionTestSemantics_Test_BinAndExclusiveRangeTypes`,
+`SelectionTestSemanticsTests.SelectionTestSemantics_Test_DateOfTheDatumIsComparedAsANumber`,
+`SelectionTestSemanticsTests.SelectionEntry_Create_DatesOfTheValuesBecomeNumbers`,
+`SelectionTestSemanticsTests.SelectionTestSemantics_Test_ComparisonTypes`,
+`SelectionTestSemanticsTests.SelectionTestSemantics_Test_EmptyStoreIsFalsyZero`,
+`SelectionTestSemanticsTests.SelectionTestSemantics_Test_UnionAndIntersectCombineUnits`,
+`SelectionTestSemanticsTests.SelectionTestSemantics_Intersect_DuplicateTuplesOfOneUnit`,
+`SelectionTestSemanticsTests.SelectionTestSemantics_IdTest_IdentityMustBeInTheStore`,
+`SelectionTestSemanticsTests.SelectionTestSemantics_Resolve_PointValuesAndTheirQuery`,
+`SelectionTestSemanticsTests.SelectionTestSemantics_Resolve_IntervalRangeIsSorted`,
+`SelectionTestSemanticsTests.SelectionTestSemantics_Resolve_UnitsAreUnitedOrIntersected`,
+`SelectionTestSemanticsTests.SelectionTestSemantics_Resolve_IdentitiesAndEmptyStore`,
+`SelectionTestSemanticsTests.SelectionStore_ToValue_ShowsTheTuples`,
+`SelectionTestSemanticsTests.SelectionTestSemantics_Test_WorkIsChargedToTheBudget`
+
+Assert, with hand-built stores, that `data` gives the tuples of a store as objects (`unit`, `fields` with their `field`,
+`channel`, and `type`, and `values`) and an empty array for an unknown name or a call without stores; that the predicate
+`!length(data("s")) || vlSelectionTest("s", datum)` selects 4, 5, and 7 and not 3 and 8 for the range 4 to 7 (both
+ends included), selects everything for a store without tuples or an unknown store, and, with `length(...) &&` for
+`empty: false`, nothing; that an empty store gives the number 0; that a tuple of type `E` matches by strict equality (the
+number 1 is not the text `"1"`, a datum without the field never matches) or by membership of an array; that a range
+`R` includes both ends, is swapped when reversed, and has no NaN, that `R-RE` includes its start and excludes its end, and
+that `R-E`, `R-LE`, `E-LT`, `E-LTE`, `E-GT`, `E-GTE`, `E-VALID`, and `E-ONE` follow vega-selections; that a date is
+compared as its
+milliseconds; that the union selects what any tuple holds and the intersection unites the tuples of one unit and
+intersects the units (the ranges 1 to 3 and 6 to 8 of one unit and 2 to 7 of another select 7 and 2.5 and not 1 or 4);
+that two identical tuples of one unit never satisfy a unit that a datum misses (`Test`) and that the identity test, as
+`selectionIdTest` of vega-selections, compares the number of tuples that hold a row with the number of units;
+that the identity test needs the row identity in the store (in every unit when intersecting) and, for a store that is
+projected over fields, is the field test (the specification names the identity test from the projection it can see,
+which a default projection of the host's configuration or a value of the host can replace; Vega-Lite never compiles
+the mismatch);
+that the resolution
+gives the values of each field in order without repeats with `vlPoint` (`vlMulti` for the earlier version) for a point
+selection, the sorted range for an interval, the union (smallest range, all values) or the intersection (the overlap, or
+an empty list) of units, the identities of a row-identity store, and an empty object for an empty store; and that the
+work of a test is charged to the step budget (a located error).
 
 ##### Math Functions Are Exact At Representable Points
 

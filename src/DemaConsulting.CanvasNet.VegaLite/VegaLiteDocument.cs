@@ -174,6 +174,7 @@ public sealed partial class VegaLiteDocument
 
         return _tree.Warnings
             .Concat(FeatureCatalog.Visit(_tree, ConfigResolver.Resolve(_tree, options.Config)))
+            .Concat(FeatureCatalog.VisitCallerConfig(options.Config))
             .OrderBy(r => r.Location.Line)
             .ThenBy(r => r.Location.Column)
             .ToList()

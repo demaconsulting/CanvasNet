@@ -266,14 +266,17 @@ software items, specifically:
   `Parse`/`Open`/`Measure`/`Render` API with `VegaLiteOpenOptions`, `VegaLiteRenderOptions`, `VegaLiteLimits`,
   `VegaLiteFontOptions`, `VegaLiteLocation`, `VegaLiteDiagnostic`, `VegaLiteUnsupportedFeature`, `VegaLiteSize`,
   `VegaLiteDataReference`, `VegaLiteSpecException`, `VegaLiteRenderException`, and
-  `VegaLiteUnsupportedFeatureException`), and nine internal subsystems. The `SpecModel` subsystem has four units:
+  `VegaLiteUnsupportedFeatureException`), and nine internal subsystems. The `SpecModel` subsystem has five units:
   `SpecParser` (UTF-8 JSON into an immutable tree with JSON pointers and line and column under size and depth limits,
   structural validation, the compilation of expressions, and duplicate and unknown key warnings), `FeatureCatalog` (the
   stable `vl-*` reports of every recognized-but-unsupported construct), `ConfigResolver` (the Vega and Vega-Lite default
   configuration merged with the configuration of the specification and of the caller), and `SpecNormalizer` (the view
   tree of a specification - layers, concatenations, facets, and the copies of repeats - with the inheritance, `resolve`,
   and layout settings of its views, and the expansion of the composite marks `boxplot`, `errorbar`, and `errorband` into
-  layers, under the `MaxViews` and `MaxCompositionDepth` limits). The `Data` subsystem has six units: `DataTable` (typed
+  layers, under the `MaxViews` and `MaxCompositionDepth` limits), and `ExpressionReferenceFolder` (the evaluation, once
+  per call, of the `{"expr": ...}` references of the static sites of a specification - the title, the padding and
+  background, the properties of the guides, scales, and marks that no row reads, and the configuration - and the rewrite
+  of the tree so that every later stage reads values). The `Data` subsystem has six units: `DataTable` (typed
   values and tables), `DataLoader` (the source of a view - inline rows, a local file, a named dataset, or a sequence -
   under data limits), `DataFileResolver` (sandboxed, bounded, strict-UTF-8 reading of local data files, or through the
   caller's callback), `DelimitedTextParser` (CSV, TSV, and DSV, the `parse` conversions, and the per-column type
@@ -282,11 +285,12 @@ software items, specifically:
   and parsing with the English locale, Vega's multi-format, and JavaScript's `Date.parse`). The `Expressions` subsystem
   has three units: `ExpressionParser` (a bounded compiler of the Vega expression language into an immutable postfix
   program), `ExpressionEvaluator` (a culture-invariant interpreter with JavaScript coercion under a step budget), and
-  `ExpressionFunctions` (the closed table of 100 pure functions, including the date and time functions and the number
-  `format`, with the safe
-  regular expression translation). The `Transforms` subsystem has four units: `RowTransforms` (the static parameter
+  `ExpressionFunctions` (the closed table of 104 pure functions, including the date and time functions, the number
+  `format`, and the selection functions, with the safe
+  regular expression translation). The `Transforms` subsystem has five units: `RowTransforms` (the static parameter
   environment and the `calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot`, `lookup`, and `timeUnit` transforms
-  between the loader and the scales), `AggregateTransforms` (the `aggregate`, `joinaggregate`, `window`, `bin`, `stack`,
+  between the loader and the scales), `SelectionModel` (the initial state of the selection parameters: their stores and
+  resolved values), `AggregateTransforms` (the `aggregate`, `joinaggregate`, `window`, `bin`, `stack`,
   and `impute` transforms with the aggregate operations, the bin algorithm, and the stack rules), `EncodingPlan` (the
   implicit bin, time unit, aggregate, impute, and stack of a view's encoding, with the path grouping and order fields
   and the field names and titles that every channel reads), and `TimeUnitTransform` (the start and the end of a time
@@ -312,9 +316,11 @@ software items, specifically:
   the defined points of a path into segments). The `Scenegraph` subsystem has four units: `SceneModel` (the immutable
   scene), `ScenePainter` (drawing a scene onto a `Surface`), `ArcGeometry` (the d3-shape arc and the d3-path emulation
   behind the arc and trail items), and `CssPaint` (the chart paint rules on top of the core `CssColor` parser).
-  Selection parameters and conditions on a parameter are deferred and reported with stable identifiers
+  Selection parameters are drawn in their initial state since phase 12, and the parts that are not modeled are reported
+  with stable identifiers
   (local CSV, TSV, DSV, and JSON data files, named datasets, and sequences, a bounded subset of the Vega expression
-  language, static variable parameters, the row transforms `calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot`,
+  language, static variable parameters (their expression references at the static sites included), the row transforms
+  `calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot`,
   `lookup`, and `timeUnit`, the aggregating transforms `aggregate`, `joinaggregate`, `window`, `bin`, `stack`, and
   `impute`, the aggregate, bin, stack, and sort properties of a channel, time (temporal fields, time units, time scales
   and axes, date formats, and the `TimeZone` option, with the calendar in UTC by default), the line, area, trail,
@@ -538,10 +544,12 @@ and is distributed as its own NuGet package. It is a static renderer for the pub
 that parses, describes, measures, and renders charts, derived with attribution from Vega, Vega-Lite, and d3 (the
 licenses ship in the package): its direct unit, `VegaLiteDocument` (namespace `DemaConsulting.CanvasNet.VegaLite`), is
 the public API, its internal `SpecModel` subsystem (namespace `DemaConsulting.CanvasNet.VegaLite.SpecModel`) holds the
-`SpecParser`, `FeatureCatalog`, `ConfigResolver`, and `SpecNormalizer` units, its internal `Data` subsystem holds the
+`SpecParser`, `FeatureCatalog`, `ConfigResolver`, `SpecNormalizer`, and `ExpressionReferenceFolder` units, its internal
+`Data` subsystem holds the
 `DataTable`, `DataLoader`, `DataFileResolver`, `DelimitedTextParser`, `TimeCalendar`, and `TimeFormat` units, its
 internal `Expressions` subsystem holds the `ExpressionParser`, `ExpressionEvaluator`, and `ExpressionFunctions` units,
-its internal `Transforms` subsystem holds the `RowTransforms`, `AggregateTransforms`, `EncodingPlan`, and
+its internal `Transforms` subsystem holds the `RowTransforms`, `SelectionModel`, `AggregateTransforms`, `EncodingPlan`,
+and
 `TimeUnitTransform` units, its internal `Scales` subsystem holds the `ScaleModel`, `ScaleResolver`, `Ticks`,
 `NumberFormat`, `ColorSchemes`, and `ColorInterpolator` units, its internal `Guides` subsystem holds the `TextMeasurer`,
 `TitleBuilder`, `AxisBuilder`, `LabelOverlap`, `LegendBuilder`, `TimeLabels`, and `LabelExpressions` units, its internal
@@ -1296,8 +1304,10 @@ src/DemaConsulting.CanvasNet.VegaLite/
 │   ├── SpecParser.Time.cs         — SpecParser: time unit, date-time object, tick interval, and timeUnit transform validation
 │   ├── SpecParser.Layers.cs       — SpecParser: resolve, composite mark properties, and composition validation
 │   ├── SpecParser.LabelExpressions.cs — SpecParser: the compilation of the labelExpr of axes, legends, and headers
-│   ├── SpecExpressions.cs         — SpecParser: the compiled expressions of a specification
+│   ├── SpecExpressions.cs         — SpecParser: the compiled expressions and the static references of a specification
 │   ├── SpecNode.cs                — SpecParser: SpecNode, SpecNodeKind, NodePosition, and SpecTree
+│   ├── SelectionDeclarations.cs   — SpecParser: the reading of selection parameters
+│   ├── SelectionDeclarations.Assignment.cs — SpecParser: the assignment of selections to unit views
 │   ├── SpecMetadata.cs            — SpecParser: descriptive metadata of a specification
 │   ├── ChannelDefinitions.cs      — SpecParser: which object of a channel definition carries the field, and its conditions
 │   ├── PredicateSource.cs         — SpecParser: a predicate of a condition written as expression source text
@@ -1309,7 +1319,9 @@ src/DemaConsulting.CanvasNet.VegaLite/
 │   ├── SpecNormalizer.Composite.cs — SpecNormalizer: Expand and the composite-mark expansion into layers
 │   ├── SpecNormalizer.BoxPlot.cs  — SpecNormalizer: the boxplot expansion
 │   ├── SpecNormalizer.ErrorBar.cs — SpecNormalizer: the errorbar and errorband expansion
-│   └── SpecNormalizer.PathOverlay.cs — SpecNormalizer: the point overlay decision of the path marks
+│   ├── SpecNormalizer.PathOverlay.cs — SpecNormalizer: the point overlay decision of the path marks
+│   ├── ExpressionReferenceFolder.cs — ExpressionReferenceFolder: the static references and the tree rewrite
+│   └── ExpressionReferenceSites.cs — ExpressionReferenceFolder: the table of sites and the walk that finds them
 ├── Data/                          — Data subsystem (internal)
 │   ├── NamespaceDoc.cs            — Data: namespace-level XML documentation
 │   ├── DataTable.cs               — DataTable: DataValue, JsNumber, FieldPath, and DataTable
@@ -1345,6 +1357,9 @@ src/DemaConsulting.CanvasNet.VegaLite/
 │   ├── ExpressionFunctions.Regex.cs — ExpressionFunctions: regexp, test, and the regular expression forms
 │   ├── ExpressionFunctions.Casing.cs — ExpressionFunctions: the case conversion of lower and upper
 │   ├── ExpressionFunctions.Time.cs — ExpressionFunctions: the date and time functions
+│   ├── ExpressionFunctions.Selection.cs — ExpressionFunctions: data and the selection functions
+│   ├── SelectionStore.cs          — ExpressionFunctions: the tuples and stores of selections
+│   ├── SelectionTestSemantics.cs  — ExpressionFunctions: the test and resolution of a selection
 │   ├── ExpressionFunctionContext.cs — ExpressionFunctions: step budget, string limit, and regex cache
 │   └── ExpressionRegex.cs         — ExpressionFunctions: JavaScript regular expressions as safe .NET ones
 ├── Transforms/                    — Transforms subsystem (internal)
@@ -1357,6 +1372,10 @@ src/DemaConsulting.CanvasNet.VegaLite/
 │   ├── TableLayout.cs             — RowTransforms: derived table layout, bounds, and field reader
 │   ├── ParameterEnvironment.cs    — RowTransforms: static parameter values
 │   ├── TransformContext.cs        — RowTransforms: the shared context and the row expressions
+│   ├── SelectionModel.cs          — SelectionModel: the stores and values of the selections
+│   ├── SelectionModel.Projection.cs — SelectionModel: Create, the projection, and the initial value
+│   ├── SelectionModel.Queries.cs  — SelectionModel: BindUnits, the components of a unit, and the extent of a selection
+│   ├── SelectionTimeUnits.cs      — SelectionTimeUnits: the time-unit fields that a filter or a condition reads
 │   ├── AggregateTransforms.cs     — AggregateTransforms: Apply, grouping keys, and shared helpers
 │   ├── AggregateTransforms.Aggregate.cs — AggregateTransforms: aggregate, joinaggregate, and the grouping passes
 │   ├── AggregateTransforms.Bin.cs — AggregateTransforms: the bin transform
@@ -1385,6 +1404,7 @@ src/DemaConsulting.CanvasNet.VegaLite/
 │   ├── ScaleResolver.Time.cs      — ScaleResolver: temporal domains, bounds, nice, and the time-unit scales
 │   ├── ScaleResolver.Layers.cs    — ScaleResolver: the scales shared by the layers of a view (merge, conflicts, resolve)
 │   ├── ScaleResolver.Offsets.cs   — ScaleResolver: the nested offset scales of xOffset and yOffset and the position step
+│   ├── ScaleResolver.Raw.cs       — ScaleResolver: the raw domain and the extent of a scale (domainRaw, parameters)
 │   ├── Ticks.cs                   — Ticks: d3-array ticks, nice, and Vega tick counts
 │   ├── Ticks.Time.cs              — Ticks: d3-time ticks, tick intervals, and nice for time scales
 │   ├── NumberFormat.cs            — NumberFormat: d3-format number formatting and tickFormat
@@ -1405,6 +1425,7 @@ src/DemaConsulting.CanvasNet.VegaLite/
 │   ├── LegendBuilder.Gradient.cs  — LegendBuilder: gradient and discrete gradient legends
 │   ├── LegendBuilder.Time.cs      — LegendBuilder: the ticks, labels, and values of legends of temporal fields
 │   ├── LegendBuilder.Grid.cs      — LegendBuilder: the grid layout of Vega's layout transform
+│   ├── LegendDimming.cs           — LegendBuilder: the dimming of the entries of a legend bound to a selection
 │   ├── TimeLabels.cs              — TimeLabels: date label format, interval tick count, default count, and values reader
 │   └── LabelExpressions.cs        — LabelExpressions: the labelExpr of axes, legends, and headers and the LabelText result
 ├── Layout/                        — Layout subsystem (internal)
@@ -1422,6 +1443,7 @@ src/DemaConsulting.CanvasNet.VegaLite/
 │   ├── MarkBuilder.Text.cs        — MarkBuilder: the text mark (labels, formats, polar offset)
 │   ├── MarkBuilder.Arcs.cs        — MarkBuilder: the arc mark (pie, donut, and radial slices)
 │   ├── MarkBuilder.Offsets.cs     — MarkBuilder: the xOffset and yOffset channels (marks inside the band of a position)
+│   ├── MarkBuilder.Brush.cs       — MarkBuilder: the brush marks of an interval selection with an initial value
 │   ├── CurveBuilder.cs            — CurveBuilder: the curve kinds, the segment bound, and the line and area entry points
 │   ├── CurveBuilder.Generators.cs — CurveBuilder: the line and area generators with defined gaps
 │   └── CurveBuilder.Splines.cs    — CurveBuilder: the cardinal, catmull-rom, monotone, and natural curves
@@ -1610,7 +1632,8 @@ multi-format, and `Date.parse` test files); for `TimeUnitTransform` in the `Tran
 `TimeLabels.cs` (the temporal legends are in `LegendBuilder.Time.cs`, a partial file of the `LegendBuilder` unit), and
 `TimeLabelsTests.cs`; for `LabelExpressions` in the `Guides` subsystem, the same paths with `guides/label-expressions`,
 `LabelExpressions.cs`, and `LabelExpressionsTests.cs` (with `AxisBuilderLabelExprTests.cs` and
-`LegendBuilderLabelExprTests.cs` for the guides that use it). The two units added for the line, area, trail, text, and
+`LegendBuilderLabelExprTests.cs` for the guides that use it, and `LegendBuilderSelectionTests.cs` for the legend of a
+selection). The two units added for the line, area, trail, text, and
 arc marks follow the same pattern: for
 `CurveBuilder` in the `Marks` subsystem, requirements `docs/reqstream/canvas-net-vega-lite/marks/curve-builder.yaml`,
 design `docs/design/canvas-net-vega-lite/marks/curve-builder.md`, verification

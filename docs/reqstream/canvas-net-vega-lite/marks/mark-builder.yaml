@@ -5,7 +5,8 @@
 # (internal namespace DemaConsulting.CanvasNet.VegaLite.Marks): the per-mark geometry of bar, rect, point,
 # circle, square, rule, tick, line, area, trail, text, and arc (MarkBuilder.cs and its partial files
 # MarkBuilder.Order.cs, MarkBuilder.Paths.cs, MarkBuilder.Overlays.cs, MarkBuilder.Text.cs,
-# MarkBuilder.Arcs.cs, and MarkBuilder.Offsets.cs for the xOffset and yOffset channels), the stacked, binned, and
+# MarkBuilder.Arcs.cs, and MarkBuilder.Offsets.cs for the xOffset and yOffset channels, and (Phase 12, milestone 2b)
+# MarkBuilder.Brush.cs for the brush of an interval selection), the stacked, binned, and
 # ranged geometry that the implicit encoding pipeline
 # and the secondary channels x2 and y2 produce, the grouping, sorting, and invalid-data rules of the paths, the
 # overlays of the path marks, the polar geometry of the arcs and of text, the resolution of the paint and size
@@ -94,14 +95,65 @@ sections:
 
               - id: CanvasNetVegaLite-Marks-MarkBuilder-MarkClip
                 title: >-
-                  The MarkBuilder unit shall clip the marks to the data rectangle only when the mark says clip
-                  true, and shall not clip them because a scale has an explicit domain, so that a bar that
-                  starts at zero outside an explicit domain is drawn as Vega-Lite draws it.
+                  The MarkBuilder unit shall clip the marks to the data rectangle when the mark says clip
+                  true and when the x or y scale has the extent of a parameter or a selection (a scale domain of
+                  the form param, a bin extent of that form, or an interval selection bound to the scales -
+                  Vega-Lite's scaleClip), and shall not clip them because a scale has an explicit domain array, so
+                  that a bar that starts at zero outside an explicit domain is drawn as Vega-Lite draws it and the
+                  marks that a parameter's domain leaves out are not drawn outside the view.
                 justification: |
-                  Vega-Lite clips marks only with the mark's clip property or for the extent of an interval
-                  selection (scaleClip); an explicit domain alone does not clip.
+                  Vega-Lite clips marks with the mark's clip property or for the extent of a selection or
+                  parameter domain (scaleClip); an explicit domain array alone does not clip.
                 tests:
                   - MarkBuilder_Build_BarAndRectPositionsMatchExpectedSceneItems
+                  - CanvasNetVegaLite_SystemIntegration_Params_DomainOfAParameterIsRawAndClipsTheMarks
+                  - CanvasNetVegaLite_SystemIntegration_BindScales_TheInitialRangeIsTheDomain
+                  - CanvasNetVegaLite_SystemIntegration_BinExtent_TheSpanOfASelectionChoosesTheStep
+
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-Brush
+                title: >-
+                  The MarkBuilder unit shall build the brush of an interval selection that has an initial value
+                  as Vega-Lite does - a shade (role selection-brush-background) before the marks with the fill and
+                  the fill opacity of the mark of the selection (the mark of the configuration,  # 333 and 0.125 by
+                  default, merged under the mark of the selection), and an outline (role selection-brush) after
+                  them with a transparent fill and every other key of the mark but the cursor as its stroke, both
+                  clipped to the data rectangle and both covering the rectangle from the first end of the first
+                  initial range to the second, each end mapped through the scale of its channel (a band scale
+                  giving the start of the band, the ends in either order, an axis that the selection is not
+                  projected over spanning the data rectangle) - shall make nothing when the selection has no
+                  initial value, is a point selection, is bound to the scales, has no extent on a projected axis,
+                  or has an end with no position, shall make the brush of a globally resolved selection only in the
+                  unit that holds its first tuple and never in the cell of a facet (and in every unit for any other
+                  resolve), shall wrap the marks of a layered view child by child (the shade of every selection
+                  before the marks of every layer and the outline after them) and the selections of one unit one
+                  around the other in declaration order, shall not evaluate an expression reference in the mark of a
+                  brush (Vega-Lite's schema gives it plain values only: the property keeps its default, or the value
+                  of the configuration), and shall charge four scene items for a brush.
+                justification: |
+                  The brush is the visible state of an interval selection; a still chart that omitted it, or drew it
+                  where Vega-Lite does not, would not show the selection the specification describes.
+                tests:
+                  - CanvasNetVegaLite_SystemIntegration_Brush_CoversTheRangeOfBothChannels
+                  - CanvasNetVegaLite_SystemIntegration_Brush_AChannelThatIsNotProjectedSpansTheDataRectangle
+                  - CanvasNetVegaLite_SystemIntegration_Brush_AYOnlySelectionSpansTheWidth
+                  - CanvasNetVegaLite_SystemIntegration_Brush_ReversedEndsDrawTheSameRectangle
+                  - CanvasNetVegaLite_SystemIntegration_Brush_DatesMapThroughTheTimeScale
+                  - CanvasNetVegaLite_SystemIntegration_Brush_BandEndsAreTheStartsOfTheirBands
+                  - CanvasNetVegaLite_SystemIntegration_Brush_ARangeWithoutExtentIsNotDrawn
+                  - CanvasNetVegaLite_SystemIntegration_Brush_NoInitialValueDrawsNothing
+                  - CanvasNetVegaLite_SystemIntegration_Brush_OnlyAnUnboundIntervalSelectionDrawsOne
+                  - CanvasNetVegaLite_SystemIntegration_Brush_TheMarkOfTheSelectionPaintsTheBrush
+                  - CanvasNetVegaLite_SystemIntegration_Brush_TheSelectionMarkIsMergedOverTheDefaults
+                  - CanvasNetVegaLite_SystemIntegration_Brush_TheConfigurationOverridesTheDefaultMark
+                  - CanvasNetVegaLite_SystemIntegration_Brush_AnExpressionInTheConfigurationMarkIsReportedAndTheDefaultsStay
+                  - CanvasNetVegaLite_SystemIntegration_Brush_AnExpressionInTheSelectionMarkIsReportedAndTheConfiguredValueStays
+                  - CanvasNetVegaLite_SystemIntegration_Brush_AnExpressionInTheCallerConfigurationOrTheProjectionIsReported
+                  - CanvasNetVegaLite_SystemIntegration_Brush_TheCallerReplacesOrClearsTheInitialValue
+                  - CanvasNetVegaLite_SystemIntegration_Brush_AGlobalSelectionIsDrawnByItsFirstUnitOnly
+                  - CanvasNetVegaLite_SystemIntegration_Brush_NoCellOfAFacetDrawsAGlobalSelection
+                  - CanvasNetVegaLite_SystemIntegration_Brush_ALayeredViewWrapsAllItsLayers
+                  - CanvasNetVegaLite_SystemIntegration_Brush_TheSelectionsOfAUnitWrapEachOther
+                  - CanvasNetVegaLite_SystemIntegration_Brush_IsChargedToTheSceneBudget
 
               - id: CanvasNetVegaLite-Marks-MarkBuilder-SymbolsRuleTick
                 title: >-
@@ -240,11 +292,14 @@ sections:
                   opacity, fill opacity, stroke opacity, stroke width, stroke dash, size, shape, or angle
                   channel for every row with the expression engine, give the row the value (or the scaled
                   field) of the first condition that holds, else the value or scale of the channel, else the
-                  default of the mark, ignore the conditions on a parameter, charge the evaluation to the step
+                  default of the mark, evaluate the condition of a param (a selection or a variable parameter,
+                  and a legacy selection) as the predicate that the specification parser compiled for it - the
+                  rows that the selection selects, with its empty rule, the same for a test that names the
+                  parameter in a composition - charge the evaluation to the step
                   budget, observe the cancellation token, and give the same items on every call.
                 justification: |
-                  A conditional encoding is how a chart highlights the rows that match a test; the first match
-                  must win and the rest must look exactly as they do without the condition.
+                  A conditional encoding is how a chart highlights the rows that match a test or a selection; the
+                  first match must win and the rest must look exactly as they do without the condition.
                 tests:
                   - MarkBuilder_Build_ValueConditionOverridesTheBaseValueWhereTheTestHolds
                   - MarkBuilder_Build_LargeOneOfConditionIsEvaluatedAndChargedToTheStepBudget
@@ -257,7 +312,15 @@ sections:
                   - MarkBuilder_Build_ShapeAndDashConditionsApplyPerRow
                   - MarkBuilder_Build_PredicateObjectTestsAreEvaluated
                   - MarkBuilder_Build_TestReadsVariableParametersAndMissingFieldsDoNotHold
-                  - MarkBuilder_Build_ParameterConditionIsNotApplied
+                  - MarkBuilder_Build_ParameterConditionOnAnEmptySelectionFollowsTheEmptyRule
+                  - CanvasNetVegaLite_SystemIntegration_Selection_IntervalIncludesBothEnds
+                  - CanvasNetVegaLite_SystemIntegration_Selection_ReversedIntervalIsSwapped
+                  - CanvasNetVegaLite_SystemIntegration_Selection_EmptySelectionFollowsTheEmptyRule
+                  - CanvasNetVegaLite_SystemIntegration_Selection_PointMatchesByStrictEquality
+                  - CanvasNetVegaLite_SystemIntegration_Selection_TestCompositionsUseTheSelection
+                  - CanvasNetVegaLite_SystemIntegration_Selection_LegacySelectionIsMappedToAParameter
+                  - CanvasNetVegaLite_SystemIntegration_Selection_LegacyEmptyNoneSelectsNothing
+                  - CanvasNetVegaLite_SystemIntegration_Selection_FieldConditionColorsTheSelectedRowsByTheirCategory
                   - MarkBuilder_Build_ConditionsApplyToBarsTicksAndRules
                   - MarkBuilder_Build_SizeConditionGivesTheThicknessOfABar
                   - MarkBuilder_Build_TestEvaluationIsChargedToTheStepBudget

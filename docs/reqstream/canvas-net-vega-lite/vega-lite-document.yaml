@@ -51,7 +51,9 @@ sections:
             title: >-
               The VegaLiteDocument unit shall validate every public option when it is set - a scale that
               is finite and positive, container sizes of at least one, a configuration that is a JSON
-              object of bounded depth, non-null limits, parameters and datasets copied into read-only
+              object of bounded depth, non-null limits, parameters (a scalar, or a sequence or a string-keyed
+              dictionary of values nested up to 32 levels and holding at most 65,536 values, which replaces the
+              whole definition of the parameter) and datasets copied into read-only
               collections, data paths and additional font directories copied and validated, a base
               directory that is not blank - and shall never change an options instance after it is
               created, so that an instance is safe to share between threads.
@@ -75,6 +77,8 @@ sections:
               - VegaLiteRenderOptions_NullLimits_Throws
               - VegaLiteRenderOptions_InvalidConfig_Throws
               - VegaLiteRenderOptions_Parameters_AreCopiedAndValidated
+              - VegaLiteRenderOptions_Parameters_AcceptStructuredValuesAndCopyThem
+              - VegaLiteRenderOptions_Parameters_RejectUnboundedOrUnsupportedStructuredValues
               - VegaLiteRenderOptions_Datasets_AreDeepCopiedAndValidated
 
           - id: CanvasNetVegaLite-VegaLiteDocument-RenderContract
@@ -306,19 +310,29 @@ sections:
 
           - id: CanvasNetVegaLite-VegaLiteDocument-TransformPipeline
             title: >-
-              The VegaLiteDocument unit shall, for each measure or render call, build the static parameter
+              The VegaLiteDocument unit shall, for each measure or render call, build first the initial state of the
+              selections of the specification (the stores, from the specification as written, only when it declares
+              a selection) and give their stores to the expression evaluator, then build the static parameter
               environment of the drawn view (the specification's values and expressions, replaced by the
-              Parameters render option), run the row transforms of the view in their written order on the
+              Parameters render option, whose values can be arrays and objects, and the resolved value of each
+              selection), replace the expression references
+              of the static sites by their values before the configuration is resolved, run the row transforms
+              of the view in their written order on the
               loaded table with the loader, the limits, and the cancellation token of the call, one
-              evaluator and one evaluation-step budget shared by the parameters, the transforms, and the
-              row-bound mark values, derive the implicit bin, aggregate, and stack of the encoding from the
-              transformed table, pass the resulting tables to the scales and the marks, charge the scene
+              evaluator and one evaluation-step budget shared by the parameters, the references, the transforms, and
+              the
+              row-bound mark values, bind the selections to the units of the drawn view, derive the implicit bin,
+              aggregate, and stack of the encoding from the
+              transformed table, pass the resulting tables, the parameter values, and the selections to the scales
+              and the marks (which draw the brush and take the extent of a scale or a bin from a selection),
+              charge the scene
               budget only after the transforms, and deliver the warnings of the loader, the lookup sources, and
               the transforms, in that order, after the reports of the specification and also when a later
               stage fails.
             justification: |
               The place of the transforms in the pipeline decides what every later stage sees; one budget per
-              call keeps hostile expressions bounded, and a fixed delivery order keeps diagnostics testable.
+              call keeps hostile expressions bounded, a parameter must exist before anything reads it, and a fixed
+              delivery order keeps diagnostics testable.
             tests:
               - CanvasNetVegaLite_SystemIntegration_Transforms_FilterAndCalculateSelectTheDrawnDots
               - CanvasNetVegaLite_SystemIntegration_Transforms_MeasureMatchesRenderAndRendersAreByteIdentical
@@ -326,6 +340,13 @@ sections:
               - CanvasNetVegaLite_SystemIntegration_Parameters_OverridesReachTheTransforms
               - CanvasNetVegaLite_SystemIntegration_Transforms_LimitsSandboxAndCancellationFailClosed
               - CanvasNetVegaLite_SystemIntegration_Aggregation_LimitsAndCancellationApply
+              - CanvasNetVegaLite_SystemIntegration_Params_ExpressionReferencesDriveTitleBackgroundAndPadding
+              - CanvasNetVegaLite_SystemIntegration_Params_FoldingIsDeterministicAndLeavesTheDocumentAlone
+              - CanvasNetVegaLite_SystemIntegration_Params_TheCallerGivesTheDomainOfATimeScaleAsDates
+              - CanvasNetVegaLite_SystemIntegration_Selection_CallerValueReplacesTheInitialValue
+              - CanvasNetVegaLite_SystemIntegration_Selection_ExpressionsReadTheResolvedSelection
+              - CanvasNetVegaLite_SystemIntegration_Brush_ALayeredViewWrapsAllItsLayers
+              - CanvasNetVegaLite_SystemIntegration_BinExtent_TheSpanOfASelectionChoosesTheStep
 
           - id: CanvasNetVegaLite-VegaLiteDocument-ExpressionErrors
             title: >-

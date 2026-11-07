@@ -87,6 +87,12 @@ internal sealed class ExpressionFunctionContext
     /// <summary>Gets the cancellation token of the call, for functions that run their own loops.</summary>
     public CancellationToken CancellationToken => _cancellationToken;
 
+    /// <summary>
+    ///     Gets or sets the selection stores of the call by data set name (<c>name_store</c>), which <c>data</c> and the selection functions read; null when the specification has no selection.
+    /// </summary>
+    /// <remarks>The stores are set once, before the first evaluation of the call, and are immutable afterwards.</remarks>
+    public IReadOnlyDictionary<string, SelectionStore>? SelectionStores { get; set; }
+
     /// <summary>Gets the step budget of the evaluation.</summary>
     public long MaxSteps { get; }
 

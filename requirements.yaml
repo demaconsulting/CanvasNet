@@ -122,6 +122,7 @@ includes:
   - docs/reqstream/canvas-net-vega-lite/spec-model/feature-catalog.yaml
   - docs/reqstream/canvas-net-vega-lite/spec-model/spec-normalizer.yaml
   - docs/reqstream/canvas-net-vega-lite/spec-model/config-resolver.yaml
+  - docs/reqstream/canvas-net-vega-lite/spec-model/expression-reference-folder.yaml
   - docs/reqstream/canvas-net-vega-lite/data.yaml
   - docs/reqstream/canvas-net-vega-lite/data/data-table.yaml
   - docs/reqstream/canvas-net-vega-lite/data/data-loader.yaml
@@ -135,6 +136,7 @@ includes:
   - docs/reqstream/canvas-net-vega-lite/expressions/expression-functions.yaml
   - docs/reqstream/canvas-net-vega-lite/transforms.yaml
   - docs/reqstream/canvas-net-vega-lite/transforms/row-transforms.yaml
+  - docs/reqstream/canvas-net-vega-lite/transforms/selection-model.yaml
   - docs/reqstream/canvas-net-vega-lite/transforms/aggregate-transforms.yaml
   - docs/reqstream/canvas-net-vega-lite/transforms/encoding-plan.yaml
   - docs/reqstream/canvas-net-vega-lite/transforms/time-unit-transform.yaml

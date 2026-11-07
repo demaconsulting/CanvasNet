@@ -1,0 +1,156 @@
+---
+# Software Unit Requirements for SelectionModel
+#
+# These requirements describe the design-level behavior of the SelectionModel unit of the Transforms subsystem
+# (internal namespace DemaConsulting.CanvasNet.VegaLite.Transforms): the initial state of the selections of a
+# specification, which a static chart paints the way vega-embed paints it first (no event ever fires). The unit
+# comprises SelectionModel.cs (the components, the stores and the resolved values), SelectionModel.Projection.cs
+# (the projection over fields and encodings and the tuples of the initial value) and SelectionModel.Queries.cs
+# (the binding to the units that are drawn, the selection a view sees, the selection bound to a scale and the extent
+# of a scale or a bin; Phase 12 milestone 2b) and SelectionTimeUnits.cs (the time units that a predicate on a
+# selection needs computed first). It uses the declaration helpers of
+# the SpecParser unit (which selections apply to which unit views), the tuple types and the resolution of the
+# Expressions subsystem (the ExpressionFunctions unit), and the scale type rules of the Scales subsystem. See
+# docs/verification/canvas-net-vega-lite/transforms/selection-model.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Transforms Requirements
+        sections:
+          - title: SelectionModel Requirements
+            requirements:
+              - id: CanvasNetVegaLite-Transforms-SelectionModel-Declaration
+                title: >-
+                  The SelectionModel unit shall declare each selection of a specification for the unit views it
+                  applies to - a selection of a unit view for that unit, a top-level selection of a composition
+                  for every unit view below it or for those that its views name (by the name of the unit or of a
+                  view above it), and the entries of the legacy selection property as the selections they map
+                  to (single and multi as point, init as value) - shall take the store of a name from its first
+                  declaration in document order, and shall drop, as an empty selection, a selection that two or
+                  more layers of one layered view receive (Vega-Lite compiles it to duplicate signals that Vega
+                  rejects).
+                justification: |
+                  Which unit views see a selection, and which unit holds its tuples, decide what every condition
+                  and filter selects; the rules are those of Vega-Lite's normalizer, so the same specification
+                  shows the same chart.
+                tests:
+                  - SelectionModel_Create_TopLevelSelectionIsDeclaredForEveryUnitAndStoredFromTheFirst
+                  - SelectionModel_Create_UnitSelectionBelongsToItsUnit
+                  - SelectionModel_Create_SelectionOfTwoLayersIsDropped
+                  - SelectionModel_Create_LegacySelectionsAreMapped
+                  - SelectionModel_Declares_FindsSelectionsInAnyView
+                  - SelectionDeclarations_UnitNameOf_NamesUnitsByPosition
+                  - SpecParser_FindParameter_SelectionsAreVisibleFromEveryView
+                  - CanvasNetVegaLite_SystemIntegration_Selection_TopLevelSelectionOfAConcatIsSharedByItsViews
+                  - CanvasNetVegaLite_SystemIntegration_Selection_FacetCellsShareTheSelection
+                  - CanvasNetVegaLite_SystemIntegration_Selection_TopLevelSelectionOfTwoLayersIsReported
+
+              - id: CanvasNetVegaLite-Transforms-SelectionModel-Projection
+                title: >-
+                  The SelectionModel unit shall project a selection over the fields or encodings it constrains
+                  as Vega-Lite does - an explicit fields or encodings, otherwise the keys of the initial value
+                  (a channel name is an encoding of the unit, any other key a field of a point selection, an
+                  interval initialized with another key takes the default encodings), otherwise the defaults of
+                  the selection type (x and y for an interval, the identity of the rows for a point), with the
+                  defaults taken from the configuration - skip a channel that has no field or an aggregate with
+                  a vl-param-selection-projection warning, project a time unit over its derived field, and
+                  give each projected field the tuple type R for an interval over a continuous scale, R-RE for a
+                  binned field and E otherwise.
+                justification: |
+                  The projection decides which field of a row a selection compares and how (a range, a bin, a
+                  value), so it must follow Vega-Lite exactly or the selected rows differ.
+                tests:
+                  - SelectionModel_Create_DefaultProjectionOfEachType
+                  - SelectionModel_Create_TupleTypeFollowsTheScaleAndTheBin
+                  - SelectionModel_Create_ProjectionIsInferredFromTheKeysOfTheValue
+                  - SelectionModel_Create_UnprojectableChannelsAreReported
+                  - CanvasNetVegaLite_SystemIntegration_Selection_ProjectionIsInferredFromTheValue
+                  - CanvasNetVegaLite_SystemIntegration_Selection_IntervalOverACategoricalAxisSelectsItsEndsOnly
+
+              - id: CanvasNetVegaLite-Transforms-SelectionModel-InitialValue
+                title: >-
+                  The SelectionModel unit shall read the initial value of a selection into the tuples of its
+                  store - a scalar applying to every projected field, a mapping from the channels or fields to
+                  values or ranges, or a list of them, the value of a channel taking precedence over the value of
+                  its field, a date-time object read in the calendar of the call and stored as the number of
+                  milliseconds - shall let the value of the caller replace the value of the specification (a
+                  null clearing it, a DateTime being an instant), and shall give a point selection over the
+                  identity of the rows no tuples (it is not modeled) and warn when the caller gave it a value.
+                justification: |
+                  The initial value is the whole state of a static selection; a host must be able to set it
+                  without editing the text, and a state that cannot be modeled must not be invented.
+                tests:
+                  - SelectionModel_Create_ScalarAndMappingValues
+                  - SelectionModel_Create_IntervalValueAndDates
+                  - SelectionModel_Create_CallerValueReplacesTheValueOfTheSpecification
+                  - SelectionModel_Create_RowIdentitySelectionHasNoTuples
+                  - CanvasNetVegaLite_SystemIntegration_Selection_CallerValueReplacesTheInitialValue
+                  - CanvasNetVegaLite_SystemIntegration_Selection_TemporalIntervalSelectsTheRowsInsideTheDates
+                  - CanvasNetVegaLite_SystemIntegration_Selection_CallerCanReplaceTheInitOfALegacySelection
+
+              - id: CanvasNetVegaLite-Transforms-SelectionModel-Stores
+                title: >-
+                  The SelectionModel unit shall build the store of each selection (the tuples with the unit,
+                  the projected fields and the values, named by the variable form of the name followed by
+                  _store) and the resolved value of each selection parameter (an object with the selected
+                  values of each field, and for a point selection the vlPoint query; an empty object for an
+                  empty selection), shall keep the resolve and the bind kind of each selection, and shall
+                  make the resolved value the value of the parameter that variable parameters and expression
+                  references read.
+                justification: |
+                  The stores are what the predicates of the conditions and filters read, and the resolved value is
+                  what an expression sees as the parameter, so both must be exactly what Vega-Lite's compiled
+                  specification holds at its first paint.
+                tests:
+                  - SelectionModel_Create_StoresAndResolvedValues
+                  - SelectionModel_Create_KeepsBindAndResolve
+                  - CanvasNetVegaLite_SystemIntegration_Selection_ExpressionsReadTheResolvedSelection
+                  - CanvasNetVegaLite_SystemIntegration_Selection_InteractionPropertiesAreIgnoredWithoutAReport
+
+              - id: CanvasNetVegaLite-Transforms-SelectionModel-Queries
+                title: >-
+                  The SelectionModel unit shall bind to the units of the layer tree that is drawn (a copy of a facet
+                  cell finding its template), answer which selections a unit declares and which selection a view
+                  sees under a name (its own, else that of the nearest view above it, the last unit of a view that
+                  declares the name deciding), give the field a selection takes on a channel when it is bound to the
+                  scales (an interval selection resolved globally over a continuous scale, the last such selection
+                  winning) and the selected range or values of a field for the extent of a scale or a bin (the field
+                  that the extent names, else the field projected over its encoding, else the first projected field,
+                  with a vl-param-selection-projection warning when the choice is a guess), merge the mark of an
+                  interval selection over the mark of the configuration, keep the time units that derive the
+                  projected fields, and read a selection bound to the scales of a unit that is not the whole view (a
+                  unit of a concatenation, a facet, or a repeat) as holding nothing.
+                justification: |
+                  The scales, the bins, the brushes, and the predicates ask the model through the views they belong
+                  to, so the lookup must follow Vega-Lite's walk up the views and its rules for what a bound
+                  selection gives, or the chart that is drawn differs from the compiled one.
+                tests:
+                  - SelectionModel_ComponentsOf_AreTheSelectionsDeclaredForTheUnit
+                  - SelectionModel_ComponentsOf_ANodeOfAnotherTreeHasNone
+                  - SelectionModel_FindComponent_WalksUpToTheViewsAbove
+                  - SelectionModel_BoundExtentOf_IsAnIntervalBoundToAContinuousScale
+                  - SelectionModel_ResolveExtent_ReadsTheSelectedRangeOfAField
+                  - SelectionModel_ResolveExtent_AVariableParameterIsNotASelection
+                  - SelectionModel_Create_ABindingInAConcatenationHoldsNothing
+                  - SelectionModel_Create_TheMarkIsTheConfigurationMergedUnderTheSelection
+                  - SelectionModel_Create_TheResolutionComesFromTheConfiguration
+                  - CanvasNetVegaLite_SystemIntegration_BindScales_AreIgnoredInAConcatenation
+                  - CanvasNetVegaLite_SystemIntegration_Domain_TheFirstFieldIsUsedWithAWarning
+
+              - id: CanvasNetVegaLite-Transforms-SelectionModel-TimeUnits
+                title: >-
+                  The SelectionModel unit shall, before a filter transform tests a selection and before the encoding
+                  of a unit whose conditions test one is applied, compute the start and end of the time units that
+                  the selection is projected over (Vega-Lite's time unit node, inserted above the filter and above the
+                  data of the unit), for every selection that the predicate names (a param, a legacy selection, and
+                  the compositions and the test of a condition), replacing a field of that name, so that a predicate
+                  finds the derived field in a view that does not write the time unit itself.
+                justification: |
+                  A selection over a time unit constrains the derived field (month_date), which only the encoding
+                  that declares the selection writes; without the field a filter, or a condition in another view,
+                  would select no row.
+                tests:
+                  - CanvasNetVegaLite_SystemIntegration_TimeUnitSelection_AFilterTestsTheDerivedField
+                  - CanvasNetVegaLite_SystemIntegration_TimeUnitSelection_AFilterInAnotherViewAddsTheTimeUnit
+                  - CanvasNetVegaLite_SystemIntegration_TimeUnitSelection_AConditionAddsTheTimeUnitToItsView

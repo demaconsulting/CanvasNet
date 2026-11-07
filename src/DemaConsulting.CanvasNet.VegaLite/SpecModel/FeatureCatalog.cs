@@ -72,32 +72,31 @@ internal sealed record FeatureReport(string Id, string Message, VegaLiteLocation
 ///         <item><term><c>vl-predicate-timeunit-part</c> (warning)</term><description>the <c>timeUnit</c> of a predicate (a filter or a condition test) whose unit has a <c>week</c> or <c>dayofyear</c> part; like Vega-Lite a predicate does not apply those parts.</description></item>
 ///         <item><term><c>vl-scale-nice-interval</c>, <c>vl-guide-axis-tickcount-interval</c> (warnings)</term><description>a time interval (a text or <c>{interval, step}</c>) as <c>scale.nice</c> or as the <c>tickCount</c> of an axis or legend on a scale that is not a time scale (it is ignored).</description></item>
 ///         <item><term><c>vl-scale-zero-ignored</c> (warning)</term><description>a <c>scale.zero</c> on a temporal field with a time or UTC scale or a color scale, where zero is not meaningful (it is ignored, as Vega-Lite does).</description></item>
-///         <item><term><c>vl-encoding-condition</c></term><description>the <c>condition</c> of a channel that takes none (a position, secondary or order channel). The color, fill, stroke, opacity, fillOpacity, strokeOpacity, strokeWidth, strokeDash, size, shape and angle channels evaluate the <c>test</c> of a condition for every row.</description></item>
-///         <item><term><c>vl-encoding-condition-param</c></term><description>a condition with a <c>param</c> (it never holds), and a <c>test</c> that names a selection or a parameter that is not a variable parameter.</description></item>
+///         <item><term><c>vl-encoding-condition</c></term><description>the <c>condition</c> of a channel that takes none (a position, secondary or order channel). The color, fill, stroke, opacity, fillOpacity, strokeOpacity, strokeWidth, strokeDash, size, shape and angle channels evaluate the <c>test</c> of a condition (and the <c>param</c> of a condition on a selection or a variable parameter) for every row. <c>vl-encoding-condition-param</c> was retired in Phase 12 and is never produced again.</description></item>
 ///         <item><term><c>vl-encoding-bin</c></term><description>the <c>bin</c> of a channel that cannot bin (<c>order</c> and the secondary channels), and <c>bin: "binned"</c> (data that is binned already) on a channel other than <c>x</c> and <c>y</c>, unless it is false or null. <c>aggregate</c>, <c>bin</c> (on <c>x</c>, <c>y</c>, <c>text</c> and the channels that have a scale), <c>stack</c> and <c>sort</c> are otherwise supported and are not reported.</description></item>
-///         <item><term><c>vl-encoding-bin-extent-param</c></term><description>a <c>bin.extent</c> that is a <c>{"param": ...}</c> object in an encoding; the extent of the data is used.</description></item>
+///         <item><term><c>vl-encoding-bin-extent-param</c></term><description>retired in Phase 12 and never produced again: a <c>bin.extent</c> that is a <c>{"param": ...}</c> object in an encoding sets the span that chooses the step and the domain of the scale (<see cref="Transforms.BinSettings.Span"/>).</description></item>
 ///         <item><term><c>vl-encoding-stack-nonlinear</c></term><description>an explicit <c>stack</c> (not false or null) of <c>x</c> or <c>y</c> whose <c>scale.type</c> is not <c>linear</c>; Vega-Lite does not stack on a log, pow, sqrt or symlog scale, so those marks are not stacked, and any other type is stacked on the linear scale.</description></item>
 ///         <item><term><c>vl-encoding-sort</c></term><description>a <c>sort</c> that is not applied: a channel shorthand (such as <c>"-y"</c>) or an <c>encoding</c> that names a channel the encoding does not have or that has neither a <c>field</c> nor an <c>aggregate</c>, and an object whose <c>op</c> is <c>values</c>, <c>exponential</c> or <c>exponentialb</c>. Ascending, descending, null and an array of values are always supported. The message names the channel that the sort refers to when that is the problem (the sort stays a report, not a specification error, because a channel can come from a parent encoding after normalization).</description></item>
 ///         <item><term><c>vl-encoding-sort-ignored</c> (warning)</term><description>a <c>sort</c> array, channel shorthand, or object with a <c>field</c>, <c>op</c> or <c>encoding</c> on a quantitative field whose scale is continuous (no discrete <c>scale.type</c>): there are no categories to order and the sort is ignored. <c>ascending</c>, <c>descending</c> and null are not reported.</description></item>
 ///         <item><term><c>vl-encoding-sort-mixed-types</c> (warning)</term><description>a <c>sort</c> array that mixes strings, numbers, booleans or null; produced by <see cref="SpecParser"/> at the array. Values are matched by kind (<c>1</c> does not position <c>"1"</c>), as Vega-Lite's strict comparison does. An object or array item of a <c>sort</c> array is a specification error instead (a date-time object is accepted on a temporal field).</description></item>
 ///         <item><term><c>vl-scale-&lt;type&gt;</c></term><description><c>scale.type</c>, for every type except linear, log, pow, sqrt, symlog, sequential, time, utc, band, point, ordinal, quantile, quantize, threshold and bin-ordinal.</description></item>
-///         <item><term><c>vl-scale-property-&lt;name&gt;</c></term><description>a scale property other than type, domain, range, zero, nice, padding, reverse, paddingInner, paddingOuter, align, round, clamp, scheme, domainMid, domainMin, domainMax, rangeMin, rangeMax, interpolate, base, exponent and constant. An unknown color scheme name is a specification error of the scale resolver, not a report.</description></item>
+///         <item><term><c>vl-scale-property-&lt;name&gt;</c></term><description>a scale property other than type, domain, range, zero, nice, padding, reverse, paddingInner, paddingOuter, align, round, clamp, scheme, domainMid, domainMin, domainMax, domainRaw, rangeMin, rangeMax, interpolate, base, exponent and constant (<c>vl-scale-property-domainRaw</c> was retired in Phase 12 and is never produced again). An unknown color scheme name is a specification error of the scale resolver, not a report.</description></item>
 ///         <item><term><c>vl-offset-position</c>, <c>vl-offset-ranged</c></term><description>an <c>xOffset</c> or <c>yOffset</c> that is not drawn (the marks are drawn at the position of their <c>x</c> or <c>y</c> channel): <c>vl-offset-position</c> when the position channel is missing, is quantitative, is temporal without a time unit (Vega-Lite rejects it), has a time unit that cannot hold an offset (a unit whose smallest part is the day of the week, a binned unit, the <c>maxbins</c> form, a <c>rect</c> mark) on a position that is not discrete; a temporal position with a time unit is nested in the duration of its unit and drawn; <c>vl-offset-ranged</c> for a continuous (quantitative or temporal) offset of a bar or area, which Vega-Lite draws as a range from the start of the band. The offsets of the other marks are drawn: a discrete one by a band or point scale, a continuous one by a linear or time scale (a strip of points).</description></item>
 ///         <item><term><c>vl-guide-legend-titleorient</c>, <c>vl-guide-legend-clipheight</c></term><description>the <c>titleOrient</c> of a legend when it is not <c>top</c> (the title is drawn above the entries) and its <c>clipHeight</c>; legends themselves are drawn and are not reported.</description></item>
 ///         <item><term><c>vl-guide-encode</c></term><description><c>axis.encode</c> and <c>legend.encode</c>.</description></item>
 ///         <item><term><c>vl-guide-axis-&lt;name&gt;</c></term><description>an axis property from the list of unsupported axis properties (<c>labelBound</c>, <c>tickBand</c>, <c>tickExtra</c>, <c>position</c>, <c>translate</c>, <c>bandPosition</c>, <c>titleX</c>, <c>titleY</c>).</description></item>
 ///         <item><term><c>vl-format-type-custom</c></term><description><c>axis.formatType</c>, <c>legend.formatType</c>, the <c>header.formatType</c> of a facet field and the <c>formatType</c> of a <c>text</c> channel other than <c>number</c>, <c>time</c> and <c>utc</c> (a custom format type is not evaluated; the default format is used).</description></item>
-///         <item><term><c>vl-expr-ref</c></term><description>an <c>{"expr": ...}</c> value that the renderer does not evaluate (anywhere in a view's title, size, padding, background, view, in a facet's field definitions, in a mark property other than the row-bound paint properties, or in an encoding other than the <c>value</c> of a color, fill, stroke, opacity or symbol size channel). The row-bound sites and the <c>labelExpr</c> of axes, legends and headers are evaluated and are reported only for what their expression cannot do. <c>vl-expr-label</c> (the <c>axis.labelExpr</c>, <c>legend.labelExpr</c> and <c>header.labelExpr</c> that were not evaluated) was retired when label expressions were implemented and is never produced again.</description></item>
+///         <item><term><c>vl-expr-ref</c></term><description>an <c>{"expr": ...}</c> value that the renderer does not evaluate: at a property that Vega-Lite's schema does not allow one at (a width or height, a facet's field definitions), at a static site that reads <c>datum</c> (a static site is evaluated once, without a row), or in the <c>Config</c> of the render options (<see cref="VisitCallerConfig"/>). The static sites (<see cref="ExpressionReferenceSites"/>: title, padding, background, mark, axis, legend, header, scale and view properties, the <c>value</c> and <c>datum</c> of the other channels, and the root <c>config</c>), the row-bound sites and the <c>labelExpr</c> of axes, legends and headers are evaluated and are reported only for what their expression cannot do; a date result at a static site that takes none is the warning <c>vl-expr-ref</c> that the fold delivers (<see cref="ExpressionReferenceFolder"/>). <c>vl-expr-label</c> (the <c>axis.labelExpr</c>, <c>legend.labelExpr</c> and <c>header.labelExpr</c> that were not evaluated) was retired when label expressions were implemented and is never produced again.</description></item>
 ///         <item><term><c>vl-expr-function-&lt;name&gt;</c>, <c>vl-expr-view-state</c>, <c>vl-expr-construct-&lt;name&gt;</c></term><description>the expression text of a supported site (a calculate, a filter, a variable parameter or a row-bound expression reference): a call of a function outside the whitelist (the number format and color functions among them), a use of view state (<c>signal</c>, <c>event</c>, <c>item</c>, <c>width</c>, <c>height</c>), or a deferred operator (bitwise, shift, <c>in</c>). The construct evaluates to null; the position is that of the expression text and the message names the offset inside it.</description></item>
 ///         <item><term><c>vl-transform-&lt;name&gt;</c></term><description>every entry of <c>transform</c> that the renderer does not compute: the transforms of later phases (<c>density</c>, <c>extent</c>, <c>loess</c>, <c>quantile</c>, <c>regression</c>; "not supported yet"). <c>calculate</c>, <c>filter</c>, <c>fold</c>, <c>flatten</c>, <c>sample</c>, <c>pivot</c>, <c>lookup</c>, <c>aggregate</c>, <c>joinaggregate</c>, <c>window</c>, <c>bin</c>, <c>stack</c>, <c>impute</c> and <c>timeUnit</c> of any view (the single view, a layered view and its layers, and the views of a <c>concat</c>, <c>hconcat</c>, <c>vconcat</c>, <c>facet</c> or <c>repeat</c>) are computed and not reported. The Phase 10 message "The '&lt;name&gt;' transform is not applied: the view is a '&lt;composition&gt;' composition, which is not supported yet." was retired in Phase 11: every composition is drawn, so no transform is left unapplied by one.</description></item>
-///         <item><term><c>vl-transform-filter-param</c>, <c>-pivot-op</c>, <c>-lookup-param</c>, <c>-bin-extent-param</c></term><description>the parts of a computed transform that are not supported: a filter predicate on a selection parameter (every row passes), a pivot <c>op</c> other than sum and count (sum is used), a lookup in the data of a parameter (not applied) and a <c>bin</c> whose <c>extent</c> is a parameter (the extent of the data is used).</description></item>
+///         <item><term><c>vl-transform-pivot-op</c>, <c>-lookup-param</c></term><description>the parts of a computed transform that are not supported: a pivot <c>op</c> other than sum and count (sum is used) and a lookup in the data of a parameter (not applied; it needs the final table of another view filtered by the selection). <c>vl-transform-filter-param</c> (a filter predicate on a selection parameter) and <c>vl-transform-bin-extent-param</c> (a <c>bin</c> whose <c>extent</c> is a parameter) were retired in Phase 12 and are never produced again: the filter evaluates the selection, and the extent sets the span that chooses the bin step.</description></item>
 ///         <item><term><c>vl-composition-property-ignored</c> (warning)</term><description>a <c>width</c>, <c>height</c> or <c>autosize</c> (other than <c>pad</c>) of a concatenation, a facet or a repeat of rows or columns (only the views inside have a size), the <c>"container"</c> size of a view inside one, and the <c>padding</c>, <c>background</c>, <c>config</c>, <c>datasets</c> or <c>autosize</c> of a view inside one: Vega-Lite ignores them and only the top-level view decides them. The composition is drawn padded (<c>autosize: pad</c>). A <c>concat</c>, <c>hconcat</c>, <c>vconcat</c>, <c>repeat</c> and <c>facet</c> are drawn and not reported: <c>vl-composition-concat</c>, <c>-hconcat</c>, <c>-vconcat</c>, <c>-repeat</c> and <c>-facet</c> were retired in Phase 11 and are never produced (<c>vl-composition-layer</c> was retired in Phase 10); the views nested in a composition are examined too.</description></item>
 ///         <item><term><c>vl-channel-row</c>, <c>-column</c>, <c>-facet</c></term><description>a <c>row</c>, <c>column</c> or <c>facet</c> channel of a unit view that cannot be faceted: a layer of a layered view, a layered view whose encoding holds the channel, or the <c>spec</c> of a <c>facet</c> (Vega-Lite facets only a unit view that is the root, a child of a concatenation or a copy of a repeat; the channel is ignored there, use the <c>facet</c> operator). The channels of a unit view that is faceted are drawn and not reported.</description></item>
 ///         <item><term><c>vl-facet-field-transform</c>, <c>vl-facet-sort</c>, <c>vl-header-orient</c></term><description>the parts of the definition of a facet field (a <c>facet</c> operator's field or <c>row</c> and <c>column</c> fields, or the <c>row</c>, <c>column</c> and <c>facet</c> channel of a unit view) that are not drawn: a <c>bin</c>, <c>timeUnit</c> or <c>aggregate</c> of the field is not applied (the raw value of the field is the cell; <c>vl-facet-field-transform</c>, at the property); a <c>sort</c> by a field and an operation (an object) orders the cells by the facet field in ascending order (<c>vl-facet-sort</c>); a <c>header.labelOrient</c> or <c>header.titleOrient</c> on a side that the header does not draw on (the default side is used; <c>vl-header-orient</c>): a row honors <c>left</c> and <c>right</c>, a column <c>top</c> and <c>bottom</c>, the label of a wrapped facet (the title of its cells) any side and its title <c>top</c> and <c>bottom</c>. A custom <c>header.formatType</c> reports <c>vl-format-type-custom</c>; <c>header.labelExpr</c> is evaluated.</description></item>
 ///         <item><term><c>vl-concat-axis-shared</c>, <c>vl-composition-columns-ignored</c>, <c>vl-repeat-ref-unresolved</c> (warnings)</term><description>produced by the renderer from the view tree, not by the catalog (so each is reported once, from the tree that is drawn): <c>resolve.axis.x</c> or <c>y</c> set to <c>shared</c> on a concatenation (the children keep their own axes, as Vega-Lite does), <c>columns</c> together with a <c>row</c> or <c>column</c> mapping of a facet or repeat (ignored), and a <c>{"repeat": ...}</c> reference that the enclosing repeat does not define (the channel is dropped).</description></item>
 ///         <item><term><c>vl-layer-property-ignored</c> (warning)</term><description>a <c>width</c>, <c>height</c>, <c>autosize</c>, <c>padding</c>, <c>background</c>, <c>config</c>, <c>datasets</c> or <c>title</c> of a view inside a layered view (a layer or a nested layered view): only the top-level view decides them.</description></item>
 ///         <item><term><c>vl-layer-scale-conflict</c> (warning)</term><description>produced by the renderer, not by the catalog: views (the layers of a layered view, the children of a concatenation) whose scales of a shared channel cannot be merged (a continuous with a discrete scale, a linear with a logarithmic or a time scale) keep scales of their own; reported at the channel of the view that was left out.</description></item>
-///         <item><term><c>vl-param-variable</c>, <c>vl-param-selection</c></term><description>every selection parameter (it has <c>select</c>) and the legacy top-level <c>selection</c> report <c>vl-param-selection</c>; a variable parameter of a nested view reports <c>vl-param-variable</c>. The variable parameters of the root view are computed and are not reported. <c>bind</c> is ignored.</description></item>
+///         <item><term><c>vl-param-variable</c>, <c>vl-param-selection-layer</c>, <c>-id</c>, <c>-animation</c>, <c>-projection</c></term><description>the parameters that are not drawn as Vega-Lite does. A variable parameter of a nested view reports <c>vl-param-variable</c>: Vega-Lite compiles only the variable parameters of the top-level view into signals, so a nested one is ignored. The variable parameters of the root view are computed and are not reported. A selection parameter (it has <c>select</c>; the legacy top-level <c>selection</c> is the same) is drawn in its initial state (<see cref="Transforms.SelectionModel"/>), with <c>bind: "scales"</c> (the domain of the scales) and <c>bind: "legend"</c> (the dimming of the legend entries) drawn, and the input-widget <c>bind</c>, <c>on</c>, <c>clear</c>, <c>toggle</c>, <c>nearest</c>, <c>translate</c> and <c>zoom</c> ignored without a report; the parts that are not modeled are reported at the declaration: <c>vl-param-selection-layer</c> (a selection that two or more layers of a layered view receive: Vega-Lite compiles duplicate signals that Vega rejects; it is applied as an empty selection), <c>vl-param-selection-id</c> (a point selection that names no fields or encodings and has a <c>value</c>: it selects rows by identity, which is not modeled; applied as empty), and <c>vl-param-selection-animation</c> (<c>on</c> a timer, or the <c>time</c> encoding). <c>vl-param-selection-projection</c> is a warning produced by the selection model, not by the catalog (it needs the encodings of the unit views). <c>vl-param-selection</c> was retired in Phase 12 and is never produced again.</description></item>
 ///         <item><term><c>vl-projection</c></term><description>the <c>projection</c> of a view.</description></item>
 ///         <item><term><c>vl-layout-fit-step</c> (warning)</term><description>produced by the renderer's layout, not by the catalog (it needs the scales): an <c>autosize</c> of <c>fit</c>, <c>fit-x</c> or <c>fit-y</c> (also the one that <c>"container"</c> implies) whose width or height is sized by a step, a <c>{"step": n}</c> or a missing size on a discrete scale; Vega-Lite drops the fit for that dimension (<c>fit</c> becomes <c>fit-y</c> or <c>fit-x</c>, or <c>pad</c> for both; <c>fit-x</c> with a step width becomes <c>fit-y</c>, as Vega-Lite does) and so does the renderer. <c>fit</c>, <c>fit-x</c> and <c>fit-y</c> are drawn for a single and a layered view and are not reported: <c>vl-layout-autosize-fit</c>, <c>-fit-x</c> and <c>-fit-y</c> (the family <c>vl-layout-autosize-&lt;type&gt;</c>) were retired in Phase 11 and are never produced. A fit or a <c>"container"</c> size of a composition is reported as <c>vl-composition-property-ignored</c>.</description></item>
 ///     </list>
@@ -147,7 +146,7 @@ internal static class FeatureCatalog
     private static readonly HashSet<string> SupportedScaleProperties =
     [
         "type", "domain", "range", "zero", "nice", "padding", "reverse", "paddingInner", "paddingOuter", "align", "round", "clamp", "scheme",
-        "domainMid", "domainMin", "domainMax", "rangeMin", "rangeMax", "interpolate", "base", "exponent", "constant",
+        "domainMid", "domainMin", "domainMax", "domainRaw", "rangeMin", "rangeMax", "interpolate", "base", "exponent", "constant",
     ];
 
     /// <summary>The axis properties that the renderer does not implement; each reports <c>vl-guide-axis-&lt;name&gt;</c>.</summary>
@@ -158,6 +157,10 @@ internal static class FeatureCatalog
 
     /// <summary>The properties of a view in which an <c>{"expr": ...}</c> value is looked for.</summary>
     private static readonly HashSet<string> ExpressionScopes = ["title", "width", "height", "padding", "background", "view", "mark", "encoding", "facet"];
+
+    /// <summary>The message for an expression reference inside a selection, where Vega-Lite's schema allows none (the brush <c>mark</c>, the events, the projection and the initial value take plain values).</summary>
+    private const string SelectionReferenceMessage =
+        "Vega-Lite's schema does not allow an expression reference in a selection (the brush mark, the events, the projection and the initial value take plain values); the reference is ignored and the property keeps its default.";
 
     /// <summary>The properties of a view inside a concatenation, a facet or a repeat that only the top-level view decides: a nested view's own value is ignored (<c>vl-composition-property-ignored</c>).</summary>
     private static readonly string[] NestedIgnoredProperties = ["padding", "background", "config", "datasets", "autosize"];
@@ -192,6 +195,62 @@ internal static class FeatureCatalog
         return walker.Reports
             .DistinctBy(r => (r.Id, r.Location.Line, r.Location.Column, r.Message, r.Kind))
             .OrderBy(r => r.Location.Line).ThenBy(r => r.Location.Column).ToList().AsReadOnly();
+    }
+
+    /// <summary>
+    ///     Lists the expression references (<c>{"expr": ...}</c>) in the configuration text of the caller's render options.
+    /// </summary>
+    /// <remarks>
+    ///     The configuration of the caller is merged over the defaults as it is: nothing evaluates an expression in it, so a reference there would be read as an object where a
+    ///     value is expected and its property would silently keep its default. Each reference is reported, with the JSON pointer inside the text of the caller's configuration in the message
+    ///     (the text has no position in the specification, so the location is unknown).
+    /// </remarks>
+    /// <param name="callerConfig">The configuration text, which the render options validated as a JSON object, or null.</param>
+    /// <returns>One report for each reference, in document order; empty when there is none.</returns>
+    public static IReadOnlyList<FeatureReport> VisitCallerConfig(string? callerConfig)
+    {
+        if (string.IsNullOrEmpty(callerConfig))
+        {
+            return [];
+        }
+
+        // The text was validated as a JSON object of bounded depth when the options were created; an explicit stack keeps the walk independent of the call stack anyway
+        var reports = new List<FeatureReport>();
+        using var document = System.Text.Json.JsonDocument.Parse(callerConfig, new System.Text.Json.JsonDocumentOptions { MaxDepth = 64 });
+        var pending = new Stack<(System.Text.Json.JsonElement Element, string Pointer)>();
+        pending.Push((document.RootElement, string.Empty));
+        while (pending.Count > 0)
+        {
+            var (element, pointer) = pending.Pop();
+            if (element.ValueKind == System.Text.Json.JsonValueKind.Object)
+            {
+                if (element.TryGetProperty("expr", out var expression) && expression.ValueKind == System.Text.Json.JsonValueKind.String)
+                {
+                    reports.Add(new FeatureReport(
+                        "vl-expr-ref",
+                        $"An expression reference in the Config of the render options (at {(pointer.Length == 0 ? "the root" : pointer)}) is not evaluated; the property keeps its default (the config of the specification is evaluated).",
+                        default,
+                        FeatureReportKind.UnsupportedFeature));
+                    continue;
+                }
+
+                foreach (var property in element.EnumerateObject().Reverse())
+                {
+                    pending.Push((property.Value, pointer + "/" + SpecNode.EscapePointerSegment(property.Name)));
+                }
+            }
+            else if (element.ValueKind == System.Text.Json.JsonValueKind.Array)
+            {
+                var index = element.GetArrayLength();
+                foreach (var item in element.EnumerateArray().Reverse())
+                {
+                    index--;
+                    pending.Push((item, pointer + "/" + index.ToString(CultureInfo.InvariantCulture)));
+                }
+            }
+        }
+
+        return reports;
     }
 
     /// <summary>
@@ -274,6 +333,12 @@ internal static class FeatureCatalog
         /// <summary>The effective configuration, or null when only the configuration of the specification is read.</summary>
         private readonly ResolvedConfig? _config;
 
+        /// <summary>The expression texts of the static sites, which are evaluated once without a row.</summary>
+        private readonly HashSet<SpecNode> _staticTexts;
+
+        /// <summary>The declarations of the selections that two or more layers receive, found on first use.</summary>
+        private HashSet<SpecNode>? _duplicateSelections;
+
         /// <summary>
         ///     Initializes a walker.
         /// </summary>
@@ -283,6 +348,7 @@ internal static class FeatureCatalog
         {
             _tree = tree;
             _config = config;
+            _staticTexts = new HashSet<SpecNode>(tree.Expressions.StaticReferences.Select(r => r.Text), ReferenceEqualityComparer.Instance);
         }
 
         /// <summary>
@@ -385,17 +451,134 @@ internal static class FeatureCatalog
         ///     Lists the layers of the specification (the unit views inside layered views, concatenations, facets and repeats; a facet's template once) in document order.
         /// </summary>
         /// <returns>The layers; empty when the specification has none or its layers are nested more deeply than the largest limit allows (the render fails then).</returns>
-        private List<LayerNode> LayerUnits()
+        private List<LayerNode> LayerUnits() => [.. LayerTreeOrNull()?.Units ?? []];
+
+        /// <summary>
+        ///     Builds the layer tree of the specification for the findings that need to know which unit views a declaration applies to.
+        /// </summary>
+        /// <returns>The tree; null when the specification is nested more deeply than the largest limit allows (the render fails then).</returns>
+        private LayerTree? LayerTreeOrNull()
         {
             try
             {
                 // Bounded, so that a repeat is not expanded without limit here before the document enforces its own MaxViews
-                return [.. SpecNormalizer.Layers(_tree, new VegaLiteLimits { MaxViews = 100_000, MaxCompositionDepth = 64 }).Units];
+                return SpecNormalizer.Layers(_tree, new VegaLiteLimits { MaxViews = 100_000, MaxCompositionDepth = 64 });
             }
             catch (VegaLiteRenderException)
             {
-                return [];
+                return null;
             }
+        }
+
+        /// <summary>
+        ///     Finds the selections that Vega-Lite compiles to duplicate signals: a selection that two or more units of one layered view receive.
+        /// </summary>
+        /// <returns>The declaration nodes.</returns>
+        private HashSet<SpecNode> DuplicateSelections()
+        {
+            if (_duplicateSelections is null)
+            {
+                _duplicateSelections = [];
+                if (LayerTreeOrNull() is { } layers)
+                {
+                    foreach (var assignment in SelectionDeclarations.Assign(layers).Where(a => a.IsDuplicate))
+                    {
+                        _duplicateSelections.Add(assignment.Declaration);
+                    }
+                }
+            }
+
+            return _duplicateSelections;
+        }
+
+        /// <summary>
+        ///     Reports what the renderer does not model of a selection: an animation, a projection over the identity of the rows with an initial value, and a selection that Vega rejects.
+        /// </summary>
+        /// <remarks>
+        ///     The interaction of a selection (<c>on</c>, <c>clear</c>, <c>toggle</c>, <c>nearest</c>, <c>translate</c>, <c>zoom</c>, the input widgets of <c>bind</c>) is ignored without a report: a static chart is the state before any event.
+        /// </remarks>
+        /// <param name="declaration">The parameter object or the legacy selection entry.</param>
+        private void VisitSelection(SpecNode declaration)
+        {
+            VisitSelectionReferences(declaration);
+            var options = SelectionDeclarations.OptionsOf(declaration);
+            var timer = options?["on"] is { } on && (on.StringValue?.Contains("timer", StringComparison.Ordinal) == true || on["type"]?.StringValue == "timer");
+            if (timer || options?["encodings"] is { IsArray: true } encodings && encodings.Items.Any(e => e.StringValue == "time"))
+            {
+                Unsupported("vl-param-selection-animation", "An animation selection (a timer, or the 'time' encoding) is not supported; the selection is drawn in its initial state, without the animation.", declaration);
+            }
+
+            if (SelectionDeclarations.UsesRowIdentity(declaration, _config) && SelectionDeclarations.ValueOf(declaration) is { IsNull: false })
+            {
+                Unsupported(
+                    "vl-param-selection-id",
+                    "A point selection that names no fields or encodings selects rows by their identity, which is not modeled; its initial value is ignored and the selection is empty.",
+                    declaration);
+            }
+
+            if (DuplicateSelections().Contains(declaration))
+            {
+                Unsupported(
+                    "vl-param-selection-layer",
+                    "The selection is declared for two or more layers of a layered view, which Vega-Lite compiles to duplicate signals that Vega rejects; declare it in one layer or name the layer in 'views'. It is applied as an empty selection.",
+                    declaration);
+            }
+        }
+
+        /// <summary>
+        ///     Reports each <c>{"expr": ...}</c> inside the declaration of a selection.
+        /// </summary>
+        /// <remarks>
+        ///     Vega-Lite's schema (6.5.0) allows no expression reference anywhere in a selection: <c>BrushConfig</c> (<c>fill</c>, <c>fillOpacity</c>, <c>stroke</c> and the other properties of the brush),
+        ///     <c>PointSelectionConfig</c> and <c>IntervalSelectionConfig</c> (<c>on</c>, <c>clear</c>, <c>fields</c>, <c>encodings</c>, <c>translate</c>, <c>zoom</c>, ...) and the initial <c>value</c> take
+        ///     plain values, a stream or a mapping, and Vega-Lite copies the value to a Vega mark or event stream as it is, where an object is invalid. The reference is therefore not a static site: it is
+        ///     not evaluated, and the brush keeps the defaults for the properties it would have set.
+        /// </remarks>
+        /// <param name="declaration">The parameter object or the legacy selection entry.</param>
+        private void VisitSelectionReferences(SpecNode declaration)
+        {
+            var pending = new Stack<SpecNode>();
+            foreach (var property in declaration.Properties)
+            {
+                pending.Push(property);
+            }
+
+            while (pending.Count > 0)
+            {
+                var node = pending.Pop();
+                if (node.IsObject && node["expr"] is { IsString: true })
+                {
+                    Unsupported("vl-expr-ref", SelectionReferenceMessage, node);
+                    continue;
+                }
+
+                if (node.IsObject || node.IsArray)
+                {
+                    var children = node.IsObject ? node.Properties : node.Items;
+                    for (var i = children.Count - 1; i >= 0; i--)
+                    {
+                        pending.Push(children[i]);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        ///     Tells whether a node lies inside <c>config.selection</c> of the specification.
+        /// </summary>
+        /// <param name="node">The node.</param>
+        /// <returns><see langword="true"/> when an ancestor is the <c>selection</c> of the <c>config</c>.</returns>
+        private static bool IsInConfigSelection(SpecNode node)
+        {
+            for (var parent = node.Parent; parent is not null; parent = parent.Parent)
+            {
+                if (parent.Name == "selection" && parent.Parent?.Name == "config")
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -464,7 +647,11 @@ internal static class FeatureCatalog
                         VisitParams(property, isRoot);
                         break;
                     case "selection":
-                        Unsupported("vl-param-selection", "Selections are not supported yet; the static default state is not applied.", property);
+                        foreach (var entry in property.Properties.Where(p => p.IsObject))
+                        {
+                            VisitSelection(entry);
+                        }
+
                         break;
                     case "projection":
                         Unsupported("vl-projection", "Map projections are not supported.", property);
@@ -476,7 +663,7 @@ internal static class FeatureCatalog
                         break;
                 }
 
-                if (ExpressionScopes.Contains(name))
+                if (ExpressionScopes.Contains(name) || (name == "config" && isRoot))
                 {
                     VisitExpressions(property);
                 }
@@ -1306,7 +1493,7 @@ internal static class FeatureCatalog
         }
 
         /// <summary>
-        ///     Reports the <c>bin</c> of a channel that is not a position channel, and a bin extent that is a parameter.
+        ///     Reports the <c>bin</c> of a channel that cannot bin, and a field that is binned already on a channel other than <c>x</c> and <c>y</c>.
         /// </summary>
         /// <param name="name">The channel name.</param>
         /// <param name="definition">The channel definition object.</param>
@@ -1324,10 +1511,6 @@ internal static class FeatureCatalog
             else if (name is not ("x" or "y") && (bin is { IsString: true } || bin["binned"] is { IsBoolean: true, BoolValue: true }))
             {
                 Unsupported("vl-encoding-bin", $"A field that is binned already (bin: \"binned\") is only supported on the x and y channels, not on '{name}'.", bin);
-            }
-            else if (bin is { IsObject: true } && bin["extent"] is { IsObject: true } extent)
-            {
-                Unsupported("vl-encoding-bin-extent-param", "A bin extent that is a parameter is not supported yet; the extent of the data is used.", extent);
             }
         }
 
@@ -1383,12 +1566,7 @@ internal static class FeatureCatalog
                     continue;
                 }
 
-                if (item["param"] is not null)
-                {
-                    Unsupported("vl-encoding-condition-param", "A condition on a parameter is not supported yet; it never holds.", item);
-                    continue;
-                }
-
+                // A condition on a parameter holds for the rows a selection contains (or when a variable parameter is truthy); its field, value and datum are visited like those of a test
                 if (item["test"] is { } test)
                 {
                     VisitConditionTest(test);
@@ -1456,11 +1634,7 @@ internal static class FeatureCatalog
             {
                 pending.Push(negated);
             }
-            else if (named is not null)
-            {
-                Unsupported("vl-encoding-condition-param", "A test on a selection or a parameter that is not a variable is not supported yet; the condition never holds.", named);
-            }
-            else
+            else if (named is null)
             {
                 VisitPredicateTimeUnit(predicate);
             }
@@ -1812,8 +1986,8 @@ internal static class FeatureCatalog
         /// <remarks>
         ///     The transforms the renderer computes (calculate, filter, fold, flatten, sample, pivot, lookup, aggregate, joinaggregate,
         ///     window, bin, stack, impute, timeUnit) are reported only for the parts they do not support: expression constructs, a
-        ///     binned time unit, the time unit of a predicate (see <c>vl-predicate-timeunit-part</c>), selection parameters, a pivot operation other than sum and count, a lookup
-        ///     in the data of a parameter, and a bin extent that is a parameter. Every view is drawn (a view in a concatenation, a facet or a repeat too), so its transforms are applied; a transform of
+        ///     binned time unit, the time unit of a predicate (see <c>vl-predicate-timeunit-part</c>), the selection parameters that are not modeled (see <c>vl-param-selection-layer</c>), a pivot operation other than sum and count, a lookup
+        ///     in the data of a parameter. Every view is drawn (a view in a concatenation, a facet or a repeat too), so its transforms are applied; a transform of
         ///     a later phase is reported as not supported yet.
         /// </remarks>
         /// <param name="transforms">The array.</param>
@@ -1854,13 +2028,6 @@ internal static class FeatureCatalog
                         break;
                     case "lookup":
                         VisitLookupSource(entry["from"]!);
-                        break;
-                    case "bin":
-                        if (operation is { IsObject: true } && operation["extent"] is { IsObject: true } extent)
-                        {
-                            Unsupported("vl-transform-bin-extent-param", "A bin extent that is a parameter is not supported yet; the extent of the data is used.", extent);
-                        }
-
                         break;
                     default:
                         break;
@@ -1922,27 +2089,10 @@ internal static class FeatureCatalog
                 {
                     pending.Push(negated);
                 }
-                else if (named is not null)
-                {
-                    VisitParameterPredicate(named);
-                }
-                else
+                else if (named is null)
                 {
                     VisitFieldPredicate(predicate);
                 }
-            }
-        }
-
-        /// <summary>
-        ///     Visits a predicate that names a parameter: only a variable parameter can be evaluated.
-        /// </summary>
-        /// <param name="reference">The parameter name value.</param>
-        private void VisitParameterPredicate(SpecNode reference)
-        {
-            var declaration = reference.IsString ? SpecParser.FindParameter(reference, reference.StringValue!) : null;
-            if (reference.Name == "selection" || declaration is null || declaration["select"] is not null)
-            {
-                Unsupported("vl-transform-filter-param", "A filter on a selection is not supported yet; every row passes.", reference);
             }
         }
 
@@ -2008,11 +2158,14 @@ internal static class FeatureCatalog
             {
                 if (parameter["select"] is not null)
                 {
-                    Unsupported("vl-param-selection", "Selection parameters are not supported yet.", parameter);
+                    VisitSelection(parameter);
                 }
                 else if (!isRoot)
                 {
-                    Unsupported("vl-param-variable", "Variable parameters of a nested view are not supported yet.", parameter);
+                    Unsupported(
+                        "vl-param-variable",
+                        "Vega-Lite compiles only the variable parameters of the top-level view; this one declares no signal and is ignored (an expression that reads it fails in Vega, and evaluates to null here).",
+                        parameter);
                 }
                 else if (parameter["expr"] is { IsString: true } expression)
                 {
@@ -2036,15 +2189,20 @@ internal static class FeatureCatalog
                 var node = pending.Pop();
                 if (node.IsObject && node["expr"] is { IsString: true } text)
                 {
-                    // An expression of a supported site (compiled by the parser) is reported only for what it cannot do;
-                    // anywhere else the reference is not evaluated
-                    if (_tree.Expressions.Get(text) is not null)
+                    // An expression of a supported site (compiled by the parser) is reported only for what it cannot do; anywhere else the reference is not evaluated.
+                    // A reference of a static site is evaluated once, with no row: one that reads the datum has nothing to read
+                    if (_tree.Expressions.Get(text) is { } compiled)
                     {
+                        if (compiled.ReferencesDatum && _staticTexts.Contains(text))
+                        {
+                            Unsupported("vl-expr-ref", "The expression reads 'datum', which this property does not have (it is evaluated once, not for every row); the expression reference is ignored.", node);
+                        }
+
                         ReportConstructs(text);
                     }
                     else
                     {
-                        Unsupported("vl-expr-ref", "Expression references are not supported here yet.", node);
+                        Unsupported("vl-expr-ref", IsInConfigSelection(node) ? SelectionReferenceMessage : "Expression references are not supported here yet.", node);
                     }
 
                     continue;

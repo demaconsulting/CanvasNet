@@ -146,8 +146,8 @@ public class VegaLiteConditionalMarksIntegrationTests
     }
 
     /// <summary>
-    ///     Validates the diagnostics: a condition on a parameter is reported with its location (strict mode turns it into an exception there) and the chart is
-    ///     drawn with the channel's own value, and a test that is not an expression is a located specification error.
+    ///     Validates the diagnostics: a condition on a variable parameter is evaluated (no report, strict mode renders, and the circles take the value of the condition while the parameter is
+    ///     truthy), a condition on a parameter that no view declares and a test that is not an expression are located specification errors.
     /// </summary>
     [Fact]
     public void CanvasNetVegaLite_SystemIntegration_ConditionalMarks_DiagnosticsAreLocated()
@@ -160,6 +160,7 @@ public class VegaLiteConditionalMarksIntegrationTests
               "encoding": { "x": { "field": "q", "type": "quantitative" },
                             "color": { "condition": { "param": "flag", "value": "red" }, "value": "#808080" } } }
             """;
+        var undeclared = parameter.Replace("\"param\": \"flag\"", "\"param\": \"missing\"", StringComparison.Ordinal);
         const string broken = """
             { "data": { "values": [ { "q": 1 } ] },
               "mark": "circle",
@@ -167,23 +168,21 @@ public class VegaLiteConditionalMarksIntegrationTests
                             "color": { "condition": { "test": "datum.q >", "value": "red" }, "value": "#808080" } } }
             """;
         var reported = new List<(string Feature, string Pointer)>();
-        var options = new VegaLiteRenderOptions { UnsupportedFeatureHandler = u => reported.Add((u.Feature, u.Location.Pointer)) };
+        var options = new VegaLiteRenderOptions { UnsupportedFeatureHandler = u => reported.Add((u.Feature, u.Location.Pointer)), ThrowOnUnsupportedFeature = true };
         var document = VegaLiteDocument.Parse(parameter);
 
         // Act
         using var surface = document.Render(options, Ct);
         var scene = document.BuildScene(new VegaLiteRenderOptions(), Ct);
-        var strict = Assert.Throws<VegaLiteUnsupportedFeatureException>(() => document.Render(new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true }, Ct));
+        var missing = Assert.Throws<VegaLiteSpecException>(() => VegaLiteDocument.Parse(undeclared));
         var invalid = Assert.Throws<VegaLiteSpecException>(() => VegaLiteDocument.Parse(broken));
 
-        // Assert: the parameter condition is reported once, at the condition, and the circles keep the channel's value
-        Assert.Equal([("vl-encoding-condition-param", "/encoding/color/condition")], reported);
-        Assert.Equal("vl-encoding-condition-param", strict.Feature);
-        Assert.Equal("/encoding/color/condition", strict.Location.Pointer);
-        Assert.True(strict.Location.Line > 0 && strict.Location.Column > 0);
-        Assert.All(scene.FindAll("mark-circle"), e => Assert.Equal("#808080", ((SceneSymbol)e.Item).Fill));
+        // Assert: nothing is reported (strict mode rendered), and the circles take the value of the condition because the parameter is true
+        Assert.Empty(reported);
+        Assert.All(scene.FindAll("mark-circle"), e => Assert.Equal("red", ((SceneSymbol)e.Item).Fill));
 
-        // Assert: the syntax error is located at the test
+        // Assert: the undeclared parameter and the syntax error are located at the offending value
+        Assert.Equal("/encoding/color/condition/param", missing.Location.Pointer);
         Assert.Equal("/encoding/color/condition/test", invalid.Location.Pointer);
         Assert.True(invalid.Location.Line > 0 && invalid.Location.Column > 0);
     }

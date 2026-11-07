@@ -204,4 +204,61 @@ public class VegaLiteRenderOptionsTests
             },
         });
     }
+
+    /// <summary>
+    ///     Validates that a parameter accepts a structured value (a sequence or a dictionary of values, nested), that the whole value is copied when the options are created, and that the
+    ///     copy is read-only.
+    /// </summary>
+    [Fact]
+    public void VegaLiteRenderOptions_Parameters_AcceptStructuredValuesAndCopyThem()
+    {
+        // Arrange: an array, a list that holds a dictionary, and a dictionary that holds an array
+        var numbers = new List<object?> { 2, 6.5 };
+        var member = new Dictionary<string, object?> { ["x"] = new object?[] { 1, "two", null, true } };
+        var source = new Dictionary<string, object?> { ["range"] = numbers, ["map"] = member, ["plain"] = 3 };
+
+        // Act
+        var options = new VegaLiteRenderOptions { Parameters = source };
+        numbers.Add(99);
+        member["x"] = 0;
+        source["extra"] = 1;
+
+        // Assert: later changes do not reach the options
+        Assert.Equal(["map", "plain", "range"], options.Parameters!.Keys.Order(StringComparer.Ordinal));
+        var range = Assert.IsAssignableFrom<IReadOnlyList<object?>>(options.Parameters["range"]);
+        Assert.Equal([2, 6.5], range);
+        var map = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(options.Parameters["map"]);
+        Assert.Equal([1, "two", null, true], Assert.IsAssignableFrom<IReadOnlyList<object?>>(map["x"]));
+        Assert.IsNotType<List<object?>>(range);
+        Assert.Equal(3, options.Parameters["plain"]);
+    }
+
+    /// <summary>
+    ///     Validates that a structured parameter value is bounded: its nesting (32 levels), its size (65,536 values), the kinds of its members (the scalars of a parameter) and the names of
+    ///     its members.
+    /// </summary>
+    [Fact]
+    public void VegaLiteRenderOptions_Parameters_RejectUnboundedOrUnsupportedStructuredValues()
+    {
+        // Arrange: a value nested 40 deep, a list that contains itself, a value of too many items, an unsupported member and a member without a name
+        object? deep = 1;
+        for (var i = 0; i < 40; i++)
+        {
+            deep = new object?[] { deep };
+        }
+
+        var cycle = new List<object?>();
+        cycle.Add(cycle);
+
+        // Act / Assert
+        Assert.Equal("Parameters", Assert.Throws<ArgumentException>(() => new VegaLiteRenderOptions { Parameters = new Dictionary<string, object?> { ["p"] = deep } }).ParamName);
+        Assert.Throws<ArgumentException>(() => new VegaLiteRenderOptions { Parameters = new Dictionary<string, object?> { ["p"] = cycle } });
+        Assert.Throws<ArgumentException>(() => new VegaLiteRenderOptions { Parameters = new Dictionary<string, object?> { ["p"] = new object?[65_537] } });
+        Assert.Throws<ArgumentException>(() => new VegaLiteRenderOptions { Parameters = new Dictionary<string, object?> { ["p"] = new object?[] { 1, new object() } } });
+        Assert.Throws<ArgumentException>(() => new VegaLiteRenderOptions { Parameters = new Dictionary<string, object?> { ["p"] = new object?[] { double.NaN } } });
+        Assert.Throws<ArgumentException>(() => new VegaLiteRenderOptions { Parameters = new Dictionary<string, object?> { ["p"] = new Dictionary<string, object?> { ["x"] = new object() } } });
+
+        // Assert: the largest accepted value is accepted
+        Assert.NotNull(new VegaLiteRenderOptions { Parameters = new Dictionary<string, object?> { ["p"] = new object?[65_535] } }.Parameters);
+    }
 }

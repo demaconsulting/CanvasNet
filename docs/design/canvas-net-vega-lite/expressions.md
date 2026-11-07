@@ -21,9 +21,10 @@ that the render options name, UTC when none). It contains three units:
 - **ExpressionEvaluator** - the internal `ExpressionEvaluator` and the `IExpressionDatum` interface: runs a compiled
   expression with JavaScript coercion, culture-independently, under the step budget and the cancellation token; see
   _ExpressionEvaluator Unit Design_ (`expressions/expression-evaluator.md`)
-- **ExpressionFunctions** - the internal `ExpressionFunctions` table of 100 functions, the `ExpressionFunctionContext`,
-  and `ExpressionRegex`: the math, text and array, type and conversion, regular expression, date and time, and number
-  formatting functions; see _ExpressionFunctions Unit Design_ (`expressions/expression-functions.md`)
+- **ExpressionFunctions** - the internal `ExpressionFunctions` table of 104 functions, the `ExpressionFunctionContext`,
+  `ExpressionRegex`, and the selection stores and tests: the math, text and array, type and conversion, regular
+  expression, date and time,
+  number formatting, and selection functions; see _ExpressionFunctions Unit Design_ (`expressions/expression-functions.md`)
 
 The subsystem's namespace documentation is in `Expressions/NamespaceDoc.cs`. Its behavior is specified by the
 `CanvasNetVegaLite-Expressions-*` requirements in `docs/reqstream/canvas-net-vega-lite/expressions.yaml`.

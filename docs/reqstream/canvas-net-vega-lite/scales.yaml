@@ -80,6 +80,26 @@ sections:
               - ScaleResolver_Resolve_UnaggregatedDomainReadsTheRawRows
               - ScaleResolver_Resolve_InvalidInputsFailWithLocation
 
+          - id: CanvasNetVegaLite-Scales-RawDomains
+            title: >-
+              The Scales subsystem shall take the domain of a scale as it is from the scale's domainRaw, from the
+              variable parameter that the scale's domain names, or from the selection that its domain, its bin
+              extent, or a binding to the scales names, without the zero rule, bounds, padding, or nice,
+              for the continuous and the band, point, and ordinal scales, also when layers share the scale, shall
+              report a raw domain that no scale can use, and shall mark a scale whose extent is a parameter so that
+              its marks are clipped.
+            justification: |
+              A parameter that gives a domain is how a host zooms a chart, and the zoomed chart must show exactly the
+              requested extent.
+            children:
+              - CanvasNetVegaLite-Scales-ScaleResolver-RawDomains
+              - CanvasNetVegaLite-Scales-ScaleResolver-RawDomainLayers
+              - CanvasNetVegaLite-Scales-ScaleResolver-SelectionExtents
+            tests:
+              - ScaleResolver_Resolve_AParameterDomainIsTheDomainAsItIs
+              - ScaleResolver_Resolve_AParameterDomainOfADiscreteScaleIsTheListOfCategories
+              - CanvasNetVegaLite_SystemIntegration_Params_DomainOfAParameterIsRawAndClipsTheMarks
+              - CanvasNetVegaLite_SystemIntegration_Params_DomainRawIsTheDomain
           - id: CanvasNetVegaLite-Scales-TimeScales
             title: >-
               The Scales subsystem shall map dates with the time and UTC scales (the d3 scaleTime

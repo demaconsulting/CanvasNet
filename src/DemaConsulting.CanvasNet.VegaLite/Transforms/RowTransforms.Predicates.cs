@@ -130,13 +130,18 @@ internal sealed partial class RowTransforms
 
         if (node["param"] is { } parameter)
         {
-            // A variable parameter passes every row or none; a selection parameter has no value here and passes every row
+            // A selection is the expression that Vega-Lite compiles for it (the parser compiled it); a variable parameter passes every row or none
+            if (_context.Tree.Expressions.Get(node) is { } selectionTest)
+            {
+                return new ExpressionPredicate(selectionTest, _context.Evaluator);
+            }
+
             return new ConstantPredicate(!_context.Parameters.TryGetValue(parameter.StringValue!, out var value) || ExpressionEvaluator.IsTruthy(value));
         }
 
         if (node["selection"] is not null)
         {
-            return new ConstantPredicate(true);
+            return _context.Tree.Expressions.Get(node) is { } legacyTest ? new ExpressionPredicate(legacyTest, _context.Evaluator) : new ConstantPredicate(true);
         }
 
         return BuildFieldPredicate(node, table);

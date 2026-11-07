@@ -383,12 +383,19 @@ internal sealed partial class EncodingTransforms
     {
         var min = double.PositiveInfinity;
         var max = double.NegativeInfinity;
-        if (bin.Settings.Extent is { } given)
+        var settings = bin.Settings;
+        if (settings.Extent is { } given)
         {
             (min, max) = given;
         }
         else
         {
+            // An extent that a parameter gives only sets the span that chooses the step (Vega-Lite's span of the bin); the bins still cover the extent of the data
+            if (_context.BinSpanOf(bin.Node["extent"]) is { } span)
+            {
+                settings = settings with { Span = span };
+            }
+
             for (var row = 0; row < rows; row++)
             {
                 _context.Tick(row);
@@ -402,7 +409,7 @@ internal sealed partial class EncodingTransforms
         }
 
         return min <= max
-            ? BinAlgorithm.Resolve(min, max, bin.Settings, _context.Limits.MaxScaleDomainSize, _context.Locate(bin.Node))
+            ? BinAlgorithm.Resolve(min, max, settings, _context.Limits.MaxScaleDomainSize, _context.Locate(bin.Node))
             : null;
     }
 

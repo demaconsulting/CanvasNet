@@ -14,7 +14,7 @@ public class ChannelDefinitionsTests
     /// <param name="color">The JSON text of the color definition.</param>
     /// <returns>The definition node.</returns>
     private static SpecNode Color(string color) =>
-        SpecParser.Parse("""{ "data": { "values": [ { "q": 1, "c": "a" } ] }, "mark": "circle", "encoding": { "x": { "field": "q", "type": "quantitative" }, "color": """ + color + " } }")
+        SpecParser.Parse("""{ "params": [ { "name": "p", "select": "point" } ], "data": { "values": [ { "q": 1, "c": "a" } ] }, "mark": "circle", "encoding": { "x": { "field": "q", "type": "quantitative" }, "color": """ + color + " } }")
             .Root["encoding"]!["color"]!;
 
     /// <summary>
@@ -41,7 +41,7 @@ public class ChannelDefinitionsTests
         Assert.Equal(expected, ChannelDefinitions.CanCondition(channel));
 
     /// <summary>
-    ///     Validates the field definition of a channel: its own field, a field in the first condition on a test, or the definition itself.
+    ///     Validates the field definition of a channel: its own field, a field in the first condition on a predicate (a test or a parameter), or the definition itself.
     /// </summary>
     [Fact]
     public void ChannelDefinitions_FieldDefinitionOf_FindsTheObjectThatCarriesTheField()
@@ -56,14 +56,14 @@ public class ChannelDefinitionsTests
         // Act and Assert
         Assert.Same(own, ChannelDefinitions.FieldDefinitionOf(own));
         Assert.Same(ChannelDefinitions.Conditions(conditional).ElementAt(1), ChannelDefinitions.FieldDefinitionOf(conditional));
-        Assert.Same(onParameter, ChannelDefinitions.FieldDefinitionOf(onParameter));
+        Assert.Same(ChannelDefinitions.Conditions(onParameter).Single(), ChannelDefinitions.FieldDefinitionOf(onParameter));
         Assert.Same(plain, ChannelDefinitions.FieldDefinitionOf(plain));
         Assert.True(ChannelDefinitions.HasField(aggregate));
         Assert.False(ChannelDefinitions.HasField(plain));
     }
 
     /// <summary>
-    ///     Validates the lists of conditions: a single condition, an array, and the exclusion of a parameter condition from the tests.
+    ///     Validates the lists of conditions: a single condition, an array, and that a condition on a parameter is a condition on a predicate like a test.
     /// </summary>
     [Fact]
     public void ChannelDefinitions_Conditions_ListsConditionsInOrder()
@@ -71,13 +71,16 @@ public class ChannelDefinitionsTests
         // Arrange
         var single = Color("""{ "condition": { "test": "datum.q > 1", "value": "red" } }""");
         var array = Color("""{ "condition": [ { "param": "p", "value": "red" }, { "test": "datum.q > 1", "value": "blue" } ] }""");
+        var legacy = Color("""{ "condition": { "selection": "p", "value": "red" } }""");
         var none = Color("""{ "value": "gray" }""");
 
         // Act and Assert
         Assert.Single(ChannelDefinitions.Conditions(single));
         Assert.Equal(2, ChannelDefinitions.Conditions(array).Count());
-        Assert.Single(ChannelDefinitions.TestConditions(array));
-        Assert.Equal("blue", ChannelDefinitions.TestConditions(array).Single()["value"]!.StringValue);
+        Assert.Equal(["red", "blue"], ChannelDefinitions.TestConditions(array).Select(c => c["value"]!.StringValue));
+        Assert.Equal("param", ChannelDefinitions.PredicateKeyOf(ChannelDefinitions.Conditions(array).First())!.Name);
+        Assert.Equal("test", ChannelDefinitions.PredicateKeyOf(ChannelDefinitions.Conditions(array).Last())!.Name);
+        Assert.Equal("selection", ChannelDefinitions.PredicateKeyOf(ChannelDefinitions.Conditions(legacy).Single())!.Name);
         Assert.Empty(ChannelDefinitions.Conditions(none));
     }
 

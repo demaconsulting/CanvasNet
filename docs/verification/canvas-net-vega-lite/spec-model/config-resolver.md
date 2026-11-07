@@ -122,3 +122,13 @@ with
 `ticks: true` and a median stroke width of 2 keeps the white median color; an error bar with `ticks: true` keeps its
 rule; an
 error band opacity of 0.5 replaces the 0.3).
+
+##### Selection Defaults
+
+**Tests**: `ConfigResolverTests.ConfigResolver_Resolve_CarriesTheSelectionDefaults`
+
+Asserts that the merged configuration of a specification without `config` has the `selection` defaults of Vega-Lite (a
+`point` selection with the fields `_vgsid_`, `toggle`, and `resolve: "global"`; an `interval` selection with the
+encodings `x` and `y`, `translate`, `zoom`, `resolve: "global"`, and the `mark` with the fill `#333`, the fill opacity 0.125,
+and the white stroke), and that the `config.selection` of the specification, and of the caller, overrides exactly what it
+names.

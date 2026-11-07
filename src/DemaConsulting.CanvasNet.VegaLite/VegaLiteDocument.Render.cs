@@ -2,6 +2,7 @@
 using System.Globalization;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Fonts;
+using DemaConsulting.CanvasNet.VegaLite.Data;
 using DemaConsulting.CanvasNet.VegaLite.Expressions;
 using DemaConsulting.CanvasNet.VegaLite.Guides;
 using DemaConsulting.CanvasNet.VegaLite.Layout;
@@ -270,7 +271,7 @@ public sealed partial class VegaLiteDocument
         PrepareChart(options, cancellationToken).Scene;
 
     /// <summary>
-    ///     Lays out the chart: resolves the configuration, loads the data and builds the scales, axes, marks and title of a
+    ///     Lays out the chart: evaluates the parameters and folds the expression references of the static sites into values, resolves the configuration, loads the data and builds the scales, axes, marks and title of a
     ///     single view, and gives the scene and the natural size of the chart (the size of the surface at a scale of one).
     /// </summary>
     /// <remarks>
@@ -288,23 +289,49 @@ public sealed partial class VegaLiteDocument
     /// <returns>The plan.</returns>
     /// <exception cref="ArgumentException">Thrown when <see cref="VegaLiteRenderOptions.Config"/> is not a JSON object (it is checked when the options are created, so this only guards against a text that did not pass that check).</exception>
     /// <exception cref="VegaLiteSpecException">Thrown, with the location, when a scale, axis or format property has an invalid value.</exception>
-    /// <exception cref="VegaLiteRenderException">Thrown, with the location, when the data or the chart exceeds a limit.</exception>
+    /// <exception cref="VegaLiteRenderException">Thrown, with the location, when the data or the chart exceeds a limit (or a parameter or an expression reference exceeds a limit of the evaluation).</exception>
     /// <exception cref="OperationCanceledException">Thrown when the token is canceled during the work.</exception>
     private ChartPlan PrepareChart(VegaLiteRenderOptions options, CancellationToken cancellationToken, List<FeatureReport>? dataWarningSink = null)
     {
+        // The parameters are evaluated first, once, because everything after reads them: the expression references of the static sites are replaced by their values
+        // (so the configuration, the title, the scales and the guides see values, never expressions), and the data stage shares the evaluator (the step budget) and the calendar
+        var calendar = TimeCalendar.Create(options.TimeZone);
+        var parameters = new Dictionary<string, DataValue>(StringComparer.Ordinal);
+        var evaluator = new ExpressionEvaluator(options.Limits, cancellationToken, parameters, calendar);
+
+        // The selections come first: a parameter expression and an expression reference can read a selection, and the predicates of the conditions and filters read the stores. The
+        // model needs the views of the specification (the units and their encodings), not its data, so it is built from the specification as written and only when it declares a selection
+        var selections = SelectionModel.Empty;
+        if (SelectionModel.Declares(_tree))
+        {
+            var selectionConfig = ConfigResolver.Resolve(_tree, options.Config);
+            var selectionLayers = SpecNormalizer.Expand(_tree, selectionConfig, options.Limits).Layers;
+            selections = SelectionModel.Create(_tree, selectionLayers, selectionConfig, options.Parameters, calendar, evaluator.Context);
+            evaluator.Context.SelectionStores = selections.Stores;
+        }
+
+        ParameterEnvironment.Populate(_tree, options.Parameters, parameters, evaluator, selections.Values);
+        var folded = ExpressionReferenceFolder.Fold(_tree, evaluator);
+        var specification = folded.Tree;
+        var evaluation = new EvaluationState(calendar, parameters, evaluator);
+
         // Defaults < specification config < caller config
-        var config = ConfigResolver.Resolve(_tree, options.Config);
+        var config = ConfigResolver.Resolve(specification, options.Config);
         var measurer = new TextMeasurer(options.EffectiveFonts);
-        var root = _tree.Root;
+        var root = specification.Root;
 
         // A composition has no single title position; layers share one. Only views with a mark have a data rectangle drawn: a single view, or the layers of a layered view
         // A composite mark (a boxplot) is a layered view of the layers it stands for; the expansion's own expressions are read from the derived tree
-        var expanded = SpecNormalizer.Expand(_tree, config, options.Limits);
+        var expanded = SpecNormalizer.Expand(specification, config, options.Limits);
         var layerTree = expanded.Layers;
         var isComposition = layerTree.Root.IsComposition;
 
-        // The findings of the view tree (a repeated value that is not defined, columns that a layout ignores, a shared axis of a concatenation) come from the one tree that is drawn
-        List<FeatureReport> treeWarnings = [.. layerTree.Warnings];
+        // The selections were declared for the units of the specification as written; the units of the tree that is drawn are the same views in the same order
+        selections = selections.BindUnits(layerTree);
+
+        // The findings of the view tree (a repeated value that is not defined, columns that a layout ignores, a shared axis of a concatenation) come from the one tree that is drawn;
+        // an expression reference that could not be folded is reported first
+        List<FeatureReport> treeWarnings = [.. folded.Warnings, .. layerTree.Warnings, .. selections.Warnings];
         dataWarningSink?.AddRange(treeWarnings);
 
         // The charts of a concatenation, a facet, a repeat and the layers are drawn; a facet is instantiated by the data stage even when no mark below it is drawn
@@ -312,7 +339,7 @@ public sealed partial class VegaLiteDocument
         DataStage? stage = null;
         if (drawn.Count > 0 || layerTree.Compositions.Any(c => c.Kind == ViewKind.Facet))
         {
-            stage = RunDataStage(layerTree, expanded.Tree, drawn, config, options, cancellationToken, dataWarningSink);
+            stage = RunDataStage(layerTree, expanded.Tree, drawn, config, options, evaluation, selections, cancellationToken, dataWarningSink);
         }
 
         // Every scene item is charged to one budget before it is created: first the root and view groups that every chart
@@ -322,16 +349,16 @@ public sealed partial class VegaLiteDocument
         LayeredScales? scales = null;
         if (stage is not null && stage.Layers.Count > 0)
         {
-            scales = ScaleResolver.ResolveLayers([.. stage.Layers.Select(l => new LayerScaleInput(l.Node, l.Plan, l.Data))], config, _tree.SourceName, options.Limits, cancellationToken);
+            scales = ScaleResolver.ResolveLayers([.. stage.Layers.Select(l => new LayerScaleInput(l.Node, l.Plan, l.Data))], config, _tree.SourceName, options.Limits, cancellationToken, parameters, selections);
             dataWarningSink?.AddRange(scales.Warnings);
         }
 
         var background = options.Background is { } caller ? CssColor.ToCss(caller) : null;
         if (isComposition)
         {
-            var composed = stage is null || scales is null ? [] : stage.Layers.Select((l, i) => new LayerChart(l.Node, l.Plan, l.Data, scales.PerLayer[i])).ToList();
+            var composed = stage is null || scales is null ? [] : stage.Layers.Select((l, i) => new LayerChart(l.Node, l.Plan, l.Data, scales.PerLayer[i], selections)).ToList();
             IReadOnlyList<FeatureReport> composedWarnings = [.. treeWarnings, .. stage?.Warnings ?? [], .. scales?.Warnings ?? []];
-            return BuildComposition(layerTree.Root, composed, scales, config, measurer, options.Limits, budget, stage?.Expressions, background, cancellationToken) with { DataWarnings = composedWarnings };
+            return BuildComposition(root, layerTree.Root, composed, scales, config, measurer, options.Limits, budget, stage?.Expressions, background, cancellationToken) with { DataWarnings = composedWarnings };
         }
 
         var hints = new ViewSizeHints(scales?.Merged.DiscreteWidth, scales?.Merged.DiscreteHeight, options.ContainerWidth, options.ContainerHeight);
@@ -347,7 +374,7 @@ public sealed partial class VegaLiteDocument
             return new ChartPlan(layout.Measure.NaturalSize, layout.Scene, measurer);
         }
 
-        var layers = stage.Layers.Select((l, i) => new LayerChart(l.Node, l.Plan, l.Data, scales.PerLayer[i])).ToList();
+        var layers = stage.Layers.Select((l, i) => new LayerChart(l.Node, l.Plan, l.Data, scales.PerLayer[i], selections)).ToList();
         IReadOnlyList<FeatureReport> dataWarnings = [.. treeWarnings, .. stage.Warnings, .. scales.Warnings, .. layoutWarnings];
         return BuildChart(new ChartInputs(request, title, layers, scales, config, measurer, options.Limits, budget, stage.Expressions), cancellationToken) with { DataWarnings = dataWarnings };
     }
@@ -427,7 +454,7 @@ public sealed partial class VegaLiteDocument
     private ChartPlan BuildChart(ChartInputs inputs, CancellationToken cancellationToken)
     {
         var budget = inputs.Budget;
-        var legendSpecs = LegendPlan.Create(LegendLayers(inputs.Layers, inputs.Scales), inputs.Config, _tree.SourceName);
+        var legendSpecs = LegendPlan.Create(LegendLayers(inputs.Layers, inputs.Scales), inputs.Config, _tree.SourceName, null, inputs.Layers.Select(l => l.Selections).FirstOrDefault(s => s is { HasSelections: true }));
         var axisPlans = PlanAxes(inputs.Layers, inputs.Scales);
         var cell = CreateCell(inputs.Layers, axisPlans, legendSpecs, inputs.Config, inputs.Measurer, inputs.Limits, _tree.SourceName, inputs.Expressions);
         var measure = ViewLayout.Measure(inputs.Request, default, inputs.Title);

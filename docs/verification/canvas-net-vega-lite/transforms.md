@@ -1,9 +1,11 @@
 ## Transforms Subsystem Verification Design
 
 This document describes the subsystem-level verification strategy for the `Transforms` subsystem (internal namespace
-`DemaConsulting.CanvasNet.VegaLite.Transforms`). The subsystem contains four units: `RowTransforms`, which executes
+`DemaConsulting.CanvasNet.VegaLite.Transforms`). The subsystem contains five units: `RowTransforms`, which executes
 the row transforms of the drawn view (`calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot`, and `lookup`) over an
 immutable `DataTable`, evaluates the static parameters of the root view, and samples deterministically;
+`SelectionModel`, which computes the initial state of the selection parameters (their projection, their stores of
+tuples, and their resolved values) that the predicates of the conditions and filters and the expressions read;
 `AggregateTransforms`, which executes the grouped transforms (`aggregate`, `joinaggregate`, `window`, `bin`, `stack`,
 and `impute`) with their measure, bin, stack, and sort internals; `EncodingPlan`, which plans and runs the implicit
 bin, time unit, aggregate, impute, and stack (cartesian or polar) that the encoding of the drawn view asks for, and the
@@ -202,9 +204,29 @@ to the baseline constitutes a failure.
   `RowTransformsTests.RowTransforms_Apply_FilterOnAParameterReadsItsTruthiness` — a parameter that is an expression of
   another gives its default (only x = 5 passes `x > cut + 1` with `cut` 3), a caller's value for `cut` moves the filter
   (x = 3, 4, and 5), a caller's value for the expression parameter `limit` replaces the expression, a `false` value of a
-  parameter that a `filter` names hides every dot, the parameter names are listed in declaration order, naming a
+  parameter that a `filter` names hides every dot, the parameter names are listed in declaration order, naming an unused
   selection parameter changes nothing, and a name that the document does not declare is refused with an
-  `ArgumentException`.
+  `ArgumentException`; since Phase 12 the parameters are evaluated first in the call, before the expression references
+  are folded and the data is read, and a caller's value can be an array or an object (verified with
+  `VegaLiteParamsIntegrationTests.CanvasNetVegaLite_SystemIntegration_Params_TheCallerOverridesTheDomainOfAParameter`,
+  which gives the domain of a scale as an array).
+- **Selections Are The Initial State That Predicates And Expressions Read**:
+  `SelectionModelTests.SelectionModel_Create_StoresAndResolvedValues`,
+  `VegaLiteSelectionIntegrationTests.CanvasNetVegaLite_SystemIntegration_Selection_FilterKeepsTheSelectedRows`,
+  `VegaLiteSelectionIntegrationTests.CanvasNetVegaLite_SystemIntegration_Selection_ExpressionsReadTheResolvedSelection`,
+  `VegaLiteSelectionIntegrationTests.CanvasNetVegaLite_SystemIntegration_Selection_CallerValueReplacesTheInitialValue` —
+  the
+  stores and the resolved values that the model builds from a specification are the ones that a `filter` on the
+  selection tests (the rows at 4 and 7 stay for the range 4 to 7) and that an expression reads (`brush.a[0]`), and a
+  value of the caller replaces the initial value before any of them is computed.
+- **Selections Are Found Through The Views, Give Extents, And Derive Time Units**:
+  `SelectionModelQueryTests.SelectionModel_FindComponent_WalksUpToTheViewsAbove`,
+  `SelectionModelQueryTests.SelectionModel_ResolveExtent_ReadsTheSelectedRangeOfAField`,
+  `VegaLiteSelectionTimeUnitIntegrationTests.CanvasNetVegaLite_SystemIntegration_TimeUnitSelection_AFilterTestsTheDerivedField`,
+  `BinAlgorithmSpanTests.BinAlgorithm_Compute_TheSpanChoosesTheStepAndTheDataTheBins` — a view sees the selection of
+  its own units or of the nearest view above it, the extent of a field is its selected range, a filter on a selection
+  over a time unit tests the derived field, and a span chooses the step of a bin (3 over the data 1 to 8 with 20 bins
+  gives 0.2, the data span 7 gives 0.5).
 - **Invalid Parameter Definitions And Transforms Fail When The Document Is Opened**:
   `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Parameters_InvalidDefinitionsFailWhenTheDocumentIsOpened`,
   `RowTransformsTests.RowTransforms_Apply_ParameterErrorsAreLocatedSpecificationErrors`,
@@ -250,8 +272,9 @@ to the baseline constitutes a failure.
   `VegaLiteChartIntegrationTests.CanvasNetVegaLite_SystemIntegration_Deferred_FeaturesAreStillReported` — the six grouped
   transforms and the `timeUnit` transform of the drawn view are computed and not reported, while the transforms of
   later phases (`regression`, `loess`, `density`, `quantile`, and `extent`), the variable parameters of a nested view,
-  the selection parameters, the conditions on a channel that takes none, and the parts of the supported transforms that
-  are not computed (a selection in a filter, a pivot operation other than `sum` and `count`, a lookup in a parameter, a
+  the animation selections and the other selection parts that are not modeled, the conditions on a channel that takes
+  none, and the parts of the supported transforms that
+  are not computed (a pivot operation other than `sum` and `count`, a lookup in a parameter, a
   bin extent that is a parameter, the `week` and `dayofyear` parts and the `maxbins` form of a time unit in a filter
   predicate, and a binned time unit) are reported once each in document order, are skipped by the executor, and the
   chart is still drawn; a binned time unit next to the aggregate of the fixture is the one report, `vl-timeunit-binned`

@@ -15,11 +15,14 @@ namespace DemaConsulting.CanvasNet.VegaLite.Transforms;
 ///         <see cref="ParameterGraph"/> gives (dependencies first, otherwise the order of declaration), so the result does
 ///         not depend on the order of the text. <see cref="VegaLiteRenderOptions.Parameters"/> replaces the default of a
 ///         parameter, whatever the parameter defines: the value of the caller is used as it is and the expression is not
-///         evaluated. A parameter without a value or an expression is null. A selection parameter has no value in a
-///         static chart; it is reported by the feature catalog and an expression that reads it sees null.
+///         evaluated. A parameter without a value or an expression is null. A selection parameter is the signal of its resolved
+///         selection (<see cref="SelectionModel"/>): an object with the selected values of each field, empty for an empty selection.
 ///     </para>
 ///     <para>
-///         The environment is built once per measure or render call, on the calling thread. A text of a value of the caller or
+///         The environment is built once per measure or render call, on the calling thread, before anything else reads it: before the expression references of the static sites are
+///         folded (<see cref="ExpressionReferenceFolder"/>) and before the data is read. The value of the caller can be a structured value (an array or an object); it replaces
+///         the definition of the parameter as it is. Only the parameters of the top-level view exist: Vega-Lite compiles no signal for a variable parameter of a nested view, so
+///         an expression that reads one sees null (the feature catalog reports it as <c>vl-param-variable</c>). A text of a value of the caller or
 ///         of the specification that is longer than <see cref="VegaLiteLimits.MaxStringLength"/> is a located
 ///         <see cref="VegaLiteRenderException"/>, because no function has measured it. An expression that fails (the
 ///         step budget, the string limit) is a located <see cref="VegaLiteRenderException"/>.
@@ -34,18 +37,30 @@ internal static class ParameterEnvironment
     /// <param name="overrides">The values the caller supplied, or null.</param>
     /// <param name="values">Receives the values by parameter name; the evaluator reads this dictionary.</param>
     /// <param name="evaluator">The evaluator that was created with <paramref name="values"/>.</param>
-    /// <exception cref="ArgumentNullException">Thrown when an argument other than <paramref name="overrides"/> is null.</exception>
+    /// <param name="selectionValues">The value of each selection parameter by variable name (the resolved selections of <see cref="SelectionModel"/>), which the variable parameters can read; null when there are none.</param>
+    /// <exception cref="ArgumentNullException">Thrown when an argument other than <paramref name="overrides"/> or <paramref name="selectionValues"/> is null.</exception>
     /// <exception cref="VegaLiteRenderException">Thrown when the evaluation of an expression exceeds a limit.</exception>
     /// <exception cref="OperationCanceledException">Thrown when the evaluator's token is canceled.</exception>
     public static void Populate(
         SpecTree tree,
         IReadOnlyDictionary<string, object?>? overrides,
         Dictionary<string, DataValue> values,
-        ExpressionEvaluator evaluator)
+        ExpressionEvaluator evaluator,
+        IReadOnlyDictionary<string, DataValue>? selectionValues = null)
     {
         ArgumentNullException.ThrowIfNull(tree);
         ArgumentNullException.ThrowIfNull(values);
         ArgumentNullException.ThrowIfNull(evaluator);
+
+        // A selection parameter is the signal of its resolved selection, wherever it is declared; the variable parameters below may read it
+        if (selectionValues is not null)
+        {
+            foreach (var (selectionName, selectionValue) in selectionValues)
+            {
+                values[selectionName] = selectionValue;
+            }
+        }
+
         if (tree.Root["params"] is not { IsArray: true } parameters)
         {
             return;
@@ -86,6 +101,32 @@ internal static class ParameterEnvironment
     }
 
     /// <summary>
+    ///     Converts a value of the caller: a scalar, or a sequence or a dictionary of values (the copies that <see cref="VegaLiteRenderOptions.Parameters"/> made).
+    /// </summary>
+    /// <remarks>
+    ///     The nesting was bounded when the options were created (<see cref="VegaLiteRenderOptions.Parameters"/>), so the recursion is bounded too.
+    /// </remarks>
+    /// <param name="supplied">The value.</param>
+    /// <param name="location">The location of the parameter, for errors.</param>
+    /// <returns>The value.</returns>
+    /// <exception cref="VegaLiteRenderException">Thrown when a date cannot be represented.</exception>
+    internal static DataValue FromCaller(object? supplied, VegaLiteLocation location)
+    {
+        switch (supplied)
+        {
+            case IReadOnlyDictionary<string, object?> members:
+                return DataValue.FromObject(DataObject.Create(
+                    members.Select(m => new KeyValuePair<string, DataValue>(m.Key, FromCaller(m.Value, location)))));
+            case string:
+                return DataLoader.FromObject(supplied, location);
+            case System.Collections.IEnumerable items:
+                return DataValue.FromOwnedArray(items.Cast<object?>().Select(i => FromCaller(i, location)).ToArray());
+            default:
+                return DataLoader.FromObject(supplied, location);
+        }
+    }
+
+    /// <summary>
     ///     Computes the value of one parameter.
     /// </summary>
     /// <param name="tree">The specification.</param>
@@ -103,7 +144,7 @@ internal static class ParameterEnvironment
     {
         if (overrides is not null && overrides.TryGetValue(name, out var supplied))
         {
-            return Checked(DataLoader.FromObject(supplied, tree.Locate(parameter)), name, tree.Locate(parameter), evaluator.MaxStringLength);
+            return Checked(FromCaller(supplied, tree.Locate(parameter)), name, tree.Locate(parameter), evaluator.MaxStringLength);
         }
 
         if (tree.Expressions.Get(parameter["expr"]) is { } expression)

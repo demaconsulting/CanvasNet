@@ -81,7 +81,8 @@ at all.
 `FeatureCatalogTests.FeatureCatalog_Visit_ReportsAreInDocumentOrder`,
 `FeatureCatalogTests.FeatureCatalog_Visit_MarkReportCarriesLineAndColumn`
 
-Asserts that one original specification that deliberately uses a version 4 schema, an expression title, autosize
+Asserts that one original specification that deliberately uses a version 4 schema, an expression title (a static site
+that is evaluated once, so it is silent), autosize
 `fit` (silent since Phase 11), a variable and a selection parameter, a projection, file data with a `csv` format and a
 `parse` map that holds a
 custom date format and a plain `number`, three transforms (`calculate`, `filter`, `regression`; only `regression` is
@@ -90,7 +91,7 @@ unit (supported, so it is silent), a `y` with aggregate, bin, stack, sort, and c
 so it is silent), a log scale on a nominal field with a scheme
 (which
 cannot use the type, so it is the warning `vl-scale-type-ignored`), a legend with
-`encode`, a `longitude` and a `latitude` channel yields exactly thirteen reports whose
+`encode`, a `longitude` and a `latitude` channel yields exactly eleven reports whose
 `(identifier, pointer)` list is asserted in document order (for example `vl-encoding-condition` at
 `/encoding/y/condition` and `vl-mark-geoshape` at `/mark`; the custom date format at `/data/format/parse/d`,
 the temporal type and time unit of `x` (`vl-type-temporal` and `vl-encoding-timeunit` of the earlier phases, now
@@ -267,12 +268,14 @@ and a legend object on a position channel produce no report.
 `FeatureCatalogTests.FeatureCatalog_Visit_AutosizeTypesAreNotReported`
 
 Asserts, on a view that is drawn, that expression references in properties that are not evaluated (a `width` that is an
-expression) report `vl-expr-ref` while the row-bound color expression of an encoding value is silent, that the
-selection parameter reports `vl-param-selection` while the variable parameter (with its `bind`, which is ignored) is
-silent, that a `filter` on a field predicate is silent and so is the `timeUnit` transform of a drawn view (computed since
+expression, which Vega-Lite's schema does not allow) report `vl-expr-ref` while the row-bound color expression of an
+encoding value and the mark `size` of a bar (a static site, evaluated once) are silent, that the
+selection parameter (drawn in its initial state since Phase 12) is silent, as is the variable parameter (with its
+`bind`, which is ignored), that a `filter` on a field predicate is silent and so is the `timeUnit` transform of a drawn
+view (computed since
 Phase 8, so the former `vl-transform-timeunit` is not produced for it; the `joinaggregate` of the same list is computed
-and silent), and that an expression reference in a
-mark `size` of a bar is reported at that property; that a specification with `hconcat`, a nested `vconcat`, `concat`,
+and silent), and that the width is the only expression reference reported; that a specification with `hconcat`, a
+nested `vconcat`, `concat`,
 `facet`, `spec`, `repeat`, `resolve`, and `projection` reports only the `projection` (a `facet`, a concatenation and a repeat
 are drawn, so `vl-composition-facet`, `-hconcat`, `-vconcat`, `-concat`, and `-repeat` are never produced) and also
 examines the views nested at any depth (`/hconcat/0/mark`, `/hconcat/1/vconcat/0/mark`, `/spec/mark`); and that, as a
@@ -315,35 +318,36 @@ three distinct messages that name each spelling as written (so nothing is merged
 **Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_LaterPhaseTransformsConditionsAndSelectionsStayReported`
 
 Asserts that a drawn view with a selection parameter and the twelve transforms `aggregate`, `joinaggregate`, `window`,
-`bin`, `stack`, `impute`, `timeUnit`, `regression`, `loess`, `density`, `quantile`, and `extent` reports only
-`vl-param-selection`, then the transforms of later phases as `vl-transform-<name>` (`regression`, `loess`, `density`,
-`quantile`, and `extent`) at their indexes 7 to 11 in document order, and the
-conditions on a parameter as `vl-encoding-condition-param`, while the six aggregating transforms and the `timeUnit`
-transform at index 6 (computed since Phase 8; the former `vl-transform-timeunit` is not produced) are silent.
+`bin`, `stack`, `impute`, `timeUnit`, `regression`, `loess`, `density`, `quantile`, and `extent` reports the transforms
+of
+later phases as `vl-transform-<name>` (`regression`, `loess`, `density`, `quantile`, and `extent`) at their indexes 7 to
+11 in document order, while the six aggregating transforms, the `timeUnit` transform
+at index 6 (computed since Phase 8; the former `vl-transform-timeunit` is not produced), the selection parameter, and
+the condition on it are silent (since Phase 12 `vl-param-selection` and `vl-encoding-condition-param` are retired).
 
 ##### Phase 6 Features Are Silent And The Remaining Parts Are Reported
 
 **Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_Phase6FeaturesAreNotReportedAndRemainingPartsAre`,
 `FeatureCatalogTests.FeatureCatalog_Visit_NestedViewAggregatingTransformsAreAppliedInConcatAndFacet`
 
-Asserts that a bar with a binned `x` whose bin extent is a parameter, an aggregated and normalized `y` on a linear scale,
-a binned color, a size sorted by the `encoding` `y`, an `x2` range, and an `order` field reports only
-`vl-encoding-bin-extent-param` at `/encoding/x/bin/extent` (the binned color is supported and silent; the `x2`
-draws a range, the `order` orders the stack, and the aggregate, the stack, and the sort are computed); and that the
-aggregating transforms of a view in an `hconcat` and in a `facet` are computed since Phase 11 (only the bin extent that
-is a parameter is reported, `vl-transform-bin-extent-param` at `/hconcat/0/transform/3/bin/extent` and at
-`/spec/transform/3/bin/extent`, as for a drawn view at `/transform/0/bin/extent`, where an extent given as numbers is
-silent).
+Asserts that a bar with a binned `x` whose bin extent is a parameter, an aggregated and normalized `y` on a linear
+scale, a binned color, a size sorted by the `encoding` `y`, an `x2` range, and an `order` field reports nothing (the
+extent that is a parameter sets the span of the bins since Phase 12 and `vl-encoding-bin-extent-param` is retired; the
+binned color is supported and silent; the `x2` draws a range, the `order` orders the stack, and the aggregate, the
+stack, and the sort are computed); and that the aggregating transforms of a view in an `hconcat`, in a `facet`, and of
+a drawn view are computed and report nothing, a `bin` transform whose extent is a parameter included
+(`vl-transform-bin-extent-param` is retired).
 
 ##### Unsupported Parts Of Supported Transforms Are Reported
 
 **Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_UnsupportedPartsOfSupportedTransformsAreReported`
 
-Asserts the reports `vl-transform-filter-param` at the `param` and at the legacy `selection` of a filter on a selection
-parameter, `vl-transform-pivot-op` at an `op` other than `sum` and `count` (and none for
+Asserts that a filter on a selection parameter (`param`) and the legacy `selection` are evaluated and not reported
+(`vl-transform-filter-param` is retired in Phase 12), the reports `vl-transform-pivot-op` at an `op` other than `sum`
+and `count` (and none for
 `count`), `vl-transform-lookup-param` at a lookup from a parameter, and `vl-data-remote-url` at the data object of a
-lookup whose source is a remote URL, each at the pointer of the part, in document order, together with the selection
-parameter itself. Since Phase 8 a time unit and a date-time object in a predicate are evaluated, so neither
+lookup whose source is a remote URL, each at the pointer of the part, in document order. Since Phase 8 a time unit and a
+date-time object in a predicate are evaluated, so neither
 `vl-transform-filter-timeunit` (at the `timeUnit` of a predicate) nor `vl-transform-filter-datetime` (at a date object in
 `oneOf` and in `equal`) is produced; instead the same transform list asserts the time reports at the exact value:
 `vl-predicate-timeunit-part` at the `timeUnit` of a filter with the unit `yearweek` (`/transform/9/filter/timeUnit`),
@@ -357,19 +361,36 @@ the transform applies `maxbins`.
 **Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_NestedViewTransformsAreAppliedAndVariableParametersAreReported`
 
 Asserts that, in a view of an `hconcat` and in the `spec` of a `facet` (both drawn since Phase 11), the variable
-parameter of a nested view reports `vl-param-variable` (parameters of nested views are Phase 12) and the transforms of
+parameter of a nested view reports `vl-param-variable` (Vega-Lite compiles only the variable parameters of the
+top-level view, so the report says that a nested one is ignored) and the transforms of
 the nested view are computed, so a `calculate` is silent and a `lookup` reports only the part that is not supported
 (`vl-transform-lookup-param` at the `param` of its `from`, at `/hconcat/0/transform/1/from/param` and at
 `/spec/transform/1/from/param`); and that the variable parameter of the root reports nothing.
 
-##### Expression References Are Reported Only At Deferred Sites
+##### Expression References Are Reported Only Where They Are Not Evaluated
 
-**Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_ExpressionReferencesAreReportedOnlyAtDeferredSites`
+**Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_ExpressionReferencesAreReportedOnlyWhereTheyAreNotEvaluated`,
+`FeatureCatalogTests.FeatureCatalog_Visit_ExpressionReferencesInASelectionAreReported`,
+`FeatureCatalogTests.FeatureCatalog_VisitCallerConfig_ReportsEveryExpressionReferenceAtItsPointer`,
+`VegaLiteParamsIntegrationTests.CanvasNetVegaLite_SystemIntegration_Params_AnExpressionReferenceInTheCallerConfigIsReported`
 
-Asserts that `vl-expr-ref` is reported for an expression in a title, a width, a bar's `size`, a position channel
-`value`, and a `size` channel value of a bar (not row-bound for a bar), in document order, while the mark `fill` with an
-expression and a color channel value with an expression are silent (their functions, `toString` and `regexp`, are in the
-function table, so no construct of an evaluated site is reported either).
+Asserts that `vl-expr-ref` is reported, in document order, for the font size of a title whose expression reads `datum`
+(a static site is evaluated once and has no row, so the reference is ignored) and for a width (Vega-Lite's schema allows
+no expression there), while the title text, the mark `size` of a bar (a static site), the mark `fill` with an
+expression, and the color, position, and size channel values with an expression are silent (their functions,
+`toString` and `regexp`, are in the function table, so no construct of an evaluated site is reported either).
+
+Asserts also that the `Config` text of the caller's render options is scanned: every `{"expr": ...}` in it (through
+objects and arrays, also inside a property named `expr` whose value is an object) is one unsupported `vl-expr-ref` with
+the JSON pointer (escaped) in the message and no location, in document order; an `expr` that is not a string is not a
+reference; a text without a reference, an empty text and null give nothing; and, through the public API, a measure with
+such a `Config` delivers exactly the references of the caller's text to the handler (the specification's own `config`
+is evaluated and not reported).
+
+Asserts also that an `{"expr": ...}` inside a selection is reported as an unsupported `vl-expr-ref` at its own pointer,
+in document order, with a message that names the schema rule: in the `select` of a parameter (`mark.fill`,
+`mark.strokeWidth` reading `datum`, `on`), in its initial `value`, in an entry of the legacy `selection`, and in
+`config.selection.interval.mark`; a plain value beside them (`"stroke": "blue"`, `"toggle": true`) is silent.
 
 ##### Sort By A Field Is Reported Only For Unsupported Forms
 
@@ -399,7 +420,7 @@ reported.
 ##### Conditional Encodings Are Reported Only Where They Are Not Applied
 
 **Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_ConditionsWithATestAreNotReported`,
-`FeatureCatalogTests.FeatureCatalog_Visit_ParameterConditionsAreReported`,
+`FeatureCatalogTests.FeatureCatalog_Visit_ParameterConditionsAreNotReported`,
 `FeatureCatalogTests.FeatureCatalog_Visit_DoesNotExpandAnOverBudgetPredicate`,
 `FeatureCatalogTests.FeatureCatalog_Visit_TimeUnitAndDateTestsAreSupported`,
 `FeatureCatalogTests.FeatureCatalog_Visit_ConditionOnAChannelThatTakesNoneIsReported`,
@@ -407,8 +428,9 @@ reported.
 
 Assert, as a theory of five color definitions, that a condition with an expression test, with a predicate object, with
 a composition of a range and a negated set, with a field, and an array of conditions on a field are not reported; that a
-condition on a `param` is `vl-encoding-condition-param` at the condition (at the item of an array), and a selection
-inside a composition at the `param` of the test; that a `timeUnit` and a date object inside an `or` are supported and
+condition on a selection `param` (alone, in an array with `empty: false`, inside a composition of a range and a `param`,
+and in the legacy `selection` form) is evaluated and not reported (`vl-encoding-condition-param` is retired in Phase
+12); that a `timeUnit` and a date object inside an `or` are supported and
 not reported (the identifier `vl-encoding-condition-test` is retired), that the `yearweek` unit of a predicate is the
 warning `vl-predicate-timeunit-part` at the `timeUnit` of the test (`/encoding/color/condition/test/timeUnit`), and that
 a binned unit is `vl-timeunit-binned` at the same place; that a condition on
@@ -418,6 +440,27 @@ is retired), and a `geojson` field is `vl-type-geojson` at its `type`. The over-
 condition whose test is a 100,000-character field name with 100 members (10 million characters as an expression, which the
 parser compiles) reports nothing and allocates less than 8 MB on the calling thread, where writing the text again to ask
 whether it can be evaluated allocated 41 MB.
+
+##### Selections Are Drawn And Only What Is Not Modeled Is Reported
+
+**Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_SelectionsThatAreNotModeledAreReported`
+
+Asserts that a selection with a timer in `on`, and one that projects the `time` encoding, are `vl-param-selection-animation`
+at the parameter (`/params/0`; the legacy form at `/selection/t`); that a point selection with a scalar `value` and no
+fields or encodings is `vl-param-selection-id` at the parameter; that a top-level interval selection of a layered
+view whose two layers both receive it is `vl-param-selection-layer` at the parameter, and is silent when `views` names
+only one of them; and that a point selection with `fields`, `on`, `clear`, `toggle`, `nearest`, a `value`, and a widget
+`bind`, an interval with `bind: "scales"`, and a bare point selection are not reported at all.
+
+##### The Row-Identity Finding Follows The Effective Configuration
+
+**Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_RowIdentityFindingFollowsTheEffectiveConfiguration`
+
+Asserts, with the configuration that `ConfigResolver.Resolve` builds (the defaults, the specification's, then the
+caller's), that a point selection with a `value` and no projection is `vl-param-selection-id` when nothing names
+a projection, is not reported when the caller's `selection.point` names `fields` (or an empty `fields` with
+`encodings`), is reported when the caller puts a specification's `selection.point.fields` back on `_vgsid_`, and is not
+reported when only the specification names the fields.
 
 ##### Time Is Supported: Temporal Fields, Units, Scales, And Predicates Report Nothing
 

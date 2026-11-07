@@ -69,11 +69,23 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   `Surface.MaxDimension`, else `ArgumentOutOfRangeException`), `Background` (`Rgba32?`), `Config` (`string?`; a JSON
   object of at most 4,194,304 characters and 64 levels, else `ArgumentException`), `Parameters`
   (`IReadOnlyDictionary<string, object?>?`; keys non-blank; values null, `bool`, `string`, a finite number of any
-  built-in numeric type, `DateTime`, or `DateTimeOffset`; copied; the value of a **variable parameter** of the root
-  view, which replaces the definition of that parameter, `value` or `expr`, and is read by the expressions of the
-  transforms and the row-bound mark values; a selection parameter name is accepted and ignored), `Datasets` (named
-  lists of rows of the same value
-  kinds, deep-copied; a caller dataset replaces a top-level dataset of the same name, and a `DateTime` or
+  built-in numeric type, `DateTime`, or `DateTimeOffset`, or - since phase 12 - a structured value: a sequence (an array
+  or a list) of values or a string-keyed dictionary (`IReadOnlyDictionary<string, object?>` or `IDictionary<string,
+  object?>`) of values, nested up to 32 levels and holding at most 65,536 values in all, else `ArgumentException` (a
+  member without a name, a value of an unsupported type, a value that is too deep or holds too many; a value that
+  contains itself is rejected by the depth bound); deep-copied into read-only collections when the property is set;
+  the value of a **variable parameter** of the root
+  view, which replaces the definition of that parameter, `value` or `expr`, and is read by the expression references
+  of the
+  static sites, by the expressions of the
+  transforms, by the row-bound mark values, and by the raw domain of a scale, as an array or an object value; the name
+  of a **selection parameter** replaces its `value` (the initial state of the selection, with the shapes of `value`: a map
+  or a list of maps for a point selection, a map of ranges for an interval selection, a scalar or a list of scalars for
+  a
+  single-field projection, `DateTime` values for dates, null for an empty selection)), `Datasets` (named
+  lists of rows of the scalar value
+  kinds (a dataset row takes no structured value), deep-copied; a caller dataset replaces a top-level dataset of the
+  same name, and a `DateTime` or
   `DateTimeOffset` becomes a date in UTC), `TimeZone` (`TimeZoneInfo?`; **null is UTC**; the one zone in which the chart
   works, see _Time zone and calendar_ below), `ContainerWidth` (default 400) and
   `ContainerHeight` (default 300) (each 1 to `Surface.MaxDimension`), `Fonts` (`VegaLiteFontOptions?`), `Limits`
@@ -169,8 +181,31 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   `RecordReports`: warnings through `Warn`, unsupported features through `Unsupported`, which throws in strict mode),
   runs the finish step, and delivers the sink. On a failure the reports recorded so far are delivered with handler
   exceptions ignored; on success a handler exception propagates after the result is disposed.
-- `PrepareChart(options, token)` - the layout described in the system design (configuration, measurer, the layer tree,
-  data, scales, view request, title, and either the empty layout or `BuildChart`). It first expands the views
+- `PrepareChart(options, token)` - the layout described in the system design (parameters, the fold of the expression
+  references, configuration, measurer, the layer tree,
+  data, scales, view request, title, and either the empty layout or `BuildChart`). Since phase 12 it first evaluates the
+  **parameters** and **folds** the static expression references: it creates the **calendar** of the call once
+  (`TimeCalendar.Create(options.TimeZone)`, null gives the UTC singleton), the one dictionary of parameter values, and the
+  one `ExpressionEvaluator` of the call (the limits, the token, the dictionary, and the **same calendar**, which reaches
+  every expression function through `ExpressionFunctionContext.Calendar`), builds the **selection model** when the
+  specification declares a selection (`SelectionModel.Declares`; a pre-pass that resolves the configuration and expands
+  the
+  views of the unfolded tree, because a parameter expression or an expression reference may read a selection; the model's
+  stores go to `ExpressionFunctionContext.SelectionStores` and its resolved values to `Populate`, its warnings to the warnings
+  of the view tree), calls `ParameterEnvironment.Populate` (the
+  static parameters of the top-level view, with the caller's `Parameters`, which can be arrays and objects), and calls
+  `ExpressionReferenceFolder.Fold` with the same evaluator, so that the evaluation of every reference is charged to the
+  step budget of the call; the tree that it returns (the parsed tree itself when nothing is folded) is the one that
+  `ConfigResolver.Resolve`, `SpecNormalizer.Expand`, the data stage, the scales, the guides, the marks, the title, and the
+  layout read, and the warnings that it returns (`vl-expr-ref` for a value that no property can hold) come first among the
+  warnings of the view tree. After the views of the folded tree are expanded, the selection model is **bound** to the
+  units of that tree (`SelectionModel.BindUnits`: the model was built from the tree as written, which has the same
+  units in
+  the same order). The calendar, the dictionary, and the evaluator reach the data stage as one `EvaluationState`, the
+  bound selections reach the data stage (`TransformContext.Selections`), `ScaleResolver.ResolveLayers` (the extent that
+  a selection gives a scale, together with the dictionary that a raw domain reads), and every `LayerChart` (the brushes,
+  which `BuildMarkGroups` draws around the marks of the cell), so the order of
+  a call is parameters, fold, configuration, normalization, data, scales. It then expands the views
   (`SpecNormalizer.Expand`: the layers of a layered view, the composite marks replaced by their layers, `MaxViews` and
   `MaxCompositionDepth` enforced, so a limit failure is delivered with the reports like any other), and forwards the
   warnings of that one tree (`LayerTree.Warnings`: `vl-concat-axis-shared`, `vl-composition-columns-ignored`,
@@ -180,17 +215,15 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   a tree whose root is a concatenation or a facet through
   `BuildComposition`, and the layers that are drawn are those with a supported mark (a facet is instantiated by the data
   stage first, so the layers of its cells are drawn). For a view that is drawn (a single view is one layer, the root
-  itself; see the next bullet) it first creates the **calendar** of the call once,
-  `TimeCalendar.Create(options.TimeZone)` (null gives the UTC singleton), then creates one `DataLoader` for the call
+  itself; see the next bullet) it
+  creates one `DataLoader` for the call
   (passing the effective open options, the top-level `datasets` node, the caller's `Datasets`, the limits, the token,
   and the calendar), loads the data **before** the scene budget is created and before the scales are resolved, passing
   `TemporalFields.Collect(root)` (for a layered view `TemporalFields.CollectAll` over the views that the table serves;
   the canonical names of the fields that the encoding, the `timeUnit` transforms, and the filter and condition
   predicates use as dates) so that the loader date-parses them implicitly in the calendar unless `format.parse` names
-  them (or is null), and then, on the same loader: creates one `ExpressionEvaluator` for the call (the limits, the
-  token, the dictionary of parameter values, and the **same calendar**, which reaches every expression function through
-  `ExpressionFunctionContext.Calendar`), calls `ParameterEnvironment.Populate` (the static parameters, with the caller's
-  `Parameters`), and calls `RowTransforms.Apply` over the loaded table with a `TransformContext` (which also runs the
+  them (or is null), and then, on the same loader and the evaluation state of the call, calls `RowTransforms.Apply`
+  over the loaded table with a `TransformContext` (which also runs the
   aggregating transforms, the `timeUnit` transform, and the time-aware predicates); it then creates the `EncodingPlan`
   of the view (`EncodingPlan.Create`, a pure function of the specification and the configuration) and runs
   `EncodingTransforms.Apply` on the same context, which performs the implicit bin, **time unit**, aggregate, and stack
@@ -399,6 +432,7 @@ throws after a successful call propagates its exception (the surface is disposed
 ### Dependencies
 
 - **`SpecModel` subsystem** - `SpecParser`, `SpecTree`, `SpecMetadata`, `FeatureCatalog`, `FeatureReport`,
+  `ExpressionReferenceFolder` (the fold of the static expression references, once per call),
   `ConfigResolver`, `ResolvedConfig`, `SpecNormalizer`, `LayerTree`, `LayerNode`
 - **`Data` subsystem** - `DataLoader` (one instance per call; reads local files through `DataFileResolver` and
   delimited text through `DelimitedTextParser`, and carries the row budget of the call), `DataTable`,

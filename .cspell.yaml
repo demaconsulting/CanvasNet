@@ -794,6 +794,21 @@ words:
   - SMIL
   - asvg
   - fangsong
+  - unfoldable
+  - vgsid
+  - unprojectable
+  - pointerdown
+  - pointerup
+  - pointermove
+  - inrange
+  - dval
+  - toplevelselection
+  - selectioncompat
+  - dblclick
+  - ptid
+  - mousedown
+  - mouseup
+  - mousemove
 # Exclude common build artifacts, dependencies, and vendored third-party code
 ignorePaths:
   - "**/.git/**"

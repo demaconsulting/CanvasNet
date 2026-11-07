@@ -80,5 +80,6 @@ cancellation token is polled every 1,024 rows. The paths are bounded in the same
 the scene items of a path are charged with an upper bound of its segments (`CurveBuilder.MaxSegments`) **before** the
 segments are generated, and the grouping, the sorting, and the generation are charged to the evaluation-step budget; the
 label of a text mark is bounded by `MaxStringLength` and all the labels of one mark by sixteen times that, before the
-labels are formatted, and every line of a label is a scene item. Marks are clipped to the data rectangle only when the
-mark definition says `"clip": true`; an explicit scale domain does not clip them.
+labels are formatted, and every line of a label is a scene item. Marks are clipped to the data rectangle when the
+mark definition says `"clip": true` and when the domain of the `x` or `y` scale comes from a parameter; an explicit scale
+domain array does not clip them.

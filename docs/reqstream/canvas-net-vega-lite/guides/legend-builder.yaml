@@ -336,3 +336,34 @@ sections:
                   - LegendBuilder_Build_LabelExprGradientLegendGivesPerc
                   - LegendBuilder_Build_LabelExprDiscreteGradientGivesPercAndPerc2
                   - LegendBuilder_Build_LabelExprTemporalLegendGivesDate
+
+              - id: CanvasNetVegaLite-Guides-LegendBuilder-SelectionDimming
+                title: >-
+                  The LegendBuilder unit shall draw a legend that a selection is bound to (bind legend, a global
+                  selection that projects exactly one field that is not the row identity, over the field of the
+                  channel definition or the channel itself) in the initial state of the selection: when the store of
+                  the selection has tuples, the symbols of a symbol legend that does not also explain the opacity
+                  channel (with the opacity of the symbol, which is 1 when the legend gives a symbolOpacity) and
+                  the labels of every legend kind (with the opacity 1) of the entries whose value the selection
+                  does not hold - compared with strict equality - shall have config.legend.unselectedOpacity
+                  (0.35 by default); a selection without tuples, one that is not bound to the legend, and one with
+                  another resolve shall dim nothing; and a legend binding without a single projected field shall be
+                  reported as vl-param-selection-projection.
+                justification: |
+                  Vega-Lite compiles an opacity rule into the symbols and labels of such a legend, which the first
+                  paint of the chart evaluates against the store of the selection; a still chart must show the
+                  same dimmed entries.
+                tests:
+                  - LegendBuilder_BoundSelection_DimsTheEntriesTheSelectionDoesNotHold
+                  - LegendBuilder_BoundSelection_HoldsEveryValueOfTheSelection
+                  - LegendBuilder_BoundSelection_EmptyStoreDimsNothing
+                  - LegendBuilder_BoundSelection_UnselectedOpacityComesFromTheConfiguration
+                  - LegendBuilder_BoundSelection_SelectedSymbolKeepsTheOpacityOfTheMark
+                  - LegendBuilder_BoundSelection_SymbolOpacityOfTheLegendGivesWayToOne
+                  - LegendBuilder_BoundSelection_ComparesWithStrictEquality
+                  - LegendBuilder_BoundSelection_NumberHoldsTheNumberEntry
+                  - LegendBuilder_UnboundSelection_DimsNothing
+                  - LegendBuilder_BoundSelection_ProjectedOverTheChannelBindsTheLegend
+                  - LegendBuilder_BoundSelection_DimsTheLabelsOfAGradientLegend
+                  - LegendBuilder_BoundSelection_LegendOfTheOpacityChannelDimsOnlyTheLabels
+                  - LegendBuilder_BoundSelection_WithoutAProjectionIsReportedAndDimsNothing

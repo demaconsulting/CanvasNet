@@ -6,7 +6,8 @@
 # the immutable SpecNode tree with positions, the structural validation and unknown-property warnings in the
 # partial file SpecParser.Validation.cs (including the properties of the line, area, trail, text, and arc marks and
 # their overlay objects), the compilation of expressions and the validation of parameters and
-# transforms in SpecParser.Transforms.cs (with the compiled expressions held by SpecExpressions.cs), the validation
+# transforms in SpecParser.Transforms.cs (with the compiled expressions held by SpecExpressions.cs, and the compilation
+# of the expression references of the static sites that the ExpressionReferenceFolder unit evaluates), the validation
 # of the aggregating transforms (aggregate, joinaggregate, window, bin, stack, impute) and of the aggregate, bin,
 # stack, sort, and impute of an encoding in SpecParser.Aggregates.cs, the validation of the time units, the datetime
 # objects, the tick and nice intervals, the timeUnit transform, and the time predicates in SpecParser.Time.cs
@@ -121,7 +122,7 @@ sections:
                   error or a limit, throw one for an expression that names an identifier that is not a
                   declared parameter (the declared parameters of the view, including selection parameters,
                   and the names width, height, padding, autosize, background, and cursor being allowed), and
-                  compile nothing for a site that the renderer does not evaluate.
+                  compile nothing for a site at which Vega-Lite's schema allows no expression reference.
                 justification: |
                   A mistake in an expression must be found when the specification is opened, with its
                   location, and the renderer must evaluate only the text that it compiled and checked.
@@ -129,6 +130,28 @@ sections:
                   - SpecParser_Parse_ExpressionErrorsCarryTheLocationOfTheTextAndTheOffset
                   - SpecParser_Parse_CompilesTheExpressionsOfSupportedSitesOnly
                   - SpecParser_Parse_WrongTypeReportsPointer
+
+              - id: CanvasNetVegaLite-SpecModel-SpecParser-StaticReferences
+                title: >-
+                  The SpecParser unit shall also compile, when the specification is parsed, every expr reference
+                  at a static site that Vega-Lite's schema allows (the title, the padding and background of the
+                  top-level view, the mark properties that no row reads, the properties of an axis, a legend, a
+                  header, a scale, and the view background, the value and datum of the other channels, and the same
+                  properties of the configuration of the top-level view), failing with a located
+                  VegaLiteSpecException for a syntax error or an undeclared parameter, shall list those references
+                  in document order for the evaluation of the call, shall not list a reference that the marks
+                  evaluate for every row, and shall accept an expression reference for the gridAlign of a
+                  legend.
+                justification: |
+                  A parameter that drives a title, a size, or a domain is a mistake to find when the document is
+                  opened, and the later stage that folds the references must work from a list that holds exactly
+                  the references that have one value.
+                tests:
+                  - SpecParser_Parse_CompilesTheExpressionsOfSupportedSitesOnly
+                  - SpecParser_Parse_ValidatesOverlayObjectsLikeMarkDefinitions
+                  - SpecMetadata_Read_TitleIsPlainText
+                  - ExpressionReferenceSites_Find_ThePaintPropertiesOfAMarkAreRowBound
+                  - ExpressionReferenceFolder_Fold_EverySiteOfTheTableFolds
 
               - id: CanvasNetVegaLite-SpecModel-SpecParser-Parameters
                 title: >-
@@ -397,16 +420,21 @@ sections:
               - id: CanvasNetVegaLite-SpecModel-SpecParser-ConditionalEncodings
                 title: >-
                   The SpecParser unit shall validate the condition of a channel definition (an object or an
-                  array of objects, each with a test or a param and the properties of a value or a field
-                  definition) with a located error at the offending value, shall compile the test of a
+                  array of objects, each with a test, a param, or a legacy selection and the properties of a
+                  value or a field definition) with a located error at the offending value (including a param or
+                  selection that no view declares), shall compile the test of a
                   condition once, an expression text as written and a predicate object
-                  (equal, lt, lte, gt, gte, range, oneOf, valid, and, or, not, a variable parameter) as the
-                  expression that means the same, shall compile the value expression of a condition, and shall
-                  leave out what no expression can say (a selection, a time unit, a date object); the text that
-                  is written for a predicate is not bound by the expression length limit of user-written
-                  expressions but by eight times the source length limit (counted as it is written and
-                  refused before it is allocated, so that a long field name with a large oneOf list fails fast
-                  with a located error), an expression that the user writes as an operand of a predicate
+                  (equal, lt, lte, gt, gte, range, oneOf, valid, and, or, not, a variable parameter, a selection
+                  parameter, a legacy selection) as the expression that means the same - a selection as the
+                  predicate that Vega-Lite compiles for it, with its empty rule and its resolve, using the
+                  identity test for a point selection over the identity of the rows - shall compile the value
+                  expression of a condition, and shall leave out what no expression can say (a variable parameter
+                  whose name is not an identifier, a date object that is not valid); the text that
+                  is written for a predicate, a selection included, is not bound by the expression length limit of
+                  user-written expressions but by eight times the source length limit (counted as it is written and
+                  refused before it is allocated, so that a long field name with a large oneOf list, or a large
+                  and or or of selection predicates, fails fast with a located error), an expression that the user
+                  writes as an operand of a predicate
                   is bound by the expression length limit like any user-written expression and refused at the
                   expression, and a oneOf list by the scale domain limit, so that a membership list of a
                   thousand values is accepted.
@@ -423,17 +451,44 @@ sections:
                   - SpecParser_Parse_ConditionsThatAreNotEvaluatedAreNotCompiled
                   - SpecParser_Parse_FieldConditionScaleIsValidated
                   - PredicateSource_TryBuild_WritesTheExpressionThatMeansTheSame
+                  - PredicateSource_TryBuild_WritesTheSelectionTestOfVegaLite
                   - PredicateSource_TryBuild_QuotesPathsAndStrings
                   - PredicateSource_TryBuild_RefusesWhatNoExpressionCanSay
                   - PredicateSource_TryBuild_NullPredicateThrows
                   - PredicateSource_Build_RefusesAnOverBudgetExpansionBeforeAllocatingIt
                   - PredicateSource_Build_BudgetBoundaryAndUnsupportedWins
                   - PredicateSource_IsUnsupported_DoesNotAllocateTheExpansion
+                  - PredicateSource_Build_SelectionPredicatesAreCountedAgainstTheBudget
+                  - SpecParser_Conditions_SelectionPredicatesObeyTheGeneratedBudget
                   - ChannelDefinitions_CanCondition_ListsTheConditionalChannels
                   - ChannelDefinitions_FieldDefinitionOf_FindsTheObjectThatCarriesTheField
                   - ChannelDefinitions_Conditions_ListsConditionsInOrder
                   - ChannelDefinitions_Values_ListsTheConstantsOfAChannelThatNoFieldDrives
                   - SpecParser_Parse_EvaluatesSizeConditionsOfMarksThatUseASize
+                  - SpecParser_Parse_PredicateOnAnUndeclaredSelectionIsAnError
+
+              - id: CanvasNetVegaLite-SpecModel-SpecParser-Selections
+                title: >-
+                  The SpecParser unit shall validate a selection parameter (a select that is point or interval,
+                  as a text or as an object whose type is one of them, with fields and encodings arrays of texts,
+                  a resolve of global, union, or intersect, and views an array) and the legacy selection property
+                  (an object of selections whose type is single, multi, or interval) with a located error at the
+                  offending value, shall accept every interaction property (on, clear, toggle, nearest, translate,
+                  zoom, mark, bind, and an event stream) without checking it, shall list the selections of the
+                  legacy property among the parameter names, and shall find a selection by its name from every
+                  view of the specification (Vega-Lite merges the selections of the children into their parents;
+                  the first declaration of a name wins) while a variable parameter is visible only from the
+                  views below its declaration.
+                justification: |
+                  A malformed selection must be found when the document is opened, a selection is shared by the
+                  views of a composition, and the interaction properties have no meaning in a static chart.
+                tests:
+                  - SpecParser_Parse_SelectWithAnUnknownTypeIsAnError
+                  - SpecParser_Parse_MalformedSelectionOptionsAreErrors
+                  - SpecParser_Parse_SelectionFormsAreAccepted
+                  - SpecParser_Parse_LegacySelectionIsValidated
+                  - SpecParser_FindParameter_SelectionsAreVisibleFromEveryView
+                  - SpecParser_Parse_Phase5TransformsAndParametersAreAccepted
 
               - id: CanvasNetVegaLite-SpecModel-SpecParser-DefaultFieldType
                 title: >-

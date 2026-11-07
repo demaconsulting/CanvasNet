@@ -39,7 +39,9 @@ opacity, shape, strokeWidth, strokeDash), the supported scale types
 bin-ordinal), the
 supported scale properties (type, domain, range, zero, nice, padding, reverse,
 paddingInner, paddingOuter, align, round, clamp, scheme, domainMid, domainMin, domainMax, rangeMin, rangeMax,
-interpolate, base, exponent, constant; any other, such as `bins`, is reported), the
+interpolate, base, exponent, constant; any other, such as `bins`, is reported; `domainRaw` is supported since phase 12,
+see
+the raw domain of the scale resolver), the
 unsupported axis properties, the scopes in which an
 expression value is looked for, and the composition properties. An identifier is built from
 an area and a name taken from the specification, lower-cased with the invariant culture and without separators
@@ -60,8 +62,8 @@ a `bin: "binned"` on a channel other than `x` and `y`, and for a `bin` on a chan
 secondary channels, and (since phase 9) `theta` and `radius`, whose bins are not drawn; the other channels that have a scale
 bin from the data since phase 7, and `text` since phase 9), `vl-encoding-bin-extent-param`
 and `vl-transform-bin-extent-param` (a bin extent that
-is a parameter; the
-extent of the data is used), `vl-encoding-stack-nonlinear` (an explicit stack of a channel whose `scale.type` is not
+is a parameter; retired in phase 12 and never produced again: the extent sets the span that chooses the step),
+`vl-encoding-stack-nonlinear` (an explicit stack of a channel whose `scale.type` is not
 linear; the marks of a log, pow, sqrt, or symlog scale are not stacked, because Vega-Lite does not stack on
 them), `vl-channel-x2` and `vl-channel-y2` (reported only where the channel is not applied), and
 `vl-encoding-sort` (now only for a sort that is not applied) and the new warning `vl-encoding-sort-ignored` (a sort that
@@ -70,8 +72,9 @@ stack, is retired in phase 9: `order` is accepted by every mark (see below). The
 `vl-encoding-condition` is narrowed to a `condition` on a channel that
 takes none (the position, secondary, and order channels); a condition with a `test` on the color, fill, stroke, opacity,
 fillOpacity, strokeOpacity, strokeWidth, strokeDash, size, shape, and angle channels is evaluated by the marks, so it is
-not reported. A condition with a `param`, and a `test` that names a selection or a parameter that is not a variable,
-report `vl-encoding-condition-param` (the condition never holds). The identifier `vl-encoding-condition-test` (a
+not reported. A condition with a `param` or a `test` that names a selection or a variable parameter is evaluated (a
+selection by its test, a variable parameter by its truthiness), so the identifier `vl-encoding-condition-param` is
+retired in phase 12 and no longer produced. The identifier `vl-encoding-condition-test` (a
 `timeUnit` or a date object in the test of a condition) is retired in phase 8: those predicates are written as expressions
 and evaluated, so only the parts of a time unit that a predicate does not apply are reported (see below).
 `VisitCondition` walks the conditions
@@ -304,14 +307,16 @@ channel is the existing `vl-encoding-bin`. Both new identifiers are never reused
 - The walker's `VisitSchema` warns `vl-schema-version` for a major version other than 5 and 6 or a URL that names no
   Vega-Lite version.
 - `VisitView` dispatches each property of a view: `data`, `mark`, `encoding`, `transform`, `params`, the legacy
-  `selection` (`vl-param-selection`), `projection` (`vl-projection`), and the composition property
+  `selection` (`VisitSelection`), `projection` (`vl-projection`), and the composition property
   `facet` (`VisitFacet`; `layer`, `concat`, `hconcat`, `vconcat`, `repeat`, and `facet` are drawn and not reported);
   for a view inside a layered view it warns `vl-layer-property-ignored` for the properties that only the top-level view
   decides; `VisitCompositionProperties` warns `vl-composition-property-ignored` for the `width`, `height`, and an
   `autosize` other than `pad` of a concatenation, a facet, or a repeat of rows or columns (a repeat of layers is a layered
   view), and, for a view inside one, for a `"container"` size and for its `padding`, `background`, `config`, `datasets`,
-  and `autosize`; and, for the properties in the expression scopes, looks for `{"expr": ...}` values
-  (`vl-expr-ref`). The warnings `vl-concat-axis-shared`, `vl-composition-columns-ignored`, and `vl-repeat-ref-unresolved`
+  and `autosize`; and, for the properties in the expression scopes (and the `config` of the top-level view), looks for
+  `{"expr": ...}` values
+  (`vl-expr-ref`, only where the reference is not evaluated: see the `{"expr": ...}` scan below). The warnings
+  `vl-concat-axis-shared`, `vl-composition-columns-ignored`, and `vl-repeat-ref-unresolved`
   are produced by the renderer from the view tree (`LayerTree.Warnings`), not by the catalog.
 - `VisitData` chooses the source by precedence (inline `values`, then `url`, then `sequence`, then `name`, then the
   geographic generators), not by key order. An empty `values` array or a `data` object without a source warns
@@ -353,7 +358,7 @@ channel is the existing `vl-encoding-bin`. Both new identifiers are never reused
   for a `bin` on a channel that cannot bin (`BinnedChannels` holds `x`, `y`, `text`, and the channels that have a
   scale) and for
   a `bin: "binned"` on any channel but `x` and `y` (`IsBinning` tells the bins of the data from the data that is binned
-  already), and `vl-encoding-bin-extent-param` for an extent that is a parameter;
+  already); a bin extent that is a parameter is supported (`vl-encoding-bin-extent-param` was retired in phase 12);
   `VisitStack` reports `vl-encoding-stack-nonlinear` for the `x`, `y`, `theta`, and `radius` channels; `aggregate`,
   `bin` on the channels that bin, and `stack` are otherwise
   supported and never reported; `sort` is reported as `vl-encoding-sort` when `SpecParser.IsSupportedSort` rejects it (a
@@ -391,7 +396,8 @@ channel is the existing `vl-encoding-bin`. Both new identifiers are never reused
   ignored for a mark that does not draw it (`ScaleResolver.ChannelIsDrawn`). `SupportedScaleTypes` also holds
   `sequential`, `quantile`, `quantize`, `threshold`, and `bin-ordinal` (the `vl-scale-bin-ordinal` identifier is retired),
   and `SupportedScaleProperties` also `domainMid`, `domainMin`,
-  `domainMax`, `rangeMin`, `rangeMax`, and `interpolate`; `scheme` is never reported (an unknown name is a specification
+  `domainMax`, `domainRaw` (phase 12), `rangeMin`, `rangeMax`, and `interpolate`; `scheme` is never reported (an
+  unknown name is a specification
   error of the scale resolver), so the retired identifier `vl-scale-color-ramp` is no longer produced. `VisitScale`
   reports `vl-scale-interpolate-cubehelix` for the two cubehelix interpolation types, and `VisitShapeName` reports
   `vl-shape-path` for a shape that `ScaleResolver.IsKnownShape` does not know (the `shape` of a mark, the `value` of a
@@ -427,22 +433,57 @@ channel is the existing `vl-encoding-bin`. Both new identifiers are never reused
   expression collected into `vl-expr-function-<name>`, `vl-expr-view-state`, and `vl-expr-construct-<name>` reports (and
   an undeclared view signal into `vl-expr-view-state`), sorted by their offset and located at the expression string,
   with `(at expression offset N)` in the message; `VisitPredicate` walks a filter with an explicit stack (so composition
-  depth cannot overflow the call stack) and reports `vl-transform-filter-param` (a `selection`, or a `param` that names
-  a selection parameter), and, through `VisitFieldPredicate`, the time unit of a field predicate (`VisitPredicateTimeUnit`:
+  depth cannot overflow the call stack) and reports no selection predicate (a `selection` or a `param` filter is evaluated;
+  `vl-transform-filter-param` is retired in phase 12), and, through `VisitFieldPredicate`, the time unit of a field
+  predicate (`VisitPredicateTimeUnit`:
   `vl-timeunit-binned`, `vl-timeunit-maxbins`, and the warning `vl-predicate-timeunit-part`; the retired
   `vl-transform-filter-timeunit` and `vl-transform-filter-datetime` are no longer produced); a `timeUnit` transform
   reports `vl-timeunit-binned` for a binned unit; a pivot `op` other than `sum` and `count` is
   `vl-transform-pivot-op`, and a lookup `from.param` is `vl-transform-lookup-param` while its `from.data` is visited
-  like any `data` object (`vl-data-*`); a `bin` transform whose `extent` is a parameter is
-`vl-transform-bin-extent-param` (the extent of the data is used). - `VisitParams(parameters, isRoot)` reports every
-  selection parameter as `vl-param-selection` and, for a variable parameter, `vl-param-variable` when the view is not
-  the root; a variable parameter of the root view is computed, so only the constructs of its `expr` are reported.
+  like any `data` object (`vl-data-*`); a `bin` transform whose `extent` is a parameter is supported
+  (`vl-transform-bin-extent-param` was retired in phase 12). - `VisitParams(parameters, isRoot)` calls
+  `VisitSelection` for every selection parameter (and `VisitView` for the legacy `selection` property): a selection is
+  drawn in
+  its initial state, so it is not reported as a whole; the catalog reports an animation selection (an `on` with a timer,
+  or
+  the `time` encoding: `vl-param-selection-animation`; every other interaction property is ignored
+  without a report), a static point selection with a `value` over the identity of the rows (`vl-param-selection-id`;
+  the projection is decided by the effective configuration when the catalog is visited with one, so a `selection.point`
+  of the caller's `Config` that names `fields` or `encodings` makes the selection modeled, as in the selection model),
+  and a selection
+  that two or more layers of one layered view receive (`vl-param-selection-layer`, found with `SelectionDeclarations.Assign`,
+  because Vega rejects the duplicate signal; the selection is treated as empty). The projection warning of
+  the selection model (`vl-param-selection-projection`, and `vl-param-selection-id` for a value of the caller) is added
+  by
+  `VegaLiteDocument`. `VisitParams` reports, for a variable parameter, `vl-param-variable` when the view is not
+  the root (Vega-Lite compiles only the variable parameters of the top-level view, so a nested one declares no signal and
+  is ignored, an expression that reads it fails in Vega and evaluates to null here); a variable parameter of the root
+  view is computed, so only the constructs of its `expr` are reported.
 `VisitAutosize` was removed in Phase 11: no autosize type is reported (see `vl-layout-fit-step` above).
   The `{"expr": ...}` scan (`VisitExpressions`, with
-  an explicit stack) reports as `vl-expr-ref` every expression reference that the parser did **not** compile (a title,
-  size, padding, background, view, any other mark property, any other encoding value); a reference that was compiled
-  (the paint properties of the mark and the `value` of the paint channels of the drawn view) is reported only for its
-unsupported constructs. - `IsSchemeBearingUrl(string url)` - true for a URL that starts with `/` or a backslash (a Unix
+  an explicit stack) reports as `vl-expr-ref` only an expression reference that is not evaluated: one at a site that
+  Vega-Lite's schema does not allow (the `width`, the `height`, an expression in a predicate outside the compiled sites)
+  and one at a static site (a site of the parser's `StaticReferences`) whose expression reads `datum`, which has no row
+  there. A reference that was compiled (the row-bound sites, and the static sites that the folder replaces by their
+  value: the title, the padding, the background, the view, the properties of guides, scales, and marks, and the
+  `config` of the top-level view, which is scanned too) is reported only for its
+unsupported constructs. A reference whose value no property can hold is reported at render time by the folder, with the
+  same identifier, not by the catalog.
+- `VisitSelectionReferences(declaration)` (called by `VisitSelection` for every parameter with a `select` and every
+  entry of the legacy `selection`) reports as `vl-expr-ref` every `{"expr": ...}` inside the declaration - the `select`
+  options (`mark`, `on`, `clear`, `fields`, `encodings`, `translate`, `zoom`), the initial `value` or `init`, and
+  `bind` - at its own pointer, found with an explicit stack. Vega-Lite's schema (6.5.0: `BrushConfig`,
+  `PointSelectionConfig`, `IntervalSelectionConfig` and their `WithoutType` forms, `SelectionInit`) allows no
+  `ExprRef` anywhere in a selection, so none is a static site: it is not compiled, folded, or evaluated, and the
+  message says so. The same message is the one of a reference below `config.selection` (found by the scan above,
+  which recognizes the path by the parent links of the node); `SelectionModel` then keeps the default of the
+  brush `mark` for such a property (see the selection model unit).
+- `VisitCallerConfig(string? callerConfig)` - reports as `vl-expr-ref` (unsupported feature, no location, the JSON
+  pointer inside the text in the message) every `{"expr": ...}` object in the `Config` text of the caller's render
+  options, found with an explicit stack in document order (the text was validated as a JSON object of at most 64
+  levels). Nothing evaluates an expression in that text, which is merged over the defaults as it is, so the property
+  would silently keep its default; `VegaLiteDocument.ReportsFor` adds these reports when the options carry a `Config`.
+- `IsSchemeBearingUrl(string url)` - true for a URL that starts with `/` or a backslash (a Unix
   absolute path, a Windows rooted path, a network or UNC path), is rooted according to `Path.IsPathRooted`, or has a
   scheme (a letter followed by letters, digits, `+`, `-`, or `.`, then a colon, which includes a drive letter and
   `file:` URIs); the result does not depend on the host operating system. Such a URL is never

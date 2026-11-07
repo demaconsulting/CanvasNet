@@ -109,11 +109,16 @@ sections:
                   value or the expression of each variable parameter of the drawn view, evaluated once in an
                   order that puts every dependency first and otherwise follows the declaration, with the
                   caller's render parameter replacing the whole definition of a parameter (its expression
-                  is then not evaluated), refusing a text of a parameter value that is longer than the string limit
-                  - and shall read a variable parameter in a filter predicate as its truthiness.
+                  is then not evaluated) and the caller's value being a scalar, an array, or an object, refusing a
+                  text of a parameter value that is longer than the string limit, and building the environment
+                  before the expression references and the data of the call read it, and shall read a variable
+                  parameter in a filter predicate as its truthiness, and give a selection parameter the resolved
+                  value of its selection (the environment the SelectionModel unit built).
                 justification: |
                   Static parameters let a host change a chart without editing its text; their evaluation
-                  order and the precedence of an override must be defined.
+                  order, the precedence of an override, and the point in the call at which they exist must be
+                  defined, and a host must be able to give a parameter that holds an array, such as the domain of a
+                  scale.
                 tests:
                   - RowTransforms_Apply_FilterOnAParameterReadsItsTruthiness
                   - RowTransforms_Apply_ParametersAreEvaluatedInDependencyOrderAndOverridden
@@ -122,6 +127,25 @@ sections:
                   - RowTransforms_Apply_ParameterTextLongerThanMaxStringLength_IsLocatedRenderError
                   - RowTransforms_Apply_StaticParameterTextLongerThanRenderLimit_IsLocatedRenderError
                   - RowTransforms_Apply_CalculateOfLongTextFieldIsLocatedRenderError
+                  - ExpressionReferenceFolder_Fold_ReplacesAReferenceByItsValue
+                  - ExpressionReferenceFolder_Fold_ReadsTheValuesOfTheCaller
+                  - CanvasNetVegaLite_SystemIntegration_Selection_ExpressionsReadTheResolvedSelection
+
+              - id: CanvasNetVegaLite-Transforms-RowTransforms-SelectionFilter
+                title: >-
+                  The RowTransforms unit shall keep, for a filter predicate on a selection parameter (a param, or
+                  a legacy selection, also inside and, or, and not), the rows that the selection test of
+                  Vega-Lite selects - the expression that the specification parser compiled for the predicate,
+                  evaluated for every row by the expression engine over the stores of the call, with an empty
+                  selection selecting every row (or no row with empty set to false) - and shall charge the work
+                  of the test to the step budget of the call.
+                justification: |
+                  A filter on a selection is how a chart shows only what is selected; it must keep the rows that
+                  a condition on the same selection would highlight, under the same bounds as any expression.
+                tests:
+                  - CanvasNetVegaLite_SystemIntegration_Selection_FilterKeepsTheSelectedRows
+                  - CanvasNetVegaLite_SystemIntegration_Selection_FilterOfAnEmptySelectionFollowsTheEmptyRule
+                  - ExpressionFunctions_VlSelectionTest_IsChargedToTheStepBudget
 
               - id: CanvasNetVegaLite-Transforms-RowTransforms-Fold
                 title: >-

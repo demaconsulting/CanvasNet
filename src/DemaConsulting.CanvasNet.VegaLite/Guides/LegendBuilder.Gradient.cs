@@ -74,9 +74,10 @@ internal sealed partial class LegendBuilder
             }
 
             var along = model.Fraction(value.Number);
-            var text = Labeled(c, EntryValue(c, value), format(value.Number), i, along);
+            var entry = EntryValue(c, value);
+            var text = Labeled(c, entry, format(value.Number), i, along);
             c.Evaluation.ChargeSize(text.Text.Length);
-            candidates.Add(GradientLabel(c, text, along, vertical, thickness, offset, length, limit));
+            candidates.Add(GradientLabel(c, text, along, vertical, thickness, offset, length, limit, entry));
         }
 
         return Finish(c, bar, barBounds, candidates, LabelMethod(c));
@@ -153,7 +154,7 @@ internal sealed partial class LegendBuilder
                 fraction(values[i].Number),
                 i < values.Count - 1 ? fraction(NumberOrNaN(values[i + 1])) : 1);
             c.Evaluation.ChargeSize(text.Text.Length);
-            candidates.Add(GradientLabel(c, text, fraction(values[i].Number), vertical, thickness, offset, length, limit));
+            candidates.Add(GradientLabel(c, text, fraction(values[i].Number), vertical, thickness, offset, length, limit, values[i]));
         }
 
         var shown = ShownLabels(c, candidates, LabelMethod(c));
@@ -290,15 +291,16 @@ internal sealed partial class LegendBuilder
     /// <param name="offset">The distance between the bar and the label.</param>
     /// <param name="length">The length of the bar.</param>
     /// <param name="limit">The width limit; 0 for none.</param>
+    /// <param name="entry">The value of the tick the label belongs to (<c>datum.value</c>).</param>
     /// <returns>The label.</returns>
-    private static SceneText GradientLabel(Context c, LabelText text, double along, bool vertical, double thickness, double offset, double length, double limit)
+    private static SceneText GradientLabel(Context c, LabelText text, double along, bool vertical, double thickness, double offset, double length, double limit, DataValue entry)
     {
         if (vertical)
         {
-            return MakeLabel(c, thickness + offset, (1 - along) * length, text.Text, "left", Pick(along, "bottom", "top", "middle"), limit, text.Lines);
+            return MakeLabel(c, thickness + offset, (1 - along) * length, text.Text, "left", Pick(along, "bottom", "top", "middle"), limit, text.Lines, entry);
         }
 
-        return MakeLabel(c, along * length, thickness + offset, text.Text, Pick(along, "left", "right", "center"), "top", limit, text.Lines);
+        return MakeLabel(c, along * length, thickness + offset, text.Text, Pick(along, "left", "right", "center"), "top", limit, text.Lines, entry);
     }
 
     /// <summary>

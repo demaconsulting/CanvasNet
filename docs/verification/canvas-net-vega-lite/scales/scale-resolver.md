@@ -902,3 +902,43 @@ Asserts, for a bar layer with the groups `x` and `y` and a tick layer with `z` o
 offset has the merged domain `x`, `y`, `z` and the step 20 x 3 / 0.8 = 75 in both layers and in the merged scales (the
 step is computed once from the merged domain), and that with `resolve.scale.xOffset: "independent"` the layers keep the
 domains `x`, `y` and `z` and the first layer the step 50.
+
+##### Raw Domains Of A Parameter Or domainRaw Are The Domain As It Is
+
+**Tests**: `ScaleResolverDomainRawTests.ScaleResolver_Resolve_AParameterDomainIsTheDomainAsItIs`,
+`ScaleResolverDomainRawTests.ScaleResolver_Resolve_AParameterDomainOfThreeNumbersIsPiecewise`,
+`ScaleResolverDomainRawTests.ScaleResolver_Resolve_AParameterWithoutAValueKeepsTheDomainOfTheData`,
+`ScaleResolverDomainRawTests.ScaleResolver_Resolve_DomainRawWinsOverTheDomainOfAParameter`,
+`ScaleResolverDomainRawTests.ScaleResolver_Resolve_AParameterDomainOfADiscreteScaleIsTheListOfCategories`,
+`ScaleResolverDomainRawTests.ScaleResolver_Resolve_ALogScaleRefusesARawDomainThatCrossesZero`,
+`ScaleResolverDomainRawTests.ScaleResolver_Resolve_ADiscretizingScaleKeepsItsOwnDomain`
+
+The scenarios resolve a view of three rows (x of 1, 4, and 7) with the parameter values passed to `Resolve` as the
+pipeline does. Asserts that the value `[2, 6.5]` of a variable parameter named by `scale.domain` is the domain as it is
+whatever the scale asks for (`zero`, `nice`, pixel `padding`, `domainMin`, and `domainMax` do not change it), that the
+scale reports `HasRawDomain` and `ClipMarks`, that three numbers are a piecewise domain like an explicit one, that a
+parameter with no value and a selection parameter keep the domain of the data while `ClipMarks` is
+still true (a scale without a parameter domain has `ClipMarks` false), that the `domainRaw` of the specification wins over
+the domain a parameter gives and does not clip by itself, that the raw domain of a band scale lists the categories in
+order, each once, with an entry that no row has still a category (`c`, `z`, `a`, and `c` again give `c`, `z`, `a`,
+with `DomainOrder.Custom`), that a log scale refuses a raw domain that crosses zero with a located render error at the
+channel, and that a quantize color scale keeps its own domain whatever the raw domain says while `ClipMarks` is true.
+The warning of an unusable value and the shared scale of layers are verified through the public API (see
+_CanvasNetVegaLite System Verification Design_).
+
+##### Selections And Bins Give A Scale Its Extent
+
+**Tests**: `VegaLiteSelectionExtentIntegrationTests.CanvasNetVegaLite_SystemIntegration_BindScales_TheInitialRangeIsTheDomain`,
+`...BindScales_AreIgnoredInAConcatenation`, `...BindScales_ApplyToTheLayersOfTheWholeView`,
+`...BindScales_WarnWhenTheScaleIsNotContinuous`, `...Domain_ASelectionGivesTheRangeOfAField`,
+`...Domain_TheFirstFieldIsUsedWithAWarning`, `...Domain_AnEmptySelectionKeepsTheDomainOfTheData`,
+`...BinExtent_TheSpanOfASelectionChoosesTheStep`, and `...BinExtent_AnEmptySelectionLeavesTheBinsOfTheData`
+
+The scenarios are public-API renders, because the extent needs the selection model, the data stage, and the scales
+together. Asserts that the initial range of an interval selection bound to the scales is the domain of the scale of its
+channel (the data rectangle maps the ends of the range to its ends) and clips the marks, that in a concatenation the
+domain stays that of the data while the marks are still clipped, that the layers of a top-level layered view take it,
+that a band scale warns, that `scale.domain: {param}` of a selection takes the range of the field named by `field`, else
+`encoding`, else the first projected field (with the warning), that an empty selection keeps the domain, and that a
+`bin.extent` parameter chooses the step from its span (the data 1 to 8 with `maxbins` 20 has the step 0.5 and, with the
+span 3, the step 0.2) while the bins still cover the data.

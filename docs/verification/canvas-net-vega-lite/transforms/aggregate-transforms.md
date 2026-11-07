@@ -208,6 +208,20 @@ nothing); that the tolerance keeps 0.3 in the bin that starts at 0.3 although 0.
 that every bin parameter is read, with `maxbins` defaulting to the caller's value (10 for a position channel) and to 20
 when a `step` is given.
 
+##### Bin Span Chooses The Step
+
+**Tests**: `BinAlgorithmSpanTests.BinAlgorithm_Compute_TheSpanChoosesTheStepAndTheDataTheBins`,
+`BinAlgorithmSpanTests.BinAlgorithm_Compute_AZeroOrNaNSpanFallsBackToTheDataSpan`,
+`BinAlgorithmSpanTests.BinAlgorithm_Compute_ASpanAppliesToASingleValue`,
+`BinAlgorithmSpanTests.BinAlgorithm_SpanOf_IsTheLastMinusTheFirst`, and the system scenarios
+`VegaLiteSelectionExtentIntegrationTests.CanvasNetVegaLite_SystemIntegration_BinExtent_*`
+
+Asserts that a span of 3 over the data 1 to 8 with 20 bins gives the step 0.2 (the data span 7 gives 0.5) and the bins
+still start at 1 and stop at 8, that a zero or NaN span falls back to the span of the data (JavaScript's `||`), that a
+span applies to a single value, that `SpanOf` is the last minus the first element of an array and 0 for anything else,
+and, through the public API, that the `bin` transform with 10 bins and the span 3 gives the step 0.5 (1 without it), that
+an empty selection leaves the bins of the data, and that a variable parameter holding a range gives its span.
+
 ##### Bins Fail Closed
 
 **Tests**: `BinAlgorithmTests.BinAlgorithm_Compute_TinyHugeOrInvalidExtentsFail`,

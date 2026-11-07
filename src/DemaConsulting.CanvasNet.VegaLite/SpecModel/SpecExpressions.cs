@@ -11,8 +11,10 @@ namespace DemaConsulting.CanvasNet.VegaLite.SpecModel;
 ///         parameter, the <c>calculate</c> and string <c>filter</c> of a transform of the drawn view, the expression strings
 ///         inside a filter predicate, and the <c>{"expr": ...}</c> values of the paint properties of the mark and of a
 ///         <c>value</c> encoding. A syntax error is a <see cref="VegaLiteSpecException"/> at that point, so the document never
-///         opens with an expression that cannot run. An expression anywhere else (the title, the size, the padding, the
-///         background) is not compiled and is reported by the feature catalog as not supported. The <c>labelExpr</c> of an axis, a legend and a header, and of the axis and
+///         opens with an expression that cannot run. The <c>{"expr": ...}</c> values of the static sites that Vega-Lite's schema allows (the title, the padding and
+///         the background of the view, the mark properties that are not row-bound, the properties of an axis, a legend, a header, a scale and the view, the
+///         <c>datum</c> and <c>value</c> of the other channels, and the same properties in the configuration) are compiled too and listed as <see cref="StaticReference"/> entries,
+///         which <see cref="ExpressionReferenceFolder"/> evaluates once per call. An expression anywhere else is not compiled and is reported by the feature catalog as not supported. The <c>labelExpr</c> of an axis, a legend and a header, and of the axis and
 ///         header configurations, is compiled too (it runs on a datum with <c>value</c> and <c>label</c>).
 ///     </para>
 ///     <para>
@@ -30,13 +32,23 @@ internal sealed class SpecExpressions
     ///     Initializes the collection.
     /// </summary>
     /// <param name="byNode">The compiled expressions by node; adopted by the collection.</param>
-    internal SpecExpressions(Dictionary<SpecNode, CompiledExpression> byNode) => _byNode = byNode;
+    /// <param name="references">The expression references of the static sites, in document order; none when null.</param>
+    internal SpecExpressions(Dictionary<SpecNode, CompiledExpression> byNode, IReadOnlyList<StaticReference>? references = null)
+    {
+        _byNode = byNode;
+        StaticReferences = references ?? [];
+    }
 
     /// <summary>Gets a collection without entries.</summary>
     public static SpecExpressions Empty { get; } = new(new Dictionary<SpecNode, CompiledExpression>(ReferenceEqualityComparer.Instance));
 
     /// <summary>Gets the number of compiled expressions.</summary>
     public int Count => _byNode.Count;
+
+    /// <summary>
+    ///     Gets the <c>{"expr": ...}</c> references of the static sites (the sites that no row reads), in document order. The row-bound sites are not listed: the mark evaluates them for every row.
+    /// </summary>
+    public IReadOnlyList<StaticReference> StaticReferences { get; }
 
     /// <summary>
     ///     Gets the compiled expression of a string node.
@@ -66,7 +78,7 @@ internal sealed class SpecExpressions
             copy[node] = expression;
         }
 
-        return new SpecExpressions(copy);
+        return new SpecExpressions(copy, StaticReferences);
     }
 
     /// <summary>
@@ -77,3 +89,27 @@ internal sealed class SpecExpressions
     public CompiledExpression? GetReference(SpecNode? reference) =>
         reference is { IsObject: true } ? Get(reference["expr"]) : null;
 }
+
+/// <summary>
+///     What the folder does with the value of an expression reference at a static site, which decides how a result that is not a plain value is read.
+/// </summary>
+internal enum StaticSiteKind
+{
+    /// <summary>A property that takes a number, a string, a boolean, null or an array of them; a date result cannot be folded.</summary>
+    Value,
+
+    /// <summary>A property that takes a text (the <c>text</c> of a title or a mark): a number or a boolean result is its JavaScript text.</summary>
+    Text,
+
+    /// <summary>A property of a scale domain: a date result is its number of milliseconds since the epoch (Vega builds the domain of a time scale from numbers).</summary>
+    Domain,
+}
+
+/// <summary>
+///     One <c>{"expr": ...}</c> object at a static site of the specification: a site that Vega-Lite's schema allows an expression reference at and that no row reads.
+/// </summary>
+/// <param name="Reference">The reference object (<c>{"expr": ...}</c>).</param>
+/// <param name="Text">The string node that holds the expression text, which keys the compiled expression.</param>
+/// <param name="Expression">The compiled expression.</param>
+/// <param name="Kind">How the value is read.</param>
+internal sealed record StaticReference(SpecNode Reference, SpecNode Text, CompiledExpression Expression, StaticSiteKind Kind);

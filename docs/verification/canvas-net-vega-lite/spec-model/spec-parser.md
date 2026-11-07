@@ -189,16 +189,24 @@ that 50,000 inline rows are read in one pass with their pointers and row count i
 ##### Expressions Are Compiled At The Supported Sites And Fail At Their Text
 
 **Tests**: `SpecParserTests.SpecParser_Parse_ExpressionErrorsCarryTheLocationOfTheTextAndTheOffset`,
-`SpecParserTests.SpecParser_Parse_CompilesTheExpressionsOfSupportedSitesOnly`
+`SpecParserTests.SpecParser_Parse_CompilesTheExpressionsOfSupportedSitesOnly`,
+`SpecParserTests.SpecMetadata_Read_TitleIsPlainText`
 
 Asserts that, in a document of several lines, a calculate expression with a syntax error on line 4 throws a
 `VegaLiteSpecException` located at `e.vl.json:4:20 /transform/0/calculate` (the position of the string value) whose
 message starts with that location and names "expression offset 10", and that a parameter expression that reads an
 undeclared name on line 8 is located at `/params/1/expr`, names `'missing'`, and gives the offset 4; and that the tree
-holds the compiled expression of exactly the supported sites — a parameter `expr`, a `calculate`, a string `filter`, a
-string inside a predicate composition, a row-bound mark `fill`, and a color channel `value` (six in all, found by their
-string node, with the source `datum.a + p` of the calculate) — and none for a title, a `width`, a bar's `size`, or a
-position `value`, and null for a null node.
+holds the compiled expression of the row-bound and of the static sites — a parameter `expr`, a `calculate`, a string
+`filter`, a string inside a predicate composition, a row-bound mark `fill`, a color channel `value`, a title `text`, a
+bar's `size` (which is not a symbol area), and a position `value` (nine in all, found by their string node, with the
+source `datum.a + p` of the calculate) — and none for a `width`, which Vega-Lite's schema does not allow an expression at,
+and null for a null node. It also asserts that `SpecExpressions.StaticReferences` lists exactly the references of the
+static sites in document order (the title `text`, the bar's `size`, and the position `value`) and not the row-bound
+`fill` and color `value`. The theory `SpecParserTests.SpecMetadata_Read_TitleIsPlainText` asserts that a title whose
+`text` is an
+expression reference (now a valid one, because the reference is compiled at open) has no plain-text title in the
+metadata. A reference at the `gridAlign` of a legend is accepted by the validation, which the folding theory of the
+`ExpressionReferenceFolder` unit pins for every property of the table of sites.
 
 ##### Phase 5 Transforms And Parameters Are Accepted Without A Warning
 
@@ -209,8 +217,10 @@ Asserts that a specification with a bound value parameter, an expression paramet
 a parameter without a value, and sixteen transforms (calculate with the viewing signal `width`, string, field, `range`,
 `oneOf` with a time unit, date-object, `param`, `empty`, legacy `selection`, and composed filters, a fold, a flatten with
 `as`, a sample, a pivot with a limit and `op`, two lookups (a data source and a parameter), and an aggregate) has no
-warning, lists the four parameter names in order, and compiles six expressions (the calculate, the string filter, the
-string inside the composition, the variable-parameter filter, and, since Phase 8, the two time predicates, the `oneOf`
+warning, lists the four parameter names in order, and compiles eight expressions (the calculate, the string filter, the
+string inside the composition, the variable-parameter filter, the two filters on the selection `brush` (`param` with
+`empty: false`, and the legacy `selection`, which since Phase 12 are written as the selection test of Vega-Lite), and,
+since Phase 8, the two time predicates, the `oneOf`
 with a time unit and the date-time `equal`, which are written as expressions with the time functions and compiled
 under their predicate object); and that the
 parameter order puts dependencies first and then declaration order (`[1, 2, 0, 3]` for the dependencies
@@ -291,8 +301,9 @@ number; and the numeric properties given as text, a boolean, an array, or an obj
 `/mark/point/color`, an interpolation `nope` at `/mark/line/interpolate`, an invalid mode `hide` at
 `/mark/point/invalid`), that a property that no mark has (`foo`) is the warning `vl-unknown-property` at its key
 (`/mark/point/foo`) and not an error while the overlay properties `filled`, `size`, `strokeWidth`, and `interpolate` are
-silent, and that the catalog reports an expression reference inside an overlay object as `vl-expr-ref` at
-`/mark/point/color` because it is not evaluated. For the text mark it asserts that 23 properties are accepted in each of
+silent, and that an expression reference inside an overlay object is a static site that the parser compiles and the fold
+replaces by its value, so the catalog has nothing to report at `/mark/point/color`. For the text mark it asserts that 23
+properties are accepted in each of
 their kinds (a `text` that is a string, a list, or an expression reference; `fontStyle`, `ellipsis`, and `lineBreak` as
 text; `fontWeight` as text, a number, or an expression reference; `limit` and `lineHeight` as numbers; and the
 properties `dx`, `dy`, `angle`, `align`, `baseline`, `font`, `fontSize`, `radius`, and `theta`) and that ten values of the
@@ -389,11 +400,17 @@ object.
 `SpecParserConditionTests.SpecParser_Parse_FieldConditionScaleIsValidated`,
 `PredicateSourceTests.PredicateSource_TryBuild_WritesTheExpressionThatMeansTheSame`,
 `PredicateSourceTests.PredicateSource_TryBuild_QuotesPathsAndStrings`,
+`PredicateSourceTests.PredicateSource_TryBuild_WritesTheSelectionTestOfVegaLite`,
+`PredicateSourceTests.PredicateSource_TryBuild_LegacyPredicateIgnoresItsOwnEmpty`,
+`PredicateSourceTests.PredicateSource_TryBuild_ChoosesTheTestFromTheEffectiveProjection`,
+`PredicateSourceTests.PredicateSource_TryBuild_LegacySelectionWithEmptyFieldsIsAFieldTest`,
 `PredicateSourceTests.PredicateSource_TryBuild_RefusesWhatNoExpressionCanSay`,
 `PredicateSourceTests.PredicateSource_TryBuild_NullPredicateThrows`,
 `PredicateSourceTests.PredicateSource_Build_RefusesAnOverBudgetExpansionBeforeAllocatingIt`,
 `PredicateSourceTests.PredicateSource_Build_BudgetBoundaryAndUnsupportedWins`,
 `PredicateSourceTests.PredicateSource_IsUnsupported_DoesNotAllocateTheExpansion`,
+`PredicateSourceTests.PredicateSource_Build_SelectionPredicatesAreCountedAgainstTheBudget`,
+`SpecParserConditionTests.SpecParser_Conditions_SelectionPredicatesObeyTheGeneratedBudget`,
 `ChannelDefinitionsTests.ChannelDefinitions_CanCondition_ListsTheConditionalChannels`,
 `ChannelDefinitionsTests.ChannelDefinitions_FieldDefinitionOf_FindsTheObjectThatCarriesTheField`,
 `ChannelDefinitionsTests.ChannelDefinitions_Conditions_ListsConditionsInOrder`,
@@ -426,8 +443,15 @@ undeclared parameter is refused there.
 Assert, for the `PredicateSource` tests, that `Build` of a 100,000-character field name with 5,000 members and a budget
 of one million reports `TooLong`, no source, the exact length 500,094,998 and allocates less than 16 MB; that a budget
 equal to the length of `(datum["c"] === 1 || datum["c"] === 2)` writes it, one less is `TooLong` with the same length,
-and that a part that cannot be written (a selection parameter) wins over a text that is too long; and that
-`IsUnsupported` answers both a supported and an unsupported huge predicate in less than 16 MB.
+and that a part that cannot be written (a variable parameter whose name is not an identifier) wins over a text that is too
+long; and that
+`IsUnsupported` answers both a supported and an unsupported huge predicate in less than 16 MB. Assert, for the selection
+tests, that an `or` of 100 selection predicates (`param` and the legacy `selection`) is written with a budget equal to its
+length, is `TooLong` with the same length and no text with one less (and with a budget of zero), and is not unsupported;
+and that a legacy `selection` that is an `or` of 2,000 names (about 11 times the document as an expression), as the
+test of a condition, inside an `and`, as a condition on a legacy selection, and as a filter, is refused with the
+over-budget message (8 times the `MaxSourceLength` that equals the document) located at the predicate, and accepted with
+the default limits.
 
 Assert, as a theory of ten specifications, that a condition that is not an object, has neither a `test` nor a `param`,
 has a test that does not parse, refers to an undeclared parameter, or is not an expression or a predicate, a predicate
@@ -436,19 +460,32 @@ offending value (the pointer of the condition, of the item of an array, of the `
 with the file, line, and column; that the tests of the three conditions of a color are compiled to the source
 `datum.q > t` (an expression text as written), `(datum["q"] >= 2 && datum["q"] <= 3)` (the range `[3, 2]` with its
 endpoints put in ascending order) and `(t)` (a variable parameter), and that the `value.expr` is compiled; that the
-predicate objects of a position channel, of a selection, and of a view that is not drawn are not compiled; and that a
-scale option of a field
+predicate objects of a position channel are not compiled, while those of a view in a concatenation are; that the conditions
+`param` and `test: {param}` on a selection are compiled to `(!length(data("sel_store")) || vlSelectionTest("sel_store",
+datum))`, with `empty: false` to `(length(data("sel_store")) && vlSelectionTest("sel_store", datum))`, and a condition
+on a
+variable parameter to `(flag)`; and that a scale option of a field
 condition is validated like that of a channel (`padding: "wide"` is an error at the scale). The predicate theory
 writes out, for twenty-three predicates, the exact expression text of each comparison, range (with open ends), set, validity
 check, negation, composition (an empty `and` is true and an empty `or` false), expression text, and parameter; a
 second test checks the bracket path of a dotted field and an escaped dot, and the escapes of the quote, the newline, and
-the backslash in a text; the third lists the predicates that no expression can say (a parameter predicate, and a
-composition that holds one inside an `and` or a `not`) as refused with an empty source, while the former refusals of a
-time unit and of a date object are gone because those predicates are now written (see _Time Predicates As
-Expressions_); and a null predicate is refused. The helper tests list the eleven channels that take a
+the backslash in a text; a fourth, as a theory of twelve predicates, writes out the selection tests of Vega-Lite (with the
+default `empty`, `empty: true` and `false`, a point selection over the identity of the rows, a multi selection with its
+`union` resolve, a store name with the non-word characters replaced, a `not`, an `and` with a field comparison, and the
+legacy `selection` with its composition; a legacy `empty` on the predicate itself is ignored, since Vega-Lite's compatibility
+normalizer takes the emptiness from the declaration only); a further test and a theory of seventeen declarations
+check which function the predicate names for the effective projection: an empty `fields` or `encodings` is a field
+test (the presence decides), the keys of the value and the `config.selection.point.fields` default are honored, a
+scalar value keeps the identity, and a legacy `multi` with an empty `fields`
+is a field test; the third lists the predicates that no expression can say (a parameter whose
+name is not an identifier, alone, in an `and`, and in a `not`) as refused with an empty source, while the former
+refusals of a
+time unit, of a date object and of a selection are gone because those predicates are now written (see _Time Predicates As
+Expressions_ and _Selections_); and a null predicate is refused. The helper tests list the eleven channels that take a
 condition (and the position, secondary, order, and tooltip channels that do not), find the field definition of a channel
 (its own, the first field condition on a test, none for a parameter condition), list the conditions in order with the
-parameter conditions left out of the tests, and list the constant values a legend shows (the conditions first, then the
+parameter conditions included in their written place (since Phase 12 a `param` or a legacy `selection` is a predicate
+like a `test`), and list the constant values a legend shows (the conditions first, then the
 value; none for a channel that a field drives). The size test puts a condition whose value is an expression that does
 not compile on a `size` channel and asserts that the document is refused with a `VegaLiteSpecException` for the ten marks
 that evaluate their size conditions (the symbols, `bar`, `rect`, `tick`, `rule`, `line`, `trail`, and `text`) and parses
@@ -684,7 +721,34 @@ a `VegaLiteSpecException` at the offending value; and that the composite rules a
 Asserts that the expressions of the views of a layered view (the transform of a layer and of the layered view, a
 condition of a layer's encoding, and a `size` condition of the layered view's own encoding) and those of the view of a
 concatenation (a condition of its encoding) are all compiled when the document is opened, and that the predicates that no
-expression can say (a position channel's condition, a selection) are still not compiled.
+expression can say (a position channel's condition) are still not compiled.
+
+##### Selections Are Validated, Found By Name, And Compiled
+
+**Tests**: `SpecParserSelectionTests.SpecParser_Parse_SelectWithAnUnknownTypeIsAnError`,
+`SpecParserSelectionTests.SpecParser_Parse_MalformedSelectionOptionsAreErrors`,
+`SpecParserSelectionTests.SpecParser_Parse_SelectionFormsAreAccepted`,
+`SpecParserSelectionTests.SpecParser_Parse_LegacySelectionIsValidated`,
+`SpecParserSelectionTests.SpecParser_Parse_PredicateOnAnUndeclaredSelectionIsAnError`,
+`SpecParserSelectionTests.SpecParser_FindParameter_SelectionsAreVisibleFromEveryView`
+
+Assert, as a theory of four texts, that a `select` that is a text other than `point` or `interval`, an object whose `type`
+is another text, an object without a `type`, and a number are each a `VegaLiteSpecException` at the `select` (at its `type`
+for an object with one); as a theory of five parameters, that `fields` that is not an array, `fields` or `encodings`
+with an item that is not a text, a `resolve` other than `global`, `union`, and `intersect`, and `views` that is not an array
+are errors at the offending property; that a specification with a bare point selection, an interval selection with
+`encodings`, a function-like `on`, `clear: false`, `translate: false`, a `zoom`, a mark object, a value, and `bind:
+"scales"`, and a point selection with `fields`, `toggle`, `nearest`, `resolve`, a value, a widget `bind`, and `views` is
+accepted
+without a warning and lists the three names in `ParameterNames`; that the legacy `selection` of `single`, `multi`
+(with `fields`), and `interval` is accepted, a legacy `type` of `point` is an error at the `type`, an entry without a `type`
+an error at the entry, and a `selection` that is an array an error at the property; that a filter on a `param` that no
+view declares, a legacy `selection` composition with an undeclared name, and a condition on an undeclared legacy
+`selection` are errors at that name (`/transform/0/filter/param`, `/transform/0/filter/selection/and/1`, and
+`/encoding/color/condition/selection`); and that a selection declared in the first layer of a layered view is found
+from the second layer and from the first layer's own encoding (the same declaration, since the first declaration of a
+name wins) while a name that no view declares is not found, and the condition of the second layer is compiled to the
+selection test of that selection.
 
 ##### The Properties Of The Compositions Are Validated
 

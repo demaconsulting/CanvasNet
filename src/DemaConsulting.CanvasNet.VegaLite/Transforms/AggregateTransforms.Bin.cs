@@ -24,6 +24,12 @@ internal sealed partial class AggregateTransforms
     {
         var location = Locate(entry);
         var settings = BinSettings.Read(operation, DefaultTransformMaxBins);
+
+        // An extent that a parameter gives only sets the span that chooses the step (Vega-Lite's span of the bin); the bins still cover the extent of the data
+        if (settings.Extent is null && _context.BinSpanOf(operation["extent"]) is { } span)
+        {
+            settings = settings with { Span = span };
+        }
         var (startName, endName) = BinOutputNames(entry["as"]);
         _context.CheckText(DataValue.FromString(startName), "An output name of the bin transform", location);
         _context.CheckText(DataValue.FromString(endName), "An output name of the bin transform", location);

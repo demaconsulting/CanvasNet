@@ -52,7 +52,12 @@ mark colors, the bar, rect, and tick configuration, the scale configuration (ban
 opacity, size, and stroke-width ranges, `zero`), the legend gradient lengths, the header, facet, and concat
 spacing, and (since phase 10) the configuration of the composite marks: `boxplot` (size 14, extent 1.5, the `box`, `rule`,
 and `outliers` parts as empty objects, a `median` with the color white, and `ticks` null, that is off), `errorbar` (center
-`mean`, the rule on, the ticks off), and `errorband` (a band with the opacity 0.3 and no borders). The Vega mark-type
+`mean`, the rule on, the ticks off), and `errorband` (a band with the opacity 0.3 and no borders), and (since phase 12)
+the
+`selection` configuration of Vega-Lite's `defaultConfig` (a `point` selection over the identity of the rows `_vgsid_`,
+an `interval` selection over `x` and `y`, both with `resolve: "global"` and the events and bindings that a static chart
+ignores, and the `mark` of the brush of an interval selection: fill `#333`, fill opacity 0.125, stroke white), which the
+selection model reads for the projection and the resolution and the brush builder for the `mark`. The Vega mark-type
 keys (`rect`, `symbol`, and so on) are kept out of the merged tree, because Vega-Lite uses
 the same names for its own mark configuration; they are consulted only as the last link of `ResolveMarkProperty`.
 Defaults that Vega-Lite computes by rule (a scale's `nice` and a continuous padding) are not in the tree.

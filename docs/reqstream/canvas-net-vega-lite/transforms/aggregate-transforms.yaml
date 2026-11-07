@@ -176,7 +176,9 @@ sections:
                   add to every row the start of its bin and the end of its bin under the names of as (a pair,
                   or a single name that also gives name_end, else bin0 and bin1), send a value outside an
                   explicit extent to infinity, give null for a value that is not a finite number and for every
-                  row when there is no valid value, and fail with a located VegaLiteRenderException when the
+                  row when there is no valid value, take the span that chooses the step from an extent that is a
+                  parameter reference (the selected range of a selection, or the value of a variable parameter) while
+                  the bins still cover the data, and fail with a located VegaLiteRenderException when the
                   values cannot be binned or the bins are more numerous than the scale-domain limit.
                 justification: |
                   Binning is how a histogram or a heat map turns a measure into categories; the bins must
@@ -190,6 +192,8 @@ sections:
                   - AggregateTransforms_Bin_NonFiniteValuesAreIgnored
                   - AggregateTransforms_Bin_NoValidValuesGiveNulls
                   - AggregateTransforms_Bin_UnbinnableExtentsAndTooManyBinsFail
+                  - CanvasNetVegaLite_SystemIntegration_BinExtent_TheTransformFollowsTheSpan
+                  - CanvasNetVegaLite_SystemIntegration_BinExtent_AVariableParameterGivesItsSpan
 
               - id: CanvasNetVegaLite-Transforms-AggregateTransforms-BinAlgorithm
                 title: >-
@@ -200,7 +204,10 @@ sections:
                   steps list, an
                   exact step when one is given, the minimum step, the nice extension of the extent to whole
                   steps (or the extent itself without nice), the anchor shift, and a step from the magnitude
-                  of a single-valued extent - and shall assign a value to the bin that contains it (the last
+                  of a single-valued extent, from the span that the settings give in place of the span of the
+                  extent when it is not zero or NaN (and the same rule for a span that Vega-Lite derives from a
+                  parameter: the last element minus the first of an array, zero for any other value) - and shall
+                  assign a value to the bin that contains it (the last
                   bin closed at its stop, a value below the start or beyond the stop to infinity), failing
                   closed when the extent is tiny, huge, or not finite or the bin count exceeds the limit.
                 justification: |
@@ -208,6 +215,10 @@ sections:
                   published algorithm, and a degenerate extent must not loop or allocate without bound.
                 tests:
                   - BinAlgorithm_Compute_MatchesHandDerivedSteps
+                  - BinAlgorithm_Compute_TheSpanChoosesTheStepAndTheDataTheBins
+                  - BinAlgorithm_Compute_AZeroOrNaNSpanFallsBackToTheDataSpan
+                  - BinAlgorithm_Compute_ASpanAppliesToASingleValue
+                  - BinAlgorithm_SpanOf_IsTheLastMinusTheFirst
                   - BinAlgorithm_Compute_DefaultsToTwentyBins
                   - BinAlgorithm_Compute_UsesAnExactStep
                   - BinAlgorithm_Compute_ChoosesTheLargestAllowedStepBelowTheTarget

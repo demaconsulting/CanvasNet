@@ -552,8 +552,10 @@ internal sealed class ResolvedConfig
 ///         Rules that Vega-Lite applies in code rather than in configuration are exposed as constants:
 ///         <see cref="DefaultReducedOpacity"/>, <see cref="DefaultStep"/>, <see cref="DefaultStrokeWidth"/> and
 ///         <see cref="IsFilledByDefault"/>. The defaults of the boxplot (size 14, extent 1.5, a white median, no end ticks), the error bar (center mean, rule on, ticks off) and the error band (band opacity 0.3,
-///         no borders; Vega-Lite <c>config.ts</c>) are carried and are read by the composite mark expansion (<see cref="SpecNormalizer.Expand"/>); those of the selection configuration are not
-///         carried because selections are not rendered.
+///         no borders; Vega-Lite <c>config.ts</c>) are carried and are read by the composite mark expansion (<see cref="SpecNormalizer.Expand"/>). The selection configuration (Vega-Lite <c>selection.ts</c>
+///         <c>defaultConfig</c>: <c>fields</c>, <c>encodings</c>, <c>resolve</c> and, for an interval, the <c>mark</c> of its brush: fill <c>#333</c>, fill opacity 0.125, stroke white) is carried and merged with
+///         the specification's and the caller's <c>config.selection</c> like every other object; the selection model reads the projection and the resolution from it and the brush builder the <c>mark</c>
+///         (the events and the bindings are carried but a static chart never uses them).
 ///     </para>
 ///     <para>
 ///         The class is stateless and thread-safe; the defaults are built once.
@@ -706,7 +708,19 @@ internal static class ConfigResolver
           "style": {},
           "title": {},
           "facet": { "spacing": 20 },
-          "concat": { "spacing": 20 }
+          "concat": { "spacing": 20 },
+          "selection": {
+            "point": { "on": "click", "fields": ["_vgsid_"], "toggle": "event.shiftKey", "resolve": "global", "clear": "dblclick" },
+            "interval": {
+              "on": "[pointerdown, window:pointerup] > window:pointermove!",
+              "encodings": ["x", "y"],
+              "translate": "[pointerdown, window:pointerup] > window:pointermove!",
+              "zoom": "wheel!",
+              "mark": { "fill": "#333", "fillOpacity": 0.125, "stroke": "white" },
+              "resolve": "global",
+              "clear": "dblclick"
+            }
+          }
         }
         """);
 

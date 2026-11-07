@@ -29,7 +29,8 @@ namespace DemaConsulting.CanvasNet.VegaLite.Transforms;
 ///             predicates are <c>equal</c>, <c>lt</c>, <c>lte</c>, <c>gt</c>, <c>gte</c>, <c>range</c> (inclusive, an endpoint of
 ///             null is open, reversed endpoints are swapped), <c>oneOf</c> and <c>valid</c> on a <c>field</c> with the
 ///             comparison semantics of JavaScript, composed with <c>and</c>, <c>or</c> and <c>not</c>, and <c>param</c>, which
-///             reads the truthiness of a variable parameter (a selection parameter keeps every row and is reported). A predicate with a
+///             reads the truthiness of a variable parameter, or, for a selection parameter, the expression that Vega-Lite compiles for it (the selection test, with its <c>empty</c> rule; the
+///             parser compiled it and the expression engine evaluates it for every row). A predicate with a
 ///             <c>timeUnit</c>, or one that compares with a date-time object, is the expression that <see cref="PredicateSource"/> writes for it (compiled by the
 ///             specification parser and evaluated in the calendar of the chart).
 ///         </description></item>
@@ -305,13 +306,16 @@ internal sealed partial class RowTransforms
     private DataTable Filter(DataTable input, SpecNode filter)
     {
         var kept = new List<int>();
+
+        // A selection that is projected over a time unit is tested on the derived field, which the table gets first (Vega-Lite inserts the time unit above the filter)
+        var table = SelectionTimeUnits.Apply(input, [filter], _context, Locate(filter));
         try
         {
-            var predicate = BuildPredicate(filter, input);
-            for (var row = 0; row < input.RowCount; row++)
+            var predicate = BuildPredicate(filter, table);
+            for (var row = 0; row < table.RowCount; row++)
             {
                 Tick(row);
-                if (predicate.Test(input, row))
+                if (predicate.Test(table, row))
                 {
                     kept.Add(row);
                 }
@@ -324,7 +328,7 @@ internal sealed partial class RowTransforms
             throw new VegaLiteRenderException(ex.Message, Locate(filter));
         }
 
-        return SelectRows(input, kept, Locate(filter));
+        return SelectRows(table, kept, Locate(filter));
     }
 
     /// <summary>
