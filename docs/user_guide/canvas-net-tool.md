@@ -248,7 +248,8 @@ it, which is cheap even for a large file.
 - A **Vega-Lite chart** reports the size it is laid out at (its natural size, the size it is drawn at by default), 4
   channels with transparency, and what its specification declares: the mark types, the data sources (inline, a URL, a
   named data set, or a generated sequence, with the row count when the text gives it), the names of its parameters, its
-  title, and its schema version. To report the laid-out size the chart is measured, which reads its local data files from
+  title, and its schema version. To report the laid-out size the chart is measured, which reads its local data files
+  from
   the folder of the specification (see *Vega-Lite Charts* below; a missing file is a `vega-lite-error`) and uses no
   network.
 
@@ -463,7 +464,11 @@ the model is built, so the model sees the defaults of the variables it does not 
 
 The value of `-D name=value` is a **number** (`-D width=20`, `-D ratio=0.5`), a **boolean** (`-D debug=true`), or
 **text** (`-D label=hello`; the text may be put in quotes). Vectors and other expressions are not accepted. If a name
-is given twice, the later definition wins. A name that is not a valid variable name is a `usage-error`.
+is given twice, the later definition wins. A name that is not a valid variable name is a `usage-error`. A model that an
+SVG
+diagram embeds takes its variables from the link instead, with the same grammar: `<image href="part.scad#def.width=20"
+.../>`
+(see *Embedding Images, Charts, and Models in an SVG*).
 
 The `include <file>` and `use <file>` directives of a model are read relative to the file that names them, and only
 inside the folder of the model and below it; symbolic links are not followed. An include that names a missing file, a
@@ -485,7 +490,8 @@ on every machine; a model that names another font with `font = "..."` finds it a
 machine that runs the tool (then among the bundled Liberation families; a family that is nowhere gives a warning), so
 such a drawing can differ from machine to machine. The tool has no option for font folders. A character that the font
 lacks (`∝`, `≫`, arrows, math signs) is taken from the bundled Noto fonts, so it does not depend on the machine; a
-character that no bundled font covers draws the missing-glyph box and gives one warning for that `text()` (and, in a Vega-Lite
+character that no bundled font covers draws the missing-glyph box and gives one warning for that `text()` (and, in a
+Vega-Lite
 chart, the warning `vl-text-missing-glyph`, which never fails the render).
 
 ```bash
@@ -540,7 +546,8 @@ The pixel follows the pixel steps of the command line, so it stays on the same s
 `--crop`, `--trim`, `--resize`, `--fit`, `--pad`, `--flip`, and `--rotate` (an angle that is not a multiple of 90
 rotates about the center onto the larger canvas), and `--scale`, `--size`, `--width`, and `--height` change the size
 of the render itself. A crop can leave an anchor outside the picture: its `pixel` is still given, with `inside` false.
-`pixel` is `null` (and `inside` false) for a point behind a perspective camera, and after a `--deskew` that corrected the
+`pixel` is `null` (and `inside` false) for a point behind a perspective camera, and after a `--deskew` that corrected
+the
 image, because the correction moved the pixels in a way that is not followed. `pixel` says where a point projects, not
 whether it is visible: a point behind other geometry still has one.
 
@@ -555,24 +562,55 @@ canvasnet render part.scad --view top --size 600x400 -o part.png --json
 #### Vega-Lite Charts
 
 A Vega-Lite chart (`.vl.json` or `.vl`, or a `.json` file with a Vega-Lite `$schema`) is drawn as a still image at the
-size the specification lays out (its `width` and `height` plus its axes, title, and padding; `info` reports it), or at the
-size the size options ask for: `--scale` multiplies the layout, `--width` or `--height` fits the chart (keeping its aspect
-ratio), and `--size WxH` fits it inside that box and centers it. The chart is always drawn sharply at the final size, not
-enlarged afterwards, so text and lines stay crisp. A chart has no options of its own: there is no option to set
-parameters, data, or configuration, and the model options (`-D`, `--view`, ...) given with a chart are a
-`usage-error`. A
+size the specification lays out (its `width` and `height` plus its axes, title, and padding; `info` reports it), or at
+the
+size the size options ask for: `--scale` multiplies the layout, `--width` or `--height` fits the chart (keeping its
+aspect
+ratio), and `--size WxH` fits it inside that box and centers it. The chart is always drawn sharply at the final size,
+not
+enlarged afterwards, so text and lines stay crisp. The one option of a chart is `--param` (below): there is no option to
+set
+data or configuration, and the model options (`-D`, `--view`, ...) given with a chart are a `usage-error`. A
 chart has one page, so `--page` beyond 1 is `page-out-of-range`. A chart can also be drawn inside an SVG diagram with
 `<image href="chart.vl.json" .../>` (see *Embedding Images, Charts, and Models in an SVG* and `canvasnet help svg`).
 
+**Parameters.** `--param <name=value>` replaces the default value of a parameter (`params`) of the specification; it is
+repeatable and the later value of a name wins. The value is read as follows: a **number** (`--param cutoff=50`),
+`true`, `false`, or `null`, **text** (`--param region=EU`, in single quotes when it has spaces), or **JSON** when it
+starts with
+`{`, `[`, or `"` - a JSON array or object is how a **selection** parameter takes its initial state, exactly as in the
+specification (`--param brush={"x":[2,6]}` for an interval selection; quote it for your shell, for example
+`--param 'brush={"x":[2,6]}'` in bash, zsh, and PowerShell 7). The value replaces the
+whole definition of the parameter (its `value` and its `expr`). A name the specification does not declare is a
+`vega-lite-error`
+that names it and lists the declared ones, a value that starts like JSON and is not valid JSON is a `usage-error`, and
+the
+option on an input that is not a chart is a `usage-error`. The chart is laid out again with the values, so its natural
+size
+(the `natural` of the JSON result, and the base of `--scale`, `--width`, and `--height`) is that of the parameterized
+chart, and
+the `render` operation of the JSON result lists them as `params` (`["brush={\"x\":[2,6]}","cutoff=50"]`, in name order).
+`render`, its verbs (`resize`, ...), and `inspect` take the option; `compare` and `montage` do not.
+
+```bash
+canvasnet render chart.vl.json --param cutoff=50 -o chart.png
+canvasnet render chart.vl.json --param 'brush={"x":[2,6]}' --param region=EU -o brushed.png --json
+```
+
 The background is the one the chart declares (white when it declares none); `--background <color>` replaces it, and
-`--background transparent` gives a transparent picture. The picture is static and the same on every machine: dates are in
-UTC, only the fonts bundled with the tool are used (so the lettering does not depend on the installed fonts), and nothing
+`--background transparent` gives a transparent picture. The picture is static and the same on every machine: dates are
+in
+UTC, only the fonts bundled with the tool are used (so the lettering does not depend on the installed fonts), and
+nothing
 is read from the network.
 
 **Data files.** A chart's rows can be inline (`data.values`), generated (`data.sequence`), or in a file next to the
-specification. A `data.url` that is a **relative path** (`"data": {"url": "stalls.csv"}`) is read from the **folder of the
-specification and below it**, whatever the current directory is, so a chart and its data can be moved together. The format
-is chosen by `format.type` (`json`, `csv`, `tsv`, or `dsv`, a DSV naming its one-character `format.delimiter`) or else by
+specification. A `data.url` that is a **relative path** (`"data": {"url": "stalls.csv"}`) is read from the **folder of
+the
+specification and below it**, whatever the current directory is, so a chart and its data can be moved together. The
+format
+is chosen by `format.type` (`json`, `csv`, `tsv`, or `dsv`, a DSV naming its one-character `format.delimiter`) or else
+by
 the extension (`.csv`, `.tsv`; anything else is JSON), as in Vega-Lite, and the
 files are read as UTF-8 text. As in Vega, delimited text is **not type-inferred**: every cell stays a string unless the
 chart's `format.parse` is `"auto"` or names fields (quantitative encodings still read numeric text as numbers when they
@@ -585,9 +623,26 @@ that names the file, line,
 and column of the `url` (also with `--strict`), never an empty chart. A `url` with a scheme (`https:`), a drive letter,
 or an absolute path is **never fetched or opened**: it is reported as the diagnostic `vl-data-remote-url` and the
 chart is
-drawn with an empty dataset (`--strict` makes it an `unsupported-feature` failure). `info` measures the chart, so it reads
+drawn with an empty dataset (`--strict` makes it an `unsupported-feature` failure). `info` measures the chart, so it
+reads
 the same data files. See *Vega-Lite Data* in the CanvasNet User Guide for the CSV, TSV, DSV, and JSON rules, the
 `format.parse` rules, and the limits (at most 64 files, 64 MiB per file, and 1,000,000 rows).
+
+**Pictures.** The `image` mark draws pictures that lie **next to the specification**: `"url": "icon.png"` (a field, a
+datum, or a value of the `url` channel, or the `url` of the mark). The tool wires the same sandboxed folder resolver
+that
+draws the pictures of an SVG, rooted at the folder of the specification, so the link can name a PNG or JPEG, an SVG
+file, an
+OpenSCAD model (`"url": "part.scad"`), a page of a document (`"url": "report.pdf#page=2"`), or another chart, and
+nothing
+outside that folder is read. A link that leaves the folder, an absolute path, a symbolic link, and a network URL are
+**never read or fetched**: the picture is not drawn and the diagnostic `svg-image-unresolved` names the link (`--strict`
+makes it an `unsupported-feature` failure). A picture that is found but is broken is the error of its own format, naming
+the chart and the picture; more than 256 different pictures (`MaxImages`) in one chart is `budget-exceeded`. The
+pictures that were
+drawn are listed as operations and notes (`(chart.vl.json)`), as for an SVG. `info` measures the chart without loading
+any picture.
+See *Vega-Lite Image Marks* in the CanvasNet User Guide.
 
 The library draws a defined subset of Vega-Lite. A construct it recognizes but cannot draw yet (for example a mark or
 channel it has not implemented) is left out and reported in the `diagnostics` of the JSON result (without `--json`, as a
@@ -598,7 +653,8 @@ property Vega-Lite does not define, a `$schema` of another version) is a `vega-l
 
 A specification that is not valid JSON, has a property of the wrong type, is nested deeper than the parser allows, has
 a string longer than the parser allows, or is plain Vega named like a chart is a
-`vega-lite-error` that names the file, line, and column; so is a chart that cannot be laid out or drawn (for example data
+`vega-lite-error` that names the file, line, and column; so is a chart that cannot be laid out or drawn (for example
+data
 that does not fit the encoding). A chart that exceeds a limit of the library while it is laid out or drawn (too many
 data rows, data files, or data bytes, scene items, or ticks) fails with `budget-exceeded`; a specification file
 longer than the library reads
@@ -630,7 +686,8 @@ accepts):
 | Vega-Lite chart | `.vl.json`, `.vl` |
 | A document page (page 1, or `#page=N`; PDF, PowerPoint, Visio) | `.pdf`, `.pptx`, `.vsdx` |
 
-The format is decided by the **file name** (its extension), not by the content: a Vega-Lite chart must be named `.vl.json`
+The format is decided by the **file name** (its extension), not by the content: a Vega-Lite chart must be named
+`.vl.json`
 or `.vl` (a chart in a plain `.json` file is not linked), and a file with another name is not drawn (the warning
 `svg-image-unresolved`, below). A raster file is still decoded by its content, so a PNG named `.jpg` loads. (The tool's
 own commands, which are given a file to read, still recognize its format from the content first and its name second.)
@@ -689,7 +746,8 @@ draws the model and the chart into their rectangles. The result lists each embed
   top-down for a flat 2D model, or the view of its own `$vpr`, `$vpt`, `$vpd`, and `$vpf` variables; `#view=front` in
   the link chooses a named view) and default
   settings: the options of the command (`--view`,
-  `-D`, `--page`, `--dpi`, ...) apply to the SVG file only.
+  `-D`, `--param`, `--page`, `--dpi`, ...) apply to the SVG file only; the link sets the variables of an embedded model
+  and the parameters of an embedded chart (see *Variables and parameters in the link*).
 - **Choosing a page.** A link to a document draws **page 1 unless its fragment says otherwise**:
   `<image href="report.pdf#page=3" .../>` draws page 3 of a PDF, `deck.pptx#slide=2` (or `#page=2`) slide 2 of a
   presentation, `drawing.vsdx#page=2` page 2 of a Visio drawing, and `part.scad#view=front` draws a model from a named
@@ -701,26 +759,51 @@ draws the model and the chart into their rectangles. The result lists each embed
   diagram that places pages side by side. **Behavior change:** a fragment on a file that takes no parameter
   (`logo.png#anything`, `other.svg#top`) used to be ignored and is now the warning `image-fragment-unknown-parameter`
   (the picture is still drawn); `part.scad#view` without a value is `image-fragment-invalid`.
+- **Variables and parameters in the link.** The variables of a model and the parameters of a chart are set from the
+  fragment of
+  the link, with a prefix so that they never collide with `view=` or `page=`: `def.<name>=<value>` sets the variable
+  `<name>` of a model exactly like `-D name=value` (the same value grammar, and the same precedence: the assignment in
+  the
+  file is replaced, and a name the model does not assign is created), and `param.<name>=<value>` sets the parameter
+  `<name>` of a chart exactly like `--param name=value` (a number, `true`, `false`, `null`, text, or JSON, so a
+  selection takes
+  its initial state). For example
+  `<image href="part.scad#view=front&amp;def.width=20&amp;def.label=%22A%22" .../>` and
+  `<image href="chart.vl.json#param.threshold=5&amp;param.brush={%22x%22:[2,6]}" .../>` (`%22` is a double quote; the
+  value is decoded after the fragment is split, so an encoded `%26` or `%3D` stays inside the value). The prefix is not
+  case
+  sensitive, the name after it is, and the last value of a name wins. A value that is not usable (a vector for `def.`, a
+  name
+  that is not an identifier, malformed JSON for `param.`) is `image-fragment-invalid` and the picture is not drawn; a
+  `param.` name that the chart does not declare is the warning **`vl-param-unknown`** (the chart is drawn without it;
+  `--strict` does not fail on it, unlike `--param`, which is a `vega-lite-error`); `def.` on anything but a model and
+  `param.`
+  on anything but a chart is `image-fragment-unknown-parameter`. An embedded file never takes `-D` or `--param` of the
+  command.
 - **A reference that is not drawn** (the file is missing, outside the folder, behind a link, of an unknown format, a
   network URL, or over a limit) is the warning **`svg-image-unresolved`** in `diagnostics` (and on standard error); the
-  rest of the diagram is drawn. With `--strict` it is an `unsupported-feature` failure instead. A picture that would take
-  more pixels than the render may use (**`svg-image-too-large`**: the pictures of one render may use 64 million pixels in
+  rest of the diagram is drawn. With `--strict` it is an `unsupported-feature` failure instead. A picture that would
+  take
+  more pixels than the render may use (**`svg-image-too-large`**: the pictures of one render may use 64 million pixels
+  in
   all, counted before anything is decoded, so a huge raster in a small rectangle is refused and not decoded) is a
   warning in the same way, and with `--strict` the same failure. The same holds for a link whose fragment has a value
   that is not allowed (**`image-fragment-invalid`**, for example `#page=0`, or a fragment over its limits) and for a
   page or slide that does not exist (**`image-page-out-of-range`**, `#page=9` of a 2-page PDF): a warning-level
   `unsupported` report and nothing drawn, and with `--strict` the failure. The warnings
   **`image-fragment-unknown-parameter`** and **`image-fragment-duplicate-parameter`** (the last value wins) do not fail
-  `--strict`, because the picture was drawn. The notes of an embedded
+  `--strict`, because the picture was drawn (and so does **`vl-param-unknown`**). The notes of an embedded
   model or chart, and the lines a model prints with `echo`, are reported too, with the file in front of each message.
 - **A file that is found but broken** (a corrupt picture, a model with a syntax error, a chart with an invalid
   specification) fails the render with its own error code (`corrupt-input`, `scad-error`, `vega-lite-error`, ...), and
-  the message names both the embedding file (the SVG file you named, or the embedded SVG file that contains the link) and
+  the message names both the embedding file (the SVG file you named, or the embedded SVG file that contains the link)
+  and
   the embedded file.
 - **Limits.** At most 64 files are embedded in one render, the pictures of one render may use at most 64 million
   pixels in all, SVG files nest at most 4 levels deep, and an SVG file that
   embeds itself (or two that embed each other) stops with a warning.
-- **`feImage` and `data:`.** A `data:` URI is drawn as always (an SVG given as a `data:` URI is not drawn). The `feImage`
+- **`feImage` and `data:`.** A `data:` URI is drawn as always (an SVG given as a `data:` URI is not drawn). The
+  `feImage`
   filter primitive still reads only a `data:` URI, never a file.
 
 An SVG file that has no such reference renders exactly as before.
@@ -729,10 +812,12 @@ An SVG file that has no such reference renders exactly as before.
 
 PPTX and VSDX documents, OpenSCAD models, Vega-Lite charts, and SVG files that embed other files report every picture,
 shape, or feature the library recognizes but cannot
-draw. By default the page is drawn without it and the report is returned in `diagnostics` in the JSON result and, without
+draw. By default the page is drawn without it and the report is returned in `diagnostics` in the JSON result and,
+without
 `--json`, written to standard error as `Unsupported: <code>: <message>` and `Warning: <code>: <message>` lines (see
 *Output, Errors, and Exit Codes*), so a feature that was left out is never silent.
-`--strict` turns the report into a failure (`unsupported-feature`) and writes no output. PDF and raster images have no such
+`--strict` turns the report into a failure (`unsupported-feature`) and writes no output. PDF and raster images have no
+such
 report: whatever the library cannot draw is simply not drawn, and `--strict` has no effect on them. An SVG file
 reports only
 its `image` references that were not drawn (`svg-image-unresolved`, `svg-image-too-large` for a picture over the pixel
@@ -801,7 +886,8 @@ canvasnet render sketch.png --grid 100 -o sketch-grid.png
 
 **Order.** Put `--fit` first: shrinking a 12-megapixel photo before the other steps makes every step faster and keeps a
 rotation within the 8192-pixel limit. Then adjust the tone (`--auto-levels`, `--levels`, `--contrast`), straighten
-(`--deskew`), crop (`--trim`), make it black and white (`--threshold`, `--invert`), and put `--grid` **last**, because the
+(`--deskew`), crop (`--trim`), make it black and white (`--threshold`, `--invert`), and put `--grid` **last**, because
+the
 grid labels are the coordinates of the picture at the point where the grid is drawn.
 
 **Tone: `--grayscale`, `--invert`, `--levels`, `--brightness`, `--contrast`.** These change the color channels and keep
@@ -811,14 +897,16 @@ the alpha channel.
   arithmetic).
 - `--invert` replaces each channel `c` by `255 - c`.
 - `--levels black,white[,gamma]` maps `black` (0 to 254) to 0 and `white` (1 to 255, above `black`) to 255, with levels
-  outside the range clamped. The result is `255 * t^(1/gamma)` where `t = (v - black) / (white - black)` clamped to 0..1;
+  outside the range clamped. The result is `255 * t^(1/gamma)` where `t = (v - black) / (white - black)` clamped to
+  0..1;
   a gamma above 1 brightens the midtones, and the default gamma is 1.
 - `--brightness n` adds `n` (an integer from -255 to 255) to every channel, clamped to 0..255.
 - `--contrast c` (-100 to 100) scales the distance from mid-gray: with `C = c * 255 / 100` the factor is
   `259 (C + 255) / (255 (259 - C))`, and a channel `v` becomes `factor * (v - 128) + 128`, clamped. 0 changes nothing.
 
 **`--threshold <0-255|auto>`.** Every pixel becomes opaque white when its luma is above the level and opaque black
-otherwise (transparent pixels count as their color over white). With `auto` the level is chosen by Otsu's method over the
+otherwise (transparent pixels count as their color over white). With `auto` the level is chosen by Otsu's method over
+the
 histogram of the whole image: the level that best separates dark ink from light paper. When several levels separate
 equally well, the one in the middle of the gap is used. The method is global: a photo with strongly uneven lighting may
 need `--auto-levels` or `--contrast` first, or a manual level taken from `inspect colors`. The JSON result reports
@@ -828,12 +916,14 @@ need `--auto-levels` or `--contrast` first, or a manual level taken from `inspec
 `--auto-levels-clip` percent of the pixels, 1 by default, lie) and the white point (the same from the top), then applies
 `--levels black,white` to the color channels. Because the points come from the luma, hue is kept; a color cast (a yellow
 cast from lamp light) is **not** removed. A flat image, one whose points are less than one level apart, is left
-unchanged. The JSON result reports `{"op":"auto-levels","clip":1,"black":42,"white":233,"applied":true,...}` (`black` and
+unchanged. The JSON result reports `{"op":"auto-levels","clip":1,"black":42,"white":233,"applied":true,...}` (`black`
+and
 `white` are omitted when `applied` is false). A sparse line drawing can have less ink than the clip (a thin pen on a big
 sheet is often under 1% of the pixels): then the black point is the paper level and the image is not stretched
 (`"applied":false`); lower the clip, for example `--auto-levels-clip 0.1`, or `0` to use the darkest pixel.
 
-**`--deskew`.** It estimates the tilt of the dominant near-horizontal structure (text lines, ruled lines, the baseline of
+**`--deskew`.** It estimates the tilt of the dominant near-horizontal structure (text lines, ruled lines, the baseline
+of
 a sketch, a table edge) and turns the image by the opposite angle, so that those lines become level.
 
 - The search covers -15 to +15 degrees. A positive tilt means the lines descend to the right; the image is rotated by
@@ -841,10 +931,12 @@ a sketch, a table edge) and turns the image by the opposite angle, so that those
 - It assumes **dark marks on a lighter ground**; use `--invert` before `--deskew` for light marks on a dark ground.
   Marks are the pixels that are clearly darker than their surroundings, so uneven lighting does not matter. An image
   larger than 1024 pixels is analyzed at reduced size.
-- It corrects the tilt only when the tilt is at least 0.05 degrees and the confidence is at least 0.4. When the image has
+- It corrects the tilt only when the tilt is at least 0.05 degrees and the confidence is at least 0.4. When the image
+  has
   no clear structure (a blank picture, noise, a photo of a landscape) the confidence is low and the image is **copied
   unchanged**: check `applied` in the JSON result instead of assuming the picture was straightened.
-- The corners that the rotation exposes are filled with the color described under *Rotation by any angle*, and the canvas
+- The corners that the rotation exposes are filled with the color described under *Rotation by any angle*, and the
+  canvas
   grows to hold the whole image. Tell the tool to use the paper color with `--rotate-fill` when the border should not
   show.
 - Deskew is best effort. If the automatic correction would make either side larger than 8192 pixels, the image is
@@ -906,7 +998,8 @@ pipeline: `inspect colors photo.jpg --crop 100,100,50,50` answers "what color is
 sorted into a color bucket of 16 levels per channel; buckets whose colors lie within about 32 levels of a more common
 one are merged, so the shades of a paper in uneven light are one color. For each reported color the tool gives the
 color, the number of pixels, and the fraction of the image, most common first. It also reports the luma statistics: the
-mean, the lowest and highest level, the 1st, 50th, and 99th percentile, the level `--threshold auto` would choose (`otsu`),
+mean, the lowest and highest level, the 1st, 50th, and 99th percentile, the level `--threshold auto` would choose
+(`otsu`),
 and a histogram of 16 counts (levels 0 to 15, 16 to 31, ...). Use them to choose `--levels` and `--threshold` values.
 
 ```text
@@ -930,7 +1023,8 @@ With `--json`, `inspect` writes one document (`command` is `inspect` and `subcom
 the envelope of `render` (`tool`, `input`, `operations`, `image`, `diagnostics`, `echo`) followed by, for `colors`,
 `background`, `colors` (a list of `{"hex","r","g","b","pixels","fraction"}`), and `luma`
 (`{"mean","min","max","p1","p50","p99","otsu","histogram"}`), and for `pixel`, `point` (`{"x","y"}`), `pixel`
-(`{"r","g","b","a","hex","luma"}`), and, only with `--radius` above 0, `neighborhood` (`{"x","y","width","height","mean",
+(`{"r","g","b","a","hex","luma"}`), and, only with `--radius` above 0, `neighborhood`
+(`{"x","y","width","height","mean",
 "pixels"}`, the pixels as rows of hex colors).
 
 ### compare
@@ -1629,7 +1723,8 @@ this reliable:
 ### Recipe: From a Napkin Sketch to an OpenSCAD Model
 
 A photograph of a hand-drawn sketch is tilted, dim, and surrounded by a table. These steps clean it up, measure it, and
-turn it into a model that can be checked against it. Every command accepts `--json`; the numbers it reports (the tilt that
+turn it into a model that can be checked against it. Every command accepts `--json`; the numbers it reports (the tilt
+that
 was found, the points of the auto-levels, the crop box) tell an agent what the tool did.
 
 1. Inspect the photo; a phone JPEG is turned upright automatically by its EXIF orientation:
@@ -1647,7 +1742,8 @@ was found, the points of the auto-levels, the crop box) tell an agent what the t
 
 3. Clean it up in one command (one decode, one encode). `--fit` goes first, so the following steps are fast and the
    rotation stays within the size limit; `--auto-levels` lifts the paper to white and the ink to black; `--deskew`
-   levels the lines (the JSON `deskew` operation reports `skewDegrees`, `confidence`, and `applied`: if `applied` is false
+   levels the lines (the JSON `deskew` operation reports `skewDegrees`, `confidence`, and `applied`: if `applied` is
+   false
    the picture had no clear lines, so level it by hand with `rotate <angle>`); `--trim` crops the picture to the drawing
    (the corners that the rotation exposed are white, like the paper):
 
@@ -1676,7 +1772,8 @@ was found, the points of the auto-levels, the crop box) tell an agent what the t
    canvasnet inspect pixel sketch.png 412,230 --radius 2 --json
    ```
 
-7. Write `bracket.scad`, with the dimensions read from the sketch as variables (`width = 40;`, ...). A length in the model
+7. Write `bracket.scad`, with the dimensions read from the sketch as variables (`width = 40;`, ...). A length in the
+   model
    is the length in pixels times the scale (a known real dimension divided by its length in pixels).
 8. Render named views of the model, and compare a view with the sketch (`--resize-to a` draws the model at the size of
    the sketch; the side-by-side picture shows both and where they differ):
@@ -1790,7 +1887,8 @@ pictures side by side.
 - **JPEG.** Only gray and YCbCr files can be decoded; CMYK and arithmetic-coded JPEGs are refused. Output JPEG has no
   alpha: transparency is flattened.
 - **Charts.** A static picture of one chart: no interaction (selections and bindings are reported as unsupported
-  features), no network (a remote `url` is never fetched), data only inline, generated, or in files in or below the folder
+  features), no network (a remote `url` is never fetched), data only inline, generated, or in files in or below the
+  folder
   of the specification (no option to name another data folder, to supply named datasets, or to change parameters or data
   from the command line),
   and only the part of the Vega-Lite language that the library implements, which grows over releases (what is missing is

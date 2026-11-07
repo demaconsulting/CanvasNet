@@ -739,17 +739,44 @@ like any other (its center is neither white nor the flat gray).
 
 #### CanvasNetScad-ScadDocument-ResolvedView: The View That A Render Reports
 
-**Tests**: `ScadDocumentViewportRenderTests.ScadDocumentViewport_DefaultThreeDimensionalView_IsUnchangedAndReportedOnce`,
+**Tests**:
+`ScadDocumentViewportRenderTests.ScadDocumentViewport_DefaultThreeDimensionalView_IsUnchangedAndReportedOnce`,
 `ScadDocumentViewportRenderTests.ScadDocumentViewport_ProjectionSheet_IsDrawnFlatFromTheTop`,
 `ScadDocumentViewportRenderTests.ScadDocumentViewport_FlatModel_ExplicitViewsOverrideTheFlatDefault`,
 `ScadDocumentViewportRenderTests.ScadDocumentViewport_ExplicitCamera_IsReportedAsTheSource`,
 `ScadDocumentViewportRenderTests.ScadDocumentViewport_BuildScene_DoesNotCallTheViewHandler`
 
-Asserts that `Render` calls the handler exactly once with the view it used: `(45, 35.26, perspective, not flat, Default)`
-for a cube drawn with the default options, the top view of the drawing sheet as `FlatDefault`, and, for a flat model, `Options`,
-`Camera`, and `Document` for the explicit angles, the camera, and the assigned `$vpr`; that a camera looking from `(0, -40,
+Asserts that `Render` calls the handler exactly once with the view it used: `(45, 35.26, perspective, not flat,
+Default)`
+for a cube drawn with the default options, the top view of the drawing sheet as `FlatDefault`, and, for a flat model,
+`Options`,
+`Camera`, and `Document` for the explicit angles, the camera, and the assigned `$vpr`; that a camera looking from `(0,
+-40,
 0)` at the origin is reported with azimuth 0, elevation 0, and the source `Camera`; and that `BuildScene` with a handler
 never calls it.
+
+#### CanvasNetScad-ScadDocument-ImageSourceDefines: Variables Set From The Link
+
+**Tests**: `ScadImageSource_FragmentParameterPrefixes_DeclaresDef`,
+`ScadImageSource_Render_DefineFragment_OverridesTheAssignment`,
+`ScadImageSource_Render_DefineFragment_LastWinsAndValuesAreTyped`,
+`ScadImageSource_Render_InvalidDefine_IsRefusedBeforeCharging`,
+`FolderImageResolver_Resolve_ScadDefineLink_IsUnderstoodAndOthersAreUnknown`
+
+`ScadImageSourceDefineTests.cs` calls `ScadImageSource.Render` with a fragment in the request. Asserts that the source
+declares the
+prefix `def.` and no name; that the model `width = 5; cube([width, 5, 5], center = true);` drawn with `def.width=20` has
+exactly the pixels of the
+model written with `width = 20` and differs from the model as it is; that `def.width=5&def.width=20` is the last value,
+that `%22A%22` and `A` are the
+text `A` (the picture of a cube against a sphere), that `def.show=true` is a boolean (the same cube) and that
+`def.WIDTH=20`, another variable, leaves the
+picture as it is; that `def.width=[1,2]`, `def.1x=3` and `def.a%20b=3` are `ImageSourceRefusedException` with
+`image-fragment-invalid` and a message
+without the `(Parameter ...)` suffix of the library, thrown before anything is charged (the budget is untouched); and,
+through a
+`FolderImageResolver`, that `def.width=20` gets no warning while `param.width=1` is the unknown-parameter warning and
+both are drawn.
 
 #### CanvasNetScad-ScadDocument-Anchors: Anchors Reported With Their Pixel Positions
 

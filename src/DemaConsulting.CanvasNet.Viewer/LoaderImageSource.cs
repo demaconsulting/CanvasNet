@@ -4,6 +4,8 @@ using System.Runtime.ExceptionServices;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.Codecs;
 using DemaConsulting.CanvasNet.ImageSources;
+using DemaConsulting.CanvasNet.Scad;
+using DemaConsulting.CanvasNet.VegaLite;
 using DemaConsulting.CanvasNet.Viewer.Imaging;
 
 namespace DemaConsulting.CanvasNet.Viewer;
@@ -42,6 +44,11 @@ internal sealed class DirectRenderOptions : IImageSourceOptions
     public ScadViewOptions? Scad { get; init; }
 
     /// <summary>
+    ///     Gets the values of the parameters of a chart, or <see langword="null"/> for the defaults of its specification.
+    /// </summary>
+    public ChartOptions? VegaLite { get; init; }
+
+    /// <summary>
     ///     Gets or sets the page that was drawn (set by the source).
     /// </summary>
     public int DrawnPage { get; set; } = 1;
@@ -74,7 +81,10 @@ internal sealed class DirectRenderOptions : IImageSourceOptions
 ///         own), a page fitted inside the placement and returned at the fitted size, a raster at its natural size and
 ///         upright, <see cref="ImageSourceRequest.ThrowOnUnsupportedFeature"/> as <see cref="SourceOptions.Strict"/>,
 ///         and the page, slide or view the fragment of the link names (<c>#page=2</c>, <c>#slide=2</c>,
-///         <c>#view=front</c>). It never inherits the options of its embedding file. <b>A direct render</b> gets its options
+///         <c>#view=front</c>), the variables it sets for a model (<c>#def.width=20</c>, like <c>-D width=20</c>) and the
+///         parameters it sets for a chart (<c>#param.threshold=5</c>, like <c>--param threshold=5</c>; a name the chart
+///         does not declare is the warning <c>vl-param-unknown</c>, not an error). It never inherits the options of its
+///         embedding file. <b>A direct render</b> gets its options
 ///         from <see cref="DirectRenderOptions"/>.
 ///     </para>
 ///     <para>
@@ -119,6 +129,12 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
     private readonly bool _acceptsView;
 
     /// <summary>
+    ///     The prefixes of the fragment parameters that are named by the author of the link: <c>def.</c> for a model,
+    ///     <c>param.</c> for a chart, none for every other source.
+    /// </summary>
+    private readonly string[] _prefixes;
+
+    /// <summary>
     ///     Initializes a new instance of the <see cref="LoaderImageSource"/> class.
     /// </summary>
     /// <param name="claims">The package source whose name, extensions and schemes this source claims.</param>
@@ -132,6 +148,15 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
         _pageParameters = pageParameters;
         _acceptsView = acceptsView;
         FragmentParameters = new ReadOnlyCollection<string>([.. pageParameters, .. acceptsView ? new[] { "view" } : []]);
+        if (kinds is [SourceKind.Scad])
+        {
+            _prefixes = [ScadImageSource.DefinePrefix];
+        }
+        else
+        {
+            _prefixes = kinds is [SourceKind.VegaLite] ? [VegaLiteImageSource.ParameterPrefix] : [];
+        }
+        FragmentParameterPrefixes = new ReadOnlyCollection<string>(_prefixes);
     }
 
     /// <inheritdoc />
@@ -145,6 +170,9 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
 
     /// <inheritdoc />
     public IReadOnlyList<string> FragmentParameters { get; }
+
+    /// <inheritdoc />
+    public IReadOnlyList<string> FragmentParameterPrefixes { get; }
 
     /// <summary>
     ///     Draws the page of the file of a request that the fragment (or the direct options) names.
@@ -268,7 +296,8 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
         // A vector source is drawn at the placement; a raster comes back at its own size, and the caller fits it
         var vector = kind.IsVector();
         var page = direct?.Page ?? request.Fragment.GetPositiveInt32(_pageParameters) ?? 1;
-        var scad = direct?.Scad ?? ReadView(request.Fragment);
+        var scad = direct?.Scad ?? ReadScad(request.Fragment);
+        var chart = direct?.VegaLite ?? ReadChart(request.Fragment);
         return new SourceOptions
         {
             Page = page,
@@ -277,7 +306,8 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
             Width = vector && request.PixelWidth is { } w ? Math.Clamp(w, 1, Surface.MaxDimension) : null,
             Height = vector && request.PixelHeight is { } h ? Math.Clamp(h, 1, Surface.MaxDimension) : null,
             Background = direct?.Background ?? DefaultBackground(kind),
-            Scad = scad
+            Scad = scad,
+            VegaLite = chart
         };
     }
 
@@ -289,6 +319,92 @@ internal sealed class LoaderImageSource : IImageSource, IFragmentImageSource
     private static Rgba32? DefaultBackground(SourceKind kind)
     {
         return kind.IsVector() && kind != SourceKind.VegaLite ? Transparent : null;
+    }
+
+    /// <summary>
+    ///     Reads how a model is viewed and evaluated from a fragment: the viewpoint of <c>view=</c> and the variables of
+    ///     every <c>def.&lt;name&gt;=&lt;value&gt;</c>.
+    /// </summary>
+    /// <param name="fragment">The fragment of the link.</param>
+    /// <returns>The options, or <see langword="null"/> when the source takes none or the fragment sets none.</returns>
+    /// <exception cref="ImageSourceRefusedException">Thrown with the invalid-fragment code when a value cannot be used.</exception>
+    private ScadViewOptions? ReadScad(ImageFragment fragment)
+    {
+        var view = ReadView(fragment);
+        if (!_prefixes.Contains(ScadImageSource.DefinePrefix))
+        {
+            return view;
+        }
+
+        var defines = ImageParameterValues.ReadVariables(fragment, ScadImageSource.DefinePrefix);
+        if (defines.Count == 0)
+        {
+            return view;
+        }
+
+        try
+        {
+            // The library says which variable names it accepts, so it is asked rather than guessed
+            _ = new ScadEvaluationOptions { Variables = defines };
+        }
+        catch (ArgumentException ex)
+        {
+            throw new ImageSourceRefusedException(
+                FolderImageResolver.FragmentInvalidCode,
+                $"a '{ScadImageSource.DefinePrefix}' fragment parameter is not valid: {Shorten(ex.Message)}");
+        }
+
+        return (view ?? new ScadViewOptions()) with { Defines = defines };
+    }
+
+    /// <summary>
+    ///     Reads the parameters of a chart from the <c>param.&lt;name&gt;=&lt;value&gt;</c> parameters of a fragment.
+    /// </summary>
+    /// <param name="fragment">The fragment of the link.</param>
+    /// <returns>The options, or <see langword="null"/> when the source is not a chart or the fragment sets none.</returns>
+    /// <exception cref="ImageSourceRefusedException">Thrown with the invalid-fragment code when a value cannot be used.</exception>
+    private ChartOptions? ReadChart(ImageFragment fragment)
+    {
+        if (!_prefixes.Contains(VegaLiteImageSource.ParameterPrefix))
+        {
+            return null;
+        }
+
+        var parameters = ImageParameterValues.ReadParameters(fragment, VegaLiteImageSource.ParameterPrefix);
+        if (parameters.Count == 0)
+        {
+            return null;
+        }
+
+        try
+        {
+            // The library says which values it accepts, so it is asked rather than guessed
+            _ = new VegaLiteRenderOptions { Parameters = parameters };
+        }
+        catch (ArgumentException ex)
+        {
+            throw new ImageSourceRefusedException(
+                FolderImageResolver.FragmentInvalidCode,
+                $"a '{VegaLiteImageSource.ParameterPrefix}' fragment parameter is not valid: {Shorten(ex.Message)}");
+        }
+
+        // A link is not a command line: a name the chart does not declare is a warning and the chart is drawn without it
+        return new ChartOptions { Parameters = parameters, WarnOnUnknownParameters = true };
+    }
+
+    /// <summary>
+    ///     Puts a message of a library on one line and cuts it at 160 characters.
+    /// </summary>
+    /// <param name="message">The message.</param>
+    /// <returns>The shortened message.</returns>
+    private static string Shorten(string message)
+    {
+        var line = string.Join(' ', message.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+
+        // The name of the argument that an ArgumentException appends means nothing to the author of a link
+        var argument = line.LastIndexOf(" (Parameter '", StringComparison.Ordinal);
+        line = argument > 0 ? line[..argument] : line;
+        return line.Length > 160 ? line[..160] + "..." : line;
     }
 
     /// <summary>

@@ -917,16 +917,21 @@ public sealed partial class FolderImageResolver : IImageResolver
         }
 
         var names = declared?.FragmentParameters ?? [];
-        foreach (var group in parameters.GroupBy(p => p.Name, StringComparer.OrdinalIgnoreCase))
+        var prefixes = (declared?.FragmentParameterPrefixes ?? []).Where(p => !string.IsNullOrEmpty(p)).ToArray();
+        foreach (var group in parameters.GroupBy(p => GroupKey(p.Name, prefixes), StringComparer.Ordinal))
         {
-            if (!names.Any(n => n is not null && string.Equals(n, group.Key, StringComparison.OrdinalIgnoreCase)))
+            // The name as first written; a prefixed name is understood whatever follows its prefix
+            var name = group.First().Name;
+            var understood = prefixes.Any(prefix => ImageFragment.HasPrefix(name, prefix))
+                             || names.Any(n => n is not null && string.Equals(n, name, StringComparison.OrdinalIgnoreCase));
+            if (!understood)
             {
                 _diagnostics.Add(
                     new ImageSourceDiagnostic(
                         "svg",
                         ImageDiagnosticSeverity.Warning,
                         FragmentUnknownParameterCode,
-                        $"image {ImageFragment.QuoteLink(request.Href)}: the fragment parameter {ImageFragment.Quote(group.Key)} is not used by the '{source.Name}' source and is ignored")
+                        $"image {ImageFragment.QuoteLink(request.Href)}: the fragment parameter {ImageFragment.Quote(name)} is not used by the '{source.Name}' source and is ignored")
                     {
                         Origin = scope.Origin
                     });
@@ -938,12 +943,27 @@ public sealed partial class FolderImageResolver : IImageResolver
                         "svg",
                         ImageDiagnosticSeverity.Warning,
                         FragmentDuplicateParameterCode,
-                        $"image {ImageFragment.QuoteLink(request.Href)}: the fragment parameter {ImageFragment.Quote(group.Key)} is given more than once with different values; the last one, {ImageFragment.Quote(group.Last().Value)}, is used")
+                        $"image {ImageFragment.QuoteLink(request.Href)}: the fragment parameter {ImageFragment.Quote(name)} is given more than once with different values; the last one, {ImageFragment.Quote(group.Last().Value)}, is used")
                     {
                         Origin = scope.Origin
                     });
             }
         }
+    }
+
+    /// <summary>
+    ///     Gets the key that makes two parameter names the same parameter: the whole name compared ASCII
+    ///     case-insensitively, except that what follows a declared prefix is compared as written.
+    /// </summary>
+    /// <param name="name">The decoded name of a parameter.</param>
+    /// <param name="prefixes">The prefixes the source declares.</param>
+    /// <returns>The key.</returns>
+    private static string GroupKey(string name, string[] prefixes)
+    {
+        var prefix = prefixes.FirstOrDefault(p => ImageFragment.HasPrefix(name, p));
+        return prefix is null
+            ? "n:" + name.ToUpperInvariant()
+            : "p:" + prefix.ToUpperInvariant() + name[prefix.Length..];
     }
 
     /// <summary>

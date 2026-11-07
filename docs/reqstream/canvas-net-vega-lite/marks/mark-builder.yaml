@@ -3,9 +3,10 @@
 #
 # These requirements describe the design-level behavior of the MarkBuilder unit of the Marks subsystem
 # (internal namespace DemaConsulting.CanvasNet.VegaLite.Marks): the per-mark geometry of bar, rect, point,
-# circle, square, rule, tick, line, area, trail, text, and arc (MarkBuilder.cs and its partial files
+# circle, square, rule, tick, line, area, trail, text, arc, and (Phase 13) image (MarkBuilder.cs and its partial files
 # MarkBuilder.Order.cs, MarkBuilder.Paths.cs, MarkBuilder.Overlays.cs, MarkBuilder.Text.cs,
-# MarkBuilder.Arcs.cs, and MarkBuilder.Offsets.cs for the xOffset and yOffset channels, and (Phase 12, milestone 2b)
+# MarkBuilder.Arcs.cs, MarkBuilder.Images.cs for the image mark, and MarkBuilder.Offsets.cs for the xOffset and
+# yOffset channels, and (Phase 12, milestone 2b)
 # MarkBuilder.Brush.cs for the brush of an interval selection), the stacked, binned, and
 # ranged geometry that the implicit encoding pipeline
 # and the secondary channels x2 and y2 produce, the grouping, sorting, and invalid-data rules of the paths, the
@@ -666,3 +667,39 @@ sections:
                   - MarkBuilder_Run_TimeUnitOffsetRangeFollowsBandSizeSizeBandPositionAndPadding
                   - MarkBuilder_Run_TimeUnitOffsetPointsAndTicks
                   - MarkBuilder_Run_TimeUnitYOffsetRunsUpward
+
+              - id: CanvasNetVegaLite-Marks-MarkBuilder-Images
+                title: >-
+                  The MarkBuilder unit shall draw the image mark as one picture item for each row that has a link,
+                  with the link of the url channel (a field, a datum, or a value) or the url property of the mark
+                  (a value as its JavaScript text, a null or empty link drawing nothing), the position of each
+                  axis by the rules of Vega-Lite's rectPosition for the image mark (a point anchored by the align
+                  and baseline of the mark, center and middle by default, when the axis has a position and no size,
+                  second end, or range; a span of the width or height of the mark aligned at the position; the
+                  band of a discrete scale or a centered size in it; the bin of a binned field; the range of a
+                  second end x2 or y2, or to the zero of the scale; and, for an absent channel, the whole data
+                  rectangle or, with a size, the right edge or the top), the aspect and smooth properties (true by
+                  default) and the opacity (1 by default), and shall charge every item to the scene budget and bound
+                  the length of a link by the string limit.
+                justification: |
+                  The image mark is Vega-Lite's way to put a picture at each point of a chart; the picture is
+                  only in the right place when the axes follow the same rules as Vega-Lite compiles, and a
+                  specification must not be able to make the renderer hold unbounded items or links.
+                tests:
+                  - MarkBuilder_Build_ImagePositionWithoutSize_IsAPointAnchoredCenterMiddle
+                  - MarkBuilder_Build_ImageAlignAndBaseline_AnchorThePoint
+                  - MarkBuilder_Build_ImageWidthAndHeight_AreSpansAlignedAtThePosition
+                  - MarkBuilder_Build_ImageWidthOnly_LeavesTheHeightNatural
+                  - MarkBuilder_Build_ImageWithoutPosition_SpansTheDataRectangleOrAnchorsAtItsCorner
+                  - MarkBuilder_Build_ImagePositionOfTheMark_ReplacesTheDefaultOfAnAbsentChannel
+                  - MarkBuilder_Build_ImageSecondEnd_IsARange
+                  - MarkBuilder_Build_ImageSizeChannelWithoutWidth_RangesToZero
+                  - MarkBuilder_Build_ImageOnBandScale_IsAPointOrSpansTheBand
+                  - MarkBuilder_Build_ImageOnBinnedField_SpansTheBin
+                  - MarkBuilder_Build_ImageLink_ComesFromTheChannelOrTheProperty
+                  - MarkBuilder_Build_ImageRowsWithoutLinkOrPosition_AreNotDrawn
+                  - MarkBuilder_Build_ImageAspectAndSmooth_AreCarried
+                  - MarkBuilder_Build_ImageOpacity_ComesFromTheMarkOrTheChannel
+                  - MarkBuilder_Build_ImageCarriesTheMarkLocation
+                  - MarkBuilder_Build_ImageLimits_FailAtTheMark
+                  - MarkBuilder_Build_ImageRows_KeepTheDrawingOrder

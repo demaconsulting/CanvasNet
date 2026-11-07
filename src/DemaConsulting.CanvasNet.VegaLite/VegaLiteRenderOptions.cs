@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Text.Json;
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.ImageSources;
 
 namespace DemaConsulting.CanvasNet.VegaLite;
 
@@ -221,6 +222,39 @@ public sealed class VegaLiteRenderOptions
     ///     (bundled fonts only).
     /// </summary>
     public VegaLiteFontOptions? Fonts { get; init; }
+
+    /// <summary>
+    ///     Gets the resolver that loads the pictures of the <c>image</c> mark, or <see langword="null"/> for none (the default).
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         <b>No implicit file access.</b> The library never opens a file or contacts a network for a picture on its own: the <c>url</c> of an <c>image</c> mark is handed to this resolver, as
+    ///         text, and to nothing else. Without a resolver no picture is drawn and the specification reports <c>vl-mark-image</c> (an unsupported feature: strict mode fails). The
+    ///         policy of what a link may refer to is the resolver's: <see cref="DemaConsulting.CanvasNet.ImageSources.FolderImageResolver"/> confines it to a folder and understands
+    ///         every format of the CanvasNet libraries (rasters, SVG, OpenSCAD models, PDF pages through <c>report.pdf#page=2</c>, other charts); a resolver of your own may serve pictures from memory.
+    ///         The text of the link is untrusted (it comes from a specification), so a resolver that touches the file system or the network must confine it.
+    ///     </para>
+    ///     <para>
+    ///         <b>When it is called.</b> <see cref="VegaLiteDocument.Render(VegaLiteRenderOptions?, CancellationToken)"/> asks the resolver while the chart is drawn, on the calling thread, with the link and the
+    ///         size in device pixels of the rectangle the picture is drawn in (<see cref="DemaConsulting.CanvasNet.ImageSources.IImageResolver.Resolve(string, int, int)"/>); <see cref="VegaLiteDocument.Measure"/> never
+    ///         does. Within one call the answer for a link at a size is kept and shared, so a mark that shows the same picture many times asks once (<see cref="VegaLiteLimits.MaxImages"/>
+    ///         bounds the number of questions). The caller owns what the resolver returns in the sense of the interface: the chart disposes every surface it was given when the call ends. A resolver that
+    ///         returns <see langword="null"/> is reported as the warning <c>vl-mark-image-unresolved</c>; an exception of the resolver propagates unchanged.
+    ///     </para>
+    ///     <para>
+    ///         A link that names a remote resource (<c>https://</c>) is passed to the resolver like any other; it is the resolver's decision to refuse it, as the folder resolver does.
+    ///     </para>
+    /// </remarks>
+    /// <example>
+    ///     A caller that lets a chart show the pictures that lie next to it (<c>"url": "icons/pencil.png"</c>), and nothing outside that folder (add the sources of the other formats, for
+    ///     example <c>ScadImageSource</c>, to the list to show them too):
+    ///     <code language="csharp">
+    ///     var folder = new FolderImageResolver(chartFolder, [new RasterImageSource()]);
+    ///     var options = new VegaLiteRenderOptions { ImageResolver = folder };
+    ///     using var surface = document.Render(options);
+    ///     </code>
+    /// </example>
+    public IImageResolver? ImageResolver { get; init; }
 
     /// <summary>
     ///     Gets the resource limits of the call; <see cref="VegaLiteLimits.Default"/> by default.

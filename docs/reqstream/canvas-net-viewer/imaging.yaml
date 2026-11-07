@@ -58,6 +58,7 @@ sections:
           - CanvasNetViewer-Imaging-SourceLoader-BoxFit
           - CanvasNetViewer-Imaging-SourceLoader-InMemoryInput
           - CanvasNetViewer-Imaging-SourceLoader-OptionValidation
+          - CanvasNetViewer-Imaging-SourceLoader-ChartParameters
         tests:
           - Imaging_Convert_InputKindToOutputFormat_WritesTheSourcePixels
           - Imaging_Convert_RequestedSize_WritesThatSize
@@ -296,3 +297,16 @@ sections:
           - CanvasNetViewer-Imaging-SourceLoader-DiagnosticDetail
         tests:
           - Imaging_Diagnostics_Origin_DefaultsToEmptyAndIsComparedByEntries
+
+      - id: CanvasNetViewer-Imaging-ChartImages
+        title: >-
+          The Imaging subsystem shall show the pictures that the image marks of a Vega-Lite chart name through the
+          same sandboxed resolver, notes, operations, and strict policy as the pictures of an SVG file.
+        justification: |
+          One rule for what a document may link keeps the tool from reading files that the user did not mean to
+          expose.
+        children:
+          - CanvasNetViewer-Imaging-SourceLoader-ChartImages
+        tests:
+          - SourceLoader_Load_VegaLiteImagePngAndScad_DrawsBothAndListsEmbedOperations
+          - SourceLoader_Load_VegaLiteImageStrict_UnresolvedLinkIsAnError

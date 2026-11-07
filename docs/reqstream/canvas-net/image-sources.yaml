@@ -150,9 +150,12 @@ sections:
               uniform diagnostics keep every source predictable and a hostile link cheap.
             children:
               - CanvasNet-ImageSources-ImageSourceContract-ImageFragment
+              - CanvasNet-ImageSources-ImageSourceContract-FragmentPrefix
+              - CanvasNet-ImageSources-ImageSourceContract-ParameterValues
               - CanvasNet-ImageSources-ImageSourceContract-Refusal
               - CanvasNet-ImageSources-FolderImageResolver-Fragment
               - CanvasNet-ImageSources-FolderImageResolver-FragmentDiagnostics
+              - CanvasNet-ImageSources-FolderImageResolver-FragmentPrefixes
               - CanvasNet-ImageSources-FolderImageResolver-PageRefusal
             tests:
               - ImageFragment_Parse_TwoParameters_KeepsOrderAndRaw

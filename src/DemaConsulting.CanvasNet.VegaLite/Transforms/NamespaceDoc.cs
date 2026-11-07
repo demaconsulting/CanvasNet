@@ -2,7 +2,8 @@ namespace DemaConsulting.CanvasNet.VegaLite.Transforms;
 
 /// <summary>
 ///     The <c>Transforms</c> namespace turns the rows a chart loads into the rows it draws: the row transforms of a
-///     specification (<c>RowTransforms</c>: calculate, filter, fold, flatten, sample, pivot and lookup) and the static
+///     specification (<c>RowTransforms</c>: calculate, filter, fold, flatten, sample, pivot and lookup), the statistical
+///     transforms (<c>StatTransforms</c>) and the static
 ///     parameter environment that its expressions read (<c>ParameterEnvironment</c>).
 /// </summary>
 /// <remarks>
@@ -17,8 +18,10 @@ namespace DemaConsulting.CanvasNet.VegaLite.Transforms;
 ///         transforms, and a failure that depends on the data is a located <c>VegaLiteRenderException</c>.
 ///     </para>
 ///     <para>
-///         Transforms of later phases (aggregate, window, bin, stack, time units and the statistical transforms) are not
-///         executed; the feature catalog reports them. The namespace is internal to the package, uses no clock or random
+///         Every transform of Vega-Lite is executed: the row transforms here, the aggregating transforms by
+///         <c>AggregateTransforms</c>, time units by <c>TimeUnitTransform</c> and the statistical transforms (regression, loess,
+///         density, quantile and extent) by <c>StatTransforms</c>; the feature catalog reports only the parts of them that are not
+///         supported. The namespace is internal to the package, uses no clock or random
 ///         source (<c>sample</c> is seeded from the position of the transform in the specification), and gives the same
 ///         result on every call, thread, culture and platform.
 ///     </para>

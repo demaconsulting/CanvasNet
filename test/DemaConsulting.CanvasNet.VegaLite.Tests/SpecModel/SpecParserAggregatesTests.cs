@@ -502,18 +502,18 @@ public class SpecParserAggregatesTests
     }
 
     /// <summary>
-    ///     Validates that every aggregating transform name (and the time unit transform) is one the renderer accepts, and that the plain-transform predicate still
-    ///     rejects the names of later phases.
+    ///     Validates that every transform name of Vega-Lite (the statistical transforms of Phase 13 included) is one the renderer accepts, and that the predicate still
+    ///     rejects a name that is not a transform (the match is case-sensitive).
     /// </summary>
     [Fact]
-    public void SpecParser_IsSupportedTransform_AcceptsTheAggregatingTransformsAndNotTheLaterPhases()
+    public void SpecParser_IsSupportedTransform_AcceptsEveryTransformOfVegaLite()
     {
         // Arrange / Act / Assert
         Assert.All(
-            new[] { "calculate", "filter", "fold", "flatten", "sample", "pivot", "lookup", "aggregate", "joinaggregate", "window", "bin", "stack", "impute", "timeUnit" },
+            new[] { "calculate", "filter", "fold", "flatten", "sample", "pivot", "lookup", "aggregate", "joinaggregate", "window", "bin", "stack", "impute", "timeUnit", "regression", "loess", "density", "quantile", "extent" },
             name => Assert.True(SpecParser.IsSupportedTransform(name)));
         Assert.All(
-            new[] { "regression", "loess", "density", "quantile", "extent", "timeunit", "" },
+            new[] { "timeunit", "Regression", "kde", "" },
             name => Assert.False(SpecParser.IsSupportedTransform(name)));
     }
 }

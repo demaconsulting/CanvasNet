@@ -173,7 +173,8 @@ public static class CanvasNetViewer
     ///     <see cref="ViewerRenderOptions.Page"/> is less than 1, when <see cref="ViewerRenderOptions.Dpi"/> is not a
     ///     finite number greater than 0 and at most <see cref="SourceLoader.MaxDpi"/>, or when
     ///     <see cref="ViewerRenderOptions.Scad"/> is not usable (an unknown view, an elevation outside -90 to 90, a time
-    ///     outside the limit, a triangle limit below 1, a definition the library rejects).
+    ///     outside the limit, a triangle limit below 1, a definition the library rejects), or when
+    ///     <see cref="ViewerRenderOptions.VegaLite"/> is not usable (a parameter value the library rejects).
     /// </exception>
     /// <exception cref="ArgumentException">Thrown when the file is not inside <see cref="ViewerRenderOptions.Folder"/>.</exception>
     /// <exception cref="FileNotFoundException">Thrown when the file does not exist.</exception>
@@ -270,7 +271,8 @@ public static class CanvasNetViewer
             Page = settings.Page,
             Dpi = settings.Dpi,
             Background = settings.Background,
-            Scad = settings.Scad
+            Scad = settings.Scad,
+            VegaLite = settings.VegaLite
         };
     }
 
@@ -462,7 +464,7 @@ public static class CanvasNetViewer
         }
 
         // The loader owns the ranges of the resolution and of the model options, so every route gives the same answer
-        if (SourceLoader.FindOptionProblem(new SourceOptions { Dpi = options.Dpi, Scad = options.Scad }) is { } problem)
+        if (SourceLoader.FindOptionProblem(new SourceOptions { Dpi = options.Dpi, Scad = options.Scad, VegaLite = options.VegaLite }) is { } problem)
         {
             throw new ArgumentOutOfRangeException(nameof(options), options, problem.Message);
         }

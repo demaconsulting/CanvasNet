@@ -3,10 +3,12 @@
 This document describes the unit-level verification strategy for the `MarkBuilder` unit in the
 `DemaConsulting.CanvasNet.VegaLite.Marks` namespace: the internal `MarkBuilder` class (`Build` and the static
 `IsSupported`), whose partial files `MarkBuilder.Order.cs`, `MarkBuilder.Paths.cs`, `MarkBuilder.Overlays.cs`,
-`MarkBuilder.Text.cs`, and `MarkBuilder.Arcs.cs` hold the draw order, the path marks, the overlays, the text mark, and the
+`MarkBuilder.Text.cs`, and `MarkBuilder.Arcs.cs` hold the draw order, the path marks, the overlays, the text mark, and
+the
 arc mark. The unit reads the rows of a `DataTable` and the resolved scales of a view and creates, in a `marks` group,
 the scene items of a `bar`, `rect`, `point`, `circle`, `square`, `rule`, `tick`, `line`, `area`, `trail`, `text`, or
-`arc` mark (roles `mark-<type>`) with the geometry and the paint that Vega-Lite assigns: positions from the scale models,
+`arc` mark (roles `mark-<type>`) with the geometry and the paint that Vega-Lite assigns: positions from the scale
+models,
 band sizes, default sizes, the filled or outlined appearance, the colors, the sizes, the opacities, the invalid-data
 rules, the grouping, sort, and curves of the paths (through the `CurveBuilder` unit, verified in the _CurveBuilder Unit
 Verification Design_), the overlays, the formatted labels, the polar angles and radii, and the scene item budget.
@@ -16,7 +18,8 @@ Verification Design_), the overlays, the formatted labels, the polar angles and 
 The unit is verified through the shared helper `ChartTestHelpers.Marks`, which runs the real `SpecParser`,
 `ConfigResolver`, `DataLoader`, and `ScaleResolver` for an original specification and calls the builder for a data
 rectangle of a chosen size. The assertions are on the scene items (positions, sizes, fills, strokes, stroke widths,
-opacities, shapes, angles, corner radii, the segments of paths, the runs of trails, the angles and radii of arcs, and the
+opacities, shapes, angles, corner radii, the segments of paths, the runs of trails, the angles and radii of arcs, and
+the
 text and lines of labels). No mocking or stubbing is used; the collaborators are real because the unit's
 contract is how the table, the scales, and the configuration combine into items. The expression-reference scenario
 builds the `RowExpressions` (the compiled expressions of the tree and a real `ExpressionEvaluator` with its own
@@ -116,7 +119,8 @@ with the arithmetic stated in the tests (positions are rounded to nine decimals 
   `M150,0 L300,100 L0,200 L0,200 L0,100 L0,0 Z`; a range area with `y2` = 1, 2, 3 for y = 4, 10, 6 (y(v) = 200 - 20 v)
   is the band `M0,120 L150,0 L300,80 L300,140 L150,160 L0,180 Z`, and an area without its measure channel draws nothing.
 - Stack and impute (a: y = 2 at x = 0, 1, 2 and b: y = 1 at x = 0 and 2, with x(v) = 150 v and the stack domain 0 to 3,
-  so y(v) = 200 - 200 v / 3): the layers are stacked in descending order of the color, so b is at the bottom and a on top
+  so y(v) = 200 - 200 v / 3): the layers are stacked in descending order of the color, so b is at the bottom and a on
+  top
   of it, and the missing key x = 1 of b is imputed with 0. The layer b has the top 133.333333, 200, 133.333333 and the
   baseline 200, `M0,133.333333 L150,200 L300,133.333333 L300,200 L150,200 L0,200 Z`; the layer a runs from the top of
   b to
@@ -124,12 +128,15 @@ with the arithmetic stated in the tests (positions are rounded to nine decimals 
   `M0,0 L150,66.666667 L300,0 L300,133.333333 L150,200 L0,133.333333 Z`, so both polygons have seven segments and the
   layers meet vertex for vertex. With `impute: null` b has the two vertices of its own rows,
   `M0,133.333333 L300,133.333333 L300,200 L0,200 Z`.
-- Invalid rows (x = 0 to 4, so x(v) = 75 v, y = 1, 2, null, 3, 4 on the domain 0 to 4, so y(v) = 200 - 50 v): the default
+- Invalid rows (x = 0 to 4, so x(v) = 75 v, y = 1, 2, null, 3, 4 on the domain 0 to 4, so y(v) = 200 - 50 v): the
+  default
   mode breaks the line, `M0,150 L75,100 M225,50 L300,0`, as do the three other modes that start with `break-paths` and
-  a text that is not a number (`"n/a"`); the filter mode connects the neighbors, `M0,150 L75,100 L225,50 L300,0`, from the
+  a text that is not a number (`"n/a"`); the filter mode connects the neighbors, `M0,150 L75,100 L225,50 L300,0`, from
+  the
   mark, or from `config.line` when the mark says nothing (the mark wins over the configuration); an unstacked area
   gives the two polygons `M0,150 L75,100 L75,200 L0,200 Z M225,50 L300,0 L300,200 L225,200 Z` or, in the filter mode,
-  `M0,150 L75,100 L225,50 L300,0 L300,200 L225,200 L75,200 L0,200 Z`; the `show` mode and null behave as the default mode
+  `M0,150 L75,100 L225,50 L300,0 L300,200 L225,200 L75,200 L0,200 Z`; the `show` mode and null behave as the default
+  mode
   and the catalog reports them at `/mark/invalid`; a mode that is not known in the configuration is ignored.
 - Trail (the same view): the points are the pixels (0, 200), (150, 0), and (300, 100) with the sizes 4, 8, and 12 of the
   identity size scale (domain 4 to 12, range 4 to 12), in one run, filled with `#4c78a8` and not stroked; without a size
@@ -140,11 +147,14 @@ with the arithmetic stated in the tests (positions are rounded to nine decimals 
 - Curves chosen by the mark (the 100 by 100 view with the identity scales, so the rows y = 100, 50, 75 at x = 0, 50,
   100 are
   the pixels (0, 0), (50, 50), (100, 25)): linear `M0,0 L50,50 L100,25`; step (the change at the middle between two
-  points, with the final line) `M0,0 L25,0 L25,50 L75,50 L75,25 L100,25`; step-after `M0,0 L50,0 L50,50 L100,50 L100,25`;
-  step-before `M0,0 L0,50 L50,50 L50,25 L100,25`; cardinal with the tension 1 (k = 0) `M0,0 C0,0 50,50 50,50 C50,50 100,25
+  points, with the final line) `M0,0 L25,0 L25,50 L75,50 L75,25 L100,25`; step-after `M0,0 L50,0 L50,50 L100,50
+  L100,25`;
+  step-before `M0,0 L0,50 L50,50 L50,25 L100,25`; cardinal with the tension 1 (k = 0) `M0,0 C0,0 50,50 50,50 C50,50
+  100,25
   100,25`; the cardinal curve of the default tension 0 differs from it, starts with `M0,0 C`, and ends at `100,25`; the
   monotone curve equals the monotone-x path that `CurveBuilder` writes for the same points; a trail ignores the
-  interpolation. An area with the bundle interpolation is drawn with the linear polygon of the line chart, while the bundle
+  interpolation. An area with the bundle interpolation is drawn with the linear polygon of the line chart, while the
+  bundle
   line has cubic segments.
 - Overlays (the line chart): a line with `point: true` and the color green is the stroked path (green) followed by three
   filled `#4c78a8` circles of the size 30 and the opacity 1 at (0, 200), (150, 0), and (300, 100), because the color
@@ -158,7 +168,8 @@ with the arithmetic stated in the tests (positions are rounded to nine decimals 
   (100, 100), (200, 100), and (300, 100), and a trail has its points after it. An area with `line: true` is the polygon
   with the opacity 0.7 followed by the line `M0,200 L150,0 L300,100` (blue, width 2, opacity 1); the line takes the
   interpolation of the area (the step line `M0,200 L75,200 L75,0 L225,0 L225,100 L300,100`); an opacity of 0.5 gives the
-  area 0.5, a fill opacity of 0.4 leaves its opacity 1 and gives the fill opacity 0.4, a point overlay also gives 0.7, and
+  area 0.5, a fill opacity of 0.4 leaves its opacity 1 and gives the fill opacity 0.4, a point overlay also gives 0.7,
+  and
   neither overlay gives 1;
   a clip of the mark clips the group. For two stacked areas of one at x = 0, 1 (the stack domain 0 to 2, y(v) = 200 -
   100 v) the lines are at the stack end of their layer, a at y(2) = 0 and b at y(1) = 100, `M0,0 L300,0` and
@@ -169,18 +180,22 @@ with the arithmetic stated in the tests (positions are rounded to nine decimals 
   x = 150, 300,
   0 ascending and 0, 300, 150 descending (the data order without the channel); with equal first values the second
   field breaks the ties (x = 150, 0, 300). Three bars of a nominal x (step 100, band 90, first band at 5) with the order
-  values 2, 3, 1 and `stack: null` are drawn at x = 205, 5, 105; with the default stack they keep the data order, and the
+  values 2, 3, 1 and `stack: null` are drawn at x = 205, 5, 105; with the default stack they keep the data order, and
+  the
   order channel of a stack orders its layers and not the drawing. With `order: null` (or `false`, as a channel value
   or a
   mark property) the symbols keep the data order x = 300, 0, 150 for the rows x = 2, 0, 1; the line keeps it too,
   `M300,100 L0,200 L150,0` (it is sorted by x otherwise), and the area runs through the points in the data order,
   `M300,100 L0,200 L150,0 L150,200 L0,200 L300,200 Z`.
 - Charging of paths: a line of three points in one run has the bound 3 + 6 = 9 segments, charged with its item before
-  the segments exist, so the marks group (1), the path (1), and the 9 segments make a budget of 11 that passes exactly and
+  the segments exist, so the marks group (1), the path (1), and the 9 segments make a budget of 11 that passes exactly
+  and
   a budget of 10 that fails at `/mark` naming `MaxSceneItems` (the count 11 is reached before the failure); an area has
   the bound 2 x 3 + 6 = 12, so 1 + 1 + 12 = 14; a trail costs the group, the item, and its three points, 5; a group
-  without two defined points (the series b of one row and c of two rows without y) draws nothing and costs nothing, so the
-  line chart of three series costs 1 + 1 + 3 + 6 = 11. A line of 2,000 points fails a limit of 500 items. Reading 640 rows
+  without two defined points (the series b of one row and c of two rows without y) draws nothing and costs nothing, so
+  the
+  line chart of three series costs 1 + 1 + 3 + 6 = 11. A line of 2,000 points fails a limit of 500 items. Reading 640
+  rows
   costs 10 evaluation steps (one for 64 elements) and the grouping and the sort add more, so a limit of 5 steps fails
   at `/mark` naming `MaxEvaluationSteps`.
 - Text (the 300 by 200 view, x = 0, 2 over 0 to 2 and y = 0, 10): the labels sit at x(v) = 150 v and y(v) = 200 - 20 v,
@@ -202,22 +217,26 @@ with the arithmetic stated in the tests (positions are rounded to nine decimals 
   array value is one line per element (`a`, `b`, text `a\nb`, the line height left unset), a null element is an empty
   line, the `lineBreak` `|` splits `a|b|c` into three lines and `|a` into an empty line and `a`, and an array is never
   split; an empty label draws nothing.
-- Text limits: with `MaxStringLength` 16 the number format `0>16d` makes every label exactly 16 characters, so 16 rows fit
+- Text limits: with `MaxStringLength` 16 the number format `0>16d` makes every label exactly 16 characters, so 16 rows
+  fit
   the total of 16 x 16 = 256 characters and a 17th row fails at `/mark` (the message says `together`), a label of 17
   characters fails on its own, and a time label of 22 characters fails a limit of 10; a label of 6,400 characters costs
   6,400 / 64 = 100 evaluation steps and fails a limit of 50 (and is drawn by default). Two labels of the three lines
   a, b, c cost the marks group and 2 x (1 + 2) items, 1 + 6 = 7, so a budget of 7 passes and a budget of 6 fails on the
   second label (the count 7), and a budget of 3 fails on the first (the count 4).
 - Pie (the 200 by 200 view, the values 1, 1, 2 stacked on theta with the color k = a, b, c): the theta domain is 0 to 4
-  on the range 0 to 2 PI, so the slices span 0 to PI / 2, PI / 2 to PI, and PI to 2 PI (the stack [0, 1], [1, 2], [2, 4]),
+  on the range 0 to 2 PI, so the slices span 0 to PI / 2, PI / 2 to PI, and PI to 2 PI (the stack [0, 1], [1, 2], [2,
+  4]),
   with the outer radius 100 (half of the smaller side) and the inner radius 0 around the middle (100, 100), filled with
   the three tableau10 colors, not stroked, with no pad angle and no corner radius; on a 300 by 120 view the center is
   (150, 60) and the outer radius 60; one value without a color is the whole circle, an unstacked value 1 or 2 on the
   domain 0 to 2 is half and the whole circle, and an arc without a channel is a disc. A donut (`innerRadius` 50) has the
   inner radius 50; `outerRadius` 80 and `innerRadius` 30 are aliases of `radius` and `radius2`, which win when both are
-  given (90 and 10), and the larger radius is the outer one. A radial chart on the 300 by 200 view (the outer radius 100)
+  given (90 and 10), and the larger radius is the outer one. A radial chart on the 300 by 200 view (the outer radius
+  100)
   with the values 1, 4, 9 on a square root radius scale with zero and `rangeMin` 20 has the domain 0 to 9, so the outer
-  radii are 20 + 80 sqrt(v / 9) = 20 + 80 / 3, 20 + 160 / 3, and 100 and the inner radius is the scaled zero, 20, and theta
+  radii are 20 + 80 sqrt(v / 9) = 20 + 80 / 3, 20 + 160 / 3, and 100 and the inner radius is the scaled zero, 20, and
+  theta
   stacks the values over 0 to 14, so the slices are [0, 1], [1, 5], [5, 14] of 2 PI. A radius stacked by the color
   makes rings on the domain 0 to 4 over 0 to 100: [0, 25], [25, 50], [50, 100] with the full circle; a band scale of
   three categories on theta gives each a third of the circle (2 PI / 3 each); a ranged arc theta 1 to 3 on 0 to 3 and
@@ -225,26 +244,33 @@ with the arithmetic stated in the tests (positions are rounded to nine decimals 
   properties give the angles (0.5 to 2) and the radii (10 to 70). The pad angle 0.05, the corner radius 4, the stroke
   `white` with the width 2, the opacities 0.8, 0.5, and 0.25 and the dash 4, 2 reach every slice (and the color channel
   wins over the mark color for the fill), the configuration gives the pad angle and the corner radius (the mark wins),
-  and a fill channel and a stroke value drive the paint. The center is the pixel pair of the `x` and `y` values (60, 80),
+  and a fill channel and a stroke value drive the paint. The center is the pixel pair of the `x` and `y` values (60,
+  80),
   the far edges for the keywords `width` and `height` (300, 200), the points of two categories (a point scale of 300
   pixels has the step 150 and the first point at 75, so the centers 75 and 225, y = 100), or the scaled quantitative
   values ((0, 200) and (300, 0)); the radius still follows the smaller side. A pie of three slices costs the marks
   group and three items (4), a budget of 3 fails on the third slice (the count 4), a row without a number costs nothing,
   and 200 rows cost 200 elements = 3 whole evaluation steps (200 / 64), which a limit of 2 refuses.
-- Pie labels and polar offsets (the 200 by 200 view, the center (100, 100), the radius 60, the stack as for the pie): the
-  anchor is `x = cx + r sin(theta)` and `y = cy - r cos(theta)`, and the label sits at the middle of its slice, the angles
+- Pie labels and polar offsets (the 200 by 200 view, the center (100, 100), the radius 60, the stack as for the pie):
+  the
+  anchor is `x = cx + r sin(theta)` and `y = cy - r cos(theta)`, and the label sits at the middle of its slice, the
+  angles
   PI / 4, 3 PI / 4, and 3 PI / 2: label a at (100 + 60 sin(PI / 4), 100 - 60 cos(PI / 4)) = (142.4264, 57.5736),
   label b at
   (100 + 60 sin(3 PI / 4), 100 - 60 cos(3 PI / 4)) = (142.4264, 142.4264) (the diagonal 60 sqrt(0.5) = 42.4264 right and
-  down), and label c at (100 + 60 x -1, 100 - 60 x 0) = (40, 100). A `bandPosition` of 0 puts the labels at the starts of
+  down), and label c at (100 + 60 x -1, 100 - 60 x 0) = (40, 100). A `bandPosition` of 0 puts the labels at the starts
+  of
   the slices (0, PI / 2, PI), (100, 40), (160, 100), (100, 160), and a `bandPosition` of 1 at their ends
   (PI / 2, PI, 2 PI),
   (160, 100), (100, 160), (100, 40); a `bandPosition` of 0.25 is a quarter of the way through each slice in the data
   (0.25 of [0, 1], 1.25 of [1, 2], 2.5 of [2, 4]), the angles PI / 8, 5 PI / 8, and 5 PI / 4; `dx` and `dy` stay on the
   item and are not added to the anchor. An unstacked theta on the domain 0 to 4 with a radius value 50 puts the value 1
-  (PI / 2) at (150, 100) and the value 4 (a full turn) at (100, 50); a stacked radius is the middle of its ring (the domain
-  0 to 4 over 0 to 100: 0.5, 1.5, 3 give 12.5, 37.5, 75) with theta PI / 2, so the labels are at (112.5, 100), (137.5, 100),
-  and (175, 100); the mark properties theta PI and radius 30 give (100, 130), a radius 0 leaves the anchor at the center,
+  (PI / 2) at (150, 100) and the value 4 (a full turn) at (100, 50); a stacked radius is the middle of its ring (the
+  domain
+  0 to 4 over 0 to 100: 0.5, 1.5, 3 give 12.5, 37.5, 75) with theta PI / 2, so the labels are at (112.5, 100), (137.5,
+  100),
+  and (175, 100); the mark properties theta PI and radius 30 give (100, 130), a radius 0 leaves the anchor at the
+  center,
   and a row without a number is not drawn. On the 300 by 200 text view a quarter turn with the radius 50 from the center
   (150, 100) is (200, 100), a half turn is (150, 150), no turn is (150, 50), a theta without a radius moves nothing, a
   theta field on 0 to 4 with the radius value 40 puts a = 1 at (190, 100) and a = 4 at (150, 60), and a radius field on
@@ -263,7 +289,8 @@ trigonometric positions use a tolerance of 1e-9).
 
 The marks over time units (`MarkBuilderTimeTests`) are derived by hand from the days of the first quarter of 2024: three
 bars over January, February, and March (the unit `yearmonth`, one row each) have the domain January 1 to April 1, which
-is 31 + 29 + 31 = 91 days over 300 pixels, so a day is 300 / 91 = 3.2967 pixels and the scale maps January 1, February 1,
+is 31 + 29 + 31 = 91 days over 300 pixels, so a day is 300 / 91 = 3.2967 pixels and the scale maps January 1, February
+1,
 March 1, and April 1 (days 0, 31, 60, and 91) to 0, 102.198, 197.802, and 300. A bar spans its unit with Vega-Lite's
 `rectBinPosition` rules: the bin spacing of 1 pixel takes half a pixel off each edge, and the half pixel of the axis
 translate shifts the whole bar, so the left edge is the start plus 0.5 plus 0.5 and the width is the days x 300 / 91
@@ -311,7 +338,8 @@ Asserts the derived vertical, horizontal, negative, and non-zero-domain bars (st
 clipped for an explicit domain, and running to the first domain value for `stack: null`), the continuous
 bars, the absent channels, the explicit size and corner radius (`size: 20`, `cornerRadius: 3`), the `rect` cells, and
 the clip rule (only `clip: true` clips a mark whose scales have no parameter domain; the clipping of the marks of a
-chart whose x or y domain is a parameter is the system scenario `CanvasNetVegaLite_SystemIntegration_Params_DomainOfAParameterIsRawAndClipsTheMarks`).
+chart whose x or y domain is a parameter is the system scenario
+`CanvasNetVegaLite_SystemIntegration_Params_DomainOfAParameterIsRawAndClipsTheMarks`).
 
 ##### Point, Circle, Square, Rule, And Tick Geometry
 
@@ -384,8 +412,10 @@ categories; and that building the same chart twice with every new channel at onc
 `MarkBuilderChannelTests.MarkBuilder_Build_NewChannelsHonorCancellationAndTheSceneBudget`
 
 Asserts that more items than a `MaxSceneItems` of 3 throw `VegaLiteRenderException` at `/mark` naming the limit; that a
-canceled token throws `OperationCanceledException`; that a `geoshape` mark (the sentinel of a mark that the renderer does
-not draw) gives an empty group and `IsSupported` is true for `tick`, `line`, `area`, and `trail` and false for `geoshape`
+canceled token throws `OperationCanceledException`; that a `geoshape` mark (the sentinel of a mark that the renderer
+does
+not draw) gives an empty group and `IsSupported` is true for `tick`, `line`, `area`, and `trail` and false for
+`geoshape`
 and null; that a rule without x and y draws nothing; and that null arguments are
 rejected; that a dash pattern of 64 entries is drawn while one of 65 entries, given by the mark, by a channel value, or
 by a scale range, throws a `VegaLiteRenderException` at `/mark` that names "the limit of 64"; and that a point mark with
@@ -471,8 +501,10 @@ not stacked, reach
 and the
 other four stay where they were; that the fixture of four daily counts (12, 95, 1200, and 8000) on a 300 pixel log
 axis rounded out
-to 10 to 10000 has its bars at `300 - 100 * (log10(v) - 1)` ending at the bottom, ten labels (`10`, `20`, `30`, `100`, `200`,
-`300`, `1,000`, `2,000`, `3,000`, `10,000`) of the 28 ticks, 28 grid rules, the bar color at the bar centers, and the background
+to 10 to 10000 has its bars at `300 - 100 * (log10(v) - 1)` ending at the bottom, ten labels (`10`, `20`, `30`, `100`,
+`200`,
+`300`, `1,000`, `2,000`, `3,000`, `10,000`) of the 28 ticks, 28 grid rules, the bar color at the bar centers, and the
+background
 between the grid lines above the bars; and that points on a square root x scale (0 to 100 over 200 pixels) and a
 symlog y scale
 (nice domain -10 to 10 over 100 pixels) sit at the positions the d3 formulas give.
@@ -521,8 +553,10 @@ elsewhere; that the opacity (0.7 by default, then 0.2 or 1), the size (30 by def
 width, the angle, the fill and stroke opacity, the shape, and the dash pattern take the value of the condition where
 it holds and the base value or the default elsewhere; that each of the thirteen predicate forms (comparisons, a range
 given in either order, a set, validity of a field that exists and one that does not, a negation, and the compositions)
-holds for the rows that a hand evaluation says; that a test reads a variable parameter and a missing field does not hold;
-that a condition on an empty interval selection holds for every row (`empty` true, the default), so the three circles are
+holds for the rows that a hand evaluation says; that a test reads a variable parameter and a missing field does not
+hold;
+that a condition on an empty interval selection holds for every row (`empty` true, the default), so the three circles
+are
 `red`, and for none with `empty: false`, so they are `gray`; that the color and opacity conditions apply to bars, ticks,
 and rules and
 the size condition gives the thickness of a bar (4 or 9 pixels); that a limit of 4 steps fails naming
@@ -574,7 +608,8 @@ so the bars are centered at 5, 150, and 295.
 **Tests**: `MarkBuilderTimeTests.MarkBuilder_Time_OrdinalTimeUnit_BandsOfABandScale`,
 `MarkBuilderTimeTests.MarkBuilder_Time_Zone_BarsSpanLocalMonths`
 
-Assert that an ordinal field with a month unit has the bands of a band scale (step 300 / (3 - 0.1 + 0.1) = 100, bandwidth
+Assert that an ordinal field with a month unit has the bands of a band scale (step 300 / (3 - 0.1 + 0.1) = 100,
+bandwidth
 90, first band at (300 - 100 x 2.9) / 2 = 5, so 5, 105, and 205 with the width 90); and that in a +05:30 zone the
 instants 2024-02-29T20:00Z and 2024-03-31T20:00Z (01:30 on March 1 and April 1 locally) are in March and April, which
 span the 31 + 30 = 61 days of the domain (the widths 31 x 300 / 61 - 1 and 30 x 300 / 61 - 1), while in UTC they are
@@ -589,7 +624,8 @@ February and March, 29 + 31 = 60 days (the widths 29 x 300 / 60 - 1 and 31 x 300
 
 Assert the derived line chart above: the path `M0,200 L150,0 L300,100` with the stroke `#4c78a8`, the width 2, no fill,
 no dash, opacities 1, no overlay points, and no clip; one path per color group (blue then orange) and per detail group
-(one color), and one path without a grouping field; the sort by the pixel x (also for shuffled rows), by an ascending and
+(one color), and one path without a grouping field; the sort by the pixel x (also for shuffled rows), by an ascending
+and
 a descending `order` field, and by the pixel y of a horizontal line; and the stroke widths 4 and 8 of a size field (two
 paths), 5, 3, 7, and 6 of the `size` property, the `strokeWidth` property, a size value, and a size expression.
 
@@ -599,7 +635,8 @@ paths), 5, 3, 7, and 6 of the `size` property, the `strokeWidth` property, a siz
 `MarkBuilderPathTests.MarkBuilder_Build_StackedAreaLayersMeetAndImputeMissingKeys`,
 `MarkBuilderPathTests.MarkBuilder_Build_HorizontalAreaAndRangeAreaFollowOrient`
 
-Assert the polygon of the line chart with the baseline y(0) = 200 and the fill `#4c78a8`, the baseline at the first value
+Assert the polygon of the line chart with the baseline y(0) = 200 and the fill `#4c78a8`, the baseline at the first
+value
 of a domain that does not hold zero for an unstacked area (y(4) = 200), the vertices at the centers of a discrete
 dimension (50, 150, 250); the two stacked layers with the imputed key (b on the bottom with its vertex at 200 in the
 middle, a on top, both of seven segments, and the five-segment b without the impute); and the horizontal area sorted by
@@ -613,7 +650,8 @@ the pixel y, the range band between `y` and `y2`, and the empty group of an area
 Assert the one run of the points (0, 200, 4), (150, 0, 8), (300, 100, 12) with the fill `#4c78a8` and no stroke, the
 default point size 2 and the sizes 9 and 5 of the `size` property and its expression, the two runs of two points
 around an
-invalid row, the single run of two points that remains when a run of one point is dropped, and the empty group of a trail
+invalid row, the single run of two points that remains when a run of one point is dropped, and the empty group of a
+trail
 of single points.
 
 ##### Interpolations Select The Curve
@@ -621,8 +659,10 @@ of single points.
 **Tests**: `MarkBuilderPathTests.MarkBuilder_Build_InterpolateAndTensionSelectTheCurve`,
 `MarkBuilderPathTests.MarkBuilder_Build_AreaBundleFallsBackToLinear`
 
-Assert, for the pixels (0, 0), (50, 50), (100, 25), the linear, step, step-after, step-before, and tension 1 cardinal paths
-derived above, that the default tension gives another cardinal path with the same ends, that the monotone line equals the
+Assert, for the pixels (0, 0), (50, 50), (100, 25), the linear, step, step-after, step-before, and tension 1 cardinal
+paths
+derived above, that the default tension gives another cardinal path with the same ends, that the monotone line equals
+the
 `CurveBuilder` path of the monotone-x curve, that a trail ignores the interpolation, that the bundle area is the linear
 polygon of the line chart (the bundle line having a cubic segment).
 
@@ -666,7 +706,8 @@ feature, and an unknown mode of the configuration is ignored.
 **Tests**: `MarkBuilderPathTests.MarkBuilder_Build_StrokeDashCapJoinMiterAndOffsetReachEveryItemType`
 
 Asserts, for each of the ten mark types `line`, `area`, `trail`, `bar`, `rect`, `point`, `circle`, `square`, `rule`, and
-`tick`, that the first item has the dash 4, 2, the offset 3, the cap `round`, the join `bevel`, and the miter limit 2, and
+`tick`, that the first item has the dash 4, 2, the offset 3, the cap `round`, the join `bevel`, and the miter limit 2,
+and
 that a line without the properties has the offset 0 and no cap, join, or miter limit.
 
 ##### Overlays Draw Points And Lines After The Base Items
@@ -682,22 +723,28 @@ that a line without the properties has the offset 0 and no cap, join, or miter l
 `MarkBuilderOverlayTests.MarkBuilder_Build_PointOverlayOfALineTakesTheSizeFromTheStrokeWidthRange`,
 `MarkBuilderOverlayTests.MarkBuilder_Build_TransparentPointOfTheConfigurationEnablesTheDefaultOverlay`
 
-Assert the overlays derived above: the roles `mark-line`, `mark-point` x 3 with the budget 14, the filled blue circles of
+Assert the overlays derived above: the roles `mark-line`, `mark-point` x 3 with the budget 14, the filled blue circles
+of
 the size 30 at the three pixels (the green line not inherited), the replaced properties, no overlay for `false` or null,
 two points for a row gap, the rule and trail overlays; the area with the opacity 0.7 followed by the line along its top
 edge (width 2, opacity 1), the replaced line properties, the step line, the opacities 0.5, 1 (with a fill opacity of
 0.4), 0.7 (with a point overlay), and 1 (with both switched off), the clip of the group, and the lines at the stack end
-of two stacked layers; and the configured overlays, their switch-off by the mark, the transparent points (opacity 0), and
-the colors of the overlay points of a color field. The shape tests assert that a line with `"point": true` (or an overlay
+of two stacked layers; and the configured overlays, their switch-off by the mark, the transparent points (opacity 0),
+and
+the colors of the overlay points of a color field. The shape tests assert that a line with `"point": true` (or an
+overlay
 object) and a `shape` and a `color` of the same field has one path for each group (the shape does not split them) and
 overlay points that are circles for the first group and squares for the second, in the colors of the groups, and a
-constant shape value for every point; that a line, a trail, and an area with a `shape` and no `point` get the overlay while
+constant shape value for every point; that a line, a trail, and an area with a `shape` and no `point` get the overlay
+while
 `point: false` and `point: null` leave no symbol, and a `point` mark keeps its own shapes; that an area gets the shaped
 points with `point: true`, with only `line: true`, and from `config.area.point`, with the opacity 0.7, and is opaque and
-alone with `point: false`; and that the size of an area (from 4 for the smallest value, with the range of a point) and the
+alone with `point: false`; and that the size of an area (from 4 for the smallest value, with the range of a point) and
+the
 angle of a line reach the overlay points; and that the line overlay of an area draws the dash of the groups on its lines
 (the areas have none) and the width of its lines from the size (inside the range of the stroke widths, 1 to 4, growing
-with the size), and that without the line overlay only the areas are drawn. Last, it asserts that a `"transparent"` in `config.line.point`
+with the size), and that without the line overlay only the areas are drawn. Last, it asserts that a `"transparent"` in
+`config.line.point`
 or `config.area.point` enables the default overlay with opaque points (as Vega-Lite's `getPointOverlay` reads a truthy
 configuration value that is not an object), while the `"transparent"` of the mark definition makes the points opacity 0.
 The
@@ -711,11 +758,14 @@ opacity 1.
 **Tests**: `MarkBuilderOrderTests.MarkBuilder_Build_OrderChannelSortsTheDrawOrderOfAnyMark`,
 `MarkBuilderOrderTests.MarkBuilder_Build_OrderNullKeepsTheDataOrder`
 
-Assert the symbol orders x = 150, 300, 0 (ascending), 0, 300, 150 (descending), and 0, 150, 300 (without the channel), the
+Assert the symbol orders x = 150, 300, 0 (ascending), 0, 300, 150 (descending), and 0, 150, 300 (without the channel),
+the
 tie break by the second field (150, 0, 300), the bars at 205, 5, 105 with the stack switched off and at 5, 105, 205
 with the
-default stack, the stacked bars that keep the data order (blue, orange); and, with the order switched off, the symbols at
-300, 0, 150, the lines `M300,100 L0,200 L150,0` (by the channel value null or `false` and by the mark property `false` or
+default stack, the stacked bars that keep the data order (blue, orange); and, with the order switched off, the symbols
+at
+300, 0, 150, the lines `M300,100 L0,200 L150,0` (by the channel value null or `false` and by the mark property `false`
+or
 null), the sorted line `M0,200 L150,0 L300,100` without it, and the area polygon in the data order.
 
 ##### Path Segments Are Charged Before They Exist
@@ -749,7 +799,8 @@ Assert the labels at (0, 200) and (300, 0) with the Vega defaults, the middle (1
 from a color field (blue, orange) and from a value (`red`, opacity 0.5); that `dx`, `dy`, `angle`, `font`, `fontSize`,
 `fontStyle`, `fontWeight`, `limit`, `ellipsis`, `lineHeight`, `align`, and `baseline` of the mark reach the item (3, -4,
 30, `Georgia`, 20, `italic`, `bold`, 50, `...`, 14, `left`, `top`) without moving the position, that a numeric weight is
-its text (`700`), that an unknown alignment is `left` and an unknown baseline `alphabetic`, the precedence of the mark over
+its text (`700`), that an unknown alignment is `left` and an unknown baseline `alphabetic`, the precedence of the mark
+over
 `config.text` and an angle channel (45) over the mark angle; and the font sizes 24 and 40 of the size channel and the
 documented order of the size value, `fontSize`, `size`, the expression, and the default 11; and that every item carries
 the same known location (the mark's pointer) as its `Source`, while a text item built elsewhere has none.
@@ -772,14 +823,20 @@ as the group and two items (3).
 `MarkBuilderTextTests.MarkBuilder_Build_TextCustomFormatTypeFallsBackToTheDefault`
 
 Assert the numbers, times, bins, and nulls derived above (`1,234.5`, `1234.5`, `26%`, `3.0`, `3.00`, `0`, `null`,
-`2020/03/05`, `Mar 05, 2020`, `05.03.2020`, `Mar 2020`, `2020-03-05`, `0 – 10`, `0.0 – 10.0`, and the count `3`); the lines
+`2020/03/05`, `Mar 05, 2020`, `05.03.2020`, `Mar 2020`, `2020-03-05`, `0 – 10`, `0.0 – 10.0`, and the count `3`); the
+lines
 of an array value, of a mixed array (`1`, `true`, an empty line, `x`), of a field made by a calculate transform, of the
-`lineBreak` `|` (with the empty parts at the ends) and of a newline `lineBreak`, the text `a\nb` kept as one line without
+`lineBreak` `|` (with the empty parts at the ends) and of a newline `lineBreak`, the text `a\nb` kept as one line
+without
 it, the unsplit array and the single line when the break does not occur, the `text` property as a list, and the empty
-labels that draw nothing (a text of length zero and an empty list, but not a list of one empty text); the `text` property
-(`hello`) as the label of every row and the channel winning over it, a text, number, boolean, and null value, a datum with
-its format (`5.00`, `5`, `abc`), and no label without a text source or for a missing field; and that a custom format type
-gives the default number and date formats and the catalog reports `vl-format-type-custom` at `/encoding/text/formatType`.
+labels that draw nothing (a text of length zero and an empty list, but not a list of one empty text); the `text`
+property
+(`hello`) as the label of every row and the channel winning over it, a text, number, boolean, and null value, a datum
+with
+its format (`5.00`, `5`, `abc`), and no label without a text source or for a missing field; and that a custom format
+type
+gives the default number and date formats and the catalog reports `vl-format-type-custom` at
+`/encoding/text/formatType`.
 
 ##### Text Is Charged By Its Characters And Lines
 
@@ -788,7 +845,8 @@ gives the default number and date formats and the catalog reports `vl-format-typ
 
 Assert the limits derived above: 16 labels of 16 characters fit a `MaxStringLength` of 16 (the first is
 `0000000000000001`) and the 17th is refused as a total at `/mark`, a label of 17 characters and a time label of 22
-characters over a limit of 10 are refused on their own, a label of 6,400 characters exceeds 50 evaluation steps and is drawn
+characters over a limit of 10 are refused on their own, a label of 6,400 characters exceeds 50 evaluation steps and is
+drawn
 by default, a canceled token stops the build, and two labels of three lines cost 7 items exactly (6 fails with the
 count 7,
 and 3 fails with the count 4).
@@ -800,9 +858,11 @@ and 3 fails with the count 4).
 `MarkBuilderArcTests.MarkBuilder_Build_ArcPadAngleCornerRadiusAndPaintReachTheItem`,
 `MarkBuilderArcTests.MarkBuilder_Build_ArcCenterFollowsXAndY`
 
-Assert the derived pie (three slices at (100, 100), the angles 0, PI / 2, PI, 2 PI, the radii 0 and 100, the blue, orange,
+Assert the derived pie (three slices at (100, 100), the angles 0, PI / 2, PI, 2 PI, the radii 0 and 100, the blue,
+orange,
 and red fills, the slices meeting, no stroke, no padding), the 300 by 120 view, the whole circle of one value, the
-unstacked values and the disc; the donut, the aliases and the explicit radii (30 to 80, 10 to 90, 20 to 70), the constant
+unstacked values and the disc; the donut, the aliases and the explicit radii (30 to 80, 10 to 90, 20 to 70), the
+constant
 angles (1 to 2.5), the configured radii (20 to 60), the radial chart with the radii 20 + 80 / 3, 20 + 160 / 3, and 100,
 the rings, the band slices, the ranged arc, the unstacked and secondary values, and the constants (0.5 to 2, 10 to
 70); the
@@ -816,7 +876,8 @@ winning; and the centers (60, 80), (300, 200), (75, 100), (225, 100), (0, 200), 
 Asserts that the pie costs 4 items (a budget of 4 passes, a budget of 3 fails at `/mark` with the count 4), that the
 row that is not drawn in an unstacked chart costs nothing (a count of 3 for two slices and the group), that 200 rows
 exceed 2
-evaluation steps (200 / 64 = 3) at `/mark` naming `MaxEvaluationSteps` and are drawn by default, and that a canceled token
+evaluation steps (200 / 64 = 3) at `/mark` naming `MaxEvaluationSteps` and are drawn by default, and that a canceled
+token
 stops the build.
 
 ##### Labels Of A Pie Sit At The Middles Of Their Slices
@@ -826,11 +887,14 @@ stops the build.
 `MarkBuilderTextTests.MarkBuilder_Build_TextConstantAndFieldRadiusAndThetaOffsetTheAnchor`
 
 Assert the anchors derived above: a at (142.4264, 57.5736), b at (142.4264, 142.4264), and c at (40, 100); the starts
-(100, 40), (160, 100), (100, 160), the ends (160, 100), (100, 160), (100, 40), and the quarter-way positions of the three
-slices; the unchanged anchor with `dx` 5 and `dy` -3 on the item; the unstacked values (150, 100) and (100, 50), the ring
+(100, 40), (160, 100), (100, 160), the ends (160, 100), (100, 160), (100, 40), and the quarter-way positions of the
+three
+slices; the unchanged anchor with `dx` 5 and `dy` -3 on the item; the unstacked values (150, 100) and (100, 50), the
+ring
 middles (112.5, 100), (137.5, 100), (175, 100), the constants (100, 130), the zero radius at the center, and the
 dropped row;
-and, on the 300 by 200 view, the quarter, half, and zero turns (200, 100), (150, 150), (150, 50), the angle without a radius
+and, on the 300 by 200 view, the quarter, half, and zero turns (200, 100), (150, 150), (150, 50), the angle without a
+radius
 (150, 100), the theta field (190, 100) and (150, 60), the radius field (200, 100) and (250, 100), and the dropped row
 of an
 angle that is null.
@@ -848,7 +912,8 @@ Asserts that the five bars of the grouped chart are at x = 10, 30, 60, 80, and 1
 ends, and an empty slot for the missing group); that a width of 200 gives bars 25 wide at 12.5, 37.5, 75, 100, and
 137.5; that the horizontal variant with `yOffset` has bars 20 high at y = 10, 30, 60, 80, and 110 starting at x = 0
 with the widths 20 to 100; that an offset inner padding of 0.25 gives bars 15 wide at 8.75, 28.75, 52.5, 72.5, and 96.25
-(a gap of 5 inside the group); and that a bar with `size` 10 is centered in its offset band (at 15, 35, 65, 85, and 115).
+(a gap of 5 inside the group); and that a bar with `size` 10 is centered in its offset band (at 15, 35, 65, 85, and
+115).
 
 ##### Point-Like Marks Sit At The Center Of Their Offset
 
@@ -876,7 +941,8 @@ is `M` = 31 x 300 / 59 = 157.63 pixels. Asserts that the bars of a `bar` mark ar
 [0.1, 0.9] M for the nested padding 0.2, two bands of 0.4 M) and start at 0.1 M and 0.5 M after the start of January and
 at M + 0.1 M and M + 0.5 M for February (the position is read at the start of the month). With `timeUnitBandSize` 0.5
 the first bar is 0.2 M wide (half of the band, centered: it starts at 0.1 M + 0.1 M); a `size` of 10 gives a bar of 10
-pixels centered in the band; `bandPosition: 0` on the position moves the range by half a unit, so the first bar starts at
+pixels centered in the band; `bandPosition: 0` on the position moves the range by half a unit, so the first bar starts
+at
 -0.4 M and is still 0.4 M wide; and with `bandWithNestedOffsetPaddingInner` 0 (and the band position ignored) the
 range is the whole month, so the bars are M / 2 wide and start at 0 and M / 2. For the other marks, the points of a
 `point` mark have no `timeUnitBandPosition`, so their domain holds only the starts of the months (31 days over 300
@@ -914,5 +980,55 @@ reference in the `mark` (a fill from a variable parameter, a stroke, an opacity,
 configuration, in the selection, or in the caller's `Config`) is reported as `vl-expr-ref` and not evaluated, the brush
 keeping the default of the property (`#333`, 0.125, white) or the configured value, that the caller replaces or
 clears the initial value, that a global selection is drawn by its first unit only and never by a facet cell, that a
-layered view draws `[background, layers, brush]` around all its layers, that the selections of one unit nest in the order
+layered view draws `[background, layers, brush]` around all its layers, that the selections of one unit nest in the
+order
 of their declaration, and that the four items of a brush are charged to the scene budget.
+
+##### Image Marks Follow Vega-Lite's Position Rules
+
+**Tests**: `MarkBuilderImageTests.MarkBuilder_Build_ImagePositionWithoutSize_IsAPointAnchoredCenterMiddle`,
+`MarkBuilderImageTests.MarkBuilder_Build_ImageAlignAndBaseline_AnchorThePoint`,
+`MarkBuilderImageTests.MarkBuilder_Build_ImageWidthAndHeight_AreSpansAlignedAtThePosition`,
+`MarkBuilderImageTests.MarkBuilder_Build_ImageWidthOnly_LeavesTheHeightNatural`,
+`MarkBuilderImageTests.MarkBuilder_Build_ImageWithoutPosition_SpansTheDataRectangleOrAnchorsAtItsCorner`,
+`MarkBuilderImageTests.MarkBuilder_Build_ImagePositionOfTheMark_ReplacesTheDefaultOfAnAbsentChannel`,
+`MarkBuilderImageTests.MarkBuilder_Build_ImageSecondEnd_IsARange`,
+`MarkBuilderImageTests.MarkBuilder_Build_ImageSizeChannelWithoutWidth_RangesToZero`,
+`MarkBuilderImageTests.MarkBuilder_Build_ImageOnBandScale_IsAPointOrSpansTheBand`,
+`MarkBuilderImageTests.MarkBuilder_Build_ImageOnBinnedField_SpansTheBin`
+
+Asserts, in a 300 by 200 data rectangle with the scales 0 to 10 (so the value `v` is at `30 v` across and `200 - 20 v`
+down), that the row (5, 2) gives the point (150, 160) anchored `center` and `middle` with no width or height; that the
+`align` and `baseline` of the mark replace the anchors; that a `width` of 20 and a `height` of 10 give the spans with
+the left edge 140 and the top 155 (center and middle), 150 and 160 (left and top), and 130 and 150 (right and bottom),
+the
+anchors then being `left` and `top`; that a width alone leaves the height natural and the baseline `middle`; that an
+axis
+without a channel spans the whole rectangle (0 to 300, 0 to 200) and, with a size, is anchored at the right edge (290
+for
+a width of 20) and the top (-5 for a height of 10); that the `x`, `y`, `x2` (also the keyword `width`) and `y2`
+properties
+of the mark replace those defaults; that `x2` and `y2` make the ranges 60 to 180 and 40 to 160 whichever end is first;
+that a `size` channel counts as a size and ranges to the zero of the scale (0 to 150 across); that a nominal field is a
+point at the center of its band, spans the band for a `size`, and is a width of 12 centered in the band for a `width`;
+and that a binned field spans its bin (0.5 and a width of 150 for the bin 0 to 5, shifted by the half pixel of the
+axis).
+
+##### Image Links, Look, And Limits
+
+**Tests**: `MarkBuilderImageTests.MarkBuilder_Build_ImageLink_ComesFromTheChannelOrTheProperty`,
+`MarkBuilderImageTests.MarkBuilder_Build_ImageRowsWithoutLinkOrPosition_AreNotDrawn`,
+`MarkBuilderImageTests.MarkBuilder_Build_ImageAspectAndSmooth_AreCarried`,
+`MarkBuilderImageTests.MarkBuilder_Build_ImageOpacity_ComesFromTheMarkOrTheChannel`,
+`MarkBuilderImageTests.MarkBuilder_Build_ImageCarriesTheMarkLocation`,
+`MarkBuilderImageTests.MarkBuilder_Build_ImageLimits_FailAtTheMark`,
+`MarkBuilderImageTests.MarkBuilder_Build_ImageRows_KeepTheDrawingOrder`
+
+Asserts that the link is the field, the `datum`, the `value` of the `url` channel or the `url` property of the mark (the
+channel winning) and a number is its JavaScript text (`42`); that a null link, an empty link, a row with a null position
+and a field the table does not have draw nothing; that `aspect` and `smooth` are carried (true by default); that the
+opacity is 1 by default and the `opacity` of the mark or channel otherwise; that the item names the pointer of the mark;
+that
+three rows against a budget of three items (the marks group and two pictures) and a link of 13 characters against a
+string limit of 12 fail with a `VegaLiteRenderException` at `/mark` (the second naming `MaxStringLength`); and that the
+`order` channel sorts the pictures as it sorts the other marks.

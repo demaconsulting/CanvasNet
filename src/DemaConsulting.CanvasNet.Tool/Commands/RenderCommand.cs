@@ -84,10 +84,13 @@ internal sealed partial class RenderCommand : ICommand
         + "files (CSV, TSV, DSV with format.delimiter, or JSON named by a relative url) are read from" + Environment.NewLine
         + "the folder of the specification and below it only, and one that is missing is an error; there is" + Environment.NewLine
         + "no data-folder option, and nothing is read from the network. Delimited text is not type-inferred" + Environment.NewLine
-        + "unless its format.parse is \"auto\". A feature that is not supported yet is reported (an error with --strict)." + Environment.NewLine
+        + "unless its format.parse is \"auto\". --param name=value sets a parameter of the chart (a number, true, false, text," + Environment.NewLine
+        + "or a JSON array or object such as brush={\"x\":[2,6]}; repeatable). A feature that is not supported yet is reported" + Environment.NewLine
+        + "(an error with --strict)." + Environment.NewLine
         + "An SVG drawing can embed a picture, model, chart, SVG file, or document page that sits beside it with" + Environment.NewLine
-        + "<image href=\"part.scad\" .../> (report.pdf#page=2 chooses a page); run 'canvasnet help svg' for the file types," + Environment.NewLine
-        + "the folder rule, the page fragment, and an example." + Environment.NewLine
+        + "<image href=\"part.scad\" .../> (report.pdf#page=2 chooses a page; part.scad#def.width=20 and chart.vl.json#param.cutoff=50" + Environment.NewLine
+        + "set a variable or a parameter); run 'canvasnet help svg' for the file types," + Environment.NewLine
+        + "the folder rule, the fragment, and an example." + Environment.NewLine
         + "The operations --crop, --resize, --fit, --rotate, --flip, --pad, and the photo tools --grayscale, --invert," + Environment.NewLine
         + "--threshold, --levels, --brightness, --contrast, --auto-levels, --deskew, --trim, and --grid (repeatable) are" + Environment.NewLine
         + "applied in the order written, after the source is loaded and sized; crop, resize, rotate, flip, and pad are" + Environment.NewLine
@@ -101,6 +104,7 @@ internal sealed partial class RenderCommand : ICommand
         + "  canvasnet render part.scad --view top -D width=30 -o part-top.png" + Environment.NewLine
         + "  canvasnet render part.scad --azimuth 30 --elevation 20 --projection perspective -o part.png" + Environment.NewLine
         + "  canvasnet render chart.vl.json --scale 2 -o chart.png" + Environment.NewLine
+        + "  canvasnet render chart.vl.json --param cutoff=50 -o chart.png" + Environment.NewLine
         + "  canvasnet render photo.jpg --crop 10%,10%,80%,80% --resize 800x600 -o small.png" + Environment.NewLine
         + "  canvasnet render logo.png --fit 256x256 --pad 8 --pad-color white -o icon.png" + Environment.NewLine
         + "  canvasnet render napkin.jpg --fit 2048x2048 --auto-levels --deskew --trim -o sketch.png --json" + Environment.NewLine
@@ -126,6 +130,14 @@ internal sealed partial class RenderCommand : ICommand
                 ErrorCodes.UsageError,
                 $"The options {string.Join(", ", ScadOptionNames)} only apply to an OpenSCAD model, but '{settings.Input}' is a {info.Format.ToFormatName()} file.",
                 "Remove them, or render a .scad file.");
+        }
+
+        if (settings.Source.VegaLite != null && !info.Format.IsChart())
+        {
+            throw new ToolException(
+                ErrorCodes.UsageError,
+                $"The option {string.Join(", ", ChartOptionNames)} only applies to a Vega-Lite chart, but '{settings.Input}' is a {info.Format.ToFormatName()} file.",
+                "Remove it, or render a .vl.json file.");
         }
 
         // The operation reports the mistakes about the pages and the outputs before any pixels are decoded, then

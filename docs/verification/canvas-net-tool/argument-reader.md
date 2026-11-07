@@ -63,7 +63,8 @@ and "takes no arguments" have their messages.
 typed getters return the value or `null` when absent, and reject text that is not a number, is not finite, or is out
 of range.
 
-**ArgumentReader_ParseInt_ValidAndInvalid_ParsesOrThrows**, **ArgumentReader_ParseNumber_GermanCulture_UsesInvariantCulture**,
+**ArgumentReader_ParseInt_ValidAndInvalid_ParsesOrThrows**,
+**ArgumentReader_ParseNumber_GermanCulture_UsesInvariantCulture**,
 and **ArgumentReader_ParseDpiAndPage_ValidAndInvalid_ParsesOrThrows**: range checks; under `de-DE` `1.5` parses and
 `1,5` does not; resolutions and pages are range checked.
 
@@ -78,13 +79,15 @@ malformed forms (wrong number of parts, zero width or height, negative or fracti
 missing offset parts).
 
 **ArgumentReader_ParseColor_HexForms_ReturnsColorWithAlphaLast**,
-**ArgumentReader_ParseColor_NamesAndTransparent_ReturnsColor**, and **ArgumentReader_ParseColor_Invalid_ThrowsUsageError**:
+**ArgumentReader_ParseColor_NamesAndTransparent_ReturnsColor**, and
+**ArgumentReader_ParseColor_Invalid_ThrowsUsageError**:
 `#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA` (the alpha pair is last), a bare hex value, surrounding whitespace, names in
 any case (the basic ones and extended ones such as `steelblue` and `rebeccapurple`, which come from the core
 `CssColor` table), `transparent`, and invalid text (including the `rgb()` and `hsl()` function forms, `none`, and
 names that are not CSS colors).
 
-**ArgumentReader_ParseDegrees_ValidAngle_ReturnsNormalizedAngle** and **ArgumentReader_ParseDegrees_Invalid_ThrowsUsageError**:
+**ArgumentReader_ParseDegrees_ValidAngle_ReturnsNormalizedAngle** and
+**ArgumentReader_ParseDegrees_Invalid_ThrowsUsageError**:
 `-90` becomes 270, `450` becomes 90, `360` becomes 0, a `deg` suffix is accepted; text, `NaN`, and `Infinity` are
 rejected.
 
@@ -99,5 +102,17 @@ bottom; wrong counts, negatives, and fractions are rejected; one pixel over the 
 and **ArgumentReader_ParseDefines_Malformed_ThrowsUsageError**: numbers become `double`, `true`/`false` booleans,
 the rest strings (quotes removed); a later definition replaces an earlier one; `Infinity` stays text; missing `=`,
 invalid names, and vector values are rejected.
+
+**ArgumentReader_ParseParams_ScalarsAndText_ParsedByType**,
+**ArgumentReader_ParseParams_JsonValues_ParsedIntoPlainValues**,
+**ArgumentReader_ParseParams_Malformed_ThrowsUsageError**, and **ArgumentReader_ParseParams_NoneOrNull**: `50`, `-1.5`,
+`true`, `false` and `null` become a
+double, booleans and a null value, `EU`, `'a b'`, `"a b"` and `a=b` text (the first `=` splits the name), an empty value
+the empty text, and the last of a name
+wins; `{"x":[2,6]}` becomes a dictionary holding a list and `[2, 6]` a list, and a name may contain a space; `cutoff`,
+`=5`, the empty text, `brush={x`,
+`brush=[1,` and `v="abc` are a `usage-error` that quotes the parameter, names `--param`, and has the hint `Example:
+--param ...`; no parameter is an empty dictionary and a null list
+an `ArgumentNullException`.
 
 **ArgumentReader_Parsers_NullText_ThrowsArgumentNullException**: every parser rejects null text.

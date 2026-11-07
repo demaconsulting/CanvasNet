@@ -41,7 +41,8 @@ sections:
           The library shall create, for a folder, a resolver that lets an SVG document embed a raster, a model,
           a chart, another SVG file, and a page of a document from that folder and below it only (a query after the
           file name is ignored, and a fragment chooses the page of a document, # page=N or  # slide=N, or the view of
-          a model,  # view=name), refuse a picture that would take more pixels than the render
+          a model,  # view=name; def.name=value sets a variable of a model and param.name=value a parameter of a chart),
+          refuse a picture that would take more pixels than the render
           may use before it is decoded (a warning, not an error), and report the
           notes, printed text, and embedded images of the render.
         tags: [system]
@@ -51,6 +52,7 @@ sections:
         children:
           - CanvasNetViewer-CanvasNetViewer-CreateImageResolver
           - CanvasNetViewer-CanvasNetViewer-LoaderSources
+          - CanvasNetViewer-CanvasNetViewer-Parameters
         tests:
           - CanvasNetViewer_SystemIntegration_SvgEmbeddingEveryFormat_DrawsAllAndReportsEmbeds
           - CanvasNetViewer_SystemIntegration_SvgEmbeddingWithQueryAndFragment_DrawsTheFile
@@ -116,6 +118,7 @@ sections:
           - CanvasNetViewer-Imaging-Write
           - CanvasNetViewer-Imaging-RequestDefaults
           - CanvasNetViewer-Imaging-DiagnosticOrigin
+          - CanvasNetViewer-Imaging-ChartImages
         tests:
           - CanvasNetViewer_SystemIntegration_ImageOperations_ProbeRenderInspectCompareMontage
 

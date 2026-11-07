@@ -79,7 +79,8 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   of the
   static sites, by the expressions of the
   transforms, by the row-bound mark values, and by the raw domain of a scale, as an array or an object value; the name
-  of a **selection parameter** replaces its `value` (the initial state of the selection, with the shapes of `value`: a map
+  of a **selection parameter** replaces its `value` (the initial state of the selection, with the shapes of `value`: a
+  map
   or a list of maps for a point selection, a map of ranges for an interval selection, a scalar or a list of scalars for
   a
   single-field projection, `DateTime` values for dates, null for an empty selection)), `Datasets` (named
@@ -91,12 +92,21 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   `ContainerHeight` (default 300) (each 1 to `Surface.MaxDimension`), `Fonts` (`VegaLiteFontOptions?`), `Limits`
   (default `VegaLiteLimits.Default`; null throws `ArgumentNullException`), `WarningHandler`
   (`Action<VegaLiteDiagnostic>?`), `UnsupportedFeatureHandler` (`Action<VegaLiteUnsupportedFeature>?`), and
-  `ThrowOnUnsupportedFeature` (default false). The internal `EffectiveFonts` is `Fonts` or a default
+  `ThrowOnUnsupportedFeature` (default false), and, since phase 13, `ImageResolver` (`IImageResolver?` of the core
+  `ImageSources` namespace, null by default: the **only** way a chart gets a picture - the library never opens a file or
+  a
+  network resource for an `image` mark on its own, the `url` is handed to the resolver as text, a remote URL included,
+  and the policy of what it may name is the resolver's; without one the mark is reported as `vl-mark-image` and draws
+  nothing; `Measure` never calls it). The internal `EffectiveFonts` is `Fonts` or a default
   `VegaLiteFontOptions`.
 - **`VegaLiteFontOptions`** (sealed class) - `UseSystemFonts` (default false) and `AdditionalDirectories`
   (`IReadOnlyList<string>`, empty by default; a null list throws `ArgumentNullException`, a null, empty, or whitespace
   entry throws `ArgumentException`; copied into a read-only array).
-- **`VegaLiteLimits`** (sealed class, init-only) - the sixteen limits `MaxSourceLength`, `MaxJsonDepth` (1 to 256),
+- **`VegaLiteLimits`** (sealed class, init-only) - the seventeen limits (`MaxImages`, phase 13: the distinct questions
+  to the
+  image resolver of one `Render`, default 256, at least 1, enforced by the painter with a located
+  `VegaLiteRenderException`)
+  and, of the other sixteen, `MaxSourceLength`, `MaxJsonDepth` (1 to 256),
   `MaxDataFiles`, `MaxDataBytes`, `MaxDataRows`, `MaxFieldCount`, `MaxViews`, `MaxCompositionDepth` (1 to 64),
   `MaxSceneItems`, `MaxScaleDomainSize`, `MaxTicks`, `MaxExpressionLength`, `MaxExpressionDepth` (1 to 256),
   `MaxEvaluationSteps`, `MaxStringLength`, and `MaxDiagnostics`, with the `Default` instance; a value outside its range
@@ -185,19 +195,24 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   references, configuration, measurer, the layer tree,
   data, scales, view request, title, and either the empty layout or `BuildChart`). Since phase 12 it first evaluates the
   **parameters** and **folds** the static expression references: it creates the **calendar** of the call once
-  (`TimeCalendar.Create(options.TimeZone)`, null gives the UTC singleton), the one dictionary of parameter values, and the
+  (`TimeCalendar.Create(options.TimeZone)`, null gives the UTC singleton), the one dictionary of parameter values, and
+  the
   one `ExpressionEvaluator` of the call (the limits, the token, the dictionary, and the **same calendar**, which reaches
   every expression function through `ExpressionFunctionContext.Calendar`), builds the **selection model** when the
   specification declares a selection (`SelectionModel.Declares`; a pre-pass that resolves the configuration and expands
   the
-  views of the unfolded tree, because a parameter expression or an expression reference may read a selection; the model's
-  stores go to `ExpressionFunctionContext.SelectionStores` and its resolved values to `Populate`, its warnings to the warnings
+  views of the unfolded tree, because a parameter expression or an expression reference may read a selection; the
+  model's
+  stores go to `ExpressionFunctionContext.SelectionStores` and its resolved values to `Populate`, its warnings to the
+  warnings
   of the view tree), calls `ParameterEnvironment.Populate` (the
   static parameters of the top-level view, with the caller's `Parameters`, which can be arrays and objects), and calls
   `ExpressionReferenceFolder.Fold` with the same evaluator, so that the evaluation of every reference is charged to the
   step budget of the call; the tree that it returns (the parsed tree itself when nothing is folded) is the one that
-  `ConfigResolver.Resolve`, `SpecNormalizer.Expand`, the data stage, the scales, the guides, the marks, the title, and the
-  layout read, and the warnings that it returns (`vl-expr-ref` for a value that no property can hold) come first among the
+  `ConfigResolver.Resolve`, `SpecNormalizer.Expand`, the data stage, the scales, the guides, the marks, the title, and
+  the
+  layout read, and the warnings that it returns (`vl-expr-ref` for a value that no property can hold) come first among
+  the
   warnings of the view tree. After the views of the folded tree are expanded, the selection model is **bound** to the
   units of that tree (`SelectionModel.BindUnits`: the model was built from the tree as written, which has the same
   units in
@@ -257,8 +272,18 @@ rendering, diagnostics, unsupported features, limits and cancellation, determini
   reported once per mark location; text that the chart builds itself, such as axis labels, legends, and titles, has
   no source and
   is reported at the unknown location; a warning is never an unsupported feature, so strict mode does not throw).
+  **Pictures** (phase 13): `Run` hands the sink to the `finish` step, and `Render`'s `Paint` creates one
+  `SceneImageSource` (the resolver of the options, `Limits.MaxImages`, and a callback that records
+  `vl-mark-image-unresolved`
+  in the sink) for the painting, disposed when the painting ends or fails, so the warning of a picture that the resolver
+  did not
+  give is delivered with the others after the render; `Measure` passes a `finish` that paints nothing and so never
+  asks. `ReportsFor(options)` re-visits the catalog when the options have a configuration or a resolver
+  (`hasImageResolver`),
+  so a chart with a resolver does not report `vl-mark-image`.
   The only I/O of the
-  pipeline happens here, on the calling thread. `BuildChart` iterates the guides of the **cell** (`BuildCellGuides`: the
+  pipeline happens here, on the calling thread (the resolver of the host is called from the painter, on the calling
+  thread). `BuildChart` iterates the guides of the **cell** (`BuildCellGuides`: the
   axes, then the legends) and the layout at most three passes (each pass builds the axes and the legends again for the
   data rectangle, the legends are placed by `LegendLayout` against the axes and their reach joins the extents of the
   axes before the title is laid out; when the third pass still changed the data rectangle the guides are built once
@@ -478,11 +503,37 @@ fit in the budget of the request is refused with `ImageSourceBudgetException` be
 `TimeZone = UTC` and
 only the bundled fonts so the result is deterministic, and
 with **no** background override, because a chart carries its own paper; and passes the cancellation token to both calls.
+The pictures of the chart's `image` marks are loaded through `request.Resolver` (`ImageResolver = request.Resolver`):
+the
+resolver scoped to the chart's own file, so a relative `url` resolves against the folder of the chart under the sandbox,
+the
+budgets, and the cycle chain of the whole render; a request built by hand has none and the mark is a `vl-mark-image`
+note.
 The warnings of the library become `vega-lite-warning` notes and its unsupported features notes with the feature name as
 the code (the request's `ThrowOnUnsupportedFeature` makes the library throw instead). The class is stateless,
 thread-safe, claims no URI scheme, and references only the core package.
 
-The behavior of the class is specified by the `CanvasNetVegaLite-VegaLiteDocument-ImageSource` requirement and verified
-by `VegaLiteImageSourceTests.cs`. Its **callers** are the shared `FolderImageResolver` of the core package (through
+**Parameters in the link.** The class also implements `IFragmentImageSource` with no parameter name and the prefix
+`VegaLiteImageSource.ParameterPrefix` (`param.`). Before it charges anything, `Render` reads every
+`param.<name>=<value>` of
+`request.Fragment` with `ImageParameterValues.ReadParameters` (the grammar of `--param`: `true`, `false`, `null`, a
+number, text,
+or a JSON array or object, so a selection takes its initial state; percent-decoded after the split). A name the opened
+document does
+not declare in `ParameterNames` is dropped with a warning note of the source `vega-lite` and the code
+`VegaLiteImageSource.UnknownParameterCode` (`vl-param-unknown`, listing the declared names): a link is not a command
+line, so
+the chart is drawn without it. The declared ones are checked by constructing `VegaLiteRenderOptions { Parameters = ...
+}` (the
+library says which values it accepts; a rejected value is an `ImageSourceRefusedException` with the code
+`image-fragment-invalid`)
+and passed as `Parameters` to both the `Measure` that gives the natural size and the `Render`, because a parameter can
+change the
+layout. Any other fragment parameter is unknown to the resolver.
+
+The behavior of the class is specified by the `CanvasNetVegaLite-VegaLiteDocument-ImageSource` and
+`CanvasNetVegaLite-VegaLiteDocument-ImageSourceParameters` requirements and verified
+by `VegaLiteImageSourceTests.cs` and `VegaLiteImageSourceParameterTests.cs`. Its **callers** are the shared
+`FolderImageResolver` of the core package (through
 `IImageSource`), the `CanvasNetViewer` system, which lists it with the other built-in sources, and applications. The
 unit depends on the core package only through the `ImageSources` contract types.

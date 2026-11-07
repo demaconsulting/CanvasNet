@@ -147,7 +147,7 @@ public class VegaLiteCompositionSystemTests
     /// <param name="feature">The identifier of the first unsupported feature.</param>
     /// <param name="pointer">The pointer of the construct.</param>
     [Theory]
-    [InlineData("{ %DATA%, \"hconcat\": [ %BARS%, { \"transform\": [ { \"regression\": \"crates\", \"on\": \"price\" } ], \"mark\": \"point\" } ] }", "vl-transform-regression", "/hconcat/1/transform/0")]
+    [InlineData("{ %DATA%, \"hconcat\": [ %BARS%, { \"transform\": [ { \"lookup\": \"crates\", \"from\": { \"param\": \"p\" } } ], \"mark\": \"point\" } ] }", "vl-transform-lookup-param", "/hconcat/1/transform/0/from/param")]
     [InlineData("{ %DATA%, \"vconcat\": [ %BARS%, { \"mark\": \"geoshape\" } ] }", "vl-mark-geoshape", "/vconcat/1/mark")]
     [InlineData("{ %DATA%, \"facet\": { \"field\": \"crates\", \"type\": \"quantitative\", \"bin\": true }, \"spec\": %BARS% }", "vl-facet-field-transform", "/facet/bin")]
     [InlineData("{ %DATA%, \"facet\": { \"row\": { \"field\": \"month\", \"type\": \"ordinal\", \"sort\": { \"op\": \"count\" } } }, \"spec\": %BARS% }", "vl-facet-sort", "/facet/row/sort")]

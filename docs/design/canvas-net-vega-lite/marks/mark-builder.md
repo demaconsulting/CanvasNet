@@ -3,10 +3,11 @@
 ![Marks Structure](VegaLiteMarksView.svg)
 
 The `MarkBuilder` unit is the first software unit in the `Marks` subsystem (the second is _CurveBuilder_). It comprises
-eight
+nine
 source files in the `DemaConsulting.CanvasNet.VegaLite.Marks` namespace; together they define one `internal` type, the
 `sealed partial class MarkBuilder` (with private helper types for one channel, the sizing of a position, the paint of an
-item, the settings of an overlay, and one build run, the nested `sealed partial class Run`), and the record `BrushGroups`:
+item, the settings of an overlay, and one build run, the nested `sealed partial class Run`), and the record
+`BrushGroups`:
 
 - `MarkBuilder.cs` - the public surface (`IsSupported`, `Build`), the channels, the paint, the conditions and
   row-bound expressions, the bar, rect, tick, rule, and symbol marks, and the `Style` methods that apply the stroke
@@ -18,6 +19,8 @@ item, the settings of an overlay, and one build run, the nested `sealed partial 
 - `MarkBuilder.Overlays.cs` - the point and line overlays of the path marks
 - `MarkBuilder.Text.cs` - the `text` mark: positions, polar offset, font properties, the text of a row, and its limits
 - `MarkBuilder.Arcs.cs` - the `arc` mark, the polar span of a channel, and the polar position of a stacked `text`
+- `MarkBuilder.Images.cs` - the `image` mark (phase 13): `ImageAxis` (the placement of a picture along one axis),
+  `Images`, `ImageUrlSource`, `ImageAxisOf`, and `RangeAxis`
 - `MarkBuilder.Offsets.cs` - the `xOffset` and `yOffset` channels: `ChannelOffset` (the offset scale of a position and
   how it reads the offset value of a row), `AttachOffsets`, `TimeUnitOffsetRange`, and `OffsetCenter`
 - `MarkBuilder.Brush.cs` - the brush of an interval selection (phase 12): `BrushGroups` (the shade and the outline) and
@@ -29,7 +32,8 @@ _CanvasNetVegaLite System Design_, Third-Party Provenance and Attribution).
 #### Purpose
 
 `MarkBuilder` builds the scene items of the mark of a unit view (a single view, or one layer of a layered view): `bar`,
-`rect`, `point`, `circle`, `square`, `rule`, `tick`, `line`, `area`, `trail`, `text`, and `arc`, and the point and line
+`rect`, `point`, `circle`, `square`, `rule`, `tick`, `line`, `area`, `trail`, `text`, `arc`, and `image`, and the point
+and line
 overlays of the path marks. It exists so that
 the Vega-Lite mark geometry, the channel-to-property resolution, the paint defaults, and the invalid-data rules are
 defined in one place, separate from the scales that provide the mappings, from `CurveBuilder` that generates the curves,
@@ -47,7 +51,8 @@ A private run object holds the state of one `Build` call (the mark
 definition, the view, the table, the scales and their `EncodingPlan`, the data rectangle, the token, and the overlay
 definitions of the mark), and private helpers describe a channel (its definition, scale, and how to read a row's
 value), a position sizing (fixed, band, or encoded), and a paint (fill, stroke, stroke width, opacity, fill opacity,
-stroke opacity, and dash pattern). The `theta` and `radius` channels are read like `x` and `y` (the radius scale gets the
+stroke opacity, and dash pattern). The `theta` and `radius` channels are read like `x` and `y` (the radius scale gets
+the
 extent `min(width, height) / 2`), and the secondary channels `theta2` and `radius2` like `x2` and `y2`.
 
 **Geometry** (Vega-Lite 6):
@@ -86,11 +91,13 @@ extent `min(width, height) / 2`), and the secondary channels `theta2` and `radiu
   whose field has a time unit and whose end of the unit is known (`ResolvedScale.HasBandEnd` with a second field in the
   table: Vega-Lite's `hasBandEnd`) is a **time band** (`Channel.IsTimeBand`); `Channel.HasBandEnds`, which replaced
   `HasBinEnds`, is true for a bin or a time band, and `BinEdges` reads the start and the end of the unit through
-  `ScaleModel.Map`. A `bar` or `rect` on a time band spans the unit exactly as it spans a bin: from the start to the end,
+  `ScaleModel.Map`. A `bar` or `rect` on a time band spans the unit exactly as it spans a bin: from the start to the
+  end,
   with `binSpacing`, the half-pixel translate, and `minBandSize` (compared with the **whole** unit, so a unit thinner
   than `minBandSize` is widened around its middle to that size, without spacing). The unit may cover only a share of its
   width, centered: the **band** is the relative `{band}` of the `width` or `height` of the mark, else
-  `timeUnitBandSize` (1 by the configuration), and the edges are at `(1 - band) / 2` and `(1 + band) / 2` of the way from
+  `timeUnitBandSize` (1 by the configuration), and the edges are at `(1 - band) / 2` and `(1 + band) / 2` of the way
+  from
   the start to the end of the unit (Vega-Lite's `interpolatedSignalRef`, which on a linear scale equals the pixel
   interpolation, so a band of 1 is the full bin span and a band of 0.5 the middle half). An explicit size centers the
   mark on the **position inside the unit** instead. Where a mark that does not span sits (`Center`): `lerp(start, end,
@@ -189,8 +196,10 @@ is a temporal field with a time unit (the position scale stays a time scale; `Sc
   0 (the band position then does not apply).
 - A mark reads the parent at the **start of the unit** and adds the offset (`Center()` for the point-like marks). A
   `bar`, `tick`, or `rule` spans a band of the offset scale: `Span` routes a channel that has an offset and a time scale
-  to `BandSpan` (before the `rectBinPosition` rule for a unit on a time scale), whose size is the bandwidth of the offset
-  scale times `timeUnitBandSize` (default 1, centered) unless a `size` is given. For example, a monthly grouped bar chart
+  to `BandSpan` (before the `rectBinPosition` rule for a unit on a time scale), whose size is the bandwidth of the
+  offset
+  scale times `timeUnitBandSize` (default 1, centered) unless a `size` is given. For example, a monthly grouped bar
+  chart
   (`yearmonth`, two groups, a domain of 59 days over 300 pixels) has a month of 31 x 300 / 59 pixels and bars that are
   0.4 of a month wide, at 0.1 and 0.5 of the month from its start.
 
@@ -204,13 +213,15 @@ shifted rect fields do (`vl-encoding-bandposition-rect` is still reported); (e) 
 of the band, not its center. The unit `month` without a year puts all dates into the leap year 2012 (the reference span
 is still January 2001, the domain uses 2012 dates); `yearmonth` uses the real year.
 
-**Path marks** (`MarkBuilder.Paths.cs`). A `line`, `area`, or `trail` is built group by group, in two passes over the rows
+**Path marks** (`MarkBuilder.Paths.cs`). A `line`, `area`, or `trail` is built group by group, in two passes over the
+rows
 and then one step per group:
 
 1. **Pass 1, validity and positions.** Every row is read once. Its pixel positions are kept whenever the channels that
    give them have a number, even when another channel of the row is invalid, because the sort uses the position of the
    row. A row is a **defined** vertex when its positions are finite, its paint is valid (`TryPaint`: no channel with a
-   continuous domain, no size, and no opacity that lacks a number) and, for a trail, its size is finite. Any other row is
+   continuous domain, no size, and no opacity that lacks a number) and, for a trail, its size is finite. Any other row
+   is
    **undefined**, or **dropped** in the `filter` mode (see Invalid data modes below).
 2. **Pass 2, grouping.** The rows are grouped by the values of the fields that `EncodingPlan` names
    (`PathGroupFields`: the canonical value fields of the non-position channels that have a field, such as `color`,
@@ -218,10 +229,12 @@ and then one step per group:
    first row (a counting sort into one slice of a row array per group, so the work is linear and independent of the
    iteration order of a dictionary). A group value that is an array or an object compares by identity, so each such row
    is its own group.
-3. **Per group.** A group with fewer than two defined points draws nothing and is charged nothing. Otherwise its rows are
+3. **Per group.** A group with fewer than two defined points draws nothing and is charged nothing. Otherwise its rows
+   are
    sorted **stably**: by the fields of the `order` channel when the encoding is not stacked, else by the pixel position
    along the dimension (x, or y for a horizontal orientation) when that channel is a field (an undefined position sorts
-   first, as Vega's comparison does), and not at all when the sort is switched off (an `order` channel that is a value of
+   first, as Vega's comparison does), and not at all when the sort is switched off (an `order` channel that is a value
+   of
    null or false or, without an `order` channel, an `order` mark property of null or false) or the dimension is not a
    field. The path takes its **paint, stroke width, and dash from its first defined row** after the sort (Vega draws all
    the items of a path with the first one); the number of defined points and of runs of consecutive defined rows is
@@ -242,17 +255,20 @@ The rules of the three marks:
   (y of a vertical area) gives the **range** of each row: a stacked channel runs from the upper end to the lower end of
   its stack, a channel with a secondary channel (`y2` or `x2`) from its value to the second end, and any other value
   from the value to zero (or to the first value of the domain, when the domain has no zero), as for a bar. An area
-  **without a measure channel draws nothing** (a deviation from Vega-Lite, which draws a zero-height area at 0). A row is
+  **without a measure channel draws nothing** (a deviation from Vega-Lite, which draws a zero-height area at 0). A row
+  is
   defined when its position along the axis and both ends of its range are numbers. The outline is the top edge forward
   and the baseline backward along the same curve (see _CurveBuilder_).
 - **Trail.** One `SceneTrail` (role `mark-trail`) per group whose runs are lists of `SceneTrailPoint(x, y, size)`: the
   size of a point is the `size` channel through the size scale, else the constant `value` or `{"expr": ...}`, else the
-  `size` of the mark, else the Vega style (2); a row without a valid size is undefined. A trail is split into **runs** of
+  `size` of the mark, else the Vega style (2); a row without a valid size is undefined. A trail is split into **runs**
+  of
   consecutive defined rows, and a run of one point is dropped; a group without a run of two points draws nothing. The
   scene budget is charged `1 + kept` (the points of the runs that are kept) and the step budget `kept` before the runs
   are copied. A trail has no curve and no `interpolate`.
 
-**Interpolation.** The curve of a line or an area is the `interpolate` of the mark definition, the style, `config.<mark>`,
+**Interpolation.** The curve of a line or an area is the `interpolate` of the mark definition, the style,
+`config.<mark>`,
 or `config.mark` (linear by default), resolved by `CurveBuilder.TryParse` (a horizontal area makes `monotone` the
 monotone-y curve); the `tension` property is the bundle `beta`, the cardinal tension, or the Catmull-Rom `alpha`. A name
 that Vega-Lite does not know (which can come from the configuration, which the parser does not check) is the linear
@@ -275,7 +291,8 @@ when the value that was stacked (the `StackPlan.Field`, read through `Channel.St
 the stack
 counts such a value as 0 (Vega's `+value`, `vega-encode/src/Stack.js`), so the stack ends of the row are numbers and the
 other
-slices keep their places, and Vega-Lite's invalid filter, which runs after the stack on the field of the value (`compile/data/parse.ts`
+slices keep their places, and Vega-Lite's invalid filter, which runs after the stack on the field of the value
+(`compile/data/parse.ts`
 order Aggregate, Stack, invalid filter; the `FilterInvalidNode` of `compile/data`), is what removes the row from the
 marks. `Channel.HasValidStackValue`
 makes `RangePair` (bars, rects, areas), the polar span of an arc, `StackedPolarValue` (the label of a slice), and
@@ -296,11 +313,13 @@ opacity of 0); the line overlay is a `line` mark with the `clip`, `interpolate`,
 run has no `x2` and `y2` (the line is drawn at the edge of the area), reads the stacked end of a stacked channel, skips
 a channel that has a field but no scale (a channel that the overlaid mark does not draw), and groups its rows as a line
 does. An `area` that has an overlay and names no `opacity`, `fillOpacity`, or configured opacity has the opacity 0.7.
-The overlay definitions are built by `SpecNormalizer.PointOverlayDefinition` and `LineOverlayDefinition`, which the scale
+The overlay definitions are built by `SpecNormalizer.PointOverlayDefinition` and `LineOverlayDefinition`, which the
+scale
 resolver and the legend planner share. The point overlay is also enabled by an **encoding with a `shape` channel** when
 the mark has no `point` property and `config.<mark>.point` is not truthy (Vega-Lite's `getPointOverlay`; `point: false`
 or null keeps it off). The base run never reads the `shape` (nor an `angle`, or a `strokeDash` of an area or trail:
-`ScaleResolver.ChannelIsDrawn` of the mark type is false, as Vega-Lite drops the shape from the path layer), so the shape
+`ScaleResolver.ChannelIsDrawn` of the mark type is false, as Vega-Lite drops the shape from the path layer), so the
+shape
 does not group the paths. The overlay runs read every channel that has a scale, so the scales that the resolver builds
 for the overlays give the points their shapes, rotations, dashes, and sizes (a `shape`, an `angle`, a `strokeDash`, the
 `size` of an area), and the line overlay of an area its dash and its width (the `size`, with the range of the stroke
@@ -320,7 +339,8 @@ null or false, or one without fields, keeps the order of the data. The step budg
 - _Position._ The position is that of the `x` and `y` channels (the middle of the data rectangle for an absent channel)
   plus the **polar offset** when the mark has a `radius` or a `theta` (a channel, or the mark property of the same name
   as the constant): with the radius `r` in pixels and the angle in radians clockwise from twelve o'clock, the anchor
-  moves by `r` along that angle (x grows by `r` times the sine and y falls by `r` times the cosine), only when `r` is not
+  moves by `r` along that angle (x grows by `r` times the sine and y falls by `r` times the cosine), only when `r` is
+  not
   zero. A constant `value` of the channel is used as given. A `radius` scale has the extent `min(width, height) / 2`.
   A row whose `theta` or `radius` is invalid is not drawn. `dx` and `dy` stay on the item (the painter applies them) and
   are not added to the position. A **stacked** `theta` or `radius` is placed inside its slice, at the scale of
@@ -335,8 +355,10 @@ null or false, or one without fields, keeps the order of the data. The step budg
   `size`, the Vega style, and 11.
 - _The text of a row._ The `text` channel wins over the `text` property of the mark (a text or an array of texts). A
   **field** is formatted as Vega-Lite's `formatSignalRef` does: a `formatType` that is not `number`, `time`, or `utc` is
-  a custom format that is not evaluated (the `format` is ignored, the default format of the type applies, and the catalog
-  reports `vl-format-type-custom`); the formats `time` and `utc`, a temporal type, and a time unit give a **time format**
+  a custom format that is not evaluated (the `format` is ignored, the default format of the type applies, and the
+  catalog
+  reports `vl-format-type-custom`); the formats `time` and `utc`, a temporal type, and a time unit give a **time
+  format**
   (`TimeLabels.CreateBounded`: the `format`, else the specifier of the time unit, else `config.timeFormat`; the calendar
   is UTC for a `utc` unit, scale type, or format type, else the calendar of the chart); a **binned** field (the encoding
   plans a `bin` on `text`) shows `start – end` (an en dash between spaces) through the number format, or `null` when the
@@ -367,8 +389,10 @@ null or false, or one without fields, keeps the order of the data. The step budg
   any other field gives the range from zero (or the first value of the domain) to the scaled value; a constant `value`
   channel is the main end. The second end of a channel without a secondary channel is the mark property (`theta2`,
   `radius2`, or `innerRadius`) before it is zero. Without the channel the main end is the mark property (`theta`;
-  `radius` or `outerRadius`) else a whole turn (`2 * PI`) or half of the smaller side of the data rectangle, and the second
-  end is its mark property, else zero. The two ends are **ordered** (the smaller first), so the larger radius is the outer
+  `radius` or `outerRadius`) else a whole turn (`2 * PI`) or half of the smaller side of the data rectangle, and the
+  second
+  end is its mark property, else zero. The two ends are **ordered** (the smaller first), so the larger radius is the
+  outer
   one and a reversed scale still makes a sector. A span with an end that is not finite is invalid.
 - _Properties._ `padAngle` and `cornerRadius` come from the mark definition, then the configuration (constants, not
   channels); the paint is that of the other filled marks (the mark color is the fill, a stroke only when one is given).
@@ -377,8 +401,52 @@ null or false, or one without fields, keeps the order of the data. The step budg
   before the `SceneArc` is created; a row that draws nothing costs no item. The painter builds the outline from the
   parameters of the arc (see _ArcGeometry_).
 
+**Image mark** (`MarkBuilder.Images.cs`; Vega-Lite 6.5 `compile/mark/image.ts`, `encode/position-rect.ts` and
+`position-range.ts`, `encode/text.ts` (for `url`), Vega's `vega-runtime/src/util.js` `adjustSpatial` for the `x2`, `xc`,
+and `width` channels, and `vega-scenegraph/src/marks/image.js`). One `SceneImage` (role `mark-image`) per row that has a
+link, a placement on both axes, and a valid paint (the opacity). Vega-Lite compiles the mark as
+`baseEncodeEntry(align, baseline, color, orient, size, theta: 'ignore')`, `rectPosition('x')`, `rectPosition('y')` and
+`text('url')`: the generic `align` and `baseline` are not emitted (only `rectPosition` emits them, for a point), and
+`color`
+and `size` do nothing. The builder reproduces each axis by the order of `rectPosition`:
+
+1. _Binned._ A field that is binned (or has a time unit) on a continuous scale, with no size and no offset, spans its
+   bin
+   (`BinSpan` of the rect, with a `binSpacing` of 0 and the half-pixel axis translation).
+2. _Point._ A channel (a field, a datum, or a value) with no size (`hasSizeDef`: a `size` channel, or a truthy `width`
+   or
+   `height` or `size` of the mark or its configuration) and no second end is anchored at its position, **with the
+   `align`
+   (`baseline`) of the mark, center (middle) by default, as properties of the item and with no width (height)**: Vega
+   knows the natural size of the picture only when it draws, so Vega-Lite cannot use `xc`/`yc`.
+3. _Discrete._ A field on a band scale with a size spans the band (`BandSpan`; the `width` or `height` of the mark, not
+   its `size`, centers a fixed length in the band, as `getBandSize` reads it).
+4. _Range._ Otherwise the axis is a range: with a second end the range from `x` to `x2` (`RangePair`, either order);
+   with a
+   `width` (`height`) of the mark a span of that length aligned at the position by the `align` (`baseline`) of the mark
+   (`left`/`center`/`right`, `top`/`middle`/`bottom`); with an `x2` property of the mark the range to it; else the range
+   from
+   the value to the zero of the scale. An absent channel is a range from the right edge (the top) to the other edge,
+   that
+   is the **whole** data rectangle (`zeroOrMax` and `zeroOrMin` of the missing channel), and with a size is a picture of
+   that
+   size anchored at the right edge (the top). The `x` and `y` properties of the mark take the place of the defaults.
+
+A span is given to the item as its left and top edge and length with the anchors `left` and `top` (Vega's `x`,
+`x2`/`width` channels after `adjustSpatial` carry no `align`); a point has no length. The `url` is read like the text of
+a
+`text` mark without a format: the field of the plan, a `datum`, a `value` or, last, the `url` property of the mark; a
+value
+becomes text as in JavaScript, and a null or empty link draws nothing. The `aspect` and `smooth` properties (true by
+default) and the opacity (the `opacity` of the mark or channel, else 1: an image is not one of the marks Vega-Lite draws
+less opaque) are carried by the item. A row is charged one evaluation step and one scene item before its item exists;
+the
+characters of a link are charged to the steps and a link longer than `MaxStringLength` is a located
+`VegaLiteRenderException`. The picture itself is never loaded here (see _ScenePainter_).
+
 **Stroke properties.** The `Style` methods give `strokeDash`, `strokeDashOffset`, `strokeCap`, `strokeJoin`, and
-`strokeMiterLimit` to every kind of item: rectangles, symbols, rules (which now also carry the join and the miter limit),
+`strokeMiterLimit` to every kind of item: rectangles, symbols, rules (which now also carry the join and the miter
+limit),
 paths, trails, texts, and arcs.
 
 **Charging as implemented** (the evaluation steps are charged through a `WorkMeter` on the evaluator of the call, one
@@ -421,7 +489,8 @@ reports the exhausted evaluation steps, and the text limits name `VegaLiteLimits
    symbol) is **not a
    difference**: it is Vega-Lite's own behavior (the path overlay normalizer of Vega-Lite gives the point layer the
    whole encoding, so its `size` is the scale of the line); a line with `point: true`
-   and the sizes 1, 3, 6, and 9 has the overlay symbols 1.333, 2, 3, and 4 in both, pinned by `MarkBuilder_Build_PointOverlayOfALineTakesTheSizeFromTheStrokeWidthRange`.
+   and the sizes 1, 3, 6, and 9 has the overlay symbols 1.333, 2, 3, and 4 in both, pinned by
+   `MarkBuilder_Build_PointOverlayOfALineTakesTheSizeFromTheStrokeWidthRange`.
 2. **Invalid-mode domains**: the scale domains are never filtered by the `invalid` mode (reported by the warning
    `vl-mark-invalid-domains`); `show` is not supported (`vl-mark-invalid-show`).
 3. **An area without a measure channel** draws nothing.
@@ -431,11 +500,13 @@ reports the exhausted evaluation steps, and the text limits name `VegaLiteLimits
    bar, arc, or label
    of a null slice is not drawn (see Invalid data modes). `"stack": null` turns the stack off.
 5. **Stack impute of a binned dimension** is not done (the warning `vl-encoding-stack-impute-bin`); see _EncodingPlan_.
-6. **Polar bins** on `theta` or `radius` are not drawn (reported as `vl-encoding-bin`), and a time unit on `theta` is read
+6. **Polar bins** on `theta` or `radius` are not drawn (reported as `vl-encoding-bin`), and a time unit on `theta` is
+   read
    at the start of the unit. A stacked arc row whose value is null is not drawn (the stack takes null as 0, so the other
    slices keep their angles; Vega-Lite's invalid filter removes the row after the stack); an unstacked null is not drawn
    either.
-7. **`startAngle`, `endAngle`, and `padRadius`** are not Vega-Lite mark properties here (`theta` and `theta2` are) and are
+7. **`startAngle`, `endAngle`, and `padRadius`** are not Vega-Lite mark properties here (`theta` and `theta2` are) and
+   are
    reported as unknown properties.
 8. **The text mark's rules**: a null number is formatted as `0`; `lineBreak` is a literal text, not a pattern; `dx` and
    `dy` are not added to the position; a label is bounded by `MaxStringLength` and all the labels of a mark by sixteen
@@ -447,7 +518,8 @@ reports the exhausted evaluation steps, and the text limits name `VegaLiteLimits
 12. **Orientation**: `ScaleResolver.InferOrient` gives a trail and an arc `vertical`, and its temporal fall-through (a
     temporal x next to a y that is not temporal is vertical, and the reverse horizontal) applies to a line, an area,
     and a tick only (see _ScaleResolver_).
-13. **Stack grouping**: the stack of the encoding plan does not group by the stacked field when a dimension channel reads
+13. **Stack grouping**: the stack of the encoding plan does not group by the stacked field when a dimension channel
+    reads
     it, as in a radial chart whose `theta` and `radius` share a field (see _EncodingPlan_).
 14. **Totality of the painter**: the painter draws nothing for a value beyond `ScenePainter.MaxMagnitude` (32,768
     surface pixels), and the path and text builders use the same bound so that the scene never holds what the
@@ -456,16 +528,22 @@ reports the exhausted evaluation steps, and the text limits name `VegaLiteLimits
     counted with the same rule before `MaxSegments` is asked; a text row whose font size, position, or angle is
     beyond the bound is skipped like an invalid row, and a text mark whose `dx`, `dy`, or `lineHeight` is beyond it
     draws no label (see _ScenePainter_ and _CurveBuilder_).
+15. **Images** (phase 13): see _ScenePainter_ for the deviations of the drawing (the default size of a vector picture,
+    the
+    cache of a painting, the limit of pictures). The mark itself follows Vega-Lite's `rectPosition` for the image mark,
+    except that the `x`/`y` offset channels are read by the shared position code (a point only) and that the conditions
+    of the `url` channel are reported and not applied.
 
 #### Key Methods
 
-- `IsSupported(string? markType)` (static) - true for the twelve drawn mark types (`bar`, `rect`, `point`, `circle`,
-  `square`, `rule`, `tick`, `line`, `area`, `trail`, `text`, and `arc`).
+- `IsSupported(string? markType)` (static) - true for the thirteen drawn mark types (`bar`, `rect`, `point`, `circle`,
+  `square`, `rule`, `tick`, `line`, `area`, `trail`, `text`, `arc`, and `image`).
 - `Build(view, table, scales, width, height, token)` - reads the mark type (a string or the `type` of a mark
   definition); returns an empty `marks` group for an unsupported type; otherwise builds the rows of the table (polling
   the token every 1,024 rows and charging the item budget one item at a time as each item is created, so a row that
   draws nothing costs nothing), creating bar and rect items, symbol items, rule items, tick items, path items (lines
-  and areas, one item per group), trail items, text items, and arc items with resolved geometry and paint, followed by the
+  and areas, one item per group), trail items, text items, and arc items with resolved geometry and paint, followed by
+  the
   items of the overlays of a path mark, and returns the group, clipped to the data rectangle when the
   mark definition says `"clip": true` and when the `x` or `y` scale reports `ClipMarks` (the scale has the extent of a
   parameter or a selection, phase 12: Vega-Lite's `scaleClip` clips for the extent of a selection or parameter
@@ -475,10 +553,13 @@ reports the exhausted evaluation steps, and the text limits name `VegaLiteLimits
   domain, as in Vega-Lite.
 - `BuildBrush(component, model, scales, unit, width, height)` (`MarkBuilder.Brush.cs`; Vega-Lite's `interval.ts`
   `marks`) -
-  builds the brush of an interval selection of a unit, as two `BrushGroups`. It returns nothing (null) for a point selection,
+  builds the brush of an interval selection of a unit, as two `BrushGroups`. It returns nothing (null) for a point
+  selection,
   a selection bound to the scales (`IsScaleBound`), a dropped selection, a selection with no initial value, a globally
-  resolved selection whose store does not start with a tuple of this unit (`store[0].unit === unitName`) or that the unit
-  draws in a facet cell (`LayerNode.Cell`; the name of the unit of a cell never equals the one in the store), a selection
+  resolved selection whose store does not start with a tuple of this unit (`store[0].unit === unitName`) or that the
+  unit
+  draws in a facet cell (`LayerNode.Cell`; the name of the unit of a cell never equals the one in the store), a
+  selection
   projected over neither `x` nor `y`, an end that has no position on the scale of its channel (`ScaleModel.Map`: a
   band scale gives the **start** of the band, a point scale its position, a linear or time scale the extrapolated
   pixel), and a
@@ -495,14 +576,18 @@ reports the exhausted evaluation steps, and the text limits name `VegaLiteLimits
   has a transparent fill and takes `stroke`, `strokeOpacity`, `strokeWidth`, `strokeDash`, `strokeDashOffset`,
   `strokeCap`, `strokeJoin`, `strokeMiterLimit`, and `opacity` from
   the
-  other keys of the mark (every key but `fill`, `fillOpacity`, and `cursor` is a stroke key in Vega-Lite, which copies it
+  other keys of the mark (every key but `fill`, `fillOpacity`, and `cursor` is a stroke key in Vega-Lite, which copies
+  it
   to the rectangle whatever its schema lists; the keys that the scene does not model have no
   effect here). It charges four items (two groups and two rectangles) before making them.
-- `VegaLiteDocument.BuildMarkGroups` (not part of this unit; it calls `Build` and `BuildBrush`) - arranges the marks groups
-  of a cell with the brushes: a unit that is the whole chart, or a unit of a concatenation or a facet, wraps its own marks
+- `VegaLiteDocument.BuildMarkGroups` (not part of this unit; it calls `Build` and `BuildBrush`) - arranges the marks
+  groups
+  of a cell with the brushes: a unit that is the whole chart, or a unit of a concatenation or a facet, wraps its own
+  marks
   (`[shade, marks, outline]`, the selections of the unit one around the other in declaration order); the units of a
   layered view are wrapped together, child by child, as Vega-Lite's `assembleLayerSelectionMarks` does
-  (`[shade_n, ..., shade_0, marks of every layer, outline_0, ..., outline_n]`), a nested layered view wrapping its own units
+  (`[shade_n, ..., shade_0, marks of every layer, outline_0, ..., outline_n]`), a nested layered view wrapping its own
+  units
   first. A cell without selections draws its layers in order and nothing else.
 - Row filtering (Vega-Lite's invalid filter; the path marks use the invalid modes described above instead) - a row whose
   value for a channel with a continuous domain (`x`, `y`,
@@ -526,11 +611,13 @@ has no
   `MaxEvaluationSteps` and the token is polled by the same loops as the other expressions, and a test that evaluates to
   null, a missing field, or any falsy value does not hold). The **first** condition that holds gives the row its value:
   the constant `value` (a `value` that is an `expr` is evaluated per row; a value of the wrong kind leaves the default,
-  as an expression of the wrong kind does), or, for a condition that holds a field, the value of the scale of that field.
+  as an expression of the wrong kind does), or, for a condition that holds a field, the value of the scale of that
+  field.
   When no condition holds the row gets what the channel gives without conditions: its scaled field, else its own
   `value`, else the default of the mark. A channel with a field of its own takes value conditions only; a channel
   that is only a value may take a field condition. A field condition leaves the continuous-domain row filter alone
-  (the field is read only where its test holds). A condition on a `param` (a selection or a variable parameter) or on the
+  (the field is read only where its test holds). A condition on a `param` (a selection or a variable parameter) or on
+  the
   legacy `selection` is a condition like a `test`: the parser compiled the predicate of Vega-Lite for it (the selection
   test with its `empty` rule, read through `ChannelDefinitions.PredicateKeyOf`), so the first holding condition wins in
   the order
@@ -586,7 +673,8 @@ feature catalog has already reported it. The unit performs no I/O.
   `SpecModel` subsystem
 - **`SceneGroup`**, **`SceneRect`**, **`SceneRule`**, **`SceneSymbol`**, **`ScenePath`** with **`ScenePathSegment`**,
   **`SceneTrail`** with **`SceneTrailPoint`**, **`SceneText`**, **`SceneArc`**, **`SceneClip`**, and **`SceneBudget`** -
-  the `Scenegraph` subsystem (the painter builds the outline of an arc and the capsules of a trail from their parameters;
+  the `Scenegraph` subsystem (the painter builds the outline of an arc and the capsules of a trail from their
+  parameters;
   see _SceneModel_, _ScenePainter_, and _ArcGeometry_)
 - **`VegaLiteLimits`**, **`VegaLiteLocation`**, **`VegaLiteRenderException`**, and **`VegaLiteSpecException`** - the
   public types of the `VegaLiteDocument` unit

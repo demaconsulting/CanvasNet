@@ -10,7 +10,7 @@ namespace DemaConsulting.CanvasNet.VegaLite.Marks;
 
 /// <summary>
 ///     Builds the scene items of the mark of a single view: <c>bar</c>, <c>rect</c>, <c>point</c>, <c>circle</c>,
-///     <c>square</c>, <c>rule</c>, <c>tick</c>, <c>line</c>, <c>area</c>, <c>trail</c>, <c>text</c> and <c>arc</c>, and the point and line overlays of the path marks.
+///     <c>square</c>, <c>rule</c>, <c>tick</c>, <c>line</c>, <c>area</c>, <c>trail</c>, <c>text</c>, <c>arc</c> and <c>image</c>, and the point and line overlays of the path marks.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -95,6 +95,11 @@ namespace DemaConsulting.CanvasNet.VegaLite.Marks;
 ///         <c>tooltip</c>, <c>href</c> and the individual corner radii are ignored; the offset channels are reported by the feature catalog and ignored here.
 ///     </para>
 ///     <para>
+///         <b>Images.</b> An <c>image</c> mark is one <see cref="SceneImage"/> per row (role <c>mark-image</c>): the link of the <c>url</c> channel (or property), a position or span on each axis by Vega-Lite's
+///         rectangle position rules (<c>compile/mark/image.ts</c>), the <c>aspect</c> and <c>smooth</c> of the mark and its opacity. The picture itself is not loaded here: the scene is built before the paint scale is
+///         known and a measure builds it too, so the painter loads it through the <see cref="VegaLiteRenderOptions.ImageResolver"/> (see <c>MarkBuilder.Images.cs</c>).
+///     </para>
+///     <para>
 ///         <b>Conditions.</b> A color, fill, stroke, opacity, fillOpacity, strokeOpacity, strokeWidth, strokeDash, size, shape or angle channel
 ///         may carry a <c>condition</c> (an object, or an array of them) whose <c>test</c> is an expression or a predicate that the parser compiled
 ///         to an expression. For every row the conditions are tried in order and the first whose test is truthy decides: its <c>value</c> (a literal or an
@@ -120,7 +125,7 @@ internal sealed partial class MarkBuilder
     private const double DefaultBarBinSpacing = 1;
 
     /// <summary>The marks that this builder draws.</summary>
-    private static readonly HashSet<string> SupportedMarks = ["bar", "rect", "point", "circle", "square", "rule", "tick", "line", "area", "trail", "text", "arc"];
+    private static readonly HashSet<string> SupportedMarks = ["bar", "rect", "point", "circle", "square", "rule", "tick", "line", "area", "trail", "text", "arc", "image"];
 
     /// <summary>The marks whose missing fill is transparent instead of none (Vega-Lite's <c>transparentIfNeeded</c>).</summary>
     private static readonly HashSet<string> TransparentMarks = ["bar", "point", "circle", "square"];
@@ -166,7 +171,7 @@ internal sealed partial class MarkBuilder
     ///     Tells whether this builder draws a mark type.
     /// </summary>
     /// <param name="markType">The mark type, such as <c>bar</c>.</param>
-    /// <returns><see langword="true"/> for <c>bar</c>, <c>rect</c>, <c>point</c>, <c>circle</c>, <c>square</c>, <c>rule</c>, <c>tick</c>, <c>line</c>, <c>area</c>, <c>trail</c>, <c>text</c> and <c>arc</c>.</returns>
+    /// <returns><see langword="true"/> for <c>bar</c>, <c>rect</c>, <c>point</c>, <c>circle</c>, <c>square</c>, <c>rule</c>, <c>tick</c>, <c>line</c>, <c>area</c>, <c>trail</c>, <c>text</c>, <c>arc</c> and <c>image</c>.</returns>
     public static bool IsSupported(string? markType) => markType is not null && SupportedMarks.Contains(markType);
 
     /// <summary>
@@ -616,6 +621,7 @@ internal sealed partial class MarkBuilder
                 "line" or "area" or "trail" => Paths(),
                 "text" => Texts(),
                 "arc" => Arcs(),
+                "image" => Images(),
                 _ => Symbols(),
             };
             if (_overlay is null)

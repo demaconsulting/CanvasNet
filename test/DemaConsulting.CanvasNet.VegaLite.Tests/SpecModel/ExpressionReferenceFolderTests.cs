@@ -337,6 +337,23 @@ public class ExpressionReferenceFolderTests
     }
 
     /// <summary>
+    ///     Validates that a reference that reads the parameter of an extent transform (which has no value before the data is read) is folded with null and reported with the warning <c>vl-param-extent-static</c> at the reference.
+    /// </summary>
+    [Fact]
+    public void ExpressionReferenceFolder_Fold_AnExtentParameterIsNullAtAStaticSiteAndReported()
+    {
+        // Arrange / Act
+        var (_, result) = Fold("""{ "title": { "text": "T", "fontSize": { "expr": "e[1]" } }, "transform": [ { "extent": "v", "param": "e" } ], "mark": "point" }""");
+
+        // Assert
+        var warning = Assert.Single(result.Warnings);
+        Assert.Equal("vl-param-extent-static", warning.Id);
+        Assert.Equal(FeatureReportKind.Warning, warning.Kind);
+        Assert.Contains("'e'", warning.Message, StringComparison.Ordinal);
+        Assert.Equal("/title/fontSize", warning.Location.Pointer);
+    }
+
+    /// <summary>
     ///     Validates that an expression that exceeds the step budget is a located render error at the reference.
     /// </summary>
     [Fact]

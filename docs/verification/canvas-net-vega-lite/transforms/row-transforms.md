@@ -2,30 +2,30 @@
 
 This document describes the unit-level verification strategy for the `RowTransforms` unit in the
 `DemaConsulting.CanvasNet.VegaLite.Transforms` namespace: the internal static `RowTransforms` class (`Apply`, with its
-predicate, shape, and lookup files) that executes the row transforms of the drawn view — `calculate`, `filter`,
-`fold`, `flatten`, `sample`, `pivot`, and `lookup` — eagerly over an immutable `DataTable` and returns a new table; and
-the internal types of its files: `RowSampler` (the deterministic sample), `TableLayout` and `FieldReader` (the field
-layout of a derived table, its cell bound, and the rebuilding of arrays and objects from the flattened fields),
+predicate, shape, and lookup files) that executes the row transforms of the drawn view — `calculate`, `filter`, `fold`,
+`flatten`, `sample`, `pivot`, and `lookup` — eagerly over an immutable `DataTable` and returns a new table; and the
+internal types of its files: `RowSampler` (the deterministic sample), `TableLayout` and `FieldReader` (the field layout
+of a derived table, its cell bound, and the rebuilding of arrays and objects from the flattened fields),
 `ParameterEnvironment` and `SpecValues` (the evaluation of the static parameters of the root view and the conversion of
 a JSON value to a `DataValue`), and `TransformContext` and `RowExpressions` (the per-call context that carries the tree,
 the loader, the evaluator, the parameter values, the limits, the token, and the warnings). The executor also dispatches
-the grouped transforms (`aggregate`, `joinaggregate`, `window`, `bin`, `stack`, and `impute`) to the `AggregateTransforms`
-unit, which has its own verification design, and the `timeUnit` transform to the `TimeUnitTransform` unit (see _Time Unit
-Transform Verification Design_); the transforms of later phases (`regression`, `loess`, `density`, `quantile`, and
-`extent`) are skipped by the executor and are reported by the feature catalog. The predicates of `filter` that have a time
-unit or compare with a date-time object are evaluated through the expressions that `SpecParser` compiled for them, in the
+the grouped transforms (`aggregate`, `joinaggregate`, `window`, `bin`, `stack`, and `impute`) to the
+`AggregateTransforms` unit, which has its own verification design, and the `timeUnit` transform to the
+`TimeUnitTransform` unit (see _Time Unit Transform Verification Design_) and the five statistical transforms to the
+`StatTransforms` unit (see _StatTransforms Unit Verification Design_). The predicates of `filter` that have a time unit
+or compare with a date-time object are evaluated through the expressions that `SpecParser` compiled for them, in the
 calendar of the chart.
 
 #### Verification Approach
 
-The unit is verified by parsing small, original specification strings with the real `SpecParser`, loading the data
-with the real `DataLoader`, populating the parameters with `ParameterEnvironment.Populate`, applying the transforms the
-way a render does (the `Run` helper of the test class), and asserting on the resulting table: the fields in ordinal
-order, the rows as text, the cell kinds, the warnings, and the exceptions with their location. The unit's collaborators
+The unit is verified by parsing small, original specification strings with the real `SpecParser`, loading the data with
+the real `DataLoader`, populating the parameters with `ParameterEnvironment.Populate`, applying the transforms the way a
+render does (the `Run` helper of the test class), and asserting on the resulting table: the fields in ordinal order, the
+rows as text, the cell kinds, the warnings, and the exceptions with their location. The unit's collaborators
 (`SpecParser` and `FeatureCatalog` for the input and the reports, `DataLoader` and `DataTable` for the source and the
-result, `ExpressionParser` and `ExpressionEvaluator` for the expressions, and `ScaleResolver` for the sort scenarios) are
-real; the unit's contract is exactly how a parsed transform turns one table into another, and no mocking or stubbing is
-used. File sources are real: `DataTempDirectory` (a per-test temporary tree for the base directory of a lookup in a
+result, `ExpressionParser` and `ExpressionEvaluator` for the expressions, and `ScaleResolver` for the sort scenarios)
+are real; the unit's contract is exactly how a parsed transform turns one table into another, and no mocking or stubbing
+is used. File sources are real: `DataTempDirectory` (a per-test temporary tree for the base directory of a lookup in a
 file). The internal types are reached through the test assembly's `InternalsVisibleTo` access.
 
 The expected tables are derived by hand from the rules of each transform:
@@ -41,8 +41,9 @@ The expected tables are derived by hand from the rules of each transform:
   array expands, a scalar is one element, and an empty, null, or missing value gives no row; several fields expand in
   parallel and the shorter ones are padded with null.
 - `pivot` of the rows `(a,x,1)`, `(a,y,2)`, `(b,x,3)`, `(a,x,4)` by `k`, value `v`, grouped by `g` gives the rows
-  `a|5|2` and `b|3|0`: the groups are in first-seen order, the columns are the distinct pivot texts in ordinal order,
-  `sum` adds, a missing combination is 0, and `count` counts rows.
+  `a|5|2` and `b|3|null`: the groups are in first-seen order, the columns are the distinct pivot texts in ordinal order,
+  `sum` adds, a missing combination has no value (Vega's sum of nothing; a `count` of nothing is 0), and `count` counts
+  rows; the `mean` of the same rows is `a|2.5|2` and `b|3|null`.
 - `lookup` of the ids `1, 2, 3` in the rows `(k 1, n one)`, `(k 2, n two)`, `(k 1, n uno)` gives `one`, `two`, and the
   default for 3: the first match wins and the key is compared by its text, so the string `"2"` finds the number 2.
 - `sample` is deterministic: the seed is the FNV-1a 64-bit hash of the UTF-8 JSON pointer of the transform entry (the
@@ -71,11 +72,11 @@ predicate text writes it as the index 2 (see _SpecParser Unit Verification Desig
 with a single local unit is that unit's part, so `equal: 3` on the unit `month` keeps the dates of March. A date-time
 object without a unit is compared as an instant: `{"year": 2024, "month": 3, "date": 1}` is 2024-03-01T00:00 in the zone
 of the chart. The zone arithmetic: at +05:30 the dates 2024-03-05T23:00Z, 2024-03-06T01:00Z, and 2024-03-07T00:00Z are
-the local times 2024-03-06 04:30, 2024-03-06 06:30, and 2024-03-07 05:30, so their local dates are 6, 6, and 7, while
-in UTC they are 5, 6, and 7; the local midnight of 2024-03-05 at +05:30 is 2024-03-04T18:30Z. The instant
-1,709,596,800,000 ms is 2024-03-05T00:00Z (19,787 days x 86,400,000 ms, the arithmetic of the _ExpressionFunctions Unit
-Verification Design_). For the `timeUnit` transform the six dates of the encoding scenario are counted per month as 2, 3,
-and 1; and the local month of 2024-03-01T02:00Z in a US-like zone (at -5 h before the change of 2024-03-10) is February
+the local times 2024-03-06 04:30, 2024-03-06 06:30, and 2024-03-07 05:30, so their local dates are 6, 6, and 7, while in
+UTC they are 5, 6, and 7; the local midnight of 2024-03-05 at +05:30 is 2024-03-04T18:30Z. The instant 1,709,596,800,000
+ms is 2024-03-05T00:00Z (19,787 days x 86,400,000 ms, the arithmetic of the _ExpressionFunctions Unit Verification
+Design_). For the `timeUnit` transform the six dates of the encoding scenario are counted per month as 2, 3, and 1; and
+the local month of 2024-03-01T02:00Z in a US-like zone (at -5 h before the change of 2024-03-10) is February
 (2024-02-29T21:00 local), so the month starts at 2024-02-01T00:00 local = 05:00Z and ends at 2024-03-01T00:00 local =
 05:00Z.
 
@@ -128,20 +129,19 @@ the first row index (0).
 `RowTransformsTests.RowTransforms_Apply_FilterOnAParameterReadsItsTruthiness`
 
 Asserts that an expression filter keeps the rows whose result is truthy (`datum.b` drops the row whose `b` is null;
-`datum.a > 1 && datum.a < 5` keeps the row with `a = 3`), and, as a theory of twenty-three predicates over the rows
-`x = 1, 2, 3, null`, every operator with the comparison rules of JavaScript — `equal` is strict (`2` matches and `"2"`
-does not), `lt` and `lte` keep the null row because null converts to zero, `range` is inclusive with a `null` bound
-meaning open and reversed bounds swapped, `oneOf`, `valid` true and false, and the compositions `and`, `or` (with an
-expression string as a member), and `not`; that a `timeUnit` in a predicate is now evaluated (the numbers are
-milliseconds after the epoch, so all four rows are in the year 1970 and the null row is no instant): `equal: 2` on the
-unit `year` compares the year part with the year 2 and keeps no row (its `not` keeps all four rows, and an `and` with it
-keeps none), `equal: 1970` on `year` keeps the rows 1, 2, and 3, `valid: true` with a unit tests the field itself and keeps
-the same three rows, and a date-time object `{"year": 2020}` as the value to compare with matches no row (its date is
-not 1970); that a filter on a variable parameter keeps every
-row or none depending on its truthiness (`true` keeps 3 rows, an override of `false` or `0` keeps none) while a filter
-on an empty selection parameter, by `param` or by the legacy `selection`, keeps every row (the default `empty` rule; the
-rows
-that a selection with tuples selects are asserted in the system scenarios _Selections_).
+`datum.a > 1 && datum.a < 5` keeps the row with `a = 3`), and, as a theory of twenty-three predicates over the rows `x =
+1, 2, 3, null`, every operator with the comparison rules of JavaScript — `equal` is strict (`2` matches and `"2"` does
+not), `lt` and `lte` keep the null row because null converts to zero, `range` is inclusive with a `null` bound meaning
+open and reversed bounds swapped, `oneOf`, `valid` true and false, and the compositions `and`, `or` (with an expression
+string as a member), and `not`; that a `timeUnit` in a predicate is now evaluated (the numbers are milliseconds after
+the epoch, so all four rows are in the year 1970 and the null row is no instant): `equal: 2` on the unit `year` compares
+the year part with the year 2 and keeps no row (its `not` keeps all four rows, and an `and` with it keeps none), `equal:
+1970` on `year` keeps the rows 1, 2, and 3, `valid: true` with a unit tests the field itself and keeps the same three
+rows, and a date-time object `{"year": 2020}` as the value to compare with matches no row (its date is not 1970); that a
+filter on a variable parameter keeps every row or none depending on its truthiness (`true` keeps 3 rows, an override of
+`false` or `0` keeps none) while a filter on an empty selection parameter, by `param` or by the legacy `selection`,
+keeps every row (the default `empty` rule; the rows that a selection with tuples selects are asserted in the system
+scenarios _Selections_).
 
 ##### Filter Predicates Are Charged To The Step Budget
 
@@ -151,17 +151,17 @@ that a selection with tuples selects are asserted in the system scenarios _Selec
 `RowTransformsTests.RowTransforms_Apply_FilterCompositeFieldReadsAreCharged`,
 `RowTransformsTests.RowTransforms_Apply_FilterOfAnArrayFieldWithLongTextIsALocatedFailure`
 
-The step counts are derived by hand from the rule of one step per 64 characters or members. As a theory over `lt`, `lte`,
-`gt`, `gte`, `range`, `equal`, and `oneOf`, a 10,000-character value compared with an equal one costs 156 steps (10,000
-divided by 64, rounded down) on top of the step of the field test: the filter keeps the expected rows (0 for `lt` and
-`gt`, 1 for the others) under a budget of 1,000, and fails under a budget of 100 at `/transform/0/filter` with the text
-`VegaLiteLimits.MaxEvaluationSteps`. A composed filter of three small predicates over four rows passes under a budget of
-100. A `oneOf` of 10,000 members costs 156 steps for one row, and 40 `valid` parts of an `and` (or 40 failing parts of an
-`or`) over five rows cost 200 steps: each passes under a budget of 10,000 and fails, located at the filter, under 100. A
-field `tags` of 300 elements is stored as 300 fields, so rebuilding it costs 1,200 units, 18 steps: a budget of 100
-passes and a budget of 10 fails at the filter. Last, an array of three 10-character texts (32 characters as text) compared
-with `lt: 5` under a `MaxStringLength` of 25 fails at `/transform/1/filter` with the text
-`the limit of 25 characters (VegaLiteLimits.MaxStringLength)` instead of an unlocated internal exception.
+The step counts are derived by hand from the rule of one step per 64 characters or members. As a theory over `lt`,
+`lte`, `gt`, `gte`, `range`, `equal`, and `oneOf`, a 10,000-character value compared with an equal one costs 156 steps
+(10,000 divided by 64, rounded down) on top of the step of the field test: the filter keeps the expected rows (0 for
+`lt` and `gt`, 1 for the others) under a budget of 1,000, and fails under a budget of 100 at `/transform/0/filter` with
+the text `VegaLiteLimits.MaxEvaluationSteps`. A composed filter of three small predicates over four rows passes under a
+budget of 100. A `oneOf` of 10,000 members costs 156 steps for one row, and 40 `valid` parts of an `and` (or 40 failing
+parts of an `or`) over five rows cost 200 steps: each passes under a budget of 10,000 and fails, located at the filter,
+under 100. A field `tags` of 300 elements is stored as 300 fields, so rebuilding it costs 1,200 units, 18 steps: a
+budget of 100 passes and a budget of 10 fails at the filter. Last, an array of three 10-character texts (32 characters
+as text) compared with `lt: 5` under a `MaxStringLength` of 25 fails at `/transform/1/filter` with the text `the limit
+of 25 characters (VegaLiteLimits.MaxStringLength)` instead of an unlocated internal exception.
 
 ##### Parameters Are Evaluated In Dependency Order
 
@@ -225,21 +225,40 @@ them in source order.
 ##### Pivot Builds Columns
 
 **Tests**: `RowTransformsTests.RowTransforms_Apply_PivotSumsValuesPerGroup`,
-`RowTransformsTests.RowTransforms_Apply_PivotCountsAndFallsBackToSum`,
+`RowTransformsTests.RowTransforms_Apply_PivotCountsAndComputesTheOtherOperations`,
 `RowTransformsTests.RowTransforms_Apply_PivotLimitAndNullValuesAreWarnings`,
 `RowTransformsTests.RowTransforms_Apply_PivotColumnsAreBoundedByTheFieldLimit`,
 `RowTransformsTests.RowTransforms_Apply_PivotArrayKeyTextIsBoundedByMaxStringLength`,
 `RowTransformsTests.RowTransforms_Apply_PivotLongTextsAreChargedPerRow`
 
-Asserts the derived rows above and the fields `g, x, y`; that `count` without a group gives one row `3|1` and an
-unsupported `mean` falls back to the sum; that a `limit` of 1 keeps the first pivot value in ordinal order and gives a
-warning `vl-transform-runtime` at `/transform/0` ("only the first 1 in ordinal order") and that a row whose pivot value
-is null is skipped with a second warning naming the count (1 row) and the first row index (4); and that three pivot
-columns plus a group field over a `MaxFieldCount` of three are a located failure at `/transform/0` naming the limit; and
-that an array pivot value is the column named by its JavaScript text (`aaaaaa,bbbbbb`, 13 characters) within the default
-limit, while under a `MaxStringLength` of 12 it is a located failure at `/transform/0` naming the field and the limit; and
-that 200 rows with 2,000-character group and pivot texts exhaust a step budget of 1,000 (located at `/transform/0`, naming
-`VegaLiteLimits.MaxEvaluationSteps`) while 200 short rows pass the same budget.
+Asserts the derived rows above and the fields `g, x, y`; that `count` without a group gives one row `3|1` and the `mean`
+is computed (the other operations are in the next scenario); that a `limit` of 1 keeps the first pivot value in ordinal
+order and gives a warning `vl-transform-runtime` at `/transform/0` ("only the first 1 in ordinal order") and that a row
+whose pivot value is null is skipped with a second warning naming the count (1 row) and the first row index (4); and
+that three pivot columns plus a group field over a `MaxFieldCount` of three are a located failure at `/transform/0`
+naming the limit; and that an array pivot value is the column named by its JavaScript text (`aaaaaa,bbbbbb`, 13
+characters) within the default limit, while under a `MaxStringLength` of 12 it is a located failure at `/transform/0`
+naming the field and the limit; and that 200 rows with 2,000-character group and pivot texts exhaust a step budget of
+1,000 (located at `/transform/0`, naming `VegaLiteLimits.MaxEvaluationSteps`) while 200 short rows pass the same budget.
+
+##### Pivot Computes Every Aggregate Operation
+
+**Tests**: `RowTransformsPivotOpTests.RowTransforms_Apply_PivotComputesTheOperation` (a theory over the operations),
+`RowTransformsPivotOpTests.RowTransforms_Apply_PivotDefaultsToTheSumAndAppliesTheLimit`,
+`RowTransformsPivotOpTests.RowTransforms_Apply_PivotWithoutGroupsAggregatesEveryRowOfAValue`,
+`RowTransformsPivotOpTests.RowTransforms_Apply_PivotValuesAreTheRowsOfTheGroup`,
+`RowTransformsPivotOpTests.RowTransforms_Apply_PivotArgMinAndArgMaxReturnTheRows`,
+`RowTransformsPivotOpTests.RowTransforms_Apply_PivotConfidenceIntervalIsDeterministicAndOrdered`,
+`RowTransformsPivotOpTests.RowTransforms_Apply_PivotSumConvertsNumericTexts`,
+`RowTransformsPivotOpTests.RowTransforms_Apply_PivotCellsBeyondTheLimitFailAtTheTransform`
+
+Asserts every aggregate operation as a pivot cell against values computed by hand from small tables (sum, mean, min,
+max, median, the quartiles, the variances and deviations, the counts, distinct, product, argmin, argmax, values, and the
+confidence interval, which is deterministic and ordered), the Vega semantics of an empty cell (no value for the
+operations that need one, 0 for the counts), that the default operation is the sum and the `limit` still applies, that a
+pivot without groups aggregates every row of a pivot value, that `values` is the array of the rows of the group, that
+numeric texts are converted by the sum, and that a pivot whose state of cells (cells times the state of an operator)
+exceeds the cell limit fails at the transform before it is allocated.
 
 ##### Lookup Copies Fields Of The First Match
 
@@ -274,23 +293,24 @@ value per output field; and that a chain of 40 calculates of `[datum.aN, datum.a
 `RowTransformsTests.RowTransforms_Apply_FlattenOutputIsBoundedByTheRowLimitAndFiltersReleaseRows`,
 `RowTransformsTests.RowTransforms_Apply_FieldStringAndStepLimitsAreLocatedFailures`
 
-Asserts the row budget examples above with the failure located at `/transform/0` and naming the transform and the
-rows read before; that a second added field over a `MaxFieldCount` of three fails at `/transform/1` naming the limit; that
-a calculated text of 30 characters over a `MaxStringLength` of 24 and a calculation of five instructions over three rows
+Asserts the row budget examples above with the failure located at `/transform/0` and naming the transform and the rows
+read before; that a second added field over a `MaxFieldCount` of three fails at `/transform/1` naming the limit; that a
+calculated text of 30 characters over a `MaxStringLength` of 24 and a calculation of five instructions over three rows
 (fifteen steps) under a `MaxEvaluationSteps` of ten fail at `/transform/0/calculate` with the expression offset; and
-that the layout of a table
-of more cells than the internal bound of 2^25 is refused before it is allocated, with a message that names the cells.
+that the layout of a table of more cells than the internal bound of 2^25 is refused before it is allocated, with a
+message that names the cells.
 
-##### Cancellation, Arguments, And Transforms Of Later Phases
+##### Cancellation, Arguments, And Statistical Transforms
 
 **Tests**: `RowTransformsTests.RowTransforms_Apply_CanceledTokenStopsTheTransforms`,
 `RowTransformsTests.RowTransforms_Apply_ChecksArgumentsAndReturnsTheInputWithoutTransforms`,
-`RowTransformsTests.RowTransforms_Apply_TransformsOfLaterPhasesAreSkipped`
+`RowTransformsTests.RowTransforms_Apply_StatisticalTransformReplacesTheTableAndTheNextTransformRuns`
 
 Asserts that the transforms throw `OperationCanceledException` under a canceled token (and give 4,999 rows of the 5,000
 under a live one: the filter keeps `a + 1 > 1`); that a table without transforms is returned as the same instance, that
-a null table or context is an `ArgumentNullException`; and that a `regression` among the transforms is skipped (only the
-later calculate ran: the fields are `a, b, z` and the three rows are intact).
+a null table or context is an `ArgumentNullException`; and that a `regression` among the transforms is executed by the
+`StatTransforms` unit and replaces the table by its two end points (the line through (2, 1) and (4, 3): `b|a|z` rows
+`2|1|1` and `4|3|3`), and the calculate that follows ran on them (the fields are `a, b, z`).
 
 ##### Sort By A Field Of The Transformed Rows
 
@@ -298,16 +318,16 @@ later calculate ran: the fields are `a, b, z` and the three rows are intact).
 `RowTransformsTests.ScaleResolver_Resolve_SortByFieldIsStableForTies`,
 `RowTransformsTests.ScaleResolver_Resolve_SortByFieldPutsCategoriesWithoutValuesFirstInBothDirections`
 
-Asserts, as a theory of ten sort forms over a table made by a calculate transform (the weights of the categories
-`a`, `b`, and `c` above), that the domain follows `sum`, `count`, `max`, `min` (descending), `mean`, `average`
-(descending), `median`, and `valid` (the numbers of valid values 2, 1, and 1 give `b, c, a`, the tie in the order of first
+Asserts, as a theory of ten sort forms over a table made by a calculate transform (the weights of the categories `a`,
+`b`, and `c` above), that the domain follows `sum`, `count`, `max`, `min` (descending), `mean`, `average` (descending),
+`median`, and `valid` (the numbers of valid values 2, 1, and 1 give `b, c, a`, the tie in the order of first
 appearance), that the order option reverses it, and that the `encoding` form with no channel to resolve keeps the
 ascending default; in the second test, that categories with equal aggregates keep their order of first appearance in
 both directions (`z, m, a` ascending and descending, so the data order and not the alphabet decides among ties), and
 that `IsSupportedFieldSort` accepts an object with an orderable operation and refuses an invalid order and the shorthand
 text form; and, in the third test, that for `mean`, `average`, `median`, `min`, and `max` a category without a valid
-value (`m`) has a null aggregate that sorts first in both directions (`m, z, a` ascending, `m, a, z` descending). The sort
-by another channel's aggregate and the other forms over the aggregated rows are verified in the _ScaleResolver Unit
+value (`m`) has a null aggregate that sorts first in both directions (`m, z, a` ascending, `m, a, z` descending). The
+sort by another channel's aggregate and the other forms over the aggregated rows are verified in the _ScaleResolver Unit
 Verification Design_.
 
 ##### Time Predicates Are Evaluated In The Calendar Of The Chart
@@ -322,34 +342,33 @@ Verification Design_.
 `RowTransformsTimeTests.RowTransforms_Filter_UnparsedStringDatesAreParsedImplicitly`,
 `RowTransformsTimeTests.RowTransforms_Filter_ValidWithATimeUnit`
 
-Asserts, over rows `{id, d}` whose kept ids are read off by hand, that a month predicate with the value
-`{"month": "Mar"}` keeps the rows in March of any year (2023-03-10 and 2024-03-05, ids 0 and 1) and drops April and the
-leap day of February (the instant 2024-02-29T23:59:59Z is still February); that the month by number (`equal: 3` keeps
-March), a list (`oneOf: [3, "Apr"]` keeps March and April), `gt: 3` (April and May) and the reversed range `[4, 3]`
-(March and April) work over the dates of March, April, and May 2024; that a range of date-time objects without a unit is
-inclusive at both ends and compares instants: from 2024-02-01 to 2024-04-01 the rows at 2024-01-31T23:59:59.999Z and
+Asserts, over rows `{id, d}` whose kept ids are read off by hand, that a month predicate with the value `{"month":
+"Mar"}` keeps the rows in March of any year (2023-03-10 and 2024-03-05, ids 0 and 1) and drops April and the leap day of
+February (the instant 2024-02-29T23:59:59Z is still February); that the month by number (`equal: 3` keeps March), a list
+(`oneOf: [3, "Apr"]` keeps March and April), `gt: 3` (April and May) and the reversed range `[4, 3]` (March and April)
+work over the dates of March, April, and May 2024; that a range of date-time objects without a unit is inclusive at both
+ends and compares instants: from 2024-02-01 to 2024-04-01 the rows at 2024-01-31T23:59:59.999Z and
 2024-04-01T00:00:00.001Z are out and the three rows at 2024-02-01T00:00:00Z, 2024-03-15, and 2024-04-01T00:00:00Z are in
-(ids 1, 2, and 3); that, against `{"year": 2024, "month": 3, "date": 1}` (2024-03-01T00:00), over the rows of
-February 29, March 1, and March 2 and a null date, `equal` keeps March 1, `lt` February 29, `lte` both, `gt` March 2,
-`gte` March 1
-and 2, the ranges `[March, null]` and `[null, March]` keep (1, 2) and (0, 1), a `oneOf` with March and 2030 keeps March
-1, and a `not` of the equality keeps the other three rows (the null date included), and that a null date never passes an
-ordered comparison. The zone decides: a UTC-unit list of the dates 5 and 6 (`utcdate` with `utc: true` objects) keeps the
-first two of the three dates above in UTC and at +05:30 alike, while the local unit `date` with `equal: 6` keeps only the
-second date in UTC (the dates are 5, 6, and 7) and the first two at +05:30 (the local dates are 6, 6, and 7); a
-date-time object that is written in the local zone is that zone's instant, so `{"year": 2024, "month": 3, "date": 5}`
-matches 2024-03-05T00:00Z in UTC, matches 2024-03-04T18:30Z at +05:30 (not the other), and with `utc: true` matches
-2024-03-05T00:00Z in either zone. Text dates are parsed implicitly: `"2024-03-05"`, `"Mar 5, 2024"`, and the number
-1,709,596,800,000 match March 5, 2024 and the text `not a date` never does (ids 0, 1, and 3). A `valid` test with the
-unit `year` tests the field itself natively: the date, the number 0, and null keep the first two rows.
+(ids 1, 2, and 3); that, against `{"year": 2024, "month": 3, "date": 1}` (2024-03-01T00:00), over the rows of February
+29, March 1, and March 2 and a null date, `equal` keeps March 1, `lt` February 29, `lte` both, `gt` March 2, `gte` March
+1 and 2, the ranges `[March, null]` and `[null, March]` keep (1, 2) and (0, 1), a `oneOf` with March and 2030 keeps
+March 1, and a `not` of the equality keeps the other three rows (the null date included), and that a null date never
+passes an ordered comparison. The zone decides: a UTC-unit list of the dates 5 and 6 (`utcdate` with `utc: true`
+objects) keeps the first two of the three dates above in UTC and at +05:30 alike, while the local unit `date` with
+`equal: 6` keeps only the second date in UTC (the dates are 5, 6, and 7) and the first two at +05:30 (the local dates
+are 6, 6, and 7); a date-time object that is written in the local zone is that zone's instant, so `{"year": 2024,
+"month": 3, "date": 5}` matches 2024-03-05T00:00Z in UTC, matches 2024-03-04T18:30Z at +05:30 (not the other), and with
+`utc: true` matches 2024-03-05T00:00Z in either zone. Text dates are parsed implicitly: `"2024-03-05"`, `"Mar 5, 2024"`,
+and the number 1,709,596,800,000 match March 5, 2024 and the text `not a date` never does (ids 0, 1, and 3). A `valid`
+test with the unit `year` tests the field itself natively: the date, the number 0, and null keep the first two rows.
 
 ##### Time Predicates Are Charged To The Step Budget
 
 **Tests**: `RowTransformsTimeTests.RowTransforms_Filter_ExpressionPredicateIsCharged`
 
-Asserts that a filter on the unit `month` over a sequence of 2,000 numbers (all within a few milliseconds after the epoch,
-so all in January 1970, and `equal: 1` is January) keeps all 2,000 rows under the default budget, and that under a
-`MaxEvaluationSteps` of 1,000 it is a `VegaLiteRenderException` located at the predicate (`/transform/0/filter`) that
+Asserts that a filter on the unit `month` over a sequence of 2,000 numbers (all within a few milliseconds after the
+epoch, so all in January 1970, and `equal: 1` is January) keeps all 2,000 rows under the default budget, and that under
+a `MaxEvaluationSteps` of 1,000 it is a `VegaLiteRenderException` located at the predicate (`/transform/0/filter`) that
 names `MaxEvaluationSteps`, because the expression of each row is charged like any expression.
 
 ##### The Time Unit Transform In A Transform List
@@ -357,9 +376,9 @@ names `MaxEvaluationSteps`, because the expression of each row is charged like a
 **Tests**: `RowTransformsTimeTests.RowTransforms_TimeUnitTransform_ThenAggregate`,
 `RowTransformsTimeTests.RowTransforms_TimeUnitTransform_UsesTheChartZone`
 
-Asserts that a `timeUnit` transform of `yearmonth` followed by an aggregate that counts by the new field gives the counts
-2, 3, and 1 for the six dates of January 5 and 20, February 10, 11, and 29, and March 1 (2024) with the groups starting
-at the first of January, February, and March in UTC; and that in the US-like zone the dates of the transform are in the
-zone of the chart: the local month of 2024-03-01T02:00Z is February, so `m` is 2024-02-01T05:00Z and `m_end` is
-2024-03-01T05:00Z (the local first of each month at -5 h). The computation of the unit itself is verified in the _Time
-Unit Transform Verification Design_.
+Asserts that a `timeUnit` transform of `yearmonth` followed by an aggregate that counts by the new field gives the
+counts 2, 3, and 1 for the six dates of January 5 and 20, February 10, 11, and 29, and March 1 (2024) with the groups
+starting at the first of January, February, and March in UTC; and that in the US-like zone the dates of the transform
+are in the zone of the chart: the local month of 2024-03-01T02:00Z is February, so `m` is 2024-02-01T05:00Z and `m_end`
+is 2024-03-01T05:00Z (the local first of each month at -5 h). The computation of the unit itself is verified in the
+_Time Unit Transform Verification Design_.

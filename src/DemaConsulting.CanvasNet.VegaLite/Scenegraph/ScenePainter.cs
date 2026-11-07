@@ -91,7 +91,13 @@ internal readonly record struct ScenePlacement(double Scale, double OffsetX, dou
 ///         <b>Fonts.</b> Text uses the font that the <see cref="TextMeasurer"/> resolves (bundled Liberation fonts unless
 ///         the font options say otherwise), draws the lines the measurer produced (trimmed and truncated to the limit) at
 ///         the baseline offsets of Vega's text mark. The result is deterministic: the same scene, size and placement
-///         always give the same bytes. The painter holds no state and is safe for concurrent use.
+///         always give the same bytes. The painter holds no state apart from the picture loader it was given (see
+///         <see cref="SceneImageSource"/>, one painting's cache) and is safe for concurrent use when it has none.
+///     </para>
+///     <para>
+///         <b>Pictures.</b> A <see cref="SceneImage"/> is drawn as Vega's image mark draws it (see <c>ScenePainter.Images.cs</c>): the picture comes from the loader at paint time, in the
+///         size of its box in device pixels, and is drawn into its box with the aspect rule and the anchor of the item, anti-aliased at the edges, with the opacity of the item. A painter
+///         without a loader draws no picture.
 ///     </para>
 /// </remarks>
 internal sealed partial class ScenePainter
@@ -134,15 +140,20 @@ internal sealed partial class ScenePainter
     /// <summary>The text measurer.</summary>
     private readonly TextMeasurer _measurer;
 
+    /// <summary>The loader of the pictures of <see cref="SceneImage"/> items, or null when the painter draws no pictures.</summary>
+    private readonly SceneImageSource? _images;
+
     /// <summary>
     ///     Initializes a painter.
     /// </summary>
     /// <param name="measurer">The measurer that resolves the fonts and measures the text.</param>
+    /// <param name="images">The loader of the pictures of the <see cref="SceneImage"/> items, which the caller disposes after the painting; null draws no pictures (the items are skipped).</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="measurer"/> is null.</exception>
-    public ScenePainter(TextMeasurer measurer)
+    public ScenePainter(TextMeasurer measurer, SceneImageSource? images = null)
     {
         ArgumentNullException.ThrowIfNull(measurer);
         _measurer = measurer;
+        _images = images;
     }
 
     /// <summary>
@@ -354,6 +365,10 @@ internal sealed partial class ScenePainter
                 case SceneText text:
                     cancellationToken.ThrowIfCancellationRequested();
                     PaintText(text, local);
+                    break;
+                case SceneImage image:
+                    cancellationToken.ThrowIfCancellationRequested();
+                    PaintImage(image, local);
                     break;
             }
         }

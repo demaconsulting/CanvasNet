@@ -52,7 +52,8 @@ and `Elevation` (nullable; they replace the angles of the view), `IsViewExplicit
 variables as a dictionary of `double`, `bool`, and `string` values; by default one shared empty read-only dictionary),
 `Time` (nullable, the value of `$t`),
 `MaxTriangles` (nullable, the library default of 5,000,000 when absent), and `DefaultColor` (nullable). **ScadView**
-(record): a view's `Name`, `Azimuth`, and `Elevation`. **SourceLoader.ScadViews** is the read-only table of the views (it
+(record): a view's `Name`, `Azimuth`, and `Elevation`. **SourceLoader.ScadViews** is the read-only table of the views
+(it
 cannot be changed, not even through a cast), in the
 order the help lists them: `iso` (45 and the library's isometric elevation, about 35.26), `front` (0, 0), `back`
 (180, 0), `left` (270, 0), `right` (90, 0), `top` (0, 90), and `bottom` (0, -90). The camera convention is the
@@ -63,7 +64,8 @@ from the -Y side (the front) and positive azimuth moves the eye toward +X.
 sized at the natural size of that page at the requested resolution), the 1-based `Page`, `IsVector`, `Diagnostics`
 (`ImageDiagnostic` records: source, severity, code, message, and the page, with the optional `Detail`, `Location`, and
 the `Origin`: the embedded files,
-outermost first, that the note is about, empty by default and compared entry by entry), `Echo` (text printed by a model),
+outermost first, that the note is about, empty by default and compared entry by entry), `Echo` (text printed by a
+model),
 `Anchors` (`SourceAnchor` records, an init property that is empty for every kind but a model: the name, the world
 point `X`, `Y`, `Z`, and the nullable continuous pixel position `PixelX` and `PixelY` in the loaded surface), and
 `Operations` (`AppliedOperation` records: an operation name and its parameters in order; a parameter is a string, a
@@ -104,8 +106,10 @@ file name ending in `.vl.json` (checked on the whole name, in any case, because 
 `vega.github.io/schema/vega-lite/` (the address every version of the schema is under); and the extension `.vl` is a
 chart by the extension table. A `.json` file, a `.vl` file, and a `.vl.json` file are never taken for an SVG, whatever
 their text mentions (the title of a chart can contain `<svg`). A signature still wins: a PNG named `x.vl.json` is a PNG.
-A `.json` file whose top-level `$schema` string property names `vega.github.io/schema/vega/` is a plain Vega specification,
-which the tool does not read, and any other `.json` file is not a chart; both are `unsupported-format`, the first with the
+A `.json` file whose top-level `$schema` string property names `vega.github.io/schema/vega/` is a plain Vega
+specification,
+which the tool does not read, and any other `.json` file is not a chart; both are `unsupported-format`, the first with
+the
 message "is a Vega specification; only Vega-Lite charts are supported" and the hint "Vega is not supported", the second
 with a hint that a chart is recognized by the suffix `.vl.json` (or `.vl`) or by its top-level `$schema` in the first
 4 KiB, so that the file can be renamed. The `$schema` is read with a `Utf8JsonReader` over the 4 KiB header (a document
@@ -131,7 +135,8 @@ measured with `Measure()` (the library lays the chart out, which reads its data 
 draws no pixel): the size is
 `Width` and `Height`, there are 4 channels with transparency, one page, and no `Pages`, and the `ChartFacts` come from
 the document (`MarkTypes`, `DataReferences`, `ParameterNames`, `Title`, `SchemaMajorVersion`). A chart that lays out
-larger than `Surface.MaxDimension` makes the library throw `ArgumentOutOfRangeException`, which is `size-limit`. No pixels
+larger than `Surface.MaxDimension` makes the library throw `ArgumentOutOfRangeException`, which is `size-limit`. No
+pixels
 are decoded (a GIF's `GetInfo` does decode the first frame's data, as the library documents).
 
 **Load(path, options)** and **Load(info, options)**: open the source with `OpenPages` and read the page
@@ -143,7 +148,8 @@ is not in `1..PageCount`; a single image has the one page 1.
 A *raster* load (`LoadRaster`)
 refuses an image whose stored size exceeds the maximum, applies the EXIF orientation when `AutoOrient` is set and
 the orientation is 2 to 8, computes the target size from the *oriented* size, checks it against the maximum, all
-before decoding; then decodes, orients (`Surface.ApplyExifOrientation`), resizes when the size differs, and flattens over
+before decoding; then decodes, orients (`Surface.ApplyExifOrientation`), resizes when the size differs, and flattens
+over
 the background when one was given with some opacity. An *SVG* load (`LoadSvg`) computes the target size from the
 intrinsic size, checks it, renders with `SvgCodec.LoadWithFontFaces(path, width, height, null, options)` whose
 `SvgLoadOptions.ImageResolver` is the image resolver described below, and flattens over the background
@@ -242,25 +248,79 @@ view the library chose they report what it used (`ScadResolvedView`): `iso`, 45,
 the model set itself (the name of a view is the viewpoint of `ScadViews` whose angles match, otherwise `custom`).
 
 A *Vega-Lite chart* load (`VegaLitePageSource`) opens the chart once and draws it with
-`VegaLiteDocument.Render(width, height, options)`. The target size is `ComputeTargetSize` of the natural size from the probe,
+`VegaLiteDocument.Render(width, height, options)`. The target size is `ComputeTargetSize` of the natural size from the
+probe,
 so a scale multiplies it, one side keeps the aspect ratio, and two sides are exact; when the target has another aspect
 ratio than the chart, the library scales the chart uniformly to fit and centers it over the background, so nothing is
-stretched. The `VegaLiteRenderOptions` are fixed except for what the tool options say, so that the picture does not depend
+stretched. The `VegaLiteRenderOptions` are fixed except for what the tool options say, so that the picture does not
+depend
 on the machine: `TimeZone` is UTC, `Fonts` use only the bundled fonts (`UseSystemFonts` is false), `Background` is the
 background option (`null` when none was given, so the chart keeps its own background, white by default; zero alpha is a
 transparent picture), `ThrowOnUnsupportedFeature` is `Strict`, and the handlers collect the notes. A warning becomes a
-note (`vega-lite`, `warning`, `vega-lite-warning`, the library's `file:line:column /pointer: vl-id: message`); an unsupported
+note (`vega-lite`, `warning`, `vega-lite-warning`, the library's `file:line:column /pointer: vl-id: message`); an
+unsupported
 feature becomes a note (`vega-lite`, `unsupported`, the feature identifier such as `vl-mark-geoshape` as the code, and
-`file:line:column /pointer: message`). There are no options of the chart in this release: no parameters, datasets,
+`file:line:column /pointer: message`). The only option of the chart is `SourceOptions.VegaLite` (`ChartOptions`, see
+*Chart parameters* below): no datasets,
 configuration, or data folders are passed, and there is **no data-folder option** (the shared option grammar of the
 render, inspect, compare, and montage commands has no place for one, and the library's `DataPaths` stay unused). A
 chart's local data files (CSV, TSV, DSV, or JSON named by a relative `url`) are therefore read by the library through
-its own sandbox from the folder of the specification and below it only - the base directory that `Open(path)` sets, never
+its own sandbox from the folder of the specification and below it only - the base directory that `Open(path)` sets,
+never
 the current directory - and no link below that folder is followed; a file that is missing, outside the folder, or not
 valid is a `VegaLiteRenderException` (`vega-lite-error`, in strict mode too), and a remote URL is only a diagnostic that
 is never fetched (an `unsupported-feature` error with the strict switch). The
 picture is the same for the same chart and options: the library's render is deterministic. The operation recorded
 is `render` with the `width`, the `height`, the `timeZone` (`UTC`), and, when it was given, the `background`.
+
+*Chart parameters.* `SourceOptions.VegaLite` (`ChartOptions`: `Parameters`, a read-only dictionary of null, boolean,
+number,
+string, list and dictionary values, and `WarnOnUnknownParameters`) is the option behind `--param` of the tool, the
+`param.`
+fragment of a link and `ViewerRenderOptions.VegaLite`. `VegaLitePageSource.SelectParameters` compares the names with the
+document's `ParameterNames`: a name the chart does not declare is, by default, a `ViewerException` with the code
+`vega-lite-error`
+that names the parameter and lists the declared names (a mistake of a command line must be loud), and with
+`WarnOnUnknownParameters` (what an embedding link sets) a note (`vega-lite`, `warning`, code `vl-param-unknown`) and the
+value is
+dropped. When there are parameters the page source **measures the chart again with them** (a parameter can change the
+layout,
+for example a filter that changes the number of bands, and the probe measured the defaults) and works out the target
+size from
+that natural size, and the `SourceInfo` of the result carries it, so the natural size reported by the tool is that of
+the
+parameterized chart; the probe itself is unchanged. The values go to `VegaLiteRenderOptions.Parameters` for both the
+measure and
+the render. The `render` operation lists them in a `params` field (name order, `name=value` with the value as JSON, so a
+selection reads `brush={"x":[2,6]}`). The tests are in `CanvasNetViewerParameterFragmentTests.cs`.
+
+*Chart pictures* (phase 13). The `image` marks of a chart show files that lie beside it, through the same wiring as the
+pictures of an SVG file: unless the caller supplied the resolver of an embedding document
+(`LoadContext.UseScopedResolver`,
+then that one is used and it, not the result, collects what the nested pictures report), the loader creates
+`SvgImages(path, options)` (the `CanvasNetViewer.CreateImageResolver` of the folder of the chart, with
+`ThrowOnUnsupportedFeature` set from `Strict`) and gives it to the library as `VegaLiteRenderOptions.ImageResolver`. The
+resolver is **only** given to `Render`; the probe measures the chart without one, so `info` and the natural size never
+read
+a picture. A `url` may therefore name a raster, an SVG file, a model, a page of a document (`report.pdf#page=2`), or
+another chart, always inside the folder of the chart: a remote URL, an absolute path, a link through a symbolic link,
+and
+a path that leaves the folder are the resolver's warning `svg-image-unresolved` and draw nothing. After the render the
+notes of the resolver become the notes of the result, in the order they were reported, after the library's; the
+library's
+own warning `vl-mark-image-unresolved` for a link that the resolver reported itself (`DropDuplicateUnresolved`: the
+resolver's message names the reason, the library's only says that nothing came back) is left out, and one for a link the
+resolver did not report stays. The files that were drawn are `embed` operations (`href` as written, `format`, `width`,
+`height`) after the `render` operation, and the printed text of a model is the `Echo` of the result. With the strict
+option
+the first link that was not drawn is an `unsupported-feature` error that names the chart and the link
+(`SvgImages.ThrowForUnresolved`: `svg-image-unresolved`, `svg-image-too-large`, `image-fragment-invalid`,
+`image-page-out-of-range`; an unknown or repeated fragment parameter stays a warning), exactly as for an SVG file. A
+file
+that is found but cannot be loaded is the error of its own failure naming both files (`SvgImages.Map`), and a chart that
+asks for more pictures than `VegaLiteLimits.MaxImages` (256) is `budget-exceeded` (the library's message names the
+limit).
+The tests are in `SourceLoaderVegaLiteImageTests.cs`.
 
 *Include and use.* The library resolves the `include` and `use` directives of a model: a relative path is looked up
 from the folder of the file that names it, nothing outside the folder of the model (the base directory, which is the
@@ -311,11 +371,14 @@ enlarged, and each side is rounded half away from zero and limited to 1 and the 
 
 **SourceInput and LoadContext** (`SourceLoader.Input.cs`): the loader reads a file through a `SourceInput`, not a path.
 `SourceInput.FromFile(path)` opens a new `FileStream` for every use, and `SourceInput.FromMemory(bytes, name,
-directory)` serves bytes; both expose `Name` (the path as given, used in every message), `Directory` (the folder that the
-files a format names itself are looked up in), `Length`, and `Open()`. Every `ProbeX` and page source reads through it and
+directory)` serves bytes; both expose `Name` (the path as given, used in every message), `Directory` (the folder that
+the
+files a format names itself are looked up in), `Length`, and `Open()`. Every `ProbeX` and page source reads through it
+and
 calls the library by its **stream** overload with `BaseDirectory = input.Directory` and
 `SourceName = input.Name`, which is
-what the path overloads of the libraries do, so a file loaded from disk and the same bytes loaded from memory give the same
+what the path overloads of the libraries do, so a file loaded from disk and the same bytes loaded from memory give the
+same
 kind, size, pixels, and notes. The public `Probe(path)`, `Load`, and `OpenPages` use `FromFile` and the default
 `LoadContext`, so the command line behaves as before (it probes once for `info` and opens once for `render`, as
 before). The internal entry points `ProbeInput(input, kind)`, `OpenInput(input, kind)` and
@@ -328,23 +391,31 @@ passed to the model and chart renderers), `Charge(width, height)` (called once f
 allocated, so the pixel budget of the render is charged first - a raster from its declared size, before the stored-size
 check, so a huge picture stays a `svg-image-too-large` warning and not a `size-limit` error), `ScopedResolver` (used
 instead of building an `SvgImages` resolver for the nested pictures of an SVG file, so the depth, cycle, and budget
-limits of the embedding render apply and the resolver's notes are not duplicated), and `ReturnFittedPage` (a document page
+limits of the embedding render apply and the resolver's notes are not duplicated), and `ReturnFittedPage` (a document
+page
 comes back at its fitted size without the margin, as a linked page is drawn). The default context has no hook.
 
 **Option validation** (`FindOptionProblem`): `Load(path, options)`, `Load(info, options)`, and `OpenPages` check the
 `SourceOptions` first, before any file is touched, with the ranges of the command-line readers: `Width` and `Height`
 at least 1 (above `Surface.MaxDimension` stays `size-limit` when the file is loaded), `Scale` finite and from 0.001 to
-8192, `Dpi` finite, above 0 and at most `MaxDpi` (2400, the constant the tool's `ArgumentReader` shares), a `Filter` that
+8192, `Dpi` finite, above 0 and at most `MaxDpi` (2400, the constant the tool's `ArgumentReader` shares), a `Filter`
+that
 is a defined value, and for a model a known `View`, a finite `Azimuth`, a finite `Elevation` from -90 to 90, a finite
-`Time` within 1e9, `MaxTriangles` at least 1, and `Defines` that the model library accepts. A violation is a
+`Time` within 1e9, `MaxTriangles` at least 1, and `Defines` that the model library accepts, and for a chart `VegaLite`
+parameters that
+`VegaLiteRenderOptions.Parameters` accepts (an empty name, a value nested too deeply or holding too many values;
+`FindChartProblem`).
+A violation is a
 `ViewerException` with the code `usage-error`; `CanvasNetViewer.Render` calls the same validator and reports the problem
 as
 an `ArgumentOutOfRangeException`. A page below 1 or beyond the last keeps its `page-out-of-range` from `CheckPage`,
 and the
 whole-number rule of the Visio `Dpi` stays in `ValidateDpi` because it depends on the kind of file.
 
-**Diagnostic detail** (`ImageDiagnostic.Detail` and `.Location`): the generic `Code` of a note is unchanged (`scad-warning`,
-`vega-lite-warning`, the feature of an unsupported construct). `Detail` is the finer identifier of the library: for a model
+**Diagnostic detail** (`ImageDiagnostic.Detail` and `.Location`): the generic `Code` of a note is unchanged
+(`scad-warning`,
+`vega-lite-warning`, the feature of an unsupported construct). `Detail` is the finer identifier of the library: for a
+model
 warning the `ScadDiagnostic.Code` when it differs from `scad-warning` (`scad-anchor-invalid`), for a chart warning the
 documented `vl-*` prefix of the message. `Location` is `(File, Line, Column)` of a model (left out when the line is 0)
 and `(File, Pointer, Line, Column)` of a chart when the position is known; a note about a page of a document has the
@@ -375,9 +446,11 @@ Vega-Lite library adds
 three, caught before the generic list (its unsupported-feature exception is an `IOException` and its specification
 exception a `FormatException`): `VegaLiteUnsupportedFeatureException` (thrown in strict mode) to `unsupported-feature`
 naming the feature and the position; `VegaLiteSpecException` (malformed JSON, a property of the wrong type, plain Vega,
-nesting deeper than the parser limit, a string longer than the string limit, an invalid axis or format) to `vega-lite-error`
+nesting deeper than the parser limit, a string longer than the string limit, an invalid axis or format) to
+`vega-lite-error`
 ("Vega-Lite specification error: file:line:column /pointer: ..."); and `VegaLiteRenderException` (an
-`InvalidOperationException`: a local data file that is missing, outside the folder of the specification, a link, not valid
+`InvalidOperationException`: a local data file that is missing, outside the folder of the specification, a link, not
+valid
 UTF-8, or not valid JSON or delimited text, an undefined dataset name, a data limit, or a chart that cannot be laid
 out) to
 `budget-exceeded` when it

@@ -4,10 +4,11 @@
 # These requirements describe the design-level behavior of the RowTransforms unit of the Transforms subsystem
 # (internal namespace DemaConsulting.CanvasNet.VegaLite.Transforms): the eager, immutable executor that turns the
 # table the data loader produced into the table that the scales and marks read, by the transforms calculate,
-# filter, fold, flatten, sample, pivot, and lookup in the order of the specification - and the dispatcher that
-# hands the transforms aggregate, joinaggregate, window, bin, stack, and impute to the AggregateTransforms unit
-# in that same order - together with the static parameter environment that its expressions read
-# (ParameterEnvironment). The unit comprises RowTransforms.cs,
+# filter, fold, flatten, sample, pivot (with every aggregate operation), and lookup in the order of the
+# specification - and the dispatcher that hands the transforms aggregate, joinaggregate, window, bin, stack, and
+# impute to the AggregateTransforms unit and the transforms regression, loess, density, quantile, and extent to
+# the StatTransforms unit in that same order - together with the static parameter environment that its
+# expressions read (ParameterEnvironment). The unit comprises RowTransforms.cs,
 # RowTransforms.Predicates.cs, RowTransforms.Shape.cs, RowTransforms.Lookup.cs, RowSampler.cs, TableLayout.cs
 # (the output layout and the field reader), ParameterEnvironment.cs, and TransformContext.cs. It uses the
 # Expressions subsystem for expressions, the Data subsystem for tables and lookup sources, and the compiled
@@ -26,16 +27,16 @@ sections:
                   The RowTransforms unit shall apply the transforms of the specification one after the other
                   in their written order, each reading an immutable table and producing a new one, handing the
                   transforms aggregate, joinaggregate, window, bin, stack, and impute to the AggregateTransforms
-                  unit in that order among the others, shall return the input table itself when there is no
-                  transform, shall reject null arguments, shall hand a timeUnit transform to the
-                  TimeUnitTransform unit with the time calendar of the chart, and shall skip, without
-                  executing it, a transform that a later phase implements (the feature catalog reports it).
+                  unit and the transforms regression, loess, density, quantile, and extent to the
+                  StatTransforms unit in that order among the others, shall return the input table itself when
+                  there is no transform, shall reject null arguments, and shall hand a timeUnit transform to
+                  the TimeUnitTransform unit with the time calendar of the chart.
                 justification: |
-                  Transforms are order dependent and the later stages must never see a table change; a
-                  transform that is not implemented must not be approximated.
+                  Transforms are order dependent and the later stages must never see a table change; every
+                  transform of Vega-Lite must reach the unit that implements it.
                 tests:
                   - RowTransforms_Apply_ChecksArgumentsAndReturnsTheInputWithoutTransforms
-                  - RowTransforms_Apply_TransformsOfLaterPhasesAreSkipped
+                  - RowTransforms_Apply_StatisticalTransformReplacesTheTableAndTheNextTransformRuns
                   - AggregateTransforms_Window_ComposesWithFilter
                   - RowTransforms_TimeUnitTransform_ThenAggregate
                   - RowTransforms_TimeUnitTransform_UsesTheChartZone
@@ -177,17 +178,29 @@ sections:
                 title: >-
                   The RowTransforms unit shall group the rows by the groupby fields in first-seen order,
                   turn the distinct texts of the pivot field into columns in ordinal order (keeping the first
-                  limit of them), fill each cell with the sum (the default) or the count of the group, with 0
-                  for a missing combination, output only the group fields and the pivot columns, and bound
-                  the number of output columns by the field limit (applied after the limit truncation, so a
-                  pivot with many distinct values and a small limit is not rejected) and the text of a pivot
-                  value by the string limit.
+                  limit of them), fill each cell with the result of any aggregate operation of Vega (the sum
+                  by default; count, valid, missing, distinct, mean, average, variance, variancep, stdev,
+                  stdevp, stderr, median, q1, q3, ci0, ci1, min, max, argmin, argmax, values, product,
+                  exponential, and exponentialb) over the rows of the group that have that pivot value,
+                  giving the empty result of the operation for a missing combination (no value for a sum, 0
+                  for a count), output only the group fields and the pivot columns, and bound the number of
+                  output columns by the field limit (applied after the limit truncation, so a pivot with
+                  many distinct values and a small limit is not rejected), the cells of the groups and
+                  columns by the cell limit, and the text of a pivot value by the string limit.
                 justification: |
                   Pivot reshapes long data into the columns that scales read; its grouping, ordering, and
-                  default must be defined and its output bounded.
+                  operations must follow Vega and its output must be bounded.
                 tests:
                   - RowTransforms_Apply_PivotSumsValuesPerGroup
-                  - RowTransforms_Apply_PivotCountsAndFallsBackToSum
+                  - RowTransforms_Apply_PivotCountsAndComputesTheOtherOperations
+                  - RowTransforms_Apply_PivotComputesTheOperation
+                  - RowTransforms_Apply_PivotDefaultsToTheSumAndAppliesTheLimit
+                  - RowTransforms_Apply_PivotWithoutGroupsAggregatesEveryRowOfAValue
+                  - RowTransforms_Apply_PivotValuesAreTheRowsOfTheGroup
+                  - RowTransforms_Apply_PivotArgMinAndArgMaxReturnTheRows
+                  - RowTransforms_Apply_PivotConfidenceIntervalIsDeterministicAndOrdered
+                  - RowTransforms_Apply_PivotSumConvertsNumericTexts
+                  - RowTransforms_Apply_PivotCellsBeyondTheLimitFailAtTheTransform
                   - RowTransforms_Apply_PivotColumnsAreBoundedByTheFieldLimit
                   - RowTransforms_Apply_PivotLimitIsAppliedBeforeTheFieldBound
                   - RowTransforms_Apply_PivotWithoutLimitIsStillBoundedByTheFieldLimit

@@ -121,9 +121,11 @@ Asserts that the message, the link, the embedder (and its absence at the top lev
 **Tests**: `ImageFragment_Parse_NullOrEmpty_IsEmpty`, `ImageFragment_Parse_TwoParameters_KeepsOrderAndRaw`,
 `ImageFragment_Parse_SingleParameter_SplitsBeforeDecoding`, `ImageFragment_Parse_EmptySegments_AreSkipped`,
 `ImageFragment_Parse_HashAndQuestionMark_StayInTheText`, `ImageFragment_GetValue_CaseInsensitiveLastWins_AcrossAliases`,
-`ImageFragment_GetValue_NullNames_ThrowsArgumentNullException`, `ImageFragment_GetPositiveInt32_ValidValues_ReturnsNumber`,
+`ImageFragment_GetValue_NullNames_ThrowsArgumentNullException`,
+`ImageFragment_GetPositiveInt32_ValidValues_ReturnsNumber`,
 `ImageFragment_GetPositiveInt32_UnusableValue_ThrowsRefusedWithInvalidCode`,
-`ImageFragment_GetPositiveInt32_HostileValue_IsQuotedSafelyInMessage`, `ImageFragment_Parse_TooLong_HasProblemAndNoParameters`,
+`ImageFragment_GetPositiveInt32_HostileValue_IsQuotedSafelyInMessage`,
+`ImageFragment_Parse_TooLong_HasProblemAndNoParameters`,
 `ImageFragment_Parse_AtTheLimits_IsParsed`, `ImageFragment_Parse_TooManyParameters_HasProblemAndNoParameters`,
 `ImageFragment_Parameters_AreReadOnly`, `ImageSourceRequest_Fragment_DefaultsToEmptyAndNoOptions`
 
@@ -137,6 +139,53 @@ refused with `image-fragment-invalid`, with a quoted, cleaned, and cut message f
 characters or 33 parameters set `Problem` and leave no parameter while exactly the limits parse; that the parameter
 list is read-only; and that a request has the empty fragment and no options by default.
 
+##### CanvasNet-ImageSources-ImageSourceContract-FragmentPrefix: Prefixed Parameters
+
+**Tests**: `ImageFragment_GetPrefixed_ReturnsNamesWithoutPrefixInOrder`,
+`ImageFragment_GetPrefixed_DuplicateName_LastValueWinsAtFirstPosition`,
+`ImageFragment_GetPrefixed_EmptyFragmentOrBadPrefix`,
+`IFragmentImageSource_FragmentParameterPrefixes_DefaultsToNone`
+
+These tests are in `ImageFragmentPrefixTests.cs`. They assert that `GetPrefixed("def.")` of
+`view=top&def.Width=20&DEF.label=%22A%22&def.&other=1&def.a%3Db=x` returns `Width`, `label` (value `"A"`), and `a=b`
+(the
+prefix matched without case, the names as written, decoded, in order, no `view`, no `other`, and no bare `def.`); that a
+name given twice has its last value in the position of its first occurrence while `a` and `A` stay two names; that the
+empty
+fragment and a fragment over the limit have none and a null or empty prefix is rejected; and that an interface
+implementation that does not override `FragmentParameterPrefixes` declares none.
+
+##### CanvasNet-ImageSources-ImageSourceContract-ParameterValues: The Value Grammars Of Variables And Parameters
+
+**Tests**: `ImageParameterValues_TryParseVariable_ReadsTheGrammarOfDashD`,
+`ImageParameterValues_TryParseVariable_Vector_IsRefused`,
+`ImageParameterValues_TryParseParameter_ReadsScalarsAndText`, `ImageParameterValues_TryParseParameter_Null_IsNull`,
+`ImageParameterValues_TryParseParameter_JsonObjectAndArray_BecomePlainValues`,
+`ImageParameterValues_TryParseParameter_BadJson_IsRefusedWithAReason`, `ImageParameterValues_TryParseParameter_Limits`,
+`ImageParameterValues_ReadVariables_ReadsPrefixedValues`,
+`ImageParameterValues_ReadVariables_Vector_IsRefusedAsInvalidFragment`,
+`ImageParameterValues_ReadParameters_ReadsJsonAndRefusesMalformedValues`
+
+These tests are in `ImageFragmentPrefixTests.cs`. They assert the variable grammar (`true`, `false`, `20`, `-1.5`,
+`1e3`, the
+quoted texts `"a b"` and `'a b'`, unquoted text, the empty text, and the texts `NaN`, `1e999` and `null`, which are
+text; a
+value that starts with `[` is refused with a reason that names vectors) and the parameter grammar (the same scalars,
+`null` as
+a null value, `'EU west'` and `"EU west"` as text, a JSON string with escapes, objects and arrays as dictionaries and
+lists
+of doubles, strings, booleans and nulls; `{x`, `{"x":}`, `[1,`, `[1] 2`, `"abc`, `{"x":1e999}` and `[1,]` are refused
+with a
+one-line reason that has neither a line break nor the position of the JSON failure; 32 nested arrays and 65,536 values
+are
+accepted and 33 levels and 65,537 values refused). `ReadVariables` of
+`view=top&def.width=20&def.label=%22A%26B%22&def.show=true`
+gives a double, the text `A&B` (decoded after the split), and a boolean; a vector is an `ImageSourceRefusedException`
+with the code
+`image-fragment-invalid` that names `'def.size'`, quotes the value, and says vectors are not supported; and
+`ReadParameters`
+reads a number, text and the object `{"x":[2,6]}` and refuses `%7Bx` naming `'param.brush'`.
+
 ##### CanvasNet-ImageSources-ImageSourceContract-Refusal: A Source Declines The Picture
 
 **Tests**: `ImageSourceRefusedException_Constructor_KeepsCodeAndMessageAndValidates`
@@ -147,5 +196,6 @@ Asserts that the code and the message are kept and that a null or empty code and
 
 **Tests**: `ImageSourceDiagnostic_Equals_ComparesDetailLocationAndPage`, `ImageDiagnosticLocation_Equality_IsByValue`
 
-Asserts that two notes are equal only when `Detail`, `Location`, and `Page` are equal too (with equal hash codes), and that
+Asserts that two notes are equal only when `Detail`, `Location`, and `Page` are equal too (with equal hash codes), and
+that
 a location is compared by its four members.

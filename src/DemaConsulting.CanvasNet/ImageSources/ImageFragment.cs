@@ -200,6 +200,61 @@ public sealed class ImageFragment
     }
 
     /// <summary>
+    ///     Gets the parameters whose name starts with a prefix, with the prefix removed from the name.
+    /// </summary>
+    /// <param name="prefix">The prefix, for example <c>def.</c>, matched ASCII case-insensitively; not empty.</param>
+    /// <returns>
+    ///     The parameters in the order their names first appear. A name is what follows the prefix, as written (it is not
+    ///     case-folded), and a parameter that has nothing after the prefix is not included. When a name occurs more than
+    ///     once the last value is returned (last wins), in the position of its first occurrence.
+    /// </returns>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="prefix"/> is null or empty.</exception>
+    /// <example>
+    ///     <code language="csharp">
+    ///     var fragment = ImageFragment.Parse("view=top&amp;def.width=20&amp;def.label=%22A%22");
+    ///     foreach (var definition in fragment.GetPrefixed("def."))
+    ///     {
+    ///         Console.WriteLine($"{definition.Name} = {definition.Value}");   // width = 20, then label = "A"
+    ///     }
+    ///     </code>
+    /// </example>
+    public IReadOnlyList<ImageFragmentParameter> GetPrefixed(string prefix)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(prefix);
+
+        var order = new List<string>();
+        var last = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var parameter in _parameters)
+        {
+            if (!HasPrefix(parameter.Name, prefix))
+            {
+                continue;
+            }
+
+            var name = parameter.Name[prefix.Length..];
+            if (!last.ContainsKey(name))
+            {
+                order.Add(name);
+            }
+
+            last[name] = parameter.Value;
+        }
+
+        return [.. order.Select(name => new ImageFragmentParameter(name, last[name]))];
+    }
+
+    /// <summary>
+    ///     Tells whether a parameter name starts with a prefix and has at least one more character.
+    /// </summary>
+    /// <param name="name">The decoded name of a parameter.</param>
+    /// <param name="prefix">The prefix, matched ASCII case-insensitively.</param>
+    /// <returns><see langword="true"/> when the name is the prefix followed by something.</returns>
+    internal static bool HasPrefix(string name, string prefix)
+    {
+        return name.Length > prefix.Length && name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
     ///     Quotes a piece of untrusted text for a message: control characters are replaced and a long text is cut.
     /// </summary>
     /// <param name="text">The text.</param>

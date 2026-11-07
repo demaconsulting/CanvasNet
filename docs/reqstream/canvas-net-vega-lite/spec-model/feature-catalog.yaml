@@ -33,7 +33,7 @@ sections:
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-StableIds
                 title: >-
                   The FeatureCatalog unit shall report each unsupported construct with a stable
-                  lower-case identifier built from its category and name (for example vl-transform-regression
+                  lower-case identifier built from its category and name (for example vl-projection
                   or vl-composition-hconcat, with spec names lower-cased and stripped of separators), a
                   message, and the pointer, line, and column of the construct, and shall return the
                   reports in document order.
@@ -230,8 +230,9 @@ sections:
 
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-TransformsAndCompositions
                 title: >-
-                  The FeatureCatalog unit shall report each transform of a later phase (regression,
-                  loess, density, quantile, and extent) as vl-transform-name ("not supported yet"), every
+                  The FeatureCatalog unit shall not report any transform (the stable identifiers
+                  vl-transform-regression, -loess, -density, -quantile, and -extent are retired and never
+                  reused: the statistical transforms are computed), shall report every
                   variable parameter of a nested view (also in a concat, hconcat, vconcat, facet, or repeat; the
                   report says that Vega-Lite compiles no signal for it, so it is ignored and an expression that reads
                   it evaluates to null), each projection, shall examine the
@@ -250,7 +251,8 @@ sections:
                 tests:
                   - FeatureCatalog_Visit_TransformsExpressionsAndParametersAreReported
                   - FeatureCatalog_Visit_SupportedPhase5TransformsAndParametersAreNotReported
-                  - FeatureCatalog_Visit_LaterPhaseTransformsConditionsAndSelectionsStayReported
+                  - FeatureCatalog_Visit_EveryTransformOfTheDrawnViewIsAcceptedWithoutAReport
+                  - FeatureCatalog_Visit_StatisticalTransformsAreComputedAndNotReported
                   - FeatureCatalog_Visit_NestedViewTransformsAreAppliedAndVariableParametersAreReported
                   - FeatureCatalog_Visit_NestedViewAggregatingTransformsAreAppliedInConcatAndFacet
                   - FeatureCatalog_Visit_Phase6FeaturesAreNotReportedAndRemainingPartsAre
@@ -261,7 +263,6 @@ sections:
                   - FeatureCatalog_Visit_TransformOfComposedViewIsAppliedAndNotReported
                   - FeatureCatalog_Visit_TransformOfFacetViewIsAppliedAndNotReported
                   - FeatureCatalog_Visit_TransformOfLayerInsideConcatAndFacetIsApplied
-                  - FeatureCatalog_Visit_TransformOfLaterPhaseInLayerIsNotSupportedYet
                   - FeatureCatalog_Visit_LayerTransformsReportOnlyTheirUnsupportedParts
 
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-FacetReports
@@ -393,11 +394,11 @@ sections:
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-TransformParts
                 title: >-
                   The FeatureCatalog unit shall report the parts of a supported transform that the renderer
-                  does not execute - a pivot operation other than sum and count
-                  (vl-transform-pivot-op), a lookup from a parameter (vl-transform-lookup-param, which needs the
+                  does not execute - a lookup from a parameter (vl-transform-lookup-param, which needs the
                   final table of another view filtered by the selection), and shall not report a bin transform
                   whose extent is a parameter (vl-transform-bin-extent-param is retired and never produced again: the
-                  extent sets the span that chooses the step) - and a channel sort
+                  extent sets the span that chooses the step, and vl-transform-pivot-op is retired and never
+                  produced again: a pivot computes every aggregate operation) - and a channel sort
                   that is not ascending, descending, null, a value list, or a sort by an operation or a channel
                   that the renderer computes (vl-encoding-sort), and shall not report the supported forms.
                 justification: |
@@ -459,7 +460,6 @@ sections:
                   - FeatureCatalog_Visit_TimeUnitAndDateTestsAreSupported
                   - FeatureCatalog_Visit_ConditionOnAChannelThatTakesNoneIsReported
                   - FeatureCatalog_Visit_ConditionExpressionsAndFieldPropertiesAreVisited
-                  - FeatureCatalog_Visit_LaterPhaseTransformsConditionsAndSelectionsStayReported
 
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-Selections
                 title: >-
@@ -540,3 +540,21 @@ sections:
                   - FeatureCatalog_Visit_OffsetsAreReportedOnlyWhenTheyAreNotDrawn
                   - FeatureCatalog_Visit_PointScaleOnAPositionWithOffsetWarns
                   - FeatureCatalog_Visit_PointScaleOnADiscreteTimeUnitPositionWithOffsetWarns
+
+              - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-ImageReports
+                title: >-
+                  The FeatureCatalog unit shall report the image mark with vl-mark-image at the mark when the caller
+                  supplied no image resolver (the mark is then laid out and draws no picture) and not when one was
+                  supplied, accept the url channel on the image mark and report it with vl-channel-url on every other
+                  mark, accept the secondary channels x2 and y2 on the image mark, report a condition on the url
+                  channel, and check the image mark like every drawn mark for the invalid mode.
+                justification: |
+                  The library never reads a picture on its own, so a chart whose pictures cannot be loaded must say
+                  so (and fail in strict mode) instead of looking intended, while a chart that has a resolver must be
+                  quiet.
+                tests:
+                  - FeatureCatalog_Visit_ImageMark_IsReportedOnlyWithoutAResolver
+                  - FeatureCatalog_Visit_UrlChannel_IsSupportedOnlyOnImage
+                  - FeatureCatalog_Visit_SecondEndChannel_IsSupportedOnImage
+                  - FeatureCatalog_Visit_ImageMark_IsCheckedLikeADrawnMark
+                  - FeatureCatalog_Visit_ImageLayers_AreAllSilencedByAResolver

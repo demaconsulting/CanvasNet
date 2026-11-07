@@ -65,6 +65,7 @@ sections:
           - CanvasNetTool-Commands-HelpTopics-Rendering
           - CanvasNetTool-Commands-HelpTopics-Consistency
           - CanvasNetTool-Commands-HelpTopics-SvgImageLinks
+          - CanvasNetTool-Commands-HelpTopics-ParamAndFragmentPrefixes
           - CanvasNetTool-Commands-CommandRegistry-HelpSubjects
           - CanvasNetTool-Commands-CommandRegistry-HelpJson
         tests:
@@ -123,6 +124,7 @@ sections:
           - CanvasNetTool-Commands-RenderCommand-Strict
           - CanvasNetTool-Commands-RenderCommand-Scad
           - CanvasNetTool-Commands-RenderCommand-VegaLite
+          - CanvasNetTool-Commands-RenderCommand-ChartParams
           - CanvasNetTool-Commands-RenderCommand-Pipeline
           - CanvasNetTool-Commands-RenderCommand-PhotoOptions
           - CanvasNetTool-Commands-RenderCommand-Output

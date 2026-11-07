@@ -284,3 +284,19 @@ sections:
               - MarkBuilder_Run_TimeUnitOffsetPlacesBarsInsideTheMonth
               - MarkBuilder_Build_PointsSitAtTheBandStartPlusTheOffsetPoint
               - MarkBuilder_Build_RowWithInvalidOffsetIsNotDrawn
+
+          - id: CanvasNetVegaLite-Marks-ImageMarks
+            title: >-
+              The Marks subsystem shall draw the image mark of Vega-Lite as one picture item for each row at the
+              position or in the span that Vega-Lite's rectangle position rules give each axis, with the link of the
+              url channel or property, the aspect, smooth, and opacity of the mark, and no picture for a row whose
+              link or position is invalid.
+            justification: |
+              A picture at each point of a chart (an icon for a category, a part for a model) is a common use of
+              Vega-Lite that no other mark can stand in for.
+            children:
+              - CanvasNetVegaLite-Marks-MarkBuilder-Images
+            tests:
+              - MarkBuilder_Build_ImagePositionWithoutSize_IsAPointAnchoredCenterMiddle
+              - MarkBuilder_Build_ImageWidthAndHeight_AreSpansAlignedAtThePosition
+              - MarkBuilder_Build_ImageLink_ComesFromTheChannelOrTheProperty

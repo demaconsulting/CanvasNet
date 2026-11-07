@@ -40,6 +40,10 @@ the language that is implemented.
 | Vega-Lite (`vega-lite`) | 6.5.0 (see the first row) | BSD-3-Clause | (c) 2015, University of Washington Interactive Data Lab | `MarkBuilder` (`Marks/`), `EncodingPlan`, `EncodingTransforms`, `StackRules` and `AggregateTransforms` (`Transforms/`), `ScaleResolver` (`Scales/`), `SpecParser` and `FeatureCatalog` (`SpecModel/`), `LegendPlan` (`Guides/`) | The rules of the line, area, trail, text and arc marks: which channels group the paths (`pathGroupingFields`) and which sort them, the `order` channel, the default sort of a line by its position, the `orient` inference, the area baseline and its range form, the point and line overlays of a path mark (the overlay mark definitions and the default area opacity), the invalid-data modes, the implicit impute of a stacked path mark and the `impute` of an encoding, the stack of a polar channel, the rules of the polar scales (the types, the zero rule and the ranges), the arc as a rectangle in polar coordinates, the format of a text value (number, time, binned and plain text) and the position of a label on a stacked slice, and the legend symbol of the path marks (a trail's symbol is stroked) |
 | Vega-Lite (`vega-lite`) | 6.5.0 (see the first row) | BSD-3-Clause | (c) 2015, University of Washington Interactive Data Lab | `SpecNormalizer` (`SpecModel/`: `SpecNormalizer.Composite.cs`, `SpecNormalizer.Composition.cs`, `SpecNormalizer.Repeat.cs`, `SpecNormalizer.BoxPlot.cs` and `SpecNormalizer.ErrorBar.cs`), `ConfigResolver` (`SpecModel/`), `ScaleResolver` (`Scales/`: `ScaleResolver.Layers.cs`), `VegaLiteDocument` (`VegaLiteDocument.Layers.cs`), `AxisBuilder` and `LegendPlan` (`Guides/`) | The rules of the layers and the composite marks: the normalization of `boxplot`, `errorbar` and `errorband` into layers (the aggregate, joinaggregate, calculate and filter transforms and the rule, tick, bar, point, rect, area and line parts, the Tukey fences and the min-max form, the center and extent of an error bar, the part defaults and the order in which the part properties override one another, the orientation along the continuous axis, the grouping channels), the defaults of `config.boxplot`, `config.errorbar` and `config.errorband`, the merging of the domains of layered scales (the union of continuous domains, the ordered union of discrete ones, the precedence of the band scale over the point scale), the default sharing of scales and the `resolve` of scales, axes and legends, the merging of the titles of layered axes, and the placement of independent axes (the opposite side for the second axis, the grid only on the first) |
 | Vega (`vega-encode`) and Vega-Lite (`vega-lite`) | `vega` 6.4.0 line and 6.5.0 (see the first rows) | BSD-3-Clause | (c) 2015-2023, University of Washington Interactive Data Lab; (c) 2015, University of Washington Interactive Data Lab | `ScaleResolver` (`Scales/`: `ScaleResolver.Raw.cs`), `ExpressionReferenceFolder` and `ExpressionReferenceSites` (`SpecModel/`) | The raw domain of a scale: Vega's `configureDomain` takes a raw domain before anything else and returns (so no zero rule, bounds, pixel padding or `nice` follows it), Vega-Lite's turning of a `scale.domain` of the form `{"param": name}` into the `domainRaw` of the Vega scale, the order in which the scale properties and the selection extent are assembled, and `scaleClip` (the marks of a view whose position scale has such a domain are clipped); the properties of the Vega-Lite schema that take an `ExprRef`, owner by owner (names only), and the rule that an `ExprRef` is compiled to a signal whose value is the expression at the initial state of the parameters |
+| Vega (`vega-regression`, `vega-statistics`, `vega-transforms`, `vega-util`) and Vega-Lite (`vega-lite`) | `vega` 6.x line: `vega-regression` 2.1.3, `vega-statistics` 2.0.0, `vega-transforms` 5.2.2, `vega-util` 2.1.3; Vega-Lite 6.5.0 (see the first rows) | BSD-3-Clause | (c) 2015-2023, University of Washington Interactive Data Lab; (c) 2015, University of Washington Interactive Data Lab | `StatTransforms` (`Transforms/`: `StatTransforms.cs`, `.Regression.cs`, `.Loess.cs`, `.Density.cs`, `.Quantile.cs`, `.Extent.cs`), `RegressionFit`, `CurveSampler`, `LoessFit`, `KernelDensity`, `StatisticsPrimitives` (`Transforms/`), `SpecParser.Statistics.cs` (`SpecModel/`), `RowTransforms.Shape.cs` (the `pivot` cells, with `AggregateMeasures`) | The statistical operators: the `Regression` and `Loess` transforms of `vega-regression` (the groups, the output fields and the `params` row), the `KDE` (`density`), `Quantile`, `Extent` and `Pivot` transforms of `vega-transforms` with their `partition` of the groups and the aggregate cells of `pivot`, the `regression/*` models, `loess`, `kde`, `bandwidth` (Scott's rule), `normal` (the West 2009 cumulative approximation), `quantiles`, `numbers` and `sampleCurve` of `vega-statistics`, the `extent` of `vega-util`, and Vega-Lite's compile rules for `regression`, `loess`, `density`, `quantile`, `extent` and `pivot` (the defaults: the output names, the `shared` resolve of a density, the `groupby` and `extent` handling, and the `isExtent` precedence of a transform entry) |
+| d3-regression (Harry Stevens) | the version that `vega-statistics` 2.0.0 cites (`Adapted from d3-regression`) | BSD-3-Clause | Copyright (c) 2019, Harry Stevens | `RegressionFit` (`Transforms/`) | The linear, logarithmic, exponential, power, quadratic and polynomial models and the coefficient of determination as `vega-statistics` adapted them: the centered running sums, the least-squares and Gaussian elimination steps and the order of their floating-point operations |
+| regression-js (Tom Alexander) | the source that d3-regression and `vega-statistics` 2.0.0 cite (`regression.js`, polynomial) | MIT | Copyright (c) Tom Alexander | `RegressionFit` (`Transforms/`: the polynomial fit) | The polynomial least-squares fit (the matrix of the sums of powers and its Gaussian elimination) that d3-regression adapted from it |
+| science.js (Jason Davies) | the source that `vega-statistics` 2.0.0 cites (`src/stats/loess.js`) | BSD-3-Clause | Copyright (c) 2011, Jason Davies | `LoessFit` (`Transforms/`) | The locally weighted regression: the tricube weights, the moving window of nearest neighbors, the robustness iterations on the residuals and the merging of repeated x, as `vega-statistics` adapted it |
 | Vega (`vega-selections`, `vega-util`, `vega-functions`) and Vega-Lite (`vega-lite`) | `vega` 6.4.0 line and 6.5.0 (see the first rows) | BSD-3-Clause | (c) 2015-2023, University of Washington Interactive Data Lab; (c) 2015, University of Washington Interactive Data Lab | `SelectionTestSemantics`, `SelectionStore` and `ExpressionFunctions.Selection.cs` (`Expressions/`), `SelectionModel` (`Transforms/`: `SelectionModel.Projection.cs`, `SelectionModel.Queries.cs`), `SelectionTimeUnits` (`Transforms/`), `SelectionDeclarations` (`SpecModel/`: `SelectionDeclarations.Assignment.cs`), `PredicateSource` (`SpecModel/`), `MarkBuilder` (`Marks/`: `MarkBuilder.Brush.cs`), `LegendDimming` (`Guides/`), `ScaleResolver` (`Scales/`: `ScaleResolver.Raw.cs`), `BinAlgorithm` (`Transforms/`) | The selection tests of Vega (`selectionTest`, `selectionIdTest` and `selectionResolve`: the tuple types `E`, `R`, `R-E`, `R-LE`, `R-RE` and the comparison types, the inclusive bounds of `inrange`, the point match, the union and intersection of units, and the shape of the resolved value with `vlPoint`) and the `data` function; Vega-Lite's compiled selection (the store name `<name>_store`, the predicate text `!length(data(store)) \|\| vlSelectionTest(store, datum)`, the `empty` rule, the resolve signal), the projection of a selection (`project.ts`: the fields, the encodings, the defaults of the type, the tuple type of an encoding, the time unit that derives a projected field) and the normalization that pushes a top-level selection down to the unit views (`toplevelselection.ts`); the brush of an interval selection (`interval.ts`), the scale bindings and the extent of a scale or a bin that a selection gives (`scales.ts`, `parseSelectionExtent`), and the `span` of the bin algorithm, and the legend binding (`legends.ts` and the selection opacity rule of `legend/encode.ts`: which legends a selection is bound to and the test that dims an entry) |
 
 ## Files read for `ConfigResolver`
@@ -68,7 +72,8 @@ read from the published Vega-Lite version 6 JSON schema; only property names and
 
 ## Files read for the scenegraph, text, title and view layout units
 
-The units `TextMeasurer` and `TitleBuilder` (`Guides/`: `TitleBuilder.cs`, `TitleBuilder.Header.cs` and `HeaderSettings.cs`), `ViewLayout` and `CompositionLayout` (`Layout/`) and `SceneModel` and `ScenePainter`
+The units `TextMeasurer` and `TitleBuilder` (`Guides/`: `TitleBuilder.cs`, `TitleBuilder.Header.cs` and
+`HeaderSettings.cs`), `ViewLayout` and `CompositionLayout` (`Layout/`) and `SceneModel` and `ScenePainter`
 (`Scenegraph/`) re-implement the following behavior in C#; only numeric constants, rules and algorithm structure were
 taken, no code and no comments were copied. Files are read from the Vega `main` branch of the version above.
 
@@ -95,7 +100,8 @@ by the difference between the two fonts' advance widths; layout rules do not dep
 
 ## Files read for the data and scale units
 
-The units `ScaleModel`, `ScaleResolver`, `Ticks`, `NumberFormat`, `ColorSchemes` and `ColorInterpolator` (`Scales/`) and
+The units `ScaleModel`, `ScaleResolver`, `Ticks`, `NumberFormat`, `ColorSchemes` and `ColorInterpolator` (`Scales/`)
+and
 `DataTable` and
 `DataLoader` (`Data/`) re-implement the following behavior in C#. The algorithms of the d3 packages were read from the
 repositories (the sources of the published versions named above are the same as the repository sources of the files
@@ -229,12 +235,14 @@ The tests of these units use values worked out by hand from the algorithm; no up
 | Vega-Lite | `src/compile/mark/encode/position-rect.ts` | the geometry of a bar or rect on a binned channel: the bin spacing, the minimum band size and the midpoint of a binned point |
 | Vega-Lite | `src/compile/axis/properties.ts` | the tick count of the axis of a binned field |
 
-Where this package deliberately differs from Vega: the groups of an `aggregate` are keyed by the structure of the values
+Where this package deliberately differs from Vega: the groups of an `aggregate` are keyed by the structure of the
+values
 (a number and a text that spell the same are two groups) and are in the order they are first seen, not by the text of
 the values in the order of an object; the bootstrap interval is deterministic, drawn with the published SplitMix64
 generator seeded from the JSON pointer of the transform (the same generator as the `sample` transform) instead of
 `Math.random`; the growth of the bin step is bounded, the number of bins is bounded by the limit of the scale domain
-size, and an extent that no finite step can cover is an error instead of an endless loop; the groups of `joinaggregate`,
+size, and an extent that no finite step can cover is an error instead of an endless loop; the groups of
+`joinaggregate`,
 `window`, `stack` and `impute` are keyed and ordered the same way, and the default output names of `stack` are
 `field_start` and `field_end`.
 
@@ -242,13 +250,15 @@ size, and an extent that no finite step can cover is an error instead of an endl
 
 `TimeCalendar` (including `TimeInterval`, `TimeUnitSpec` and `DateTimeObject`), `TimeFormat` and `JsDateParser`
 (`Data/`), `TimeUnitTransform` and `TemporalFields` (`Transforms/`), the date and time functions in
-`ExpressionFunctions.Time.cs` (`Expressions/`), `Ticks.Time.cs` and `ScaleResolver.Time.cs` (`Scales/`), and `TimeLabels`
+`ExpressionFunctions.Time.cs` (`Expressions/`), `Ticks.Time.cs` and `ScaleResolver.Time.cs` (`Scales/`), and
+`TimeLabels`
 and `LegendBuilder.Time.cs` (`Guides/`) re-implement the following behavior in C#. The sources were read from the
 upstream repositories (the d3 packages at the versions of the provenance table, Vega from the `main` branch of the
 `vega` 6.4.0 line, Vega-Lite as stated in its row) and were rewritten as ports; no code, comments, tests, examples or
 output were copied, and the tests of these units use values worked out by hand from the definitions (calendar
 arithmetic, the directive definitions and the algorithm steps), never output of d3 or Vega. The unit headers carry
-`Portions derived from d3-time (ISC), d3-time-format (ISC), d3-scale (ISC) and Vega (BSD-3-Clause)` (with Vega-Lite where
+`Portions derived from d3-time (ISC), d3-time-format (ISC), d3-scale (ISC) and Vega (BSD-3-Clause)` (with Vega-Lite
+where
 it applies).
 
 | Project | File | What was taken |
@@ -291,7 +301,8 @@ text and the sequences are bounded by `MaxTicks`, `MaxStringLength` and `MaxScal
 `MarkBuilder.Order.cs`, `MarkBuilder.Overlays.cs`, `MarkBuilder.Text.cs` and `MarkBuilder.Arcs.cs` (`Marks/`), and the
 Phase 9 parts of `EncodingPlan`, `StackRules`, `ScaleResolver`, `SpecParser`, `FeatureCatalog`, `LegendPlan` and
 `TimeLabels` re-implement the following behavior in C#. The d3-shape and d3-path files were read from the repository
-tags of the versions of the provenance table and rewritten as ports (the control point formulas, the end-point rules and
+tags of the versions of the provenance table and rewritten as ports (the control point formulas, the end-point rules
+and
 the arc construction are numeric algorithms whose results must match); the Vega and Vega-Lite files were read from the
 `main` branches for rules and numeric constants. No code, comments, tests, examples or output were copied: the tests of
 these units use values worked out by hand (the derivations are in the verification documents), never output of d3, Vega
@@ -344,12 +355,16 @@ text length, the segments and the scene items are bounded by the render limits.
 
 ## Files read for the layers and the composite marks
 
-`SpecNormalizer.Composite.cs`, `SpecNormalizer.BoxPlot.cs` and `SpecNormalizer.ErrorBar.cs` (`SpecModel/`), and, for the
+`SpecNormalizer.Composite.cs`, `SpecNormalizer.BoxPlot.cs` and `SpecNormalizer.ErrorBar.cs` (`SpecModel/`), and, for
+the
 compositions of Phase 11, `SpecNormalizer.Composition.cs` and `SpecNormalizer.Repeat.cs` (`SpecModel/`),
 `ScaleResolver.Layers.cs` (`Scales/`), `VegaLiteDocument.Layers.cs` (the root namespace), and the Phase 10 parts of
-`ConfigResolver`, `SpecParser`, `FeatureCatalog`, `LegendPlan` and `AxisBuilder` re-implement the following behavior in C#.
-The Vega-Lite files were read from the `main` branch (and the `v6.5.0` tag) for rules, structure and default values: the
-composite mark files live in `src/compositemark/`. No code, comments, tests, examples or output were copied: the tests of
+`ConfigResolver`, `SpecParser`, `FeatureCatalog`, `LegendPlan` and `AxisBuilder` re-implement the following behavior in
+C#.
+The Vega-Lite files were read from the `main` branch (and the `v6.5.0` tag) for rules, structure and default values:
+the
+composite mark files live in `src/compositemark/`. No code, comments, tests, examples or output were copied: the tests
+of
 these units use values worked out by hand (the quartiles, fences, means and positions are derived in the verification
 documents), never output of Vega-Lite. The unit headers carry
 `Portions derived from Vega-Lite (BSD-3-Clause)` and name the file that applies.
@@ -374,32 +389,51 @@ documents), never output of Vega-Lite. The unit headers carry
 | Vega-Lite | `src/compile/concat.ts`, `src/compile/model.ts`, `src/compile/layoutsize/parse.ts` | the drawing of a concatenation: every child is a group that sizes itself (its `width` and `height`, the step of its own scale, or the continuous size) and keeps its own title, axes and background, the children are laid out as a grid whose layout is the one of the concatenation, the legends that the children share are the concatenation's own and sit beside the grid, and the title of a composition is anchored at the start |
 | Vega-Lite, Vega | `src/normalize/index.ts` (`normalizeAutoSize`), `src/compile/compile.ts` (`getTopLevelProperties`, `droppingFit`); `packages/vega-view-transforms/src/ViewLayout.js` (`viewSizeLayout`, and the legend rule of `layoutGroup` "for autosize fit, incorporate the orthogonal dimension only") | `autosize` `fit`, `fit-x`, `fit-y` and `"container"` sizes of a single or layered view: the merge `pad`, the fit that a container size implies (with `contains: padding`), the configuration, the specification; the data rectangle of a fitted view as the size less the whole-pixel reach of the guides and the title (and the padding for `contains: padding`); the drop of a fit for a step dimension (`fit` to the fit of the other dimension, `pad` for both; the fit of the other dimension also when the type was the fit of the step dimension); the legends counted across their side only; and the rule that a composition ignores `fit` and `"container"` |
 
-Where this package deliberately differs from the upstream behavior: the autosize of a composition is always `pad` (a fit of
-a composition, which Vega-Lite only ignores for `fit` and not for `fit-x` and `fit-y`, is warned about and dropped, as is a
-`"container"` size of a composition and of its children); a `"container"` size under an explicit `pad` or `none` takes the
+Where this package deliberately differs from the upstream behavior: the autosize of a composition is always `pad` (a fit
+of
+a composition, which Vega-Lite only ignores for `fit` and not for `fit-x` and `fit-y`, is warned about and dropped, as
+is a
+`"container"` size of a composition and of its children); a `"container"` size under an explicit `pad` or `none` takes
+the
 container size of the render options as the data rectangle (Vega-Lite's `width` signal) and does not warn that the
-autosize is not compatible; the fit of the title that overflows the view is iterated at most three times where Vega iterates until the layout is
+autosize is not compatible; the fit of the title that overflows the view is iterated at most three times where Vega
+iterates until the layout is
 stable; the tooltip parts of the composite marks are omitted;
-the bin, the time unit and the aggregate of a channel that groups the rows of a composite mark are not applied (they are
+the bin, the time unit and the aggregate of a channel that groups the rows of a composite mark are not applied (they
+are
 reported); the shorthand aggregates `boxplot`, `errorbar` and `errorband` of the measure are not accepted; the warnings
-that Vega-Lite only logs for a composite mark are not reproduced; a merged legend takes the symbol facts of the first layer that has the channel (Vega-Lite merges
+that Vega-Lite only logs for a composite mark are not reproduced; a merged legend takes the symbol facts of the first
+layer that has the channel (Vega-Lite merges
 the symbol encodings);
-the `orient` of the configuration of an axis is not an explicit orient for the placement of independent axes; a facet sorted by an aggregate
-(`sort: {field, op}`) is ordered by its field, and a `bin`, `timeUnit` or `aggregate` of a facet field is not applied (the raw value is the cell); the
-overflow of a mark is not part of the bounds of a cell, so the grid can differ from Vega-Lite's by a few pixels where a mark sticks out of its
-data rectangle; the scale that the cells of a facet share is the union of the domains of the cells after their own transforms, where Vega-Lite
-takes it from the data before the aggregates of a cell; the `spec` of a facet that has a `data` of its own is not partitioned (as in Vega-Lite); the sizes of the text
-come from the bundled fonts and not from Vega's text estimator; the `headerBand` and `footerBand` of the grid layout are not used; and the
+the `orient` of the configuration of an axis is not an explicit orient for the placement of independent axes; a facet
+sorted by an aggregate
+(`sort: {field, op}`) is ordered by its field, and a `bin`, `timeUnit` or `aggregate` of a facet field is not applied
+(the raw value is the cell); the
+overflow of a mark is not part of the bounds of a cell, so the grid can differ from Vega-Lite's by a few pixels where a
+mark sticks out of its
+data rectangle; the scale that the cells of a facet share is the union of the domains of the cells after their own
+transforms, where Vega-Lite
+takes it from the data before the aggregates of a cell; the `spec` of a facet that has a `data` of its own is not
+partitioned (as in Vega-Lite); the sizes of the text
+come from the bundled fonts and not from Vega's text estimator; the `headerBand` and `footerBand` of the grid layout are
+not used; and the
 number of views, their nesting and the scene items are bounded by the render limits.
 
 ## Files read for label expressions and offset channels
 
-`LabelExpressions` (`Guides/`), the `labelExpr` parts of `AxisBuilder`, `LegendBuilder` and `HeaderSettings` (`Guides/`) and of
-`VegaLiteDocument.Composition.cs` (the root namespace), `ScaleResolver.Offsets.cs` and the offset parts of `ScaleResolver`
-(`Scales/`), `MarkBuilder.Offsets.cs` and the offset hooks of `MarkBuilder` (`Marks/`), `TimeUnitSpec` (`Data/`: the reference duration of a unit), `ExpressionFunctions.Number.cs` (`Expressions/`), and the offset rules of `StackRules` and
-`EncodingPlan` (`Transforms/`) re-implement the following behavior in C#. The files were read from the Vega-Lite `v6.5.0` tag and
-the Vega `v6.4.0` line (`main` branch for `AxisTicks.js`, whose `tickIndex` member is in 6.4.0 and not before) for rules,
-structure and default values. No code, comments, tests, examples or output were copied: the tests of these units use values
+`LabelExpressions` (`Guides/`), the `labelExpr` parts of `AxisBuilder`, `LegendBuilder` and `HeaderSettings` (`Guides/`)
+and of
+`VegaLiteDocument.Composition.cs` (the root namespace), `ScaleResolver.Offsets.cs` and the offset parts of
+`ScaleResolver`
+(`Scales/`), `MarkBuilder.Offsets.cs` and the offset hooks of `MarkBuilder` (`Marks/`), `TimeUnitSpec` (`Data/`: the
+reference duration of a unit), `ExpressionFunctions.Number.cs` (`Expressions/`), and the offset rules of `StackRules`
+and
+`EncodingPlan` (`Transforms/`) re-implement the following behavior in C#. The files were read from the Vega-Lite
+`v6.5.0` tag and
+the Vega `v6.4.0` line (`main` branch for `AxisTicks.js`, whose `tickIndex` member is in 6.4.0 and not before) for
+rules,
+structure and default values. No code, comments, tests, examples or output were copied: the tests of these units use
+values
 worked out by hand (the step, width and bar size of a grouped bar chart and the text of each label are derived in the
 verification documents), never output of Vega-Lite or Vega. The unit headers carry
 `Portions derived from Vega (BSD-3-Clause) and Vega-Lite (BSD-3-Clause)` and name the file that applies.
@@ -421,12 +455,17 @@ verification documents), never output of Vega-Lite or Vega. The unit headers car
 | d3-format | `src/locale.js`, `src/formatSpecifier.js` | the specifier grammar and the number formats that `format()` of the expression language gives (the same rules as the `NumberFormat` row of the provenance table above), and that the type `c` prints the original value as text (`x + ""`) with the prefix, suffix and padding of the specifier |
 | Vega-Lite | `src/stack.ts`, `src/compile/unit.ts` | that the offset of the dimension is a group-by field of a stack and so not a stack-by field, that an aggregate with nothing to stack by is not stacked, that a continuous offset without a dimension disables the default stack, and which continuous offsets are ranged (the cases that are reported and not drawn) |
 
-Where this package deliberately differs from the upstream behavior: the ranged offset of a bar or an area and the offset of a
-position of a temporal field that has a time unit that cannot hold it (the day of the week, a binned unit, `maxbins`, or a `rect` mark) are reported (`vl-offset-ranged`,
-`vl-offset-position`) and not drawn; a mark without a band position over a time unit uses the middle of the unit where Vega-Lite computes NaN; the reference duration of a UTC unit
+Where this package deliberately differs from the upstream behavior: the ranged offset of a bar or an area and the offset
+of a
+position of a temporal field that has a time unit that cannot hold it (the day of the week, a binned unit, `maxbins`, or
+a `rect` mark) are reported (`vl-offset-ranged`,
+`vl-offset-position`) and not drawn; a mark without a band position over a time unit uses the middle of the unit where
+Vega-Lite computes NaN; the reference duration of a UTC unit
 is measured in UTC; `datum.size` and `datum.offset` of a symbol legend are null; the
-text of a date that a label expression converts is its ISO text; the custom `formatType` and the replacement of `datum.label`
-by a custom format are not modeled; and the evaluation of a label expression is bounded by the evaluation step budget, the
+text of a date that a label expression converts is its ISO text; the custom `formatType` and the replacement of
+`datum.label`
+by a custom format are not modeled; and the evaluation of a label expression is bounded by the evaluation step budget,
+the
 string length limit and the tick limit of the call.
 
 ## Files read for selections
@@ -450,19 +489,77 @@ output of Vega-Lite or Vega. The unit headers carry `Portions derived from` and 
 | Vega-Lite | `src/compile/selection/legends.ts`, `src/compile/legend/encode.ts` (`selectedCondition`, `symbols`, `labels`), `src/compile/legend/parse.ts`, `assemble.ts` | the legend binding of a selection (`"bind": "legend"`: the selections that are defined for a legend, the projection of a single field that is not the row identity, the legend that a selection is found on by its field or its channel), the opacity rule of the symbols and labels of such a legend (`!length(data(store)) \|\| (N[field] && indexof(N[field], datum.value) >= 0)`, `unselectedOpacity`, the opacity of the selected symbol), the removal of the symbol rule when the legend encodes opacity, and the merge of the legends of several channels (the first one keeps its encoding) |
 
 Where this package deliberately differs from the upstream behavior: a selection is drawn in its initial state only
-(`on`, `clear`, `toggle`, `nearest`, `translate` and `zoom` and the input widgets of `bind` are ignored; a legend bound to a selection is dimmed in its initial state only), a point selection over the identity of
-the rows has no value, a selection that two layers receive is applied as empty and reported, a brush that paints nothing is not made (Vega-Lite makes a zero-size rectangle), the dates of a selection value are read in the time zone of the chart, and the evaluation of the
+(`on`, `clear`, `toggle`, `nearest`, `translate` and `zoom` and the input widgets of `bind` are ignored; a legend bound
+to a selection is dimmed in its initial state only), a point selection over the identity of
+the rows has no value, a selection that two layers receive is applied as empty and reported, a brush that paints nothing
+is not made (Vega-Lite makes a zero-size rectangle), the dates of a selection value are read in the time zone of the
+chart, and the evaluation of the
 selection functions is bounded by the evaluation step budget of the call.
 
+## Files read for the statistical transforms
+
+The statistical transforms (`regression`, `loess`, `density`, `quantile` and `extent`) and the cells of `pivot` were
+ported **from the sources below, read in full, with their numeric details** (the order of the floating-point
+operations, the JavaScript conversions and the boundary rules), because the transforms are only useful when their
+numbers are those of the reference. The unit headers carry `Portions derived from` and name the files that apply. The
+tests are derived by hand from closed forms (an exact line, symmetric densities that integrate to one, the quantiles
+of known data); a few tests compare with the numbers of the Vega reference at a tolerance and say so.
+
+| Project | File | What was taken |
+| ------- | ---- | -------------- |
+| Vega | `packages/vega-regression/src/Regression.js` | the `regression` transform: the `method`, `order`, `extent`, `params`, `groupby` and `as` handling, the skipped groups (`n <= dof`), the sampling of the curve (the two end points of a line, `sampleCurve` over the extent for the other methods), and the `params` row (`keys`, `coef`, `rSquared`) |
+| Vega | `packages/vega-regression/src/Loess.js` | the `loess` transform: the groups, the default bandwidth `0.3`, and the output (`as`, sorted by x) |
+| Vega | `packages/vega-statistics/src/regression/linear.js`, `log.js`, `exp.js`, `pow.js`, `quad.js`, `poly.js`, `constant.js`, `ols.js`, `points.js`, `r-squared.js` | the models, the centered running sums, the least-squares and Gaussian-elimination steps, the coefficient of determination, the delegation of the polynomial orders 0, 1 and 2, and the validity rule of a point (adapted by Vega from d3-regression and regression-js, see the provenance table) |
+| Vega | `packages/vega-statistics/src/regression/loess.js` | the locally weighted regression (adapted by Vega from science.js): the tricube weights, the window of `max(2, ~~(bandwidth * n))` neighbors, the two robustness iterations, the median-residual stop at `1e-12`, and the merging of repeated x |
+| Vega | `packages/vega-statistics/src/sampleCurve.js` | the adaptive sampling of a curve: the uniform grid of the minimum number of steps, the subdivision by the angle between the segments, and the bound on the number of points |
+| Vega | `packages/vega-statistics/src/kde.js`, `bandwidth.js`, `normal.js` (`densityNormal`, `cumulativeNormal`) | the Gaussian kernel density and cumulative (`pdf`, `cdf`), Scott's rule for the bandwidth (the `min \|\| d \|\| \|q0\| \|\| 1` chain), the standard normal density and the approximation of the cumulative distribution by West (2009) |
+| Vega | `packages/vega-statistics/src/quantiles.js`, `numbers.js`, `constants.js` | the quantiles of the numbers of a column (the R-7 interpolation) and the rule for which values are numbers |
+| Vega | `packages/vega-transforms/src/KDE.js` | the `density` transform: the groups, the `extent`, `steps`, `minsteps`, `maxsteps`, `counts`, `cumulative` and `as` handling, the grid of the shared resolve and the adaptive sample of an independent one |
+| Vega | `packages/vega-transforms/src/Quantile.js`, `Extent.js` | the `quantile` transform (the probabilities from `probs` or `range(step / 2, 1 - 1e-14, step)`, the output fields) and the `extent` transform (the minimum and maximum, the parameter written to the dataflow) |
+| Vega | `packages/vega-regression/src/partition.js`, `packages/vega-transforms/src/util/util.js` (`partition`), `Pivot.js`, `Aggregate.js`, `util/AggregateOps.js`, `util/TupleStore.js` | the key of a group (the JavaScript text of the array of its values), the order of the groups, and the pivot cells: one aggregate per cell fed with the rows of the pivot value (the count, the empty cells, the values, the distinct count) |
+| Vega | `packages/vega-util/src/extent.ts`, `toNumber.ts` | the extent of an array (the comparison with `<` and `>`, null skipped) and the conversion of a value to a number |
+| d3-array | `src/deviation.js`, `variance.js`, `quantile.js`, `range.js`, `median.js` | the sample deviation behind Scott's rule, the interpolating quantile of sorted numbers, the length of a range and the median of the residuals |
+| Vega-Lite | `src/compile/data/regression.ts`, `loess.ts`, `density.ts`, `quantile.ts`, `extent.ts`, `src/transform.ts`, `src/compile/data/parse.ts` | the compile rules of the transforms: the default output names (`on` and the regressed field, `value` and `density`, `prob` and `value`), the `shared` default resolve of a density (the extent of the column and one grid for all groups), the default `extent`, `groupby` and `as`, the `params` option, the extent parameter that the following transforms read, and the `isExtent` precedence (an `extent` next to a `regression` or a `density` is their option) |
+| Vega-Lite | `src/compile/data/aggregate.ts`, `src/compile/data/pivot.ts` | the `pivot` transform: the `op`, `groupby` and `limit` properties and the output fields |
+
+Where this package deliberately differs from the upstream behavior (the differences are stated in the user guide):
+a regression group that has no valid x gives two points without a position instead of failing, the `order` of a
+polynomial
+is limited to 64 and the `bandwidth` of a loess to the range from 0 to 1, a negative `bandwidth`, `steps`, `minsteps`,
+`maxsteps` or `step` is a specification error, a `pivot` cell without rows holds null for the operations that need a
+value,
+and the transforms are bounded by the row budget, the evaluation step budget and the cancellation token of the call.
+The
+`erfinv` and probit functions of `normal.js` (which cite Apache Commons Math) are not used and not ported.
+
+## Files read for the image mark
+
+The `image` mark was written as own C# code from the behavior of the files below (`MarkBuilder.Images.cs` in `Marks/`,
+and `ScenePainter.Images.cs` and `SceneImageSource.cs` in `Scenegraph/`); no source text was copied. The pictures
+themselves come from the host's `IImageResolver` of `DemaConsulting.CanvasNet` (the library opens no file and no
+network resource), and the tests use their own generated pictures.
+
+| Project | File | What was taken |
+| ------- | ---- | -------------- |
+| Vega-Lite | `src/compile/mark/image.ts` | the encoded properties of the mark: the `url` channel, `aspect` and `smooth` (both `true` by default), the opacity without the 0.7 reduction of other marks, and the `rectPosition` call with the `x`/`y` and `width`/`height` channels |
+| Vega-Lite | `src/compile/mark/encode/position-rect.ts`, `position-range.ts`, `position-align.ts` | the position of an image: a point anchored by the `align` and `baseline` of the mark when only one end is given, the band or the bin span for a discrete or binned field, the range of the two ends, the size from `width`/`height` of the mark, and the whole data rectangle for a missing channel |
+| Vega-Lite | `src/compile/mark/encode/text.ts`, `base.ts` | how a field, datum or value channel is read as the text of a row (the `url` link), and the common properties (opacity, invalid-data handling) of the mark |
+| Vega | `packages/vega-scenegraph/src/marks/image.js` | the box of a picture: the item width and height, the natural size when one is missing, the size from the other side by the aspect ratio of the picture, the fit-inside and centering for a box of another aspect, the `align` and `baseline` offsets, the smoothing flag and the opacity |
+| Vega | `packages/vega-runtime/src/util.js` | that an image mark item carries its `url` as a property of the item |
 ## Expression language and row transforms (nothing ported)
 
-The units `ExpressionParser`, `ExpressionEvaluator`, `ExpressionFunctions` (except its date and time functions, see _Files
-read for the time units, time formats and time scales_ above, its `format` function, see _Files read for label expressions and offset channels_ above, and its selection functions, see _Files read for selections_ above) and `ExpressionRegex` (`Expressions/`) and
-`RowTransforms`, `RowSampler`, `TableLayout` and `ParameterEnvironment` (`Transforms/`) are original C# code. Nothing
+The units `ExpressionParser`, `ExpressionEvaluator`, `ExpressionFunctions` (except its date and time functions, see
+_Files
+read for the time units, time formats and time scales_ above, its `format` function, see _Files read for label
+expressions and offset channels_ above, and its selection functions, see _Files read for selections_ above) and
+`ExpressionRegex` (`Expressions/`) and
+`RowTransforms`, `RowSampler`, `TableLayout` and `ParameterEnvironment` (`Transforms/`) are original C# code (except
+the cells of `pivot`, see _Files read for the statistical transforms_ above). Nothing
 from Vega (including `vega-expression` and `vega-functions`), Vega-Lite or d3 was ported, copied or translated into
 them: no source file, test, example, data set, constant table or documentation text was taken, which is why these units
 have no row in the provenance table and carry no `Portions derived from` header. The date and time functions are in
-the separate file `ExpressionFunctions.Time.cs` and the `format` function in `ExpressionFunctions.Number.cs`; both carry the header
+the separate file `ExpressionFunctions.Time.cs` and the `format` function in `ExpressionFunctions.Number.cs`; both carry
+the header
 and are covered by the time rows of the provenance table and the rows above. The selection functions are in
 `ExpressionFunctions.Selection.cs`, with `SelectionStore.cs` and `SelectionTestSemantics.cs`, and the `SelectionModel`
 unit (`Transforms/`) is derived as well (see the selections row of the provenance table).
@@ -477,7 +574,7 @@ They were written from public descriptions only:
   transforms and of the `params` property (the property names and the behavior that the documentation states).
 
 Where this package deliberately differs from the upstream behavior (a `lookup` takes the first row of a repeated key,
-`sample` is deterministic, `pivot` supports `sum` and `count` only), the difference is stated in the user guide. The
+`sample` is deterministic), the difference is stated in the user guide. The
 `sample` transform does not reproduce the random number generator of Vega: it uses the published 64-bit FNV-1a hash
 (offset basis and prime), the published SplitMix64 generator (its increment, multipliers and shifts) and the classic
 reservoir sampling algorithm, all implemented from their public descriptions. The translation of a JavaScript regular
@@ -486,16 +583,21 @@ upstream project.
 
 ## Package-distribution obligation
 
-The BSD-3-Clause license requires that the copyright notice, the list of conditions and the disclaimer be
+The BSD-3-Clause and MIT licenses require that the copyright notice, the list of conditions and the disclaimer be
 reproduced in binary distributions, and the ISC license requires that the copyright and permission notice appear in
 all copies. The license texts are therefore shipped in the NuGet package under `licenses\`:
 
 - `licenses\LICENSE-vega.txt` — BSD-3-Clause, Vega and Vega-Lite (both copyright notices, verbatim)
-- `licenses\LICENSE-d3.txt` — ISC, d3-array, d3-format, d3-scale, d3-time, d3-time-format, d3-interpolate, d3-color, d3-scale-chromatic, d3-shape and d3-path (all ten copyright notices, verbatim)
-- `licenses\LICENSE-colorbrewer.txt` — Apache-2.0 notice of the ColorBrewer color schemes (verbatim, as published with d3-scale-chromatic)
+- `licenses\LICENSE-d3.txt` — ISC, d3-array, d3-format, d3-scale, d3-time, d3-time-format, d3-interpolate, d3-color,
+  d3-scale-chromatic, d3-shape and d3-path (all ten copyright notices, verbatim)
+- `licenses\LICENSE-colorbrewer.txt` — Apache-2.0 notice of the ColorBrewer color schemes (verbatim, as published with
+  d3-scale-chromatic)
 - `licenses\LICENSE-apache-2.0.txt` — the text of the Apache License, Version 2.0 (ColorBrewer and Turbo)
 - `licenses\LICENSE-turbo.txt` — the Google notice of the Turbo color map (Apache-2.0)
 - `licenses\LICENSE-cividis.txt` — the Battelle Memorial Institute license of the cividis color map (verbatim)
+- `licenses\LICENSE-d3-regression.txt` — BSD-3-Clause, d3-regression (Harry Stevens; the regression models of Vega)
+- `licenses\LICENSE-science.txt` — BSD-3-Clause, science.js (Jason Davies; the loess of Vega)
+- `licenses\LICENSE-regression-js.txt` — MIT, regression-js (Tom Alexander; the polynomial regression of d3-regression)
 
 Any other package that bundles the `DemaConsulting.CanvasNet.VegaLite` assembly (for example the command-line
 tool) must carry the same notices.

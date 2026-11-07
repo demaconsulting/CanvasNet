@@ -164,6 +164,25 @@ try {
     Write-Result ($sources -contains 'x.png') 'a PNG picture is left alone'
     Write-Result ($first.Html -notmatch 'define-h') 'define-NAME is consumed, not kept'
 
+    # --- param-NAME sets a parameter of a chart ------------------------------------------------------------
+    Set-Content (Join-Path $guide 'p.vl.json') -Value (
+        '{"params":[{"name":"cutoff","value":1}],"width":{"step":20},"height":80,"data":{"url":"t.csv"},' +
+        '"transform":[{"filter":"datum.v >= cutoff"}],"mark":"bar","encoding":{"x":{"field":"k","type":"nominal"},' +
+        '"y":{"field":"v","type":"quantitative"}}}')
+    $paramBefore = @(Get-Pictures).Count
+    $withParam = Invoke-Filter 'param' '![c](p.vl.json){param-cutoff=4 width=50%}'
+    $paramAfter = @(Get-Pictures).Count
+    Write-Result ($withParam.ExitCode -eq 0 -and $paramAfter -eq $paramBefore + 1 -and $withParam.Html -notmatch 'param-cutoff') `
+        'param-NAME draws a chart with the parameter and is consumed, not kept' "before $paramBefore, after $paramAfter`n$($withParam.Log)"
+    Invoke-Filter 'param' '![c](p.vl.json){param-cutoff=2}' | Out-Null
+    Write-Result (@(Get-Pictures).Count -eq $paramAfter + 1) 'another value of param-NAME draws the chart again'
+    $jsonParam = Invoke-Filter 'param-json' '![c](p.vl.json){param-cutoff=3 param-other=x}'
+    Write-Result ($jsonParam.ExitCode -ne 0 -and $jsonParam.Log -match 'declares no parameter named') `
+        'a parameter the chart does not declare stops the build with the tool message' $jsonParam.Log
+    $modelParam = Invoke-Filter 'param-model' '![m](t.scad){param-cutoff=3}'
+    Write-Result ($modelParam.ExitCode -ne 0 -and $modelParam.Log -match 'param-NAME applies to Vega-Lite charts only') `
+        'param-NAME on a model is an error' $modelParam.Log
+
     # --- Cache --------------------------------------------------------------------------------------------
     $stamp = Get-Stamp
     $count = @(Get-Pictures).Count
@@ -219,6 +238,37 @@ try {
     $bomAfter = @(Get-Pictures).Count
     Write-Result ($bom.ExitCode -eq 0 -and $bomAfter -eq $bomBefore + 1) `
         'a chart with a byte order mark has its data file hashed' "before $bomBefore, after $bomAfter`n$($bom.Log)"
+
+    # The pictures of an image mark are inputs of the chart: a link of the "url" channel (a value, or a field
+    # of the inline rows) and the "url" of the mark are hashed, so a changed picture draws the chart again.
+    Copy-Item (Join-Path $repo 'Icon.png') (Join-Path $guide 'pic.png')
+    Set-Content (Join-Path $guide 'pm.scad') -Value "include <pi.scad>`npi();"
+    Set-Content (Join-Path $guide 'pi.scad') -Value 'module pi() { cube([10, 10, 10]); }'
+    $imageSpec = '{"width":120,"height":80,"data":{"values":[{"k":1,"v":1,"u":"URL"}]},"mark":MARK,' +
+        '"encoding":{"x":{"field":"k","type":"quantitative"},"y":{"field":"v","type":"quantitative"}ENC}}'
+    Set-Content (Join-Path $guide 'img-value.vl.json') -Value $imageSpec.Replace('MARK', '"image"').Replace(
+        'ENC', ',"url":{"value":"pic.png"}').Replace('URL', '')
+    Set-Content (Join-Path $guide 'img-field.vl.json') -Value $imageSpec.Replace('MARK', '"image"').Replace(
+        'ENC', ',"url":{"field":"u","type":"nominal"}').Replace('URL', 'pic.png')
+    Set-Content (Join-Path $guide 'img-mark.vl.json') -Value $imageSpec.Replace('MARK', '{"type":"image","url":"pm.scad"}').Replace(
+        'ENC', '').Replace('URL', '')
+    foreach ($chart in 'img-value', 'img-field') {
+        $result = Invoke-Filter $chart "![c]($chart.vl.json)"
+        $before = @(Get-Pictures).Count
+        Copy-Item (Join-Path $repo 'docs/images/showcase.png') (Join-Path $guide 'pic.png') -Force
+        $result = Invoke-Filter $chart "![c]($chart.vl.json)"
+        $after = @(Get-Pictures).Count
+        Write-Result ($result.ExitCode -eq 0 -and $after -eq $before + 1) "a changed picture of the $chart chart draws it again" `
+            "before $before, after $after`n$($result.Log)"
+        Copy-Item (Join-Path $repo 'Icon.png') (Join-Path $guide 'pic.png') -Force
+    }
+    Invoke-Filter 'img-mark' '![c](img-mark.vl.json)' | Out-Null
+    $markBefore = @(Get-Pictures).Count
+    Set-Content (Join-Path $guide 'pi.scad') -Value 'module pi() { cube([10, 10, 14]); }'
+    $mark = Invoke-Filter 'img-mark' '![c](img-mark.vl.json)'
+    $markAfter = @(Get-Pictures).Count
+    Write-Result ($mark.ExitCode -eq 0 -and $markAfter -eq $markBefore + 1) `
+        'a changed file included by the model of an image mark draws the chart again' "before $markBefore, after $markAfter`n$($mark.Log)"
 
     # --- Pictures the filter ignores never start the tool -----------------------------------------------
     $saved = $env:CANVASNET_TOOL

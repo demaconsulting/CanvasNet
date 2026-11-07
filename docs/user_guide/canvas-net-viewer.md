@@ -16,7 +16,8 @@ format package yourself:
 - it creates the **image resolver** that lets an SVG document embed 3D models, charts, other SVG files, document pages,
   and pictures with `<image href="...">` (`CreateImageResolver`),
 - it **renders any file** of those formats as a picture in one call (`Render`), and
-- it does **everything the `canvasnet` command-line tool does** with images, from code (`ImageRenderer`, `ImageInspector`,
+- it does **everything the `canvasnet` command-line tool does** with images, from code (`ImageRenderer`,
+  `ImageInspector`,
   `ImageComparer`, `MontageBuilder`, and `SourceLoader` of the `DemaConsulting.CanvasNet.Viewer.Imaging` namespace):
   probe a file, render it through an ordered pipeline of transformations, inspect colors and pixels, compare two images,
   and compose a contact sheet - see *Doing what the canvasnet commands do, from code* below.
@@ -24,7 +25,8 @@ format package yourself:
 Every example in this guide is a complete program (top-level statements, then any types): copy it into a console
 project that references the `DemaConsulting.CanvasNet.Viewer` package and has implicit usings enabled (the .NET
 default), and it compiles. The examples are compiled against the current API by the test suite, but never run, so the
-files they name (`deck.pptx`, `part.scad`, ...) are placeholders for your own. They list their `using` directives, so you
+files they name (`deck.pptx`, `part.scad`, ...) are placeholders for your own. They list their `using` directives, so
+you
 can see where each type lives:
 
 - `DemaConsulting.CanvasNet.Viewer` holds `CanvasNetViewer`, `ViewerRenderOptions`, `ViewerImage`, and the exception
@@ -95,7 +97,8 @@ foreach (var image in resolver.Embedded)             // every image that was dra
 }
 ```
 
-Links are confined to the folder: a relative path below it is followed (a query after the file name, as in `logo.png?v=2`,
+Links are confined to the folder: a relative path below it is followed (a query after the file name, as in
+`logo.png?v=2`,
 is ignored, and a fragment, as in `report.pdf#page=3`, is read as parameters, see below); an absolute path, a path that
 leaves the folder, a symbolic link, and a
 network URL (`http:`, `https:`) are never read or fetched. A link that is not drawn is a warning with the code
@@ -107,9 +110,21 @@ exception as its `InnerException`. Models and charts are drawn at the size of th
 background (a chart keeps its own background); a raster keeps its natural size and the SVG codec resamples it. See the
 core user guide, *Linked Images*, for every rule.
 
+**A chart can link pictures too.** The `image` mark of a Vega-Lite chart (`"url": "part.scad"`, `"url": "icon.png"`,
+`"url": "report.pdf#page=2"`) is drawn through the same sandboxed resolver: a chart loaded by `SourceLoader` shows the
+files that lie in its own folder, and a chart that an SVG or another document embeds uses the resolver of that
+document. The notes, the echo text of a model, the embed operations, and `--strict` work as for an SVG; the library's
+own
+warning for a picture that was not drawn (`vl-mark-image-unresolved`) is dropped because the resolver's
+`svg-image-unresolved` already names the link. More pictures than the limit (`MaxImages`, 256) is `budget-exceeded`, and
+a
+picture that is found but is broken fails with the error of its own format. Measuring a chart (the probe) loads no
+picture.
+
 Every note carries an `Origin`, the chain of embedded files that it is about, outermost first: for a link that was not
 drawn it is the file that contains the link, and for a note that an embedded model or chart reported it is the embedding
-files followed by that file. A note about the top-level document has an empty `Origin`, and the `Message` of a note about
+files followed by that file. A note about the top-level document has an empty `Origin`, and the `Message` of a note
+about
 a link still starts with the href, as written. See *Diagnostics: Code and Origin* below.
 
 **Create a new resolver for every render.** A resolver counts the images of one render and collects its notes, and it is
@@ -117,7 +132,8 @@ not thread-safe; creating one is cheap. It never caches a picture, so a live sou
 
 #### Choosing a page, slide, or view with a fragment
 
-The fragment of a link (the text after the first `#`) is a list of `name=value` parameters separated by `&`, in the style
+The fragment of a link (the text after the first `#`) is a list of `name=value` parameters separated by `&`, in the
+style
 of RFC 8118 (`report.pdf#page=3`). A document link draws **page 1 unless the fragment says otherwise**:
 
 - `report.pdf#page=3` draws page 3 of a PDF document;
@@ -125,9 +141,25 @@ of RFC 8118 (`report.pdf#page=3`). A document link draws **page 1 unless the fra
 - `drawing.vsdx#page=2` draws page 2 of a Visio drawing;
 - `part.scad#view=front` draws an OpenSCAD model from a named view (`iso`, `front`, `back`, `left`, `right`, `top`,
   or `bottom`);
-- a raster, an SVG file, and a chart take no parameter.
+- `part.scad#def.width=20` sets the variable `width` of a model, exactly like `-D width=20` of the tool (a number,
+  `true`, `false`,
+  or text; `def.label=%22A%22` is the text `A`);
+- `chart.vl.json#param.threshold=5` sets the parameter `threshold` of a chart, exactly like `--param threshold=5` (a
+  number,
+  `true`, `false`, `null`, text, or JSON, so `param.brush={"x":[2,6]}` sets the initial state of an interval selection);
+- a raster and an SVG file take no parameter.
 
-The grammar is: the first `#` starts the fragment; `&` separates parameters (an empty one, as in `a&&b`, is skipped); the
+The `def.` and `param.` prefixes keep the names a link author chooses from colliding with `view=` and `page=`; the
+prefix is not
+case sensitive and the name after it is. A value that is not usable (a vector, a name that is not an identifier,
+malformed JSON)
+is `image-fragment-invalid`, `def.` on a file that is not a model and `param.` on one that is not a chart is
+`image-fragment-unknown-parameter`, and a `param.` name that the chart does not declare is the warning
+`vl-param-unknown`. The built-in
+sources declare the prefixes through `IFragmentImageSource.FragmentParameterPrefixes`.
+
+The grammar is: the first `#` starts the fragment; `&` separates parameters (an empty one, as in `a&&b`, is skipped);
+the
 first `=` of a parameter splits the name from the value (no `=` means an empty value); `%XX` escapes are decoded after
 that split, so `a=%26b` has the value `&b`; `+` is not a space. Names are not case sensitive. A page is a whole number
 from 1 (digits only, leading zeros allowed). A fragment is at most 2048 characters with at most 32 parameters
@@ -140,7 +172,11 @@ What the resolver reports, as notes in `Diagnostics`:
   image is drawn without it.
 - `image-fragment-duplicate-parameter` (`Warning`): a parameter has two different values; the last one wins and the
   image is drawn.
-- `image-fragment-invalid` (`Unsupported`): a value that is not allowed (`page=0`, `page=abc`, `view=` with no value) or
+- `vl-param-unknown` (`Warning`): a `param.` parameter of a chart link names a parameter the chart does not declare; the
+  chart is
+  drawn without it (`Strict` does not fail on it).
+- `image-fragment-invalid` (`Unsupported`): a value that is not allowed (`page=0`, `page=abc`, `view=` with no value, a
+  `def.` vector, malformed `param.` JSON) or
   a fragment over the limits; nothing is drawn.
 - `image-page-out-of-range` (`Unsupported`): the page or slide does not exist; the message tells how many there are;
   nothing is drawn.
@@ -203,13 +239,18 @@ file is drawn at that size and a raster is fitted into it; when given, each must
 throws `ArgumentOutOfRangeException` before it reads anything), `Page` (the 1-based page or slide of a PDF, PPTX, or
 VSDX
 file, 1 by default; a page the file does not have is a `ViewerException` with the code `page-out-of-range`, and a value
-below 1 throws `ArgumentOutOfRangeException` before the file is read), `Dpi` (the resolution a document page is sized at,
-96 by default, above 0 and at most 2400; a VSDX file takes a whole number), `Background` (the color transparent areas are
+below 1 throws `ArgumentOutOfRangeException` before the file is read), `Dpi` (the resolution a document page is sized
+at,
+96 by default, above 0 and at most 2400; a VSDX file takes a whole number), `Background` (the color transparent areas
+are
 flattened over, and the color of the margin when `Width` and `Height` fit the picture into a box, whose anchors follow
 the picture; null keeps the transparency of a document, a model, and an SVG file, and the own background of a chart),
-`Scad` (the `ScadViewOptions` of a model: the view, angles, projection, `Defines`, time, and triangle limit), `Folder`
+`Scad` (the `ScadViewOptions` of a model: the view, angles, projection, `Defines`, time, and triangle limit), `VegaLite`
+(the
+`ChartOptions` of a Vega-Lite chart: the values of its parameters, the option behind `--param`; see below), `Folder`
 (the sandbox for the files the rendered file itself
-includes or embeds; by default the folder of the file, or none for a stream), `ThrowOnUnsupportedFeature` (an unsupported
+includes or embeds; by default the folder of the file, or none for a stream), `ThrowOnUnsupportedFeature` (an
+unsupported
 feature fails instead of being drawn without it and reported; for an SVG file it also fails on a link that is not
 drawn, as `--strict` does: a missing file, a picture too large, an unusable fragment, or a page that does not exist is a
 `ViewerException` with the code `unsupported-feature`, while an unknown fragment parameter stays a warning),
@@ -220,7 +261,8 @@ against the same budget, so a 10 x 10 picture resized to 1 x 1 needs 101 pixels,
 `ImageSourceBudgetException`), `ExtraSources` (see *`ExtraSources` or `CreateImageResolver`?* below), and
 `CancellationToken`. The `ViewerImage` owns the `Surface` (disposing it disposes the surface) and carries `Format`,
 `Page` (the page that was drawn) and `PageCount` (how many the file has, so you can walk a document), `Diagnostics`,
-`Echo` (the text a model printed with `echo`), `Anchors` (the named points a model declared, with their pixels; empty for
+`Echo` (the text a model printed with `echo`), `Anchors` (the named points a model declared, with their pixels; empty
+for
 every other file), and `Embedded`. `Render` throws `FileNotFoundException`
 for a missing file, `NotSupportedException` when no source claims the extension (the message lists them),
 `SandboxException` when the sandbox refuses the file, and `ImageSourceException` for a file that cannot be drawn
@@ -229,7 +271,9 @@ missing - is a `ViewerException` instead). Render
 a file that is not on disk with `Render(stream, fileName)`; the extension of the file name chooses the source. With both
 `Width` and `Height`, `Render` fits a raster inside the box over a transparent margin, whereas `SourceOptions.Width` and
 `Height` of the `Imaging` operations stretch a raster (see *Sizes* below). A document or model that the rendered file
-embeds chooses its own page or view with the fragment of its link; it never inherits `Page`, `Dpi`, or `Scad`.
+embeds chooses its own page or view, and sets its own variables or parameters, with the fragment of its link; it never
+inherits
+`Page`, `Dpi`, `Scad`, or `VegaLite`.
 
 To render page 2 of a PDF document at 192 dpi, over white, in memory:
 
@@ -279,6 +323,41 @@ foreach (var note in image.Diagnostics)
 }
 ```
 
+The parameters of a Vega-Lite chart are set with `ViewerRenderOptions.VegaLite`, a `ChartOptions` whose `Parameters`
+take what
+`VegaLiteRenderOptions.Parameters` takes (a number, text, a boolean, `null`, a list, or a dictionary, and for a
+selection the shape of its
+initial state). They are checked before the file is read (`ArgumentOutOfRangeException` for what the library rejects),
+the
+chart is laid out from them (so its size follows a parameter that changes the layout), and a name the chart does not
+declare is a
+`ViewerException` with the code `vega-lite-error` that lists the declared ones (`WarnOnUnknownParameters = true` makes
+it the
+warning `vl-param-unknown` instead, as for a link):
+
+<!-- compile -->
+
+```csharp
+using DemaConsulting.CanvasNet.Viewer;
+using DemaConsulting.CanvasNet.Viewer.Imaging;
+
+using var chart = CanvasNetViewer.Render(
+    "charts/sales.vl.json",
+    new ViewerRenderOptions
+    {
+        VegaLite = new ChartOptions
+        {
+            Parameters = new Dictionary<string, object?>
+            {
+                ["threshold"] = 5.0,
+                ["brush"] = new Dictionary<string, object?> { ["x"] = new object[] { 2, 6 } }
+            }
+        }
+    });
+
+Console.WriteLine($"{chart.Format}: {chart.Surface.Width}x{chart.Surface.Height}");
+```
+
 `Render` returns pixels and writes no file. To save them with a format or a quality, use the writer of the `Imaging`
 namespace (the third argument is the file you rendered, which the output may not be):
 
@@ -308,7 +387,8 @@ command does without options:
   of the command line.** `new RenderRequest("out.png")`, `new MontageRequest("sheet.png")`, `new SheetOptions()`,
   `new WriteOptions()` (also `WriteOptions.Default`), `new SourceOptions()`, and `new CompareRequest(a, b)` are complete
   requests, and `with` works on them. Set a property only to change it.
-- **Pages are numbered from 1**, as `--page` is: `SourceOptions.Page`, `MontageRequest.Page`, `SourcePage.Number`, and the
+- **Pages are numbered from 1**, as `--page` is: `SourceOptions.Page`, `MontageRequest.Page`, `SourcePage.Number`, and
+  the
   `{page}` placeholder of an output name all start at 1 (the format packages themselves, such as `PdfDocument.Render`
   and `PptxDocument.Render`, count from 0; do not mix the two). The `Index` and `InputIndex` of a `MontageCell` are
   positions in a list and start at 0.
@@ -323,7 +403,8 @@ command does without options:
 **Which call do I need: a file or pixels?** `ImageRenderer.Execute` **writes files** and returns where it wrote them
 (`RenderedPage.Result` is a `WriteResult` with `Path`, `Format`, `Width`, `Height`, `Bytes`, and `Flattened`; it has no
 `Surface`). To get **pixels in memory**, use `CanvasNetViewer.Render` (a `ViewerImage`) for one call without options, or
-`SourceLoader.Load` (a `LoadedSource`) with the page, resolution, EXIF, and model options of the tool. Either surface can
+`SourceLoader.Load` (a `LoadedSource`) with the page, resolution, EXIF, and model options of the tool. Either surface
+can
 be written with the options of a render by `ImageWriter.Write(surface, path, inputPath, options)`.
 
 - `ImageRenderer.Execute(info, request)` gives files on disk and a `RenderResult` (paths and sizes, no pixels)
@@ -374,7 +455,8 @@ catch (ViewerException ex)
 
 **`render`, `convert`, and the verbs `crop`, `resize`, `rotate`, `flip`, `pad` - load, transform, write.** An
 `ImageRenderer` call loads the page (or every page) of a probed source, runs an ordered pipeline of operations over it,
-and writes one file for each page. The operations are records, applied in the order of the list, and the output format is
+and writes one file for each page. The operations are records, applied in the order of the list, and the output format
+is
 chosen by the extension of the output, or by `WriteOptions.Format`; `WriteOptions.Quality` is the JPEG quality. All the
 files are written together or none:
 
@@ -437,7 +519,8 @@ clips 1 percent at each end of the histogram, as the command does), `DeskewOpera
 `Height`, `Background`, `Strict`, `AutoOrient`, `Filter`, and `Scad` for a model's view and variables). The view of a
 model is `ScadViewOptions.View`, one of `iso` (the default), `front`, `back`, `left`, `right`, `top`, or `bottom` (any
 case; `SourceLoader.ScadViews` lists them with their angles; another name is a `usage-error`), and `Azimuth` and
-`Elevation` replace its angles. Naming a view other than `iso`, or setting an angle, is all it takes: you do **not** need
+`Elevation` replace its angles. Naming a view other than `iso`, or setting an angle, is all it takes: you do **not**
+need
 `ViewGiven`, which only matters to ask for `iso` on a model that is entirely 2D (see the property's documentation).
 With `AllPages` every page of a document is written, to a folder (an output
 that ends with a directory separator) or to a name that contains `{page}`, which is replaced by the 1-based page
@@ -677,7 +760,8 @@ result carries all three:
 | `ViewerImage` (of `CanvasNetViewer.Render`)       | yes         | yes  | yes     | `ImageSourceDiagnostic` |
 | `FolderImageResolver` (an SVG render)             | yes         | yes  | no      | `ImageSourceDiagnostic` |
 
-`ImageRenderer`, `SourceLoader.Load`, and `CanvasNetViewer.Render` give anchors; the other operations cannot report them.
+`ImageRenderer`, `SourceLoader.Load`, and `CanvasNetViewer.Render` give anchors; the other operations cannot report
+them.
 The two diagnostic
 types carry the same facts: `ImageDiagnostic` (the Imaging namespace) has a string `Severity` and a page, and
 `ImageSourceDiagnostic` (the core package) has an `ImageDiagnosticSeverity` and a `Page`; both have `Source`, `Code`,
@@ -717,8 +801,10 @@ foreach (var note in image.Diagnostics)
 
 **Diagnostics: `Code`, `Detail`, `Location`, and `Origin`.** Test the `Code` of a note, never its message. The code of a
 note for a model warning is the generic `scad-warning` (a chart warning is `vega-lite-warning`); the finer identifier of
-the library's own warning, such as `scad-anchor-invalid` or `scad-include-not-found`, or the `vl-*` identifier of a chart
-warning, is in `Detail` (it is `null` when the `Code` is already the most specific). `Location` is where the note points:
+the library's own warning, such as `scad-anchor-invalid` or `scad-include-not-found`, or the `vl-*` identifier of a
+chart
+warning, is in `Detail` (it is `null` when the `Code` is already the most specific). `Location` is where the note
+points:
 `File`, `Line`, and `Column`, and for a chart the JSON `Pointer`; a member the source did not know is `null`, and the
 whole `Location` is `null` for a note without a position (a page note has the 1-based `Page` instead). `Origin` names
 where the note comes from when the file was embedded in another: for `part.scad` embedded by
@@ -734,8 +820,10 @@ is `["a.svg"]`. A file link is shown as its folder-relative file name and a sche
   dispose that surface). Pages already read from a `PageSource` stay valid after it is disposed.
 - **Dispose** the `Surface` of an `ImageSourceResult` (from `FolderImageResolver.Render` or your own source): the result
   is a record and is **not** `IDisposable`, so it cannot be in a `using`.
-- **Nothing to dispose**: a `FolderImageResolver` (not `IDisposable`; it holds no open files, so no `using`), the results
-  of `ImageRenderer`, `ImageInspector`, `ImageComparer`, and `MontageBuilder`, a `WriteResult`, and a `SourceInfo` (plain
+- **Nothing to dispose**: a `FolderImageResolver` (not `IDisposable`; it holds no open files, so no `using`), the
+  results
+  of `ImageRenderer`, `ImageInspector`, `ImageComparer`, and `MontageBuilder`, a `WriteResult`, and a `SourceInfo`
+  (plain
   values, no pixels).
 - `ImagePipeline.Apply` returns a **new** surface that you dispose; its input is neither changed nor disposed.
 
@@ -784,7 +872,8 @@ or with a custom one; without it the extension decides.
 A note about the two ways to draw a file: `CanvasNetViewer.Render` (above) is the simple way to get a picture of a file
 (transparent background for vector files, the fit of a raster into a box, the image-source sandbox, and its own
 exceptions), and the `Imaging` operations are the way the `canvasnet` tool works (document pages and resolution, EXIF
-orientation, a flattened background, the ordered pipeline, and the `ViewerException` codes). The messages and hints of the
+orientation, a flattened background, the ordered pipeline, and the `ViewerException` codes). The messages and hints of
+the
 operations are written for the command line and name the options of the tool (for example `--all-pages`). The `Imaging`
 operations write files (see *Which call do I need: a file or pixels?*).
 
@@ -886,7 +975,8 @@ sealed class StubCamera : ICamera
   `svg-image-unresolved` warning. A source that claims them takes full responsibility for what it fetches.
 - **Security.** A file-based source receives bytes the resolver has already confined to the folder. A **scheme source
   owns its own access control**: it receives the text of the link as written and decides what that may reach. Validate
-  it (a list of allowed cameras, hosts, or paths), never build a file path or a URL from it unchecked, and bound the work
+  it (a list of allowed cameras, hosts, or paths), never build a file path or a URL from it unchecked, and bound the
+  work
   it does; the resolver counts the images and the depth of scheme links like any other, but it cannot confine what the
   source reaches.
 - **Charge the pixel budget before you allocate.** A render may allocate only so many pixels in all

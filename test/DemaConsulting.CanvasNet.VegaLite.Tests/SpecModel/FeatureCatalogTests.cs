@@ -60,7 +60,6 @@ public class FeatureCatalogTests
             [
                 ("vl-schema-version", "/$schema"),
                 ("vl-projection", "/projection"),
-                ("vl-transform-regression", "/transform/2"),
                 ("vl-mark-geoshape", "/mark"),
                 ("vl-encoding-sort-ignored", "/encoding/y/sort"),
                 ("vl-encoding-condition", "/encoding/y/condition"),
@@ -1099,11 +1098,11 @@ public class FeatureCatalogTests
     }
 
     /// <summary>
-    ///     Validates that the transforms of a later phase, conditional encodings and selection parameters are still reported, and that
-    ///     the aggregating transforms of the drawn view are accepted without a report.
+    ///     Validates that every transform of Vega-Lite (the statistical transforms of Phase 13 included) is accepted without a report, while conditional encodings on selection parameters
+    ///     are still reported elsewhere; the retired identifiers <c>vl-transform-&lt;name&gt;</c> are never produced.
     /// </summary>
     [Fact]
-    public void FeatureCatalog_Visit_LaterPhaseTransformsConditionsAndSelectionsStayReported()
+    public void FeatureCatalog_Visit_EveryTransformOfTheDrawnViewIsAcceptedWithoutAReport()
     {
         // Arrange
         const string json = """
@@ -1132,14 +1131,8 @@ public class FeatureCatalogTests
         // Act
         var ids = Visit(json);
 
-        // Assert: the seven computed transforms (the time unit among them) and the condition on the selection are not reported, the later phases are
-        Assert.Equal(
-            [
-                ("vl-transform-regression", "/transform/7"),
-                ("vl-transform-loess", "/transform/8"), ("vl-transform-density", "/transform/9"), ("vl-transform-quantile", "/transform/10"),
-                ("vl-transform-extent", "/transform/11"),
-            ],
-            ids);
+        // Assert: the twelve computed transforms and the condition on the selection are not reported
+        Assert.Empty(ids);
     }
 
     /// <summary>
@@ -1208,8 +1201,8 @@ public class FeatureCatalogTests
     }
 
     /// <summary>
-    ///     Validates the parts of the supported transforms that are not supported: a pivot operation, a lookup in a parameter
-    ///     and a remote lookup source; that a filter on a selection is supported; and that a time unit or a date-time object in a predicate is supported (only the parts a predicate does not apply
+    ///     Validates the parts of the supported transforms that are not supported: a lookup in a parameter
+    ///     and a remote lookup source; that a filter on a selection and a pivot with any aggregate operation are supported (the identifier <c>vl-transform-pivot-op</c> is retired); and that a time unit or a date-time object in a predicate is supported (only the parts a predicate does not apply
     ///     and a binned unit are reported, at the time unit).
     /// </summary>
     [Fact]
@@ -1246,7 +1239,6 @@ public class FeatureCatalogTests
         // Assert
         Assert.Equal(
             [
-                ("vl-transform-pivot-op", "/transform/5/op"),
                 ("vl-transform-lookup-param", "/transform/7/from/param"),
                 ("vl-data-remote-url", "/transform/8/from/data"),
                 ("vl-predicate-timeunit-part", "/transform/9/filter/timeUnit"),
@@ -1700,11 +1692,12 @@ public class FeatureCatalogTests
         }
 
         // Assert: the marks that stay unsupported are reported at the mark (also with the properties of a path mark); the composite marks are drawn (Phase 10) and their ids are retired
-        foreach (var type in new[] { "geoshape", "image" })
-        {
-            Assert.Equal([("vl-mark-" + type, "/mark")], Visit("{ \"mark\": { \"type\": \"" + type + "\", \"invalid\": \"show\", \"interpolate\": \"bundle\" } }"));
-        }
+        Assert.Equal([("vl-mark-geoshape", "/mark")], Visit("{ \"mark\": { \"type\": \"geoshape\", \"invalid\": \"show\", \"interpolate\": \"bundle\" } }"));
 
+        // Assert: the image mark is drawn when the caller supplies a resolver (Phase 13), so it is reported like a drawn mark that has the unsupported properties; without a resolver it is also reported as itself
+        Assert.Equal(
+            [("vl-mark-image", "/mark"), ("vl-mark-invalid-show", "/mark/invalid")],
+            Visit("{ \"mark\": { \"type\": \"image\", \"invalid\": \"show\", \"interpolate\": \"bundle\" } }"));
         Assert.DoesNotContain(Visit("{ \"mark\": \"boxplot\" }"), r => r.Id == "vl-mark-boxplot");
         Assert.DoesNotContain(Visit("{ \"mark\": \"errorbar\" }"), r => r.Id == "vl-mark-errorbar");
         Assert.DoesNotContain(Visit("{ \"mark\": \"errorband\" }"), r => r.Id == "vl-mark-errorband");

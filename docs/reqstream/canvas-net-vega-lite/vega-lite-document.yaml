@@ -627,9 +627,10 @@ sections:
               request allows,
               returns the warnings and the unsupported features as notes of the source vega-lite (and fails with
               VegaLiteUnsupportedFeatureException when the request is strict), passes the cancellation token to the
-              layout and the render, and fails with VegaLiteSpecException for an invalid specification,
-              InvalidOperationException for a request without a file, and OperationCanceledException for a canceled
-              request.
+              layout and the render, loads the pictures of its image marks through the resolver of the request (the one
+              scoped to the file of the chart; without one the image mark is reported as vl-mark-image), and fails with
+              VegaLiteSpecException for an invalid specification, InvalidOperationException for a request without a
+              file, and OperationCanceledException for a canceled request.
             justification: |
               Charts are linked from diagrams; a chart carries its own paper, so its background is kept, and the
               deterministic settings make the result the same everywhere.
@@ -639,5 +640,63 @@ sections:
               - VegaLiteImageSource_Render_SizeBeyondRemainingPixels_IsRefusedBeforeDrawing
               - VegaLiteImageSource_Render_DataFile_ResolvesFromDirectoryOfRequest
               - VegaLiteImageSource_Render_UnsupportedFeature_ReturnsDiagnosticOrThrowsWhenStrict
+              - VegaLiteImageSource_Render_ImageMark_UsesTheResolverOfTheRequest
               - VegaLiteImageSource_Render_InvalidInput_Throws
               - VegaLiteImageSource_Properties_NameExtensionsAndNoSchemes
+
+          - id: CanvasNetVegaLite-VegaLiteDocument-ImageSourceParameters
+            title: >-
+              The VegaLite image source shall declare the prefix param. through IFragmentImageSource (and no
+              parameter name), read every param.name=value of the fragment of the request as ImageParameterValues
+              reads a chart parameter (a number, a boolean, null, text, a JSON array or object) and set the
+              parameter of that name through VegaLiteRenderOptions.Parameters for the layout and the render (so the
+              natural size is that of the parameterized chart), report a name the chart does not declare as a warning
+              of the source vega-lite with the code vl-param-unknown that lists the declared names (the chart is
+              drawn without it), and refuse the request with ImageSourceRefusedException and the code
+              image-fragment-invalid, before anything is charged, for a value that is not usable or that the library
+              rejects.
+            justification: |
+              A linked chart is parameterized from its link, with the same values and the same result as the
+              parameters of the command line; a typo is a note, not a lost diagram.
+            tests:
+              - VegaLiteImageSource_FragmentParameterPrefixes_DeclaresParam
+              - VegaLiteImageSource_Render_ParamFragment_SetsTheParameterAndTheLayout
+              - VegaLiteImageSource_Render_ParamFragment_SelectionTakesJson
+              - VegaLiteImageSource_Render_UnknownParameter_IsAWarningAndIsIgnored
+              - VegaLiteImageSource_Render_ChartWithoutParameters_SaysItDeclaresNone
+              - VegaLiteImageSource_Render_InvalidParameter_IsRefusedBeforeCharging
+              - VegaLiteImageSource_Render_ValueTheLibraryRejects_IsRefused
+              - FolderImageResolver_Resolve_ChartParamLink_IsUnderstoodAndOthersAreUnknown
+
+          - id: CanvasNetVegaLite-VegaLiteDocument-ImageResolver
+            title: >-
+              The VegaLiteDocument unit shall draw the pictures of the image mark through the optional ImageResolver
+              of the render options (null by default, so that the library never reads a file or a network
+              resource on its own), ask it from Render only - never from Measure, which gives the size of the surface
+              Render returns - with the link as the chart gives it, in the size in device pixels of the box at the
+              render scale or the fit scale of the size overload, ask once for a link at a size within a render, limit
+              the questions with VegaLiteLimits.MaxImages (256 by default, at least 1; the render fails with a
+              VegaLiteRenderException located at the mark beyond it), report a link the resolver did not give as the
+              warning vl-mark-image-unresolved even in strict mode, report the image mark as vl-mark-image only when
+              there is no resolver, let the exceptions of the resolver propagate, and release every surface when the
+              call ends.
+            justification: |
+              Pictures are the one thing a chart needs from outside itself; the host decides what a link may refer
+              to, and a render must be deterministic, bounded, and free of side effects on the host's resources.
+            tests:
+              - VegaLiteDocument_Render_ImageMark_DrawsEveryPictureAtItsPosition
+              - VegaLiteDocument_Measure_ImageMark_NeverCallsTheResolver
+              - VegaLiteDocument_Render_ImageMark_AsksForTheBoxInDevicePixels
+              - VegaLiteDocument_Render_ImageMarkWithoutResolver_IsReportedAndDrawsNothing
+              - VegaLiteDocument_Render_ImageMarkWithResolver_IsNotReported
+              - VegaLiteDocument_Render_ImageMarkUnresolved_WarnsAndDrawsTheRest
+              - VegaLiteDocument_Render_ImageMark_CachesPerRenderAndHonorsMaxImages
+              - VegaLiteDocument_Render_ImageMarkResolverThrows_Propagates
+              - VegaLiteDocument_Render_ImageMarkRemoteLink_IsPassedUntouched
+              - VegaLiteDocument_Render_ImageMarkInLayer_IsDrawnInLayerOrder
+              - VegaLiteDocument_Render_ImageMark_IsDeterministic
+              - VegaLiteRenderOptions_Defaults_AreDocumented
+              - VegaLiteRenderOptions_ValidValues_AreStored
+              - VegaLiteLimits_Default_HasDocumentedValues
+              - VegaLiteLimits_ValidValues_AreStored
+              - VegaLiteLimits_ZeroOrNegative_Throws

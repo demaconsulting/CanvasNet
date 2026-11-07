@@ -188,7 +188,7 @@ public class VegaLiteChartIntegrationTests
     }
 
     /// <summary>
-    ///     Validates that an unsupported mark, transform and aggregate are each reported once with the pointer, line and
+    ///     Validates that an unsupported mark, a lookup in a parameter and a band position are each reported once with the pointer, line and
     ///     column of the construct, in document order, and that the chart is still rendered without them.
     /// </summary>
     [Fact]
@@ -205,7 +205,7 @@ public class VegaLiteChartIntegrationTests
         // Assert: exactly one report per construct with its stable identifier, pointer and one-based line and column of its value
         Assert.Equal(
             [
-                ("vl-transform-regression", "/transform/0", 12, 5),
+                ("vl-transform-lookup-param", "/transform/0/from/param", 12, 44),
                 ("vl-mark-geoshape", "/mark", 14, 11),
                 ("vl-encoding-bandposition", "/encoding/y/bandPosition", 17, 71),
             ],
@@ -704,13 +704,13 @@ public class VegaLiteChartIntegrationTests
     }
 
     /// <summary>
-    ///     Validates pivot (the columns of the pivoted values, zero for a missing combination) and lookup (the fields of the
+    ///     Validates pivot (the columns of the pivoted values, no value for a missing combination, as Vega's sum of nothing) and lookup (the fields of the
     ///     first matching row of a second inline source) as the source of the scaled fields.
     /// </summary>
     [Fact]
     public void CanvasNetVegaLite_SystemIntegration_Transforms_PivotAndLookupBuildTheScaledFields()
     {
-        // Arrange: u has s = 2 and t = 4, w has s = 6 and no t, which pivots to 0
+        // Arrange: u has s = 2 and t = 4, w has s = 6 and no t, which pivots to no value (the point of w is not drawn)
         var pivot = Dots(
             "[{\"g\":\"u\",\"k\":\"s\",\"v\":2},{\"g\":\"u\",\"k\":\"t\",\"v\":4},{\"g\":\"w\",\"k\":\"s\",\"v\":6}]",
             "[{\"pivot\":\"k\",\"value\":\"v\",\"groupby\":[\"g\"]}]",
@@ -724,9 +724,9 @@ public class VegaLiteChartIntegrationTests
         using var pivoted = RenderDots(pivot);
         using var looked = RenderDots(lookup);
 
-        // Assert: (2, 4) -> (20, 60), and (6, 0) -> (60, 100), of which the upper half is inside the chart
+        // Assert: (2, 4) -> (20, 60); (6, none) is not drawn, where a zero would have drawn the point at (60, 100), of which the upper half is inside the chart
         Assert.Equal(Blue, pivoted[20, 60]);
-        Assert.Equal(Blue, pivoted[60, 94]);
+        Assert.Equal(VegaLiteTestHelpers.White, pivoted[60, 94]);
         Assert.Equal(VegaLiteTestHelpers.White, pivoted[60, 60]);
 
         // Assert: the first match wins, so (2, 8) -> (20, 20) and (5, 3) -> (50, 70); the later row for k = 1 (w = 9) is not used
@@ -962,7 +962,7 @@ public class VegaLiteChartIntegrationTests
 
     /// <summary>
     ///     Validates that the features that Phase 5 does not support are still reported and never silently executed:
-    ///     conditional encodings on channels without conditions, animation selections, the transforms of later phases and the date and format functions.
+    ///     conditional encodings on channels without conditions, animation selections and the date and format functions; the statistical transforms (Phase 13) are computed and not reported.
     /// </summary>
     [Fact]
     public void CanvasNetVegaLite_SystemIntegration_Deferred_FeaturesAreStillReported()
@@ -991,7 +991,7 @@ public class VegaLiteChartIntegrationTests
         // Assert: each one is reported once, in document order, and the chart is still drawn
         Assert.Equal(
             [
-                "vl-param-selection-animation", "vl-transform-regression", "vl-transform-loess", "vl-transform-density", "vl-transform-quantile",
+                "vl-param-selection-animation",
                 "vl-expr-function-now", "vl-expr-function-luminance", "vl-encoding-condition",
             ],
             reported);

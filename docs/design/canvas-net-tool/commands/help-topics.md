@@ -67,8 +67,10 @@ read on its own, so the tests render every one with `--strict`. A `snippet` is s
 embedded file) but is text that refers to other files, such as the `embed` diagram of the `svg` topic whose `image`
 elements link a model, a chart, and an SVG file, and the `embed-pages` diagram whose links choose pages (`#page=2`,
 `#slide=2`); `SourceExamples()` does not return a snippet, so the strict-clean drift test
-skips it, and a dedicated test renders each snippet with its sibling files (the examples of the other topics for a model,
-a chart, and an SVG file, and the documents of the shared test fixtures for a PDF, PPTX, and VSDX; a new kind rather than
+skips it, and a dedicated test renders each snippet with its sibling files (the examples of the other topics for a
+model,
+a chart, and an SVG file, and the documents of the shared test fixtures for a PDF, PPTX, and VSDX; a new kind rather
+than
 an exception in the test, so
 a snippet is visible as one in `--examples` and in the JSON). A `command` example has inline `content` that is a command
 line and starts with the tool name followed by a space (`canvasnet`). The `language` is `openscad`, `json`, `xml`, or
@@ -77,19 +79,30 @@ line and starts with the tool name followed by a space (`canvasnet`). The `langu
 The `svg` topic has one more section, `image-links` (after `supported`), that gathers what an agent needs to link a file
 from a diagram: the item `href file types` lists the file name extensions an `image` `href` may link, then items state
 the size rule, the folder rule (a query after the file name is ignored; a fragment is read as parameters), the page
-fragment (grammar, the parameter of each format, limits, the `&amp;` of an XML attribute), the unknown-parameter note, and
+fragment (grammar, the parameter of each format, limits, the `&amp;` of an XML attribute), the unknown-parameter note,
+and
 the warnings `svg-image-unresolved`
 and `svg-image-too-large`, and an `example`, which points to the `embed`
 snippet, and the file types of the `href file types` item are compared by a unit test, in both directions, with
 `CanvasNetViewer.Extensions` (the extensions of the image sources the tool wires in, so a type added to the Viewer is
 caught) and with the `formats` table, so the list cannot
-drift from what the tool does. The `diagnostics` section of the `svg` topic documents `image-fragment-unknown-parameter`,
+drift from what the tool does. The `diagnostics` section of the `svg` topic documents
+`image-fragment-unknown-parameter`,
 `image-fragment-duplicate-parameter`, `image-fragment-invalid`, and `image-page-out-of-range` with their severity and
 the effect of `--strict`; the identifier pattern of the drift test includes the `image-fragment-` and `image-page-`
 prefixes and a theory renders each of the four codes through the tool. The `pdf`, `pptx`, `vsdx`, and `scad` topics show
 the fragment of their format, the `json` topic describes `detail`, `location`, and `origin`, and the `limits` topic
 states the limits of a fragment. The `scad` and `vega-lite` topics, the footer of the `formats` listing, and the usage
-of `render` each point to `canvasnet help svg`.
+of `render` each point to `canvasnet help svg`. The `image-links` section also has the item `variable fragment`, which
+documents
+the prefixed parameters (`def.<name>=<value>` sets a model variable like `-D`, `param.<name>=<value>` sets a chart
+parameter
+like `--param`, the case rules, and the codes `image-fragment-invalid`, `vl-param-unknown`, and
+`image-fragment-unknown-parameter`); the `vega-lite` topic lists `--param <name=value>` in its options and
+`vl-param-unknown` in its
+diagnostics (as does `svg`; the drift test accepts the identifier because it is a literal of the library), and the
+`scad` topic shows
+`#def.` in its link item. A unit test checks the three topics, the usage text, and that the documented command runs.
 
 **Tokens**: text in a topic file may use `{{name}}` tokens, which the loader replaces from the live constants of the
 code before the JSON is parsed, so a documented number cannot drift from the real one. `Tokens` is the table; the values
@@ -126,7 +139,8 @@ raised again on later accesses.
 `null`. Names and aliases are unique across the catalog (checked at load), and a unit test proves that none equals a
 command, a command alias, `help`, or `topics`, so a subject is never ambiguous.
 
-**SourceExamples()**: enumerates every `source` example with its topic. The unit tests and the `CanvasNetTool_HelpExamples`
+**SourceExamples()**: enumerates every `source` example with its topic. The unit tests and the
+`CanvasNetTool_HelpExamples`
 self-test render each of them with `--strict`.
 
 **LoadTopic(name)** (private): reads the resource `<ResourcePrefix><name>.json`, replaces the `{{token}}` placeholders,
@@ -182,7 +196,8 @@ name, a topic file that declares another topic, an example of the wrong kind, or
 with the tool name) are `InvalidOperationException`. They are defects in the shipped content, not user errors: the unit
 tests
 load every topic, so a malformed file fails the build before it reaches a user. The consistency of the content with the
-code is proven by the unit tests (see _HelpTopics Unit Verification Design_): the command examples use known commands and
+code is proven by the unit tests (see _HelpTopics Unit Verification Design_): the command examples use known commands
+and
 options, the options listed exist in `render`, the `errors` topic lists every error code, every cited diagnostic
 identifier is produced by a tiny model or chart or exists in the libraries, and every text example renders with
 `--strict` without a diagnostic.

@@ -3,8 +3,9 @@
 #
 # These requirements describe the design-level behavior of the SceneModel unit of the Scenegraph subsystem
 # (internal namespace DemaConsulting.CanvasNet.VegaLite.Scenegraph): the immutable scene records (Scene,
-# SceneGroup, SceneRect, SceneRule, ScenePath, SceneSymbol, SceneText, SceneArc, SceneTrail, SceneClip, ScenePoint,
-# SceneEntry, ScenePathSegment, and SceneTrailPoint), the deterministic enumeration, and SceneBounds. The records and
+# SceneGroup, SceneRect, SceneRule, ScenePath, SceneSymbol, SceneText, SceneImage, SceneArc, SceneTrail, SceneClip,
+# ScenePoint, SceneEntry, ScenePathSegment, and SceneTrailPoint), the deterministic enumeration, and SceneBounds. The
+# records and
 # their defaults follow the Vega scenegraph. See
 # docs/verification/canvas-net-vega-lite/scenegraph/scene-model.md for the test-evidence mapping.
 
@@ -95,3 +96,16 @@ sections:
                   The strokeMiterLimit property of a mark must reach the painter as data.
                 tests:
                   - SceneModel_StrokeMiterLimit_DefaultsToNullAndSurvivesWith
+
+              - id: CanvasNetVegaLite-Scenegraph-SceneModel-Image
+                title: >-
+                  The SceneModel unit shall provide the picture item SceneImage with a link, an anchor position, an
+                  optional width and height (null for the natural size of the picture), the aspect and smooth flags
+                  (true by default), the horizontal and vertical anchors (left and top by default), the opacity of
+                  every item, and the location of its mark, and shall reject a null link.
+                justification: |
+                  The image mark is carried to the painter as data, with the defaults of Vega's image item, so the
+                  geometry can be asserted without loading a picture.
+                tests:
+                  - SceneImage_Defaults_AreVegasDefaults
+                  - SceneImage_Constructors_RejectNullArguments

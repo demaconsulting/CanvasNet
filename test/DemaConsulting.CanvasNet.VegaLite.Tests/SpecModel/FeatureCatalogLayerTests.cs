@@ -65,36 +65,33 @@ public class FeatureCatalogLayerTests
     }
 
     /// <summary>
-    ///     Validates that the transforms of a view inside a facet are applied by the renderer (a facet is drawn), so nothing is reported for them, and that a transform of a later phase in
-    ///     the facet keeps its ordinary message (the retired text that named the composition is never produced).
+    ///     Validates that the transforms of a view inside a facet are applied by the renderer (a facet is drawn), so nothing is reported for them, and that a statistical
+    ///     transform in the facet is computed as well (the retired text that named the composition is never produced).
     /// </summary>
     [Fact]
     public void FeatureCatalog_Visit_TransformOfFacetViewIsAppliedAndNotReported()
     {
         // Arrange
         const string applied = """{ "facet": { "field": "f", "type": "nominal" }, "spec": { "transform": [ { "calculate": "datum.a * 2", "as": "b" } ], "mark": "point" } }""";
-        const string later = """{ "facet": { "field": "f", "type": "nominal" }, "spec": { "transform": [ { "loess": "y", "on": "x" } ], "mark": "point" } }""";
+        const string statistical = """{ "facet": { "field": "f", "type": "nominal" }, "spec": { "transform": [ { "loess": "y", "on": "x" } ], "mark": "point" } }""";
 
         // Act
         var appliedReports = Visit(applied);
-        var laterReport = Assert.Single(Visit(later));
+        var statisticalReports = Visit(statistical);
 
-        // Assert: the calculate is computed, so nothing is reported; the loess is not supported yet, with the message every drawn view gets
+        // Assert: the calculate and the loess are computed, so nothing is reported
         Assert.Empty(appliedReports);
-        Assert.Equal("vl-transform-loess", laterReport.Id);
-        Assert.Equal(FeatureReportKind.UnsupportedFeature, laterReport.Kind);
-        Assert.Equal("/spec/transform/0", laterReport.Location.Pointer);
-        Assert.Equal("The 'loess' transform is not supported yet.", laterReport.Message);
+        Assert.Empty(statisticalReports);
     }
 
     /// <summary>
-    ///     Validates that a layered view inside a concatenation or a facet is drawn, so neither its transforms nor those of its layers are reported, and that a transform of a later phase in
-    ///     a layer of a facet is reported as not supported yet.
+    ///     Validates that a layered view inside a concatenation or a facet is drawn, so neither its transforms nor those of its layers are reported, and that a statistical transform in
+    ///     a layer of a facet is computed as well.
     /// </summary>
     [Fact]
     public void FeatureCatalog_Visit_TransformOfLayerInsideConcatAndFacetIsApplied()
     {
-        // Arrange: a layered view and its layer inside an hconcat, and the same inside a facet, with a later-phase transform in the facet's layer
+        // Arrange: a layered view and its layer inside an hconcat, and the same inside a facet, with a regression in the facet's layer
         const string concat = """
             {
               "hconcat": [
@@ -117,27 +114,30 @@ public class FeatureCatalogLayerTests
 
         // Assert
         Assert.Empty(drawn);
-        var report = Assert.Single(reports);
-        Assert.Equal(("vl-transform-regression", "/spec/layer/1/transform/0"), (report.Id, report.Location.Pointer));
-        Assert.Equal("The 'regression' transform is not supported yet.", report.Message);
+        Assert.Empty(reports);
     }
 
     /// <summary>
-    ///     Validates that a transform of a later phase in a drawn layer keeps its original message.
+    ///     Validates that the five statistical transforms of Phase 13 are computed in a drawn layer, so the retired identifiers <c>vl-transform-&lt;name&gt;</c> are never produced.
     /// </summary>
-    [Fact]
-    public void FeatureCatalog_Visit_TransformOfLaterPhaseInLayerIsNotSupportedYet()
+    /// <param name="transform">The transform entry.</param>
+    [Theory]
+    [InlineData("""{ "loess": "y", "on": "x" }""")]
+    [InlineData("""{ "regression": "y", "on": "x", "method": "poly", "order": 3 }""")]
+    [InlineData("""{ "density": "y", "groupby": [ "g" ] }""")]
+    [InlineData("""{ "quantile": "y", "step": 0.1 }""")]
+    [InlineData("""{ "extent": "y", "param": "yExtent" }""")]
+    [InlineData("""{ "regression": "y", "on": "x", "extent": [ 0, 10 ] }""")]
+    public void FeatureCatalog_Visit_StatisticalTransformsAreComputedAndNotReported(string transform)
     {
         // Arrange
-        const string json = """{ "layer": [ { "mark": "line", "transform": [ { "loess": "y", "on": "x" } ] } ] }""";
+        var json = "{ \"layer\": [ { \"mark\": \"line\", \"transform\": [ " + transform + " ] } ] }";
 
         // Act
-        var report = Assert.Single(Visit(json));
+        var reports = Visit(json);
 
         // Assert
-        Assert.Equal("vl-transform-loess", report.Id);
-        Assert.Equal("The 'loess' transform is not supported yet.", report.Message);
-        Assert.Equal("/layer/0/transform/0", report.Location.Pointer);
+        Assert.Empty(reports);
     }
 
     /// <summary>

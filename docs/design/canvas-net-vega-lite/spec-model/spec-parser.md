@@ -14,9 +14,11 @@ The `SpecParser` unit is the first software unit in the `SpecModel` subsystem. I
   variable parameters, transforms, and predicates, the helpers that the catalog and the transforms share, and
   `ParameterGraph` (the dependency order of parameters)
 - `SpecParser.Aggregates.cs` - the fourth part of `SpecParser`: the validation of the aggregating transforms and of the
-  `aggregate`, `bin`, `stack`, and `sort` properties of a channel definition, and the sort helpers that the catalog shares
+  `aggregate`, `bin`, `stack`, and `sort` properties of a channel definition, and the sort helpers that the catalog
+  shares
 - `SpecParser.Time.cs` - the fifth part of `SpecParser`: the validation of the time constructs (time units, date-time
-  objects, the interval forms of `tickCount` and `nice`, the `timeUnit` transform, and the time values of predicates) and
+  objects, the interval forms of `tickCount` and `nice`, the `timeUnit` transform, and the time values of predicates)
+  and
   the compilation of the time predicates
 - `SpecParser.Layers.cs` - the sixth part of `SpecParser`: the validation of the `resolve` of a view, of the properties
   of the composite marks (`boxplot`, `errorbar`, `errorband`), and of the compositions (`facet`, `repeat`, `columns`,
@@ -24,12 +26,14 @@ The `SpecParser` unit is the first software unit in the `SpecModel` subsystem. I
 - `SpecParser.LabelExpressions.cs` - the seventh part of `SpecParser`: the compilation of the `labelExpr` of axes,
   legends, and headers (`CompileLabelExpression`) and of the guide configurations (`CompileConfigLabelExpressions`)
 - `SelectionDeclarations.cs` and `SelectionDeclarations.Assignment.cs` - `SelectionDeclarations` (static partial class,
-  phase 12): the reading of the selection parameters (`IsSelection`, `NameOf`, `TypeOf`, `OptionsOf`, `ValueOf`, `ResolveOf`,
+  phase 12): the reading of the selection parameters (`IsSelection`, `NameOf`, `TypeOf`, `OptionsOf`, `ValueOf`,
+  `ResolveOf`,
   `DeclarationsOf`, the legacy `selection` property, and the variable name of a store, `VarName`) and `Assign`, the port
   of
   Vega-Lite's top-level selection normalizer that decides which unit view a selection applies to
 - `SelectionDeclarations.cs` and `SelectionDeclarations.Assignment.cs` - `SelectionDeclarations` (static partial class,
-  phase 12): the reading of the selection parameters (`IsSelection`, `NameOf`, `TypeOf`, `OptionsOf`, `ValueOf`, `ResolveOf`,
+  phase 12): the reading of the selection parameters (`IsSelection`, `NameOf`, `TypeOf`, `OptionsOf`, `ValueOf`,
+  `ResolveOf`,
   `DeclarationsOf`, the legacy `selection` property, and the variable name of a store, `VarName`) and `Assign`, the port
   of
   Vega-Lite's top-level selection normalizer that decides which unit view a selection applies to
@@ -61,13 +65,16 @@ column), the `KeyLine` and `KeyColumn` of its property key (zero for array items
 RFC 6901 `Pointer`, and the value: `StringValue`, `NumberValue` (always finite), `BoolValue`, `Items` (array elements),
 and `Properties` (object member values in document order, each with its `Name`). `this[name]` returns a property or
 null; `AsString`, `AsNumber`, and `AsBool` return typed values or null; `GetLocation` and `GetKeyLocation` build a
-`VegaLiteLocation` with the source name; `ChildPointer` and `EscapePointerSegment` build and escape pointers (`~` becomes
+`VegaLiteLocation` with the source name; `ChildPointer` and `EscapePointerSegment` build and escape pointers (`~`
+becomes
 `~0`, `/` becomes `~1`).
 
 **`SpecTree`** holds the `Root`, the `SourceName`, the `Warnings` (the parser's `vl-duplicate-key` and
-`vl-unknown-property` reports), the `Expressions` (a `SpecExpressions`: the `CompiledExpression` of every supported site,
+`vl-unknown-property` reports), the `Expressions` (a `SpecExpressions`: the `CompiledExpression` of every supported
+site,
 found by the string node that holds the text, or by the `{"expr": ...}` object that wraps it) and, in
-`Expressions.StaticReferences`, the `StaticReference` list of the references of the static sites, `Locate` and `LocateKey`,
+`Expressions.StaticReferences`, the `StaticReference` list of the references of the static sites, `Locate` and
+`LocateKey`,
 and `EnumerateViews()`, which lists the root and the nested
 `layer`, `concat`, `hconcat`, `vconcat`, and `spec` views, parents first, using an explicit work stack.
 
@@ -86,7 +93,8 @@ letter: a `scheme` object must have a string `name`, a positive whole `count`, a
 `interpolate` must be one of the eight color-space names (`rgb`, `hsl`, `hsl-long`, `lab`, `hcl`, `hcl-long`,
 `cubehelix`, `cubehelix-long`) or an object with that name as `type` and a numeric `gamma`; each failure is a
 `VegaLiteSpecException` at the offending value, and an unknown key of a `scheme` or `interpolate` object is a
-`vl-unknown-property` warning. An expression reference in place of either is left to the catalog. `ValidateTransformOptions`
+`vl-unknown-property` warning. An expression reference in place of either is left to the catalog.
+`ValidateTransformOptions`
 checks the parameters of the transform scale types by the type of the scale only: the `base` of a `log` scale must be a
 number above zero other than 1, the `exponent` of a `pow` scale finite, and the `constant` of a `symlog` scale
 above zero (the
@@ -95,14 +103,16 @@ parameters of another type are ignored, as in Vega-Lite). `domainMid`,
 kind rules only; `domainMin` and `domainMax` are a number, an expression reference, or a date-time object (see the time
 rules below).
 
-**Legend options.** After the kind rules of a legend, `ValidateLegendOptions` checks what they cannot express: the counts
+**Legend options.** After the kind rules of a legend, `ValidateLegendOptions` checks what they cannot express: the
+counts
 and lengths `columns`, `symbolLimit`, `tickCount`, `clipHeight`, `gradientLength`, and `gradientThickness` must not be
 negative (a `VegaLiteSpecException` at the value), and a key that Vega-Lite does not define for a legend is a
 `vl-unknown-property` warning. The kind rules carry the enumerations (`orient`, `direction`, `titleOrient`, and the
 alignments) and the kinds of the paint, font, and layout properties; `legend: null` disables the legend, and `legend:
 false` is a specification error.
 
-**Data format rules (phase 4).** The `format` object of a `data` definition is validated for the parts that the data stage
+**Data format rules (phase 4).** The `format` object of a `data` definition is validated for the parts that the data
+stage
 reads: `delimiter` must be exactly one character that can separate fields (not empty, not longer, not a quote or a line
 break, not half of a surrogate pair, and a string); `parse` must be `"auto"`, `null`, or an object; each entry of a
 `parse` object must be a string that is `number`, `boolean`, `date`, `string`, or a custom date format
@@ -112,10 +122,12 @@ dedicated message, and any other unknown entry value gets the general one;
 `property` must be a string; a `sequence` needs numeric `start` and `stop`, a numeric `step` (zero is **not** rejected
 here, because the metadata reports an unknown length for it and the data stage fails the render with a located error
 instead), and a non-empty `as`. A top-level `datasets` object may hold arrays, text, and objects (the catalog reports
-the last two when a `data.name` refers to them). Both rules use the static helpers `DelimitedTextParser.IsValidDelimiter`
+the last two when a `data.name` refers to them). Both rules use the static helpers
+`DelimitedTextParser.IsValidDelimiter`
 and `ParseDirectives.TryClassify` of the `Data` subsystem, so that validation, the catalog, and the loader agree.
 
-**Expression, parameter, and transform rules (phase 5).** The same fail-fast rule applies to a construct whose shape cannot
+**Expression, parameter, and transform rules (phase 5).** The same fail-fast rule applies to a construct whose shape
+cannot
 be what its author meant, and well-formed constructs that the renderer does not execute are left to the catalog:
 
 - **Compiled sites.** The `expr` of every variable parameter of a view, the `calculate` and the string `filter` of every
@@ -154,13 +166,16 @@ be what its author meant, and well-formed constructs that the renderer does not 
   signal namespace); the view signals `width`, `height`, `padding`, `autosize`, `background`, and `cursor` are also
   accepted (and
   reported as view state when no parameter declares them). Any other name is a located error that names the offset.
-- **Parameters.** A parameter needs a non-empty `name`; names are unique within one view and may not be `datum`, `event`,
-  `item`, or `parent`; the references between the expressions of the variable parameters of one view must not form a cycle
+- **Parameters.** A parameter needs a non-empty `name`; names are unique within one view and may not be `datum`,
+  `event`,
+  `item`, or `parent`; the references between the expressions of the variable parameters of one view must not form a
+  cycle
   (the error is located at the `expr` of the lowest-numbered parameter that is on or depends on the cycle, found by
   `ParameterGraph.Sort`, a deterministic topological order that takes the earliest-declared ready parameter first).
 - **Selections (phase 12).** `ValidateSelectionParameter` checks a parameter that has `select`: `point` or `interval`,
   or an
-  object whose `type` is one of them; `fields` and `encodings` are arrays of texts; `resolve` is `global`, `union`, or `intersect`;
+  object whose `type` is one of them; `fields` and `encodings` are arrays of texts; `resolve` is `global`, `union`, or
+  `intersect`;
   `views` is an array of texts; `value` has a shape that the model can read; every interaction property (`on`, `clear`,
   `toggle`,
   `nearest`, `translate`, `zoom`, `mark`, `bind`, ...) is accepted unchecked. The legacy top-level `selection` is an
@@ -170,17 +185,50 @@ be what its author meant, and well-formed constructs that the renderer does not 
   expression text or a predicate (an `and` or `or` array, a `not`, a `param` that names a declared parameter or
   selection (an
   undeclared name is a located error), a `selection`
-  text, or a `field` with exactly one of `equal`, `lt`, `lte`, `gt`, `gte`, `range` (two values), `oneOf` (an array), and
-  `valid` (a boolean)); `fold` and `flatten` are arrays of field paths with an `as` of the right length (one or two names
+  text, or a `field` with exactly one of `equal`, `lt`, `lte`, `gt`, `gte`, `range` (two values), `oneOf` (an array),
+  and
+  `valid` (a boolean)); `fold` and `flatten` are arrays of field paths with an `as` of the right length (one or two
+  names
   for a fold, at most as many as the fields for a flatten); `sample` is a non-negative
   number; `pivot` has a field path, a
-  `value` field, an optional `groupby` array, a non-negative `limit`, and a text `op`; `lookup` has a field path and a `from`
+  `value` field, an optional `groupby` array, a non-negative `limit`, and a text `op`; `lookup` has a field path and a
+  `from`
   with either a `param` text or a `data` object (validated like any `data`), a `key` field
   path, optional `fields`, and an
   `as` and `default` that fit them (a `default` is a scalar). Predicate nesting is bounded by `MaxJsonDepth`, so the
-  recursive check cannot exhaust the stack. A transform that the renderer does not compute (`regression`,
-  `loess`, `density`, `quantile`, `extent`) is accepted without a shape check; `timeUnit` is computed and checked (see the
+  recursive check cannot exhaust the stack. `pivot`'s `op` must be an operation of the registry of `AggregateMeasures`
+  (the same one that `aggregate` reads; an unknown one is a located error). The statistical transforms (`regression`,
+  `loess`, `density`, `quantile`, `extent`) are checked by `SpecParser.Statistics.cs` (see below); `timeUnit` is
+  computed and checked (see the
   time rules below).
+
+**Statistical transform rules (phase 13, `SpecParser.Statistics.cs`).** Each statistical transform is checked and the
+error is located at the offending value:
+
+- **`regression`** needs a field path `regression` and a field path `on`; `method` is one of `linear`, `log`, `exp`,
+  `pow`, `quad`, and `poly`; `order` is an integer from 0 to 64 (`RegressionFit.MaxPolynomialOrder`; Vega accepts any
+  number, but the fit of a polynomial is cubic in the order, so the range is bounded); `extent` is two numbers (`null`
+  or
+  a parameter reference is not accepted); `params` is a boolean; `groupby` is an array of field paths; `as` is one or
+  two
+  non-empty texts.
+- **`loess`** needs `loess` and `on` field paths; `bandwidth` is a number from 0 to 1; `groupby` and `as` as above.
+- **`density`** needs a field path `density`; `bandwidth`, `steps`, `minsteps`, and `maxsteps` are numbers that are not
+  negative; `extent` is two numbers; `counts` and `cumulative` are booleans; `resolve` is `shared` or `independent`;
+  `groupby` and `as` as above.
+- **`quantile`** needs a field path `quantile`; `step` is a number that is not negative; `probs` is an array of
+  numbers; `groupby` and `as` as above.
+- **`extent`** needs a field path `extent` and a non-empty text `param`; the name of the parameter must not repeat the
+  name of
+  a declared parameter (a located error); the names of the extent parameters of a view are visible to its expressions
+  through `IsExtentParameter` (the view's own `transform` array and those of its ancestors), and `ExtentParameterNames`
+  lists all of them for the folding of the static references.
+- **Operation precedence** (`FindTransformOperation`). A transform entry is the object whose property names the
+  transform, and Vega-Lite's `isExtent` rule decides entries that have an `extent` property next to another one: the
+  `extent` of a `regression` or a `density` is that transform's option, not a transform of its own. The operation is the
+  first of `density`, `regression`, then the first transform property in document order. (An entry with only `extent`
+  and
+  `param` is an `extent` transform.)
 
 **Aggregation rules (phase 6, `SpecParser.Aggregates.cs`).** The same fail-fast rule applies to the six aggregating
 transforms and to the encoding properties that aggregate, bin, stack, and sort; each error is located at the offending
@@ -191,37 +239,48 @@ value:
   that is a
   valid field path (required by every operation but `count`), a non-empty text `as`, and, for `exponential` and
   `exponentialb`, a `param` greater than 0 and at most 1; `groupby` is an array of field paths.
-- **`window`** is the same with the window-only operations added, a `param` that is an integer of at least 1 for `ntile`,
-  `lag`, `lead`, and `nth_value` (required for `ntile` and `nth_value`), a `sort` array of `{field, order}`, a `frame` of
+- **`window`** is the same with the window-only operations added, a `param` that is an integer of at least 1 for
+  `ntile`,
+  `lag`, `lead`, and `nth_value` (required for `ntile` and `nth_value`), a `sort` array of `{field, order}`, a `frame`
+  of
   two entries that are each an integer or null, and a boolean `ignorePeers`.
-- **`bin`** is true or an object of parameters and needs a `field`; `as` is a non-empty text or two of them. The parameters
+- **`bin`** is true or an object of parameters and needs a `field`; `as` is a non-empty text or two of them. The
+  parameters
   (`ValidateBinParameters`, shared with the `bin` of a channel definition) are `maxbins` of at least 2, `step` greater
-  than 0, `steps` (1 to 1,024 numbers greater than 0), `minstep` not negative, `divide` (1 to 16 numbers greater than 0),
+  than 0, `steps` (1 to 1,024 numbers greater than 0), `minstep` not negative, `divide` (1 to 16 numbers greater than
+  0),
   `base` greater than 1, a numeric `anchor`, boolean `nice` and `binned`, and an `extent` that is two
   ascending numbers or
   an object with a `param` (recognized and reported by the catalog).
 - **`stack`** names the field and has an optional `groupby`, an `offset` of `zero`, `center`, or `normalize`, a `sort`
-  array, and an `as` of one or two names. **`impute`** needs a `key` and has an optional `groupby`, a `method` of `value`,
-  `mean`, `median`, `max`, or `min`, a scalar `value`, a `frame`, and `keyvals` that is an array of scalars or a sequence
+  array, and an `as` of one or two names. **`impute`** needs a `key` and has an optional `groupby`, a `method` of
+  `value`,
+  `mean`, `median`, `max`, or `min`, a scalar `value`, a `frame`, and `keyvals` that is an array of scalars or a
+  sequence
   `{start, stop, step}` with a numeric `stop` and a `step` other than 0.
-- **Channel definitions** (`ValidateAggregationProperties`, called from `ValidateChannelDefinition`, so also for the `x2`,
+- **Channel definitions** (`ValidateAggregationProperties`, called from `ValidateChannelDefinition`, so also for the
+  `x2`,
   `y2`, and `order` definitions): `aggregate` is an operation name, or an object with exactly one of `argmax`, `argmin`
   (a field path), `exponential`, or `exponentialb` (a number greater than 0 and at most 1; a bare `argmax` or `argmin`
   text is an error because it needs its field); `bin` is true, false, null, `"binned"`, or an object of parameters;
   `stack` is `zero`, `center`, `normalize`, true, false, or null; `sort` is `ascending`, `descending`, null, an array of
-  values, a channel shorthand (`"y"` or `"-y"` with a channel of `x y color fill stroke strokeWidth size shape fillOpacity
+  values, a channel shorthand (`"y"` or `"-y"` with a channel of `x y color fill stroke strokeWidth size shape
+  fillOpacity
   strokeOpacity opacity text`), or an object `{field, op, order}` (the `op` any aggregate operation but `argmin` and
   `argmax`) or `{encoding, order}` (the two forms cannot be mixed); the `sort` of an `order` channel is `ascending` or
   `descending` only. Every item of a `sort` array (`ValidateSortArray`) is a string, a number, a boolean, or null: an
   object or an array item is an error at the item, because it would otherwise read as the null category and silently
   mis-sort; an object is accepted only as a date-time on a field of type `temporal`, and is then checked by
-  `DateTimeObject.TryRead` like every other date-time object (an unknown key, a wrong kind of value, or an invalid month,
+  `DateTimeObject.TryRead` like every other date-time object (an unknown key, a wrong kind of value, or an invalid
+  month,
   quarter, or day is an error at its member; see the time rules below). An array that
   mixes kinds of values is accepted (values are matched by kind, as Vega-Lite's strict comparison does) and is one
-  `vl-encoding-sort-mixed-types` warning at the array, in `SpecTree.Warnings`; a key of a sort object other than `field`,
+  `vl-encoding-sort-mixed-types` warning at the array, in `SpecTree.Warnings`; a key of a sort object other than
+  `field`,
   `op`, `order`, and `encoding` is a `vl-unknown-property` warning at the key.
 - **The `impute` object of a channel definition** (`ValidateEncodingImpute`, called from `ValidateChannelDefinition`):
-  the `impute` property is an object or null (null is the explicit "no impute" and is not validated; any other kind is an
+  the `impute` property is an object or null (null is the explicit "no impute" and is not validated; any other kind is
+  an
   error at the property). Its members are `method` (`value`, `mean`, `median`, `max`, or `min`), `value` (a text, a
   number, a boolean, or null), `frame` (two entries, each an integer or null), and `keyvals` (an array of scalars or a
   sequence `{start, stop, step}` with a numeric `stop`, a numeric `start`, and a `step` other than 0), with the rules of
@@ -233,15 +292,18 @@ value:
   transform keeps its render-time bound of `MaxDataRows` (see _AggregateTransforms_).
 
 **Path, text, and arc mark rules (phase 9, `SpecParser.Validation.cs`).** The same fail-fast rule applies to the
-properties of the line, area, trail, text, and arc marks. The rule table of a mark definition gains these properties, each
-checked for its kind (the letters of the table: S text, N number, B boolean, O object, A array, T array of texts, Z null,
+properties of the line, area, trail, text, and arc marks. The rule table of a mark definition gains these properties,
+each
+checked for its kind (the letters of the table: S text, N number, B boolean, O object, A array, T array of texts, Z
+null,
 E expression reference), and a wrong kind is a `VegaLiteSpecException` at the value:
 
 - **Path properties.** `interpolate` is one of the **15 names** of Vega-Lite (`basis`, `basis-open`, `basis-closed`,
   `bundle`, `cardinal`, `cardinal-open`, `cardinal-closed`, `catmull-rom`, `linear`, `linear-closed`, `monotone`,
   `natural`, `step`, `step-before`, `step-after`) or an expression reference; the d3 names `catmull-rom-open` and
   `catmull-rom-closed` are not Vega-Lite names and are errors, as is null. `tension` is a number or an expression
-  reference. `point` is a boolean, an object, null, or the text `transparent` (any other text is an error), and `line` is
+  reference. `point` is a boolean, an object, null, or the text `transparent` (any other text is an error), and `line`
+  is
   a boolean, null, or an object. `invalid` is null or one of `filter`, `break-paths-filter-domains`,
   `break-paths-show-domains`, `break-paths-show-path-domains`, and `show`. `order` is a boolean or null.
   `strokeDashOffset` and `strokeMiterLimit` are numbers or expression references.
@@ -254,7 +316,8 @@ E expression reference), and a wrong kind is a `VegaLiteSpecException` at the va
 - **Arc and polar properties.** `padAngle`, `innerRadius`, `outerRadius`, `radius`, `radius2`, `theta`, and `theta2` are
   numbers or expression references. `startAngle`, `endAngle`, and `padRadius` are not Vega-Lite properties and stay
   unknown properties (a warning).
-- **Text properties.** `text` is a text, an array, an array of texts, or an expression reference; `fontStyle`, `ellipsis`,
+- **Text properties.** `text` is a text, an array, an array of texts, or an expression reference; `fontStyle`,
+  `ellipsis`,
   and `lineBreak` are texts or expression references; `fontWeight` is a text, a number, or an expression reference;
   `limit` and
   `lineHeight` are numbers or expression references.
@@ -264,7 +327,8 @@ also for the line, trail, and text marks. The conditions of a `size` channel are
 symbol marks, the bar, rect, tick, and rule, and the line, trail, and text marks; an area and an arc have no size, so
 their conditions are not evaluated (the catalog reports the channel itself, see _FeatureCatalog_).
 
-**Time rules (phase 8, `SpecParser.Time.cs`).** The same fail-fast rule applies to the time constructs: a value whose shape
+**Time rules (phase 8, `SpecParser.Time.cs`).** The same fail-fast rule applies to the time constructs: a value whose
+shape
 cannot be what its author meant is a `VegaLiteSpecException` at that exact value, and a member that Vega-Lite does not
 define is a `vl-unknown-property` warning; what the renderer does with a valid construct it cannot apply is left to the
 catalog (for example a binned unit).
@@ -277,7 +341,8 @@ catalog (for example a binned unit).
   `vl-unknown-property`. The mark definition rule table also gains `timeUnitBandPosition` and `timeUnitBandSize`
   (numbers or expression references).
 - **Date-time objects** are checked by `DateTimeObject.TryRead` of the `Data` subsystem, at every site that accepts one,
-  so every site reports the same errors at the same member: the items of `scale.domain`, `domainMin` and `domainMax`, the
+  so every site reports the same errors at the same member: the items of `scale.domain`, `domainMin` and `domainMax`,
+  the
   `values` of an axis or legend, the values of a predicate (`equal`, `lt`, `lte`, `gt`, `gte`, `range`, `oneOf`), the
   items of a `sort` array of a temporal field, and a `datum` that has a date-time key (`IsDateTimeShaped`). An object
   that holds an `expr` string is an expression reference and is left alone; an empty object is an error at the object;
@@ -291,7 +356,8 @@ catalog (for example a binned unit).
   field type because the type of the scale is not known to the parser; the catalog reports an interval on a scale that
   has none.
 - **Time format limits** (`ValidateGuideTimeFormat`, called from `ValidateGuideTime`, and `ValidateFormat` for a data
-  `parse` entry): the `format` text, or each text member of a `format` object, of an axis or a legend that the guide reads
+  `parse` entry): the `format` text, or each text member of a `format` object, of an axis or a legend that the guide
+  reads
   as a d3 time format - the `formatType` is `time` or `utc`, or there is no `formatType` and the channel definition (the
   parent of the guide) is `temporal` or has a `timeUnit`; a number format (`formatType: "number"`, or a field of another
   type) and a custom format type are not read as time formats here - is compiled with `TimeFormat.Compile`, and a
@@ -312,7 +378,8 @@ catalog (for example a binned unit).
   error as the same text written as a top-level `filter`). `CompileTimePredicate` then writes every time-aware field
   predicate **leaf** (also inside `and`,
   `or`, and `not`) as expression source with `PredicateSource.Build` and compiles it once under the key of the
-  predicate object (`CompilePredicate`). The text is **written by the renderer, not by the user**, so it is compiled with
+  predicate object (`CompilePredicate`). The text is **written by the renderer, not by the user**, so it is compiled
+  with
   `ExpressionParser.ParseGenerated` (`CompileSource(..., generated: true)`): the 4,096-character `MaxExpressionLength`
   of the expressions that the user writes does not
   apply to it (the operand texts that are copied into it were checked above), a long list (a `oneOf` of 1,000 values is
@@ -331,28 +398,35 @@ catalog (for example a binned unit).
 **Layer and composite rules (phase 10, `SpecParser.Layers.cs`).** The same fail-fast rule applies to the properties that
 phase 10 reads.
 
-- **`resolve`** (`ValidateResolve`) is an object whose `scale`, `axis`, and `legend` members are objects; each channel of
-  them is one that Vega-Lite resolves for that kind (`IsResolveChannel(kind, channel)`: for a scale the position, offset,
+- **`resolve`** (`ValidateResolve`) is an object whose `scale`, `axis`, and `legend` members are objects; each channel
+  of
+  them is one that Vega-Lite resolves for that kind (`IsResolveChannel(kind, channel)`: for a scale the position,
+  offset,
   `time`, and the non-position channels `angle`, `color`, `fill`, `fillOpacity`, `opacity`, `radius`, `shape`, `size`,
   `stroke`, `strokeDash`, `strokeOpacity`, `strokeWidth`, and `theta`; for an axis `x` and `y` only; for a legend the
-  non-position channels) and its value is `shared` or `independent`, each located at the offending member; a member other
+  non-position channels) and its value is `shared` or `independent`, each located at the offending member; a member
+  other
   than `scale`, `axis`, or `legend` is a `vl-unknown-property` warning.
 - **Composite mark properties** (`ValidateCompositeMark`, for a mark that is `boxplot`, `errorbar`, or `errorband`): the
   `extent` of a boxplot is a number of at least zero or the text `min-max`, and that of an errorbar or errorband is one
   of
-  `ci`, `iqr`, `stderr`, and `stdev`; the `center` is `mean` or `median`; and the parts `box`, `median`, `rule`, `ticks`,
-  `outliers`, `band`, and `borders` are a boolean or an object. `center` is among the known mark keys. These rules do not
+  `ci`, `iqr`, `stderr`, and `stdev`; the `center` is `mean` or `median`; and the parts `box`, `median`, `rule`,
+  `ticks`,
+  `outliers`, `band`, and `borders` are a boolean or an object. `center` is among the known mark keys. These rules do
+  not
   apply to the primitive marks.
 - **Compositions** (Phase 11, in `SpecParser.Layers.cs`). A `facet` is a field definition (an object with a `field`) or
   an object of a `row` and a `column` field definition; each field definition is an object whose `field` is a name or a
   `{"repeat": ...}` reference and is validated like a channel definition (so its `sort`, `header`, and layout properties
   are). A `facet` and a `repeat` need a `spec` object (an error located at the `facet` or `repeat`); the `spec` of a
   `facet` and a view of a `layer` must not hold `concat`, `hconcat`, `vconcat`, `facet`, or `repeat` (an error at that
-  view), while the `spec` of a `repeat` may. A `repeat` is an array of strings or an object of `row`, `column`, and `layer`
+  view), while the `spec` of a `repeat` may. A `repeat` is an array of strings or an object of `row`, `column`, and
+  `layer`
   arrays of strings (another key is a `vl-unknown-property` warning). `columns` is a non-negative integer; `spacing` a
   number or an object of numbers for `row` and `column`; `align` `all`, `each`, or `none`, or an object of them;
   `center` a
-  boolean or an object of booleans (the layout properties are checked on a view and on a faceting channel definition, and
+  boolean or an object of booleans (the layout properties are checked on a view and on a faceting channel definition,
+  and
   an unknown key of an object is a warning). The `header` of a channel definition or facet field is an object whose
   properties (`title`, `format`, `labels`, `labelAngle`, `labelPadding`, `labelOrient`, `titleFontSize`, ...) have the
   shapes of Vega-Lite's `Header`; an unknown key is a warning and `null` is accepted. A `{"repeat": name}` reference
@@ -361,7 +435,8 @@ phase 10 reads.
   `column`, `repeat`, or `layer`.
 - **Expressions of every view.** The expressions of every view are compiled when the document is opened: the
   conditions of
-  the encoding of a layer and of the layered view above it (a `size` condition of a layered view is compiled, the mark of
+  the encoding of a layer and of the layered view above it (a `size` condition of a layered view is compiled, the mark
+  of
   the layer deciding later whether it is evaluated), the `{"expr": ...}` values of the marks, and the transforms, in a
   concatenation, facet, or repeat as in any view. (Until Phase 11 only the root and its layers were compiled; the rule
   `IsDrawnView` that decided it is gone.)
@@ -378,7 +453,8 @@ an error; a duplicate key keeps the last value at the position of the first occu
   `VegaLiteSpecException`, never U+FFFD), and runs a single-use parser.
 - `SpecParser.Parse(byte[] utf8, ...)` - the same for bytes: a UTF-8 byte-order mark is skipped, and the character count
   is checked only when the byte count already exceeds the limit (every character takes at least one byte). Invalid UTF-8
-  (a stray or truncated byte, an overlong encoding, an encoded surrogate, a code point above U+10FFFF) is a malformed-JSON
+  (a stray or truncated byte, an overlong encoding, an encoded surrogate, a code point above U+10FFFF) is a
+  malformed-JSON
   error at its position, never U+FFFD; `Open(Stream)` and `Open(path)` pass their raw bytes here.
 - `Run()` / `Read()` - read with `Utf8JsonReader` (depth option set from the limits) one token at a time, push and pop
   frames on an explicit array indexed by depth (frames are reused), create nodes with their positions through an
@@ -391,8 +467,10 @@ an error; a duplicate key keeps the last value at the position of the first occu
 - `ParseSchemaMajorVersion(string url)` - extracts the digits (at most four) after `/vega-lite/v`, or null.
 - `IsChannelName(string)` and `FindTransformOperation(SpecNode)` - small helpers shared with the catalog.
 - `CompileExpression(SpecNode text)` (in `SpecParser.Transforms.cs`) - parses the string with `ExpressionParser.Parse`,
-  checks the parameter references against `FindParameter` (the nearest view that declares the name), and stores the result
-  in the tree's expression map. `ValidateParameterSemantics`, `ValidateTransformEntry`, `ValidateFilter`, `ValidatePredicate`,
+  checks the parameter references against `FindParameter` (the nearest view that declares the name), and stores the
+  result
+  in the tree's expression map. `ValidateParameterSemantics`, `ValidateTransformEntry`, `ValidateFilter`,
+  `ValidatePredicate`,
   `ValidatePivot`, `ValidateLookup`, `CompileMarkExpressions`, and `CompileChannelExpression`
   apply the rules above from the
   validation pass; `ValidateAggregateTransform`, `ValidateWindowTransform`, `ValidateBinTransform`,
@@ -407,8 +485,10 @@ an error; a duplicate key keeps the last value at the position of the first occu
   `timeUnit` too), `IsTimeInterval(name)`, `IsDateTimeShaped(node)` (also used by the catalog),
   `IsResolveChannel(kind, channel)`,
   `IsViewSignal(name)`,
-  `IsParameterDeclared(node, name)`, and `FindParameter(node, name)` are shared with the catalog and the transforms so that
-  validation, reports, and execution agree on what is supported; the parameter index of a `params` array is built once per
+  `IsParameterDeclared(node, name)`, and `FindParameter(node, name)` are shared with the catalog and the transforms so
+  that
+  validation, reports, and execution agree on what is supported; the parameter index of a `params` array is built once
+  per
   array, so a reference costs one lookup. `IsSupportedSort(sort, definition)`, `TryParseSortShorthand(text, ...)`,
   `TryGetSortChannel(sort, out channel)` (the channel a shorthand or an `encoding` refers to), and
   `IsSortChannel(name)` are shared with the catalog and the scale resolver in the same way.
@@ -467,7 +547,8 @@ an error; a duplicate key keeps the last value at the position of the first occu
   (`!length(data("s_store")) || vlSelectionTest("s_store", datum)`, `length(...) && ...` for `empty: false`): the
   function is `vlSelectionIdTest` when the effective projection (`SelectionDeclarations.UsesRowIdentity`: the presence
   of `fields` or `encodings`, an empty list included; else the keys of the `value`; else the `config.selection` defaults
-  of the specification) has the field `_vgsid_`; a projection that the host's `Config` or `Parameters` changes is applied
+  of the specification) has the field `_vgsid_`; a projection that the host's `Config` or `Parameters` changes is
+  applied
   by the model, and the identity test of a store of fields tests the fields. The legacy `{"selection": ...}` takes its
   emptiness from the declaration (`empty: "none"` is `empty: false`) and ignores an `empty` on the predicate, as
   Vega-Lite's `selectioncompat` does. A field path is written as one bracket per segment (`datum["a"]["b"]`) and a text
@@ -477,7 +558,8 @@ an error; a duplicate key keeps the last value at the position of the first occu
   **Time predicates** (`IsTimeAware`, `ReadUnit`, `AppendTime`) follow Vega-Lite's `fieldFilterExpression`: a field
   predicate that has a `timeUnit` keeping at least one part, or that compares with a date-time object, is written
   with the instant of the field on the left, `time(datetime(<parts of datum["f"]>))`, where the parts are the
-  unit's (`year(datum["d"])`, `month(...)`, ...; a part the unit lacks defaults as a date-time object does: the year 2012,
+  unit's (`year(datum["d"])`, `month(...)`, ...; a part the unit lacks defaults as a date-time object does: the year
+  2012,
   January, the first, zero for the times; a quarter is written as the month `3 * (quarter - 1)`), and the instant of
   the value on the right, `time(datetime(...))`, so that both sides are numbers. Without a unit but with a date-time
   value the left side is `time(datum["f"])`. For a UTC unit the `utc...` getters and `utc(...)` are written (Vega-Lite
@@ -488,7 +570,8 @@ an error; a duplicate key keeps the last value at the position of the first occu
   weekday name) while one that is a date is read as a date; `{"expr": ...}`
   values are written as `(expr)`, or `time(expr)` with a unit; a text that is neither a date nor a part is `time(null)`
   (it never matches). A `range` is written as `(L >= min(a, b) && L <= max(a, b))`, which also accepts reversed ends
-  (the function table has no range test), and a `oneOf` as `(indexof([...], L) !== -1)`, so that the left side is evaluated
+  (the function table has no range test), and a `oneOf` as `(indexof([...], L) !== -1)`, so that the left side is
+  evaluated
   once. The `valid` test and comparisons with plain values stay native. `IsUnsupported` says when `TryBuild` would fail.
 - `ParameterGraph.Sort(dependencies)` - orders parameters so that each follows the parameters its expression reads (the
   earliest-declared ready parameter first), and reports the lowest index that could not be
@@ -508,14 +591,17 @@ The parser is fail-fast: the first problem aborts the parse with one exception a
 longer than `MaxSourceLength` is an `InvalidDataException` (no location is meaningful). Everything else is a
 `VegaLiteSpecException` with the source name, pointer, line, and column of the offending construct: malformed JSON (the
 first problem), invalid UTF-8, nesting deeper than `MaxJsonDepth` (at the crossing), a string longer than
-`MaxStringLength`, a number outside the double range, a root that is not an object, any content after the root object other
+`MaxStringLength`, a number outside the double range, a root that is not an object, any content after the root object
+other
 than whitespace (a second value is rejected at its own position), a `$schema` naming plain Vega, and a
 known property of the wrong type or value (the first in document order). An expression that cannot be compiled is a
 `VegaLiteSpecException` located at the string value of the expression (its pointer, line, and column) whose message ends
 with the zero-based offset inside the expression text (a syntax error, a user-written text longer than
 `MaxExpressionLength` or a written one longer than eight times `MaxSourceLength`, nesting
-beyond `MaxExpressionDepth`, an invalid regular expression literal, or a reference to an undeclared parameter); a parameter
-cycle, a repeated or reserved parameter name, a `param` of a predicate that names no parameter, and a transform or predicate
+beyond `MaxExpressionDepth`, an invalid regular expression literal, or a reference to an undeclared parameter); a
+parameter
+cycle, a repeated or reserved parameter name, a `param` of a predicate that names no parameter, and a transform or
+predicate
 of the wrong shape are located at the offending value. A time unit that does not exist, a date-time object with an
 unknown key or a month, quarter, or day that is not one, a `tickCount` or `nice` interval that is not one of the eight
 (or a `step` that is not positive), a time format of more than 1,024 characters or 4,096 pieces, a `parse` entry
@@ -526,7 +612,8 @@ than `MaxScaleDomainSize` values are located at the offending value or member. A
 value (an `interpolate` that is not one of the 15 names, an `invalid` or `point` text that is not allowed, a text-mark
 property of the wrong kind), a member of an overlay object, and an `impute` object of a channel with a bad member or
 with more `keyvals` than
-`MaxScaleDomainSize` are located at the offending value or member as well. The `for` of the `step` object of a `width` or
+`MaxScaleDomainSize` are located at the offending value or member as well. The `for` of the `step` object of a `width`
+or
 `height` must be `"position"` or `"offset"`; any other value is a located
 `VegaLiteSpecException` ("The 'for' of the width step must be ..."). A null argument is a programming error and
 throws `ArgumentNullException`, which is not converted. Unknown and duplicate keys are warnings, returned with the tree.
@@ -545,7 +632,8 @@ throws `ArgumentNullException`, which is not converted. Unknown and duplicate ke
   expression and the constructs it collects (the `Expressions` subsystem), and **`FieldPath`** of the `Data` subsystem
   (the validation of field names)
 - **`AggregateMeasures`**, **`AggregateOp`**, and **`WindowOp`** - the registry of the operation names, which operation
-  needs a field or a parameter, and which can order categories (the `Transforms` subsystem), so that validation, reports,
+  needs a field or a parameter, and which can order categories (the `Transforms` subsystem), so that validation,
+  reports,
   and execution agree on what an operation is
 - **.NET base class library** - `System.Text.Json` (`Utf8JsonReader`), `System.Text` (`UTF8Encoding`), and
   `System.Globalization` (invariant-culture parsing of the schema version)

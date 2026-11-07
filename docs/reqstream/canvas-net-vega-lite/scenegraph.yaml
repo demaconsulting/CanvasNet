@@ -111,3 +111,22 @@ sections:
             tests:
               - CssPaint_TryResolvePaint_ColorText_UsesTheSharedCssGrammar
               - CssPaint_TryResolvePaint_Opacity_MultipliesTheAlphaAndRoundsHalfAwayFromZero
+
+          - id: CanvasNetVegaLite-Scenegraph-Images
+            title: >-
+              The Scenegraph subsystem shall carry the pictures of the image mark in the scene as data, draw them
+              at paint time with the rules of Vega's image mark through the image resolver of the host (at the size of
+              the box in device pixels, once for each link and size in a painting, within a limit of pictures, with
+              the opacity and clip of the item, and releasing every surface), and report a picture the resolver did
+              not give.
+            justification: |
+              The paint scale is known only when the scene is painted, and the host, not the library, decides
+              what a link may refer to.
+            children:
+              - CanvasNetVegaLite-Scenegraph-SceneModel-Image
+              - CanvasNetVegaLite-Scenegraph-ScenePainter-Images
+              - CanvasNetVegaLite-Scenegraph-ScenePainter-ImageLoading
+            tests:
+              - ScenePainter_Paint_ImageWithoutSize_DrawsNaturalSizeAtLeftTop
+              - SceneImageSource_Get_CachesWithinOnePaintingAndDisposesEverySurface
+              - SceneImageSource_Get_BeyondTheLimit_FailsAtTheMark

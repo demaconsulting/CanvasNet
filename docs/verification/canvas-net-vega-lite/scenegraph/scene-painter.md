@@ -38,7 +38,8 @@ The pixel expectations are analytic:
   [12, 20) by [2, 10); a clip on [2.5, 7.5) by [0, 5) is half covering at its edge columns (red over white gives 127
   or 128 in green and blue) and full inside, and an inner clip cuts the outer one to the intersection [8, 14) by
   [8, 14).
-- Gradients: a 100 by 20 rectangle at (10, 10) filled from red to blue runs along its box, so a pixel column whose center
+- Gradients: a 100 by 20 rectangle at (10, 10) filled from red to blue runs along its box, so a pixel column whose
+  center
   is at distance d from the left edge has the fraction d / 100 of the way: the column at 59 (center 59.5) is 0.495,
   which is red 255 x 0.505 = 128.8 and blue 255 x 0.495 = 126.2, and the adjacent columns differ by 2.55 levels (the
   assertions allow a few levels for rounding); the first and last columns are within 3 levels of the end colors, and
@@ -46,7 +47,8 @@ The pixel expectations are analytic:
   bottom row and light at the top row, and the same in every column. Stops at 0.25 and 0.75 leave the first color
   exactly on the first quarter and the last exactly on the last quarter (the end colors continue), and the middle is the
   mean of the two colors; the stops red 0, red 0.5, blue 0.5, blue 1 give a hard step with red exactly up to column 59
-  and blue exactly from column 60 of a box that starts at 10. A circle of size 400 (20 by 20) centered at (60, 20) has its
+  and blue exactly from column 60 of a box that starts at 10. A circle of size 400 (20 by 20) centered at (60, 20) has
+  its
   gradient over its box (x from 50 to 70), so the center column is 0.525 of the way (134) while the corners of the box
   stay white.
 - Symbols: a square of size (area) 100 has side 10 and covers [5, 15) by [5, 15); rotated by 45 degrees its corners
@@ -65,11 +67,13 @@ The pixel expectations are analytic:
   **(20, 8.75)**, where the tangent is horizontal, so a 2 pixel stroke covers y from 7.75 to 9.75: the pixels (19, 8)
   and (20, 8) are black, rows 5 and 12 at x = 20 and the chord (y = 20, and y = 15) are white, and the path has no
   fill. At the
-  start the curve leaves upward: with t the parameter, x(t) - 5 = 90 t^2 and y(t) = 20 - 45 t, so within the pixel row 19
+  start the curve leaves upward: with t the parameter, x(t) - 5 = 90 t^2 and y(t) = 20 - 45 t, so within the pixel row
+  19
   (t up to 0.022) the curve drifts right by at most 0.04, and the stroke from x = 4 to 6 covers pixel 4 by about 96
   percent (the red channel is below 40), pixel 5 fully, and pixel 2 not at all. A square from (2, 2) to (12, 12) with a
   close covers the pixels 2 to 11 and no more; the open triangle (20, 2), (30, 2), (20, 12) is filled by closing it, and
-  its hypotenuse is x + y = 32, so the pixel (21, 4) (center sum 26) and the pixel (21, 9) (center sum 31) are inside and
+  its hypotenuse is x + y = 32, so the pixel (21, 4) (center sum 26) and the pixel (21, 9) (center sum 31) are inside
+  and
   the pixel (28, 10) (center sum 39) is outside. Two moves make two subpaths: two filled squares at x = 2 to 8 and
   x = 20 to 28 leave the gap between them white, two stroked pieces (2, 10) to (8, 10) and (12, 14) to (18, 14) are not
   joined, so the pixel (10, 12) on the line between (8, 10) and (12, 14) that a join would draw (x - y = -2 at its
@@ -79,7 +83,8 @@ The pixel expectations are analytic:
   1 to 3 (pixels 1
   and 2 at row 31, pixel 4 white) and the horizontal piece along y = 28 covers y from 27 to 29, so the pixel (6, 27) is
   also stroked.
-- Arcs: the item at (50, 50) with the radii 20 and 40 from 0 to pi (12 o'clock to 6 o'clock) covers the right half of the
+- Arcs: the item at (50, 50) with the radii 20 and 40 from 0 to pi (12 o'clock to 6 o'clock) covers the right half of
+  the
   ring: the pixel (80, 50) is at the distance 30.5 from the center (between 20 and 40), the pixels (51, 15) and (51, 85)
   at the distances 34.5 and 35.5; the pixel (20, 50) and the pixel (48, 15) lie left of the vertical line through the
   center, the pixels (60, 50) and (50, 50) lie in the hole (the distances 10.5 and 0.7 are below 20), and the pixel
@@ -107,9 +112,11 @@ The pixel expectations are analytic:
   pixels (54, 17) and (54, 19) are inside the circle of radius 6 at (50, 20) (the farthest corner of (54, 17) is at
   sqrt(25 + 9) = 5.83), and (57, 20) (nearest corner at 7) and (55, 14) (nearest corner at 7.07) are outside. Runs are
   separate: the runs from x = 5 to 15 and from 25 to 35 at y = 10 with the size 6 (radius 3) cover x from 2 to 18 and
-  from 22 to 38 with their caps, so the pixel (20, 10) between them is white while (16, 10) and (23, 10) are black; a run
+  from 22 to 38 with their caps, so the pixel (20, 10) between them is white while (16, 10) and (23, 10) are black; a
+  run
   of one point draws nothing; two coincident points of size 8 at (60, 10) draw a disc of radius 4 (x from 56 to 64: the
-  pixels (57, 10) and (62, 10) are black, (65, 10) and (54, 10) are white); and a point of size 0 ends its run, so the run
+  pixels (57, 10) and (62, 10) are black, (65, 10) and (54, 10) are white); and a point of size 0 ends its run, so the
+  run
   at y = 25 with the points at x = 5, 15, 25 (size 0), 35, and 45 draws the two runs 5 to 15 and 35 to 45 with the caps
   2 to 18 and 32 to 48: the pixels (10, 25), (16, 25), (33, 25), and (40, 25) are black and (20, 25), (25, 25), and
   (30, 25) are white.
@@ -130,13 +137,15 @@ The pixel expectations are analytic:
   width, 1, on each side, so it is black on 1 to 7, white on 7 to 9, and black on 9 to 15 (pixels 1 and 6 black, 7 and 8
   white, 9 and 14 black); with the dash offset 2 the pattern starts 2 units in, so it is black on 2 to 4, white on 4 to
   8, black on 8 to 12, and white from 12 (pixels 2 and 3 black, 4 and 7 white, 8 and 11 black, 12 white). A right angle
-  with the stroke width 4 at the corner (20, 38) has its outer corner at (22, 36) with a miter join (ratio 1.414 is below
+  with the stroke width 4 at the corner (20, 38) has its outer corner at (22, 36) with a miter join (ratio 1.414 is
+  below
   the default limit), so the pixel (21, 36) is black; the bevel joins the points (20, 36) and (22, 38), whose line
   keeps the pixel (61, 36) of the second corner just outside (its nearest edge touches the line), and the round join of
   radius 2 covers the part of the pixel (101, 36) that is inside the circle: the integral from u = 1 to u = sqrt(3) of
   (sqrt(4 - u^2) - 1) is 0.315 of the pixel, so the red channel is 255 x (1 - 0.315) = 175, above 100.
 
-Unit tests reside in `ScenePainterTests.cs` and `ScenePainterPathTests.cs` (the paths with segments, the arcs, the trails,
+Unit tests reside in `ScenePainterTests.cs` and `ScenePainterPathTests.cs` (the paths with segments, the arcs, the
+trails,
 and the miter limit) within the `DemaConsulting.CanvasNet.VegaLite.Tests` project, in the
 `Scenegraph` folder.
 
@@ -151,7 +160,8 @@ and the miter limit) within the `DemaConsulting.CanvasNet.VegaLite.Tests` projec
 #### Acceptance Criteria
 
 A unit-level test run passes when every scenario below passes without error or exception beyond those explicitly
-asserted. Any pixel outside its analytic expectation (exact for integer-aligned geometry; within the stated anti-aliasing
+asserted. Any pixel outside its analytic expectation (exact for integer-aligned geometry; within the stated
+anti-aliasing
 tolerance for curves and fractional clips), any item that draws where nothing is documented, any non-deterministic
 output, or any wrong exception type constitutes a failure.
 
@@ -194,7 +204,8 @@ follows the scale of the placement and the translation of an enclosing group (a 
 covers columns 5 to 54 at a scale of one and 10 to 109 at a scale of two, with the middle grey in the middle of the
 box); that a half-transparent fill opacity gives (255, 127, 127) for a red gradient over white, that a fully transparent
 gradient draws nothing and does not fall back to the solid green fill that it replaces, that a gradient with only
-unusable stops (an unparseable color, a NaN offset), with no stops, or with a start that is not a number falls back to the
+unusable stops (an unparseable color, a NaN offset), with no stops, or with a start that is not a number falls back to
+the
 solid fill, and that the stroke is drawn over a gradient fill; that a group background, a circle symbol, and a triangle
 path each use the bounding box of their own geometry (a text item with a gradient but no solid fill draws nothing); and
 that painting twice and from several threads gives identical pixels for a gradient with three stops, an alpha stop, a
@@ -218,7 +229,8 @@ false for another case of a name, the empty text, and an SVG path.
 **Tests**: `ScenePainterTests.ScenePainter_Paint_PathsRoundedRectanglesAndGroupBackgroundAreCrisp`
 
 Asserts that a rounded rectangle has its corner cut away while the middle of its edges is covered, that an open polyline
-is stroked along both legs (a 2 pixel stroke covers 1 pixel on each side), that a closed triangle is filled inside and not
+is stroked along both legs (a 2 pixel stroke covers 1 pixel on each side), that a closed triangle is filled inside and
+not
 outside its hypotenuse, and that the one pixel border of a group is offset by half a pixel so that it covers exactly one
 pixel column and row.
 
@@ -257,8 +269,10 @@ scene of zero width gives the identity placement (scale 1, offsets 0).
 **Tests**: `ScenePainterTests.ScenePainter_Paint_PathologicalDashPatternsFallBackToSolid`
 
 Asserts that a 2-pixel black rule with a dash period of 0.002 (below the quarter-pixel minimum), a rule 10,000,000 long
-with a `[2, 2]` pattern (2.5 million dashes, above the cap of 50,000), a `[1e-50, 1e-50]` pattern (both entries underflow
-to zero as floats), and a `[1e300, 1]` pattern (an entry overflows to infinity as a float) each cover every pixel of their
+with a `[2, 2]` pattern (2.5 million dashes, above the cap of 50,000), a `[1e-50, 1e-50]` pattern (both entries
+underflow
+to zero as floats), and a `[1e300, 1]` pattern (an entry overflows to infinity as a float) each cover every pixel of
+their
 two rows of a 20-pixel wide surface, that is, are drawn solid and none throws. No timing is asserted: the fallback is
 decided from the estimated dash count before the stroker runs.
 
@@ -266,9 +280,11 @@ decided from the estimated dash count before the stroker runs.
 
 **Tests**: `ScenePainterTests.ScenePainter_Paint_ValuesOutsideTheFloatRangeAreSafe`
 
-Asserts that stroke widths of 1e300 (overflows as a float) and 1e-50 (rounds to zero as a float) draw nothing, that a dash
+Asserts that stroke widths of 1e300 (overflows as a float) and 1e-50 (rounds to zero as a float) draw nothing, that a
+dash
 offset of 1e300 (overflows) counts as zero so the rule is pixel-identical to the unshifted `[4, 4]` rule drawn beside it
-(black from x = 0, white at x = 5), and that no `ArgumentException` escapes. The existing dash assertions of the fill and
+(black from x = 0, white at x = 5), and that no `ArgumentException` escapes. The existing dash assertions of the fill
+and
 stroke scenario (the 4-on, 4-off pixels of an ordinary dashed rule) remain the evidence that ordinary patterns are not
 affected by the caps.
 
@@ -287,8 +303,10 @@ before the first move draw nothing, and a command after a close continues at the
 
 **Tests**: `ScenePainterPathTests.ScenePainter_Paint_NonFiniteSegmentsArcsAndTrailsDrawNothing`
 
-Asserts that every pixel of a 30 by 30 surface stays white when the scene holds a path with a NaN line coordinate, a path
-with an infinite control point, arcs with a NaN center coordinate, an infinite outer radius, and a NaN end angle, a trail
+Asserts that every pixel of a 30 by 30 surface stays white when the scene holds a path with a NaN line coordinate, a
+path
+with an infinite control point, arcs with a NaN center coordinate, an infinite outer radius, and a NaN end angle, a
+trail
 whose first run has a NaN coordinate (so its one remaining point draws nothing) and whose second run has a NaN size, and
 a trail with the sizes 0, -3, and infinity: each of them would cover a large part of the surface if it were drawn.
 
@@ -393,9 +411,11 @@ regression pin: the drawable test is shared by the painting and the box), and th
 `ScenePainterPathTests.ScenePainter_Paint_ArcStrokeAndOpacityFollowTheItem`,
 `ScenePainterPathTests.ScenePainter_Paint_PathsAndArcsScaleWithThePlacement`
 
-Asserts that the right half of a ring and the lower right quadrant of a pie are red at the pixels derived above while the
+Asserts that the right half of a ring and the lower right quadrant of a pie are red at the pixels derived above while
+the
 left half, the hole, the outside, and the other quadrants are white; that a half-transparent fill gives (255, 127, 127)
-only inside the quadrant, that the stroke of 4 pixels is centered on the straight edges and leaves the interior unfilled,
+only inside the quadrant, that the stroke of 4 pixels is centered on the straight edges and leaves the interior
+unfilled,
 and that an item with no opacity draws nothing; and that the placement scale 2 with the offset (4, 6) moves and scales a
 segment path and an arc as derived.
 
@@ -418,3 +438,58 @@ Asserts that the sharp join of ratio 2.236 is mitered for the limits none (4), 3
 NaN, that `ResolveMiterLimit` gives 4 for none, 2.5 for 2.5, 1 for 0.2, NaN, and both infinities, and 1000 for 5000
 and 1000; and that a segment path of an item with the dash `[4, 4]` is stroked with the butt caps, the square caps,
 and the dash offset of 2 at the derived pixels and with the miter, bevel, and round join of a right angle.
+
+##### Pictures Are Drawn By Vega's Image Rules
+
+**Tests**: `ScenePainterImageTests.ScenePainter_Paint_ImageWithoutSize_DrawsNaturalSizeAtLeftTop`,
+`ScenePainterImageTests.ScenePainter_Paint_ImageAnchor_MovesTheNaturalBox`,
+`ScenePainterImageTests.ScenePainter_Paint_ImageWithSize_AsksForTheBoxInDevicePixels`,
+`ScenePainterImageTests.ScenePainter_Paint_RasterWithoutSize_ScalesWithThePlacement`,
+`ScenePainterImageTests.ScenePainter_Paint_VectorWithoutSize_HasTheDefaultNaturalSize`,
+`ScenePainterImageTests.ScenePainter_Paint_ImageWithOneDimension_FollowsTheAspectRule`,
+`ScenePainterImageTests.ScenePainter_Paint_ImageInBoxOfOtherAspect_IsFittedAndCentered`,
+`ScenePainterImageTests.ScenePainter_Paint_PictureOfTheRequestedSize_FillsTheBox`,
+`ScenePainterImageTests.ScenePainter_Paint_ImageOpacity_BlendsOverTheBackground`,
+`ScenePainterImageTests.ScenePainter_Paint_ImageInClippedGroup_IsCut`,
+`ScenePainterImageTests.ScenePainter_Paint_ImageWithoutSmoothing_KeepsHardEdges`,
+`ScenePainterImageTests.ScenePainter_Paint_EmptyImage_IsNotAskedFor`,
+`ScenePainterImageTests.ScenePainter_Paint_WithoutLoader_SkipsPictures`
+
+Asserts, with a fake resolver that returns generated pictures (a red and blue halved raster, a solid color of the
+requested
+size), that a 10 by 6 raster is drawn pixel for pixel at its anchor (`x` 20 to 30, `y` 10 to 16: red left half, blue
+right
+half, white around) after one request of 256 by 256; that `left`/`top`, `center`/`middle`, `right`/`bottom` and an
+unknown
+name put the 10 by 6 box at the left edges 30, 25, 20, 30 and the top edges 20, 17, 14, 20; that a 20 by 10 box is asked
+for as 20 by 10 at a scale of 1 and 40 by 20 at a scale of 2 and drawn at (10, 5) to (30, 15) scene units; that a raster
+covers twice the pixels at a scale of 2 (asked for 512 by 512, 20 by 12 device pixels drawn) and a picture of the
+requested
+size is a 256 unit picture; that a width of 20 on a 10 by 5 raster gives a 20 by 10 box (and a height of 10 a 20 by 10
+box,
+and no aspect a 20 by 5 box); that a 10 by 10 picture in a 20 by 10 box is fitted 10 by 10 and centered from x 15 to 25
+(and
+centered vertically in a 10 by 20 box, and filling the box without the aspect); that a picture of the size asked for
+(11 by 8 for 10.5 by 7.5) fills the box; that an opacity of 0.5 gives (255, 126 to 129, 126 to 129) over white; that a
+20 by 20 picture in a group clipped to 8 by 8 shows only the clipped part; that a 2 by 1 raster enlarged to 20 by 10
+without
+smoothing has the exact colors on both sides of the seam; and that boxes without area, with a negative or non-finite
+size,
+without opacity, with an empty link or beyond the magnitude bound are never asked for and leave the surface white.
+
+##### Pictures Are Loaded Once, Within A Limit, And Released
+
+**Tests**: `ScenePainterImageTests.SceneImageSource_Get_CachesWithinOnePaintingAndDisposesEverySurface`,
+`ScenePainterImageTests.SceneImageSource_Get_BeyondTheLimit_FailsAtTheMark`,
+`ScenePainterImageTests.SceneImageSource_Get_ResolverGivesNothing_ReportsOnceAndDrawsNothing`,
+`ScenePainterImageTests.ScenePainter_Paint_WithoutResolver_DrawsNothingAndReportsNothing`,
+`ScenePainterImageTests.SceneImageSource_Get_ResolverThrows_PropagatesUnchanged`,
+`ScenePainterImageTests.SceneImageSource_Get_KeyIncludesTheDeviceSize`
+
+Asserts that four items with one link at two sizes make two resolver calls and that every surface throws
+`ObjectDisposedException` after the painting; that with a limit of two the third distinct link is not asked for and the
+`VegaLiteRenderException` carries the location of the mark and names `MaxImages` while the surfaces handed out are
+released; that a resolver answering `null` is asked once for a link used twice and gives one warning that starts with
+`vl-mark-image-unresolved:` and names the link; that no resolver means no call, no warning, and nothing drawn; that an
+exception of the resolver propagates as the same object and releases the earlier surfaces; and that the cache key
+includes the device size.

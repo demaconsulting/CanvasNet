@@ -45,7 +45,7 @@ container-sized chart is laid out again for the container width; and a caller co
 specification's own configuration.
 
 The safety scenarios assert on what the system does with hostile or unsupported input: constructs that cannot be
-drawn yet (marks, channels, the transforms and expression constructs of later phases, the parts of a facet field, remote
+drawn yet (marks, channels, the expression constructs of later phases, the parts of a facet field, remote
 data) are
 reported once each, in document order, on the calling thread, with their stable identifier and location, while the
 supported part of the chart is still drawn; strict mode stops at the first unsupported feature after delivering it;
@@ -60,7 +60,7 @@ the `params` of the drawn view, and how it fails: the row transforms `calculate`
 derived by hand from a scale domain of 0 to 10; the static parameters, their defaults, their dependencies, and the
 caller's overrides reach the transforms and the row-bound mark values; the expressions of the mark properties and the
 color and size values are evaluated against the transformed row of each mark; the constructs that the engine does not
-run (unknown functions, view state, bitwise operators, selections, and the transforms of later phases) are reported
+run (unknown functions, view state, bitwise operators, and selections) are reported
 at the text of the expression or the transform, never executed, and in strict mode stop the render at the first one;
 an expression with a syntax error, one over the length or nesting limit, an unknown parameter, and an invalid
 parameter definition fail when the document is opened with the location of the offending text and the offset inside
@@ -120,7 +120,7 @@ inner radius 50), and their labels at the radius 60 sit at the middles of the sl
 142.4264), and (40, 100). The scenarios also assert that all fifteen interpolations draw finite coordinates (the area of
 a bundle curve is reported and drawn linear), that the point and line overlays are drawn in the order area, line, point,
 that the `order` channel decides the path and the overlap of marks, that the constructs that are still unsupported (the
-geoshape and image marks, the `show` invalid mode, the sizes of an area, and so on) are reported once and in order while
+geoshape mark, the `show` invalid mode, the sizes of an area, and so on) are reported once and in order while
 the chart is drawn, that a path, an arc, and a label above the limits fail closed with a located exception before they
 are
 created, that a canceled token stops every one of the marks, and that repeated, concurrent, scaled, and other-culture
@@ -365,10 +365,10 @@ an unsupported mark, and asserts the exact ordered list of reports (`vl-schema-v
 `/layer/1/mark`; the layer composition itself is drawn and no longer reported), that each is delivered once, in document
 order, to the right handler, on the calling thread
 (the recorded managed thread identifiers all equal the caller's), and that a supported `bar` mark in the same
-document is silent. Renders `unsupported.vl.json` (a `regression` transform, a `geoshape` mark, and a `bandPosition`)
+document is silent. Renders `unsupported.vl.json` (a `lookup` in a parameter, a `geoshape` mark, and a `bandPosition`)
 and
 asserts exactly one report per construct, in document order, with its stable identifier, JSON pointer, and one-based
-line and column of the value (`vl-transform-regression` at `/transform/0`, line 12, column 5; `vl-mark-geoshape` at
+line and column of the value (`vl-transform-lookup-param` at `/transform/0/from/param`, line 12; `vl-mark-geoshape` at
 `/mark`,
 line 14, column 11; and `vl-encoding-bandposition` at `/encoding/y/bandPosition`, line 17, column 71), each in the file
 `unsupported.vl.json`, and that the geoshape mark is not drawn, so no data, scale, or axis work is done for it and the
@@ -384,8 +384,8 @@ channel second with
 `ThrowOnUnsupportedFeature` and asserts a `VegaLiteUnsupportedFeatureException` for the first feature only, with
 its location, that the handler saw exactly that report, that a handler that fails while the failure is being
 reported does not hide it, that after a successful render a failing handler propagates, and that on
-`unsupported.vl.json` strict mode stops at the first construct in the text (the `regression` transform,
-`vl-transform-regression` at `/transform/0` on line 12).
+`unsupported.vl.json` strict mode stops at the first construct in the text (the `lookup` in a parameter,
+`vl-transform-lookup-param` at `/transform/0/from/param` on line 12).
 
 ### Data: Remote URLs Are Reported And Never Fetched
 
@@ -579,18 +579,18 @@ before any render.
 
 Render three circles at `a` = 1, 4, and 7 (and `b` = 1, 2, and 3) whose fill is `#d73027` where a condition on a
 selection holds and `#4575b4` elsewhere, and assert the fill of each circle, derived from the rule of the selection and
-never from another implementation: an interval over `x` with the range 1 to 4 includes both ends (the circles at 1 and 4,
-not 7), and the reversed range 7 to 4 is the range 4 to 7; a selection without a value is empty, so the condition holds
-for every circle by default and for none with `empty: false`; a point selection matches by strict equality (the value
-`4` selects the circle at 4, the list 1 and 7 selects those two, the text `"4"` none); the projection is inferred from the
-keys of the value (a field, a channel, an interval range) and nothing is reported; a `filter` on the selection keeps the
-rows that it selects (the circles at 4 and 7, drawn at 1200/7 and 300 pixels because the domain of `x` becomes 0 to 7)
-and, on an empty selection, all rows by default and none with `empty: false`; the `not` of a selection and its `and` with
-a field predicate select the rows that Boolean algebra says; the value of the caller replaces the value of the
-specification (a map of arrays gives the range 4 to 7, a null clears the selection so that everything is selected); the
-resolved selection is a value for expressions (`brush.a[0]` and `brush.a[1]` give a title "From 1 to 4"); a legacy
-`selection` of `single` with `init`, a condition that names it, and `empty: "none"` (nothing selected while it is
-empty) are mapped to a parameter, and the caller can replace its `init`; a point selection over the identity of the rows
+never from another implementation: an interval over `x` with the range 1 to 4 includes both ends (the circles at 1 and
+4, not 7), and the reversed range 7 to 4 is the range 4 to 7; a selection without a value is empty, so the condition
+holds for every circle by default and for none with `empty: false`; a point selection matches by strict equality (the
+value `4` selects the circle at 4, the list 1 and 7 selects those two, the text `"4"` none); the projection is inferred
+from the keys of the value (a field, a channel, an interval range) and nothing is reported; a `filter` on the selection
+keeps the rows that it selects (the circles at 4 and 7, drawn at 1200/7 and 300 pixels because the domain of `x` becomes
+0 to 7) and, on an empty selection, all rows by default and none with `empty: false`; the `not` of a selection and its
+`and` with a field predicate select the rows that Boolean algebra says; the value of the caller replaces the value of
+the specification (a map of arrays gives the range 4 to 7, a null clears the selection so that everything is selected);
+the resolved selection is a value for expressions (`brush.a[0]` and `brush.a[1]` give a title "From 1 to 4"); a legacy
+`selection` of `single` with `init`, a condition that names it, and `empty: "none"` (nothing selected while it is empty)
+are mapped to a parameter, and the caller can replace its `init`; a point selection over the identity of the rows
 selects every circle while it is empty without a report, and is reported once as `vl-param-selection-id` with an initial
 value (and applied as empty); an interval over a categorical axis selects the categories at its two ends and not the one
 between; a top-level selection of a concatenation is one selection for both views and tests the field of the first one
@@ -610,19 +610,19 @@ reports nothing.
 Render small charts whose expectations are derived from the arithmetic of the scales (a 200 by 100 pixel data rectangle,
 so a linear domain of 0 to 10 maps one unit to 20 pixels). Assert that an interval selection with an initial value draws
 `selection-brush-background` and `selection-brush` rectangles over the range of its channels (the reversed range draws
-the same rectangle, a band scale gives the start of the band, dates go through the time scale, a channel that is not projected
-spans the rectangle), with the fill `#333` at 0.125 and the white stroke of `config.selection.interval.mark` and the
-overrides of the specification, that the caller's value replaces or clears the brush, that a global selection is drawn
-by the first unit only and never by a facet cell, that a layered view orders `[background, layers, brush]`, and that the
-brush is charged to the scene budget; that a selection bound to the scales sets the domain of its continuous channels
-and clips the marks, draws no brush, and keeps the domain of the data (with the clip) in a concatenation; that
-`scale.domain: {param}` of a selection takes the range of a field, else of an encoding, else of the first projected field
-with a warning; that a `bin` extent that is a parameter chooses the step from its span while the bins cover the data; and
-that a filter or a condition on a selection projected over a time unit finds the derived field; and that the example of
-the package documentation (a brush on the first view of a vertical concatenation, the bars of the second binned by the
-span of the brush, the host's range replacing the specification's) renders in strict mode without a report, with the
-circles inside the range red and four bars (`..._BinExtent_TheDocumentationExampleRenders`). The legends that a
-selection is bound to are verified by the `LegendBuilder` unit scenarios (`LegendBuilderSelectionTests`).
+the same rectangle, a band scale gives the start of the band, dates go through the time scale, a channel that is not
+projected spans the rectangle), with the fill `#333` at 0.125 and the white stroke of `config.selection.interval.mark`
+and the overrides of the specification, that the caller's value replaces or clears the brush, that a global selection is
+drawn by the first unit only and never by a facet cell, that a layered view orders `[background, layers, brush]`, and
+that the brush is charged to the scene budget; that a selection bound to the scales sets the domain of its continuous
+channels and clips the marks, draws no brush, and keeps the domain of the data (with the clip) in a concatenation; that
+`scale.domain: {param}` of a selection takes the range of a field, else of an encoding, else of the first projected
+field with a warning; that a `bin` extent that is a parameter chooses the step from its span while the bins cover the
+data; and that a filter or a condition on a selection projected over a time unit finds the derived field; and that the
+example of the package documentation (a brush on the first view of a vertical concatenation, the bars of the second
+binned by the span of the brush, the host's range replacing the specification's) renders in strict mode without a
+report, with the circles inside the range red and four bars (`..._BinExtent_TheDocumentationExampleRenders`). The
+legends that a selection is bound to are verified by the `LegendBuilder` unit scenarios (`LegendBuilderSelectionTests`).
 
 ### Expressions: Row-Bound Mark Values Are Evaluated Per Row
 
@@ -654,15 +654,33 @@ that would have come later.
 **Test**: `CanvasNetVegaLite_SystemIntegration_Deferred_FeaturesAreStillReported`
 
 Renders a document with an animation selection parameter (a point selection with `on: "timer"`), the transforms
-`regression`, `loess`, `density`, and `quantile`, a
+`regression`, `loess`, `density`, and `quantile` (computed since Phase 13, so they are not reported), a
 `timeUnit` transform (supported since Phase 8, so it is computed and not reported), a calculate that calls `now` and
-`luminance`, and a condition on the `x` channel (which takes none). Asserts that each is
-reported once, in document order (`vl-param-selection-animation`, `vl-transform-regression`, `vl-transform-loess`,
-`vl-transform-density`, `vl-transform-quantile`, `vl-expr-function-now`, `vl-expr-function-luminance`,
+`luminance`, and a condition on the `x` channel (which takes none). Asserts that each of the others is
+reported once, in document order (`vl-param-selection-animation`, `vl-expr-function-now`, `vl-expr-function-luminance`,
 `vl-encoding-condition`), that nothing is executed silently, and that
 the chart is still drawn. The aggregate, window, bin, stack, and impute transforms that this scenario reported before
 they
 were supported are computed now and are covered by the aggregation scenarios below.
+
+### Statistical Transforms: Regression, Loess, Density, Quantile, And Extent Are Computed
+
+**Tests**:
+`VegaLiteStatTransformsIntegrationTests.CanvasNetVegaLite_SystemIntegration_StatTransforms_RegressionLineIsDrawnAtTheScaledEndPoints`,
+`..._RegressionExtentExtendsTheLine`, `..._GroupedRegressionDrawsOneLineEach`, `..._LoessOfALineIsTheLine`,
+`..._DensityLinePeaksAtTheCenterOfTheSupport`, `..._QuantilesOfTwoIdenticalSamplesLieOnTheDiagonal`,
+`..._ExtentParameterFeedsTheFollowingTransforms`, `..._ExtentParameterSetsAScaleDomain`,
+`..._StaticSitesSeeNoExtentAndAreReported`, `..._RenderDeterministicallyInStrictMode`,
+`..._FacetCellsGetTheirOwnRegression`
+
+Renders small charts whose expected pixels are derived by hand from the scale formulas and from the mathematics of the
+transform: the regression of points on an exact line is drawn as a line between the pixels of its two end points (the
+extent of the data, or the `extent` option, which extends it); a grouped regression gives one line per group; the loess
+of a line is the line; the density of a symmetric support peaks at its center; the quantiles of two identical samples
+plotted against each other lie on the diagonal; an `extent` transform sets a parameter that a following `calculate` and
+a `scale.domain` read; a static site that reads the parameter sees null and the warning `vl-param-extent-static` is
+delivered (a warning, so strict mode does not stop); a facet cell gets its own regression; and the render of a chart
+with the five transforms is the same on repeated calls and reports nothing as unsupported in strict mode.
 
 ### Colors: Ramp Color And Shape Channels Are Drawn In Strict Mode
 
@@ -930,9 +948,8 @@ concurrent renders are byte-identical.
 
 **Tests**:
 `VegaLiteBinnedChannelIntegrationTests.CanvasNetVegaLite_SystemIntegration_BinnedColor_CirclesTakeTheColorOfTheirBinAndTheLegendListsTheRanges`,
-`..._BinnedColor_HistogramBarsAreColoredByTheirOwnBin`,
-`..._BinnedSizeAndOpacity_ReadTheBinsOfTheirChannel`, `..._BinnedColor_DiagnosticsAreLocated`,
-`..._BinnedColor_LimitsCancellationAndDeterminismApply`
+`..._BinnedColor_HistogramBarsAreColoredByTheirOwnBin`, `..._BinnedSizeAndOpacity_ReadTheBinsOfTheirChannel`,
+`..._BinnedColor_DiagnosticsAreLocated`, `..._BinnedColor_LimitsCancellationAndDeterminismApply`
 
 Uses the original fixture `binned-channels.vl.json` (eight readings from 3 to 97 with a binned color) and small inline
 specifications, and asserts hand-derived numbers from Vega's bin algorithm (the step 20 over 0 to 100): the circles sit
@@ -962,13 +979,12 @@ others blue, the plants of height 4 or more have the size 240 and the others 60,
 the others 0.4, in strict mode, without a warning and without a legend (conditions that hold values create none), with
 the colors confirmed by pixels blended over the white background; a color condition that holds a field draws the legend
 of that field (`a`, `b`, `c` in the palette colors) and leaves the value of the channel where the test fails; a
-condition
-on a variable parameter is evaluated by its truthiness and reported nowhere (a strict render succeeds and the circles take
-the value of the condition because the parameter is true), a condition on a parameter that no view declares is a
-`VegaLiteSpecException` at the `param` of the condition, and a test with a syntax error is a `VegaLiteSpecException` at
-the test; and a `MaxEvaluationSteps` of 10 fails naming the limit while a roomy one renders, the exact scene count
-renders and one less fails naming `MaxSceneItems`, a canceled token stops the render, and repeated and concurrent
-renders are byte-identical.
+condition on a variable parameter is evaluated by its truthiness and reported nowhere (a strict render succeeds and the
+circles take the value of the condition because the parameter is true), a condition on a parameter that no view declares
+is a `VegaLiteSpecException` at the `param` of the condition, and a test with a syntax error is a
+`VegaLiteSpecException` at the test; and a `MaxEvaluationSteps` of 10 fails naming the limit while a roomy one renders,
+the exact scene count renders and one less fails naming `MaxSceneItems`, a canceled token stops the render, and repeated
+and concurrent renders are byte-identical.
 
 ### Limits: Chart Failures Carry Locations
 
@@ -1067,10 +1083,10 @@ and text are pinned and the first is always there).
 **Test**: `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_DstDayIsNot24Hours`
 
 Renders three afternoon readings on March 9, 10, and 11, 2024 (`yearmonthdate`, 470 pixels wide, a tick every day) in a
-zone that follows the United States rule (standard time minus five hours, daylight time from 2024-03-10T07:00Z, so
-the clocks go forward at 02:00 on March 10). The local midnights are 05:00Z on March 9 and March 10 and 04:00Z on March
-11, so the domain is 24 + 23 = 47 hours long, 10 pixels an hour: the points are at 0, 240 (24 hours), and 470 pixels
-(the short day is 230 pixels long), where UTC (three 24 hour days, 48 hours over 470 pixels) puts them at 0, 235, and 470.
+zone that follows the United States rule (standard time minus five hours, daylight time from 2024-03-10T07:00Z, so the
+clocks go forward at 02:00 on March 10). The local midnights are 05:00Z on March 9 and March 10 and 04:00Z on March 11,
+so the domain is 24 + 23 = 47 hours long, 10 pixels an hour: the points are at 0, 240 (24 hours), and 470 pixels (the
+short day is 230 pixels long), where UTC (three 24 hour days, 48 hours over 470 pixels) puts them at 0, 235, and 470.
 The labels `Mar 09, 2024`, `Mar 10, 2024`, and `Mar 11, 2024` are all drawn (235 pixels apart).
 
 ### Time: A UTC Time Unit Ignores The Zone Option
@@ -1228,7 +1244,8 @@ the boundary rows are not asserted.
 
 ### Trails: The End Is Not Clipped At The Data Rectangle
 
-**Test**: `VegaLiteLineAreaIntegrationTests.CanvasNetVegaLite_SystemIntegration_Trails_EndOnTheEdgeOfTheDataRectangleIsNotClipped`
+**Test**:
+`VegaLiteLineAreaIntegrationTests.CanvasNetVegaLite_SystemIntegration_Trails_EndOnTheEdgeOfTheDataRectangleIsNotClipped`
 
 Renders a trail of the size 20 over the rows (0, 5) and (2, 5) with x from 0 to 2 over 300 pixels and y on the domain 0
 to 10, so that the last point is a circle of the
@@ -1659,17 +1676,15 @@ while the default step of 20 pixels for each of the three categories decides the
 `VegaLiteLayerIntegrationTests.CanvasNetVegaLite_SystemIntegration_Layer_EmptyLayerListDrawsOnlyTheBackground`
 
 Asserts that a layer with an unsupported mark (`geoshape`) is reported with `vl-mark-geoshape` while the other layer is
-drawn
-(its three bars are in the scene),
-that a transform of a view inside an `hconcat` and inside a `facet` is applied and nothing is reported (a concatenation
-and a facet are drawn since Phase 11), while a transform of a later phase (`regression`) in a layer of a facet keeps its
-ordinary message, that a variable parameter declared in a layer is still reported (`vl-param-variable`) while the layer
-is drawn, and that a layered view with an empty `layer` array draws exactly what a view without a mark does (the same
-pixels and size). The pin test `VegaLiteCompositionSystemTests.CanvasNetVegaLite_SystemIntegration_Composition_TopLevelTransformsApplyToEveryViewWithoutDiagnostics`
+drawn (its three bars are in the scene), that a transform of a view inside an `hconcat` and inside a `facet` is applied
+and nothing is reported (a concatenation and a facet are drawn since Phase 11), while a lookup in a parameter in a layer
+of a facet keeps its ordinary message, that a variable parameter declared in a layer is still reported
+(`vl-param-variable`) while the layer is drawn, and that a layered view with an empty `layer` array draws exactly what a
+view without a mark does (the same pixels and size). The pin test
+`VegaLiteCompositionSystemTests.CanvasNetVegaLite_SystemIntegration_Composition_TopLevelTransformsApplyToEveryViewWithoutDiagnostics`
 asserts that a top-level `filter` of `datum.x > 1` and `calculate` of `z` leave three of the four rows in each view of a
-`layer`, an `hconcat`, a `vconcat`, and a `repeat` (three points in
-each of the two views, or in each layer), one and two points in the two views of a facet by a group field, and that no
-warning and no unsupported feature is reported.
+`layer`, an `hconcat`, a `vconcat`, and a `repeat` (three points in each of the two views, or in each layer), one and
+two points in the two views of a facet by a group field, and that no warning and no unsupported feature is reported.
 
 ### Layers: Views And Nesting Are Limited
 
@@ -1967,17 +1982,16 @@ cancellation, and determinism under concurrency) are listed in the _VegaLiteDocu
 
 Asserts that the same repeat rendered six times at once gives six byte-identical surfaces and that `Measure` equals the
 size of the surface (also for a vertical concatenation that nests a horizontal one, a facet with a header, and a
-repeat);
-that the output of a concatenation, a facet, a repeat, a fit, and a container size is the same, in scene and in pixels,
-under the invariant, `de-DE`, `tr-TR`, `fr-FR`, and `ar-SA` cultures;
-that strict mode has nothing to throw for, and nothing is delivered, on that nested specification with a top-level
-`filter`; that strict mode throws with the identifier and the pointer of the construct for a `regression` transform and
-a `geoshape` mark in a child, a `bin` of a facet field, a facet sort by an aggregate, and a header side that is not
-drawn (`vl-transform-regression`, `vl-mark-geoshape`, `vl-facet-field-transform`, `vl-facet-sort`, `vl-header-orient`);
-that a canceled token stops measuring and rendering of a concatenation, a facet, and a repeat with an unwrapped
-`OperationCanceledException`; that a limit of one view fewer than a three-child concatenation, a two-cell facet, and a
-three-copy repeat has fails with an error that names `MaxViews` and the exact number of views is accepted; and that a
-facet and a repeat of a layered chart (two levels) fail with `MaxCompositionDepth` of 1 and pass with 2.
+repeat); that the output of a concatenation, a facet, a repeat, a fit, and a container size is the same, in scene and in
+pixels, under the invariant, `de-DE`, `tr-TR`, `fr-FR`, and `ar-SA` cultures; that strict mode has nothing to throw for,
+and nothing is delivered, on that nested specification with a top-level `filter`; that strict mode throws with the
+identifier and the pointer of the construct for a `lookup` in a parameter and a `geoshape` mark in a child, a `bin` of a
+facet field, a facet sort by an aggregate, and a header side that is not drawn (`vl-transform-lookup-param`,
+`vl-mark-geoshape`, `vl-facet-field-transform`, `vl-facet-sort`, `vl-header-orient`); that a canceled token stops
+measuring and rendering of a concatenation, a facet, and a repeat with an unwrapped `OperationCanceledException`; that a
+limit of one view fewer than a three-child concatenation, a two-cell facet, and a three-copy repeat has fails with an
+error that names `MaxViews` and the exact number of views is accepted; and that a facet and a repeat of a layered chart
+(two levels) fail with `MaxCompositionDepth` of 1 and pass with 2.
 
 ### Label Expressions: Axes, Legends, And Headers Are Labeled By Their Expressions
 
@@ -2075,34 +2089,54 @@ of a boxplot with an offset are side by side with equal widths.
 `VegaLiteParamsIntegrationTests.CanvasNetVegaLite_SystemIntegration_Params_TheCallerGivesTheDomainOfATimeScaleAsDates`
 
 Lays out small circle and bar charts of three rows (x of 1, 4, and 7, a data rectangle of 300 by 200 pixels, so that a
-linear scale of the domain d0 to d1 puts the value v at 300 x (v - d0) / (d1 - d0)) through the public API and asserts the
-scene items against numbers derived by hand. Asserts that the expression references of the title (the text `Total 18` from
-a parameter whose expression wins over its value and reads another, and the font size 18, the parameter `size` of 9 plus
-9), the padding (`size + 1`, which is 10), and the background
-give the chart that the same literals give, with no report even in strict mode, and that the padding of 10 against the
-default of 5 is five more on each of the four sides; that a reference at a property of an axis (the label size), a
-scale (`zero`: the domain 1 to 7 puts the first circle at 0, where the default 0 to 7 puts it at 300 / 7), and the
-configuration (a label size one larger than the axes') is the value that the later stages read; that a reference that
-reads `datum` is reported as `vl-expr-ref` and the property keeps its default, and that a date at a property that
-takes none is the warning of the call; and that the references are folded for every call with the values of that call, so
-that alternating calls with two values of one parameter draw the one title or the other, with no change in the document.
+linear scale of the domain d0 to d1 puts the value v at 300 x (v - d0) / (d1 - d0)) through the public API and asserts
+the scene items against numbers derived by hand. Asserts that the expression references of the title (the text `Total
+18` from a parameter whose expression wins over its value and reads another, and the font size 18, the parameter `size`
+of 9 plus 9), the padding (`size + 1`, which is 10), and the background give the chart that the same literals give, with
+no report even in strict mode, and that the padding of 10 against the default of 5 is five more on each of the four
+sides; that a reference at a property of an axis (the label size), a scale (`zero`: the domain 1 to 7 puts the first
+circle at 0, where the default 0 to 7 puts it at 300 / 7), and the configuration (a label size one larger than the
+axes') is the value that the later stages read; that a reference that reads `datum` is reported as `vl-expr-ref` and the
+property keeps its default, and that a date at a property that takes none is the warning of the call; and that the
+references are folded for every call with the values of that call, so that alternating calls with two values of one
+parameter draw the one title or the other, with no change in the document.
 
-Asserts that a `scale.domain` of the form `{"param": "xr"}` with the value `[2, 6]` places the circles at
-300 x (v - 2) /
-4, that is -75, 150, and 375, unchanged by `zero`, `nice`, `padding`, and `domainMin`, and that the marks of the view are
-clipped to the data rectangle (an explicit domain array of the same numbers does not clip); that the value of the caller
-replaces the default of the parameter (`[0, 8]` puts the circles at 37.5, 150, and 262.5, a null leaves the domain of the
-data) and the domain of a parameter clips the marks even when the parameter has no value; that `domainRaw` of `[0.5, 9.5]`
-places the circles at 300 x (v - 0.5) / 9, wins over the domain that a parameter gives, and does not clip by itself;
-that a
-raw domain that no scale can use (a text, an array of one number, an empty array, a non-numeric entry) is one
-`vl-scale-domain-raw` warning that names the scale while the chart has the domain of its data; that the value `["c", "a"]`
-is the list of categories of a band scale, so the bar of c takes the first band; that, with a layer that takes its domain
-from a parameter, both layers of a view use the domain `[2, 6]` of the shared scale unadjusted and the marks of every
-layer are clipped; that a variable parameter of a nested view is reported as `vl-param-variable` with the explanation that
-Vega-Lite compiles no signal for it and an expression that reads it sees null (the title keeps its default font size,
-not the 30 of the nested parameter); and that a caller who gives the domain of a time scale as two dates, 2020-01-01 and
-2020-01-03, puts 2020-01-02 at 150 pixels and 2020-01-03 at 300 of 300.
+Asserts that a `scale.domain` of the form `{"param": "xr"}` with the value `[2, 6]` places the circles at 300 x (v - 2)
+/ 4, that is -75, 150, and 375, unchanged by `zero`, `nice`, `padding`, and `domainMin`, and that the marks of the view
+are clipped to the data rectangle (an explicit domain array of the same numbers does not clip); that the value of the
+caller replaces the default of the parameter (`[0, 8]` puts the circles at 37.5, 150, and 262.5, a null leaves the
+domain of the data) and the domain of a parameter clips the marks even when the parameter has no value; that `domainRaw`
+of `[0.5, 9.5]` places the circles at 300 x (v - 0.5) / 9, wins over the domain that a parameter gives, and does not
+clip by itself; that a raw domain that no scale can use (a text, an array of one number, an empty array, a non-numeric
+entry) is one `vl-scale-domain-raw` warning that names the scale while the chart has the domain of its data; that the
+value `["c", "a"]` is the list of categories of a band scale, so the bar of c takes the first band; that, with a layer
+that takes its domain from a parameter, both layers of a view use the domain `[2, 6]` of the shared scale unadjusted and
+the marks of every layer are clipped; that a variable parameter of a nested view is reported as `vl-param-variable` with
+the explanation that Vega-Lite compiles no signal for it and an expression that reads it sees null (the title keeps its
+default font size, not the 30 of the nested parameter); and that a caller who gives the domain of a time scale as two
+dates, 2020-01-01 and 2020-01-03, puts 2020-01-02 at 150 pixels and 2020-01-03 at 300 of 300.
+
+### Image Marks: Pictures Come From The Host's Resolver (Phase 13)
+
+**Tests**: `VegaLiteImageMarkIntegrationTests.VegaLiteDocument_Render_ImageMark_DrawsEveryPictureAtItsPosition`,
+`VegaLiteImageMarkIntegrationTests.VegaLiteDocument_Measure_ImageMark_NeverCallsTheResolver`,
+`VegaLiteImageMarkIntegrationTests.VegaLiteDocument_Render_ImageMarkWithoutResolver_IsReportedAndDrawsNothing`,
+`VegaLiteImageMarkIntegrationTests.VegaLiteDocument_Render_ImageMarkUnresolved_WarnsAndDrawsTheRest`,
+`VegaLiteImageMarkIntegrationTests.VegaLiteDocument_Render_ImageMark_CachesPerRenderAndHonorsMaxImages`
+
+A chart of two 20 by 20 pictures at the values 2 and 8 is rendered through the public API with a fake resolver that
+returns
+solid pictures of the size it is asked for. Asserts that each picture is in its box (30 to 50 and 150 to 170 across, 40
+to 60
+down) and has the color of its link, that measuring never asks the resolver and gives the rendered size, that a chart
+without
+a resolver reports `vl-mark-image` once (and fails in strict mode) and draws nothing, that a link the resolver does not
+give
+is the warning `vl-mark-image-unresolved` that strict mode accepts, and that the number of distinct pictures is limited
+by
+`MaxImages` with the call beyond it failing at the mark. The units are verified in the _MarkBuilder_, _SceneModel_,
+_ScenePainter_, _FeatureCatalog_, and _VegaLiteDocument_ Unit Verification Designs, and the Viewer wiring in the
+_SourceLoader_ Unit Verification Design.
 
 ### Platform: Every System Scenario Runs On Every Target
 

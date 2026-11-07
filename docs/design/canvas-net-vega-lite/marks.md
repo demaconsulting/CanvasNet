@@ -6,27 +6,33 @@
 
 The `Marks` subsystem (namespace `DemaConsulting.CanvasNet.VegaLite.Marks`, folder
 `src/DemaConsulting.CanvasNet.VegaLite/Marks/`) turns data rows, resolved scales, and mark properties into scene items:
-the geometry and paint of every drawn mark. It is **internal**: its types are visible only to the `VegaLiteDocument` unit
+the geometry and paint of every drawn mark. It is **internal**: its types are visible only to the `VegaLiteDocument`
+unit
 and, through `InternalsVisibleTo`, to the test assembly. It contains two units:
 
-- **MarkBuilder** - the internal `MarkBuilder`, a sealed partial class in six files, for the marks `bar`, `rect`,
-  `point`, `circle`, `square`, `rule`, `tick`, `line`, `area`, `trail`, `text`, and `arc`, with the point and line
+- **MarkBuilder** - the internal `MarkBuilder`, a sealed partial class in nine files, for the marks `bar`, `rect`,
+  `point`, `circle`, `square`, `rule`, `tick`, `line`, `area`, `trail`, `text`, `arc`, and `image`, with the point and
+  line
   overlays of the path marks; see _MarkBuilder Unit Design_ (`marks/mark-builder.md`)
 - **CurveBuilder** - the internal static `CurveBuilder` with `CurveKind`, `CurvePoint`, and `AreaPoint`: the sixteen
   d3-shape curves, the `line` and `area` generators, and the upper bound of the number of path segments, for the
   paths of the `line` and `area` marks; see _CurveBuilder Unit Design_ (`marks/curve-builder.md`)
 
 The subsystem's namespace documentation is in `Marks/NamespaceDoc.cs`. Its behavior is specified by the
-`CanvasNetVegaLite-Marks-*` requirements in `docs/reqstream/canvas-net-vega-lite/marks.yaml`. Marks other than the twelve
-(`image` and `geoshape`) are not drawn and are reported by
-the `FeatureCatalog` as `vl-mark-<type>`; the composite marks `boxplot`, `errorbar`, and `errorband` are expanded into the
+`CanvasNetVegaLite-Marks-*` requirements in `docs/reqstream/canvas-net-vega-lite/marks.yaml`. Marks other than the
+thirteen
+(`geoshape`) are not drawn and are reported by
+the `FeatureCatalog` as `vl-mark-<type>` (the `image` mark is drawn through the host's image resolver and is reported as
+`vl-mark-image` only when the caller supplied none); the composite marks `boxplot`, `errorbar`, and `errorband` are
+expanded into the
 primitive marks by the `SpecNormalizer` before the builder sees them, and the builder is called once for each layer of a
 layered view (one `marks` group for each layer).
 
 ### Interfaces
 
 **Exposed** (internal only): `MarkBuilder.IsSupported(string?)`, which tells whether a mark type is drawn, and
-`new MarkBuilder(ResolvedConfig, VegaLiteLimits?, SceneBudget?, string?, RowExpressions?).Build(SpecNode view, DataTable,
+`new MarkBuilder(ResolvedConfig, VegaLiteLimits?, SceneBudget?, string?, RowExpressions?).Build(SpecNode view,
+DataTable,
 ResolvedScales, double width, double height, CancellationToken)`, which returns a `SceneGroup` (role `marks`) in the
 coordinates of the data rectangle; the table is the **Main** table of the implicit pipeline (the fields that the scales
 name). The `CurveBuilder` surface (`TryParse`, `SupportsArea`, `MaxSegments`, `Line`, and `Area`) is consumed by
@@ -47,12 +53,14 @@ between the axes behind them and the axes in front.
 ### Design
 
 **Geometry from the scales, paint from the configuration.** For each row the builder maps the channels through the scale
-models to positions, sizes, opacities, and colors, resolves the mark properties through the configuration precedence chain
+models to positions, sizes, opacities, and colors, resolves the mark properties through the configuration precedence
+chain
 (the mark definition, then style, `config.<mark>`, `config.mark`, and the Vega styles), and emits one scene item per
 visible mark. The scene items carry resolved geometry and CSS color strings, so the result can be asserted analytically
 without pixels.
 
-**Vega-Lite's rules.** Bars, rectangles, and ticks on a discrete position fill the band; on a continuous position they are
+**Vega-Lite's rules.** Bars, rectangles, and ticks on a discrete position fill the band; on a continuous position they
+are
 centered on the value with default thickness; the measure axis runs from the value to 0 (or, for a stacked channel and a
 secondary channel `x2` or `y2`, from the first to the second end); symbols sit at the center of
 their band or value (the upper end of a stack, the middle of a bin); a rule is a full-width or full-height line, a stem
@@ -81,5 +89,6 @@ the scene items of a path are charged with an upper bound of its segments (`Curv
 segments are generated, and the grouping, the sorting, and the generation are charged to the evaluation-step budget; the
 label of a text mark is bounded by `MaxStringLength` and all the labels of one mark by sixteen times that, before the
 labels are formatted, and every line of a label is a scene item. Marks are clipped to the data rectangle when the
-mark definition says `"clip": true` and when the domain of the `x` or `y` scale comes from a parameter; an explicit scale
+mark definition says `"clip": true` and when the domain of the `x` or `y` scale comes from a parameter; an explicit
+scale
 domain array does not clip them.

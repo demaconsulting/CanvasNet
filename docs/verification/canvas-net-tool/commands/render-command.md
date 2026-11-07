@@ -42,8 +42,10 @@ N/A - standard test environment. The tests belong to the "Sequential" collection
   and the operation, diagnostics, and echo are in the result; a model option for another kind of input, an unknown
   view, and a malformed value are usage errors; an exceeded limit, a syntax error, and a strict-mode unsupported
   feature are expected errors and leave no output.
-- A chart is rendered at its laid-out size or the size asked for, over its own background or the one given, with no option
-  of its own; the operation, the natural size, and the diagnostics are in the result; an unsupported feature is a note or,
+- A chart is rendered at its laid-out size or the size asked for, over its own background or the one given, with no
+  option
+  of its own; the operation, the natural size, and the diagnostics are in the result; an unsupported feature is a note
+  or,
   in strict mode, an error; an invalid chart is a `vega-lite-error`; a page other than 1 and a model option are
   errors; no
   failure leaves an output.
@@ -63,7 +65,8 @@ names to the one command.
 
 **RenderCommand_ReadSourceOptions_SameAsBefore**: the source options read from an empty command line are the defaults
 (page 1, no resolution, scale, size, or background, automatic orientation, not strict, the automatic filter, no model
-options); a command line with a page, resolution, scale, background with alpha, `--no-auto-orient`, `--strict`, a filter,
+options); a command line with a page, resolution, scale, background with alpha, `--no-auto-orient`, `--strict`, a
+filter,
 and a view gives exactly those settings; `--size` gives the width and height; `--size` with `--scale` and a width of 0
 are usage errors, as they always were.
 
@@ -80,7 +83,8 @@ byte count, and empty diagnostics and echo.
 given color and reports the flatten; an SVG is white by default and keeps its alpha with a transparent background.
 
 **RenderCommand_Run_SizeOption_ResizesRaster**, **RenderCommand_Run_WidthAndHeightWithEquals_AreExact**,
-**RenderCommand_Run_InvalidSizeOrBackground_ThrowsUsageError**, and **RenderCommand_Run_SizeBeyondMaximum_ThrowsSizeLimit**:
+**RenderCommand_Run_InvalidSizeOrBackground_ThrowsUsageError**, and
+**RenderCommand_Run_SizeBeyondMaximum_ThrowsSizeLimit**:
 scale, width, height, and size resize; both sides and the `--name=value` form are exact; every contradictory
 combination, zero, negative, and non-numeric values, a malformed size, and a bad color are usage errors that write no
 output; sizes beyond 8192 are `size-limit`.
@@ -90,7 +94,8 @@ higher quality gives a larger JPEG; 0, 101, and a word are usage errors; the for
 an unknown format, an unknown extension, and no extension are usage errors reported before the input is read.
 
 **RenderCommand_Run_ExistingOutput_OverwrittenUnlessNoClobber**,
-**RenderCommand_Run_OutputProblemWithHugeInput_ReportsOutputProblemFirst**, **RenderCommand_Run_OutputIsInput_ThrowsSameInputOutput**,
+**RenderCommand_Run_OutputProblemWithHugeInput_ReportsOutputProblemFirst**,
+**RenderCommand_Run_OutputIsInput_ThrowsSameInputOutput**,
 and **RenderCommand_Run_OutputInNewDirectory_CreatesDirectory**: no-clobber refuses and keeps the file, the default
 overwrites; with an oversized input and an existing output, the output problem is the one reported; the input as the
 output is refused and untouched; a missing directory is created.
@@ -100,13 +105,15 @@ output is refused and untouched; a missing directory is created.
 
 **RenderCommand_Run_BadInput_ThrowsToolExceptionAndWritesNothing**,
 **RenderCommand_Run_TruncatedDocument_ThrowsCorruptInputAndWritesNothing**,
-**RenderCommand_Run_CommandLineMistakes_ThrowUsageError**, and **RenderCommand_Run_NullArguments_ThrowsArgumentNullException**:
+**RenderCommand_Run_CommandLineMistakes_ThrowUsageError**, and
+**RenderCommand_Run_NullArguments_ThrowsArgumentNullException**:
 a missing file, a truncated PNG, a text file, and a directory are `input-not-found`, `corrupt-input`,
 `unsupported-format`, and `input-unreadable` with no output; a PDF, a presentation, and a drawing cut after 300 bytes
 are `corrupt-input` with no output; a missing output, a missing or second input, an unknown
 option with a suggestion, a flag with a value, and a missing value are usage errors; null arguments throw.
 
-**RenderCommand_Run_DocumentDefaults_WritesFirstPage** and **RenderCommand_Run_DocumentJson_DescribesPageAndOperations**:
+**RenderCommand_Run_DocumentDefaults_WritesFirstPage** and
+**RenderCommand_Run_DocumentJson_DescribesPageAndOperations**:
 each document renders page 1 at its size at 96 dpi with a text line that ends with `page 1`; the JSON for page 2 of the
 PDF at 120 dpi has the page, the page count, the natural size, the `render` operation (page, dpi, width, background),
 the page in the output, and no diagnostics. **RenderCommand_Run_RasterJson_HasNoPageFields**: a PNG's result has no
@@ -132,7 +139,8 @@ extension; an output without `{page}` for two pages is a usage error with a hint
 page 2 fails the run with a `usage-error` after page 1 was encoded (a render failure, so no target is touched); the
 existing page 1 output keeps its content, no
 other file (and no temporary file) is in the folder, and a new folder holds no file; when every page succeeds both
-outputs are published (an existing one replaced) as complete images and no temporary file remains. A failure of the final
+outputs are published (an existing one replaced) as complete images and no temporary file remains. A failure of the
+final
 per-target move is covered by **ImageWriter_PublishAll_FailureOnStep_RestoresEverything** (see the ImageWriter
 verification).
 
@@ -198,15 +206,18 @@ writes the result line to standard output and exactly three lines to standard er
 `Warning: scad-warning: ...` line, then an `Unsupported: scad-module-surface: ...` line) with exit code 0; with
 `--silent` nothing is written at all; with `--json` standard error is empty.
 
-**RenderCommand_Run_ScadSizeOptions_FollowTheNaturalSize**, **RenderCommand_Run_ScadBackground_IsAppliedAndFlattenedForJpeg**,
-**RenderCommand_Run_ScadToEachOutputFormat_WritesDecodableFile**, and **RenderCommand_Run_ScadTwice_WritesIdenticalBytes**:
+**RenderCommand_Run_ScadSizeOptions_FollowTheNaturalSize**,
+**RenderCommand_Run_ScadBackground_IsAppliedAndFlattenedForJpeg**,
+**RenderCommand_Run_ScadToEachOutputFormat_WritesDecodableFile**, and
+**RenderCommand_Run_ScadTwice_WritesIdenticalBytes**:
 a scale of 0.25, a width of 100, a height of 60, and `--size 90x50` give 200x200, 100x100, 60x60, and 90x50; a blue
 background fills the corner, a transparent one leaves a PNG clear there and gives a white corner in a JPEG that
 reports the flatten after the render; the model is written as PNG, JPEG, BMP, and TIFF with the model in the middle;
 two runs with a view, a perspective projection, and a definition give identical bytes.
 
 **RenderCommand_Run_BadModelOption_ThrowsUsageError**, **RenderCommand_Run_UnknownView_ListsTheViews**,
-**RenderCommand_Run_ModelOptionOnAnotherKind_ThrowsUsageError**, **RenderCommand_Run_PageTwoOfAModel_ThrowsPageOutOfRange**,
+**RenderCommand_Run_ModelOptionOnAnotherKind_ThrowsUsageError**,
+**RenderCommand_Run_PageTwoOfAModel_ThrowsPageOutOfRange**,
 and **RenderCommand_Run_ModelWithSyntaxError_ThrowsScadError**: an unknown view or projection, an azimuth or time that
 is not a number, an elevation of 95, -91, or `up`, a time of 1e12, a bad color, a triangle limit of 0, `many`, or three
 billion, a definition without `=`, with a name that starts with a digit, or with a vector value are usage errors that
@@ -224,14 +235,16 @@ placement is white, the picture is green, and the rest of the diagram is red.
 **RenderCommand_Run_SvgEmbeddingMissingFile_WritesWarningLineToStandardError**,
 **RenderCommand_Run_SvgEmbeddingStrictUnresolved_FailsWithUnsupportedFeature**, and
 **RenderCommand_Run_SvgEmbeddingModelWithUnsupportedFeature_IsNoteThenStrictError**: a valid picture above the folder of
-the SVG named with `../` is not drawn and is one `svg-image-unresolved` warning (source `svg`, severity `warning`) in the
+the SVG named with `../` is not drawn and is one `svg-image-unresolved` warning (source `svg`, severity `warning`) in
+the
 JSON result with exit code 0 and nothing on standard error; without `--json` the warning is one
 `Warning: svg-image-unresolved: image 'missing.png' was not drawn` line on standard error; with `--strict` an `https`
 reference is exit code 1 with `unsupported-feature` and no file; an embedded model that uses `offset` gives the
 `scad-module-offset` note with the message starting `part.scad:`, and `unsupported-feature` and no file with `--strict`.
 
 **RenderCommand_Run_SvgEmbeddingBrokenModel_FailsWithScadErrorNamingBothFiles** and
-**RenderCommand_Run_SvgWithoutEmbeddedFiles_IsUnchangedAndStrictSafe**: an embedded model with a syntax error is exit code
+**RenderCommand_Run_SvgWithoutEmbeddedFiles_IsUnchangedAndStrictSafe**: an embedded model with a syntax error is exit
+code
 1 with `scad-error`, a message that names `diagram.svg` and `broken.scad`, and no file; the SVG fixture renders with
 `--strict` with no diagnostics and no `embed` operation.
 
@@ -254,17 +267,23 @@ operations, and the pixels of page 2 of each document of the shared fixtures.
 **RenderCommand_Run_SvgEmbeddingStrictPageProblem_FailsWithUnsupportedFeature**, and
 **RenderCommand_Run_SvgEmbeddingUnknownAndDuplicateParameters_AreWarningsEvenWhenStrict**: `#page=9` of a 2-page PDF is
 exit code 0 with one `image-page-out-of-range` diagnostic (severity `unsupported`, the message `page 9 does not exist`)
-and the rest of the diagram drawn; with `--strict`, `#page=9` and `#page=zero` are exit code 1 with `unsupported-feature`,
+and the rest of the diagram drawn; with `--strict`, `#page=9` and `#page=zero` are exit code 1 with
+`unsupported-feature`,
 a message naming the link, a hint naming the code, and no file; `logo.png#top` and `#page=1&amp;page=2` are one warning
 each (`image-fragment-unknown-parameter`, `image-fragment-duplicate-parameter`) and `--strict` still succeeds.
 
-**RenderCommand_Run_ScadWarning_WritesDetailAndLocation**, **RenderCommand_Run_ScadUnsupportedFeature_WritesLocationWithoutDetail**,
-**RenderCommand_Run_VegaLiteWarning_WritesDetail**, **RenderCommand_Run_SvgEmbeddingNotes_WriteOriginAndOnlyWhatIsKnown**,
+**RenderCommand_Run_ScadWarning_WritesDetailAndLocation**,
+**RenderCommand_Run_ScadUnsupportedFeature_WritesLocationWithoutDetail**,
+**RenderCommand_Run_VegaLiteWarning_WritesDetail**,
+**RenderCommand_Run_SvgEmbeddingNotes_WriteOriginAndOnlyWhatIsKnown**,
 and **RenderCommand_Run_PlainNote_HasNoExtraMembers** (`RenderCommandDiagnosticDetailTests.cs`): a malformed anchor is a
-`scad-warning` with `detail` `scad-anchor-invalid` and a `location` of the model file and line 2; an unsupported `offset`
+`scad-warning` with `detail` `scad-anchor-invalid` and a `location` of the model file and line 2; an unsupported
+`offset`
 has a location and no detail; an unknown chart property has `detail` `vl-unknown-property`; for an SVG file that embeds
-a model with a bad anchor, a nested SVG file with a missing picture, and a missing picture of its own, the model note has
-the detail, the location, and the origin `["part.scad"]`, the nested note the origin `["inner.svg"]`, and the note of the
+a model with a bad anchor, a nested SVG file with a missing picture, and a missing picture of its own, the model note
+has
+the detail, the location, and the origin `["part.scad"]`, the nested note the origin `["inner.svg"]`, and the note of
+the
 SVG file's own link no extra member; a note without extras has exactly `source`, `severity`, `code`, and `message`.
 
 **RenderCommand_Run_VegaLite_WritesPngAndReportsFormat**: the two-bar chart renders to a PNG whose size is the natural
@@ -274,8 +293,10 @@ diagnostics; the corner is white and a point of the second bar, computed from th
 
 **RenderCommand_Run_VegaLiteSizeOptions_FollowTheNaturalSize**,
 **RenderCommand_Run_VegaLiteToEachOutputFormat_WritesDecodableFile**, and
-**RenderCommand_Run_VegaLiteTwice_WritesIdenticalBytes**: a scale of 2, a width of 100, and `--size 90x50` give twice the
-natural size, a height that keeps the aspect ratio, and 90x50; the chart is written as PNG, JPEG, BMP, and TIFF (a transparent
+**RenderCommand_Run_VegaLiteTwice_WritesIdenticalBytes**: a scale of 2, a width of 100, and `--size 90x50` give twice
+the
+natural size, a height that keeps the aspect ratio, and 90x50; the chart is written as PNG, JPEG, BMP, and TIFF (a
+transparent
 background leaves the corner clear in the formats that keep it and white in the JPEG); two runs with a scale of 1.5 give
 identical bytes.
 
@@ -302,11 +323,14 @@ from the folder of the specification and below it
 only, that delimited text is not type-inferred unless `format.parse` is `"auto"`, that a missing file is an error, that
 there is no data-folder option, and that nothing is read from the network.
 
-**RenderCommand_Run_VegaLiteLocalDataResolvesRelativeToSpecFolder**: a chart whose rows are in a CSV file in a sub folder
+**RenderCommand_Run_VegaLiteLocalDataResolvesRelativeToSpecFolder**: a chart whose rows are in a CSV file in a sub
+folder
 beside its specification renders, whatever the current directory is, to the same PNG bytes as the chart with the rows
-inline; a chart that names a missing file is a one-line `vega-lite-error` ("was not found") and writes no output; a chart
+inline; a chart that names a missing file is a one-line `vega-lite-error` ("was not found") and writes no output; a
+chart
 with a remote URL renders with the `vl-data-remote-url` diagnostic in the JSON result and nothing fetched, and with
-`--strict` is an `unsupported-feature` error with no output; and `--data-dir` is a `usage-error`, because the command has
+`--strict` is an `unsupported-feature` error with no output; and `--data-dir` is a `usage-error`, because the command
+has
 no option for another data folder.
 
 **RenderCommand_Usage_DescribesModelOptionsAndIncludeRule**: the help of the command lists the nine model options (and
@@ -330,7 +354,8 @@ in the
 JSON with `skewDegrees` between 4.8 and 5.2, `rotateDegrees` equal to its negative, a confidence of at least 0.4,
 `applied` true, and the size of the grown canvas that equals the size of the written file.
 
-**RenderCommand_Run_RotateFillAndBackground_ChooseFill**: the corner exposed by a 45-degree rotation is white for an opaque
+**RenderCommand_Run_RotateFillAndBackground_ChooseFill**: the corner exposed by a 45-degree rotation is white for an
+opaque
 image, the color of `--rotate-fill`, the `--background` color when only that is given, the fill when both are given,
 and transparent for an image with a transparent pixel.
 
@@ -362,20 +387,24 @@ about both axes keep every pixel; a JPEG stored with the EXIF orientation 6 is t
 by 90 degrees, which equals rotating the stored image by 180 degrees, with `auto-orient` then `rotate` reported.
 
 **RenderCommand_Run_MultiOpChain_EveryInputKind_WritesExpectedSize**,
-**RenderCommand_Run_AllPagesWithPipeline_AppliesToEveryPage**, and **RenderCommand_Run_MultiOp_IsDeterministic**: a chain
+**RenderCommand_Run_AllPagesWithPipeline_AppliesToEveryPage**, and **RenderCommand_Run_MultiOp_IsDeterministic**: a
+chain
 of crop (left half, as percent), flip, resize, and pad gives a 12x12 PNG for every one of the eleven input kinds; the
 top-left quarter of both pages of the PDF is 96x64 and 64x96 with a `crop` operation naming each page; the same chain
 written twice is byte-identical as PNG, JPEG, BMP, and TIFF.
 
-**RenderCommand_Run_BadPipeline_IsExpectedErrorAndWritesNothing**, **RenderCommand_Run_FailingStep_LeavesExistingOutputUntouched**,
-and **RenderCommand_Run_PadBeyondMaxDimension_IsRefusedWithSizeLimit**: malformed operands (an angle that is not a number)
+**RenderCommand_Run_BadPipeline_IsExpectedErrorAndWritesNothing**,
+**RenderCommand_Run_FailingStep_LeavesExistingOutputUntouched**,
+and **RenderCommand_Run_PadBeyondMaxDimension_IsRefusedWithSizeLimit**: malformed operands (an angle that is not a
+number)
 and options, a crop outside the image (also after an earlier crop), a size or border beyond the maximum, a border color
 without a pad, a rotation fill without a rotation, a clip without auto-levels, a trim tolerance without trim, an upscale
 switch without a fit, a grid spacing or levels out of range, and an unknown option are usage or size errors with the
 documented messages and no output; a crop that fails after a pad leaves an existing output file as it was; a border that
 makes 8193 pixels is `size-limit` naming `8193x8188`.
 
-**RenderCommand_Verb_Metadata_DescribesVerbAndSharesRenderOptions** and **RenderCommand_Verb_UnknownVerb_ThrowsArgumentException**:
+**RenderCommand_Verb_Metadata_DescribesVerbAndSharesRenderOptions** and
+**RenderCommand_Verb_UnknownVerb_ThrowsArgumentException**:
 each verb has its own name, no alias, a summary, the usage line with its operand and examples, and the options of
 `render`; a name that is not a verb cannot be constructed.
 
@@ -384,7 +413,8 @@ percentages, resize with and without a filter, the three angles, the three flips
 color) write the same bytes as PNG and as JPEG, and print the same result line, as `render` with the equivalent option.
 
 **RenderCommand_Verb_ExtraPipelineOptions_AreAppliedAfterTheVerbOperation**,
-**RenderCommand_Verb_SameOptionAlsoGiven_VerbOperationIsFirst**, and **RenderCommand_Verb_Json_NamesTheVerbAndListsItsOperation**:
+**RenderCommand_Verb_SameOptionAlsoGiven_VerbOperationIsFirst**, and
+**RenderCommand_Verb_Json_NamesTheVerbAndListsItsOperation**:
 `crop` with `--resize` and `--pad` options applies them after the crop whether they stand before or after the operand,
 and writes the file of the equivalent `render`; a `--crop` option after the verb's crop is relative to the first
 result; the JSON of `rotate` names the command `rotate` and lists the one `rotate` operation with its size.
@@ -429,3 +459,37 @@ the larger canvas.
 **RenderCommand_Run_ScadAnchorOutsideTheCrop_IsNotInside** and
 **RenderCommand_Run_ScadAnchorBehindThePerspectiveEye_HasNullPixel**: a corner that a crop cuts away keeps its position
 and has `inside` false, and a point behind a perspective eye has a `null` pixel, `inside` false, and its world point.
+
+**RenderCommand_Run_ParamScalar_SetsTheParameterAndTheNaturalSize**,
+**RenderCommand_Run_ParamSelectionAndRepeat_TakeJsonAndLastWins**,
+**RenderCommand_Run_ParamUnknownName_IsVegaLiteErrorListingTheDeclaredNames**,
+**RenderCommand_Run_ParamErrors_AreReported**,
+**RenderCommand_Run_ParamOnAnotherKind_ThrowsUsageError**, **RenderCommand_Run_DefineOnAChart_StaysAUsageError**,
+**ToolHost_Invoke_ParamOnVerbAndInspect_IsAccepted**, **RenderCommand_OptionTable_DeclaresParam**, and
+**RenderCommand_Usage_MentionsParamAndItsExampleRuns**
+(`RenderCommandParamTests.cs`): `--param cutoff=4` writes the picture of the chart whose own default is 4, the natural
+size in the result is the narrower
+size of the parameterized layout (not the default one), and the render operation has `params` `["cutoff=4"]` (absent
+without the option); `--param cutoff=5 --param
+brush={"y":[2,4]} --param cutoff=2` is the chart with `cutoff` 2 and that selection (the last of a name wins) and the
+operation lists `brush={"y":[2,4]}` before
+`cutoff=2`; `--param nope=1` is `vega-lite-error` naming `nope` and `declared: brush, cutoff` (a chart without
+parameters says it declares none) and writes no file;
+`brush={x`, a parameter without `=` and a value nested 33 levels deep are a `usage-error`; the option on a PNG, an SVG
+file, a PDF and a model is a `usage-error`
+(`is a png file`, `only applies to a Vega-Lite chart`) and `-D` on a chart stays the usage error of the model options;
+`resize ... --param` and
+`inspect colors ... --param` accept it (the second reads the picture of the parameterized chart, an unknown name fails
+with `vega-lite-error` and a PNG with the
+usage error); the option table declares `--param` once with a value `name=value`, shared by `inspect`; and the usage
+text shows `--param name=value`, the example
+`canvasnet render chart.vl.json --param cutoff=50 -o chart.png` and the `param.` fragment, and that example runs.
+
+**RenderCommand_Run_SvgFragmentDefineAndParam_BehaveLikeTheOptions** and
+**RenderCommand_Run_SvgFragmentInvalidValue_IsUnsupportedAndFailsWithStrict**: a diagram that
+embeds `part.scad#view=front&amp;def.width=20` and `chart.vl.json#param.cutoff=4` renders to the pixels of the diagram
+that embeds the files that have those values,
+with no diagnostics; `chart-4.vl.json#param.nope=1` is one warning in `diagnostics` with the code `vl-param-unknown` and
+the severity `warning`; `def.width=[1,2]` and a
+`param.brush={x` are `image-fragment-invalid` notes of severity `unsupported`, `--strict` fails the first with
+`unsupported-feature` and succeeds with the unknown-name warning.

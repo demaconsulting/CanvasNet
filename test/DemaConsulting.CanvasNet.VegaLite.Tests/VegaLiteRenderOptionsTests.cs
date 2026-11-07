@@ -1,4 +1,5 @@
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.ImageSources;
 
 namespace DemaConsulting.CanvasNet.VegaLite.Tests;
 
@@ -7,6 +8,15 @@ namespace DemaConsulting.CanvasNet.VegaLite.Tests;
 /// </summary>
 public class VegaLiteRenderOptionsTests
 {
+    /// <summary>
+    ///     A resolver that resolves nothing, to be stored in the options.
+    /// </summary>
+    private sealed class NoResolver : IImageResolver
+    {
+        /// <inheritdoc />
+        public Surface? Resolve(string href, int pixelWidth, int pixelHeight) => null;
+    }
+
     /// <summary>
     ///     Validates the documented defaults.
     /// </summary>
@@ -26,6 +36,7 @@ public class VegaLiteRenderOptionsTests
         Assert.Equal(400, options.ContainerWidth);
         Assert.Equal(300, options.ContainerHeight);
         Assert.Null(options.Fonts);
+        Assert.Null(options.ImageResolver);
         Assert.Same(VegaLiteLimits.Default, options.Limits);
         Assert.Null(options.WarningHandler);
         Assert.Null(options.UnsupportedFeatureHandler);
@@ -42,6 +53,7 @@ public class VegaLiteRenderOptionsTests
         // Arrange
         var fonts = new VegaLiteFontOptions { UseSystemFonts = true };
         var limits = new VegaLiteLimits { MaxTicks = 7 };
+        var resolver = new NoResolver();
         Action<VegaLiteDiagnostic> warn = _ => { };
         Action<VegaLiteUnsupportedFeature> unsupported = _ => { };
 
@@ -55,6 +67,7 @@ public class VegaLiteRenderOptionsTests
             ContainerWidth = 640,
             ContainerHeight = 480,
             Fonts = fonts,
+            ImageResolver = resolver,
             Limits = limits,
             WarningHandler = warn,
             UnsupportedFeatureHandler = unsupported,
@@ -70,6 +83,7 @@ public class VegaLiteRenderOptionsTests
         Assert.Equal(480, options.ContainerHeight);
         Assert.Same(fonts, options.Fonts);
         Assert.Same(fonts, options.EffectiveFonts);
+        Assert.Same(resolver, options.ImageResolver);
         Assert.Same(limits, options.Limits);
         Assert.Same(warn, options.WarningHandler);
         Assert.Same(unsupported, options.UnsupportedFeatureHandler);

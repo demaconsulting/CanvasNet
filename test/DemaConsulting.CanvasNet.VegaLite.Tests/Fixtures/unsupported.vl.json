@@ -1,6 +1,6 @@
 {
   "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
-  "description": "Uses a geoshape mark, a regression transform and a band position, which are recognized but not drawn.",
+  "description": "Uses a geoshape mark, a lookup in a parameter and a band position, which are recognized but not drawn.",
   "data": {
     "values": [
       { "week": 1, "visits": 120 },
@@ -9,7 +9,7 @@
     ]
   },
   "transform": [
-    { "regression": "visits", "on": "week" }
+    { "lookup": "week", "from": { "param": "p" } }
   ],
   "mark": "geoshape",
   "encoding": {

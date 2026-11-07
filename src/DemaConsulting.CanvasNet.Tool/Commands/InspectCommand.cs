@@ -95,6 +95,14 @@ internal sealed partial class InspectCommand : ICommand
                 "Remove them, or inspect a .scad file.");
         }
 
+        if (settings.Source.VegaLite != null && !info.Format.IsChart())
+        {
+            throw new ToolException(
+                ErrorCodes.UsageError,
+                $"The option {string.Join(", ", RenderCommand.ChartOptionNames)} only applies to a Vega-Lite chart, but '{settings.Input}' is a {info.Format.ToFormatName()} file.",
+                "Remove it, or inspect a .vl.json file.");
+        }
+
         // The operation reports the mistakes about the page before any pixels are decoded, then loads the page, runs the
         // pipeline, and analyzes the pixels; everything below only formats what it returns
         var result = ImageInspector.Execute(

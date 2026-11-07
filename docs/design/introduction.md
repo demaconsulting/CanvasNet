@@ -293,8 +293,10 @@ software items, specifically:
   resolved values), `AggregateTransforms` (the `aggregate`, `joinaggregate`, `window`, `bin`, `stack`,
   and `impute` transforms with the aggregate operations, the bin algorithm, and the stack rules), `EncodingPlan` (the
   implicit bin, time unit, aggregate, impute, and stack of a view's encoding, with the path grouping and order fields
-  and the field names and titles that every channel reads), and `TimeUnitTransform` (the start and the end of a time
-  unit for every row, and the fields that are read as dates). The `Scales` subsystem has six units: `ScaleModel` (the
+  and the field names and titles that every channel reads), `TimeUnitTransform` (the start and the end of a time
+  unit for every row, and the fields that are read as dates), and `StatTransforms` (the `regression`, `loess`,
+  `density`, `quantile`, and `extent` transforms, with the regression models, the curve sampling, the locally weighted
+  regression, and the kernel density). The `Scales` subsystem has six units: `ScaleModel` (the
   linear, time, UTC, logarithmic, power, symlog, band, point, ordinal, sequential, diverging, and discretizing
   mappings), `ScaleResolver` (the Vega-Lite inference of scale types, domains, ranges, and paddings, including the polar
   `theta` and `radius` scales, and the channels that each mark draws), `Ticks` (the d3-array and d3-time tick
@@ -357,26 +359,23 @@ software items, specifically:
 
 - **CanvasNetViewer (System)** — A separate software system (packable as `DemaConsulting.CanvasNet.Viewer`) that
   aggregates the image sources of every format and is the library form of the `canvasnet` tool. It contains two direct
-  units and one subsystem. The direct unit `CanvasNetViewer` (with `ViewerRenderOptions`
-  and `ViewerImage`) lists the built-in image sources (raster, SVG, PDF, PowerPoint, Visio, OpenSCAD, and
-  Vega-Lite) and the extensions they claim, creates the `FolderImageResolver` of the core `ImageSources` subsystem for
-  one render so that an SVG document can embed every format, renders any file by path or from a stream, and lets a
-  library user add image sources of their own (later sources win; nothing is cached). The direct unit
-  `ViewerException` is the exception of every expected failure, with the stable `ErrorCodes`. The `Imaging` subsystem
-  holds the `SourceLoader` unit, which recognizes, probes, and loads PNG, JPEG,
-  BMP, TIFF, GIF, JPEG 2000, and SVG files, the pages of PDF, PPTX, and VSDX documents, views of OpenSCAD
-  models, and Vega-Lite charts, the `ImagePipeline` unit, which crops, resizes, fits, rotates by any angle, flips,
-  pads, adjusts, deskews,
-  trims, and grids pixels in the order the operations are given, the `GridOverlay` unit, which does the
-  grid work for it (the flip, pad, trim, tone, rotation, skew, and analysis arithmetic is the core library's
-  `Surface`), the `ImageWriter`
-  unit, which writes PNG, JPEG, BMP, and TIFF files, the `ImageComparison` unit, which checks how two images
-  compare (measured by the core library's `Surface`) against thresholds, the `ContactSheet` unit, which composes
-  images into a labeled sheet, and the four operation units that chain them: `ImageRenderer` (render the pages of a
-  source), `ImageInspector` (colors and pixels), `ImageComparer` (compare two images), and `MontageBuilder` (a contact
-  sheet). It references the core package
-  and the Svg, Pdf, Pptx, Vsdx, Scad, Render3D, and VegaLite packages, is referenced only by the tool, and has no plug-in
-  mechanism of its own — see _CanvasNetViewer System Design_ (`canvas-net-viewer.md`)
+  units and one subsystem. The direct unit `CanvasNetViewer` (with `ViewerRenderOptions` and `ViewerImage`) lists the
+  built-in image sources (raster, SVG, PDF, PowerPoint, Visio, OpenSCAD, and Vega-Lite) and the extensions they claim,
+  creates the `FolderImageResolver` of the core `ImageSources` subsystem for one render so that an SVG document can
+  embed every format, renders any file by path or from a stream, and lets a library user add image sources of their own
+  (later sources win; nothing is cached). The direct unit `ViewerException` is the exception of every expected failure,
+  with the stable `ErrorCodes`. The `Imaging` subsystem holds the `SourceLoader` unit, which recognizes, probes, and
+  loads PNG, JPEG, BMP, TIFF, GIF, JPEG 2000, and SVG files, the pages of PDF, PPTX, and VSDX documents, views of
+  OpenSCAD models, and Vega-Lite charts, the `ImagePipeline` unit, which crops, resizes, fits, rotates by any angle,
+  flips, pads, adjusts, deskews, trims, and grids pixels in the order the operations are given, the `GridOverlay` unit,
+  which does the grid work for it (the flip, pad, trim, tone, rotation, skew, and analysis arithmetic is the core
+  library's `Surface`), the `ImageWriter` unit, which writes PNG, JPEG, BMP, and TIFF files, the `ImageComparison` unit,
+  which checks how two images compare (measured by the core library's `Surface`) against thresholds, the `ContactSheet`
+  unit, which composes images into a labeled sheet, and the four operation units that chain them: `ImageRenderer`
+  (render the pages of a source), `ImageInspector` (colors and pixels), `ImageComparer` (compare two images), and
+  `MontageBuilder` (a contact sheet). It references the core package and the Svg, Pdf, Pptx, Vsdx, Scad, Render3D, and
+  VegaLite packages, is referenced only by the tool, and has no plug-in mechanism of its own — see _CanvasNetViewer
+  System Design_ (`canvas-net-viewer.md`)
 
 The following OTS items are also covered:
 
@@ -545,45 +544,36 @@ that parses, describes, measures, and renders charts, derived with attribution f
 licenses ship in the package): its direct unit, `VegaLiteDocument` (namespace `DemaConsulting.CanvasNet.VegaLite`), is
 the public API, its internal `SpecModel` subsystem (namespace `DemaConsulting.CanvasNet.VegaLite.SpecModel`) holds the
 `SpecParser`, `FeatureCatalog`, `ConfigResolver`, `SpecNormalizer`, and `ExpressionReferenceFolder` units, its internal
-`Data` subsystem holds the
-`DataTable`, `DataLoader`, `DataFileResolver`, `DelimitedTextParser`, `TimeCalendar`, and `TimeFormat` units, its
-internal `Expressions` subsystem holds the `ExpressionParser`, `ExpressionEvaluator`, and `ExpressionFunctions` units,
-its internal `Transforms` subsystem holds the `RowTransforms`, `SelectionModel`, `AggregateTransforms`, `EncodingPlan`,
-and
-`TimeUnitTransform` units, its internal `Scales` subsystem holds the `ScaleModel`, `ScaleResolver`, `Ticks`,
-`NumberFormat`, `ColorSchemes`, and `ColorInterpolator` units, its internal `Guides` subsystem holds the `TextMeasurer`,
-`TitleBuilder`, `AxisBuilder`, `LabelOverlap`, `LegendBuilder`, `TimeLabels`, and `LabelExpressions` units, its internal
-`Layout` subsystem
-holds the `ViewLayout`, `LegendLayout`, and `CompositionLayout` units, its internal `Marks` subsystem holds the
-`MarkBuilder` and `CurveBuilder` units, and its internal `Scenegraph` subsystem holds the `SceneModel`, `ScenePainter`,
-`ArcGeometry`, and `CssPaint`
-units (each subsystem lives in the sub-namespace and the sub-folder of its own name). In the SysML2 model the
-subsystem `part def` names carry the prefix `VegaLite` (`VegaLiteSpecModel`, `VegaLiteExpressions`,
-`VegaLiteTransforms`,
-`VegaLiteScenegraph`, and so on) and the
-scene unit is `VegaLiteSceneModel`, because the model package is shared by every system and `SceneModel` already
-names a `CanvasNetRender3D` subsystem. It depends on the `CanvasNet` system's `Canvas` (`Surface`, `Rgba32`),
-`Geometry`, `Drawing`, `Fonts`, and `Rendering` subsystems through their public API. See the Folder Layout section
-below and _CanvasNetVegaLite System Design_ (`canvas-net-vega-lite.md`).
+`Data` subsystem holds the `DataTable`, `DataLoader`, `DataFileResolver`, `DelimitedTextParser`, `TimeCalendar`, and
+`TimeFormat` units, its internal `Expressions` subsystem holds the `ExpressionParser`, `ExpressionEvaluator`, and
+`ExpressionFunctions` units, its internal `Transforms` subsystem holds the `RowTransforms`, `SelectionModel`,
+`AggregateTransforms`, `EncodingPlan`, `TimeUnitTransform`, and `StatTransforms` units, its internal `Scales` subsystem
+holds the `ScaleModel`, `ScaleResolver`, `Ticks`, `NumberFormat`, `ColorSchemes`, and `ColorInterpolator` units, its
+internal `Guides` subsystem holds the `TextMeasurer`, `TitleBuilder`, `AxisBuilder`, `LabelOverlap`, `LegendBuilder`,
+`TimeLabels`, and `LabelExpressions` units, its internal `Layout` subsystem holds the `ViewLayout`, `LegendLayout`, and
+`CompositionLayout` units, its internal `Marks` subsystem holds the `MarkBuilder` and `CurveBuilder` units, and its
+internal `Scenegraph` subsystem holds the `SceneModel`, `ScenePainter`, `ArcGeometry`, and `CssPaint` units (each
+subsystem lives in the sub-namespace and the sub-folder of its own name). In the SysML2 model the subsystem `part def`
+names carry the prefix `VegaLite` (`VegaLiteSpecModel`, `VegaLiteExpressions`, `VegaLiteTransforms`,
+`VegaLiteScenegraph`, and so on) and the scene unit is `VegaLiteSceneModel`, because the model package is shared by
+every system and `SceneModel` already names a `CanvasNetRender3D` subsystem. It depends on the `CanvasNet` system's
+`Canvas` (`Surface`, `Rgba32`), `Geometry`, `Drawing`, `Fonts`, and `Rendering` subsystems through their public API. See
+the Folder Layout section below and _CanvasNetVegaLite System Design_ (`canvas-net-vega-lite.md`).
 
 A further sibling top-level system, `CanvasNetViewer`, likewise lives in this same repository and is distributed as its
-own NuGet package (`DemaConsulting.CanvasNet.Viewer`). It aggregates the image sources of every format and is the library
-form of the `canvasnet` tool: its direct unit
-`CanvasNetViewer` (namespace `DemaConsulting.CanvasNet.Viewer`) lists the built-in sources (raster, SVG, PDF, PPTX,
-VSDX, OpenSCAD, and Vega-Lite), creates the `FolderImageResolver` of the core `ImageSources` subsystem for one render so
-that an SVG document can embed all of them, and renders any file as a picture; its direct unit `ViewerException` is the
-exception of every expected failure with the stable `ErrorCodes`; and its `Imaging` subsystem (namespace
-`DemaConsulting.CanvasNet.Viewer.Imaging`) holds the `SourceLoader`, `ImagePipeline`, `ImageWriter`, `ImageComparison`,
-`ContactSheet`, and `GridOverlay` units that turn files into
-pixels, transform pixels (grid, and the ordered operations over the core library's flip, pad, trim, tone, rotation, and
-skew operations), turn pixels into files, check the comparison of two
-images against thresholds, and compose a contact sheet, and the `ImageRenderer`, `ImageInspector`, `ImageComparer`, and
-`MontageBuilder` units that chain them into the render, inspect, compare, and montage operations. It references the core
-package and the
-`CanvasNetSvg`, `CanvasNetPdf`, `CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetScad`, `CanvasNetRender3D`, and
-`CanvasNetVegaLite` packages;
-only the tool references it. See the Folder Layout section below and _CanvasNetViewer System Design_
-(`canvas-net-viewer.md`).
+own NuGet package (`DemaConsulting.CanvasNet.Viewer`). It aggregates the image sources of every format and is the
+library form of the `canvasnet` tool: its direct unit `CanvasNetViewer` (namespace `DemaConsulting.CanvasNet.Viewer`)
+lists the built-in sources (raster, SVG, PDF, PPTX, VSDX, OpenSCAD, and Vega-Lite), creates the `FolderImageResolver` of
+the core `ImageSources` subsystem for one render so that an SVG document can embed all of them, and renders any file as
+a picture; its direct unit `ViewerException` is the exception of every expected failure with the stable `ErrorCodes`;
+and its `Imaging` subsystem (namespace `DemaConsulting.CanvasNet.Viewer.Imaging`) holds the `SourceLoader`,
+`ImagePipeline`, `ImageWriter`, `ImageComparison`, `ContactSheet`, and `GridOverlay` units that turn files into pixels,
+transform pixels (grid, and the ordered operations over the core library's flip, pad, trim, tone, rotation, and skew
+operations), turn pixels into files, check the comparison of two images against thresholds, and compose a contact sheet,
+and the `ImageRenderer`, `ImageInspector`, `ImageComparer`, and `MontageBuilder` units that chain them into the render,
+inspect, compare, and montage operations. It references the core package and the `CanvasNetSvg`, `CanvasNetPdf`,
+`CanvasNetPptx`, `CanvasNetVsdx`, `CanvasNetScad`, `CanvasNetRender3D`, and `CanvasNetVegaLite` packages; only the tool
+references it. See the Folder Layout section below and _CanvasNetViewer System Design_ (`canvas-net-viewer.md`).
 
 A final sibling top-level system, `CanvasNetTool`, likewise lives in this same repository and is distributed as
 its own dotnet tool package (`DemaConsulting.CanvasNet.Tool`, command `canvasnet`) rather than as a library.
@@ -1392,7 +1382,18 @@ src/DemaConsulting.CanvasNet.VegaLite/
 │   ├── EncodingTransforms.cs      — EncodingPlan: running the plan (with the impute stages), and the Raw and Main tables
 │   ├── EncodingTransforms.Facet.cs — EncodingPlan: the cells of a facet (ordered values, grid, partition of the rows)
 │   ├── TimeUnitTransform.cs       — TimeUnitTransform: the start and end of a time unit for every row
-│   └── TemporalFields.cs          — TimeUnitTransform: the fields that are read as dates
+│   ├── TemporalFields.cs          — TimeUnitTransform: the fields that are read as dates
+│   ├── StatTransforms.cs          — StatTransforms: Apply, the groups of Vega's partition, and the output table
+│   ├── StatTransforms.Regression.cs — StatTransforms: the regression transform
+│   ├── StatTransforms.Loess.cs    — StatTransforms: the loess transform
+│   ├── StatTransforms.Density.cs  — StatTransforms: the density transform
+│   ├── StatTransforms.Quantile.cs — StatTransforms: the quantile transform
+│   ├── StatTransforms.Extent.cs   — StatTransforms: the extent transform and its parameter
+│   ├── RegressionFit.cs           — StatTransforms: the regression models (linear, log, exp, pow, quad, poly)
+│   ├── CurveSampler.cs            — StatTransforms: the adaptive sampling of a curve
+│   ├── LoessFit.cs                — StatTransforms: the locally weighted regression
+│   ├── KernelDensity.cs           — StatTransforms: the Gaussian kernel density and Scott's rule
+│   └── StatisticsPrimitives.cs    — StatTransforms: number conversion, quantiles, deviation, extent, range length
 ├── Scales/                        — Scales subsystem (internal)
 │   ├── NamespaceDoc.cs            — Scales: namespace-level XML documentation
 │   ├── ScaleModel.cs              — ScaleModel: linear, transformed, band, point, ordinal, and color mappings
@@ -1575,8 +1576,8 @@ subsystem: requirements `docs/reqstream/canvas-net-vega-lite/layout/view-layout.
 `docs/verification/canvas-net-vega-lite/layout/view-layout.md`, source
 `src/DemaConsulting.CanvasNet.VegaLite/Layout/ViewLayout.cs`, tests
 `test/DemaConsulting.CanvasNet.VegaLite.Tests/Layout/ViewLayoutTests.cs`, and SysML2 model
-`docs/sysml2/model/canvas-net-vega-lite/layout/view-layout.sysml`. The direct unit `VegaLiteDocument` has no
-subsystem folder (`docs/design/canvas-net-vega-lite/vega-lite-document.md`), the system itself is
+`docs/sysml2/model/canvas-net-vega-lite/layout/view-layout.sysml`. The direct unit `VegaLiteDocument` has no subsystem
+folder (`docs/design/canvas-net-vega-lite/vega-lite-document.md`), the system itself is
 `docs/design/canvas-net-vega-lite.md` with `docs/sysml2/model/canvas-net-vega-lite.sysml`, and the original chart
 fixtures (including the data-file chart, its CSV, and the nested JSON rows) and their provenance record are in
 `test/DemaConsulting.CanvasNet.VegaLite.Tests/Fixtures/`. The two units added to the `Data` subsystem for local data
@@ -1586,8 +1587,7 @@ files follow the same pattern: for `DataFileResolver`, requirements
 `docs/verification/canvas-net-vega-lite/data/data-file-resolver.md`, source
 `src/DemaConsulting.CanvasNet.VegaLite/Data/DataFileResolver.cs` (with `DataFileResolver.Paths.cs`), tests
 `test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataFileResolverTests.cs` and `DataFileResolverLinkTests.cs` (with
-the
-helpers in `DataTestSupport.cs`), and SysML2 model
+the helpers in `DataTestSupport.cs`), and SysML2 model
 `docs/sysml2/model/canvas-net-vega-lite/data/data-file-resolver.sysml`; for `DelimitedTextParser`, the same paths with
 `delimited-text-parser`, `DelimitedTextParser.cs`, and `DelimitedTextParserTests.cs`. The two subsystems added for
 expressions and row transforms follow the same pattern with their own subsystem files: for the `Expressions` subsystem,
@@ -1598,8 +1598,7 @@ and SysML2 model `docs/sysml2/model/canvas-net-vega-lite/expressions.sysml`, and
 `src/DemaConsulting.CanvasNet.VegaLite/Expressions/ExpressionParser.cs` (with its partial files and
 `CompiledExpression.cs`), tests `test/DemaConsulting.CanvasNet.VegaLite.Tests/Expressions/ExpressionParserTests.cs`, and
 `expressions/expression-parser.sysml`; the `ExpressionEvaluator` and `ExpressionFunctions` units have the same paths
-with
-`expression-evaluator` and `expression-functions`. For the `Transforms` subsystem the files are `transforms.yaml`,
+with `expression-evaluator` and `expression-functions`. For the `Transforms` subsystem the files are `transforms.yaml`,
 `transforms.md`, and `transforms.sysml` and, for its `RowTransforms` unit, `transforms/row-transforms.*`, source
 `src/DemaConsulting.CanvasNet.VegaLite/Transforms/RowTransforms.cs` (with its partial files, `RowSampler.cs`,
 `TableLayout.cs`, `ParameterEnvironment.cs`, and `TransformContext.cs`), and tests
@@ -1612,8 +1611,7 @@ subsystem for aggregation follow the same pattern: for `AggregateTransforms`, re
 `src/DemaConsulting.CanvasNet.VegaLite/Transforms/AggregateTransforms.cs` (with its partial files,
 `AggregateMeasures.cs` and `AggregateMeasures.Cell.cs`, `BinAlgorithm.cs`, `StackRules.cs`, `WorkMeter.cs`, and
 `StableSorter.cs`), and tests `test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/AggregateTransformsTests.cs`
-(with
-the window, stack, impute, and joinaggregate test files, `AggregateMeasuresTests.cs`, `BinAlgorithmTests.cs`,
+(with the window, stack, impute, and joinaggregate test files, `AggregateMeasuresTests.cs`, `BinAlgorithmTests.cs`,
 `StackRulesTests.cs`, and `StableSorterTests.cs`); for `EncodingPlan`, the same paths with `encoding-plan`,
 `EncodingPlan.cs` and `EncodingTransforms.cs`, and `EncodingPlanTests.cs` and `EncodingTransformsTests.cs`. The units
 added for time follow the same pattern: for `TimeCalendar` in the `Data` subsystem, requirements
@@ -1624,17 +1622,19 @@ added for time follow the same pattern: for `TimeCalendar` in the `Data` subsyst
 `src/DemaConsulting.CanvasNet.VegaLite/Data/TimeCalendar.cs` (with `TimeCalendar.Zone.cs`, `TimeCalendar.Intervals.cs`,
 `TimeUnits.cs`, and `TimeDateObject.cs`), and tests
 `test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/TimeCalendarTests.cs` (with the zone, interval, epoch-day, time unit,
-and date-time object test files); for `TimeFormat`, the same paths with `time-format`, `TimeFormat.cs` (with its
-partial files and `JsDateParser.cs` and `JsDateParser.Legacy.cs`), and `TimeFormatTests.cs` (with the parse,
-multi-format, and `Date.parse` test files); for `TimeUnitTransform` in the `Transforms` subsystem, the same paths with
+and date-time object test files); for `TimeFormat`, the same paths with `time-format`, `TimeFormat.cs` (with its partial
+files and `JsDateParser.cs` and `JsDateParser.Legacy.cs`), and `TimeFormatTests.cs` (with the parse, multi-format, and
+`Date.parse` test files); for `TimeUnitTransform` in the `Transforms` subsystem, the same paths with
 `transforms/time-unit-transform`, `TimeUnitTransform.cs` and `TemporalFields.cs`, and `TimeUnitTransformTests.cs` and
-`TemporalFieldsTests.cs`; and for `TimeLabels` in the `Guides` subsystem, the same paths with `guides/time-labels`,
-`TimeLabels.cs` (the temporal legends are in `LegendBuilder.Time.cs`, a partial file of the `LegendBuilder` unit), and
-`TimeLabelsTests.cs`; for `LabelExpressions` in the `Guides` subsystem, the same paths with `guides/label-expressions`,
-`LabelExpressions.cs`, and `LabelExpressionsTests.cs` (with `AxisBuilderLabelExprTests.cs` and
-`LegendBuilderLabelExprTests.cs` for the guides that use it, and `LegendBuilderSelectionTests.cs` for the legend of a
-selection). The two units added for the line, area, trail, text, and
-arc marks follow the same pattern: for
+`TemporalFieldsTests.cs`; for `StatTransforms` in the `Transforms` subsystem, the same paths with
+`transforms/stat-transforms`, `StatTransforms*.cs` (with `RegressionFit.cs`, `CurveSampler.cs`, `LoessFit.cs`,
+`KernelDensity.cs`, and `StatisticsPrimitives.cs`), and `StatTransforms*Tests.cs` (with the test files of the numeric
+helpers and `StatTestSupport.cs`); and for `TimeLabels` in the `Guides` subsystem, the same paths with
+`guides/time-labels`, `TimeLabels.cs` (the temporal legends are in `LegendBuilder.Time.cs`, a partial file of the
+`LegendBuilder` unit), and `TimeLabelsTests.cs`; for `LabelExpressions` in the `Guides` subsystem, the same paths with
+`guides/label-expressions`, `LabelExpressions.cs`, and `LabelExpressionsTests.cs` (with `AxisBuilderLabelExprTests.cs`
+and `LegendBuilderLabelExprTests.cs` for the guides that use it, and `LegendBuilderSelectionTests.cs` for the legend of
+a selection). The two units added for the line, area, trail, text, and arc marks follow the same pattern: for
 `CurveBuilder` in the `Marks` subsystem, requirements `docs/reqstream/canvas-net-vega-lite/marks/curve-builder.yaml`,
 design `docs/design/canvas-net-vega-lite/marks/curve-builder.md`, verification
 `docs/verification/canvas-net-vega-lite/marks/curve-builder.md`, SysML2 model
@@ -1648,8 +1648,8 @@ unit (`MarkBuilder.Paths.cs`, `.Order.cs`, `.Overlays.cs`, `.Text.cs`, and `.Arc
 `MarkBuilderPathTests.cs`, `MarkBuilderOrderTests.cs`, `MarkBuilderOverlayTests.cs`, `MarkBuilderTextTests.cs`,
 `MarkBuilderArcTests.cs`, and `MarkBuilderPolarTextTests.cs`), and the painting of the segment paths, arcs, and trails
 is in `ScenePainter.Paths.cs`, a partial file of the `ScenePainter` unit (with `ScenePainterPathTests.cs`). The
-attribution
-record and license texts of the ported algorithms are in `src/DemaConsulting.CanvasNet.VegaLite/third-party/`.
+attribution record and license texts of the ported algorithms are in
+`src/DemaConsulting.CanvasNet.VegaLite/third-party/`.
 
 ## References
 

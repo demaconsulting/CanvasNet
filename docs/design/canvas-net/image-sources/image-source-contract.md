@@ -19,7 +19,9 @@ files, all `public`:
 - `ImageDiagnosticLocation.cs` - `ImageDiagnosticLocation` (sealed record): where in a file a note points
 - `ImageFragment.cs` - `ImageFragment` (sealed class) and `ImageFragmentParameter` (record struct): the parsed fragment
   of a link
-- `IFragmentImageSource.cs` - `IFragmentImageSource` (interface): the fragment parameters a source uses
+- `IFragmentImageSource.cs` - `IFragmentImageSource` (interface): the fragment parameters and prefixes a source uses
+- `ImageParameterValues.cs` - `ImageParameterValues` (static class): the value grammars of model variables and chart
+  parameters, and the reading of prefixed fragment parameters
 - `IImageSourceOptions.cs` - `IImageSourceOptions` (marker interface): caller-defined options of a direct render
 - `ImageSourceRefusedException.cs` - `ImageSourceRefusedException` (sealed class): a source declining a picture
 - `IImageResolver.cs` - `IImageResolver` (interface): what a renderer calls
@@ -40,7 +42,9 @@ so that the claims of every source are validated once, where the list is compose
 later source wins) is implemented in one place for every consumer.
 
 The unit's behavior is specified by the `CanvasNet-ImageSources-ImageSourceContract-*` requirements (`SourceClaims`,
-`Request`, `SizeRule`, `Result`, `FailureReporting`, `ImageFragment`, `Refusal`, and `DiagnosticDetail`) in
+`Request`, `SizeRule`, `Result`, `FailureReporting`, `ImageFragment`, `FragmentPrefix`, `ParameterValues`, `Refusal`,
+and
+`DiagnosticDetail`) in
 `docs/reqstream/canvas-net/image-sources/image-source-contract.yaml`.
 
 #### Data Model
@@ -72,7 +76,30 @@ is split at `&` and at the first `=` of each segment before it is percent-decode
 a `+`), so an encoded `%26` or `%3D` stays inside its name or value. `GetValue(names)` is the last value of any of the
 names (ASCII case-insensitive), and `GetPositiveInt32(names)` reads it as a whole number from 1 (ASCII digits only,
 leading zeros allowed). `Quote` (internal) shows untrusted text in a message with control characters replaced and a
-length limit. **`IFragmentImageSource`**: `FragmentParameters`, the lower-case names a source uses. **`IImageSourceOptions`**:
+length limit. `GetPrefixed(prefix)` returns the parameters whose name starts with the prefix (ASCII case-insensitive)
+and has at
+least one more character, with the prefix cut off the name (the rest as written, so `def.Width` is the name `Width`), in
+the order the names first appear and with the last value of a name; `HasPrefix` (internal) is the test the resolver
+shares.
+**`IFragmentImageSource`**: `FragmentParameters`, the lower-case names a source uses, and `FragmentParameterPrefixes`
+(a default interface member, empty), the lower-case prefixes of the parameters whose names the link author chooses
+(`def.`
+for the variables of a model, `param.` for the parameters of a chart); a parameter with a declared prefix is understood
+whatever follows it, so a source needs no list of names and its own names can never collide with them.
+**`ImageParameterValues`** (static): `TryParseVariable` reads the grammar of `-D` (`true` and `false`; a finite number
+as a
+`double`; a value that starts with `[` is refused; anything else is text with one pair of surrounding single or double
+quotes removed), `TryParseParameter` the grammar of `--param` (`true`, `false`, `null`, a finite number; text that
+starts
+with `{`, `[` or `"` is strict JSON read by `JsonDocument` with `MaxDepth` = 32 and converted to `List<object?>`,
+`Dictionary<string, object?>`, `string`, `double` and `bool`, at most `MaxValues` = 65,536 values and a finite number
+only; anything else is text with one pair of single quotes removed), neither throws (a bad value gives a one-line
+reason,
+without the position of a JSON failure), and `ReadVariables` and `ReadParameters` read every `GetPrefixed` parameter of
+a
+fragment with one of them, throwing `ImageSourceRefusedException` (`image-fragment-invalid`, naming the parameter with
+its
+prefix and quoting the value) for the first bad value. **`IImageSourceOptions`**:
 a marker with no member. **`ImageSourceRefusedException`**: a `Code` and a message; how a source says "not this
 picture".
 
@@ -85,7 +112,8 @@ picture".
 `Diagnostics` and `Echo` are copied into private `ReadOnlyCollection<T>` snapshots when they are assigned (null becomes
 empty), so changing the original list afterwards does not change the result and a cast cannot modify it; `with` keeps
 working.
-**`ImageSourceDiagnostic`**: `Source`, `Severity` (`Info`, `Warning`, `Unsupported`), `Code`, `Message`, and the optional
+**`ImageSourceDiagnostic`**: `Source`, `Severity` (`Info`, `Warning`, `Unsupported`), `Code`, `Message`, and the
+optional
 `Origin` (an `init` property, a list of strings, empty by default: the embedded files, outermost first, that the note is
 about, set by the resolver; a root-relative file name for a file link and the href as written for a scheme link), and
 the optional `Detail` (the finer identifier when `Code` is generic), `Location` (an `ImageDiagnosticLocation`: `File`,
@@ -146,7 +174,10 @@ pixel; `EnsureWithinBudget` throws `ImageSourceBudgetException` for a size over 
 negative maximum;
 `ImageSourceResult` rejects a null surface; `ImageFragment.Parse` never throws (a limit sets `Problem`), `GetValue`
 rejects null names, and `GetPositiveInt32` throws `ImageSourceRefusedException` (code `image-fragment-invalid`) for a
-value that is not a whole number from 1; `ImageSourceRefusedException` rejects an empty code and a null message. The
+value that is not a whole number from 1, and `GetPrefixed` rejects a null or empty prefix; `ImageParameterValues` never
+throws for a
+bad value, and its two readers refuse the link with `image-fragment-invalid`; `ImageSourceRefusedException` rejects an
+empty code and a null message. The
 unit throws nothing else and performs no I/O.
 
 #### Dependencies

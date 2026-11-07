@@ -1,8 +1,9 @@
 ## Transforms Subsystem Verification Design
 
 This document describes the subsystem-level verification strategy for the `Transforms` subsystem (internal namespace
-`DemaConsulting.CanvasNet.VegaLite.Transforms`). The subsystem contains five units: `RowTransforms`, which executes
-the row transforms of the drawn view (`calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot`, and `lookup`) over an
+`DemaConsulting.CanvasNet.VegaLite.Transforms`). The subsystem contains six units: `RowTransforms`, which executes
+the row transforms of the drawn view (`calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot` with every aggregate
+operation, and `lookup`) over an
 immutable `DataTable`, evaluates the static parameters of the root view, and samples deterministically;
 `SelectionModel`, which computes the initial state of the selection parameters (their projection, their stores of
 tuples, and their resolved values) that the predicates of the conditions and filters and the expressions read;
@@ -11,8 +12,9 @@ and `impute`) with their measure, bin, stack, and sort internals; `EncodingPlan`
 bin, time unit, aggregate, impute, and stack (cartesian or polar) that the encoding of the drawn view asks for, and the
 fields that group and order the rows of a path mark; and `TimeUnitTransform` (with the
 `TemporalFields` collector), which adds the start and the end of the time unit of a date to every row, for the
-`timeUnit` transform and for the time unit of a channel. The transforms of later phases (`regression`, `loess`,
-`density`, `quantile`, and `extent`) are added to this subsystem by later releases.
+`timeUnit` transform and for the time unit of a channel; and `StatTransforms` (with `RegressionFit`, `CurveSampler`,
+`LoessFit`, `KernelDensity`, and `StatisticsPrimitives`), which computes the statistical transforms `regression`,
+`loess`, `density`, `quantile`, and `extent`.
 
 ### Verification Approach
 
@@ -31,17 +33,22 @@ that follows groups by the start of the unit. The
 subsystem-level scenarios also verify the units working with the units around them: the real `SpecParser` compiles the
 expressions of the transforms and the parameters and validates the shape of every transform and of the aggregate, bin,
 stack, and sort properties of an encoding at the time the document is opened; the real `DataLoader` supplies the source
-table, the sources of the lookups, the file cache, the sandbox, and the one row budget of the call (the transforms and the
+table, the sources of the lookups, the file cache, the sandbox, and the one row budget of the call (the transforms and
+the
 implicit stage reserve and release rows through it); the real `ExpressionEvaluator` runs the expressions under the one
-step budget of the call, which the grouped engines charge as well; the real `ScaleResolver`, `MarkBuilder`, `AxisBuilder`,
+step budget of the call, which the grouped engines charge as well; the real `ScaleResolver`, `MarkBuilder`,
+`AxisBuilder`,
 `ViewLayout`, and `ScenePainter` use the transformed and the Raw table, so the scenarios assert on the pixels of a chart
 whose rows were filtered, calculated, reshaped, looked up, sampled, sorted, aggregated, binned, imputed, or stacked;
 and the real
 `FeatureCatalog` reports the parts that are not supported. The system-level scenarios of the explicit transforms use
-charts of 100 by 100 pixels without padding, axes, and title, in which the position of every mark is derived by hand from
+charts of 100 by 100 pixels without padding, axes, and title, in which the position of every mark is derived by hand
+from
 a scale domain of 0 to 10, so a dot is found by one pixel; the scenarios of the implicit pipeline use the fixtures
-`aggregate-bars`, `histogram`, `stacked-bars`, `binned-ranges`, and `window-cumulative`, in which the bars are derived by
-hand from the scale formulas. The time scenarios build every zone in the test (`TimeZoneInfo.CreateCustomTimeZone`, never
+`aggregate-bars`, `histogram`, `stacked-bars`, `binned-ranges`, and `window-cumulative`, in which the bars are derived
+by
+hand from the scale formulas. The time scenarios build every zone in the test (`TimeZoneInfo.CreateCustomTimeZone`,
+never
 `TimeZoneInfo.Local`), use the dates of 2024 whose day numbers are derived in the _TimeCalendar Unit Verification
 Design_, and assert on the start and the end of each unit, so the result of a time unit never depends on the host's
 zone, clock, or culture.
@@ -155,7 +162,8 @@ to the baseline constitutes a failure.
   `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Stacking_LayersAreStackedAndTheAxisReachesTheTotal`,
   `EncodingTransformsTests.EncodingTransforms_Apply_AggregatesPerCategoryInFirstSeenOrder`,
   `EncodingTransformsTests.EncodingTransforms_Apply_BinsAndCountsAHistogram`,
-  `EncodingTransformsTests.EncodingTransforms_Apply_StacksTheAggregatedLayersDescendingOnY` — the sums per region of five
+  `EncodingTransformsTests.EncodingTransforms_Apply_StacksTheAggregatedLayersDescendingOnY` — the sums per region of
+  five
   rows (north 7, south 6, east 2) become three bars with the categories sorted and the y domain 0 to 7; twelve weights
   binned with the step 5 give the counts 3, 2, 3, 1, 1, 1, 1 over the bins 0 to 35, and the stacked bars put the layers
   washers (0, 5), nuts (5, 7), and bolts (7, 10) for north with the axis reaching the total 10.
@@ -183,7 +191,8 @@ to the baseline constitutes a failure.
   with 0, so the layers meet there (`b` (0, 0), `a` (0, 2)) and the largest top is 8. In a chart of 300 by 200 pixels
   with the keys 1 to 3 over the width and the stack domain 0 to 2 (100 pixels a unit) the area of `b` has its top at
   pixels 100, 200, and 100 at x = 0, 150, and 300 and its baseline at 200, the area of `a` its top at 0, 100, and 0 and
-  its baseline at 100, 200, and 100, while with `impute: null` the area of `b` has only its two vertices; a line over the
+  its baseline at 100, 200, and 100, while with `impute: null` the area of `b` has only its two vertices; a line over
+  the
   keys 0 to 2 with the values 6 for `a` and 4 for `b` at 0 and 2 on the domain 0 to 6 (33.3333 pixels a unit) has `b`
   at the pixels 66.6667 at both ends, and with the impute value 0 it passes through (150, 200) at the key 1. The series
   of the paths are the fields that group the rows (the color, the detail, and the key).
@@ -238,7 +247,8 @@ to the baseline constitutes a failure.
 - **Measure Equals Render And Renders Are Byte-Identical**:
   `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Transforms_MeasureMatchesRenderAndRendersAreByteIdentical`
   — a chart through a flatten, a calculate with a parameter, a filter, a lookup, and a sample measures the size that it
-  renders, renders the same bytes from twelve concurrent tasks as on the calling thread, and differs from the chart whose
+  renders, renders the same bytes from twelve concurrent tasks as on the calling thread, and differs from the chart
+  whose
   sample takes every row, so the sample is not a no-op.
 - **Limits, Sandbox, And Cancellation Fail Closed**:
   `VegaLiteSystemIntegrationTests.CanvasNetVegaLite_SystemIntegration_Transforms_LimitsSandboxAndCancellationFailClosed`,
@@ -256,7 +266,8 @@ to the baseline constitutes a failure.
   rendering throw `OperationCanceledException` with no event delivered.
 - **Unsupported Parts Are Reported And Never Executed**:
   `FeatureCatalogTests.FeatureCatalog_Visit_SupportedPhase5TransformsAndParametersAreNotReported`,
-  `FeatureCatalogTests.FeatureCatalog_Visit_LaterPhaseTransformsConditionsAndSelectionsStayReported`,
+  `FeatureCatalogTests.FeatureCatalog_Visit_EveryTransformOfTheDrawnViewIsAcceptedWithoutAReport`,
+  `FeatureCatalogLayerTests.FeatureCatalog_Visit_StatisticalTransformsAreComputedAndNotReported`,
   `FeatureCatalogTests.FeatureCatalog_Visit_Phase6FeaturesAreNotReportedAndRemainingPartsAre`,
   `FeatureCatalogTests.FeatureCatalog_Visit_NestedViewAggregatingTransformsAreAppliedInConcatAndFacet`,
   `FeatureCatalogTests.FeatureCatalog_Visit_UnsupportedPartsOfSupportedTransformsAreReported`,
@@ -266,16 +277,26 @@ to the baseline constitutes a failure.
   `FeatureCatalogTimeTests.FeatureCatalog_Visit_MaxBinsTimeUnitIsReportedInPredicatesOnly`,
   `FeatureCatalogTimeTests.FeatureCatalog_Visit_WeekAndDayOfYearPartsOfPredicatesAreWarnings`,
   `FeatureCatalogTimeTests.FeatureCatalog_Visit_NestedTimeUnitTransformIsAppliedInConcatAndFacetAndRemovedIdsAreGone`,
-  `RowTransformsTests.RowTransforms_Apply_TransformsOfLaterPhasesAreSkipped`,
+  `RowTransformsTests.RowTransforms_Apply_StatisticalTransformReplacesTheTableAndTheNextTransformRuns`,
   `VegaLiteAggregationIntegrationTests.CanvasNetVegaLite_SystemIntegration_Aggregation_OnlyTheUnsupportedPartIsReported`,
   `VegaLiteTimeIntegrationTests.CanvasNetVegaLite_SystemIntegration_Time_StrictModeReportsBinnedTimeUnitAndRectBandPosition`,
-  `VegaLiteChartIntegrationTests.CanvasNetVegaLite_SystemIntegration_Deferred_FeaturesAreStillReported` — the six grouped
-  transforms and the `timeUnit` transform of the drawn view are computed and not reported, while the transforms of
-  later phases (`regression`, `loess`, `density`, `quantile`, and `extent`), the variable parameters of a nested view,
+  `VegaLiteChartIntegrationTests.CanvasNetVegaLite_SystemIntegration_Deferred_FeaturesAreStillReported` — every
+  transform of Vega-Lite (the row, grouped, `timeUnit`, and, since Phase 13, statistical transforms) of the drawn view
+  is computed and not reported (the identifiers `vl-transform-regression`, `-loess`, `-density`, `-quantile`, `-extent`,
+  and `vl-transform-pivot-op` are retired), while the variable parameters of a nested view,
   the animation selections and the other selection parts that are not modeled, the conditions on a channel that takes
   none, and the parts of the supported transforms that
-  are not computed (a pivot operation other than `sum` and `count`, a lookup in a parameter, a
-  bin extent that is a parameter, the `week` and `dayofyear` parts and the `maxbins` form of a time unit in a filter
+  are not computed (a lookup in a parameter, the `week` and `dayofyear` parts and the `maxbins` form of a time unit in a
+  filter
   predicate, and a binned time unit) are reported once each in document order, are skipped by the executor, and the
   chart is still drawn; a binned time unit next to the aggregate of the fixture is the one report, `vl-timeunit-binned`
   at `/encoding/x/timeUnit`, which strict mode turns into an exception.
+- **Statistical Transforms Compose With The Rest Of The Pipeline**:
+  `VegaLiteStatTransformsIntegrationTests.CanvasNetVegaLite_SystemIntegration_StatTransforms_RegressionLineIsDrawnAtTheScaledEndPoints`,
+  `VegaLiteStatTransformsIntegrationTests.CanvasNetVegaLite_SystemIntegration_StatTransforms_ExtentParameterFeedsTheFollowingTransforms`,
+  `VegaLiteStatTransformsIntegrationTests.CanvasNetVegaLite_SystemIntegration_StatTransforms_ExtentParameterSetsAScaleDomain`,
+  `VegaLiteStatTransformsIntegrationTests.CanvasNetVegaLite_SystemIntegration_StatTransforms_FacetCellsGetTheirOwnRegression`,
+  `VegaLiteStatTransformsIntegrationTests.CanvasNetVegaLite_SystemIntegration_StatTransforms_RenderDeterministicallyInStrictMode`
+  — the rows that a regression generates replace the table that the marks, scales, and the following transforms read; an
+  `extent` parameter feeds a following `calculate` and a scale domain; a facet gives every cell its own regression; and
+  the render is deterministic and silent in strict mode.

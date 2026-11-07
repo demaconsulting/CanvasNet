@@ -647,3 +647,54 @@ sections:
           - SourceLoader_Load_PageBeyondTheLast_IsStillPageOutOfRange
           - SourceLoader_FindOptionProblem_UnknownView_NamesTheViewAndListsTheViews
           - SourceLoader_MaxDpi_Is2400
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-ChartImages
+        title: >-
+          The SourceLoader class shall give the image marks of a Vega-Lite chart the sandboxed image resolver of the
+          viewer, rooted at the folder of the chart (or the resolver of the embedding document when the chart is
+          embedded), so that a url draws a raster, an SVG file, a model, a page of a document (report.pdf#page=2), or
+          another chart and never a file outside the folder or a remote resource, list each drawn file as an embed
+          operation and the echo of a model, report a link that was not drawn as the warning of the resolver
+          (svg-image-unresolved, svg-image-too-large, image-fragment-*, image-page-out-of-range) without the library's
+          duplicate warning for the same link, fail with unsupported-feature naming the chart and the link for such a
+          link when the strict option is set, name both files when a picture that is found cannot be loaded, report a
+          chart with more pictures than the limit as budget-exceeded, and measure a chart without loading any picture.
+        justification: |
+          A chart on the command line must show the files beside it exactly as an SVG diagram does, under the same
+          sandbox, notes, and strict policy, so a specification can never read a file outside its folder.
+        tests:
+          - SourceLoader_Load_VegaLiteImagePngAndScad_DrawsBothAndListsEmbedOperations
+          - SourceLoader_Load_VegaLiteImagePdfPage_DrawsTheChosenPage
+          - SourceLoader_Load_VegaLiteImageNestedChart_ResolvesFromItsFolder
+          - SourceLoader_Load_VegaLiteImageSelfCycle_IsUnresolved
+          - SourceLoader_Load_VegaLiteImageUnresolvedLink_IsOneWarningAndNothingIsDrawn
+          - SourceLoader_Load_VegaLiteImageStrict_UnresolvedLinkIsAnError
+          - SourceLoader_Load_VegaLiteImagePageOutOfRange_IsWarningThenStrictError
+          - SourceLoader_Load_VegaLiteImageBrokenFile_FailsWithItsCodeNamingBothFiles
+          - SourceLoader_Load_VegaLiteImageMoreThanTheLimit_IsBudgetExceeded
+          - SourceLoader_Load_SvgEmbeddingChartWithImage_DrawsTheChartsPicture
+          - SourceLoader_Probe_VegaLiteImageChart_ReadsTheSizeWithoutThePictures
+
+      - id: CanvasNetViewer-Imaging-SourceLoader-ChartParameters
+        title: >-
+          The SourceLoader class shall take the values of the parameters of a Vega-Lite chart from
+          SourceOptions.VegaLite
+          (ChartOptions: a dictionary of null, boolean, number, text, list and dictionary values, the shapes
+          VegaLiteRenderOptions.Parameters takes), check them before it touches any file (a value the library rejects is
+          a
+          ViewerException with the code usage-error), lay the chart out again with them before it works out the target
+          size, so that the natural size of the loaded source and the picture are those of the parameterized chart, list
+          them
+          in the params field of the render operation (in name order, the values as JSON), fail with vega-lite-error,
+          naming the parameter and listing the declared names, for a name the chart does not declare, report that name
+          as
+          the warning vl-param-unknown and draw the chart without it when ChartOptions.WarnOnUnknownParameters is set,
+          and ignore the options for every other kind.
+        justification: |
+          The command line, the library and a link must draw a parameterized chart the same way, and the page of a
+          chart whose layout follows a parameter must not be sized from the layout of its defaults.
+        tests:
+          - SourceLoader_Load_ChartOptions_AreAppliedAndReportedInTheOperation
+          - SourceLoader_Load_InvalidChartOptions_ThrowsUsageErrorBeforeTouchingTheFile
+          - CanvasNetViewer_Render_VegaLiteOptions_UnknownAndInvalid_AreRefused
+          - CanvasNetViewer_Render_ChartParamFragment_UnknownName_IsAWarningAndTheChartIsDrawn

@@ -157,8 +157,9 @@ sections:
           Vega-Lite schema) at the size the size options ask for (its laid-out natural size by default) over
           its own background, white by default, or the background color given, with no option of its own for a
           chart; shall read the local data files of a chart from the folder of its specification and below it
-          only, with no option for another data folder and no network access; shall describe what it drew (the
-          size, the time zone, and the background when given) in the
+          only, with no option for another data folder and no network access; shall set the parameters of a chart
+          only through the --param option (see the ChartParams requirement); shall describe what it drew (the
+          size, the time zone, the background when given, and the parameters when given) in the
           render operation and the natural size in the input of the result; shall report the warnings and
           unsupported features of the chart in the diagnostics of the result (and, without the JSON option, on
           standard error) and, with the strict switch, fail
@@ -180,6 +181,32 @@ sections:
           - RenderCommand_Run_VegaLiteWithPageTwoOrModelOption_Fails
           - RenderCommand_Run_VegaLiteLocalDataResolvesRelativeToSpecFolder
           - RenderCommand_Usage_NamesVegaLite
+
+      - id: CanvasNetTool-Commands-RenderCommand-ChartParams
+        title: >-
+          The render command, its verb commands and the inspect command shall accept the repeatable --param
+          name=value option for a Vega-Lite chart (read by ArgumentReader.ParseParams), replace the default
+          value of the parameter of that name in the specification with the value, lay the chart out again with the
+          values before the size options are applied (so the natural size of the result and the picture are those of the
+          parameterized chart), list the parameters in the params member of the render operation (in name order,
+          the values as JSON), fail with vega-lite-error, naming the parameter and listing the declared names, for a
+          name the specification does not declare, refuse the option for an input that is not a chart with a usage
+          error that names the kind, and keep the model options (-D) a usage error for a chart; shall describe the
+          option in the option table, the usage text and the vega-lite topic.
+        justification: |
+          A chart is parameterized (a threshold, the initial brush of a selection) without editing its file, and a
+          mistake in a name must be loud on a command line; a separate option keeps -D, whose grammar refuses
+          vectors, for the variables of a model.
+        tests:
+          - RenderCommand_Run_ParamScalar_SetsTheParameterAndTheNaturalSize
+          - RenderCommand_Run_ParamSelectionAndRepeat_TakeJsonAndLastWins
+          - RenderCommand_Run_ParamUnknownName_IsVegaLiteErrorListingTheDeclaredNames
+          - RenderCommand_Run_ParamErrors_AreReported
+          - RenderCommand_Run_ParamOnAnotherKind_ThrowsUsageError
+          - RenderCommand_Run_DefineOnAChart_StaysAUsageError
+          - ToolHost_Invoke_ParamOnVerbAndInspect_IsAccepted
+          - RenderCommand_OptionTable_DeclaresParam
+          - RenderCommand_Usage_MentionsParamAndItsExampleRuns
 
       - id: CanvasNetTool-Commands-RenderCommand-Source
         title: >-

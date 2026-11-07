@@ -750,7 +750,8 @@ sections:
           - id: CanvasNetScad-ScadDocument-ImageSource
             title: >-
               The Scad package shall provide an image source for .scad files (claiming that extension and no URI
-              scheme) that parses the model from the bytes of the request, resolves its include and use
+              scheme, and declaring no fragment parameter other than the def. prefix of the ImageSourceDefines
+              requirement) that parses the model from the bytes of the request, resolves its include and use
               directives against the folder of the request (a missing file is a scad-warning note, and a request
               without a folder fails a model that uses include or use with ScadEvaluationException), draws it
               from the view the library chooses for the model (the fitted isometric view for a model with 3D
@@ -780,6 +781,26 @@ sections:
               - ScadImageSource_Render_InvalidInput_Throws
               - ScadImageSource_Properties_NameExtensionAndNoSchemes
               - ScadImageSource_Render_ModelWithAnchors_DrawsTheSamePictureAndEchoesTheDeclaration
+
+          - id: CanvasNetScad-ScadDocument-ImageSourceDefines
+            title: >-
+              The Scad image source shall declare the prefix def. through IFragmentImageSource (and no parameter
+              name), read every def.name=value of the fragment of the request as ImageParameterValues reads a model
+              variable (a number, a boolean, or text with one pair of quotes removed; a vector is refused) and set
+              the variables through ScadEvaluationOptions.Variables exactly like the definitions of the command line
+              (the assignments of the model are replaced, the name is created when the model has none, and the last
+              value of a name wins), compare names as written, and refuse the request with ImageSourceRefusedException
+              and the code image-fragment-invalid, before anything is charged, for a value that is not usable or a
+              name the evaluator does not accept.
+            justification: |
+              A linked model is parameterized from its link with the same values and the same result as -D of the
+              command line, and the prefix keeps a variable from colliding with a built-in name.
+            tests:
+              - ScadImageSource_FragmentParameterPrefixes_DeclaresDef
+              - ScadImageSource_Render_DefineFragment_OverridesTheAssignment
+              - ScadImageSource_Render_DefineFragment_LastWinsAndValuesAreTyped
+              - ScadImageSource_Render_InvalidDefine_IsRefusedBeforeCharging
+              - FolderImageResolver_Resolve_ScadDefineLink_IsUnderstoodAndOthersAreUnknown
 
           - id: CanvasNetScad-ScadDocument-Anchors
             title: >-

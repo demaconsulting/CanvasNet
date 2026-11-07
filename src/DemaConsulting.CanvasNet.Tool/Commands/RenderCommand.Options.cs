@@ -17,7 +17,8 @@ internal sealed partial class RenderCommand
     ///     Source options (<c>--page</c>, <c>--all-pages</c>, <c>--dpi</c>, <c>--scale</c>, <c>--width</c>, <c>--height</c>,
     ///     <c>--size</c>, <c>--background</c>, <c>--no-auto-orient</c>, <c>--strict</c>) come first, then the options of
     ///     an OpenSCAD model (<c>--view</c>, <c>--azimuth</c>, <c>--elevation</c>, <c>--projection</c>, <c>--define</c>,
-    ///     <c>--time</c>, <c>--default-color</c>, <c>--max-triangles</c>), then the image pipeline
+    ///     <c>--time</c>, <c>--default-color</c>, <c>--max-triangles</c>), then the option of a Vega-Lite chart (<c>--param</c>),
+    ///     then the image pipeline
     ///     (<c>--crop</c>, <c>--resize</c>, <c>--fit</c>, <c>--allow-upscale</c>, <c>--rotate</c>, <c>--rotate-fill</c>,
     ///     <c>--flip</c>, <c>--pad</c>, <c>--pad-color</c>, <c>--grayscale</c>, <c>--invert</c>, <c>--threshold</c>,
     ///     <c>--levels</c>, <c>--brightness</c>, <c>--contrast</c>, <c>--auto-levels</c>, <c>--auto-levels-clip</c>,
@@ -45,6 +46,7 @@ internal sealed partial class RenderCommand
         new("--time", [], true, "SCAD model: the value of $t, the animation time (default 0)", "T"),
         new("--default-color", [], true, "SCAD model: the color of surfaces the model does not color (default gray)", "color"),
         new("--max-triangles", [], true, "SCAD model: the most triangles the model may produce (default 5000000)", "N"),
+        new("--param", [], true, "Vega-Lite chart: set a parameter, for example --param cutoff=50 or --param brush={\"x\":[2,6]} (repeatable)", "name=value"),
         new(ImagePipelineParser.CropOption, [], true, "Crop to a rectangle x,y,w,h or WxH+X+Y, each value in pixels or percent (repeatable; operations run in the order written)", "geometry"),
         new(ImagePipelineParser.ResizeOption, [], true, "Resample to exactly this size, for example 800x600", "WxH"),
         new(ImagePipelineParser.FitOption, [], true, "Shrink to fit inside this box, keeping the aspect ratio (an image that already fits is unchanged)", "WxH"),
@@ -219,8 +221,29 @@ internal sealed partial class RenderCommand
             Filter = reader.Get(ImagePipelineParser.FilterOption) is { } filterText
                 ? ImagePipelineParser.ParseFilter(filterText, ImagePipelineParser.FilterOption)
                 : ResamplingMode.Auto,
-            Scad = ReadScadOptions(reader)
+            Scad = ReadScadOptions(reader),
+            VegaLite = ReadChartOptions(reader)
         };
+    }
+
+    /// <summary>
+    ///     The options that only apply to a Vega-Lite chart.
+    /// </summary>
+    internal static readonly string[] ChartOptionNames = ["--param"];
+
+    /// <summary>
+    ///     Reads the options that apply to a Vega-Lite chart.
+    /// </summary>
+    /// <param name="reader">The parsed arguments of a command that declares <c>--param</c>.</param>
+    /// <returns>The chart options, or <see langword="null"/> when no chart option was given.</returns>
+    /// <exception cref="ToolException">Thrown with code <c>usage-error</c> when a parameter is not <c>name=value</c> or its value is malformed JSON.</exception>
+    internal static ChartOptions? ReadChartOptions(ArgumentReader reader)
+    {
+        ArgumentNullException.ThrowIfNull(reader);
+
+        return ChartOptionNames.Any(reader.Has)
+            ? new ChartOptions { Parameters = ArgumentReader.ParseParams(reader.GetAll("--param")) }
+            : null;
     }
 
     /// <summary>
