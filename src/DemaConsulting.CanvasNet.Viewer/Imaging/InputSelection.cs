@@ -174,10 +174,15 @@ public sealed record InputSelection
     /// <returns>The exception to throw.</returns>
     private static ViewerException Invalid(InputReference input, string reason)
     {
-        var shown = new string([.. input.Text.Take(120).Select(c => char.IsControl(c) ? '?' : c)]);
+        // Show the file name and the fragment, each capped, so a long folder never hides the fragment that is wrong
+        static string Shown(string text, int limit) =>
+            new([.. text.Take(limit).Select(c => char.IsControl(c) ? '?' : c), .. text.Length > limit ? "..." : string.Empty]);
+
+        var file = Shown(System.IO.Path.GetFileName(input.Path), 80);
+        var fragment = Shown(input.Fragment, 200);
         return new ViewerException(
             ErrorCodes.ImageFragmentInvalid,
-            $"The fragment of the input '{shown}' cannot be used: {reason}",
+            $"The fragment '#{fragment}' of the input '{file}' cannot be used: {reason}",
             "A fragment is name=value parameters joined by &, as in an SVG link: page=3, view=top, def.width=20, param.cutoff=5. Quote the input in a shell so that & is not read as a command separator.");
     }
 
