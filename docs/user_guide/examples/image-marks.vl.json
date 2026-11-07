@@ -1,0 +1,18 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "description": "An image mark: an SVG picture and an OpenSCAD model, placed by the data and read from the folder of the chart.",
+  "width": 300,
+  "height": 160,
+  "title": "Pictures as marks",
+  "data": {"values": [
+    {"x": 1, "y": 2, "src": "swatch.svg"},
+    {"x": 2, "y": 4, "src": "swatch.svg"},
+    {"x": 3, "y": 3, "src": "bracket.scad"}
+  ]},
+  "mark": {"type": "image", "width": 48, "height": 48, "aspect": true},
+  "encoding": {
+    "x": {"field": "x", "type": "quantitative", "scale": {"domain": [0, 4]}},
+    "y": {"field": "y", "type": "quantitative", "scale": {"domain": [0, 5]}},
+    "url": {"field": "src", "type": "nominal"}
+  }
+}

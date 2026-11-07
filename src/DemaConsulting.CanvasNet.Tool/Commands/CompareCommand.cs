@@ -68,14 +68,17 @@ internal sealed partial class CompareCommand : ICommand
         + "--diff, --side-by-side, and --overlay write pictures of the differences. --threshold makes the command fail" + Environment.NewLine
         + "with exit code 1 (after writing the result and the pictures) when a metric is not within its limit." + Environment.NewLine
         + "--page, --dpi, and the SCAD options apply to both inputs; --a-page, --b-page, --a-dpi, --b-dpi, --a-view," + Environment.NewLine
-        + "--b-view, --a-define, and --b-define apply to one input and win." + Environment.NewLine
+        + "--b-view, --a-define, and --b-define apply to one input and win. Either input may end in a fragment" + Environment.NewLine
+        + "(a.scad#view=top&def.width=20, report.pdf#page=2; quote it in a shell), which wins over all of them for that" + Environment.NewLine
+        + "input." + Environment.NewLine
         + Environment.NewLine
         + "Examples:" + Environment.NewLine
         + "  canvasnet compare reference.png redraw.png" + Environment.NewLine
         + "  canvasnet compare reference.png redraw.svg --resize-to a --diff diff.png" + Environment.NewLine
         + "  canvasnet compare reference.png redraw.svg --resize-to a --grid 4x4 --side-by-side cmp.png --threshold ssim=0.9 --json" + Environment.NewLine
         + "  canvasnet compare deck.pptx deck.pdf --a-page 2 --b-page 2 --resize-to a --overlay blend.png" + Environment.NewLine
-        + "  canvasnet compare sketch.jpg model.scad --b-view front --resize-to a --overlay blend.png";
+        + "  canvasnet compare sketch.jpg model.scad --b-view front --resize-to a --overlay blend.png" + Environment.NewLine
+        + "  canvasnet compare \"a.scad#view=top\" \"b.scad#view=top\" --diff diff.png";
 
     /// <inheritdoc />
     public void Run(Context context, IReadOnlyList<string> args)
@@ -87,8 +90,8 @@ internal sealed partial class CompareCommand : ICommand
         var settings = ReadSettings(reader);
 
         // Report every mistake about the inputs and the outputs before any pixels are decoded
-        var infoA = SourceLoader.Probe(settings.A.Path);
-        var infoB = SourceLoader.Probe(settings.B.Path);
+        var infoA = SourceLoader.Probe(InputReference.Parse(settings.A.Path));
+        var infoB = SourceLoader.Probe(InputReference.Parse(settings.B.Path));
         RequireSharedScadOptionsApply(settings, infoA, infoB);
         var optionsA = PrepareSide(settings, settings.A, infoA, out var pageA);
         var optionsB = PrepareSide(settings, settings.B, infoB, out var pageB);
@@ -191,8 +194,9 @@ internal sealed partial class CompareCommand : ICommand
         RequireKind(side.Page != null || side.Dpi != null, info.Format.IsDocument(), $"--{side.Label}-page and --{side.Label}-dpi", "a document (PDF, PPTX, or VSDX)", side, kind);
         RequireKind(side.View != null || side.Defines.Count > 0, info.Format.IsModel(), $"--{side.Label}-view and --{side.Label}-define", "an OpenSCAD model", side, kind);
 
-        // Shared options are skipped for an input they do not concern
-        page = info.Format.IsDocument() ? side.Page ?? settings.Page ?? 1 : 1;
+        // Shared options are skipped for an input they do not concern; a page that the fragment of the input names wins
+        // over --a-page, --b-page, and --page
+        page = info.Format.IsDocument() ? info.Selection?.Page ?? side.Page ?? settings.Page ?? 1 : 1;
         try
         {
             SourceLoader.CheckPage(info, page);
@@ -358,10 +362,10 @@ internal sealed partial class CompareCommand : ICommand
     ///     Names an input in the text result.
     /// </summary>
     /// <param name="side">The input.</param>
-    /// <returns>The path as given, followed by <c>page N</c> for a document.</returns>
+    /// <returns>The input as written (the path, and <c>#</c> and the fragment when it has one), followed by <c>page N</c> for a document.</returns>
     private static string Describe(CompareSide side)
     {
-        return side.Info.Format.IsDocument() ? $"{side.Info.Path} page {side.Page}" : side.Info.Path;
+        return side.Info.Format.IsDocument() ? $"{side.Info.Specifier} page {side.Page}" : side.Info.Specifier;
     }
 
     /// <summary>
@@ -554,6 +558,11 @@ internal sealed partial class CompareCommand : ICommand
     {
         writer.WriteStartObject(name);
         writer.WriteString("path", side.Info.Path);
+        if (side.Info.Selection is { } selection)
+        {
+            writer.WriteString("fragment", selection.Fragment);
+        }
+
         writer.WriteString("format", side.Info.Format.ToFormatName());
         if (side.Info.Format.IsDocument())
         {

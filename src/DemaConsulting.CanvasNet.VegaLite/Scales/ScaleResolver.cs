@@ -1059,7 +1059,7 @@ internal static partial class ScaleResolver
     }
 
     /// <summary>
-    ///     Tells whether Vega-Lite draws a channel for a mark (its <c>supportMark</c>): <c>text</c> only on <c>text</c>, <c>theta</c> and <c>radius</c> on <c>arc</c> and <c>text</c> (<c>theta2</c> and
+    ///     Tells whether Vega-Lite draws a channel for a mark (its <c>supportMark</c>): <c>text</c> only on <c>text</c>, <c>url</c> only on <c>image</c>, <c>theta</c> and <c>radius</c> on <c>arc</c> and <c>text</c> (<c>theta2</c> and
     ///     <c>radius2</c> on <c>arc</c>), <c>shape</c> only on <c>point</c>, <c>angle</c> on <c>point</c>, <c>circle</c>, <c>square</c> and <c>text</c> (a circle looks the same turned),
     ///     <c>strokeDash</c> on every mark but <c>rect</c>, <c>area</c>, <c>trail</c>, <c>text</c> and <c>arc</c>, and <c>size</c> on every mark but <c>rect</c>, <c>area</c>, <c>arc</c> and <c>image</c>; the
     ///     other channels on every mark (a <c>size</c> on a mark without sizes has no range, which the scale builders check too).
@@ -1074,6 +1074,7 @@ internal static partial class ScaleResolver
         "text" => markType == "text",
         "shape" => markType == "point",
         "angle" => markType is "point" or "circle" or "square" or "text",
+        "url" => markType == "image",
         "strokeDash" => markType is not ("rect" or "area" or "trail" or "text" or "arc"),
         "size" => markType is not ("rect" or "area" or "arc" or "image"),
         _ => true,

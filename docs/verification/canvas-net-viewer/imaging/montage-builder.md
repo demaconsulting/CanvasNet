@@ -51,3 +51,7 @@ written.
 **MontageBuilder_Execute_NullInfoElement_ThrowsArgumentNullException**: a request without the output, the sheet options,
 or the write options throws `ArgumentNullException` that names the member; a missing input in the list throws it for
 `infos` with the position; nothing is written.
+
+**Operations_InputWithPageFragment_UseThePageAndTheLabel** (`InputSelectionTests.cs`): the montage of `source.pdf#page=2`
+and `source.pdf` has the labels `source.pdf#page=2` (no page number after it) and `source.pdf p1`, and the pages 2 and
+1; a fragment page is the one cell of its input.

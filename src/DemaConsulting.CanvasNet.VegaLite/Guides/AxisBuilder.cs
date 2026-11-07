@@ -40,7 +40,8 @@ internal sealed record AxisRequest(string Channel, SpecNode? ChannelDef, Resolve
 /// <param name="Position">The position along the axis in pixels of the data rectangle, rounded like the tick mark (<c>tickRound</c>).</param>
 /// <param name="Label">The label text before truncation; empty labels are not drawn.</param>
 /// <param name="Lines">The lines of a multi-line label (a label expression that gave an array), or null for the single line of <paramref name="Label"/>.</param>
-internal sealed record AxisTick(DataValue Value, double Position, string Label, IReadOnlyList<string>? Lines = null);
+/// <param name="IsExtra">Whether the tick is the extra tick of <c>tickExtra</c> or <c>tickBand: "extent"</c>: it has a tick mark and a grid line but no label.</param>
+internal sealed record AxisTick(DataValue Value, double Position, string Label, IReadOnlyList<string>? Lines = null, bool IsExtra = false);
 
 /// <summary>
 ///     The axis of one channel: its scene groups, how far it reaches and the ticks it has.
@@ -114,9 +115,9 @@ internal sealed record AxisResult(SceneGroup Group, SceneGroup? Grid, SceneBound
 ///         text the label would have, <c>datum.index</c> the position among the ticks as a fraction from 0 to 1 (Vega's) and <c>datum.tickIndex</c> the position as a whole number.
 ///     </para>
 ///     <para>
-///         <b>Not drawn.</b> <c>labelBound</c>, <c>tickBand</c>, <c>tickExtra</c>, <c>position</c>, <c>translate</c>,
-///         <c>bandPosition</c>, <c>titleX</c>, <c>titleY</c>, label and axis <c>encode</c> and custom format types
-///         (the feature catalog reports them); a <c>values</c> array that is not made of numbers, strings or booleans is ignored (dates only for a time axis). The
+///         <b>Not drawn.</b> Label and axis <c>encode</c> and custom format types (the feature catalog reports them). <c>labelBound</c> (only with a label overlap method, as vega's Overlap transform),
+///         <c>tickBand</c>, <c>tickExtra</c>, <c>bandPosition</c>, <c>translate</c>, <c>position</c>, <c>titleX</c> and <c>titleY</c> are drawn (Phase 13; <c>translate</c> does not shift the bar bins of
+///         the mark builder). A <c>values</c> array that is not made of numbers, strings or booleans is ignored (dates only for a time axis). The
 ///         class belongs to one call and one thread (its label expressions run on the evaluator of the call).
 ///     </para>
 /// </remarks>
@@ -321,16 +322,19 @@ internal sealed class AxisBuilder
             itemCount++;
         }
 
-        // The group origin: the data rectangle edge plus the offset, shifted by the half pixel of Vega's translate
+        // The group origin: the data rectangle edge plus the offset, shifted by Vega's translate (half a pixel by default; the axis group's x and y are the position and the offset plus
+        // the translate, axisLayout in vega-view-transforms), and along the axis by its position
         var offset = settings.Number("offset") ?? 0;
+        var position = settings.Number("position") ?? 0;
+        var translate = settings.Number("translate") ?? Translate;
         var (originX, originY) = layout.Orient switch
         {
-            "top" => (0.0, -offset),
-            "left" => (-offset, 0.0),
-            "right" => (layout.Request.DataWidth + offset, 0.0),
-            _ => (0.0, layout.Request.DataHeight + offset),
+            "top" => (position, -offset),
+            "left" => (-offset, position),
+            "right" => (layout.Request.DataWidth + offset, position),
+            _ => (position, layout.Request.DataHeight + offset),
         };
-        var grid = parts.Grid.Count > 0 ? new SceneGroup("axis-grid-group", originX + Translate, originY + Translate) { Children = parts.Grid } : null;
+        var grid = parts.Grid.Count > 0 ? new SceneGroup("axis-grid-group", originX + translate, originY + translate) { Children = parts.Grid } : null;
 
         // An axis in the header or footer of a facet is a child of a group that has no size across the axis (Vega-Lite gives the header the size of the cell along the axis only), so the
         // far sides sit at 0 instead of at the far edge of the data rectangle; the grid stays where it was, in the cell
@@ -338,14 +342,14 @@ internal sealed class AxisBuilder
         {
             (originX, originY) = layout.Orient switch
             {
-                "top" => (0.0, -offset),
-                "left" => (-offset, 0.0),
-                "right" => (offset, 0.0),
-                _ => (0.0, offset),
+                "top" => (position, -offset),
+                "left" => (-offset, position),
+                "right" => (offset, position),
+                _ => (position, offset),
             };
         }
 
-        var group = new SceneGroup("axis", originX + Translate, originY + Translate) { Children = children };
+        var group = new SceneGroup("axis", originX + translate, originY + translate) { Children = children };
         return new AxisResult(group, grid, bounds.Translate(originX, originY), layout.Orient, ticks, itemCount, layout.InFront, layout.Request.InHeader);
     }
 
@@ -419,9 +423,10 @@ internal sealed class AxisBuilder
 
         var formatLocation = (axis?["format"] ?? axis ?? request.ChannelDef)?.GetLocation(_sourceName) ?? location;
         var values = axis?["values"] is { IsArray: true } valuesNode ? valuesNode.Items : null;
-        var tickOffset = settings.Number("tickOffset") ?? 0;
+        var tickBand = TickBand.Resolve(settings);
+        var tickOffset = tickBand.Offset;
         var round = settings.Bool("tickRound") ?? true;
-        var bandShift = (model.Bandwidth * (settings.Number("bandPosition") ?? 0.5)) + tickOffset;
+        var bandShift = (model.Bandwidth * tickBand.Band) + tickOffset;
         var timeLabels = TimeLabelsOf(request, settings, formatLocation, location);
         List<AxisTick> ticks;
         if (model.Kind is ScaleKind.Time or ScaleKind.Utc)
@@ -442,7 +447,15 @@ internal sealed class AxisBuilder
             throw new VegaLiteRenderException($"The axis has {ticks.Count} ticks, more than VegaLiteLimits.MaxTicks ({_maxTicks}).", location);
         }
 
-        return settings.Bool("labels") == false ? ticks : ApplyLabelExpression(ticks, axis, settings, location, cancellationToken);
+        var labeled = settings.Bool("labels") == false ? ticks : ApplyLabelExpression(ticks, axis, settings, location, cancellationToken);
+
+        // An extra tick is pegged to the first domain value (the start of its band), without the band shift, and has no label (Vega's AxisTicks with extra)
+        if (tickBand.Extra && tickBand.Band.CompareTo(0) != 0 && labeled.Count > 0 && model.Map(labeled[0].Value) is { } first)
+        {
+            labeled.Add(new AxisTick(labeled[0].Value, Place(first + tickOffset, round), string.Empty, IsExtra: true));
+        }
+
+        return labeled;
     }
 
     /// <summary>
@@ -948,7 +961,7 @@ internal sealed class AxisBuilder
         var s = layout.Settings;
         var model = layout.Model;
         var distance = (layout.ShowTicks ? layout.TickSize : 0) + (s.Number("labelPadding") ?? 0);
-        var labelOffset = (s.Number("labelOffset") ?? 0) + (s.Number("tickOffset") ?? 0);
+        var labelOffset = (s.Number("labelOffset") ?? 0) + TickBand.Resolve(s).Offset;
         var flush = layout.FlushThreshold;
         var flushOffset = s.Number("labelFlushOffset") ?? 0;
         var angle = layout.LabelAngle;
@@ -959,6 +972,10 @@ internal sealed class AxisBuilder
         foreach (var tick in layout.TickList)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (tick.IsExtra)
+            {
+                continue;
+            }
 
             // Labels use the unrounded position of the band center, plus the tick offset and the label offset
             var start = model.Map(tick.Value) ?? tick.Position;
@@ -993,9 +1010,48 @@ internal sealed class AxisBuilder
         }
 
         var hidden = LabelOverlap.Hidden(visible, _measurer, layout.Overlap, s.Number("labelSeparation") ?? 0, cancellationToken);
+        HideOutOfBounds(layout, visible, hidden, cancellationToken);
         List<SceneItem> shown = [.. items.Where(i => !hidden.Contains(i))];
         budget.Add(shown.Count, location);
         return shown;
+    }
+
+    /// <summary>
+    ///     Hides the labels that stick out of the range of the axis (<c>labelBound</c>).
+    /// </summary>
+    /// <remarks>
+    ///     Source: <c>vega-parser/src/parsers/guides/axis-labels.js</c> (<c>labelBound</c> true is a tolerance of 1 pixel, a number is the tolerance, a falsy value is none) and
+    ///     <c>vega-view-transforms/src/Overlap.js</c>: the test runs only when the labels have an overlap method (without one the transform returns before it), skips a label whose
+    ///     box is not larger than 1 pixel in both directions, and hides a label whose box is not enclosed by the range along the axis grown by the tolerance. A negative tolerance tests nothing.
+    /// </remarks>
+    /// <param name="layout">The axis layout facts.</param>
+    /// <param name="labels">The labels that have text, in axis order.</param>
+    /// <param name="hidden">The set of hidden labels, which grows by the labels that are out of bounds.</param>
+    /// <param name="cancellationToken">The token that stops the work.</param>
+    private void HideOutOfBounds(Layout layout, List<SceneText> labels, HashSet<SceneText> hidden, CancellationToken cancellationToken)
+    {
+        if (layout.Overlap is null || layout.LabelBound is not { } tolerance || !(tolerance >= 0))
+        {
+            return;
+        }
+
+        var low = Math.Min(layout.Model.RangeStart, layout.Model.RangeEnd) - tolerance;
+        var high = Math.Max(layout.Model.RangeStart, layout.Model.RangeEnd) + tolerance;
+        foreach (var label in labels)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var box = _measurer.GetBounds(label);
+            if (box.Width <= 1 || box.Height <= 1)
+            {
+                continue;
+            }
+
+            var (start, end) = layout.IsX ? (box.X1, box.X2) : (box.Y1, box.Y2);
+            if (!(low <= start && end <= high))
+            {
+                hidden.Add(label);
+            }
+        }
     }
 
     /// <summary>
@@ -1157,7 +1213,11 @@ internal sealed class AxisBuilder
         {
             defaultBaseline = "top";
         }
-        return new SceneText("axis-title", layout.IsX ? along : distance, layout.IsX ? distance : along, lines)
+
+        // titleX and titleY place the title in the pixels of the axis group (vega-parser's axis-title: the value replaces the position along the anchor, or the distance from the axis)
+        var titleX = s.Number("titleX") ?? (layout.IsX ? along : distance);
+        var titleY = s.Number("titleY") ?? (layout.IsX ? distance : along);
+        return new SceneText("axis-title", titleX, titleY, lines)
         {
             Fill = s.Text("titleColor") ?? s.StyleText("guide-title", "fill"),
             FillOpacity = s.Number("titleOpacity") ?? 1,
@@ -1171,6 +1231,39 @@ internal sealed class AxisBuilder
             Angle = s.Number("titleAngle") ?? defaultAngle,
             Baseline = s.Text("titleBaseline") ?? defaultBaseline,
         };
+    }
+
+    /// <summary>
+    ///     Where the ticks and grid lines of an axis sit inside the bands of its scale (<c>tickBand</c>, <c>bandPosition</c>, <c>tickExtra</c>, <c>tickOffset</c>).
+    /// </summary>
+    /// <remarks>
+    ///     Source: <c>vega-parser/src/parsers/guides/guide-util.js</c> <c>tickBand</c>: without <c>tickBand</c> the band is the <c>bandPosition</c> (0.5 by default) and the extra tick is
+    ///     <c>tickExtra</c>; <c>"extent"</c> is the end of the band (1), with an extra tick and no offset; any other value is the middle (0.5) with no extra tick and the offset of the axis.
+    ///     The labels stay in the middle of the band (<c>axis-labels.js</c> uses a band of 0.5) and take the offset that this resolves.
+    /// </remarks>
+    /// <param name="Band">The fraction of the bandwidth that is added to the position of a band.</param>
+    /// <param name="Extra">Whether an extra tick is added for the start of the first band.</param>
+    /// <param name="Offset">The offset of the ticks in pixels.</param>
+    private readonly record struct TickBand(double Band, bool Extra, double Offset)
+    {
+        /// <summary>
+        ///     Resolves the settings.
+        /// </summary>
+        /// <param name="settings">The axis settings.</param>
+        /// <returns>The band position, the extra tick and the offset.</returns>
+        public static TickBand Resolve(Settings settings)
+        {
+            var offset = settings.Number("tickOffset") ?? 0;
+            var band = settings.Property("tickBand");
+            if (band is null or { Kind: ConfigNodeKind.Null } or { Kind: ConfigNodeKind.Boolean, BoolValue: false } or { Kind: ConfigNodeKind.String, StringValue: "" })
+            {
+                return new TickBand(settings.Number("bandPosition") ?? 0.5, settings.Bool("tickExtra") ?? false, offset);
+            }
+
+            return band is { Kind: ConfigNodeKind.String, StringValue: "extent" }
+                ? new TickBand(1, true, 0)
+                : new TickBand(0.5, false, offset);
+        }
     }
 
     /// <summary>
@@ -1215,6 +1308,12 @@ internal sealed class AxisBuilder
             LabelBaseline = settings.ExplicitOrVl("labelBaseline")?.AsString() ?? (angle is { } vb ? DefaultLabelBaseline(vb, orient, isX) : null);
             FlushThreshold = ResolveFlush(settings, request.Channel, request.Scale.DataType);
             Overlap = ResolveOverlap(settings, isDiscreteType, request.Model.Transform.Kind == ScaleTransformKind.Log, request.Scale.TimeUnit is not null && request.ChannelDef?["sort"] is not { IsObject: true });
+            LabelBound = settings.Property("labelBound") switch
+            {
+                { Kind: ConfigNodeKind.Boolean, BoolValue: true } => 1.0,
+                { Kind: ConfigNodeKind.Number } node when node.NumberValue.CompareTo(0) != 0 => node.NumberValue,
+                _ => null,
+            };
 
             // Vega-Lite draws the axes of a rect mark with a discrete channel in front of it, all others behind the marks
             var defaultZindex = request.MarkType == "rect" && isDiscreteType ? 1 : 0;
@@ -1274,6 +1373,11 @@ internal sealed class AxisBuilder
 
         /// <summary>Gets the overlap removal method (<c>parity</c> or <c>greedy</c>), or null for none.</summary>
         public string? Overlap { get; }
+
+        /// <summary>
+        ///     Gets the tolerance of <c>labelBound</c> in pixels (true is 1; a number is itself), or null when labels are not bound (false, 0 and no value).
+        /// </summary>
+        public double? LabelBound { get; }
 
         /// <summary>
         ///     Normalizes an angle to the range from 0 up to 360.
@@ -1443,6 +1547,13 @@ internal sealed class AxisBuilder
         /// <param name="name">The property.</param>
         /// <returns>The value, or null.</returns>
         public ConfigNode? ExplicitOrVl(string name) => Explicit(name) ?? VlConfig(name);
+
+        /// <summary>
+        ///     Reads a property with the full precedence as a node.
+        /// </summary>
+        /// <param name="name">The property.</param>
+        /// <returns>The value, or null.</returns>
+        public ConfigNode? Property(string name) => Effective(name);
 
         /// <summary>
         ///     Reads a number property with the full precedence (axis, configuration, Vega defaults).

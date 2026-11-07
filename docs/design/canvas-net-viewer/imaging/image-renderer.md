@@ -44,6 +44,12 @@ with `ImageWriter.Stage`, and maps the anchors with `ImagePipeline.MapAnchors`. 
 the outputs published together with `ImageWriter.PublishAll`; the staged files that were not published are removed
 in every case. The input is never modified.
 
+**Input fragment.** When the facts carry a `SourceInfo.Selection` (an input path with a fragment, from
+`SourceLoader.Probe(InputReference)`), `Execute` renders the page the selection names instead of
+`request.Source.Page`, and only that page even when `AllPages` is set (the request is copied with `AllPages` false and
+the page set, so the targets are planned for one page); the model variables, view and chart parameters of the selection
+are applied by `SourceLoader.OpenPages`. The warnings of the fragment come with the first page.
+
 #### Error Handling
 
 Every expected failure is a `ViewerException`: `page-out-of-range`, `usage-error` (format, one output for several pages,

@@ -77,3 +77,7 @@ and `b` and sizes of 0, and `ResizeTarget.To(width, height)` is the target with 
 **ImageComparer_Execute_ResizeHelper_BringsInputsToTheNamedSize**: for each helper (the size of the first input, the
 size of the second input, and an explicit size) two inputs of different sizes are compared at the size the helper names,
 and both sides report that size.
+
+**ImageComparer_Execute_InputWithPageFragment_ComparesThatPage** (`InputSelectionTests.cs`): the input
+`source.pdf#page=2` (with the default page of its `CompareInput`) reports page 2 and is identical to the same document
+compared with `Page = 2`.

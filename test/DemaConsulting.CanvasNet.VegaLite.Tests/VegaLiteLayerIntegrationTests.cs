@@ -783,7 +783,7 @@ public class VegaLiteLayerIntegrationTests
     }
 
     /// <summary>
-    ///     Validates that the transform of a view in a concatenation and that of a view in a facet are applied and not reported, and that a transform of a later phase in a layer of a
+    ///     Validates that the transform of a view in a concatenation and that of a view in a facet are applied and not reported, and that a lookup in a parameter in a layer of a
     ///     facet is reported as not supported yet (the retired text that named the composition is never produced).
     /// </summary>
     [Fact]
@@ -804,7 +804,7 @@ public class VegaLiteLayerIntegrationTests
         const string later = """
             {
               "facet": { "field": "f", "type": "nominal" },
-              "spec": { "layer": [ { "mark": "bar", "transform": [ { "regression": "v", "on": "x" } ] } ] }
+              "spec": { "layer": [ { "mark": "bar", "transform": [ { "lookup": "v", "from": { "param": "p" } } ] } ] }
             }
             """;
 
@@ -813,10 +813,10 @@ public class VegaLiteLayerIntegrationTests
         var (_, applied) = Report(facet);
         var (_, laterUnsupported) = Report(later);
 
-        // Assert: nothing is unsupported for the concatenation and the facet; the regression keeps its ordinary message
+        // Assert: nothing is unsupported for the concatenation and the facet; the lookup in a parameter keeps its ordinary message
         Assert.Empty(drawn);
         Assert.Empty(applied);
-        Assert.Equal(["vl-transform-regression: The 'regression' transform is not supported yet."], laterUnsupported);
+        Assert.Equal(["vl-transform-lookup-param: A lookup in the data of a parameter is not supported yet; the transform is not applied."], laterUnsupported);
     }
 
     /// <summary>

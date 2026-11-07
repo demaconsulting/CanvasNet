@@ -19,7 +19,7 @@
       "title": "Fields of render, convert, and the verbs",
       "items": [
         { "term": "tool", "text": "{name, version} of the tool." },
-        { "term": "input", "text": "{path, format, natural: {width, height}}, and for a document pageCount and page." },
+        { "term": "input", "text": "{path, format, natural: {width, height}}, and for a document pageCount and page; and fragment, the text after the # of an input path such as part.scad#def.width=20 (path is then the file; the member is absent for an input without a fragment). The same member is in the a and b of compare and in each cell of montage." },
         { "term": "operations", "text": "Every step that was applied, in order; each has an op key (render, embed, auto-orient, resize, fit, flatten, crop, rotate, flip, pad, and the photo operations) and its own fields. With --all-pages every operation also carries its page. The verbs are crop, resize, rotate, flip, and pad." },
         { "term": "outputs", "text": "One entry per file written: {path, format, width, height, bytes} and page for a document." },
         { "term": "diagnostics", "text": "The features that were left out of the picture; see the diagnostics section below." },

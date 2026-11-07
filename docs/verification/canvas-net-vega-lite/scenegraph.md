@@ -1,10 +1,11 @@
 ## Scenegraph Subsystem Verification Design
 
 This document describes the subsystem-level verification strategy for the `Scenegraph` subsystem (internal namespace
-`DemaConsulting.CanvasNet.VegaLite.Scenegraph`), containing four units: `SceneModel` (the immutable scene records, the
+`DemaConsulting.CanvasNet.VegaLite.Scenegraph`), containing five units: `SceneModel` (the immutable scene records, the
 bounds helper, and the scene budget), `ScenePainter` (the scene to `Surface` painter), `ArcGeometry` (the outline of an
-arc mark, with the d3-path emulation that the trail painter shares), and `CssPaint` (the chart paint rules on top of the
-core `CssColor` parser).
+arc mark, with the d3-path emulation that the trail painter shares), `CssPaint` (the chart paint rules on top of the
+core `CssColor` parser), and `SymbolPathParser` (the parser, drawing, and bounds of the SVG path data of a custom symbol
+shape).
 
 ### Verification Approach
 
@@ -41,7 +42,7 @@ access.
 ### Acceptance Criteria
 
 The `Scenegraph` subsystem's verification passes when every subsystem-level scenario below and every unit-level scenario
-in the four unit verification documents passes without error or unexpected exception.
+in the five unit verification documents passes without error or unexpected exception.
 
 ### Test Scenarios
 
@@ -74,6 +75,12 @@ in the four unit verification documents passes without error or unexpected excep
   `SceneModelTests.SceneModel_ArcAndTrail_ExposeTheirGeometryAndCopyLists` — segment paths, arc items, and trail items
   built from model records are drawn along their curves, as the wedge and the hole of the `ArcGeometry` outline, and with
   a width that follows the sizes of the trail points; the outline of an arc has the area of the sector formula.
+- **Custom Symbol Paths Are Drawn At The Symbol Radius**:
+  `SymbolPathParserTests.SymbolPathParser_Render_ScalesTheCoordinatesByTheRadius`,
+  `SymbolPathParserTests.ScenePainter_SymbolPath_DrawsCustomPathsAndFallsBackToACircle`,
+  `VegaLiteChartIntegrationTests.CanvasNetVegaLite_SystemIntegration_CustomPathShapeIsDrawnAtTheSymbolRadius` — the
+  path data of a `shape` is scaled by the radius `sqrt(size) / 2` and drawn by the painter, the legend takes the bounds
+  of the drawing, and a path that does not parse is a circle.
 - **The Stroke Miter Limit Reaches The Stroker**:
   `SceneModelTests.SceneModel_StrokeMiterLimit_DefaultsToNullAndSurvivesWith`,
   `ScenePainterPathTests.ScenePainter_Paint_StrokeMiterLimitBevelsASharpJoin` — the limit that the model carries (none

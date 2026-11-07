@@ -55,3 +55,15 @@ sections:
           the pages together or none keeps the result trustworthy.
         tests:
           - ImageRenderer_Execute_OperationFails_LeavesNothingBehind
+
+      - id: CanvasNetViewer-Imaging-ImageRenderer-InputFragment
+        title: >-
+          The ImageRenderer class shall render the one page that the fragment of the input names (the Selection of the
+          facts, from SourceLoader.Probe of an InputReference) instead of the page of the options, and shall render
+          only that page even when every page was asked for.
+        justification: |
+          A page in the name of the input (report.pdf#page=3) is more specific than the options of the command that
+          renders it, and a list of such inputs must each give the page it names.
+        tests:
+          - Operations_InputWithPageFragment_UseThePageAndTheLabel
+          - InputFragment_RenderAndVerb_PageFragment_ChoosesThePage

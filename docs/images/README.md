@@ -1,6 +1,14 @@
 # Documentation Images
 
-This folder holds the images used by the project README.
+This folder holds the images used by the project README and the tool user guide.
+
+## montage-explode.png
+
+`montage-explode.png` (888x366) is the picture of the `canvasnet montage` example of the tool user guide: the
+OpenSCAD assembly `showcase/explode.scad` (original, authored for this repository, MIT) three times, at the explode
+levels 0, 0.5 and 1, chosen by the fragment of each input path (`explode.scad#def.explode=0.5`). A fixed camera
+(`-D '$vpd=360' -D '$vpt=[0,0,50]'`) gives every cell one scale, so the plate is as large in all three cells; without
+it each cell would be fitted to its own geometry. `render-images.ps1` draws and checks it like `showcase.png`.
 
 ## showcase.png
 

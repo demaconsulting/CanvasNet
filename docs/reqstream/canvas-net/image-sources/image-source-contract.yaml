@@ -140,6 +140,74 @@ sections:
                   - ImageFragment_Parameters_AreReadOnly
                   - ImageSourceRequest_Fragment_DefaultsToEmptyAndNoOptions
 
+              - id: CanvasNet-ImageSources-ImageSourceContract-FragmentPrefix
+                title: >-
+                  The ImageFragment class shall return, from GetPrefixed, the parameters whose name starts with a prefix
+                  (matched ignoring ASCII case) and has at least one character after it, with the prefix removed from
+                  the name and the rest of the name kept as written, in the order the names first appear and with the
+                  last value of a name, and none for an empty fragment or a fragment with a problem and an argument
+                  exception for a missing or empty prefix; and an IFragmentImageSource shall be able to declare, through
+                  FragmentParameterPrefixes (empty by default, so a source written before it declares none), the
+                  prefixes of the parameters it understands whatever follows them.
+                justification: |
+                  The variables of a model and the parameters of a chart are named by the author of the link, so a
+                  source
+                  cannot list them; a prefix keeps them from colliding with the names the source defines itself.
+                tests:
+                  - ImageFragment_GetPrefixed_ReturnsNamesWithoutPrefixInOrder
+                  - ImageFragment_GetPrefixed_DuplicateName_LastValueWinsAtFirstPosition
+                  - ImageFragment_GetPrefixed_EmptyFragmentOrBadPrefix
+                  - IFragmentImageSource_FragmentParameterPrefixes_DefaultsToNone
+
+              - id: CanvasNet-ImageSources-ImageSourceContract-ParameterValues
+                title: >-
+                  The ImageParameterValues class shall read the value of a model variable (true and false, a finite
+                  number as a double, a value that starts with an opening bracket as a vector, a strict JSON array of
+                  numbers, booleans, null, text and vectors that is refused when it is not valid JSON or holds an
+                  object, anything else as text with
+                  one pair of single or double quotes removed) and the value of a chart parameter (true, false, null, a
+                  finite number, text that starts with a brace, a bracket or a double quote as strict JSON into plain
+                  lists, dictionaries, strings, numbers and booleans, nested at most 32 levels and holding at most
+                  65,536
+                  values, anything else as text with one pair of single quotes removed) without throwing for a bad
+                  value (it says why, in one line), and shall read every prefixed parameter of a fragment with either
+                  grammar, refusing the link with an ImageSourceRefusedException that carries the code
+                  image-fragment-invalid, names the parameter and shows the value for a value that is not usable.
+                justification: |
+                  The command line (-D, --param), the library and the fragment of a link must read one text the same
+                  way, so an embedded model or chart is drawn exactly as the command line would draw it, and the
+                  viewport variables of a model ($vpt and $vpr are vectors) can be fixed from either.
+                tests:
+                  - ImageParameterValues_TryParseVariable_ReadsTheGrammarOfDashD
+                  - ImageParameterValues_TryParseVariable_Vector_IsAListOfValues
+                  - ImageParameterValues_TryParseVariable_BadVector_IsRefused
+                  - ImageParameterValues_TryParseParameter_ReadsScalarsAndText
+                  - ImageParameterValues_TryParseParameter_Null_IsNull
+                  - ImageParameterValues_TryParseParameter_JsonObjectAndArray_BecomePlainValues
+                  - ImageParameterValues_TryParseParameter_BadJson_IsRefusedWithAReason
+                  - ImageParameterValues_TryParseParameter_Limits
+                  - ImageParameterValues_ReadVariables_ReadsPrefixedValues
+                  - ImageParameterValues_ReadVariables_BadVector_IsRefusedAsInvalidFragment
+                  - ImageParameterValues_ReadVariables_Vector_IsReadAsAList
+                  - ImageParameterValues_ReadParameters_ReadsJsonAndRefusesMalformedValues
+
+              - id: CanvasNet-ImageSources-ImageSourceContract-FragmentReview
+                title: >-
+                  The ImageFragment class shall review its parameters against the declaration of an image source
+                  (ReviewParameters), giving a note with the code image-fragment-unknown-parameter for a parameter the
+                  source does not declare (neither by name nor by prefix), once for each name in the order of first
+                  appearance, and a note with the code image-fragment-duplicate-parameter for a declared parameter that
+                  is given more than once with different values (the last value is the one used; aliases are never
+                  duplicates of each other, and what follows a prefix is compared as written), naming the subject, the
+                  link and the parameter in the message, and shall give none for an empty fragment; the
+                  FolderImageResolver shall report exactly these notes for the links of a document.
+                justification: |
+                  The links of an SVG document and the input paths of the command line share one rule for what a
+                  fragment may contain, so the same mistake has the same code and the same message in both.
+                tests:
+                  - ImageFragment_ReviewParameters_ReportsUnknownAndDuplicateParametersOnce
+                  - ImageFragment_ReviewParameters_SourceWithoutDeclaration_ReportsEveryParameter
+
               - id: CanvasNet-ImageSources-ImageSourceContract-Refusal
                 title: >-
                   The ImageSourceRefusedException class shall carry a non-empty code and a message and reject a

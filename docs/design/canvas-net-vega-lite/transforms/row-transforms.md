@@ -5,13 +5,15 @@
 The `RowTransforms` unit is the first software unit in the `Transforms` subsystem. It comprises nine source files in the
 `DemaConsulting.CanvasNet.VegaLite.Transforms` namespace, all `internal`:
 
-- `RowTransforms.cs` - `RowTransforms` (sealed partial class): the `Apply` entry point, the run loop, `calculate`, `filter`
+- `RowTransforms.cs` - `RowTransforms` (sealed partial class): the `Apply` entry point, the run loop, `calculate`,
+  `filter`
   (the row selection), and the warning helpers
 - `RowTransforms.Predicates.cs` - the predicates of `filter`
 - `RowTransforms.Shape.cs` - `fold`, `flatten`, `sample`, and `pivot`
 - `RowTransforms.Lookup.cs` - `lookup`
 - `RowSampler.cs` - the deterministic reservoir sampler
-- `TableLayout.cs` - `TableLayout` (the field layout and size bounds of a derived table) and `FieldReader` (the reader that
+- `TableLayout.cs` - `TableLayout` (the field layout and size bounds of a derived table) and `FieldReader` (the reader
+  that
   rebuilds arrays and objects from flattened fields)
 - `ParameterEnvironment.cs` - `ParameterEnvironment` (the static parameter values) and `SpecValues` (JSON value to
   `DataValue`)
@@ -23,8 +25,9 @@ The `RowTransforms` unit is the first software unit in the `Transforms` subsyste
 #### Purpose
 
 `RowTransforms` produces the rows a chart draws from the rows it loaded: it applies the supported row transforms of the
-`transform` array in order (handing the six aggregating transforms to the _AggregateTransforms_ unit and the `timeUnit`
-transform to the `TimeUnitTransform` unit) and computes the
+`transform` array in order (handing the six aggregating transforms to the _AggregateTransforms_ unit, the `timeUnit`
+transform to the `TimeUnitTransform` unit, and the five statistical transforms to the _StatTransforms_ unit) and
+computes the
 values of the static variable parameters. It exists
 so that the semantics of each
 transform (what a row, a missing value, a repeated key, or an empty array means), the
@@ -37,37 +40,50 @@ The unit's behavior is specified by the `CanvasNetVegaLite-Transforms-RowTransfo
 
 #### Data Model
 
-An instance of `RowTransforms` serves **one call on one thread**: it holds the `TransformContext` (the `SpecTree` with its
+An instance of `RowTransforms` serves **one call on one thread**: it holds the `TransformContext` (the `SpecTree` with
+its
 compiled expressions, the `DataLoader` of the call, the `ExpressionEvaluator`, the parameter values, the limits, the
-cancellation token, and the list that receives the warnings). Tables are immutable `DataTable` values; a derived table is
+cancellation token, and the list that receives the warnings). Tables are immutable `DataTable` values; a derived table
+is
 built with `DataTable.FromSortedCells` over a `TableLayout`.
 
-**Table layout.** A table keeps its fields in ordinal order, so a layout fixes where every surviving input field and every
-added field goes. An added field replaces an input field of the same name **and the fields nested below it** (adding `tags`
-removes `tags.0` and `tags.1`, as a property of a row object is replaced as a whole). The names an `as` property gives are
-**literal** (a dot is part of the name, escaped in the canonical field name), and `flatten` without `as` uses the canonical
+**Table layout.** A table keeps its fields in ordinal order, so a layout fixes where every surviving input field and
+every
+added field goes. An added field replaces an input field of the same name **and the fields nested below it** (adding
+`tags`
+removes `tags.0` and `tags.1`, as a property of a row object is replaced as a whole). The names an `as` property gives
+are
+**literal** (a dot is part of the name, escaped in the canonical field name), and `flatten` without `as` uses the
+canonical
 path of the field. The field count is checked against `MaxFieldCount` and the cell count against 2^25 before anything is
 allocated. `FieldReader` reads a field of a row: the cell of that exact name when it holds a value, otherwise an array
 rebuilt from `name.0`, `name.1`, ... (trailing nulls are dropped because a missing element and a null one are the same
-cell; a null cell whose elements are all null stays null) or an object rebuilt from the fields below, otherwise null. The
+cell; a null cell whose elements are all null stays null) or an object rebuilt from the fields below, otherwise null.
+The
 rebuilding is the `FlatRowNode` tree of the data unit, which the expression evaluator shares for `datum`.
 
-**The transforms** (in the order of the `transform` array; an entry that names a transform that the renderer does not
-compute is skipped, and `aggregate`, `joinaggregate`, `window`, `bin`, `stack`, and `impute` are computed by
-`AggregateTransforms`, which `Run` calls with the same `TransformContext`, see _AggregateTransforms_; `timeUnit` is
+**The transforms** (in the order of the `transform` array; an entry whose operation the parser does not know is skipped,
+`aggregate`, `joinaggregate`, `window`, `bin`, `stack`, and `impute` are computed by
+`AggregateTransforms`, and `regression`, `loess`, `density`, `quantile`, and `extent` by `StatTransforms`, which `Run`
+calls with the same `TransformContext`, see _AggregateTransforms_ and _StatTransforms_; `timeUnit` is
 dispatched to `TimeUnitTransform`, see below):
 
-- **`calculate`** - `calculate` (the expression) and `as` (a non-empty text). The expression is evaluated once per row with
+- **`calculate`** - `calculate` (the expression) and `as` (a non-empty text). The expression is evaluated once per row
+  with
   `datum` bound to the row; the result of any kind (scalar, array, object) is stored in `as`, replacing a field of that
   name. A regular expression result cannot be stored: the cell is null and one `vl-expr-runtime` warning per transform
   names the count and the first row index.
-- **`filter`** - an expression text (the row is kept when the result is truthy, by JavaScript truthiness) or a predicate:
+- **`filter`** - an expression text (the row is kept when the result is truthy, by JavaScript truthiness) or a
+  predicate:
   `equal` (strict equality), `lt`, `lte`, `gt`, `gte` (JavaScript relational comparison, so `null < 3` is true), `range`
   (an array of two values, inclusive; a null bound is open; reversed bounds are swapped),
   `oneOf` (strict equality with any
-  member), and `valid` (`true` keeps the rows whose value is neither null nor NaN, `false` the others), each on a `field`;
-  composed with `and`, `or`, and `not` to the nesting depth the parser accepts; and `param`, the truthiness of a variable
-  parameter (every row passes or none) or the selection test of a selection parameter. A predicate on a selection parameter
+  member), and `valid` (`true` keeps the rows whose value is neither null nor NaN, `false` the others), each on a
+  `field`;
+  composed with `and`, `or`, and `not` to the nesting depth the parser accepts; and `param`, the truthiness of a
+  variable
+  parameter (every row passes or none) or the selection test of a selection parameter. A predicate on a selection
+  parameter
   (`param`) or a legacy `selection` is compiled by `PredicateSource` to the text of Vega-Lite
   (`!length(data("name_store")) ||
   vlSelectionTest("name_store", datum)`, with the `empty` and `resolve` properties), and `BuildFieldPredicate` finds the
@@ -77,54 +93,80 @@ dispatched to `TimeUnitTransform`, see below):
   expression engine**: `SpecParser` compiled the expression that `PredicateSource` writes for it (see _SpecParser Unit
   Design_) and stored it under the predicate object, and `BuildFieldPredicate` finds it with
   `Tree.Expressions.Get(node)` and returns an `ExpressionPredicate` over the evaluator of the call, so its meaning
-  depends on the calendar of the chart (a month of a date is the month in the render zone; a `utc` unit reads UTC), it is
+  depends on the calendar of the chart (a month of a date is the month in the render zone; a `utc` unit reads UTC), it
+  is
   charged to the step budget like any expression, and a limit it exceeds is a `VegaLiteRenderException` located at the
   predicate. It can be nested in `and`, `or`, and `not` like any other predicate leaf. The remaining native
   fallback (a constant `true` predicate) is only for an object value that the parser could not write as an expression.
   A native predicate (plain values, `valid`) is charged to the evaluation step budget of the call, through the context
   of the evaluator
   that the expressions share: every tested field costs one step; a comparison of two texts (`equal`, `oneOf`, and the
-  ordering operators alike) charges the shorter length per 64 characters; the members of `oneOf` are charged once per row
+  ordering operators alike) charges the shorter length per 64 characters; the members of `oneOf` are charged once per
+  row
   per 64 members, so `and`, `or`, and `oneOf` cannot multiply the size of the specification by the number of rows for
   free; and reading a field that the table stores flattened (an array or an object rebuilt from its fields) charges four
   units per field below it, as the evaluator does for a datum. A step or string limit that a predicate exceeds is a
   `VegaLiteRenderException` located at the `filter` value.
-- **`fold`** - an array of field names and an optional `as` of one or two names (`key` and `value` by default): every row
+- **`fold`** - an array of field names and an optional `as` of one or two names (`key` and `value` by default): every
+  row
   becomes one row per folded field, in the order of the rows and then of the fields, with the field name as written in
   `as[0]` and the cell in `as[1]` (null for a field the table lacks). The folded fields stay in the rows.
-- **`flatten`** - an array of field names and an optional `as` with at most as many names: every row becomes as many rows
-  as its longest array; the arrays of several fields expand **in parallel** (shorter ones padded with null), a scalar counts
+- **`flatten`** - an array of field names and an optional `as` with at most as many names: every row becomes as many
+  rows
+  as its longest array; the arrays of several fields expand **in parallel** (shorter ones padded with null), a scalar
+  counts
   as an array of one value, null, a missing field, and an empty array as none, and a row whose fields are all empty
   produces no row. The element goes to `as[i]` (default the field itself).
 - **`sample`** - a number of rows to keep (a non-negative number). See _RowSampler_ below.
 - **`pivot`** - the pivot field, `value`, optional `groupby`, `limit`, and `op`. Rows are grouped by the `groupby`
   values in first-seen order; the columns are the distinct pivot values as text (the JavaScript text of
   `ExpressionEvaluator.ToJsString`, bounded by `MaxStringLength`: a longer text, such as that of an array value, is a
-  located failure before the column is created) in ordinal order, at most `limit` of them (the first ones) when given. The
-  `limit` is applied **before** the field bound: while the rows are read, only the smallest `limit` distinct texts are kept
+  located failure before the column is created) in ordinal order, at most `limit` of them (the first ones) when given.
+  The
+  `limit` is applied **before** the field bound: while the rows are read, only the smallest `limit` distinct texts are
+  kept
   (a larger one is counted as cut and dropped), so the working set never exceeds `limit` texts, and `MaxFieldCount` is
   enforced on the columns that would be output (the group fields plus the kept texts). A pivot with many distinct values
   and a small `limit` therefore succeeds with exactly `limit` columns; a located failure is raised only when the kept
   columns would exceed the bound, that is for a pivot without a `limit` (the safety net), or with a `limit` above the
-  bound, and more distinct values than the bound allows. A cell is the sum of the valid quantitative `value`s of the group
-  (booleans and numeric text count as numbers) for `op`
-  `sum` (the default) or the number of rows for `count`; a combination without rows is 0. The result has only the group
-  fields and the pivot columns. Rows whose pivot value is null are skipped, a `limit` that cuts columns off, and a pivot
-  value that equals a group field name each give one `vl-transform-runtime` warning. An `op` other than `sum` and
-  `count` is reported (`vl-transform-pivot-op`) and sum is used. The text of every group value and of every pivot value
+  bound, and more distinct values than the bound allows. A cell is the **aggregate operation** `op` (any operation of
+  `AggregateMeasures`; default `sum`) of the `value`s of the rows of the group that carry the pivot value, computed by
+  the
+  `MeasureCell` of the aggregating transforms with Vega's pivot semantics: Vega's `pivot` feeds an aggregate operator
+  per cell with the field `value` read only on the rows of the cell's pivot value, so `count` is the number of rows
+  of the cell whose `value` is not NaN (null and the empty text count), `valid` and `missing` follow, a cell without
+  rows
+  is `null` for the operations that need a value (`sum`, `mean`, `min`, `max`, `median`, and so on) and 0 for the
+  counts,
+  `distinct` counts the other column's rows of the group as one more value (Vega feeds a non-matching row as NaN),
+  `values` is the array of all the rows of the group (every column's rows, as in Vega), a text that is not a number
+  poisons
+  `sum` and `mean` with NaN, and `exponential` and `exponentialb` (which need a weight) give NaN. The state of all cells
+  (`cells x StateCells`) is bounded by `TableLayout.MaxCells` and checked before it is allocated. The result has only
+  the
+  group fields and the pivot columns. Rows whose pivot value is null are skipped, a `limit` that cuts columns off, and a
+  pivot value that equals a group field name each give one `vl-transform-runtime` warning. An `op` that is not an
+  aggregate
+  operation is a specification error (`SpecParser`; the diagnostic `vl-transform-pivot-op` is retired and never produced
+  again). The text of every group value and of every pivot value
   is charged to the step budget (one step per 64 characters, located at the transform), because hashing and sorting walk
   it.
-- **`lookup`** - the field to look up, and `from` with `data` (a data object loaded by the **loader of the call**: inline
-  values, a named dataset, a local file, or a sequence), `key`, and optional `fields`; plus `as` and `default`. The secondary
-  rows are indexed by the **text** of the key (so `1` matches `"1"`); null and composite keys never match; for a repeated
+- **`lookup`** - the field to look up, and `from` with `data` (a data object loaded by the **loader of the call**:
+  inline
+  values, a named dataset, a local file, or a sequence), `key`, and optional `fields`; plus `as` and `default`. The
+  secondary
+  rows are indexed by the **text** of the key (so `1` matches `"1"`); null and composite keys never match; for a
+  repeated
   key **the first row wins** (a deliberate deviation from Vega, which keeps the last). With
   `fields`, field `i` is copied to
-  `as[i]` (default the canonical name of the field); without `fields`, the whole matching row goes into the one field `as`
+  `as[i]` (default the canonical name of the field); without `fields`, the whole matching row goes into the one field
+  `as`
   (`data` by default) as an object. An array or object that a field copies is rebuilt from the flattened fields of the
   secondary row **once per secondary row and copied field** and shared (composites are immutable) by every output row
   that matches that row, so the memory of the copied values is bounded by the secondary rows and fields and not by the
   output rows. A row without a match gets `default` (a JSON scalar; null by default). `from.param`
-  (the data of a selection) is not applied and is reported (`vl-transform-lookup-param`; the stores of the selections are
+  (the data of a selection) is not applied and is reported (`vl-transform-lookup-param`; the stores of the selections
+  are
   not read by a lookup).
 - **`timeUnit`** - `timeUnit` (a unit name or a unit object), `field`, and `as`. `RowTransforms.TimeUnit` reads the unit
   with `TimeUnitSpec.TryRead` (an unreadable one returns the input; the parser rejected it), builds one
@@ -137,16 +179,20 @@ dispatched to `TimeUnitTransform`, see below):
 number of rows, the size, and the
 JSON pointer of the transform entry (for example `/transform/0`): the seed is the 64-bit
 FNV-1a hash of the UTF-8 bytes of
-the pointer (offset basis `0xCBF29CE484222325`, prime `0x100000001B3`), the generator is SplitMix64, and the algorithm is
+the pointer (offset basis `0xCBF29CE484222325`, prime `0x100000001B3`), the generator is SplitMix64, and the algorithm
+is
 reservoir sampling (algorithm R): the first `size` indexes fill the reservoir, and for every later index `i` the next
-output modulo `i + 1` is the slot to replace when it is below `size`. The selected indexes are **sorted ascending**, which
-restores the source order. A size of at least the row count returns every row (the same table), and zero returns none. Two
+output modulo `i + 1` is the slot to replace when it is below `size`. The selected indexes are **sorted ascending**,
+which
+restores the source order. A size of at least the row count returns every row (the same table), and zero returns none.
+Two
 sample transforms of one chart therefore draw independent samples, and a chart edited elsewhere keeps the sample of an
 unchanged transform. A hand-computed vector (ten rows, size four, pointer `/transform/0`, rows
 2, 3, 6, and 9) is pinned by a
 test.
 
-**`ParameterEnvironment`.** `Populate` evaluates the variable parameters of the **top-level view** into the dictionary the
+**`ParameterEnvironment`.** `Populate` evaluates the variable parameters of the **top-level view** into the dictionary
+the
 evaluator reads (Vega-Lite compiles no signal for the variable parameter of a nested view, so there is none, and an
 expression that reads one sees null): the order is the topological order of `ParameterGraph.Sort` (dependencies first,
 otherwise the
@@ -160,7 +206,8 @@ recursion is bounded). A text of an
 override or of a `value` (also inside a composite) that is longer than the `MaxStringLength` of the call is a located
 `VegaLiteRenderException` at the parameter, because no function has measured it; the result of an expression is checked
 by the evaluator. A selection parameter is not computed here: its resolved value comes from the `SelectionModel` and is
-added to the dictionary under the name of the selection (`selectionValues`; the value of the caller for a selection is the
+added to the dictionary under the name of the selection (`selectionValues`; the value of the caller for a selection is
+the
 initial value that the model reads, not an override of the value here). `bind` and
 `empty` are ignored. Since phase 12 the environment is built by `VegaLiteDocument.PrepareChart` **before** the data
 stage, not inside it, once for each call with the one calendar, the one `ExpressionEvaluator`, and the one parameter
@@ -168,7 +215,8 @@ dictionary of that call (the `EvaluationState`), because the expression referenc
 (`ExpressionReferenceFolder`) from the same values before the configuration is resolved, and the scales read the values
 of the parameters that give a domain.
 
-**`RowExpressions`** is the pair of the compiled expressions of the tree and the evaluator that `MarkBuilder` uses for the
+**`RowExpressions`** is the pair of the compiled expressions of the tree and the evaluator that `MarkBuilder` uses for
+the
 row-bound paint values; `TransformContext` is the bundle of everything one run shares. Besides the fields it carries, it
 offers the helpers that the aggregating units use: `Locate(node)` (the location of a node of the specification),
 `Tick(row)` (the cancellation check once per 1,024 rows), and `CheckText(value, what, location)` (a located failure
@@ -185,15 +233,18 @@ the current culture.
 
 #### Key Methods
 
-- `RowTransforms.Apply(input, transforms, context)` - requires a non-null input and context; returns the input itself when
-  `transforms` is null, not an array, or empty; otherwise runs the entries in order: it checks the token, finds the operation
-  property of the entry (`SpecParser.FindTransformOperation`), skips entries that the renderer does not compute
-  (`SpecParser.IsSupportedTransform`), and dispatches to the transform, to `TimeUnit` for the `timeUnit` transform, or to
-  `AggregateTransforms.Apply` for the six
-  aggregating ones. The expressions were
+- `RowTransforms.Apply(input, transforms, context)` - requires a non-null input and context; returns the input itself
+  when
+  `transforms` is null, not an array, or empty; otherwise runs the entries in order: it checks the token, finds the
+  operation
+  property of the entry (`SpecParser.FindTransformOperation`), skips entries whose operation is not a transform
+  (`SpecParser.IsSupportedTransform`), and dispatches to the transform, to `TimeUnit` for the `timeUnit` transform,
+  to `AggregateTransforms.Apply` for the six
+  aggregating ones, or to `StatTransforms.Apply` for the five statistical ones. The expressions were
   compiled when the document was
   opened, so no text is parsed here.
-- `Calculate`, `Filter` (with `BuildPredicate`, the predicate classes, and `SelectRows`, which builds the table of the kept
+- `Calculate`, `Filter` (with `BuildPredicate`, the predicate classes, and `SelectRows`, which builds the table of the
+  kept
   rows and releases the dropped ones), `Fold`, `Flatten`, `Sample`, `Pivot`, `Lookup`, and `TimeUnit` - one method per
   transform; each
   reserves or releases rows in the loader's budget as described above, checks the token every 1,024 rows, and builds its
@@ -203,21 +254,29 @@ the current culture.
 - `ParameterEnvironment.Populate` and `SpecValues.ToDataValue` - as above.
 
 **Preconditions and postconditions**: the specification was validated by `SpecParser` (transform shapes, predicates,
-parameter names, no cycles) and its expressions were compiled; on return the table is complete and within the limits, the
+parameter names, no cycles) and its expressions were compiled; on return the table is complete and within the limits,
+the
 loader's row count equals the rows of the returned table (plus any table that is still referenced), and the warnings
 list holds the findings of this run, or an exception was thrown.
 
 #### Error Handling
 
-Everything that depends on the data and exceeds a limit is a `VegaLiteRenderException` located at the construct that caused
-it: `MaxDataRows` (checked **before** the output is allocated, also for a lookup source; located at the transform entry),
-`MaxFieldCount` and the 2^25 cell bound (the transform entry), `MaxStringLength` and the evaluation step budget (the expression
-string, or the `filter` value for a predicate), a failing regular expression (the expression string), and a lookup source
+Everything that depends on the data and exceeds a limit is a `VegaLiteRenderException` located at the construct that
+caused
+it: `MaxDataRows` (checked **before** the output is allocated, also for a lookup source; located at the transform
+entry),
+`MaxFieldCount` and the 2^25 cell bound (the transform entry), `MaxStringLength` and the evaluation step budget (the
+expression
+string, or the `filter` value for a predicate), a failing regular expression (the expression string), and a lookup
+source
 that the sandbox or the file layer refuses
-(the `from.data` node, with the loader's message). A canceled token is an `OperationCanceledException`, never wrapped, and
+(the `from.data` node, with the loader's message). A canceled token is an `OperationCanceledException`, never wrapped,
+and
 the warnings of a canceled call are not delivered. Recoverable findings are warnings: `vl-expr-runtime` and
-`vl-transform-runtime`, located at the expression string or the transform entry. A malformed transform is not an error of
-this unit: `SpecParser` rejected it when the document was opened. A null argument is an `ArgumentNullException`. The unit
+`vl-transform-runtime`, located at the expression string or the transform entry. A malformed transform is not an error
+of
+this unit: `SpecParser` rejected it when the document was opened. A null argument is an `ArgumentNullException`. The
+unit
 performs no I/O itself; a lookup source is read only through the `DataLoader`.
 
 #### Dependencies
@@ -232,21 +291,28 @@ performs no I/O itself; a lookup source is read only through the `DataLoader`.
 - **`SpecTree`**, **`SpecNode`**, **`SpecParser`** (`FindTransformOperation`,
   `IsSupportedTransform`, `ParameterGraph`), and
   **`FeatureReport`** - the tree, the helpers, and the report record of the `SpecModel` subsystem
-- **`AggregateTransforms`** - the six aggregating transforms (see _AggregateTransforms_)
+- **`AggregateTransforms`** - the six aggregating transforms (see _AggregateTransforms_), and `MeasureCell` for the
+  operations of a pivot
+- **`StatTransforms`** - the five statistical transforms (see _StatTransforms_)
 - **`TimeUnitTransform`**, `TimeUnitRequest`, and **`TimeUnitSpec`** - the `timeUnit` transform (see _Time Unit
   Transform Design_) and the unit grammar of the `Data` subsystem (see _Time Calendar Design_)
-- **`VegaLiteLimits`**, **`VegaLiteLocation`**, and **`VegaLiteRenderException`** - the public types of the `VegaLiteDocument`
+- **`VegaLiteLimits`**, **`VegaLiteLocation`**, and **`VegaLiteRenderException`** - the public types of the
+  `VegaLiteDocument`
   unit
-- **.NET base class library** - `System.Globalization` (invariant-culture text) and `System.Text` (the UTF-8 bytes of the
+- **.NET base class library** - `System.Globalization` (invariant-culture text) and `System.Text` (the UTF-8 bytes of
+  the
   pointer)
 
 #### Callers
 
-`VegaLiteDocument` calls `ParameterEnvironment.Populate` first in every `Measure` or `Render` call (before the fold of the
-expression references and before the data stage), creates the `TransformContext` from the same evaluation state, then calls
+`VegaLiteDocument` calls `ParameterEnvironment.Populate` first in every `Measure` or `Render` call (before the fold of
+the
+expression references and before the data stage), creates the `TransformContext` from the same evaluation state, then
+calls
 `RowTransforms.Apply` once per
 `Measure` or `Render` call for a single view with a supported mark, and delivers the transform warnings after the loader
 warnings; `EncodingTransforms` and `AggregateTransforms` share the `TransformContext`, `TableLayout`, `FieldReader`, and
 `RowSampler`; `MarkBuilder` uses `RowExpressions`. The tests in
-`test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/RowTransformsTests.cs` call `Apply`, `Populate`, and `RowSampler`
+`test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/RowTransformsTests.cs` call `Apply`, `Populate`, and
+`RowSampler`
 directly through `InternalsVisibleTo`.

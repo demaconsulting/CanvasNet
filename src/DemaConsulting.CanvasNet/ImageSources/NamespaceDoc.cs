@@ -27,7 +27,9 @@ namespace DemaConsulting.CanvasNet.ImageSources;
 ///         See <see cref="FolderImageResolver"/> for the resolver (and <see cref="FolderImageResolverOptions"/> for its
 ///         limits), <see cref="IImageSource"/> and <see cref="ImageSourceRequest"/> for writing a source of your own, and
 ///         <see cref="ImageSourceDiagnostic"/> for the notes a render collects. A link can carry parameters in its
-///         fragment (<c>report.pdf#page=3</c>): see <see cref="ImageFragment"/> and <see cref="IFragmentImageSource"/>.
+///         fragment (<c>report.pdf#page=3</c>, or <c>part.scad#def.width=20</c> and
+///         <c>chart.vl.json#param.cutoff=5</c> for the variables of a model and the parameters of a chart): see
+///         <see cref="ImageFragment"/>, <see cref="IFragmentImageSource"/> and <see cref="ImageParameterValues"/>.
 ///         A document renderer takes the resolver
 ///         as an <see cref="IImageResolver"/>: for SVG, see <c>SvgLoadOptions.ImageResolver</c> in
 ///         <c>DemaConsulting.CanvasNet.Svg</c>. The sources of the format packages are

@@ -125,8 +125,21 @@ function New-Showcase {
     Join-Path $Folder 'showcase.png'
 }
 
+# docs/images/montage-explode.png: one assembly (showcase/explode.scad) three times, at explode levels 0, 0.5 and 1,
+# chosen by the fragment of each input path. The camera is fixed with -D '$vpd' and -D '$vpt' so that every cell has
+# the same scale; without them each cell would be fitted to its own geometry and the plate would shrink.
+function New-MontageExplode {
+    param([string]$Folder)
+    $model = 'docs/images/showcase/explode.scad'
+    Invoke-ToolOrFail montage "$model#def.explode=0" "$model#def.explode=0.5" "$model#def.explode=1" `
+        -D '$vpd=360' -D '$vpt=[0,0,50]' --columns 3 --cell 280x320 --spacing 12 --padding 12 `
+        --background '#e5e7eb' --labels -o "$Folder/montage-explode.png"
+    Join-Path $Folder 'montage-explode.png'
+}
+
 $images = @(
     @{ Path = 'docs/images/showcase.png'; Build = ${function:New-Showcase} }
+    @{ Path = 'docs/images/montage-explode.png'; Build = ${function:New-MontageExplode} }
 )
 
 # --- Run --------------------------------------------------------------------------------------------------------

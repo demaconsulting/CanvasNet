@@ -124,3 +124,33 @@ sections:
           - HelpTopics_FormatTopicsJsonAndLimits_DocumentFragmentsDetailLocationAndOrigin
           - HelpTopics_DiagnosticTriggers_ImageFragmentCodes_AreReportedWithTheirSeverity
           - HelpTopics_ImageHrefLinking_IsCrossReferencedFromScadVegaLiteFormatsAndRender
+
+      - id: CanvasNetTool-Commands-HelpTopics-ParamAndFragmentPrefixes
+        title: >-
+          The HelpTopics class shall document in the vega-lite topic the --param option (its value grammar, that
+          an unknown name is a vega-lite-error, that only a chart takes it, and the matching fragment of a link), in
+          the svg topic the prefixed fragment parameters (def.name sets a model variable like -D, param.name sets
+          a chart parameter like --param, the case rules, the codes image-fragment-invalid, vl-param-unknown and
+          image-fragment-unknown-parameter, and that the last of the warnings stays a warning under the strict
+          option), in the scad topic the def. fragment, and the vl-param-unknown diagnostic in the vega-lite and
+          svg topics.
+        justification: |
+          The model variables and the chart parameters of an embedded file are set from the link, where nothing else
+          shows that they exist; an agent finds them in the topic of the file type and of the link.
+        tests:
+          - HelpTopics_ParamOptionAndFragmentPrefixes_AreDocumented
+
+      - id: CanvasNetTool-Commands-HelpTopics-InputFragments
+        title: >-
+          The HelpTopics class shall document the fragment of an input path in the svg topic (the grammar of a link, the
+          rule for the number sign, the quoting in a shell, the overrides of the options of the command, the codes and
+          that the warnings stay warnings), a fixed camera for a montage in the scad topic, the page fragment in the
+          topics of the document formats, the param fragment in the vega-lite topic and the code
+          image-fragment-invalid in the errors topic, and the usage text of every command that takes an input shall
+          mention it.
+        justification: |
+          A fragment on a path is not visible in any option table; an agent finds it from the topic of the file type and
+          from the usage of the command it runs.
+        tests:
+          - HelpTopics_InputFragments_AreDocumentedInTopicsAndUsages
+          - HelpTopics_ErrorsTopic_ListsEveryErrorCode

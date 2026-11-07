@@ -60,7 +60,6 @@ public class FeatureCatalogTests
             [
                 ("vl-schema-version", "/$schema"),
                 ("vl-projection", "/projection"),
-                ("vl-transform-regression", "/transform/2"),
                 ("vl-mark-geoshape", "/mark"),
                 ("vl-encoding-sort-ignored", "/encoding/y/sort"),
                 ("vl-encoding-condition", "/encoding/y/condition"),
@@ -446,11 +445,10 @@ public class FeatureCatalogTests
         // Act
         var ids = Visit(json);
 
-        // Assert
+        // Assert: the impute on a non-position channel is ignored without a report (Vega-Lite reads only x and y), the other forms report as before
         Assert.Equal(
             [
                 ("vl-encoding-bin", "/encoding/color/bin"),
-                ("vl-encoding-impute", "/encoding/size/impute"),
                 ("vl-encoding-bandposition", "/encoding/size/bandPosition"),
             ],
             ids);
@@ -458,7 +456,7 @@ public class FeatureCatalogTests
 
     /// <summary>
     ///     Validates the legend rule: legends are drawn, so they are not reported; only the parts of a legend that are not drawn are
-    ///     (a title orient other than top, a clip height, an encode, a custom format type, and a custom symbol path; the label expression is evaluated and
+    ///     (a clip height, an encode, a custom format type; the title orient and a valid custom symbol path are drawn; the label expression is evaluated and
     ///     reports only a function the engine does not have), at the exact property, and never for a position channel or a channel without a legend.
     /// </summary>
     [Fact]
@@ -482,11 +480,9 @@ public class FeatureCatalogTests
         // Assert: in document order; the legend of the size channel and the plain ones draw without a report
         Assert.Equal(
             [
-                ("vl-guide-legend-titleorient", "/encoding/color/legend/titleOrient"),
                 ("vl-guide-legend-clipheight", "/encoding/color/legend/clipHeight"),
                 ("vl-expr-function-luminance", "/encoding/color/legend/labelExpr"),
                 ("vl-format-type-custom", "/encoding/color/legend/formatType"),
-                ("vl-shape-path", "/encoding/color/legend/symbolType"),
                 ("vl-guide-encode", "/encoding/color/legend/encode"),
             ],
             ids);
@@ -612,10 +608,10 @@ public class FeatureCatalogTests
     }
 
     /// <summary>
-    ///     Validates the cubehelix interpolation report: both spellings, as a string and as an object, and no report for the other types.
+    ///     Validates that the cubehelix interpolations are drawn and not reported (the id <c>vl-scale-interpolate-cubehelix</c> is retired), in both spellings, as a string and as an object.
     /// </summary>
     [Fact]
-    public void FeatureCatalog_Visit_CubehelixInterpolationIsReported()
+    public void FeatureCatalog_Visit_CubehelixInterpolationIsNotReported()
     {
         // Arrange
         const string json = """
@@ -630,47 +626,48 @@ public class FeatureCatalogTests
         var ids = Visit(json);
 
         // Assert
-        Assert.Equal(
-            [
-                ("vl-scale-interpolate-cubehelix", "/encoding/color/scale/interpolate"),
-                ("vl-scale-interpolate-cubehelix", "/encoding/fill/scale/interpolate"),
-            ],
-            ids);
+        Assert.Empty(ids);
     }
 
     /// <summary>
-    ///     Validates that a shape that is not a symbol name is reported wherever it can be given (the mark, the channel value, the scale
-    ///     range), and that every symbol name the painter draws is not.
+    ///     Validates that a shape that is neither a symbol name nor SVG path data that parses is the warning <c>vl-shape-path-invalid</c> wherever it can be given (the mark, the channel
+    ///     value, the scale range, the legend), that path data that parses and every symbol name the painter draws are not reported, and that path data without a command is reported as
+    ///     drawing nothing.
     /// </summary>
     [Fact]
-    public void FeatureCatalog_Visit_CustomPathShapesAreReported()
+    public void FeatureCatalog_Visit_InvalidPathShapesAreReported()
     {
         // Arrange
         const string json = """
-            { "mark": { "type": "point", "shape": "M0,0L1,1" }, "encoding": {
-              "shape": { "field": "a", "type": "nominal", "scale": { "range": ["circle", "M0,0L1,1Z", "wedge"] }, "legend": null }
+            { "mark": { "type": "point", "shape": "M0,0L" }, "encoding": {
+              "shape": { "field": "a", "type": "nominal", "scale": { "range": ["circle", "M0,0L1,1Z", "M1,x", "wedge"] }, "legend": null }
             } }
             """;
         const string value = """
-            { "mark": "point", "encoding": { "shape": { "value": "M0,0L1,1" } } }
+            { "mark": "point", "encoding": { "shape": { "value": "M0,0L1" } } }
+            """;
+        const string empty = """
+            { "mark": { "type": "point", "shape": "fgi" } }
             """;
         var known = string.Join(
             ",",
-            new[] { "circle", "square", "cross", "diamond", "arrow", "wedge", "triangle", "triangle-up", "triangle-down", "triangle-left", "triangle-right", "stroke" }.Select(s => $"\"{s}\""));
+            new[] { "circle", "square", "cross", "diamond", "arrow", "wedge", "triangle", "triangle-up", "triangle-down", "triangle-left", "triangle-right", "stroke", "M0,0L1,1Z", "M-1,-1 h2 v2 h-2 z" }.Select(s => $"\"{s}\""));
 
         // Act
-        var ids = Visit(json);
+        var reports = FeatureCatalog.Visit(SpecParser.Parse(json, "t.json"));
         var channelValue = Visit(value);
+        var nothing = FeatureCatalog.Visit(SpecParser.Parse(empty, "t.json"));
         var symbols = Visit("{\"mark\":{\"type\":\"point\",\"shape\":\"cross\"},\"encoding\":{\"shape\":{\"field\":\"a\",\"type\":\"nominal\",\"scale\":{\"range\":[" + known + "]},\"legend\":null}}}");
 
         // Assert
         Assert.Equal(
-            [
-                ("vl-shape-path", "/mark/shape"),
-                ("vl-shape-path", "/encoding/shape/scale/range/1"),
-            ],
-            ids);
-        Assert.Equal([("vl-shape-path", "/encoding/shape/value")], channelValue);
+            [("vl-shape-path-invalid", "/mark/shape"), ("vl-shape-path-invalid", "/encoding/shape/scale/range/2")],
+            reports.Select(r => (r.Id, r.Location.Pointer)));
+        Assert.All(reports, r => Assert.Equal(FeatureReportKind.Warning, r.Kind));
+        Assert.Contains("incorrect parameter", reports[0].Message, StringComparison.Ordinal);
+        Assert.Equal([("vl-shape-path-invalid", "/encoding/shape/value")], channelValue);
+        Assert.Equal([("vl-shape-path-invalid", "/mark/shape")], nothing.Select(r => (r.Id, r.Location.Pointer)));
+        Assert.Contains("nothing is drawn", nothing[0].Message, StringComparison.Ordinal);
         Assert.Empty(symbols);
     }
 
@@ -765,7 +762,7 @@ public class FeatureCatalogTests
     }
 
     /// <summary>
-    ///     Validates the axis rules: guide encodes, expressions and custom formats, and the listed unsupported properties.
+    ///     Validates the axis rules: guide encodes, expressions and custom formats are reported; the static properties (<c>labelBound</c>, <c>tickBand</c>, <c>position</c> and the others) are drawn and not.
     /// </summary>
     [Fact]
     public void FeatureCatalog_Visit_AxisPropertiesReportOnlyTheUnsupportedOnes()
@@ -773,7 +770,7 @@ public class FeatureCatalogTests
         // Arrange
         const string json = """
             { "mark": "point", "encoding": {
-              "x": { "field": "a", "type": "quantitative", "axis": { "grid": true, "tickCount": 3, "format": ".2f", "title": "T", "orient": "top", "labelOverlap": "parity", "tickMinStep": 2, "labelFlush": true, "labelBound": true, "tickBand": "extent" } },
+              "x": { "field": "a", "type": "quantitative", "axis": { "grid": true, "tickCount": 3, "format": ".2f", "title": "T", "orient": "top", "labelOverlap": "parity", "tickMinStep": 2, "labelFlush": true, "labelBound": true, "tickBand": "extent", "tickExtra": true, "bandPosition": 1, "translate": 1, "titleX": 10, "titleY": 5 } },
               "y": { "field": "a", "type": "quantitative", "axis": { "encode": { "labels": {} }, "labelExpr": "luminance(datum.value)", "formatType": "custom", "position": 5 } }
             } }
             """;
@@ -784,12 +781,9 @@ public class FeatureCatalogTests
         // Assert
         Assert.Equal(
             [
-                ("vl-guide-axis-labelbound", "/encoding/x/axis/labelBound"),
-                ("vl-guide-axis-tickband", "/encoding/x/axis/tickBand"),
                 ("vl-guide-encode", "/encoding/y/axis/encode"),
                 ("vl-expr-function-luminance", "/encoding/y/axis/labelExpr"),
                 ("vl-format-type-custom", "/encoding/y/axis/formatType"),
-                ("vl-guide-axis-position", "/encoding/y/axis/position"),
             ],
             ids);
     }
@@ -1099,11 +1093,11 @@ public class FeatureCatalogTests
     }
 
     /// <summary>
-    ///     Validates that the transforms of a later phase, conditional encodings and selection parameters are still reported, and that
-    ///     the aggregating transforms of the drawn view are accepted without a report.
+    ///     Validates that every transform of Vega-Lite (the statistical transforms of Phase 13 included) is accepted without a report, while conditional encodings on selection parameters
+    ///     are still reported elsewhere; the retired identifiers <c>vl-transform-&lt;name&gt;</c> are never produced.
     /// </summary>
     [Fact]
-    public void FeatureCatalog_Visit_LaterPhaseTransformsConditionsAndSelectionsStayReported()
+    public void FeatureCatalog_Visit_EveryTransformOfTheDrawnViewIsAcceptedWithoutAReport()
     {
         // Arrange
         const string json = """
@@ -1132,14 +1126,8 @@ public class FeatureCatalogTests
         // Act
         var ids = Visit(json);
 
-        // Assert: the seven computed transforms (the time unit among them) and the condition on the selection are not reported, the later phases are
-        Assert.Equal(
-            [
-                ("vl-transform-regression", "/transform/7"),
-                ("vl-transform-loess", "/transform/8"), ("vl-transform-density", "/transform/9"), ("vl-transform-quantile", "/transform/10"),
-                ("vl-transform-extent", "/transform/11"),
-            ],
-            ids);
+        // Assert: the twelve computed transforms and the condition on the selection are not reported
+        Assert.Empty(ids);
     }
 
     /// <summary>
@@ -1208,8 +1196,8 @@ public class FeatureCatalogTests
     }
 
     /// <summary>
-    ///     Validates the parts of the supported transforms that are not supported: a pivot operation, a lookup in a parameter
-    ///     and a remote lookup source; that a filter on a selection is supported; and that a time unit or a date-time object in a predicate is supported (only the parts a predicate does not apply
+    ///     Validates the parts of the supported transforms that are not supported: a lookup in a parameter
+    ///     and a remote lookup source; that a filter on a selection and a pivot with any aggregate operation are supported (the identifier <c>vl-transform-pivot-op</c> is retired); and that a time unit or a date-time object in a predicate is supported (only the parts a predicate does not apply
     ///     and a binned unit are reported, at the time unit).
     /// </summary>
     [Fact]
@@ -1246,7 +1234,6 @@ public class FeatureCatalogTests
         // Assert
         Assert.Equal(
             [
-                ("vl-transform-pivot-op", "/transform/5/op"),
                 ("vl-transform-lookup-param", "/transform/7/from/param"),
                 ("vl-data-remote-url", "/transform/8/from/data"),
                 ("vl-predicate-timeunit-part", "/transform/9/filter/timeUnit"),
@@ -1608,11 +1595,11 @@ public class FeatureCatalogTests
     }
 
     /// <summary>
-    ///     Validates that <c>vl-encoding-impute</c> is reported only for a channel other than <c>x</c> and <c>y</c> (the impute of a position channel is run by the
-    ///     pipeline), that an explicit null is never reported, and that the report is at the <c>impute</c> value.
+    ///     Validates that <c>vl-encoding-impute</c> is retired: the <c>impute</c> of a channel other than <c>x</c> and <c>y</c> is ignored without a report (Vega-Lite's <c>ImputeNode</c>
+    ///     reads the position channels only; the impute of a position channel is run by the pipeline), as is an explicit null.
     /// </summary>
     [Fact]
-    public void FeatureCatalog_Report_ImputeIsReportedOnlyOutsideXAndY()
+    public void FeatureCatalog_Report_ImputeOutsideXAndYIsNotReported()
     {
         // Arrange: a bar chart, so that no mark report is mixed in
         const string json = """
@@ -1631,10 +1618,8 @@ public class FeatureCatalogTests
         // Act
         var reports = FeatureCatalog.Visit(SpecParser.Parse(json));
 
-        // Assert
-        Assert.Equal([("vl-encoding-impute", "/encoding/color/impute")], reports.Select(r => (r.Id, r.Location.Pointer)));
-        Assert.Contains("'color'", reports[0].Message, StringComparison.Ordinal);
-        Assert.Equal(FeatureReportKind.UnsupportedFeature, reports[0].Kind);
+        // Assert: the impute of a non-position channel is ignored without a report (Vega-Lite's ImputeNode reads x and y only; vl-encoding-impute is retired)
+        Assert.Empty(reports);
     }
 
     /// <summary>
@@ -1700,11 +1685,12 @@ public class FeatureCatalogTests
         }
 
         // Assert: the marks that stay unsupported are reported at the mark (also with the properties of a path mark); the composite marks are drawn (Phase 10) and their ids are retired
-        foreach (var type in new[] { "geoshape", "image" })
-        {
-            Assert.Equal([("vl-mark-" + type, "/mark")], Visit("{ \"mark\": { \"type\": \"" + type + "\", \"invalid\": \"show\", \"interpolate\": \"bundle\" } }"));
-        }
+        Assert.Equal([("vl-mark-geoshape", "/mark")], Visit("{ \"mark\": { \"type\": \"geoshape\", \"invalid\": \"show\", \"interpolate\": \"bundle\" } }"));
 
+        // Assert: the image mark is drawn when the caller supplies a resolver (Phase 13), so it is reported like a drawn mark; without a resolver it is also reported as itself; invalid: show is drawn now
+        Assert.Equal(
+            [("vl-mark-image", "/mark")],
+            Visit("{ \"mark\": { \"type\": \"image\", \"invalid\": \"show\", \"interpolate\": \"bundle\" } }"));
         Assert.DoesNotContain(Visit("{ \"mark\": \"boxplot\" }"), r => r.Id == "vl-mark-boxplot");
         Assert.DoesNotContain(Visit("{ \"mark\": \"errorbar\" }"), r => r.Id == "vl-mark-errorbar");
         Assert.DoesNotContain(Visit("{ \"mark\": \"errorband\" }"), r => r.Id == "vl-mark-errorband");
@@ -1752,8 +1738,8 @@ public class FeatureCatalogTests
     }
 
     /// <summary>
-    ///     Validates the identifiers of the invalid data modes and of the bundle interpolation of an area: <c>show</c> and null are unsupported, the modes that filter the domains
-    ///     are warned about, and the bundle interpolation of an area (not of a line) is unsupported.
+    ///     Validates the identifiers of the invalid data modes and of the bundle interpolation of an area: <c>show</c> and null are drawn (<c>vl-mark-invalid-show</c> is retired), the modes that filter
+    ///     the domains are warned about, and the bundle interpolation of an area (not of a line) is unsupported.
     /// </summary>
     [Fact]
     public void FeatureCatalog_Report_InvalidShowDomainsAndBundleAreaIds()
@@ -1762,9 +1748,9 @@ public class FeatureCatalogTests
         static List<(string Id, string Pointer, FeatureReportKind Kind)> Report(string mark) =>
             [.. FeatureCatalog.Visit(SpecParser.Parse("{ \"mark\": " + mark + " }")).Select(r => (r.Id, r.Location.Pointer, r.Kind))];
 
-        // Assert: show and null cannot be drawn, so they are unsupported, at the value
-        Assert.Equal([("vl-mark-invalid-show", "/mark/invalid", FeatureReportKind.UnsupportedFeature)], Report("""{ "type": "line", "invalid": "show" }"""));
-        Assert.Equal([("vl-mark-invalid-show", "/mark/invalid", FeatureReportKind.UnsupportedFeature)], Report("""{ "type": "area", "invalid": null }"""));
+        // Assert: show and null are drawn, so they are not reported
+        Assert.Empty(Report("""{ "type": "line", "invalid": "show" }"""));
+        Assert.Empty(Report("""{ "type": "area", "invalid": null }"""));
 
         // Assert: the modes that leave the invalid rows out of the scale domains are warned about
         Assert.Equal([("vl-mark-invalid-domains", "/mark/invalid", FeatureReportKind.Warning)], Report("""{ "type": "line", "invalid": "filter" }"""));
@@ -1791,14 +1777,15 @@ public class FeatureCatalogTests
         static List<(string Id, string Pointer, FeatureReportKind Kind)> Report(string json) =>
             [.. FeatureCatalog.Visit(SpecParser.Parse(json)).Where(r => r.Id.StartsWith("vl-mark-", StringComparison.Ordinal)).Select(r => (r.Id, r.Location.Pointer, r.Kind))];
 
-        // Assert: show and null from config.<mark> and config.mark, at the value in the configuration; the filter modes warn
-        Assert.Equal([("vl-mark-invalid-show", "/config/line/invalid", FeatureReportKind.UnsupportedFeature)], Report("""{ "mark": "line", "config": { "line": { "invalid": "show" } } }"""));
-        Assert.Equal([("vl-mark-invalid-show", "/config/mark/invalid", FeatureReportKind.UnsupportedFeature)], Report("""{ "mark": { "type": "area" }, "config": { "mark": { "invalid": null } } }"""));
+        // Assert: show and null from the configuration are drawn (not reported); the filter modes warn at the value in the configuration
+        Assert.Empty(Report("""{ "mark": "line", "config": { "line": { "invalid": "show" } } }"""));
+        Assert.Empty(Report("""{ "mark": { "type": "area" }, "config": { "mark": { "invalid": null } } }"""));
+        Assert.Equal([("vl-mark-invalid-domains", "/config/line/invalid", FeatureReportKind.Warning)], Report("""{ "mark": "line", "config": { "line": { "invalid": "filter" } } }"""));
         Assert.Equal([("vl-mark-invalid-domains", "/config/mark/invalid", FeatureReportKind.Warning)], Report("""{ "mark": "trail", "config": { "mark": { "invalid": "filter" } } }"""));
         Assert.Empty(Report("""{ "mark": "line", "config": { "mark": { "invalid": "break-paths-show-domains" } } }"""));
 
         // Assert: the configuration of another mark type does not apply
-        Assert.Empty(Report("""{ "mark": "line", "config": { "area": { "invalid": "show" } } }"""));
+        Assert.Empty(Report("""{ "mark": "line", "config": { "area": { "invalid": "filter" } } }"""));
 
         // Assert: the bundle interpolation of an area from the configuration is reported, that of a line is not; an unknown name is reported for a line and an area (it is drawn as a linear
         // line), but not for a mark that has no curve
@@ -1811,26 +1798,27 @@ public class FeatureCatalogTests
         Assert.Empty(Report("""{ "mark": "bar", "config": { "mark": { "interpolate": "zigzag" } } }"""));
         Assert.Empty(Report("""{ "mark": "line", "config": { "mark": { "interpolate": 3 } } }"""));
 
-        // Assert: the mark definition wins over the configuration, config.<mark> over config.mark, and a style of the mark over both of those (the later style wins)
-        Assert.Empty(Report("""{ "mark": { "type": "line", "invalid": "break-paths-show-domains" }, "config": { "line": { "invalid": "show" } } }"""));
-        Assert.Empty(Report("""{ "mark": "line", "config": { "line": { "invalid": "break-paths-show-domains" }, "mark": { "invalid": "show" } } }"""));
+        // Assert: the mark definition wins over the configuration, config.<mark> over config.mark, and a style of the mark over both of those (the later style wins); the sentinel is the
+        // filter mode, which is reported as a warning
+        Assert.Empty(Report("""{ "mark": { "type": "line", "invalid": "break-paths-show-domains" }, "config": { "line": { "invalid": "filter" } } }"""));
+        Assert.Empty(Report("""{ "mark": "line", "config": { "line": { "invalid": "break-paths-show-domains" }, "mark": { "invalid": "filter" } } }"""));
         Assert.Equal(
-            [("vl-mark-invalid-show", "/config/style/loud/invalid", FeatureReportKind.UnsupportedFeature)],
-            Report("""{ "mark": { "type": "line", "style": "loud" }, "config": { "line": { "invalid": "filter" }, "style": { "loud": { "invalid": "show" } } } }"""));
-        Assert.Empty(Report("""{ "mark": { "type": "line", "style": ["loud", "quiet"] }, "config": { "style": { "loud": { "invalid": "show" }, "quiet": { "invalid": "break-paths-show-domains" } } } }"""));
+            [("vl-mark-invalid-domains", "/config/style/loud/invalid", FeatureReportKind.Warning)],
+            Report("""{ "mark": { "type": "line", "style": "loud" }, "config": { "line": { "invalid": "break-paths-show-domains" }, "style": { "loud": { "invalid": "filter" } } } }"""));
+        Assert.Empty(Report("""{ "mark": { "type": "line", "style": ["loud", "quiet"] }, "config": { "style": { "loud": { "invalid": "filter" }, "quiet": { "invalid": "break-paths-show-domains" } } } }"""));
 
         // Assert: the style of the mark type itself (config.style.line) is read, as the mark builder reads it
         Assert.Equal(
-            [("vl-mark-invalid-show", "/config/style/line/invalid", FeatureReportKind.UnsupportedFeature)],
-            Report("""{ "mark": "line", "config": { "style": { "line": { "invalid": "show" } } } }"""));
+            [("vl-mark-invalid-domains", "/config/style/line/invalid", FeatureReportKind.Warning)],
+            Report("""{ "mark": "line", "config": { "style": { "line": { "invalid": "filter" } } } }"""));
 
         // Assert: a value in the configuration that two marks use is reported once
         Assert.Equal(
-            [("vl-mark-invalid-show", "/config/mark/invalid", FeatureReportKind.UnsupportedFeature)],
-            Report("""{ "layer": [ { "mark": "line" }, { "mark": "point" } ], "config": { "mark": { "invalid": "show" } } }"""));
+            [("vl-mark-invalid-domains", "/config/mark/invalid", FeatureReportKind.Warning)],
+            Report("""{ "layer": [ { "mark": "line" }, { "mark": "point" } ], "config": { "mark": { "invalid": "filter" } } }"""));
 
         // Assert: an unsupported mark is reported at the mark only, as before
-        Assert.Equal([("vl-mark-geoshape", "/mark", FeatureReportKind.UnsupportedFeature)], Report("""{ "mark": "geoshape", "config": { "mark": { "invalid": "show" } } }"""));
+        Assert.Equal([("vl-mark-geoshape", "/mark", FeatureReportKind.UnsupportedFeature)], Report("""{ "mark": "geoshape", "config": { "mark": { "invalid": "filter" } } }"""));
     }
 
     /// <summary>

@@ -153,6 +153,28 @@ sections:
                   - LegendBuilder_Title_NullTitleLeavesTheEntriesAtThePadding
                   - LegendBuilder_Build_ReportsOrientOffsetAndPositionForTheLayout
 
+              - id: CanvasNetVegaLite-Guides-LegendBuilder-TitleOrient
+                title: >-
+                  The LegendBuilder unit shall place the title of a legend on the side that titleOrient names (top,
+                  bottom, left, or right) as vega-parser's legend group layout and title offset do - the entries
+                  shifted below, above, right of, or left of the title, a side title anchored along the entries
+                  (middle by default), the angle, alignment, and baseline of the title for the side, the title of a
+                  gradient bar turned at the sides and centered on a horizontal bar, and the space for a title of
+                  several lines - and shall let titleAlign and titleBaseline override the defaults of the side.
+                justification: |
+                  titleOrient is part of the Vega-Lite legend schema; the position of the title decides the box that
+                  the layout places.
+                tests:
+                  - LegendBuilder_Build_TitleOrientTopPutsTheEntriesBelowTheTitle
+                  - LegendBuilder_Build_TitleOrientLeftPutsTheTitleBesideTheEntries
+                  - LegendBuilder_Build_TitleOrientRightPutsTheTitlePastTheEntries
+                  - LegendBuilder_Build_TitleOrientBottomPutsTheTitleBelowTheEntries
+                  - LegendBuilder_Build_TitleAnchorPlacesASideTitleAlongTheEntries
+                  - LegendBuilder_Build_TitleOfSeveralLinesLeavesRoomAtTheEnd
+                  - LegendBuilder_Build_TitleOfAVerticalGradientIsTurnedAtTheSides
+                  - LegendBuilder_Build_TitleOfAHorizontalGradientIsCenteredOnTheBar
+                  - LegendBuilder_Build_TitleAlignAndBaselineOverrideTheOrientDefaults
+
               - id: CanvasNetVegaLite-Guides-LegendBuilder-Limits
                 title: >-
                   The LegendBuilder unit shall fail with a located VegaLiteRenderException that names the limit when

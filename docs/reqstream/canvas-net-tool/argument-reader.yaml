@@ -149,13 +149,34 @@ sections:
 
       - id: CanvasNetTool-ArgumentReader-Defines
         title: >-
-          The ArgumentReader class shall parse `name=value` definitions into numbers, booleans, and
-          strings, let a later definition replace an earlier one, and reject a definition without a
-          valid name or with a vector value with a usage error.
+          The ArgumentReader class shall parse `name=value` definitions into numbers, booleans, strings, and
+          vectors (a value that starts with `[` is read as a JSON array of numbers, booleans, null, text, and
+          vectors), let a later definition replace an earlier one, and reject a definition without a valid name
+          or with a value that starts with `[` and is not such a vector with a usage error.
         justification: |
           Parametric models are customized with named variables; typed values keep numbers and
-          booleans from being passed to the model as text.
+          booleans from being passed to the model as text, and the viewport variables $vpt and $vpr, which are
+          vectors, are how a camera is fixed so that several pictures of a model share a scale.
         tests:
           - ArgumentReader_ParseDefines_LiteralTypes_ParsedByType
           - ArgumentReader_ParseDefines_NonFiniteNumber_IsString
           - ArgumentReader_ParseDefines_Malformed_ThrowsUsageError
+          - ArgumentReader_ParseDefines_Vector_ParsedIntoAList
+
+      - id: CanvasNetTool-ArgumentReader-Params
+        title: >-
+          The ArgumentReader class shall parse `name=value` chart parameters into a dictionary by name, let a
+          later parameter replace an earlier one, take any non-empty text before the first equals sign as the
+          name, read the value with the grammar of ImageParameterValues (true, false, null, a finite number, text
+          with one pair of single quotes removed, and a JSON string, array or object, for the shape of a
+          selection), and reject a parameter without an equals sign or with an empty name, and a value that starts
+          like JSON and is not valid JSON, with a usage error that names the parameter and shows an example.
+        justification: |
+          A chart parameter can hold an array or an object (the initial state of a selection), which the grammar
+          of the model definitions refuses; one grammar shared with the fragment of a link keeps the command line
+          and an embedded chart in step.
+        tests:
+          - ArgumentReader_ParseParams_ScalarsAndText_ParsedByType
+          - ArgumentReader_ParseParams_JsonValues_ParsedIntoPlainValues
+          - ArgumentReader_ParseParams_Malformed_ThrowsUsageError
+          - ArgumentReader_ParseParams_NoneOrNull

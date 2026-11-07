@@ -88,7 +88,7 @@ public sealed record MontageRequest(string Output)
 /// <param name="Y">The y position of the cell's image area.</param>
 /// <param name="LoadedWidth">The width of the input as it was loaded into the cell.</param>
 /// <param name="LoadedHeight">The height of the input as it was loaded into the cell.</param>
-/// <param name="Label">The label of the cell: the file name of the input, followed by <c> p</c> and the 1-based page number for a page of a document. It is drawn only when <see cref="SheetOptions.Labels"/> is set.</param>
+/// <param name="Label">The label of the cell: the file name of the input, followed by <c>#</c> and the fragment when the input had one, and by <c> p</c> and the 1-based page number for a page of a document (unless the fragment names the page). It is drawn only when <see cref="SheetOptions.Labels"/> is set.</param>
 /// <param name="Diagnostics">The notes reported while loading.</param>
 /// <param name="Echo">The text a model printed while it was evaluated.</param>
 public sealed record MontageCell(
@@ -136,7 +136,7 @@ public sealed record MontageResult(SheetLayout Layout, WriteResult Written, IRea
 ///         when it is complete, and it may not be the same file as any input.
 ///     </para>
 ///     <para>
-///         The inputs are probed by the caller (<see cref="SourceLoader.Probe"/>). The operation does file I/O, holds no
+///         The inputs are probed by the caller (<see cref="SourceLoader.Probe(string)"/>, or <see cref="SourceLoader.Probe(InputReference)"/> for an input with a fragment). The operation does file I/O, holds no
 ///         state, and is safe to call from several threads for different outputs.
 ///     </para>
 /// </remarks>
@@ -152,7 +152,7 @@ public static class MontageBuilder
     /// <summary>
     ///     Composes a contact sheet.
     /// </summary>
-    /// <param name="infos">The facts about the inputs, from <see cref="SourceLoader.Probe"/>, in the order they appear on the sheet.</param>
+    /// <param name="infos">The facts about the inputs, from <see cref="SourceLoader.Probe(string)"/> or <see cref="SourceLoader.Probe(InputReference)"/>, in the order they appear on the sheet; the fragment of an input overrides the request for that input.</param>
     /// <param name="request">What to compose.</param>
     /// <returns>The layout of the sheet, what was written, and what is reported about each cell.</returns>
     /// <exception cref="ArgumentNullException">
@@ -253,6 +253,12 @@ public static class MontageBuilder
             {
                 cells.Add(new PlannedCell(i, 1));
             }
+            else if (info.Selection?.Page is { } named)
+            {
+                // A page that the fragment of the input names is the one cell of the input, whatever the request says
+                SourceLoader.CheckPage(info, named);
+                cells.Add(new PlannedCell(i, named));
+            }
             else if (request.AllPages)
             {
                 cells.AddRange(Enumerable.Range(1, info.PageCount).Select(page => new PlannedCell(i, page)));
@@ -292,10 +298,18 @@ public static class MontageBuilder
     /// </summary>
     /// <param name="info">The facts about the input.</param>
     /// <param name="page">The 1-based page.</param>
-    /// <returns>The file name, followed by <c> p</c> and the page number for a page of a document.</returns>
+    /// <returns>
+    ///     The file name, followed by <c>#</c> and the fragment of the input when it had one (so the cells of one file are
+    ///     told apart), and by <c> p</c> and the page number for a page of a document unless the fragment names the page.
+    /// </returns>
     private static string CreateLabel(SourceInfo info, int page)
     {
         var name = Path.GetFileName(info.Path);
-        return info.Format.IsDocument() ? string.Create(CultureInfo.InvariantCulture, $"{name} p{page}") : name;
+        if (info.Selection is { } selection)
+        {
+            name = $"{name}#{selection.Fragment}";
+        }
+
+        return info.Format.IsDocument() && info.Selection?.Page is null ? string.Create(CultureInfo.InvariantCulture, $"{name} p{page}") : name;
     }
 }

@@ -81,6 +81,26 @@ internal sealed record TransformContext(
     public VegaLiteLocation Locate(SpecNode node) => Tree.Locate(node);
 
     /// <summary>
+    ///     Sets the value of a parameter that a transform computes (the <c>param</c> of an <c>extent</c> transform).
+    /// </summary>
+    /// <remarks>
+    ///     <see cref="Parameters"/> is a read-only view of the one parameter table that the evaluator, the later transforms and the
+    ///     scale stage of the call share; the table is a mutable dictionary owned by the call, and the transform that Vega-Lite
+    ///     compiles to a signal is the only writer. The new value is seen by everything that reads the parameter after this
+    ///     call, and by nothing that was fixed before it (the expression references of the static sites are evaluated before the
+    ///     data stage). A context whose parameter table is not mutable ignores the value.
+    /// </remarks>
+    /// <param name="name">The parameter name.</param>
+    /// <param name="value">The value.</param>
+    public void SetParameter(string name, DataValue value)
+    {
+        if (Parameters is IDictionary<string, DataValue> writable)
+        {
+            writable[name] = value;
+        }
+    }
+
+    /// <summary>
     ///     Checks the cancellation token once per batch of rows.
     /// </summary>
     /// <param name="row">The row that is about to be processed.</param>

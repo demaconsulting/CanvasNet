@@ -916,33 +916,13 @@ public sealed partial class FolderImageResolver : IImageResolver
             return;
         }
 
-        var names = declared?.FragmentParameters ?? [];
-        foreach (var group in parameters.GroupBy(p => p.Name, StringComparer.OrdinalIgnoreCase))
+        foreach (var note in request.Fragment.ReviewParameters("image", request.Href, source))
         {
-            if (!names.Any(n => n is not null && string.Equals(n, group.Key, StringComparison.OrdinalIgnoreCase)))
-            {
-                _diagnostics.Add(
-                    new ImageSourceDiagnostic(
-                        "svg",
-                        ImageDiagnosticSeverity.Warning,
-                        FragmentUnknownParameterCode,
-                        $"image {ImageFragment.QuoteLink(request.Href)}: the fragment parameter {ImageFragment.Quote(group.Key)} is not used by the '{source.Name}' source and is ignored")
-                    {
-                        Origin = scope.Origin
-                    });
-            }
-            else if (group.Select(p => p.Value).Distinct(StringComparer.Ordinal).Count() > 1)
-            {
-                _diagnostics.Add(
-                    new ImageSourceDiagnostic(
-                        "svg",
-                        ImageDiagnosticSeverity.Warning,
-                        FragmentDuplicateParameterCode,
-                        $"image {ImageFragment.QuoteLink(request.Href)}: the fragment parameter {ImageFragment.Quote(group.Key)} is given more than once with different values; the last one, {ImageFragment.Quote(group.Last().Value)}, is used")
-                    {
-                        Origin = scope.Origin
-                    });
-            }
+            _diagnostics.Add(
+                new ImageSourceDiagnostic("svg", ImageDiagnosticSeverity.Warning, note.Code, note.Message)
+                {
+                    Origin = scope.Origin
+                });
         }
     }
 

@@ -77,6 +77,7 @@ identifier, or measured size that differs from the rendered size constitutes a f
 `VegaLiteImageSource_Render_SizeBeyondRemainingPixels_IsRefusedBeforeDrawing`,
 `VegaLiteImageSource_Render_DataFile_ResolvesFromDirectoryOfRequest`,
 `VegaLiteImageSource_Render_UnsupportedFeature_ReturnsDiagnosticOrThrowsWhenStrict`,
+`VegaLiteImageSource_Render_ImageMark_UsesTheResolverOfTheRequest`,
 `VegaLiteImageSource_Render_InvalidInput_Throws`,
 `VegaLiteImageSource_Properties_NameExtensionsAndNoSchemes`
 
@@ -94,7 +95,82 @@ an unsupported feature (a binned time unit) is returned as an `Unsupported` note
 without a file
 `InvalidOperationException`, a null request `ArgumentNullException`, a canceled request `OperationCanceledException`,
 and that the
-source claims `.vl` and `.vl.json` but not `.json` and no scheme.
+source claims `.vl` and `.vl.json` but not `.json` and no scheme; and that a chart whose image mark names `icon.png`
+draws the picture of the resolver of the request (asked for 60 by 40 pixels) over the chart without notes, while a
+request
+without a resolver gets the `vl-mark-image` note (source `vega-lite`, severity `Unsupported`), draws nothing, and throws
+`VegaLiteUnsupportedFeatureException` when strict.
+
+#### CanvasNetVegaLite-VegaLiteDocument-ImageSourceParameters: Parameters Set From The Link
+
+**Tests**: `VegaLiteImageSource_FragmentParameterPrefixes_DeclaresParam`,
+`VegaLiteImageSource_Render_ParamFragment_SetsTheParameterAndTheLayout`,
+`VegaLiteImageSource_Render_ParamFragment_SelectionTakesJson`,
+`VegaLiteImageSource_Render_UnknownParameter_IsAWarningAndIsIgnored`,
+`VegaLiteImageSource_Render_ChartWithoutParameters_SaysItDeclaresNone`,
+`VegaLiteImageSource_Render_InvalidParameter_IsRefusedBeforeCharging`,
+`VegaLiteImageSource_Render_ValueTheLibraryRejects_IsRefused`,
+`FolderImageResolver_Resolve_ChartParamLink_IsUnderstoodAndOthersAreUnknown`
+
+`VegaLiteImageSourceParameterTests.cs` calls `VegaLiteImageSource.Render` with a fragment in the request, on a chart
+whose parameter `cutoff` filters the
+bars (so the number of bands, and the natural size, follow it) and whose interval selection `brush` colors the bars
+inside it. Asserts that the source
+declares the prefix `param.` and no name; that `param.cutoff=4` draws exactly the pixels, and the natural size, of the
+chart whose own default is 4, and
+differs from the default chart (a narrower picture), with the last value of a repeated name used; that `param.brush` as
+encoded JSON, as raw JSON and as the chart's own
+`value` draws the same pixels, and `null` clears the selection; that `param.nope=1&param.cutoff=4` is one warning of the
+source `vega-lite` with the
+code `vl-param-unknown`, naming `param.nope` and `declared: brush, cutoff`, while `cutoff` still applies, and a chart
+without parameters says it declares
+none; that `{x`, `[1,` and `%22abc` and a value nested 33 levels deep are `ImageSourceRefusedException` with
+`image-fragment-invalid` thrown before
+anything is charged; and, through a `FolderImageResolver`, that a `param.` link gets no warning and `def.width=1` is the
+unknown-parameter warning.
+
+#### CanvasNetVegaLite-VegaLiteDocument-ImageResolver: Pictures Through The Host's Resolver
+
+**Tests**: `VegaLiteImageMarkIntegrationTests.VegaLiteDocument_Render_ImageMark_DrawsEveryPictureAtItsPosition`,
+`VegaLiteImageMarkIntegrationTests.VegaLiteDocument_Measure_ImageMark_NeverCallsTheResolver`,
+`VegaLiteImageMarkIntegrationTests.VegaLiteDocument_Render_ImageMark_AsksForTheBoxInDevicePixels`,
+`VegaLiteImageMarkIntegrationTests.VegaLiteDocument_Render_ImageMarkWithoutResolver_IsReportedAndDrawsNothing`,
+`VegaLiteImageMarkIntegrationTests.VegaLiteDocument_Render_ImageMarkWithResolver_IsNotReported`,
+`VegaLiteImageMarkIntegrationTests.VegaLiteDocument_Render_ImageMarkUnresolved_WarnsAndDrawsTheRest`,
+`VegaLiteImageMarkIntegrationTests.VegaLiteDocument_Render_ImageMark_CachesPerRenderAndHonorsMaxImages`,
+`VegaLiteImageMarkIntegrationTests.VegaLiteDocument_Render_ImageMarkResolverThrows_Propagates`,
+`VegaLiteImageMarkIntegrationTests.VegaLiteDocument_Render_ImageMarkRemoteLink_IsPassedUntouched`,
+`VegaLiteImageMarkIntegrationTests.VegaLiteDocument_Render_ImageMarkInLayer_IsDrawnInLayerOrder`,
+`VegaLiteImageMarkIntegrationTests.VegaLiteDocument_Render_ImageMark_IsDeterministic`,
+`VegaLiteRenderOptionsTests.VegaLiteRenderOptions_Defaults_AreDocumented`,
+`VegaLiteRenderOptionsTests.VegaLiteRenderOptions_ValidValues_AreStored`,
+`VegaLiteLimitsTests.VegaLiteLimits_Default_HasDocumentedValues`,
+`VegaLiteLimitsTests.VegaLiteLimits_ValidValues_AreStored`,
+`VegaLiteLimitsTests.VegaLiteLimits_ZeroOrNegative_Throws`
+
+`VegaLiteImageMarkIntegrationTests.cs` renders charts of two pictures (20 by 20 pixel boxes centered at the values 2 and
+8,
+that is 40 and 160 pixels across and 50 down, on a 200 by 100 chart without padding or axes) through a fake resolver
+that
+records its calls and returns solid pictures of the size it is asked for, with pixel assertions. Asserts that the boxes
+are
+at 30 to 50 and 150 to 170 across and 40 to 60 down (the positions the scene reports), that the resolver is asked
+for `("red.png", 20, 20)` and `("blue.png", 20, 20)`, that `Measure` returns the size of the surface `Render` returns
+and
+never calls the resolver, that a scale of 2.5 asks for 50 by 50 and the fit into 600 by 300 (a factor of 3) for 60 by
+60;
+that without a resolver exactly one `vl-mark-image` report at `/mark` is delivered (strict mode throws it) and nothing
+is drawn,
+that a resolver silences it also when the caller's `Config` makes the catalog visit again, that a resolver that answers
+`null` for one link gives one warning `vl-mark-image-unresolved` at `/mark` that strict mode does not turn into an
+exception while the
+other picture is drawn, that four rows with two links make two calls with `MaxImages` 2 and, with `MaxImages` 1, a
+`VegaLiteRenderException` at `/mark` naming `MaxImages` after one call, with every surface released, that an exception
+of the resolver propagates as the same object, that `https://example.com/a.png?x=1#page=2` reaches the resolver
+unchanged, that a
+picture in the second layer of a layered view covers the first layer and is covered by the third, and that two renders
+give the same bytes. The options and limits tests assert that `ImageResolver` is null by default and stored as given and
+that `MaxImages` is 256 by default, stored, and rejected below 1.
 
 #### Open Options: Defaults, Validation, And Copying
 
@@ -342,7 +418,8 @@ parameters are the defaults of the specification overridden by `VegaLiteRenderOp
 whole definition, so an overridden expression is not evaluated, and the value of a selection parameter replaces its
 initial value), that the transforms see them, that a name the document does not declare is an `ArgumentException` when
 it is
-used, and that `ParameterNames` lists the declared names in declaration order; that an expression reference of the title,
+used, and that `ParameterNames` lists the declared names in declaration order; that an expression reference of the
+title,
 the background, and the padding takes the value of its parameter, with the caller's value when there is one, and that a
 caller who gives the domain of a time scale as two dates (2020-01-01 and 2020-01-03) gets 2020-01-02 at 150 pixels and
 2020-01-03 at 300 of 300; that the references are folded again for every call, with the values of that call, and that a
@@ -676,7 +753,7 @@ view with data of its own is not partitioned (each of two cells draws all three 
 field is ignored with `vl-composition-columns-ignored`, `spacing` of 40 puts the columns `101 + 40 + 1` = 142 apart, and
 `bounds: "flush"` lays out the data rectangles (120 apart whatever the axes). The limit on the number of views is
 checked from the number of cells before any is made (six cells and the facet are seven views; refused at six, located at
-the `row` field), a facet with unsupported parts reports `vl-facet-field-transform`, `vl-facet-sort`,
+the `row` field), a facet with unsupported parts reports `vl-facet-field-transform` (a `bin`),
 `vl-header-orient`, the unsupported function of a header `labelExpr` (`vl-expr-function-luminance`; `vl-expr-label` is
 retired)
 and `vl-format-type-custom` and draws the rest, strict mode has nothing to throw for
@@ -771,7 +848,8 @@ channel sit side by side with equal widths.
 
 #### Selections: The Model Is Bound To The Drawn Units And Reaches The Data Stage, The Scales, And The Marks
 
-**Tests**: `VegaLiteBrushIntegrationTests.CanvasNetVegaLite_SystemIntegration_Brush_AGlobalSelectionIsDrawnByItsFirstUnitOnly`,
+**Tests**:
+`VegaLiteBrushIntegrationTests.CanvasNetVegaLite_SystemIntegration_Brush_AGlobalSelectionIsDrawnByItsFirstUnitOnly`,
 `VegaLiteBrushIntegrationTests.CanvasNetVegaLite_SystemIntegration_Brush_NoCellOfAFacetDrawsAGlobalSelection`,
 `VegaLiteSelectionExtentIntegrationTests.CanvasNetVegaLite_SystemIntegration_BindScales_AreIgnoredInAConcatenation`,
 `VegaLiteSelectionTimeUnitIntegrationTests.CanvasNetVegaLite_SystemIntegration_TimeUnitSelection_AConditionAddsTheTimeUnitToItsView`

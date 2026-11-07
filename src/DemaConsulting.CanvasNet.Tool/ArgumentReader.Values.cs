@@ -1,6 +1,7 @@
 // cspell:ignore canvasnet rgba dpi rrggbbaa
 using System.Globalization;
 using DemaConsulting.CanvasNet.Canvas;
+using DemaConsulting.CanvasNet.ImageSources;
 using DemaConsulting.CanvasNet.Viewer;
 using DemaConsulting.CanvasNet.Viewer.Imaging;
 
@@ -317,14 +318,15 @@ internal sealed partial class ArgumentReader
     /// <returns>
     ///     The values by name; a later definition replaces an earlier one with the same name. A value is a
     ///     <see cref="double"/> when it is a finite number (<c>2</c>, <c>-1.5</c>, <c>1e3</c>), a
-    ///     <see cref="bool"/> for <c>true</c> or <c>false</c>, and otherwise a <see cref="string"/> (one pair of
+    ///     <see cref="bool"/> for <c>true</c> or <c>false</c>, a <see cref="List{T}"/> (a vector) when it starts with
+    ///     <c>[</c> (<c>$vpt=[0,0,20]</c>, a JSON array), and otherwise a <see cref="string"/> (one pair of
     ///     surrounding single or double quotes is removed, so <c>name="a b"</c> and <c>name=a b</c> are the same).
     /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="defs"/> is <see langword="null"/>.</exception>
     /// <exception cref="ToolException">
     ///     Thrown with code <c>usage-error</c> when a definition has no <c>=</c>, has a name that is not an
     ///     identifier (letters, digits, <c>_</c>, and <c>$</c>, not starting with a digit), or has a value that
-    ///     starts with <c>[</c> (vectors are not supported).
+    ///     starts with <c>[</c> and is not a valid vector (valid JSON of numbers, <c>true</c>, <c>false</c>, <c>null</c>, text, and vectors).
     /// </exception>
     public static IReadOnlyDictionary<string, object?> ParseDefines(IEnumerable<string> defs)
     {
@@ -341,41 +343,54 @@ internal sealed partial class ArgumentReader
             }
 
             var value = def[(equals + 1)..];
-            if (value.StartsWith('['))
-            {
-                throw Invalid(def, "-D", "a number, true, false, or text (vector values are not supported)", "width=20");
-            }
-
-            result[name] = ParseLiteral(value);
+            result[name] = ImageParameterValues.TryParseVariable(value, out var parsed, out var problem)
+                ? parsed
+                : throw Invalid(def, "-D", $"a number, true, false, text, or a vector such as [0,0,20] ({problem})", "width=20");
         }
 
         return result;
     }
 
     /// <summary>
-    ///     Parses the value of a definition.
+    ///     Parses <c>--param name=value</c> chart parameters.
     /// </summary>
-    /// <param name="value">The text after the <c>=</c>.</param>
-    /// <returns>A <see cref="double"/>, <see cref="bool"/>, or <see cref="string"/>.</returns>
-    private static object ParseLiteral(string value)
+    /// <param name="parameters">The parameters, each written <c>name=value</c>.</param>
+    /// <returns>
+    ///     The values by name; a later parameter replaces an earlier one with the same name. A value is read as
+    ///     <see cref="ImageParameterValues.TryParseParameter(string, out object?, out string?)"/> reads it: <c>true</c>,
+    ///     <c>false</c>, <c>null</c>, a finite number (a <see cref="double"/>), a JSON array, object or string (a
+    ///     <see cref="List{T}"/>, a <see cref="Dictionary{TKey, TValue}"/> or a <see cref="string"/>), and otherwise text
+    ///     (one pair of surrounding single quotes is removed), so <c>cutoff=50</c>, <c>region=EU</c> and
+    ///     <c>brush={"x":[2,6]}</c> all work.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="parameters"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ToolException">
+    ///     Thrown with code <c>usage-error</c> when a parameter has no <c>=</c>, has an empty name, or has a value that
+    ///     starts with <c>{</c>, <c>[</c> or <c>"</c> and is not valid JSON.
+    /// </exception>
+    public static IReadOnlyDictionary<string, object?> ParseParams(IEnumerable<string> parameters)
     {
-        if (value == "true")
+        ArgumentNullException.ThrowIfNull(parameters);
+
+        var result = new Dictionary<string, object?>(StringComparer.Ordinal);
+        foreach (var parameter in parameters)
         {
-            return true;
+            var equals = parameter.IndexOf('=');
+            if (equals <= 0)
+            {
+                throw Invalid(parameter, "--param", "name=value, where name is the name of a parameter of the chart", "cutoff=50");
+            }
+
+            var text = parameter[(equals + 1)..];
+            if (!ImageParameterValues.TryParseParameter(text, out var value, out var problem))
+            {
+                throw Invalid(parameter, "--param", $"name=value, where value is a number, true, false, null, text, or a JSON array or object ({problem})", "brush={\"x\":[2,6]}");
+            }
+
+            result[parameter[..equals]] = value;
         }
 
-        if (value == "false")
-        {
-            return false;
-        }
-
-        if (double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var number) && double.IsFinite(number))
-        {
-            return number;
-        }
-
-        var quoted = value.Length >= 2 && (value[0] == '"' || value[0] == '\'') && value[^1] == value[0];
-        return quoted ? value[1..^1] : value;
+        return result;
     }
 
     /// <summary>

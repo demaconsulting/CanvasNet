@@ -12,6 +12,16 @@ namespace DemaConsulting.CanvasNet.ImageSources;
 public readonly record struct ImageFragmentParameter(string Name, string Value);
 
 /// <summary>
+///     A note about the parameters of the fragment of a link, from <see cref="ImageFragment.ReviewParameters(string, string, IImageSource)"/>.
+/// </summary>
+/// <param name="Code">
+///     The stable code: <see cref="FolderImageResolver.FragmentUnknownParameterCode"/> or
+///     <see cref="FolderImageResolver.FragmentDuplicateParameterCode"/>.
+/// </param>
+/// <param name="Message">The description, which names the link and the parameter.</param>
+public readonly record struct ImageFragmentNote(string Code, string Message);
+
+/// <summary>
 ///     The fragment of a link (the text after the first <c>#</c>), parsed into ordered parameters in the style of the
 ///     <c>#page=3</c> fragments of RFC 8118 (the PDF media type), so a link can choose which page of a document to draw.
 /// </summary>
@@ -197,6 +207,131 @@ public sealed class ImageFragment
         throw new ImageSourceRefusedException(
             FolderImageResolver.FragmentInvalidCode,
             $"the fragment parameter {Quote(parameter.Name)} must be a whole number of 1 or more, not {Quote(parameter.Value)}");
+    }
+
+    /// <summary>
+    ///     Gets the parameters whose name starts with a prefix, with the prefix removed from the name.
+    /// </summary>
+    /// <param name="prefix">The prefix, for example <c>def.</c>, matched ASCII case-insensitively; not empty.</param>
+    /// <returns>
+    ///     The parameters in the order their names first appear. A name is what follows the prefix, as written (it is not
+    ///     case-folded), and a parameter that has nothing after the prefix is not included. When a name occurs more than
+    ///     once the last value is returned (last wins), in the position of its first occurrence.
+    /// </returns>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="prefix"/> is null or empty.</exception>
+    /// <example>
+    ///     <code language="csharp">
+    ///     var fragment = ImageFragment.Parse("view=top&amp;def.width=20&amp;def.label=%22A%22");
+    ///     foreach (var definition in fragment.GetPrefixed("def."))
+    ///     {
+    ///         Console.WriteLine($"{definition.Name} = {definition.Value}");   // width = 20, then label = "A"
+    ///     }
+    ///     </code>
+    /// </example>
+    public IReadOnlyList<ImageFragmentParameter> GetPrefixed(string prefix)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(prefix);
+
+        var order = new List<string>();
+        var last = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var parameter in _parameters)
+        {
+            if (!HasPrefix(parameter.Name, prefix))
+            {
+                continue;
+            }
+
+            var name = parameter.Name[prefix.Length..];
+            if (!last.ContainsKey(name))
+            {
+                order.Add(name);
+            }
+
+            last[name] = parameter.Value;
+        }
+
+        return [.. order.Select(name => new ImageFragmentParameter(name, last[name]))];
+    }
+
+    /// <summary>
+    ///     Tells whether a parameter name starts with a prefix and has at least one more character.
+    /// </summary>
+    /// <param name="name">The decoded name of a parameter.</param>
+    /// <param name="prefix">The prefix, matched ASCII case-insensitively.</param>
+    /// <returns><see langword="true"/> when the name is the prefix followed by something.</returns>
+    internal static bool HasPrefix(string name, string prefix)
+    {
+        return name.Length > prefix.Length && name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    ///     Reviews the parameters of the fragment of a link against what its source declares: a parameter the source does not
+    ///     use, and a parameter that is given more than once with different values.
+    /// </summary>
+    /// <param name="subject">What the link is called in a message, for example <c>image</c> or <c>input</c>.</param>
+    /// <param name="href">The link as written; it is quoted in the messages (control characters replaced, cut at 120 characters).</param>
+    /// <param name="source">The source that draws the link; its <see cref="IFragmentImageSource"/> declaration (if any) says which names it uses.</param>
+    /// <returns>
+    ///     The notes, each with the code <see cref="FolderImageResolver.FragmentUnknownParameterCode"/> or
+    ///     <see cref="FolderImageResolver.FragmentDuplicateParameterCode"/>, in the order of the first appearance of each
+    ///     name; empty when the fragment has no parameter or every parameter is understood once.
+    /// </returns>
+    /// <remarks>
+    ///     This is the check <see cref="FolderImageResolver"/> makes for a link in an SVG document, so a command line and a
+    ///     link report the same mistakes with the same codes. A name is understood when it is declared
+    ///     (<see cref="IFragmentImageSource.FragmentParameters"/>, ASCII case-insensitively) or starts with a declared
+    ///     prefix. Each name is reported once; a name that is unknown is not also reported as a duplicate; aliases of one
+    ///     source (<c>page</c> and <c>slide</c>) are never duplicates of each other; what follows a prefix is compared as written.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown when an argument is null.</exception>
+    public IReadOnlyList<ImageFragmentNote> ReviewParameters(string subject, string href, IImageSource source)
+    {
+        ArgumentNullException.ThrowIfNull(subject);
+        ArgumentNullException.ThrowIfNull(href);
+        ArgumentNullException.ThrowIfNull(source);
+
+        var notes = new List<ImageFragmentNote>();
+        var declared = source as IFragmentImageSource;
+        var names = declared?.FragmentParameters ?? [];
+        var prefixes = (declared?.FragmentParameterPrefixes ?? []).Where(p => !string.IsNullOrEmpty(p)).ToArray();
+        foreach (var group in _parameters.GroupBy(p => GroupKey(p.Name, prefixes), StringComparer.Ordinal))
+        {
+            // The name as first written; a prefixed name is understood whatever follows its prefix
+            var name = group.First().Name;
+            var understood = prefixes.Any(prefix => HasPrefix(name, prefix))
+                             || names.Any(n => n is not null && string.Equals(n, name, StringComparison.OrdinalIgnoreCase));
+            if (!understood)
+            {
+                notes.Add(
+                    new ImageFragmentNote(
+                        FolderImageResolver.FragmentUnknownParameterCode,
+                        $"{subject} {QuoteLink(href)}: the fragment parameter {Quote(name)} is not used by the '{source.Name}' source and is ignored"));
+            }
+            else if (group.Select(p => p.Value).Distinct(StringComparer.Ordinal).Count() > 1)
+            {
+                notes.Add(
+                    new ImageFragmentNote(
+                        FolderImageResolver.FragmentDuplicateParameterCode,
+                        $"{subject} {QuoteLink(href)}: the fragment parameter {Quote(name)} is given more than once with different values; the last one, {Quote(group.Last().Value)}, is used"));
+            }
+        }
+
+        return notes;
+    }
+
+    /// <summary>
+    ///     Gets the key that makes two parameter names the same parameter: the whole name compared ASCII
+    ///     case-insensitively, except that what follows a declared prefix is compared as written.
+    /// </summary>
+    /// <param name="name">The decoded name of a parameter.</param>
+    /// <param name="prefixes">The prefixes the source declares.</param>
+    /// <returns>The key.</returns>
+    private static string GroupKey(string name, string[] prefixes)
+    {
+        var prefix = prefixes.FirstOrDefault(p => HasPrefix(name, p));
+        return prefix is null
+            ? "n:" + name.ToUpperInvariant()
+            : "p:" + prefix.ToUpperInvariant() + name[prefix.Length..];
     }
 
     /// <summary>

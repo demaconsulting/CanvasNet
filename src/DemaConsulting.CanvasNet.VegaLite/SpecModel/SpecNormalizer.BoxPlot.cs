@@ -35,8 +35,8 @@ internal static partial class SpecNormalizer
     {
         var orient = b.Orient(encoding);
         var axis = b.ContinuousAxis(encoding, orient);
-        var (shared, groupBy) = b.Grouping(encoding!, axis);
-        var plot = new BoxPlotLayers(b, axis, orient, shared, groupBy);
+        var (shared, groupBy, timeUnits) = b.Grouping(encoding!, axis);
+        var plot = new BoxPlotLayers(b, axis, orient, shared, groupBy, timeUnits);
         return plot.Create();
     }
 
@@ -66,6 +66,9 @@ internal static partial class SpecNormalizer
         /// <summary>The fields that group the rows.</summary>
         private readonly List<string> _groupBy;
 
+        /// <summary>The <c>timeUnit</c> transforms of the grouping channels, which run before the aggregates.</summary>
+        private readonly List<SpecNode> _timeUnits;
+
         /// <summary>The <c>invalid</c> of the mark definition, or null.</summary>
         private readonly SpecNode? _invalid;
 
@@ -77,7 +80,8 @@ internal static partial class SpecNormalizer
         /// <param name="orient">The orientation.</param>
         /// <param name="shared">The channels the parts share.</param>
         /// <param name="groupBy">The fields that group the rows.</param>
-        public BoxPlotLayers(CompositeBuilder b, CompositeAxis axis, string orient, List<SpecNode> shared, List<string> groupBy)
+        /// <param name="timeUnits">The <c>timeUnit</c> transforms of the grouping channels.</param>
+        public BoxPlotLayers(CompositeBuilder b, CompositeAxis axis, string orient, List<SpecNode> shared, List<string> groupBy, List<SpecNode> timeUnits)
         {
             _b = b;
             _axis = axis;
@@ -86,6 +90,7 @@ internal static partial class SpecNormalizer
             _shared = shared;
             _withoutSizeAndColor = [.. shared.Where(c => c.Name is not ("size" or "color"))];
             _groupBy = groupBy;
+            _timeUnits = timeUnits;
             _invalid = b.Definition?["invalid"];
         }
 
@@ -100,7 +105,7 @@ internal static partial class SpecNormalizer
             {
                 // min-max: one view whose aggregate gives the whiskers directly
                 var aggregate = Aggregate([.. Quartiles("lower_box", "upper_box", "mid_box"), Op("min", _axis.Field, Name("lower_whisker")), Op("max", _axis.Field, Name("upper_whisker"))]);
-                return View([aggregate], [.. WhiskerLayers(), .. BoxLayers()]) is { } view ? [view] : [];
+                return View([.. _timeUnits, aggregate], [.. WhiskerLayers(), .. BoxLayers()]) is { } view ? [view] : [];
             }
 
             var k = extent?.AsNumber() ?? 1.5;
@@ -131,12 +136,12 @@ internal static partial class SpecNormalizer
             }
 
             var views = new List<SpecNode>(2);
-            if (View([joinAggregate], upper) is { } first)
+            if (View([.. _timeUnits, joinAggregate], upper) is { } first)
             {
                 views.Add(first);
             }
 
-            if (View([Aggregate(Quartiles("lower_box", "upper_box", "mid_box"))], BoxLayers()) is { } box)
+            if (View([.. _timeUnits, Aggregate(Quartiles("lower_box", "upper_box", "mid_box"))], BoxLayers()) is { } box)
             {
                 views.Add(box);
             }

@@ -283,10 +283,12 @@ sections:
               - CanvasNetVegaLite-SpecModel-SpecParser-Expressions
               - CanvasNetVegaLite-SpecModel-SpecParser-Parameters
               - CanvasNetVegaLite-SpecModel-SpecParser-Transforms
+              - CanvasNetVegaLite-SpecModel-SpecParser-StatisticalTransforms
             tests:
               - SpecParser_Parse_ExpressionErrorsCarryTheLocationOfTheTextAndTheOffset
               - SpecParser_Parse_CompilesTheExpressionsOfSupportedSitesOnly
               - SpecParser_Parse_Phase5TransformsAndParametersAreAccepted
+              - SpecParser_Parse_AcceptsTheWellFormedStatisticalTransforms
               - CanvasNetVegaLite_SystemIntegration_Expressions_ErrorsAndLimitsFailWhenTheDocumentIsOpened
 
           - id: CanvasNetVegaLite-SpecModel-StaticExpressionReferences
@@ -308,6 +310,7 @@ sections:
               - CanvasNetVegaLite-SpecModel-ExpressionReferenceFolder-RowBoundSites
               - CanvasNetVegaLite-SpecModel-ExpressionReferenceFolder-Identity
               - CanvasNetVegaLite-SpecModel-ExpressionReferenceFolder-Limits
+              - CanvasNetVegaLite-SpecModel-ExpressionReferenceFolder-ExtentParameters
             tests:
               - SpecParser_Parse_CompilesTheExpressionsOfSupportedSitesOnly
               - ExpressionReferenceFolder_Fold_ReplacesAReferenceByItsValue

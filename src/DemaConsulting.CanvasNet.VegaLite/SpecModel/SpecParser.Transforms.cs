@@ -1,5 +1,6 @@
 using DemaConsulting.CanvasNet.VegaLite.Data;
 using DemaConsulting.CanvasNet.VegaLite.Expressions;
+using DemaConsulting.CanvasNet.VegaLite.Transforms;
 
 namespace DemaConsulting.CanvasNet.VegaLite.SpecModel;
 
@@ -13,8 +14,8 @@ namespace DemaConsulting.CanvasNet.VegaLite.SpecModel;
 ///         with a syntax error, a parameter cycle, a reference to a parameter that does not exist) is a
 ///         <see cref="VegaLiteSpecException"/> at the exact value, with the position of the value in the text and, for an
 ///         expression, the offset inside the expression text in the message. Constructs that are well formed but that the
-///         renderer does not execute (a function outside the whitelist, view state, a selection parameter, a transform of a
-///         later phase) are not errors: the feature catalog reports them.
+///         renderer does not execute (a function outside the whitelist, view state, an animation selection) are not
+///         errors: the feature catalog reports them.
 ///     </para>
 ///     <para>
 ///         The expressions of the supported sites are compiled here, once, and kept in the <see cref="SpecTree"/>: the
@@ -65,10 +66,84 @@ internal sealed partial class SpecParser
     ///     Determines whether a name is one of the transforms whose result the renderer computes or accepts.
     /// </summary>
     /// <param name="name">The transform name.</param>
-    /// <returns><see langword="true"/> for <c>calculate</c>, <c>filter</c>, <c>fold</c>, <c>flatten</c>, <c>sample</c>, <c>pivot</c>, <c>lookup</c>, <c>aggregate</c>, <c>joinaggregate</c>, <c>window</c>, <c>bin</c>, <c>stack</c>, <c>impute</c> and <c>timeUnit</c>.</returns>
+    /// <returns><see langword="true"/> for every transform of Vega-Lite: <c>calculate</c>, <c>filter</c>, <c>fold</c>, <c>flatten</c>, <c>sample</c>, <c>pivot</c>, <c>lookup</c>, <c>aggregate</c>, <c>joinaggregate</c>, <c>window</c>, <c>bin</c>, <c>stack</c>, <c>impute</c>, <c>timeUnit</c>, <c>regression</c>, <c>loess</c>, <c>density</c>, <c>quantile</c> and <c>extent</c>.</returns>
     public static bool IsSupportedTransform(string name) =>
         name is "calculate" or "filter" or "fold" or "flatten" or "sample" or "pivot" or "lookup"
-            or "aggregate" or "joinaggregate" or "window" or "bin" or "stack" or "impute" or "timeUnit";
+            or "aggregate" or "joinaggregate" or "window" or "bin" or "stack" or "impute" or "timeUnit"
+            or "regression" or "loess" or "density" or "quantile" or "extent";
+
+    /// <summary>
+    ///     Determines whether a name is a parameter that an <c>extent</c> transform of the view that contains a node, or of an ancestor view, computes.
+    /// </summary>
+    /// <remarks>
+    ///     The <c>param</c> of an <c>extent</c> transform is a signal of the compiled Vega chart, so expressions that run after it can name it without declaring it in <c>params</c>.
+    /// </remarks>
+    /// <param name="from">The node that refers to the parameter.</param>
+    /// <param name="name">The parameter name.</param>
+    /// <returns><see langword="true"/> when an <c>extent</c> transform of the view or of an ancestor has that <c>param</c>.</returns>
+    public static bool IsExtentParameter(SpecNode from, string name)
+    {
+        for (SpecNode? node = from; node is not null; node = node.Parent)
+        {
+            if (node.IsObject && node["transform"] is { IsArray: true } list && list.Items.Any(entry => IsExtentEntryFor(entry, name)))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    ///     Gets the names of the parameters that the <c>extent</c> transforms of a specification compute.
+    /// </summary>
+    /// <param name="root">The root of the specification.</param>
+    /// <returns>The names, in document order, without repeats.</returns>
+    public static IReadOnlyList<string> ExtentParameterNames(SpecNode root)
+    {
+        ArgumentNullException.ThrowIfNull(root);
+        var names = new List<string>();
+        var pending = new Stack<SpecNode>();
+        pending.Push(root);
+        while (pending.Count > 0)
+        {
+            var node = pending.Pop();
+            if (node.IsObject)
+            {
+                if (node["transform"] is { IsArray: true } list)
+                {
+                    names.AddRange(list.Items.Where(entry => FindTransformOperation(entry) is { Name: "extent" }).Select(entry => entry["param"]?.AsString()).OfType<string>());
+                }
+
+                // The views below, in reverse so that they pop in document order
+                foreach (var property in node.Properties.Reverse())
+                {
+                    if (property.Name is "layer" or "concat" or "hconcat" or "vconcat")
+                    {
+                        foreach (var item in property.Items.Reverse().Where(item => item.IsObject))
+                        {
+                            pending.Push(item);
+                        }
+                    }
+                    else if (property.Name == "spec" && property.IsObject)
+                    {
+                        pending.Push(property);
+                    }
+                }
+            }
+        }
+
+        return [.. names.Distinct(StringComparer.Ordinal)];
+    }
+
+    /// <summary>
+    ///     Determines whether a transform entry is an <c>extent</c> transform with a given <c>param</c>.
+    /// </summary>
+    /// <param name="entry">The transform entry.</param>
+    /// <param name="name">The parameter name.</param>
+    /// <returns><see langword="true"/> for an extent transform (not a regression or density that has an <c>extent</c> property) whose <c>param</c> is the name.</returns>
+    private static bool IsExtentEntryFor(SpecNode entry, string name) =>
+        entry.IsObject && FindTransformOperation(entry) is { Name: "extent" } && entry["param"] is { IsString: true } param && param.StringValue == name;
 
     /// <summary>
     ///     Determines whether a parameter of that name is declared in the view that contains a node or in an ancestor view.
@@ -197,7 +272,7 @@ internal sealed partial class SpecParser
         var compiled = generated
             ? ExpressionParser.ParseGenerated(source, location.GetLocation(_file), _limits)
             : ExpressionParser.Parse(source, location.GetLocation(_file), _limits);
-        var unknown = compiled.ParameterReferences.FirstOrDefault(r => !IsViewSignal(r.Name) && !IsParameterDeclared(location, r.Name));
+        var unknown = compiled.ParameterReferences.FirstOrDefault(r => !IsViewSignal(r.Name) && !IsParameterDeclared(location, r.Name) && !IsExtentParameter(location, r.Name));
         if (unknown.Name is not null)
         {
             throw Error(
@@ -459,6 +534,21 @@ internal sealed partial class SpecParser
                 break;
             case "timeUnit":
                 ValidateTimeUnitTransform(entry, operation);
+                break;
+            case "regression":
+                ValidateRegressionTransform(entry, operation);
+                break;
+            case "loess":
+                ValidateLoessTransform(entry, operation);
+                break;
+            case "density":
+                ValidateDensityTransform(entry, operation);
+                break;
+            case "quantile":
+                ValidateQuantileTransform(entry, operation);
+                break;
+            case "extent":
+                ValidateExtentTransform(entry, operation);
                 break;
             default:
                 break;
@@ -807,9 +897,9 @@ internal sealed partial class SpecParser
             throw Error(limit, "The 'limit' of a pivot must be a number that is not negative.");
         }
 
-        if (entry["op"] is { } op && !op.IsString)
+        if (entry["op"] is { } op && (!op.IsString || !AggregateMeasures.TryParse(op.StringValue, out _)))
         {
-            throw Error(op, "The 'op' of a pivot must be a text.");
+            throw Error(op, "The 'op' of a pivot must be one of the aggregate operations (count, sum, mean, median, min, max, ...).");
         }
     }
 

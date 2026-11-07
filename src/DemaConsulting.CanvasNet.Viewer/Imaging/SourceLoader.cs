@@ -24,7 +24,7 @@ namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 ///         handles an OpenSCAD model drawn from one viewpoint, and <c>SourceLoader.VegaLite.cs</c> handles a Vega-Lite
 ///         chart. A further source kind is
 ///         added by a new partial file with a probe method and a page source and one new case in each of
-///         <see cref="Probe"/> and <see cref="OpenPages"/>.
+///         <see cref="Probe(string)"/> and <see cref="OpenPages"/>.
 ///     </para>
 ///     <para>
 ///         The loader never lets an expected failure escape as a library exception. The library exceptions that
@@ -53,6 +53,44 @@ public static partial class SourceLoader
 
         var kind = Detect(path);
         return ProbeInput(SourceInput.FromFile(path), kind);
+    }
+
+    /// <summary>
+    ///     Reads the facts about the file of an input that may have a fragment (<c>part.scad#def.width=20</c>), and checks the
+    ///     fragment against the kind of the file.
+    /// </summary>
+    /// <param name="input">The input, from <see cref="InputReference.Parse(string)"/>.</param>
+    /// <returns>
+    ///     The facts about the file, as <see cref="Probe(string)"/> gives them, with <see cref="SourceInfo.Selection"/> set
+    ///     when the input has a fragment; every operation of this namespace that is given the facts applies the selection to
+    ///     the options it loads the source with.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="input"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ViewerException">
+    ///     Thrown for the failures of <see cref="Probe(string)"/>, with code <c>image-fragment-invalid</c> when the
+    ///     fragment or a value in it cannot be used, and with code <c>page-out-of-range</c> when it names a page the file does
+    ///     not have. When the file is missing and the input has a fragment, the message says that a <c>#</c> starts a fragment
+    ///     unless a file with that exact name exists.
+    /// </exception>
+    public static SourceInfo Probe(InputReference input)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+
+        SourceInfo info;
+        try
+        {
+            info = Probe(input.Path);
+        }
+        catch (ViewerException ex) when (ex.Code == ErrorCodes.InputNotFound && input.Fragment.Length > 0)
+        {
+            throw new ViewerException(
+                ErrorCodes.InputNotFound,
+                $"'{input.Path}' does not exist (and neither does a file named '{input.Text}').",
+                "A '#' in an input starts a fragment (page=3, def.width=20) unless a file with that exact name exists. Check the path.",
+                ex);
+        }
+
+        return input.Fragment.Length == 0 ? info : info with { Selection = InputSelection.Create(input, info) };
     }
 
     /// <summary>
@@ -109,7 +147,7 @@ public static partial class SourceLoader
     }
 
     /// <summary>
-    ///     Loads a file into pixels, given the facts that <see cref="Probe"/> already read.
+    ///     Loads a file into pixels, given the facts that <see cref="Probe(string)"/> already read.
     /// </summary>
     /// <param name="info">The facts about the file.</param>
     /// <param name="options">The loading options.</param>
@@ -124,8 +162,21 @@ public static partial class SourceLoader
         ArgumentNullException.ThrowIfNull(info);
         ArgumentNullException.ThrowIfNull(options);
 
+        // The page may be the one the fragment of the input names
+        options = ApplySelection(info, options);
         using var pages = OpenPages(info, options);
         return pages.ReadPage(options.Page);
+    }
+
+    /// <summary>
+    ///     Lays what the fragment of an input chose over the options of a command.
+    /// </summary>
+    /// <param name="info">The facts about the file.</param>
+    /// <param name="options">The options of the command.</param>
+    /// <returns>The options with the selection applied, or <paramref name="options"/> when the input had no fragment.</returns>
+    internal static SourceOptions ApplySelection(SourceInfo info, SourceOptions options)
+    {
+        return info.Selection is { } selection ? selection.ApplyTo(options) : options;
     }
 
     /// <summary>
@@ -148,7 +199,7 @@ public static partial class SourceLoader
         ArgumentNullException.ThrowIfNull(info);
         ArgumentNullException.ThrowIfNull(options);
 
-        return OpenInputPages(SourceInput.FromFile(info.Path), info, options, LoadContext.Default);
+        return OpenInputPages(SourceInput.FromFile(info.Path), info, ApplySelection(info, options), LoadContext.Default);
     }
 
     /// <summary>
@@ -234,6 +285,11 @@ public static partial class SourceLoader
     public abstract class PageSource : IDisposable
     {
         /// <summary>
+        ///     Whether the warnings about the fragment of the input were added to a page already.
+        /// </summary>
+        private bool _fragmentNotesReported;
+
+        /// <summary>
         ///     Initializes a new instance of the <see cref="PageSource"/> class.
         /// </summary>
         /// <param name="info">The facts about the file.</param>
@@ -283,7 +339,16 @@ public static partial class SourceLoader
         {
             CheckPage(Info, page);
             Context.CancellationToken.ThrowIfCancellationRequested();
-            return LoadPageCore(page);
+            var loaded = LoadPageCore(page);
+
+            // The warnings about the fragment of the input are reported once, with the first page that is loaded
+            if (!_fragmentNotesReported && Info.Selection is { Diagnostics.Count: > 0 } selection)
+            {
+                _fragmentNotesReported = true;
+                loaded = loaded with { Diagnostics = [.. selection.Diagnostics, .. loaded.Diagnostics] };
+            }
+
+            return loaded;
         }
 
         /// <inheritdoc />

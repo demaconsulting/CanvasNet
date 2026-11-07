@@ -30,8 +30,10 @@ public class VegaLiteImageSourceTests
     /// <param name="height">The requested height, or <see langword="null"/>.</param>
     /// <param name="directory">The folder of the file, or <see langword="null"/>.</param>
     /// <param name="remaining">The pixels the source may allocate.</param>
+    /// <param name="resolver">The resolver scoped to the file, or <see langword="null"/>.</param>
+    /// <param name="strict">Whether an unsupported feature throws.</param>
     /// <returns>The request.</returns>
-    private static ImageSourceRequest Request(string json, int? width = null, int? height = null, string? directory = null, long remaining = long.MaxValue)
+    private static ImageSourceRequest Request(string json, int? width = null, int? height = null, string? directory = null, long remaining = long.MaxValue, IImageResolver? resolver = null, bool strict = false)
     {
         return new ImageSourceRequest
         {
@@ -41,7 +43,9 @@ public class VegaLiteImageSourceTests
             Directory = directory,
             PixelWidth = width,
             PixelHeight = height,
-            Budget = new ImageBudget(remaining)
+            Budget = new ImageBudget(remaining),
+            Resolver = resolver,
+            ThrowOnUnsupportedFeature = strict
         };
     }
 
@@ -160,6 +164,61 @@ public class VegaLiteImageSourceTests
         // Assert
         var note = Assert.Single(result.Diagnostics, d => d.Severity == ImageDiagnosticSeverity.Unsupported);
         Assert.Equal(("vega-lite", ImageDiagnosticSeverity.Unsupported, "vl-timeunit-binned"), (note.Source, note.Severity, note.Code));
+        Assert.Throws<VegaLiteUnsupportedFeatureException>(() => source.Render(strict));
+    }
+
+    /// <summary>
+    ///     A resolver that answers every link with a red picture of the requested size and records the calls.
+    /// </summary>
+    private sealed class RedResolver : IImageResolver
+    {
+        /// <summary>Gets the links that were asked for with their sizes.</summary>
+        public List<(string Href, int Width, int Height)> Calls { get; } = [];
+
+        /// <inheritdoc />
+        public Surface? Resolve(string href, int pixelWidth, int pixelHeight)
+        {
+            Calls.Add((href, pixelWidth, pixelHeight));
+            var surface = new Surface(pixelWidth, pixelHeight);
+            surface.Clear(new Rgba32(255, 0, 0, 255));
+            return surface;
+        }
+    }
+
+    /// <summary>A chart that shows one picture, filling its whole view.</summary>
+    private const string PictureChart =
+        "{\"width\": 60, \"height\": 40, \"padding\": 0, \"data\": {\"values\": [{\"a\": 1}]}, "
+        + "\"mark\": {\"type\": \"image\", \"width\": 60, \"height\": 40}, "
+        + "\"encoding\": {\"x\": {\"value\": 30}, \"y\": {\"value\": 20}, \"url\": {\"value\": \"icon.png\"}}}";
+
+    /// <summary>
+    ///     Test that the chart draws its pictures through the resolver of the request (the one scoped to the chart's own file), and that without one
+    ///     the <c>image</c> mark is a note (an unsupported feature, and an exception in strict mode) and draws nothing.
+    /// </summary>
+    [Fact]
+    public void VegaLiteImageSource_Render_ImageMark_UsesTheResolverOfTheRequest()
+    {
+        // Arrange: the chart is laid out at 60 by 40 and the resolver is asked for the box of the picture
+        var resolver = new RedResolver();
+        var withResolver = Request(PictureChart, 60, 40, resolver: resolver);
+        var strict = Request(PictureChart, 60, 40, strict: true);
+        var source = new VegaLiteImageSource();
+
+        // Act
+        var drawn = source.Render(withResolver);
+        using var drawnSurface = drawn.Surface;
+        var bare = source.Render(Request(PictureChart, 60, 40));
+        using var bareSurface = bare.Surface;
+
+        // Assert: the picture was asked for and drawn over the chart, without notes
+        Assert.Equal([("icon.png", 60, 40)], resolver.Calls);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), drawnSurface[30, 20]);
+        Assert.Empty(drawn.Diagnostics);
+
+        // Assert: without a resolver the mark is reported and nothing is drawn
+        var note = Assert.Single(bare.Diagnostics);
+        Assert.Equal(("vega-lite", ImageDiagnosticSeverity.Unsupported, "vl-mark-image"), (note.Source, note.Severity, note.Code));
+        Assert.Equal(new Rgba32(255, 255, 255, 255), bareSurface[30, 20]);
         Assert.Throws<VegaLiteUnsupportedFeatureException>(() => source.Render(strict));
     }
 

@@ -225,9 +225,16 @@ band opacity from the configuration and the `interpolate` and `tension` of a two
 **Part marks, titles, and defaults.** The title of a part is the written `title` of the measure, else the field, so the
 merged title of a layered axis reads as Vega-Lite's: the title of a part counts as written, and wins over a title that
 another layer derives (the document merges the titles). `scale` and `axis` of the
-measure are copied to the primary channel of every part. Grouping channels are the remaining channels that have a field;
-a `bin`, a `timeUnit`, or an `aggregate` on a grouping channel is not applied (the catalog reports it as
-`vl-composite-grouping`): the rows are grouped by the raw field and an aggregating channel is left out.
+measure are copied to the primary channel of every part. Grouping channels are the remaining channels that have a field
+(`CompositeBuilder.Grouping` returns the shared channels, the fields to group by, and the `timeUnit` transforms). A
+**`timeUnit` with parts** on a grouping channel that is not binned (Phase 13) becomes a `timeUnit` transform
+(`field` read, `as` the derived field named as Vega-Lite names it, for example `month_date`) that runs **before** the
+aggregate, and the channel reads the derived field, with the default title of the original definition
+(`EncodingPlan.DefaultTimeUnitTitle`) and, for a channel that is not temporal, the `formatType` `time` of its axis,
+legend, or text; the derived field groups the rows (Vega-Lite's `extractTransformsFromEncoding`). The transforms are
+prepended to the top-level view transforms in `SpecNormalizer.BoxPlot.cs` and `SpecNormalizer.ErrorBar.cs`. A `bin`
+or an `aggregate` on a grouping channel, and a binned or `maxbins` time unit, are not applied (the catalog reports them
+as `vl-composite-grouping`): the rows are grouped by the raw field and an aggregating channel is left out.
 
 #### Error Handling
 

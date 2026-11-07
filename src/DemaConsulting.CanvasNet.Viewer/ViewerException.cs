@@ -33,6 +33,12 @@ public static class ErrorCodes
     /// <summary>The requested page does not exist in the input document.</summary>
     public const string PageOutOfRange = "page-out-of-range";
 
+    /// <summary>
+    ///     The fragment of an input (<c>part.scad#def.width=20</c>) cannot be used: it is too long or has too many parameters,
+    ///     or the value of a parameter is not valid. The same code names the same mistake in the link of an SVG image.
+    /// </summary>
+    public const string ImageFragmentInvalid = "image-fragment-invalid";
+
     /// <summary>The requested or resulting image is larger than the supported maximum size.</summary>
     public const string SizeLimit = "size-limit";
 

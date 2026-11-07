@@ -85,23 +85,21 @@ constituent software items, specifically:
   direct unit, `VegaLiteDocument` (the public parse, open, measure, and render API, options, limits, locations, and
   exceptions), and nine internal subsystems: `SpecModel` (units `SpecParser`, `FeatureCatalog`, and `ConfigResolver`),
   `Data` (units `DataTable`, `DataLoader`, `DataFileResolver`, `DelimitedTextParser`, `TimeCalendar`, the calendar, the
-  d3-time intervals, the Vega-Lite time units, and the datetime objects, and `TimeFormat`, the d3-time-format
-  formatter and parser and the `Date.parse` rules), `Expressions` (units
-  `ExpressionParser`, `ExpressionEvaluator`, and `ExpressionFunctions`, the supported subset of the Vega expression
-  language), `Transforms` (units `RowTransforms`, the row transforms `calculate`, `filter`, `fold`, `flatten`, `sample`,
-  `pivot`, and `lookup` and the static parameters; `AggregateTransforms`, the grouped transforms `aggregate`,
-  `joinaggregate`, `window`, `bin`, `stack`, and `impute`; `EncodingPlan`, the implicit bin, time unit, aggregate,
-  impute,
-  and stack of the encoding; and `TimeUnitTransform`, the `timeUnit` transform and the start and end of the time unit
-  of a
-  date), `Scales` (units `ScaleModel`, `ScaleResolver`, `Ticks`,
-  `NumberFormat`, `ColorSchemes`, and `ColorInterpolator`), `Guides` (units `TextMeasurer`, `TitleBuilder`,
-  `AxisBuilder`, `LabelOverlap`, `LegendBuilder`, and `TimeLabels`), `Layout` (units `ViewLayout` and `LegendLayout`),
-  `Marks` (units `MarkBuilder`, the bar, rect, symbol, rule, tick, line, area, trail, text, and arc marks, and
-  `CurveBuilder`, the d3-shape curves), and `Scenegraph` (units `SceneModel`, `ScenePainter`, `ArcGeometry`, the
-  d3-shape
-  arc, and `CssPaint`) —
-  see _CanvasNetVegaLite System Verification_ (`canvas-net-vega-lite.md`)
+  d3-time intervals, the Vega-Lite time units, and the datetime objects, and `TimeFormat`, the d3-time-format formatter
+  and parser and the `Date.parse` rules), `Expressions` (units `ExpressionParser`, `ExpressionEvaluator`, and
+  `ExpressionFunctions`, the supported subset of the Vega expression language), `Transforms` (units `RowTransforms`, the
+  row transforms `calculate`, `filter`, `fold`, `flatten`, `sample`, `pivot` (with every aggregate operation), and
+  `lookup` and the static parameters; `AggregateTransforms`, the grouped transforms `aggregate`, `joinaggregate`,
+  `window`, `bin`, `stack`, and `impute`; `EncodingPlan`, the implicit bin, time unit, aggregate, impute, and stack of
+  the encoding; `TimeUnitTransform`, the `timeUnit` transform and the start and end of the time unit of a date; and
+  `StatTransforms`, the `regression`, `loess`, `density`, `quantile`, and `extent` transforms), `Scales` (units
+  `ScaleModel`, `ScaleResolver`, `Ticks`, `NumberFormat`, `ColorSchemes`, and `ColorInterpolator`), `Guides` (units
+  `TextMeasurer`, `TitleBuilder`, `AxisBuilder`, `LabelOverlap`, `LegendBuilder`, and `TimeLabels`), `Layout` (units
+  `ViewLayout` and `LegendLayout`), `Marks` (units `MarkBuilder`, the bar, rect, symbol, rule, tick, line, area, trail,
+  text, and arc marks, and `CurveBuilder`, the d3-shape curves), and `Scenegraph` (units `SceneModel`, `ScenePainter`,
+  `ArcGeometry`, the d3-shape arc, `CssPaint`, and `SymbolPathParser`, the custom symbol paths) — see
+  _CanvasNetVegaLite System Verification_
+  (`canvas-net-vega-lite.md`)
 - **CanvasNetViewer (System)** — A separate software system, distributed as the `DemaConsulting.CanvasNet.Viewer`
   package, that lists the image sources of every format, creates the image resolver that lets an SVG document embed
   them, renders any file as a picture, and is the library form of the `canvasnet` tool, containing two direct units,
@@ -159,12 +157,10 @@ For example, the unit `ScaleResolver` of the `Scales` subsystem of the CanvasNet
 `docs/verification/canvas-net-vega-lite/scales/scale-resolver.md`, the source
 `src/DemaConsulting.CanvasNet.VegaLite/Scales/ScaleResolver.cs`, and the tests
 `test/DemaConsulting.CanvasNet.VegaLite.Tests/Scales/ScaleResolverTests.cs`. The system-level tests of that system are
-in
-`VegaLiteSystemIntegrationTests.cs` and `VegaLiteChartIntegrationTests.cs` in the root of its test project (with
+in `VegaLiteSystemIntegrationTests.cs` and `VegaLiteChartIntegrationTests.cs` in the root of its test project (with
 `VegaLiteAggregationIntegrationTests.cs`, `VegaLiteTimeIntegrationTests.cs`, `VegaLiteLineAreaIntegrationTests.cs`, and
-`VegaLiteArcTextIntegrationTests.cs`), and its
-original-work specification fixtures (including the data-file chart, its CSV file, and the nested JSON rows), with their
-provenance statement, are in
+`VegaLiteArcTextIntegrationTests.cs`), and its original-work specification fixtures (including the data-file chart, its
+CSV file, and the nested JSON rows), with their provenance statement, are in
 `test/DemaConsulting.CanvasNet.VegaLite.Tests/Fixtures/`. The file-backed data tests of the `Data` subsystem use the
 helpers in `test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataTestSupport.cs` (per-test temporary directories, an
 in-memory file set behind the file callback, and an endless stream); the time units of that subsystem (`TimeCalendar`
@@ -172,8 +168,7 @@ and `TimeFormat`) have the verification designs `data/time-calendar.md` and `dat
 `Data/TimeCalendar*Tests.cs`, `Data/TimeUnitSpec*Tests.cs`, `Data/DateTimeObjectTests.cs`, `Data/TimeFormat*Tests.cs`,
 and `Data/JsDateParserTests.cs`, which build every time zone with `TimeZoneInfo.CreateCustomTimeZone` in the helper
 `Data/TimeTestSupport.cs` and never read the host's zone, clock, or culture. The units of the `Expressions` and
-`Transforms`
-subsystems follow the same pattern, for example the verification design
+`Transforms` subsystems follow the same pattern, for example the verification design
 `docs/verification/canvas-net-vega-lite/expressions/expression-parser.md` and
 `docs/verification/canvas-net-vega-lite/transforms/row-transforms.md`, the requirements
 `docs/reqstream/canvas-net-vega-lite/expressions/expression-parser.yaml` and
@@ -184,20 +179,22 @@ subsystems follow the same pattern, for example the verification design
 `test/DemaConsulting.CanvasNet.VegaLite.Tests/Transforms/RowTransformsTests.cs`; the units `AggregateTransforms` and
 `EncodingPlan` of the same subsystem have the verification designs `transforms/aggregate-transforms.md` and
 `transforms/encoding-plan.md` and the tests `Transforms/AggregateTransformsTests.cs` (with its companion test classes
-for
-the measures, the bin algorithm, and the window, stack, impute, and joinaggregate transforms) and
+for the measures, the bin algorithm, and the window, stack, impute, and joinaggregate transforms) and
 `Transforms/EncodingPlanTests.cs` (with `Transforms/EncodingTransformsTests.cs`); the unit `TimeUnitTransform` has the
 verification design `transforms/time-unit-transform.md` and the tests `Transforms/TimeUnitTransformTests.cs` and
-`Transforms/TemporalFieldsTests.cs`, and the unit `TimeLabels` of the `Guides` subsystem has the verification design
-`guides/time-labels.md` and the tests `Guides/TimeLabelsTests.cs`; the units added for the line, area, trail, text, and
-arc marks follow the same pattern: `CurveBuilder` of the `Marks` subsystem has the verification design
-`marks/curve-builder.md` and the tests `Marks/CurveBuilderTests.cs`, `Marks/CurveBuilderSplineTests.cs`, and
-`Marks/CurveBuilderAreaTests.cs`, `ArcGeometry` of the `Scenegraph` subsystem has `scenegraph/arc-geometry.md` and
-`Scenegraph/ArcGeometryTests.cs`, and the existing units `MarkBuilder` and `ScenePainter` have the new test classes
-`Marks/MarkBuilder{Path,Order,Overlay,Text,Arc,PolarText}Tests.cs` and `Scenegraph/ScenePainterPathTests.cs`, with the
-expected values of all of them derived by hand and the helper `Marks/PathText.cs`; the expression tests share the
-helpers
-in `test/DemaConsulting.CanvasNet.VegaLite.Tests/Expressions/ExpressionTestSupport.cs`, and the composite values of the
+`Transforms/TemporalFieldsTests.cs`; the unit `StatTransforms` has the verification design
+`transforms/stat-transforms.md` and the tests `Transforms/StatTransforms*Tests.cs` (with the tests of `RegressionFit`,
+`CurveSampler`, `LoessFit`, `KernelDensity`, and `StatisticsPrimitives`), and the unit `TimeLabels` of the `Guides`
+subsystem has the verification design `guides/time-labels.md` and the tests `Guides/TimeLabelsTests.cs`; the units added
+for the line, area, trail, text, and arc marks follow the same pattern: `CurveBuilder` of the `Marks` subsystem has the
+verification design `marks/curve-builder.md` and the tests `Marks/CurveBuilderTests.cs`,
+`Marks/CurveBuilderSplineTests.cs`, and `Marks/CurveBuilderAreaTests.cs`, `ArcGeometry` of the `Scenegraph` subsystem
+has `scenegraph/arc-geometry.md` and `Scenegraph/ArcGeometryTests.cs`, `SymbolPathParser` has
+`scenegraph/symbol-path-parser.md` and `Scenegraph/SymbolPathParserTests.cs`, and the existing units `MarkBuilder` and
+`ScenePainter` have the new test classes `Marks/MarkBuilder{Path,Order,Overlay,Text,Arc,PolarText}Tests.cs` and
+`Scenegraph/ScenePainterPathTests.cs`, with the expected values of all of them derived by hand and the helper
+`Marks/PathText.cs`; the expression tests share the helpers in
+`test/DemaConsulting.CanvasNet.VegaLite.Tests/Expressions/ExpressionTestSupport.cs`, and the composite values of the
 expression engine are tested in `test/DemaConsulting.CanvasNet.VegaLite.Tests/Data/DataCompositeValueTests.cs`. Only
 original fixtures are used: no Vega-Lite example, gallery chart, documentation snippet, or `vega-datasets` data set is
 copied.

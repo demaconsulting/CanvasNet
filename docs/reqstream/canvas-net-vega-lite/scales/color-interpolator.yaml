@@ -3,7 +3,8 @@
 #
 # These requirements describe the design-level behavior of the ColorInterpolator unit of the Scales subsystem
 # (internal namespace DemaConsulting.CanvasNet.VegaLite.Scales): the interpolation of colors in sRGB, HSL, CIELAB,
-# and HCL (with an sRGB gamma), piecewise ramps through a list of colors, the Vega range and quantize helpers, and
+# HCL, and cubehelix (with a gamma for sRGB and cubehelix), piecewise ramps through a list of colors, the Vega range
+# and quantize helpers, and
 # the conversion of a color to a core pixel and to CSS text. The algorithms are own C# ports of d3-interpolate and
 # d3-color (ISC) and are attributed in src/DemaConsulting.CanvasNet.VegaLite/third-party/README.md; the expected
 # values in the tests are derived by hand from the formulas. See
@@ -29,23 +30,32 @@ sections:
 
               - id: CanvasNetVegaLite-Scales-ColorInterpolator-Spaces
                 title: >-
-                  The ColorInterpolator unit shall interpolate in HSL, CIELAB (D50), and HCL, taking the shorter
-                  way round the hue circle (or the long way for the long variants), giving a grey the hue of the
-                  other color, and returning the end colors at 0 and 1.
+                  The ColorInterpolator unit shall interpolate in HSL, CIELAB (D50), HCL, and cubehelix, taking the
+                  shorter way round the hue circle (or the long way for the long variants, including
+                  cubehelix-long), giving a grey the hue of the other color, and returning the end colors at 0 and 1.
                 justification: |
                   The scale interpolate property selects the color space; each space must follow the d3
                   conversions and channel rules so that a color ramp looks as it does in Vega.
                 tests:
                   - ColorInterpolator_Hsl_Lab_Hcl_Match_HandDerivedVectors
+                  - ColorInterpolator_Cubehelix_RedToBlueMatchesD3WithGamma
+                  - ColorInterpolator_Cubehelix_AGreyTakesTheHueOfTheOtherColor
+                  - ColorInterpolator_CubehelixLong_TakesTheLongWayRoundTheHueCircle
+                  - ColorRamp_Cubehelix_PassesThroughTheStopsLikeD3Piecewise
+                  - ColorInterpolator_Cubehelix_BlackToWhiteIsGreyAndColorsRoundTrip
 
               - id: CanvasNetVegaLite-Scales-ColorInterpolator-Gamma
                 title: >-
-                  The ColorInterpolator unit shall apply a gamma to the sRGB space only, raising the channels to
-                  the gamma, interpolating, and raising the result to its reciprocal.
+                  The ColorInterpolator unit shall apply a gamma to the sRGB space (raising the channels to the
+                  gamma, interpolating, and raising the result to its reciprocal) and to the two cubehelix spaces
+                  (raising the position of the lightness to the gamma, as d3-interpolate does), and to no other
+                  space.
                 justification: |
-                  Vega offers a gamma for the sRGB interpolation (interpolateGamma) and for no other space.
+                  Vega offers a gamma for the sRGB interpolation (interpolateGamma) and for the cubehelix spaces
+                  (cubehelix.gamma), and for no other space.
                 tests:
                   - ColorInterpolator_Gamma_AppliesToRgbOnly
+                  - ColorInterpolator_Cubehelix_OpacityGammaAndExtrapolationFollowD3
 
               - id: CanvasNetVegaLite-Scales-ColorInterpolator-Piecewise
                 title: >-

@@ -97,6 +97,10 @@ colors), `diagnostics`, and `echo`. The pixel is reported as stored (not flatten
 For both subcommands, without `--json` the loader's notes and the echo are written to standard error by
 `context.WriteDiagnostics` after the text lines, each note ending with the input path (and the page of a document).
 
+**Input fragment.** The input is probed with `SourceLoader.Probe(InputReference.Parse(input))` like the input of
+`render` (see _RenderCommand Unit Design_): the fragment overrides the options of the command for the input, the text
+result names the input with it, and `WriteCommonFields` writes the `fragment` member of `input`.
+
 #### Error Handling
 
 `ToolException` with `usage-error` (subcommand, operands, options of the other subcommand, an unknown option, a

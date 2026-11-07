@@ -249,7 +249,11 @@ public class ColorInterpolatorTests
         Assert.True(ColorInterpolator.TryParseSpace("hsl-long", out _));
         Assert.True(ColorInterpolator.TryParseSpace("lab", out _));
         Assert.True(ColorInterpolator.TryParseSpace("hcl", out _));
-        Assert.False(ColorInterpolator.TryParseSpace("cubehelix", out _));
+        Assert.True(ColorInterpolator.TryParseSpace("cubehelix", out var helix));
+        Assert.Equal(InterpolationSpace.Cubehelix, helix);
+        Assert.True(ColorInterpolator.TryParseSpace("cubehelix-long", out var helixLong));
+        Assert.Equal(InterpolationSpace.CubehelixLong, helixLong);
+        Assert.False(ColorInterpolator.TryParseSpace("cubehelix-short", out _));
         Assert.False(ColorInterpolator.TryParseSpace(null, out _));
     }
 

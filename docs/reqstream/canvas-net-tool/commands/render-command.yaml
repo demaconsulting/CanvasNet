@@ -157,8 +157,9 @@ sections:
           Vega-Lite schema) at the size the size options ask for (its laid-out natural size by default) over
           its own background, white by default, or the background color given, with no option of its own for a
           chart; shall read the local data files of a chart from the folder of its specification and below it
-          only, with no option for another data folder and no network access; shall describe what it drew (the
-          size, the time zone, and the background when given) in the
+          only, with no option for another data folder and no network access; shall set the parameters of a chart
+          only through the --param option (see the ChartParams requirement); shall describe what it drew (the
+          size, the time zone, the background when given, and the parameters when given) in the
           render operation and the natural size in the input of the result; shall report the warnings and
           unsupported features of the chart in the diagnostics of the result (and, without the JSON option, on
           standard error) and, with the strict switch, fail
@@ -180,6 +181,64 @@ sections:
           - RenderCommand_Run_VegaLiteWithPageTwoOrModelOption_Fails
           - RenderCommand_Run_VegaLiteLocalDataResolvesRelativeToSpecFolder
           - RenderCommand_Usage_NamesVegaLite
+
+      - id: CanvasNetTool-Commands-RenderCommand-ChartParams
+        title: >-
+          The render command, its verb commands and the inspect command shall accept the repeatable --param
+          name=value option for a Vega-Lite chart (read by ArgumentReader.ParseParams), replace the default
+          value of the parameter of that name in the specification with the value, lay the chart out again with the
+          values before the size options are applied (so the natural size of the result and the picture are those of the
+          parameterized chart), list the parameters in the params member of the render operation (in name order,
+          the values as JSON), fail with vega-lite-error, naming the parameter and listing the declared names, for a
+          name the specification does not declare, refuse the option for an input that is not a chart with a usage
+          error that names the kind, and keep the model options (-D) a usage error for a chart; shall describe the
+          option in the option table, the usage text and the vega-lite topic.
+        justification: |
+          A chart is parameterized (a threshold, the initial brush of a selection) without editing its file, and a
+          mistake in a name must be loud on a command line; a separate option keeps -D, whose grammar is the one of
+          the variables of a model (a vector is a list of numbers, not an object), for the variables of a model.
+        tests:
+          - RenderCommand_Run_ParamScalar_SetsTheParameterAndTheNaturalSize
+          - RenderCommand_Run_ParamSelectionAndRepeat_TakeJsonAndLastWins
+          - RenderCommand_Run_ParamUnknownName_IsVegaLiteErrorListingTheDeclaredNames
+          - RenderCommand_Run_ParamErrors_AreReported
+          - RenderCommand_Run_ParamOnAnotherKind_ThrowsUsageError
+          - RenderCommand_Run_DefineOnAChart_StaysAUsageError
+          - ToolHost_Invoke_ParamOnVerbAndInspect_IsAccepted
+          - RenderCommand_OptionTable_DeclaresParam
+          - RenderCommand_Usage_MentionsParamAndItsExampleRuns
+
+      - id: CanvasNetTool-Commands-RenderCommand-InputFragments
+        title: >-
+          The render command and its verb commands shall read an input path that ends in a URL fragment
+          (part.scad#view=top&def.width=20, report.pdf#page=3, chart.vl.json#param.cutoff=5) with the grammar and the
+          checks of the link of an SVG image (InputReference and SourceLoader.Probe), treating a number sign as the
+          start of a fragment only when no file has that exact name, let the fragment override --page, --all-pages,
+          --view,
+          -D and --param for that input (variables and parameters by name), draw the page the fragment names as the
+          only page, name the input with its fragment in the text result and report it in the fragment member of the
+          input object of the JSON result, fail with the code image-fragment-invalid for a fragment or a value that
+          cannot be used and with page-out-of-range for a page the file does not have (writing nothing), report a
+          parameter the kind does not use, a parameter given twice and a chart parameter the chart does not declare as
+          the warnings image-fragment-unknown-parameter, image-fragment-duplicate-parameter and vl-param-unknown (never
+          as errors, not even with --strict), and describe the fragment in the usage text.
+        justification: |
+          A command line names a file the way a link does, so a page, a view, a variable or a chart parameter can be
+          chosen without an option for each input, and a list of inputs (a montage of the versions of one model) can
+          choose differently for each.
+        tests:
+          - InputFragment_RenderAndVerb_PageFragment_ChoosesThePage
+          - InputFragment_TextResultAndInfo_NameTheFragment
+          - InputFragment_OverridesTheCommandOptions_ForItsInput
+          - InputFragment_VectorVariable_WorksByFragmentAndByOption
+          - InputFragment_Render_VpdVariable_SetsTheScale
+          - InputFragment_Chart_ParamFragment_SetsParametersAndWarnsAboutUnknownNames
+          - InputFragment_UnknownAndDuplicateParameters_AreWarnings
+          - InputFragment_RealFileWithHash_WinsAndLongestExistingFileIsThePath
+          - InputFragment_MissingFile_IsInputNotFoundWithAHint
+          - InputFragment_EveryCommand_MalformedFragment_FailsWithTheCode
+          - InputFragment_OverTheLimits_IsInvalid
+          - InputFragment_Grammar_IsTheGrammarOfALink
 
       - id: CanvasNetTool-Commands-RenderCommand-Source
         title: >-

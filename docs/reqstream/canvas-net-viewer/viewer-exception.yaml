@@ -26,7 +26,8 @@ sections:
           - id: CanvasNetViewer-ViewerException-ErrorCodes
             title: >-
               The ErrorCodes class shall define the stable strings usage-error, operation-failed, input-not-found,
-              input-unreadable, unsupported-format, corrupt-input, unsupported-feature, page-out-of-range, size-limit,
+              input-unreadable, unsupported-format, corrupt-input, unsupported-feature, page-out-of-range,
+              image-fragment-invalid, size-limit,
               same-input-output, output-exists, output-write-failed, scad-error, vega-lite-error, budget-exceeded,
               size-mismatch, and threshold-failed, which shall not change between releases.
             justification: |

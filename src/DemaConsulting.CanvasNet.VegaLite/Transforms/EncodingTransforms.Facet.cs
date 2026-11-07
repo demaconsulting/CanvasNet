@@ -42,8 +42,10 @@ internal sealed record FacetPartition(FacetDomains Domains, int RowCount, int Co
 ///         null or missing value is a value of its own). They are ordered like Vega-Lite's facet sort: ascending by <see cref="DataValue.Compare"/> (a null first), also for
 ///         <c>sort: null</c>, which is not a data order as it is for a scale; <c>"descending"</c> reverses it; an array puts the listed values first in the order of the array and then the
 ///         values that it does not list in the order they first appear in the data (Vega-Lite's <c>sort_index</c> is the position in the array, or its length for an unlisted value, and
-///         the order of equal indexes is the order of the groups); a sort by an aggregate (<c>{field, op}</c>) is not supported, the ascending order of the field is used. A <c>bin</c>,
-///         <c>timeUnit</c> or <c>aggregate</c> of the field definition is not applied either: the raw value of the field is the value of the cell. The values of an array or an object
+///         the order of equal indexes is the order of the groups); a sort by an aggregate (<c>{field, op, order}</c>) orders the values by the operation over the rows of each value (<c>min</c> by default,
+///         <c>count</c> without a field), stably, ascending unless the order says <c>descending</c>. A <c>timeUnit</c> of the field definition derives the start of the unit as a date, which is the
+///         value of the cell (Vega-Lite's <c>TimeUnitNode</c> of a facet field, named like <c>month_date</c>); a <c>bin</c> or <c>aggregate</c> of the field definition, a <c>binned</c> unit and the
+///         <c>maxbins</c> form of a unit are not applied: the raw value of the field is the value of the cell. The values of an array or an object
 ///         are compared by their text.
 ///     </para>
 ///     <para>
@@ -82,7 +84,8 @@ internal sealed partial class EncodingTransforms
         ArgumentNullException.ThrowIfNull(table);
         ArgumentNullException.ThrowIfNull(context);
         var run = new EncodingTransforms(context);
-        return DomainsOf(run.KeysOf(facet.Row, table), run.KeysOf(facet.Column, table), run.KeysOf(facet.Wrap, table));
+        var timed = run.WithTimeUnits(facet, table, out var derived);
+        return DomainsOf(run.KeysOf(facet.Row, timed, derived), run.KeysOf(facet.Column, timed, derived), run.KeysOf(facet.Wrap, timed, derived));
     }
 
     /// <summary>
@@ -145,9 +148,10 @@ internal sealed partial class EncodingTransforms
     private FacetPartition Partition(FacetDefinition facet, DataTable table, long viewsPerCell, long viewsOutside)
     {
         var anchor = facet.Wrap ?? facet.Row ?? facet.Column ?? throw new ArgumentException("The facet has no field.", nameof(facet));
-        var rowKeys = KeysOf(facet.Row, table);
-        var columnKeys = KeysOf(facet.Column, table);
-        var wrapKeys = KeysOf(facet.Wrap, table);
+        table = WithTimeUnits(facet, table, out var derived);
+        var rowKeys = KeysOf(facet.Row, table, derived);
+        var columnKeys = KeysOf(facet.Column, table, derived);
+        var wrapKeys = KeysOf(facet.Wrap, table, derived);
         var domains = DomainsOf(rowKeys, columnKeys, wrapKeys);
 
         // The grid: a wrapped facet has a cell for every value, the others the product of the rows and the columns (one when the field is missing)
@@ -263,10 +267,11 @@ internal sealed partial class EncodingTransforms
     /// <summary>
     ///     Reads a facet field for every row, and orders its distinct values.
     /// </summary>
-    /// <param name="definition">The field definition (its <c>field</c> and <c>sort</c>); null when the facet has no such field.</param>
-    /// <param name="table">The rows.</param>
+    /// <param name="definition">The field definition (its <c>field</c>, <c>timeUnit</c> and <c>sort</c>); null when the facet has no such field.</param>
+    /// <param name="table">The rows (with the field a time unit derives, when the definition has one).</param>
+    /// <param name="derived">The names of the fields that the time units of the facet derived, by field definition.</param>
     /// <returns>The ordered values and the position of each row's value; null when there is no field definition.</returns>
-    private FacetKeys? KeysOf(SpecNode? definition, DataTable table)
+    private FacetKeys? KeysOf(SpecNode? definition, DataTable table, IReadOnlyDictionary<SpecNode, string> derived)
     {
         if (definition is not { IsObject: true })
         {
@@ -275,12 +280,21 @@ internal sealed partial class EncodingTransforms
 
         try
         {
-            var path = definition["field"] is { IsString: true } field ? field.StringValue : null;
+            string? path;
+            if (derived.TryGetValue(definition, out var unitField))
+            {
+                path = unitField;
+            }
+            else
+            {
+                path = definition["field"] is { IsString: true } field ? field.StringValue : null;
+            }
             var reader = new FieldReader(table, path);
             var evaluation = _context.Evaluator.Context;
             var firstSeen = new List<DataValue>();
             var positions = new Dictionary<DataValue, int>();
             var rowToSeen = new int[table.RowCount];
+            var sorter = SortAggregate.Create(definition, table, this);
             for (var row = 0; row < table.RowCount; row++)
             {
                 _context.Tick(row);
@@ -294,10 +308,11 @@ internal sealed partial class EncodingTransforms
                 }
 
                 rowToSeen[row] = position;
+                sorter?.Add(position, row);
             }
 
             // The order of the cells: a stable sort of the values in order of first appearance
-            var order = OrderValues(firstSeen, definition);
+            var order = sorter is null ? OrderValues(firstSeen, definition) : sorter.Order(firstSeen.Count);
             var rank = new int[firstSeen.Count];
             var domain = new List<DataValue>(firstSeen.Count);
             for (var i = 0; i < order.Length; i++)
@@ -316,6 +331,172 @@ internal sealed partial class EncodingTransforms
         catch (ExpressionRuntimeException ex)
         {
             throw new VegaLiteRenderException(ex.Message, _context.Locate(definition));
+        }
+    }
+
+    /// <summary>
+    ///     Adds the start of the time unit of every facet field that has one to the table (Vega-Lite's <c>TimeUnitNode</c> of a facet field definition).
+    /// </summary>
+    /// <remarks>
+    ///     The cell of a value is the start of its unit, as a date (the name of the field is Vega-Lite's <c>vgField</c> of the definition, for example <c>month_date</c>). A <c>binned</c> unit and the
+    ///     <c>maxbins</c> form (a unit that depends on the extent of the data) are not applied: the raw value of the field is the cell, and the feature catalog reports them.
+    /// </remarks>
+    /// <param name="facet">The facet.</param>
+    /// <param name="table">The rows.</param>
+    /// <param name="derived">Receives the name of the derived field of every definition that has a time unit.</param>
+    /// <returns>The table with the fields added; the table itself when no definition has a time unit.</returns>
+    private DataTable WithTimeUnits(FacetDefinition facet, DataTable table, out Dictionary<SpecNode, string> derived)
+    {
+        derived = [];
+        var requests = new List<TimeUnitRequest>();
+        foreach (var definition in new[] { facet.Row, facet.Column, facet.Wrap })
+        {
+            if (definition is not { IsObject: true } || definition["field"] is not { IsString: true } field || definition["timeUnit"] is not { } unit
+                || !TimeUnitSpec.TryRead(unit, out var spec) || spec.IsBinned || spec.Parts.Count == 0)
+            {
+                continue;
+            }
+
+            var name = spec.FieldName(field.StringValue!);
+            requests.Add(new TimeUnitRequest(field.StringValue!, name, name + "_end", spec, definition));
+            derived[definition] = name;
+        }
+
+        return requests.Count == 0 ? table : TimeUnitTransform.Apply(table, requests, _context, _context.Locate(requests[0].Node));
+    }
+
+    /// <summary>
+    ///     The aggregate that orders the cells of a facet field by <c>sort: {"field": ..., "op": ..., "order": ...}</c> (Vega-Lite's <c>facetSortFields</c>).
+    /// </summary>
+    /// <remarks>
+    ///     Source: <c>compile/facet.ts</c> (<c>assembleFacet</c>: an aggregate by the facet field of <c>sort.field</c> with <c>sort.op</c>, <c>min</c> by default; <c>facetSortOrder</c>: the order of the
+    ///     sort, ascending by default) and <c>sort.ts</c> (<c>isSortField</c>: a sort that has a <c>field</c> or the operation <c>count</c>). The cells are stably sorted by the result of the operation
+    ///     over the rows of each value, with the order of <see cref="DataValue.Compare"/> (a null result first, last when descending); equal results keep the order in which the values first appear in the data.
+    /// </remarks>
+    private sealed class SortAggregate
+    {
+        /// <summary>The operation.</summary>
+        private readonly AggregateOp _op;
+
+        /// <summary>The reader of the field the operation reads, or null for a count.</summary>
+        private readonly FieldReader? _reader;
+
+        /// <summary>The reader of the whole row, for the operations that keep rows, or null.</summary>
+        private readonly FieldReader? _whole;
+
+        /// <summary>The evaluation and the meter that the work is charged to.</summary>
+        private readonly MeasureEnvironment _environment;
+
+        /// <summary>Whether the order is descending.</summary>
+        private readonly bool _descending;
+
+        /// <summary>The seed of the bootstrap of the confidence interval operations.</summary>
+        private readonly ulong _seed;
+
+        /// <summary>The state of the operation for each value, by position of first appearance.</summary>
+        private MeasureCell[] _states = new MeasureCell[16];
+
+        /// <summary>
+        ///     Initializes the aggregate.
+        /// </summary>
+        /// <param name="op">The operation.</param>
+        /// <param name="reader">The reader of the field, or null.</param>
+        /// <param name="whole">The reader of whole rows, or null.</param>
+        /// <param name="environment">The evaluation and the meter.</param>
+        /// <param name="descending">Whether the order is descending.</param>
+        /// <param name="seed">The bootstrap seed.</param>
+        private SortAggregate(AggregateOp op, FieldReader? reader, FieldReader? whole, MeasureEnvironment environment, bool descending, ulong seed)
+        {
+            _op = op;
+            _reader = reader;
+            _whole = whole;
+            _environment = environment;
+            _descending = descending;
+            _seed = seed;
+        }
+
+        /// <summary>
+        ///     Creates the aggregate of a field definition.
+        /// </summary>
+        /// <param name="definition">The field definition.</param>
+        /// <param name="table">The rows.</param>
+        /// <param name="owner">The transform whose context and meter are used.</param>
+        /// <returns>The aggregate; null when the definition does not sort by an aggregate.</returns>
+        /// <exception cref="VegaLiteRenderException">Thrown when the states would be more than <see cref="TableLayout.MaxCells"/>.</exception>
+        public static SortAggregate? Create(SpecNode definition, DataTable table, EncodingTransforms owner)
+        {
+            if (definition["sort"] is not { IsObject: true } sort)
+            {
+                return null;
+            }
+
+            var opName = sort["op"]?.AsString();
+            var op = AggregateOp.Min;
+            if (opName is not null && (!AggregateMeasures.TryParse(opName, out op) || op is AggregateOp.ArgMin or AggregateOp.ArgMax))
+            {
+                return null;
+            }
+
+            var field = sort["field"] is { IsString: true } named ? named.StringValue : null;
+            if (op != AggregateOp.Count && field is null)
+            {
+                return null;
+            }
+
+            if (((long)table.RowCount * MeasureCell.StateCells) > TableLayout.MaxCells || (MeasureCell.StoresValues(op) && table.RowCount > TableLayout.MaxCells))
+            {
+                throw new VegaLiteRenderException(
+                    $"The sort of the facet field needs more than {TableLayout.MaxCells} cells (TableLayout.MaxCells) for the {table.RowCount} rows.",
+                    owner._context.Locate(sort));
+            }
+
+            var order = sort["order"]?.AsString();
+            return new SortAggregate(
+                op,
+                field is null ? null : new FieldReader(table, field),
+                op is AggregateOp.Values ? new FieldReader(table, string.Empty) : null,
+                new MeasureEnvironment(owner._context.Evaluator.Context, owner._meter),
+                order == "descending",
+                RowSampler.Seed(sort.Pointer));
+        }
+
+        /// <summary>
+        ///     Adds a row to the value it belongs to.
+        /// </summary>
+        /// <param name="position">The position of the value of the row among the values (by first appearance).</param>
+        /// <param name="row">The row.</param>
+        /// <exception cref="ExpressionRuntimeException">Thrown when the step budget or the string limit is exceeded.</exception>
+        public void Add(int position, int row)
+        {
+            if (position >= _states.Length)
+            {
+                Array.Resize(ref _states, Math.Max(position + 1, _states.Length * 2));
+            }
+
+            var evaluation = _environment.Context;
+            var value = _op == AggregateOp.Values ? _whole!.Read(row, evaluation) : _reader?.Read(row, evaluation) ?? default;
+            _environment.Meter.Add(1);
+            _states[position].Add(_op, double.NaN, value, row, _environment);
+        }
+
+        /// <summary>
+        ///     Orders the values by the result of the operation.
+        /// </summary>
+        /// <param name="count">The number of values.</param>
+        /// <returns>The positions of the values (by first appearance) in the order of the cells.</returns>
+        /// <exception cref="ExpressionRuntimeException">Thrown when the step budget or the string limit is exceeded.</exception>
+        public int[] Order(int count)
+        {
+            var results = new DataValue[count];
+            for (var i = 0; i < count; i++)
+            {
+                results[i] = _states[i].Result(_op, double.NaN, MeasureCell.GroupSeed(_seed, i), _environment, null);
+            }
+
+            var comparer = _descending
+                ? Comparer<DataValue>.Create((x, y) => DataValue.Compare(y, x))
+                : Comparer<DataValue>.Create(DataValue.Compare);
+            return [.. Enumerable.Range(0, count).OrderBy(i => results[i], comparer)];
         }
     }
 

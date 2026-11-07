@@ -160,20 +160,23 @@ public sealed partial class VegaLiteDocument
     ///     Gets the findings about the text for a rendering with the given options.
     /// </summary>
     /// <remarks>
-    ///     Without a caller's <see cref="VegaLiteRenderOptions.Config"/> these are <see cref="Reports"/>. With one, the catalog is visited again with the effective configuration, so that the
-    ///     findings that depend on the configuration (whether a path mark has a point overlay, which says whether its <c>shape</c> is drawn) are those of what the renderer draws.
+    ///     Without a caller's <see cref="VegaLiteRenderOptions.Config"/> and <see cref="VegaLiteRenderOptions.ImageResolver"/> these are <see cref="Reports"/>. With a configuration, the catalog is visited again with the effective configuration, so that the
+    ///     findings that depend on the configuration (whether a path mark has a point overlay, which says whether its <c>shape</c> is drawn) are those of what the renderer draws. With a resolver, the
+    ///     <c>image</c> mark is drawn and <c>vl-mark-image</c> is not reported.
     /// </remarks>
     /// <param name="options">The effective options.</param>
     /// <returns>The reports in document order.</returns>
     internal IReadOnlyList<FeatureReport> ReportsFor(VegaLiteRenderOptions options)
     {
-        if (options.Config is null)
+        var hasResolver = options.ImageResolver is not null;
+        if (options.Config is null && !hasResolver)
         {
             return Reports;
         }
 
+        var config = options.Config is null ? null : ConfigResolver.Resolve(_tree, options.Config);
         return _tree.Warnings
-            .Concat(FeatureCatalog.Visit(_tree, ConfigResolver.Resolve(_tree, options.Config)))
+            .Concat(FeatureCatalog.Visit(_tree, config, hasResolver))
             .Concat(FeatureCatalog.VisitCallerConfig(options.Config))
             .OrderBy(r => r.Location.Line)
             .ThenBy(r => r.Location.Column)

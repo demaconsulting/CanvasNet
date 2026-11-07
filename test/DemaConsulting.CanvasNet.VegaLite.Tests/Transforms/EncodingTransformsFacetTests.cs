@@ -130,19 +130,103 @@ public class EncodingTransformsFacetTests
     }
 
     /// <summary>
-    ///     Validates that a sort by an aggregate (<c>{field, op}</c>) is not supported by the facet: the ascending order of the field is used (the catalog reports the sort).
+    ///     Validates that a sort by an aggregate (<c>{field, op, order}</c>) orders the cells by the operation over the rows of each value (Vega-Lite's facet sort): the mean of <c>v</c> by <c>c</c>
+    ///     is b 1, a 3.5 (2 and 5), null 3, z 4 and d 6, so the descending order is d, z, a, null, b; the sum is b 1, a 7, null 3, z 4, d 6; the default operation is <c>min</c>, and equal results
+    ///     keep the order in which the values first appear in the data (a stable sort), also when descending.
     /// </summary>
     [Fact]
-    public void EncodingTransforms_FacetDomain_SortByAggregateUsesAscendingOrder()
+    public void EncodingTransforms_FacetDomain_SortByAggregateOrdersTheCells()
     {
-        // Arrange: the mean of v by c would put a (3.5) before b (1) in descending order
-        var setup = Prepare("""{"column":{"field":"c","type":"nominal","sort":{"field":"v","op":"mean","order":"descending"}}}""");
+        // Arrange
+        static Setup With(string sort) => Prepare("{\"column\":{\"field\":\"c\",\"type\":\"nominal\",\"sort\":" + sort + "}}");
+        var (mean, sum, min, count) = (
+            With("""{"field":"v","op":"mean","order":"descending"}"""),
+            With("""{"field":"v","op":"sum"}"""),
+            With("""{"field":"v"}"""),
+            With("""{"op":"count","order":"descending"}"""));
 
         // Act
-        var domain = EncodingTransforms.FacetDomain(setup.Facet, setup.Table, setup.Context);
+        var byMean = EncodingTransforms.FacetDomain(mean.Facet, mean.Table, mean.Context).Columns;
+        var bySum = EncodingTransforms.FacetDomain(sum.Facet, sum.Table, sum.Context).Columns;
+        var byMin = EncodingTransforms.FacetDomain(min.Facet, min.Table, min.Context).Columns;
+        var byCount = EncodingTransforms.FacetDomain(count.Facet, count.Table, count.Context).Columns;
 
         // Assert
-        Assert.Equal([default, S("a"), S("b"), S("d"), S("z")], domain.Columns);
+        Assert.Equal([S("d"), S("z"), S("a"), default, S("b")], byMean);
+        Assert.Equal([S("b"), default, S("z"), S("d"), S("a")], bySum);
+
+        // Assert: the minimum of v by c is b 1, a 2, null 3, z 4, d 6, which is the first appearance order
+        Assert.Equal([S("b"), S("a"), default, S("z"), S("d")], byMin);
+
+        // Assert: a has two rows, the others one: a first, then the ties in the order they appear (b, null, z, d)
+        Assert.Equal([S("a"), S("b"), default, S("z"), S("d")], byCount);
+    }
+
+    /// <summary>
+    ///     Validates that the cells of a facet that is sorted by an aggregate are laid out in that order, with their rows, and that a sort object without a field or the operation
+    ///     <c>count</c> (which Vega-Lite does not treat as a sort field) keeps the ascending order of the field.
+    /// </summary>
+    [Fact]
+    public void EncodingTransforms_Facet_SortByAggregateOrdersTheCellsOfThePartition()
+    {
+        // Arrange
+        var sorted = Prepare("""{"field":"c","type":"nominal","sort":{"field":"v","op":"max","order":"descending"}}""");
+        var plain = Prepare("""{"field":"c","type":"nominal","sort":{"order":"descending"}}""");
+
+        // Act
+        var partition = Split(sorted);
+        var unchanged = Split(plain);
+
+        // Assert: the maximum of v by c is b 1, a 5, null 3, z 4, d 6: d, a, z, null, b
+        Assert.Equal([S("d"), S("a"), S("z"), default, S("b")], partition.Domains.Wrap);
+        Assert.Equal([[6.0], [2.0, 5.0], [4.0], [3.0], [1.0]], partition.Cells.Select(c => Numbers(c.Table, "v")));
+
+        // Assert: without a field and an operation the sort is not an aggregate; the ascending order applies
+        Assert.Equal([default, S("a"), S("b"), S("d"), S("z")], unchanged.Domains.Wrap);
+    }
+
+    /// <summary>
+    ///     Validates that the <c>timeUnit</c> of a facet field makes the start of the unit the value of the cell (Vega-Lite's <c>TimeUnitNode</c> of a facet field): the rows of January 15 and 30
+    ///     are one cell, February 20 another, the cells are dates in ascending order, and every cell keeps the fields of the table (a field that the unit derived is added).
+    /// </summary>
+    [Fact]
+    public void EncodingTransforms_Facet_TimeUnitOfTheFieldIsTheCell()
+    {
+        // Arrange: 2024-01-15, 2024-02-20 and 2024-01-30 as milliseconds since the epoch
+        const string rows = """[{"t":1705276800000,"v":1},{"t":1708387200000,"v":2},{"t":1706572800000,"v":3}]""";
+        var setup = Prepare("""{"field":"t","type":"temporal","timeUnit":"yearmonth"}""", rows);
+
+        // Act
+        var partition = Split(setup);
+        var domain = EncodingTransforms.FacetDomain(setup.Facet, setup.Table, setup.Context);
+
+        // Assert: January 1 and February 1 of 2024 (UTC), as dates; the rows of January are v = 1 and 3
+        var january = DataValue.FromDate(1704067200000);
+        var february = DataValue.FromDate(1706745600000);
+        Assert.Equal([january, february], partition.Domains.Wrap);
+        Assert.Equal([january, february], domain.Wrap);
+        Assert.Equal([[1.0, 3.0], [2.0]], partition.Cells.Select(c => Numbers(c.Table, "v")));
+        Assert.Contains("yearmonth_t", partition.Cells[0].Table.Fields);
+    }
+
+    /// <summary>
+    ///     Validates that a binned time unit and the maxbins form of a facet field are not applied: the raw value of the field is the cell.
+    /// </summary>
+    [Fact]
+    public void EncodingTransforms_Facet_BinnedAndMaxBinsTimeUnitsAreNotApplied()
+    {
+        // Arrange
+        const string rows = """[{"t":1705276800000,"v":1},{"t":1708387200000,"v":2},{"t":1705276800000,"v":3}]""";
+        var maxBins = Prepare("""{"field":"t","type":"temporal","timeUnit":{"maxbins":3}}""", rows);
+        var binned = Prepare("""{"field":"t","type":"temporal","timeUnit":{"unit":"month","binned":true}}""", rows);
+
+        // Act
+        var byMaxBins = EncodingTransforms.FacetDomain(maxBins.Facet, maxBins.Table, maxBins.Context).Wrap;
+        var byBinned = EncodingTransforms.FacetDomain(binned.Facet, binned.Table, binned.Context).Wrap;
+
+        // Assert: the two distinct raw values
+        Assert.Equal([DataValue.FromNumber(1705276800000), DataValue.FromNumber(1708387200000)], byMaxBins);
+        Assert.Equal([DataValue.FromNumber(1705276800000), DataValue.FromNumber(1708387200000)], byBinned);
     }
 
     /// <summary>

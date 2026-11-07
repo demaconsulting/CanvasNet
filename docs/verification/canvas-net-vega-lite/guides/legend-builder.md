@@ -178,6 +178,44 @@ the parity with Vega 6.4 for the color values 0.2, 1.7, 3.3, and 5.41, that a le
 Assert the centered title that is pushed in, the padding, the box paint and bounds, the legend without a title, and the
 orient, offset, and position facts.
 
+##### Title Orient
+
+**Tests**: `LegendBuilderTitleOrientTests.LegendBuilder_Build_TitleOrientTopPutsTheEntriesBelowTheTitle`,
+`LegendBuilderTitleOrientTests.LegendBuilder_Build_TitleOrientLeftPutsTheTitleBesideTheEntries`,
+`LegendBuilderTitleOrientTests.LegendBuilder_Build_TitleOrientRightPutsTheTitlePastTheEntries`,
+`LegendBuilderTitleOrientTests.LegendBuilder_Build_TitleOrientBottomPutsTheTitleBelowTheEntries`,
+`LegendBuilderTitleOrientTests.LegendBuilder_Build_TitleAnchorPlacesASideTitleAlongTheEntries`,
+`LegendBuilderTitleOrientTests.LegendBuilder_Build_TitleOfSeveralLinesLeavesRoomAtTheEnd`,
+`LegendBuilderTitleOrientTests.LegendBuilder_Build_TitleOfAVerticalGradientIsTurnedAtTheSides`,
+`LegendBuilderTitleOrientTests.LegendBuilder_Build_TitleOfAHorizontalGradientIsCenteredOnTheBar`,
+`LegendBuilderTitleOrientTests.LegendBuilder_Build_TitleAlignAndBaselineOverrideTheOrientDefaults`
+
+The expectations are derived from the geometry that the test measures (the box of the title with the text measurer and
+the bounds of the entries) and the rules of `legendGroupLayout`, `legendTitleOffset`, and `legend-title.js`, so no
+position is a pasted number; the entries of the three categories end at 50 pixels (the test measures it).
+`top` (the default) puts the title at the origin with the alignment `left` and the baseline `top`, the entries at
+`(0, title height + 5)`, and the legend as high as the two. `left` puts the entries at
+`(ceil(title width) + 5, 0)` and the title at the left edge with the middle anchor: `y = round(0.5 x 50)` = **25**, the
+alignment `left` and the baseline `middle`, the legend `ceil(entries x + their width)` wide and as high as the entries.
+`right` leaves the entries at the origin and puts the title at `x = round(entry right edge) + 5`, `y` = 25. `bottom`
+puts the
+title at `y = round(entry bottom) + 5` = **55** with the baseline `top` and the legend as high as both. With
+`titleAnchor` the
+side title is at the top of the entries for `start` (`y` = 0, baseline `top`) and at their bottom for `end` (`y` =
+`round(50)`, baseline `bottom`). A two-line title leaves one line height (11 pt: `LineHeight(11)`) free at the end,
+so the
+middle anchor is `round(0.5 x (50 - line height))`. For a vertical gradient the title at the sides is turned: -90
+degrees
+on the left (entries at `ceil(title box width) + 5`, the alignment `center`, the baseline `top`, centered along the bar
+at `round(0.5 x bar bottom)`) and 90 degrees on the right (the alignment `center`, the baseline `bottom`, past the
+entries at their rounded right edge + 5); for a horizontal gradient (bar height 16) the title is not turned, is left
+aligned
+with the baseline `middle`, and is centered on the bar and not on the labels below it, `y = round(0.5 x 16)` = **8**,
+with
+the entries after the title on the left and the title past the entries on the right. `titleAlign` of `center` and
+`titleBaseline` of `bottom` win over the defaults of the orient. The report of the title orient is no longer made by
+the catalog (see the FeatureCatalog unit verification design).
+
 ##### Limits, Cancellation, And Determinism
 
 **Tests**: `LegendBuilderTests.LegendBuilder_Limits_AreEnforcedBeforeAnythingIsCreated`,

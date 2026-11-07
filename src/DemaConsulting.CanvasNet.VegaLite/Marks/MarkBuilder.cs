@@ -10,7 +10,7 @@ namespace DemaConsulting.CanvasNet.VegaLite.Marks;
 
 /// <summary>
 ///     Builds the scene items of the mark of a single view: <c>bar</c>, <c>rect</c>, <c>point</c>, <c>circle</c>,
-///     <c>square</c>, <c>rule</c>, <c>tick</c>, <c>line</c>, <c>area</c>, <c>trail</c>, <c>text</c> and <c>arc</c>, and the point and line overlays of the path marks.
+///     <c>square</c>, <c>rule</c>, <c>tick</c>, <c>line</c>, <c>area</c>, <c>trail</c>, <c>text</c>, <c>arc</c> and <c>image</c>, and the point and line overlays of the path marks.
 /// </summary>
 /// <remarks>
 ///     <para>
@@ -48,7 +48,7 @@ namespace DemaConsulting.CanvasNet.VegaLite.Marks;
 ///         tick), an <c>opacity</c> field through the opacity scale, and the channels <c>strokeWidth</c>, <c>fillOpacity</c> and <c>strokeOpacity</c>
 ///         (every mark), <c>strokeDash</c> (every mark but a rect), <c>shape</c> (a point) and <c>angle</c> (a symbol) through theirs, each
 ///         replacing the mark property of the same name for the row; <c>value</c> definitions are used as given. A symbol with a
-///         <c>shape</c> that is not one of the symbol names is drawn as a circle (the feature catalog reports a custom path).
+///         <c>shape</c> that is not one of the symbol names is drawn from its SVG path data (<see cref="Scenegraph.SymbolPathParser"/>, scaled by the symbol size as vega's <c>pathSymbol</c>), or as a circle when the path does not parse (the feature catalog reports it).
 ///     </para>
 ///     <para>
 ///         <b>Invalid data.</b> Vega-Lite's default <c>invalid</c> mode for marks other than lines and areas is <c>filter</c>: a row
@@ -57,7 +57,9 @@ namespace DemaConsulting.CanvasNet.VegaLite.Marks;
 ///         threshold scale) is null, missing, NaN or not a
 ///         number is not drawn. A stacked channel (<c>x</c>, <c>y</c>, <c>theta</c> or <c>radius</c>) is valid when the value that was stacked is: the stack counts a null as 0, so the other slices keep their
 ///         positions, and a bar, an arc, a symbol or a label of a null slice is not drawn (Vega-Lite's filter runs after the stack) and a stacked area breaks its path there. A null in a discrete field is the category <c>null</c> and is drawn; a value outside an explicit
-///         discrete domain is not.
+///         discrete domain is not. With <c>invalid: "show"</c> (or null) a row whose value is not a number is drawn: the channel takes the value zero when the domain holds zero (not on a time or
+///         log scale), else the first value of the domain (Vega-Lite's <c>scaledZeroOrMinOrMax</c>); a stacked row of a null is drawn at its position in the stack (a deviation), and
+///         <c>config.scale.invalid</c> is not read.
 ///     </para>
 ///     <para>
 ///         <b>Path marks.</b> A <c>line</c>, <c>area</c> or <c>trail</c> draws one path per group of rows (the fields of <see cref="EncodingPlan.PathGroupFields"/>, in order of first
@@ -95,6 +97,11 @@ namespace DemaConsulting.CanvasNet.VegaLite.Marks;
 ///         <c>tooltip</c>, <c>href</c> and the individual corner radii are ignored; the offset channels are reported by the feature catalog and ignored here.
 ///     </para>
 ///     <para>
+///         <b>Images.</b> An <c>image</c> mark is one <see cref="SceneImage"/> per row (role <c>mark-image</c>): the link of the <c>url</c> channel (or property), a position or span on each axis by Vega-Lite's
+///         rectangle position rules (<c>compile/mark/image.ts</c>), the <c>aspect</c> and <c>smooth</c> of the mark and its opacity. The picture itself is not loaded here: the scene is built before the paint scale is
+///         known and a measure builds it too, so the painter loads it through the <see cref="VegaLiteRenderOptions.ImageResolver"/> (see <c>MarkBuilder.Images.cs</c>).
+///     </para>
+///     <para>
 ///         <b>Conditions.</b> A color, fill, stroke, opacity, fillOpacity, strokeOpacity, strokeWidth, strokeDash, size, shape or angle channel
 ///         may carry a <c>condition</c> (an object, or an array of them) whose <c>test</c> is an expression or a predicate that the parser compiled
 ///         to an expression. For every row the conditions are tried in order and the first whose test is truthy decides: its <c>value</c> (a literal or an
@@ -120,7 +127,7 @@ internal sealed partial class MarkBuilder
     private const double DefaultBarBinSpacing = 1;
 
     /// <summary>The marks that this builder draws.</summary>
-    private static readonly HashSet<string> SupportedMarks = ["bar", "rect", "point", "circle", "square", "rule", "tick", "line", "area", "trail", "text", "arc"];
+    private static readonly HashSet<string> SupportedMarks = ["bar", "rect", "point", "circle", "square", "rule", "tick", "line", "area", "trail", "text", "arc", "image"];
 
     /// <summary>The marks whose missing fill is transparent instead of none (Vega-Lite's <c>transparentIfNeeded</c>).</summary>
     private static readonly HashSet<string> TransparentMarks = ["bar", "point", "circle", "square"];
@@ -166,7 +173,7 @@ internal sealed partial class MarkBuilder
     ///     Tells whether this builder draws a mark type.
     /// </summary>
     /// <param name="markType">The mark type, such as <c>bar</c>.</param>
-    /// <returns><see langword="true"/> for <c>bar</c>, <c>rect</c>, <c>point</c>, <c>circle</c>, <c>square</c>, <c>rule</c>, <c>tick</c>, <c>line</c>, <c>area</c>, <c>trail</c>, <c>text</c> and <c>arc</c>.</returns>
+    /// <returns><see langword="true"/> for <c>bar</c>, <c>rect</c>, <c>point</c>, <c>circle</c>, <c>square</c>, <c>rule</c>, <c>tick</c>, <c>line</c>, <c>area</c>, <c>trail</c>, <c>text</c>, <c>arc</c> and <c>image</c>.</returns>
     public static bool IsSupported(string? markType) => markType is not null && SupportedMarks.Contains(markType);
 
     /// <summary>
@@ -310,7 +317,7 @@ internal sealed partial class MarkBuilder
         /// <param name="row">The row.</param>
         /// <returns><see langword="true"/> when the channel is not stacked or the row has a valid value; <see langword="false"/> for a row that a non-path mark does not draw and a path mark breaks at.</returns>
         public bool HasValidStackValue(DataTable table, int row) =>
-            !IsStacked || StackValueIndex < 0 || table.GetValue(row, StackValueIndex).TryGetQuantitative(out _);
+            !IsStacked || StackValueIndex < 0 || InvalidFallback is not null || table.GetValue(row, StackValueIndex).TryGetQuantitative(out _);
 
         /// <summary>Gets a value indicating whether the channel is binned on a continuous scale and the end of each bin is known, or spans its time unit on a time scale: the geometry of a bin (Vega-Lite's <c>rectBinPosition</c>) applies.</summary>
         public bool HasBandEnds => (Model is { Kind: ScaleKind.Linear } && Scale is { Bin: not BinKind.None } && (Field2Index >= 0 || BinStep is not null)) || IsTimeBand;
@@ -340,13 +347,27 @@ internal sealed partial class MarkBuilder
         public ChannelOffset? Offset { get; set; }
 
         /// <summary>
+        ///     Gets or sets what a value that is not a number reads as in the <c>show</c> invalid mode: the number that the scale of the channel scales to Vega-Lite's
+        ///     <c>zeroOrMin</c> (zero when the domain has it, else its first value), or null when invalid rows are dropped.
+        /// </summary>
+        public DataValue? InvalidFallback { get; set; }
+
+        /// <summary>
         ///     Reads the value of the channel for a row.
         /// </summary>
         /// <param name="table">The data.</param>
         /// <param name="row">The row.</param>
-        /// <returns>The field value, the datum, or null when neither exists.</returns>
-        public DataValue Read(DataTable table, int row) =>
-            FieldIndex >= 0 ? table.GetValue(row, FieldIndex) : Datum ?? DataValue.Null;
+        /// <returns>The field value (the <see cref="InvalidFallback"/> for a value that is not a number, in the <c>show</c> mode), the datum, or null when neither exists.</returns>
+        public DataValue Read(DataTable table, int row)
+        {
+            if (FieldIndex < 0)
+            {
+                return Datum ?? DataValue.Null;
+            }
+
+            var value = table.GetValue(row, FieldIndex);
+            return InvalidFallback is { } fallback && !value.TryGetQuantitative(out _) ? fallback : value;
+        }
     }
 
     /// <summary>
@@ -564,12 +585,56 @@ internal sealed partial class MarkBuilder
             }
 
             AttachOffsets(encoding);
+            ApplyShowInvalid();
             _filtered = [.. _channels.Where(c => c.Key is not ("x" or "y" or "size" or "opacity") && c.Value.HasContinuousDomain && !c.Value.IsFieldConditional).Select(c => c.Value)];
             ResolvePaint();
             foreach (var dash in Get("strokeDash")?.Scale?.DashRange ?? [])
             {
                 CheckDashLength(dash.Count);
             }
+        }
+
+        /// <summary>
+        ///     Makes a value that is not a number read as Vega-Lite's <c>zeroOrMin</c> in the <c>show</c> invalid mode (the <c>invalid</c> of the mark, or of the configuration, is <c>"show"</c> or null).
+        /// </summary>
+        /// <remarks>
+        ///     Source: <c>compile/mark/encode/invalid.ts</c> (<c>getConditionalValueRefForIncludingInvalidValue</c>), <c>compile/invalid/ScaleInvalidDataMode.ts</c> and
+        ///     <c>compile/mark/encode/scaledZeroOrMinOrMax.ts</c>. A channel on a scale with a continuous domain has the test <c>!isValid(datum.field) || !isFinite(+datum.field)</c>, and a row that
+        ///     passes it is placed where the scale maps zero (when the domain has it) or the first value of the domain; scaling that data value gives the same position, size, opacity or color as
+        ///     scaling zero or the minimum in Vega. Time and log scales never have zero (<c>domainHasZero</c>). <c>config.scale.invalid</c> (a value per channel) is not read.
+        /// </remarks>
+        private void ApplyShowInvalid()
+        {
+            if (Prop("invalid") is not ({ Kind: ConfigNodeKind.Null } or { Kind: ConfigNodeKind.String, StringValue: "show" }))
+            {
+                return;
+            }
+
+            foreach (var channel in _channels.Values)
+            {
+                if (channel.FieldIndex >= 0 && channel.HasContinuousDomain && channel.Model is { } model && InvalidFallbackOf(model) is { } fallback)
+                {
+                    channel.InvalidFallback = fallback;
+                }
+            }
+        }
+
+        /// <summary>
+        ///     Gets the data value that scales to Vega-Lite's <c>zeroOrMin</c>.
+        /// </summary>
+        /// <param name="model">The scale of the channel.</param>
+        /// <returns>Zero when the domain has zero (not for a time or log scale), else the first value of the domain; null when the domain is not a pair of numbers.</returns>
+        private static DataValue? InvalidFallbackOf(ScaleModel model)
+        {
+            if (!double.IsFinite(model.DomainStart) || !double.IsFinite(model.DomainEnd))
+            {
+                return null;
+            }
+
+            var neverZero = model.Kind is ScaleKind.Time or ScaleKind.Utc || model.Transform.Kind == ScaleTransformKind.Log;
+            var low = Math.Min(model.DomainStart, model.DomainEnd);
+            var high = Math.Max(model.DomainStart, model.DomainEnd);
+            return DataValue.FromNumber(!neverZero && low <= 0 && 0 <= high ? 0 : model.DomainStart);
         }
 
         /// <summary>
@@ -616,6 +681,7 @@ internal sealed partial class MarkBuilder
                 "line" or "area" or "trail" => Paths(),
                 "text" => Texts(),
                 "arc" => Arcs(),
+                "image" => Images(),
                 _ => Symbols(),
             };
             if (_overlay is null)
@@ -1176,7 +1242,7 @@ internal sealed partial class MarkBuilder
         /// <summary>
         ///     Gets where a mark sits between the start and the end of the time unit of its row (Vega-Lite's <c>getBandPosition</c>): the <c>bandPosition</c> of the
         ///     channel, else the <c>timeUnitBandPosition</c> of the mark (0.5 for a tick by default), else the start of the unit. A bar and a rect always span the
-        ///     middle of the unit (0.5; another band position is reported by the feature catalog and not drawn).
+        ///         middle of the unit (0.5).
         /// </summary>
         /// <param name="channel">The channel that spans a time unit.</param>
         /// <returns>The position from 0 (the start) to 1 (the end).</returns>

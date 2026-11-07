@@ -99,10 +99,10 @@ scenario in the five unit verification documents passes without error or unexpec
   value when the document is opened, with the position of the string and the offset inside it, while the catalog reads
   the same compiled expressions and reports what they list but the engine does not run (`vl-expr-function-<name>`,
   `vl-expr-view-state`, `vl-expr-construct-<name>`) at the expression text, the parts of the supported transforms that
-  are not computed (`-pivot-op`, and
-  `-lookup-param`; the former `-filter-timeunit` and `-filter-datetime` are retired because time predicates are
+  are not computed (`-lookup-param`; the former `-pivot-op` is retired in Phase 13 because a pivot computes every
+  aggregate operation, and the former `-filter-timeunit` and `-filter-datetime` are retired because time predicates are
   evaluated, and `-filter-param` is retired in Phase 12 because a filter on a selection is evaluated), the transforms of
-  nested views and later phases, and a supported specification of Phase 5
+  nested views, and a supported specification of Phase 5
   constructs has no report; the parse warnings and the reports are delivered together in document order.
 - **Aggregating Transforms And Encoding Properties Are Validated And Reported By What Is Computed**:
   `SpecParserAggregatesTests.SpecParser_Parse_AggregateTransformShapesArePinned`,
@@ -117,14 +117,15 @@ scenario in the five unit verification documents passes without error or unexpec
   parser validates the shape of the `aggregate`, `joinaggregate`, `window`, `bin`, `stack`, and `impute` transforms and
   of the `aggregate`, `bin`, `stack`, and `sort` properties of a channel, so a wrong operation name, field, `as`, or
   parameter is a located `VegaLiteSpecException` when the document is opened, while the catalog no longer reports the
-  features that the renderer computes for the drawn view (the aggregating transforms, the encoding aggregate, bin, stack,
+  features that the renderer computes for the drawn view (the aggregating transforms, the encoding aggregate, bin,
+  stack,
   and sort, secondary position channels of a range, and the `order` channel, which every mark accepts since Phase 9: it
   orders a stack, the points of a path, or the drawing) and still reports the transforms of
   nested views, the remaining parts (a bin extent that is a parameter, a `bin: "binned"` on a channel other than `x`
   and `y`, a stack
   on a non-linear scale (not applied: Vega-Lite does not stack on a log, pow, sqrt, or symlog scale), and a secondary
-  channel that a mark cannot draw), and the transforms
-  of later phases; the document-level test now uses a `regression` transform as its example of an unsupported transform.
+  channel that a mark cannot draw); the statistical transforms are computed since Phase 13, so the document-level
+  test now uses a `projection` as its example of an unsupported construct.
 - **Path, Text, And Arc Marks Are Drawn, Validated At Open, And Reported Only For What They Do Not Draw**:
   `SpecParserMarkTests.SpecParser_Parse_RejectsABadInterpolateOrInvalidOrPointValue`,
   `SpecParserMarkTests.SpecParser_Parse_ValidatesTextMarkProperties`,
@@ -133,7 +134,8 @@ scenario in the five unit verification documents passes without error or unexpec
   `FeatureCatalogTests.FeatureCatalog_Report_ArcIsSupportedAndPolarChannelsAreGated` — the parser checks the properties
   of the line, area, trail, text, and arc marks and the `impute` object of a position definition when the document is
   opened (a name that is not one of the fifteen interpolations, a text `point` other than `transparent`, a `text` of the
-  wrong kind, a `keyvals` list of more values than the scale-domain limit, and a `method` that is not one of the five are
+  wrong kind, a `keyvals` list of more values than the scale-domain limit, and a `method` that is not one of the five
+  are
   `VegaLiteSpecException` errors at the offending member), and the catalog, which reads the same tree, reports nothing
   for the five marks that are drawn (with every property that they read) while the marks that stay unsupported
   (`geoshape` and `image`) are reported at the mark, a channel that a mark does not draw (`theta` on a line) is reported
@@ -159,8 +161,10 @@ scenario in the five unit verification documents passes without error or unexpec
   `FeatureCatalogTimeTests.FeatureCatalog_Visit_TimeIdsAreDeliveredAndStrictModeThrows`,
   `FeatureCatalogTests.FeatureCatalog_Visit_CustomDateFormatIsSupportedAndReportsNothing`,
   `FeatureCatalogTests.FeatureCatalog_Visit_TimeUnitAndDateTestsAreSupported` — the parser checks the time constructs
-  with the rules of the `Data` subsystem (an unknown time unit, a date-time object with an unknown key, a month, quarter,
-  or day that is not one, a `tickCount` or `nice` interval that is not one of the eight, a time format of more than 1,024
+  with the rules of the `Data` subsystem (an unknown time unit, a date-time object with an unknown key, a month,
+  quarter,
+  or day that is not one, a `tickCount` or `nice` interval that is not one of the eight, a time format of more than
+  1,024
   characters or 4,096 pieces, and a `date:` or `utc:` parse
   entry without a quoted format are `VegaLiteSpecException` errors at the offending member), compiles each time
   predicate once into an expression written with the date and time functions (so it is evaluated in the calendar of the
@@ -196,15 +200,18 @@ scenario in the five unit verification documents passes without error or unexpec
   `FeatureCatalogLayerTests.FeatureCatalog_Visit_LayerPropertiesOfTheTopLevelViewAreWarnedAboutInALayer`,
   `FeatureCatalogCompositionTests.FeatureCatalog_Visit_CompositionPropertiesIgnoredAreWarnedAbout` — the parser
   validates the `resolve` of a view, and the properties of the compositions (a `facet` and `repeat` need a `spec`, the
-  shapes of `columns`, `spacing`, `align`, `center`, and `header`, the repeat references), when the document is opened (a
+  shapes of `columns`, `spacing`, `align`, `center`, and `header`, the repeat references), when the document is opened
+  (a
   located `VegaLiteSpecException` at the offending member), and compiles the expressions of every view, those of a
   concatenation, facet, or repeat included; the normalizer, which reads the same tree, reduces the views to the tree of
   unit views in document order with the encoding that each inherits, makes a concatenation, a facet (also from the
-  `row`, `column`, and `facet` channels of a unit view), and the copies of a `repeat` nodes of the tree with their layout
-  settings and resolve defaults, and bounds their number; the catalog, which reads the same tree and the same layer tree,
+  `row`, `column`, and `facet` channels of a unit view), and the copies of a `repeat` nodes of the tree with their
+  layout
+  settings and resolve defaults, and bounds their number; the catalog, which reads the same tree and the same layer
+  tree,
   no longer reports a `layer`, a `concat`, `hconcat`, `vconcat`, a `facet`, or a `repeat`, or the transform of a view
   that the renderer draws (every view), reports a `row`, `column`, or `facet` channel only where the unit cannot be
-  faceted and the parts of a facet that are not drawn (`vl-facet-field-transform`, `vl-facet-sort`, `vl-header-orient`),
+  faceted and the parts of a facet that are not drawn (`vl-facet-field-transform`, `vl-header-orient`),
   visits the encoding that a layer or the chart of a concatenation inherits once for each layer with that layer's mark
   (reporting a construct once, at the place where it is written), and warns about the properties that a layer or a
   composition ignores.
@@ -218,10 +225,12 @@ scenario in the five unit verification documents passes without error or unexpec
   `FeatureCatalogCompositeTests.FeatureCatalog_Visit_BinOrTimeUnitOfAGroupingChannelIsReported`,
   `FeatureCatalogCompositeTests.FeatureCatalog_Visit_ErrorChannelsOfOtherMarksAreReported`,
   `FeatureCatalogCompositeTests.ConfigResolver_Resolve_CarriesTheBoxPlotDefaults` — the parser checks the extent, the
-  center, and the parts of a composite mark; the configuration carries the defaults of the three marks; the normalizer expands
+  center, and the parts of a composite mark; the configuration carries the defaults of the three marks; the normalizer
+  expands
   each mark into the layers Vega-Lite normalizes it to, with the transforms and the properties of the parts, using the
   same orientation rule as the catalog; and the catalog reports nothing for a composite mark that is drawn (with the
-  channels that it uses) while reporting the grouping channel that has a bin, a time unit, or an aggregate, and the error
+  channels that it uses) while reporting the grouping channel that has a bin, a time unit, or an aggregate, and the
+  error
   channels of a mark that does not use them.
 - **Expression References Of The Static Sites Are Compiled At Open, Folded Once, And Reported Only Where They Are Not
   Evaluated**:
@@ -234,10 +243,12 @@ scenario in the five unit verification documents passes without error or unexpec
   `VegaLiteParamsIntegrationTests.CanvasNetVegaLite_SystemIntegration_Params_ExpressionReferencesDriveTitleBackgroundAndPadding`
   — the parser compiles the `{"expr": ...}` references of the title, the padding, the mark properties that no row reads,
   and the channel values at open (a syntax error or an undeclared parameter is a `VegaLiteSpecException` at the text)
-  and lists them as static references in document order, without the row-bound ones; the folder, which reads that list and
+  and lists them as static references in document order, without the row-bound ones; the folder, which reads that list
+  and
   the parameters of the call, replaces each reference by the value of its expression in a copy of the tree whose
   untouched subtrees are the original nodes, so that the configuration resolver and the later stages read the value;
   and the catalog, which reads the same list, reports an expression reference only where the schema allows none or where
   a static site reads `datum`, scans the `config` of the top-level view as well, and reports the references of the
   `Config` text of the caller's render options, which nothing evaluates. The
-  end-to-end effect on the title, the background, and the padding of a rendered chart is verified through the public API.
+  end-to-end effect on the title, the background, and the padding of a rendered chart is verified through the public
+  API.

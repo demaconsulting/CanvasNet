@@ -117,6 +117,23 @@ sections:
                   - FolderImageResolver_Resolve_HostileParameterName_IsSanitizedInMessage
                   - FolderImageResolver_Resolve_SchemeLinkWithInterface_WarnsAboutUnknownParameters
 
+              - id: CanvasNet-ImageSources-FolderImageResolver-FragmentPrefixes
+                title: >-
+                  The FolderImageResolver class shall treat a parameter whose name starts with a prefix the source
+                  declares through IFragmentImageSource.FragmentParameterPrefixes (and has a character after it) as
+                  understood, so it reports no unknown-parameter warning for it, and still report a name that matches
+                  neither a declared name nor a prefix (a bare prefix included) and a source that declares no prefix
+                  (none declared, a null list, a null or empty entry), compare the part of a prefixed name after the
+                  prefix as written (names that differ in case are different parameters) and the prefix ignoring case
+                  when it looks for a duplicate, and give the source the parsed fragment.
+                justification: |
+                  A source that takes names from the link (a model variable) must not drown the report in warnings
+                  for the names it understands, and a name that differs only in case is another variable.
+                tests:
+                  - FolderImageResolver_Resolve_DeclaredPrefix_UnderstandsEveryParameterWithIt
+                  - FolderImageResolver_Resolve_DeclaredPrefix_DuplicatesCompareTheNameAsWritten
+                  - FolderImageResolver_Resolve_NoDeclaredPrefix_PrefixedParameterIsUnknown
+
               - id: CanvasNet-ImageSources-FolderImageResolver-PageRefusal
                 title: >-
                   The FolderImageResolver class shall turn an ImageSourceRefusedException of a source into a note with

@@ -55,6 +55,7 @@ public class ViewerExceptionTests
         Assert.Equal("corrupt-input", ErrorCodes.CorruptInput);
         Assert.Equal("unsupported-feature", ErrorCodes.UnsupportedFeature);
         Assert.Equal("page-out-of-range", ErrorCodes.PageOutOfRange);
+        Assert.Equal("image-fragment-invalid", ErrorCodes.ImageFragmentInvalid);
         Assert.Equal("size-limit", ErrorCodes.SizeLimit);
         Assert.Equal("same-input-output", ErrorCodes.SameInputOutput);
         Assert.Equal("output-exists", ErrorCodes.OutputExists);

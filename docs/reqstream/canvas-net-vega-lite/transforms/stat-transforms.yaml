@@ -1,0 +1,235 @@
+---
+# Software Unit Requirements for StatTransforms
+#
+# These requirements describe the design-level behavior of the StatTransforms unit of the Transforms subsystem
+# (internal namespace DemaConsulting.CanvasNet.VegaLite.Transforms): the statistical transforms regression, loess,
+# density, quantile, and extent, ported from the Vega operators that Vega-Lite compiles them to (vega-regression's
+# Regression and Loess, vega-transforms' KDE, Quantile, and Extent, and the vega-statistics functions they call). The
+# unit comprises StatTransforms.cs (the dispatcher, the partition of the rows into groups, and the output table),
+# StatTransforms.Regression.cs, StatTransforms.Loess.cs, StatTransforms.Density.cs, StatTransforms.Quantile.cs,
+# StatTransforms.Extent.cs, RegressionFit.cs (the regression models), CurveSampler.cs (the sampling of a curve),
+# LoessFit.cs (the locally weighted regression), KernelDensity.cs (the Gaussian kernel density and Scott's rule), and
+# StatisticsPrimitives.cs (the JavaScript-faithful validity rules, quantiles, deviation, and extent). It uses the Data
+# subsystem for tables, the Expressions subsystem for value conversion, comparison, and the step budget, the
+# RowTransforms unit's table layout, and the loader of the call for the row budget. See
+# docs/verification/canvas-net-vega-lite/transforms/stat-transforms.md for the test-evidence mapping.
+
+sections:
+  - title: CanvasNetVegaLite Requirements
+    sections:
+      - title: Transforms Requirements
+        sections:
+          - title: StatTransforms Requirements
+            requirements:
+              - id: CanvasNetVegaLite-Transforms-StatTransforms-Dispatch
+                title: >-
+                  The StatTransforms unit shall apply the transform that the member of a transform entry names
+                  (regression, loess, density, quantile, or extent), generating a new table for the first four
+                  and leaving the table of an extent as it is, shall return the input table for any other
+                  transform, shall reject null arguments, and shall report a failure of the evaluation (an
+                  exhausted step budget or an over-long text) as an error located at the transform.
+                justification: |
+                  The transforms must run where the specification puts them, and a statistical transform that
+                  fails must say which one.
+                tests:
+                  - RowTransforms_Apply_StatisticalTransformReplacesTheTableAndTheNextTransformRuns
+                  - StatTransforms_Apply_RejectsNullArgumentsAndIgnoresOtherTransforms
+                  - StatTransforms_Regression_LinearGivesTheEndPointsOfTheLine
+
+              - id: CanvasNetVegaLite-Transforms-StatTransforms-Groups
+                title: >-
+                  The StatTransforms unit shall partition the rows as Vega does - a transform without groupby
+                  has one group (also for an empty table), and otherwise the key of a row is the JavaScript
+                  text of the array of its group values, so that the number 1 and the text "1" are one group
+                  and null, a missing field, and an undefined value are one group - shall order the groups by
+                  first appearance, shall give each group the group values of its first row, and shall
+                  generate the group fields before the output fields (the output fields winning a name
+                  clash).
+                justification: |
+                  Which rows are fitted together decides every line of a chart; Vega's partition is the
+                  reference, including its text keys.
+                tests:
+                  - StatTransforms_Regression_GroupbyFitsEveryGroupInOrderOfFirstAppearance
+                  - StatTransforms_Regression_GroupedParamsCarryTheKeys
+                  - StatTransforms_Regression_GroupKeysAreTheTextOfTheValues
+                  - StatTransforms_Loess_GroupsAreSortedByXAndRenamed
+                  - StatTransforms_Density_SharedGroupsUseOneGridAndTheirOwnSupport
+                  - StatTransforms_Quantile_GroupbyComputesEveryGroupSeparately
+
+              - id: CanvasNetVegaLite-Transforms-StatTransforms-Regression
+                title: >-
+                  The StatTransforms unit shall fit, for every group, the regression model of the method
+                  (linear, log, exp, pow, quad, or poly of an order from 0 to 64, with Vega's default of order
+                  3 and its delegation of the orders 0, 1, and 2) to the pairs whose values are not null and
+                  convert to numbers, reproducing the coefficients, the coefficient of determination, and the
+                  predictions of vega-statistics, and shall generate the end points of the line (linear) or the
+                  adaptive sample of the curve over the extent of the group or of the transform (ignoring an
+                  extent that starts at or below zero for a log model), or, with params, one row of keys,
+                  coef, and rSquared for the group; shall skip, with a warning, a group whose number of rows is
+                  not more than the parameters of the model; and shall name the output fields by as (default:
+                  the on field and the predicted field, as literal names).
+                justification: |
+                  A trend line must be the line that Vega draws, and the same fit of the same points must give
+                  the same coefficients on every platform.
+                tests:
+                  - StatTransforms_Regression_AsRenamesTheOutputFieldsAndNamesAreLiteral
+                  - StatTransforms_Regression_ReadsNestedFieldsAndNamesTheOutputLiterally
+                  - StatTransforms_Regression_ExtentSetsTheDomainOfTheLine
+                  - StatTransforms_Regression_ExtentBeforeTheRegressionIsStillTheRegressionsOption
+                  - StatTransforms_Regression_ParamsGiveTheCoefficientsAndRSquared
+                  - StatTransforms_Regression_GroupsWithTooFewRowsAreSkippedWithAWarning
+                  - StatTransforms_Regression_RowsCountEvenWhenTheyAreNotValidPoints
+                  - StatTransforms_Regression_EmptyInputGivesAnEmptyTable
+                  - StatTransforms_Regression_AGroupWithoutXValuesGivesPointsWithoutPosition
+                  - StatTransforms_Regression_PolySamplesTheCurveAdaptively
+                  - StatTransforms_Regression_CurveMethodsPassThroughTheirData
+                  - StatTransforms_Regression_LogIgnoresANonPositiveExtent
+                  - StatTransforms_Regression_IsDeterministic
+                  - RegressionFit_Fit_LinearReproducesALineExactly
+                  - RegressionFit_Fit_LinearOnNoisyDataMatchesTheNormalEquations
+                  - RegressionFit_Fit_IgnoresPairsWithoutNumbers
+                  - RegressionFit_Fit_LinearOnConstantXHasZeroSlope
+                  - RegressionFit_Fit_WithoutValidPointsGivesNaNRSquared
+                  - RegressionFit_Fit_LogReproducesALogarithmicCurve
+                  - RegressionFit_Fit_ExpReproducesAnExponentialCurve
+                  - RegressionFit_Fit_PowReproducesAPowerCurve
+                  - RegressionFit_Fit_QuadReproducesAParabola
+                  - RegressionFit_Fit_PolyReproducesACubic
+                  - RegressionFit_Fit_LowPolynomialOrdersUseTheDedicatedModels
+                  - RegressionFit_Fit_ConstantChecksTheXOnlyForNull
+                  - RegressionFit_DegreesOfFreedom_AreTheParametersOfTheMethod
+                  - RegressionFit_Fit_RejectsInvalidArguments
+                  - CurveSampler_Sample_EqualStepCountsGiveAUniformGrid
+                  - CurveSampler_Sample_AFractionalUniformStepCountFollowsTheJavaScriptLoop
+                  - CurveSampler_Sample_AStraightLineKeepsTheMinimumGrid
+                  - CurveSampler_Sample_ABendingCurveIsSubdividedWhereItBends
+                  - CurveSampler_Sample_CubicCurveHasTheReferenceNumberOfPoints
+                  - CurveSampler_Sample_StepCountsAreNormalizedAsInJavaScript
+                  - CurveSampler_Sample_ANaNExtentGivesNaNSamples
+                  - CurveSampler_Sample_AReversedExtentKeepsTheMinimumGrid
+                  - CurveSampler_Sample_ReportsProgressAndStopsWhenTheCallbackThrows
+                  - CurveSampler_MaximumPoints_BoundsTheSample
+
+              - id: CanvasNetVegaLite-Transforms-StatTransforms-Loess
+                title: >-
+                  The StatTransforms unit shall smooth every group with locally weighted regression exactly as
+                  vega-statistics does (the tricube weights over a sliding window of max(2, bandwidth times
+                  the number of points) neighbors, two robustness iterations, the merging of repeated x, and
+                  the NaN of a window that reaches past the data), with the bandwidth 0.3 when none or zero is
+                  given, generating the group fields and the fields of as (default: the on field and the
+                  smoothed field) in increasing x.
+                justification: |
+                  A smoothed curve is only comparable to the reference when the fit, its window, and its
+                  robustness weights are the reference's.
+                tests:
+                  - StatTransforms_Loess_OfALineIsTheLine
+                  - StatTransforms_Loess_DefaultBandwidthAndASinglePoint
+                  - LoessFit_Fit_OfALineIsTheLine
+                  - LoessFit_Fit_OfNoisyDataMatchesTheReference
+                  - LoessFit_Fit_DownWeightsAnOutlier
+                  - LoessFit_Fit_OfOneTwoAndThreePointsFollowsTheReference
+                  - LoessFit_Fit_MergesRepeatedXAsTheReferenceDoes
+                  - LoessFit_Fit_SortsTheRowsAndIgnoresInvalidPairs
+                  - LoessFit_Fit_ReportsProgressAndEstimatesTheCost
+                  - LoessFit_Fit_RejectsInvalidArguments
+
+              - id: CanvasNetVegaLite-Transforms-StatTransforms-Density
+                title: >-
+                  The StatTransforms unit shall estimate for every group the Gaussian kernel density (or, with
+                  cumulative, the cumulative distribution by the approximation of West) of the raw values of
+                  the field - every row counting toward the divisor, a null reading as zero, and a text that
+                  is not a number making the estimate NaN - with the given bandwidth or Scott's rule when it
+                  is zero or missing, sampled with Vega-Lite's defaults (the resolution shared: the extent of
+                  the whole column or of the transform and one uniform grid of steps intervals, 200 by
+                  default; independent: the extent of the group and the adaptive sample between minsteps and
+                  maxsteps; steps overriding both), multiplied by the number of rows with counts, and
+                  generating the group fields and the fields of as (default value and density).
+                justification: |
+                  Densities are drawn as areas and stacked; the grid and the numbers must be the reference's
+                  for the shapes to agree.
+                tests:
+                  - StatTransforms_Density_SharedGridHasTheClosedFormDensities
+                  - StatTransforms_Density_IntegratesToOneAndSharedDefaultsToTwoHundredSteps
+                  - StatTransforms_Density_OfASymmetricSupportIsSymmetric
+                  - StatTransforms_Density_CumulativeMatchesTheReference
+                  - StatTransforms_Density_CountsMultiplyByTheGroupSize
+                  - StatTransforms_Density_IndependentGroupsUseTheirOwnExtent
+                  - StatTransforms_Density_StepOptionsBoundTheSample
+                  - StatTransforms_Density_WithoutABandwidthUsesScottsRule
+                  - StatTransforms_Density_CountsNullRowsAsZeroAndTextAsNaN
+                  - StatTransforms_Density_OfNoRowsGivesNaNRows
+                  - StatTransforms_Density_AsRenamesTheOutputFields
+                  - StatTransforms_Density_IsDeterministic
+                  - KernelDensity_Pdf_OfTwoPointsIsTheMeanOfTwoGaussians
+                  - KernelDensity_Pdf_ScalesWithTheBandwidth
+                  - KernelDensity_Cdf_OfASymmetricPairIsOneHalfAtTheMiddle
+                  - KernelDensity_NormalCdf_MatchesKnownValuesAndTheReference
+                  - KernelDensity_PdfAndCdf_WithScottBandwidthMatchTheReference
+                  - KernelDensity_EstimateBandwidth_FollowsScottsFormula
+                  - KernelDensity_EstimateBandwidth_FallsBackWhenTheSpreadIsZero
+                  - KernelDensity_Pdf_CountsNullAndEmptyTextAsZero
+                  - KernelDensity_Pdf_OfNonNumericOrEmptySupportIsNaN
+                  - KernelDensity_Constructor_RejectsNull
+
+              - id: CanvasNetVegaLite-Transforms-StatTransforms-Quantile
+                title: >-
+                  The StatTransforms unit shall generate for every group and every probability a row with the
+                  group fields, the probability, and the quantile of the numbers of the group (null, the empty
+                  text, and NaN are not numbers) by linear interpolation between the closest ranks, with the
+                  probabilities of probs or, by default, 0.5 step, 1.5 step, and so on up to below 1 for the
+                  step 0.01, no value for a quantile of nothing, and the fields of as (default prob and
+                  value).
+                justification: |
+                  Quantile comparisons depend on the interpolation rule and on which values count as numbers.
+                tests:
+                  - StatTransforms_Quantile_DefaultStepGivesOneHundredProbabilities
+                  - StatTransforms_Quantile_StepGivesTheRangeOfHalfStepsUpToOne
+                  - StatTransforms_Quantile_ProbsAreUsedAsGiven
+                  - StatTransforms_Quantile_IgnoresValuesThatAreNotNumbers
+                  - StatTransforms_Quantile_OfNothingHasNoValue
+                  - StatTransforms_Quantile_AsRenamesTheOutputFields
+                  - StatisticsPrimitives_Quantiles_AreLinearInterpolationOfTheSortedNumbers
+                  - StatisticsPrimitives_Numbers_DropsNullEmptyAndNaNAndConvertsTheRest
+                  - StatisticsPrimitives_Deviation_IsTheSampleDeviationOfTheNonNullNumbers
+                  - StatisticsPrimitives_Extent_FollowsJavaScriptComparison
+                  - StatisticsPrimitives_RangeCount_MatchesTheLengthOfD3Range
+                  - StatisticsPrimitives_IsTruthy_ZeroAndNaNAreFalsy
+                  - StatisticsPrimitives_JsMinAndJsMax_PropagateNaN
+                  - StatisticsPrimitives_NullArguments_Throw
+
+              - id: CanvasNetVegaLite-Transforms-StatTransforms-Extent
+                title: >-
+                  The StatTransforms unit shall compute the minimum and the maximum of the numbers of a field
+                  (null and the empty text skipped, a NaN ignored), leave the table as it is, store the pair
+                  as an array in the parameter that param names so that the transforms that follow it read
+                  it, and, when no finite extent exists, store [null, null] and record a warning.
+                justification: |
+                  The extent parameter is how a chart normalizes by, or sets a domain from, the range of its own
+                  data.
+                tests:
+                  - StatTransforms_Extent_StoresTheMinimumAndMaximumInTheParameter
+                  - StatTransforms_Extent_WithoutAFiniteExtentSetsNullsAndWarns
+                  - StatTransforms_Extent_IsReadByTheFollowingTransforms
+
+              - id: CanvasNetVegaLite-Transforms-StatTransforms-Budgets
+                title: >-
+                  The StatTransforms unit shall count the rows it generates in the row budget of the call
+                  before they exist (the points of a curve as they are found, the grid of a density and the
+                  probabilities of a quantile before they are computed), give the rows of its input back when
+                  its output is complete (an extent keeps its input), keep the output within the field and
+                  cell limits, charge the work of a fit, a loess window, a kernel evaluation, and a sort to
+                  the step budget, stop for a canceled token, and give the same table on every call.
+                justification: |
+                  The number of generated rows and the work depend on the options and not on the size of the
+                  specification, so a hostile specification would otherwise exhaust memory or time.
+                tests:
+                  - StatTransforms_Apply_ReleasesTheInputRowsWhenTheOutputIsComplete
+                  - StatTransforms_Regression_CurveBeyondTheRowBudgetFailsAtTheTransform
+                  - StatTransforms_Regression_OutputBeyondTheFieldLimitFailsAtTheTransform
+                  - StatTransforms_Loess_WorkBeyondTheStepBudgetFailsAtTheTransform
+                  - StatTransforms_RegressionAndLoess_StopWhenCanceled
+                  - StatTransforms_Density_StepsBeyondTheRowBudgetFailAtTheTransform
+                  - StatTransforms_Density_WorkBeyondTheStepBudgetFailsAtTheTransform
+                  - StatTransforms_Density_StopsWhenCanceled
+                  - StatTransforms_Quantile_TinyStepBeyondTheRowBudgetFailsAtTheTransform
+                  - StatTransforms_Quantile_StopsWhenCanceled

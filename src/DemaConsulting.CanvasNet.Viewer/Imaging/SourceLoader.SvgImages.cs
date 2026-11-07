@@ -7,8 +7,8 @@ using DemaConsulting.CanvasNet.Svg;
 namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 
 /// <summary>
-///     The pictures an SVG file embeds with <c>&lt;image href="..."&gt;</c>: models, charts, other SVG files, pages of
-///     documents, and rasters.
+///     The pictures an SVG file embeds with <c>&lt;image href="..."&gt;</c> and the pictures the <c>image</c> marks of a Vega-Lite chart show (<c>"url"</c>): models, charts,
+///     other SVG files, pages of documents, and rasters.
 /// </summary>
 /// <remarks>
 ///     <para>

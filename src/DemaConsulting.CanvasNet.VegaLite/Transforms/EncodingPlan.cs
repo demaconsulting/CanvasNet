@@ -975,6 +975,16 @@ internal sealed class EncodingPlan
     }
 
     /// <summary>
+    ///     Gets the default title of a field with a time unit (Vega-Lite's <c>defaultTitle</c> of a field definition whose only transform is the unit).
+    /// </summary>
+    /// <param name="source">The field path.</param>
+    /// <param name="unit">The time unit.</param>
+    /// <param name="config">The configuration (<c>fieldTitle</c>).</param>
+    /// <returns>The title.</returns>
+    internal static string DefaultTimeUnitTitle(string source, TimeUnitSpec unit, ResolvedConfig config) =>
+        TimeUnitTitle(source, unit, config.GetString("fieldTitle") ?? "verbal");
+
+    /// <summary>
     ///     Builds the default title of a channel definition (Vega-Lite's <c>defaultTitle</c> for a field definition).
     /// </summary>
     /// <param name="source">The field path, or null.</param>

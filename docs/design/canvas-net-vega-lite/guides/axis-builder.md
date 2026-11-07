@@ -80,9 +80,10 @@ objects), `format` (d3 number format, d3 time format for a date axis, or an obje
 and `labelLineHeight`, `labelFlush`, `labelFlushOffset`, `labelOverlap` (true, `parity`, `greedy`, or false),
 `labelSeparation`, `domainColor`, `domainWidth`, and the other domain properties, the `grid` color, width, dash, opacity,
 and cap, `titleAnchor`, `titleAngle`, `titleAlign`, `titleBaseline`, `titleColor`, `titleFont*`, `titleLimit`,
-`titleLineHeight`, `titleOpacity`, `titlePadding`, `zindex`, and `bandPosition` (the configuration default 0.5). The
-properties `labelBound`, `tickBand`, `tickExtra`, `position`, `translate`, `bandPosition` (as an axis property), `titleX`,
-`titleY`, `encode`, and a `formatType` other than `number`, `time`, and `utc` (a custom format type) are not
+`titleLineHeight`, `titleOpacity`, `titlePadding`, `zindex`, and `bandPosition` (the configuration default 0.5), and, since
+phase 13, the static properties `labelBound`, `tickBand`, `tickExtra`, `position`, `translate`, `bandPosition` (as an
+axis property), `titleX`, and `titleY` (see _Static axis properties_ below). The
+properties `encode` and a `formatType` other than `number`, `time`, and `utc` (a custom format type) are not
 drawn and are reported by the feature catalog. The `labelExpr` is honored (see _Label expressions_ below); the axis of a
 position that holds a nested offset (`xOffset` or `yOffset`) is the ordinary band axis of the position (the offset
 channel has no axis of its own).
@@ -93,6 +94,29 @@ crisp; tick and grid positions are the scale position plus the band offset (half
 out from the data rectangle and labels `tickSize` plus `labelPadding`; the extent is the ticks and labels clamped to
 `minExtent` and `maxExtent`; the title sits `titlePadding` beyond the extent, with multi-line titles pushing further for
 the top, left, and right axes; bounds follow Vega (a stroked rule grows by half its width and text by its measured box).
+
+**Static axis properties** (Phase 13; ports of `vega-parser` `guides/guide-util.js`, `axis-title.js`, and
+`axis-labels.js`, and of the `Overlap` transform of `vega-view-transforms`).
+
+- **Band and extra tick.** `TickBand.Resolve` gives the fraction of the bandwidth that is added to the position of a
+  tick (`Band`), whether there is an extra tick (`Extra`), and the offset in pixels. Without a `tickBand` the band is
+  `bandPosition` (0.5 by default), the extra tick is `tickExtra` (false by default), and the offset is `tickOffset`; a
+  `tickBand` of `"extent"` is the end of the band (1) with an extra tick and no offset, and any other value is the
+  middle (0.5) without an extra tick and with the `tickOffset`. The ticks and the grid take the band
+  shift `bandwidth x Band + offset`; **the labels keep a band of 0.5** (`axis-labels.js`) and only the offset. The extra
+  tick is pegged to the first domain value (the start of its band, plus the offset) and is appended after the label
+  expression has replaced the labels, when the band is not 0; it has a tick mark and a grid line but no label
+  (`AxisTick.IsExtra`), so the labels skip it.
+- **`translate` and `position`.** The group of the axis sits at the edge of the data rectangle plus the offset, shifted
+  by `translate` (0.5 by default: the half pixel that keeps a one-pixel line crisp, replaced by the property; the shift
+  of the bins of a bar in `MarkBuilder` does not read it) and, along the axis, by `position`.
+- **`titleX` and `titleY`** replace the position of the title in the pixels of the axis group: the value replaces the
+  position along the anchor or the distance from the axis, whichever coordinate it names.
+- **`labelBound`.** `true` is a tolerance of 1 pixel, a number is the tolerance, and 0 or false (or no value) is none.
+  The test runs only when the labels have an overlap method (without one the `Overlap` transform returns before it),
+  skips a label whose box is not larger than 1 pixel in both directions, and hides a label whose box along the axis is
+  not enclosed by the range of the scale grown by the tolerance (along x for a horizontal axis and along y for a
+  vertical one; a negative tolerance tests nothing).
 
 #### Key Methods
 

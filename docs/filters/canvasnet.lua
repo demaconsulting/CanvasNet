@@ -33,6 +33,8 @@ Attributes this filter reads (all optional; "all" means every input type above):
     elevation    .scad: degrees above the XY plane, -90 to 90
     projection   .scad: ortho (default) or perspective
     define-NAME  .scad: sets a model variable, for example define-bracket_height=60
+    param-NAME   .vl.json, .vl: sets a parameter of the chart (--param NAME=VALUE: a number, true, false, null,
+                 text, or JSON such as {"x":[2,6]} for a selection), for example param-cutoff=50
 
 An attribute for another input type (view on a chart, page on a model) is an error, not ignored.
 Every other attribute (width, height, an id or a class) stays on the picture.
@@ -58,8 +60,13 @@ that decides the picture:
   - the file, and every file it pulls in that exists: for a model every file named by include <...> or
     use <...> (followed recursively, relative to the including file, an absolute name as it is; at most 512
     files, counting the model); for a chart every local data file named by a "url" in a "data" object of the specification
-    (relative to the specification's folder; a remote URL, which the tool never reads, is skipped); a chart
-    that names more than 512 different data files, or a model that with its includes is more than 512 files, stops the build,
+    (relative to the specification's folder; a remote URL, which the tool never reads, is skipped), and every
+    local picture that an image mark names (the "url" of the mark, the literal "value" or "datum" of a "url" channel,
+    and the links that the "url" field holds in the inline rows; a model with its includes, a chart with its own
+    files, any other file as it is; a fragment such as "#page=2" or "#def.width=20" is dropped, and since the link is part of the
+    specification, a changed fragment draws the chart again). The pictures of a chart that come from a data
+    file or from a transform are not tracked; a chart that names more than 512 different data files or
+    pictures, or a model that with its includes is more than 512 files, stops the build,
     since a file left out of the hash could change without the picture being drawn again;
   - the drawing attributes, with the defaults this filter adds;
   - the tool: its --version text, the CANVASNET_TOOL text, and, for a local build named by that text, a
@@ -106,7 +113,7 @@ Provenance: generalized from the scad.lua filter of DEMA Consulting's DocPilot b
 with the same organization (header, helpers, hash, render, rewrite), to draw every input the tool reads.
 ]]
 
-local FILTER_VERSION = "6"
+local FILTER_VERSION = "8"
 local SCAD_DEFAULT_SIZE = "1600x1200"
 local DEFAULT_BACKGROUND = "white"
 -- The same limit DocPilot's preview uses, so a model that previews also builds.
@@ -480,7 +487,123 @@ local function local_data_file(folder, url)
   return collapse(pandoc.path.join({ folder, (url:gsub("\\", "/")) }))
 end
 
-local function add_chart_sources(path, root, parts)
+-- Collects what the "url" channel of an image mark names in its subtree: the literal links of a "value" or a
+-- "datum" (also those of a condition), and the "field" names whose values in the rows are links.
+local function collect_url_channel(node, links, fields, depth)
+  if depth > MAX_DEPTH then
+    fail("the chart specification is nested more than " .. MAX_DEPTH .. " levels deep; every image url"
+      .. " must be hashed so that a changed picture is drawn again")
+  end
+  for key, value in pairs(node) do
+    if type(value) == "string" then
+      if key == "value" or key == "datum" then
+        links[value] = true
+      elseif key == "field" then
+        fields[value] = true
+      end
+    elseif type(value) == "table" then
+      collect_url_channel(value, links, fields, depth + 1)
+    end
+  end
+end
+
+-- Collects the links of the pictures that a chart can draw wherever they are written in the specification:
+-- the "url" of a mark definition, and the literal links and field names of a "url" channel. A field that
+-- happens to be called "url" can only add a file to the hash.
+local function collect_image_links(node, links, fields, depth)
+  if depth > MAX_DEPTH then
+    fail("the chart specification is nested more than " .. MAX_DEPTH .. " levels deep; every image url"
+      .. " must be hashed so that a changed picture is drawn again")
+  end
+  for key, value in pairs(node) do
+    if type(value) == "table" then
+      if key == "mark" and type(value.url) == "string" then
+        links[value.url] = true
+      elseif key == "url" then
+        collect_url_channel(value, links, fields, 0)
+      end
+      collect_image_links(value, links, fields, depth + 1)
+    end
+  end
+end
+
+-- Adds the links that the named fields hold in the rows of a table.
+local function add_row_links(rows, links, fields)
+  if type(rows) ~= "table" then
+    return
+  end
+  for _, row in pairs(rows) do
+    if type(row) == "table" then
+      for field in pairs(fields) do
+        if type(row[field]) == "string" then
+          links[row[field]] = true
+        end
+      end
+    end
+  end
+end
+
+-- Adds the links that the named fields hold in the inline rows ("values" of a data object, and the arrays of
+-- "datasets"). The rows of a data file, or a field that a transform computes, are not tracked.
+local function collect_row_links(node, links, fields, depth)
+  if depth > MAX_DEPTH then
+    fail("the chart specification is nested more than " .. MAX_DEPTH .. " levels deep; every image url"
+      .. " must be hashed so that a changed picture is drawn again")
+  end
+  for key, value in pairs(node) do
+    if type(value) == "table" then
+      if key == "values" then
+        add_row_links(value, links, fields)
+      elseif key == "datasets" then
+        for _, rows in pairs(value) do
+          add_row_links(rows, links, fields)
+        end
+      end
+      collect_row_links(value, links, fields, depth + 1)
+    end
+  end
+end
+-- The file that a picture link of a chart names: the link without its fragment ("#page=2") and query, taken
+-- from the specification's folder, or nil when it is blank or remote (which the tool never reads).
+local function local_image_file(folder, link)
+  return local_data_file(folder, (link:gsub("[#?].*$", "")))
+end
+
+-- Adds the picture files of a chart to the hash input, so that a changed picture draws the chart again: a
+-- model with the files it includes, and a chart that is a picture with its own files, and any other file as
+-- it is. The pictures of a chart that come from a data file are not tracked (the documentation says so).
+local add_chart_sources
+
+local function add_image_files(files, root, parts, seen, depth)
+  if depth > MAX_DEPTH then
+    fail("charts are drawn inside charts more than " .. MAX_DEPTH .. " levels deep")
+  end
+  for _, file in ipairs(files) do
+    if not seen[file] then
+      local lower = file:lower()
+      if lower:match("%.scad$") then
+        add_scad_sources(root, file, seen, parts, 0)
+      elseif lower:match("%.vl%.json$") or lower:match("%.vl$") then
+        seen[file] = true
+        add_chart_sources(file, pandoc.path.directory(file), parts, seen, depth + 1)
+      else
+        seen[file] = true
+        local data = read_file(file)
+        if data then
+          if #parts >= MAX_DEPENDENCIES then
+            fail("the chart and the files it draws are more than " .. MAX_DEPENDENCIES .. " files; the limit is "
+              .. MAX_DEPENDENCIES .. " (every file must be hashed so that a changed one is drawn again)")
+          end
+          table.insert(parts, label(root, file) .. "\n" .. data)
+        end
+      end
+    end
+  end
+end
+
+function add_chart_sources(path, root, parts, seen, depth)
+  seen = seen or {}
+  depth = depth or 0
   local content = read_file(path)
   if not content then
     return
@@ -502,11 +625,11 @@ local function add_chart_sources(path, root, parts)
   end
   -- Sorted, so the order a JSON object is walked in cannot change the picture's name.
   table.sort(files)
-  local seen = {}
   local unique = {}
+  local unique_seen = {}
   for _, file in ipairs(files) do
-    if not seen[file] then
-      seen[file] = true
+    if not unique_seen[file] then
+      unique_seen[file] = true
       table.insert(unique, file)
     end
   end
@@ -522,6 +645,26 @@ local function add_chart_sources(path, root, parts)
       table.insert(parts, label(root, file) .. "\n" .. data)
     end
   end
+  -- The pictures of an image mark: the literal links and the links in the inline rows.
+  local links = {}
+  local fields = {}
+  collect_image_links(spec, links, fields, 0)
+  if next(fields) ~= nil then
+    collect_row_links(spec, links, fields, 0)
+  end
+  local pictures = {}
+  for link in pairs(links) do
+    local resolved = local_image_file(root, link)
+    if resolved and file_exists(resolved) then
+      table.insert(pictures, resolved)
+    end
+  end
+  table.sort(pictures)
+  if #pictures > MAX_DEPENDENCIES then
+    fail("'" .. pandoc.path.filename(path) .. "' names " .. #pictures .. " pictures; the limit is "
+      .. MAX_DEPENDENCIES .. " (every picture must be hashed so that a changed one is drawn again)")
+  end
+  add_image_files(pictures, root, parts, seen, depth)
 end
 
 -- Attribute checks. Each returns the normalized value, or stops the build with a message that names the
@@ -625,10 +768,21 @@ local OPTIONS = {
 local function build_options(src, kind, attributes)
   local values = {}
   local defines = {}
+  local params = {}
   local keep = {}
   for key, value in pairs(attributes) do
     local name = key:match("^define%-(.+)$")
-    if name then
+    local param = key:match("^param%-(.+)$")
+    if param then
+      if kind ~= "vegalite" then
+        fail("'" .. src .. "' has " .. key .. "=" .. value .. ", but param-NAME applies to Vega-Lite charts only")
+      end
+      if param:find("=", 1, true) then
+        fail("'" .. src .. "' has " .. key .. "; the parameter name cannot contain an equals sign")
+      end
+      plain_text(src, key, value)
+      table.insert(params, "--param=" .. param .. "=" .. value)
+    elseif name then
       if kind ~= "scad" then
         fail("'" .. src .. "' has " .. key .. "=" .. value .. ", but define-NAME applies to .scad models only")
       end
@@ -671,6 +825,9 @@ local function build_options(src, kind, attributes)
   end
   for _, define in ipairs(defines) do
     table.insert(options, define)
+  end
+  for _, param in ipairs(params) do
+    table.insert(options, param)
   end
   -- Sorted, so the same attributes in another order give the same picture name.
   table.sort(options)

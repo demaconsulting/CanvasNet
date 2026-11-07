@@ -20,7 +20,7 @@
 # that is not drawn (every composition is drawn), narrowed the row, column, and facet channel reports to a unit view
 # that cannot be faceted, retired the report of the autosize types fit, fit-x, and fit-y (they are drawn), and added the
 # warnings about the properties that a composition ignores and the reports of the parts of a facet that are not drawn
-# (vl-facet-field-transform, vl-facet-sort, vl-header-orient). See
+# (vl-facet-field-transform, vl-header-orient). See
 # docs/verification/canvas-net-vega-lite/spec-model/feature-catalog.md for the test-evidence mapping.
 
 sections:
@@ -33,7 +33,7 @@ sections:
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-StableIds
                 title: >-
                   The FeatureCatalog unit shall report each unsupported construct with a stable
-                  lower-case identifier built from its category and name (for example vl-transform-regression
+                  lower-case identifier built from its category and name (for example vl-projection
                   or vl-composition-hconcat, with spec names lower-cased and stripped of separators), a
                   message, and the pointer, line, and column of the construct, and shall return the
                   reports in document order.
@@ -144,18 +144,20 @@ sections:
 
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-PathMarks
                 title: >-
-                  The FeatureCatalog unit shall not report the line, area, and trail marks, shall report the
-                  invalid modes that the renderer cannot draw (vl-mark-invalid-show for show and for null, at the
-                  value), warn that the filter modes should leave the invalid rows out of the scale domains
-                  (vl-mark-invalid-domains, for filter and break-paths-filter-domains), report an area with the
+                  The FeatureCatalog unit shall not report the line, area, and trail marks, shall warn that the
+                  filter modes should leave the invalid rows out of the scale domains (vl-mark-invalid-domains, for
+                  filter and break-paths-filter-domains), shall not report the show and null modes (drawn since
+                  Phase 13; the stable identifier vl-mark-invalid-show is retired and never reused), report an area
+                  with the
                   bundle interpolation (vl-mark-interpolate-bundle-area, drawn with the linear interpolation) and a
                   line or area whose interpolation is not one of the fifteen names of Vega-Lite
                   (vl-mark-interpolate-unknown, drawn with the linear interpolation), read the invalid mode and
                   the interpolation as the mark builder does (the mark definition, then the styles, config.<mark>,
                   and config.mark of the specification) and report one that comes from the configuration at the
                   configuration, once, keep
-                  reporting geoshape and image, report the impute of a channel other than x and y
-                  (vl-encoding-impute), and warn that a stacked path mark does not impute a binned dimension
+                  reporting geoshape and image, not report the impute of any channel (the stable identifier
+                  vl-encoding-impute is retired: Vega-Lite reads the impute of x and y only and ignores the others),
+                  and warn that a stacked path mark does not impute a binned dimension
                   (vl-encoding-stack-impute-bin).
                 justification: |
                   A path mark that is drawn must not make every chart noisy, and the parts of it that are not drawn
@@ -167,7 +169,7 @@ sections:
                   - FeatureCatalog_Report_ChannelGatingFollowsTheSupportTable
                   - FeatureCatalog_Report_InvalidShowDomainsAndBundleAreaIds
                   - FeatureCatalog_Report_ConfigValuesOfInvalidAndInterpolateAreReportedAtTheConfig
-                  - FeatureCatalog_Report_ImputeIsReportedOnlyOutsideXAndY
+                  - FeatureCatalog_Report_ImputeOutsideXAndYIsNotReported
                   - FeatureCatalog_Report_StackImputeBinWarnsAboutABinnedDimension
 
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-TextMark
@@ -201,12 +203,15 @@ sections:
                   time, utc, sequential, band, point, ordinal, quantile, quantize, threshold, and bin-ordinal, scale
                   properties outside the supported set (the bins property, but not the properties of the
                   continuous color scales or the base, exponent, and constant of the log, pow, and symlog
-                  scales), a cubehelix interpolation
-                  (vl-scale-interpolate-cubehelix), a shape that is a custom path (vl-shape-path), the legend
+                  scales), a shape that is neither a symbol name nor path data that parses
+                  (the warning vl-shape-path-invalid; the stable identifiers vl-scale-interpolate-cubehelix and
+                  vl-shape-path are retired because the cubehelix interpolations and the custom path shapes are
+                  drawn), the legend
                   properties that the legend builder does not draw (encode, a format type other than
-                  number, time, and utc, a title
-                  orient other than top, clipHeight, and a custom symbol path), and the guide properties and
-                  encode blocks that the axis builder does not honor, shall warn (vl-scale-type-ignored) about
+                  number, time, and utc, and clipHeight), and the guide properties and
+                  encode blocks that the axis builder does not honor (the stable identifiers vl-guide-axis-labelbound,
+                  -tickband, -tickextra, -position, -translate, -bandposition, -titlex, and -titley and
+                  vl-guide-legend-titleorient are retired: they are drawn), shall warn (vl-scale-type-ignored) about
                   a scale type that the channel
                   or the field type cannot use (the bin-ordinal type is accepted for a binned quantitative
                   color only, and a temporal field accepts only time and utc), and shall not report the
@@ -221,8 +226,8 @@ sections:
                   - FeatureCatalog_Visit_LogPowSqrtAndSymlogScalesAreSupported
                   - FeatureCatalog_Visit_BinOnScaleChannelsAndTheBinOrdinalScaleAreSupported
                   - FeatureCatalog_Visit_ContinuousColorsAndSchemesAreSupported
-                  - FeatureCatalog_Visit_CubehelixInterpolationIsReported
-                  - FeatureCatalog_Visit_CustomPathShapesAreReported
+                  - FeatureCatalog_Visit_CubehelixInterpolationIsNotReported
+                  - FeatureCatalog_Visit_InvalidPathShapesAreReported
                   - FeatureCatalog_Visit_ScaleTypeIgnoredWarnsAboutTypesThatCannotBeUsed
                   - FeatureCatalog_Visit_SchemeNamesAreNotReported
                   - FeatureCatalog_Visit_AxisPropertiesReportOnlyTheUnsupportedOnes
@@ -230,8 +235,9 @@ sections:
 
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-TransformsAndCompositions
                 title: >-
-                  The FeatureCatalog unit shall report each transform of a later phase (regression,
-                  loess, density, quantile, and extent) as vl-transform-name ("not supported yet"), every
+                  The FeatureCatalog unit shall not report any transform (the stable identifiers
+                  vl-transform-regression, -loess, -density, -quantile, and -extent are retired and never
+                  reused: the statistical transforms are computed), shall report every
                   variable parameter of a nested view (also in a concat, hconcat, vconcat, facet, or repeat; the
                   report says that Vega-Lite compiles no signal for it, so it is ignored and an expression that reads
                   it evaluates to null), each projection, shall examine the
@@ -250,7 +256,8 @@ sections:
                 tests:
                   - FeatureCatalog_Visit_TransformsExpressionsAndParametersAreReported
                   - FeatureCatalog_Visit_SupportedPhase5TransformsAndParametersAreNotReported
-                  - FeatureCatalog_Visit_LaterPhaseTransformsConditionsAndSelectionsStayReported
+                  - FeatureCatalog_Visit_EveryTransformOfTheDrawnViewIsAcceptedWithoutAReport
+                  - FeatureCatalog_Visit_StatisticalTransformsAreComputedAndNotReported
                   - FeatureCatalog_Visit_NestedViewTransformsAreAppliedAndVariableParametersAreReported
                   - FeatureCatalog_Visit_NestedViewAggregatingTransformsAreAppliedInConcatAndFacet
                   - FeatureCatalog_Visit_Phase6FeaturesAreNotReportedAndRemainingPartsAre
@@ -261,7 +268,6 @@ sections:
                   - FeatureCatalog_Visit_TransformOfComposedViewIsAppliedAndNotReported
                   - FeatureCatalog_Visit_TransformOfFacetViewIsAppliedAndNotReported
                   - FeatureCatalog_Visit_TransformOfLayerInsideConcatAndFacetIsApplied
-                  - FeatureCatalog_Visit_TransformOfLaterPhaseInLayerIsNotSupportedYet
                   - FeatureCatalog_Visit_LayerTransformsReportOnlyTheirUnsupportedParts
 
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-FacetReports
@@ -270,8 +276,9 @@ sections:
                   channel (the stable identifier vl-composition-facet is retired), shall report a row, column, or
                   facet channel only of a unit view that cannot be faceted (a layer, a layered view whose encoding
                   holds it, or the spec of a facet) as vl-channel-row, vl-channel-column, or vl-channel-facet, and
-                  shall report, at the property, a bin, time unit, or aggregate of a facet field
-                  (vl-facet-field-transform), a facet sort that is an object (vl-facet-sort), a header labelOrient
+                  shall report, at the property, a bin or aggregate of a facet field and a binned or maxbins time
+                  unit of it (vl-facet-field-transform; a time unit with parts and a sort by an aggregate are drawn,
+                  and the stable identifier vl-facet-sort is retired), a header labelOrient
                   or titleOrient on a side that the header does not draw (vl-header-orient), a custom header
                   formatType (vl-format-type-custom), and an expression in a facet (vl-expr-ref), and shall not report a
                   header labelExpr (it is drawn; only its unsupported constructs are reported at its text).
@@ -283,7 +290,7 @@ sections:
                   - FeatureCatalog_Visit_FacetAndFacetedUnitViewAreNotReported
                   - FeatureCatalog_Visit_RowColumnChannelInLayerOrFacetSpecStillReported
                   - FeatureCatalog_Visit_FacetFieldTransformIsReported
-                  - FeatureCatalog_Visit_FacetSortByAggregateIsReported
+                  - FeatureCatalog_Visit_FacetSortByAggregateIsNotReported
                   - FeatureCatalog_Visit_HeaderOrientExprAndFormatTypeAreReported
 
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-CompositionReports
@@ -333,8 +340,9 @@ sections:
                   identifiers vl-mark-boxplot, vl-mark-errorbar, and vl-mark-errorband are retired) or their
                   channels (the x2 and y2 ends of the two error marks, the xError, xError2, yError, and yError2
                   channels of them, and the shape, angle, and strokeDash channels of the outliers of a boxplot),
-                  shall report a bin, a time unit, or an aggregate of a channel that groups the rows of a
-                  composite mark (vl-composite-grouping, at the channel), shall report the error channels of any
+                  shall report a bin, an aggregate, or a binned or maxbins time unit of a channel that groups the
+                  rows of a composite mark (vl-composite-grouping, at the channel; a time unit with parts is
+                  applied and not reported), shall report the error channels of any
                   other mark as ignored (vl-channel-xerror, vl-channel-xerror2, vl-channel-yerror, and
                   vl-channel-yerror2), and shall report the size channel of an errorbar as not drawn.
                 justification: |
@@ -342,6 +350,7 @@ sections:
                   that the expansion cannot honor must be named where they are written.
                 tests:
                   - FeatureCatalog_Visit_BoxPlotIsSupportedWithItsChannels
+                  - FeatureCatalog_Visit_TimeUnitOfAGroupingChannelIsNotReported
                   - FeatureCatalog_Visit_BinOrTimeUnitOfAGroupingChannelIsReported
                   - FeatureCatalog_Visit_AggregateOfAGroupingChannelIsReportedButNotTheMeasure
                   - FeatureCatalog_Visit_GroupingReportFollowsTheOrientationAndLayers
@@ -393,11 +402,11 @@ sections:
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-TransformParts
                 title: >-
                   The FeatureCatalog unit shall report the parts of a supported transform that the renderer
-                  does not execute - a pivot operation other than sum and count
-                  (vl-transform-pivot-op), a lookup from a parameter (vl-transform-lookup-param, which needs the
+                  does not execute - a lookup from a parameter (vl-transform-lookup-param, which needs the
                   final table of another view filtered by the selection), and shall not report a bin transform
                   whose extent is a parameter (vl-transform-bin-extent-param is retired and never produced again: the
-                  extent sets the span that chooses the step) - and a channel sort
+                  extent sets the span that chooses the step, and vl-transform-pivot-op is retired and never
+                  produced again: a pivot computes every aggregate operation) - and a channel sort
                   that is not ascending, descending, null, a value list, or a sort by an operation or a channel
                   that the renderer computes (vl-encoding-sort), and shall not report the supported forms.
                 justification: |
@@ -459,7 +468,6 @@ sections:
                   - FeatureCatalog_Visit_TimeUnitAndDateTestsAreSupported
                   - FeatureCatalog_Visit_ConditionOnAChannelThatTakesNoneIsReported
                   - FeatureCatalog_Visit_ConditionExpressionsAndFieldPropertiesAreVisited
-                  - FeatureCatalog_Visit_LaterPhaseTransformsConditionsAndSelectionsStayReported
 
               - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-Selections
                 title: >-
@@ -540,3 +548,21 @@ sections:
                   - FeatureCatalog_Visit_OffsetsAreReportedOnlyWhenTheyAreNotDrawn
                   - FeatureCatalog_Visit_PointScaleOnAPositionWithOffsetWarns
                   - FeatureCatalog_Visit_PointScaleOnADiscreteTimeUnitPositionWithOffsetWarns
+
+              - id: CanvasNetVegaLite-SpecModel-FeatureCatalog-ImageReports
+                title: >-
+                  The FeatureCatalog unit shall report the image mark with vl-mark-image at the mark when the caller
+                  supplied no image resolver (the mark is then laid out and draws no picture) and not when one was
+                  supplied, accept the url channel on the image mark and report it with vl-channel-url on every other
+                  mark, accept the secondary channels x2 and y2 on the image mark, report a condition on the url
+                  channel, and check the image mark like every drawn mark for the invalid mode.
+                justification: |
+                  The library never reads a picture on its own, so a chart whose pictures cannot be loaded must say
+                  so (and fail in strict mode) instead of looking intended, while a chart that has a resolver must be
+                  quiet.
+                tests:
+                  - FeatureCatalog_Visit_ImageMark_IsReportedOnlyWithoutAResolver
+                  - FeatureCatalog_Visit_UrlChannel_IsSupportedOnlyOnImage
+                  - FeatureCatalog_Visit_SecondEndChannel_IsSupportedOnImage
+                  - FeatureCatalog_Visit_ImageMark_IsCheckedLikeADrawnMark
+                  - FeatureCatalog_Visit_ImageLayers_AreAllSilencedByAResolver

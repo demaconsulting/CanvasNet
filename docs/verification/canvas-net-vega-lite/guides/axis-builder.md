@@ -340,6 +340,41 @@ an offset of 4 at x = 304.5 next to the rectangle and at 4.5 in a footer with bo
 per unit) and the axis group holds no grid line; and that a top axis with an offset of 4 is at y = -3.5 and a bottom
 axis at 4.5 in a header, where it would be at 204.5 next to the rectangle.
 
+##### Static Axis Properties Follow Vega
+
+**Tests**: `AxisBuilderStaticPropertiesTests.AxisBuilder_Build_TranslateReplacesTheHalfPixelOfTheGroup`,
+`AxisBuilderStaticPropertiesTests.AxisBuilder_Build_PositionMovesTheAxisAlongItself`,
+`AxisBuilderStaticPropertiesTests.AxisBuilder_Build_TitleXAndTitleYReplaceThePositionsOfTheTitle`,
+`AxisBuilderStaticPropertiesTests.AxisBuilder_Build_BandPositionMovesTicksAndGridButNotLabels`,
+`AxisBuilderStaticPropertiesTests.AxisBuilder_Build_TickBandExtentAddsAnExtraTickAtTheStartOfTheFirstBand`,
+`AxisBuilderStaticPropertiesTests.AxisBuilder_Build_TickExtraNeedsABandPosition`,
+`AxisBuilderStaticPropertiesTests.AxisBuilder_Build_LabelBoundHidesLabelsThatPassTheRange`,
+`AxisBuilderStaticPropertiesTests.AxisBuilder_Build_LabelBoundAppliesAlongYForAVerticalAxis`
+
+The linear chart is 300 by 200 pixels with the x domain 0 to 100; the band chart has the three categories a, b, c, so the
+band scale of 300 pixels has the step 100, the bandwidth 90 (padding 0.1), and the bands start at 5, 105, and 205. Asserts
+that the group of the bottom axis is at `(translate, height + translate)`: (0.5, 200.5) by default, (3, 203) with a
+`translate` of 3 (the grid group with it), and (0, 200) with 0, and the left axis at (2.5, 2.5) with 2.5; that a
+`position` of 10 with an `offset` of 4 puts the group at (10.5, 204.5) and moves the bounds by 10 along and 4 across the
+axis, that the top axis with -6 is at (-5.5, 0.5), the left axis with 15 at (0.5, 15.5), and the right axis with 8 at
+(300.5, 8.5); that `titleX` of 40 gives the title of the bottom axis the x of 40 and `titleY` of 30 the y of 30 with the
+other coordinate unchanged (the default x is the middle of the range, 150), that both replace the two, and that on the
+left axis `titleX` of -50 is the distance from the axis and `titleY` of 20 the position along it (the default is the
+middle of the range, 100). For the band positions the ticks are at `round(start + width x band - 0.5)`, half up (the
+`-0.5` of the band axis): 5 + 45 - 0.5 = 49.5 -> 50 by default, 4.5 -> **5** for `bandPosition` 0, and 94.5 -> **95** for
+1, so the ticks and the grid lines are (50, 150, 250), (5, 105, 205), and (95, 195, 295) while the labels stay at the
+middle of the bands, (49.5, 149.5, 249.5), whatever the band position. `tickBand: "extent"` puts the ticks at the end
+of the bands without the offset, `round(5 + 90)` = 95, 195, 295, with the extra tick at the start of the first band,
+`round(5)` = 5, appended last, with no label (the labels are a, b, c at 50, 150, 250, the offset of the labels being 0);
+`"center"` is the middle (50, 150, 250) with no extra tick whatever `bandPosition` and `tickExtra` say. `tickExtra`
+adds the extra tick (round(5 - 0.5) = 5) for a band position of 1 and 0.5 and none for a band position of 0 (the band
+of the extra tick is 0), and on a linear axis it repeats the first tick. For `labelBound` on the x axis of 0 to 300
+pixels with the labels 0, 10, to 100 centered on the ends (flush off), `true` (tolerance 1) hides "0" and "100", whose
+boxes pass the range by about 3 and 8 pixels, a tolerance of 4 hides only "100", and a tolerance of 10 hides none; no
+label is hidden without a label overlap method (`labelOverlap: false`), for false, 0, or a negative number. On the y axis
+the boxes are bound along y: "0" at the bottom and "50" at the top of the range of 200 pixels pass it by about half
+their height (5 pixels) and are hidden with a tolerance of 1.
+
 ##### Label Expressions Replace The Tick Labels
 
 **Tests**: `AxisBuilderLabelExprTests.AxisBuilder_Build_LabelExprAppendsPercent`,

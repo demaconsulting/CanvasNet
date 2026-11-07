@@ -65,6 +65,8 @@ sections:
           - CanvasNetTool-Commands-HelpTopics-Rendering
           - CanvasNetTool-Commands-HelpTopics-Consistency
           - CanvasNetTool-Commands-HelpTopics-SvgImageLinks
+          - CanvasNetTool-Commands-HelpTopics-ParamAndFragmentPrefixes
+          - CanvasNetTool-Commands-HelpTopics-InputFragments
           - CanvasNetTool-Commands-CommandRegistry-HelpSubjects
           - CanvasNetTool-Commands-CommandRegistry-HelpJson
         tests:
@@ -103,6 +105,7 @@ sections:
           - CanvasNetTool-Commands-DiscoveryCommands-InfoModel
           - CanvasNetTool-Commands-DiscoveryCommands-VegaLite
           - CanvasNetTool-Commands-DiscoveryCommands-InfoErrors
+          - CanvasNetTool-Commands-DiscoveryCommands-InfoFragments
         tests:
           - CommandsSubsystem_Imaging_DefaultRegistry_RunsInfoAndRender
           - CommandsSubsystem_Imaging_DefaultRegistry_ListedInHelp
@@ -123,6 +126,8 @@ sections:
           - CanvasNetTool-Commands-RenderCommand-Strict
           - CanvasNetTool-Commands-RenderCommand-Scad
           - CanvasNetTool-Commands-RenderCommand-VegaLite
+          - CanvasNetTool-Commands-RenderCommand-ChartParams
+          - CanvasNetTool-Commands-RenderCommand-InputFragments
           - CanvasNetTool-Commands-RenderCommand-Pipeline
           - CanvasNetTool-Commands-RenderCommand-PhotoOptions
           - CanvasNetTool-Commands-RenderCommand-Output
@@ -168,6 +173,7 @@ sections:
           - CanvasNetTool-Commands-CompareCommand-Overwrite
           - CanvasNetTool-Commands-CompareCommand-Errors
           - CanvasNetTool-Commands-CompareCommand-Determinism
+          - CanvasNetTool-Commands-CompareCommand-InputFragments
         tests:
           - CommandsSubsystem_Comparison_DefaultRegistry_RunsCompareAndMontage
           - CommandsSubsystem_Comparison_DefaultRegistry_ListedInHelp
@@ -190,6 +196,7 @@ sections:
           - CanvasNetTool-Commands-MontageCommand-Overwrite
           - CanvasNetTool-Commands-MontageCommand-Errors
           - CanvasNetTool-Commands-MontageCommand-Determinism
+          - CanvasNetTool-Commands-MontageCommand-InputFragments
         tests:
           - CommandsSubsystem_Comparison_DefaultRegistry_RunsCompareAndMontage
           - CommandsSubsystem_Comparison_DefaultRegistry_ListedInHelp
@@ -213,5 +220,6 @@ sections:
           - CanvasNetTool-Commands-InspectCommand-ReadOnly
           - CanvasNetTool-Commands-InspectCommand-Errors
           - CanvasNetTool-Commands-InspectCommand-Deterministic
+          - CanvasNetTool-Commands-InspectCommand-InputFragments
         tests:
           - CommandsSubsystem_Inspect_DefaultRegistry_RunsInspectAndIsListedInHelp

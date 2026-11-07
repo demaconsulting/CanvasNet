@@ -7,7 +7,8 @@
 `SourceLoader` is verified with unit tests in
 `SourceLoaderTests.cs`, `SourceLoaderVectorTests.cs` (the page-based sources), `SourceLoaderScadTests.cs` (the
 OpenSCAD models), and `SourceLoaderVegaLiteTests.cs` (the Vega-Lite charts); the reading and the application of the EXIF
-orientation are core operations (`JpegCodec.ReadExifOrientation` and `Surface.ApplyExifOrientation`) verified in the core
+orientation are core operations (`JpegCodec.ReadExifOrientation` and `Surface.ApplyExifOrientation`) verified in the
+core
 test project, and here only their use by the loader is. The
 tests generate their inputs: rasters are written in memory
 with the CanvasNet codecs (a gradient that differs at every pixel and channel, so a mirroring, rotation, or offset
@@ -65,12 +66,15 @@ N/A - standard test environment; the tests need no network and write only to tem
   variables, time, default color, and triangle limit given, the same picture every time; its include and use files
   are read from its folder and below only; a missing include, a syntax error, and a failed assertion are `scad-error`,
   an exceeded limit is `budget-exceeded`, and an unsupported feature is a note or, in strict mode, an error.
-- A chart (`.vl.json`, `.vl`, or a `.json` with a Vega-Lite `$schema` in its first 4 KiB, never taken for an SVG) is probed
+- A chart (`.vl.json`, `.vl`, or a `.json` with a Vega-Lite `$schema` in its first 4 KiB, never taken for an SVG) is
+  probed
   by parsing and measuring it (the laid-out size, four channels, the marks, data references, parameters, title, and
   schema version) and drawn at that size or the size given, over its own background or the one given, with the bundled
   fonts and UTC dates, with the bars where the layout puts them and the warnings and unsupported features as notes (or,
-  in strict mode, `unsupported-feature`); plain Vega and other JSON files are `unsupported-format` with a hint; an invalid
-  specification (including nesting deeper than, or a string longer than, the limit of the parser, as the nesting limit of
+  in strict mode, `unsupported-feature`); plain Vega and other JSON files are `unsupported-format` with a hint; an
+  invalid
+  specification (including nesting deeper than, or a string longer than, the limit of the parser, as the nesting limit
+  of
   the SCAD parser is a `scad-error`) is `vega-lite-error`, an exceeded limit of the library while the chart is laid out
   or drawn `budget-exceeded`, a specification file longer than the limit of the library `corrupt-input` (as an overlong
   model is), and a chart larger than 8192 pixels `size-limit` (no other failure to measure is `size-limit`).
@@ -131,7 +135,8 @@ frame count, and page facts are right (a document has two pages and lists them; 
 `block`, one function, `half`, and no directives); a PNG with transparency and an SVG
 report four channels with alpha; a JPEG with an EXIF segment reports its orientation and its stored size.
 
-**SourceLoader_Probe_VegaLite_ReportsChartFacts**: a chart with a title, a layer of a `bar` and a `rule`, a parameter, and
+**SourceLoader_Probe_VegaLite_ReportsChartFacts**: a chart with a title, a layer of a `bar` and a `rule`, a parameter,
+and
 inline and named data is probed; the size equals the library's own `Measure` and is larger than the data rectangle,
 there are
 four channels with alpha, one page, and no module, function, or directive, and the chart facts list the marks `bar`
@@ -161,7 +166,8 @@ library reads is `corrupt-input` ("exceeds the maximum length"); parentheses nes
 loads at the
 laid-out size as a vector source of one page with no notes and a `render` operation (`width`, `height`, `timeZone`); the
 corner is white, the bars have the default mark color `#4c78a8` at the points the layout puts them (computed from the
-5-pixel padding and the 100-pixel bands, no pixel read back from the library), the pixel above the shorter bar and the gap
+5-pixel padding and the 100-pixel bands, no pixel read back from the library), the pixel above the shorter bar and the
+gap
 between the bars are white; a scale of 2 doubles the size; a background replaces the white and is reported.
 
 **SourceLoader_Load_VegaLiteComposition_DrawsEveryCellAtTheProbedSizeWithoutDiagnostics**: an `hconcat` of two 200x100
@@ -176,7 +182,8 @@ with a `longitude` channel returns the
 file, the
 position, and the pointer; with strict mode the load is `unsupported-feature` naming `vl-mark-geoshape` and keeping the
 library's
-exception as its cause; malformed JSON is a `vega-lite-error` that starts with "Vega-Lite specification error", names the
+exception as its cause; malformed JSON is a `vega-lite-error` that starts with "Vega-Lite specification error", names
+the
 file, and keeps the library's exception; plain Vega named like a chart is a `vega-lite-error`; a missing file is
 `input-not-found`.
 
@@ -184,7 +191,8 @@ file, and keeps the library's exception; plain Vega named like a chart is a `veg
 and a
 scene-item limit of 2, and one that is not a limit, are mapped: a limit is `budget-exceeded` with a hint and the
 exception as
-its cause, anything else is a `vega-lite-error` ("Vega-Lite render error: ...") without a hint; this pins the texts of the
+its cause, anything else is a `vega-lite-error` ("Vega-Lite render error: ...") without a hint; this pins the texts of
+the
 library that the mapping recognizes.
 
 **SourceLoader_Load_VegaLite_MapsCompositionLimitFailuresToBudgetExceeded**: a real failure of the library for an
@@ -192,8 +200,10 @@ library that the mapping recognizes.
 `the limit (MaxViews)`), is `budget-exceeded` with a hint and the exception as its cause; this pins the second text form
 that the mapping recognizes.
 
-**SourceLoader_Probe_VegaLiteLocalDataIsMeasuredFromSpecFolder**: a chart whose rows are in `bars.csv` in a sub folder beside
-its specification (the current directory being another folder) is probed and loaded from its path; it has the same natural
+**SourceLoader_Probe_VegaLiteLocalDataIsMeasuredFromSpecFolder**: a chart whose rows are in `bars.csv` in a sub folder
+beside
+its specification (the current directory being another folder) is probed and loaded from its path; it has the same
+natural
 size and the same pixels as the same chart with inline rows, no diagnostic, and the chart facts name the data as a `url`
 reference to `bars.csv`.
 
@@ -201,14 +211,17 @@ reference to `bars.csv`.
 folder of
 the specification (`../secret.csv`, which exists), and a file of invalid UTF-8 are each a `vega-lite-error` ("Vega-Lite
 render error: ...", "was not found", "outside the allowed directories", "is not valid UTF-8") on one line, keeping the
-library's `VegaLiteRenderException` as the cause, whether the chart is probed, loaded, or loaded in strict mode (never an
-empty chart); and a chart with an `https` URL loads with only the `vl-data-remote-url` diagnostic, nothing fetched, while
+library's `VegaLiteRenderException` as the cause, whether the chart is probed, loaded, or loaded in strict mode (never
+an
+empty chart); and a chart with an `https` URL loads with only the `vl-data-remote-url` diagnostic, nothing fetched,
+while
 strict mode makes it an `unsupported-feature` error naming the feature.
 
 **SourceLoader_Load_VegaLiteDataLimitMapsToBudgetExceeded**: real failures of the library for a file-backed chart opened
 from its path, with a row limit of 1, a byte limit of 3, and no data folder at all (a chart parsed from a string), are
 mapped by `MapVegaLiteRender`: the row and byte limits are `budget-exceeded` that name the limit (`MaxDataRows` and
-`MaxDataBytes`) and keep the exception as the cause, and the chart without a data folder is a `vega-lite-error` ("no base
+`MaxDataBytes`) and keep the exception as the cause, and the chart without a data folder is a `vega-lite-error` ("no
+base
 directory, data path or file resolver"); this pins the texts of the library that the mapping recognizes.
 
 **SourceLoader_Probe_VegaLiteSourceBeyondLimit_IsCorruptInput**: a chart one character over the limit of the library is
@@ -259,7 +272,8 @@ box without stretching it, centered over the background (white or green), record
 fitting when the box has the page's aspect ratio.
 
 **SourceLoader_BoxOptions_VectorKinds_SetBoxAndClearScale**, **SourceLoader_BoxOptions_RasterKinds_AreUnchanged**,
-**SourceLoader_BoxOptions_NullArguments_ThrowArgumentNullException**, and **SourceLoader_Load_VectorWithBox_RendersNativelyAtBox**:
+**SourceLoader_BoxOptions_NullArguments_ThrowArgumentNullException**, and
+**SourceLoader_Load_VectorWithBox_RendersNativelyAtBox**:
 for each vector kind the box options carry the box and no scale and keep every other option; for each raster kind the
 very same options come back; null arguments throw; an SVG loaded with the box options is exactly the box, and a 480x360
 slide loaded into a 300x300 box is 300x225 centered with bands of the background above and below.
@@ -278,8 +292,10 @@ the size, and `#FFFFFF`), white in the corner and covered in the middle; at 64x6
 render of the same model with an orthographic projection.
 
 **SourceLoader_Load_EachNamedView_IsDistinctAndDeterministic**, **SourceLoader_ScadViews_HaveTheDocumentedAngles**,
-**SourceLoader_Load_OppositeViews_HaveMirroredSilhouettes**, **SourceLoader_Load_AzimuthAndElevationOverride_ReplaceTheViewAngles**,
-**SourceLoader_Load_ViewName_IsCaseInsensitiveAndValidated**, and **SourceLoader_Load_Perspective_DiffersFromOrthographic**:
+**SourceLoader_Load_OppositeViews_HaveMirroredSilhouettes**,
+**SourceLoader_Load_AzimuthAndElevationOverride_ReplaceTheViewAngles**,
+**SourceLoader_Load_ViewName_IsCaseInsensitiveAndValidated**, and
+**SourceLoader_Load_Perspective_DiffersFromOrthographic**:
 a model that looks different from every side (a slab with a tower near one corner and a sphere near the opposite one)
 is drawn from each of the seven views twice; each picture is neither empty nor full, the same both times, and no
 two views give the same picture; the table has the angles iso (45 and the isometric elevation), front (0, 0), back
@@ -302,7 +318,8 @@ isometric
 view asked for) it reports `iso` and is a different picture; loaded with the view `front` it reports `front`.
 
 **SourceLoader_Load_SizeOptions_FollowTheNaturalSize**, **SourceLoader_Load_Background_IsWhiteColoredOrTransparent**,
-**SourceLoader_Load_DefaultColor_ColorsUncoloredSurfaces**, and **SourceLoader_Load_ModelWithoutGeometry_IsTheBackground**:
+**SourceLoader_Load_DefaultColor_ColorsUncoloredSurfaces**, and
+**SourceLoader_Load_ModelWithoutGeometry_IsTheBackground**:
 a scale of 0.1 gives 80x80, a width of 50 gives 50x50, two sides are exact, and a width over the limit is
 `size-limit`; the background is white by default, blue when given, and transparent when it has no alpha (the corner
 is clear and the middle covered), each named in the operation; a plain cube is gray, red with a default color, and a
@@ -318,7 +335,8 @@ a `usage-error` that mentions `-D`; `$t` changes the model and is listed only wh
 **SourceLoader_Load_EchoWarningAndUnsupported_AreReturned** and
 **SourceLoader_Load_UnsupportedFeatureInStrictMode_ThrowsUnsupportedFeature**: a model that echoes, calls a module
 that does not exist, and uses `surface` returns the echo line with its `ECHO:` prefix, a `scad-warning` note with the
-position, and an `unsupported` note whose code is `scad-module-surface`, and the picture is still drawn; with strict mode
+position, and an `unsupported` note whose code is `scad-module-surface`, and the picture is still drawn; with strict
+mode
 the same model is an `unsupported-feature` error that names the feature and the position in one line, with a hint
 that mentions `--strict`.
 
@@ -382,7 +400,8 @@ operations list says what happened.
 **SourceLoader_Load_SvgEmbeddingNestedSvg_ListsOnlyTheOuterEmbedOperation**, and
 **SourceLoader_Load_SvgEmbeddingByFileName_DrawsListedTypesAndSkipsOthers** (`SourceLoaderSvgImageTests.cs`; each test
 writes the files beside a 40 by 40 red SVG in a temporary folder): a green PNG is drawn in its placement with red
-around it, no notes, and one `embed` operation (`href`, `format` `png`, and its natural width of 4); the model fixture is
+around it, no notes, and one `embed` operation (`href`, `format` `png`, and its natural width of 4); the model fixture
+is
 drawn at the size of its placement (80 pixels at `--scale 2`) with the red diagram at the corner (a transparent
 background); the chart fixture is opaque white in its placement, red below it, and drawn at the size of the
 placement; `sub/inner.svg` draws `sub/img.png` although the outer folder has no such file, and only the outer
@@ -400,7 +419,8 @@ is no `embed` operation; a link is refused (the one coverage of the symbolic-lin
 file and a text file are two warnings. The sandbox, the dispatch, the cycle, depth, and count limits, and the file URI
 rules are verified by the `ImageSources` subsystem tests and the Viewer tests.
 
-**SourceLoader_Load_SvgEmbeddingTooLargePicture_IsWarningThenStrictError**: a 33-byte PNG that only declares 9000 by 9000
+**SourceLoader_Load_SvgEmbeddingTooLargePicture_IsWarningThenStrictError**: a 33-byte PNG that only declares 9000 by
+9000
 pixels in a 10 by 10 placement is the one warning `svg-image-too-large` (source `svg`, severity `warning`), not an
 `svg-image-unresolved` warning, with the diagram unchanged; with strict mode it is an `unsupported-feature` error with
 the message `'diagram.svg' embeds 'huge.png', which was not drawn: ...` and a hint naming `svg-image-too-large`.
@@ -414,7 +434,8 @@ the message `'diagram.svg' embeds 'huge.png', which was not drawn: ...` and a hi
 `unsupported` note from `scad` whose message starts with `part.scad:` and keeps the echo line; with strict mode a
 missing reference and the unsupported feature are `unsupported-feature` errors (the first with the message
 `'missing.svg' embeds 'nothing.png', which was not drawn: ...` and the hint naming the code) while an SVG file without
-references is unchanged; a truncated PNG, a model with a syntax error, and a chart with a missing data file are errors with
+references is unchanged; a truncated PNG, a model with a syntax error, and a chart with a missing data file are errors
+with
 `corrupt-input`, `scad-error`, and `vega-lite-error` whose messages name both `diagram.svg` and the embedded file; a
 model with a syntax error inside `inner.svg`, which `outer.svg` embeds, names `'inner.svg' embeds 'bad.scad'`; a
 scale of 3 and an unknown view name do not reach the embedded files (the raster keeps 4 pixels, the model is drawn at
@@ -431,7 +452,8 @@ both, with rounding and the one-pixel minimum; a raster is resized and the opera
 declaring 9000x9000 is refused for its size (not as corrupt) while probing still reports it; an SVG of 100000x50 is
 refused at its natural size and renders at a width that is allowed.
 
-**SourceLoader_Load_RasterBackground_FlattensOnlyWhenAsked** and **SourceLoader_FormatColor_OpaqueAndTranslucent_FormatsHex**:
+**SourceLoader_Load_RasterBackground_FlattensOnlyWhenAsked** and
+**SourceLoader_FormatColor_OpaqueAndTranslucent_FormatsHex**:
 a raster keeps its transparency by default and with a transparent background, and is flattened when a color is
 given; colors are written `#RRGGBB` or `#RRGGBBAA`.
 
@@ -444,16 +466,19 @@ project.)
 
 **SourceLoader_Load_DamagedFile_ThrowsViewerExceptionOrLoads**,
 **SourceLoader_Load_DamagedDocument_ThrowsViewerExceptionOrLoads**,
-**SourceLoader_Load_GarbageWithKnownExtension_ThrowsCorruptInput**, **SourceLoader_Load_MalformedSvg_ThrowsCorruptInput**,
+**SourceLoader_Load_GarbageWithKnownExtension_ThrowsCorruptInput**,
+**SourceLoader_Load_MalformedSvg_ThrowsCorruptInput**,
 **SourceLoader_Load_PdfWithBadContentOrEncryption_ThrowsExpectedErrors**,
 **SourceLoader_Load_PackageWithBrokenPart_ThrowsCorruptInput**,
-**SourceLoader_Read_AllowListedExceptions_AreMappedToErrorCodes**, **SourceLoader_Read_MultiLineMessage_IsReducedToOneLine**,
+**SourceLoader_Read_AllowListedExceptions_AreMappedToErrorCodes**,
+**SourceLoader_Read_MultiLineMessage_IsReducedToOneLine**,
 and **SourceLoader_Read_UnexpectedExceptions_Propagate**: the error-mapping checks described above; in addition a PDF
 whose rectangle operator has too few operands is `corrupt-input`, one that declares an unsupported encryption handler
 is `unsupported-feature`, and a valid archive whose slide, page, or presentation part is not valid is `corrupt-input`.
 Garbage in a file named `.scad` is a `scad-error` rather than `corrupt-input`, and garbage or a truncation of a chart
 is a
-`vega-lite-error`, the kinds whose damage is a syntax error; **SourceLoader_OpenPages_UnhandledKind_IsNotAViewerException**:
+`vega-lite-error`, the kinds whose damage is a syntax error;
+**SourceLoader_OpenPages_UnhandledKind_IsNotAViewerException**:
 facts that name a kind the loader has no case for
 raise an `InvalidOperationException`, which is a defect and not an expected error.
 
@@ -467,8 +492,10 @@ the second to its right, and the malformed declaration is a `scad-warning` note 
 a model without anchors has none.
 
 **SourceLoader_ExtensionKinds_CannotBeChangedThroughACast**, **SourceLoader_ScadViews_CannotBeChangedThroughACast**, and
-**SourceLoader_ScadViewOptionsDefaultDefines_CannotBeChangedThroughACast**: the table of extensions, the list of the seven
-views, and the default `Defines` of a `ScadViewOptions` are not a `Dictionary`, an array, or a `List`; adding, replacing,
+**SourceLoader_ScadViewOptionsDefaultDefines_CannotBeChangedThroughACast**: the table of extensions, the list of the
+seven
+views, and the default `Defines` of a `ScadViewOptions` are not a `Dictionary`, an array, or a `List`; adding,
+replacing,
 removing, and clearing through `IDictionary` or `IList` throw `NotSupportedException`; and the table and the list are
 unchanged afterwards (`.PNG` still means PNG, and there are still seven views).
 
@@ -479,39 +506,135 @@ that is not drawn has an empty origin.
 **SourceLoader_Load_SvgEmbeddingNestedSvgWithMissingFile_OriginIsTheNestedFile**: an SVG file that embeds a second SVG
 file whose own link does not resolve reports a note with the origin `["inner.svg"]`, the file that holds the link.
 
-**SourceLoader_Load_ScadAnchorWarning_CarriesDetailAndLocation**, **SourceLoader_Load_ScadGenericWarning_HasNoDetailButHasLocation**,
+**SourceLoader_Load_ScadAnchorWarning_CarriesDetailAndLocation**,
+**SourceLoader_Load_ScadGenericWarning_HasNoDetailButHasLocation**,
 **SourceLoader_Load_ScadUnsupportedFeature_CarriesLocation**, **SourceLoader_Load_VegaLiteNotes_CarryDetailAndPointer**,
-**SourceLoader_Load_DocumentNote_HasNoLocation**, **SourceLoader_Load_SvgEmbeddingModel_NotesKeepOriginDetailAndLocation**,
+**SourceLoader_Load_DocumentNote_HasNoLocation**,
+**SourceLoader_Load_SvgEmbeddingModel_NotesKeepOriginDetailAndLocation**,
 and **ImageDiagnostic_Equals_ComparesDetailAndLocation** (`SourceLoaderDiagnosticDetailTests.cs`): a malformed anchor is
 a `scad-warning` whose `Detail` is `scad-anchor-invalid` and whose `Location` has the file, line, and column; a warning
-whose library code is the generic one has a location and no detail; an unsupported construct keeps its feature as the code
+whose library code is the generic one has a location and no detail; an unsupported construct keeps its feature as the
+code
 and gets a location; a chart note has the `vl-*` detail and a JSON pointer; a presentation note has a page and no
-location; the notes of an embedded model keep the detail, the location, and the origin; and two notes are equal only when
+location; the notes of an embedded model keep the detail, the location, and the origin; and two notes are equal only
+when
 the new members are equal.
 
-**SourceLoader_InputFromMemory_LoadsLikeTheFile**, **SourceLoader_SourceInput_FileAndMemory_ExposeNameFolderLengthAndStream**,
-**SourceLoader_LoadContext_Charge_IsCalledOnceWithTheSizeOfTheSurface**, **SourceLoader_LoadContext_ChargeRefused_StopsBeforeDecoding**,
-**SourceLoader_LoadContext_CanceledToken_ThrowsOperationCanceled**, **SourceLoader_LoadContext_ScopedResolver_LoadsNestedPicturesAndAddsNoNotes**,
-**SourceLoader_LoadContext_ScopedResolverNull_LeavesLinksUnresolved**, and **SourceLoader_LoadContext_ReturnFittedPage_SkipsTheMargin**
+**SourceLoader_InputFromMemory_LoadsLikeTheFile**,
+**SourceLoader_SourceInput_FileAndMemory_ExposeNameFolderLengthAndStream**,
+**SourceLoader_LoadContext_Charge_IsCalledOnceWithTheSizeOfTheSurface**,
+**SourceLoader_LoadContext_ChargeRefused_StopsBeforeDecoding**,
+**SourceLoader_LoadContext_CanceledToken_ThrowsOperationCanceled**,
+**SourceLoader_LoadContext_ScopedResolver_LoadsNestedPicturesAndAddsNoNotes**,
+**SourceLoader_LoadContext_ScopedResolverNull_LeavesLinksUnresolved**, and
+**SourceLoader_LoadContext_ReturnFittedPage_SkipsTheMargin**
 (`SourceLoaderInputTests.cs`): a file loaded from memory gives the kind, size, pixels, and notes of the same file loaded
 from disk for every format; the input exposes its name, folder, length, and a fresh stream; the charge hook is called
 once per surface with its size before it is decoded, a refusal stops the load before decoding, a canceled token throws,
-a scoped resolver draws the nested pictures and adds no notes of its own while a null one leaves the links unresolved, and
+a scoped resolver draws the nested pictures and adds no notes of its own while a null one leaves the links unresolved,
+and
 a document page comes back at its fitted size without the margin.
 
 **SourceLoader_Load_InvalidOptionsAndMissingFile_ThrowsUsageErrorBeforeTouchingTheFile**,
 **SourceLoader_LoadAndOpenPagesOfInfo_InvalidOptions_ThrowUsageErrorBeforeTouchingTheFile**,
-**SourceLoader_FindOptionProblem_BoundaryOptions_AreAccepted**, **SourceLoader_Load_WidthAboveTheMaximum_IsStillSizeLimit**,
-**SourceLoader_Load_PageBeyondTheLast_IsStillPageOutOfRange**, **SourceLoader_FindOptionProblem_UnknownView_NamesTheViewAndListsTheViews**,
+**SourceLoader_FindOptionProblem_BoundaryOptions_AreAccepted**,
+**SourceLoader_Load_WidthAboveTheMaximum_IsStillSizeLimit**,
+**SourceLoader_Load_PageBeyondTheLast_IsStillPageOutOfRange**,
+**SourceLoader_FindOptionProblem_UnknownView_NamesTheViewAndListsTheViews**,
 and **SourceLoader_MaxDpi_Is2400** (`SourceLoaderOptionsValidationTests.cs`): a table of malformed options (an undefined
 filter, a width or height of 0 or below, a scale of 0, a negative one, NaN, infinity, 0.0009, and 8193, a resolution of
 0, a negative one, NaN, infinity, and 2401, an elevation of 91 or -91, a time of 2e9, a triangle limit of 0, an unknown
-view, a bad variable name) is a `usage-error` from `Load(path)`, `Load(info)`, and `OpenPages` even when the file does not
+view, a bad variable name) is a `usage-error` from `Load(path)`, `Load(info)`, and `OpenPages` even when the file does
+not
 exist; the values at the boundaries are accepted; a width of 9000 is still `size-limit` and a page beyond the last still
 `page-out-of-range`; the unknown-view message names the views; and the maximum resolution is 2400.
 
-**SourceLoader_Load_StrictWithFragmentProblems_FailsOnlyForRefusedLinks** and **SourceLoader_Load_FragmentProblems_AreNotesOfTheDocument**
+**SourceLoader_Load_StrictWithFragmentProblems_FailsOnlyForRefusedLinks** and
+**SourceLoader_Load_FragmentProblems_AreNotesOfTheDocument**
 (`CanvasNetViewerFragmentTests.cs`): an SVG file with a link to a page that does not exist or with an invalid page value
 fails with `unsupported-feature` in strict mode, while an unknown or duplicate parameter is only a note; without strict
 mode
 the four codes are notes of the document, with the embedding file as origin where the link is in an embedded file.
+
+**SourceLoader_Load_VegaLiteImagePngAndScad_DrawsBothAndListsEmbedOperations**,
+**SourceLoader_Load_VegaLiteImagePdfPage_DrawsTheChosenPage**,
+**SourceLoader_Load_VegaLiteImageNestedChart_ResolvesFromItsFolder**,
+**SourceLoader_Load_VegaLiteImageSelfCycle_IsUnresolved**,
+**SourceLoader_Load_VegaLiteImageUnresolvedLink_IsOneWarningAndNothingIsDrawn**,
+**SourceLoader_Load_VegaLiteImageStrict_UnresolvedLinkIsAnError**,
+**SourceLoader_Load_VegaLiteImagePageOutOfRange_IsWarningThenStrictError**,
+**SourceLoader_Load_VegaLiteImageBrokenFile_FailsWithItsCodeNamingBothFiles**,
+**SourceLoader_Load_VegaLiteImageMoreThanTheLimit_IsBudgetExceeded**,
+**SourceLoader_Load_SvgEmbeddingChartWithImage_DrawsTheChartsPicture**, and
+**SourceLoader_Probe_VegaLiteImageChart_ReadsTheSizeWithoutThePictures** (`SourceLoaderVegaLiteImageTests.cs`): charts
+with
+an image mark are loaded from a temporary folder through the real sandboxed resolver of the viewer. A chart that shows a
+generated green PNG (`logo.png`) and the model of the fixtures (`part.scad`) in two 40 by 40 boxes draws the PNG in its
+box
+(20 to 60 across and 30 to 70 down: green inside, white at the pixels next to it) and a model picture in the other box
+(not
+all white; white between and beside the boxes) in strict mode without notes and with one `embed` operation for each
+file,
+`logo.png` and `part.scad`; a link `report.pdf#page=2` draws the green middle of page 2 and lists the link with its
+fragment; a chart that shows `sub/inner.vl.json`, whose own picture `logo.png` lies in `sub`, draws the inner chart's
+white paper and green picture in the middle; a chart that shows itself is the warning `svg-image-unresolved` (cycle)
+and,
+in strict mode, an `unsupported-feature` error naming the chart and the link. A missing file, `../secret.png`,
+`C:/secret.png`
+and `https://example.invalid/secret.png` are each exactly one note, the resolver's `svg-image-unresolved` (no
+`vl-mark-image-unresolved` next to it), nothing is drawn and no operation is listed; strict mode fails naming the chart
+and
+the link with the code in the hint; a page 9 is `image-page-out-of-range` and an error when strict; a truncated PNG is
+`corrupt-input` and a model with a syntax error `scad-error`, both naming the chart and the file; 257 rows with distinct
+missing links are `budget-exceeded` naming `MaxImages`; an SVG diagram that shows a chart whose picture lies beside the
+chart
+draws it through the resolver of the diagram; and probing a chart whose picture does not exist reads its size (100 by
+100)
+and its mark types.
+
+**Chart parameters** (`SourceLoader_Load_ChartOptions_AreAppliedAndReportedInTheOperation`,
+`SourceLoader_Load_InvalidChartOptions_ThrowsUsageErrorBeforeTouchingTheFile`, and the tests of
+`CanvasNetViewerParameterFragmentTests.cs` for an unknown name):
+loading a chart with `cutoff` and `brush` in `SourceOptions.VegaLite` gives a `render` operation whose `params` field is
+`["brush={\"y\":[2,4]}", "cutoff=4"]` (name order, JSON values), a page narrower than the same chart without the
+options, and a `SourceInfo` whose width is that
+of the page, while the render operation of the chart without options has no `params` field; an empty parameter name, a
+value nested 40 levels deep and a null dictionary are
+`usage-error` before a missing file is looked for; an unknown name is `vega-lite-error` naming the parameter and listing
+`declared: brush, cutoff`, and the warning
+`vl-param-unknown` with `WarnOnUnknownParameters`.
+
+**InputReference_Parse_NoHash_IsThePath**, **InputReference_Parse_SplitsAtTheHashOnlyWhenNoFileHasTheName**,
+**InputReference_Parse_NoFile_SplitsAtTheFirstHash**, **SourceLoader_ProbeInputReference_NoFragment_HasNoSelection**,
+**SourceLoader_ProbeInputReference_Document_PageIsCheckedAndReplacesTheOption**,
+**SourceLoader_ProbeInputReference_InvalidValue_IsImageFragmentInvalid**,
+**SourceLoader_ProbeInputReference_OverTheLimitsOrMissing_Throws**,
+**InputSelection_ApplyTo_Model_MergesVariablesAndReplacesTheView**, **InputSelection_ApplyTo_Chart_MergesParametersByName**,
+**InputSelection_Diagnostics_AreTheCodesOfALinkAndReportedOnce**,
+**SourceLoader_Load_InputWithFragment_DrawsWhatTheOptionsWouldDraw**,
+**SourceLoader_PublicMethods_NullArguments_ThrowArgumentNullException**, and
+**CanvasNetViewer_Render_ScadViewportFragment_FixesTheCamera** (the fragment of an input path): the scenarios of
+`InputSelectionTests.cs` use real files in a temporary folder. `Parse` of a text without a `#` is the
+path; with the files `a.scad`, `a.scad#view=top` and `p#1.scad` on disk, `a.scad#def.width=3` splits into the file and
+`def.width=3`, the real name `a.scad#view=top` is the path with no fragment, `p#1.scad` is a path and
+`p#1.scad#view=front&def.c=#ff0` is that file with the fragment `view=front&def.c=#ff0` (a `#` inside the fragment is
+kept); and with no such file, the first `#` splits (`missing.scad#view=top`, `missing#a#b`, `#only`, `trailing#`).
+Probing an input without a fragment gives no `Selection` and `Specifier` is the path; a null argument is rejected.
+For `part.scad#view=top&def.width=20&def.$vpt=[0,0,2]` the selection merged over `front`, azimuth 30 and the
+variables `width=5`, `depth=9` has the view `top` (still given), the azimuth 30, `width=20`, `depth=9`, and the list
+`[0,0,2]`, applying it twice gives the same, and a fragment with no view keeps `front`. For a PDF `page=2` is the
+selection page (and replaces a page of 7), `page=3` is `page-out-of-range`, and `slide=2` (a presentation parameter)
+is the warning `image-fragment-unknown-parameter` with no page. Each of `def.width=[1,2`, `view=sideways`, `def.2x=1`,
+`param.cutoff={bad` and `page=x` is `image-fragment-invalid` whose message has the fragment and that has a hint; a
+fragment of 2,049 characters and one of 33 parameters are `image-fragment-invalid`; a missing file with a fragment is
+`input-not-found` that says a file of that name does not exist either, and without a fragment it says nothing of the
+kind. The notes: a model with `wide=1&def.width=1&def.width=2` has the unknown and the duplicate warning (source
+`input`, severity `warning`, in that order); a chart with `param.cutoff=2&param.nope=1` has one `vl-param-unknown`
+that lists `declared: cutoff` and a selection with only `cutoff`; a PDF with `extra=1` reports the warning with the
+first page that is read and not with the second. A chart parameter of the fragment is merged over those of the command
+by name (the fragment wins, the other one stays, `WarnOnUnknownParameters` stays false). A model probed with
+`view=top&def.width=20` and loaded into 64 by 64 pixels has exactly the pixels of the same model loaded with those
+options and no fragment. In `CanvasNetViewerParameterFragmentTests.cs` the same variables, as the fragment of a link
+in an SVG document, fix the camera: a red box of width 5 and one of width 20 drawn with `def.$vpd=200` are as tall as
+each other and four times as wide (within a pixel), the same two without it are not as tall as each other, and
+`def.$vpt=[10,0,0]` moves the box about 12 pixels to the left.

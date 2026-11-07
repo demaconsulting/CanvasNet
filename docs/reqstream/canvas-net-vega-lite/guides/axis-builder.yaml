@@ -245,3 +245,25 @@ sections:
                   - AxisBuilder_Build_LabelExprArrayResultIsMultiLine
                   - AxisBuilder_Build_LabelExprFormatAndTimeFormat
                   - AxisBuilder_Build_LabelExprInvalidConfiguredTextIsSpecException
+
+              - id: CanvasNetVegaLite-Guides-AxisBuilder-StaticProperties
+                title: >-
+                  The AxisBuilder unit shall draw the static axis properties of Vega as vega-parser does - translate
+                  (the offset of the axis group, 0.5 by default), position (the axis moved along itself), titleX and
+                  titleY (the position of the title in the pixels of the axis group), bandPosition (the place of
+                  ticks and grid inside a band, not of the labels), tickBand (extent: a band position of 1 with an
+                  extra tick; any other value: 0.5), tickExtra (an extra tick at the start of the first band when
+                  the band position is not 0), and labelBound (the labels that pass the range by more than the
+                  tolerance are hidden, when a label overlap method is set).
+                justification: |
+                  Each property is part of the Vega-Lite axis schema and changes the pixels of the axis; ignoring
+                  them would silently differ from Vega-Lite.
+                tests:
+                  - AxisBuilder_Build_TranslateReplacesTheHalfPixelOfTheGroup
+                  - AxisBuilder_Build_PositionMovesTheAxisAlongItself
+                  - AxisBuilder_Build_TitleXAndTitleYReplaceThePositionsOfTheTitle
+                  - AxisBuilder_Build_BandPositionMovesTicksAndGridButNotLabels
+                  - AxisBuilder_Build_TickBandExtentAddsAnExtraTickAtTheStartOfTheFirstBand
+                  - AxisBuilder_Build_TickExtraNeedsABandPosition
+                  - AxisBuilder_Build_LabelBoundHidesLabelsThatPassTheRange
+                  - AxisBuilder_Build_LabelBoundAppliesAlongYForAVerticalAxis

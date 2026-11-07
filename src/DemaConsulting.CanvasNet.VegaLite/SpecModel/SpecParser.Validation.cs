@@ -221,12 +221,26 @@ internal sealed partial class SpecParser
     public static bool IsInterpolateName(string name) => Array.IndexOf(InterpolateNames, name) >= 0;
 
     /// <summary>
-    ///     Finds the property that names a transform: the first property of the entry that is a transform name.
+    ///     Finds the property that names a transform: the first property of the entry that is a transform name, except that an
+    ///     <c>extent</c> that comes with a <c>regression</c> or a <c>density</c> is a property of that transform, not the extent transform.
     /// </summary>
+    /// <remarks>
+    ///     Vega-Lite classifies an entry with an <c>isX</c> chain in which <c>isExtent(t)</c> is <c>hasProperty(t, 'extent') &amp;&amp; !hasProperty(t, 'density') &amp;&amp; !hasProperty(t, 'regression')</c>,
+    ///     because the regression and the density have an <c>extent</c> option; the same rule is applied here, so <c>{"regression": "y", "on": "x", "extent": [0, 10]}</c> is a regression whatever
+    ///     the order of its properties.
+    /// </remarks>
     /// <param name="entry">The transform entry object.</param>
     /// <returns>The property value (its <see cref="SpecNode.Name"/> is the transform name), or null when the entry names no known transform.</returns>
-    public static SpecNode? FindTransformOperation(SpecNode entry) =>
-        entry.Properties.FirstOrDefault(p => TransformNames.Contains(p.Name!));
+    public static SpecNode? FindTransformOperation(SpecNode entry)
+    {
+        var first = entry.Properties.FirstOrDefault(p => TransformNames.Contains(p.Name!));
+        if (first is { Name: "extent" })
+        {
+            return entry["density"] ?? entry["regression"] ?? first;
+        }
+
+        return first;
+    }
 
     /// <summary>
     ///     Validates the whole tree: every view, in document order.

@@ -762,10 +762,11 @@ public sealed partial class VegaLiteDocument
                 var settings = HeaderSettings.Read(_config, definition["header"], channel, honoredOrientsOnly: true);
                 var location = definition.GetLocation(_sourceName);
                 var calendar = _layers.Count > 0 ? _layers[0].Data.Evaluation.Calendar : null;
+                var unit = definition["timeUnit"] is { } unitNode && TimeUnitSpec.TryRead(unitNode, out var parsedUnit) && !parsedUnit.IsBinned && parsedUnit.Parts.Count > 0 ? parsedUnit : null;
                 Func<DataValue, IReadOnlyList<string>>? label = settings.ShowLabels
                     ? WithLabelExpression(
                         settings,
-                        settings.CreateLabelFormatter(new HeaderLabelFormat(ChannelDefinitions.TypeOf(definition, channel), null, calendar, _limits.MaxStringLength, location), _sourceName),
+                        settings.CreateLabelFormatter(new HeaderLabelFormat(ChannelDefinitions.TypeOf(definition, channel), unit, calendar, _limits.MaxStringLength, location), _sourceName),
                         location)
                     : null;
                 created = new FacetChannel(settings, label, TitleLinesOf(definition, settings), location);

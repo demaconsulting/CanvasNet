@@ -101,3 +101,19 @@ PNG and a model it is applied to the model.
 source `pptx`, and severity `unsupported`; without `--json` it is one `Unsupported: ...` line on standard error that ends
 with `(<input>, page 1)` and exit code 0, and with `--json` standard error is empty; the labels are `a.png`,
 `deck.pptx p1`, and `deck.pptx p2`.
+
+**InputFragment_Montage_ExplodeLevelsWithFixedCamera_DifferButShareScale**,
+**InputFragment_Montage_WithoutFixedCamera_FitsEachCell**, and
+**InputFragment_Montage_CameraByCommandOrByFragment_DrawTheSameCells** (`InputFragmentTests.cs`): a model of three cubes
+that move apart with `explode` is the input three times, `#def.explode=0`, `0.5` and `1`, each with
+`def.$vpd=500&def.$vpt=[0,0,55]`, in three cells of 192 pixels without spacing or padding. The cells differ, the
+bounds of the non-white pixels have the same width and the same bottom edge in every cell (one scale, the lowest cube
+does not move) and the stack is taller in each cell than in the one before it, and the JSON cells list the same
+`input` and the three fragments. Without the camera the cubes of the exploded cell are narrower than those of the
+compact one (each cell is fitted). The camera given by `-D '$vpd=500' -D '$vpt=[0,0,55]'` and by the fragments draws
+the same sheet, pixel for pixel.
+
+**InputFragment_Montage_Labels_ShowTheFragment** and
+**InputFragment_Montage_DocumentPage_LabelHasNoRedundantPageNumber**: the labels are `assembly.scad#def.explode=0` and
+`assembly.scad#def.explode=1` (and the label strips under the two cells hold text and are drawn differently), and
+`source.pdf#page=2` and `source.pdf p1` for a PDF named with and without a page fragment, with `page` 2 and 1.

@@ -129,3 +129,15 @@ sections:
           Results are compared, cached, and checked into source control; they must not vary between runs.
         tests:
           - InspectCommand_Json_SameInputTwice_IsByteIdentical
+
+      - id: CanvasNetTool-Commands-InspectCommand-InputFragments
+        title: >-
+          The inspect command shall read the fragment of its input path as the render command does, so that it inspects
+          the page, the view and variables of a model, or the chart parameters that the fragment names, name the input
+          with its fragment in the text result, and report it in the fragment member of the input object of the JSON
+          result.
+        justification: |
+          What is inspected must be what the same name renders.
+        tests:
+          - InputFragment_Inspect_ReadsThePage
+          - InputFragment_EveryCommand_MalformedFragment_FailsWithTheCode

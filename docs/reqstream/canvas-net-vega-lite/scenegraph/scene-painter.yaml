@@ -5,7 +5,9 @@
 # (internal namespace DemaConsulting.CanvasNet.VegaLite.Scenegraph): the painter (ScenePainter.cs and
 # ScenePainter.Paths.cs) that draws a Scene onto a CanvasNet Surface using only the public CanvasNet drawing APIs,
 # at a uniform scale and offset, with the caller owning the surface - including the paths with curved segments, the
-# arc items (through the ArcGeometry unit), the trail items, and the stroke miter limit. See
+# arc items (through the ArcGeometry unit), the trail items, the stroke miter limit, and (Phase 13,
+# ScenePainter.Images.cs and SceneImageSource.cs) the picture items of the image mark, loaded at paint time through
+# the image resolver of the host. See
 # docs/verification/canvas-net-vega-lite/scenegraph/scene-painter.md for the test-evidence mapping.
 
 sections:
@@ -69,13 +71,15 @@ sections:
               - id: CanvasNetVegaLite-Scenegraph-ScenePainter-Symbols
                 title: >-
                   The ScenePainter unit shall draw symbols whose area and bounds follow the Vega symbol
-                  shapes, polylines and polygons, rounded rectangles, and the filled and stroked
+                  shapes (and, for a shape that is SVG path data, the path of the SymbolPathParser unit, or a
+                  circle when it does not parse), polylines and polygons, rounded rectangles, and the filled and stroked
                   background of a group with crisp half-pixel stroke alignment.
                 justification: |
                   The point-like marks and the view border are drawn by these items.
                 tests:
                   - ScenePainter_Paint_SymbolsCoverTheirDocumentedArea
                   - ScenePainter_SymbolPath_ShapesHaveVegaBounds
+                  - ScenePainter_SymbolPath_DrawsCustomPathsAndFallsBackToACircle
                   - ScenePainter_IsSymbolShape_KnowsTheDrawnShapes
                   - ScenePainter_Paint_PathsRoundedRectanglesAndGroupBackgroundAreCrisp
 
@@ -208,3 +212,55 @@ sections:
                   - ScenePainter_Paint_TextBeyondTheMagnitudeBoundDrawsNothingAndNeverThrows
                   - ScenePainter_IsDrawable_Text_FollowsTheSharedRule
                   - ScenePainter_Paint_TextWithZeroFontSizeDrawsNothing
+
+              - id: CanvasNetVegaLite-Scenegraph-ScenePainter-Images
+                title: >-
+                  The ScenePainter unit shall draw a SceneImage with the rules of Vega's image mark - the width of
+                  the box is the width of the item, else the height times the aspect ratio of the picture when the
+                  aspect is kept, else the natural width (and symmetrically for the height), the anchor moves the box
+                  by half of it for center and middle and by all of it for right and bottom, a box without area draws
+                  nothing, a picture of another aspect ratio than a box with both dimensions is fitted inside it and
+                  centered unless the aspect is off, the opacity of the item is multiplied into the picture, a
+                  picture that is not smoothed keeps hard edges, the picture is clipped by the clip of its group, and
+                  an item that is not finite, is beyond the magnitude bound, has a negative size or no opacity or
+                  has no link is neither drawn nor asked for - and shall ask for a picture at the size of its box in
+                  device pixels at every scale, a raster keeping its own pixels as scene units and a picture that comes
+                  back at the requested size having the default natural size of 256 units.
+                justification: |
+                  A picture is only readable where Vega-Lite would put it, at the size it asks for, and a picture
+                  must never be loaded for an item that cannot be drawn.
+                tests:
+                  - ScenePainter_Paint_ImageWithoutSize_DrawsNaturalSizeAtLeftTop
+                  - ScenePainter_Paint_ImageAnchor_MovesTheNaturalBox
+                  - ScenePainter_Paint_ImageWithSize_AsksForTheBoxInDevicePixels
+                  - ScenePainter_Paint_RasterWithoutSize_ScalesWithThePlacement
+                  - ScenePainter_Paint_VectorWithoutSize_HasTheDefaultNaturalSize
+                  - ScenePainter_Paint_ImageWithOneDimension_FollowsTheAspectRule
+                  - ScenePainter_Paint_ImageInBoxOfOtherAspect_IsFittedAndCentered
+                  - ScenePainter_Paint_PictureOfTheRequestedSize_FillsTheBox
+                  - ScenePainter_Paint_ImageOpacity_BlendsOverTheBackground
+                  - ScenePainter_Paint_ImageInClippedGroup_IsCut
+                  - ScenePainter_Paint_ImageWithoutSmoothing_KeepsHardEdges
+                  - ScenePainter_Paint_EmptyImage_IsNotAskedFor
+                  - ScenePainter_Paint_WithoutLoader_SkipsPictures
+
+              - id: CanvasNetVegaLite-Scenegraph-ScenePainter-ImageLoading
+                title: >-
+                  The ScenePainter unit shall load the pictures of a painting through the SceneImageSource of the
+                  painting, which asks the caller's IImageResolver once for each link and device size (the answer
+                  shared by the items that ask for it), counts the questions against MaxImages and fails the call
+                  that would exceed it with the location of the mark, reports a link the resolver did not give as the
+                  warning vl-mark-image-unresolved once for the link, never asks when there is no resolver, lets an
+                  exception of the resolver propagate unchanged, and disposes every surface the resolver returned
+                  when the painting ends or fails.
+                justification: |
+                  The resolver contract allows no caching and returns a fresh surface for every call, so a chart that
+                  shows one icon for every point must not ask once for every point; a specification must not be
+                  able to make the host load pictures without bound; and every picture is memory that must be released.
+                tests:
+                  - SceneImageSource_Get_CachesWithinOnePaintingAndDisposesEverySurface
+                  - SceneImageSource_Get_BeyondTheLimit_FailsAtTheMark
+                  - SceneImageSource_Get_ResolverGivesNothing_ReportsOnceAndDrawsNothing
+                  - ScenePainter_Paint_WithoutResolver_DrawsNothingAndReportsNothing
+                  - SceneImageSource_Get_ResolverThrows_PropagatesUnchanged
+                  - SceneImageSource_Get_KeyIncludesTheDeviceSize

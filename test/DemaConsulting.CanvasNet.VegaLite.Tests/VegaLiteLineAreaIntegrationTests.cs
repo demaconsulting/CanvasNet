@@ -546,10 +546,10 @@ public class VegaLiteLineAreaIntegrationTests
 
     /// <summary>
     ///     Validates the invalid data modes: a null y in the middle of five points breaks the default line into two subpaths (two moves), the <c>filter</c> mode connects the points on both
-    ///     sides, the filter mode warns that the scale domains include the filtered rows, and the modes <c>show</c> and <c>null</c> are reported as unsupported (and thrown in strict mode).
+    ///     sides, the filter mode warns that the scale domains include the filtered rows, and the modes <c>show</c> and <c>null</c> draw the row at zero (not reported, not thrown in strict mode).
     /// </summary>
     [Fact]
-    public void CanvasNetVegaLite_SystemIntegration_InvalidData_NullsBreakAFilterConnectsAndShowIsReported()
+    public void CanvasNetVegaLite_SystemIntegration_InvalidData_NullsBreakAFilterConnectsAndShowDrawsAtZero()
     {
         // Arrange: x is 0 to 4 over 300 pixels (75 each); y is 0, 10, null, 5, 8 on the domain 0 to 10
         const string data = "[ { \"x\": 0, \"y\": 0 }, { \"x\": 1, \"y\": 10 }, { \"x\": 2, \"y\": null }, { \"x\": 3, \"y\": 5 }, { \"x\": 4, \"y\": 8 } ]";
@@ -573,15 +573,16 @@ public class VegaLiteLineAreaIntegrationTests
         Assert.Empty(explicitWarnings);
         Assert.Equal("M0,200 L75,0 M225,100 L300,40", Describe(Assert.Single(Items<ScenePath>(explicitScene, "mark-line"))));
 
-        // Act / Assert: show and null are reported as unsupported with the location of the property, and strict mode throws for them
+        // Act / Assert: show and null draw the invalid row at the position of zero (Vega-Lite's zeroOrMin), connect the path through it, and are neither reported nor thrown in strict mode
         foreach (var mode in new[] { "\"show\"", "null" })
         {
             var spec = VegaLiteDocument.Parse(Chart("{ \"type\": \"line\", \"invalid\": " + mode + " }", data, Encoding()));
             var reported = new List<string>();
-            using var surface = spec.Render(new VegaLiteRenderOptions { UnsupportedFeatureHandler = u => reported.Add(u.Feature + " " + u.Location.Pointer) }, Ct);
-            Assert.Equal(["vl-mark-invalid-show /mark/invalid"], reported);
-            var failure = Assert.Throws<VegaLiteUnsupportedFeatureException>(() => spec.Render(new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true }, Ct));
-            Assert.Equal("vl-mark-invalid-show", failure.Feature);
+            var showWarnings = new List<string>();
+            var showScene = spec.BuildScene(new VegaLiteRenderOptions { ThrowOnUnsupportedFeature = true, UnsupportedFeatureHandler = u => reported.Add(u.Feature), WarningHandler = w => showWarnings.Add(w.Message) }, Ct);
+            Assert.Empty(reported);
+            Assert.Empty(showWarnings);
+            Assert.Equal("M0,200 L75,0 L150,200 L225,100 L300,40", Describe(Assert.Single(Items<ScenePath>(showScene, "mark-line"))));
         }
     }
 

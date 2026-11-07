@@ -443,14 +443,24 @@ public static partial class SourceLoader
         /// <returns>The text.</returns>
         private static string FormatDefine(string name, object? value)
         {
-            var text = value switch
+            return $"{name}={FormatValue(value)}";
+        }
+
+        /// <summary>
+        ///     Formats the value of a variable definition: a vector as <c>[a, b, c]</c>, text in quotes.
+        /// </summary>
+        /// <param name="value">The value: a number, a flag, text, <see langword="null"/>, or a vector of these.</param>
+        /// <returns>The text.</returns>
+        private static string FormatValue(object? value)
+        {
+            return value switch
             {
                 bool flag => flag ? "true" : "false",
                 string content => $"\"{content}\"",
                 IFormattable number => number.ToString("R", CultureInfo.InvariantCulture),
+                System.Collections.IEnumerable items => "[" + string.Join(", ", items.Cast<object?>().Select(FormatValue)) + "]",
                 _ => "undef"
             };
-            return $"{name}={text}";
         }
     }
 }

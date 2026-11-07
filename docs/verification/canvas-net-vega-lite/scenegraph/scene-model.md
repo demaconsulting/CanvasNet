@@ -103,9 +103,11 @@ under translation and rotation, and that it is the identity of the union.
 **Tests**: `SceneModelTests.SceneModel_Gradient_DefaultsCopiesAndLimits`
 
 Asserts that an item has no gradient by default and that a gradient leaves the solid fill alone; that the factories give
-Vega's defaults (`Horizontal` from (0, 0) to (1, 0), `Vertical` from (0, 1) to (0, 0)) and an explicit gradient keeps its
+Vega's defaults (`Horizontal` from (0, 0) to (1, 0), `Vertical` from (0, 1) to (0, 0)) and an explicit gradient keeps
+its
 numbers; that the stops are copied when the gradient is made (a later change of the source list has no effect) and throw
-`NotSupportedException` when changed through a cast; that a `with` copy keeps the gradient and can clear it; and that the
+`NotSupportedException` when changed through a cast; that a `with` copy keeps the gradient and can clear it; and that
+the
 number of stops is bounded (256 are accepted, 257 are an `ArgumentException`, no stop is accepted, and a null list is an
 `ArgumentNullException`).
 
@@ -114,10 +116,12 @@ number of stops is bounded (256 are accepted, 257 are an `ArgumentException`, no
 **Tests**: `SceneModelTests.SceneModel_PathSegments_AreCopiedAndTakePrecedenceOverPoints`
 
 Asserts that the four segments of a path are copied when it is made (a later addition to the source list has no effect),
-keep their order (`MoveTo`, `CubicTo`, `LineTo`, `Close`), have no points, and throw `NotSupportedException` when changed
+keep their order (`MoveTo`, `CubicTo`, `LineTo`, `Close`), have no points, and throw `NotSupportedException` when
+changed
 through a cast; that the factories store the derived coordinates (the move (1, 2) with zero controls, the cubic with the
 end (7, 8) and the controls (3, 4) and (5, 6), the line (9, 10), and a close equal to the close that is built by hand);
-that a path of points has no segments and its two points; that `IsFinite` is true for a close, a line, a move, and a cubic
+that a path of points has no segments and its two points; that `IsFinite` is true for a close, a line, a move, and a
+cubic
 with finite numbers and false for a NaN or an infinity in any coordinate that the kind uses (a line, a move, and a cubic
 with the first control point, the second control point, or the end point); and that a null segment list is an
 `ArgumentNullException`.
@@ -127,9 +131,11 @@ with the first control point, the second control point, or the end point); and t
 **Tests**: `SceneModelTests.SceneModel_ArcAndTrail_ExposeTheirGeometryAndCopyLists`
 
 Asserts that an arc made with a center has the radii, angles, pad angle, and corner radius 0 and no fill, that a `with`
-copy that sets the inner radius 20, the outer radius 50, the angles 0.5 and 1.5, the pad angle 0.02, the corner radius 3,
+copy that sets the inner radius 20, the outer radius 50, the angles 0.5 and 1.5, the pad angle 0.02, the corner radius
+3,
 and a fill keeps the role and the center; that a trail copies its two runs and the points of each (later changes of the
-source lists have no effect, the first run keeps its two points, the second its point (20, 5, size 6)) and that the exposed
+source lists have no effect, the first run keeps its two points, the second its point (20, 5, size 6)) and that the
+exposed
 run list and point lists throw `NotSupportedException` when changed through a cast; and that an empty trail is allowed
 and a null run list is an `ArgumentNullException`.
 
@@ -157,3 +163,13 @@ allows exactly N items; that boundary is verified through the whole pipeline by 
 _CanvasNetVegaLite System Verification_ ("Limits: Scene Item Limit Is Exact And Charged Before Creation"), and the fork
 and adopt used to charge the repeated axis passes by
 `CanvasNetVegaLite_SystemIntegration_Limits_BudgetForkIsAdoptedOnlyWhenKept`.
+
+##### The Picture Item Has Vega's Defaults
+
+**Tests**: `ScenePainterImageTests.SceneImage_Defaults_AreVegasDefaults`,
+`ScenePainterImageTests.SceneImage_Constructors_RejectNullArguments`
+
+Asserts that a new `SceneImage` has its link, anchor `(1, 2)`, `left` and `top`, the aspect and smoothing on, the
+opacity
+1 and no width or height, and that a null link, a null loader warning callback and a null measurer are
+`ArgumentNullException`s.

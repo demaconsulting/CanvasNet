@@ -68,7 +68,8 @@ internal sealed partial class InspectCommand : ICommand
         + "16-bin histogram) that help to choose --levels and --threshold values. pixel reports the color and luma of" + Environment.NewLine
         + "one pixel; with --radius also the pixels around it and their mean. Coordinates are those of the image after" + Environment.NewLine
         + "the operations, from 0,0 at the top left. Transparent pixels are flattened over the --background (white by" + Environment.NewLine
-        + "default) before they are counted." + Environment.NewLine
+        + "default) before they are counted. The input may end in a fragment (part.scad#view=top, report.pdf#page=2) as" + Environment.NewLine
+        + "for 'render'." + Environment.NewLine
         + Environment.NewLine
         + "Examples:" + Environment.NewLine
         + "  canvasnet inspect colors napkin.jpg --count 6" + Environment.NewLine
@@ -85,14 +86,22 @@ internal sealed partial class InspectCommand : ICommand
         var reader = ArgumentReader.Parse(Name, args, Options);
         var settings = ReadSettings(reader);
 
-        // Report every mistake about the input before any pixels are decoded
-        var info = SourceLoader.Probe(settings.Input);
+        // Report every mistake about the input before any pixels are decoded; a '#' fragment of the input is read here too
+        var info = SourceLoader.Probe(InputReference.Parse(settings.Input));
         if (settings.Source.Scad != null && !info.Format.IsModel())
         {
             throw new ToolException(
                 ErrorCodes.UsageError,
                 $"The options {string.Join(", ", RenderCommand.ScadOptionNames)} only apply to an OpenSCAD model, but '{settings.Input}' is a {info.Format.ToFormatName()} file.",
                 "Remove them, or inspect a .scad file.");
+        }
+
+        if (settings.Source.VegaLite != null && !info.Format.IsChart())
+        {
+            throw new ToolException(
+                ErrorCodes.UsageError,
+                $"The option {string.Join(", ", RenderCommand.ChartOptionNames)} only applies to a Vega-Lite chart, but '{settings.Input}' is a {info.Format.ToFormatName()} file.",
+                "Remove it, or inspect a .vl.json file.");
         }
 
         // The operation reports the mistakes about the page before any pixels are decoded, then loads the page, runs the
@@ -158,7 +167,7 @@ internal sealed partial class InspectCommand : ICommand
             var colors = string.Join(
                 ", ",
                 statistics.Colors.Select(c => string.Create(CultureInfo.InvariantCulture, $"{SourceLoader.FormatColor(c.Color)} {c.Fraction * 100:0.00}%")));
-            context.WriteLine(string.Create(CultureInfo.InvariantCulture, $"colors of {result.Info.Path} ({result.Width}x{result.Height}): {colors}"));
+            context.WriteLine(string.Create(CultureInfo.InvariantCulture, $"colors of {result.Info.Specifier} ({result.Width}x{result.Height}): {colors}"));
             var luma = statistics.Luma;
             context.WriteLine(string.Create(
                 CultureInfo.InvariantCulture,
@@ -225,7 +234,7 @@ internal sealed partial class InspectCommand : ICommand
         {
             context.WriteLine(string.Create(
                 CultureInfo.InvariantCulture,
-                $"pixel {x},{y} of {result.Info.Path} ({result.Width}x{result.Height}): {SourceLoader.FormatColor(pixel)} rgb({pixel.R},{pixel.G},{pixel.B}) alpha {pixel.A} luma {sample.Luma}"));
+                $"pixel {x},{y} of {result.Info.Specifier} ({result.Width}x{result.Height}): {SourceLoader.FormatColor(pixel)} rgb({pixel.R},{pixel.G},{pixel.B}) alpha {pixel.A} luma {sample.Luma}"));
             if (sample.Window is { } window)
             {
                 context.WriteLine(string.Create(
@@ -254,6 +263,11 @@ internal sealed partial class InspectCommand : ICommand
 
         writer.WriteStartObject("input");
         writer.WriteString("path", info.Path);
+        if (info.Selection is { } selection)
+        {
+            writer.WriteString("fragment", selection.Fragment);
+        }
+
         writer.WriteString("format", info.Format.ToFormatName());
         if (info.Format.IsDocument())
         {

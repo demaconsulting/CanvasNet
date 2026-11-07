@@ -122,7 +122,8 @@ internal sealed partial class RenderCommand
                + $"'{verb}' is 'render' with this one operation first, so it takes every option of render (--page, --dpi," + Environment.NewLine
                + "--background, --format, --quality, --no-clobber, --json, ...). The operations given as options" + Environment.NewLine
                + "(--crop, --resize, --fit, --rotate, --flip, --pad, --grayscale, --threshold, --deskew, --trim, --grid, ...)" + Environment.NewLine
-               + "are applied after it, in the order written." + Environment.NewLine
+               + "are applied after it, in the order written. The input may end in a fragment such as report.pdf#page=3 or" + Environment.NewLine
+               + "part.scad#view=top (quote it in a shell), as for 'render'." + Environment.NewLine
                + Environment.NewLine
                + "Examples:" + Environment.NewLine
                + string.Join(Environment.NewLine, text.Examples.Select(e => "  " + e));

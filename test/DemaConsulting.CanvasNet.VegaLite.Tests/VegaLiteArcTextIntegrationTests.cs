@@ -254,7 +254,7 @@ public class VegaLiteArcTextIntegrationTests
 
     /// <summary>
     ///     Validates that the constructs of the new marks that cannot be drawn are reported with their identifiers and pointers once, in order, and that the chart is still drawn: a geoshape
-    ///     and an image mark, the <c>show</c> invalid mode, the bundle interpolation of an area, the sizes of an area, the angle of a bar and the dash of an area; strict mode stops at the first.
+    ///     and an image mark, the bundle interpolation of an area, the sizes of an area, the angle of a bar and the dash of an area; strict mode stops at the first.
     /// </summary>
     [Fact]
     public void CanvasNetVegaLite_SystemIntegration_Unsupported_GeoshapeImageAndSpecialInvalidModesAreReported()
@@ -266,7 +266,6 @@ public class VegaLiteArcTextIntegrationTests
         {
             ("\"geoshape\"", "{ " + Xy + " }", ["vl-mark-geoshape /mark"]),
             ("\"image\"", "{ " + Xy + " }", ["vl-mark-image /mark"]),
-            ("{ \"type\": \"line\", \"invalid\": \"show\" }", "{ " + Xy + " }", ["vl-mark-invalid-show /mark/invalid"]),
             ("{ \"type\": \"area\", \"interpolate\": \"bundle\" }", "{ " + Xy + " }", ["vl-mark-interpolate-bundle-area /mark/interpolate"]),
             ("\"area\"", "{ " + Xy + ", \"size\": { \"field\": \"z\", \"type\": \"quantitative\" } }", ["vl-channel-size /encoding/size"]),
             ("\"bar\"", "{ " + Xy + ", \"theta\": { \"field\": \"z\", \"type\": \"quantitative\" } }", ["vl-channel-theta /encoding/theta"]),
@@ -526,7 +525,7 @@ public class VegaLiteArcTextIntegrationTests
 
     /// <summary>
     ///     Validates that an <c>invalid</c> mode and an <c>interpolate</c> name that come from the configuration are reported like the ones in a mark definition, at the value in the
-    ///     configuration (the <c>show</c> mode, the bundle interpolation of an area and a name that Vega-Lite does not know), that the chart is still drawn, and that strict mode stops at the report.
+    ///     configuration (the bundle interpolation of an area and a name that Vega-Lite does not know; the <c>show</c> mode is drawn), that the chart is still drawn, and that strict mode stops at the report.
     /// </summary>
     [Fact]
     public void CanvasNetVegaLite_SystemIntegration_Unsupported_ConfigValuesOfInvalidAndInterpolateAreReportedAtTheConfig()
@@ -536,10 +535,8 @@ public class VegaLiteArcTextIntegrationTests
         const string Xy = "{ \"x\": { \"field\": \"x\", \"type\": \"quantitative\" }, \"y\": { \"field\": \"y\", \"type\": \"quantitative\" } }";
         var cases = new (string Mark, string Config, string Expected)[]
         {
-            ("\"line\"", "{ \"line\": { \"invalid\": \"show\" } }", "vl-mark-invalid-show /config/line/invalid"),
             ("\"area\"", "{ \"mark\": { \"interpolate\": \"bundle\" } }", "vl-mark-interpolate-bundle-area /config/mark/interpolate"),
             ("\"line\"", "{ \"line\": { \"interpolate\": \"zigzag\" } }", "vl-mark-interpolate-unknown /config/line/interpolate"),
-            ("{ \"type\": \"line\", \"style\": \"loud\" }", "{ \"style\": { \"loud\": { \"invalid\": null } } }", "vl-mark-invalid-show /config/style/loud/invalid"),
         };
 
         foreach (var (mark, config, expected) in cases)

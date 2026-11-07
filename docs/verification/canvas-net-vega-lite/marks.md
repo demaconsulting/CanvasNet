@@ -75,19 +75,19 @@ the unit verification document passes without error or unexpected exception.
   `CanvasNetVegaLite_SystemIntegration_Unsupported_GeoshapeImageAndSpecialInvalidModesAreReported` — a mark that is not
   drawn (`geoshape` is the sentinel; `line`, `area`, and `trail` are drawn since this release) gives an empty group, no
   axes are drawn for it, and the document reports it with its identifier, pointer, line, and column; the `image` mark,
-  the invalid mode `show`, the bundle interpolation of an area, the `size` channel of an area, the `theta` channel of a
+  the bundle interpolation of an area, the `size` channel of an area, the `theta` channel of a
   bar, the `text` channel of a point, and the `strokeDash` channel of an area are each reported once, in order, with
-  their identifiers and pointers (`vl-mark-geoshape /mark`, `vl-mark-image /mark`, `vl-mark-invalid-show /mark/invalid`,
+  their identifiers and pointers (`vl-mark-geoshape /mark`, `vl-mark-image /mark`,
   `vl-mark-interpolate-bundle-area /mark/interpolate`, `vl-channel-size /encoding/size`,
   `vl-channel-theta /encoding/theta`, `vl-channel-text /encoding/text`, and
   `vl-channel-strokedash /encoding/strokeDash`) while the chart is still drawn, and strict mode stops at the first.
 - **Config-Sourced Invalid Modes And Interpolations Are Reported At The Configuration**:
   `FeatureCatalogTests.FeatureCatalog_Report_ConfigValuesOfInvalidAndInterpolateAreReportedAtTheConfig`,
   `CanvasNetVegaLite_SystemIntegration_Unsupported_ConfigValuesOfInvalidAndInterpolateAreReportedAtTheConfig` — an
-  `invalid` mode and an `interpolate` name that a mark gets from `config.<mark>`, `config.mark`, or `config.style` are
-  reported like those of a mark definition, at the value in the configuration (`vl-mark-invalid-show /config/line/invalid`,
-  `vl-mark-interpolate-bundle-area /config/mark/interpolate`, `vl-mark-interpolate-unknown /config/line/interpolate`,
-  `vl-mark-invalid-show /config/style/loud/invalid`), once, while the chart is drawn, and strict mode throws the report.
+  `interpolate` name that a mark gets from `config.<mark>`, `config.mark`, or `config.style` is
+  reported like that of a mark definition, at the value in the configuration (`vl-mark-interpolate-bundle-area
+  /config/mark/interpolate`, `vl-mark-interpolate-unknown /config/line/interpolate`), once, while the chart is drawn,
+  and strict mode throws the report; the `show` mode of the configuration is drawn and not reported.
 - **Extreme Values Are Bounded**:
   `MarkBuilderPathTests.MarkBuilder_Build_PointsBeyondTheMagnitudeBoundBreakThePath`,
   `MarkBuilderTextTests.MarkBuilder_Build_TextBeyondTheMagnitudeBoundIsSkipped`,
@@ -213,7 +213,7 @@ the unit verification document passes without error or unexpected exception.
   `VegaLiteLineAreaIntegrationTests.CanvasNetVegaLite_SystemIntegration_Overlays_LinePointsAndAreaLineAreDrawn`,
   `VegaLiteLineAreaIntegrationTests.CanvasNetVegaLite_SystemIntegration_Overlays_ShapeChannelShapesTheOverlayPointsInStrictMode`,
   `VegaLiteLineAreaIntegrationTests.CanvasNetVegaLite_SystemIntegration_Overlays_CallerConfigurationAndLineOverlayAgreeWithTheReports`,
-  `VegaLiteLineAreaIntegrationTests.CanvasNetVegaLite_SystemIntegration_InvalidData_NullsBreakAFilterConnectsAndShowIsReported`,
+  `VegaLiteLineAreaIntegrationTests.CanvasNetVegaLite_SystemIntegration_InvalidData_NullsBreakAFilterConnectsAndShowDrawsAtZero`,
   `VegaLiteLineAreaIntegrationTests.CanvasNetVegaLite_SystemIntegration_Order_OrderChannelControlsOverlapAndPathSort`,
   `MarkBuilderOverlayTests.MarkBuilder_Build_PointOverlayDrawsSymbolsWithTheOverlayDefinition`,
   `MarkBuilderOverlayTests.MarkBuilder_Build_AreaLineOverlayAndDefaultOpacity`,
@@ -221,7 +221,7 @@ the unit verification document passes without error or unexpected exception.
   `MarkBuilderOverlayTests.MarkBuilder_Build_PointOverlayOfALineTakesTheSizeFromTheStrokeWidthRange`,
   `MarkBuilderPathTests.MarkBuilder_Build_DefaultInvalidModeBreaksThePath`,
   `MarkBuilderPathTests.MarkBuilder_Build_InvalidFilterConnectsTheNeighbors`,
-  `MarkBuilderPathTests.MarkBuilder_Build_InvalidShowIsTheDefaultModeAndReported`,
+  `MarkBuilderPathTests.MarkBuilder_Build_InvalidShowDrawsTheInvalidRowAtZeroOrMin`,
   `MarkBuilderOrderTests.MarkBuilder_Build_OrderChannelSortsTheDrawOrderOfAnyMark`,
   `MarkBuilderOrderTests.MarkBuilder_Build_OrderNullKeepsTheDataOrder` — a line with `point: true` is the path and three
   filled symbols at (0, 200), (150, 0), and (300, 100), an area with `line: true` and `point: true` is the polygon
@@ -231,7 +231,8 @@ the unit verification document passes without error or unexpected exception.
   points of two series have the colors of their series. For the rows y = 0, 10, null, 5, 8 at x = 0 to 4 (75 pixels apart,
   y(v) = 200 - 20 v) the default line is broken, `M0,200 L75,0 M225,100 L300,40`, the filter mode connects the neighbors,
   `M0,200 L75,0 L225,100 L300,40`, with the warning `vl-mark-invalid-domains`, the explicit default mode is silent, and
-  `show` and null are reported as `vl-mark-invalid-show` at `/mark/invalid` (and thrown in strict mode). A line over the
+  `show` and null draw the row at zero and are silent, `M0,200 L75,0 L150,200 L225,100 L300,40` (strict mode has
+  nothing to throw for). A line over the
   rows x = 1, 0, 2 is sorted by x (`M0,200 L150,0 L300,100`), by the `order` field s = 2, 0, 1 follows the sequence
   `M0,200 L300,100 L150,0`, and with `order: false` follows the data, `M150,0 L0,200 L300,100`; of three overlapping squares
   of the categories a, b, c with the order values 2, 3, 1 the drawing is c, a, b ascending (b on top, so the pixel in the

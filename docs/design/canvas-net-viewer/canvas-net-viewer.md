@@ -25,7 +25,8 @@ The unit's behavior is specified by the `CanvasNetViewer-CanvasNetViewer-*` requ
 
 - **`CanvasNetViewer`** — static; holds two read-only values created once: the built-in sources, seven
   `LoaderImageSource` adapters (raster, svg, pdf, pptx, vsdx, scad, and vega-lite, in that order, with the names,
-  extensions and schemes of the format packages' sources; their extensions do not overlap), and the sorted union of their
+  extensions and schemes of the format packages' sources; their extensions do not overlap), and the sorted union of
+  their
   extensions,
   computed through an `ImageSourceSet` so that the claims are validated once. Both are exposed as read-only lists
   (`ImageSources`, `Extensions`). The sources are stateless and thread-safe, so the shared instances serve any number of
@@ -34,14 +35,20 @@ The unit's behavior is specified by the `CanvasNetViewer-CanvasNetViewer-*` requ
   `SourceLoader` of the `Imaging` subsystem, so that the tool, `Render` and a linked file are drawn by the same code.
   It is built from the claims of the package source it stands for, the `SourceKind`s it draws, the fragment parameters
   of its pages (`page` for PDF and Visio, `page` and `slide` for PowerPoint) and whether it accepts `view` (the model
-  source only). It cannot be the package source itself: the format packages cannot call `SourceLoader`, which depends on
+  source only). It also declares the prefix of the parameters whose names the link author chooses
+  (`FragmentParameterPrefixes`):
+  `def.` for the model source and `param.` for the chart source (the constants of `ScadImageSource` and
+  `VegaLiteImageSource`), none for the others. It cannot be the package source itself: the format packages cannot call
+  `SourceLoader`, which depends on
   all of them. The package sources stay public stand-alone providers with the same `page` support.
 - **`DirectRenderOptions`** (internal sealed class, `IImageSourceOptions`) — the options of a direct render
-  (the page, the resolution, the background, the model view options) and the output of the render (the page drawn, the
+  (the page, the resolution, the background, the model view options, the chart parameters) and the output of the render
+  (the page drawn, the
   number of pages, the anchors), handed through `FolderImageResolver.Render(..., options)`.
 - **`ViewerRenderOptions`** (immutable record) — `Width` and `Height` (nullable; none = natural size, one = keep the
   aspect ratio, both = a box; when given, each must be from 1 to `Surface.MaxDimension`), `Page` (1-based, default 1),
   `Dpi` (nullable; none = 96), `Background` (nullable; none = no flattening), `Scad` (a `ScadViewOptions`, nullable),
+  `VegaLite` (a `ChartOptions` with the values of the parameters of a chart, nullable; the option behind `--param`),
   `Folder` (the sandbox for the
   files the rendered file itself includes or embeds; by
   default the folder of the file for a render by path, none for a stream), `ThrowOnUnsupportedFeature`,
@@ -56,7 +63,17 @@ The unit's behavior is specified by the `CanvasNetViewer-CanvasNetViewer-*` requ
 ### Key Methods
 
 **`LoaderImageSource.Render(request)`**: (1) take the options: a request with `DirectRenderOptions` uses them, a link
-builds them from its fragment (`page` or `slide` through `GetPositiveInt32`, `view` for a model, the strictness switch,
+builds them from its fragment (`page` or `slide` through `GetPositiveInt32`, `view` and every `def.<name>=<value>` for a
+model
+(`ReadScad`: `ImageParameterValues.ReadVariables`, the names checked by constructing `ScadEvaluationOptions`, the result
+a
+`ScadViewOptions` with `Defines` - and no explicit view when only definitions were given), every `param.<name>=<value>`
+for a
+chart (`ReadChart`: `ImageParameterValues.ReadParameters`, the values checked by constructing `VegaLiteRenderOptions`,
+the
+result a `ChartOptions` with `WarnOnUnknownParameters` set, because a link is not a command line), a value or name that
+is not
+usable being an `ImageSourceRefusedException` with the code `image-fragment-invalid`, the strictness switch,
 a transparent background for a vector source, none for a chart, and for a vector source the placement as `Width` and
 `Height`; an embedded file never inherits the options of its embedder); (2) wrap the bytes in a
 `SourceLoader.SourceInput` named and based as the resolver found the file; (3) for a raster, refuse from its declared
@@ -83,7 +100,8 @@ the built-in sources plus `ViewerRenderOptions.ExtraSources`, so `ExtraSources` 
 `SvgLoadOptions.ImageResolver`) and that needs the resolver and its notes.
 
 **`Render(path, options)`**: validate the options (see _Error Handling_), resolve the sandbox folder (`options.Folder`,
-or the folder of the file), refuse a file outside it with `ArgumentException`, express the file as a path relative to the
+or the folder of the file), refuse a file outside it with `ArgumentException`, express the file as a path relative to
+the
 folder, and call
 `FolderImageResolver.Render(relative, width, height, directOptions)` on a resolver built from the built-in and extra
 sources, the
@@ -96,7 +114,8 @@ that happened inside the loader) is rethrown as that `ViewerException`, while a 
 `ImageSourceException`.
 
 **`Render(stream, fileName, options)`**: the same, with `FolderImageResolver.Render(stream, fileName, ...)`; the sandbox
-folder is `options.Folder` or none, so a stream cannot reach the disk by accident. The options are validated first, before
+folder is `options.Folder` or none, so a stream cannot reach the disk by accident. The options are validated first,
+before
 the stream is read.
 
 **Building the `ViewerImage`**: the picture a source returns is used as is, except for the sizes the caller asked for.
@@ -134,7 +153,8 @@ original failure is the inner exception), and `OperationCanceledException`. An u
 
 The core `ImageSources` subsystem (`IImageSource`, `IFragmentImageSource`, `ImageSourceSet`, `FolderImageResolver`,
 `FolderImageResolverOptions`,
-`ImageSourceResult`, `ImageSourceDiagnostic`, `EmbeddedImage`, `ImageSourceException`, `ImageSourceRefusedException`, and
+`ImageSourceResult`, `ImageSourceDiagnostic`, `EmbeddedImage`, `ImageSourceException`, `ImageSourceRefusedException`,
+and
 `RasterImageSource` for its claims), the
 `Imaging` subsystem (`SourceLoader` and its `SourceInput`, `LoadContext`, and option validator; `ImageDiagnostic`), the
 `Canvas` subsystem (`Surface.FitInto`, `Surface.Resize`, `Rgba32`), and the claims of the sources of the `CanvasNetSvg`,
@@ -143,5 +163,6 @@ The core `ImageSources` subsystem (`IImageSource`, `IFragmentImageSource`, `Imag
 ### Callers
 
 Applications and the `CanvasNetTool` system: its `SourceLoader` (now part of the `Imaging` subsystem of this system)
-calls `CreateImageResolver` for every SVG file it renders, and the tool reads `Extensions` in the drift test of the `svg`
+calls `CreateImageResolver` for every SVG file it renders, and the tool reads `Extensions` in the drift test of the
+`svg`
 help topic. The tool passes no extra sources.

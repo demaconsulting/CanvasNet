@@ -133,7 +133,8 @@ gets a gradient legend over time ticks, and the dates of a time-unit field are l
 format follows Vega-Lite (`format`, then the unit specifier, then `config.timeFormat` for a legend and Vega's
 multi-format for an axis) and lives in `TimeLabels`, so an axis and a legend format the same date the same way. All
 names are the English d3 locale with invariant digits, and the calendar is that of the chart (the `TimeZone` render
-option, UTC by default). `labelBound` is not evaluated.
+option, UTC by default). The `labelBound` of an axis is applied by `AxisBuilder` (see _AxisBuilder_) and is not a
+property of a legend.
 
 **Label expressions run before the labels are laid out.** The `labelExpr` of an axis, a legend, and a facet header is evaluated
 by `LabelExpressions` on the evaluator of the call, so it shares the step budget, the string limit, the cancellation

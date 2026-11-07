@@ -492,7 +492,8 @@ public class RenderCommandScadTests
     [InlineData("--max-triangles", "3000000000")]
     [InlineData("--define", "width")]
     [InlineData("--define", "1x=3")]
-    [InlineData("--define", "v=[1,2]")]
+    [InlineData("--define", "v=[1,2")]
+    [InlineData("--define", "v=[{\"a\":1}]")]
     public void RenderCommand_Run_BadModelOption_ThrowsUsageError(string option, string value)
     {
         // Arrange: the fixture model

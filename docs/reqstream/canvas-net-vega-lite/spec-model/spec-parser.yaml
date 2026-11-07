@@ -174,12 +174,13 @@ sections:
               - id: CanvasNetVegaLite-SpecModel-SpecParser-Transforms
                 title: >-
                   The SpecParser unit shall validate the shape of the supported transforms of every view
-                  (calculate, filter and its predicates, fold, flatten, sample, pivot, lookup, and timeUnit,
+                  (calculate, filter and its predicates, fold, flatten, sample, pivot with an op that is an
+                  aggregate operation of Vega, lookup, and timeUnit,
                   with their
                   required and optional properties, field lists, names, and counts) and of the predicates
                   that compose them with a located VegaLiteSpecException at the first wrong value in document
                   order, shall require that a predicate param names a declared parameter, and shall accept
-                  every documented valid form, leaving the transforms of later phases to the feature catalog.
+                  every documented valid form, classifying every transform of Vega-Lite as supported.
                 justification: |
                   The transform stage reads these properties as given; a malformed one must stop the renderer
                   with its location before any data is read.
@@ -187,7 +188,33 @@ sections:
                   - SpecParser_Parse_Phase5TransformsAndParametersAreAccepted
                   - SpecParser_Parse_WrongTypeReportsPointer
                   - CanvasNetVegaLite_SystemIntegration_Expressions_ErrorsAndLimitsFailWhenTheDocumentIsOpened
-                  - SpecParser_IsSupportedTransform_AcceptsTheAggregatingTransformsAndNotTheLaterPhases
+                  - SpecParser_IsSupportedTransform_AcceptsEveryTransformOfVegaLite
+
+              - id: CanvasNetVegaLite-SpecModel-SpecParser-StatisticalTransforms
+                title: >-
+                  The SpecParser unit shall validate the shape of the transforms regression (on, regression,
+                  the method linear, log, exp, pow, quad, or poly, an integer order from 0 to 64, extent,
+                  params, groupby, and an as of one or two names), loess (on, loess, a bandwidth from 0 to 1,
+                  groupby, and as), density (density, a bandwidth, steps, minsteps, and maxsteps that are not
+                  negative, extent, counts, cumulative, groupby, resolve, and as), quantile (quantile, a step
+                  that is not negative, probs, groupby, and as), and extent (the field and a parameter name)
+                  with a located VegaLiteSpecException at the first wrong value in document order; shall read
+                  an extent property next to a regression or density as the option of that transform and not
+                  as a transform of its own (a density before a regression before the first property), as
+                  Vega-Lite does; and shall make the parameter of an extent transform visible to the
+                  expressions of its view and of the views below it, reject it when it repeats the name of a
+                  declared parameter, and list the extent parameters of a specification.
+                justification: |
+                  The statistics read these properties as given and generate rows from them; a malformed one
+                  must stop the renderer with its location, and an extent parameter must be known where the
+                  expressions that read it are checked.
+                tests:
+                  - SpecParser_Parse_StatisticalTransformShapesAreLocatedErrors
+                  - SpecParser_Parse_AcceptsTheWellFormedStatisticalTransforms
+                  - SpecParser_FindTransformOperation_AnExtentNextToARegressionOrDensityIsTheirOption
+                  - SpecParser_Parse_AnExtentParameterIsVisibleToTheExpressionsOfTheViewAndItsDescendants
+                  - SpecParser_IsExtentParameter_OnlyExtentTransformsOfTheViewOrAncestorsCount
+                  - SpecParser_Parse_AnExtentParameterCannotRepeatADeclaredParameter
 
               - id: CanvasNetVegaLite-SpecModel-SpecParser-AggregateTransforms
                 title: >-
@@ -199,8 +226,7 @@ sections:
                   pair), and impute (the field, the key, the keyvals list or sequence, the method, the value,
                   the frame, and the groupby list) with a located VegaLiteSpecException at the first wrong
                   value in document order - an operation name that does not exist, a missing field, a
-                  parameter out of range, an unusable frame - and shall accept every documented valid form and
-                  classify the aggregating transforms as supported.
+                  and shall accept every documented valid form.
                 justification: |
                   The transform stage reads these properties as given; a malformed or unknown one must stop the
                   renderer with its location before any data is read, and a valid form that was rejected would
@@ -211,7 +237,7 @@ sections:
                   - SpecParser_Parse_BinParamsAndBinTransformShapesArePinned
                   - SpecParser_Parse_StackAndImputeTransformShapesArePinned
                   - SpecParser_Parse_ValidAggregatingTransformsAreAccepted
-                  - SpecParser_IsSupportedTransform_AcceptsTheAggregatingTransformsAndNotTheLaterPhases
+                  - SpecParser_IsSupportedTransform_AcceptsEveryTransformOfVegaLite
 
               - id: CanvasNetVegaLite-SpecModel-SpecParser-EncodingAggregates
                 title: >-

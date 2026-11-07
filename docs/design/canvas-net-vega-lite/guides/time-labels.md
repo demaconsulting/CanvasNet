@@ -156,7 +156,8 @@ A null argument is an `ArgumentNullException`. The unit performs no I/O.
 1. **`formatType: "utc"`** is accepted as well as `number` and `time`.
 2. **A `time` format type on a non-temporal axis** uses the calendar of the chart (the time zone of the render options),
    and `utc` uses UTC; the numbers are read as milliseconds since the epoch.
-3. **`labelBound`** is not evaluated for any axis or legend, and a custom format type is reported, not evaluated. The
+3. **`labelBound`** is not a concern of this unit (the `AxisBuilder` hides the labels that stick out of the range of the
+   axis, since phase 13), and a custom format type is reported, not evaluated. The
    `labelExpr` is evaluated by the `LabelExpressions` unit, on the label this unit made as `datum.label`.
 
 #### Dependencies

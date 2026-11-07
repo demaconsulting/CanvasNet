@@ -299,20 +299,20 @@ public class MarkChannelGatingTests
 
     /// <summary>
     ///     Validates that the definition of a channel that an overlay draws is still visited: a shape of a line with a point overlay reports no <c>vl-channel-shape</c> but still reports its
-    ///     own custom shape path, and an angle that only the overlay points draw reports the channel and its own unsupported <c>bin</c> too.
+    ///     own invalid shape path, and an angle that only the overlay points draw reports the channel and its own unsupported <c>bin</c> too.
     /// </summary>
     [Fact]
     public void FeatureCatalog_Visit_VisitsTheDefinitionOfAChannelThatAnOverlayDraws()
     {
         // Act
-        var shape = FeatureCatalog.Visit(SpecParser.Parse(Spec("""{"type":"line","point":true}""", """ "shape": {"field":"v","type":"nominal","scale":{"range":["circle","M0,0L1,1Z"]}} """))).Select(r => r.Id).ToList();
-        var shapeValue = FeatureCatalog.Visit(SpecParser.Parse(Spec("\"line\"", """ "shape": {"value":"M0,0L1,1Z"} """))).Select(r => r.Id).ToList();
+        var shape = FeatureCatalog.Visit(SpecParser.Parse(Spec("""{"type":"line","point":true}""", """ "shape": {"field":"v","type":"nominal","scale":{"range":["circle","M0,0L"]}} """))).Select(r => r.Id).ToList();
+        var shapeValue = FeatureCatalog.Visit(SpecParser.Parse(Spec("\"line\"", """ "shape": {"value":"M0,0L"} """))).Select(r => r.Id).ToList();
         var angle = FeatureCatalog.Visit(SpecParser.Parse(Spec("""{"type":"line","point":true}""", """ "angle": {"field":"v","type":"quantitative","bin":"binned"} """))).Select(r => r.Id).ToList();
         var off = FeatureCatalog.Visit(SpecParser.Parse(Spec("""{"type":"line","point":false}""", """ "angle": {"field":"v","type":"quantitative","bin":"binned"} """))).Select(r => r.Id).ToList();
 
         // Assert: the path-specific report is suppressed for the shape only, the definition's own reports stay
-        Assert.Equal(["vl-shape-path"], shape);
-        Assert.Equal(["vl-shape-path"], shapeValue);
+        Assert.Equal(["vl-shape-path-invalid"], shape);
+        Assert.Equal(["vl-shape-path-invalid"], shapeValue);
         Assert.Equal(["vl-channel-angle", "vl-encoding-bin"], angle);
 
         // Assert: a channel that nothing draws is reported as ignored and its definition is not visited

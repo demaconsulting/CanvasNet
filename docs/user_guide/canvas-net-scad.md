@@ -444,7 +444,7 @@ viewer instead, with `$vpr = [55, 0, 25]`.
 | Source | Applies to |
 | ------ | ---------- |
 | An explicit render option | An explicit `Camera` supplies all four variables; explicit `ViewAzimuthDegrees` or `ViewElevationDegrees` sets `$vpr` only |
-| A variable override (`-D`, `ScadEvaluationOptions.Variables`) | Any of the four; a vector needs a sequence in `Variables`, as `-D` cannot define vectors (a scalar such as `-D '$vpd=200'` works) |
+| A variable override (`-D`, `def.` in a fragment, `ScadEvaluationOptions.Variables`) | Any of the four; a vector is a sequence in `Variables` and a JSON array in `-D` and `def.` (`-D '$vpt=[0,0,20]'`, `-D '$vpd=200'`) |
 | An assignment at the top level of the model file and its `include`s | Any of the four; not a `use`d library and not a nested scope |
 | The default | See the table above |
 <!-- markdownlint-enable MD013 -->
@@ -544,9 +544,11 @@ The rules:
 - **Statement form only.** An `echo` used as an expression, or inside a function, is a plain echo and never an anchor.
   The first argument must be the string `"anchor"`.
 - **A valid declaration** has exactly three unnamed arguments: the tag, a non-empty string name, and a vector of exactly
-  three finite numbers. Anything else with the tag `"anchor"` (a wrong number of arguments, a named argument, a name that
+  three finite numbers. Anything else with the tag `"anchor"` (a wrong number of arguments, a named argument, a name
+  that
   is not a non-empty string, a point that is not three finite numbers) is skipped with **one warning whose `Code` is
-  `scad-anchor-invalid`** (an ordinary `ScadDiagnostic`, delivered to the `WarningHandler`; for compatibility its message
+  `scad-anchor-invalid`** (an ordinary `ScadDiagnostic`, delivered to the `WarningHandler`; for compatibility its
+  message
   also starts with `scad-anchor-invalid:`); the echo line is still
   printed.
 - **Duplicates are kept**, in echo order; the library does not require names to be unique.
@@ -709,8 +711,22 @@ when no size is requested), over a transparent background so the document shows 
 are looked up in the folder of the file and nowhere else, and a missing one is reported as a `scad-warning` note.
 Warnings and unsupported features of the model are returned as notes of the source `scad`, and its `echo` output as
 printed text. Set `FolderImageResolverOptions.ThrowOnUnsupportedFeature` to fail on an unsupported feature instead.
-This source declares no fragment parameters, so a parameter in the link (`part.scad#view=front`) is the warning
-`image-fragment-unknown-parameter` and the view stays the library's choice; the named views of the link
+The source declares one family of fragment parameters, the **variables** of the model: `def.<name>=<value>` in the link
+sets
+the variable `<name>` exactly like `-D name=value` of the `canvasnet` tool (`part.scad#def.width=20`, and in an XML
+attribute
+`part.scad#def.width=20&amp;def.label=%22A%22`), by `ScadEvaluationOptions.Variables`: the value is a number, `true`,
+`false`, text (a pair of quotes is removed; `%22` is a double quote, decoded after the fragment is split), or a vector as
+a JSON array (`def.$vpt=[0,0,20]`, which is how the camera of a model is fixed from a link; `$vpd` alone fixes the
+scale), it replaces the
+assignments
+of the name in the file and creates the variable when the model has none, and the last value of a name wins. A value
+that is
+not usable (a vector that is cut short, or a name the evaluator does not accept) refuses the link with `ImageSourceRefusedException`,
+which the
+resolver reports as `image-fragment-invalid` and the picture is not drawn. Any other parameter in the link
+(`part.scad#page=2`) is the warning `image-fragment-unknown-parameter`; the view stays the library's choice, and the
+named views of the link
 (`#view=iso|front|back|left|right|top|bottom`) are a feature of the source that `CanvasNetViewer` lists (see the Viewer
 user guide), which also treats a missing `include` as an error, as `canvasnet render` does.
 

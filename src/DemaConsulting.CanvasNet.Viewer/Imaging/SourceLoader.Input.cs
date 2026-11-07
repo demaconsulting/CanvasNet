@@ -3,6 +3,7 @@ using System.Globalization;
 using DemaConsulting.CanvasNet.Canvas;
 using DemaConsulting.CanvasNet.ImageSources;
 using DemaConsulting.CanvasNet.Scad;
+using DemaConsulting.CanvasNet.VegaLite;
 
 namespace DemaConsulting.CanvasNet.Viewer.Imaging;
 
@@ -312,7 +313,40 @@ public static partial class SourceLoader
             return new OptionProblem($"The resampling filter {(int)options.Filter} is not valid.");
         }
 
-        return options.Scad is { } scad ? FindScadProblem(scad) : null;
+        if (options.Scad is { } scad && FindScadProblem(scad) is { } scadProblem)
+        {
+            return scadProblem;
+        }
+
+        return options.VegaLite is { } chart ? FindChartProblem(chart) : null;
+    }
+
+    /// <summary>
+    ///     Finds the first reason the options of a chart cannot be used.
+    /// </summary>
+    /// <param name="chart">The options of the chart.</param>
+    /// <returns>The problem, or <see langword="null"/> when they are usable.</returns>
+    private static OptionProblem? FindChartProblem(ChartOptions chart)
+    {
+        if (chart.Parameters is null)
+        {
+            return new OptionProblem("The chart parameters are not valid: the dictionary is null.");
+        }
+
+        if (chart.Parameters.Count > 0)
+        {
+            try
+            {
+                // The library says which names and values it accepts, so it is asked rather than guessed
+                _ = new VegaLiteRenderOptions { Parameters = chart.Parameters };
+            }
+            catch (ArgumentException ex)
+            {
+                return new OptionProblem($"A --param value is not valid: {OneLine(ex.Message)}");
+            }
+        }
+
+        return null;
     }
 
     /// <summary>

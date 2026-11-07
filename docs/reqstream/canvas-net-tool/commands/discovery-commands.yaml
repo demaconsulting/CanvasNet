@@ -159,3 +159,15 @@ sections:
           - DiscoveryCommands_Info_TruncatedDocument_ThrowsCorruptInput
           - DiscoveryCommands_Info_CommandLineMistakes_ThrowUsageError
           - DiscoveryCommands_Info_NullArguments_ThrowsArgumentNullException
+
+      - id: CanvasNetTool-Commands-DiscoveryCommands-InfoFragments
+        title: >-
+          The info command shall read the fragment of its input path as the render command does, describe the page that
+          the fragment names (instead of --page, and as the only page whatever --all-pages says), report the fragment
+          member of the input object of the JSON result, write the warnings about a fragment to standard error, and
+          fail on a fragment that cannot be used with image-fragment-invalid.
+        justification: |
+          The description of a file must agree with the picture that the same name renders.
+        tests:
+          - InputFragment_TextResultAndInfo_NameTheFragment
+          - InputFragment_EveryCommand_MalformedFragment_FailsWithTheCode

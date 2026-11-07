@@ -84,7 +84,8 @@ used in the message. Numbers always use the invariant culture.
 | `ParseDegrees(text, option)` | a finite number, optionally followed by `deg` | `double` normalized to at least 0 and below 360 |
 | `ParseFlip(text, option)` | `h`/`horizontal`, `v`/`vertical`, `both` (any case) | `FlipAxis` |
 | `ParsePad(text, option)` | `N` or `l,t,r,b` in whole pixels | `PadSpec` |
-| `ParseDefines(defs)` | `name=value` entries: a finite number is a `double`, `true`/`false` a `bool`, anything else a `string` (one pair of quotes removed) | `IReadOnlyDictionary<string, object?>` |
+| `ParseDefines(defs)` | `name=value` entries: a finite number is a `double`, `true`/`false` a `bool`, anything else a `string` (one pair of quotes removed); the value grammar is `ImageParameterValues.TryParseVariable` of the core package, shared with the `def.` fragment of an SVG link | `IReadOnlyDictionary<string, object?>` |
+| `ParseParams(parameters)` | `name=value` entries of `--param`: any non-empty name before the first `=`; the value is read by `ImageParameterValues.TryParseParameter` (`true`, `false`, `null`, a finite number, a JSON string, array or object, otherwise text with one pair of single quotes removed), shared with the `param.` fragment of an SVG link; a missing `=`, an empty name or a value that starts like JSON and is not valid JSON is a `usage-error` with the reason and an example | `IReadOnlyDictionary<string, object?>` (null, `bool`, `double`, `string`, `List<object?>`, `Dictionary<string, object?>`) |
 <!-- markdownlint-enable MD013 -->
 
 `ParseColor` delegates the names and the hexadecimal digits to the core `CssColor` (`TryGetNamedColor`, which knows
@@ -92,7 +93,9 @@ all 148 CSS color names and `transparent`, and `TryParseHex`); it adds only the 
 `hsl()` function forms are deliberately not offered on the command line. `ParseColor` is deliberately not
 `Rgba32.Parse`, which reads the alpha pair first. The `#` is optional because a shell treats an unquoted `#` at the
 start of a word as a comment. A definition name is an identifier (letters, digits, `_`, and `$`, not starting with a
-digit); a value starting with `[` (a vector) is rejected rather than silently turned into text.
+digit); a value starting with `[` is a vector and is read as a JSON array of numbers, booleans, `null`, text, and vectors
+(`$vpt=[0,0,20]`), and one that is not such an array (cut short, or holding an object) is rejected rather than silently
+turned into text.
 
 ### Error Handling
 
@@ -106,8 +109,8 @@ reported as an expected failure. A size or border wider than `Surface.MaxDimensi
 
 - **CommandRegistry** (Commands subsystem) - the `OptionSpec` record, and `EditDistance` for suggestions.
 - **ToolException** and **ErrorCodes** (Program unit) - the failures.
-- **CanvasNet core** - `Rgba32`, `CssColor` (the color names and hexadecimal digits behind `ParseColor`), and
-  `Surface.MaxDimension`.
+- **CanvasNet core** - `Rgba32`, `CssColor` (the color names and hexadecimal digits behind `ParseColor`),
+  `Surface.MaxDimension`, and `ImageParameterValues` (the value grammars of `ParseDefines` and `ParseParams`).
 
 ### Callers
 

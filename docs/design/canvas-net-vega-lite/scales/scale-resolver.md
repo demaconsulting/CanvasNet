@@ -201,7 +201,8 @@ transform) for a
   gives a channel a scale
   only for the marks Vega-Lite's `supportMark` allows (the table below), `AcceptsScaleType` answers the type question
   for the feature catalog, and
-  `IsKnownShape` tells it whether a shape is a symbol name that the painter draws (anything else is a custom path).
+  `IsKnownShape` tells it whether a shape is drawn as itself: a symbol name, or SVG path data that the `SymbolPathParser`
+  parses (`ScenePainter.IsDrawableShape`; anything else is drawn as a circle and reported by `vl-shape-path-invalid`).
 
   <!-- markdownlint-disable MD013 -->
   | Channel | Drawn for |
@@ -403,7 +404,8 @@ transform) for a
   A **sequential or diverging** scale gets an interpolator over 0 to 1: a scheme through `ColorSchemes.Configure` (its `extent`
   and `reverse` included; `interpolate` does not apply to a named scheme, as in Vega) or a list of colors piecewise
   through a `ColorRamp` in the space `interpolate` names (`rgb` by default; `hsl`, `hsl-long`, `lab`, `hcl`, `hcl-long`;
-  the object form adds a sRGB `gamma`; `cubehelix` is accepted and interpolates in sRGB). An **ordinal, quantile,
+  the object form adds a sRGB or cubehelix `gamma`; `cubehelix` and `cubehelix-long` interpolate in the cubehelix space
+  of d3, see _ColorInterpolator_, since Phase 13). An **ordinal, quantile,
   quantize, threshold, or bin-ordinal** scale gets a list of colors: the list given, or what `ColorSchemes.Configure`
   picks (the whole list of a categorical scheme for an ordinal scale, otherwise the first colors or samples at
   `i / (count + 1)`; the count is the explicit `count`, the domain size for an ordinal scale, 5 for quantile and

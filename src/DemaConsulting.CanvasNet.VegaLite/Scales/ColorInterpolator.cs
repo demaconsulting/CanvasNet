@@ -9,7 +9,7 @@ namespace DemaConsulting.CanvasNet.VegaLite.Scales;
 /// </summary>
 internal enum InterpolationSpace
 {
-    /// <summary>Linear interpolation of the sRGB channels (the default of Vega); the only space that has a gamma.</summary>
+    /// <summary>Linear interpolation of the sRGB channels (the default of Vega); one of the three spaces that have a gamma (with the cubehelix spaces).</summary>
     Rgb,
 
     /// <summary>Hue, saturation and lightness; the hue takes the shorter way around the circle.</summary>
@@ -26,6 +26,12 @@ internal enum InterpolationSpace
 
     /// <summary>The polar form of CIELAB; the hue takes the way that passes through the hues in between (<c>hcl-long</c>).</summary>
     HclLong,
+
+    /// <summary>Dave Green's cubehelix (hue, saturation, lightness); the hue takes the shorter way around the circle; has a gamma of the lightness.</summary>
+    Cubehelix,
+
+    /// <summary>Cubehelix; the hue takes the way that passes through the hues in between (<c>cubehelix-long</c>); has a gamma of the lightness.</summary>
+    CubehelixLong,
 }
 
 /// <summary>
@@ -113,18 +119,18 @@ internal readonly record struct RgbColor(double R, double G, double B, double Op
 }
 
 /// <summary>
-///     The interpolation of colors in sRGB, HSL, CIELAB and HCL, and the helpers that turn an interpolator into a
+///     The interpolation of colors in sRGB, HSL, CIELAB, HCL and cubehelix, and the helpers that turn an interpolator into a
 ///     list of colors.
 /// </summary>
 /// <remarks>
 ///     <para>
 ///         The functions are C# versions of the public algorithms of d3-interpolate (<c>interpolateRgb</c>,
 ///         <c>interpolateHsl</c>, <c>interpolateHslLong</c>, <c>interpolateLab</c>, <c>interpolateHcl</c>,
-///         <c>interpolateHclLong</c>, <c>piecewise</c>) and d3-color (the sRGB, HSL, CIELAB and HCL conversions with
-///         the D50 white point), and of the Vega helpers <c>interpolateRange</c> and <c>quantizeInterpolator</c>.
+///         <c>interpolateHclLong</c>, <c>interpolateCubehelix</c>, <c>interpolateCubehelixLong</c>, <c>piecewise</c>) and d3-color (the sRGB, HSL,
+///         CIELAB, HCL and cubehelix conversions with the D50 white point), and of the Vega helpers <c>interpolateRange</c> and <c>quantizeInterpolator</c>.
 ///         The conventions are d3's: a hue that is not a number (a grey) takes the hue of the other color; the
-///         shorter way round the hue circle is used unless the long variant is asked for; rgb is the only space with
-///         a gamma; and the opacity is interpolated linearly in every space.
+///         shorter way round the hue circle is used unless the long variant is asked for; rgb (the gamma of every channel) and the cubehelix
+///         spaces (the gamma of the position of the lightness) are the only spaces with a gamma; and the opacity is interpolated linearly in every space.
 ///     </para>
 ///     <para>
 ///         The result of an interpolation is rounded to whole 8-bit channels (half away from zero, after clamping to
@@ -162,6 +168,30 @@ internal static class ColorInterpolator
     /// <summary>The z component of the D50 white point.</summary>
     private const double Zn = 0.82521;
 
+    /// <summary>The cubehelix constant A of d3-color.</summary>
+    private const double CubehelixA = -0.14861;
+
+    /// <summary>The cubehelix constant B of d3-color.</summary>
+    private const double CubehelixB = 1.78277;
+
+    /// <summary>The cubehelix constant C of d3-color.</summary>
+    private const double CubehelixC = -0.29227;
+
+    /// <summary>The cubehelix constant D of d3-color.</summary>
+    private const double CubehelixD = -0.90649;
+
+    /// <summary>The cubehelix constant E of d3-color.</summary>
+    private const double CubehelixE = 1.97294;
+
+    /// <summary>The cubehelix constant E * D of d3-color.</summary>
+    private const double CubehelixEd = CubehelixE * CubehelixD;
+
+    /// <summary>The cubehelix constant E * B of d3-color.</summary>
+    private const double CubehelixEb = CubehelixE * CubehelixB;
+
+    /// <summary>The cubehelix constant B * C - D * A of d3-color.</summary>
+    private const double CubehelixBcDa = (CubehelixB * CubehelixC) - (CubehelixD * CubehelixA);
+
     /// <summary>The factor from degrees to radians.</summary>
     private const double Radians = Math.PI / 180;
 
@@ -171,9 +201,9 @@ internal static class ColorInterpolator
     /// <summary>
     ///     Looks up an interpolation space by the name that Vega-Lite uses in <c>scale.interpolate</c>.
     /// </summary>
-    /// <param name="name">One of <c>rgb</c>, <c>hsl</c>, <c>hsl-long</c>, <c>lab</c>, <c>hcl</c> and <c>hcl-long</c>.</param>
+    /// <param name="name">One of <c>rgb</c>, <c>hsl</c>, <c>hsl-long</c>, <c>lab</c>, <c>hcl</c>, <c>hcl-long</c>, <c>cubehelix</c> and <c>cubehelix-long</c>.</param>
     /// <param name="space">Receives the space.</param>
-    /// <returns><see langword="false"/> for any other name, including the unsupported <c>cubehelix</c> and <c>cubehelix-long</c>.</returns>
+    /// <returns><see langword="false"/> for any other name.</returns>
     public static bool TryParseSpace(string? name, out InterpolationSpace space)
     {
         switch (name)
@@ -196,6 +226,12 @@ internal static class ColorInterpolator
             case "hcl-long":
                 space = InterpolationSpace.HclLong;
                 return true;
+            case "cubehelix":
+                space = InterpolationSpace.Cubehelix;
+                return true;
+            case "cubehelix-long":
+                space = InterpolationSpace.CubehelixLong;
+                return true;
             default:
                 space = default;
                 return false;
@@ -209,10 +245,17 @@ internal static class ColorInterpolator
     /// <param name="start">The color at <paramref name="t"/> = 0.</param>
     /// <param name="end">The color at <paramref name="t"/> = 1.</param>
     /// <param name="t">The position; values outside 0 to 1 extrapolate (the channels are clamped afterwards).</param>
-    /// <param name="gamma">The gamma of the sRGB space (1 is linear); ignored by the other spaces.</param>
+    /// <param name="gamma">The gamma of the sRGB space (1 is linear) or of the lightness of the cubehelix spaces; ignored by the other spaces.</param>
     /// <returns>The color with whole 8-bit channels.</returns>
     public static RgbColor Interpolate(InterpolationSpace space, RgbColor start, RgbColor end, double t, double gamma = 1) =>
-        FromSpace(space, Mix(space, ToSpace(space, start), ToSpace(space, end), t, space == InterpolationSpace.Rgb && !double.IsNaN(gamma) ? gamma : 1));
+        FromSpace(space, Mix(space, ToSpace(space, start), ToSpace(space, end), t, HasGamma(space) && !double.IsNaN(gamma) ? gamma : 1));
+
+    /// <summary>
+    ///     Finds out whether a space takes a gamma (d3's <c>interpolateRgb</c>, <c>interpolateCubehelix</c> and <c>interpolateCubehelixLong</c> have <c>.gamma</c>).
+    /// </summary>
+    /// <param name="space">The space.</param>
+    /// <returns><see langword="true"/> for sRGB and the two cubehelix spaces.</returns>
+    internal static bool HasGamma(InterpolationSpace space) => space is InterpolationSpace.Rgb or InterpolationSpace.Cubehelix or InterpolationSpace.CubehelixLong;
 
     /// <summary>
     ///     Interpolates through a list of colors, as d3's <c>piecewise</c> does.
@@ -295,6 +338,11 @@ internal static class ColorInterpolator
             case InterpolationSpace.Hsl:
             case InterpolationSpace.Hcl:
                 return new Channels(Hue(start.A, end.A, t), Linear(start.B, end.B, t), Linear(start.C, end.C, t), opacity);
+            case InterpolationSpace.Cubehelix:
+                // d3's cubehelix: the gamma applies to the position of the lightness only
+                return new Channels(Hue(start.A, end.A, t), Linear(start.B, end.B, t), Linear(start.C, end.C, Math.Pow(t, gamma)), opacity);
+            case InterpolationSpace.CubehelixLong:
+                return new Channels(Linear(start.A, end.A, t), Linear(start.B, end.B, t), Linear(start.C, end.C, Math.Pow(t, gamma)), opacity);
             default:
                 // Lab, and the long forms of HSL and HCL, interpolate every channel (the hue too) linearly
                 return new Channels(Linear(start.A, end.A, t), Linear(start.B, end.B, t), Linear(start.C, end.C, t), opacity);
@@ -319,6 +367,9 @@ internal static class ColorInterpolator
             case InterpolationSpace.Hcl:
             case InterpolationSpace.HclLong:
                 return LabToHcl(RgbToLab(color));
+            case InterpolationSpace.Cubehelix:
+            case InterpolationSpace.CubehelixLong:
+                return RgbToCubehelix(color);
             default:
                 return new Channels(color.R, color.G, color.B, color.Opacity);
         }
@@ -337,6 +388,7 @@ internal static class ColorInterpolator
             InterpolationSpace.Hsl or InterpolationSpace.HslLong => HslToRgb(channels),
             InterpolationSpace.Lab => LabToRgb(channels),
             InterpolationSpace.Hcl or InterpolationSpace.HclLong => LabToRgb(HclToLab(channels)),
+            InterpolationSpace.Cubehelix or InterpolationSpace.CubehelixLong => CubehelixToRgb(channels),
             _ => new RgbColor(channels.A, channels.B, channels.C, channels.O),
         };
 
@@ -596,6 +648,41 @@ internal static class ColorInterpolator
     }
 
     /// <summary>
+    ///     Converts sRGB to cubehelix (d3-color <c>cubehelixConvert</c>).
+    /// </summary>
+    /// <param name="color">The color.</param>
+    /// <returns>Hue in degrees, saturation, lightness (0 to 1), opacity; the hue is NaN when the saturation is 0 or NaN (a grey, black or white).</returns>
+    private static Channels RgbToCubehelix(RgbColor color)
+    {
+        double r = color.R / 255, g = color.G / 255, b = color.B / 255;
+        var l = ((CubehelixBcDa * b) + (CubehelixEd * r) - (CubehelixEb * g)) / (CubehelixBcDa + CubehelixEd - CubehelixEb);
+        var bl = b - l;
+        var k = ((CubehelixE * (g - l)) - (CubehelixC * bl)) / CubehelixD;
+        var s = Math.Sqrt((k * k) + (bl * bl)) / (CubehelixE * l * (1 - l)); // NaN if l = 0 or l = 1
+        var h = !double.IsNaN(s) && s != 0 ? (Math.Atan2(k, bl) * Degrees) - 120 : double.NaN;
+        return new Channels(h < 0 ? h + 360 : h, s, l, color.Opacity);
+    }
+
+    /// <summary>
+    ///     Converts cubehelix to sRGB (d3-color <c>Cubehelix.rgb</c>).
+    /// </summary>
+    /// <param name="channels">Hue, saturation, lightness, opacity; a hue or saturation that is NaN counts as 0.</param>
+    /// <returns>The color with unrounded channels.</returns>
+    private static RgbColor CubehelixToRgb(Channels channels)
+    {
+        var h = double.IsNaN(channels.A) ? 0 : (channels.A + 120) * Radians;
+        var l = channels.C;
+        var a = double.IsNaN(channels.B) ? 0 : channels.B * l * (1 - l);
+        var cosh = Math.Cos(h);
+        var sinh = Math.Sin(h);
+        return new RgbColor(
+            255 * (l + (a * ((CubehelixA * cosh) + (CubehelixB * sinh)))),
+            255 * (l + (a * ((CubehelixC * cosh) + (CubehelixD * sinh)))),
+            255 * (l + (a * (CubehelixE * cosh))),
+            channels.O);
+    }
+
+    /// <summary>
     ///     Converts an sRGB channel to linear light.
     /// </summary>
     /// <param name="value">The channel, 0 to 255.</param>
@@ -676,7 +763,7 @@ internal sealed class ColorRamp
         }
 
         _space = space;
-        _gamma = space == InterpolationSpace.Rgb && !double.IsNaN(gamma) ? gamma : 1;
+        _gamma = ColorInterpolator.HasGamma(space) && !double.IsNaN(gamma) ? gamma : 1;
         _stops = new ColorInterpolator.Channels[stops.Count];
         for (var i = 0; i < _stops.Length; i++)
         {

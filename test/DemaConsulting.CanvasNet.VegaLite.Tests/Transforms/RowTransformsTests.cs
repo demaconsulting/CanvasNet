@@ -685,7 +685,7 @@ public class RowTransformsTests
     private const string PivotRows = "[{\"g\":\"a\",\"k\":\"x\",\"v\":1},{\"g\":\"a\",\"k\":\"y\",\"v\":2},{\"g\":\"b\",\"k\":\"x\",\"v\":3},{\"g\":\"a\",\"k\":\"x\",\"v\":4}]";
 
     /// <summary>
-    ///     Validates that pivot sums the value per group in the first-seen order of the groups, with zero for a missing
+    ///     Validates that pivot sums the value per group in the first-seen order of the groups, with no value (null, as Vega's sum of nothing) for a missing
     ///     combination, and keeps only the group fields and the pivot columns.
     /// </summary>
     [Fact]
@@ -696,15 +696,14 @@ public class RowTransformsTests
 
         // Assert
         Assert.Equal(["g", "x", "y"], table.Fields);
-        Assert.Equal(["a|5|2", "b|3|0"], Rows(table, "g", "x", "y"));
+        Assert.Equal(["a|5|2", "b|3|null"], Rows(table, "g", "x", "y"));
     }
 
     /// <summary>
-    ///     Validates the count operation, a pivot without group fields (one row) and that an operation that is not supported
-    ///     falls back to the sum.
+    ///     Validates the count operation, a pivot without group fields (one row) and an operation other than sum and count (the mean).
     /// </summary>
     [Fact]
-    public void RowTransforms_Apply_PivotCountsAndFallsBackToSum()
+    public void RowTransforms_Apply_PivotCountsAndComputesTheOtherOperations()
     {
         // Arrange / Act
         var counted = Run(Spec(PivotRows, "[{\"pivot\":\"k\",\"value\":\"v\",\"op\":\"count\"}]"));
@@ -712,7 +711,7 @@ public class RowTransformsTests
 
         // Assert
         Assert.Equal(["3|1"], Rows(counted, "x", "y"));
-        Assert.Equal(["a|5|2", "b|3|0"], Rows(mean, "g", "x", "y"));
+        Assert.Equal(["a|2.5|2", "b|3|null"], Rows(mean, "g", "x", "y"));
     }
 
     /// <summary>
@@ -1277,18 +1276,17 @@ public class RowTransformsTests
     }
 
     /// <summary>
-    ///     Validates that a transform that a later phase owns (a regression) is skipped by the executor and leaves the rows as
-    ///     they are.
+    ///     Validates that a statistical transform (a regression) is executed by the executor: it replaces the table by its own output, and the transform that follows runs on that output.
     /// </summary>
     [Fact]
-    public void RowTransforms_Apply_TransformsOfLaterPhasesAreSkipped()
+    public void RowTransforms_Apply_StatisticalTransformReplacesTheTableAndTheNextTransformRuns()
     {
         // Arrange / Act
         var table = Run(Spec(Numbers, "[{\"regression\":\"a\",\"on\":\"b\"},{\"calculate\":\"datum.a\",\"as\":\"z\"}]"));
 
-        // Assert: only the calculate ran
+        // Assert: the line through (2, 1) and (4, 3) has its end points at the extent of b, and the calculate ran on them
         Assert.Equal(["a", "b", "z"], table.Fields);
-        Assert.Equal(3, table.RowCount);
+        Assert.Equal(["2|1|1", "4|3|3"], Rows(table, "b", "a", "z"));
     }
 
     /// <summary>

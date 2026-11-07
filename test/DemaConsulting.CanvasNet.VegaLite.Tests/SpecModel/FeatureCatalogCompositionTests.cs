@@ -91,30 +91,35 @@ public class FeatureCatalogCompositionTests
     }
 
     /// <summary>
-    ///     Validates the reports about the field definition of a facet: a <c>bin</c>, <c>timeUnit</c> or <c>aggregate</c> that is not applied, in the facet operator and in the
-    ///     channel of a unit view, each at its property, with the one identifier <c>vl-facet-field-transform</c>.
+    ///     Validates the reports about the field definition of a facet: a <c>bin</c>, a binned or maxbins <c>timeUnit</c> or an <c>aggregate</c> that is not applied, in the facet operator and in the
+    ///     channel of a unit view, each at its property, with the one identifier <c>vl-facet-field-transform</c>; a time unit with a unit is applied (Phase 13) and not reported.
     /// </summary>
     [Fact]
     public void FeatureCatalog_Visit_FacetFieldTransformIsReported()
     {
         // Arrange
         const string facet = """
-            { "facet": { "row": { "field": "r", "type": "quantitative", "bin": true }, "column": { "field": "c", "type": "temporal", "timeUnit": "month" } }, "spec": { "mark": "point" } }
+            { "facet": { "row": { "field": "r", "type": "quantitative", "bin": true }, "column": { "field": "c", "type": "temporal", "timeUnit": { "maxbins": 4 } } }, "spec": { "mark": "point" } }
             """;
         const string channel = """{ "mark": "point", "encoding": { "column": { "field": "c", "type": "quantitative", "aggregate": "mean" } } }""";
         const string off = """{ "facet": { "field": "f", "type": "nominal", "bin": false, "timeUnit": null, "aggregate": null }, "spec": { "mark": "point" } }""";
+        const string unit = """{ "facet": { "field": "c", "type": "temporal", "timeUnit": "yearmonth" }, "spec": { "mark": "point" } }""";
+        const string binned = """{ "facet": { "field": "c", "type": "temporal", "timeUnit": { "unit": "month", "binned": true } }, "spec": { "mark": "point" } }""";
 
         // Act / Assert
         Assert.Equal([("vl-facet-field-transform", "/facet/row/bin"), ("vl-facet-field-transform", "/facet/column/timeUnit")], Ids(facet));
         Assert.Equal([("vl-facet-field-transform", "/encoding/column/aggregate")], Ids(channel));
         Assert.Empty(Visit(off));
+        Assert.Empty(Visit(unit));
+        Assert.Equal([("vl-facet-field-transform", "/facet/timeUnit")], Ids(binned));
     }
 
     /// <summary>
-    ///     Validates that a facet sort by a field and an operation is reported at the sort, while ascending, descending, null and an array of values are not.
+    ///     Validates that a facet sort by a field and an operation is drawn (the cells are ordered by the aggregate) and is not reported, like ascending, descending, null and an array of values;
+    ///     the identifier <c>vl-facet-sort</c> is retired.
     /// </summary>
     [Fact]
-    public void FeatureCatalog_Visit_FacetSortByAggregateIsReported()
+    public void FeatureCatalog_Visit_FacetSortByAggregateIsNotReported()
     {
         // Arrange
         const string byField = """{ "facet": { "field": "f", "type": "nominal", "sort": { "field": "v", "op": "mean" } }, "spec": { "mark": "point" } }""";
@@ -122,8 +127,8 @@ public class FeatureCatalogCompositionTests
         const string plain = """{ "facet": { "field": "f", "type": "nominal", "sort": null }, "spec": { "mark": "point" } }""";
 
         // Act / Assert
-        Assert.Equal([("vl-facet-sort", "/facet/sort")], Ids(byField));
-        Assert.Equal([("vl-facet-sort", "/encoding/row/sort")], Ids(byOp));
+        Assert.Empty(Visit(byField));
+        Assert.Empty(Visit(byOp));
         Assert.Empty(Visit(plain));
     }
 
@@ -267,7 +272,7 @@ public class FeatureCatalogCompositionTests
               "repeat": { "row": [ "a", "b" ], "column": [ "c", "d" ] },
               "spec": {
                 "mark": "point",
-                "encoding": { "x": { "field": { "repeat": "column" }, "type": "quantitative", "axis": { "labelBound": true } },
+                "encoding": { "x": { "field": { "repeat": "column" }, "type": "quantitative", "axis": { "encode": {} } },
                               "y": { "field": { "repeat": "row" }, "type": "quantitative" } }
               }
             }
@@ -277,7 +282,7 @@ public class FeatureCatalogCompositionTests
         var ids = Ids(json);
 
         // Assert: four copies, one report
-        Assert.Equal([("vl-guide-axis-labelbound", "/spec/encoding/x/axis/labelBound")], ids);
+        Assert.Equal([("vl-guide-encode", "/spec/encoding/x/axis/encode")], ids);
     }
 
     /// <summary>

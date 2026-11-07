@@ -15,6 +15,17 @@ language: en
 # Project-specific technical terms and tool names
 words:
   - canvasnet
+  - tricube
+  - bisquare
+  - minsteps
+  - maxsteps
+  - probs
+  - Scotts
+  - Gaussians
+  - uncenter
+  - uncentered
+  - yhat
+  - maxiters
   - deskew
   - titleorient
   - clipheight
@@ -686,7 +697,13 @@ words:
   - tahoma
   - tickband
   - tickcount
+  - tickextra
   - tickminstep
+  - titlex
+  - titley
+  - vgrad
+  - sfactor
+  - mlhvzcsqta
   - timeunit
   - timeformat
   - topo

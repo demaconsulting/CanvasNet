@@ -819,7 +819,8 @@ public class ArgumentReaderTests
     [InlineData("=5")]
     [InlineData("1x=5")]
     [InlineData("a-b=5")]
-    [InlineData("v=[1,2,3]")]
+    [InlineData("v=[1,2,3")]
+    [InlineData("v=[{\"a\":1}]")]
     public void ArgumentReader_ParseDefines_Malformed_ThrowsUsageError(string definition)
     {
         // Arrange / Act: parse a malformed definition
@@ -827,6 +828,22 @@ public class ArgumentReaderTests
 
         // Assert: the message names the definition
         Assert.Contains($"'{definition}'", exception.Message);
+    }
+
+    /// <summary>
+    ///     Test that a vector value (a JSON array) is parsed into a list, so the viewport variables can be set.
+    /// </summary>
+    [Fact]
+    public void ArgumentReader_ParseDefines_Vector_ParsedIntoAList()
+    {
+        // Arrange / Act: a target, a rotation with a nested vector, and a vector of text
+        var defines = ArgumentReader.ParseDefines(["$vpt=[0,0,20]", "m=[[1,0],[0,1]]", "names=[\"a\", \"b\"]"]);
+
+        // Assert
+        Assert.Equal([0.0, 0.0, 20.0], Assert.IsType<List<object?>>(defines["$vpt"]));
+        var matrix = Assert.IsType<List<object?>>(defines["m"]);
+        Assert.Equal([1.0, 0.0], Assert.IsType<List<object?>>(matrix[0]));
+        Assert.Equal(["a", "b"], Assert.IsType<List<object?>>(defines["names"]));
     }
 
     /// <summary>

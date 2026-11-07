@@ -373,17 +373,20 @@ internal sealed class CompositeBuilder
     ///     Splits the encoding of a composite mark into the channels the parts share and the fields that group the rows.
     /// </summary>
     /// <remarks>
-    ///     Vega-Lite groups the rows by every channel that has a field (<c>extractTransformsFromEncoding</c>). A <c>bin</c> or <c>timeUnit</c> of such a channel is not applied
-    ///     (the raw field groups the rows) and a channel that aggregates is left out: the feature catalog reports both as <c>vl-composite-grouping</c>. The channels of the
-    ///     measure (<c>x</c> or <c>y</c> and their second ends and errors) and the <c>tooltip</c> are not shared.
+    ///     Vega-Lite groups the rows by every channel that has a field (<c>extractTransformsFromEncoding</c> in <c>encoding.ts</c>). The <c>timeUnit</c> of such a channel (a unit that is
+    ///     not <c>binned</c>) becomes a <c>timeUnit</c> transform that runs before the aggregate, and the channel reads the derived field (named like <c>month_date</c>) with the default
+    ///     title of the original definition and, for a channel that is not temporal, the <c>formatType</c> <c>time</c> of its axis, legend or text; the derived field groups the rows.
+    ///     A <c>bin</c> of such a channel is not applied (the raw field groups the rows) and a channel that aggregates is left out: the feature catalog reports both as <c>vl-composite-grouping</c>.
+    ///     The channels of the measure (<c>x</c> or <c>y</c> and their second ends and errors) and the <c>tooltip</c> are not shared.
     /// </remarks>
     /// <param name="encoding">The encoding object.</param>
     /// <param name="axis">The continuous axis.</param>
-    /// <returns>The shared channels in order, and the fields to group by.</returns>
-    public (List<SpecNode> Channels, List<string> GroupBy) Grouping(SpecNode encoding, CompositeAxis axis)
+    /// <returns>The shared channels in order, the fields to group by, and the <c>timeUnit</c> transforms to run before the aggregate.</returns>
+    public (List<SpecNode> Channels, List<string> GroupBy, List<SpecNode> TimeUnits) Grouping(SpecNode encoding, CompositeAxis axis)
     {
         var channels = new List<SpecNode>();
         var groupBy = new List<string>();
+        var timeUnits = new List<SpecNode>();
         foreach (var channel in encoding.Properties)
         {
             if (channel.Name == axis.Channel || IsOwnChannel(channel.Name!))
@@ -402,17 +405,74 @@ internal sealed class CompositeBuilder
                 continue;
             }
 
-            var shared = channel["bin"] is not null || channel["timeUnit"] is not null
-                ? ObjOf(channel.Name, channel.Properties.Where(p => p.Name is not ("bin" or "timeUnit")))
-                : channel;
-            channels.Add(shared);
-            if (channel["field"] is { IsString: true } field && !groupBy.Contains(field.StringValue!, StringComparer.Ordinal))
+            string? groupField = channel["field"] is { IsString: true } field ? field.StringValue : null;
+            SpecNode shared;
+            if (channel["bin"] is null && channel["timeUnit"] is { } unitNode && groupField is not null && TimeUnitSpec.TryRead(unitNode, out var unit) && !unit.IsBinned && unit.Parts.Count > 0)
             {
-                groupBy.Add(field.StringValue!);
+                var source = groupField;
+                groupField = unit.FieldName(source);
+                timeUnits.Add(Obj(null, unitNode, Str("field", source), Str("as", groupField)));
+                shared = TimeUnitChannel(channel, groupField, unit);
+            }
+            else if (channel["bin"] is not null || channel["timeUnit"] is not null)
+            {
+                shared = ObjOf(channel.Name, channel.Properties.Where(p => p.Name is not ("bin" or "timeUnit")));
+            }
+            else
+            {
+                shared = channel;
+            }
+
+            channels.Add(shared);
+            if (groupField is not null && !groupBy.Contains(groupField, StringComparer.Ordinal))
+            {
+                groupBy.Add(groupField);
             }
         }
 
-        return (channels, groupBy);
+        return (channels, groupBy, timeUnits);
+    }
+
+    /// <summary>
+    ///     Writes the definition of a channel that reads the field a <c>timeUnit</c> transform derived.
+    /// </summary>
+    /// <param name="channel">The channel as written.</param>
+    /// <param name="derived">The name of the derived field.</param>
+    /// <param name="unit">The time unit.</param>
+    /// <returns>The definition without the <c>timeUnit</c>, with the derived field, a title and the format type for a field that is not temporal.</returns>
+    private SpecNode TimeUnitChannel(SpecNode channel, string derived, TimeUnitSpec unit)
+    {
+        var properties = new List<SpecNode?> { Str("field", derived) };
+        var hasTitle = channel["title"] is not null || channel["axis"]?["title"] is not null || channel["legend"]?["title"] is not null;
+        if (!hasTitle)
+        {
+            properties.Add(Str("title", Transforms.EncodingPlan.DefaultTimeUnitTitle(channel["field"]!.StringValue!, unit, Config)));
+        }
+
+        var needsFormat = channel["type"]?.AsString() is { } type && type != "temporal";
+        var guide = channel.Name switch
+        {
+            "x" or "y" => "axis",
+            "text" => "formatType",
+            _ => "legend",
+        };
+        foreach (var property in channel.Properties.Where(p => p.Name is not ("timeUnit" or "field" or "bin")))
+        {
+            if (needsFormat && property.Name == guide && property.IsObject)
+            {
+                properties.Add(ObjOf(property.Name, [Str("formatType", "time"), .. property.Properties.Where(p => p.Name != "formatType")]));
+                continue;
+            }
+
+            properties.Add(property);
+        }
+
+        if (needsFormat && channel[guide] is null)
+        {
+            properties.Add(guide == "formatType" ? Str("formatType", "time") : Obj(guide, Str("formatType", "time")));
+        }
+
+        return ObjOf(channel.Name, properties);
     }
 
     /// <summary>
