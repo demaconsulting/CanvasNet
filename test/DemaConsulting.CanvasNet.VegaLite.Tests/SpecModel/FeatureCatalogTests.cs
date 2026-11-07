@@ -1330,6 +1330,37 @@ public class FeatureCatalogTests
     }
 
     /// <summary>
+    ///     Validates that an expression reference inside a selection (Vega-Lite's schema allows none there) is reported as <c>vl-expr-ref</c> at its own pointer, in <c>config.selection</c>, in
+    ///     <c>params[].select</c>, in the value of a selection parameter and in an entry of the legacy <c>selection</c>, with a message that names the schema rule, and that a plain value is not reported.
+    /// </summary>
+    [Fact]
+    public void FeatureCatalog_Visit_ExpressionReferencesInASelectionAreReported()
+    {
+        // Arrange
+        const string json = """
+            {
+              "params": [
+                { "name": "p", "value": "red" },
+                { "name": "b", "select": { "type": "interval", "mark": { "fill": { "expr": "p" }, "stroke": "blue", "strokeWidth": { "expr": "datum.a" } }, "on": { "expr": "'x'" } }, "value": { "x": [ { "expr": "1" }, 5 ] } }
+              ],
+              "selection": { "legacy": { "type": "interval", "mark": { "stroke": { "expr": "p" } } } },
+              "mark": "point",
+              "config": { "selection": { "interval": { "mark": { "fillOpacity": { "expr": "0.5" } } }, "point": { "toggle": true } } }
+            }
+            """;
+
+        // Act
+        var reports = FeatureCatalog.Visit(SpecParser.Parse(json)).Where(r => r.Id == "vl-expr-ref").ToList();
+
+        // Assert
+        Assert.Equal(
+            ["/params/1/select/mark/fill", "/params/1/select/mark/strokeWidth", "/params/1/select/on", "/params/1/value/x/0", "/selection/legacy/mark/stroke", "/config/selection/interval/mark/fillOpacity"],
+            reports.Select(r => r.Location.Pointer));
+        Assert.All(reports, r => Assert.Contains("schema does not allow", r.Message, StringComparison.Ordinal));
+        Assert.All(reports, r => Assert.Equal(FeatureReportKind.UnsupportedFeature, r.Kind));
+    }
+
+    /// <summary>
     ///     Validates that the expression references of the caller's configuration text are reported as <c>vl-expr-ref</c> (nothing evaluates them there), each at its JSON pointer inside the
     ///     text, in document order, through objects and arrays, and that a text without a reference, an empty text and no text give no report.
     /// </summary>

@@ -69,7 +69,7 @@
         { "term": "vl-param-selection-projection", "text": "Warning: a selection cannot be projected over a channel (the view has no field on it, or its field is aggregated), an interval selection is initialized with a key that is not a channel, a selection used as a scale domain or a bin extent names no usable field and projects several (the first is used), or a selection bound to the scales projects a channel without a continuous scale." },
         { "term": "vl-param-variable", "text": "A variable param of a nested view (a layer or a composition): Vega-Lite declares no signal for it, so it is ignored and an expression that reads it sees null (Vega fails)." },
         { "term": "vl-transform-lookup-param", "text": "A lookup transform whose from is a param (the data of a selection): it needs the final table of another view filtered by the selection, which is not supported yet; the transform is not applied." },
-        { "term": "vl-expr-ref", "text": "An {\"expr\": ...} where Vega-Lite's schema allows none (a width or height, for example), or in a place with no row that reads datum." },
+        { "term": "vl-expr-ref", "text": "An {\"expr\": ...} where Vega-Lite's schema allows none (a width or height, or anywhere in a selection, for example), or in a place with no row that reads datum." },
         { "term": "vl-transform-<name>", "text": "A transform that is not run, for example vl-transform-regression." },
         { "term": "vl-expr-function-<name>", "text": "An expression function outside the supported 104, for example vl-expr-function-now: the call evaluates to null." },
         { "term": "vl-guide-encode", "text": "axis.encode or legend.encode." },

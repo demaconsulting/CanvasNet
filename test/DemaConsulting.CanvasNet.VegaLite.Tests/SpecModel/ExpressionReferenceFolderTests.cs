@@ -439,6 +439,60 @@ public class ExpressionReferenceFolderTests
     }
 
     /// <summary>
+    ///     Validates that a selection holds no static site: Vega-Lite's schema (6.5.0) gives <c>BrushConfig</c>, <c>PointSelectionConfig</c>, <c>IntervalSelectionConfig</c> (and their
+    ///     <c>WithoutType</c> forms), the initial <c>value</c> and <c>bind</c> only plain values, so a reference in <c>config.selection</c>, in <c>params[].select</c>, in the value of a
+    ///     selection parameter and in an entry of the legacy <c>selection</c> is not a site, and the folder leaves it in place.
+    /// </summary>
+    [Fact]
+    public void ExpressionReferenceSites_Find_ASelectionHasNoExpressionSite()
+    {
+        // Arrange
+        const string json = """
+            {
+              "params": [
+                { "name": "p", "value": "red" },
+                { "name": "b", "select": { "type": "interval", "mark": { "fill": { "expr": "p" }, "strokeWidth": { "expr": "2" } }, "on": { "expr": "'x'" } }, "value": { "x": [ { "expr": "1" }, 5 ] } },
+                { "name": "c", "select": { "type": "point", "clear": { "expr": "'x'" } } }
+              ],
+              "selection": { "legacy": { "type": "interval", "mark": { "stroke": { "expr": "p" } }, "init": { "x": [ { "expr": "1" }, 2 ] } } },
+              "mark": "point",
+              "config": { "selection": { "interval": { "mark": { "fill": { "expr": "p" }, "fillOpacity": { "expr": "0.5" }, "stroke": { "expr": "p" }, "strokeDash": { "expr": "[1, 2]" } } }, "point": { "on": { "expr": "'x'" } } } }
+            }
+            """;
+        var (parsed, result) = Fold(json);
+
+        // Act
+        var sites = ExpressionReferenceSites.Find(parsed.Root);
+
+        // Assert: none is a site, none is compiled, and nothing is folded (the same tree comes back)
+        Assert.Empty(sites);
+        Assert.Empty(parsed.Expressions.StaticReferences);
+        Assert.Same(parsed, result.Tree);
+        Assert.Empty(result.Warnings);
+    }
+
+    /// <summary>
+    ///     Validates that a selection nested in a view of a layer or a concatenation is no site either.
+    /// </summary>
+    [Fact]
+    public void ExpressionReferenceSites_Find_ASelectionOfANestedViewHasNoExpressionSite()
+    {
+        // Arrange
+        const string json = """
+            {
+              "layer": [ { "mark": "point", "params": [ { "name": "b", "select": { "type": "interval", "mark": { "fill": { "expr": "'red'" } } } } ] } ],
+              "config": { "selection": { "interval": { "mark": { "fill": { "expr": "'red'" } } } } }
+            }
+            """;
+
+        // Act
+        var sites = ExpressionReferenceSites.Find(SpecParser.Parse(json).Root);
+
+        // Assert
+        Assert.Empty(sites);
+    }
+
+    /// <summary>
     ///     Validates the sites of the configuration: the top-level properties, the title, the axes (all the <c>axis*</c> keys), the legend, the headers, the view, the scale, the mark
     ///     configurations (a mark type, <c>mark</c> and a named style) and the parts of a composite mark; a configuration of a nested view is not read.
     /// </summary>

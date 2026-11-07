@@ -8,8 +8,8 @@ namespace DemaConsulting.CanvasNet.VegaLite.SpecModel;
 ///         Vega-Lite compiles an <c>ExprRef</c> to a Vega signal, so its value is whatever the expression gives, evaluated once per view, with no row. The schema lists the properties
 ///         that take one (<c>ExprRef</c> in the definitions of the top-level specifications, titles, marks, axes, legends, headers, scales, view backgrounds, channel definitions and
 ///         the configuration); this class holds that list, owner by owner, and walks a specification along the properties that lead to those owners. The walk never enters <c>data</c>,
-///         <c>datasets</c>, <c>transform</c>, <c>params</c> or <c>projection</c>: a row of inline data can hold an object with an <c>expr</c> key, and a predicate or a transform
-///         has its own rules.
+///         <c>datasets</c>, <c>transform</c>, <c>params</c>, <c>selection</c> or <c>projection</c>, and it does not read <c>config.selection</c>: a row of inline data can hold an object with an <c>expr</c> key, a predicate or a transform
+///         has its own rules, and the schema (6.5.0: <c>BrushConfig</c>, <c>PointSelectionConfig</c>, <c>IntervalSelectionConfig</c>, <c>SelectionInit</c>) allows no <c>ExprRef</c> in a selection, which the feature catalog reports instead.
 ///     </para>
 ///     <para>
 ///         <c>width</c> and <c>height</c> are not on the list (Vega-Lite's size is a number, <c>"container"</c> or a step), and neither are the text properties that a schema

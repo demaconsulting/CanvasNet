@@ -244,8 +244,41 @@ internal sealed partial class SelectionModel
     /// <returns>The merged mark; an empty object when neither has one.</returns>
     private static ConfigNode MarkOf(SpecNode declaration, ResolvedConfig config)
     {
-        var mark = config.VegaLite["selection"]?["interval"]?["mark"] is { IsObject: true } configured ? configured : ConfigNode.EmptyObject;
-        return SelectionDeclarations.OptionsOf(declaration)?["mark"] is { IsObject: true } own ? ConfigNode.Merge(mark, ConfigNode.FromSpec(own)) : mark;
+        // Vega-Lite's schema allows no expression reference in a brush (BrushConfig takes plain values): such a value is not evaluated, and the brush keeps the property it would have replaced
+        // (the default of the configuration for a reference in config.selection, the configuration's value for a reference in the selection)
+        var defaults = ConfigResolver.Defaults.VegaLite["selection"]?["interval"]?["mark"];
+        var mark = config.VegaLite["selection"]?["interval"]?["mark"] is { IsObject: true } configured ? WithoutReferences(configured, defaults) : ConfigNode.EmptyObject;
+        return SelectionDeclarations.OptionsOf(declaration)?["mark"] is { IsObject: true } own ? ConfigNode.Merge(mark, WithoutReferences(ConfigNode.FromSpec(own), null)) : mark;
+    }
+
+    /// <summary>
+    ///     Replaces the expression references (<c>{"expr": ...}</c> objects) among the properties of a brush mark.
+    /// </summary>
+    /// <param name="mark">The mark object.</param>
+    /// <param name="fallback">The mark whose value stands for a reference of the same property, or null to drop the property.</param>
+    /// <returns>The mark without references; <paramref name="mark"/> itself when it holds none.</returns>
+    private static ConfigNode WithoutReferences(ConfigNode mark, ConfigNode? fallback)
+    {
+        static bool IsReference(ConfigNode node) => node is { Kind: ConfigNodeKind.Object } && node["expr"] is { Kind: ConfigNodeKind.String };
+        if (!mark.Properties.Values.Any(IsReference))
+        {
+            return mark;
+        }
+
+        var properties = new Dictionary<string, ConfigNode>(StringComparer.Ordinal);
+        foreach (var (name, value) in mark.Properties)
+        {
+            if (!IsReference(value))
+            {
+                properties[name] = value;
+            }
+            else if (fallback?[name] is { } replacement)
+            {
+                properties[name] = replacement;
+            }
+        }
+
+        return ConfigNode.Create(properties);
     }
 
     /// <summary>

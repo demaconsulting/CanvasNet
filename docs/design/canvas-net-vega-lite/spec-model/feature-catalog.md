@@ -469,6 +469,15 @@ channel is the existing `vl-encoding-bin`. Both new identifiers are never reused
   `config` of the top-level view, which is scanned too) is reported only for its
 unsupported constructs. A reference whose value no property can hold is reported at render time by the folder, with the
   same identifier, not by the catalog.
+- `VisitSelectionReferences(declaration)` (called by `VisitSelection` for every parameter with a `select` and every
+  entry of the legacy `selection`) reports as `vl-expr-ref` every `{"expr": ...}` inside the declaration - the `select`
+  options (`mark`, `on`, `clear`, `fields`, `encodings`, `translate`, `zoom`), the initial `value` or `init`, and
+  `bind` - at its own pointer, found with an explicit stack. Vega-Lite's schema (6.5.0: `BrushConfig`,
+  `PointSelectionConfig`, `IntervalSelectionConfig` and their `WithoutType` forms, `SelectionInit`) allows no
+  `ExprRef` anywhere in a selection, so none is a static site: it is not compiled, folded, or evaluated, and the
+  message says so. The same message is the one of a reference below `config.selection` (found by the scan above,
+  which recognizes the path by the parent links of the node); `SelectionModel` then keeps the default of the
+  brush `mark` for such a property (see the selection model unit).
 - `VisitCallerConfig(string? callerConfig)` - reports as `vl-expr-ref` (unsupported feature, no location, the JSON
   pointer inside the text in the message) every `{"expr": ...}` object in the `Config` text of the caller's render
   options, found with an explicit stack in document order (the text was validated as a JSON object of at most 64

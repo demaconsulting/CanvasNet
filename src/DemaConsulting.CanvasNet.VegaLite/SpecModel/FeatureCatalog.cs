@@ -158,6 +158,10 @@ internal static class FeatureCatalog
     /// <summary>The properties of a view in which an <c>{"expr": ...}</c> value is looked for.</summary>
     private static readonly HashSet<string> ExpressionScopes = ["title", "width", "height", "padding", "background", "view", "mark", "encoding", "facet"];
 
+    /// <summary>The message for an expression reference inside a selection, where Vega-Lite's schema allows none (the brush <c>mark</c>, the events, the projection and the initial value take plain values).</summary>
+    private const string SelectionReferenceMessage =
+        "Vega-Lite's schema does not allow an expression reference in a selection (the brush mark, the events, the projection and the initial value take plain values); the reference is ignored and the property keeps its default.";
+
     /// <summary>The properties of a view inside a concatenation, a facet or a repeat that only the top-level view decides: a nested view's own value is ignored (<c>vl-composition-property-ignored</c>).</summary>
     private static readonly string[] NestedIgnoredProperties = ["padding", "background", "config", "datasets", "autosize"];
 
@@ -496,6 +500,7 @@ internal static class FeatureCatalog
         /// <param name="declaration">The parameter object or the legacy selection entry.</param>
         private void VisitSelection(SpecNode declaration)
         {
+            VisitSelectionReferences(declaration);
             var options = SelectionDeclarations.OptionsOf(declaration);
             var timer = options?["on"] is { } on && (on.StringValue?.Contains("timer", StringComparison.Ordinal) == true || on["type"]?.StringValue == "timer");
             if (timer || options?["encodings"] is { IsArray: true } encodings && encodings.Items.Any(e => e.StringValue == "time"))
@@ -518,6 +523,62 @@ internal static class FeatureCatalog
                     "The selection is declared for two or more layers of a layered view, which Vega-Lite compiles to duplicate signals that Vega rejects; declare it in one layer or name the layer in 'views'. It is applied as an empty selection.",
                     declaration);
             }
+        }
+
+        /// <summary>
+        ///     Reports each <c>{"expr": ...}</c> inside the declaration of a selection.
+        /// </summary>
+        /// <remarks>
+        ///     Vega-Lite's schema (6.5.0) allows no expression reference anywhere in a selection: <c>BrushConfig</c> (<c>fill</c>, <c>fillOpacity</c>, <c>stroke</c> and the other properties of the brush),
+        ///     <c>PointSelectionConfig</c> and <c>IntervalSelectionConfig</c> (<c>on</c>, <c>clear</c>, <c>fields</c>, <c>encodings</c>, <c>translate</c>, <c>zoom</c>, ...) and the initial <c>value</c> take
+        ///     plain values, a stream or a mapping, and Vega-Lite copies the value to a Vega mark or event stream as it is, where an object is invalid. The reference is therefore not a static site: it is
+        ///     not evaluated, and the brush keeps the defaults for the properties it would have set.
+        /// </remarks>
+        /// <param name="declaration">The parameter object or the legacy selection entry.</param>
+        private void VisitSelectionReferences(SpecNode declaration)
+        {
+            var pending = new Stack<SpecNode>();
+            foreach (var property in declaration.Properties)
+            {
+                pending.Push(property);
+            }
+
+            while (pending.Count > 0)
+            {
+                var node = pending.Pop();
+                if (node.IsObject && node["expr"] is { IsString: true })
+                {
+                    Unsupported("vl-expr-ref", SelectionReferenceMessage, node);
+                    continue;
+                }
+
+                if (node.IsObject || node.IsArray)
+                {
+                    var children = node.IsObject ? node.Properties : node.Items;
+                    for (var i = children.Count - 1; i >= 0; i--)
+                    {
+                        pending.Push(children[i]);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        ///     Tells whether a node lies inside <c>config.selection</c> of the specification.
+        /// </summary>
+        /// <param name="node">The node.</param>
+        /// <returns><see langword="true"/> when an ancestor is the <c>selection</c> of the <c>config</c>.</returns>
+        private static bool IsInConfigSelection(SpecNode node)
+        {
+            for (var parent = node.Parent; parent is not null; parent = parent.Parent)
+            {
+                if (parent.Name == "selection" && parent.Parent?.Name == "config")
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -2141,7 +2202,7 @@ internal static class FeatureCatalog
                     }
                     else
                     {
-                        Unsupported("vl-expr-ref", "Expression references are not supported here yet.", node);
+                        Unsupported("vl-expr-ref", IsInConfigSelection(node) ? SelectionReferenceMessage : "Expression references are not supported here yet.", node);
                     }
 
                     continue;

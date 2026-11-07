@@ -361,7 +361,9 @@ sections:
                   and an undeclared width, height, padding, autosize, background, or cursor) as
                   vl-expr-view-state, and each deferred operator as vl-expr-construct-name, and shall report
                   an expression reference only where it is not evaluated - at a site that Vega-Lite's schema does
-                  not allow (the width, the height, a predicate outside the compiled sites) and at a static site
+                  not allow (the width, the height, a predicate outside the compiled sites, and anything in a
+                  selection - the brush mark, the events, the projection and the initial value, in a parameter, in
+                  the legacy selection and in config.selection) and at a static site
                   whose expression reads datum, which has no row - as vl-expr-ref, and every expression reference
                   in the Config text of the caller's render options, which nothing evaluates, as vl-expr-ref at its
                   pointer in the text, but not an expression
@@ -381,6 +383,7 @@ sections:
                   - FeatureCatalog_Visit_UnsupportedExpressionConstructsAreReportedAtTheExpression
                   - FeatureCatalog_Visit_DifferentlyCasedFunctionNames_ShareOneLowerCaseIdentifier
                   - FeatureCatalog_Visit_ExpressionReferencesAreReportedOnlyWhereTheyAreNotEvaluated
+                  - FeatureCatalog_Visit_ExpressionReferencesInASelectionAreReported
                   - FeatureCatalog_VisitCallerConfig_ReportsEveryExpressionReferenceAtItsPointer
                   - CanvasNetVegaLite_SystemIntegration_Params_AnExpressionReferenceInTheCallerConfigIsReported
                   - FeatureCatalog_Visit_SupportedLabelExpressionsAreNotReported

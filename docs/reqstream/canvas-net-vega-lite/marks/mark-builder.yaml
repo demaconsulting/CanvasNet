@@ -126,7 +126,9 @@ sections:
                   unit that holds its first tuple and never in the cell of a facet (and in every unit for any other
                   resolve), shall wrap the marks of a layered view child by child (the shade of every selection
                   before the marks of every layer and the outline after them) and the selections of one unit one
-                  around the other in declaration order, and shall charge four scene items for a brush.
+                  around the other in declaration order, shall not evaluate an expression reference in the mark of a
+                  brush (Vega-Lite's schema gives it plain values only: the property keeps its default, or the value
+                  of the configuration), and shall charge four scene items for a brush.
                 justification: |
                   The brush is the visible state of an interval selection; a still chart that omitted it, or drew it
                   where Vega-Lite does not, would not show the selection the specification describes.
@@ -143,6 +145,9 @@ sections:
                   - CanvasNetVegaLite_SystemIntegration_Brush_TheMarkOfTheSelectionPaintsTheBrush
                   - CanvasNetVegaLite_SystemIntegration_Brush_TheSelectionMarkIsMergedOverTheDefaults
                   - CanvasNetVegaLite_SystemIntegration_Brush_TheConfigurationOverridesTheDefaultMark
+                  - CanvasNetVegaLite_SystemIntegration_Brush_AnExpressionInTheConfigurationMarkIsReportedAndTheDefaultsStay
+                  - CanvasNetVegaLite_SystemIntegration_Brush_AnExpressionInTheSelectionMarkIsReportedAndTheConfiguredValueStays
+                  - CanvasNetVegaLite_SystemIntegration_Brush_AnExpressionInTheCallerConfigurationOrTheProjectionIsReported
                   - CanvasNetVegaLite_SystemIntegration_Brush_TheCallerReplacesOrClearsTheInitialValue
                   - CanvasNetVegaLite_SystemIntegration_Brush_AGlobalSelectionIsDrawnByItsFirstUnitOnly
                   - CanvasNetVegaLite_SystemIntegration_Brush_NoCellOfAFacetDrawsAGlobalSelection

@@ -37,7 +37,10 @@ or
 `TimeUnits` (the `TimeUnitRequest` of each projected field that a time unit derives), `Init` (one list of values per
 initial value, one value per projected field), `Bind` (`SelectionBind`: none, widget, legend, or scales), `Mark` (the
 `mark` of the brush of an interval selection: `config.selection.interval.mark` with the `mark` of the declaration over
-it, property by property; null for a point selection), `IsScaleBound` (an interval selection resolved globally with
+it, property by property; an `{"expr": ...}` property is not read (Vega-Lite's schema gives `BrushConfig` plain values
+only, and the feature catalog reports it as `vl-expr-ref`): a reference in the configuration gives the default of
+that property (`#333`, 0.125, white), and one in the declaration leaves the configured value in place; null for a point
+selection), `IsScaleBound` (an interval selection resolved globally with
 `bind: "scales"`: Vega-Lite's `scales.defined`), `IsTopLevelView` (the unit is the whole view or a layer of a layered
 view that is the whole view), `IsDropped`, and `UsesRowIdentity` (a projection over `_vgsid_`).
 

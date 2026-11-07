@@ -900,7 +900,7 @@ bars have the heights 20, 40, 60, 80, and 100 and start at the baseline, at x = 
 
 ##### Brush Marks Of An Interval Selection
 
-**Tests**: `VegaLiteBrushIntegrationTests.CanvasNetVegaLite_SystemIntegration_Brush_*` (the 17 scenarios below, run
+**Tests**: `VegaLiteBrushIntegrationTests.CanvasNetVegaLite_SystemIntegration_Brush_*` (the 20 scenarios below, run
 through the public API because the brush needs the selection model, the scales, and the composition together)
 
 Asserts, for a 200 by 100 pixel data rectangle, that the background rectangle covers the range of both channels (the
@@ -909,7 +909,10 @@ that a channel that is not projected spans the data rectangle, that dates map th
 gives the
 start of the band, that a range without an extent and a selection without an initial value draw nothing, that the
 background is `#333` at the fill opacity 0.125 and the brush transparent with a white stroke, that a `mark` of the
-selection is merged over the defaults and `config.selection.interval.mark` overrides them, that the caller replaces or
+selection is merged over the defaults and `config.selection.interval.mark` overrides them, that an expression
+reference in the `mark` (a fill from a variable parameter, a stroke, an opacity, a width, a `datum` read; in the
+configuration, in the selection, or in the caller's `Config`) is reported as `vl-expr-ref` and not evaluated, the brush
+keeping the default of the property (`#333`, 0.125, white) or the configured value, that the caller replaces or
 clears the initial value, that a global selection is drawn by its first unit only and never by a facet cell, that a
 layered view draws `[background, layers, brush]` around all its layers, that the selections of one unit nest in the order
 of their declaration, and that the four items of a brush are charged to the scene budget.

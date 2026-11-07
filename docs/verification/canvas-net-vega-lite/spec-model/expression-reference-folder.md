@@ -88,10 +88,15 @@ of the `config` are sites, the named color ranges are not, and a configuration o
 
 ##### Sites That Are Not Walked
 
-**Tests**: `ExpressionReferenceFolderTests.ExpressionReferenceSites_Find_DoesNotEnterDataTransformsAndParameters`
+**Tests**: `ExpressionReferenceFolderTests.ExpressionReferenceSites_Find_DoesNotEnterDataTransformsAndParameters`,
+`ExpressionReferenceFolderTests.ExpressionReferenceSites_Find_ASelectionHasNoExpressionSite`,
+`ExpressionReferenceFolderTests.ExpressionReferenceSites_Find_ASelectionOfANestedViewHasNoExpressionSite`
 
 Asserts that an inline data row with an `expr` key, a predicate, a transform, and a parameter definition are not
-walked, so none of them is a site.
+walked, so none of them is a site. Asserts also that a selection holds no site, because Vega-Lite's schema (6.5.0) gives
+its brush `mark` (`BrushConfig`), events, projection, and initial value plain values only: a reference in
+`config.selection`, in the `select` or the value of a selection parameter, in an entry of the legacy `selection`, and in
+a selection of a nested view is not listed, not compiled, and left in place by the folder (the same tree, no warning).
 
 ##### Row-Bound Sites Keep Their Reference
 

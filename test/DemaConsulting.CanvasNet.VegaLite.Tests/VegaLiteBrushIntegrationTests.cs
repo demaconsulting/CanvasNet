@@ -464,6 +464,89 @@ public class VegaLiteBrushIntegrationTests
     }
 
     /// <summary>
+    ///     Lays a chart out and collects the unsupported-feature reports of the call.
+    /// </summary>
+    /// <param name="json">The specification text.</param>
+    /// <param name="config">The configuration of the caller, or null.</param>
+    /// <returns>The groups of the brush and the reports, each as the feature id, a colon and the message.</returns>
+    private static (List<(SceneGroup Group, double OffsetX)> Groups, List<string> Reports) BuildReporting(string json, string? config = null)
+    {
+        var reports = new List<string>();
+        var options = new VegaLiteRenderOptions { Config = config, UnsupportedFeatureHandler = u => reports.Add(u.Feature + ": " + u.Message) };
+
+        // The reports are delivered by measuring; the scene is laid out the same way
+        var document = VegaLiteDocument.Parse(json);
+        document.Measure(options, Ct);
+        return (Groups(document.BuildScene(options, Ct)), reports);
+    }
+
+    /// <summary>
+    ///     Validates that Vega-Lite's schema (6.5.0), which allows no expression reference in <c>BrushConfig</c> (its <c>fill</c> and <c>stroke</c> are a color, the opacities and widths
+    ///     numbers), is honored for <c>config.selection.interval.mark</c>: a fill, a stroke and an opacity that are expressions (one driven by a variable parameter) are reported as
+    ///     <c>vl-expr-ref</c> at their pointers and are not evaluated, and the brush keeps the default shade (#333 at 0.125) and the white outline.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Brush_AnExpressionInTheConfigurationMarkIsReportedAndTheDefaultsStay()
+    {
+        // Arrange: the fill is driven by a variable parameter, the stroke is a constant expression and the opacity reads the parameter
+        var json = Scatter(
+            """{ "name": "shade", "value": "red" }, { "name": "level", "value": 0.5 }, { "name": "brush", "select": "interval", "value": { "x": [2, 6] } }""",
+            """ "config": { "selection": { "interval": { "mark": { "fill": { "expr": "shade" }, "stroke": { "expr": "'blue'" }, "fillOpacity": { "expr": "level" }, "strokeWidth": { "expr": "3" } } } } }, """);
+
+        // Act
+        var (groups, reports) = BuildReporting(json);
+        var shade = RectOf(groups[0].Group);
+        var outline = RectOf(groups[2].Group);
+
+        // Assert: four references reported, the brush painted with the defaults
+        Assert.Equal(4, reports.Count(r => r.StartsWith("vl-expr-ref:", StringComparison.Ordinal) && r.Contains("selection", StringComparison.Ordinal)));
+        Assert.Equal(("#333", 0.125), (shade.Fill, shade.FillOpacity));
+        Assert.Equal(("transparent", "white"), (outline.Fill, outline.Stroke));
+        Assert.NotEqual(3.0, outline.StrokeWidth);
+    }
+
+    /// <summary>
+    ///     Validates the same for <c>params[].select.mark</c> and for a reference that reads the datum: the references are reported (each at its own pointer), the value that the selection would
+    ///     have replaced is kept, and a sibling that is a plain value still applies. A reference in the selection leaves the value of the configuration in place.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Brush_AnExpressionInTheSelectionMarkIsReportedAndTheConfiguredValueStays()
+    {
+        // Arrange: the configuration gives orange and 0.2; the selection's fill reads a variable parameter, its stroke the datum, and its opacity is a plain 0.4 beside a reference to the stroke width
+        var json = Scatter(
+            """{ "name": "shade", "value": "red" }, { "name": "brush", "select": { "type": "interval", "mark": { "fill": { "expr": "shade" }, "stroke": { "expr": "datum.k" }, "fillOpacity": 0.4, "strokeWidth": { "expr": "2" } } }, "value": { "x": [2, 6] } }""",
+            """ "config": { "selection": { "interval": { "mark": { "fill": "orange", "stroke": "purple", "strokeWidth": 4 } } } }, """);
+
+        // Act
+        var (groups, reports) = BuildReporting(json);
+        var shade = RectOf(groups[0].Group);
+        var outline = RectOf(groups[2].Group);
+
+        // Assert
+        Assert.Equal(3, reports.Count(r => r.StartsWith("vl-expr-ref:", StringComparison.Ordinal) && r.Contains("selection", StringComparison.Ordinal)));
+        Assert.Equal(("orange", 0.4), (shade.Fill, shade.FillOpacity));
+        Assert.Equal(("purple", 4.0), (outline.Stroke, outline.StrokeWidth));
+    }
+
+    /// <summary>
+    ///     Validates that a reference in the <c>Config</c> of the render options and in an initial value or an event of the selection is reported, and that the brush is drawn as if it were absent.
+    /// </summary>
+    [Fact]
+    public void CanvasNetVegaLite_SystemIntegration_Brush_AnExpressionInTheCallerConfigurationOrTheProjectionIsReported()
+    {
+        // Arrange: a reference at the stroke in the caller's configuration, one in the events of the selection
+        var json = Scatter("""{ "name": "brush", "select": { "type": "interval", "on": { "expr": "'mousedown'" } }, "value": { "x": [2, 6] } }""");
+
+        // Act
+        var (groups, reports) = BuildReporting(json, """{ "selection": { "interval": { "mark": { "stroke": { "expr": "'blue'" } } } } }""");
+        var outline = RectOf(groups[2].Group);
+
+        // Assert: one report for the caller's text and one for the events; the stroke is the default
+        Assert.Equal(2, reports.Count(r => r.StartsWith("vl-expr-ref:", StringComparison.Ordinal)));
+        Assert.Equal("white", outline.Stroke);
+    }
+
+    /// <summary>
     ///     Finds the smallest <see cref="VegaLiteLimits.MaxSceneItems"/> with which a chart can be laid out.
     /// </summary>
     /// <param name="json">The specification text.</param>

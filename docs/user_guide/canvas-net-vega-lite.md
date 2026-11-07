@@ -401,7 +401,8 @@ of its row and its parameters. Expressions are accepted in these places, and onl
   expression runs once for every label, with `datum` bound to the label (see *Vega-Lite Label Expressions*).
 
 An expression anywhere else (`width`, `height`, a `facet` field definition, an `{"expr": ...}` that Vega-Lite's schema
-does not allow) is not evaluated and is reported (`vl-expr-ref`), and so is a static site that reads `datum`.
+does not allow, and every one inside a selection: the brush `mark`, `on`, `fields`, the initial `value`, in `params` or
+in `config.selection`) is not evaluated and is reported (`vl-expr-ref`), and so is a static site that reads `datum`.
 Conditional encodings (`condition` with a `test` or a `param`) are applied, as described in *Vega-Lite Conditional Encodings*.
 
 Every expression of every view is **compiled when the document is opened**, once, so a mistake is a
@@ -689,7 +690,10 @@ The circles at `a` = 1 and 4 are red (the range includes both ends) and the one 
   copies to the rectangle although its schema does not list them; the `cursor` has no meaning). Both are clipped to
   the data rectangle. The `mark` of the selection
   is merged over `config.selection.interval.mark` (the specification's and the caller's `Config`), property by
-  property. The rectangle runs from the first end of the range to the second of the **first** value, each end mapped
+  property. Vega-Lite's schema gives the `mark` plain values only, so an `{"expr": ...}` there (a fill from a
+  parameter, say) is reported (`vl-expr-ref`) and not evaluated: the brush keeps the default of that property (or the
+  value of the configuration, for a reference in the selection's own `mark`). The rectangle runs from the first end of
+  the range to the second of the **first** value, each end mapped
   through the scale of its channel (the ends may come in either order; a band scale maps a value to the **start** of its
   band, so a brush from `"a"` to `"c"` stops where the band of `"c"` starts), and an axis the selection is not projected
   over spans the data rectangle. A brush that has no extent on an axis it is projected over, a selection with no value,
@@ -2508,7 +2512,7 @@ thread, after the work finished and before the method returns or throws.
 | `vl-guide-axis-tickcount-interval` | Warning | A time interval (`"week"` or `{"interval": "week", "step": 2}`) as the `tickCount` of an axis or legend whose scale is not a time scale; the default tick count is used |
 | `vl-format-type-custom` | Unsupported | An `axis.formatType`, `legend.formatType`, `header.formatType`, or the `formatType` of a `text` channel other than `number`, `time`, and `utc` (a custom format type is not evaluated; the default format is used) |
 | `vl-scale-domain-raw` | Warning | The value of the parameter that a scale `domain` names, or a `domainRaw`, that cannot be a domain: not an array, fewer than two numbers or dates for a continuous scale (none for a band, point, or ordinal scale), or an entry that is not a number or a date (a text, an object, `NaN`); the scale keeps its own domain (see *A parameter as the domain of a scale* in *Vega-Lite Parameters*) |
-| `vl-expr-ref` | Unsupported or warning | An `{"expr": ...}` value that is not evaluated: at a property that Vega-Lite's schema does not allow one at (`width`, `height`, a `facet` field definition, and the like), at a static site that reads `datum` (a static site has no row; the property keeps its default), or in the `Config` of the render options (unsupported); and, as a **warning**, an expression at a static site whose value is a date (or a regular expression) where the property takes none. The value is not used |
+| `vl-expr-ref` | Unsupported or warning | An `{"expr": ...}` value that is not evaluated: at a property that Vega-Lite's schema does not allow one at (`width`, `height`, a `facet` field definition, and the like), at a static site that reads `datum` (a static site has no row; the property keeps its default), in a selection (its brush `mark`, events, projection or initial value, where the schema allows none), or in the `Config` of the render options (unsupported); and, as a **warning**, an expression at a static site whose value is a date (or a regular expression) where the property takes none. The value is not used |
 | `vl-offset-position` | Unsupported | An `xOffset` or `yOffset` that has no position to nest in: the `x` (or `y`) channel is missing, is quantitative, or is temporal without a `timeUnit`; or its time unit is `day`, `weekday`, `yearweekday`, binned, or `maxbins`; or the mark is a `rect` with a temporal time unit. A nominal or ordinal field with a `timeUnit` is an ordinary band parent and is drawn (not reported). A temporal field with another time unit is nested in and not reported. The offset is ignored and the marks are drawn at their position (Vega-Lite throws for a continuous position) |
 | `vl-offset-ranged` | Unsupported | A continuous (quantitative or temporal) `xOffset` or `yOffset` of a `bar` or an `area`, which Vega-Lite draws as a range from the start of the band (a ranged offset). The offset is ignored and the marks are drawn at their position; the continuous offset of a point-like mark is drawn |
 | `vl-expr-function-<name>` | Unsupported | The string value of an expression (also a `labelExpr`) that calls a function outside the 104 supported ones, once per call, with `<name>` lower-cased (`vl-expr-function-now` for `now`, `vl-expr-function-geoarea` for `geoArea`; `vl-expr-function-luminance` for `luminance`; the message names the function **as written**). The call evaluates to null |

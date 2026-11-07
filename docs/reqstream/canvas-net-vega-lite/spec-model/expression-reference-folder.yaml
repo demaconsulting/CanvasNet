@@ -40,6 +40,8 @@ sections:
                   - ExpressionReferenceFolder_Fold_NestedViewsFoldTheirOwnSites
                   - ExpressionReferenceFolder_Fold_FoldsTheConfiguration
                   - ExpressionReferenceSites_Find_DoesNotEnterDataTransformsAndParameters
+                  - ExpressionReferenceSites_Find_ASelectionHasNoExpressionSite
+                  - ExpressionReferenceSites_Find_ASelectionOfANestedViewHasNoExpressionSite
                   - ExpressionReferenceSites_Find_ReadsTheConfiguration
                   - ExpressionReferenceSites_Find_AConditionHasNoStaticValue
                   - ExpressionReferenceSites_PropertiesOf_MatchesTheSchemaCounts

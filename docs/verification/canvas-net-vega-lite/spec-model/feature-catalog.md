@@ -370,6 +370,7 @@ the nested view are computed, so a `calculate` is silent and a `lookup` reports 
 ##### Expression References Are Reported Only Where They Are Not Evaluated
 
 **Tests**: `FeatureCatalogTests.FeatureCatalog_Visit_ExpressionReferencesAreReportedOnlyWhereTheyAreNotEvaluated`,
+`FeatureCatalogTests.FeatureCatalog_Visit_ExpressionReferencesInASelectionAreReported`,
 `FeatureCatalogTests.FeatureCatalog_VisitCallerConfig_ReportsEveryExpressionReferenceAtItsPointer`,
 `VegaLiteParamsIntegrationTests.CanvasNetVegaLite_SystemIntegration_Params_AnExpressionReferenceInTheCallerConfigIsReported`
 
@@ -385,6 +386,11 @@ the JSON pointer (escaped) in the message and no location, in document order; an
 reference; a text without a reference, an empty text and null give nothing; and, through the public API, a measure with
 such a `Config` delivers exactly the references of the caller's text to the handler (the specification's own `config`
 is evaluated and not reported).
+
+Asserts also that an `{"expr": ...}` inside a selection is reported as an unsupported `vl-expr-ref` at its own pointer,
+in document order, with a message that names the schema rule: in the `select` of a parameter (`mark.fill`,
+`mark.strokeWidth` reading `datum`, `on`), in its initial `value`, in an entry of the legacy `selection`, and in
+`config.selection.interval.mark`; a plain value beside them (`"stroke": "blue"`, `"toggle": true`) is silent.
 
 ##### Sort By A Field Is Reported Only For Unsupported Forms
 
